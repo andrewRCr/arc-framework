@@ -3,6 +3,9 @@
 import { z } from "zod";
 
 import { canonicalize, sortByCanonicalBytes } from "../../lib/canonical/canonical-json.js";
+import { DeliveryReviewMemberVehicleSchema } from "../../lib/delivery/review-vehicle.js";
+import { SlugSchema } from "../../lib/kernel/schema/slug.js";
+import { ReviewIdentifierSchema } from "../review-gate/core/gate-contract-v2-schema.js";
 import { ReviewResponseSettlementActionSchema } from "../review-gate/core/response-plan-schema.js";
 import {
   HostedSettleEnvelopeSchema,
@@ -18,9 +21,33 @@ export const HostedSettlementActionSchema = z.strictObject({
 });
 export type HostedSettlementAction = z.infer<typeof HostedSettlementActionSchema>;
 
+/** Recheck an already-completed Candidate-owned private-member fix without replaying it. */
+export const CandidateResponseConfirmationActionSchema = z.strictObject({
+  channel: z.literal("candidate-response-confirmation"),
+  dispositionId: DigestSchema,
+  operationId: ReviewIdentifierSchema,
+  workUnit: SlugSchema,
+  candidateId: DigestSchema,
+  responseId: DigestSchema,
+  memberTargetId: DigestSchema,
+  candidateOriginTargetId: DigestSchema,
+  deliveryMember: DeliveryReviewMemberVehicleSchema,
+  approvedBase: z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u),
+}).superRefine((action, context) => {
+  if (action.deliveryMember.workUnitId !== action.workUnit) {
+    context.addIssue({
+      code: "custom",
+      path: ["deliveryMember", "workUnitId"],
+      message: "must match the Candidate work unit",
+    });
+  }
+});
+export type CandidateResponseConfirmationAction = z.infer<typeof CandidateResponseConfirmationActionSchema>;
+
 export const SettlementActionSchema = z.discriminatedUnion("channel", [
   HostedSettlementActionSchema,
   ReviewResponseSettlementActionSchema,
+  CandidateResponseConfirmationActionSchema,
 ]);
 export type SettlementAction = z.infer<typeof SettlementActionSchema>;
 
@@ -48,6 +75,21 @@ export function composeHostedSettlementAction(input: {
     channel: "hosted",
     dispositionId: input.dispositionId,
     request: input.request,
+  });
+}
+
+/**
+ * Pin the existing private-response evidence this checkpoint will re-confirm at settlement.
+ *
+ * @param input - Exact Candidate and private-member response identities.
+ * @returns A validated confirmation action for the canonical settlement plan.
+ */
+export function composeCandidateResponseConfirmationAction(
+  input: Omit<z.input<typeof CandidateResponseConfirmationActionSchema>, "channel">,
+): CandidateResponseConfirmationAction {
+  return CandidateResponseConfirmationActionSchema.parse({
+    channel: "candidate-response-confirmation",
+    ...input,
   });
 }
 

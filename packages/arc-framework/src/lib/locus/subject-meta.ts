@@ -75,7 +75,7 @@ export type DeliveryCorrectionProjection =
 export type SubjectMetaProjection =
   | {
       kind: "unresolved";
-      code: "subject-unresolved" | "candidate-re-root-required";
+      code: "subject-unresolved" | "candidate-re-root-required" | "candidate-record-schema-skew";
       message: string;
       metaPath: string | null;
     }
@@ -106,6 +106,7 @@ export async function projectCheckoutSubjectMeta(options: {
     | { kind: "completed"; path: string };
   candidates: readonly DormantMetaEvidence[];
   activeExtensions?: readonly string[];
+  foreignCheckout?: boolean;
   io: SubjectMetaIO;
 }): Promise<SubjectMetaProjection> {
   const expectedPath = options.metaRoot.kind === "maintainer"
@@ -164,6 +165,17 @@ export async function projectCheckoutSubjectMeta(options: {
       const candidateContent = await options.io.readFile(join(options.cwd, candidatePath));
       const candidateRecord = parseCandidateManagedRecord(candidateContent);
       if (candidateRecord === null) {
+        if (options.foreignCheckout === true) {
+          return {
+            kind: "unresolved",
+            code: "candidate-record-schema-skew",
+            message: `Candidate record could not be read by this inspecting build's schema: ${candidatePath}. `
+              + `Inspect active work unit '${options.subjectKey}' from checkout ${options.cwd} with its `
+              + "checkout-local ARC CLI; if that CLI reports a stale build, apply its stated rebuild remedy and "
+              + "retry. This foreign read does not establish cleanup eligibility.",
+            metaPath: expectedPath,
+          };
+        }
         throw new Error(`Candidate record could not be read under this build's schema: ${candidatePath}`);
       }
       if (candidateRecord.attestation.candidateId !== record.candidateId) {

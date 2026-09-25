@@ -21,21 +21,27 @@ arc:
 Before implementing the current task, inspect whether an already-bound delivery requires correction routing:
 
 ```bash
-printf '%s\n' '{"entryMode":"execution"}' | arc delivery entry inspect --input - --json
+printf '%s\n' '{"entryMode":"execution"}' | arc delivery entry inspect -
 ```
 
 Dispatch only on the typed result. `not-applicable` continues below. `correction-routing-required`,
 `review-fix-verification-required`, and a correction-owned `resume-bound` invoke the selector-free
-`arc delivery review-fix continue - --json` procedure in
+`arc delivery review-fix continue -` procedure in
 [`supplemental/deliver-stack.md`](supplemental/deliver-stack.md). It derives the exact member, operation, verification,
 and acknowledgment from canonical state; dispatch its machine actions and re-enter it without reconstructing a
 selector. `canonicalize-provisional` resumes the matching
-delivery-entry route. `refused` renders `recommendedActionText` and stops; any other result also stops as an
+delivery-entry route. `repair-required` with `reauthor-plan` enters the matching authoring route in that workflow and
+reruns inspection after the replacement revision is composed. `refused` renders `recommendedActionText` and stops;
+any other result also stops as an
 execution-entry contract violation.
 
 - **One task at a time:** Each checkbox in the task list is one review increment — a bounded unit of
   autonomous execution between human review points. Complete one, mark it `[x]`, report, and **stop**
   for user approval.
+
+- **Review vocabulary:** In this workflow, "review increment" and "deferred review" name task-interlock scope.
+  Any evaluator review run before Candidate preparation is working review: it binds to no Candidate target and
+  discharges neither the frontline nor standard lane. Candidate preparation starts those review lanes.
 
 - **Co-development awareness:** The developer may be editing files or making commits alongside you.
   Treat parallel changes as expected context, not interruptions. If changes conflict with your
@@ -133,6 +139,8 @@ execution-entry contract violation.
      **Deferred-review policy for item 4:** When the user explicitly requests continuation through a specific set
      of tasks (e.g., "work through tasks 5.2-5.4 while I'm away"), the mandatory stop between
      those tasks is deferred. The user defines the scope — the agent never self-invokes this.
+     The deferral changes only item 4's task-interlock cadence. Delivery-member and work-unit verification methods,
+     including any advisory companions they invoke, still fire at their ordinary boundaries.
      Complete only the specified work — update the task list and run quality gates after each
      task, but continue to the next without waiting for approval. Leave the task list updated,
      quality gates passing, and changes uncommitted (user decides commit boundaries when they
@@ -199,11 +207,29 @@ execution-entry contract violation.
          reachability: cumulative tree through this member
      ```
 
+     **Method fire-point** · [`adversarial-review`][adversarial-review], declared by `validate-criteria`: After
+     the primary member walk, load its adversarial companion.
+
+     > [!IMPORTANT]
+     > `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Novel`; offer neutrally
+     > at `Light` / `Heavy`. Offer the pass and await the call — user decides; decline keeps the primary report.
+     >
+     > ```yaml
+     > adversarial-review:
+     >   rubric:          # selected member Success Criteria group
+     >   artifacts:       # upstream design + task list with markings withheld + member diff and reachable tree
+     >   orientation:
+     >     - AGENT-BRIEF.ARC
+     >     - AGENT-BRIEF.PROJECT
+     >   pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
+     >   prior-findings:  # pass two onward; omitted on pass one
+     > ```
+
      Before advancing beyond the member, close its scale-attention result against the exact committed member span.
      When the closing task's changes do not yet have their approved commit head, defer this scale step through item 4
      and obtain the commit in item 5, then return here before starting the next task. Under
      `arc.commitInterlock: manual`, approval does not authorize delivery-member advancement or the missing commit;
-     item 5 stops for the developer's explicit commit invocation. Invoke `arc review chunking resolve -` with the
+     item 5 stops for the developer's explicit commit invocation. Invoke `arc review changeset resolve -` with the
      member's bounded `{ kind, baseRef, diffBaseSha, headSha }` target and any existing exact-target scope selection.
 
      - `disabled / none` records the returned exact target, state, and disposition; its typed envelope carries no
@@ -240,7 +266,7 @@ execution-entry contract violation.
        continuation, invoke its Candidate-renewal authority action and require `status: unchanged`, then re-enter and
        require the retained hosted-review authority action. Any refusal, malformed action, other attestation result,
        or other continuation route stops. Never reconstruct or refresh a locator, and never substitute whole-WU
-       verification, Frontline, or generic prepublication.
+       verification, frontline review, or generic prepublication.
      - **Extensions** · `#post-task-completion`: If `post-task-completion` appears in the active-extensions
        list (established at session init), load and execute its [`.actions`][arc-ext-task-completion].
        Otherwise, skip. Teams using external trackers (Jira, Linear, GitHub Issues) use this extension to
@@ -375,6 +401,7 @@ updates**. Always update the task list file before reporting completion.
 [arc-methods-ts]: ../../methods/testing-standards.md
 [arc-methods-it]: ../../methods/issue-triage.md
 [arc-methods-qg]: ../../methods/quality-gate-commands.md
+[adversarial-review]: ../../methods/adversarial-review.md
 [review-chunking]: ../../methods/review-chunking.md
 [team-coordination]: ../../../reference/strategies/arc/strategy-team-coordination.md
 [arc-commit-skill]: ../../.internal/skills/arc-commit/SKILL.md

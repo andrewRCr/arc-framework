@@ -181,6 +181,26 @@ function derivedWorkUnitFrame(options: {
   };
 }
 
+function unresolvedWorkUnitFrame(): DerivedLocusFrame {
+  const resolved = derivedWorkUnitFrame();
+  if (resolved.entering.kind !== "selected") throw new Error("expected selected checkout");
+  const row = {
+    ...resolved.entering.row,
+    kind: "unresolved-checkout" as const,
+    context: null,
+    diagnostics: [{
+      code: "topology-mismatch",
+      message: "Observed checkout topology does not corroborate the authority-derived subject",
+    }],
+  };
+  return {
+    ...resolved,
+    roster: [row],
+    entering: { kind: "selected", row },
+    active: null,
+  };
+}
+
 function envelope(overrides: Partial<Parameters<typeof emitCompactionSeed>[0]["envelope"]> = {}) {
   return {
     identity: { identity: "andrew" },
@@ -315,6 +335,33 @@ describe("emitCompactionSeed", () => {
         parentCheckoutPath: "/repo-parent",
       });
       expect(JSON.stringify(result.seed.locus)).not.toMatch(/recordId|leaseId|sessionHomePath/u);
+    }
+  });
+
+  it("persists physical locus facts without promoting an unresolved subject", async () => {
+    const result = await emit({
+      snapshotBranch: "main",
+      envelope: {
+        derivedLocusState: { ok: true, value: unresolvedWorkUnitFrame() },
+      },
+    });
+
+    expect(result.status).toBe("written");
+    if (result.status === "written") {
+      expect(result.seed.locus).toEqual({ checkoutPath: "/repo", parentCheckoutPath: null });
+      expect(result.seed.branch).toBe("main");
+      expect(result.seed.activeWorkUnit).toBeNull();
+      expect(result.seed.sessionType).toBeNull();
+      expect(result.seed.currentWorkflow).toBeNull();
+      expect(result.seed.taskCursor).toBeNull();
+      expect(result.seed.metaPath).toBeNull();
+      expect(result.seed.loadSet.entries).toEqual(expect.arrayContaining([
+        expect.objectContaining({ path: ".arc/reference/briefs/AGENT-BRIEF.ARC.md" }),
+        expect.objectContaining({ path: ".arc/user/andrew/WORKING-MEMORY.md" }),
+      ]));
+      expect(result.seed.loadSet.entries).not.toContainEqual(
+        expect.objectContaining({ path: ".arc/active/tasks-compaction-recovery.md" }),
+      );
     }
   });
 

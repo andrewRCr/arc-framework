@@ -19,15 +19,19 @@ import {
 import {
   executeV3DecomposeOperation,
   V3DecomposeOperationRecoverySchema,
+  type V3DecomposeOperationRecovery,
   type V3DecomposeOperationResult,
   executeV3ExtractionOperation,
   type V3ExtractionOperationResult,
 } from "./decompose-v3-operation.js";
 import type { V3MaterializerIO } from "./decompose-v3-materializer.js";
 import type { ValidatedDecomposePlan } from "./decompose-v3-plan.js";
-import { V3DecomposeResultReportSchema } from "./decompose-v3-result-report.js";
+import {
+  V3DecomposeResultReportSchema,
+  type V3DecomposeResultReport,
+} from "./decompose-v3-result-report.js";
 import { revalidateV3DecomposeExecutionPreflight } from "./decompose-v3-execution-preflight.js";
-import { decodeV3DecomposeCutMap } from "./decompose-v3-schema.js";
+import { decodeV3DecomposeCutMap, type V3DecomposeCutMap } from "./decompose-v3-schema.js";
 import {
   createGitV3DecomposeOperationIO,
 } from "./git-decompose-v3-operation-io.js";
@@ -245,6 +249,95 @@ function materializerProxy(
   };
 }
 
+type ComposedRepositoryPlan = Extract<GitV3RepositoryPlanResult, { status: "composed" }>;
+type GitV3OperationIO = Awaited<ReturnType<typeof createGitV3DecomposeOperationIO>>;
+
+type OperationRevalidationResult =
+  | { status: "valid" }
+  | {
+      status: "refused";
+      reason: string;
+      locus?: string;
+      evidence?: V3DecomposeRefusalEvidence;
+    };
+
+async function revalidateOperationPlan(
+  dependencies: GitV3DecomposeOperationDependencies,
+  input: GitV3DecomposeOperationInput,
+  composed: ComposedRepositoryPlan,
+  io: GitV3OperationIO,
+  plan: ValidatedDecomposePlan,
+  requireCleanProjection: boolean,
+  extraction: boolean,
+): Promise<OperationRevalidationResult> {
+  const refreshed = extraction
+    ? await composeGitV3ExtractionRepositoryPlan(
+      dependencies,
+      input.baseBranch,
+      input.completedMap,
+    )
+    : await composeGitV3RepositoryPlan(dependencies, input.baseBranch, input.completedMap);
+  if (refreshed.status === "refused") {
+    return {
+      status: "refused",
+      reason: `${refreshed.refusal.stage}:${refreshed.refusal.reason}`,
+      ...(refreshed.refusal.locus === undefined ? {} : { locus: refreshed.refusal.locus }),
+      ...(refreshed.refusal.evidence === undefined ? {} : { evidence: refreshed.refusal.evidence }),
+    };
+  }
+  const planDrifted = !exactPlan(plan, refreshed.plan)
+    || !exactInventory(composed, refreshed)
+    || (extraction && !exactExtractionFacts(composed, refreshed));
+  if (planDrifted) {
+    return {
+      status: "refused",
+      reason: "repository-plan-drift",
+      locus: "planId",
+      evidence: {
+        expected: repositoryPlanIdentity(composed),
+        actual: repositoryPlanIdentity(refreshed),
+      },
+    };
+  }
+  if (input.protection !== "partial" || !requireCleanProjection) return { status: "valid" };
+  const projection = await io.occupation.inspectPartial(input.baseBranch, plan.allowedPaths);
+  if (projection.baseHead === plan.expectedBaseHead
+    && projection.indexClean
+    && projection.worktreeClean) return { status: "valid" };
+  return {
+    status: "refused",
+    reason: "partial-projection-drift",
+    locus: input.baseBranch,
+    evidence: {
+      expected: {
+        baseHead: plan.expectedBaseHead,
+        indexClean: true,
+        worktreeClean: true,
+      },
+      actual: {
+        baseHead: projection.baseHead,
+        indexClean: projection.indexClean,
+        worktreeClean: projection.worktreeClean,
+      },
+    },
+  };
+}
+
+function decodeRetirementOperationMap(completedMap: unknown):
+  | { status: "ready"; value: V3DecomposeCutMap }
+  | Extract<GitV3DecomposeOperationResult, { status: "refused" }> {
+  const decoded = decodeV3DecomposeCutMap(completedMap);
+  return decoded.status === "rejected"
+    ? {
+        status: "refused",
+        stage: "repository-plan",
+        reason: `map:${decoded.issue.code}`,
+        locus: decoded.issue.path,
+        recovery: { kind: "none" },
+      }
+    : { status: "ready", value: decoded.value };
+}
+
 /**
  * Compose, occupy, materialize, stage, and durably prepare one completed v3 map.
  *
@@ -262,16 +355,8 @@ export async function executeGitV3DecomposeOperation(
     input.completedMap,
   );
   if (composed.status === "refused") return repositoryRefusal(composed);
-  const completedMap = decodeV3DecomposeCutMap(input.completedMap);
-  if (completedMap.status === "rejected") {
-    return {
-      status: "refused",
-      stage: "repository-plan",
-      reason: `map:${completedMap.issue.code}`,
-      locus: completedMap.issue.path,
-      recovery: { kind: "none" },
-    };
-  }
+  const completedMap = decodeRetirementOperationMap(input.completedMap);
+  if (completedMap.status === "refused") return completedMap;
   const io = await createGitV3DecomposeOperationIO({
     cwd: dependencies.cwd,
     exec: dependencies.exec,
@@ -280,60 +365,16 @@ export async function executeGitV3DecomposeOperation(
   });
   let targetCwd: string | null = null;
   const partialRecovery = io.partialRecovery(dependencies.cwd);
-  const revalidate = async (plan: ValidatedDecomposePlan, requireCleanProjection: boolean) => {
-    const refreshed = await composeGitV3RepositoryPlan(
+  const revalidate = async (plan: ValidatedDecomposePlan, requireCleanProjection: boolean) =>
+    await revalidateOperationPlan(
       dependencies,
-      input.baseBranch,
-      input.completedMap,
+      input,
+      composed,
+      io,
+      plan,
+      requireCleanProjection,
+      false,
     );
-    if (refreshed.status === "refused") {
-      return {
-        status: "refused" as const,
-        reason: `${refreshed.refusal.stage}:${refreshed.refusal.reason}`,
-        ...(refreshed.refusal.locus === undefined ? {} : { locus: refreshed.refusal.locus }),
-        ...(refreshed.refusal.evidence === undefined ? {} : { evidence: refreshed.refusal.evidence }),
-      };
-    }
-    if (!exactPlan(plan, refreshed.plan) || !exactInventory(composed, refreshed)) {
-      return {
-        status: "refused" as const,
-        reason: "repository-plan-drift",
-        locus: "planId",
-        evidence: {
-          expected: repositoryPlanIdentity(composed),
-          actual: repositoryPlanIdentity(refreshed),
-        },
-      };
-    }
-    if (input.protection === "partial" && requireCleanProjection) {
-      const projection = await io.occupation.inspectPartial(
-        input.baseBranch,
-        plan.allowedPaths,
-      );
-      if (projection.baseHead !== plan.expectedBaseHead
-        || !projection.indexClean
-        || !projection.worktreeClean) {
-        return {
-          status: "refused" as const,
-          reason: "partial-projection-drift",
-          locus: input.baseBranch,
-          evidence: {
-            expected: {
-              baseHead: plan.expectedBaseHead,
-              indexClean: true,
-              worktreeClean: true,
-            },
-            actual: {
-              baseHead: projection.baseHead,
-              indexClean: projection.indexClean,
-              worktreeClean: projection.worktreeClean,
-            },
-          },
-        };
-      }
-    }
-    return { status: "valid" as const };
-  };
   const operation = await executeV3DecomposeOperation({
     protection: input.protection,
     configuredBase: input.baseBranch,
@@ -443,59 +484,16 @@ export async function executeGitV3ExtractionOperation(
   });
   let targetCwd: string | null = null;
   const partialRecovery = io.partialRecovery(dependencies.cwd);
-  const revalidate = async (plan: ValidatedDecomposePlan, requireCleanProjection: boolean) => {
-    const refreshed = await composeGitV3ExtractionRepositoryPlan(
+  const revalidate = async (plan: ValidatedDecomposePlan, requireCleanProjection: boolean) =>
+    await revalidateOperationPlan(
       dependencies,
-      input.baseBranch,
-      input.completedMap,
+      input,
+      composed,
+      io,
+      plan,
+      requireCleanProjection,
+      true,
     );
-    if (refreshed.status === "refused") {
-      return {
-        status: "refused" as const,
-        reason: `${refreshed.refusal.stage}:${refreshed.refusal.reason}`,
-        ...(refreshed.refusal.locus === undefined ? {} : { locus: refreshed.refusal.locus }),
-        ...(refreshed.refusal.evidence === undefined ? {} : { evidence: refreshed.refusal.evidence }),
-      };
-    }
-    if (!exactPlan(plan, refreshed.plan)
-      || !exactInventory(composed, refreshed)
-      || !exactExtractionFacts(composed, refreshed)) {
-      return {
-        status: "refused" as const,
-        reason: "repository-plan-drift",
-        locus: "planId",
-        evidence: {
-          expected: repositoryPlanIdentity(composed),
-          actual: repositoryPlanIdentity(refreshed),
-        },
-      };
-    }
-    if (input.protection === "partial" && requireCleanProjection) {
-      const projection = await io.occupation.inspectPartial(input.baseBranch, plan.allowedPaths);
-      if (projection.baseHead !== plan.expectedBaseHead
-        || !projection.indexClean
-        || !projection.worktreeClean) {
-        return {
-          status: "refused" as const,
-          reason: "partial-projection-drift",
-          locus: input.baseBranch,
-          evidence: {
-            expected: {
-              baseHead: plan.expectedBaseHead,
-              indexClean: true,
-              worktreeClean: true,
-            },
-            actual: {
-              baseHead: projection.baseHead,
-              indexClean: projection.indexClean,
-              worktreeClean: projection.worktreeClean,
-            },
-          },
-        };
-      }
-    }
-    return { status: "valid" as const };
-  };
   const operation = await executeV3ExtractionOperation({
     protection: input.protection,
     configuredBase: input.baseBranch,
@@ -527,19 +525,31 @@ export async function executeGitV3ExtractionOperation(
   return { status: "staged", plan: composed.plan, operation };
 }
 
-/**
- * Read one canonical cut map, revalidate its invocation provenance, and execute its immutable result.
- *
- * @param dependencies - Exact Git/object readers plus the candidate worktree owner.
- * @param input - Closed execute-command operands and configured repository policy.
- * @returns One prepared repository result or a closed refusal with exact recovery.
- */
-export async function executeGitV3DecomposeCommand(
+type CommandRefusalStage =
+  | "repository-plan"
+  | "occupation"
+  | "post-occupation-revalidation"
+  | "partial-capture"
+  | "materialization"
+  | "transition-record"
+  | "post-stage-revalidation"
+  | "restoration";
+
+interface CommandRefusalFacts {
+  reason: string;
+  stage?: CommandRefusalStage;
+  locus?: string;
+  evidence?: V3DecomposeRefusalEvidence;
+  report?: V3DecomposeResultReport;
+  recovery?: V3DecomposeOperationRecovery;
+}
+
+async function revalidateCommandMap(
   dependencies: GitV3DecomposeOperationDependencies,
   input: GitV3DecomposeCommandInput,
-): Promise<GitV3DecomposeCommandResult> {
-  const cutMapPath = resolve(dependencies.cwd, input.cutMapPath);
-  const revalidated = await revalidateV3DecomposeExecutionPreflight({
+  cutMapPath: string,
+): Promise<Awaited<ReturnType<typeof revalidateV3DecomposeExecutionPreflight>>> {
+  return await revalidateV3DecomposeExecutionPreflight({
     readCutMap: async (path) => new Uint8Array(await readFile(path)),
     resolvePreflight: async (origin) => {
       const result = await createGitV3DecomposePreflight({
@@ -552,119 +562,157 @@ export async function executeGitV3DecomposeCommand(
         : {
             status: "rejected",
             reason: result.reason,
-            ...("locus" in result && result.locus !== undefined
-              ? { locus: result.locus }
-              : {}),
+            ...("locus" in result && result.locus !== undefined ? { locus: result.locus } : {}),
             ...("evidence" in result && result.evidence !== undefined
               ? { evidence: result.evidence }
               : {}),
           };
     },
   }, input.origin, cutMapPath);
-  if (revalidated.status !== "current") {
-    if (revalidated.reason === "unexpected-error") {
-      return GitV3DecomposeCommandRefusalSchema.parse({
-        status: "refused",
-        reason: revalidated.reason,
-        locus: revalidated.locus,
-        ...(revalidated.evidence === undefined ? {} : { evidence: revalidated.evidence }),
-        remedy: v3DecomposeRemedy({
-          invocation: { mode: "execute", origin: input.origin, cutMapPath },
-          reason: revalidated.reason,
-          locus: revalidated.locus,
-        }),
-      });
-    }
-    const refusal = {
+}
+
+function composeDecomposeCommandRefusal(
+  input: GitV3DecomposeCommandInput,
+  cutMapPath: string,
+  facts: CommandRefusalFacts,
+): GitV3DecomposeCommandRefusal {
+  const invocation = { mode: "execute" as const, origin: input.origin, cutMapPath };
+  if (facts.reason === "unexpected-error") {
+    return GitV3DecomposeCommandRefusalSchema.parse({
       status: "refused",
-      stage: "repository-plan",
+      reason: facts.reason,
+      ...(facts.locus === undefined ? {} : { locus: facts.locus }),
+      ...(facts.evidence === undefined ? {} : { evidence: facts.evidence }),
+      remedy: v3DecomposeRemedy({ invocation, reason: facts.reason, locus: facts.locus }),
+    });
+  }
+  const refusal = {
+    status: "refused" as const,
+    stage: facts.stage ?? "repository-plan",
+    reason: facts.reason,
+    ...(facts.locus === undefined ? {} : { locus: facts.locus }),
+    ...(facts.evidence === undefined ? {} : { evidence: facts.evidence }),
+    ...(facts.report === undefined ? {} : { report: facts.report }),
+    recovery: facts.recovery ?? { kind: "none" as const },
+  };
+  return GitV3DecomposeCommandRefusalSchema.parse({
+    ...refusal,
+    remedy: v3DecomposeRemedy({
+      invocation,
+      reason: refusal.reason,
+      ...(refusal.locus === undefined ? {} : { locus: refusal.locus }),
+      recovery: refusal.recovery,
+    }),
+  });
+}
+
+function composeExtractionCommandRefusal(
+  input: GitV3DecomposeCommandInput,
+  cutMapPath: string,
+  facts: CommandRefusalFacts,
+): GitV3ExtractionCommandRefusal {
+  const invocation = { mode: "extract" as const, origin: input.origin, cutMapPath };
+  if (facts.reason === "unexpected-error") {
+    return GitV3ExtractionCommandRefusalSchema.parse({
+      status: "refused",
+      reason: facts.reason,
+      ...(facts.locus === undefined ? {} : { locus: facts.locus }),
+      ...(facts.evidence === undefined ? {} : { evidence: facts.evidence }),
+      remedy: v3DecomposeRemedy({ invocation, reason: facts.reason, locus: facts.locus }),
+    });
+  }
+  const refusal = {
+    status: "refused" as const,
+    stage: facts.stage ?? "repository-plan",
+    reason: facts.reason,
+    ...(facts.locus === undefined ? {} : { locus: facts.locus }),
+    ...(facts.evidence === undefined ? {} : { evidence: facts.evidence }),
+    ...(facts.report === undefined ? {} : { report: facts.report }),
+    recovery: facts.recovery ?? { kind: "none" as const },
+  };
+  return GitV3ExtractionCommandRefusalSchema.parse({
+    ...refusal,
+    remedy: v3DecomposeRemedy({
+      invocation,
+      reason: refusal.reason,
+      ...(refusal.locus === undefined ? {} : { locus: refusal.locus }),
+      recovery: refusal.recovery,
+    }),
+  });
+}
+
+async function sourcePublicationRefusal(
+  dependencies: GitV3DecomposeOperationDependencies,
+  map: V3DecomposeCutMap,
+): Promise<CommandRefusalFacts | null> {
+  const { source, resultBase } = map.machine;
+  if (source.ref === resultBase.ref) return null;
+  const branch = source.logicalBranch;
+  const expectedRef = `refs/heads/${branch}`;
+  const live = source.ref === expectedRef
+    ? await readLiveRemoteBranchTip({
+        exec: async (command, args, options) => await dependencies.exec(command, args, {
+          ...options,
+          cwd: options?.cwd ?? dependencies.cwd,
+        }),
+        remote: "origin",
+        branch,
+      })
+    : { reachable: true, tip: null };
+  if (live.reachable && live.tip === source.head) return null;
+  return {
+    stage: "repository-plan",
+    reason: "source-unpublished",
+    locus: branch,
+    evidence: {
+      expected: source.head,
+      actual: live.reachable && live.tip !== null ? live.tip : { kind: "absent" },
+    },
+    recovery: { kind: "none" },
+  };
+}
+
+/**
+ * Read one canonical cut map, revalidate its invocation provenance, and execute its immutable result.
+ *
+ * @param dependencies - Exact Git/object readers plus the candidate worktree owner.
+ * @param input - Closed execute-command operands and configured repository policy.
+ * @returns One prepared repository result or a closed refusal with exact recovery.
+ */
+export async function executeGitV3DecomposeCommand(
+  dependencies: GitV3DecomposeOperationDependencies,
+  input: GitV3DecomposeCommandInput,
+): Promise<GitV3DecomposeCommandResult> {
+  const cutMapPath = resolve(dependencies.cwd, input.cutMapPath);
+  const revalidated = await revalidateCommandMap(dependencies, input, cutMapPath);
+  if (revalidated.status !== "current") {
+    return composeDecomposeCommandRefusal(input, cutMapPath, {
       reason: revalidated.reason,
       locus: revalidated.locus,
       ...(revalidated.evidence === undefined ? {} : { evidence: revalidated.evidence }),
-      recovery: { kind: "none" },
-    } as const;
-    return GitV3DecomposeCommandRefusalSchema.parse({
-      ...refusal,
-      remedy: v3DecomposeRemedy({
-        invocation: { mode: "execute", origin: input.origin, cutMapPath },
-        reason: refusal.reason,
-        locus: refusal.locus,
-        recovery: refusal.recovery,
+      ...(revalidated.reason === "unexpected-error" ? {} : {
+        stage: "repository-plan" as const,
+        recovery: { kind: "none" as const },
       }),
     });
   }
   if (revalidated.completedMap.authoring.shape === "extraction") {
-    const refusal = {
-      status: "refused",
+    return composeDecomposeCommandRefusal(input, cutMapPath, {
       stage: "repository-plan",
       reason: "map:authoring-shape",
       locus: "authoring.shape",
       recovery: { kind: "none" },
-    } as const;
-    return GitV3DecomposeCommandRefusalSchema.parse({
-      ...refusal,
-      remedy: v3DecomposeRemedy({
-        invocation: { mode: "execute", origin: input.origin, cutMapPath },
-        reason: refusal.reason,
-        locus: refusal.locus,
-        recovery: refusal.recovery,
-      }),
     });
   }
-  const { source, resultBase } = revalidated.completedMap.machine;
-  if (source.ref !== resultBase.ref) {
-    const branch = source.logicalBranch;
-    const expectedRef = `refs/heads/${branch}`;
-    const live = source.ref === expectedRef
-      ? await readLiveRemoteBranchTip({
-          exec: async (command, args, options) => await dependencies.exec(command, args, {
-            ...options,
-            cwd: options?.cwd ?? dependencies.cwd,
-          }),
-          remote: "origin",
-          branch,
-        })
-      : { reachable: true, tip: null };
-    if (!live.reachable || live.tip !== source.head) {
-      const refusal = {
-        status: "refused",
-        stage: "repository-plan",
-        reason: "source-unpublished",
-        locus: branch,
-        evidence: {
-          expected: source.head,
-          actual: live.reachable && live.tip !== null
-            ? live.tip
-            : { kind: "absent" },
-        },
-        recovery: { kind: "none" },
-      } as const;
-      return GitV3DecomposeCommandRefusalSchema.parse({
-        ...refusal,
-        remedy: v3DecomposeRemedy({
-          invocation: { mode: "execute", origin: input.origin, cutMapPath },
-          reason: refusal.reason,
-          locus: refusal.locus,
-          recovery: refusal.recovery,
-        }),
-      });
-    }
-  }
+  const unpublished = await sourcePublicationRefusal(dependencies, revalidated.completedMap);
+  if (unpublished !== null) return composeDecomposeCommandRefusal(input, cutMapPath, unpublished);
   const result = await executeGitV3DecomposeOperation(dependencies, {
     protection: input.protection,
     baseBranch: input.baseBranch,
     completedMap: revalidated.completedMap,
   });
   if (result.status === "refused") {
-    return GitV3DecomposeCommandRefusalSchema.parse({
-      ...result,
-      remedy: v3DecomposeRemedy({
-        invocation: { mode: "execute", origin: input.origin, cutMapPath },
-        reason: result.reason,
-        ...(result.locus === undefined ? {} : { locus: result.locus }),
-        recovery: result.recovery,
-      }),
-    });
+    return composeDecomposeCommandRefusal(input, cutMapPath, result);
   }
   return result;
 }
@@ -681,132 +729,35 @@ export async function executeGitV3ExtractionCommand(
   input: GitV3DecomposeCommandInput,
 ): Promise<GitV3ExtractionCommandResult> {
   const cutMapPath = resolve(dependencies.cwd, input.cutMapPath);
-  const revalidated = await revalidateV3DecomposeExecutionPreflight({
-    readCutMap: async (path) => new Uint8Array(await readFile(path)),
-    resolvePreflight: async (origin) => {
-      const result = await createGitV3DecomposePreflight({
-        cwd: dependencies.cwd,
-        exec: dependencies.exec,
-        readBlob: (ref, path) => dependencies.readBlob(ref, path),
-      }, input.baseBranch, origin);
-      return result.status === "ready"
-        ? result
-        : {
-            status: "rejected",
-            reason: result.reason,
-            ...("locus" in result && result.locus !== undefined
-              ? { locus: result.locus }
-              : {}),
-            ...("evidence" in result && result.evidence !== undefined
-              ? { evidence: result.evidence }
-              : {}),
-          };
-    },
-  }, input.origin, cutMapPath);
+  const revalidated = await revalidateCommandMap(dependencies, input, cutMapPath);
   if (revalidated.status !== "current") {
-    if (revalidated.reason === "unexpected-error") {
-      return GitV3ExtractionCommandRefusalSchema.parse({
-        status: "refused",
-        reason: revalidated.reason,
-        locus: revalidated.locus,
-        ...(revalidated.evidence === undefined ? {} : { evidence: revalidated.evidence }),
-        remedy: v3DecomposeRemedy({
-          invocation: { mode: "extract", origin: input.origin, cutMapPath },
-          reason: revalidated.reason,
-          locus: revalidated.locus,
-        }),
-      });
-    }
-    const refusal = {
-      status: "refused",
-      stage: "repository-plan",
+    return composeExtractionCommandRefusal(input, cutMapPath, {
       reason: revalidated.reason,
       locus: revalidated.locus,
       ...(revalidated.evidence === undefined ? {} : { evidence: revalidated.evidence }),
-      recovery: { kind: "none" },
-    } as const;
-    return GitV3ExtractionCommandRefusalSchema.parse({
-      ...refusal,
-      remedy: v3DecomposeRemedy({
-        invocation: { mode: "extract", origin: input.origin, cutMapPath },
-        reason: refusal.reason,
-        locus: refusal.locus,
-        recovery: refusal.recovery,
+      ...(revalidated.reason === "unexpected-error" ? {} : {
+        stage: "repository-plan" as const,
+        recovery: { kind: "none" as const },
       }),
     });
   }
   if (revalidated.completedMap.authoring.shape !== "extraction") {
-    const refusal = {
-      status: "refused",
+    return composeExtractionCommandRefusal(input, cutMapPath, {
       stage: "repository-plan",
       reason: "map:authoring-shape",
       locus: "authoring.shape",
       recovery: { kind: "none" },
-    } as const;
-    return GitV3ExtractionCommandRefusalSchema.parse({
-      ...refusal,
-      remedy: v3DecomposeRemedy({
-        invocation: { mode: "extract", origin: input.origin, cutMapPath },
-        reason: refusal.reason,
-        locus: refusal.locus,
-        recovery: refusal.recovery,
-      }),
     });
   }
-  const { source, resultBase } = revalidated.completedMap.machine;
-  if (source.ref !== resultBase.ref) {
-    const branch = source.logicalBranch;
-    const expectedRef = `refs/heads/${branch}`;
-    const live = source.ref === expectedRef
-      ? await readLiveRemoteBranchTip({
-          exec: async (command, args, options) => await dependencies.exec(command, args, {
-            ...options,
-            cwd: options?.cwd ?? dependencies.cwd,
-          }),
-          remote: "origin",
-          branch,
-        })
-      : { reachable: true, tip: null };
-    if (!live.reachable || live.tip !== source.head) {
-      const refusal = {
-        status: "refused",
-        stage: "repository-plan",
-        reason: "source-unpublished",
-        locus: branch,
-        evidence: {
-          expected: source.head,
-          actual: live.reachable && live.tip !== null
-            ? live.tip
-            : { kind: "absent" },
-        },
-        recovery: { kind: "none" },
-      } as const;
-      return GitV3ExtractionCommandRefusalSchema.parse({
-        ...refusal,
-        remedy: v3DecomposeRemedy({
-          invocation: { mode: "extract", origin: input.origin, cutMapPath },
-          reason: refusal.reason,
-          locus: refusal.locus,
-          recovery: refusal.recovery,
-        }),
-      });
-    }
-  }
+  const unpublished = await sourcePublicationRefusal(dependencies, revalidated.completedMap);
+  if (unpublished !== null) return composeExtractionCommandRefusal(input, cutMapPath, unpublished);
   const result = await executeGitV3ExtractionOperation(dependencies, {
     protection: input.protection,
     baseBranch: input.baseBranch,
     completedMap: revalidated.completedMap,
   });
   if (result.status === "refused") {
-    return GitV3ExtractionCommandRefusalSchema.parse({
-      ...result,
-      remedy: v3DecomposeRemedy({
-        invocation: { mode: "extract", origin: input.origin, cutMapPath },
-        reason: result.reason,
-        ...(result.locus === undefined ? {} : { locus: result.locus }),
-        recovery: result.recovery,
-      }),
-    });
+    return composeExtractionCommandRefusal(input, cutMapPath, result);
   }
   return result;
 }

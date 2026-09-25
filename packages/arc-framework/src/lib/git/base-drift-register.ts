@@ -6,6 +6,7 @@
 
 import type {
   BaseDriftRegister,
+  BaseMovement,
   IntegrationEvidence,
   IntegrationEvent,
   OverlapEvidence,
@@ -16,7 +17,9 @@ export function composeBaseDriftRegister(
   behind: number,
   integration: IntegrationEvidence,
   overlap: OverlapEvidence,
+  movement: BaseMovement,
 ): Exclude<BaseDriftRegister, null> {
+  const checkpoint = "The typed checkpoint decides whether integration proceeds, reconciles, or stops.";
   const limitation = integrationLimitation(integration);
   if (overlap.status === "available" && overlap.substantivePaths.length > 0) {
     const paths = sample(overlap.substantivePaths);
@@ -24,7 +27,7 @@ export function composeBaseDriftRegister(
     return {
       kind: "attention",
       text: `Base \`${base}\` changed ${behind} commit(s) with substantive overlap: ${paths}. `
-        + `Merge the base before continuing edits on those paths.${qualifier}`,
+        + `Movement is ${movement}. ${checkpoint}${qualifier}`,
     };
   }
 
@@ -32,14 +35,30 @@ export function composeBaseDriftRegister(
     return {
       kind: "degraded",
       text: `Base \`${base}\` is ${behind} commit(s) ahead, but overlap analysis was unavailable `
-        + `(${overlap.reason}). Raw distance requires reconciliation before integration.`,
+        + `(${overlap.reason}). Movement is ${movement}. ${checkpoint}`,
+    };
+  }
+
+  if (overlap.status === "ambiguous") {
+    return {
+      kind: "degraded",
+      text: `Base \`${base}\` is ${behind} commit(s) ahead, but it and this branch share more than one merge `
+        + `base, so overlap cannot be proved from one of them. Movement is ${movement}. ${checkpoint}`,
+    };
+  }
+
+  if (overlap.status === "unrelated") {
+    return {
+      kind: "degraded",
+      text: `Base \`${base}\` is ${behind} commit(s) ahead, but it and this branch have no common ancestor. `
+        + `Movement is ${movement}. ${checkpoint}`,
     };
   }
   if (limitation !== null) {
     return {
       kind: "degraded",
       text: `Base \`${base}\` is ${behind} commit(s) ahead. ${limitation} `
-        + "Raw distance requires reconciliation before integration.",
+        + `Movement is ${movement}. ${checkpoint}`,
     };
   }
 
@@ -51,7 +70,7 @@ export function composeBaseDriftRegister(
     }.`;
   return {
     kind: "calm",
-    text: `Base \`${base}\`: ${summary} ${regenerable} Merge when convenient; required before integration.`,
+    text: `Base \`${base}\`: ${summary} ${regenerable} Movement is ${movement}. ${checkpoint}`,
   };
 }
 

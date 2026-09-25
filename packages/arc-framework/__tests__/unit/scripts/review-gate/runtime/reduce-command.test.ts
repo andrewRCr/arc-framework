@@ -658,7 +658,11 @@ describe("review reduction command: frontline", () => {
       operationId: unavailable.state.operationId,
     }, frontlineDependencies(unavailable).dependencies)).resolves.toMatchObject({
       state: "retryable",
-      payload: { retryCommand: "frontline-run" },
+      nextAction: "operator-repair",
+      payload: {
+        retryCommand: "frontline-run",
+        retryOfOperationId: unavailable.state.operationId,
+      },
     });
   });
 

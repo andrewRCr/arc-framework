@@ -96,6 +96,29 @@ describe("CurrentDeliveryLifecycleContributionPathSource", () => {
 });
 
 describe("compareNormalizedDeliveryTree", () => {
+  it("normalizes regenerable paths from the chain baseline", () => {
+    const blob = (oid: string) => ({ mode: "100644", type: "blob", oid });
+    const protectedBase = new Map([[".arc/backlog/ROADMAP.md", blob("new-roadmap")]]);
+    const chainBase = new Map([[".arc/backlog/ROADMAP.md", blob("old-roadmap")]]);
+    const top = new Map([
+      ["kept.md", blob("same")],
+      [".arc/backlog/ROADMAP.md", blob("top-roadmap")],
+    ]);
+    const finalCandidate = new Map([
+      ["kept.md", blob("same")],
+      [".arc/backlog/ROADMAP.md", blob("old-roadmap")],
+    ]);
+
+    expect(compareNormalizedDeliveryTree({
+      protectedBase,
+      chainBase,
+      top,
+      finalCandidate,
+      lifecyclePaths: [".arc/backlog/ROADMAP.md"],
+      regenerablePaths: [".arc/backlog/ROADMAP.md"],
+    })).toEqual({ status: "match" });
+  });
+
   it("matches when the candidate equals the lifecycle-normalized top tree", () => {
     const blob = (oid: string) => ({ mode: "100644", type: "blob", oid });
     const protectedBase = new Map([["lifecycle.md", blob("base")]]);
@@ -110,9 +133,11 @@ describe("compareNormalizedDeliveryTree", () => {
 
     expect(compareNormalizedDeliveryTree({
       protectedBase,
+      chainBase: protectedBase,
       top,
       finalCandidate,
       lifecyclePaths: ["lifecycle.md"],
+      regenerablePaths: [],
     })).toEqual({ status: "match" });
   });
 
@@ -122,9 +147,11 @@ describe("compareNormalizedDeliveryTree", () => {
 
     expect(compareNormalizedDeliveryTree({
       protectedBase: new Map(),
+      chainBase: new Map(),
       top: new Map([["lifecycle.md", lifecycleEntry]]),
       finalCandidate: new Map([["lifecycle.md", lifecycleEntry]]),
       lifecyclePaths: ["lifecycle.md"],
+      regenerablePaths: [],
     })).toEqual({
       status: "mismatch",
       droppedPaths: [],
@@ -151,9 +178,11 @@ describe("compareNormalizedDeliveryTree", () => {
 
     expect(compareNormalizedDeliveryTree({
       protectedBase,
+      chainBase: protectedBase,
       top,
       finalCandidate,
       lifecyclePaths: ["lifecycle.md"],
+      regenerablePaths: [],
     })).toEqual({
       status: "mismatch",
       droppedPaths: ["dropped.md"],
@@ -186,11 +215,46 @@ describe("compareDeliveryLifecycleContribution", () => {
     expect(compareDeliveryLifecycleContribution({
       paths: ["type.md", "mode.md", "deleted.md", "changed.md", "added.md"],
       protectedBase,
+      chainBase: protectedBase,
       candidate,
+      regenerablePaths: [],
     })).toEqual({
       status: "mismatch",
       mismatchedPaths: ["added.md", "changed.md", "deleted.md", "mode.md", "type.md"],
     });
+  });
+
+  it("uses the chain baseline only for regenerable paths", () => {
+    const blob = (oid: string) => ({ mode: "100644", type: "blob", oid });
+    const protectedBase = new Map([
+      [".arc/backlog/ROADMAP.md", blob("new-roadmap")],
+      [".arc/active/meta-example.md", blob("current-meta")],
+    ]);
+    const chainBase = new Map([
+      [".arc/backlog/ROADMAP.md", blob("old-roadmap")],
+      [".arc/active/meta-example.md", blob("old-meta")],
+    ]);
+    const candidate = new Map([
+      [".arc/backlog/ROADMAP.md", blob("old-roadmap")],
+      [".arc/active/meta-example.md", blob("current-meta")],
+    ]);
+
+    expect(compareDeliveryLifecycleContribution({
+      paths: [".arc/backlog/ROADMAP.md", ".arc/active/meta-example.md"],
+      protectedBase,
+      chainBase,
+      candidate,
+      regenerablePaths: [".arc/backlog/ROADMAP.md"],
+    })).toEqual({ status: "match", mismatchedPaths: [] });
+
+    candidate.set(".arc/backlog/ROADMAP.md", blob("competing-roadmap"));
+    expect(compareDeliveryLifecycleContribution({
+      paths: [".arc/backlog/ROADMAP.md", ".arc/active/meta-example.md"],
+      protectedBase,
+      chainBase,
+      candidate,
+      regenerablePaths: [".arc/backlog/ROADMAP.md"],
+    })).toEqual({ status: "mismatch", mismatchedPaths: [".arc/backlog/ROADMAP.md"] });
   });
 });
 

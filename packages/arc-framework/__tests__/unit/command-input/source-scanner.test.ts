@@ -5,8 +5,19 @@ import {
   scanCommanderSource,
   scanInteractionSource,
 } from "../../../src/lib/command-input/index.js";
+import { importedModuleSpecifiers } from "../../../src/lib/command-input/source-scanner.js";
 
 describe("command-input source scanner", () => {
+  it("discovers literal static and dynamic relative imports", () => {
+    expect(importedModuleSpecifiers(`
+      import "./static.js";
+      export { value } from "./exported.js";
+      await import("./lazy.js");
+      await import(packageName);
+      await import("external-package");
+    `, "src/cli.ts")).toEqual(["./static.js", "./exported.js", "./lazy.js"]);
+  });
+
   it("extracts equivalent canonical paths from chained and separately bound builders", () => {
     const result = scanCommanderSource({
       file: "src/cli.ts",
@@ -85,6 +96,29 @@ describe("command-input source scanner", () => {
       ],
       action: { symbol: "handleSend" },
     });
+  });
+
+  it("excludes rejected JSON flags while retaining supported hidden options", () => {
+    const result = scanCommanderSource({
+      file: "src/cli.ts",
+      sourceText: `
+        const program = new Command();
+        const review = program.command("review");
+        review.command("request")
+          .addOption(new Option("--json").hideHelp())
+          .hook("preAction", rejectUnsupportedReviewJson);
+        review.command("output")
+          .addOption(new Option("--json").hideHelp())
+          .on("option:json", rejectUnsupportedReviewOutputJson);
+        review.command("supported")
+          .addOption(new Option("--json").hideHelp());
+      `,
+    });
+
+    expect(result.commands.find((command) => command.path === "review request")?.options).toEqual([]);
+    expect(result.commands.find((command) => command.path === "review output")?.options).toEqual([]);
+    expect(result.commands.find((command) => command.path === "review supported")?.options)
+      .toMatchObject([{ flags: "--json" }]);
   });
 
   it("distinguishes a mandatory value from explicit option presence when a default supplies it", async () => {

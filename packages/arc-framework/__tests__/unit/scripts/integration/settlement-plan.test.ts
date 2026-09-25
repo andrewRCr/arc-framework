@@ -11,6 +11,7 @@ import { createReviewTarget } from "../../../../src/scripts/review-gate/core/gat
 import { composeReviewResponseSettlementAction } from "../../../../src/scripts/review-gate/core/response-plan.js";
 import {
   composeCanonicalSettlementPlan,
+  composeCandidateResponseConfirmationAction,
   composeHostedSettlementAction,
 } from "../../../../src/scripts/integration/settlement-plan.js";
 
@@ -73,6 +74,32 @@ function approvedSet(targetId: string, disposition: "fix" | "defer") {
 }
 
 describe("canonical integration settlement plan", () => {
+  it("represents an already-completed private Candidate response without a second fix target", () => {
+    const action = composeCandidateResponseConfirmationAction({
+      dispositionId: digest("1"),
+      operationId: "frontline-example",
+      workUnit: "example",
+      candidateId: digest("3"),
+      responseId: digest("4"),
+      memberTargetId: digest("5"),
+      candidateOriginTargetId: digest("6"),
+      deliveryMember: {
+        kind: "delivery-member",
+        planId: "573a0507-31a0-478d-b2cb-bd2a849e787b",
+        deliverableId: digest("7"),
+        workUnitId: "example",
+        head: oid("8"),
+      },
+      approvedBase: oid("a"),
+    });
+
+    expect(composeCanonicalSettlementPlan([action]).actions).toEqual([action]);
+    expect(() => composeCandidateResponseConfirmationAction({
+      ...action,
+      deliveryMember: { ...action.deliveryMember, workUnitId: "other" },
+    })).toThrow(/must match the Candidate work unit/u);
+  });
+
   it("retains every exact hosted-settlement API input", () => {
     const request = {
       schemaVersion: 1 as const,

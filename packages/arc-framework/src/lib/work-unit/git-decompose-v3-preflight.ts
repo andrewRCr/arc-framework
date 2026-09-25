@@ -100,7 +100,18 @@ export function isGitV3DecomposeSourceArtifactPath(
     && (
       artifactMatcher(origin).test(name)
       || v3PlanningDesignNames(origin).pairedSpec.includes(name)
+  );
+}
+
+function decodeGitV3MetaBytes(bytes: Uint8Array, path: string): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new GitV3DecomposePreflightRejection(
+      "git-preflight:invalid-meta-encoding",
+      path,
     );
+  }
 }
 
 /**
@@ -145,15 +156,7 @@ export async function readGitV3DecomposeTreeSnapshot(
     if (bytes === null) {
       throw new GitV3DecomposePreflightRejection("git-preflight:missing-blob", entry.path);
     }
-    let content: string;
-    try {
-      content = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-    } catch {
-      throw new GitV3DecomposePreflightRejection(
-        "git-preflight:invalid-meta-encoding",
-        entry.path,
-      );
-    }
+    const content = decodeGitV3MetaBytes(bytes, entry.path);
     metaRecords.push({
       slug,
       path: entry.path,

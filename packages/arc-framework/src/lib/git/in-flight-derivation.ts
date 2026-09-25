@@ -33,6 +33,7 @@ import { isDecomposeCandidateBranch } from "../work-unit/decompose-candidate.js"
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
 import { locusOwnsBranch } from "../session-init/locus-classification.js";
 
+import { isLandedInBase } from "./branch-containment.js";
 import type { GitExec } from "./exec.js";
 import type { HistoryCompletenessResult } from "./history-completeness.js";
 import type { ObjectAvailabilityResult } from "./object-availability.js";
@@ -466,6 +467,11 @@ async function deriveFromResolvedInputs(
     parkedSlugs,
     reachable: branchSet.reachable,
     strictLocalFailures,
+    cleanup: {
+      baseRef: `${remote}/${baseBranch}`,
+      worktreeListComplete: worktreeResult.ok,
+      derivedRoster: options.derivedRoster,
+    },
   });
   const decompositionCandidateBranches = await deriveOwnedDecompositionCandidateBranches(
     worktreePaths,
@@ -1260,6 +1266,11 @@ interface DedupeWorkUnitCandidatesOptions {
   parkedSlugs: ReadonlySet<string>;
   reachable: boolean;
   strictLocalFailures: boolean;
+  cleanup: {
+    baseRef: string;
+    worktreeListComplete: boolean;
+    derivedRoster: readonly DerivedCheckoutRow[] | null | undefined;
+  };
 }
 
 interface DedupeWorkUnitCandidatesResult {
@@ -1301,14 +1312,28 @@ async function dedupeWorkUnitCandidates(
     }
 
     const shadowed = group.filter((candidate) => candidate !== winner);
-    warnings.push(
-      ...shadowed.flatMap((candidate) => {
-        if (candidate.meta.relation === "stale") {
-          return [staleLocationWarning(candidate.meta, candidate.input.branch, "stale-location-shadow")];
-        }
-        return isLocalRemoteMirror(candidate, winner) ? [] : [candidateShadowedWarning(candidate, winner)];
-      }),
-    );
+    const shadowWarnings = await Promise.all(shadowed.map(async (candidate) => {
+      if (candidate.meta.relation !== "stale") {
+        return isLocalRemoteMirror(candidate, winner) ? null : candidateShadowedWarning(candidate, winner);
+      }
+      const baseWarning = staleLocationWarning(candidate.meta, candidate.input.branch, "stale-location-shadow");
+      const { cleanup } = options;
+      if (candidate.input.source !== "local-branch" || !cleanup.worktreeListComplete
+        || cleanup.derivedRoster === null || cleanup.derivedRoster === undefined
+        || locusOwnsBranch(cleanup.derivedRoster, candidate.input.branch)) {
+        return baseWarning;
+      }
+      const merged = await isLandedInBase(options.exec, candidate.input.branch, cleanup.baseRef);
+      return {
+        ...baseWarning,
+        rendered: `${baseWarning.rendered} ${merged
+          ? `No patch-unique commits against base. After interlock approval, try ` +
+            `\`git branch -d -- ${quoteBranchForShell(candidate.input.branch)}\`; ` +
+            "Git may refuse unless its upstream or HEAD contains the branch. Retain it if refused."
+          : "Not proven merged; surfaced, not removable."}`,
+      };
+    }));
+    warnings.push(...shadowWarnings.filter((item): item is InFlightWarning => item !== null));
 
     const built = buildWorkUnit(
       winner.meta,
@@ -1591,6 +1616,10 @@ function staleLocationWarning(
     workUnit: candidate.name,
     rendered,
   });
+}
+
+function quoteBranchForShell(branch: string): string {
+  return `'${branch.replaceAll("'", `'"'"'`)}'`;
 }
 
 function candidateShadowedWarning(candidate: WorkUnitCandidate, winner: WorkUnitCandidate): InFlightWarning {

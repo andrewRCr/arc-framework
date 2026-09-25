@@ -19,7 +19,6 @@ function digest(label: string) {
 }
 
 function plan(options: {
-  readonly projection?: "stack-to-main" | "wu-integration-target";
   readonly shared?: boolean;
   readonly oneMember?: boolean;
   readonly unicode?: boolean;
@@ -82,7 +81,7 @@ function plan(options: {
       ],
     },
     entry: "from-tasks",
-    projection: { kind: options.projection ?? "stack-to-main" },
+    projection: { kind: "stack-to-main" },
     members,
     seams: options.oneMember === true ? [] : [{
       seamKey: "contract",
@@ -276,25 +275,15 @@ describe("delivery task-list projection", () => {
     expect(Math.max(...lines.filter((line) => line !== tokenLine).map(displayWidth))).toBeLessThanOrEqual(120);
   });
 
-  it("keeps nonuniform stack landability visible instead of overstating the summary", () => {
-    const mixed = structuredClone(plan());
-    mixed.members[1]!.mainlineLandability = "integration-only";
-
-    expect(renderDeliveryPlanSection(mixed)).toContain(
-      "- **Landability:** 1 `independently-landable`, 2 `integration-only`.",
-    );
-  });
-
-  it("renders one-member plans in the same shape and omits non-stack landability", () => {
+  it("renders one-member stack plans in the same supported shape", () => {
     const section = renderDeliveryPlanSection(plan({
-      projection: "wu-integration-target",
       oneMember: true,
     }));
     expect(section).toMatch(/\| #\s+\| Member\s+\| Chunk key\s+\|/u);
     expect(section).toMatch(/\| #\s+\| Tasks\s+\| Design elements\s+\|/u);
     expect(section).not.toContain("Status");
-    expect(section).toContain("- **Projection:** `wu-integration-target`");
-    expect(section).not.toContain("Landability");
+    expect(section).toContain("- **Projection:** `stack-to-main`");
+    expect(section).toContain("- **Landability:** All members are `independently-landable`.");
     expect(section).toMatch(/\| 1\s+\| First member\s+\| `first`\s+\|/u);
     expect(section).toContain("_None._");
     expect(section).not.toContain("#### Acceptance");

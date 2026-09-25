@@ -2,14 +2,18 @@
 
 import { z } from "zod";
 
-import { canonicalDigest } from "../../../lib/canonical/canonical-json.js";
+import { canonicalDigest, canonicalize } from "../../../lib/canonical/canonical-json.js";
+import { CANDIDATE_VERIFICATION_EVIDENCE_PLACEHOLDER } from
+  "../../../lib/work-unit/candidate-attestation.js";
 import {
   DeliveryPublicReviewContinuationV1Schema,
   type DeliveryPublicReviewContinuationV1,
 } from "../../../lib/delivery/public-review-continuation.js";
 import { DeliveryPlanIdSchema } from "../../../lib/delivery/schema.js";
 import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
+import { attestConvergenceArgv } from "../../integration/spine-refusal.js";
 import { GitObjectIdSchema } from "../core/gate-contract-v2-schema.js";
+import { FrontlineCommandRequestSchema } from "./frontline-command-schema.js";
 import { ReviewResolveEnvelopeSchema } from "./review-policy-driver.js";
 import { StandardReviewObligationProjectionSchema } from "./standard-review-projection-schema.js";
 import {
@@ -31,14 +35,54 @@ export const RunSelfReviewActionSchema = z.strictObject({
 });
 export const ContinuePrePublicationActionSchema = z.strictObject({
   kind: z.literal("continue-pre-publication-review"),
+  authorizationRequest: FrontlineCommandRequestSchema.optional(),
+  request: FrontlineCommandRequestSchema.optional(),
+  resumeCommand: z.string().trim().min(1).optional(),
   ...ActionFields,
+}).superRefine((action, context) => {
+  const resolvesFrontline = action.command === "arc review frontline resolve -";
+  if (!resolvesFrontline && (action.request !== undefined || action.authorizationRequest !== undefined)) {
+    context.addIssue({
+      code: "custom",
+      path: ["request"],
+      message: "only the frontline resolver action may carry typed stdin requests",
+    });
+    return;
+  }
+  if (!resolvesFrontline) return;
+  if (action.request === undefined || action.authorizationRequest === undefined) {
+    context.addIssue({
+      code: "custom",
+      path: action.request === undefined ? ["request"] : ["authorizationRequest"],
+      message: "the frontline resolver action requires initial and authorized typed stdin requests",
+    });
+    return;
+  }
+  if (action.request.invocation.mode !== "inherit") {
+    context.addIssue({
+      code: "custom",
+      path: ["request", "invocation", "mode"],
+      message: "the initial frontline resolver request must preserve the offered-review authorization step",
+    });
+  }
+  const expectedAuthorizationRequest = {
+    ...action.request,
+    invocation: { ...action.request.invocation, mode: "force" },
+  };
+  if (canonicalize(action.authorizationRequest) !== canonicalize(expectedAuthorizationRequest)) {
+    context.addIssue({
+      code: "custom",
+      path: ["authorizationRequest"],
+      message: "the authorized frontline request may change only invocation mode to force",
+    });
+  }
 });
 export const ContinueHostedReviewActionSchema = z.strictObject({
   kind: z.literal("continue-hosted-review"),
   workUnitId: SlugSchema,
   ...ActionFields,
 }).superRefine((action, context) => {
-  if (action.command !== `arc review status --work-unit ${action.workUnitId} --json`) {
+  if (action.command !== `arc review status --work-unit ${action.workUnitId}`) {
     context.addIssue({
       code: "custom",
       path: ["command"],
@@ -51,7 +95,7 @@ export const ResolveDeliveryStatusActionSchema = z.strictObject({
   workUnitId: SlugSchema,
   ...ActionFields,
 }).superRefine((action, context) => {
-  if (action.command !== `arc review status --work-unit ${action.workUnitId} --json`) {
+  if (action.command !== `arc review status --work-unit ${action.workUnitId}`) {
     context.addIssue({
       code: "custom",
       path: ["command"],
@@ -66,8 +110,62 @@ const LegacyContinueHostedReviewActionSchema = z.strictObject({
 });
 export const RunConvergenceVerificationActionSchema = z.strictObject({
   kind: z.literal("run-convergence-verification"),
+  requiredScope: z.enum(["focused", "full"]),
+  verificationKind: z.enum(["focused", "tier-3"]),
+  verificationEvidenceRefRequired: z.literal(true),
+  attestArgv: z.array(z.string().trim().min(1)).length(8),
   ...ActionFields,
+}).superRefine((action, context) => {
+  const expectedKind = action.requiredScope === "focused" ? "focused" : "tier-3";
+  if (action.verificationKind !== expectedKind) {
+    context.addIssue({
+      code: "custom",
+      path: ["verificationKind"],
+      message: "must match the required convergence scope",
+    });
+  }
+  const expected = [
+    "arc", "attest", action.attestArgv[2], "--scope", action.requiredScope,
+    "--verification-evidence-ref", CANDIDATE_VERIFICATION_EVIDENCE_PLACEHOLDER, "--json",
+  ];
+  if (JSON.stringify(action.attestArgv) !== JSON.stringify(expected)
+    || action.command !== expected.join(" ")) {
+    context.addIssue({
+      code: "custom",
+      path: ["attestArgv"],
+      message: "must carry the exact scoped attest invocation",
+    });
+  }
 });
+
+/**
+ * Compose a substitution-required convergence-verification action for one work unit.
+ *
+ * @param workUnit - Work unit bound into the eventual attest invocation.
+ * @param requiredScope - Scope required to satisfy the pending convergence.
+ * @returns An action whose evidence placeholder must be replaced before invocation.
+ */
+export function createRunConvergenceVerificationAction(
+  workUnit: string,
+  requiredScope: "focused" | "full",
+): z.infer<typeof RunConvergenceVerificationActionSchema> {
+  const attestArgv = attestConvergenceArgv(
+    workUnit,
+    requiredScope,
+    CANDIDATE_VERIFICATION_EVIDENCE_PLACEHOLDER,
+  );
+  return RunConvergenceVerificationActionSchema.parse({
+    kind: "run-convergence-verification",
+    requiredScope,
+    verificationKind: requiredScope === "focused" ? "focused" : "tier-3",
+    verificationEvidenceRefRequired: true,
+    attestArgv: [...attestArgv],
+    command: attestArgv.join(" "),
+    interactionText: requiredScope === "focused"
+      ? "Run the bounded focused verification, then replace the carried evidence placeholder and attest."
+      : "Run Tier 3, then replace the carried evidence placeholder and attest.",
+  });
+}
 export const PublishCandidateActionSchema = z.strictObject({
   kind: z.literal("publish-candidate"),
   ...ActionFields,
@@ -125,6 +223,7 @@ const BoundaryCommonShape = {
    * operator back through a review whose evidence never went stale.
    */
   candidateSubjectDigest: CandidateSubjectDigestSchema.nullable().default(null),
+  /** Candidate-scoped residual-risk verdict; subject movement is gated by typed Candidate currentness. */
   terminus: OwnerAcceptedReviewTerminusSchema.nullable().default(null),
   deliveryReviewTermini: z.array(DeliveryReviewMemberTerminusSchema).default([]).superRefine((records, context) => {
     const seen = new Set<string>();
@@ -182,6 +281,14 @@ export const CandidateConvergenceBoundarySchema = z.strictObject({
   nextAction: RunConvergenceVerificationActionSchema,
   policy: z.null(),
   reservation: StandardReviewReservationV1Schema.nullable(),
+}).superRefine((boundary, context) => {
+  if (boundary.nextAction.attestArgv[2] !== boundary.workUnit) {
+    context.addIssue({
+      code: "custom",
+      path: ["nextAction", "attestArgv", 2],
+      message: "must match the enclosing Candidate boundary work unit",
+    });
+  }
 });
 export const CandidatePublishReadyBoundarySchema = z.strictObject({
   ...BoundaryCommonShape,
@@ -313,7 +420,7 @@ export function parseIntegrationBoundaryLocus(input: unknown): IntegrationBounda
       ...legacy.data.nextAction,
       kind: "resolve-delivery-status",
       workUnitId: legacy.data.workUnit,
-      command: `arc review status --work-unit ${legacy.data.workUnit} --json`,
+      command: `arc review status --work-unit ${legacy.data.workUnit}`,
       interactionText: "Resolve the retained delivery status.",
     },
   });
@@ -349,12 +456,45 @@ export function projectCandidateReviewBoundary(input: {
     locus: "candidate-review-pending",
     nextAction: {
       kind: "run-self-review",
-      command: `arc review pre-publication ${workUnit} --json`,
+      command: `arc review pre-publication ${workUnit}`,
       interactionText: "Run or resume the typed pre-publication review procedure.",
     },
     policy: null,
     reservation: null,
     terminus: null,
+  });
+}
+
+/**
+ * Recover a Candidate-scoped Owner verdict after attestation proves subject movement non-semantic.
+ *
+ * @param input - Stored boundary plus the attestation's currentness and Candidate coordinates.
+ * @returns The rebound public boundary, or `null` when no durable verdict can carry.
+ */
+export function recoverAttestedOwnerTerminusBoundary(input: {
+  stored: IntegrationBoundaryLocus | null;
+  workUnit: string;
+  candidateId: string;
+  candidateSubjectDigest: string;
+  repairCurrent: boolean;
+}): IntegrationBoundaryLocus | null {
+  const workUnit = SlugSchema.parse(input.workUnit);
+  const candidateId = CandidateIdSchema.parse(input.candidateId);
+  const candidateSubjectDigest = CandidateSubjectDigestSchema.parse(input.candidateSubjectDigest);
+  const stored = input.stored;
+  if (!input.repairCurrent
+    || stored === null
+    || stored.workUnit !== workUnit
+    || stored.candidateId !== candidateId
+    || stored.terminus === null
+    || (stored.locus !== "publication-pending"
+      && stored.locus !== "hosted-review-pending"
+      && stored.locus !== "delivery-status-required")) {
+    return null;
+  }
+  return IntegrationBoundaryLocusSchema.parse({
+    ...stored,
+    candidateSubjectDigest,
   });
 }
 
@@ -378,7 +518,7 @@ export function projectCandidateReviewResumeBoundary(input: {
     locus: "candidate-review-pending",
     nextAction: {
       kind: "continue-pre-publication-review",
-      command: `arc review pre-publication ${workUnit} --json`,
+      command: `arc review pre-publication ${workUnit}`,
       interactionText: "Resume pre-publication review over the converged Candidate.",
     },
     policy: null,
@@ -410,7 +550,7 @@ export function projectCandidateFixResumeBoundary(input: {
     locus: "candidate-fix-pending",
     nextAction: {
       kind: "continue-pre-publication-review",
-      command: `arc review pre-publication ${workUnit} --json`,
+      command: `arc review pre-publication ${workUnit}`,
       interactionText: "Resume the approved Candidate review fix response.",
     },
     policy: null,
@@ -476,9 +616,9 @@ export function projectPublicationBoundary(input: unknown): IntegrationBoundaryL
           ? "continue-pre-publication-review"
           : "continue-publication",
       command: deliveryHosted
-        ? `arc review status --work-unit ${value.workUnit} --json`
+        ? `arc review status --work-unit ${value.workUnit}`
         : hosted
-          ? `arc review pre-publication ${value.workUnit} --json`
+          ? `arc review pre-publication ${value.workUnit}`
         : `git push -u origin ${value.branch}`,
       interactionText: deliveryHosted
         ? "Resolve the retained delivery status."
@@ -538,7 +678,7 @@ export function projectCorrectiveDeliveryStatusBoundary(input: {
     nextAction: {
       kind: "resolve-delivery-status",
       workUnitId: workUnit,
-      command: `arc review status --work-unit ${workUnit} --json`,
+      command: `arc review status --work-unit ${workUnit}`,
       interactionText: "Resolve the retained delivery status.",
     },
     policy: null,

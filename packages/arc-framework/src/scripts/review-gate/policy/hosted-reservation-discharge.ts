@@ -30,6 +30,7 @@ import type { ReviewContributionApplicabilityResult } from
   "./review-contribution-applicability.js";
 import type { HostedFindingsResponsePlan } from "../core/response-plan-schema.js";
 import type { HostedAwaitEnvelope } from "../hosted/await.js";
+import { hostedRequestHandleMatchesProgress } from "../hosted/request.js";
 import { bindReviewSourceReference } from "../core/review-source-reference.js";
 import {
   candidateExpectsEarlierReviewAttempt,
@@ -339,7 +340,9 @@ export async function resolveHostedReservationTargets(input: {
  * Decide whether a carried hosted-review reservation has been discharged.
  *
  * Discharge is a complete `clean` attempt by the first ordered source that
- * was not safely unavailable on the standard lane anywhere in the Candidate span. It is read rather than written because a discharge
+ * was not safely unavailable on the standard lane anywhere in the Candidate span, or by a complete
+ * exact-member attempt whose admitted request retained an explicit Owner source selection.
+ * It is read rather than written because a discharge
  * write needs a caller who remembers to make it, and a reservation nobody cleared is the realized
  * failure this replaces. The span rather than the approved head alone: a review that ran before a
  * later fix landed still discharged the obligation, and gating on the head would replace the
@@ -446,6 +449,23 @@ export async function projectHostedReservationDischarge(input: {
       awaitAction: { schemaVersion: 1, handle: pending.hosted.handle },
     };
   }
+  const selectedClean = currentAttempts.find((attempt) => {
+    const hosted = attempt.hosted;
+    const handle = hosted?.handle;
+    return attempt.outcome === "clean"
+      && hosted !== undefined
+      && handle?.invocation?.mode === "force"
+      && handle.invocation.sourceId === attempt.sourceId
+      && reservation.sources.includes(attempt.sourceId)
+      && handle.effectiveCoverage === "complete"
+      && hostedRequestHandleMatchesProgress(handle, {
+        sourceId: attempt.sourceId,
+        target: hosted.target,
+        requestedCoverage: hosted.requestedCoverage,
+        effectiveCoverage: hosted.effectiveCoverage,
+        ...(hosted.vehicle === undefined ? {} : { vehicle: hosted.vehicle }),
+      });
+  });
   const completedChunkedLocal = currentAttempts.some((attempt) => (
     attempt.sourceId === "delegated-agent"
     && attempt.outcome === "clean"
@@ -545,6 +565,15 @@ export async function projectHostedReservationDischarge(input: {
     }
     return projectPendingFindings(routes, "retained");
   };
+  if (selectedClean !== undefined) {
+    const retainedFindings = await retainedFindingsBeforeRequest();
+    if (retainedFindings !== null) return retainedFindings;
+    return {
+      discharged: true,
+      detail: `Hosted source \`${selectedClean.sourceId}\` by explicit Owner selection.`,
+      nextSource: null,
+    };
+  }
   for (const sourceId of reservation.sources) {
     const sourceAttempts = currentAttempts.filter((attempt) => attempt.sourceId === sourceId);
     const settledCurrentHead = currentAttempts.some((attempt) => attempt.sourceId === sourceId

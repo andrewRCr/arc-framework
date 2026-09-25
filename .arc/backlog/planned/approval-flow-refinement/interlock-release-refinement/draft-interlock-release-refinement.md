@@ -23,6 +23,50 @@ atomic companion and the personal atomic inbox.
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Carry a recommendation into approval gates, not only advisory forks**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- `WU_Target: TBD`
+
+- _Home note:_ not `interlock-release-refinement` (that member owns wrapper routing, not prompt content). The
+  `approval-flow-refinement` cohort owns the unit of approval; this is the content of the approval prompt, so it is
+  either a small Rule Authority follow-on beside "A stop with one answer" or a new cohort member. Resolve at drain.
+
+- _Observation:_ `DEV-RULES.ARC` § Recommend on advisory forks requires a recommended option with a one-line
+  rationale on advisory accept/decline forks and explicitly excludes mandatory approval gates. At lifecycle
+  approval gates agents therefore render "approve X?" even when the typed result already composed a recommended
+  action, or when a short residual judgment would change what is worth approving. The user keeps the final say
+  either way; the bare form spends the approval turn without the judgment ARC exists to surface.
+
+- _Approach:_ extend the rule to approval gates in the form "given X, I recommend Y — approve?", with the split
+  that keeps routine ops cheap: the verb composes the recommendation wherever the facts are deterministic (the
+  session-init envelope's `recommendedAction` / `recommendedPromptText` is the existing pattern), and the agent
+  supplies one only for a genuinely open residual. Not a judgment-authority-model change; the invariant holders
+  and interlock semantics stay as they are.
+
+- _Coordination:_ `concurrent-integration-characterization` records per stop whether the returned result carried a
+  recommendation or a bare fork; that ledger is field evidence for this rule's scope.
+
+- _Field evidence (2026-09-14):_ that ledger closed with six bare stops, and the pattern is inverted from what the
+  rule would predict. Four of the six are the same typed result — the checkpoint's `reconcile / reconcile-base`,
+  once on the singleton path and three times across the delivery-member cells — and it is what the boundary returns
+  _after_ deciding the movement is tolerable. The other two are teardown's authority-ref refusal and public review's
+  `base-moved / rerun-checkpoint`, which names an action but carries no argv for it. **The bare stops are the safe
+  results**; every refusal at the landing boundary carries a remedy. So the gap is not that hard outcomes go
+  unexplained — it is that the outcomes a session can act on are the ones left without a composed next step.
+
+- _Observation (one-answer stops):_ the same family from the other side. Agents routinely stop to ask whether to
+  take the only forward path there is ("the next indicated step is this checkpoint — run it?") on non-destructive,
+  reversible verbs. `DEV-RULES.ARC` § Rule Authority "A stop with one answer" already says to discharge such a stop
+  when the action is reversible in one turn; the stops are the agent under-applying it, plus a handful of
+  workflow-mandated asks (session-init's closing "proceed to Next Action?", with `--next` as its opt-out) and three
+  session-init channels configured to `prompt` in this project (`session.init_pull.worktree`,
+  `session.init_pull.notes`, `session.init_load.notes`). Audit workflow prose for one-answer asks and decide whether
+  the rule needs a more prominent home or a harness-facing restatement.
+
+- _Captured during:_ `concurrent-integration-characterization` draft-design session, 2026-09-14.
+
 ### `[ ]` **Resolve commit-footer artifacts across lifecycle locations**
 
 - _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-08-10).

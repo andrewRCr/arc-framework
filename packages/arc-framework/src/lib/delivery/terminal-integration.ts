@@ -127,6 +127,7 @@ export interface DeliveryTerminalReviewFixCandidate {
     readonly baselineRelation: "exact" | "ancestor" | "equivalent";
   };
   readonly convergenceVerification: "satisfied";
+  readonly convergenceScope: null;
 }
 
 export type DeliveryTerminalCandidateRebindAuthority =
@@ -290,6 +291,7 @@ export function rebindDeliveryTerminalCoordinates(input: {
 }
 
 export type DeliveryTerminalDriftResult =
+  | { readonly status: "disjoint"; readonly nextAction: "continue" }
   | {
       readonly status: "reconcile";
       readonly nextAction: "reconcile-base";
@@ -308,12 +310,12 @@ export function classifyDeliveryTerminalDrift(input: {
   readonly residualPaths: readonly string[];
   readonly predecessorPaths: readonly string[];
 }): DeliveryTerminalDriftResult {
-  const driftPaths = [...new Set([...input.substantivePaths, ...input.regenerablePaths])];
   const intersect = (source: readonly string[], paths: readonly string[]): string[] => {
     const candidates = new Set(paths);
     return [...new Set(source.filter((path) => candidates.has(path)))].sort();
   };
-  const predecessorOverlap = intersect(driftPaths, input.predecessorPaths);
+  if (input.substantivePaths.length === 0) return { status: "disjoint", nextAction: "continue" };
+  const predecessorOverlap = intersect(input.substantivePaths, input.predecessorPaths);
   if (predecessorOverlap.length > 0) {
     return { status: "refused", reason: "predecessor-overlap", paths: predecessorOverlap };
   }

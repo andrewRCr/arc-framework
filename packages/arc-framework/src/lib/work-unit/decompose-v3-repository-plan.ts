@@ -9,7 +9,7 @@ import {
   setMetaBulletFields,
   type ParsedMetaRecord,
 } from "../active/meta-reader.js";
-import { MetaPrioritySchema } from "../active/meta-schema.js";
+import { MetaPrioritySchema, type MetaPriority } from "../active/meta-schema.js";
 import { SlugSchema } from "../kernel/index.js";
 import { resolveArcPath, type WorkUnitPlacement } from "../layout/index.js";
 import {
@@ -18,14 +18,12 @@ import {
 } from "./decompose-content.js";
 import {
   validateV3DecomposeConservation,
-  type V3DecomposeLiveWorkUnit,
   type V3ValidatedDependencyEdit,
 } from "./decompose-v3-conservation.js";
 import {
   composeV3DecomposePlan,
   renderV3NewLeafMeta,
   type V3PlanBlob,
-  type V3PlannedByteState,
   type V3PlannedContentContribution,
   type V3PlannedDependencyContribution,
   type V3PlannedExclusivePath,
@@ -34,7 +32,6 @@ import type { ValidatedDecomposePlan } from "./decompose-v3-plan.js";
 import type { V3ExtractionReportFacts } from "./decompose-v3-result-report.js";
 import type { V3DecomposePreflight } from "./decompose-v3-preflight.js";
 import type {
-  V3DecomposeEvidenceValue,
   V3DecomposeRefusalEvidence,
 } from "./decompose-v3-refusal.js";
 import {
@@ -55,14 +52,35 @@ import {
   type V3TopologyPlanInput,
 } from "./decompose-v3-topology.js";
 import type { ProspectiveTransitionOverlay } from "./transition-overlay.js";
-import { artifactMatcher } from "./mutators/relocate-artifacts.js";
-import { completedWorkUnitMetaSlug } from "./completed-index.js";
+import {
+  ABSENT,
+  applyPlannedProjection,
+  applyState,
+  cloneTree,
+  compareUtf8,
+  completedWorkUnitSlugs,
+  decodeText,
+  originArtifactPaths,
+  readTreeMetas,
+  regularFile,
+  regularTree,
+  sourceArtifactEvidence,
+  stateAt,
+  uniqueMeta,
+  type TreeMeta,
+  type V3RepositoryPlanState,
+  type V3RepositoryPlanTree,
+} from "./decompose-v3-repository-tree.js";
+import {
+  extractionFacts,
+  liveWorkUnits,
+  memberPlacement,
+} from "./decompose-v3-repository-projections.js";
 
-/** Exact regular-file or absence states read from pinned repository trees. */
-export type V3RepositoryPlanState = V3PlannedByteState;
-
-/** Complete repository-relative tree projection used by the plan builder. */
-export type V3RepositoryPlanTree = Record<string, V3RepositoryPlanState>;
+export type {
+  V3RepositoryPlanState,
+  V3RepositoryPlanTree,
+} from "./decompose-v3-repository-tree.js";
 
 /** Inputs a Git adapter derives from exact commits before any occupation. */
 export interface V3RepositoryPlanInput {
@@ -130,7 +148,6 @@ type V3ContentProjectionRefusal = {
   locus: string;
 };
 
-const ABSENT = { kind: "absent" } as const;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
 const ROADMAP_PATH = resolveArcPath({ kind: "project-document", document: "roadmap" });
@@ -151,146 +168,6 @@ function refuse(
       ...(evidence === undefined ? {} : { evidence }),
       ...(dependencyRecipient === undefined ? {} : { dependencyRecipient }),
     },
-  };
-}
-
-function sourceArtifactEvidence(
-  path: string,
-  state: V3RepositoryPlanState,
-): V3DecomposeEvidenceValue {
-  if (state.kind === "absent") return { kind: "absent" };
-  return {
-    path,
-    objectKind: state.objectKind,
-    mode: state.mode,
-    contentDigest: digestBytes(state.bytes),
-  };
-}
-
-function compareUtf8(left: string, right: string): number {
-  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
-}
-
-function stateAt(tree: V3RepositoryPlanTree, path: string): V3RepositoryPlanState {
-  return tree[path] ?? ABSENT;
-}
-
-function regularFile(state: V3RepositoryPlanState): state is Exclude<V3RepositoryPlanState, { kind: "absent" }> {
-  return state.kind === "object"
-    && state.objectKind === "blob"
-    && (state.mode === "100644" || state.mode === "100755");
-}
-
-function cloneState(state: V3RepositoryPlanState): V3RepositoryPlanState {
-  return state.kind === "absent"
-    ? state
-    : { ...state, bytes: new Uint8Array(state.bytes) };
-}
-
-function cloneTree(tree: V3RepositoryPlanTree): V3RepositoryPlanTree {
-  return Object.fromEntries(
-    Object.entries(tree).map(([path, state]) => [path, cloneState(state)]),
-  );
-}
-
-function regularTree(tree: V3RepositoryPlanTree): Record<
-  string,
-  Exclude<V3RepositoryPlanState, { kind: "absent" }>
-> {
-  return Object.fromEntries(
-    Object.entries(tree).filter(
-      (entry): entry is [string, Exclude<V3RepositoryPlanState, { kind: "absent" }>] =>
-        entry[1].kind === "object",
-    ),
-  );
-}
-
-function applyState(
-  tree: V3RepositoryPlanTree,
-  path: string,
-  state: V3RepositoryPlanState,
-): void {
-  tree[path] = cloneState(state);
-}
-
-function decodeText(state: V3RepositoryPlanState): string | null {
-  if (!regularFile(state)) return null;
-  try {
-    return decoder.decode(state.bytes);
-  } catch {
-    return null;
-  }
-}
-
-function metaSlug(path: string): string | null {
-  const match = /(?:^|\/)meta-(.+)\.md$/u.exec(path);
-  return match?.[1] ?? null;
-}
-
-function supportedMetaPath(path: string): boolean {
-  return path.startsWith(".arc/active/")
-    || path.startsWith(".arc/backlog/planned/")
-    || path.startsWith(".arc/backlog/provisional/");
-}
-
-interface TreeMeta {
-  slug: string;
-  path: string;
-  record: ParsedMetaRecord;
-}
-
-function readTreeMetas(tree: V3RepositoryPlanTree): TreeMeta[] | null {
-  const records: TreeMeta[] = [];
-  for (const path of Object.keys(tree).sort(compareUtf8)) {
-    const slug = metaSlug(path);
-    if (slug === null || !supportedMetaPath(path)) continue;
-    const text = decodeText(stateAt(tree, path));
-    if (text === null) return null;
-    try {
-      records.push({ slug, path, record: parseMetaRecord(text) });
-    } catch {
-      return null;
-    }
-  }
-  return records;
-}
-
-function uniqueMeta(records: readonly TreeMeta[], slug: string): TreeMeta | null {
-  const matches = records.filter((record) => record.slug === slug);
-  return matches.length === 1 ? matches[0] ?? null : null;
-}
-
-function originArtifactPaths(
-  tree: V3RepositoryPlanTree,
-  metaPath: string,
-  origin: string,
-): string[] {
-  const directory = posix.dirname(metaPath);
-  const matcher = artifactMatcher(origin);
-  const layered = new Set([`spec-${origin}-prd.md`, `spec-${origin}-rfc.md`]);
-  const cohortName = `cohort-${origin}.md`;
-  return Object.keys(tree)
-    .filter((path) => posix.dirname(path) === directory)
-    .filter((path) => {
-      const name = posix.basename(path);
-      return name !== cohortName && (matcher.test(name) || layered.has(name));
-    })
-    .sort(compareUtf8);
-}
-
-function memberPlacement(map: V3DecomposeCutMap): WorkUnitPlacement {
-  const placement = map.authoring.placement;
-  const cohort = placement.kind === "direct-member"
-    ? []
-    : (placement.kind === "at-cap" ? placement.parent : placement.cohort).split("/");
-  return {
-    kind: "backlog",
-    commitment: "planned",
-    cohort: cohort.length === 0
-      ? []
-      : cohort.length === 1
-        ? [SlugSchema.parse(cohort[0])]
-        : [SlugSchema.parse(cohort[0]), SlugSchema.parse(cohort[1])],
   };
 }
 
@@ -410,145 +287,168 @@ function scaffoldSource(
   return { status: "ready", source: sourceArtifact.state, bytes: retitled.bytes };
 }
 
-function newMemberScaffolds(
+type V3ScaffoldedContent = {
+  status: "scaffolded";
+  content: V3PlannedContentContribution[];
+  states: V3RepositoryPlanTree;
+};
+
+type V3ScaffoldResult = V3ScaffoldedContent | V3ContentProjectionRefusal;
+
+function scaffoldMemberProfile(
   map: V3DecomposeCutMap,
   sourceTree: V3RepositoryPlanTree,
-  sourceMetaPath: string,
-  sourceRecord: ParsedMetaRecord,
-):
-  | {
-      status: "scaffolded";
-      content: V3PlannedContentContribution[];
-      states: V3RepositoryPlanTree;
-    }
-  | V3ContentProjectionRefusal {
-  const priority = MetaPrioritySchema.safeParse(sourceRecord.priority);
-  if (sourceRecord.owner === null || !priority.success || sourceRecord.origin === null) {
-    const member = map.authoring.destinations.find(
-      (destination): destination is NewMember => destination.kind === "new-member",
-    );
-    if (member === undefined) return { status: "scaffolded", content: [], states: {} };
-    return {
-      status: "refused",
-      reason: "scaffold-source-meta-incomplete",
-      locus: `${member.slug}:${sourceMetaPath}`,
-    };
-  }
-  const placement = memberPlacement(map);
-  const cohort = placement.kind === "backlog" && placement.cohort.length > 0
-    ? placement.cohort.join("/")
-    : null;
-  const content: V3PlannedContentContribution[] = [];
-  const states: V3RepositoryPlanTree = {};
-  for (const destination of map.authoring.destinations) {
-    if (destination.kind !== "new-member") continue;
-    const artifacts = memberProfileArtifacts(map, destination);
-    const workflow = map.machine.planningProfile.kind === "draft" ? "draft-design" : "generate-tasks";
-    const metaPath = memberArtifactPath(placement, destination.slug, "meta");
-    const metaBytes = renderV3NewLeafMeta(destination.slug, {
+  destination: NewMember,
+  placement: WorkUnitPlacement,
+  source: { owner: string; priority: MetaPriority; origin: string; cohort: string | null },
+): V3ScaffoldResult {
+  const artifacts = memberProfileArtifacts(map, destination);
+  const workflow = map.machine.planningProfile.kind === "draft" ? "draft-design" : "generate-tasks";
+  const metaPath = memberArtifactPath(placement, destination.slug, "meta");
+  const metaAfter = {
+    kind: "object" as const,
+    objectKind: "blob",
+    mode: "100644",
+    bytes: renderV3NewLeafMeta(destination.slug, {
       state: "Planning",
-      owner: sourceRecord.owner,
+      owner: source.owner,
       workClass: destination.workClass,
-      priority: priority.data,
-      cohort,
-      origin: sourceRecord.origin,
+      priority: source.priority,
+      cohort: source.cohort,
+      origin: source.origin,
       design: artifacts.map(({ path }) => posix.basename(path)),
       currentWorkflow: workflow,
       nextAction: `Begin ${workflow}`,
-    });
-    const metaAfter = {
-      kind: "object" as const,
-      objectKind: "blob",
-      mode: "100644",
-      bytes: metaBytes,
-    };
+    }),
+  };
+  const content: V3PlannedContentContribution[] = [{
+    path: metaPath,
+    destinationId: destination.destinationId,
+    destinationKind: destination.kind,
+    artifactRole: "meta",
+    contributorKind: "scaffold",
+    disposition: "whole-file",
+    sourceProjection: [],
+    base: ABSENT,
+    before: ABSENT,
+    after: metaAfter,
+  }];
+  const states: V3RepositoryPlanTree = { [metaPath]: metaAfter };
+  for (const artifact of artifacts) {
+    const scaffold = scaffoldSource(map, sourceTree, destination, artifact.sourceName);
+    if (scaffold.status === "refused") return scaffold;
+    const after = { ...scaffold.source, bytes: scaffold.bytes };
     content.push({
-      path: metaPath,
+      path: artifact.path,
       destinationId: destination.destinationId,
       destinationKind: destination.kind,
-      artifactRole: "meta",
+      artifactRole: artifact.role,
       contributorKind: "scaffold",
       disposition: "whole-file",
       sourceProjection: [],
       base: ABSENT,
       before: ABSENT,
-      after: metaAfter,
+      after,
     });
-    states[metaPath] = metaAfter;
-    for (const artifact of artifacts) {
-      const scaffold = scaffoldSource(map, sourceTree, destination, artifact.sourceName);
-      if (scaffold.status === "refused") return scaffold;
-      const after = { ...scaffold.source, bytes: scaffold.bytes };
-      content.push({
-        path: artifact.path,
-        destinationId: destination.destinationId,
-        destinationKind: destination.kind,
-        artifactRole: artifact.role,
-        contributorKind: "scaffold",
-        disposition: "whole-file",
-        sourceProjection: [],
-        base: ABSENT,
-        before: ABSENT,
-        after,
-      });
-      states[artifact.path] = after;
-    }
-    const taskPath = memberArtifactPath(placement, destination.slug, "tasks");
-    const taskTargeted = map.authoring.sourceAllocations.some((allocation) =>
-      allocation.disposition.kind === "target"
-      && allocation.disposition.destinationId === destination.destinationId
-      && allocation.disposition.targetLocator.artifact === posix.basename(taskPath));
-    if (taskTargeted) {
-      const scaffold = scaffoldSource(
-        map,
-        sourceTree,
-        destination,
-        `tasks-${map.machine.source.origin}.md`,
-      );
-      if (scaffold.status === "refused") return scaffold;
-      const after = { ...scaffold.source, bytes: scaffold.bytes };
-      content.push({
-        path: taskPath,
-        destinationId: destination.destinationId,
-        destinationKind: destination.kind,
-        artifactRole: "tasks",
-        contributorKind: "provisional-task",
-        disposition: "whole-file",
-        sourceProjection: [],
-        base: ABSENT,
-        before: ABSENT,
-        after,
-      });
-      states[taskPath] = after;
-    }
-    const notesPath = memberArtifactPath(placement, destination.slug, "notes");
-    const notesTargeted = map.authoring.sourceAllocations.some((allocation) =>
-      allocation.disposition.kind === "target"
-      && allocation.disposition.destinationId === destination.destinationId
-      && allocation.disposition.targetLocator.artifact === posix.basename(notesPath));
-    if (notesTargeted) {
-      const scaffold = scaffoldSource(
-        map,
-        sourceTree,
-        destination,
-        `notes-${map.machine.source.origin}.md`,
-      );
-      if (scaffold.status === "refused") return scaffold;
-      const after = { ...scaffold.source, bytes: scaffold.bytes };
-      content.push({
-        path: notesPath,
-        destinationId: destination.destinationId,
-        destinationKind: destination.kind,
-        artifactRole: "notes",
-        contributorKind: "provisional-notes",
-        disposition: "whole-file",
-        sourceProjection: [],
-        base: ABSENT,
-        before: ABSENT,
-        after,
-      });
-      states[notesPath] = after;
-    }
+    states[artifact.path] = after;
+  }
+  return { status: "scaffolded", content, states };
+}
+
+function scaffoldOptionalMemberArtifact(
+  map: V3DecomposeCutMap,
+  sourceTree: V3RepositoryPlanTree,
+  destination: NewMember,
+  placement: WorkUnitPlacement,
+  role: "tasks" | "notes",
+): V3ScaffoldResult {
+  const path = memberArtifactPath(placement, destination.slug, role);
+  const targeted = map.authoring.sourceAllocations.some((allocation) =>
+    allocation.disposition.kind === "target"
+    && allocation.disposition.destinationId === destination.destinationId
+    && allocation.disposition.targetLocator.artifact === posix.basename(path));
+  if (!targeted) return { status: "scaffolded", content: [], states: {} };
+  const scaffold = scaffoldSource(
+    map,
+    sourceTree,
+    destination,
+    `${role}-${map.machine.source.origin}.md`,
+  );
+  if (scaffold.status === "refused") return scaffold;
+  const after = { ...scaffold.source, bytes: scaffold.bytes };
+  return {
+    status: "scaffolded",
+    content: [{
+      path,
+      destinationId: destination.destinationId,
+      destinationKind: destination.kind,
+      artifactRole: role,
+      contributorKind: role === "tasks" ? "provisional-task" : "provisional-notes",
+      disposition: "whole-file",
+      sourceProjection: [],
+      base: ABSENT,
+      before: ABSENT,
+      after,
+    }],
+    states: { [path]: after },
+  };
+}
+
+function scaffoldNewMember(
+  map: V3DecomposeCutMap,
+  sourceTree: V3RepositoryPlanTree,
+  destination: NewMember,
+  placement: WorkUnitPlacement,
+  source: { owner: string; priority: MetaPriority; origin: string; cohort: string | null },
+): V3ScaffoldResult {
+  const profile = scaffoldMemberProfile(map, sourceTree, destination, placement, source);
+  if (profile.status === "refused") return profile;
+  const tasks = scaffoldOptionalMemberArtifact(map, sourceTree, destination, placement, "tasks");
+  if (tasks.status === "refused") return tasks;
+  const notes = scaffoldOptionalMemberArtifact(map, sourceTree, destination, placement, "notes");
+  if (notes.status === "refused") return notes;
+  return {
+    status: "scaffolded",
+    content: [...profile.content, ...tasks.content, ...notes.content],
+    states: { ...profile.states, ...tasks.states, ...notes.states },
+  };
+}
+
+function newMemberScaffolds(
+  map: V3DecomposeCutMap,
+  sourceTree: V3RepositoryPlanTree,
+  sourceMetaPath: string,
+  sourceRecord: ParsedMetaRecord,
+): V3ScaffoldResult {
+  const priority = MetaPrioritySchema.safeParse(sourceRecord.priority);
+  const firstMember = map.authoring.destinations.find(
+    (destination): destination is NewMember => destination.kind === "new-member",
+  );
+  if (firstMember === undefined) return { status: "scaffolded", content: [], states: {} };
+  if (sourceRecord.owner === null || !priority.success || sourceRecord.origin === null) {
+    return {
+      status: "refused",
+      reason: "scaffold-source-meta-incomplete",
+      locus: `${firstMember.slug}:${sourceMetaPath}`,
+    };
+  }
+  const placement = memberPlacement(map);
+  const source = {
+    owner: sourceRecord.owner,
+    priority: priority.data,
+    origin: sourceRecord.origin,
+    cohort: placement.kind === "backlog" && placement.cohort.length > 0
+      ? placement.cohort.join("/")
+      : null,
+  };
+  const content: V3PlannedContentContribution[] = [];
+  const states: V3RepositoryPlanTree = {};
+  for (const destination of map.authoring.destinations) {
+    if (destination.kind !== "new-member") continue;
+    const scaffold = scaffoldNewMember(map, sourceTree, destination, placement, source);
+    if (scaffold.status === "refused") return scaffold;
+    content.push(...scaffold.content);
+    Object.assign(states, scaffold.states);
   }
   return { status: "scaffolded", content, states };
 }
@@ -624,27 +524,13 @@ function targetLocatorResolves(path: string, state: V3RepositoryPlanState, locat
     && resolveV3DecomposeContentLocator(scan.units, locator, posix.basename(path)).status === "resolved";
 }
 
-function contentContributions(
+function projectExistingHomeContributions(
   map: V3DecomposeCutMap,
   baseTree: V3RepositoryPlanTree,
   baseMetas: readonly TreeMeta[],
-  topology: readonly V3TopologyAction[],
-  scaffolds: Extract<ReturnType<typeof newMemberScaffolds>, { status: "scaffolded" }>,
-):
-  | {
-      status: "projected";
-      content: V3PlannedContentContribution[];
-      states: V3RepositoryPlanTree;
-    }
-  | V3ContentProjectionRefusal {
-  const content = [...scaffolds.content];
-  const states = cloneTree(baseTree);
-  for (const action of topology) {
-    if (action.kind !== "none") applyState(states, action.path, action.after);
-  }
-  for (const [path, state] of Object.entries(scaffolds.states)) applyState(states, path, state);
-
-  const destinationById = new Map(map.authoring.destinations.map((entry) => [entry.destinationId, entry]));
+  states: V3RepositoryPlanTree,
+  content: V3PlannedContentContribution[],
+): V3ContentProjectionRefusal | null {
   for (const destination of map.authoring.destinations) {
     if (destination.kind !== "existing-home") continue;
     const path = existingDestinationPath(destination, baseMetas);
@@ -676,10 +562,34 @@ function contentContributions(
       after: current,
     });
   }
+  return null;
+}
 
+function targetArtifactRole(
+  destination: Destination,
+  target: string,
+): V3PlannedContentContribution["artifactRole"] {
+  if (destination.kind === "cohort-coordination") return "coordination";
+  if (destination.kind === "existing-home") return "existing-home";
+  const basename = posix.basename(target);
+  if (basename === `meta-${destination.slug}.md`) return "meta";
+  if (basename === `draft-${destination.slug}.md`) return "draft";
+  if (basename === `tasks-${destination.slug}.md`) return "tasks";
+  if (basename === `notes-${destination.slug}.md`) return "notes";
+  return basename.endsWith("-rfc.md") ? "rfc" : "spec";
+}
+
+function projectAllocationContributions(
+  map: V3DecomposeCutMap,
+  baseTree: V3RepositoryPlanTree,
+  baseMetas: readonly TreeMeta[],
+  states: V3RepositoryPlanTree,
+  content: V3PlannedContentContribution[],
+): V3ContentProjectionRefusal | null {
+  const destinations = new Map(map.authoring.destinations.map((entry) => [entry.destinationId, entry]));
   for (const allocation of map.authoring.sourceAllocations) {
     if (allocation.disposition.kind !== "target") continue;
-    const destination = destinationById.get(allocation.disposition.destinationId);
+    const destination = destinations.get(allocation.disposition.destinationId);
     if (destination === undefined) {
       throw new Error("Validated allocation references an unknown destination.");
     }
@@ -709,26 +619,11 @@ function contentContributions(
         locus: projectionLocus(destination, target),
       };
     }
-    const artifactRole = destination.kind === "cohort-coordination"
-      ? "coordination"
-      : destination.kind === "existing-home"
-        ? "existing-home"
-        : posix.basename(target) === `meta-${destination.slug}.md`
-          ? "meta"
-          : posix.basename(target) === `draft-${destination.slug}.md`
-            ? "draft"
-            : posix.basename(target) === `tasks-${destination.slug}.md`
-              ? "tasks"
-              : posix.basename(target) === `notes-${destination.slug}.md`
-                ? "notes"
-                : posix.basename(target).endsWith("-rfc.md")
-                  ? "rfc"
-                  : "spec";
     content.push({
       path: target,
       destinationId: destination.destinationId,
       destinationKind: destination.kind,
-      artifactRole,
+      artifactRole: targetArtifactRole(destination, target),
       contributorKind: "allocation",
       disposition: "patch",
       sourceProjection: [{
@@ -740,27 +635,44 @@ function contentContributions(
       after: current,
     });
   }
-  return { status: "projected", content, states };
+  return null;
 }
 
-function liveWorkUnits(
-  sourceMetas: readonly TreeMeta[],
+function contentContributions(
+  map: V3DecomposeCutMap,
+  baseTree: V3RepositoryPlanTree,
   baseMetas: readonly TreeMeta[],
-): V3DecomposeLiveWorkUnit[] {
-  const writable = new Map(baseMetas.map((meta) => [meta.slug, meta.path]));
-  return sourceMetas.map((meta) => ({
-    slug: meta.slug,
-    dependsOn: [...meta.record.dependsOn],
-    ...(writable.get(meta.slug) === undefined ? {} : { writablePath: writable.get(meta.slug) }),
-  }));
-}
-
-function completedWorkUnitSlugs(tree: V3RepositoryPlanTree): string[] {
-  return Object.entries(tree).flatMap(([path, state]) => {
-    if (!regularFile(state)) return [];
-    const slug = completedWorkUnitMetaSlug(path);
-    return slug === null ? [] : [slug];
-  });
+  topology: readonly V3TopologyAction[],
+  scaffolds: V3ScaffoldedContent,
+):
+  | {
+      status: "projected";
+      content: V3PlannedContentContribution[];
+      states: V3RepositoryPlanTree;
+    }
+  | V3ContentProjectionRefusal {
+  const content = [...scaffolds.content];
+  const states = cloneTree(baseTree);
+  for (const action of topology) {
+    if (action.kind !== "none") applyState(states, action.path, action.after);
+  }
+  for (const [path, state] of Object.entries(scaffolds.states)) applyState(states, path, state);
+  const existingHomeRefusal = projectExistingHomeContributions(
+    map,
+    baseTree,
+    baseMetas,
+    states,
+    content,
+  );
+  if (existingHomeRefusal !== null) return existingHomeRefusal;
+  const allocationRefusal = projectAllocationContributions(
+    map,
+    baseTree,
+    baseMetas,
+    states,
+    content,
+  );
+  return allocationRefusal ?? { status: "projected", content, states };
 }
 
 type V3DependencyProjectionResult =
@@ -863,56 +775,6 @@ function exclusiveRetirements(
       after: ABSENT,
     },
     source,
-  };
-}
-
-function applyPlannedProjection(
-  tree: V3RepositoryPlanTree,
-  topology: readonly V3TopologyAction[],
-  content: readonly V3PlannedContentContribution[],
-  dependenciesInput: readonly V3PlannedDependencyContribution[],
-  predecessor?: V3PlannedExclusivePath,
-  sourceRetirements: readonly V3PlannedExclusivePath[] = [],
-): V3RepositoryPlanTree {
-  const projected = cloneTree(tree);
-  for (const action of topology) {
-    if (action.kind !== "none") applyState(projected, action.path, action.after);
-  }
-  for (const contribution of content) applyState(projected, contribution.path, contribution.after);
-  for (const dependency of dependenciesInput) applyState(projected, dependency.path, dependency.after);
-  if (predecessor !== undefined) applyState(projected, predecessor.path, predecessor.after);
-  for (const retirement of sourceRetirements) applyState(projected, retirement.path, retirement.after);
-  return projected;
-}
-
-function extractionFacts(
-  map: V3DecomposeCutMap,
-  sourceMetaPath: string,
-): V3ExtractionReportFacts {
-  const retainedOrigin = map.authoring.sourceAllocations.flatMap((allocation) =>
-    allocation.disposition.kind === "retained-origin"
-      ? [{ sourceId: allocation.sourceId, ownership: "destination-owned" as const }]
-      : []);
-  const reasonedDrops = map.authoring.sourceAllocations.flatMap((allocation) =>
-    allocation.disposition.kind === "drop"
-      ? [{
-          sourceId: allocation.sourceId,
-          ownership: "destination-owned" as const,
-          reason: allocation.disposition.reason,
-        }]
-      : []);
-  return {
-    retainedOrigin: {
-      origin: map.machine.source.origin,
-      path: sourceMetaPath,
-      allocations: retainedOrigin,
-    },
-    reasonedDrops,
-    anchor: {
-      kind: "surviving-origin",
-      origin: map.machine.source.origin,
-      path: sourceMetaPath,
-    },
   };
 }
 

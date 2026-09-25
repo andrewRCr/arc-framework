@@ -93,7 +93,7 @@ function fixture(expectedCurrentPlanDigest: CanonicalDigest | null = null, membe
     },
   });
   const slots = {
-    projection: { kind: "wu-integration-target" as const },
+    projection: { kind: "stack-to-main" as const },
     boundary: { kind: "phase-aligned" as const },
     members: [
       {
@@ -101,14 +101,14 @@ function fixture(expectedCurrentPlanDigest: CanonicalDigest | null = null, membe
         title: "Only member",
         contract: "Publish the contract",
         designElementIds: [],
-        mainlineLandability: "integration-only" as const,
+        mainlineLandability: "independently-landable" as const,
       },
       ...(memberCount === 2 ? [{
         chunkKey: "terminal",
         title: "Terminal member",
         contract: "Integrate the work unit",
         designElementIds: [],
-        mainlineLandability: "integration-only" as const,
+        mainlineLandability: "independently-landable" as const,
       }] : []),
     ],
     seams: [],

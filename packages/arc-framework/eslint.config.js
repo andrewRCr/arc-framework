@@ -19,11 +19,25 @@ export default tseslint.config(
     },
   },
   {
+    files: ["src/**/*.ts"],
+    rules: {
+      "max-lines-per-function": [
+        "error",
+        { max: 100, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
+      "max-lines": ["error", { max: 1000, skipBlankLines: true, skipComments: true }],
+      complexity: ["error", { max: 15 }],
+      "max-depth": ["error", { max: 4 }],
+      "max-nested-callbacks": ["error", { max: 4 }],
+    },
+  },
+  {
     files: ["__tests__/**/*.ts"],
     ...tseslint.configs.disableTypeChecked,
     rules: {
       ...tseslint.configs.disableTypeChecked.rules,
       "@typescript-eslint/no-non-null-assertion": "off",
+      "max-lines": ["error", { max: 1500, skipBlankLines: true, skipComments: true }],
     },
   },
   {

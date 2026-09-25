@@ -20,10 +20,11 @@ import {
 } from "../../../lib/work-unit/candidate-attestation.js";
 import {
   projectGitCandidateEffectiveTarget,
-  resolveGitCandidateTargetBase,
+  readGitCandidateTargetBase,
 } from "../../../lib/work-unit/git-candidate-effective-target.js";
 import {
-  collectGitCandidateTarget,
+  CandidateSubjectUncollectableError,
+  collectGitCandidateSubject,
   collectUnstagedReviewablePaths,
 } from "../../../lib/work-unit/git-candidate-subject.js";
 import {
@@ -43,6 +44,7 @@ import { RepositoryDeliveryMemberLookup } from "../hosts/local/delivery-member-l
 import {
   composeDeliveryMemberTarget,
   deriveLocalReviewTargetFromCoordinates,
+  LocalTargetDerivationError,
 } from "../hosts/local/repository-target.js";
 import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
 import { CandidateBoundMemberFixAuthoringSchema } from "../core/review-command-envelope.js";
@@ -52,6 +54,20 @@ import {
   resolveCandidateMutationOwner,
   resolveCompletedCandidateWorkUnits,
 } from "../../../handlers/candidate-mutation-owner.js";
+
+/**
+ * Report a subject the branch and its base leave uncollectable under the boundary's own precondition type.
+ *
+ * The projection raises this condition rather than returning it, so a caller awaiting it beside the
+ * collection never reaches the collection's own arm. Naming it here keeps the reader told which repository
+ * condition stopped the derivation instead of that something failed.
+ */
+function rethrowUncollectableSubject(error: unknown): never {
+  if (error instanceof CandidateSubjectUncollectableError) {
+    throw new LocalTargetDerivationError("ambiguous-merge-base", error.message);
+  }
+  throw error;
+}
 
 /** Bind respond to repository-common records and trusted local/runtime identities. */
 export function createRespondDependencies(input: {
@@ -221,12 +237,21 @@ export function createRespondDependencies(input: {
         reviewed: Awaited<ReturnType<typeof projectGitCandidateEffectiveTarget>> & { state: "current" };
       }>;
       const baseBranch = (await settings())["branch.base"];
-      const reviewedBase = await resolveGitCandidateTargetBase({
+      const reviewedBase = await readGitCandidateTargetBase({
         cwd: input.cwd,
         revision: target.headSha,
         baseBranch,
         exec: input.exec,
       });
+      if (reviewedBase.status !== "resolved") {
+        // Under the boundary's own precondition type, not an anonymous failure: a history leaving two equally
+        // good ancestors is a fact about the repository the operator can act on, and reporting it as an
+        // unexplained error tells them the respond failed and nothing about what stopped it.
+        throw new LocalTargetDerivationError(
+          "ambiguous-merge-base",
+          "The reviewed Candidate target's base is not a single coordinate.",
+        );
+      }
       for (const workUnit of candidates) {
         const { record, version } = await readCandidateRecordVersioned(input.cwd, workUnit);
         if (record === null || version === null) continue;
@@ -238,7 +263,7 @@ export function createRespondDependencies(input: {
             record: prefix,
             exec: input.exec,
             rawExec: rawGit,
-            target: { revision: target.headSha, currentBase: reviewedBase },
+            target: { revision: target.headSha, currentBase: reviewedBase.base },
           })));
         const reviewed = [...projections].reverse().find((projection) =>
           projection.state === "current" && projection.recognizedTarget.revision === target.headSha);
@@ -250,7 +275,7 @@ export function createRespondDependencies(input: {
       const selected = matching[0];
       if (selected === undefined) return null;
       const currentSettings = await settings();
-      const [effective, current, unstagedReviewablePaths] = await Promise.all([
+      const [effective, collected, unstagedReviewablePaths] = await Promise.all([
         projectGitCandidateEffectiveTarget({
           cwd: input.cwd,
           name: selected.workUnit,
@@ -259,7 +284,7 @@ export function createRespondDependencies(input: {
           exec: input.exec,
           rawExec: rawGit,
         }),
-        collectGitCandidateTarget({
+        collectGitCandidateSubject({
           cwd: input.cwd,
           name: selected.workUnit,
           baseBranch: currentSettings["branch.base"],
@@ -270,7 +295,14 @@ export function createRespondDependencies(input: {
           name: selected.workUnit,
           exec: input.exec,
         }),
-      ]);
+      ]).catch(rethrowUncollectableSubject);
+      if (collected.status !== "collected") {
+        throw new LocalTargetDerivationError(
+          "ambiguous-merge-base",
+          "The Candidate fix target's subject could not be collected.",
+        );
+      }
+      const current = collected.target;
       const candidateFixTarget = await deriveLocalReviewTargetFromCoordinates({
         exec: input.exec,
         cwd: input.cwd,

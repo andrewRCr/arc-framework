@@ -70,6 +70,7 @@ function findingThread(body: string): HostedGitHubThread {
     comments: [{
       id: "123",
       reviewId: "PRR_1",
+      replyToReviewId: null,
       actorIdentity: "136622811",
       body,
       url: "https://github.com/owner/repo/pull/42#discussion_r1",
@@ -247,6 +248,160 @@ describe("CodeRabbit hosted adapter", () => {
     expect(CODERABBIT_HOSTED_REGISTRATION.identities.botUserId).toBe("136622811");
     expect(CODERABBIT_HOSTED_REGISTRATION.identities.appOwnerId).toBe("132028505");
     expect(CODERABBIT_HOSTED_REGISTRATION.identities.appId).toBe("347564");
+  });
+
+  it.each(["findings", "clean"] as const)(
+    "keeps prior-thread confirmations pending until the fresh %s review arrives",
+    async (resultKind) => {
+      const resolutionBody = `Thanks for the correction.\n\n✅ Review thread resolved.\n\n`
+        + `_You are interacting with an AI system._\n\n`
+        + `<!-- This is an auto-generated reply by CodeRabbit -->`;
+      const priorRoot = {
+        ...findingThread("_🟠 Major_ prior concern").comments[0]!,
+        id: "prior-finding",
+        reviewId: "PRR_PRIOR",
+        headSha: "b".repeat(40),
+        replyToReviewId: null,
+      };
+      const firstConfirmation = {
+        ...priorRoot,
+        id: "confirmation-1",
+        reviewId: "PRR_CONFIRM_1",
+        headSha: HEAD,
+        replyToReviewId: "PRR_PRIOR",
+        body: resolutionBody,
+      };
+      const priorThread: HostedGitHubThread = {
+        id: "PRRT_PRIOR",
+        isResolved: true,
+        comments: [priorRoot, firstConfirmation],
+      };
+      const reviews: HostedGitHubReview[] = [review({
+        id: "PRR_CONFIRM_1",
+        state: "commented",
+        body: "",
+        submittedAt: "2026-07-23T12:02:00.000Z",
+      })];
+      const threads: HostedGitHubThread[] = [priorThread];
+      const adapter = new CodeRabbitHostedAdapter(port({
+        readReviews: () => Promise.resolve(reviews),
+        readThreads: () => Promise.resolve(threads),
+        readIssueComments: () => Promise.resolve([requestComment()]),
+      }));
+
+      await expect(adapter.observe(requestHandle("complete"))).resolves.toEqual({ kind: "pending" });
+
+      const fresh = review({
+        id: "PRR_FRESH",
+        state: resultKind === "findings" ? "changes-requested" : "approved",
+        body: `**Actionable comments posted: ${resultKind === "findings" ? 1 : 0}**`,
+        submittedAt: "2026-07-23T12:04:00.000Z",
+      });
+      reviews.push(fresh);
+      if (resultKind === "findings") {
+        const freshThread = findingThread("_🟠 Major_ new concern");
+        threads.push({
+          ...freshThread,
+          id: "PRRT_FRESH",
+          comments: [{
+            ...freshThread.comments[0]!,
+            id: "fresh-finding",
+            reviewId: fresh.id,
+            replyToReviewId: null,
+          }],
+        });
+      }
+      await expect(adapter.observe(requestHandle("complete"))).resolves.toMatchObject({
+        kind: resultKind,
+        reviewUrl: fresh.url,
+      });
+
+      reviews.push(review({
+        id: "PRR_CONFIRM_2",
+        state: "commented",
+        body: "",
+        submittedAt: "2026-07-23T12:05:00.000Z",
+      }));
+      priorThread.comments.push({
+        ...firstConfirmation,
+        id: "confirmation-2",
+        reviewId: "PRR_CONFIRM_2",
+      });
+      await expect(adapter.observe(requestHandle("complete"))).resolves.toMatchObject({
+        kind: resultKind,
+        reviewUrl: fresh.url,
+      });
+    },
+  );
+
+  it("does not discard an ungraded new reply to an older review thread", async () => {
+    const oldRoot = {
+      ...findingThread("_🟠 Major_ prior concern").comments[0]!,
+      id: "old-root",
+      reviewId: "PRR_PRIOR",
+      headSha: "b".repeat(40),
+    };
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({ state: "commented", body: "" })]),
+      readThreads: () => Promise.resolve([{
+        id: "PRRT_PRIOR",
+        isResolved: false,
+        comments: [oldRoot, {
+          ...oldRoot,
+          id: "new-ungraded-reply",
+          reviewId: "PRR_1",
+          replyToReviewId: "PRR_PRIOR",
+          headSha: HEAD,
+          body: "This new concern has no severity marker.",
+        }],
+      }]),
+      readIssueComments: () => Promise.resolve([requestComment()]),
+    }));
+
+    await expect(adapter.observe(requestHandle("complete"))).resolves.toMatchObject({
+      kind: "terminal-failure",
+      reason: expect.stringContaining("provider-thread-finding-severity-unrecognized"),
+    });
+  });
+
+  it("keeps a new finding when its review also carries a prior-thread confirmation", async () => {
+    const oldRoot = {
+      ...findingThread("_🟠 Major_ prior concern").comments[0]!,
+      id: "old-root",
+      reviewId: "PRR_PRIOR",
+      headSha: "b".repeat(40),
+    };
+    const newFinding = findingThread("_🟠 Major_ fresh concern");
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        state: "changes-requested",
+        body: "**Actionable comments posted: 1**",
+      })]),
+      readThreads: () => Promise.resolve([{
+        id: "PRRT_PRIOR",
+        isResolved: true,
+        comments: [oldRoot, {
+          ...oldRoot,
+          id: "confirmation",
+          reviewId: "PRR_1",
+          replyToReviewId: "PRR_PRIOR",
+          headSha: HEAD,
+          body: `The correction is verified.\n\n✅ Review thread resolved.\n\n`
+            + `_You are interacting with an AI system._\n\n`
+            + `<!-- This is an auto-generated reply by CodeRabbit -->`,
+        }],
+      }, {
+        ...newFinding,
+        id: "PRRT_FRESH",
+        comments: [{ ...newFinding.comments[0]!, id: "fresh-finding" }],
+      }]),
+      readIssueComments: () => Promise.resolve([requestComment()]),
+    }));
+
+    await expect(adapter.observe(requestHandle("complete"))).resolves.toMatchObject({
+      kind: "findings",
+      findings: [{ findingId: "PRRT_FRESH", commentId: "fresh-finding", severity: "major" }],
+    });
   });
 
   it("recognizes exact-head clean completion without a new review object", async () => {
@@ -597,6 +752,114 @@ The contract should distinguish findings that have no review thread.
     }
   });
 
+  it("bounds supplemental file groups to their enclosing details section", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        state: "changes-requested",
+        body: `**Actionable comments posted: 1**
+
+<details>
+<summary>🧹 Nitpick comments (1)</summary><blockquote>
+
+<details>
+<summary>src/a.ts (1)</summary><blockquote>
+
+\`7-9\`: _📐 Maintainability & Code Quality_ | _🔵 Trivial_ | _⚡ Quick win_
+
+**Keep the boundary explicit.**
+
+<details>
+<summary>🤖 Prompt for AI Agents</summary>
+
+Nested provider guidance is not a file group.
+
+\`999\`: _🔴 Critical_
+
+<!-- cr-comment:v1:feedfacefeedfacefeedface -->
+
+</details>
+
+<!-- cr-comment:v1:abcdef1234567890abcdef12 -->
+
+</blockquote></details>
+</blockquote></details>
+
+<details>
+<summary>🤖 Prompt to fix review comments</summary>
+
+Provider guidance outside the supplemental section.
+
+</details>
+
+<details>
+<summary>ℹ️ Review info</summary>
+
+<details>
+<summary>📒 Files selected for processing (7)</summary>
+</details>
+
+<details>
+<summary>💤 Files with no reviewable changes (1)</summary>
+</details>
+
+</details>`,
+      })]),
+      readThreads: () => Promise.resolve([
+        findingThread("_🟡 Minor_ Align the recovered boundary action."),
+      ]),
+    }));
+
+    const result = await adapter.observeHandle(target);
+    expect(result).toMatchObject({
+      kind: "findings",
+      findings: [
+        { origin: "review-thread", locus: "src/a.ts:7" },
+        { origin: "review-body", severity: "minor", locus: "src/a.ts:7-9" },
+      ],
+    });
+    if (result.kind !== "findings") return;
+    const reviewBodyFinding = result.findings.find((finding) => finding.origin === "review-body");
+    expect(reviewBodyFinding?.body).toContain("Nested provider guidance is not a file group.");
+    expect(reviewBodyFinding?.body).toContain("cr-comment:v1:feedfacefeedfacefeedface");
+  });
+
+  it("ignores details tags inside Markdown code and behind active escapes", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        state: "changes-requested",
+        body: `**Actionable comments posted: 0**
+
+<details>
+<summary>🧹 Nitpick comments (1)</summary><blockquote>
+
+<details>
+<summary>src/a.ts (1)</summary><blockquote>
+
+\`7-9\`: _📐 Maintainability & Code Quality_ | _🔵 Trivial_ | _⚡ Quick win_
+
+**Keep Markdown code examples out of the structural stack.**
+
+The inline literal \`<details>\` is finding content.
+
+The escaped literal \\<details> is finding content.
+
+\`\`\`html
+<details>
+\`\`\`
+
+<!-- cr-comment:v1:abcdef1234567890abcdef12 -->
+
+</blockquote></details>
+</blockquote></details>`,
+      })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+      kind: "findings",
+      findings: [{ origin: "review-body", locus: "src/a.ts:7-9" }],
+    });
+  });
+
   it("normalizes outside-diff comments under the same no-settlement contract", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review({
@@ -667,6 +930,201 @@ This finding has no inline review thread.
     });
   });
 
+  it("reads outside-diff findings rendered as a callout with direct finding details", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        body: `**Actionable comments posted: 0**
+
+> [!CAUTION]
+> Some comments are outside the diff and cannot be posted inline.
+>
+> **⚠️ Outside diff range comments (1)**
+>
+> <details>
+> <summary><em>🟠 Major</em> · Preserve the boundary · <code>legacy.ts:12</code></summary><blockquote>
+>
+> \`src/legacy.ts:12\`
+> _🩺 Stability & Availability_ | _🟠 Major_ | _⚡ Quick win_
+>
+> **Preserve the compatibility boundary.**
+>
+> This finding has no inline review thread.
+>
+> <details>
+> <summary>🤖 Prompt for AI Agents</summary>
+> A nested note is not another finding.
+> </details>
+>
+> <!-- cr-comment:v1:1234567890abcdef12345678 -->
+>
+> </blockquote></details>`,
+      })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+      kind: "findings",
+      findings: [{
+        origin: "review-body",
+        settlement: "not-applicable",
+        severity: "major",
+        locus: "src/legacy.ts:12",
+        fingerprint: "1234567890abcdef12345678",
+      }],
+    });
+  });
+
+  it("keeps the initial callout locus when the finding cites another path", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        body: `**Actionable comments posted: 0**
+
+> [!CAUTION]
+> **⚠️ Outside diff range comments (1)**
+>
+> <details>
+> <summary><em>🟠 Major</em> · First locus · <code>legacy.ts:12</code></summary><blockquote>
+>
+> \`src/legacy.ts:12\`
+> _🩺 Stability & Availability_ | _🟠 Major_
+>
+> **The first locus is the finding location.**
+> \`src/related.ts:44\`
+> This later reference is supporting context.
+>
+> <!-- cr-comment:v1:1234567890abcdef12345678 -->
+>
+> </blockquote></details>`,
+      })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+      kind: "findings",
+      findings: [{
+        severity: "major",
+        locus: "src/legacy.ts:12",
+        body: expect.stringContaining("`src/related.ts:44`"),
+      }],
+    });
+  });
+
+  it("ignores fenced callout examples while reading a real outside-diff group", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        body: `**Actionable comments posted: 0**
+
+\`\`\`md
+> [!CAUTION]
+> **⚠️ Outside diff range comments (1)**
+\`\`\`
+
+> [!CAUTION]
+> **⚠️ Outside diff range comments (1)**
+>
+> <details>
+> <summary><em>🟡 Minor</em> · Real finding · <code>legacy.ts:12</code></summary><blockquote>
+>
+> \`src/legacy.ts:12\`
+> _🩺 Stability & Availability_ | _🟡 Minor_
+>
+> **Preserve the compatibility boundary.**
+>
+> <!-- cr-comment:v1:1234567890abcdef12345678 -->
+>
+> </blockquote></details>`,
+      })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+      kind: "findings",
+      findings: [{ locus: "src/legacy.ts:12", severity: "minor" }],
+    });
+  });
+
+  it("rejects a callout finding with only locus and severity metadata", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        body: `**Actionable comments posted: 0**
+
+> [!CAUTION]
+> **⚠️ Outside diff range comments (1)**
+>
+> <details>
+> <summary><em>🟡 Minor</em> · legacy.ts:12</summary><blockquote>
+>
+> \`src/legacy.ts:12\`
+> _🩺 Stability & Availability_ | _🟡 Minor_
+>
+> <!-- cr-comment:v1:1234567890abcdef12345678 -->
+>
+> </blockquote></details>`,
+      })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "provider-body-finding-empty: "
+        + "{\"category\":\"outside-diff\",\"fingerprint\":\"1234567890abcdef12345678\"}",
+    });
+  });
+
+  it("rejects a callout finding without a severity metadata line", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        body: `**Actionable comments posted: 0**
+
+> [!CAUTION]
+> **⚠️ Outside diff range comments (1)**
+>
+> <details>
+> <summary><em>🟡 Minor</em> · legacy.ts:12</summary><blockquote>
+>
+> \`src/legacy.ts:12\`
+>
+> **Preserve the compatibility boundary.**
+> _🟡 Minor_ appears later, outside the required metadata line.
+>
+> <!-- cr-comment:v1:1234567890abcdef12345678 -->
+>
+> </blockquote></details>`,
+      })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "provider-body-finding-severity-unrecognized: "
+        + "{\"category\":\"outside-diff\",\"fingerprint\":\"1234567890abcdef12345678\"}",
+    });
+  });
+
+  it("rejects a callout whose advertised outside-diff count exceeds its findings", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        body: `**Actionable comments posted: 0**
+
+> [!CAUTION]
+> **⚠️ Outside diff range comments (2)**
+>
+> <details>
+> <summary><em>🟡 Minor</em> · Preserve the boundary · <code>legacy.ts:12</code></summary><blockquote>
+>
+> \`src/legacy.ts:12\`
+> _🩺 Stability & Availability_ | _🟡 Minor_
+>
+> **Preserve the compatibility boundary.**
+>
+> <!-- cr-comment:v1:1234567890abcdef12345678 -->
+>
+> </blockquote></details>`,
+      })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "provider-supplemental-section-count-mismatch: "
+        + "{\"category\":\"outside-diff\",\"advertised\":2,\"parsed\":1}",
+    });
+  });
+
   it("does not require adjacent HTML blockquote tags to recognize supplemental sections", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review({
@@ -698,12 +1156,16 @@ This finding has no inline review thread.
   it("rejects supplemental findings that contain only locus and severity metadata", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review({
-        body: `<summary>⚠️ Outside diff comments (1)</summary>
-<summary>src/legacy.ts (1)</summary>
+        body: `<details>
+<summary>⚠️ Outside diff comments (1)</summary><blockquote>
+<details>
+<summary>src/legacy.ts (1)</summary><blockquote>
 
 \`12\`: _🩺 Stability & Availability_ | _🟡 Minor_
 
-<!-- cr-comment:v1:1234567890abcdef12345678 -->`,
+<!-- cr-comment:v1:1234567890abcdef12345678 -->
+</blockquote></details>
+</blockquote></details>`,
       })]),
     }));
 
@@ -718,12 +1180,16 @@ This finding has no inline review thread.
   it("identifies the supplemental finding component that could not be parsed", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review({
-        body: `<summary>⚠️ Outside diff comments (1)</summary>
-<summary>src/legacy.ts (1)</summary>
+        body: `<details>
+<summary>⚠️ Outside diff comments (1)</summary><blockquote>
+<details>
+<summary>src/legacy.ts (1)</summary><blockquote>
 
 line 12: _🩺 Stability & Availability_ | _🟡 Minor_
 
-<!-- cr-comment:v1:1234567890abcdef12345678 -->`,
+<!-- cr-comment:v1:1234567890abcdef12345678 -->
+</blockquote></details>
+</blockquote></details>`,
       })]),
     }));
 

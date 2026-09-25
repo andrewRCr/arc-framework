@@ -4,13 +4,25 @@ import { describe, expect, it } from "vitest";
 
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import {
-  collectGitCandidateTarget,
+  collectGitCandidateSubject,
   collectUnstagedReviewablePaths,
 } from "../../../src/lib/work-unit/git-candidate-subject.js";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
 const CURRENT_BASE = "d".repeat(40);
+const SECOND_BASE = "e".repeat(40);
+
+/** The collected subject, so a test reading the success arm says what it expects of a refusal by failing. */
+async function collectSubject(
+  input: Parameters<typeof collectGitCandidateSubject>[0],
+): Promise<Extract<Awaited<ReturnType<typeof collectGitCandidateSubject>>, { status: "collected" }>["target"]> {
+  const collection = await collectGitCandidateSubject(input);
+  if (collection.status !== "collected") {
+    throw new Error(`the subject was refused as ${collection.reason}`);
+  }
+  return collection.target;
+}
 
 /** Collect over a staged change set, giving every present path its own content. */
 async function collectTarget(paths: readonly string[], contents: Readonly<Record<string, string>> = {}) {
@@ -21,7 +33,7 @@ async function collectTarget(paths: readonly string[], contents: Readonly<Record
     if (args[0] === "diff") return { stdout: `${paths.join("\0")}\0` };
     throw new Error(`unexpected git invocation: ${args.join(" ")}`);
   };
-  return collectGitCandidateTarget({
+  return collectSubject({
     cwd: "/repo",
     name: "example",
     baseBranch: "main",
@@ -51,7 +63,7 @@ describe("Candidate subject classification", () => {
       throw new Error(`unexpected git invocation: ${args.join(" ")}`);
     };
 
-    const target = await collectGitCandidateTarget({
+    const target = await collectSubject({
       cwd: "/repo",
       name: "example",
       baseBranch: "main",
@@ -66,7 +78,7 @@ describe("Candidate subject classification", () => {
 
     expect(target.revision).toBe(revision);
     expect(calls).toEqual([
-      ["merge-base", revision, BASE],
+      ["merge-base", "--all", revision, BASE],
       ["diff", "--name-only", "-z", BASE, revision, "--"],
     ]);
     expect(refs).toEqual([revision]);
@@ -81,7 +93,7 @@ describe("Candidate subject classification", () => {
       throw new Error(`unexpected git invocation: ${args.join(" ")}`);
     };
 
-    await collectGitCandidateTarget({
+    await collectSubject({
       cwd: "/repo",
       name: "example",
       baseBranch: "main",
@@ -91,7 +103,7 @@ describe("Candidate subject classification", () => {
       readBlob: async () => new TextEncoder().encode("reviewed content"),
     });
 
-    expect(calls[0]).toEqual(["merge-base", HEAD, CURRENT_BASE]);
+    expect(calls[0]).toEqual(["merge-base", "--all", HEAD, CURRENT_BASE]);
   });
 
   it("separates reviewable content from the lifecycle writes that accompany it", async () => {
@@ -108,11 +120,11 @@ describe("Candidate subject classification", () => {
     expect(target.revision).toBe(HEAD);
     expect(target.subject.entries).toHaveLength(staged.length);
     expect(entries.get("packages/arc-framework/src/example.ts")?.treatment).toBe("reviewable");
-    expect(entries.get(".arc/active/tasks-example.md")?.treatment).toBe("reviewable");
-    expect(entries.get(".arc/active/meta-example.md")?.treatment).toBe("operational");
-    expect(entries.get(".arc/backlog/ROADMAP.md")?.treatment).toBe("operational");
+    expect(entries.get(".arc/active/tasks-example.md")?.treatment).toBe("evidence-neutral");
+    expect(entries.get(".arc/active/meta-example.md")?.treatment).toBe("evidence-neutral");
+    expect(entries.get(".arc/backlog/ROADMAP.md")?.treatment).toBe("regenerable");
     expect(entries.get(".arc/system/.internal/candidates/example.json")?.treatment)
-      .toBe("candidate-projection");
+      .toBe("evidence-neutral");
   });
 
   it("keys a relocated artifact to the stage it passes through, not the location it now occupies", async () => {
@@ -122,7 +134,7 @@ describe("Candidate subject classification", () => {
     });
     const archived = await collect([relocated], { [relocated]: "the verified task list" });
 
-    expect(archived.get(relocated)?.treatment).toBe("operational");
+    expect(archived.get(relocated)?.treatment).toBe("evidence-neutral");
     expect(archived.get(".arc/active/tasks-example.md")).toEqual(
       settled.get(".arc/active/tasks-example.md"),
     );
@@ -146,8 +158,8 @@ describe("Candidate subject classification", () => {
       [relocated]: "the verified task list",
     });
 
-    expect(entries.get(relocated)?.treatment).toBe("operational");
-    expect(entries.get(".arc/active/tasks-example.md")).toMatchObject({ treatment: "reviewable" });
+    expect(entries.get(relocated)?.treatment).toBe("evidence-neutral");
+    expect(entries.get(".arc/active/tasks-example.md")).toMatchObject({ treatment: "evidence-neutral" });
     expect(entries.get(".arc/active/tasks-example.md")?.digest)
       .toBe(entries.get(relocated)?.digest);
   });
@@ -172,7 +184,7 @@ describe("Candidate subject classification", () => {
 
     expect(after.subject.entries).toEqual(expect.arrayContaining([expect.objectContaining({
       path: boundary,
-      treatment: "candidate-projection",
+      treatment: "evidence-neutral",
     })]));
     expect(after.subject.subjectDigest).toBe(before.subject.subjectDigest);
   });
@@ -182,6 +194,32 @@ describe("Candidate subject classification", () => {
 
     expect(entries.get(".arc/completed/2026-q3/01_sibling/tasks-sibling.md")?.treatment)
       .toBe("reviewable");
+  });
+
+  it("refuses a history leaving two equally good bases rather than collecting from one of them", async () => {
+    // Both readings of one history: `--all` names both bases, while a plain read names whichever of them
+    // Git picks and says nothing about the other. Taking that answer is what makes the choice invisible.
+    const exec: GitExec = async (_cmd, args) => {
+      if (args[0] === "merge-base") {
+        return { stdout: args[1] === "--all" ? `${BASE}\n${SECOND_BASE}\n` : `${BASE}\n` };
+      }
+      if (args[0] === "diff") return { stdout: "reviewed.txt\0" };
+      throw new Error(`unexpected git invocation: ${args.join(" ")}`);
+    };
+
+    await expect(collectGitCandidateSubject({
+      cwd: "/repo",
+      name: "example",
+      baseBranch: "main",
+      baseRevision: CURRENT_BASE,
+      revision: HEAD,
+      exec,
+      readBlob: async () => new TextEncoder().encode("reviewed content"),
+    })).resolves.toEqual({
+      status: "refused",
+      reason: "merge-base-ambiguous",
+      detail: "The revisions have more than one best merge base.",
+    });
   });
 });
 
@@ -201,13 +239,10 @@ describe("Unstaged reviewable content", () => {
     expect(await collectUnstaged([
       "packages/arc-framework/src/example.ts",
       ".arc/active/tasks-example.md",
-    ])).toEqual([
-      ".arc/active/tasks-example.md",
-      "packages/arc-framework/src/example.ts",
-    ]);
+    ])).toEqual(["packages/arc-framework/src/example.ts"]);
   });
 
-  it("stays silent over the operational and projection writes a lifecycle tree carries", async () => {
+  it("stays silent over evidence-neutral and regenerable lifecycle writes", async () => {
     expect(await collectUnstaged([
       ".arc/active/meta-example.md",
       ".arc/backlog/ROADMAP.md",
@@ -225,7 +260,7 @@ describe("Unstaged reviewable content", () => {
 
   it("follows a relocated artifact to the treatment its content receives", async () => {
     expect(await collectUnstaged([".arc/completed/2026-q3/01_example/tasks-example.md"]))
-      .toEqual([".arc/completed/2026-q3/01_example/tasks-example.md"]);
+      .toEqual([]);
     expect(await collectUnstaged([".arc/completed/2026-q3/01_example/meta-example.md"]))
       .toEqual([]);
   });

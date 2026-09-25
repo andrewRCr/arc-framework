@@ -62,6 +62,7 @@ import {
   parseReviewSourceReference,
 } from "../core/review-source-reference.js";
 import { consumeFixAuthorization, createFixAuthorization } from "../core/fix-authorization.js";
+import { assertLocalReviewClaimBinding } from "../core/local-operation.js";
 import { projectReviewResponse } from "../core/response-plan.js";
 import {
   ReviewResponseSettlementRequestSchema,
@@ -408,6 +409,14 @@ async function resolveLocalSource(
     throw new RespondCommandError("corrupt-state", "local response operation is unavailable");
   }
   const state = persisted.state;
+  assertLocalReviewClaimBinding(state);
+  if (state.vehicle.kind === "errand") {
+    const activeErrand = await dependencies.resolveActiveErrand();
+    if (activeErrand === null || activeErrand.key !== state.vehicle.identity
+      || activeErrand.claimId !== state.vehicle.claimId) {
+      throw new RespondCommandError("invalid-input", "local review Errand claim does not match the active Errand");
+    }
+  }
   const [receipt, localSource, actors] = await Promise.all([
     dependencies.readReceipt(reference.durableRef),
     dependencies.sourceStore.readSource(state.sourceRef),
@@ -1356,7 +1365,7 @@ export async function respondToReviewCommand(
         fixAuthorization: plan.fixAuthorization,
         deliveryMember,
         correctionAction: {
-          argv: ["arc", "delivery", "review-fix", "continue", "-", "--json"],
+          argv: ["arc", "delivery", "review-fix", "continue", "-"],
           input: { repository, remote: "origin" },
         },
         ...(hostedSettlementPlan === undefined ? {} : { hostedSettlementPlan }),

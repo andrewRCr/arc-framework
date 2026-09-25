@@ -16,7 +16,7 @@ import {
   type V3RepositoryPlanResult,
   type V3RepositoryPlanTree,
 } from "./decompose-v3-repository-plan.js";
-import { decodeV3DecomposeCutMap } from "./decompose-v3-schema.js";
+import { decodeV3DecomposeCutMap, type V3DecomposeCutMap } from "./decompose-v3-schema.js";
 import { createGitV3DecomposePreflight } from "./git-decompose-v3-preflight.js";
 import type { V3DecomposeRefusalEvidence } from "./decompose-v3-refusal.js";
 import { transitionOverlayCompositionInput } from "./transition-overlay.js";
@@ -239,7 +239,7 @@ function gitRefusal(
   reason: string,
   locus?: string,
   evidence?: V3DecomposeRefusalEvidence,
-): GitV3RepositoryPlanResult {
+): Extract<GitV3RepositoryPlanResult, { status: "refused" }> {
   return {
     status: "refused",
     refusal: {
@@ -249,6 +249,111 @@ function gitRefusal(
       ...(evidence === undefined ? {} : { evidence }),
     },
   };
+}
+
+interface RepositoryPlanRefs {
+  sourceHead: string;
+  resultBaseHead: string;
+  mergeBases: string[];
+}
+
+type RepositoryPlanRefsResult =
+  | { status: "ready"; value: RepositoryPlanRefs }
+  | Extract<GitV3RepositoryPlanResult, { status: "refused" }>;
+
+async function pinRepositoryPlanRefs(
+  dependencies: GitV3RepositoryPlanDependencies,
+  map: V3DecomposeCutMap,
+): Promise<RepositoryPlanRefsResult> {
+  const sourceHead = map.machine.source.head;
+  const resultBaseHead = map.machine.resultBase.head;
+  const [sourceRef, resultRef, mergeBaseResult] = await Promise.all([
+    exactRef(dependencies, map.machine.source.ref),
+    exactRef(dependencies, map.machine.resultBase.ref),
+    dependencies.exec(
+      "git",
+      ["merge-base", "--all", sourceHead, resultBaseHead],
+      { cwd: dependencies.cwd },
+    ),
+  ]);
+  if (sourceRef !== sourceHead) {
+    return gitRefusal(
+      "source-ref-moved",
+      map.machine.source.ref,
+      sourceRef === null ? undefined : { expected: sourceHead, actual: sourceRef },
+    );
+  }
+  if (resultRef !== resultBaseHead) {
+    return gitRefusal(
+      "result-ref-moved",
+      map.machine.resultBase.ref,
+      resultRef === null ? undefined : { expected: resultBaseHead, actual: resultRef },
+    );
+  }
+  const mergeBases = mergeBaseResult.stdout.split(/\r?\n/u).filter(Boolean);
+  if (mergeBases.length !== 1 || mergeBases[0] === undefined) {
+    return gitRefusal(mergeBases.length === 0 ? "missing-merge-base" : "ambiguous-merge-base");
+  }
+  return { status: "ready", value: { sourceHead, resultBaseHead, mergeBases } };
+}
+
+interface RepositoryPlanTrees {
+  sourceTree: V3RepositoryPlanTree;
+  mergeBaseTree: V3RepositoryPlanTree;
+  resultBaseTree: V3RepositoryPlanTree;
+  renderedRef: string;
+}
+
+type RepositoryPlanTreesResult =
+  | { status: "ready"; value: RepositoryPlanTrees }
+  | Extract<GitV3RepositoryPlanResult, { status: "refused" }>;
+
+async function readRepositoryPlanTrees(
+  dependencies: GitV3RepositoryPlanDependencies,
+  refs: RepositoryPlanRefs,
+): Promise<RepositoryPlanTreesResult> {
+  const mergeBase = refs.mergeBases[0];
+  if (mergeBase === undefined) return gitRefusal("missing-merge-base");
+  const [sourceTree, mergeBaseTree, resultBaseTree, renderedRef] = await Promise.all([
+    readGitV3RepositoryTree(dependencies, refs.sourceHead),
+    readGitV3RepositoryTree(dependencies, mergeBase),
+    readGitV3RepositoryTree(dependencies, refs.resultBaseHead),
+    shortRef(dependencies, refs.resultBaseHead),
+  ]);
+  if (sourceTree === null || mergeBaseTree === null || resultBaseTree === null) {
+    return gitRefusal("tree-read-failed");
+  }
+  return {
+    status: "ready",
+    value: { sourceTree, mergeBaseTree, resultBaseTree, renderedRef },
+  };
+}
+
+async function validateRepositoryPlanRefsUnchanged(
+  dependencies: GitV3RepositoryPlanDependencies,
+  map: V3DecomposeCutMap,
+  refs: RepositoryPlanRefs,
+): Promise<Extract<GitV3RepositoryPlanResult, { status: "refused" }> | null> {
+  const [sourceAfter, resultAfter] = await Promise.all([
+    exactRef(dependencies, map.machine.source.ref),
+    exactRef(dependencies, map.machine.resultBase.ref),
+  ]);
+  if (sourceAfter !== refs.sourceHead) {
+    return gitRefusal(
+      "source-ref-moved",
+      map.machine.source.ref,
+      sourceAfter === null ? undefined : { expected: refs.sourceHead, actual: sourceAfter },
+    );
+  }
+  return resultAfter === refs.resultBaseHead
+    ? null
+    : gitRefusal(
+      "result-ref-moved",
+      map.machine.resultBase.ref,
+      resultAfter === null
+        ? undefined
+        : { expected: refs.resultBaseHead, actual: resultAfter },
+    );
 }
 
 /**
@@ -286,81 +391,30 @@ async function composeGitRepositoryPlan(
         "evidence" in refreshed ? refreshed.evidence : undefined,
       );
     }
-    const sourceHead = map.machine.source.head;
-    const resultBaseHead = map.machine.resultBase.head;
-    const [sourceRef, resultRef, mergeBaseResult] = await Promise.all([
-      exactRef(dependencies, map.machine.source.ref),
-      exactRef(dependencies, map.machine.resultBase.ref),
-      dependencies.exec(
-        "git",
-        ["merge-base", "--all", sourceHead, resultBaseHead],
-        { cwd: dependencies.cwd },
-      ),
-    ]);
-    if (sourceRef !== sourceHead) {
-      return gitRefusal(
-        "source-ref-moved",
-        map.machine.source.ref,
-        sourceRef === null ? undefined : { expected: sourceHead, actual: sourceRef },
-      );
-    }
-    if (resultRef !== resultBaseHead) {
-      return gitRefusal(
-        "result-ref-moved",
-        map.machine.resultBase.ref,
-        resultRef === null ? undefined : { expected: resultBaseHead, actual: resultRef },
-      );
-    }
-    const mergeBases = mergeBaseResult.stdout.split(/\r?\n/u).filter(Boolean);
-    if (mergeBases.length !== 1 || mergeBases[0] === undefined) {
-      return gitRefusal(mergeBases.length === 0 ? "missing-merge-base" : "ambiguous-merge-base");
-    }
-    const [sourceTree, mergeBaseTree, resultBaseTree, renderedRef] = await Promise.all([
-      readGitV3RepositoryTree(dependencies, sourceHead),
-      readGitV3RepositoryTree(dependencies, mergeBases[0]),
-      readGitV3RepositoryTree(dependencies, resultBaseHead),
-      shortRef(dependencies, resultBaseHead),
-    ]);
-    if (sourceTree === null || mergeBaseTree === null || resultBaseTree === null) {
-      return gitRefusal("tree-read-failed");
-    }
+    const refs = await pinRepositoryPlanRefs(dependencies, map);
+    if (refs.status === "refused") return refs;
+    const trees = await readRepositoryPlanTrees(dependencies, refs.value);
+    if (trees.status === "refused") return trees;
     const result = await compose({
       completedMap: map,
       currentPreflight: refreshed.preflight,
-      sourceTree,
-      mergeBaseTree,
-      resultBaseTree,
-      mergeBases,
+      sourceTree: trees.value.sourceTree,
+      mergeBaseTree: trees.value.mergeBaseTree,
+      resultBaseTree: trees.value.resultBaseTree,
+      mergeBases: refs.value.mergeBases,
       cohortTemplate: dependencies.cohortTemplate,
       renderRoadmap: async (projectedTree, overlay) =>
         await renderGitV3RepositoryTreeRoadmap(
           dependencies,
           baseBranch,
           projectedTree,
-          resultBaseHead,
+          refs.value.resultBaseHead,
           overlay,
-          renderedRef,
+          trees.value.renderedRef,
         ),
     });
-    const [sourceAfter, resultAfter] = await Promise.all([
-      exactRef(dependencies, map.machine.source.ref),
-      exactRef(dependencies, map.machine.resultBase.ref),
-    ]);
-    if (sourceAfter !== sourceHead) {
-      return gitRefusal(
-        "source-ref-moved",
-        map.machine.source.ref,
-        sourceAfter === null ? undefined : { expected: sourceHead, actual: sourceAfter },
-      );
-    }
-    if (resultAfter !== resultBaseHead) {
-      return gitRefusal(
-        "result-ref-moved",
-        map.machine.resultBase.ref,
-        resultAfter === null ? undefined : { expected: resultBaseHead, actual: resultAfter },
-      );
-    }
-    return result;
+    const raced = await validateRepositoryPlanRefsUnchanged(dependencies, map, refs.value);
+    return raced ?? result;
   } catch (error) {
     return gitRefusal(
       "repository-plan-failed",

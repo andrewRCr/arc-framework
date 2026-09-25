@@ -530,6 +530,10 @@ mechanics into this workflow. Create the transient map with
 `arc delivery plan from-tasks --task-list .arc/active/tasks-{name}.md --design-inventory <json-path> --json`,
 fill only the author slots, and run `arc delivery compose --json`.
 
+Set the authoring projection to `stack-to-main` and every member's `mainlineLandability` to
+`independently-landable`. If a proposed subdivision is review-only rather than independently landable on main,
+keep it within one delivery member and route its review scale through ordinary review chunking.
+
 Composition publishes the canonical plan record first, then delegates the exact sentinel-owned projection bytes
 to the delivery renderer and removes transient authoring state. Review the rendered identity, coverage, seam, and
 acceptance shape as source; schema and author slots do not prescribe table layout. The canonical plan remains

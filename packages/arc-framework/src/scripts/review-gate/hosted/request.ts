@@ -17,6 +17,10 @@ import {
 
 const GitHubObjectIdSchema = z.string().regex(/^[0-9a-f]{40}$/u);
 const ReviewSourceIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u);
+const HostedSourceInvocationSchema = z.strictObject({
+  mode: z.literal("force"),
+  sourceId: ReviewSourceIdSchema,
+}).readonly();
 
 export const HostedProviderIdSchema = z.enum(["coderabbit-pr", "codex-pr"]);
 export type HostedProviderId = z.infer<typeof HostedProviderIdSchema>;
@@ -78,13 +82,29 @@ export const HostedRequestHandleSchema = z.strictObject({
   target: HostedTargetSchema,
   artifact: HostedArtifactSchema,
   vehicle: HostedProgressVehicleSchema.optional(),
+  invocation: HostedSourceInvocationSchema.optional(),
 }).refine(
   (handle) => handle.requestedCoverage !== "complete" || handle.effectiveCoverage === "complete",
   {
     message: "effective coverage must not weaken requested complete coverage",
     path: ["effectiveCoverage"],
   },
-);
+).superRefine((handle, context) => {
+  if (handle.invocation !== undefined && handle.vehicle?.kind !== "delivery-member") {
+    context.addIssue({
+      code: "custom",
+      path: ["invocation"],
+      message: "a hosted source invocation requires one exact delivery-member vehicle",
+    });
+  }
+  if (handle.invocation !== undefined && handle.invocation.sourceId !== handle.provider) {
+    context.addIssue({
+      code: "custom",
+      path: ["invocation", "sourceId"],
+      message: "hosted source invocation must select the request provider",
+    });
+  }
+});
 export type HostedRequestHandle = z.infer<typeof HostedRequestHandleSchema>;
 
 /** Submit-ready input for one bounded await of an acknowledged hosted request. */
@@ -141,10 +161,7 @@ export const HostedRequestEnvelopeSchema: z.ZodType<HostedRequestEnvelope> = z.s
   provider: HostedProviderIdSchema,
   coverage: HostedReviewCoverageSchema,
   vehicle: HostedRequestVehicleSchema.optional(),
-  invocation: z.strictObject({
-    mode: z.literal("force"),
-    sourceId: ReviewSourceIdSchema,
-  }).readonly().optional(),
+  invocation: HostedSourceInvocationSchema.optional(),
   ceilingOverride: ReviewCeilingOverrideSchema.optional(),
 }).superRefine((request, context) => {
   if (request.ceilingOverride !== undefined && request.vehicle?.kind !== "delivery-member") {
@@ -321,6 +338,7 @@ export async function requestHostedReview(
       target: request.target,
       artifact: outcome.artifact,
       ...(progressVehicle === undefined ? {} : { vehicle: progressVehicle }),
+      ...(request.invocation === undefined ? {} : { invocation: request.invocation }),
     });
     return {
       ...resultBase,

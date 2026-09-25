@@ -94,13 +94,12 @@ type DerivedLocusProbe =
   | { ok: true; value: DerivedLocusFrame }
   | { ok: false; error: unknown };
 
-/** Derive exact checkout-local recovery facts from the shared entering frame. */
+/** Derive exact physical checkout-local facts from the shared entering frame. */
 export function deriveCompactionSeedLocusHint(
   probe: DerivedLocusProbe,
 ): CompactionSeedLocusHint | null {
   if (!probe.ok || probe.value.entering.kind !== "selected") return null;
   const row = probe.value.entering.row;
-  if (row.kind === "unresolved-checkout") return null;
   return {
     checkoutPath: row.checkout.path,
     parentCheckoutPath: row.parentCheckoutPath,

@@ -21,6 +21,7 @@ import {
   resolveReviewPolicy,
 } from "./review-policy-driver.js";
 import { FrontlineResponseBindingSchema } from "../core/frontline-response-binding.js";
+import { ReviewRoutingFactsSchema } from "./routing-schema.js";
 import {
   CandidateConvergenceBoundarySchema,
   CandidateFixBoundarySchema,
@@ -29,6 +30,7 @@ import {
   CandidateReviewResumeBoundarySchema,
   CandidateSelfReviewBoundarySchema,
   ContinuePrePublicationActionSchema,
+  createRunConvergenceVerificationAction,
   createStandardReviewReservation as buildStandardReviewReservation,
   PublishCandidateActionSchema,
   RunConvergenceVerificationActionSchema,
@@ -51,6 +53,11 @@ const StandardPolicyRequestSchema = ReviewPolicyRequestSchema.refine(
   "standard policy input must select the standard lane",
 );
 
+const PrePublicationCandidateCommonSchema = {
+  subjectDigest: CandidateSubjectDigestSchema,
+  implementationChanged: z.boolean(),
+};
+
 export const PrePublicationReviewRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   workUnit: SlugSchema,
@@ -65,16 +72,25 @@ export const PrePublicationReviewRequestSchema = z.strictObject({
    * checkout cannot currently produce one rather than refusing a procedure that has other work to do.
    */
   target: ReviewTargetSchema.nullable().default(null),
+  /** Complete normalized facts supplied to the workflow-facing frontline resolver. */
+  routingFacts: ReviewRoutingFactsSchema,
   /** Candidate authority carried only while frontline reviews a private delivery member. */
   responseBinding: FrontlineResponseBindingSchema.optional(),
   selfReview: z.enum(["inactive", "pending", "settled"]),
   frontline: FrontlinePolicyRequestSchema,
   standard: StandardPolicyRequestSchema,
-  candidate: z.strictObject({
-    subjectDigest: CandidateSubjectDigestSchema,
-    implementationChanged: z.boolean(),
-    convergenceVerification: z.enum(["satisfied", "pending"]),
-  }),
+  candidate: z.union([
+    z.strictObject({
+      ...PrePublicationCandidateCommonSchema,
+      convergenceVerification: z.literal("satisfied"),
+      convergenceScope: z.null(),
+    }),
+    z.strictObject({
+      ...PrePublicationCandidateCommonSchema,
+      convergenceVerification: z.literal("pending"),
+      convergenceScope: z.enum(["focused", "full"]),
+    }),
+  ]),
 }).superRefine((request, context) => {
   if (!samePolicyTarget(request.frontline.target, request.standard.target)) {
     context.addIssue({ code: "custom", path: ["standard", "target"], message: "must match the frontline target" });
@@ -121,7 +137,7 @@ export const PrePublicationReviewEnvelopeSchema = z.union([
   CandidatePolicyReviewBoundarySchema.extend(PrePublicationEnvelopeFields),
   CandidateReviewResumeBoundarySchema.extend(PrePublicationEnvelopeFields),
   CandidateFixBoundarySchema.extend(PrePublicationEnvelopeFields),
-  CandidateConvergenceBoundarySchema.extend(PrePublicationEnvelopeFields),
+  CandidateConvergenceBoundarySchema.safeExtend(PrePublicationEnvelopeFields),
   CandidatePublishReadyBoundarySchema.extend(PrePublicationEnvelopeFields),
 ]);
 export type PrePublicationReviewEnvelope = z.infer<typeof PrePublicationReviewEnvelopeSchema>;
@@ -163,15 +179,11 @@ export function projectPrePublicationReview(input: unknown): PrePublicationRevie
     : null;
   const terminus = standard.state === "owner-accepted" ? standard.payload.terminus : null;
 
-  if (request.candidate.implementationChanged
-    && request.candidate.convergenceVerification === "pending") {
+  if (request.candidate.convergenceVerification === "pending") {
+    const requiredScope = request.candidate.convergenceScope;
     return envelope(request, {
       locus: "candidate-convergence-verification-pending",
-      nextAction: action(
-        request.workUnit,
-        "run-convergence-verification",
-        "Run one final Tier 3 over the converged Candidate lineage, then invoke arc attest.",
-      ),
+      nextAction: createRunConvergenceVerificationAction(request.workUnit, requiredScope),
       reservation,
       terminus,
     });
@@ -261,15 +273,36 @@ function policyEnvelope(
   policy: z.infer<typeof ReviewResolveEnvelopeSchema>,
 ): PrePublicationReviewEnvelope {
   const findings = policy.state === "findings";
+  const interactionText = findings
+    ? `Disposition and respond to the ${lane} review findings as one bounded increment.`
+    : `Continue the ${lane} review from the typed policy result '${policy.state}'.`;
+  let nextAction: z.infer<typeof ContinuePrePublicationActionSchema>;
+  if (policy.state === "ready" && policy.nextAction === "run-frontline") {
+    const resolverRequest = {
+      schemaVersion: 1 as const,
+      changeSet: request.routingFacts,
+      invocation: { mode: "inherit" as const, sourceId: policy.payload.sourceId },
+      pass: policy.payload.pass,
+      maxPasses: Math.max(policy.payload.pass, policy.payload.maxPasses),
+    };
+    nextAction = ContinuePrePublicationActionSchema.parse({
+      kind: "continue-pre-publication-review",
+      command: "arc review frontline resolve -",
+      request: resolverRequest,
+      authorizationRequest: {
+        ...resolverRequest,
+        invocation: { ...resolverRequest.invocation, mode: "force" },
+      },
+      interactionText,
+    });
+  } else {
+    nextAction = ContinuePrePublicationActionSchema.parse(
+      action(request.workUnit, "continue-pre-publication-review", interactionText),
+    );
+  }
   return envelope(request, {
     locus: findings ? "candidate-fix-pending" : "candidate-review-pending",
-    nextAction: action(
-      request.workUnit,
-      "continue-pre-publication-review",
-      findings
-        ? `Disposition and respond to the ${lane} review findings as one bounded increment.`
-        : `Continue the ${lane} review from the typed policy result '${policy.state}'.`,
-    ),
+    nextAction,
     policy,
   });
 }
@@ -296,15 +329,24 @@ function envelope(
 
 function action(
   workUnit: string,
-  kind: PrePublicationNextAction["kind"],
+  kind: Exclude<PrePublicationNextAction["kind"], "run-convergence-verification">,
   interactionText: string,
 ): PrePublicationNextAction {
-  const command = kind === "publish-candidate"
-    ? `arc publish ${workUnit} --json`
-    : kind === "run-convergence-verification"
-      ? `arc attest ${workUnit} --json`
-      : `arc review pre-publication ${workUnit} --json`;
-  return { kind, command, interactionText };
+  if (kind === "publish-candidate") {
+    return PublishCandidateActionSchema.parse({
+      kind,
+      command: `arc publish ${workUnit} --json`,
+      interactionText,
+    });
+  }
+  const value = {
+    kind,
+    command: `arc review pre-publication ${workUnit}`,
+    interactionText,
+  };
+  return kind === "run-self-review"
+    ? RunSelfReviewActionSchema.parse(value)
+    : ContinuePrePublicationActionSchema.parse(value);
 }
 
 function isSettledFrontline(state: z.infer<typeof ReviewResolveEnvelopeSchema>["state"]): boolean {

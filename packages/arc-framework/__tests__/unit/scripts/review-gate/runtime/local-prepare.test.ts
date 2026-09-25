@@ -431,7 +431,7 @@ describe("local review preparation request", () => {
       const context = fixture();
       const resolveAuthority = vi.fn(async () => ({
         authority: {
-          vehicle: { kind: "errand" as const, identity: "repair-review-state" },
+          vehicle: { kind: "errand" as const, identity: "repair-review-state", claimId: "claim-1" },
           authorIdentity: "author-1",
           evaluatorIdentity: "evaluator-1",
           attestationRuntimeKind: "arc-cli",
@@ -448,7 +448,7 @@ describe("local review preparation request", () => {
         .resolves.toMatchObject({ state: "ready" });
 
       expect(context.published()).toMatchObject({
-        vehicle: { kind: "errand", identity: "repair-review-state" },
+        vehicle: { kind: "errand", identity: "repair-review-state", claimId: "claim-1" },
         target: { kind: "change-set" },
       });
       expect(context.deriveTarget).toHaveBeenCalledWith("repo-1", undefined);

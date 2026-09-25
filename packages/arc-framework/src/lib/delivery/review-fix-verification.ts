@@ -24,7 +24,7 @@ export interface DeliveryReviewFixVerificationContinuation {
       readonly head: string;
       readonly tree: string;
     };
-    readonly tier1Reuse: {
+    readonly tier1ReuseCriteria: {
       readonly kind: "exact-tree";
       readonly targetTree: string;
       readonly requiredResult: "passed";
@@ -73,7 +73,7 @@ export function projectDeliveryReviewFixVerificationContinuation(input: {
       memberDeliverableIds: pending.memberDeliverableIds,
       tier1Required: true,
       target: { head: terminal.head, tree: terminal.tree },
-      tier1Reuse: {
+      tier1ReuseCriteria: {
         kind: "exact-tree",
         targetTree: terminal.tree,
         requiredResult: "passed",

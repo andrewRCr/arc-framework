@@ -86,26 +86,10 @@ function repeatedHeadingGroups(units: readonly SourceUnit[]): ReadonlySet<string
   return new Set([...counts].filter(([, count]) => count > 1).map(([key]) => key));
 }
 
-/**
- * Carry authored extraction choices across machine-only source refresh.
- *
- * @param completedMap - Previously authored canonical extraction map
- * @param currentPreflight - Fresh machine inventory from the current source
- * @returns Refreshed authority or one exact reauthoring boundary
- */
-export function refreshV3ExtractionCutMap(
-  completedMap: V3DecomposeCutMap,
-  currentPreflight: V3DecomposePreflight,
-): V3ExtractionCutMapRefreshResult {
-  if (completedMap.authoring.shape !== "extraction") {
-    return { status: "reauthor", reason: "completed-map", locus: "authoring.shape" };
-  }
-  const currentStarter = parseV3DecomposeStarterMap(currentPreflight.starterMap);
-  if (currentStarter === null) {
-    return { status: "reauthor", reason: "completed-map", locus: "machine" };
-  }
-  const prior = completedMap.machine;
-  const current = currentStarter.machine;
+function stableRefreshMismatch(
+  prior: V3DecomposeCutMap["machine"],
+  current: V3DecomposeCutMap["machine"],
+): V3ExtractionCutMapRefreshResult | null {
   if (prior.source.origin !== current.source.origin
     || prior.source.logicalBranch !== current.source.logicalBranch
     || prior.source.ref !== current.source.ref) {
@@ -170,6 +154,31 @@ export function refreshV3ExtractionCutMap(
       };
     }
   }
+  return null;
+}
+
+/**
+ * Carry authored extraction choices across machine-only source refresh.
+ *
+ * @param completedMap - Previously authored canonical extraction map
+ * @param currentPreflight - Fresh machine inventory from the current source
+ * @returns Refreshed authority or one exact reauthoring boundary
+ */
+export function refreshV3ExtractionCutMap(
+  completedMap: V3DecomposeCutMap,
+  currentPreflight: V3DecomposePreflight,
+): V3ExtractionCutMapRefreshResult {
+  if (completedMap.authoring.shape !== "extraction") {
+    return { status: "reauthor", reason: "completed-map", locus: "authoring.shape" };
+  }
+  const currentStarter = parseV3DecomposeStarterMap(currentPreflight.starterMap);
+  if (currentStarter === null) {
+    return { status: "reauthor", reason: "completed-map", locus: "machine" };
+  }
+  const prior = completedMap.machine;
+  const current = currentStarter.machine;
+  const stableMismatch = stableRefreshMismatch(prior, current);
+  if (stableMismatch !== null) return stableMismatch;
   const ambiguousGroups = repeatedHeadingGroups(prior.sourceUnits);
   const allocationBySource = new Map(completedMap.authoring.sourceAllocations.map((allocation) => [
     allocation.sourceId,

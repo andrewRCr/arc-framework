@@ -77,10 +77,9 @@ describe("arc base merge", () => {
       newBase,
       "--expected-head",
       "b".repeat(40),
-      "--json",
     ], repo);
 
-    expect(moved.exitCode).toBe(0);
+    expect(moved.exitCode, moved.stderr).toBe(0);
     expect(JSON.parse(moved.stdout)).toMatchObject({
       state: "head-moved",
       expectedBase: newBase,
@@ -101,7 +100,6 @@ describe("arc base merge", () => {
       newBase,
       "--expected-head",
       oldBase,
-      "--json",
     ], repo);
 
     expect(result.exitCode).toBe(0);
@@ -125,9 +123,8 @@ describe("arc base merge", () => {
       oldBase,
       "--expected-head",
       featureHead,
-      "--json",
     ], repo);
-    expect(moved.exitCode).toBe(0);
+    expect(moved.exitCode, moved.stderr).toBe(0);
     expect(JSON.parse(moved.stdout)).toMatchObject({
       state: "base-moved",
       expectedBase: oldBase,
@@ -144,7 +141,6 @@ describe("arc base merge", () => {
       newBase,
       "--expected-head",
       featureHead,
-      "--json",
     ], repo);
     expect(merged.exitCode).toBe(0);
     const mergedResult = JSON.parse(merged.stdout) as { actualHead: string };
@@ -165,7 +161,6 @@ describe("arc base merge", () => {
       newBase,
       "--expected-head",
       mergedResult.actualHead,
-      "--json",
     ], repo);
     expect(clean.exitCode).toBe(0);
     expect(JSON.parse(clean.stdout)).toMatchObject({
@@ -189,7 +184,6 @@ describe("arc base merge", () => {
       newBase,
       "--expected-head",
       featureHead,
-      "--json",
     ], repo);
     expect(unreadable.exitCode).toBe(1);
     expect(JSON.parse(unreadable.stdout)).toMatchObject({
@@ -207,7 +201,6 @@ describe("arc base merge", () => {
       newBase,
       "--expected-head",
       featureHead,
-      "--json",
     ], repo);
     expect(missing.exitCode).toBe(1);
     expect(JSON.parse(missing.stdout)).toMatchObject({

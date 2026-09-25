@@ -65,6 +65,7 @@ const currentCandidate: CandidateRead = {
   subjectDigest: `sha256:${"d".repeat(64)}`,
   implementationChanged: false,
   convergenceVerification: "satisfied",
+  convergenceScope: null,
   lineageHeadShas: [HEAD],
 };
 
@@ -383,24 +384,24 @@ describe("composePrePublicationReviewRequest", () => {
     expect(rebound.request.standard.sources).toEqual(["coderabbit-pr", "codex-pr"]);
   });
 
-  it("reapplies an Owner terminus only to the exact Candidate subject that accepted it", async () => {
+  it("reapplies an Owner terminus only to the exact stored Candidate subject", async () => {
     const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies());
 
-    const current = applyCarriedOwnerAcceptedTerminus(composition, {
+    const carried = applyCarriedOwnerAcceptedTerminus(composition, {
       candidateId: CANDIDATE_ID,
       candidateSubjectDigest: currentCandidate.status === "current" ? currentCandidate.subjectDigest : null,
       terminus: OWNER_TERMINUS,
     });
-    const changed = applyCarriedOwnerAcceptedTerminus(composition, {
+    const findingsAdvanced = applyCarriedOwnerAcceptedTerminus(composition, {
       candidateId: CANDIDATE_ID,
       candidateSubjectDigest: `sha256:${"f".repeat(64)}`,
       terminus: OWNER_TERMINUS,
     });
 
-    expect(current.status).toBe("composed");
-    if (current.status !== "composed" || changed.status !== "composed") return;
-    expect(current.request.standard.terminus).toEqual(OWNER_TERMINUS);
-    expect(changed.request.standard).not.toHaveProperty("terminus");
+    expect(carried.status).toBe("composed");
+    if (carried.status !== "composed" || findingsAdvanced.status !== "composed") return;
+    expect(carried.request.standard.terminus).toEqual(OWNER_TERMINUS);
+    expect(findingsAdvanced.request.standard).not.toHaveProperty("terminus");
   });
 
   it("composes both lanes against one target with CLI-owned sources and ceilings", async () => {
@@ -541,7 +542,7 @@ describe("composePrePublicationReviewRequest", () => {
     expect(deriveImmutableTarget).not.toHaveBeenCalled();
   });
 
-  it("retains the terminal member after every delivery-member Frontline result settles", async () => {
+  it("retains the terminal member after every delivery-member frontline result settles", async () => {
     const first = deliveryMemberTarget({
       deliverableCharacter: "1",
       baseCharacter: "2",
@@ -601,7 +602,7 @@ describe("composePrePublicationReviewRequest", () => {
     });
   });
 
-  it("applies a Frontline ceiling override only to its bound outstanding delivery member", async () => {
+  it("applies a frontline ceiling override only to its bound outstanding delivery member", async () => {
     const first = deliveryMemberTarget({
       deliverableCharacter: "1",
       baseCharacter: "2",
@@ -822,6 +823,17 @@ describe("composePrePublicationReviewRequest", () => {
     // The caller's facts reached the reducer — an atomic code change set softens to `recommended`.
     expect(composition.request.standard.standardReview.obligation).toBe("recommended");
     // Its claims about the repository's own two facts did not: the fixture holds the inverse of both.
+    expect(composition.request.routingFacts).toEqual({
+      schemaVersion: 1,
+      changeSetState: "known",
+      contentKind: "code-bearing",
+      reviewRisk: "routine",
+      changeDeterminacy: "atomic",
+      ownership: "self",
+      surfaceAuthority: "ordinary",
+      assurance: resolvedAssurance.assurance,
+      activity: resolvedAssurance.activity,
+    });
     expect(composition.request.frontline.frontlineActive).toBe(false);
     expect(composition.request.selfReview).toBe("pending");
     expect(composition.advisories).toHaveLength(0);

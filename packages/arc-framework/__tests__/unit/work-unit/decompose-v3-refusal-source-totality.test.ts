@@ -49,9 +49,7 @@ const APPROVED_WIDE_REASON_PRODUCERS = new Set([
     + "#revalidateV3DecomposeExecutionPreflight:refreshed.reason",
   "lib/work-unit/decompose-v3-finish-operation.ts#execute:result.reason",
   "lib/work-unit/decompose-v3-operation.ts#prepareV3Operation:revalidated.reason",
-  "lib/work-unit/decompose-v3-operation.ts#revalidatePreparedV3Operation:"
-    + "rollbackFailureLocus !== null ? \"transition-record-rollback-failed\" : restorationFailed "
-    + "? \"partial-restoration-failed\" : stagedValidation.reason",
+  "lib/work-unit/decompose-v3-operation.ts#classifyPostStageRefusal:stagedValidation.reason",
   "lib/work-unit/git-decompose-transition-base-advancement.ts"
     + "#advanceGitDecomposeTransitionBase:preReturnBindingMismatch.reason",
   "lib/work-unit/git-decompose-transition-base-advancement.ts"

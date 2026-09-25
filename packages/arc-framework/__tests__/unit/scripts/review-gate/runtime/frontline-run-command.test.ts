@@ -425,7 +425,7 @@ describe("frontline run command", () => {
     }));
   });
 
-  it("retains timeout diagnostics while projecting its retry as one source attempt", async () => {
+  it("requires an explicit retry after timeout and projects it as one source attempt", async () => {
     const reviewTarget = target("c");
     const stores = memoryStores();
     const execute = vi.fn(async (input: { pass: number; maxPasses: number }) => {
@@ -467,9 +467,14 @@ describe("frontline run command", () => {
       schemaVersion: 1,
       target: reviewTarget,
       resolution,
+      retryOfOperationId: timedOut.payload.operationId,
     }, dependencies);
 
-    expect(timedOut).toMatchObject({ state: "timed-out", nextAction: "retry" });
+    expect(timedOut).toMatchObject({ state: "timed-out", nextAction: "operator-repair" });
+    expect(timedOut.diagnostics).toEqual([{
+      code: "frontline-explicit-retry",
+      message: expect.stringContaining(timedOut.payload.operationId),
+    }]);
     expect(retry).toMatchObject({ state: "clean", nextAction: "none" });
     expect(retry.payload.operationId).not.toBe(timedOut.payload.operationId);
     await expect(stores.operationStore.readOperation(laneProgressOperationId({

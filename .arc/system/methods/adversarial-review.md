@@ -13,7 +13,8 @@ override-active: false
 # Method: adversarial-review
 
 > - **Workflow:** [draft-design.md][draft-design], [create-spec.md][create-spec],
->   [generate-tasks.md][generate-tasks], [verify-work-unit.md][verify-work-unit],
+>   [generate-tasks.md][generate-tasks], [process-task-loop.md][process-task-loop],
+>   [verify-work-unit.md][verify-work-unit],
 >   [prepare-work-unit.md][prepare-work-unit], [integrate-work-unit.md][integrate-work-unit]
 > - **When:** A stage boundary runs its readiness, finalization, task-generation, or work-unit verification gate
 >   and has a supplied rubric to attack.
@@ -142,6 +143,10 @@ Artifacts (paths — read them directly before forming any finding):
 Orientation (paths — read them directly before forming any finding):
 {orientation}
 
+Read the complete current artifact and its governing rubric before using prior
+findings. On later passes, re-attack repairs after that read while checking the
+entire artifact for new failures.
+
 Prior findings and fixes:
 {prior-findings | "None. This is pass one."}
 
@@ -228,9 +233,9 @@ the unresolved findings at the stage interlock for the user's call.
 **Uniform materiality threshold.** The convergence threshold does not vary by `Class`. `Class` scales the
 recommendation posture and pass cap, not the meaning of material severity.
 
-**Pass two onward.** Every pass is a full rubric re-run. Add `prior-findings` only after pass one, and include the
-prior findings plus the primary's applied fixes. Do not run a narrowed fix-only attack; the later pass must still
-be able to certify the whole artifact against the rubric.
+**Pass two onward.** Start with a full read of the current artifact and rubric. Then use `prior-findings` and the
+primary's applied fixes to re-attack repaired loci; they are context, not the search frontier. Every pass reruns the
+full rubric over the whole artifact. Add `prior-findings` only after pass one.
 
 **Final-fold residual.** The final pass's folded findings are not attacked by a successor pass. That residual is
 why the planning fire-points later wire a post-settle coherence re-read before finalization commit; this method
@@ -287,6 +292,14 @@ defines correctness for that stage:
 | verify-work-unit            | spec + task list + the diff under verification    |
 | frontline review            | exact change target + `implementation-audit` lens |
 | standard review             | exact change target + `implementation-audit` lens |
+
+On upstream-stage re-entry, downstream artifacts derived from the earlier version are stale. When `generate-tasks`
+re-enters `create-spec`, its prior `tasks-*` is stale; when re-entry reaches `draft-design`, both prior `spec-*` and
+`tasks-*` are stale when present. Do not supply them in `artifacts` or key-file pointers as checkable references.
+Briefly tell the reviewer they carry no authority, so a discovered difference is not a finding. Review the current
+stage against authoritative upstream inputs, then rebuild and review downstream artifacts at their own boundaries.
+For `generate-tasks`'s in-place spec correction, update the spec and task list together, then review the current
+pair at the task-generation boundary without stage re-entry.
 
 Also include a non-exhaustive key-file pointer list when the stage has known implementation or reference loci.
 Keep the list neutral: "key files, not necessarily complete" is orientation, while "the files I think are
@@ -356,6 +369,7 @@ source verification, disposition, and exit-gate rules as a standard pass.
 [draft-design]: ../workflows/arc/draft-design.md
 [create-spec]: ../workflows/arc/create-spec.md
 [generate-tasks]: ../workflows/arc/generate-tasks.md
+[process-task-loop]: ../workflows/arc/process-task-loop.md
 [verify-work-unit]: ../workflows/arc/work-unit-lifecycle/verify-work-unit.md
 [integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md
 [prepare-work-unit]: ../workflows/arc/work-unit-lifecycle/prepare-work-unit.md

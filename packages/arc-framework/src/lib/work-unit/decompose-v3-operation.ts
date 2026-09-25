@@ -173,6 +173,8 @@ export type V3ExtractionOperationResult =
     };
 
 type V3SharedOperationRefusal = Extract<V3ExtractionOperationResult, { status: "refused" }>;
+type V3DecomposeOperationRefusal = Extract<V3DecomposeOperationResult, { status: "refused" }>;
+type V3TransitionRecord = NonNullable<ReturnType<typeof createDecomposeTransitionRecord>>;
 
 interface V3SharedOperationInput {
   protection: ProtectionMode;
@@ -275,6 +277,83 @@ async function restorePartial(
   }
 }
 
+type V3PartialCaptureResult = {
+  status: "captured";
+  partialPreimages: V3PartialPathPreimage[];
+  partialRecovery: V3PartialRecoveryIO | undefined;
+} | V3SharedOperationRefusal;
+
+async function capturePartialRecoveryState(
+  input: V3SharedOperationInput,
+  dependencies: V3SharedOperationDependencies,
+  occupation: OccupiedResult,
+): Promise<V3PartialCaptureResult> {
+  if (occupation.protection !== "partial") {
+    return { status: "captured", partialPreimages: [], partialRecovery: undefined };
+  }
+  const partialRecovery = dependencies.partialRecovery;
+  if (partialRecovery === undefined) {
+    return {
+      status: "refused",
+      stage: "partial-capture",
+      reason: "partial-recovery-unavailable",
+      recovery: { kind: "none" },
+    };
+  }
+  let partialPreimages: V3PartialPathPreimage[];
+  try {
+    partialPreimages = await partialRecovery.capture(input.plan.allowedPaths);
+  } catch {
+    return {
+      status: "refused",
+      stage: "partial-capture",
+      reason: "partial-preimage-capture-failed",
+      recovery: { kind: "none" },
+    };
+  }
+  if (!exactPreimages(input.plan.allowedPaths, partialPreimages)) {
+    return {
+      status: "refused",
+      stage: "partial-capture",
+      reason: "partial-preimage-set-mismatch",
+      recovery: { kind: "none" },
+    };
+  }
+  return { status: "captured", partialPreimages, partialRecovery };
+}
+
+async function materializationRefusal(
+  input: V3SharedOperationInput,
+  occupation: OccupiedResult,
+  partialPreimages: readonly V3PartialPathPreimage[],
+  partialRecovery: V3PartialRecoveryIO | undefined,
+  materialization: Extract<V3MaterializationResult, { status: "refused" }>,
+  report: V3DecomposeResultReport,
+): Promise<V3SharedOperationRefusal> {
+  let recovery: V3DecomposeOperationRecovery;
+  if (occupation.protection === "partial") {
+    if (partialRecovery === undefined) throw new Error("partial recovery dependency lost after capture");
+    recovery = await restorePartial(partialPreimages, materialization.appliedPaths, partialRecovery);
+  } else {
+    recovery = fullRecovery(input.plan, occupation);
+  }
+  const restorationFailureLocus = recovery.kind === "partial-restoration"
+    && recovery.status === "failed"
+    ? recovery.path ?? recovery.affectedPaths[0] ?? materialization.path
+    : null;
+  return {
+    status: "refused",
+    stage: restorationFailureLocus === null ? "materialization" : "restoration",
+    reason: restorationFailureLocus === null
+      ? materialization.reason
+      : "partial-restoration-failed",
+    locus: restorationFailureLocus ?? materialization.path,
+    ...(materialization.evidence === undefined ? {} : { evidence: materialization.evidence }),
+    report,
+    recovery,
+  };
+}
+
 async function prepareV3Operation(
   input: V3SharedOperationInput,
   dependencies: V3SharedOperationDependencies,
@@ -323,67 +402,21 @@ async function prepareV3Operation(
     };
   }
 
-  let partialPreimages: V3PartialPathPreimage[] = [];
-  let partialRecovery: V3PartialRecoveryIO | undefined;
-  if (occupation.protection === "partial") {
-    partialRecovery = dependencies.partialRecovery;
-    if (partialRecovery === undefined) {
-      return {
-        status: "refused",
-        stage: "partial-capture",
-        reason: "partial-recovery-unavailable",
-        recovery: { kind: "none" },
-      };
-    }
-    try {
-      partialPreimages = await partialRecovery.capture(input.plan.allowedPaths);
-    } catch {
-      return {
-        status: "refused",
-        stage: "partial-capture",
-        reason: "partial-preimage-capture-failed",
-        recovery: { kind: "none" },
-      };
-    }
-    if (!exactPreimages(input.plan.allowedPaths, partialPreimages)) {
-      return {
-        status: "refused",
-        stage: "partial-capture",
-        reason: "partial-preimage-set-mismatch",
-        recovery: { kind: "none" },
-      };
-    }
-  }
+  const capture = await capturePartialRecoveryState(input, dependencies, occupation);
+  if (capture.status === "refused") return capture;
+  const { partialPreimages, partialRecovery } = capture;
 
   const materialization = await materializeV3DecomposePlan(input.plan, dependencies.materializer);
   const report = reportV3DecomposeResult(input.plan, materialization, input.extractionFacts);
   if (materialization.status === "refused") {
-    let recovery: V3DecomposeOperationRecovery;
-    if (occupation.protection === "partial") {
-      if (partialRecovery === undefined) throw new Error("partial recovery dependency lost after capture");
-      recovery = await restorePartial(partialPreimages, materialization.appliedPaths, partialRecovery);
-    } else {
-      recovery = fullRecovery(input.plan, occupation);
-    }
-    const restorationFailureLocus = recovery.kind === "partial-restoration"
-      && recovery.status === "failed"
-      ? recovery.path ?? recovery.affectedPaths[0] ?? materialization.path
-      : null;
-    return {
-      status: "refused",
-      stage: restorationFailureLocus === null
-        ? "materialization"
-        : "restoration",
-      reason: restorationFailureLocus === null
-        ? materialization.reason
-        : "partial-restoration-failed",
-      locus: restorationFailureLocus === null
-        ? materialization.path
-        : restorationFailureLocus,
-      ...(materialization.evidence === undefined ? {} : { evidence: materialization.evidence }),
+    return await materializationRefusal(
+      input,
+      occupation,
+      partialPreimages,
+      partialRecovery,
+      materialization,
       report,
-      recovery,
-    };
+    );
   }
 
   const mutatedPaths = materialization.paths
@@ -405,6 +438,57 @@ async function prepareV3Operation(
   };
 }
 
+async function attemptStagedRollback(
+  rollback: V3StagedRollback | undefined,
+): Promise<Awaited<ReturnType<TerminalTransitionRecordWriter["rollback"]>> | null> {
+  if (rollback === undefined) return null;
+  try {
+    return await rollback();
+  } catch (error) {
+    return {
+      status: "unavailable",
+      diagnostic: failureLocus(error, "transition record rollback failed"),
+    };
+  }
+}
+
+async function classifyPostStageRefusal(
+  prepared: V3PreparedOperation,
+  stagedValidation: Extract<V3PostOccupationRevalidation, { status: "refused" }>,
+  rollbackResult: Awaited<ReturnType<TerminalTransitionRecordWriter["rollback"]>> | null,
+): Promise<V3SharedOperationRefusal> {
+  const recovery = await prepared.recoverMutation();
+  if (rollbackResult?.status === "unavailable") {
+    return {
+      status: "refused",
+      stage: "restoration",
+      reason: "transition-record-rollback-failed",
+      locus: rollbackResult.diagnostic,
+      report: prepared.report,
+      recovery,
+    };
+  }
+  if (recovery.kind === "partial-restoration" && recovery.status === "failed") {
+    return {
+      status: "refused",
+      stage: "restoration",
+      reason: "partial-restoration-failed",
+      locus: recovery.path ?? recovery.affectedPaths[0] ?? "partial restoration",
+      report: prepared.report,
+      recovery,
+    };
+  }
+  return {
+    status: "refused",
+    stage: "post-stage-revalidation",
+    reason: stagedValidation.reason,
+    ...(stagedValidation.locus === undefined ? {} : { locus: stagedValidation.locus }),
+    ...(stagedValidation.evidence === undefined ? {} : { evidence: stagedValidation.evidence }),
+    report: prepared.report,
+    recovery,
+  };
+}
+
 async function revalidatePreparedV3Operation(
   input: V3SharedOperationInput,
   dependencies: V3SharedOperationDependencies,
@@ -420,42 +504,64 @@ async function revalidatePreparedV3Operation(
     stagedValidation = { status: "refused", reason: "post-stage-revalidation-failed" };
   }
   if (stagedValidation.status === "valid") return stagedValidation;
+  const rollbackResult = await attemptStagedRollback(rollback);
+  return await classifyPostStageRefusal(prepared, stagedValidation, rollbackResult);
+}
 
-  let rollbackResult: Awaited<ReturnType<TerminalTransitionRecordWriter["rollback"]>> | null = null;
-  if (rollback !== undefined) {
-    try {
-      rollbackResult = await rollback();
-    } catch (error) {
-      rollbackResult = {
-        status: "unavailable",
-        diagnostic: failureLocus(error, "transition record rollback failed"),
-      };
-    }
-  }
+async function projectTransitionRecordOrRefuse(
+  completedMap: V3DecomposeCutMap,
+  prepared: V3PreparedOperation,
+): Promise<{ status: "projected"; transitionRecord: V3TransitionRecord } | V3DecomposeOperationRefusal> {
+  const transitionRecord = createDecomposeTransitionRecord(completedMap);
+  if (transitionRecord !== null) return { status: "projected", transitionRecord };
+
   const recovery = await prepared.recoverMutation();
-  const rollbackFailureLocus = rollbackResult?.status === "unavailable"
-    ? rollbackResult.diagnostic
+  const restorationFailureLocus = recovery.kind === "partial-restoration"
+    && recovery.status === "failed"
+    ? recovery.path ?? recovery.affectedPaths[0] ?? "partial restoration"
     : null;
-  const restorationFailed = recovery.kind === "partial-restoration"
-    && recovery.status === "failed";
-  const stagedReasonSuperseded = rollbackFailureLocus !== null || restorationFailed;
   return {
     status: "refused",
-    stage: rollbackFailureLocus !== null
-      || restorationFailed
-      ? "restoration"
-      : "post-stage-revalidation",
-    reason: rollbackFailureLocus !== null
-      ? "transition-record-rollback-failed"
-      : restorationFailed ? "partial-restoration-failed" : stagedValidation.reason,
-    ...(rollbackFailureLocus !== null
-      ? { locus: rollbackFailureLocus }
-      : restorationFailed
-        ? { locus: recovery.path ?? recovery.affectedPaths[0] ?? "partial restoration" }
-        : stagedValidation.locus === undefined ? {} : { locus: stagedValidation.locus }),
-    ...(stagedReasonSuperseded || stagedValidation.evidence === undefined
-      ? {}
-      : { evidence: stagedValidation.evidence }),
+    stage: restorationFailureLocus === null ? "transition-record" : "restoration",
+    reason: restorationFailureLocus === null
+      ? "transition-record-projection-invalid"
+      : "partial-restoration-failed",
+    ...(restorationFailureLocus === null ? {} : { locus: restorationFailureLocus }),
+    report: prepared.report,
+    recovery,
+  };
+}
+
+async function recordTransitionRecordOrRefuse(
+  transitionRecord: V3TransitionRecord,
+  prepared: V3PreparedOperation,
+  writer: TerminalTransitionRecordWriter,
+): Promise<{ status: "recorded" } | V3DecomposeOperationRefusal> {
+  let recorded: Awaited<ReturnType<TerminalTransitionRecordWriter["record"]>>;
+  try {
+    recorded = await writer.record(transitionRecord);
+  } catch (error) {
+    recorded = {
+      status: "unavailable",
+      diagnostic: failureLocus(error, "transition record write failed"),
+    };
+  }
+  if (recorded.status === "recorded") return { status: "recorded" };
+
+  const recovery = await prepared.recoverMutation();
+  const restorationFailed = recovery.kind === "partial-restoration"
+    && recovery.status === "failed";
+  return {
+    status: "refused",
+    stage: restorationFailed ? "restoration" : "transition-record",
+    reason: restorationFailed
+      ? "partial-restoration-failed"
+      : recorded.status === "origin-occupied"
+        ? "transition-record-origin-occupied"
+        : "transition-record-write-failed",
+    ...(restorationFailed
+      ? { locus: recovery.path ?? prepared.mutatedPaths[0] ?? "partial restoration" }
+      : recorded.status === "unavailable" ? { locus: recorded.diagnostic } : {}),
     report: prepared.report,
     recovery,
   };
@@ -481,56 +587,15 @@ export async function executeV3DecomposeOperation(
   const prepared = await prepareV3Operation(sharedInput, dependencies);
   if ("status" in prepared) return prepared;
 
-  const transitionRecord = createDecomposeTransitionRecord(input.completedMap);
-  if (transitionRecord === null) {
-    const recovery = await prepared.recoverMutation();
-    const restorationFailureLocus = recovery.kind === "partial-restoration"
-      && recovery.status === "failed"
-      ? recovery.path ?? recovery.affectedPaths[0] ?? "partial restoration"
-      : null;
-    return {
-      status: "refused",
-      stage: restorationFailureLocus === null
-        ? "transition-record"
-        : "restoration",
-      reason: restorationFailureLocus === null
-        ? "transition-record-projection-invalid"
-        : "partial-restoration-failed",
-      ...(restorationFailureLocus === null ? {} : { locus: restorationFailureLocus }),
-      report: prepared.report,
-      recovery,
-    };
-  }
-  let recorded: Awaited<ReturnType<TerminalTransitionRecordWriter["record"]>>;
-  try {
-    recorded = await dependencies.transitionRecords.record(transitionRecord);
-  } catch (error) {
-    recorded = {
-      status: "unavailable",
-      diagnostic: failureLocus(error, "transition record write failed"),
-    };
-  }
-  if (recorded.status !== "recorded") {
-    const recovery = await prepared.recoverMutation();
-    const restorationFailed = recovery.kind === "partial-restoration"
-      && recovery.status === "failed";
-    return {
-      status: "refused",
-      stage: restorationFailed
-        ? "restoration"
-        : "transition-record",
-      reason: restorationFailed
-        ? "partial-restoration-failed"
-        : recorded.status === "origin-occupied"
-          ? "transition-record-origin-occupied"
-          : "transition-record-write-failed",
-      ...(restorationFailed
-        ? { locus: recovery.path ?? prepared.mutatedPaths[0] ?? "partial restoration" }
-        : recorded.status === "unavailable" ? { locus: recorded.diagnostic } : {}),
-      report: prepared.report,
-      recovery,
-    };
-  }
+  const projection = await projectTransitionRecordOrRefuse(input.completedMap, prepared);
+  if (projection.status === "refused") return projection;
+  const { transitionRecord } = projection;
+  const recording = await recordTransitionRecordOrRefuse(
+    transitionRecord,
+    prepared,
+    dependencies.transitionRecords,
+  );
+  if (recording.status === "refused") return recording;
 
   const stagedValidation = await revalidatePreparedV3Operation(
     sharedInput,

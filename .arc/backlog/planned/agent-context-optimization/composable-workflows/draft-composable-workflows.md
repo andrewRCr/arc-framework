@@ -281,6 +281,40 @@
 
 ---
 
+### `[ ]` **Fire the execution-entry delivery inspection on the state it reads, not once per leaf task**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
+
+- `WU_Target: composable-workflows`
+
+- _Observation:_ `process-task-loop.md` § Task Implementation opens with an unconditional
+  `arc delivery entry inspect`, worded "Before implementing the current task", so it fires once per leaf task for
+  the whole life of a work unit. Its answer is a function of the delivery records bound to that work unit, and
+  those move only at delivery-lifecycle boundaries — between two adjacent leaf tasks no operation can move them,
+  so the re-read cannot return a different arm. The cost is not wall time (~0.54s per call) but a tool round-trip
+  and an identical `not-applicable` payload per task in the transcript, plus the dense seven-arm dispatch
+  paragraph an executing session re-reads at each task entry for a branch that never fires outside a delivery
+  work unit.
+
+- _Counter-weight to preserve:_ the check is fail-closed by design. Correction routing is exactly what an agent
+  must not be the judge of skipping, so the answer is not to gate it on whether a plan looks present — a derived
+  precondition goes stale precisely when correction matters. The open question is whether a firing condition
+  exists that is both sound and not per-task: loop entry plus re-entry after any operation that could bind or
+  advance delivery state, or a probe-carried fact resolved once per session with an explicit invalidation
+  trigger.
+
+- _Approach:_ treat it as a firing-condition question rather than frequency tuning — what state can change
+  between two fires, and is that change observable more cheaply and more soundly than the check itself. If it is
+  not, record that and keep the per-task cadence with its rationale stated, so the next reader does not reopen it.
+
+- _Files:_ `.arc/system/workflows/arc/process-task-loop.md` § Task Implementation, and its package-source mirror.
+
+- _Observation:_ load-bearing infra and a design fork, so it wants the reviewed lane rather than a sweep — which
+  is also why it files as a work unit rather than an errand.
+
+- _Captured during:_ `delivery-post-landing-conflict-recovery` Phase 7, where every task's inspection returns
+  `not-applicable` because the work unit carries no Delivery Plan, 2026-09-18.
+
 ## Problem / Motivation
 
 ARC's workflows scale across modes, tiers, and session states via **carry-and-skip**: inline conditionals

@@ -143,6 +143,7 @@ describe("arc init --reconfigure", () => {
       .map((key) => key.match(/^system\/methods\/(.+)\.md$/)?.[1])
       .filter((name): name is string => name !== undefined && name !== "README")
       .sort();
+    expect(methodNames).toContain("assess-evidence-applicability");
     const extensionNames = Object.keys(baselineManifest.files)
       .map((key) => key.match(/^system\/extensions\/(.+)\.md$/)?.[1])
       .filter((name): name is string => name !== undefined && name !== "README")

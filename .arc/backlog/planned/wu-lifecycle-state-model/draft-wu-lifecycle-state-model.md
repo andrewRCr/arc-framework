@@ -16,6 +16,35 @@
 > _is the core async-first reform plus activation-mechanics facets drained here; a save-location wording gap_
 > _that was parked here was peeled out and fixed as a standalone errand (`planning-artifact-save-location`)._
 
+### `[ ]` **Decide whether an Owner-invoked lifecycle rewind is a proven need**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- `WU_Target: wu-lifecycle-state-model`
+
+- _Observation:_ dogfooding a Candidate-bearing work unit surfaced a proposed rule: once verification completes and
+  a Candidate exists, scope freezes for ordinary continuation, and the Owner's only way to grow scope in place is an
+  explicit rewind to the appropriate planning or execution stage — regenerating affected tasks or delivery topology
+  and invalidating downstream Candidate, verification, and review evidence rather than retaining it. No such path
+  exists today: `reopen-work-unit` rewinds only Integrating → Active against an open PR, the pre-publish route is
+  review-fix plus applicability, and anything larger exits by extraction. `amend-design` refuses a general rewind by
+  design (D4, plus a Non-Goal frozen at activation) on recorded evidence that whole lifecycle re-entry regressed
+  state painfully in this project.
+
+- _Approach:_ decide first whether the need is real — an in-place scope growth that extraction genuinely serves
+  badly — before designing anything. If it is, the state axes are where an explicit rewind would have to be
+  expressible, with its evidence consequences typed rather than left to prose, and with Owner override selecting
+  that path rather than waiving its consequences. This work unit has the authority to fold it in or route it out to
+  its own stub once that call is made; deliberately not a stub yet, and not urgent.
+
+- _Boundary:_ the defect-versus-scope-expansion distinction is already the `amend-design` entry gate, the
+  same-concern versus distinct-concern routing is already `DEV-RULES.ARC § Anti-rider`, and whether prior review,
+  verification, and merge evidence still holds is `evidence-applicability`'s. Open here is only the rewind path and
+  whether the state model should admit one.
+
+- _Captured during:_ `plan-amendment` Phase 4 close, assessing a routed-in scope-expansion proposal against that
+  work unit's design, 2026-09-12.
+
 ### `[ ]` **Qualify dependency edges with the lifecycle boundary they gate**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-08-22);
@@ -26,18 +55,6 @@
 - _Fold-in:_ evaluate lifecycle-qualified degrees such as required-to-plan, required-to-implement, and
   required-to-integrate against this WU's state axes. Preserve today's unqualified blocks-start reading as the
   default, enforce each degree at its owning ceremony, and keep later-boundary session orientation advisory.
-
-### `[ ]` **Prevent local-ref residue from outranking an archived Shipped record**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-20); confirmed by teardown on 2026-08-15.
-- _Concern:_ readiness composition merges local-ref oracle candidates with tree records so a lingering
-  `feat/<slug>` ref can emit Active over an authoritative `completed/` meta reading Shipped. ROADMAP regeneration
-  then resurrects shipped work and discharged dependency edges.
-- _Evidence:_ deleting the lingering branch immediately restored the correct Shipped result; delivery candidate
-  refs and temporary worktrees were inert to status. Their separate cleanup-driver gap is already owned by
-  `delivery-native-stack-composition`.
-- _Fold-in:_ make completed-and-Shipped tree evidence outrank generic local-ref candidates while surfacing the ref
-  as cleanup residue. Preserve legitimate in-flight authority and verify the dependency-discharge consumer.
 
 ### `[ ]` **Model draft-first review as a three-tier audience transition**
 
@@ -60,20 +77,6 @@
   `locus-generation-binding` WU. Re-evaluate whether the surviving identity-ref CAS owns the concern; re-aim or
   remove the pointer without weakening fail-closed missing/ambiguous-subject behavior.
 
-### `[ ]` **Recognize the archived-but-not-torn-down work unit as a proved terminal frame**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-03); captured during
-  `session-locus-model` closeout recovery.
-- _Concern:_ the supported integration cadence archives the active meta before merge and physical teardown. An
-  interruption in that interval leaves a valid durable role whose active-subject projection is
-  `subject-unresolved`, even when a unique same-slug completed subject, exact checkout/head, and open change request
-  prove the monotonic terminal transition.
-- _Fold-in:_ extend the existing pending-teardown terminal-condition decision to cover this pre-merge interval and
-  define the state/projection authority recovery consumes. Coordinate exact-generation mutation and locked cleanup
-  with `locus-generation-binding`; keep arbitrary missing or ambiguous subjects fail-closed.
-- _Verification:_ cover archive-before-merge restart, merge-before-teardown, partial teardown, retained-control
-  finalization, and missing/ambiguous completed-subject negatives in reader, session-init, and recovery tests.
-
 ### `[ ]` **`decomposition-hardening` rename-move marker is an operational projection to re-vocabulary later**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-23); captured during
@@ -95,29 +98,6 @@
   between finalize and handoff leaves the tracked meta internally inconsistent.
 - _Fold-in:_ make each planning-stage finalize advance `Last Completed` through the field model alongside the
   `Class` write and stage advance, instead of leaving it handoff-owned.
-
-### `[ ]` **Own placement-as-record: directory layout is projection of lifecycle state**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-07-18);
-  captured at the storage-substrate grooming (2026-07-17).
-- _Concern:_ `backlog/{provisional,planned}` / `active/` / `completed/` placement is today a state _encoding_ —
-  the storage-substrate grooming names this a coupling smell: concurrent lifecycle transitions make placement a
-  shared-mutable surface, and changing the layout breaks anything that reads it.
-- _Fold-in:_ record the target consequence as a design position at grooming: lifecycle state is a record field;
-  directory placement is a projection of it; relocating a WU is a record-field change ARC cannot break on.
-  Coordinate with `coupling-blast-radius-audit` (now a hard dep of this WU — its enumeration surfaces the
-  placement readers) and `strategy-storage-evolution.md` Principles 1–2.
-
-### `[ ]` **Formalize the shipped, pending-teardown worktree terminal condition**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured during
-  `finalize-parallelism` Task 4.1 slate resolution.
-- _Concern:_ `worktree-teardown-decoupling` deliberately represents a self-teardown husk through existing
-  signals—detached HEAD, ARC ownership marker, and a completed-record match—without adding a lifecycle state.
-  Decide whether that terminal condition graduates into the four-state vocabulary, becomes an annotation, or
-  remains a derived operational projection.
-- _Boundary:_ consume the shipped mechanics and the `session-locus-model` reporting record; do not rebuild them.
-  This WU owns the state vocabulary and may re-vocabulary the locus record later without schema churn.
 
 ### `[ ]` **Unbundle planning-completion from activation — async-first WU lifecycle state model** _(core reform)_
 
@@ -460,60 +440,6 @@
 
 - _Captured during:_ `review-gate-right-sizing` Task 5.2 retirement batch (2026-07-24).
 
-### `[ ]` **The readiness reform has a tail-end twin: verification-passed wants a `Candidate` projection**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
-
-- _Forward amendment (2026-08-19):_ The transition descriptions below are historical input, not the current
-  boundary contract. `arc attest` runs after verification and establishes the private Candidate/prepublication
-  locus; `arc publish` ends private preparation and starts public integration before the first push and change
-  request. Keep Candidate on the attested artifact/projection axis when integrating this item.
-
-- _Observation:_ the core reform names planning-completion as an attested artifact-axis signal that `State`
-  flattens into the scheduling axis, with the missing primitive being its projection to an observable field
-  (`Ready`). The identical shape exists at the other end of the lifecycle and is not captured. Verification
-  completes entirely under `**State:** Active` — the task list's verification phase runs Tier 3 gates, success
-  criteria, and the adversarial pass before any lifecycle transition — and its terminal event, `arc finalize
-  verify`, records itself **only as a string prefix in the meta's free-text `Next Action`**, which the session-init
-  probe then pattern-matches to set `sessionType: integration`. That is the same defect the reform already
-  states for readiness, in the same field, one lifecycle stage later.
-
-- _Observation (what the signal is worth):_ past verification means the implementation holds up against its
-  design, which is materially stronger and different in kind from "the code may still have defects" — the
-  integration-level concern. Nothing in `State` distinguishes them, so an outside observer, the roadmap, and an
-  agent deciding what a work unit needs next all read the weaker signal.
-
-- _Observation (the flattening this exposes):_ ARC distinguishes review **lanes** — frontline and local versus
-  hosted and PR — but has no lifecycle distinction between "no eyes on this but ours" and "visible to the team or
-  the public." The lanes carry the audience difference; the state model does not. A `Candidate` state is where
-  that distinction would live: work whose implementation is attested but which has not yet gone public.
-
-- _Approach:_ treat `Candidate` as the tail-end peer of `Ready` on the same attested artifact axis, so the reform
-  lands one projection primitive with two instances rather than solving readiness and then rediscovering the shape.
-  The two transitions the vocabulary then supports are **attest** (implementation clears, enter verification and
-  local review — private) and **publish** (verification and local review clear, open the pull request — public).
-
-- _Related — a live inconsistency the tail state would resolve:_ `integrate-work-unit` Step 1 states that
-  "the `Integrating` state covers PR open through review-response," but fires the transition at Step 1 while the
-  pull request opens at Step 3, with the local self-review preflight in between. So a work unit is `Integrating`
-  through a window where nothing is public. The lifecycle command is now `arc publish`; its owning boundary work
-  moves that fire point to the publication-step head while deliberately minting **no** state and not re-keying
-  `Integrating`, per the `project-state-integrity` axis contract recorded in this WU's buffer. That
-  change shrinks `Integrating` to the public phase, which is the carve-out a `Candidate` state would make anyway,
-  so the two compose rather than collide.
-
-- _Captured during:_ `review-protocol-alignment` grooming, 2026-07-26 — surfaced while settling the scheduling
-  verb now named `arc publish`, distinct from the `arc integrate` procedure namespace.
-
-### `[ ]` **Prevent withdrawn singleton Candidates from reviving without a new public boundary**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-09-07);
-  captured during `delivery-native-stack-composition` dogfooding.
-- _Concern:_ a withdrawn one-member delivery Candidate can be rediscovered from surviving topology and treated as
-  publishable again even though its public boundary was explicitly retired.
-- _Fold-in:_ model withdrawal as a lifecycle fact that prevents implicit revival; require a new authorized public
-  boundary to create a successor Candidate while preserving the historical record.
-
 ### `[ ]` **Own the code-written `Current Workflow` boundary**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-09-07);
@@ -522,3 +448,71 @@
   which lifecycle transitions may write `Current Workflow` and how that projection composes with canonical state.
 - _Fold-in:_ define the authoritative write boundary and derivation rules here; keep handoff from becoming an
   unrestricted repair writer and treat the validator Errand as an interim guard.
+
+#### Evidence — Settle whether planning-stage re-entry moves the stage pointer, and guard the write
+
+- _Additional routed evidence:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
+
+- `WU_Target: wu-lifecycle-state-model`
+
+- _Observation:_ `set-stage` validates only the stage enum, so it accepts writing `Current Workflow` backward to
+  `create-spec` while `Design` still points at `spec-*`. `checkCurrentWorkflowConsistency` rejects that exact
+  tuple, so the next session-init resolves the checkout `subject-unresolved` and stops. The write path does not
+  guard what the read path rejects, and the cost lands a session later, on whoever opens the checkout next rather
+  than on the write that caused it.
+
+- _Decision to settle:_ what a mid-stage re-entry means for lifecycle state. If re-entry is a **detour** back
+  through an earlier workflow's process, the pointer is forward-only and `set-stage` should refuse any write
+  leaving the `(State, Current Workflow, Design)` tuple inconsistent. If it is an actual **rewind**, the
+  re-entered tuple needs a legal encoding the validator accepts, and `Design` must say which artifact is live.
+  Current lean: the detour reading.
+
+- _Why the lean:_ a true rewind has no coherent downstream story — re-entering `create-spec` from
+  `generate-tasks` would imply re-running the whole of `generate-tasks` afterwards, when the actual need is to
+  regenerate the phases the new design touches and leave the settled ones alone. It also falsifies the record:
+  `Current Workflow` and `Last Completed` stop describing what completed, so the meta no longer reads as a
+  truthful history of the work unit. A detour keeps both intact — the pointer stays at the stage that owns the
+  finalize fire-point, and the detour lives in `Next Action` prose.
+
+- _Approach:_ run the same tuple check on the write side so `set-stage` refuses, rather than deferring the failure
+  to the next read. Whichever reading wins, state it in `resolve-planning-depth.md` § Mid-stage re-entry: it routes
+  a derivation surprise to the spec today without saying what becomes of the pointer, which is how the backward
+  write came to be made.
+
+- _Files:_ `packages/arc-framework/src/lib/work-unit/verbs/set-stage.ts`,
+  `packages/arc-framework/src/lib/active/current-workflow-consistency.ts`,
+  `.arc/system/methods/resolve-planning-depth.md`, `.arc/system/workflows/arc/generate-tasks.md`.
+
+- _Captured during:_ `delivery-post-landing-conflict-recovery` session-init, 2026-09-17 — entry was blocked by it;
+  pointer corrected in `a30ebed17`.
+
+#### Evidence — State the `Current Workflow` field's planning-only constraint, or widen it
+
+- _Additional routed evidence:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-19).
+
+- `WU_Target: wu-lifecycle-state-model`
+
+- _Observation:_ setting `Current Workflow: verify-work-unit` on an `Active` work unit makes that work unit
+  un-enterable. The locus reader refuses with `subject-unresolved: Current Workflow "verify-work-unit" does not
+  match non-planning State "Active"`, which surfaces as `locusGuidance.kind: "unavailable"` at session-init and as
+  a `refused / locus-unresolved` handoff — the same "cannot init, cannot hand off" shape already recorded for
+  `evidence-applicability` and `review-signal-convergence`. Recovery was cheap here only because the meta commit
+  was still unpushed and could be amended.
+
+- _Observation:_ nothing states the constraint where someone writing the meta would meet it. The field is set by
+  `init-work-unit`, advanced by `arc set-stage`, and cleared by `generate-tasks` and `reopen-work-unit` — all
+  planning-stage machinery — but that is a reader's inference across four workflow files, not a stated rule. The
+  live meta carries no comment on the field, no meta template documents it, and `session-handoff.md`'s own
+  § Work Unit Metadata block omits the field entirely while listing every neighbouring one.
+
+- _Approach:_ decide what the field is, then make the artifact say it. If it stays a planning-stage pointer, say
+  so at the field and reject the write at authorship rather than at the next probe. If an execution work unit
+  should be able to name the lifecycle workflow it sits inside — `verify-work-unit` between task close and
+  attestation is the motivating case, where `Next Action` is currently the only carrier — that is a widening, and
+  it belongs to whatever settles the field's meaning.
+
+- _Observation:_ the severity is in the asymmetry, not the refusal. The guard is right to catch an inconsistent
+  record; what is disproportionate is that a one-field edit costs the work unit both its entry and its handoff
+  path, with no authoring-time signal that the field was not the author's to set.
+
+- _Captured during:_ `delivery-post-landing-conflict-recovery` Task 8.1 handoff, 2026-09-18.

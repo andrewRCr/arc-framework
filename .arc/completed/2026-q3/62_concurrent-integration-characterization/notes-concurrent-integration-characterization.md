@@ -1,0 +1,2404 @@
+# Notes: concurrent-integration-characterization
+
+- [Fixture inventory](#fixture-inventory)
+- [Base-movement coverage by boundary](#base-movement-coverage-by-boundary)
+- [Source loci by decision](#source-loci-by-decision)
+- [Alternatives retired at design](#alternatives-retired-at-design)
+- [Cell matrix](#cell-matrix)
+- [Second matrix](#second-matrix)
+- [Pre-probe cost baseline](#pre-probe-cost-baseline)
+- [Movement shape](#movement-shape)
+- [Characterization ledger](#characterization-ledger)
+- [Ledger close](#ledger-close)
+- [Post-probe cost](#post-probe-cost)
+- [Retention at close](#retention-at-close)
+- [Second-matrix confirmation](#second-matrix-confirmation)
+- [Record audit at close](#record-audit-at-close)
+
+## Fixture inventory
+
+Reference material for task generation and execution: what the test suite already holds that the probes compose
+over, recorded so grounding passes start from the inventory rather than re-deriving it. Verified 2026-09-14 against
+the tree at this branch's base.
+
+- **Real-CLI spawn and repository scaffolding** — `__tests__/e2e/helpers.ts` (`git`, `runArc`, `runArcAnchored`,
+  `runArcAnchoredSequence` for multi-verb lifecycle chains, `createTempRepo`); `__tests__/e2e/global-setup.ts`
+  builds the CLI once; `__tests__/helpers/temp-repo.ts`; `__tests__/helpers/prepared-repository.ts`
+  (`prepareRepositoryTemplate` / `copyPreparedRepository`, a template with an origin already attached — the cheap
+  base for every probe); `__tests__/helpers/integration.ts` (`initInTempRepo`, `makeCommit`, bare-remote attach).
+- **Second-checkout primitives** — `__tests__/helpers/multi-clone.ts`: `setupMultiClone` (bare origin plus two
+  clones with their own identities) and `setupWorktreeSiblings` (bare origin plus primary and sibling worktrees
+  sharing one git common dir — the exact-target isolation simulator); `createManualStepBarrier` /
+  `runControlledSteps` for deterministic interleavings.
+- **Remote-base advance** — `__tests__/helpers/in-flight-reshuffle.ts` `advanceRemoteBranch({ branch, markerPath })`:
+  temporary branch from `origin/<branch>`, one marker-file commit, push to `refs/heads/<branch>`, tracking refresh.
+  Marker path only, disjoint only; the extension point for the D6 helper.
+- **Lane reach of the advance helper** — `multi-clone.ts` imports nothing from `src/` and is already imported by
+  three e2e files, so its topologies reach both lanes as they stand. `in-flight-reshuffle.ts` does not: it takes one
+  value import from `src/` (`renderMetaProjectionFile`) and builds its execs through `integration.ts`'s
+  `makeGitExec`, which carries about ten more. An e2e probe needs neither — it spawns the CLI rather than injecting
+  an exec, and `arc start` writes the meta itself. The `src`-free topology and advance steps are therefore separable
+  from the integration-lane conveniences wrapped around them. Note the "e2e imports only node builtins" line in
+  `e2e/helpers.ts` is convention rather than an enforced boundary: `helpers/test-cost-timeout.ts` takes a value
+  import from `src/lib/test-cost/metrics.js` and is imported from the e2e lane today.
+- **Hand-rolled base-advance idioms** (not migrated; listed so probes do not add a fourth): publisher clone commits
+  and pushes (`e2e/base-drift.e2e.test.ts`, `base-merge.e2e.test.ts`, `base-sync.e2e.test.ts`,
+  `sync-purity.e2e.test.ts`); forged `refs/remotes/origin/main` with local `main` pinned back
+  (`e2e/candidate-applicability.e2e.test.ts`, `helpers/candidate-lineage-suite.ts`); `commit-tree` plus push of a
+  detached base (`e2e/errand.e2e.test.ts`).
+- **Mid-process failure injection, by lane** — in-process callers wrap a `GitExec` with
+  `withGitCallBoundaryInjections` (`__tests__/helpers/in-flight-reshuffle.ts`), which fires before or after a
+  matched call; a spawned verb cannot be reached that way. The spawned lane's equivalent is a `PATH` shim:
+  `__tests__/helpers/delivery-position-suite.ts` writes a `git` wrapper that alters one behavior under an
+  environment flag and otherwise execs the real binary, and the same file plus `e2e/delivery-plan.e2e.test.ts` and
+  `delivery-authoring.e2e.test.ts` use a fake host binary the same way. This is the only route by which a remote
+  read can **go** unavailable mid-boundary in the spawned lane.
+- **URL-rewrite origin idiom** — `__tests__/helpers/delivery-position-suite.ts` attaches a bare remote, then sets
+  `url.<bare-path>.insteadOf` a host-shaped URL and points `origin` at that URL. The result parses as an
+  owner-and-repository coordinate for resolvers that need one while still pushing and fetching against a local
+  bare repository — the way to give a fixture a live base without discarding a host-shaped origin it depends on.
+- **True-race harness** — `__tests__/e2e/race-worker.ts` / `true-race.ts`: real multi-process racing over a file
+  barrier; guards are `machine-id`, `sync-state`, `errand`, `notes` only, never the base. Out of scope for probes
+  (D8 cost ceiling).
+- **Hosted-review seam** — `__tests__/integration/review-fan-out-lifecycle.test.ts` runs hosted request, await, and
+  settle without a provider by passing `request` and `observers` functions into the handlers; review status derives
+  `base-moved` from the observation's containment fact (`src/scripts/review-gate/status.ts`). Two instruments reach
+  this boundary and they observe different things: injecting `observers` supplies the containment fact directly, so
+  the base read never runs, while the status port the production handler composes is exported and takes an
+  injectable exec — driving that runs the real fetch-and-contain read and is the only way an unavailable base read
+  can be observed here. The same file already drives production compositions through a fake host. The
+  `hosts/local/` directory holds record stores and materialization, not a host adapter; `hosts/github/` holds the
+  provider-bound request, checks-await, merge-lock, and merge-method adapters.
+- **Worktree evidence vocabulary** — `__tests__/helpers/worktree-evidence.ts` (`exact` | `not-applicable`).
+
+## Base-movement coverage by boundary
+
+What each existing test actually exercises, and the gap the probe at that boundary closes.
+
+- **Standalone drift and merge probes** — `e2e/base-drift.e2e.test.ts` (disjoint publisher advance, `reconcile`
+  verdict, typed `unavailable` when origin is removed); `e2e/base-merge.e2e.test.ts` (refuses a moved checkpoint
+  head, no-ops when contained, appends the approved base as a merge); `e2e/base-sync.e2e.test.ts` (local base
+  fast-forward from a linked worktree).
+- **Candidate applicability** — `e2e/candidate-applicability.e2e.test.ts` (forged advance plus conflicted merge,
+  owned selection, foreign-owner refusal, a second worktree carrier); `integration/candidate-applicability.test.ts`
+  (typed movement during a staged-current projection); `helpers/candidate-lineage-suite.ts` (carried Candidate after
+  a real overlapping move; settlement bound to the checkpoint-validated base after the ref moves; fail-closed on
+  final drift).
+- **Prepublication** — `e2e/publication-spine.e2e.test.ts` moves only the head (operational commits, responses,
+  re-attestation) against an offline origin; the base never moves. Gap: the settle-to-submit window.
+- **Public review** — `integration/frontline-target-materialization.test.ts` and
+  `local-review-materialization.test.ts` move the caller branch under a pinned target; `origin/main` never moves.
+- **Landing** — `e2e/delivery-terminal-recovery.e2e.test.ts` covers unavailable fresh base, substantive movement past
+  a settled record-only terminal, and a native landing settled after the target advances; nothing moves the base
+  between landing readiness and merge.
+- **Closeout** — `integration/teardown.test.ts` rolls the local base behind an advanced `origin/main` to prove the
+  reap refetches; the only post-landing base-movement case in the suite. `e2e/teardown.e2e.test.ts` and
+  `e2e/lifecycle-exit.e2e.test.ts` have none.
+- **Errand** — `e2e/errand.e2e.test.ts` cuts a warm continuation from a freshly advanced remote base at `open`; close
+  and review-respond never see a base advance.
+- **Exact-target isolation** — `e2e/wu-reconcile.e2e.test.ts` leaves another worktree byte-identical until its own
+  reconcile ceremony; `integration/local-review-materialization.test.ts` and
+  `frontline-target-materialization.test.ts` pin an exact target while the caller branch moves.
+- **Unknown movement** — tested only as a static precondition (`base-drift.e2e.test.ts`,
+  `session-init-remote-boundary.e2e.test.ts`, `delivery-terminal-recovery.e2e.test.ts`), never as evidence that
+  goes unavailable mid-boundary.
+
+## Source loci by decision
+
+- **Movement classification** — `src/lib/git/base-distance.ts` (verdict authority: `clean` / `reconcile` /
+  `unavailable` from raw behind-count, enriched with integration and overlap evidence); `src/lib/git/base-overlap.ts`
+  (rename-conservative changed-path intersection partitioned into `substantivePaths` and `regenerablePaths`; unit
+  coverage in `__tests__/unit/git/base-overlap.test.ts`); `src/lib/git/base-integration-evidence.ts`;
+  `src/lib/git/base-branch-sync.ts`; `src/lib/git/base-sync.ts`; `src/lib/git/refresh-base.ts` (post-merge base ref
+  resolution; its only importers are `src/lib/work-unit/verbs/teardown.ts` and `src/handlers/start.ts`). Two
+  neighbours look like consumers and are not: the base-merge script defines its own inline refresh port method
+  rather than importing the module, and Errand close pins a remote base head through `pinRemoteBaseHead` in
+  `src/lib/errand/identity-claims.ts`, composed by `close-runtime.ts` and `partial-settle-runtime.ts`.
+- **Candidate applicability** — `src/lib/work-unit/candidate-applicability.ts`,
+  `git-candidate-applicability.ts` (reads `refs/remotes/origin/main` via `for-each-ref`),
+  `candidate-applicability-resolution.ts`, `candidate-effective-target.ts`.
+- **Review applicability** — `src/scripts/review-gate/policy/review-contribution-applicability.ts`,
+  `git-review-contribution-applicability.ts`, `review-applicability-resolution.ts`, `review-applicability-authority.ts`,
+  `earlier-review-applicability.ts`, `integration-boundary-locus.ts`.
+- **Landing** — `src/scripts/review-gate/delivery-landing-readiness.ts`, `policy/delivery-review-terminus.ts`.
+- **Session orientation** — `src/lib/session-init/delivery-position.ts`, `delivery-position-facts.ts` (where
+  `baseDistance` and `baseBranchSync` surface to the agent).
+- **Test cost** — `test-cost-budgets.json` (advisory, ten percent allowance over baseline, hand-refreshed in
+  `perf(test-cost)` commits); `src/scripts/report-test-budget.ts` (CI summary when exceeded);
+  `npm run benchmark:test-cost` and `benchmark:test-cost:compare`.
+- **Verification seam** — `verify-work-unit.md` invokes exactly one typed verb, `arc attest`; the attestation binds
+  the work unit's own subject digest and is expected to tolerate base movement.
+
+## Alternatives retired at design
+
+- **`test.fails` markers** — rejected: the runner converts every non-pass state to pass, so a marked probe cannot
+  distinguish failing at the target from failing for any reason. Replaced by the pin-with-target helper (D1).
+- **`todo` / skipped cases plus a prose ledger** — nothing arms.
+- **A probe runner outside CI that emits a ledger** — new machinery with nothing enforced at the fix.
+- **Exhaustive state cross-product** — obscures the ordinary concurrency path and outgrows the fixes it routes.
+- **Live-provider harness** — external variability before the local boundary is understood; a recorded non-goal.
+- **Merge queue** — a recorded non-goal in three places; not the remedy for ARC-only re-ceremony.
+- **Fixing in place** — re-creates the piecemeal-patch pattern the charter names.
+- **Characterizing by reading code** — finds what the code says, not what the lifecycle does across checkouts; its
+  bounded use produced the coverage table above.
+
+## Cell matrix
+
+Enumerated at task generation from D3. Applicability is deliberately **not** settled here: the first task confirms
+each boundary's typed seam against source and records every not-applicable cell with its reason. Cells are cited by
+their boundary × movement kind × shape tuple; they carry no identifier, and nothing in this section may reach a test
+name (D1 — names and messages describe behavior only).
+
+Each boundary below contributes five singleton cells: the four movement kinds plus one no-movement control row.
+The movement kinds are `disjoint`, `overlapping-substantive`, `overlapping-regenerable-only`, and `unknown` — the
+last being remote evidence that **goes** unavailable at the boundary, not a static precondition.
+
+A movement kind is a property of the **intersection** of the branch's own diff with the base's, not of the advance
+alone: the shipped analyzer diffs `merge-base..HEAD` against `merge-base..<base>`, partitions what both touched, and
+short-circuits to an empty result whenever the branch is not both ahead and behind. The partition has three
+outcomes rather than two — `reviewable` paths become substantive, `.arc/backlog/ROADMAP.md` is the one path treated
+as regenerable, and evidence-neutral paths (a work unit's own artifacts, its candidate record under
+`.arc/system/.internal/candidates/`, its submission boundary) are dropped from the overlap entirely. An advance that
+intersects only evidence-neutral paths therefore reads identically to one that intersects nothing; `disjoint` means
+no intersection at all.
+
+### Singleton shape — 6 boundaries × 5 cells = 30
+
+| Boundary                     | Typed seam                                                      | Lane        | Nearest extendable test                        |
+| ---------------------------- | --------------------------------------------------------------- | ----------- | ---------------------------------------------- |
+| Whole-work-unit verification | `arc attest`                                                    | e2e         | `e2e/attest.e2e.test.ts`                       |
+| Candidate / prepublication   | `arc review pre-publication`, the publication transition        | e2e         | `e2e/publication-spine.e2e.test.ts`            |
+| Public review and checks     | `arc review status`, the hosted request and await handlers      | integration | `integration/review-fan-out-lifecycle.test.ts` |
+| Member / singleton landing   | `arc integrate checkpoint` / `merge`, the delivery landing path | e2e         | `e2e/delivery-terminal-recovery.e2e.test.ts`   |
+| Post-landing closeout        | `arc teardown`, archival                                        | e2e         | `e2e/teardown.e2e.test.ts`                     |
+| Errand review / merge        | `arc errand close`, the Errand's typed merge lane               | e2e         | `e2e/errand.e2e.test.ts`                       |
+
+Public review is the one integration-lane boundary: a spawned CLI cannot reach the seam its existing tests use,
+which inject the request and observer functions into the handlers. Its probes do not extend those tests. Injecting
+an observation is what makes the containment fact a value the test chose, so the probes drive the production status
+port instead, over a work unit whose branch is an ordinary one and whose publication reserved no hosted review —
+the shape that leaves the moved-base arm reachable rather than decided by a conjunction. The port reaches the host
+through the same injected exec it uses for Git, except for required checks, which resolve through the process
+runner; a stub host on `PATH` covers both. That fixture lives in `integration/review-status-base-movement.test.ts`
+and is where this boundary's remaining cells belong.
+
+### Delivery-member shape — 7 cells
+
+| Boundary                   | Cells                                      | Why this coverage                            |
+| -------------------------- | ------------------------------------------ | -------------------------------------------- |
+| Member / singleton landing | all four movement kinds plus a control row | the delivery path decides admissibility here |
+| Candidate / prepublication | `disjoint` only                            | the path only re-observes                    |
+| Post-landing closeout      | `disjoint` only                            | the path only re-observes                    |
+
+### Exact-target read isolation — 3 cells
+
+Not a boundary. One family in the integration lane on the worktree-siblings helper, where two checkouts share one
+git common dir. The first two are live field classes — three sibling checkouts' Candidate records were unreadable
+under this build's schema at this work unit's first session-init.
+
+- A sibling checkout whose build cannot parse this checkout's records.
+- A foreign owner's Candidate record in the shared namespace.
+- A sibling left byte-identical after this checkout's reconcile.
+
+### Control rows and excess
+
+One no-movement probe per boundary. A movement row's **excess** is its verb invocations and approval stops minus
+the control row's; the idiomatic excess is zero. The control row's own count is the ceremony baseline, and
+non-concurrency excess in it is routed, never fixed here. Probes assert typed outcomes only — never counts; counts
+are ledger observations taken from the probe's run, so deleting a control row under D9 breaks no retained probe.
+
+### Covered input
+
+D3 names the covered input per ceremony, which is what decides whether a repeat is justified: quality gates, the
+tree they ran over; attestation and verification currentness, the work unit's own subject digest; review clearance,
+the exact reviewed head and reviewed path set; checkpoint, the Candidate head and observed base relation; approval,
+the exact head it was given on. Which of these each boundary actually reads is confirmed against its typed seam at
+the first task, not assumed from this list.
+
+### Ceiling
+
+Thirty singleton and Errand cells, seven delivery-member cells, three isolation cells — forty before
+not-applicable verdicts. Cells at which the boundary never reads the base become not-applicable ledger rows rather
+than probes. There is no exhaustive state cross-product.
+
+### Seam verdicts
+
+Confirmed against each boundary's typed seam on this branch's base. Every verdict is a source read at the seam: it
+decides what is worth probing and never stands in for the observation. A cell closes `not-applicable` only on
+positive evidence that the boundary's own typed result would be identical to one already recorded at that
+boundary. Where the source read leaves the question open, the cell stays applicable — absence of evidence for a
+collapse is not evidence of one.
+
+Two facts recur and are stated once rather than per boundary:
+
+- **A `local-only` base read cannot produce `unknown`.** The Candidate seam resolves its base coordinate from the
+  already-materialized `refs/remotes/origin/<base>` through `for-each-ref`, falling back to the local `<base>`
+  branch, and every invocation on that path carries `objectAccess: "local-only"`. Nothing on it fetches, so remote
+  evidence has no opportunity to go unavailable mid-boundary. An absent remote-tracking ref is a static
+  precondition, which the design already excludes from `unknown`.
+- **A merge-base coordinate absorbs every advance.** `collectGitCandidateTarget` diffs the index against
+  `merge-base(HEAD, <base>)` (`src/lib/work-unit/git-candidate-subject.ts`). A base advance descends from the fork
+  point, so the merge base is unmoved and the subject stays byte-identical whatever the advance touched. This is
+  the amendment's first prompt, now confirmed at the seam.
+
+#### Whole-work-unit verification — `arc attest`
+
+`verify-work-unit.md` invokes exactly one typed verb. Its `blocked / establish-new-root` continuation is the same
+verb with `--new-root`, the `self-review` method invokes none, and the delivery-member scale step inspects results
+already recorded rather than issuing a verb. Nothing else in the workflow reads the base.
+
+Covered inputs the seam consumes: the staged subject digest, the canonical task list (readable, structurally
+valid, closed on `no-open-task`), the index itself (unstaged reviewable content refuses), and — only while
+`Integrating` or `Shipped` — delivery Candidate renewal evidence, which performs no base read of its own. The
+subject digest is the only one of these derived from the base.
+
+| Cell                           | Verdict        | Reason / probe intent                                        |
+| ------------------------------ | -------------- | ------------------------------------------------------------ |
+| control (no movement)          | applicable     | ceremony baseline for this boundary's excess                 |
+| `disjoint`                     | applicable     | the boundary's one real probe: advance, then attest          |
+| `overlapping-substantive`      | not-applicable | no overlap classification on this path; merge base unmoved   |
+| `overlapping-regenerable-only` | not-applicable | same seam, same byte-identical subject                       |
+| `unknown`                      | not-applicable | the seam performs no remote read; nothing can go unavailable |
+
+One window does discriminate, and it is not a movement kind: on the convergence arm (a Candidate record already
+exists), `projectGitCandidateEffectiveTarget` re-reads the base ref inside the invocation and returns
+`rerun-checkpoint / base-moved` when it changed between the two reads. That requires the local remote-tracking ref
+to move _mid-verb_, reachable only through an injected exec or a `PATH` shim. Recorded here; whether it earns a
+probe is Phase 3's call.
+
+#### Candidate and private-delivery prepublication — `arc review pre-publication`, the publication transition
+
+`handleReviewPrePublication` reads the Candidate through `projectGitCandidateEffectiveTarget` — the same
+`local-only` seam as `arc attest`. `arc publish` performs no base read at all; the publication transition writes
+the durable boundary the prepublication settle point already composed.
+
+| Cell                           | Verdict        | Reason / probe intent                                        |
+| ------------------------------ | -------------- | ------------------------------------------------------------ |
+| control (no movement)          | applicable     | ceremony baseline                                            |
+| `disjoint`                     | applicable     | the real probe, across the settle-to-submit window           |
+| `overlapping-substantive`      | not-applicable | identical to `disjoint`; merge base unmoved, no overlap read |
+| `overlapping-regenerable-only` | not-applicable | same                                                         |
+| `unknown`                      | not-applicable | no remote read on this path                                  |
+
+#### Public review and checks — `arc review status`, the hosted request and await handlers
+
+This is the one boundary that fetches. `readBasePosition` in `status-composition.ts` runs `git fetch <remote>
+<base>`, resolves `refs/remotes/<remote>/<base>`, and derives `baseContained` from
+`merge-base --is-ancestor <base> <head>`. `resolveReviewStatus` returns `base-moved / rerun-checkpoint` on
+`!baseContained` with a non-null base OID, and that arm sits **ahead of** every applicability arm, so a moved base
+short-circuits before any overlap classification is consulted.
+
+Instrument, settled here: drive `createReviewStatusPort` with an injectable exec. It is the production composition
+and no test drives it today. Injecting `observers` supplies the containment fact directly and the base read never
+runs. One caveat the probe must respect: `observe`'s catch collapses _every_ error into
+`currentBaseOid: null` plus a blocked obligation, so only the `fetch <remote> <base>` call may be failed if
+`unknown` is to be attributed to the base read rather than to `gh`.
+
+| Cell                           | Verdict        | Reason / probe intent                                         |
+| ------------------------------ | -------------- | ------------------------------------------------------------- |
+| control (no movement)          | applicable     | ceremony baseline; base contained                             |
+| `disjoint`                     | applicable     | `base-moved / rerun-checkpoint`                               |
+| `overlapping-substantive`      | not-applicable | `baseContained` is pure ancestry; the kind is never consulted |
+| `overlapping-regenerable-only` | not-applicable | same                                                          |
+| `unknown`                      | applicable     | null base OID → `blocked / status-unavailable`, distinct      |
+
+#### Member and singleton landing — `arc integrate checkpoint` / `merge`, the delivery landing path
+
+Two base-read windows, and they discriminate differently. The **checkpoint** window runs `runBaseDrift` in
+`authoritative` mode: a real fetch, then `behind > 0` ⇒ `verdict: reconcile` carrying the overlap partition.
+`reconcileSafety` gates on `substantivePaths.length === 0` (unless the delivery arm supplies
+`residual-contained`), and the emitted payload carries both `substantivePaths` and `regenerablePaths`. The
+**merge** window (`readFinalDrift`) reads `verdict` alone and emits `invalidated / drift-reconcile` with a
+`{ verdict }` payload, so the three overlap kinds are indistinguishable there.
+
+Cells are therefore placed at the window that can tell them apart, and the merge window carries the movement the
+design named as uncovered — nothing in the suite moves the base between landing readiness and merge.
+
+| Cell                           | Verdict    | Window · reason / probe intent                                   |
+| ------------------------------ | ---------- | ---------------------------------------------------------------- |
+| control (no movement)          | applicable | clean checkpoint-to-merge span; ceremony baseline                |
+| `disjoint`                     | applicable | merge · `invalidated / drift-reconcile`, `verdict: reconcile`    |
+| `overlapping-substantive`      | applicable | checkpoint · `blocked / unsafe-reconcile`                        |
+| `overlapping-regenerable-only` | applicable | checkpoint · `reconcile / reconcile-base`, regenerable non-empty |
+| `unknown`                      | applicable | checkpoint · `blocked / drift-unavailable`                       |
+
+#### Post-landing closeout — `arc teardown`, archival
+
+Archival performs no base read; `arc teardown` carries the boundary alone. Under `full` protection
+`resolveParkProofTarget` fetches `origin/<base>` and a failure returns `rejected` naming the unresolvable
+lifecycle authority ref; the fetched head is then the ref the completed-index membership of _this_ work unit is
+read from. The separate `refreshBase` leg is best-effort and falls back to the local base silently, so an
+unavailable base read is observable only through the proof-target leg.
+
+| Cell                           | Verdict        | Reason / probe intent                                          |
+| ------------------------------ | -------------- | -------------------------------------------------------------- |
+| control (no movement)          | applicable     | ceremony baseline                                              |
+| `disjoint`                     | applicable     | the real probe: the reap refetches and sees this WU's archival |
+| `overlapping-substantive`      | not-applicable | no overlap read; the verdict turns on this WU's own membership |
+| `overlapping-regenerable-only` | not-applicable | same                                                           |
+| `unknown`                      | applicable     | fetch failure → `rejected`, authority ref unresolvable         |
+
+Instrument, settled at the probe: the existing e2e file has no origin and runs at the shipped `partial`
+default, under which the proof target reads the local base and never fetches — the boundary's base read does
+not exist there. Adding an origin and full protection to its shared builder would change what its existing
+cases observe, so these probes take their own file, `teardown-base-movement.e2e.test.ts`, over a repository
+whose merge and archival have both reached a live base.
+
+#### Errand review and merge — `arc errand close`, the Errand's typed merge lane
+
+The base read at `close` is narrower than the coverage table implied. `close-runtime.ts` calls
+`pinRemoteBaseHead` only inside `localBase.oid === head.oid` — the no-op shortcut — so an ordinary Errand whose
+branch is ahead of the base never reaches it. When it is reached, a pin that is not `pinned` and a pin at a moved
+head take the same fall-through to `observeExactChangeRequest`, so an unavailable base read is absorbed
+indistinguishably from a moved one. `src/lib/errand/merge.ts` merges Errand _record_ trees, not the base. The
+lane's actual base gate is prose over `arc base drift` (below), whose typed verb the standalone drift probes
+already cover.
+
+Under `partial` protection the picture differs — `partial-settle-runtime.ts` refuses `preservation-unproven` on a
+failed pin — but this project runs `full`, and D2 binds observation to the tree under test.
+
+| Cell                           | Verdict        | Reason / probe intent                                          |
+| ------------------------------ | -------------- | -------------------------------------------------------------- |
+| control (no movement)          | applicable     | ceremony baseline                                              |
+| `disjoint`                     | applicable     | the real probe: close after an advance, observe no re-ceremony |
+| `overlapping-substantive`      | not-applicable | the seam runs no overlap classification                        |
+| `overlapping-regenerable-only` | not-applicable | same                                                           |
+| `unknown`                      | not-applicable | a failed pin takes the same fall-through as a moved base       |
+
+#### Delivery-member shape
+
+Landing keeps four of its five cells. `classifyDeliveryDrift` supplies the `residual-contained` safety class that
+moves the substantive cut, so the member rows are not repeats of the singleton ones. `unknown` is the exception:
+`verdict: unavailable` never enters the delivery arm, so it reaches the identical `blocked / drift-unavailable`
+the singleton cell already records. Prepublication and closeout each close their single `disjoint` cell — the
+delivery arms add no base read of their own, so the shape cannot change a base-derived result.
+
+| Cell                                     | Verdict        | Reason                                             |
+| ---------------------------------------- | -------------- | -------------------------------------------------- |
+| landing · control                        | applicable     | member-scope ceremony baseline                     |
+| landing · `disjoint`                     | applicable     | member admissibility decides here                  |
+| landing · `overlapping-substantive`      | applicable     | `residual-contained` moves the cut                 |
+| landing · `overlapping-regenerable-only` | applicable     | partition reaches the member payload               |
+| landing · `unknown`                      | not-applicable | skips the delivery arm; identical to the singleton |
+| prepublication · `disjoint`              | not-applicable | the renewal inspection performs no base read       |
+| closeout · `disjoint`                    | not-applicable | no delivery-specific base read at teardown         |
+
+#### Exact-target read isolation
+
+Not a boundary and not a base read: all three cells stay applicable as enumerated. Their concern is what one
+checkout's records look like from a sibling sharing the git common dir, which no base advance reaches.
+
+#### Prose-only gates visible at this base
+
+Provisional — the set moves with each base merge and is superseded from the tree at close. Each is a workflow step
+that loops or gates on a drift read with no typed verb behind the disposition, so each takes a ledger-only row.
+
+- `integrate-work-unit.md` Step 1 — the pre-hosted-pass advisory read. Keeping `clean` and regenerable-only drift
+  silent, reconciling early "only when the interaction is clear", and stopping on a material interaction are all
+  agent judgment; no verb enforces any of them.
+- `run-errand.md` Step 5 — "authoritative base freshness", then "repeat until base, head, and requirements are
+  settled". The loop itself is the gate.
+- `run-errand.md` Step 6, before either lane action — only `clean` continues, `reconcile` returns to Step 5,
+  unavailable or malformed output stops.
+- `run-errand.md` Step 6, auto-merge lane after checks permit merge — the same disposition, re-read under the held
+  lock.
+
+#### Confirmed count
+
+Twenty-four applicable cells and sixteen not-applicable, against the enumerated forty: seventeen of thirty
+singleton and Errand cells, four of seven delivery-member cells, and all three isolation cells. Four prose-only
+gates take ledger-only rows on top.
+
+## Second matrix
+
+D3 spans boundary × base-movement kind. D10 widens the span to four axes derived from failures already on file,
+because that first span independently re-finds none of them. This section is the derivation and the enumeration;
+the rows these cells produce append under § Open probe rows like every other row, and nothing recorded before the
+widening is edited.
+
+### What actually moved in each recorded failure
+
+The evidence every axis below stands on, read from the routed captures, the two `backlog/` drafts minted at the
+close-out, and the steering map. The result column is the typed result as returned, not a paraphrase. A failure
+appears once, under the thing whose change is what the refusing comparison actually reads.
+
+| #  | Recorded failure                                   | What moved                                       | Boundary                | Observed result                                                                 |
+| -- | -------------------------------------------------- | ------------------------------------------------ | ----------------------- | ------------------------------------------------------------------------------- |
+| 1  | Frontline no-material follow-up lost (09-12)       | bound head — rerouting selects a new exact head  | prepublication          | typed `stop / no-approved-material-fix` discarded; whole pass repeats           |
+| 2  | Review readiness vs moved terminal top (09-14)     | bound head — post-archive `841ddb632`            | public review           | `delivery-member-unbound`                                                       |
+| 3  | Review-fix continuation unreachable (09-14)        | bound head — revision 32 vs append-only head     | landing                 | `review-fix-position-unavailable`, via `review-fix-routing-required`            |
+| 4  | Closeout vs the merged host head (09-14)           | bound head — retained binding `57ce62b1d`        | closeout                | `terminal-unsettled`                                                            |
+| 5  | False delivery-position mismatch (09-05)           | bound head — append-only terminal advance        | session-init            | delivery-position mismatch on an exact chain                                    |
+| 6  | Errand pass ceiling resets (09-13)                 | bound head — a finding fix mints a new head      | Errand review           | `standard_max_passes` count resets                                              |
+| 7  | Checkpoint vs two best bases (09-14)               | history shape — merge-base cardinality two       | landing                 | `overlap: unavailable / merge-base-failed` → `drift-classification-unavailable` |
+| 8  | Applicability vs the same ambiguity (09-14)        | history shape — merge-base cardinality two       | prepublication          | `classification-unavailable / merge-base-ambiguous`; attest demands a new root  |
+| 9  | Sequential prepare blocks its own apply (09-14)    | the ceremony's own write — its reservation       | landing                 | `review-readiness-refused / review-unsettled`; reconcile advances state again   |
+| 10 | Record-only rebind mints a fix task (09-13)        | the ceremony's own write — a Candidate re-root   | landing (terminal)      | `pendingReviewFixVerification` with no authored fix                             |
+| 11 | Superseded Frontline authority live (09-13)        | the ceremony's own write — a later attested root | prepublication → entry  | `review-fix-response-invalid`, then `review-fix-response-ambiguous`             |
+| 12 | Staged top flips observable status (09-14)         | the operator's index — no commit at all          | public review           | `review-local-prepare` becomes `status-unavailable`                             |
+| 13 | Unmerged index during an authorized merge (09-13)  | the operator's index — conflicted blobs          | session-init / recovery | `seed-invalid`, then `locus-unresolved`                                         |
+| 14 | Initial stack authoring unrebuildable (09-13)      | the base, disjoint                               | delivery authoring      | `completeness-mismatched`; recutting on the top's base closed `eligible`        |
+| 15 | Bound correction cannot rebuild its suffix (09-09) | the base, under a bound plan                     | rematerialization       | `completeness-mismatched`                                                       |
+| 16 | Eligibility's two observation windows (09-12)      | the base, between prepare and close              | eligibility window      | completed gate results discarded, another run directed                          |
+| 17 | Publication window past the tip check (09-13)      | the base, after the target is bound              | materialization window  | the observed-tip check is skipped; stale artifacts, no merge authority          |
+| 18 | Post-land suffix replay conflicts (09-13)          | the base, under a pinned pre-landing replay      | post-land settlement    | `contribution-conflicted`, with no completing input                             |
+
+Two failures read as movement and are not. The registered-native route accepted as a sequential landing (09-14) is
+a dispatch defect with nothing moving, and exact-head CI readiness (09-05) is a missing projection. Neither is
+enumerated here.
+
+### The column set, and the rule that places a failure in it
+
+The axis is **what moved**; the boundary is a column. D3's six columns stand, and Axis D introduces five more —
+delivery authoring, rematerialization, the eligibility prepare-to-close window, the materialization window, and
+post-land suffix settlement — plus session-init, which the recorded failures reach twice. New columns are shared by
+every axis that reaches them, so failure 5 is head movement at a new column rather than an Axis D cell, and failure
+13 likewise. Axis D is base movement specifically, per its own definition.
+
+_Recorded as a widening:_ Axis C's D10 definition is a ceremony's own records invalidating the preconditions it was
+admitted on. Failures 12 and 13 are the operator's index, not a ceremony's write, and they fit no other axis — the
+base did not move, no head moved, and no merge base is involved. They are enumerated under C as a second source
+rather than filed silently or dropped, and D10 was amended forward at this task to carry the wider definition:
+any write that is not a base advance.
+
+### Axis A — head movement under a bound record
+
+_Ceiling:_ eight, one per column where a durable record binds a head. _Surviving after applicability:_ **five**.
+
+| Column                          | Disposition    | Evidence                                                                                                                                                                                                                                                                                                   |
+| ------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Whole-WU verification           | not-applicable | The subject is computed from the merge base of head and base, so head movement that leaves it byte-identical returns an identical result — D3's own amendment, and `publication-spine.e2e.test.ts` "preserves advanced review authority when an unchanged Candidate is re-attested"                        |
+| Prepublication, Candidate bind  | not-applicable | Three probes already observe it and all tolerate: "submits over a boundary an operational-only commit advanced the head past", "preserves advanced review authority when an unchanged Candidate is re-attested", "rebinds a carried reservation after an approved Candidate response advances the subject" |
+| Prepublication, Frontline bind  | **probe**      | Failure 1. A different binding from the Candidate's, and nothing observes it                                                                                                                                                                                                                               |
+| Public review                   | **probe**      | Failure 2                                                                                                                                                                                                                                                                                                  |
+| Landing, the rebind verb itself | not-applicable | `delivery-terminal-recovery.e2e.test.ts` observes it four ways, including "rebinds stale terminal coordinates to the independently settled current Candidate" and "renews verification for substantive movement past a settled record-only terminal"                                                       |
+| Landing, the binding's readers  | **probe**      | Failure 3. The rebind verb is covered; the verbs that read the binding without offering it are not — which is why every recorded failure survived that coverage                                                                                                                                            |
+| Closeout                        | **probe**      | Failure 4                                                                                                                                                                                                                                                                                                  |
+| Session-init                    | **probe**      | Failure 5                                                                                                                                                                                                                                                                                                  |
+| Errand review                   | unobservable   | Failure 6's cumulative accounting is held pending `review-signal-convergence`; the lineage conventions it would count across are not on the base                                                                                                                                                           |
+
+A divergent — non-append-only — head is enumerated and closed. Every capture asks for append-only movement to be
+recognized and for divergence to stay fail-closed, and none reports divergence being wrongly admitted. Probing it
+would be imagined rather than derived.
+
+### Axis B — history shape, where merge-base cardinality is not one
+
+_Ceiling:_ six, one per column that computes a merge base. _Surviving after applicability:_ **four**.
+
+Three different handlings of the same condition already exist in source, which is what makes the cells distinct
+rather than repeats of one observation. Source reading decides what is worth probing here; it does not substitute
+for the observation.
+
+| Column                | Reader                                                  | Handling                                         | Disposition    |
+| --------------------- | ------------------------------------------------------- | ------------------------------------------------ | -------------- |
+| Whole-WU verification | Candidate subject collection, plain `merge-base`        | silently picks one of the two; no refusal at all | **probe**      |
+| Prepublication        | Candidate applicability, `merge-base --all`             | typed `merge-base-ambiguous`                     | **probe**      |
+| Public review         | the sole-base resolver, reached from status composition | **throws**, untyped, rather than refusing        | **probe**      |
+| Landing               | the overlap analyzer, `merge-base --all`                | `unavailable / merge-base-failed`                | **probe**      |
+| Closeout              | retirement containment, `merge-base --is-ancestor`      | cardinality cannot change a containment answer   | not-applicable |
+| Errand review / merge | a common tip, and a close path that pins a remote head  | no overlap analysis at the close path at all     | not-applicable |
+
+The public-review cell is derived rather than imagined: the post-landing draft's own reading is that three of its
+four loci are one ambiguity surfacing at three verbs with three refusal vocabularies. This is the fourth verb on
+that seam, and its handling is a fourth vocabulary — an untyped throw where the others refuse.
+
+A base with no common ancestor at all is enumerated and closed: no recorded failure reaches it, and the analyzer
+already gives it its own `unrelated` status distinct from the ambiguity above.
+
+### Axis C — a write that is not a base advance invalidates a precondition
+
+_Ceiling:_ eight. _Surviving after applicability:_ **five**.
+
+| Column                  | Source               | Disposition    | Evidence                                                                                                                                                                         |
+| ----------------------- | -------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Landing                 | the ceremony's own   | **probe**      | Failure 9 — the strongest on the axis: preparation's own reservation moves the state its apply revalidates against, and the no-effect recovery advances it again                 |
+| Landing, terminal       | the ceremony's own   | **probe**      | Failure 10. The covered probe renews verification for _substantive_ movement past a record-only terminal; this is record-only movement being treated as substantive              |
+| Prepublication → entry  | the ceremony's own   | **probe**      | Failure 11, twice, at two different revisions                                                                                                                                    |
+| Public review           | the operator's index | **probe**      | Failure 12                                                                                                                                                                       |
+| Session-init / recovery | the operator's index | **probe**      | Failure 13                                                                                                                                                                       |
+| Whole-WU verification   | the ceremony's own   | not-applicable | Nothing on file; attest's own writes reaching its own preconditions is imagined rather than derived                                                                              |
+| Closeout                | the ceremony's own   | not-applicable | Failures 2 and 4 got their moved head from archive composition's writes, but the comparison that refuses reads head against binding — the same cell already counted under Axis A |
+| Errand review / merge   | either               | not-applicable | Nothing on file                                                                                                                                                                  |
+
+### Axis D — base movement at boundaries outside the enumerated six
+
+_Ceiling:_ five, one per new column. _Surviving after applicability:_ **five**. Nothing closes: each column is a
+distinct seam with its own recorded failure, and none of the six enumerated boundaries reads the base the way any
+of these do.
+
+| Column                 | Seam                                                     | Evidence   |
+| ---------------------- | -------------------------------------------------------- | ---------- |
+| Delivery authoring     | the read-only locator, with no typed constructor         | Failure 14 |
+| Rematerialization      | the bound review-fix authoring route                     | Failure 15 |
+| Eligibility window     | prepare and close as two observation windows             | Failure 16 |
+| Materialization window | the bound chain past its observed-tip check              | Failure 17 |
+| Post-land settlement   | a pinned pre-landing replay against a landed predecessor | Failure 18 |
+
+### Verdict
+
+**Four axes, all go.** Ceiling twenty-seven; nineteen cells survive applicability; two sub-cases close as
+unobservable or underived and are recorded above with their reasons.
+
+The stated cut signal is a combined ceiling above roughly twenty-five, and twenty-seven is above it. Recorded
+plainly rather than resolved by choosing the flattering number: the surviving count is nineteen, every cell traces
+to a numbered recorded failure, and the applicability closures are citations to probes that already exist rather
+than judgments. The signal exists to stop an unbounded phase, and this enumeration is bounded by a fixed list of
+failures that cannot grow during execution.
+
+Lane matters more than count here. Axis A's bindings, Axis C's handler seams, and all five of Axis D's columns are
+reachable in-process, so the bulk of the second matrix lands in the integration lane rather than the end-to-end
+one, and the tier this widening moves most is the cheaper of the two.
+
+### Fixtures, and what each composes from
+
+- **Axis A** — no new fixture. `arrangeBranchSide` moves the branch-side head on its own without touching the base,
+  which is exactly this axis. The bindings come from `delivery-position-suite.ts` (bound Delivery State plus the
+  fake host binary) and `candidate-lineage-suite.ts`; session-init composes `multi-clone.ts`.
+- **Axis B** — **one new arrangement**, an ambiguous-merge-base topology, which nothing in the suite builds. Two
+  `commit-tree` calls with swapped parents were spiked at this task and yield exactly two best merge bases, with
+  plain `merge-base` picking one silently. It belongs in `base-advance.ts` beside `advanceBase`, in the same
+  plumbing style — temporary index, `commit-tree`, push — and with the same type-only import of `src`, so it stays
+  reachable from both lanes.
+- **Axis C** — no fixture. The writes are the verbs' own, so the ceremony cells compose `runArcAnchoredSequence`;
+  the two operator-index cells need a plain `git add` and nothing else.
+- **Axis D** — no new fixture. `delivery-disjoint-eligibility.test.ts` already scaffolds a bound plan and drives
+  eligibility preparation through close, `delivery-materialization.test.ts` drives the bound chain directly, and
+  the base side of every column is `advanceBase`.
+
+## Pre-probe cost baseline
+
+Taken on a tree carrying no new test file, before the helper and pin work of Tasks 1.4 and 1.5, so the delta
+stated at close is attributable to the probes. The tool refuses to default any measurement axis and the closing
+comparison refuses outright when one differs, so the axes below must be repeated exactly at close.
+
+**Mode, all three baselines:** `condition: tier-isolated` · `projectSet: <tier>` · `workerSizing: 12`. These match
+the four tier-isolated rows in the package's budget record; the per-CI-job rows measure a different thing under
+different worker sizing and are not this work unit's to move.
+
+**Three runs per tier, not one.** The retained-run reducer takes the median of a group and stamps a lone run as
+`single-run` rather than `median`, and the project's existing cost baseline was established the same way. The
+first round ran cold and produced the widest sample at every tier — e2e came in above its recorded budget on that
+run alone — which is the spread a single sample would have silently baked into the delta.
+
+| Tier          | Runs (wall-clock ms)        | Median ms | Summed file time (median ms) | Files | Tests  |
+| ------------- | --------------------------- | --------- | ---------------------------- | ----- | ------ |
+| `integration` | 42 072 / 44 784 / 48 993    | 44 784    | 411 631                      | 141   | 1 418  |
+| `lane`        | 49 543 / 49 624 / 50 883    | 49 624    | 542 947                      | 845   | 11 354 |
+| `e2e`         | 201 009 / 205 011 / 231 338 | 205 011   | 1 272 393                    | 56    | 548    |
+
+**Where the medians sit against the recorded budgets.** `integration` lands on its recorded baseline almost
+exactly. `lane` sits just above its own. `e2e` has drifted up about eight percent since its baseline was recorded
+and now consumes most of its ten-percent allowance before a single probe lands, so the refresh at close is
+compelled rather than optional — and an integration probe moves `lane` as well as `integration`, because `lane`
+is the combined local tier.
+
+**Effective e2e shard membership at this base.** Four legs, each anchored on one heavyweight file and carrying a
+thirteen-file remainder out of fifty-two: `errand`, `candidate-lineage`, `command-input-no-input`, and
+`lifecycle-exit`. A new e2e probe lands in a remainder, so the re-read at close compares like with like only if
+it derives membership the same way.
+
+**Retained run files.** `~/.local/share/arc/test-cost-baselines/concurrent-integration-characterization/` — an
+absolute path outside every checkout. Nine run files plus the shard membership:
+`pre-probe-{integration,lane,e2e}-{1,2,3}.json` and `pre-probe-e2e-shards.json`. The closing comparison reads
+these paths directly, so they are the baseline; the table above is a reader's summary of them, not the record.
+
+The package-local run directory is gitignored, so a clean, a fresh worktree, or a sibling checkout would lose it —
+and worktree churn is something the lifecycle performs routinely. Tracking the files would answer two of those
+three and cost the repository a permanent couple of megabytes of packed history that deleting them later would not
+reclaim. A path outside every checkout answers all three at no such cost.
+
+What it assumes is that this work unit runs on one machine, which is its plan. If the work does move machines the
+run files do not follow, and the closing comparison degrades from a tool-computed delta to the medians recorded
+above. Nothing is removed from the tree at close, because nothing was added to it.
+
+## Movement shape
+
+The advance helper carries two landing shapes, and they are not interchangeable at any seam gated on integration
+evidence. The shipped scan proves an event from commit topology alone — a second parent is the whole proof — so a
+change request landed as a merge classifies, while a commit pushed straight to the base cannot be classified by any
+scan and leaves coverage `partial` with the movement unclassified.
+
+Observed at the checkpoint seam over one disjoint advance, every other fact held constant:
+
+| Landing shape | Evidence coverage | Reconcile safety | Checkpoint result            |
+| ------------- | ----------------- | ---------------- | ---------------------------- |
+| `direct`      | `partial`         | unsafe           | `blocked / unsafe-reconcile` |
+| `merge`       | `complete`        | safe             | `reconcile / reconcile-base` |
+
+Two consequences the probes carry forward. Movement shape is a real axis of this boundary's behavior even though
+the matrix has no column for it, so a row that observed a refusal names the shape it observed. And the refusal
+under `direct` is mis-signalled: its reason and remedy name a substantive overlap that the same payload reports as
+empty, so a reader following the remedy would look for a conflict that is not there.
+
+`direct` stays the helper's default. It is the shape every row recorded before this was observed against, and
+changing the default would silently restate those observations.
+
+## Characterization ledger
+
+One row per probe, appended during execution (D4). Columns: boundary · movement kind · shape · test name · base OID
+observed against · observed typed result (reason, remedy) · verb invocations · approval stops · recommendation-bearing
+or bare · continuation (`cleared` / `did-not-clear` / `none-offered` / `not-applicable`) · classification
+(`tolerates` / `redundant ceremony` / `mechanical block` / `fail-closed, correct`) · owner · fix disposition at
+close · retention disposition at close (D9).
+
+`fail-closed, correct` requires a continuation the probe exercised and that cleared the stop; a refusal the baseline
+also requires but which nothing is proven to clear is a `mechanical block`. A continuation's own invocations count
+toward that row's excess. An observation with nothing to probe — a prose-only gate, or a completion path no test
+covers — takes a ledger-only row carrying its recorded fix and an owner.
+
+### Conventions
+
+Fixed here and applied to every row. Excess is a difference against a control row on the same fixture, so the
+counting rules below only have to be consistent — an inconsistent one makes the metric noise.
+
+**Append-only under re-run.** Every row names the base OID it was observed against. Each base merge re-runs the
+suite and appends a row per changed observation; an existing row is never edited to match a later run. A row whose
+observation is unchanged by the merge is not re-appended.
+
+**A citation addresses exactly one collected test.** A row names its probe by the title the runner collects it
+under — the enclosing describe path plus the test's own title. The title alone stands while it is unique within
+its file; where two tests share one, the row carries the describe path as well, so no row resolves to a pair. A
+continuation exercised in a test of its own is named the same way, so its verdict rests on a resolvable test
+rather than on prose.
+
+**`disjoint` means no intersection at all.** The shipped classifier drops evidence-neutral paths from the overlap
+entirely, so an advance touching only a work unit's own artifacts, its candidate record, or its submission
+boundary reports the same empty overlap as one touching nothing the branch touched. Record the second case as
+`disjoint (evidence-neutral intersection)` so a reader does not collapse the two into one observation.
+
+**Continuation.** Records whether the probe took the result's recommended continuation and whether it cleared the
+stop: `cleared`, `did-not-clear`, `none-offered`, `not-applicable`. Taking it is observation, not repair, and its
+invocations count toward the row's excess. `fail-closed, correct` requires a continuation the probe exercised and
+that cleared; a refusal nothing is proven to clear is a `mechanical block` however justified it is.
+
+**What counts as one invocation.** One verb entry: one spawned `arc <verb>` process in the e2e lane, one handler
+or port entry call in the integration lane. A verb that internally composes others counts once.
+
+- Fixture setup does not count — everything before the boundary's precondition holds, including repository
+  scaffolding, the lifecycle verbs that reach the precondition, and the base advance itself.
+- A read-only status call counts when the procedure requires it to reach the next step, and does not count when
+  the probe issues it only to assert. The control row applies the same rule, so an assertion-only read never
+  inflates excess.
+- Inside one anchored sequence, each verb in the chain counts separately, and a step interleaved mid-sequence
+  counts as its own invocation attributed to the row whose movement prompted it.
+
+**What counts as one approval stop.** One typed result whose next action requires operator direction before the
+next step — `stop`, `rerun-checkpoint`, `select-review-scope`, `obtain-ceiling-override`, `establish-new-root`,
+`reconcile-base`, `retarget`, `reopen-and-retarget`. A result the procedure continues from without direction is
+not a stop, whatever it reports.
+
+### Row shape
+
+An open row carries its identity and its intent; every observation field reads `—` until the probe runs and is
+filled from that run, never from a source read. A row is complete when no `—` remains.
+
+- _Intent:_ what this cell is expected to establish, from the confirmed seam verdict.
+- _Probe:_ test name · _Base OID:_ the base this run observed against · _Observed:_ typed result, reason, remedy.
+- _Invocations:_ · _Stops:_ · _Fork:_ recommendation-bearing or bare · _Continuation:_ per the convention above.
+- _Classification:_ `tolerates` / `redundant ceremony` / `mechanical block` / `fail-closed, correct` ·
+  _Owner:_ · _Fix at close:_ · _Retention at close:_ per D9.
+
+Not-applicable rows close on the seam verdict alone and carry no observation fields. Each declares its closure
+kind — collapse or unproducible — and a collapse names the row it defers to, so no closure rests on an
+observation nobody will take.
+
+### Open probe rows
+
+Twenty-four rows, one per applicable cell. Owner, fix disposition, and retention disposition resolve at this work
+unit's close, not at seed time.
+
+**Whole-work-unit verification · control · singleton**
+
+- _Intent:_ Ceremony baseline: the invocation and stop count the movement row at this boundary subtracts from.
+- _Probe:_ `attest.e2e.test.ts` — "stages Candidate evidence over a base it shares a remote with" ·
+  _Base OID:_ `4f6b11568` · _Observed:_ `attested`, operation `root`, locus `candidate-review-pending`; no reason,
+  no remedy. Same fixture as this boundary's movement row, with the base held still.
+- _Invocations:_ 1 · _Stops:_ 0 · _Fork:_ none, the result is not a stop · _Continuation:_ `not-applicable`
+- _Classification:_ not a movement row — the four values classify a boundary's response to movement, and this row's
+  finding is its count · _Owner:_ not applicable · _Fix at close:_ none — baseline count · _Retention at close:_
+    deleted — `attest.e2e.test.ts` "writes and stages Candidate evidence while projecting Candidate preparation" already
+    tests the clean path
+
+  The baseline is one invocation and no stops, so this boundary carries no non-concurrency excess to route. The
+  `disjoint` row observes the same one and zero, putting its excess at the idiomatic zero: the advance costs the
+  boundary nothing.
+
+**Whole-work-unit verification · `disjoint` · singleton**
+
+- _Intent:_ Attest after an advance the checkout has fetched; expect the staged subject unchanged and the result
+  unaffected.
+- _Probe:_ `attest.e2e.test.ts` — "stages the same Candidate evidence after a base advance sharing none of its
+  paths" · _Base OID:_ `4f6b11568` · _Observed:_ `attested`, operation `root`, locus `candidate-review-pending`;
+  no reason, no remedy. Subject entries and staged set identical to the run with the base held still. The origin
+  attached for this probe moves the coordinate the seam actually reads — with a remote present the base resolves
+  from `refs/remotes/origin/main` rather than the local branch — so the unchanged subject is a result, not an
+  advance the boundary never saw.
+- _Invocations:_ 1 · _Stops:_ 0 · _Fork:_ none, the result is not a stop · _Continuation:_ `not-applicable`
+- _Classification:_ `tolerates` · _Owner:_ not applicable · _Fix at close:_ none — the boundary's response needs no
+  change · _Retention at close:_ kept — guards its boundary × movement cell, which no other test exercises
+
+**Candidate / prepublication · control · singleton**
+
+- _Intent:_ Ceremony baseline across the settle-to-submit window with the base held still.
+- _Probe:_ `publication-spine.e2e.test.ts` — "submits the settled Candidate with the base held still" ·
+  _Base OID:_ `4f6b11568` · _Observed:_ `published`, boundary `publication-pending` on the Candidate the settle
+  point recorded; no reason, no remedy.
+- _Invocations:_ 3 — attest, the pre-publication settle, and the submit · _Stops:_ 0 · _Fork:_ none, no result in
+  the window is a stop · _Continuation:_ `not-applicable`
+- _Classification:_ not a movement row — the four values classify a boundary's response to movement, and this row's
+  finding is its count · _Owner:_ not applicable · _Fix at close:_ none — baseline count · _Retention at close:_
+    deleted — `publication-spine.e2e.test.ts` "settles the boundary at pre-publication and submits on the first call"
+    already tests the clean path
+
+  Three invocations reach the window's end with the base still, and none of them stops. The `disjoint` row
+  observes the same three and zero, so the advance's excess here is the idiomatic zero.
+
+**Candidate / prepublication · `disjoint` · singleton**
+
+- _Intent:_ Advance the base inside the settle-to-submit window the spine test never moves across; expect the
+  settled Candidate to stay current.
+- _Probe:_ `publication-spine.e2e.test.ts` — "submits the same settled Candidate after an advance sharing none of
+  its paths" · _Base OID:_ `4f6b11568` · _Observed:_ `published`, boundary `publication-pending` on the same
+  Candidate the settle point recorded; no reason, no remedy. The advance lands between the settle and the submit,
+  and the submit neither re-reads nor re-ceremonies it.
+- _Invocations:_ 3 — attest, the pre-publication settle, and the submit · _Stops:_ 0 · _Fork:_ none, the result is
+  not a stop · _Continuation:_ `not-applicable`
+- _Classification:_ `tolerates` · _Owner:_ not applicable · _Fix at close:_ none — the row records what the tolerance
+  rests on · _Retention at close:_ kept — guards its boundary × movement cell, which no other test exercises
+
+  What the tolerance rests on is visible when it is removed: deriving the Candidate subject from the base tip
+  rather than the fork point turns this same run into `rejected`, "the Candidate lineage is not current", carrying
+  a re-attest remedy. The whole settle-to-submit window survives concurrent base movement because one coordinate
+  is a merge base, and the re-ceremony is one source line away.
+
+**Public review and checks · control · singleton**
+
+- _Intent:_ Ceremony baseline with the fetched base still contained in the reviewed head.
+- _Probe:_ `review-status-base-movement.test.ts` — "reports the settled state the moved-base reading is measured
+  against" · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `settled / continue-reconcile` over a non-null base revision; no reason, no remedy.
+- _Invocations:_ 1 — the status reading · _Stops:_ 0 — `continue-reconcile` continues without direction, which
+  is the convention's own test · _Fork:_ bare · _Continuation:_ `not-applicable`
+- _Classification:_ not a movement row — this row's finding is its count · _Owner:_ not applicable · _Fix at close:_
+  none — baseline count · _Retention at close:_ deleted — this boundary's `disjoint` row asserts the identical settled
+    projection, and the `unknown` row settles on its recovery leg
+
+  The cheapest baseline on the spine, and the reason this boundary's two movement rows are both excess: every
+  stop recorded at it is added by the movement rather than carried by the ceremony.
+
+**Public review and checks · `disjoint` · singleton**
+
+- _Intent:_ Advance the base under an open request; expect `base-moved / rerun-checkpoint` from the containment
+  fact alone.
+- _Probe:_ `review-status-base-movement.test.ts` — "stops for a checkpoint rerun after an advance sharing no
+  path with the branch" · _Base OID:_ `4f6b11568` · _Observed:_ `base-moved / rerun-checkpoint`, carrying no
+  reason and no remedy. The routed obligation is `settled` and required checks are `not-required`, so the stop
+  comes from the containment fact alone, as the seam read predicted.
+- _Invocations:_ 2 — the status resolve, plus the checkpoint the stop names · _Stops:_ 2 — `rerun-checkpoint`,
+  then the checkpoint's own `stop` · _Fork:_ bare at the stop, which names an action but carries no argv; the
+  continuation's refusal is recommendation-bearing · _Continuation:_ `did-not-clear`, taken in "does not clear
+  the stop after an advance sharing no path with the branch"
+- _Classification:_ `mechanical block` · _Owner:_ Errand — refusal remedy accuracy · _Fix at close:_ name the cause the
+  refusal actually rests on, not the overlap its own payload reports empty · _Retention at close:_ kept — guards its
+    boundary × movement cell, which no other test exercises
+- _Citation superseded:_ renamed by `45d0d9060` after this row closed; the test now reads "review status over a base
+  advanced under the work unit > settles after an advance sharing no path with the branch". The observation is
+  unchanged — only the address. § Re-run rows carries the superseding row.
+
+  The continuation refuses with `blocked / unsafe-reconcile` while reporting an empty overlap and a mergeable
+  host. Removing the integration-evidence term from the safety conjunction turns the same run into
+  `reconcile / reconcile-base`, so the refusal rests entirely on the advanced commit carrying no landing
+  provenance to classify — not on the overlap its remedy text tells the reader to resolve. A base advance that
+  is not merge-shaped is therefore unreconcilable at this seam however disjoint it is, and the remedy names a
+  cause the same payload contradicts. Whether the fixture can present merge-shaped movement is the landing
+  boundary's question, not this row's; the refusal stands either way, and only its attribution is at issue.
+
+  _Answered at the landing boundary, without restating this observation:_ it can, and the continuation then
+  clears — see § Movement shape. This row's `did-not-clear` stands as the observation taken against
+  movement pushed straight to the base.
+
+**Public review and checks · `unknown` · singleton**
+
+- _Intent:_ Fail only the base fetch inside the composed status port; expect a null base object id and `blocked /
+  status-unavailable`.
+- _Probe:_ `review-status-base-movement.test.ts` — "blocks on the unavailable base revision, and settles once the
+  read is restored" · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `blocked / stop`, reason `status-unavailable`, detail "The current base revision is unavailable.",
+  over a null base revision.
+- _Invocations:_ 2 — the blocked reading and the re-run its remedy names, taken at the port rather than the
+  process boundary, which is the same reading in this lane · _Stops:_ 1 — the refusal ·
+  _Fork:_ recommendation-bearing · _Continuation:_ `cleared`
+- _Classification:_ `fail-closed, correct` · _Owner:_ not applicable · _Fix at close:_ none — the row records that the
+  attribution rests on arm order · _Retention at close:_ kept — guards its boundary × movement cell, which no other
+    test exercises
+
+  The attribution survives, and only just: the failed fetch also collapses the routed obligation into a blocked
+  state carrying the raw transport error, and that arm produces the same reason one step later. What separates
+  them is the order — the null-base arm is read first, so the detail names the base rather than the error text.
+  Making the fetch best-effort, the way the closeout boundary's second leg already is, turns this row green
+  against a stale tracking ref instead.
+
+**Member / singleton landing · control · singleton**
+
+- _Intent:_ Ceremony baseline across a clean checkpoint-to-merge span.
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "merges the approved head when the base holds still"
+  · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `ready / request-approval`, then `merged`. The clean span costs one approval stop and lands.
+- _Invocations:_ 2 — the checkpoint and the merge · _Stops:_ 1 — `request-approval`, the integration
+  interlock · _Fork:_ recommendation-bearing · _Continuation:_ `not-applicable`
+- _Classification:_ not a movement row — the four values classify a boundary's response to movement, and this row's
+  finding is its count · _Owner:_ not applicable · _Fix at close:_ none — baseline count · _Retention at close:_
+    deleted — this boundary's `disjoint` row asserts the identical `merged` result over the same fixture
+
+  `request-approval` is an approval stop by the convention's own test and is absent from the enumerated
+  list, which was written before any landing run existed. The list is illustrative; the test is whether the
+  next action requires operator direction, and merge authority always does.
+
+**Member / singleton landing · `disjoint` · singleton**
+
+- _Intent:_ Advance the base between landing readiness and merge — the span nothing in the suite moves; expect
+  the settled merge invalidated on the verdict alone.
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "invalidates the handle when the base advances under it"
+  · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `invalidated / drift-reconcile`, payload `{ verdict: "reconcile" }` — the verdict alone, with no overlap
+  partition, exactly as the merge window's seam read predicted.
+- _Invocations:_ 3 — checkpoint, merge, and the checkpoint the refusal names · _Stops:_ 3 —
+  `request-approval`, the invalidation, then `reconcile / reconcile-base` · _Fork:_ recommendation-bearing ·
+  _Continuation:_ `did-not-clear`
+- _Classification:_ `mechanical block` · _Owner:_ [open — ceremony-repetition doctrine home] · _Fix at close:_ carry the
+  partition into the merge window so a disjoint advance does not re-ceremony the landing · _Retention at close:_ kept
+    — guards its boundary × movement cell, which no other test exercises
+- _Citation superseded:_ renamed by `45d0d9060` after this row closed; the test now reads "the window between a
+  minted handle and the merge that consumes it > merges the approved head after an advance sharing no path with it".
+  The observation is unchanged — only the address. § Re-run rows carries the superseding row.
+
+  Excess over the control row is one invocation and two stops. The continuation does not return a handle:
+  the same invocation that minted one before now reads a moved base and asks for a reconcile first, so a
+  landing interrupted by any base movement costs a reconcile, a fresh checkpoint, and a fresh approval.
+  The advance shared no path with the branch, and the window discards that fact before it is consulted.
+
+**Member / singleton landing · `overlapping-substantive` · singleton**
+
+- _Intent:_ Advance over paths the branch also touched; expect the checkpoint to refuse as an unsafe reconcile.
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "refuses an advance over a reviewable path the branch also changed"
+  · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `blocked / unsafe-reconcile`, naming the shared path in `substantivePaths` with `safe: false`.
+- _Invocations:_ 2 — the checkpoint and the one its remedy names · _Stops:_ 2 — the same refusal twice ·
+  _Fork:_ recommendation-bearing · _Continuation:_ `did-not-clear`
+- _Classification:_ `mechanical block` under the convention, though the refusal itself is correct ·
+  _Owner:_ Errand — refusal remedy accuracy · _Fix at close:_ make the remedy's argv reach the step its prose
+  names · _Retention at close:_ kept — guards its boundary × movement cell, which no other test exercises
+
+  The refusal is right: a reviewable path changed on both sides is exactly what should stop a merge. What
+  the probe records is the gap between the remedy's prose and its argv — the text asks for an append-only
+  base merge, the argv only re-runs the checkpoint, and following the argv exactly returns the same
+  refusal. The convention reserves `fail-closed, correct` for a continuation the probe exercised and that
+  cleared, and this one cannot clear without a step the result does not carry.
+
+**Member / singleton landing · `overlapping-regenerable-only` · singleton**
+
+- _Intent:_ Advance over the regenerable projection only; expect the checkpoint to stay safe and report the
+  partition, proving regenerable overlap does not block.
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "the checkpoint's own base read > offers a reconcile for an
+  advance over the regenerable projection alone" · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `reconcile / reconcile-base`, `substantivePaths` empty and the projection in `regenerablePaths`,
+  `safe: true`.
+- _Invocations:_ 1 — the checkpoint · _Stops:_ 1 — `reconcile-base` · _Fork:_ **bare**, the only result at
+  this boundary carrying no remedy at all · _Continuation:_ `none-offered`
+- _Classification:_ `tolerates` ·
+  _Owner:_ capture — recommendations at approval gates (`WU_Target` still TBD) ·
+  _Fix at close:_ compose a next-step invocation for the one safe result at this boundary ·
+  _Retention at close:_ kept — guards its boundary × movement cell, which no other test exercises
+
+  The partition works: regenerable overlap does not block, and the register says so in plain terms. The
+  finding is the fork — the one result here that is safe to act on is the only one that names a next action
+  without an invocation to reach it, while every refusal carries one.
+
+**Member / singleton landing · `unknown` · singleton**
+
+- _Intent:_ Sever the checkpoint's base fetch; expect a distinct drift-unavailable refusal rather than a reconcile.
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "refuses when the base read goes unavailable under it"
+  · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `blocked / drift-unavailable` — distinct from every reconcile arm, as the seam read predicted.
+- _Invocations:_ 2 — the checkpoint and the reading its remedy names · _Stops:_ 1 — the refusal ·
+  _Fork:_ recommendation-bearing · _Continuation:_ `cleared`
+- _Classification:_ `fail-closed, correct` · _Owner:_ Errand — refusal remedy accuracy · _Fix at close:_ return the
+  reader to the checkpoint rather than ending on a drift report · _Retention at close:_ kept — guards its boundary ×
+    movement cell, which no other test exercises
+
+  The continuation is a base reading rather than another checkpoint, and with the base read restored it
+  reports a clean base. The refusal clears in one recommended step, which makes this friction rather than a
+  freeze — though the step lands the reader on a drift report and leaves the return to the checkpoint to
+  them.
+
+**Post-landing closeout · control · singleton**
+
+- _Intent:_ Ceremony baseline for the reap with the base held still.
+- _Probe:_ `teardown-base-movement.e2e.test.ts` — "reaps the branch when the base holds still"
+  · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `torn-down` — the branch deleted locally and on the remote, the worktree in-place, the stale
+  tracking ref pruned; no reason, no remedy.
+- _Invocations:_ 1 — the cleanup verb · _Stops:_ 0 — the reap runs to completion unattended · _Fork:_ bare ·
+  _Continuation:_ `not-applicable`
+- _Classification:_ not a movement row — this row's finding is its count · _Owner:_ not applicable · _Fix at close:_
+  none — baseline count · _Retention at close:_ deleted — this boundary's `disjoint` row asserts the identical four
+    expectations, the reaped branch among them
+
+  Full protection is what puts a base read here at all: the shipped default resolves the proof target from the
+  local base and never fetches, so on that setting the boundary has nothing for an advance to move.
+
+**Post-landing closeout · `disjoint` · singleton**
+
+- _Intent:_ Advance the base past this work unit's landing; expect the reap to refetch and recognize its own
+  archival.
+- _Probe:_ `teardown-base-movement.e2e.test.ts` — "reaps the branch after an advance sharing no path with it"
+  · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `torn-down`, identical to the control in every reported field — the same two deletions, the same
+  prune, no reason and no remedy.
+- _Invocations:_ 1 · _Stops:_ 0 · _Fork:_ bare · _Continuation:_ `not-applicable`
+- _Classification:_ `tolerates` · _Owner:_ not applicable · _Fix at close:_ none — the row records that the tolerance is
+  one predicate deep · _Retention at close:_ kept — guards its boundary × movement cell, which no other test exercises
+
+  Excess is zero and the advance is real: at the boundary the local base sits one commit behind the remote, and
+  the gate reads membership from the refetched tip, which still carries this work unit's archival. Landing shape
+  does not enter — nothing here proves an integration event from topology — so the advance is recorded as a
+  direct push and a merge landing would read the same. The tolerance is one predicate deep: refuse when the
+  refetched head differs from the local base tip, and this row goes red while the control stays green.
+
+**Post-landing closeout · `unknown` · singleton**
+
+- _Intent:_ Sever the proof-target fetch; expect a refusal naming the unresolvable lifecycle authority ref.
+- _Probe:_ `teardown-base-movement.e2e.test.ts` — "refuses with the branch untouched, and reaps once the read is
+  restored" · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `rejected` — "Could not resolve lifecycle authority ref `origin/main`; refusing teardown.", with the
+  branch and its remote head left intact.
+- _Invocations:_ 2 — the refused cleanup and the one that follows it · _Stops:_ 1 — the refusal ·
+  _Fork:_ **bare**, the refusal names no invocation · _Continuation:_ `cleared`
+- _Classification:_ `fail-closed, correct` · _Owner:_ Errand — refusal remedy accuracy · _Fix at close:_ name the plain
+  retry that clears it · _Retention at close:_ kept — guards its boundary × movement cell, which no other test exercises
+
+  The refusal is attributable: it fires on the proof-target leg, ahead of the best-effort refresh that would have
+  absorbed the same failure into a silent fall-back to the local ref. It also costs nothing to clear — a plain
+  retry once the read is restored tears down — but nothing in the message says so. That makes it the second
+  result in the ledger whose decision is correct and whose signalling names no step, after the landing boundary's
+  safe reconcile.
+
+**Errand review / merge · control · singleton**
+
+- _Intent:_ Ceremony baseline for the Errand close path with the base held still.
+- _Probe:_ `errand.e2e.test.ts` — "closes the Errand when the base holds still" · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `applied`, operation `errand-close` — the branch reaped and the identity record retired; no reason,
+  no remedy.
+- _Invocations:_ 1 — the close · _Stops:_ 0 · _Fork:_ bare · _Continuation:_ `not-applicable`
+- _Classification:_ not a movement row — this row's finding is its count · _Owner:_ not applicable · _Fix at close:_
+  none — baseline count · _Retention at close:_ deleted — `errand.e2e.test.ts` already closes an Errand twice on the
+    clean path, and this boundary's `disjoint` row closes one again
+
+  Preservation here is proven from merged host truth, not from local containment: the Errand head is one commit
+  ahead of the local base at close and the lane retires it anyway. Proving it from containment instead refuses
+  both rows at this boundary.
+
+**Errand review / merge · `disjoint` · singleton**
+
+- _Intent:_ Advance the base between the Errand's open and its close; expect close to proceed with no added
+  ceremony.
+- _Probe:_ `errand.e2e.test.ts` — "closes the Errand after an advance sharing no path with it" ·
+  _Base OID:_ `4f6b11568` ·
+  _Observed:_ `applied`, operation `errand-close` — identical to the control, with the remote base proven to have
+  moved inside the same sequence.
+- _Invocations:_ 1 — the close; the advance is fixture movement and does not count · _Stops:_ 0 · _Fork:_ bare ·
+  _Continuation:_ `not-applicable`
+- _Classification:_ `tolerates` · _Owner:_ Errand — Errand-close base-pin coverage · _Fix at close:_ pin the structural
+  tolerance so a hardening of the base pin is caught · _Retention at close:_ kept — guards its boundary × movement
+    cell, which no other test exercises
+
+  Excess zero, and the tolerance is structural rather than decided: the base pin sits behind the no-op shortcut,
+  which an Errand carrying a commit never enters, so the close reads no base at all. That is what the seam read
+  predicted, and it is why this boundary's three other movement kinds close not-applicable. Pinning the base
+  unconditionally and refusing a moved head turns this row red while the control stays green — so the tolerance
+  is one predicate away from being a stop, and nothing at this boundary would notice the difference today.
+
+**Member / singleton landing · control · delivery-member**
+
+- _Intent:_ Member-scope ceremony baseline; the delivery arm's own admissibility span.
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "mints a handle for the top member when the base holds still"
+  · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `ready / request-approval`, at stack position `top` and over a requirement summary reporting every
+  derived delivery-member review discharged — neither reachable except through the delivery arm.
+- _Invocations:_ 1 — the checkpoint · _Stops:_ 1 — `request-approval` · _Fork:_ recommendation-bearing ·
+  _Continuation:_ `not-applicable`
+- _Classification:_ not a movement row — this row's finding is its count · _Owner:_ not applicable · _Fix at close:_
+  none — baseline count · _Retention at close:_ deleted — this boundary's `disjoint` row asserts the identical `ready`
+    result, stack position included
+
+  The member baseline costs exactly what the singleton one costs; what differs is what decided it. Reaching it at
+  all needs a genuinely landed predecessor: every non-terminal member must resolve as merged at its exact bound
+  head before any ready composition is attempted, a precondition the singleton path has no analogue for.
+
+**Member / singleton landing · `disjoint` · delivery-member**
+
+- _Intent:_ Advance under a bound member; expect the delivery path to decide admissibility rather than re-observe.
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "offers a reconcile after an advance sharing no path with the
+  branch" · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `reconcile / reconcile-base`, both path sets empty, `safe: true` — structurally identical to the
+  singleton result at the same window.
+- _Invocations:_ 1 · _Stops:_ 1 — `reconcile-base` · _Fork:_ bare · _Continuation:_ `none-offered`
+- _Classification:_ `tolerates` · _Owner:_ not applicable · _Fix at close:_ none — the boundary's response needs no
+  change · _Retention at close:_ kept — guards its boundary × movement cell, which no other test exercises
+- _Citation superseded:_ renamed by `45d0d9060` after this row closed; the test now reads "the checkpoint's base
+  read under a bound delivery plan > mints a handle after an advance sharing no path with the branch". The
+  observation is unchanged — only the address. § Re-run rows carries the superseding row.
+
+  The delivery arm does decide this row — severing it turns the result into `blocked / delivery-terminal-blocked`
+  — but it decides the same way. With no substantive overlap there is nothing for the residual scope to narrow,
+  so the safety class never enters and the payload carries no trace of the shape.
+
+**Member / singleton landing · `overlapping-substantive` · delivery-member**
+
+- _Intent:_ Advance over shared paths under a bound member; expect the residual-contained safety class to move the
+  cut the singleton row refuses on.
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "admits an advance over a reviewable path the top member alone
+  changed" · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `reconcile / reconcile-base` carrying the shared path in `substantivePaths` with `safe: true` — the
+  same overlap the singleton row refuses on, admitted.
+- _Invocations:_ 1 · _Stops:_ 1 — `reconcile-base` · _Fork:_ bare · _Continuation:_ `none-offered`
+- _Classification:_ `tolerates` · _Owner:_ Errand — refusal remedy accuracy · _Fix at close:_ compose the register from
+  the decision rather than from the overlap partition alone · _Retention at close:_ kept — guards its boundary ×
+    movement cell, which no other test exercises
+- _Citation superseded:_ renamed by `45d0d9060` after this row closed; the test now reads "the checkpoint's base
+  read under a bound delivery plan > refuses a conflicting advance even under a bound delivery plan". The
+  observation is unchanged — only the address. § Re-run rows carries the superseding row.
+
+  The cut moves as the seam read predicted, and a safe verdict over a non-empty substantive set is reachable no
+  other way. The finding is the register riding along with it: its text is composed from the partition alone, so
+  it reads "Merge the base before continuing edits on those paths" on the very result that just admitted those
+  paths. The decision and its advisory disagree, and only the decision knows about the residual. The same scoping
+  adds one stop the singleton shape has no analogue for — an advance intersecting a landed member's span refuses
+  as a predecessor overlap — which the matrix enumerates no cell for and this row records rather than probes.
+
+**Member / singleton landing · `overlapping-regenerable-only` · delivery-member**
+
+- _Intent:_ Advance over the regenerable projection under a bound member; expect the partition to reach the member
+  payload.
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "the checkpoint's base read under a bound delivery plan >
+  offers a reconcile for an advance over the regenerable projection alone" · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `reconcile / reconcile-base`, the projection in `regenerablePaths`, `safe: true`, register `calm` —
+  identical to the singleton row.
+- _Invocations:_ 1 · _Stops:_ 1 — `reconcile-base` · _Fork:_ bare · _Continuation:_ `none-offered`
+- _Classification:_ `tolerates` · _Owner:_ not applicable · _Fix at close:_ none — the boundary's response needs no
+  change · _Retention at close:_ kept — guards its boundary × movement cell, which no other test exercises
+
+  Two of this boundary's four member cells read identically to their singleton counterparts while genuinely
+  running the delivery arm. That is the shape's actual reach: it narrows a refusal and never a tolerance, so it
+  can only be seen where the singleton path would have stopped.
+
+**Exact-target read isolation · sibling build cannot parse · isolation**
+
+- _Intent:_ A sibling checkout whose build rejects this checkout's candidate record; the live field class three
+  sibling checkouts reproduced at this work unit's first session entry.
+- _Probe:_ `exact-target-read-isolation.test.ts` — "names the sibling unresolved while this checkout's own frame
+  still resolves" · _Base OID:_ `4f6b11568` ·
+  _Observed:_ the sibling row `unresolved-checkout`, naming its subject and carrying one `subject-unresolved`
+  diagnostic — "Candidate record could not be read under this build's schema". This checkout's own row stays
+  selected and its primary reads free.
+- _Invocations:_ 1 — the locus reading · _Stops:_ 0 · _Fork:_ bare · _Continuation:_ `not-applicable`
+- _Classification:_ `tolerates` · _Owner:_ not applicable · _Fix at close:_ none — the boundary's response needs no
+  change · _Retention at close:_ kept — guards an exact-target isolation case, which D9 names alongside the movement
+    cells
+
+  The isolation is real and asymmetric: the refusal stays with the checkout that owns the record — which cannot
+  enter a session at all — while a reader next door gets a named diagnostic and keeps going. The record is only
+  opened when the sibling's own meta demands Candidate authority, so the guard is one precondition deep: with
+  that demand removed the same unreadable record resolves silently.
+
+**Exact-target read isolation · foreign-owner record · isolation**
+
+- _Intent:_ A foreign owner's candidate record in the shared namespace; expect this checkout's read to stay bound
+  to its own.
+- _Probe:_ `exact-target-read-isolation.test.ts` — "refuses the sibling on ownership without projecting its
+  subject at all" · _Base OID:_ `4f6b11568` ·
+  _Observed:_ the sibling row `unresolved-checkout` with `subject: null` and one `authority-evidence-unreadable`
+  diagnostic sourced to lifecycle — "The marker-named work unit is owned by another identity".
+- _Invocations:_ 1 · _Stops:_ 0 · _Fork:_ bare · _Continuation:_ `not-applicable`
+- _Classification:_ `tolerates` · _Owner:_ not applicable · _Fix at close:_ none — the boundary's response needs no
+  change · _Retention at close:_ kept — guards an exact-target isolation case, which D9 names alongside the movement
+    cells
+
+  Narrower than the row above, and deliberately so: ownership settles before the record is opened, so a foreign
+  work unit never reaches the Candidate guard and its subject is never projected. A foreign owner's unreadable
+  record therefore reports as foreign, not as unreadable. Covering test at close: a foreign active owner is
+  already refused in `candidate-applicability.e2e.test.ts`.
+
+**Exact-target read isolation · byte-identical sibling · isolation**
+
+- _Intent:_ A sibling left byte-identical after this checkout's reconcile ceremony.
+- _Probe:_ `exact-target-read-isolation.test.ts` — "leaves the sibling byte-identical after the ceremony applies"
+  · _Base OID:_ `4f6b11568` ·
+  _Observed:_ `applied` — the dependency rewritten in this checkout's own projection, the sibling's copy of the
+  same file byte-identical and its worktree clean.
+- _Invocations:_ 1 — the reconcile · _Stops:_ 0 · _Fork:_ bare · _Continuation:_ `not-applicable`
+- _Classification:_ `tolerates` · _Owner:_ not applicable · _Fix at close:_ none — the boundary's response needs no
+  change · _Retention at close:_ kept — guards an exact-target isolation case, which D9 names alongside the movement
+    cells
+
+  The write direction of the same isolation, and the one the other two cannot show: a ceremony that rewrites a
+  projection touches only the checkout that ran it. Fanning the rewrite out to every registered worktree — the
+  plausible convenience — is what turns this row red. Covering test at close:
+  `wu-reconcile.e2e.test.ts` asserts the same property over its own topology.
+
+### Re-run rows — base `cbf075da7`
+
+Appended under the re-run convention after merging 139 commits of base. Every row below records a **changed**
+observation; rows unchanged by the merge are not re-appended, and no row observed against `4f6b11568` is edited.
+Classification, fork, and continuation columns are deliberately left for the second matrix, which re-reads this
+boundary against its own axes rather than re-deriving them twice.
+
+One contract change underlies most of them: the checkpoint's payload moved from
+`safety.{overlapAvailable, substantivePaths, regenerablePaths, integrationEvidenceComplete, safe}` to
+`observation.{movement, integrationEvidenceComplete, feasibility, admission}`. It now reports the movement kind and
+the conflicting paths directly, so the partition the earlier rows recorded as discarded at the merge window is
+carried.
+
+**Public review and checks · `disjoint` · singleton** — _superseded_
+
+- _Observed:_ `settled / continue-reconcile`. The stop is gone: containment no longer decides the reading, so an
+  advance sharing no path with the branch costs public review nothing.
+- _Probe:_ `review-status-base-movement.test.ts` — "review status over a base advanced under the work unit >
+  settles after an advance sharing no path with the branch" · _Base OID:_ `cbf075da7`
+- _Held result retired:_ the pin fired on its own terms — "this now produces the result it was waiting for, so the
+  hold is spent" — and was replaced by a plain assertion. This is the only pin the ledger carried, and its target
+  was met by sibling work rather than by a routed fix.
+- _Continuation retired:_ the row's continuation probe observed the checkpoint the stop named. With no stop there
+  is nothing to continue, and that checkpoint now refuses `lifecycle-incomplete` at this fixture for reasons
+  unrelated to base movement, so the probe was deleted rather than left asserting fixture state.
+
+**Member / singleton landing · `disjoint` · singleton** — _superseded_
+
+- _Observed:_ `merged`. The handle survives an advance sharing no path with the branch; the window no longer
+  invalidates it, so the reconcile, fresh checkpoint, and fresh approval the earlier row recorded are all gone.
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "the window between a minted handle and the merge that consumes
+  it > merges the approved head after an advance sharing no path with it" · _Base OID:_ `cbf075da7`
+- _Discharges:_ the earlier row's fix disposition — carry the partition into the merge window so a disjoint
+  advance does not re-ceremony the landing — is **met**. That row's `[open]` owner marker is therefore spent and
+  is not an unrouted finding; it is left in place because rows are never edited.
+
+**Member / singleton landing · `overlapping-substantive` · singleton** — _superseded_
+
+- _Observed:_ `blocked / stop`, reason `conflict`, `feasibility: substantive-conflict` naming the conflicting path,
+  with host admission `mergeable`. The refusal stands and is still correct, but it now rests on Git feasibility
+  rather than on the safety conjunction, and its remedy points at `arc base drift --json` rather than at a re-run
+  of the checkpoint that produced it.
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "the checkpoint's own base read > refuses an advance over a
+  reviewable path the branch also changed" · _Base OID:_ `cbf075da7`
+
+**Member / singleton landing · `overlapping-regenerable-only` · singleton** — _superseded_
+
+- _Observed:_ `reconcile / reconcile-regenerable`, reason `regenerable-reconcile-required`,
+  `feasibility: regenerable-conflict`. The regenerable case gained its own typed arm rather than sharing
+  `reconcile-base`, and the result now carries a reason where the earlier one was bare.
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "the checkpoint's own base read > offers a reconcile for an
+  advance over the regenerable projection alone" · _Base OID:_ `cbf075da7`
+- _Discharges:_ the earlier row's fix disposition — compose a next-step invocation for the one safe result at this
+  boundary — is **met**, which the observation above understates by naming only the reason. The result carries a
+  required remedy whose `argv` is executable without shell reconstruction, composed as
+  `arc base merge --expected-base … --expected-head … --json`. That row's `WU_Target` TBD marker is spent.
+
+**Member / singleton landing · `disjoint` · delivery-member** — _superseded_
+
+- _Observed:_ `ready / request-approval` with the plan still deciding the stack position. The member path reaches
+  the same baseline result the control does, so the advance costs it nothing either.
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "the checkpoint's base read under a bound delivery plan > mints
+  a handle after an advance sharing no path with the branch" · _Base OID:_ `cbf075da7`
+
+**Member / singleton landing · `overlapping-substantive` · delivery-member** — _superseded_
+
+- _Observed:_ `blocked / stop`, reason `conflict`, identical to the singleton row at the same movement. Git
+  feasibility is read ahead of the plan's scoping, so a path both sides changed refuses before the delivery arm is
+  reached — the `residual-contained` admission the earlier row recorded is not reachable at this fixture.
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "the checkpoint's base read under a bound delivery plan >
+  refuses a conflicting advance even under a bound delivery plan" · _Base OID:_ `cbf075da7`
+
+**Member / singleton landing · `overlapping-regenerable-only` · delivery-member** — _superseded_
+
+- _Observed:_ `reconcile / reconcile-regenerable`, as the singleton row at the same movement.
+- _Probe:_ `integrate-base-movement.e2e.test.ts` — "the checkpoint's base read under a bound delivery plan > offers
+  a reconcile for an advance over the regenerable projection alone" · _Base OID:_ `cbf075da7`
+
+**Prose-only gates** — _superseded_
+
+- _Observed:_ five gates became three, and not by subtraction alone. Three of the original five are gone — the
+  Errand lane's base-freshness loop and both of its mechanical Step 6 gates, whose dispatch prose admitting only
+  `clean` no longer exists anywhere in the tree. Two survive unchanged: the pre-hosted-pass advisory at the
+  integration boundary and the Errand lane's own copy of it, both judgment-bearing. A third is **new**: a single
+  read before approval composition whose disposition is a head-equality check, with the terminal operation
+  performing its own post-approval observation. The routed **typed drift dispatch** Errand has had its target met
+  by sibling work and is retired; the new gate is uncharacterized and belongs to the second matrix's re-read rather
+  than to this row.
+
+**Fixture repair recorded with these rows.** The checkpoint now requires host evidence the earlier stubs did not
+supply — a base object id on the pull request, a test-merge commit whose parents are the exact base and head, and a
+pull request that reports itself merged once merged. Both control rows failed on that gap before the repair, which
+is the signal that separated a stale fixture from a changed boundary: no movement row's observation was recorded
+until its own control read green again.
+
+### Second-matrix probe rows — base `cbf075da7`
+
+Rows for the cells § Second matrix enumerates. They carry the same shape as every row above with three readings
+fixed here rather than repeated per row: the movement-kind column carries the **axis**, the base OID is the base
+the run was seen on, and **excess reads against the matrix-1 control row at the same boundary**, since these cells
+move something other than the base and the ceremony baseline is unchanged by that. A refusal observed here is one
+invocation and one stop unless the row says otherwise.
+
+**Public review · head movement, append-only · delivery-member**
+
+- _Intent:_ Readiness against a member whose branch advanced past the head its delivery record binds; expect the
+  advance recognized rather than reported as nothing bound.
+- _Probe:_ `review-readiness-delivery-binding.test.ts` — "admits a member whose head advanced without changing its
+  contribution" · _Base OID:_ `cbf075da7` · _Observed:_ `invalid`, diagnostic `delivery-member-unbound`; no
+  remedy. The probe asserts directly that this is the same result the same handler returns over a repository
+  carrying no delivery state at all — the comparison is head equality and reads no ancestry, so a binding that is
+  stale and one that is absent are indistinguishable at this boundary.
+- _Invocations:_ 1 · _Stops:_ 1 · _Fork:_ bare · _Continuation:_ `none-offered`
+- _Classification:_ `mechanical block` · _Owner:_ `delivery-post-landing-conflict-recovery` · _Fix at close:_
+  routed to that target, whose draft already records this locus · _Retention at close:_ kept — pinned; the pin is the
+    handoff contract, and it falls under this rule once its fix lands
+- _Citation superseded:_ renamed by `de7eb2eca` after this row closed; the test now reads "readiness against a
+  member head that advanced under its binding > reports nothing bound when a member's head advanced without changing
+  its contribution". The observation is unchanged — only the address. No superseding row exists; this reading
+  stands.
+
+**Post-landing closeout · control, head held · delivery-member**
+
+- _Intent:_ Ceremony baseline: the same closeout with the host reporting the terminal merged at the exact head the
+  record binds.
+- _Probe:_ `delivery-binding-head-movement.test.ts` — "settles a terminal the host merged at the exact head it
+  binds" · _Base OID:_ `cbf075da7` · _Observed:_ `closed-out`; no reason, no remedy.
+- _Invocations:_ 1 · _Stops:_ 0 · _Fork:_ none, the result is not a stop · _Continuation:_ `not-applicable`
+- _Classification:_ not a movement row — its finding is its count · _Owner:_ not applicable · _Fix at close:_ none
+  — baseline count · _Retention at close:_ **kept** — the only assertion anywhere that a terminal merged at the exact
+    head it binds closes out, so the clean path falls with it
+
+  Recorded because the movement row below is unreadable without it. The first run of this fixture blocked on an
+  invalid Git common directory, which would have read as the movement's own refusal had the control not failed
+  first.
+
+**Post-landing closeout · head movement, append-only · delivery-member**
+
+- _Intent:_ Closeout against a terminal the host merged at a descendant of the bound head; expect the landed
+  contribution retired rather than the terminal reported unsettled.
+- _Probe:_ `delivery-binding-head-movement.test.ts` — "retires a terminal the host merged at a descendant of the
+  head it binds" · _Base OID:_ `cbf075da7` · _Observed:_ `blocked`, reason `terminal-unsettled`, remedy: resolve
+  the reported state and rerun the closeout with the same work-unit, repository, and remote inputs.
+- _Invocations:_ 1 · _Stops:_ 1 · _Fork:_ bare · _Continuation:_ `did-not-clear` — the remedy names a rerun over
+  the same three inputs, none of which reaches the binding the comparison actually reads.
+- _Classification:_ `mechanical block` · _Owner:_ `delivery-post-landing-conflict-recovery` · _Fix at close:_
+  routed; this is the fourth locus that target's draft records, reproduced here against a synthetic host ·
+  _Retention at close:_ kept — pinned; the pin is the handoff contract, and it falls under this rule once its fix lands
+- _Citation superseded:_ renamed by `de7eb2eca` after this row closed; the test now reads "delivery closeout against
+  a terminal head that advanced under its binding > reports a terminal unsettled when the host merged it past the
+  head it binds". The observation is unchanged — only the address. No superseding row exists; this reading stands.
+
+**Landing · head movement, append-only · delivery-member**
+
+- _Intent:_ Position over a terminal top that advanced by an append-only commit; expect the bound chain resumed.
+- _Probe:_ `delivery-position.test.ts` — "resumes the bound chain at a terminal top that advanced by an
+  append-only commit" · _Base OID:_ `cbf075da7` · _Observed:_ `refused`, reason `review-fix-routing-required`,
+  remedy: plan a review fix.
+- _Invocations:_ 1 · _Stops:_ 1 · _Fork:_ recommendation-bearing — the refusal names its next action ·
+  _Continuation:_ `did-not-clear` for the caller this failure was recorded from: the correction driver reads this
+  refusal as no position at all and stops before its own terminal-rebind path.
+- _Classification:_ `mechanical block` · _Owner:_ `delivery-correction-convergence` · _Fix at close:_ routed ·
+  _Retention at close:_ kept — pinned; the pin is the handoff contract, and it falls under this rule once its fix lands
+
+  The recognition mechanism is already built, which narrows the fix considerably. Five observation modes pass
+  `terminalAuthoringMovement: allow-append-only`, and this verb is one of them — the allowance makes the movement
+  an observable **fact** rather than admitting it, and the verb then refuses on that fact's presence. What is
+  missing is a route from the fact to resumption, not the ability to see the movement.
+
+**Session-init · head movement, append-only · delivery-member**
+
+- _Intent:_ A session opening over a terminal top that advanced append-only; expect it to orient into the delivery
+  position the chain is actually in.
+- _Probe:_ `delivery-position.test.ts` — "opens a session over a terminal top that advanced by an append-only
+  commit" · _Base OID:_ `cbf075da7` · _Observed:_ the envelope's delivery position reads `ok: false` with a
+  runtime error, "Delivery position is unavailable: observation-unavailable." The control — the same scaffold over
+  the same plan with the top held still — reads `ok: true` and carries the position itself.
+- _Invocations:_ 1 · _Stops:_ 0 — the session still exits zero and loads its context · _Fork:_ bare ·
+  _Continuation:_ `none-offered`
+- _Classification:_ `mechanical block` · _Owner:_ the execute-bound capture for append-only terminal movement in
+  session-init position · _Fix at close:_ routed · _Retention at close:_ kept — pinned; the pin is the handoff
+    contract, and it falls under this rule once its fix lands
+
+  The session does not fail; it loses one orientation field and says so in a message naming no cause a reader can
+  act on. The asymmetry behind it is the fix's shape: this derivation takes an observation mode, five of whose
+  values admit append-only terminal movement, and its two consumers disagree — the position verb passes one and
+  session-init passes none, so the strictest posture is the default for the surface that only reads.
+
+**Candidate / prepublication · head movement · Frontline-result binding** — closed, unproducible
+
+- _Intent:_ A no-material follow-up result produced at one head, then read after rerouting selects the member's new
+  exact head; expect the typed result to survive the transition or not to be offered at all.
+- _Closure:_ unproducible here. Observing the loss at a boundary needs the delivery reroute path and the frontline
+  review path composed in one tree, which the suite has no fixture for; D10 admits closing rather than forcing one.
+  What replaces the observation is the mechanism, read from source so the owner does not re-derive it.
+- _Continuation:_ `not-applicable` — no stop was taken, the cell having produced no observation ·
+  _Classification:_ not applicable, for the same reason
+- _Owner:_ the capture holding this as an Errand with its own re-triage note · _Fix at close:_ routed ·
+  _Retention at close:_ not applicable — no probe
+
+  The result is a **projection, not a record**. The advice function takes the current outcome and its approved
+  dispositions and nothing else, so no prior pass at a different target has any input by which to reach it — its
+  own contract says it creates no durable chain. The approved dispositions, by contrast, _are_ durable and
+  enumerable, keyed by operation in the review-gate evidence namespace. So the loss is not storage: it is that
+  nothing reads that store when the target moves. That distinction is the whole of the routed decision — whether
+  to bind and preserve the typed continuation across the transition, or to stop emitting a signal no caller can
+  act on — and it is settled without a probe.
+
+**Whole-WU verification · history shape · singleton**
+
+- _Intent:_ Subject collection over a branch and base with two best merge bases; expect the branch's own
+  contribution reported.
+- _Probe:_ `history-shape-ambiguity.test.ts` — "reports the base's own change as the contribution when two merge
+  bases exist" · _Base OID:_ `cbf075da7` · _Observed:_ the collected subject names `src/criss-cross-base-side.ts`,
+  which is the base's own change, and omits the branch's commit entirely. No refusal, no reason, no remedy, and
+  nothing in the result records that a choice between two ancestors was made.
+- _Invocations:_ 1 · _Stops:_ 0 · _Fork:_ none, the result is not a stop · _Continuation:_ `not-applicable`
+- _Classification:_ `redundant ceremony` · _Owner:_ `delivery-post-landing-conflict-recovery` · _Fix at close:_
+  routed to that target, whose second locus records the same behavior in the field · _Retention at close:_ kept —
+    pinned; the pin is the handoff contract, and it falls under this rule once its fix lands
+
+  The reader is plain `merge-base` with no `--all`, so Git returns one of the two and the caller cannot tell it
+  had a choice. Two companion cases carry the finding: the control over the same arrangement with a single merge
+  base reports the branch's own path, and a third compares digests across the two arrangements and finds them
+  different. That difference is the cost — the subject digest is what currentness compares, so identical branch
+  work reads as a changed Candidate and the ordinary fallback demands a fresh root. The owner's draft records the
+  live shape of it: roughly 130 removed paths and a demand for a full new root over a terminal branch that
+  already contained the landed predecessor.
+
+**Candidate / prepublication · history shape · singleton**
+
+- _Intent:_ Applicability classifying a Candidate whose baseline and current base share two best merge bases;
+  expect the contribution classified from either one.
+- _Probe:_ `history-shape-ambiguity.test.ts` — "refuses with a typed reason rather than choosing one of the two
+  bases" · _Base OID:_ `cbf075da7` · _Observed:_ `classification-unavailable`, next action `stop`, reason
+  `merge-base-ambiguous`, detail "Multiple baseline-to-current merge bases are available."; no remedy.
+- _Invocations:_ 1 · _Stops:_ 1 · _Fork:_ bare · _Continuation:_ `none-offered`
+- _Classification:_ `redundant ceremony` · _Owner:_ `delivery-post-landing-conflict-recovery` · _Fix at close:_
+  routed; this is the typed half of that target's second locus · _Retention at close:_ kept — pinned; the pin is the
+    handoff contract, and it falls under this rule once its fix lands
+
+  The same condition the row above passes through silently, refused here with a typed reason. Both readers are
+  correct about the history and disagree about what follows from it, which is the finding: one boundary binds a
+  subject derived from an arbitrary choice while the next refuses to classify at all.
+
+**Public review · history shape · singleton**
+
+- _Intent:_ Review status over a Candidate whose target and base share two best merge bases; expect a status
+  rather than a re-ceremony directive.
+- _Probe:_ `review-status-base-movement.test.ts` — "directs a checkpoint rerun on a base that moved only in
+  shape" · _Base OID:_ `cbf075da7` · _Observed:_ `base-moved`, next action `rerun-checkpoint`, detail "The
+  revisions have multiple best merge bases; overlap cannot be proved from one."; the routed obligation reads
+  `blocked` carrying "The Candidate target has no sole base coordinate." The control on the same scaffold with an
+  unambiguous history settles and continues to reconcile.
+- _Invocations:_ 1 · _Stops:_ 1 · _Fork:_ recommendation-bearing — the result names a checkpoint rerun ·
+  _Continuation:_ `did-not-clear` — the rerun reads the same history and reaches the same reading.
+- _Classification:_ `mechanical block` · _Owner:_ `delivery-post-landing-conflict-recovery` · _Fix at close:_
+  routed; a fourth locus on the seam that target's draft already holds three of · _Retention at close:_ kept — pinned;
+    the pin is the handoff contract, and it falls under this rule once its fix lands
+
+  The fourth vocabulary on one condition, and the only one that is not a refusal at all: the sole-base resolver's
+  untyped message is caught and surfaced as a blocked obligation's `detail`, while the status itself reports the
+  base moved. Nothing about the branch's contribution changed, so what the caller is sent back to re-run is a
+  checkpoint that already passed.
+
+**Landing · history shape · singleton**
+
+- _Intent:_ Authoritative base drift over a branch and base with two best merge bases; expect the changed-path
+  intersection reported, since it is the same from either ancestor.
+- _Probe:_ `history-shape-ambiguity.test.ts` — "reports the overlap unavailable rather than proving it from one
+  of the two bases" · _Base OID:_ `cbf075da7` · _Observed:_ verdict `reconcile` with overlap
+  `unavailable / merge-base-failed`; no remedy at this reader. The control on the same arrangement with one merge
+  base reports the same `reconcile` verdict with the overlap available and no substantive paths.
+- _Invocations:_ 1 · _Stops:_ 0 — the drift read itself returns no next action · _Fork:_ none ·
+  _Continuation:_ `not-applicable`
+- _Classification:_ `mechanical block` · _Owner:_ `delivery-post-landing-conflict-recovery` · _Fix at close:_
+  routed; the first locus that target's draft records · _Retention at close:_ kept — pinned; the pin is the handoff
+    contract, and it falls under this rule once its fix lands
+
+  The verdict is unchanged by the ambiguity and only the evidence under it degrades, which is what makes the
+  consequence a classification failure rather than a drift failure. The checkpoint that consumes this reading is
+  where it becomes a stop — `delivery-terminal-blocked / drift-classification-unavailable`, offering only a
+  retry — and that mapping is recorded by the owner rather than re-observed here.
+
+**Session-init and recovery · a write that is not a base advance · singleton**
+
+- _Intent:_ A session opening after an authorized merge lands a work unit's active record on the base branch;
+  expect the checkout it is in still resolved.
+- _Probe:_ `concurrent-write-preconditions.test.ts` — "cannot write its recovery seed once the merge has landed
+  the record on the base" · _Base OID:_ `cbf075da7` · _Observed:_ the seed write returns `failed`, reason
+  `seed-invalid`, message "Entering checkout facts are unresolved: <repository root>"; no remedy. The session
+  itself still exits zero, and its locus guidance reads `unavailable`, naming `topology-mismatch` — the observed
+  checkout topology does not corroborate the subject derived from the record. The control, the same project with
+  the record's own branch in hand, writes the seed.
+- _Invocations:_ 1 · _Stops:_ 0 — the session exits zero and still loads its context · _Fork:_ bare ·
+  _Continuation:_ `none-offered`
+- _Classification:_ `mechanical block` · _Owner:_ the capture holding this as an Errand · _Fix at close:_ routed ·
+  _Retention at close:_ kept — pinned; the pin is the handoff contract, and it falls under this rule once its fix lands
+
+  _Recorded as a correction, appended rather than edited above:_ the enumeration placed this cell under the
+  operator's index, and the index is not the cause. A third case runs the identical merge twice, once conflicting
+  and once not, and both return the same typed failure — the conflicted tree leaves `src/shared.ts` unmerged while
+  the clean one leaves `git status` empty. What actually breaks the reading is that the merge carries the active
+  record onto the base branch, so the checkout is on the base while the record still names the work unit's branch.
+  The unmerged index was present when the failure was first recorded and was read as its cause; it is incidental.
+  The axis placement still holds under the amended D10 — a merge landing a record is a write that is not a base
+  advance — but the source column is wrong, and the routed capture's own title names the index as the thing to
+  preserve through recovery, so an implementer starting from it would look in the wrong place.
+
+**Public review · a write that is not a base advance · delivery-member**
+
+- _Intent:_ Preparing a member's local review while a correction sits staged on the top branch; expect the member
+  still admitted, since nothing about its reviewed contribution changed.
+- _Probe:_ `delivery-position-suite.ts` — "drives a registered review correction through superseded verification
+  to hosted review" · _Base OID:_ `cbf075da7` · _Observed:_ exit 1 carrying `unexpected-failure` and "Local
+  delivery-member review no longer has exact driver admission."; no reason field, no remedy, no next action. The
+  control is the same admission prepared moments earlier in the same chain, which returns `ready` and
+  `launch-review`.
+- _Invocations:_ 2 · _Stops:_ 0 — the result is an untyped failure rather than a typed stop · _Fork:_ bare ·
+  _Continuation:_ `none-offered` by the result, but the probe exercises an operator-side recovery that clears:
+  clearing the index and re-running admits the same admission unchanged, `ready` and `launch-review`.
+- _Classification:_ `fail-closed, correct` · _Owner:_ `review-protocol-alignment`, through the capture filed with
+  this row · _Fix at close:_ routed · _Retention at close:_ kept — pinned; the pin is the handoff contract, and it
+    falls under this rule once its fix lands
+
+  The observation rides an existing chain rather than standing up its own. Reaching a live member admission needs
+  the delivery and hosted state this test already drives to, and the admission cannot be constructed: preparation
+  re-resolves review status for the member and requires the admission to still equal, byte for byte, what status
+  projects at that moment. Four shorter routes were tried and each is refused by a real precondition — an
+  unresolved vehicle without an active work-unit context, an incomplete active record, and finally that exactness
+  check. The probe stages its correction, observes, then restores the tree, so the chain it rides continues
+  against the state it expects.
+
+  So this is a diagnosability defect rather than a capability one, and nothing here blocks a member from
+  shipping. The admission does not have to be re-derived and the chain does not have to be restarted — the
+  operator clears the index and retries, and the recovery is proven here rather than argued. What the result
+  never says is that the index is what it is reacting to, so an operator who does not already know reads an
+  untyped failure with no remedy at the point where a member is about to be reviewed.
+
+  The exactness check is also the mechanism. A staged path reaches the Candidate subject through the index, the
+  subject feeds what status projects, and the projection is what the admission is compared against — so an
+  operator's uncommitted correction on the top branch invalidates an admission minted for a member whose own
+  contribution did not move. The enumeration placed this cell on the operator's index and, unlike the session-init
+  cell above, that placement holds.
+
+**Landing, terminal · a write that is not a base advance · delivery-member**
+
+- _Intent:_ Resuming a correction over an advance made only of the ceremony's own record writes; expect the
+  terminal carried forward without raising verification work against it.
+- _Probe:_ `delivery-terminal-recovery.e2e.test.ts` — "routes a record-only advance past the head the terminal
+  binds" · _Base OID:_ `cbf075da7` · _Observed:_ exit 0, `rebound`, next action `verify-review-fix`, and a
+  `pendingReviewFixVerification` persisted naming the member. No refusal and no reason: the advance is admitted
+  and then treated as a fix to verify, so the cost lands as work directed rather than as a stop.
+- _Invocations:_ 1 · _Stops:_ 0 — `verify-review-fix` is not among the next actions the convention counts as
+  requiring direction, though it does direct work · _Fork:_ recommendation-bearing · _Continuation:_
+  `not-applicable`, the result being no stop to clear
+- _Classification:_ `redundant ceremony` · _Owner:_ `delivery-correction-convergence` · _Fix at close:_ routed to
+  that target, whose draft already records persisting record-only applicability as moving the terminal head ·
+  _Retention at close:_ kept — pinned; the pin is the handoff contract, and it falls under this rule once its fix lands
+
+  The arrangement is the finding as much as the result. This file's terminal fixture always bound the terminal to
+  the head its record write produced, so an advance made only of record writes could not arise in it at all; one
+  option binding the terminal to the head that write advanced past is what makes the cell expressible. The
+  neighbouring case renews verification for _substantive_ movement past a settled record-only terminal and is
+  right to, so what this establishes is that the two are indistinguishable here: the same next action and the
+  same persisted task for an advance that carries an authored change and for one that carries none.
+
+  Two readings were discarded before this one. A plain reconcile over the same arrangement rebinds cleanly with
+  no pending verification, so the tolerance is real on that path and the cost appears only when the correction is
+  resumed. A first attempt at the resumed path read `refused / terminal-correction-not-append-only`, which was an
+  artifact of running it after a reconcile had already rebound the state rather than on untouched state; it is
+  recorded here because the refusal is plausible enough to be mistaken for the observation.
+
+**Landing · a write that is not a base advance · delivery-member** — closed, unproducible
+
+- _Intent:_ Applying a prepared landing whose readiness is revalidated against the state preparation's own
+  reservation advanced; expect the prepared landing to remain admissible.
+- _Closure:_ unproducible here. Nothing in the suite composes preparation with application — the only references
+  to those verbs assert their order inside workflow prose — and the position suite dispatches its verbs through an
+  in-process command map that carries neither. Added to that map, `land prepare` over the nearest fixture refuses
+  carrying no reason field at all, so the cell has no readable control, and a movement row without one is exactly
+  what this ledger does not record. D10 admits closing rather than forcing the composition.
+- _Continuation:_ `not-applicable` — no stop was taken, the cell having produced no observation ·
+  _Classification:_ not applicable, for the same reason
+- _Owner:_ the capture holding this as an Errand, "Keep sequential landing review current through preparation and
+  no-effect recovery" · _Fix at close:_ routed · _Retention at close:_ not applicable — no probe
+
+  What replaces the observation is the field record rather than a source read. With member review discharged and
+  checks green, preparation reserved its operation and application refused at `readiness-revalidation /
+  before-lock-release / review-readiness-refused / review-unsettled`: exact-target review status reported the
+  public delivery continuation not current, because preparation's own reservation had advanced Delivery State
+  past the continuation that status reads. No lock released and no merge occurred. Reconcile then proved no
+  effect and cleared the reservation — and advanced the state again. An unchanged re-attestation renewed the
+  continuation without repeating verification or review, so a remedy exists and the refusal never names it, which
+  is the same shape the public-review row above carries.
+
+  The coverage is not dropped by this closure. That capture's own approach already requires covering both a
+  successful sequential prepare-to-apply path and its stale or mismatched refusals, and the composition this cell
+  would need is the one the fix requires anyway — a prepare-to-apply pair cannot be fixed without being
+  composed. The obligation therefore travels with the fix rather than ending here.
+
+**Prepublication to entry · a write that is not a base advance · delivery-member** — closed, unproducible
+
+- _Intent:_ Entry selecting pending delivery-member fix authority after a later attested root superseded an
+  earlier one; expect the superseded authority not selected.
+- _Closure:_ unproducible here. The selection is a pure function over approved-disposition records, so supplying
+  the records would construct the condition rather than observe a ceremony writing it — the distinction this axis
+  exists to make. The one suite that creates real approved dispositions produces Candidate-bound records, while
+  this selection reads only records with no Candidate binding, and reaching two pending authorities needs an
+  approve, re-attest, approve sequence no fixture performs.
+- _Continuation:_ `not-applicable` — no stop was taken, the cell having produced no observation ·
+  _Classification:_ not applicable, for the same reason
+- _Owner:_ `review-orchestration-right-sizing`, through the capture retiring superseded private Frontline
+  response authority · _Fix at close:_ routed · _Retention at close:_ not applicable — no probe
+
+  The mechanism is the filter's own shape. It selects records carrying no Candidate binding, a delivery member
+  matching the active work unit, an approved fix authorization, and no response. A record a superseded authority
+  leaves in exactly that shape stays live indefinitely, because nothing retires it when a later root is attested:
+  one such record failing the exact-authority check refuses `review-fix-response-invalid`, and two of them refuse
+  `review-fix-response-ambiguous`. The field record carries both, at two different revisions.
+
+  As above, the coverage travels with the fix: that capture already requires covering entry with a stranded
+  legacy record and a still-pending fix, which is the composition this cell could not build.
+
+**Eligibility window · base movement, disjoint · delivery-member**
+
+- _Intent:_ Closing an eligibility window whose gate run completed inside it, after the base advanced on a path no
+  member touches; expect the completed results consumed rather than a fresh preparation directed.
+- _Probe:_ `delivery-window-base-movement.test.ts` — "discards them when the base advances on a path no member
+  touches" · _Base OID:_ `cbf075da7` · _Observed:_ `refused`, reason `source-moved`, carrying
+  `nextAction: reprepare-delivery-eligibility` with the full argument set. The control is the same close over the
+  same snapshot with the base held, which returns `eligible` having consumed every gate result.
+- _Invocations:_ 1 · _Stops:_ 1 · _Fork:_ argv-bearing — the next action names the verb and every argument ·
+  _Continuation:_ `cleared`, at a price the row's cost column does not hold: re-preparing is one call, but the
+  gates the fresh snapshot then requires are a full Tier 2 run per member.
+- _Classification:_ `redundant ceremony` · _Owner:_ `delivery-rebuild-continuity`, whose evidence-applicability
+  capture records this seam and whose first success criterion commits to it · _Fix at close:_ routed ·
+  _Retention at close:_ kept — pinned; the pin is the handoff contract, and it falls under this rule once its fix lands
+
+  The ordering is where the cost comes from. Gate results validate first, against member coordinates that did not
+  move; the plan, the lifecycle paths, the per-member contribution, the predecessor relation, and the normalized
+  completeness all then pass against the prepared snapshot. Only at the very end does the close re-observe the
+  refs the snapshot named, and `refs/heads/main` is one of them. So the entire window is proved intact and then
+  discarded on the one fact none of the checks in it depend on.
+
+  A third case establishes that the gates are not what is refused: the mechanical close, which takes no gate
+  results at all, returns a result byte-identical to the publication close that validated two passing ones. The
+  refusal is the base movement alone, and the work it discards is work the movement did not touch.
+
+**Materialization window · base movement, disjoint · delivery-member**
+
+- _Intent:_ Republishing a bound chain after the base advanced beneath it; expect the pass to reach the tip
+  observation that guards the same movement before the target is bound.
+- _Probe:_ `delivery-window-base-movement.test.ts` — "publishes the bound chain identically whether or not the
+  base advanced" · _Base OID:_ `cbf075da7` · _Observed:_ `materialized` over both a held base and an advanced one,
+  the two typed results equal field for field, with the member ref republished at its planned head in each. The
+  pass observes the member ref and never observes `refs/heads/main`.
+- _Invocations:_ 1 · _Stops:_ 0 · _Fork:_ not applicable — no stop · _Continuation:_ `not-applicable`
+- _Classification:_ `tolerates` · _Owner:_ `delivery-rebuild-continuity`, whose evidence-applicability capture
+  carries this seam as its publication-window edge · _Fix at close:_ routed as evidence, not as a defect ·
+  _Retention at close:_ kept — carries the evidence its owner's open question needs, and is deliberately unpinned so
+    neither resolution is prejudged
+
+  **Recorded without a pin, deliberately.** The owning capture states the open question in terms that forbid one:
+  determine whether a bounded in-call recheck materially improves the retry, or whether later review gates are the
+  appropriate authority boundary, and do not treat either outcome as implicit. A pin would settle that by
+  assertion. What the probe supplies instead is the fact the decision needs, stated so that either resolution can
+  consume it.
+
+  That fact is where the guard stops applying. The tip observation exists and is reachable: a first pass over the
+  same advance refuses, having observed `refs/heads/main`. It lives inside the branch that binds the target, so
+  once the target is bound the pass no longer looks at the base at all — and each probe pass deletes the published
+  member ref first, so what is measured is a pass that writes rather than one that confirms and skips. The guard
+  therefore stops applying at exactly the moment the chain becomes publishable, which is the moment its own
+  capture says stale artifacts can be left behind without merge authority.
+
+  D7 is not violated by this. It requires a tip proof before the initial chain-base record, and that proof is the
+  first pass, which takes it. What the second pass writes is member refs.
+
+**Delivery authoring · base movement, disjoint · delivery-member**
+
+- _Intent:_ Closing a chain recut on a base that advanced after the originating top was cut; expect the mismatch
+  named before a gate cycle is spent on it.
+- _Probe:_ `delivery-rebuild-base-movement.test.ts` — "admits a chain recut on the moved base, then refuses it
+  after the gates would have run" · _Base OID:_ `cbf075da7` · _Observed:_ preparation returns `prepared`, and the
+  close then refuses `completeness-mismatched`. The control is the field's own successful path: the same base
+  advance with the chain left on the top's base closes `eligible`.
+- _Invocations:_ 2 · _Stops:_ 1 · _Fork:_ bare — the refusal carries neither remedy nor next action ·
+  _Continuation:_ `none-offered` by the result; the control shows a recut on the top's base clears, which the
+  refusal never names
+- _Classification:_ `mechanical block` · _Owner:_ `delivery-rebuild-continuity`, whose authoring capture records
+  this exact field sequence · _Fix at close:_ routed · _Retention at close:_ kept — pinned; the pin is the handoff
+    contract, and it falls under this rule once its fix lands
+
+  Where the refusal lands is the finding, not that it refuses. Preparation validates member chaining, ancestry,
+  emptiness and lifecycle contribution, and it holds every coordinate the completeness comparison needs — the
+  originating top, the recut final candidate, and both base trees. It compares none of them against the top.
+  `prepared` is the signal to go run Tier 2 per member, so the close rejects on a fact preparation already had.
+  That is the preflight the owning capture asks for, stated from the other side.
+
+  A second case records something the field record could not: the reason follows what the base change touched,
+  not what the operator did. The same recut after a base advance that adds a path returns `completeness-invented`
+  rather than `completeness-mismatched`, because production takes dropped, then invented, then mismatched in that
+  order. An adopter meeting this once has no reason to expect the same reason twice.
+
+**Rematerialization · base movement, under a bound plan · delivery-member**
+
+- _Intent:_ Dispatching rematerialization against private candidates after an authorized correction landed on the
+  top locus; expect a result naming the rebuild the correction owes.
+- _Probe:_ `delivery-rebuild-base-movement.test.ts` — "refuses the unchanged private candidates once the
+  correction lands on the top" · _Base OID:_ `cbf075da7` · _Observed:_ `refused`, reason
+  `completeness-mismatched`. The control is the same dispatch before the correction, which closes `eligible`.
+- _Invocations:_ 1 · _Stops:_ 1 · _Fork:_ bare · _Continuation:_ `none-offered` — the suffix rebuild the result
+  requires has no verb, which is the capture's own observation
+- _Classification:_ `mechanical block` · _Owner:_ `delivery-rebuild-continuity`, through its bound-correction
+  capture · _Fix at close:_ routed · _Retention at close:_ kept — pinned; the pin is the handoff contract, and it
+    falls under this rule once its fix lands
+
+  **This cell's typed result is identical to the authoring cell's, and a third case proves it** rather than
+  leaving it to be noticed later: the two refusals compare equal, both being exactly
+  `{ status: "refused", reason: "completeness-mismatched" }` with no further fields. The enumeration predicted
+  five distinct seams and no closures on this axis; on the typed result these two are one. Recorded here as the
+  observation rather than by editing that prediction.
+
+  The collapse is worth more than either cell alone, because the two conditions are opposites. At authoring the
+  members are ahead of the top and the remedy is to recut on the top's base — proven by this row's own control.
+  At rematerialization the top is ahead of the members and the remedy is to rebuild the suffix from the corrected
+  top. One reason code covers both, carries no direction, and names neither remedy, while the owner is building
+  one rebuild primitive that has to serve both.
+
+**Post-land settlement · base movement, under a pinned pre-landing replay · delivery-member**
+
+- _Intent:_ Replaying a pinned pre-landing contribution onto a landed predecessor, then resolving what it names;
+  expect the resolution to reach the result.
+- _Probe:_ `delivery-rebuild-base-movement.test.ts` — "returns the identical refusal after the operator resolves
+  the conflicted path" · _Base OID:_ `cbf075da7` · _Observed:_ `contribution-conflicted` naming the path, and the
+  byte-identical refusal again once the operator has resolved that path onto the landed predecessor. The control
+  is the unresolved replay in the same run, which the resolved one compares equal to.
+- _Invocations:_ 2 · _Stops:_ 2 · _Fork:_ recommendation-bearing at the settlement above it, which directs
+  resolving the listed paths and rerunning `arc delivery native land-status` · _Continuation:_ `did-not-clear`,
+  and the probe proves it cannot: the directed action is not an input to the outcome
+- _Classification:_ `fail-closed, correct` · _Owner:_ `delivery-post-landing-conflict-recovery` · _Fix at close:_
+  routed · _Retention at close:_ kept — proves the named remedy does not clear the refusal, which no other test
+    asserts; unpinned because the refusal itself is correct
+
+  The mechanism is read from source and then observed. The conflict is composed from three coordinates — the
+  pinned predecessor as merge base, the pinned member, and the observed landed predecessor. The resolved member
+  head is consulted only after composition succeeds, so it cannot affect a composition that conflicts. Resolving
+  the listed path therefore changes nothing, which is the probe's result.
+
+  This sharpens the field record rather than repeating it. That record attributes the dead end to an external
+  stack rebase being unable to change the pinned replay; the pinned side is only half of it. The replay's other
+  endpoint does follow the operator, and it still cannot help, because the conflict is decided before that
+  endpoint is read at all.
+
+  The refusal itself is correct — a hand-resolved suffix is not a mechanical reapply and the proof is right not
+  to call it one. What is wrong is one layer up, at `native-landing.ts`, where the settlement wraps this result in
+  guidance directing the operator to resolve and rerun. That text names a remedy this row proves cannot clear it.
+  Reaching that seam needs a three-member plan, host request observations and a before/landed state pair that no
+  fixture composes, so the guidance defect is recorded here with its locus and routed rather than probed; the
+  owning capture already requires covering conflicting and clean suffixes with Git-backed and handler-level tests,
+  so the coverage travels with the fix.
+
+### Not-applicable rows
+
+Sixteen rows, each closed on the confirmed seam verdict and carrying no observation fields. Two closure kinds:
+**collapse** — the boundary's typed result would be identical to a named row already open — and **unproducible**
+— the movement kind cannot arise at this seam at all. A collapse names the row it defers to, so every closure is
+auditable against an observation that will actually be taken.
+
+- **Whole-work-unit verification · `overlapping-substantive` · singleton** — collapse onto this boundary's
+  `disjoint` row. The seam runs no overlap classification, and its base coordinate reaches it only as a merge-base
+  argument that an advance descended from the fork point leaves unmoved, so the staged subject is byte-identical
+  whatever the advance touched.
+- **Whole-work-unit verification · `overlapping-regenerable-only` · singleton** — collapse onto this boundary's
+  `disjoint` row, for the same seam fact.
+- **Whole-work-unit verification · `unknown` · singleton** — unproducible. Every invocation on this seam is
+  local-only and nothing on it fetches, so remote evidence has no opportunity to go unavailable at the boundary.
+  An absent remote-tracking ref falls back to the local base branch, which is a static precondition the design
+  excludes from `unknown`.
+- **Candidate / prepublication · `overlapping-substantive` · singleton** — collapse onto this boundary's
+  `disjoint` row; the same effective-target seam, with the same unmoved merge-base coordinate.
+- **Candidate / prepublication · `overlapping-regenerable-only` · singleton** — collapse onto this boundary's
+  `disjoint` row, for the same seam fact.
+- **Candidate / prepublication · `unknown` · singleton** — unproducible, for the same reason as verification: the
+  prepublication read shares that local-only seam, and the publication transition reads no base at all.
+- **Public review and checks · `overlapping-substantive` · singleton** — collapse onto this boundary's `disjoint`
+  row. Containment is a pure ancestry fact over the fetched base, and that arm precedes every applicability arm,
+  so the kind of movement never reaches the result.
+- **Public review and checks · `overlapping-regenerable-only` · singleton** — collapse onto this boundary's
+  `disjoint` row, for the same ordering.
+- **Post-landing closeout · `overlapping-substantive` · singleton** — collapse onto this boundary's `disjoint`
+  row. The reap runs no overlap classification; its verdict turns on whether this work unit is present in the
+  completed index at the refetched head, which the advance's path set cannot change.
+- **Post-landing closeout · `overlapping-regenerable-only` · singleton** — collapse onto this boundary's
+  `disjoint` row, for the same seam fact.
+- **Errand review / merge · `overlapping-substantive` · singleton** — collapse onto this boundary's `disjoint`
+  row; the close path runs no overlap classification.
+- **Errand review / merge · `overlapping-regenerable-only` · singleton** — collapse onto this boundary's
+  `disjoint` row, for the same seam fact.
+- **Errand review / merge · `unknown` · singleton** — collapse onto this boundary's `disjoint` row. A base pin
+  that fails and a base pin at a moved head take the same fall-through, so an unavailable read is not
+  distinguishable from a moved one at this seam.
+- **Member / singleton landing · `unknown` · delivery-member** — collapse onto the singleton `unknown` row at the
+  same boundary. An unavailable drift verdict never enters the delivery arm, so the member shape reaches the
+  identical refusal.
+- **Candidate / prepublication · `disjoint` · delivery-member** — collapse onto the singleton `disjoint` row at
+  the same boundary. The delivery renewal inspection performs no base read, so the shape cannot change a
+  base-derived result.
+- **Post-landing closeout · `disjoint` · delivery-member** — collapse onto the singleton `disjoint` row at the
+  same boundary; teardown has no delivery-specific base read.
+
+### Ledger-only rows
+
+Seven observations with nothing to probe. The prose-only set is provisional — it is read from the tree at each
+base merge and superseded at close. The close re-read found five gates rather than four: the Errand lane carries
+its own copy of the pre-hosted-pass advisory at Step 4, which the first pass recorded only at the integration
+boundary. The five split two ways, and only one half has a fix.
+
+**Prose-only gate · pre-hosted-pass drift read**
+
+- _Observation:_ `integrate-work-unit.md` Step 1 reads authoritative drift before spending a hosted pass, then
+  disposes of it in prose — keeping clean and regenerable-only silent, reconciling early "only when the
+  interaction is clear", and stopping on a conflict or material interaction. No typed verb carries any of it.
+- _Fix:_ none — the disposition turns on whether the interaction is clear and whether a product
+  decision is uncertain, which is agent judgment; a typed verb would have to define both first. ·
+  _Owner:_ not applicable
+
+**Prose-only gate · Errand pre-hosted-pass drift read**
+
+- _Observation:_ `run-errand.md` Step 4 carries the same advisory verbatim before entering the open pull request.
+  Found at the close re-read rather than the first pass, which recorded this text only at the integration boundary.
+- _Fix:_ none — the disposition turns on whether the interaction is clear and whether a product
+  decision is uncertain, which is agent judgment; a typed verb would have to define both first. ·
+  _Owner:_ not applicable
+
+**Prose-only gate · Errand base-freshness loop**
+
+- _Observation:_ `run-errand.md` Step 5 invokes authoritative drift, then loops in prose until base, head, and
+  requirements are settled. The loop itself is the gate.
+- _Fix:_ none — the loop closes on base, head, and requirements all being settled, a composite the verb
+  does not observe. · _Owner:_ not applicable
+
+**Prose-only gate · Errand pre-lane-action gate**
+
+- _Observation:_ `run-errand.md` Step 6 re-reads drift immediately before either lane action and admits only a
+  clean verdict, returning a reconcile to Step 5 and stopping on unavailable or malformed output — all in prose.
+  The disposition is a pure function of the typed verdict, so nothing here needs deciding.
+- _Fix:_ dispatch the typed verdict rather than restating it in prose. ·
+  _Owner:_ Errand — typed drift dispatch
+
+**Prose-only gate · Errand post-checks gate under the held lock**
+
+- _Observation:_ `run-errand.md` Step 6's auto-merge lane re-reads drift once more after checks permit merge,
+  while the lock is held, with the same prose disposition, and the same pure function of the typed verdict.
+- _Fix:_ dispatch the typed verdict rather than restating it in prose. ·
+  _Owner:_ Errand — typed drift dispatch
+
+**Uncovered completion path · Errand close unchanged-base resolution**
+
+- _Observation:_ the Errand close path's remote base pin sits behind an unchanged-base precondition, and no test
+  in the suite references that resolution. The gap is the mechanism itself, not merely its operator-facing route:
+  nothing proves the pin, the shortcut it guards, or the fall-through when the pin fails. This work unit's Errand
+  cells probe the ordinary path, which never reaches it, so the gap survives this characterization.
+- _Fix:_ coverage of the unchanged-base resolution and its base pin. ·
+  _Owner:_ Errand — Errand-close base-pin coverage
+
+**Doctrine · ceremony repetition turns on covered input**
+
+- _Observation:_ the review-admission sentence already landed generalizes to every ceremony in the post-execution
+  tail — a ceremony repeats only when a covered input changed, and head or base movement is never itself a
+  covered input. There is no probe for a doctrine sentence; it needs a home.
+- _Fix:_ land the generalized sentence in its own home. ·
+  _Owner:_ `delivery-rebuild-continuity`, through the capture routed to it at Task 6.7's close-out re-read, with
+  the constraint that the sentence lands in a shared surface rather than in that work unit's own draft
+
+  Held open at the routing for an Owner decision and resolved at close rather than left standing. The home is not
+  a nearest-fit: this work unit's purpose already states the rule for its own surface, its evidence-applicability
+  capture cites the doctrine as settled, and that capture's first success criterion operationalizes it — so the
+  rule has to be decided there regardless. The constraint is what keeps the routing honest, since the rule spans
+  every ceremony in the post-execution tail while its owner is one consumer of it; the forward-compatibility
+  screen fired `knowledge-evolution` on this exact point, pointing at placement rather than wording.
+
+### Excess and bare stops
+
+Computed from the rows above: each movement row against its own boundary's control row, counting the continuation's
+own invocations. Counts are ledger observations taken from the runs, never assertions in the probes.
+
+| Boundary · shape                         | Control baseline |
+| ---------------------------------------- | ---------------- |
+| Whole-work-unit verification · singleton | 1 / 0            |
+| Candidate / prepublication · singleton   | 3 / 0            |
+| Public review and checks · singleton     | 1 / 0            |
+| Member / singleton landing · singleton   | 2 / 1            |
+| Post-landing closeout · singleton        | 1 / 0            |
+| Errand review / merge · singleton        | 1 / 0            |
+| Member / singleton landing · member      | 1 / 1            |
+
+Invocations / approval stops. Read isolation has no control row and no movement, so excess does not reach its three
+rows.
+
+| Boundary · shape                         | Movement row                   | Counts | Excess  | Landed |
+| ---------------------------------------- | ------------------------------ | ------ | ------- | ------ |
+| Whole-work-unit verification · singleton | `disjoint`                     | 1 / 0  | 0 / 0   | yes    |
+| Candidate / prepublication · singleton   | `disjoint`                     | 3 / 0  | 0 / 0   | yes    |
+| Public review and checks · singleton     | `disjoint`                     | 2 / 2  | +1 / +2 | no     |
+| Public review and checks · singleton     | `unknown`                      | 2 / 1  | +1 / +1 | yes    |
+| Member / singleton landing · singleton   | `disjoint`                     | 3 / 3  | +1 / +2 | no     |
+| Member / singleton landing · singleton   | `overlapping-substantive`      | 2 / 2  | 0 / +1  | no     |
+| Member / singleton landing · singleton   | `overlapping-regenerable-only` | 1 / 1  | −1 / 0  | no     |
+| Member / singleton landing · singleton   | `unknown`                      | 2 / 1  | 0 / 0   | no     |
+| Post-landing closeout · singleton        | `disjoint`                     | 1 / 0  | 0 / 0   | yes    |
+| Post-landing closeout · singleton        | `unknown`                      | 2 / 1  | +1 / +1 | yes    |
+| Errand review / merge · singleton        | `disjoint`                     | 1 / 0  | 0 / 0   | yes    |
+| Member / singleton landing · member      | `disjoint`                     | 1 / 1  | 0 / 0   | no     |
+| Member / singleton landing · member      | `overlapping-substantive`      | 1 / 1  | 0 / 0   | no     |
+| Member / singleton landing · member      | `overlapping-regenerable-only` | 1 / 1  | 0 / 0   | no     |
+
+`Landed` records whether the row reached the endpoint its control row reached, and it is what keeps the excess
+column honest. Excess is a raw difference, so a row that stops early reads low for the wrong reason: the landing
+boundary's regenerable-only row runs one fewer invocation than its control only because it never merges, its
+`unknown` row reads a flat zero while the continuation leaves the reader on a drift report, and all three
+delivery-member rows read zero at exactly the stops where no handle was minted. Eight of the fourteen movement
+rows did not land. Every figure here is read with that column beside it.
+
+Where the ceremony did complete, the cost is legible and small: two of the three `unknown` rows clear for one extra
+invocation and one extra stop and both land, and five of the seven `disjoint` rows cost nothing at all — the
+exceptions are the singleton landing and public review.
+
+**Bare stops.** Six stops name a next action with no composed invocation to reach it, and four of the six are the
+same typed result.
+
+| Stop                                   | Row                                                      |
+| -------------------------------------- | -------------------------------------------------------- |
+| `reconcile / reconcile-base`           | landing `overlapping-regenerable-only` · singleton       |
+| `reconcile / reconcile-base`           | landing `disjoint` · delivery-member                     |
+| `reconcile / reconcile-base`           | landing `overlapping-substantive` · delivery-member      |
+| `reconcile / reconcile-base`           | landing `overlapping-regenerable-only` · delivery-member |
+| `rejected`, authority ref unresolvable | closeout `unknown` · singleton                           |
+| `base-moved / rerun-checkpoint`        | public review `disjoint` · singleton                     |
+
+The bare ones are the safe ones. `reconcile-base` is the only recurring bare stop, and it is what the boundary
+returns once it has decided the movement is tolerable, while every refusal at the landing boundary carries a remedy.
+The closeout refusal is the exception in both directions: it is a refusal, it is bare, and it clears on a plain
+retry its own message never names. The public-review stop names an action but carries no argv for it.
+
+**Classification tally.** Eleven `tolerates`, three `mechanical block`, three `fail-closed, correct`, and seven
+control rows that classify no movement. **No row is `redundant ceremony`** — across six boundaries and both shapes,
+nothing in the post-execution tail re-ran a ceremony on base movement alone. Each `fail-closed, correct` rests on a
+continuation the probe exercised and that cleared, and each `mechanical block` on a refusal nothing is proven to
+clear, so every classification follows the continuation rather than a reading of how justified the refusal looks.
+
+### Forward-compatibility screen
+
+Run once per routed mechanism against each project strategy's own firing conditions rather than the index summary.
+Three of those surfaces are marked in-development and one provisional, so what fired is recorded as a pointer for
+the owner, never as a design or an acceptance condition.
+
+| Mechanism                                 | Fired                                                          | Pointer                                                                       |
+| ----------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Refusal remedy accuracy                   | procedure-evolution                                            | precomposed text at the CLI↔agent boundary                                    |
+| Typed drift dispatch                      | procedure-evolution; package-project sync                      | a verb replacing prose mechanics, in a two-copy workflow file                 |
+| Errand-close base-pin coverage            | —                                                              | the testing methods settle it                                                 |
+| Recommendations at approval gates         | procedure-evolution; knowledge-evolution; package-project sync | precomposed text; it grows an always-loaded surface; that surface is two-copy |
+| `delivery-post-landing-conflict-recovery` | storage-evolution                                              | work-unit identity and branch coupling — a member bound to a commit           |
+| `delivery-rebuild-continuity`             | storage-evolution                                              | branch coupling, and the records carried across a rebuild                     |
+| Ceremony-repetition doctrine              | knowledge-evolution                                            | placement of agent-facing guidance                                            |
+
+The PM-composition surface fired for nothing: no routed mechanism adds or moves a PM-like fact, and none changes
+whether a backlog, roadmap, or inbox surface is authoritative.
+
+One screen result reaches back into a disposition rather than forward into a capture. The procedure surface's target
+model is deterministic logic in the CLI, structure in typed contracts, and **judgment in minimal prose** — which is
+the layer the three judgment-bearing drift gates already occupy. Their no-fix disposition is that model's own
+answer, arrived at independently, rather than only this work unit's reading of them.
+
+## Ledger close
+
+Taken at Task 6.7, against the Phase 6 exit criterion rather than the task goal, because the criterion names five
+recorded columns where the goal names four closing ones.
+
+### Every row carries every recorded column
+
+Forty-four rows plus the convention note that defines the column grammar. All five recorded columns — continuation,
+classification, owner, fix disposition, retention disposition — are present on every one.
+
+Three rows needed filling, and all three are the closed-unproducible cells. They had carried owner, fix and
+retention but neither continuation nor classification, which was not an oversight so much as an unstated reading:
+a cell that produced no observation has no stop to classify and no continuation to record. Both now say so in the
+ledger's own vocabulary — `not-applicable`, for the reason the row already gives — so the audit reads the same way
+from outside as it did from inside.
+
+### Where every row resolves
+
+| Resolution                                             | Rows |
+| ------------------------------------------------------ | ---- |
+| a `backlog/` stub — five distinct targets, all present | 15   |
+| a capture whose fate is Errand                         | 10   |
+| not applicable — controls, and rows needing no fix     | 17   |
+| **deliberately open**                                  | 2    |
+
+The five stubs were each confirmed present on disk rather than assumed from the slug:
+`delivery-post-landing-conflict-recovery`, `delivery-rebuild-continuity`, `delivery-correction-convergence`,
+`review-protocol-alignment`, `review-orchestration-right-sizing`.
+
+**Two rows do not resolve, and that is the criterion's one gap.** The ceremony-repetition doctrine has no home, and
+the approval-gates capture still carries `WU_Target: TBD`. Both were left open at the Owner's direction when the
+routing ran, so they are a held decision rather than an unfinished one — but the exit criterion asks every
+non-passing row to resolve, and these two do not. Named here so the gap is explicit at close instead of being
+discovered at verification.
+
+The doctrine's home has since gained weight rather than lost it. Refusal remedy accuracy reached four instances
+across the two matrices, and the fourth inverts the other three — a remedy that is named and provably cannot clear
+the refusal carrying it. That is a doctrine-shaped finding with no owner, which is the same gap seen from the other
+side.
+
+### Correction — the gap was misread, and a third entry was never audited
+
+Appended after the close-out re-read, with the reading above left standing so the mistake stays legible.
+
+**The two rows named as the criterion's gap had both already had their fixes met**, and the close did not check.
+Both were observed at `4f6b11568` and both carry a superseding row at `cbf075da7`:
+
+- The ceremony-repetition row asked that the partition be carried into the merge window so a disjoint advance
+  does not re-ceremony the landing. Its superseding row records `merged` — the reconcile, fresh checkpoint, and
+  fresh approval are gone.
+- The approval-gates row asked for a next-step invocation for the one safe result at that boundary. Its
+  superseding row mentions only a typed reason, which is why the close read it as still open; the source settles
+  it. The reconcile result is built through a strict schema whose `remedy` is required and whose `argv` is
+  "executable without shell reconstruction", and the checkpoint composes it as an
+  `arc base merge --expected-base … --expected-head … --json` invocation. The bare stop is no longer bare.
+
+The close counted open owner strings and never asked whether the superseding rows had already discharged them.
+That is the reading to distrust in this section: an owner field is not a statement about whether work remains
+once the row it sits on has been superseded.
+
+**A third entry was genuinely unowned and never entered the audit at all.** The § Characterization ledger doctrine
+row — ceremony repetition turns on covered input — carries `_Fix:_` rather than `_Fix at close:_`, and the audit
+filtered on the latter, so it fell out of the forty-five before any column was checked. It was the one real gap,
+and the one that had been accumulating weight: the second matrix kept routing findings back to its absence.
+
+It is now routed to `delivery-rebuild-continuity`, under the constraint that the sentence land in a shared surface
+rather than in that work unit's draft. With that, **every row and every ledger-only finding in this work unit has
+an owner**, and the criterion's gap is closed rather than merely described.
+
+One method note for the next close: auditing by column name silently excludes any entry that names its columns
+differently. The doctrine row was visible in the file and invisible to the check.
+
+### The retained suite against the refreshed baselines
+
+One measurement per tier, after retention and after the refresh, read against the budgets this work unit just
+rewrote:
+
+| Tier          | Wall clock | Baseline | Budget  | Verdict  |
+| ------------- | ---------- | -------- | ------- | -------- |
+| `integration` | 44 043     | 46 553   | 51 209  | `within` |
+| `lane`        | 52 779     | 52 365   | 57 602  | `within` |
+| `e2e`         | 211 158    | 210 051  | 231 057 | `within` |
+
+All three within. Integration came in below its own refreshed baseline, which is the run-to-run spread the
+three-run median exists to absorb rather than a second improvement.
+
+### One stale statement corrected outside the tree
+
+`RELEASE-GATES.md` § Errand runway listed three Errands routed out of this ledger, one of which — dispatching the
+Errand lane's two mechanical base-drift gates from the typed verdict — Task 6.4 had already recorded as retired,
+its target met by sibling work and the two gates it named no longer present in the tree. The runway now carries two
+live Errands and records the third's retirement with its reason. The file is a personal artifact outside version
+control, so the correction travels with the checkout rather than with this commit.
+
+### Two obligations this task cannot close
+
+Both land at the verification boundary, as the task's own note states, and neither is optional.
+
+1. **Whether the e2e and integration legs ran** on the pull request — observable only once one exists, and the
+   question is whether the legs ran, not whether the workflow went green. The e2e job is skipped when the change is
+   classified light-weight, when reconciliation is deferred, and when the lane is not the reviewed one.
+2. **The per-CI-job budget rows**, whose only source is that same run. § Post-probe cost carries the number to
+   expect there: integration's summed file time rose over twelve percent while its wall clock moved under four,
+   and at `workerSizing: 1` there is no parallelism left to absorb the difference.
+
+## Post-probe cost
+
+Measured at Task 6.6, after retention, so the delta reflects the probes the suite keeps rather than the ones it
+briefly had. Same mode as the pre-probe baseline — `condition: tier-isolated` · `projectSet: <tier>` ·
+`workerSizing: 12` — three runs per tier, interleaved round-robin as the baseline was, so machine drift spreads
+across the three runs of each tier instead of pooling in one.
+
+All ten baseline run files were still in place, so the closing comparison is tool-computed rather than degraded to
+the recorded medians. Three request files name the run groups and live beside the runs, outside every checkout,
+because a tracked request naming machine-local absolute paths would read as portable when it is not.
+
+| Tier          | Before ms | After ms | Δ ms   | Δ %    | Files     | Tests           |
+| ------------- | --------- | -------- | ------ | ------ | --------- | --------------- |
+| `integration` | 44 784    | 46 553   | +1 769 | +3.95% | 141 → 152 | 1 418 → 1 488   |
+| `lane`        | 49 624    | 52 365   | +2 741 | +5.52% | 845 → 865 | 11 354 → 11 687 |
+| `e2e`         | 205 011   | 210 051  | +5 040 | +2.46% | 56 → 59   | 548 → 568       |
+
+**Budgets refreshed**, `budgetMs` being the ceiling of the baseline plus the record's ten-percent allowance:
+`integration` 44 836 → 46 553 (budget 49 320 → 51 209), `lane` 48 793 → 52 365 (53 673 → 57 602), `e2e`
+189 246 → 210 051 (208 171 → 231 057).
+
+### The wall clock hides what the probes actually cost
+
+Summed file time moved further than wall clock everywhere, and at one tier the gap is the finding:
+
+| Tier          | Summed file time      | Δ        | Δ %     | Noise verdict     |
+| ------------- | --------------------- | -------- | ------- | ----------------- |
+| `integration` | 411 631 → 462 686     | +51 055  | +12.40% | **established**   |
+| `lane`        | 542 947 → 572 896     | +29 949  | +5.52%  | unestablished     |
+| `e2e`         | 1 272 393 → 1 352 288 | +79 895  | +6.28%  | unestablished     |
+
+Integration's summed file time is the **only established signal in the sweep** — the only delta the tool puts
+outside its ten-percent noise band — while that same tier's wall clock moved under four percent. Twelve workers
+absorb the added file time almost entirely. So the probes cost real CPU that this measurement mode does not show,
+and the tier-isolated rows refreshed above understate what a lower worker sizing would charge.
+
+That matters for the rows this task cannot refresh. The per-CI-job rows run at `workerSizing: 1`, where there is
+no parallelism to absorb anything, so the twelve-percent file-time growth has nowhere to hide. They are refreshed
+at the verification boundary from the pull request's own run, and this is the number to expect there.
+
+### Most of the e2e overage is not this work unit's
+
+Worth separating, because the refresh is large enough to look like the probes caused it. The recorded e2e baseline
+was 189 246 ms. The pre-probe median was already 205 011 ms — **up 8.3 percent before a single probe landed** — and
+this work unit's probes added 2.46 percent on top. The pre-probe note predicted exactly this and called the refresh
+compelled rather than optional; it was right, and for the reason it gave.
+
+Two of the nine post-probe runs came in `over` against the old budgets and one `within`, which is the spread a
+single sample would have hidden. The medians are what the refresh uses.
+
+### E2E shard balance, re-read
+
+Derived with the same script, which reads the workflow and the file list rather than running anything, so the
+comparison is like for like.
+
+| Leg | Anchor                          | Remainder | New file landed here          |
+| --- | ------------------------------- | --------- | ----------------------------- |
+| 1   | `errand.e2e.test.ts`            | 13 → 14   | `integrate-base-movement`     |
+| 2   | `candidate-lineage.e2e.test.ts` | 13 → 14   | — (redistributed existing)    |
+| 3   | `command-input-no-input`        | 13 → 14   | `base-advance`                |
+| 4   | `lifecycle-exit.e2e.test.ts`    | 13 → 13   | `teardown-base-movement`      |
+
+Fifty-two files became fifty-five, and the anchors did not change. The partition behaved as the baseline said it
+would: whole files move, so three new files landed on three legs while the existing remainder redistributed —
+which is why leg 2 grew without gaining a new file and leg 4 gained one without growing.
+
+**Leg 1 is the one to watch.** Its anchor is `errand.e2e.test.ts`, which is excluded from the remainder entirely,
+and this work unit's Errand probes live inside that file — so their cost lands on that leg outside the balancing.
+Leg 1 then also drew `integrate-base-movement.e2e.test.ts`, the largest new e2e file. It is the only leg carrying
+both kinds of growth, and the per-CI-job refresh at the verification boundary should read it first.
+
+### One row this task does not refresh
+
+The `unit` tier-isolated row stands at its recorded baseline. The task names three rows and `unit` is not among
+them, so it is left as recorded rather than quietly widened — but this work unit did add eight tests to that tier
+in `pinned-observation.test.ts`, so the row is no longer measuring quite what it was. Stated here rather than
+acted on, because changing it is outside what this task was scoped to move.
+
+## Retention at close
+
+D9 applied at Task 6.5, once per probe. Forty-four rows carry a disposition; three of them name no probe because
+their cell closed. The suite loses seven tests and keeps thirty-four.
+
+| Disposition                                    | Rows |
+| ---------------------------------------------- | ---- |
+| deleted — the cell is already covered          | 7    |
+| kept — pinned, the pin being the handoff       | 14   |
+| kept — guards a boundary × movement cell       | 14   |
+| kept — guards an exact-target isolation case   | 3    |
+| kept — unpinned evidence for an open question  | 2    |
+| kept — a control nothing else covers           | 1    |
+| not applicable — the cell closed with no probe | 3    |
+
+**Every deletion is a control, and one control survives.** That is close to what D9 predicted: controls exist for
+the baseline count and fall wherever the clean path is already tested. Two fell to tests that predate this work
+unit. Four fell to their own boundary's `disjoint` row, which asserts the identical successful result over the same
+fixture — the movement row turns out to be a strict superset of the control it was measured against, so keeping
+both was counting the clean path twice. One, the Errand close, was covered on both sides at once.
+
+The survivor is the exception worth naming. Post-landing closeout's head-held control is the **only** assertion
+anywhere in the suite that a terminal merged at the exact head it binds closes out. Its movement row retires the
+terminal instead, so the clean path has no other witness; deleting it would have removed coverage rather than
+duplication. It is also the control that failed first on its own fixture, which is what made the movement readable
+in the first place.
+
+Nothing pinned was deleted. No fix has landed — this work unit ships none — so every pin is still a live handoff
+contract, and each falls under this same rule once its fix lands.
+
+Two probes are kept without pins on purpose, and the reason is the same in both: their owner's captures leave the
+verdict open. The materialization window carries the evidence that decision needs; post-land settlement proves the
+named remedy does not clear the refusal it is attached to. Pinning either would have settled by assertion a
+question its owner reserved, so they are retained as evidence rather than as holds.
+
+**What the deletions cost.** Integration drops one test and e2e six, measured after the change: 1,488 and 568,
+against 1,489 and 574 before. Both lanes green.
+
+## Second-matrix confirmation
+
+Taken at Task 7.6, walking § Second matrix against the ledger rather than the reverse, as at Task 5.4. The walk
+starts from what the enumeration promised so a cell that was never probed cannot pass by being absent from both.
+
+### Every enumerated cell resolves
+
+Nineteen cells survive applicability and twenty rows stand — the nineteen plus one control row at post-landing
+closeout, which the head-movement cell needed before its movement was readable.
+
+| Axis                               | Surviving | Probed | Closed with a reason                           |
+| ---------------------------------- | --------- | ------ | ---------------------------------------------- |
+| A — head movement                  | 5         | 4      | 1 — the Frontline-result binding, unproducible |
+| B — history shape                  | 4         | 4      | —                                              |
+| C — a write that is not an advance | 5         | 3      | 2 — landing and prepublication-to-entry        |
+| D — boundaries outside the six     | 5         | 5      | —                                              |
+
+Sixteen probed, three closed, none unresolved. The three closures each name the capture that owns the fix and
+record that the composition the cell lacks is the one that fix requires anyway.
+
+One enumerated cell sits outside this count because it never entered it: Axis A's Errand-review column was
+dispositioned `unobservable` at enumeration rather than surviving into the ledger, and it is rechecked below.
+
+### No pre-widening row was edited
+
+The widening began at the commit that introduced § Second-matrix probe rows. Diffing this file against its state
+immediately before that commit returns **zero removed or changed lines** — every line recorded before the widening
+is still present, in order, unedited. The widening is additive in the strict sense, which is what the append-only
+convention asks for and what makes the first matrix's rows still readable as the observations they were.
+
+The two corrections taken during the widening obey the same rule. Session-init's Axis C enumeration and the
+terminal-landing reading were both corrected by appending, so the superseded reading stays legible beside the one
+that replaced it.
+
+### The Errand-ceiling closure still holds, for the reason it was recorded
+
+Rechecked because the closure was written as conditional: Failure 6's cumulative accounting was held pending
+`review-signal-convergence`, on the ground that the lineage conventions it would count across are not on the base.
+
+`review-signal-convergence` is implementation-complete and verified on its own branch. It is **not merged into
+`origin/main`**, which still carries it as a planned draft under `review-protocol-alignment`, and the base this
+work unit records is unchanged at `cbf075da7`. The closure's condition is about the base, not about the work unit's
+maturity, so it holds exactly as written and nothing reopens.
+
+Worth stating plainly because the two readings are easy to swap: a work unit being done is not the same fact as its
+conventions being on the base a probe would run against.
+
+### Forward-compatibility screen — second matrix
+
+The first screen ran against the first matrix's routed mechanisms only. This one runs against the second matrix's,
+by the same method: each project strategy's own firing conditions rather than the index summary, once per routed
+mechanism rather than once per row. Three surfaces are in-development and one provisional, so what fired is a
+pointer for the owner and never a design or an acceptance condition.
+
+| Mechanism                                        | Fired                                                        | Pointer                                                                                                                |
+| ------------------------------------------------ | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| Head-equality bindings that read no ancestry     | storage-evolution; procedure-evolution                       | branch coupling — a member bound to a commit; recognizing append-only movement is computable                           |
+| Session-init's strictest-posture default         | storage-evolution; knowledge-evolution; procedure-evolution  | seed and locus reads under a moved record; an always-loaded surface; a cause-free message                              |
+| Frontline result as a projection, not a record   | storage-evolution                                            | whether a typed continuation becomes durable or stops being emitted at all                                             |
+| One ambiguity, four refusal vocabularies         | procedure-evolution; storage-evolution                       | controlled vocabulary for a load-bearing concept; the base coordinate's own identity                                   |
+| Operator index invalidating a minted admission   | procedure-evolution                                          | an untyped failure at the CLI↔agent boundary, with no reason field                                                     |
+| Record-only advance read as substantive          | storage-evolution; procedure-evolution                       | a record write moving a bound head; the distinction is computable                                                      |
+| Superseded authority never retired               | storage-evolution                                            | record lifecycle, and version-checked writes over records nothing retires                                              |
+| Preparation's reservation invalidating its apply | storage-evolution                                            | durable state a ceremony advances in the middle of its own ceremony                                                    |
+| Rebuild continuity across authoring and windows  | storage-evolution; procedure-evolution; package-project-sync | records carried across a rebuild; a typed constructor for what `deliver-stack.md` asks in prose; that file is two-copy |
+| Post-land settlement with no completing input    | procedure-evolution; storage-evolution                       | guidance naming a remedy that cannot clear it; a durable, re-enterable settlement                                      |
+
+As in the first screen, **the PM-composition surface fired for nothing.** No second-matrix mechanism adds or moves
+a PM-like fact, reads or writes a tracker, or changes whether a backlog, roadmap, or inbox surface is authoritative.
+That is now two independent passes over eighteen recorded failures with the same result, which is a stronger
+statement about this work unit's span than either pass alone.
+
+One newly fired surface is worth the owner's attention. `package-project-sync` did not fire anywhere in the first
+screen for `delivery-rebuild-continuity`; it fires here because the authoring capture's remedy is a typed verb
+replacing `deliver-stack.md`'s prose instruction to "record each authored cut", and that workflow file exists in
+both copies. The fix therefore carries a two-copy obligation its capture does not currently name.
+
+### Refusal remedy accuracy, at four instances
+
+The first screen recorded this mechanism firing `procedure-evolution` once. The second matrix supplies three more,
+and they are not variations — each is a working remedy the failing result does not name:
+
+1. A staged index invalidating a minted admission; clearing the index readmits it, proven at the probe.
+2. The owner-accepted terminus bypassing the review ceiling, which no ceiling refusal mentions.
+3. Sequential landing's refusal, where an unchanged re-attestation renews the continuation, recorded from the field.
+
+The fourth is the strongest and inverts the shape. Post-land settlement's guidance **does** name a remedy — resolve
+the listed paths and rerun — and the probe proves that remedy cannot clear it, because the conflict is composed
+before the resolved head is read. The first three are remedies that exist and go unnamed; this is a remedy that is
+named and does not exist.
+
+That asymmetry is why this belongs in the ceremony-repetition doctrine's home rather than in any single capture:
+a result's remedy field is load-bearing in both directions, and nothing currently checks it in either.
+
+### Correction — the append-only check was scoped wrong, and its number was wrong when written
+
+The subsection above reports that diffing this file against its state immediately before the widening returns
+**zero removed or changed lines**. It does not. At the commit that wrote that sentence the diff already returned
+nine; it returns **thirty-four** now. The original reading is left standing because rows are never edited, and
+what follows is what the diff actually contains.
+
+| What changed                                               | Lines | When                                     |
+| ---------------------------------------------------------- | ----- | ---------------------------------------- |
+| `_Retention at close:_ —` placeholders filled              | 24    | the retention pass, after the sentence   |
+| `_Owner:_ [open …]` placeholder resolved                   | 1     | the doctrine routing, after the sentence |
+| Forward-compatibility screen table — two labels, alignment | 9     | the stub mint, **before** the sentence   |
+
+**The heading still holds; the evidence under it did not.** No observation field was removed or rewritten
+anywhere in that diff — not one `_Observed:_`, `_Invocations:_`, `_Stops:_`, `_Fork:_`, `_Continuation:_`,
+`_Classification:_`, `_Intent:_`, `_Probe:_`, `_Base OID:_`, or `_Closure:_` line. Every one of the twenty-four
+retention fills preserves its row's entire preceding text verbatim and replaces only the `—`, which is the
+completion mechanism § Row shape defines: a field reads `—` until it is filled, and a row is complete when no `—`
+remains. Filling a placeholder is not editing a recorded observation. The single owner fill is the same class.
+The nine table lines are not a ledger row at all: the forward-compatibility screen exchanged two descriptive
+mechanism labels for the stub slugs that now own them, and re-aligned the columns.
+
+So the convention held and the criterion it serves is met. What failed is the check that was reported as proving
+it — a file-level diff cited as evidence for a row-level claim, run once and not re-run after two later passes
+touched the file. The same failure mode as the close-out audit that missed the doctrine row by filtering on a
+column name: **the check's scope did not match the sentence it was asked to support.** A row-level claim needs a
+row-level check, and any check quoted as evidence has to be re-run at the boundary that quotes it, not at the
+boundary that first ran it.
+
+## Record audit at close
+
+A pass over this file's and the task list's factual claims, run after the review fixes landed. Roughly fifty
+claims hold, including every not-applicable collapse, every unproducible closure, the cell matrix, the shard
+re-read, and both resolution tables. Seven do not. Four of those were written by commits in this same close-out
+sequence, and one of them is the correction immediately above. Rows are never edited, so each superseded reading
+stays where it is and the corrected reading is here.
+
+### The correction above measured against a baseline its own sentence does not name
+
+The subsection it corrects anchors itself explicitly — "the commit that introduced § Second-matrix probe rows".
+That is `97e160d4a`. The correction measured against `7bf8eba2c~1`, the span-widening amendment an hour earlier.
+Against the baseline the sentence actually names:
+
+| Baseline                            | Removed lines when the sentence was written | Removed lines now |
+| ----------------------------------- | ------------------------------------------- | ----------------- |
+| `97e160d4a~1` — the one it names    | **0**                                       | 25                |
+| `7bf8eba2c~1` — the one it measured | 9                                           | 34                |
+
+**The original sentence was true when written**, and the charge that the diff "already returned nine" is
+withdrawn. The nine lines are the forward-compatibility screen's table, changed by `62edc45a6`, which falls
+between the two baselines — inside the wrong one, outside the right one. What survives is the staleness: the
+diff returns twenty-five now, all of them placeholder fills and none an observation field, so the heading holds
+and the evidence first offered for it does not.
+
+One further claim in that correction is wrong on its own terms. _The single owner fill is the same class_ — it is
+not. Each of the twenty-four retention fills replaces a bare `—`, the completion sentinel § Row shape defines. The
+owner fill replaced `_Owner:_ [open — no surface owns it yet; see the routing report]`, prose that is not that
+sentinel. The conclusion it was offered for still stands, because `_Owner:_` is a disposition column rather than
+an observation, but it stands for a different reason than the one given.
+
+Worth saying without softening: a correction about a check whose scope did not match its sentence was itself
+written from a check whose scope did not match the sentence it corrected.
+
+### Six live rows cite a probe name that resolves to nothing
+
+Task 6.1 closed on the claim that every cited name resolves, and to exactly one test. Its goal named the exact
+mechanism that would undo it — the tests cite nothing back, so a renamed probe silently orphans its row. The
+claim held for ninety-three minutes. Two later commits renamed six cited probes and nothing re-ran the check.
+
+Renamed by `45d0d9060`, re-observing the landing boundary on the merged base. Each of these four rows has an
+explicit superseding row under § Re-run rows carrying the new name, so the record has a successor — but the
+superseded row does not say so at the row, and it still reads as live, `_Retention at close:_ kept`:
+
+- **Public review and checks · `disjoint` · singleton** — `review-status-base-movement.test.ts`, cited as "stops
+  for a checkpoint rerun after an advance sharing no path with the branch"; now "review status over a base
+  advanced under the work unit > settles after an advance sharing no path with the branch".
+- **Member / singleton landing · `disjoint` · singleton** — `integrate-base-movement.e2e.test.ts`, cited as
+  "invalidates the handle when the base advances under it"; now "the window between a minted handle and the merge
+  that consumes it > merges the approved head after an advance sharing no path with it".
+- **Member / singleton landing · `disjoint` · delivery-member** — `integrate-base-movement.e2e.test.ts`, cited as
+  "offers a reconcile after an advance sharing no path with the branch"; now "the checkpoint's base read under a
+  bound delivery plan > mints a handle after an advance sharing no path with the branch".
+- **Member / singleton landing · `overlapping-substantive` · delivery-member** —
+  `integrate-base-movement.e2e.test.ts`, cited as "admits an advance over a reviewable path the top member alone
+  changed"; now "the checkpoint's base read under a bound delivery plan > refuses a conflicting advance even under
+  a bound delivery plan".
+
+Renamed by `de7eb2eca`, the review-fix increment, which renamed each probe to assert what its row actually
+records rather than what it was hoped to record. These two rows are current readings with no superseding row, so
+nothing in the record points at the test that exists:
+
+- **Public review · head movement, append-only · delivery-member** —
+  `review-readiness-delivery-binding.test.ts`, cited as "admits a member whose head advanced without changing its
+  contribution"; now "readiness against a member head that advanced under its binding > reports nothing bound when
+  a member's head advanced without changing its contribution".
+- **Post-landing closeout · head movement, append-only · delivery-member** —
+  `delivery-binding-head-movement.test.ts`, cited as "retires a terminal the host merged at a descendant of the
+  head it binds"; now "delivery closeout against a terminal head that advanced under its binding > reports a
+  terminal unsettled when the host merged it past the head it binds".
+
+Each observation is unchanged; only the address is. The rename in both cases was the right fix — the old titles
+named the behavior the boundary does not have.
+
+### The `redundant ceremony` clause generalizes past its own scope
+
+§ Excess and bare stops gives the tally and then adds: **No row is `redundant ceremony`** — across six boundaries
+and both shapes, nothing in the post-execution tail re-ran a ceremony on base movement alone.
+
+The tally is right and the six-boundary scope is right. Across the twenty-four first-matrix rows no row carries
+that classification. The clause after the dash is not scoped to the six, and it is false. The second matrix's
+**Eligibility window · base movement, disjoint · delivery-member** row is a `redundant ceremony` classification on
+a disjoint base advance at a boundary in the post-execution tail. That is Axis D's whole point — a seam none of
+the enumerated six reads the base the way it does — so the counterexample is this work unit's own, produced after
+the sentence was written.
+
+Three other second-matrix rows carry `redundant ceremony` and do not bear on this: two are `history shape` and one
+is `a write that is not a base advance`, none of them base movement.
+
+The cost is what makes it matter more than the tally. That row's continuation `cleared`, but at a price its own
+cost column does not hold — re-preparing is one call, and the gates the fresh snapshot then requires are a full
+Tier 2 run per member. The most quotable sentence in the record is contradicted by its most expensive finding.
+
+### Fifteen resolving to none is nineteen
+
+Task 6.3.b's outcome reads: twenty-four open rows and seven ledger-only rows carry an owner and a fix; fifteen
+resolve to none. Both denominators are right. Counted against the rows, **sixteen** open rows carry
+`_Fix at close:_ none` and **three** ledger-only rows carry `_Fix:_ none` — nineteen, and nineteen at the commit
+that wrote the sentence as well. Sixteen is what a filter keyed on `_Fix at close:_` alone returns, so even the
+filter artifact does not reach fifteen. The ledger-only rows' different column name is the same defect
+§ Correction — the gap was misread records, one pass earlier and still uncaught here.
+
+### Two of the nine runs is four of the nine
+
+§ Most of the e2e overage reports that two of the nine post-probe runs came in `over` against the old budgets and
+one `within`. The nine are three rounds across three tiers. **Four** came in `over` — e2e in all three rounds, and
+`lane` in round three — and **five** `within`. Two plus one also does not account for nine.
+
+The sentence's point survives: a single sample would have hidden the spread, and the medians are what the refresh
+uses. The spread is wider than it said, and `lane` crossing in one round of three is precisely what the smaller
+number hid.
+
+### Two counts predate the review-fix increment
+
+Both were true when measured and have since moved, so these are stale rather than wrong.
+
+- § One row this task does not refresh says this work unit added eight tests to the `unit` tier in
+  `pinned-observation.test.ts`. That file is entirely this work unit's, and it carried eight `it` blocks when the
+  sentence was written. It carries **eighteen** now — `de7eb2eca` added ten while closing the helper's
+  silent-pass hole. The row is further from what it measures than the sentence says; the direction is unchanged.
+- § Post-probe cost records the `lane` tier at `11 354 → 11 687` tests over `845 → 865` files. The file count
+  still holds. The test count does not: the lane now reports 11 700 passing and one environment-gated skip. That
+  figure comes from the runner rather than from the benchmark that wrote the row, so read the direction and not
+  the delta — the like-for-like re-measure is the budget refresh the integration boundary already owns.
+
+### What has no guard
+
+Five of the seven are one defect: a claim measured once and quoted afterwards, with nothing re-running the
+measurement at the boundary that quotes it. Two of those were established by a task whose own goal named the
+failure mode it later suffered.
+
+One of the seven is mechanizable and the rest are not. A `_Probe:_` citation names a file and a test title, and
+the runner can produce the collected set; binding one to the other is a check rather than a judgment. Nothing
+does it, which is why Task 6.1's result survived ninety-three minutes and three subsequent close-out passes
+without anyone noticing. Routed as a capture rather than built here — this work unit ships no production surface,
+and a new check is not characterization.

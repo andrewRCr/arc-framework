@@ -224,35 +224,30 @@ framing is what makes append-only obviously correct rather than an arbitrary res
 
 ## Merge ordering between concurrent work units
 
-When two work units are ready to integrate around the same time, the order they merge in is itself a small
-coordination decision:
+Concurrent sessions do not coordinate around one another's landing windows. Each terminal boundary freshly observes
+the protected base and applies the shared integration policy:
 
-- **First-in-wins (the default).** Whichever work unit is ready first merges first; the second reconciles against
-  the now-updated base before it merges. Simple, and right for genuinely disjoint work where order doesn't matter.
+- **First-ready proceeds (the default).** Whichever work unit is ready first may merge first. A later disjoint landing
+  invalidates nothing and proceeds without a reconcile commit or repeated review; overlapping or unknown movement
+  reconciles or stops at that later work unit's terminal boundary.
 - **Explicit serialization (when order matters).** When one work unit should land before another — a shared-surface
   dependency, or a change the other builds on — say so rather than racing. A **"merge after #X"** note or label on
   the PR records the constraint where reviewers and merge tooling can see it.
-- **Merge queues.** A merge queue (GitHub merge queue, Mergify, and the like) automates first-in-wins safely: it
-  serializes merges and re-tests each against the updated base, so two green PRs can't combine into a broken
-  `main`. Where available, it's the mechanical answer to ordering between concurrent PRs.
+- **Merge queues are host-side options.** A team may enable a host queue for ordering and test-merge behavior. ARC
+  builds no queue mechanism and adds no review pass merely because a request reaches the queue head.
 
-**Errand branches ride the same discipline.** A `chore/<slug>` errand branch is a mini-PR — small, but it
-integrates through the same ordering: it waits its turn, reconciles against the base if something landed ahead of
-it, and respects any "merge after #X" constraint just as a full work unit does.
+**Errand branches use the same content rule.** A `chore/<slug>` Errand does not wait for another landing window.
+Disjoint movement invalidates nothing; overlapping or unknown movement reconciles or stops only at its own terminal
+boundary, while any explicit "merge after #X" constraint still governs order.
 
 ---
 
 ## Worktree operations
 
-Concurrency means several worktrees live at once; a few operational habits keep them coherent:
+Concurrency means several worktrees live at once. Typed locus and terminal operations keep their authority separate;
+one worktree does not become a global merge coordinator and a base landing does not trigger a refresh sweep of other
+live branches:
 
-- **Merge from one designated worktree.** Run integrations from the primary worktree (or a dedicated merge
-  worktree), not from whichever work-unit worktree you happen to be in. A single merge locus keeps updating the
-  base predictable and keeps work-unit worktrees focused on their own branch.
-- **Refresh the others after a merge.** When a work unit integrates and the base advances, the other live
-  worktrees are now behind. Reconcile them (merge the base in, per append-only) at a clean point so they don't
-  drift far. A **sync-all-worktrees** pass — fetch once, reconcile each live branch — is a good between-sessions
-  habit.
 - **Remove worktrees with `git worktree remove`, never `rm -rf`.** `git worktree remove` also cleans up git's
   internal bookkeeping (the administrative link under `.git/worktrees`); `rm -rf` deletes the directory but
   strands that record, which then needs a `git worktree prune` to clear. If a directory has already been deleted

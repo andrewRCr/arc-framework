@@ -8,7 +8,10 @@ import { resolveAllSettings } from "../lib/config/resolved-settings.js";
 import type { ResolvedSettingsResult } from "../lib/config/resolved-settings.js";
 import type { DeliveryReviewFixRecordEffectPorts } from
   "../lib/delivery/review-fix-record-effects.js";
-import { deliveryReviewFixRecordDigest } from
+import {
+  deliveryReviewFixRecordCommitMessagesMatch,
+  deliveryReviewFixRecordDigest,
+} from
   "../lib/delivery/review-fix-record-effects.js";
 import { canonicalize, sortByCanonicalBytes } from "../lib/kernel/index.js";
 import { observeDeliveryRemoteRef } from "../lib/delivery/git-materialization.js";
@@ -301,7 +304,8 @@ export function createDeliveryReviewFixReleaseEffectPorts(input: {
       const paths = sortByCanonicalBytes(pathsResult.stdout.split("\0").filter((path) => path !== ""));
       const message = messageResult.stdout.trimEnd();
       const matches = candidates.filter((candidate) =>
-        canonicalize(candidate.paths) === canonicalize(paths) && candidate.message === message);
+        canonicalize(candidate.paths) === canonicalize(paths)
+        && deliveryReviewFixRecordCommitMessagesMatch({ observed: message, expected: candidate.message }));
       if (matches.length > 1) {
         return { status: "refused" as const, reason: "record-effect-recovery-ambiguous" };
       }

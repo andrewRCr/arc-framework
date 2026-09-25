@@ -18,6 +18,7 @@ import {
 import type { V3RepositoryPlanTree } from "./decompose-v3-repository-plan.js";
 import {
   decodeV3DecomposeCutMap,
+  type V3DecomposeCutMap,
   v3SourceArtifactDigest,
   v3SourceId,
 } from "./decompose-v3-schema.js";
@@ -80,15 +81,9 @@ function concatenate(chunks: readonly Uint8Array[]): Uint8Array {
   return result;
 }
 
-/**
- * Plan exact source thinning without filesystem or Git mutation.
- *
- * @param input - Completed map, current source binding, and immutable source tree
- * @returns Exact path plans, or one deterministic refusal
- */
-export function planV3ExtractionSourceThinning(
+function validateV3ExtractionThinningAuthority(
   input: V3ExtractionSourceThinningInput,
-): V3ExtractionSourceThinningResult {
+): { status: "validated"; map: V3DecomposeCutMap } | V3ExtractionSourceThinningResult {
   const decoded = decodeV3DecomposeCutMap(input.completedMap);
   if (decoded.status === "rejected") return refuse(`map:${decoded.issue.code}`, decoded.issue.path);
   const map = decoded.value;
@@ -101,6 +96,21 @@ export function planV3ExtractionSourceThinning(
   if (inventoryDigest === null || inventoryDigest !== input.currentPreflight.sourceArtifactDigest) {
     return refuse("source-inventory", "sourceArtifactInventory");
   }
+  return { status: "validated", map };
+}
+
+/**
+ * Plan exact source thinning without filesystem or Git mutation.
+ *
+ * @param input - Completed map, current source binding, and immutable source tree
+ * @returns Exact path plans, or one deterministic refusal
+ */
+export function planV3ExtractionSourceThinning(
+  input: V3ExtractionSourceThinningInput,
+): V3ExtractionSourceThinningResult {
+  const validation = validateV3ExtractionThinningAuthority(input);
+  if (validation.status !== "validated") return validation;
+  const { map } = validation;
 
   const sourceUnits = new Map(map.machine.sourceUnits.map((unit) => [unit.sourceId, unit]));
   const allocations = new Map(map.authoring.sourceAllocations.map((allocation) => [

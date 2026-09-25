@@ -13,6 +13,7 @@ import {
   type ReviewTarget,
 } from "../core/gate-contract-v2-schema.js";
 import { bindReviewSourceReference } from "../core/review-source-reference.js";
+import { assertLocalReviewClaimBinding } from "../core/local-operation.js";
 import type {
   ApprovedDispositionRecordStore,
   ForwardReviewReceiptStore,
@@ -72,6 +73,7 @@ async function resumeLocalReviewWithinSourceLock(
     throw new LocalResumeCommandError("local review operation is unavailable");
   }
   const state = persisted.state;
+  assertLocalReviewClaimBinding(state);
   const receiptReference = (durableRef: string) => bindReviewSourceReference({
     kind: "attested-local",
     operationId: state.operationId,

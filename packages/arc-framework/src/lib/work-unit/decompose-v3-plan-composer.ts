@@ -222,6 +222,13 @@ function validNewMemberProfileMeta(
     && record.nextAction === `Begin ${workflow}`;
 }
 
+function scaffoldRoleIsApplicable(contribution: V3PlannedContentContribution): boolean {
+  return contribution.artifactRole !== "coordination"
+    && contribution.artifactRole !== "existing-home"
+    && contribution.artifactRole !== "tasks"
+    && contribution.disposition === "whole-file";
+}
+
 function destinationRoleIsApplicable(contribution: V3PlannedContentContribution): boolean {
   if (contribution.destinationKind === "cohort-coordination") {
     return contribution.artifactRole === "coordination"
@@ -241,16 +248,162 @@ function destinationRoleIsApplicable(contribution: V3PlannedContentContribution)
     return contribution.artifactRole === "notes" && contribution.disposition === "whole-file";
   }
   if (contribution.contributorKind === "scaffold") {
-    return contribution.artifactRole !== "coordination"
-      && contribution.artifactRole !== "existing-home"
-      && contribution.artifactRole !== "tasks"
-      && contribution.disposition === "whole-file";
+    return scaffoldRoleIsApplicable(contribution);
   }
   return contribution.contributorKind === "allocation" && contribution.disposition === "patch";
 }
 
 function projectionKey(sourceId: string, destinationId: string, targetLocator: TargetLocator): string {
   return canonicalDigest({ sourceId, destinationId, targetLocator });
+}
+
+function allocationProjectionCounts(input: V3PlanCompositionInput): Map<string, number> {
+  const projections = new Map<string, number>();
+  for (const allocation of input.validatedAllocations) {
+    if (allocation.disposition.kind !== "target") continue;
+    const key = projectionKey(
+      allocation.sourceId,
+      allocation.disposition.destinationId,
+      allocation.disposition.targetLocator,
+    );
+    projections.set(key, (projections.get(key) ?? 0) + 1);
+  }
+  return projections;
+}
+
+function consumeAllocationProjection(
+  contribution: V3PlannedContentContribution,
+  projections: Map<string, number>,
+): V3PlanCompositionRefusal | null {
+  if (contribution.contributorKind !== "allocation") {
+    return contribution.sourceProjection.length === 0
+      ? null
+      : {
+          code: "allocation-projection-mismatch",
+          path: contribution.path,
+          destinationId: contribution.destinationId,
+        };
+  }
+  const projection = contribution.sourceProjection[0];
+  if (contribution.sourceProjection.length !== 1
+    || projection === undefined
+    || !contribution.path.endsWith(`/${projection.targetLocator.artifact}`)) {
+    return {
+      code: "allocation-projection-mismatch",
+      path: contribution.path,
+      destinationId: contribution.destinationId,
+    };
+  }
+  const key = projectionKey(
+    projection.sourceId,
+    contribution.destinationId,
+    projection.targetLocator,
+  );
+  if (projections.get(key) !== 1) {
+    return {
+      code: "allocation-projection-mismatch",
+      path: contribution.path,
+      destinationId: contribution.destinationId,
+    };
+  }
+  projections.set(key, 0);
+  return null;
+}
+
+function validateContentContributions(
+  input: V3PlanCompositionInput,
+  destinations: ReadonlyMap<string, Destination>,
+): V3PlanCompositionRefusal | null {
+  const projections = allocationProjectionCounts(input);
+  for (const contribution of input.content) {
+    const destination = destinations.get(contribution.destinationId);
+    if (destination === undefined || destination.kind !== contribution.destinationKind) {
+      return {
+        code: "unknown-destination",
+        path: contribution.path,
+        destinationId: contribution.destinationId,
+      };
+    }
+    if (!destinationRoleIsApplicable(contribution)) {
+      return {
+        code: "incompatible-content-role",
+        path: contribution.path,
+        destinationId: contribution.destinationId,
+        artifactRole: contribution.artifactRole,
+      };
+    }
+    const expectedIdentity = contentIdentity(contribution);
+    if (contribution.contributorIdentity !== undefined
+      && contribution.contributorIdentity !== expectedIdentity) {
+      return {
+        code: "incompatible-content-role",
+        path: contribution.path,
+        destinationId: contribution.destinationId,
+        artifactRole: contribution.artifactRole,
+      };
+    }
+    const projectionMismatch = consumeAllocationProjection(contribution, projections);
+    if (projectionMismatch !== null) return projectionMismatch;
+  }
+  return [...projections.values()].some((count) => count !== 0)
+    ? { code: "allocation-projection-mismatch" }
+    : null;
+}
+
+function validateNewMemberDestinations(
+  input: V3PlanCompositionInput,
+): V3PlanCompositionRefusal | null {
+  const requiredRoles = expectedArtifactRoles(input.planningProfile);
+  for (const destination of input.destinations) {
+    if (destination.kind !== "new-member") continue;
+    const incompatibleScaffold = input.content.find((entry) =>
+      entry.destinationId === destination.destinationId
+      && entry.contributorKind === "scaffold"
+      && !requiredRoles.includes(entry.artifactRole));
+    if (incompatibleScaffold !== undefined) {
+      return {
+        code: "incompatible-content-role",
+        path: incompatibleScaffold.path,
+        destinationId: destination.destinationId,
+        artifactRole: incompatibleScaffold.artifactRole,
+      };
+    }
+    for (const artifactRole of requiredRoles) {
+      const matches = input.content.filter((entry) =>
+        entry.destinationId === destination.destinationId
+        && entry.contributorKind === "scaffold"
+        && entry.artifactRole === artifactRole);
+      if (matches.length !== 1) {
+        return {
+          code: "incomplete-profile-artifacts",
+          destinationId: destination.destinationId,
+          artifactRole,
+        };
+      }
+    }
+    if (!validNewMemberProfileMeta(input, destination.destinationId)) {
+      return { code: "profile-meta-mismatch", destinationId: destination.destinationId };
+    }
+  }
+  return null;
+}
+
+function validateDependencyProjections(
+  dependencies: readonly V3PlannedDependencyContribution[],
+  destinations: ReadonlyMap<string, Destination>,
+): V3PlanCompositionRefusal | null {
+  for (const dependency of dependencies) {
+    if (!isCanonicalDigest(dependency.edgeId)
+      || dependency.dependent.trim() === ""
+      || (dependency.destinationId !== null && !destinations.has(dependency.destinationId))) {
+      return {
+        code: "dependency-projection-mismatch",
+        path: dependency.path,
+        destinationId: dependency.destinationId ?? undefined,
+      };
+    }
+  }
+  return null;
 }
 
 /**
@@ -267,173 +420,25 @@ export function renderV3NewLeafMeta(
   return new TextEncoder().encode(renderMetaFile(slug, overrides));
 }
 
-/**
- * Bind every typed plan contribution into one canonical managed-path mutation table.
- *
- * @param input - Tree-derived profile, validated allocation projection, and exact byte claims.
- * @returns The closed plan plus its content-addressed final blobs, or the first refusal.
- */
-export function composeV3DecomposePlan(input: V3PlanCompositionInput): V3PlanCompositionResult {
-  const destinations = new Map(input.destinations.map((entry) => [entry.destinationId, entry]));
-  const allocationProjections = new Map<string, number>();
-  for (const allocation of input.validatedAllocations) {
-    if (allocation.disposition.kind !== "target") continue;
-    const key = projectionKey(
-      allocation.sourceId,
-      allocation.disposition.destinationId,
-      allocation.disposition.targetLocator,
-    );
-    allocationProjections.set(key, (allocationProjections.get(key) ?? 0) + 1);
-  }
+function pushExclusiveClaim(
+  claims: V3PlanPathClaim[],
+  blobs: Map<CanonicalDigest, Uint8Array>,
+  entry: V3PlannedExclusivePath,
+  role: "predecessor-retirement" | "retiring-source" | "roadmap",
+): void {
+  claims.push({
+    kind: "exclusive",
+    role,
+    path: entry.path,
+    base: state(entry.before, blobs),
+    after: state(entry.after, blobs),
+  });
+}
 
-  for (const contribution of input.content) {
-    const destination = destinations.get(contribution.destinationId);
-    if (destination === undefined || destination.kind !== contribution.destinationKind) {
-      return {
-        status: "refused",
-        refusal: {
-          code: "unknown-destination",
-          path: contribution.path,
-          destinationId: contribution.destinationId,
-        },
-      };
-    }
-    if (!destinationRoleIsApplicable(contribution)) {
-      return {
-        status: "refused",
-        refusal: {
-          code: "incompatible-content-role",
-          path: contribution.path,
-          destinationId: contribution.destinationId,
-          artifactRole: contribution.artifactRole,
-        },
-      };
-    }
-    const expectedIdentity = contentIdentity(contribution);
-    if (contribution.contributorIdentity !== undefined
-      && contribution.contributorIdentity !== expectedIdentity) {
-      return {
-        status: "refused",
-        refusal: {
-          code: "incompatible-content-role",
-          path: contribution.path,
-          destinationId: contribution.destinationId,
-          artifactRole: contribution.artifactRole,
-        },
-      };
-    }
-    if (contribution.contributorKind === "allocation") {
-      if (contribution.sourceProjection.length !== 1) {
-        return {
-          status: "refused",
-          refusal: {
-            code: "allocation-projection-mismatch",
-            path: contribution.path,
-            destinationId: contribution.destinationId,
-          },
-        };
-      }
-      const projection = contribution.sourceProjection[0];
-      if (projection === undefined
-        || !contribution.path.endsWith(`/${projection.targetLocator.artifact}`)
-        || allocationProjections.get(projectionKey(
-          projection.sourceId,
-          contribution.destinationId,
-          projection.targetLocator,
-        )) !== 1) {
-        return {
-          status: "refused",
-          refusal: {
-            code: "allocation-projection-mismatch",
-            path: contribution.path,
-            destinationId: contribution.destinationId,
-          },
-        };
-      }
-      allocationProjections.set(projectionKey(
-        projection.sourceId,
-        contribution.destinationId,
-        projection.targetLocator,
-      ), 0);
-    } else if (contribution.sourceProjection.length !== 0) {
-      return {
-        status: "refused",
-        refusal: {
-          code: "allocation-projection-mismatch",
-          path: contribution.path,
-          destinationId: contribution.destinationId,
-        },
-      };
-    }
-  }
-  const missingProjection = [...allocationProjections.values()].some((count) => count !== 0);
-  if (missingProjection) {
-    return { status: "refused", refusal: { code: "allocation-projection-mismatch" } };
-  }
-
-  const requiredRoles = expectedArtifactRoles(input.planningProfile);
-  for (const destination of input.destinations) {
-    if (destination.kind !== "new-member") continue;
-    const incompatibleScaffold = input.content.find((entry) =>
-      entry.destinationId === destination.destinationId
-      && entry.contributorKind === "scaffold"
-      && !requiredRoles.includes(entry.artifactRole));
-    if (incompatibleScaffold !== undefined) {
-      return {
-        status: "refused",
-        refusal: {
-          code: "incompatible-content-role",
-          path: incompatibleScaffold.path,
-          destinationId: destination.destinationId,
-          artifactRole: incompatibleScaffold.artifactRole,
-        },
-      };
-    }
-    for (const artifactRole of requiredRoles) {
-      const matches = input.content.filter((entry) =>
-        entry.destinationId === destination.destinationId
-        && entry.contributorKind === "scaffold"
-        && entry.artifactRole === artifactRole);
-      if (matches.length !== 1) {
-        return {
-          status: "refused",
-          refusal: {
-            code: "incomplete-profile-artifacts",
-            destinationId: destination.destinationId,
-            artifactRole,
-          },
-        };
-      }
-    }
-  }
-  for (const destination of input.destinations) {
-    if (destination.kind === "new-member"
-      && !validNewMemberProfileMeta(input, destination.destinationId)) {
-      return {
-        status: "refused",
-        refusal: {
-          code: "profile-meta-mismatch",
-          destinationId: destination.destinationId,
-        },
-      };
-    }
-  }
-  for (const dependency of input.dependencies) {
-    if (!isCanonicalDigest(dependency.edgeId)
-      || dependency.dependent.trim() === ""
-      || (dependency.destinationId !== null && !destinations.has(dependency.destinationId))) {
-      return {
-        status: "refused",
-        refusal: {
-          code: "dependency-projection-mismatch",
-          path: dependency.path,
-          destinationId: dependency.destinationId ?? undefined,
-        },
-      };
-    }
-  }
-
-  const blobs = new Map<CanonicalDigest, Uint8Array>();
+function composePathClaims(
+  input: V3PlanCompositionInput,
+  blobs: Map<CanonicalDigest, Uint8Array>,
+): V3PlanPathClaim[] {
   const claims: V3PlanPathClaim[] = [];
   for (const action of input.topology) {
     if (action.kind === "none") continue;
@@ -484,35 +489,39 @@ export function composeV3DecomposePlan(input: V3PlanCompositionInput): V3PlanCom
       },
     });
   }
-  const exclusive = (
-    entry: V3PlannedExclusivePath,
-    role: "predecessor-retirement" | "retiring-source" | "roadmap",
-  ): void => {
-    claims.push({
-      kind: "exclusive",
-      role,
-      path: entry.path,
-      base: state(entry.before, blobs),
-      after: state(entry.after, blobs),
-    });
-  };
   if (input.predecessorRetirement !== undefined) {
-    exclusive(input.predecessorRetirement, "predecessor-retirement");
+    pushExclusiveClaim(claims, blobs, input.predecessorRetirement, "predecessor-retirement");
   }
-  for (const retirement of input.sourceRetirements ?? []) exclusive(retirement, "retiring-source");
-  exclusive(input.roadmap, "roadmap");
+  for (const retirement of input.sourceRetirements ?? []) {
+    pushExclusiveClaim(claims, blobs, retirement, "retiring-source");
+  }
+  pushExclusiveClaim(claims, blobs, input.roadmap, "roadmap");
+  return claims;
+}
 
-  const expectedPaths = sortByCanonicalBytes(input.expectedPaths);
+function managedPathMismatch(
+  expectedPathInput: readonly string[],
+  claims: readonly V3PlanPathClaim[],
+): V3PlanCompositionRefusal | null {
+  const expectedPaths = sortByCanonicalBytes(expectedPathInput);
   const claimedPaths = sortByCanonicalBytes([...new Set(claims.map(({ path }) => path))]);
-  if (new Set(input.expectedPaths).size !== input.expectedPaths.length
+  return new Set(expectedPathInput).size !== expectedPathInput.length
     || expectedPaths.length !== claimedPaths.length
-    || expectedPaths.some((path, index) => path !== claimedPaths[index])) {
-    return { status: "refused", refusal: { code: "managed-path-set-mismatch" } };
-  }
+    || expectedPaths.some((path, index) => path !== claimedPaths[index])
+    ? { code: "managed-path-set-mismatch" }
+    : null;
+}
 
-  let topologyFacts: V3TopologyFact[];
+type PreparedTopology = {
+  status: "ready";
+  facts: V3TopologyFact[];
+  digest: CanonicalDigest;
+} | { status: "refused"; refusal: V3PlanCompositionRefusal };
+
+function prepareTopologyFacts(topology: readonly V3TopologyAction[]): PreparedTopology {
+  let facts: V3TopologyFact[];
   try {
-    topologyFacts = input.topology.map((action): V3TopologyFact => action.kind === "none"
+    facts = topology.map((action): V3TopologyFact => action.kind === "none"
       ? action
       : {
           kind: action.kind,
@@ -523,28 +532,24 @@ export function composeV3DecomposePlan(input: V3PlanCompositionInput): V3PlanCom
   } catch {
     return { status: "refused", refusal: { code: "unsupported-path-state" } };
   }
-  let observedTopologyDigest: CanonicalDigest;
   try {
-    observedTopologyDigest = v3TopologyDigest(topologyFacts);
+    return { status: "ready", facts, digest: v3TopologyDigest(facts) };
   } catch {
     return { status: "refused", refusal: { code: "invalid-plan-operand" } };
   }
-  const result = buildValidatedDecomposePlan({
-    preflightId: input.preflightId,
-    cutMapDigest: input.cutMapDigest,
-    sourceHead: input.sourceHead,
-    expectedBaseHead: input.expectedBaseHead,
-    topology: {
-      facts: topologyFacts,
-      digest: observedTopologyDigest,
-    },
-    prospectiveTransition: input.prospectiveTransition,
-    claims,
-  });
-  if (!result.ok) return { status: "refused", refusal: result.refusal };
+}
 
+type CollectedBlobs = {
+  status: "collected";
+  blobs: V3PlanBlob[];
+} | { status: "refused"; refusal: V3PlanCompositionRefusal };
+
+function collectFinalPlanBlobs(
+  plan: ValidatedDecomposePlan,
+  blobs: ReadonlyMap<CanonicalDigest, Uint8Array>,
+): CollectedBlobs {
   const finalBlobs = new Map<CanonicalDigest, Uint8Array>();
-  for (const mutation of result.plan.mutations) {
+  for (const mutation of plan.mutations) {
     if (mutation.after.kind === "absent") continue;
     const bytes = blobs.get(mutation.after.contentDigest);
     if (bytes === undefined) {
@@ -556,10 +561,48 @@ export function composeV3DecomposePlan(input: V3PlanCompositionInput): V3PlanCom
     finalBlobs.set(mutation.after.contentDigest, bytes);
   }
   return {
-    status: "composed",
-    plan: result.plan,
+    status: "collected",
     blobs: [...finalBlobs.entries()]
       .sort(([left], [right]) => Buffer.compare(Buffer.from(left), Buffer.from(right)))
       .map(([contentDigest, bytes]) => ({ contentDigest, bytes: new Uint8Array(bytes) })),
   };
+}
+
+/**
+ * Bind every typed plan contribution into one canonical managed-path mutation table.
+ *
+ * @param input - Tree-derived profile, validated allocation projection, and exact byte claims.
+ * @returns The closed plan plus its content-addressed final blobs, or the first refusal.
+ */
+export function composeV3DecomposePlan(input: V3PlanCompositionInput): V3PlanCompositionResult {
+  const destinations = new Map(input.destinations.map((entry) => [entry.destinationId, entry]));
+  const contentRefusal = validateContentContributions(input, destinations);
+  if (contentRefusal !== null) return { status: "refused", refusal: contentRefusal };
+  const destinationRefusal = validateNewMemberDestinations(input);
+  if (destinationRefusal !== null) return { status: "refused", refusal: destinationRefusal };
+  const dependencyRefusal = validateDependencyProjections(input.dependencies, destinations);
+  if (dependencyRefusal !== null) return { status: "refused", refusal: dependencyRefusal };
+
+  const blobs = new Map<CanonicalDigest, Uint8Array>();
+  const claims = composePathClaims(input, blobs);
+  const pathRefusal = managedPathMismatch(input.expectedPaths, claims);
+  if (pathRefusal !== null) return { status: "refused", refusal: pathRefusal };
+  const topology = prepareTopologyFacts(input.topology);
+  if (topology.status === "refused") return topology;
+  const result = buildValidatedDecomposePlan({
+    preflightId: input.preflightId,
+    cutMapDigest: input.cutMapDigest,
+    sourceHead: input.sourceHead,
+    expectedBaseHead: input.expectedBaseHead,
+    topology: {
+      facts: topology.facts,
+      digest: topology.digest,
+    },
+    prospectiveTransition: input.prospectiveTransition,
+    claims,
+  });
+  if (!result.ok) return { status: "refused", refusal: result.refusal };
+  const collected = collectFinalPlanBlobs(result.plan, blobs);
+  if (collected.status === "refused") return collected;
+  return { status: "composed", plan: result.plan, blobs: collected.blobs };
 }

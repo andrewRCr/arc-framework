@@ -30,7 +30,7 @@ import {
   createFixAuthorization,
 } from "../../../src/scripts/review-gate/core/fix-authorization.js";
 import { createReviewTarget } from "../../../src/scripts/review-gate/core/gate-contract-v2.js";
-import { deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
+import { deliveryPlanFixture, deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
 const plan = deliveryStackPlanFixture();
@@ -412,6 +412,28 @@ describe("delivery review-fix continuation projection", () => {
     });
   });
 
+  it("ignores Candidate-owned private frontline fixes when selecting a public member response", () => {
+    const privateReview = deliveryDispositionRecord({ operationId: "private-member-review" });
+    const privateCandidate = ApprovedDispositionRecordSchema.parse({
+      ...privateReview,
+      candidate: {
+        workUnit: plan.workUnitId,
+        candidateId: canonicalDigest({ candidate: "private-member-review" }),
+      },
+      source: { kind: "frontline", outcomeRef: "frontline-outcome/private-member-review" },
+    });
+    const publicPending = deliveryDispositionRecord({ operationId: "public-member-review" });
+
+    expect(selectPendingDeliveryReviewFixAuthority({
+      workUnitId: plan.workUnitId,
+      records: [privateCandidate],
+    })).toEqual({ status: "none" });
+    expect(selectPendingDeliveryReviewFixAuthority({
+      workUnitId: plan.workUnitId,
+      records: [privateCandidate, publicPending],
+    })).toMatchObject({ status: "selected", operationId: publicPending.operationId });
+  });
+
   it("refuses ambiguous or internally inexact pending hosted member authority", () => {
     const first = deliveryDispositionRecord({ operationId: "operation-first" });
     const second = deliveryDispositionRecord({ operationId: "operation-second" });
@@ -600,7 +622,7 @@ describe("delivery review-fix continuation projection", () => {
       status: "verification-required",
       verification: {
         target: continuation.verification.target,
-        tier1Reuse: { targetTree: continuation.verification.target.tree },
+        tier1ReuseCriteria: { targetTree: continuation.verification.target.tree },
       },
       resumeAction: { input: { repository: request.repository, remote: request.remote } },
     });
@@ -917,6 +939,54 @@ describe("delivery review-fix continuation projection", () => {
     });
   });
 
+  it("does not mistake a landed predecessor for a pending M2 refresh or correction", () => {
+    const laterMember = plan.members[1];
+    if (laterMember === undefined) throw new Error("continuation fixture requires a later member");
+    const state = currentChainState();
+    const afterLanding = {
+      revision: 4,
+      value: {
+        ...state,
+        members: state.members.map((member, index) => index === 1
+          ? { ...member, coordinates: { ...member.coordinates!, base: "e".repeat(40) } }
+        : member),
+      },
+    };
+    const laterRoute = route("provider-refresh");
+    if (laterRoute.status !== "planned" || laterRoute.route !== "provider-refresh") {
+      throw new Error("continuation fixture requires a provider-refresh route");
+    }
+    expect(projectDeliveryReviewFixContinuation({
+      request,
+      entry: correctionEntry(),
+      state: afterLanding,
+      landedDeliverableIds: [selectedDeliverableId],
+      route: laterRoute,
+    })).toEqual({ status: "refused", reason: "review-fix-route-mismatch" });
+    expect(projectDeliveryReviewFixContinuation({
+      request,
+      entry: { ...correctionEntry(), selectedDeliverableId: laterMember.deliverableId },
+      state: afterLanding,
+      landedDeliverableIds: [selectedDeliverableId],
+      route: {
+        ...laterRoute,
+        selectedDeliverableId: laterMember.deliverableId,
+        affectedDeliverableIds: [laterMember.deliverableId],
+      },
+      authoring: {
+        status: "authoring-required",
+        kind: "candidate",
+        ref: "refs/arc/delivery-candidates/plan/second",
+        checkoutPath: "/repo/.git/gate/second",
+      },
+    })).toMatchObject({
+      status: "authoring-required",
+      selectedDeliverableId: laterMember.deliverableId,
+      nextAction: "author-correction",
+      authoring: { kind: "candidate", checkoutPath: "/repo/.git/gate/second" },
+    });
+  });
+
   it("finishes a unique pending selected refresh before Candidate verification", () => {
     expect(projectDeliveryReviewFixContinuation({
       request,
@@ -959,7 +1029,7 @@ describe("delivery review-fix continuation projection", () => {
     if (result.status !== "dispatch") throw new Error("retained refresh must dispatch");
     expect(result.action).toEqual({
       kind: "delivery-refresh-execute",
-      argv: ["arc", "delivery", "refresh", "execute", "-", "--json"],
+      argv: ["arc", "delivery", "refresh", "execute", "-"],
       input: {
         planId: plan.planId,
         repository: request.repository,
@@ -1011,7 +1081,7 @@ describe("delivery review-fix continuation projection", () => {
             deliveryStatusAction: {
               kind: "resolve-delivery-status" as const,
               workUnitId: plan.workUnitId,
-              command: `arc review status --work-unit ${plan.workUnitId} --json`,
+              command: `arc review status --work-unit ${plan.workUnitId}`,
               interactionText: recommendedActionText,
             },
             recommendedActionText,
@@ -1068,5 +1138,20 @@ describe("delivery review-fix continuation projection", () => {
       stateRevision: 10,
       recommendedActionText,
     });
+  });
+
+  it("preserves retired-projection repair through the review-fix continuation", () => {
+    const retired = deliveryPlanFixture();
+    const entry: DeliveryEntryInspectionResult = {
+      status: "repair-required",
+      nextAction: "reauthor-plan",
+      reason: "unsupported-projection",
+      planId: retired.planId,
+      planRevision: retired.planRevision,
+      entry: retired.entry,
+      recommendedActionText: "Re-author the retired projection before continuing.",
+    };
+
+    expect(projectDeliveryReviewFixContinuation({ request, entry })).toEqual(entry);
   });
 });

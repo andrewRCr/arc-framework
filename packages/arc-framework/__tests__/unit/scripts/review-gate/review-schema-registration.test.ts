@@ -72,24 +72,31 @@ const reviewIdentities = [
   "project-routing-promotion",
   "proposed-disposition-set",
   "normalized-review-finding",
-  "review-applicability",
-  "review-applicability-id-preimage",
   "review-command-error-envelope",
   "review-chunking-resolve-envelope",
   "review-chunking-resolve-request",
   "review-change-request-resolve-result",
   "review-checks-await-result",
   "review-frontline-resolve-envelope",
+  "review-frontline-resolve-request",
   "review-frontline-run-envelope",
   "review-hosted-await-envelope",
+  "review-hosted-await-request",
   "review-hosted-request-envelope",
+  "review-hosted-request-request",
   "review-hosted-settle-envelope",
+  "review-hosted-settle-request",
   "review-local-attest-envelope",
+  "review-local-attest-request",
   "review-local-prepare-envelope",
+  "review-local-prepare-request",
   "review-local-resume-envelope",
+  "review-local-resume-request",
   "review-merge-method-resolve-result",
   "review-reduce-envelope",
+  "review-reduce-request",
   "review-respond-envelope",
+  "review-respond-request",
   "review-assurance-input",
   "review-guidance-digest-preimage",
   "review-lifecycle-tail-proof",
@@ -100,6 +107,7 @@ const reviewIdentities = [
   "review-policy-version-preimage",
   "review-pre-publication-envelope",
   "review-readiness-envelope",
+  "review-readiness-request",
   "review-receipt",
   "review-receipt-ledger",
   "review-request",
@@ -108,6 +116,7 @@ const reviewIdentities = [
   "review-requirement",
   "review-requirement-id-preimage",
   "review-resolve-envelope",
+  "review-resolve-request",
   "review-response-input",
   "review-response-plan",
   "review-rubric-overlay-resolution",
@@ -118,6 +127,7 @@ const reviewIdentities = [
   "review-status-result",
   "review-target",
   "review-target-id-preimage",
+  "review-terminus-accept-request",
   "severity-gating-policy",
   "work-unit-review-assurance",
 ];
@@ -143,7 +153,6 @@ describe("review schema registration", () => {
     expect(registry.meta("review-policy-version-preimage")?.version).toBe(2);
     expect(registry.meta("review-lifecycle-tail-proof")?.version).toBe(2);
     expect(registry.meta("review-response-plan")?.version).toBe(2);
-    expect(registry.meta("review-applicability")?.version).toBe(2);
     expect(registry.meta("canonical-change-set")?.version).toBe(1);
   });
 
@@ -299,6 +308,18 @@ describe("review schema registration", () => {
       target: coordinates,
       resolution,
     })).toMatchObject({ target: coordinates });
+    expect(FrontlineRunRequestSchema.parse({
+      schemaVersion: 1,
+      target: coordinates,
+      resolution,
+      retryOfOperationId: `sha256:${"a".repeat(64)}`,
+    })).toMatchObject({ retryOfOperationId: `sha256:${"a".repeat(64)}` });
+    expect(FrontlineRunRequestSchema.safeParse({
+      schemaVersion: 1,
+      target: coordinates,
+      resolution,
+      retryOfOperationId: "previous-run",
+    }).success).toBe(false);
     for (const extra of [
       { repositoryId: "repo-1" },
       { diffBaseTree: "b".repeat(40) },

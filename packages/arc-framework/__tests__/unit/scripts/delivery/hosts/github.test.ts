@@ -97,6 +97,54 @@ describe("GhDeliveryHostPort", () => {
       .resolves.toEqual({ status: "registered", stackNumber: 9 });
   });
 
+  it("recognizes the registered unlanded suffix after GitHub retains a merged prefix", async () => {
+    const second = nativeInput.members[1]!;
+    const remaining: DeliveryNativeStackInput = {
+      repository,
+      members: [{ ...second, baseRef: "main" }],
+    };
+    const response = [{
+      number: 9,
+      base: { ref: "main" },
+      pull_requests: [
+        { number: 401, state: "closed", merged_at: "2026-09-14T04:06:01Z",
+          head: { ref: "delivery/example/first", sha: headSha } },
+        { number: 402, state: "open", merged_at: null,
+          head: { ref: second.headRef, sha: second.headSha } },
+      ],
+    }];
+
+    await expect(new GhDeliveryHostPort(runner(response)).observe(remaining))
+      .resolves.toEqual({ status: "registered", stackNumber: 9 });
+  });
+
+  it.each([
+    { label: "an invalid head SHA", prefix: { number: 401, head: { ref: "delivery/example/first", sha: "invalid" } } },
+    { label: "a nonpositive PR number", prefix: { number: 0, head: { ref: "delivery/example/first", sha: headSha } } },
+    { label: "an invalid merge timestamp", prefix: { number: 401,
+      head: { ref: "delivery/example/first", sha: headSha }, merged_at: "invalid" } },
+  ])("does not discard a merged prefix with $label", async ({ prefix }) => {
+    const second = nativeInput.members[1]!;
+    const remaining: DeliveryNativeStackInput = {
+      repository,
+      members: [{ ...second, baseRef: "main" }],
+    };
+    const response = [{
+      number: 9,
+      base: { ref: "main" },
+      pull_requests: [
+        { state: "closed", merged_at: "2026-09-14T04:06:01Z", ...prefix },
+        { number: 402, state: "open", merged_at: null,
+          head: { ref: second.headRef, sha: second.headSha } },
+      ],
+    }];
+
+    await expect(new GhDeliveryHostPort(runner(response)).observe(remaining)).resolves.toEqual({
+      status: "partial",
+      affectedDeliverableIds: [second.deliverableId],
+    });
+  });
+
   it("excludes a chained dependent request from the registered-member predicate", async () => {
     const response = [{
       number: 9,
@@ -403,6 +451,30 @@ describe("GhDeliveryHostPort", () => {
         status: "refused",
         reason: "unavailable",
         provider: { kind: "http", status: 422, exitCode: 1 },
+      });
+
+    const conflict: HostedProcessRunner = { run: async () => {
+      throw new HostedProcessError(
+        "merge failed",
+        "Pull request owner/repo#401 is not mergeable: the merge commit cannot be cleanly created.",
+        1,
+      );
+    } };
+    await expect(new GhDeliveryHostPort(conflict).mergeRequest(effect))
+      .resolves.toEqual({ status: "refused", reason: "conflict" });
+
+    const branchPolicy: HostedProcessRunner = { run: async () => {
+      throw new HostedProcessError(
+        "merge failed",
+        "Pull request owner/repo#401 is not mergeable: the base branch policy prohibits the merge.",
+        1,
+      );
+    } };
+    await expect(new GhDeliveryHostPort(branchPolicy).mergeRequest(effect))
+      .resolves.toEqual({
+        status: "refused",
+        reason: "unavailable",
+        provider: { kind: "command-failed", exitCode: 1 },
       });
 
     const commandFailure: HostedProcessRunner = { run: async () => {

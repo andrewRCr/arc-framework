@@ -12,7 +12,7 @@ import { parseCodeRabbitAgentResult } from "./frontline-agent.js";
 import {
   CodeRabbitExecutableUnavailableError,
 } from "./executable.js";
-import type { CodeRabbitProcessResult } from "./process.js";
+import { codeRabbitProcessDiagnostic, type CodeRabbitProcessResult } from "./process.js";
 
 export const CODERABBIT_FRONTLINE_REGISTRATION: FrontlineSourceRegistration = {
   sourceId: "coderabbit-cli",
@@ -130,7 +130,7 @@ export async function executeCodeRabbitFrontline(input: {
       ? { kind: "capability-unsupported" as const }
       : {
           kind: "failed" as const,
-          reason: error instanceof Error ? error.message : String(error),
+          reason: codeRabbitProcessDiagnostic(error, "executable resolution"),
         };
     return {
       outcome: normalizeFrontlineOutcome({
@@ -185,12 +185,18 @@ export async function executeCodeRabbitFrontline(input: {
         executableIdentity: null,
       };
     }
-    processResult = {
-      exitCode: null,
-      signal: "process-error",
-      stdout: "",
-      stderr: "",
-      canceled: input.signal.aborted,
+    return {
+      outcome: normalizeFrontlineOutcome({
+        providerResult: { kind: "failed", reason: codeRabbitProcessDiagnostic(error) },
+        source: input.source,
+        target: input.target,
+        pass: input.pass,
+        maxPasses: input.maxPasses,
+      }),
+      executableIdentity: {
+        digest: executable.digest,
+        qualifiedVersion: executable.qualifiedVersion,
+      },
     };
   }
   const cliVersion = executable.qualifiedVersion.includes("/")

@@ -3,34 +3,64 @@
 import { z } from "zod";
 
 import { readConfigSettings } from "../../lib/config/status-reader.js";
-import { createCurrentBaseDriftAdapters } from "../../lib/base-drift/current-adapters.js";
-import { runBaseDrift } from "../../lib/git/base-distance.js";
-import { getCurrentBranch, resolveIdentity, type GitExec } from "../../lib/git/index.js";
+import {
+  createCurrentBaseDriftAdapters,
+  workUnitPathTreatmentContext,
+} from "../../lib/base-drift/current-adapters.js";
+import { runBaseDrift, type BaseDriftResult } from "../../lib/git/base-distance.js";
+import {
+  getCurrentBranch,
+  observeGitMergeFeasibility,
+  resolveIdentity,
+  type GitExec,
+  type GitMergeFeasibility,
+} from "../../lib/git/index.js";
+import { createRawGitExec } from "../../lib/io-context.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { createUserSurfaceResolver } from "../../lib/user-surfaces.js";
 import {
+  ChangeRequestMergeObservationSchema,
+  observeChangeRequestMergeAdmission,
   resolveChangeRequest,
+  type ChangeRequestMergeObservation,
   type ChangeRequestResolutionPort,
 } from "../review-gate/change-request.js";
-import { awaitRequiredChecks } from "../review-gate/checks-await.js";
+import { observeRequiredChecks } from "../review-gate/checks-await.js";
 import { evaluateReviewReadiness } from "../review-gate/readiness.js";
 import { createGhChangeRequestResolutionPort } from "../review-gate/hosts/github/change-request.js";
+import { createGhChangeRequestMergeObservationPort } from
+  "../review-gate/hosts/github/merge-observation.js";
 import { resolveAcceptableDeliveryBaseRefs } from
   "../review-gate/core/delivery-member-lookup.js";
 import { createGhRequiredChecksPort } from "../review-gate/hosts/github/checks-await.js";
+import { readGhRequiredStatusPolicy } from "../review-gate/hosts/github/checks-await.js";
 import { GhMergeLockPort } from "../review-gate/hosts/github/merge-lock.js";
 import { createGhMergeMethodPolicyPort } from "../review-gate/hosts/github/merge-method.js";
 import { createGitTreeReadFs } from "../review-gate/hosts/local/git-tree-fs.js";
+import { readAncestry } from "../../lib/work-unit/git-decomposition-object-readers.js";
 import { RepositoryDeliveryMemberLookup } from "../review-gate/hosts/local/delivery-member-lookup.js";
 import { readMergeLockSetting } from "../review-gate/hosts/local/merge-lock-config.js";
-import { GhHostedReviewPort, hostedGhRunner } from "../review-gate/hosted/gh-process.js";
+import {
+  GhHostedReviewPort,
+  HostedProcessError,
+  hostedGhRunner,
+  type HostedProcessRunner,
+} from "../review-gate/hosted/gh-process.js";
 import { settleHostedFinding } from "../review-gate/hosted/settle.js";
 import { holdMergeLock, releaseMergeLock } from "../review-gate/merge-lock.js";
 import { MergeMethodSchema, resolveMergeMethod } from "../review-gate/merge-method.js";
 import { createRespondDependencies } from "../review-gate/runtime/respond-composition.js";
 import { respondToReviewCommand } from "../review-gate/runtime/respond-command.js";
+import { confirmCandidateResponseAction } from "./candidate-response-confirmation.js";
 import { readIntegrationCheckpointComposition } from "./checkpoint-store.js";
 import {
+  checkpointMovementCause,
+  composeCheckpointMovementPlan,
+  CheckpointMovementObservationSchema,
+} from "./checkpoint.js";
+import {
+  IntegrationBindingChangedError,
+  type IntegrationFinalPlan,
   type IntegrationMergeDependencies,
   type IntegrationMergeTarget,
 } from "./merge.js";
@@ -40,13 +70,62 @@ import {
   type IntegrationLifecycleStoragePort,
 } from "./checkpoint-composition.js";
 
-const CHECKS_TIMEOUT_MS = 10 * 60 * 1_000;
-const CHECKS_POLL_INTERVAL_MS = 10 * 1_000;
 const GitHubMergeResponseSchema = z.object({
   merged: z.boolean(),
   message: z.string(),
   sha: z.string().nullable().optional(),
 }).loose();
+const GitHubMergeConfirmationSchema = z.object({
+  number: z.number().int().positive(),
+  merged: z.boolean(),
+  merge_commit_sha: z.string().nullable(),
+  base: z.object({ ref: z.string().min(1) }).loose(),
+  head: z.object({ ref: z.string().min(1), sha: z.string().min(1) }).loose(),
+}).loose();
+
+/** Bind final work-unit movement evidence to one refreshed host target. */
+export function composeIntegrationFinalPlan(input: {
+  readonly drift: Pick<
+    BaseDriftResult,
+    "verdict" | "baseOid" | "headOid" | "movement" | "integrationEvidence" | "overlap"
+  >;
+  readonly target: IntegrationMergeTarget;
+  readonly feasibility: GitMergeFeasibility;
+  readonly admission: ChangeRequestMergeObservation;
+}): IntegrationFinalPlan {
+  const { drift, target } = input;
+  if (drift.baseOid === null || typeof drift.headOid !== "string" || drift.headOid !== target.headSha
+    || drift.movement === undefined
+    || (drift.verdict !== "clean" && drift.verdict !== "reconcile")) {
+    return {
+      status: "unavailable",
+      target,
+      baseOid: drift.baseOid,
+      detail: typeof drift.headOid === "string" && drift.headOid !== target.headSha
+        ? `The authoritative drift head ${drift.headOid} does not match the refreshed host head ${target.headSha}.`
+        : "The final authoritative base movement could not be established.",
+    };
+  }
+  const observation = CheckpointMovementObservationSchema.parse({
+    movement: drift.movement,
+    ...checkpointMovementCause(drift.overlap?.status),
+    integrationEvidenceComplete: drift.integrationEvidence?.coverage === "complete",
+    feasibility: input.feasibility,
+    admission: input.admission,
+  });
+  return {
+    status: "available",
+    target,
+    baseOid: drift.baseOid,
+    observation,
+    plan: composeCheckpointMovementPlan(observation),
+  };
+}
+
+function failureDetail(error: unknown): string {
+  const detail = (error instanceof Error ? error.message : String(error)).replace(/\s+/gu, " ").trim();
+  return detail.slice(0, 1_024) || "The host operation failed without diagnostic detail.";
+}
 
 /** Bind Git, GitHub, review, lifecycle, and checkpoint stores to the merge reducer. */
 export function createIntegrationMergeDependencies(input: {
@@ -55,21 +134,30 @@ export function createIntegrationMergeDependencies(input: {
   workUnit: string;
   lifecycleStorage?: IntegrationLifecycleStoragePort;
   changeRequestPort?: ChangeRequestResolutionPort;
+  hostedRunner?: HostedProcessRunner;
 }): IntegrationMergeDependencies {
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
   const settings = () => {
     settingsPromise ??= readConfigSettings(input.cwd);
     return settingsPromise;
   };
-  const hostedPort = new GhHostedReviewPort(hostedGhRunner);
+  const runner = input.hostedRunner ?? hostedGhRunner;
+  const hostedPort = new GhHostedReviewPort(runner);
+  const rawExec = createRawGitExec(input.cwd);
   const changeRequestPort = input.changeRequestPort
     ?? createGhChangeRequestResolutionPort(input.exec, input.cwd);
+  const mergeObservationPort = createGhChangeRequestMergeObservationPort(runner);
   const respondDependencies = createRespondDependencies(input);
   const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec: input.exec, cwd: input.cwd });
+  const rootExec: GitExec = (command, args, options) => input.exec(command, args, {
+    ...options,
+    cwd: input.cwd,
+  });
   const lockPort = new GhMergeLockPort(
-    hostedGhRunner,
+    runner,
     (request) => evaluateReviewReadiness(request, {
       deliveryMemberLookup,
+      readDeliveryAncestry: (ancestor, descendant) => readAncestry(rootExec, ancestor, descendant),
       fs: createGitTreeReadFs({
         cwd: input.cwd,
         revision: request.target.headSha,
@@ -117,12 +205,14 @@ export function createIntegrationMergeDependencies(input: {
   const liveTarget = async (target: IntegrationMergeTarget): Promise<IntegrationMergeTarget> => {
     const repository = await changeRequestPort.resolveRepository();
     if (repository.toLowerCase() !== target.repository.toLowerCase()) {
-      throw new Error("The live repository no longer matches the checkpointed target.");
+      throw new IntegrationBindingChangedError(
+        "target", "The live repository no longer matches the checkpointed target.",
+      );
     }
     const candidates = await changeRequestPort.listByHead(repository, target.headRef);
     const candidate = candidates.find(({ number }) => number === target.pullRequest);
     if (candidate === undefined || candidate.state !== "OPEN") {
-      throw new Error("The checkpointed change request is no longer open.");
+      throw new IntegrationBindingChangedError("target", "The checkpointed change request is no longer open.");
     }
     return {
       repository,
@@ -131,6 +221,38 @@ export function createIntegrationMergeDependencies(input: {
       headRef: candidate.headRefName,
       headSha: candidate.headRefOid,
     };
+  };
+  const confirmPinned = async (target: IntegrationMergeTarget) => {
+    try {
+      const response = GitHubMergeConfirmationSchema.parse(JSON.parse((await runner.run([
+        "api", `repos/${target.repository}/pulls/${target.pullRequest}`,
+      ])).stdout) as unknown);
+      if (response.number !== target.pullRequest
+        || response.base.ref !== target.baseRef
+        || response.head.ref !== target.headRef) {
+        return {
+          state: "unavailable" as const,
+          detail: "The confirmation no longer identifies the exact approved change request and target.",
+        };
+      }
+      if (response.head.sha !== target.headSha) {
+        return {
+          state: "head-moved" as const,
+          actualHead: response.head.sha,
+          detail: "The change-request head moved before exact merge confirmation.",
+        };
+      }
+      if (!response.merged) return { state: "unmerged" as const };
+      return {
+        state: "merged" as const,
+        providerMergeId: response.merge_commit_sha,
+      };
+    } catch (error) {
+      return {
+        state: "unavailable" as const,
+        detail: `Exact merged-state confirmation was unavailable: ${failureDetail(error)}`,
+      };
+    }
   };
 
   const lockRequest = async (target: IntegrationMergeTarget) => ({
@@ -165,6 +287,13 @@ export function createIntegrationMergeDependencies(input: {
         fixTarget === null ? request : { ...request, settledFixTarget: fixTarget },
         respondDependencies,
       ),
+      confirmCandidateResponse: (action) => confirmCandidateResponseAction({
+        cwd: input.cwd,
+        exec: input.exec,
+        workUnit: record.workUnit,
+        approvedHead: record.approvedHead,
+        action,
+      }),
     }),
     readStatus: async (workUnit) => {
       const [target, cadence, actualHead] = await Promise.all([
@@ -215,53 +344,162 @@ export function createIntegrationMergeDependencies(input: {
         || current.baseRef !== target.baseRef
         || current.headRef !== target.headRef
       ) {
-        throw new Error("The live target no longer identifies the checkpointed change request.");
+        throw new IntegrationBindingChangedError(
+          "target", "The live target no longer identifies the checkpointed change request.",
+        );
       }
       return current;
     },
     releaseLock: async (target) => releaseMergeLock(await lockRequest(target), lockPort),
     holdLock: async (target) => holdMergeLock(await lockRequest(target ?? await currentTarget()), lockPort),
     createLockRequest: async (target) => lockRequest(target ?? await currentTarget()),
-    awaitChecks: async (target) => awaitRequiredChecks({
+    observeChecks: async (target) => observeRequiredChecks({
       repository: target.repository,
       pullRequest: target.pullRequest,
       headSha: target.headSha,
-      timeoutMs: CHECKS_TIMEOUT_MS,
-      pollIntervalMs: CHECKS_POLL_INTERVAL_MS,
     }, {
-      port: createGhRequiredChecksPort(hostedGhRunner),
-      clock: {
-        now: () => Date.now(),
-        sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
-      },
+      port: createGhRequiredChecksPort(runner),
+      signal: AbortSignal.timeout(60_000),
     }),
     resolveMergeMethod: async (repository, stackPosition) => resolveMergeMethod(
       MergeMethodSchema.parse((await settings()).settings["merge.strategy"]),
-      createGhMergeMethodPolicyPort(hostedGhRunner),
+      createGhMergeMethodPolicyPort(runner),
       repository,
       stackPosition,
     ),
     readConfiguredBase: async () => (await readConfigSettings(input.cwd)).settings["branch.base"],
-    readFinalDrift: async () => {
+    readFinalPlan: async (target, admissionOverride) => {
       const config = await readConfigSettings(input.cwd);
-      return runBaseDrift({
-        exec: input.exec,
-        baseBranch: config.settings["branch.base"],
-        mode: "authoritative",
-        ...createCurrentBaseDriftAdapters(input.exec),
+      const [drift, observedTarget] = await Promise.all([
+        runBaseDrift({
+          exec: input.exec,
+          baseBranch: config.settings["branch.base"],
+          mode: "authoritative",
+          ...createCurrentBaseDriftAdapters(
+            input.exec,
+            workUnitPathTreatmentContext(input.workUnit),
+          ),
+        }),
+        liveTarget(target),
+      ]);
+      if (drift.baseOid === null || drift.movement === undefined
+        || typeof drift.headOid !== "string" || drift.headOid !== observedTarget.headSha) {
+        return {
+          status: "unavailable",
+          target: observedTarget,
+          baseOid: drift.baseOid,
+          detail: typeof drift.headOid === "string" && drift.headOid !== observedTarget.headSha
+            ? `The authoritative drift head ${drift.headOid} does not match the refreshed host head `
+              + `${observedTarget.headSha}.`
+            : "The final authoritative base movement could not be established.",
+        };
+      }
+      const coordinates = {
+        repository: observedTarget.repository,
+        changeRequest: observedTarget.pullRequest,
+        baseRef: observedTarget.baseRef,
+        base: drift.baseOid,
+        head: observedTarget.headSha,
+      };
+      const feasibility = await observeGitMergeFeasibility({
+        exec: rawExec,
+        base: coordinates.base,
+        head: coordinates.head,
+        classify: createCurrentBaseDriftAdapters(
+          input.exec,
+          workUnitPathTreatmentContext(input.workUnit),
+        ).classifyReconciliation,
       });
+      const admission = admissionOverride === undefined
+        ? await observeChangeRequestMergeAdmission(coordinates, mergeObservationPort, {
+            baseContained: drift.behind === 0,
+          })
+        : ChangeRequestMergeObservationSchema.parse({ ...coordinates, ...admissionOverride });
+      return composeIntegrationFinalPlan({ drift, target: observedTarget, feasibility, admission });
     },
     mergePinned: async (target, method) => {
-      const result = await hostedGhRunner.run([
-        "api", `repos/${target.repository}/pulls/${target.pullRequest}/merge`,
-        "--method", "PUT",
-        "--raw-field", `sha=${target.headSha}`,
-        "--raw-field", `merge_method=${method}`,
-      ]);
-      const response = GitHubMergeResponseSchema.parse(JSON.parse(result.stdout) as unknown);
-      return response.merged
-        ? { state: "merged" }
-        : { state: "not-merged", detail: response.message };
+      let response: z.infer<typeof GitHubMergeResponseSchema> | null = null;
+      let mutationDetail: string | null = null;
+      let definitiveHostRejection = false;
+      try {
+        const result = await runner.run([
+          "api", `repos/${target.repository}/pulls/${target.pullRequest}/merge`,
+          "--method", "PUT",
+          "--raw-field", `sha=${target.headSha}`,
+          "--raw-field", `merge_method=${method}`,
+        ]);
+        response = GitHubMergeResponseSchema.parse(JSON.parse(result.stdout) as unknown);
+      } catch (error) {
+        mutationDetail = failureDetail(error);
+        definitiveHostRejection = error instanceof HostedProcessError
+          && [405, 409, 422].includes(error.httpStatus ?? 0);
+      }
+      const confirmation = await confirmPinned(target);
+      if (confirmation.state === "merged") {
+        return {
+          state: "merged",
+          target,
+          providerMergeId: confirmation.providerMergeId,
+        };
+      }
+      if (confirmation.state === "head-moved") {
+        return {
+          state: "head-moved",
+          target,
+          actualHead: confirmation.actualHead,
+          detail: confirmation.detail,
+        };
+      }
+      if (confirmation.state === "unavailable") {
+        return {
+          state: "merge-outcome-unknown",
+          target,
+          mutationDetail: mutationDetail ?? response?.message ?? "The mutating response was not conclusive.",
+          confirmationDetail: confirmation.detail,
+        };
+      }
+      if ((mutationDetail !== null && !definitiveHostRejection) || response?.merged === true) {
+        return {
+          state: "operation-failed",
+          target,
+          detail: mutationDetail ?? "The host reported success but exact confirmation established no merge.",
+        };
+      }
+      try {
+        const policy = await readGhRequiredStatusPolicy(
+          runner,
+          target.repository,
+          target.baseRef,
+          AbortSignal.timeout(60_000),
+        );
+        if (policy.strictCurrentness) {
+          const drift = await runBaseDrift({
+            exec: input.exec,
+            baseBranch: target.baseRef,
+            mode: "authoritative",
+            ...createCurrentBaseDriftAdapters(
+              input.exec,
+              workUnitPathTreatmentContext(input.workUnit),
+            ),
+          });
+          if ((drift.verdict === "clean" || drift.verdict === "reconcile")
+            && drift.baseOid !== null && drift.headOid === target.headSha && drift.behind > 0) {
+            return {
+              state: "base-currentness-required",
+              target,
+              detail: "Applicable target policy requires the head to include the current base.",
+            };
+          }
+        }
+      } catch {
+        // Unavailable policy or exact base evidence cannot promote an opaque refusal.
+      }
+      return {
+        state: "refused",
+        target,
+        detail: mutationDetail ?? response?.message
+          ?? "The host refused the exact merge without establishing a narrower cause.",
+      };
     },
   };
 }

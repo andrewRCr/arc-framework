@@ -5,6 +5,8 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { softWrappedProse } from "../../helpers/soft-wrapped-prose.js";
+
 describe("delivery branch namespace guidance", () => {
   it("ships and installs the same state-independent identity boundary", async () => {
     const packagePath = resolve("arc/system/methods/branch-format.md");
@@ -15,7 +17,7 @@ describe("delivery branch namespace guidance", () => {
     ]);
 
     expect(installed).toBe(packaged);
-    expect(packaged).toContain("`delivery/` prefix is a reserved presentation namespace");
+    expect(packaged).toMatch(softWrappedProse("`delivery/` prefix is a reserved presentation namespace"));
     expect(packaged).toContain("exact delivery-state ref/head bindings");
   });
 });

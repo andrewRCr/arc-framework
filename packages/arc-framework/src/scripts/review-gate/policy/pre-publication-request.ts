@@ -2,6 +2,8 @@
 
 import { z } from "zod";
 
+import type { CandidateConvergenceProjection } from
+  "../../../lib/work-unit/candidate-attestation.js";
 import type { ReviewMethodActivity, ReviewAssuranceInput } from "./assurance-schema.js";
 import type { LanePolicyConfig } from "./lane-policy-config.js";
 import type { LaneProgressProjection } from "../lane-progress.js";
@@ -71,7 +73,7 @@ export function consumeOwnerAcceptedTerminus(input: unknown): unknown {
   return { ...parsed.data, standard };
 }
 
-/** Remove a one-pass Frontline ceiling approval before another exact member is selected. */
+/** Remove a one-pass frontline ceiling approval before another exact member is selected. */
 export function consumeFrontlineCeilingOverride(input: unknown): unknown {
   const parsed = PrePublicationLaneJudgmentsSchema.safeParse(input ?? {});
   if (!parsed.success || parsed.data.frontline?.ceilingOverride === undefined) return input;
@@ -95,17 +97,16 @@ export type ReviewPolicyTarget = PrePublicationReviewRequest["frontline"]["targe
 export type CandidateRead =
   | { status: "missing" }
   | { status: "blocked"; reason: string }
-  | {
+  | ({
     status: "current";
     candidateId: string;
     headSha: string;
     subjectDigest: string;
     implementationChanged: boolean;
-    convergenceVerification: "satisfied" | "pending";
     lineageHeadShas: readonly string[];
     /** Exact originating target retained only while an approved fix awaits response settlement. */
     pendingReviewTarget?: ReviewTarget;
-  };
+  } & CandidateConvergenceProjection);
 
 export type AssuranceRead =
   | { status: "resolved"; assurance: ReviewAssuranceInput; activity: ReviewMethodActivity }
@@ -173,7 +174,7 @@ export interface PrePublicationCompositionInput {
    * dropping a malformed ceiling override silently re-blocks a pass the operator already approved.
    */
   lanes?: unknown;
-  /** Exact Frontline head to which a caller-carried one-pass ceiling approval remains bound. */
+  /** Exact frontline head to which a caller-carried one-pass ceiling approval remains bound. */
   frontlineCeilingHeadSha?: string;
 }
 
@@ -252,11 +253,6 @@ function unrecordedLaneAdvisory(lane: ReviewLane): string {
 }
 
 /**
- * A rejected routing fact is normalized to an unknown change set rather than refused, so the route
- * it produces is the conservative one either way. What the caller loses without this is why: a
- * misspelled fact and a deliberately unestablished change set otherwise reach `required` alike.
- */
-/**
  * An absent exact target is reported rather than refused, so what it costs has to be said.
  *
  * The lane routing below is unaffected; what becomes unreachable is every exact-target operation the
@@ -267,6 +263,11 @@ function unavailableTargetAdvisory(reason: string): string {
     + "operations this procedure routes to cannot be invoked until it resolves.";
 }
 
+/**
+ * A rejected routing fact is normalized to an unknown change set rather than refused, so the route
+ * it produces is the conservative one either way. What the caller loses without this is why: a
+ * misspelled fact and a deliberately unestablished change set otherwise reach `required` alike.
+ */
 function rejectedRoutingAdvisory(paths: readonly string[]): string {
   return `Rejected or missing routing input at ${paths.join(", ")}; the change set routes as `
     + "unestablished, so standard review stays required.";
@@ -573,6 +574,7 @@ export async function composePrePublicationReviewRequest(
     candidateId: candidate.candidateId,
     reservationTarget: reservationTarget.target,
     target: exactTarget,
+    routingFacts: routing.facts,
     selfReview: input.selfReview === "settled"
       ? "settled"
       : assurance.activity.selfReview ? "pending" : "inactive",
@@ -582,6 +584,7 @@ export async function composePrePublicationReviewRequest(
       subjectDigest: candidate.subjectDigest,
       implementationChanged: candidate.implementationChanged,
       convergenceVerification: candidate.convergenceVerification,
+      convergenceScope: candidate.convergenceScope,
     },
     ...(responseBinding === undefined ? {} : { responseBinding }),
   };

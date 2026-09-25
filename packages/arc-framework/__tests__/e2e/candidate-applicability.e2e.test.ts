@@ -11,7 +11,7 @@ import { writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.
 import { reduceCandidateDurableBaseline } from "../../src/lib/work-unit/candidate-attestation.js";
 import { readCandidateRecordVersioned } from "../../src/lib/work-unit/candidate-record-store.js";
 import { projectGitCandidateApplicability } from "../../src/lib/work-unit/git-candidate-applicability.js";
-import { collectGitCandidateTarget } from "../../src/lib/work-unit/git-candidate-subject.js";
+import { collectCandidateSubjectTarget } from "../helpers/candidate-subject.js";
 import {
   cleanupTempDir,
   createTempRepo,
@@ -94,7 +94,7 @@ describe("arc candidate applicability resolve", () => {
     const versioned = await readCandidateRecordVersioned(root, "example");
     if (versioned.record === null || versioned.version === null) throw new Error("missing Candidate record");
     const baseline = reduceCandidateDurableBaseline(versioned.record);
-    const currentTarget = await collectGitCandidateTarget({
+    const currentTarget = await collectCandidateSubjectTarget({
       cwd: root,
       name: "example",
       baseBranch: "main",
