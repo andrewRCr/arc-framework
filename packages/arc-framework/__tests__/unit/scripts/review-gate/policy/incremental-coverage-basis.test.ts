@@ -396,7 +396,31 @@ describe("incremental coverage basis", () => {
     expect(dependencies.readResult).toHaveBeenNthCalledWith(1, middle.producerId);
     expect(dependencies.readResult).toHaveBeenNthCalledWith(2, complete.producerId);
     expect(dependencies.confirmApplicability).toHaveBeenNthCalledWith(1, middle, current);
-    expect(dependencies.confirmApplicability).toHaveBeenNthCalledWith(2, complete, current);
+    expect(dependencies.confirmApplicability).toHaveBeenNthCalledWith(2, complete, middle);
+  });
+
+  it("validates each Errand fix response against its immediate successor", async () => {
+    const lineage = { kind: "head-bound" as const, vehicleKind: "errand", vehicleIdentity: "claim-1" };
+    const complete = result({ id: "errand-a", head: oid("a"), coverage: "complete",
+      lineage: { ...lineage, headSha: oid("a") } });
+    const middle = result({ id: "errand-b", head: oid("b"), coverage: "incremental",
+      lineage: { ...lineage, headSha: oid("b") },
+      predecessor: { producerId: complete.producerId, basisHead: complete.target.headSha } });
+    const current = result({ id: "errand-c", head: oid("c"), coverage: "incremental",
+      lineage: { ...lineage, headSha: oid("c") },
+      predecessor: { producerId: middle.producerId, predecessorHead: middle.target.headSha,
+        basisHead: complete.target.headSha } });
+    const dependencies = harness([complete, middle]);
+    dependencies.confirmApplicability.mockImplementation(async (earlier, later) => (
+      (earlier.producerId === complete.producerId && later.producerId === middle.producerId)
+      || (earlier.producerId === middle.producerId && later.producerId === current.producerId)
+        ? "applicable" : "unavailable"
+    ));
+
+    await expect(resolveIncrementalCoverageBasis(current, dependencies)).resolves.toMatchObject({
+      status: "adequate",
+      producerIds: [complete.producerId, middle.producerId, current.producerId],
+    });
   });
 
   it("requires the fresh scope to retain material findings from the complete root", async () => {

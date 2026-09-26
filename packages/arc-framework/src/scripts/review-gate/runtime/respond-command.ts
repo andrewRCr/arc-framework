@@ -210,7 +210,8 @@ const RespondApprovedRequestSchema = ReviewResponseSettlementRequestSchema.exten
   }
   const ceilingOverride = request.policyRequest.ceilingOverride;
   const conditional = request.conditionalNextPassAuthorization;
-  if ((ceilingOverride === undefined) !== (conditional === undefined)) {
+  if (request.settledFixTarget === undefined
+    && (ceilingOverride === undefined) !== (conditional === undefined)) {
     context.addIssue({
       code: "custom",
       path: ["conditionalNextPassAuthorization"],
@@ -283,6 +284,8 @@ export interface RespondCommandDependencies {
     target: ReviewTarget,
     expectedFixPaths: readonly string[],
   ): Promise<LocalCorrectionTargetConfirmation>;
+  /** Re-observe the immutable planned member without requiring its checkout to be current. */
+  confirmPinnedDeliveryMemberTarget(result: ReviewResult): Promise<ReviewTarget | null>;
   resolveLocalActors(
     evaluatorIdentity: string,
     admittedAuthorIdentity?: string,
@@ -1195,17 +1198,20 @@ function deliveryMemberResponseMatches(
     verifiedFix: z.infer<typeof RespondVerifiedFixSchema>;
   },
 ): boolean {
+  const hosted = input.source.result.kind === "hosted";
   return existing.oldTarget.targetId === input.source.target.targetId
     && existing.newTarget.targetId === input.currentTarget.targetId
     && existing.applicability === input.verifiedFix.applicability
     && canonicalize(existing.fixConsumption.verificationRefs)
       === canonicalize(input.verifiedFix.verificationEvidenceRefs)
     && existing.fixConsumption.appliedBy === input.dispositions.dispositionSet.proposedBy
-    && canonicalize(existing.hostedTarget) === canonicalize(input.source.hostedAttempt?.target)
-    && canonicalize(existing.hostedFixTarget) === canonicalize(input.hostedFixTarget);
+    && canonicalize(existing.hostedTarget)
+      === canonicalize(hosted ? input.source.hostedAttempt?.target : null)
+    && canonicalize(existing.hostedFixTarget)
+      === canonicalize(hosted ? input.hostedFixTarget : null);
 }
 
-/** Persist one verified fix against the current coordinates of its exact hosted delivery member. */
+/** Replay one verified fix against the current coordinates of its exact delivery member. */
 async function replayDeliveryMemberResponse(
   source: ResolvedResponseSource,
   dispositions: ApprovedDispositionSet,
@@ -1216,7 +1222,7 @@ async function replayDeliveryMemberResponse(
   continuation: PerformedResponseContinuation,
   existing: ApprovedDispositionRecord,
   current: ReturnType<typeof currentApprovedDispositionNode>,
-  hostedAttempt: NonNullable<ResolvedResponseSource["hostedAttempt"]>,
+  hostedAttempt: ResolvedResponseSource["hostedAttempt"],
   dependencies: RespondCommandDependencies,
 ): Promise<z.infer<typeof RespondEnvelopeSchema>> {
   const header = { schemaVersion: 1, mode: "review-respond", diagnostics: [] } as const;
@@ -1244,7 +1250,7 @@ async function replayDeliveryMemberResponse(
       current.predecessorDispositionSetId,
       dependencies,
     );
-    if (!hostedAttempt.settled) {
+    if (hostedAttempt !== undefined && !hostedAttempt.settled) {
       await dependencies.bindHostedDisposition({
         operationId: hostedAttempt.operationId,
         attemptId: hostedAttempt.attemptId,
@@ -1269,6 +1275,22 @@ async function replayDeliveryMemberResponse(
     });
 }
 
+function approvedMemberFixRecordMatches(
+  existing: ApprovedDispositionRecord,
+  source: ResolvedResponseSource,
+  dispositions: ApprovedDispositionSet,
+  vehicle: NonNullable<ApprovedDispositionRecord["deliveryMember"]>,
+): boolean {
+  const current = currentApprovedDispositionNode(existing);
+  return existing.candidate === null
+    && existing.errand === null
+    && existing.deliveryMember !== null
+    && canonicalize(existing.deliveryMember) === canonicalize(vehicle)
+    && canonicalize(current.approvedDisposition) === canonicalize(dispositions)
+    && canonicalize(existing.source) === canonicalize(source.source)
+    && current.fixAuthorization !== null;
+}
+
 async function persistDeliveryMemberResponse(
   source: ResolvedResponseSource,
   dispositions: ApprovedDispositionSet,
@@ -1280,30 +1302,23 @@ async function persistDeliveryMemberResponse(
   dependencies: RespondCommandDependencies,
 ): Promise<z.infer<typeof RespondEnvelopeSchema>> {
   const existing = await dependencies.dispositionStore.readDispositionRecord(source.operationId);
-  const current = existing === null ? null : currentApprovedDispositionNode(existing);
   const hostedAttempt = source.hostedAttempt;
-  if (hostedAttempt?.vehicle === undefined) {
+  const vehicle = hostedAttempt?.vehicle ?? source.deliveryAdmission?.vehicle;
+  const hostedTarget = hostedAttempt?.target ?? source.deliveryAdmission?.target;
+  if (vehicle === undefined || hostedTarget === undefined) {
     throw new RespondCommandError(
       "invalid-input",
-      "a verified delivery-member fix requires its exact approved hosted response record",
+      "a verified delivery-member fix requires its exact approved response record",
     );
   }
-  const vehicle = hostedAttempt.vehicle;
-  const hostedTarget = hostedAttempt.target;
-  if (existing === null
-    || current === null
-    || existing.candidate !== null
-    || existing.errand !== null
-    || existing.deliveryMember === null
-    || canonicalize(existing.deliveryMember) !== canonicalize(vehicle)
-    || canonicalize(current.approvedDisposition) !== canonicalize(dispositions)
-    || canonicalize(existing.source) !== canonicalize(source.source)
-    || current.fixAuthorization === null) {
+  if (existing === null || !approvedMemberFixRecordMatches(existing, source, dispositions, vehicle)) {
     throw new RespondCommandError(
       "invalid-input",
-      "a verified delivery-member fix requires its exact approved hosted response record",
+      "a verified delivery-member fix requires its exact approved response record",
     );
   }
+  const current = currentApprovedDispositionNode(existing);
+  if (current.fixAuthorization === null) throw new Error("approved member fix authorization disappeared");
   const header = { schemaVersion: 1, mode: "review-respond", diagnostics: [] } as const;
   const hostedSettlementPlan = projectHostedSettlementPlan(source, dispositions);
   if (current.deliveryMemberFixResponse !== null) {
@@ -1332,8 +1347,8 @@ async function persistDeliveryMemberResponse(
               newTarget: currentTarget,
               applicability: verifiedFix.applicability,
               fixConsumption,
-              hostedTarget,
-              hostedFixTarget,
+              hostedTarget: source.result.kind === "hosted" ? hostedTarget : null,
+              hostedFixTarget: source.result.kind === "hosted" ? hostedFixTarget : null,
             },
           }
         : node
@@ -1842,6 +1857,20 @@ async function confirmResponseTarget(
   if (supersession === undefined) {
     return { kind: "confirmed" as const, confirmation: await dependencies.confirmTarget(source.target) };
   } else {
+    if (source.target.kind === "delivery-member" && supersession.expectedFixPaths.length === 0) {
+      const pinned = await dependencies.confirmPinnedDeliveryMemberTarget(source.result);
+      if (pinned === null || pinned.targetId !== source.target.targetId) {
+        return { kind: "refused" as const, envelope: supersessionRefusalEnvelope({
+          operationId: source.operationId,
+          predecessorDispositionSetId: supersession.predecessorDispositionSetId,
+          reason: "head-moved",
+          detail: "disposition successor requires the exact planned delivery-member target",
+          attemptedTarget: source.target,
+          currentHeadSha: pinned?.headSha ?? source.target.headSha,
+        }) };
+      }
+      return { kind: "confirmed" as const, confirmation: { state: "current", target: pinned } };
+    }
     const correctionConfirmation = await dependencies.confirmCorrectionTarget(
       source.target,
       supersession.expectedFixPaths,
@@ -1869,16 +1898,17 @@ async function confirmResponseTarget(
   }
 }
 
-async function resolveHostedMemberFixTarget(
+async function resolveBoundMemberFixTarget(
   source: ResolvedResponseSource,
   dependencies: RespondCommandDependencies,
 ): Promise<{ currentTarget: ReviewTarget; hostedFixTarget: HostedTarget } | null> {
-  const hostedAttempt = source.hostedAttempt;
-  if (hostedAttempt?.vehicle === undefined) return null;
+  const vehicle = source.hostedAttempt?.vehicle ?? source.deliveryAdmission?.vehicle;
+  const hostedTarget = source.hostedAttempt?.target ?? source.deliveryAdmission?.target;
+  if (vehicle === undefined || hostedTarget === undefined) return null;
   const target = await dependencies.resolveDeliveryMemberFixTarget({
-    vehicle: hostedAttempt.vehicle,
+    vehicle,
     originatingTarget: source.target,
-    hostedTarget: hostedAttempt.target,
+    hostedTarget,
   });
   if (target === null) {
     throw new RespondCommandError(
@@ -1928,7 +1958,7 @@ async function resolveVerifiedFixTarget(
   let changedTarget = confirmation.state === "stale-target" ? confirmation.currentTarget : null;
   const deliveryMemberFixTarget = verifiedFix === undefined
     ? null
-    : await resolveHostedMemberFixTarget(source, dependencies);
+    : await resolveBoundMemberFixTarget(source, dependencies);
   if (deliveryMemberFixTarget !== null) {
     changedTarget = deliveryMemberFixTarget.currentTarget.targetId === source.target.targetId
       ? null : deliveryMemberFixTarget.currentTarget;

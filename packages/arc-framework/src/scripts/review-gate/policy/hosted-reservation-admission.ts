@@ -389,6 +389,22 @@ function assertCandidateHostedReservationPosition(
   }
 }
 
+type CandidateCapacityAttempt = NonNullable<
+  Parameters<typeof assertCandidateHostedReservationPolicyAdmission>[0]["progress"]
+>["attempts"][number];
+
+function candidateCapacityAttemptMatchesTarget(
+  attempt: CandidateCapacityAttempt,
+  target: Parameters<typeof assertCandidateHostedReservationPolicyAdmission>[0]["target"],
+): boolean {
+  if (attempt.headSha !== target.headSha) return false;
+  const boundTarget = attempt.hosted?.target ?? attempt.local?.deliveryAdmission?.target;
+  return boundTarget !== undefined
+    && boundTarget.repository.toLowerCase() === target.repository.toLowerCase()
+    && boundTarget.pullRequest === target.pullRequest
+    && boundTarget.headSha === target.headSha;
+}
+
 /** Refuse a Candidate request that no longer has fresh discharge and driver admission. */
 export function assertCandidateHostedReservationPolicyAdmission(input: {
   readonly reservation: StandardReviewReservationV1;
@@ -402,6 +418,16 @@ export function assertCandidateHostedReservationPolicyAdmission(input: {
       readonly outcome: "pending" | "settled-findings"
         | ReviewPolicyCommandRequest["attempts"][number]["outcome"];
       readonly chunkSeriesComplete?: boolean;
+      readonly hosted?: { readonly target: {
+        readonly repository: string;
+        readonly pullRequest: number;
+        readonly headSha: string;
+      } };
+      readonly local?: { readonly deliveryAdmission?: { readonly target: {
+        readonly repository: string;
+        readonly pullRequest: number;
+        readonly headSha: string;
+      } } };
     }>;
   } | null;
   readonly target: { readonly repository: string; readonly pullRequest: number; readonly headSha: string };
@@ -417,7 +443,7 @@ export function assertCandidateHostedReservationPolicyAdmission(input: {
 }): void {
   assertCandidateHostedReservationPosition(input);
   const currentHeadAttempts = input.progress?.attempts.filter((attempt) => (
-    attempt.headSha === input.target.headSha
+    candidateCapacityAttemptMatchesTarget(attempt, input.target)
   )) ?? [];
   if (currentHeadAttempts.some(({ outcome }) => outcome === "pending")) {
     throw new Error("Hosted review capacity is already held by a pending request.");
@@ -480,7 +506,7 @@ export async function assertEvidenceBoundCandidateHostedReservationPolicyAdmissi
 ): Promise<void> {
   assertCandidateHostedReservationPosition(input);
   const currentHeadAttempts = input.progress?.attempts.filter((attempt) => (
-    attempt.headSha === input.target.headSha
+    candidateCapacityAttemptMatchesTarget(attempt, input.target)
   )) ?? [];
   if (currentHeadAttempts.some(({ outcome }) => outcome === "pending")) {
     throw new Error("Hosted review capacity is already held by a pending request.");

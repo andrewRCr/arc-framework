@@ -404,6 +404,10 @@ function parseCalloutSection(
       fingerprint,
       settlement: "not-applicable",
       severity: parsedSeverity,
+      ...(parsedSeverity === "minor"
+        && (section.category === "nitpick" || hasExplicitPurePolishMarker(substantiveBody))
+        ? { nit: true as const }
+        : {}),
       locus: locus[1],
       url: review.url,
       body: body.slice(item.openEnd + locus.index, item.openEnd + marker.index).trim(),

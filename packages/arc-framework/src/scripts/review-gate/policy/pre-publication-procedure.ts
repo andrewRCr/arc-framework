@@ -181,7 +181,9 @@ export function projectPrePublicationReview(
   }
 
   const frontline = resolveReviewPolicy(request.frontline);
-  if (isSettledFrontline(frontline.state) && request.pendingResponse.frontline !== null) {
+  // A findings producer can exist before the Owner approves dispositions. The response command
+  // is the route that obtains that approval, so it takes precedence over derived policy state.
+  if (request.pendingResponse.frontline !== null) {
     return pendingResponseEnvelope(request, "frontline", frontline, request.pendingResponse.frontline);
   }
   if (!isSettledFrontline(frontline.state)) {
@@ -189,10 +191,10 @@ export function projectPrePublicationReview(
   }
 
   const standard = resolveReviewPolicy(request.standard);
-  if (standard.state === "findings") return policyEnvelope(request, "standard", standard);
-  if (isSettledStandard(standard.state) && request.pendingResponse.standard !== null) {
+  if (request.pendingResponse.standard !== null) {
     return pendingResponseEnvelope(request, "standard", standard, request.pendingResponse.standard);
   }
+  if (standard.state === "findings") return policyEnvelope(request, "standard", standard);
   if (!isSettledStandard(standard.state)) return policyEnvelope(request, "standard", standard);
   const reservation = standard.state === "awaiting-change-request"
     ? createStandardReviewReservation(request, firstWaitingSource(standard.payload.waitingSources))

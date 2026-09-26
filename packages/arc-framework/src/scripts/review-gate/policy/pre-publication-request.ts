@@ -132,6 +132,8 @@ export type CandidateRead =
     supersessionAncestors?: readonly CandidateSupersessionAncestor[];
     /** Exact originating target retained only while an approved fix awaits response settlement. */
     pendingReviewTarget?: ReviewTarget;
+    /** Effective current Candidate head while the reviewed target remains pinned for response. */
+    pendingFixRootHeadSha?: string;
   } & CandidateConvergenceProjection);
 
 export type AssuranceRead =
@@ -232,6 +234,8 @@ export type PrePublicationComposition =
     request: PrePublicationReviewRequest;
     /** Composition facts the envelope cannot carry and a caller must not lose. */
     advisories: readonly string[];
+    /** Independently observed current root head for an approved, pending Candidate fix. */
+    pendingFixRootHeadSha?: string;
   }
   | {
     status: "refused";
@@ -659,6 +663,10 @@ export async function composePrePublicationReviewRequest(
     dependencies.readLanePolicy("standard"),
   ]);
   const terminalAttempts: { frontline?: LanePolicyAttempt; standard?: LanePolicyAttempt } = {};
+  const pendingSources: {
+    frontline?: z.infer<typeof ReviewResponseSettlementSourceSchema> | null;
+    standard?: z.infer<typeof ReviewResponseSettlementSourceSchema> | null;
+  } = {};
   const composeLane = async (
     lane: ReviewLane,
     policyTarget: ReviewPolicyTarget,
@@ -685,7 +693,7 @@ export async function composePrePublicationReviewRequest(
       workUnit: input.workUnit, policyTarget, dependencies,
     });
     terminalAttempts[lane] = effectiveTerminalAttempt(progress, historicalAttempt);
-    return bindReviewPolicyEvidence({
+    const policyInput: ReviewPolicyCommandRequest = {
       schemaVersion: 1,
       target: policyTarget,
       lane,
@@ -711,7 +719,16 @@ export async function composePrePublicationReviewRequest(
               completedPasses,
             } satisfies OwnerAcceptedReviewTerminus,
           }),
-    }, {
+    };
+    // A fresh findings result must expose the exact response route before dispositions exist.
+    // Binding still validates the immutable producer; only this known pending route permits its
+    // provisional policy signal while approval and response remain incomplete.
+    const pendingSource = await terminalResponseSource(
+      policyInput, dependencies, terminalAttempts[lane],
+    );
+    pendingSources[lane] = pendingSource;
+    return bindReviewPolicyEvidence(policyInput, {
+      allowUnapprovedFindings: pendingSource !== null,
       sources: policy.sources,
       maxPasses: policy.maxPasses,
       ...(historicalAttempt === undefined
@@ -799,7 +816,8 @@ export async function composePrePublicationReviewRequest(
         vehicle: member.vehicle,
       };
       const state = resolveReviewPolicy(memberFrontline).state;
-      if (state !== "skipped" && state !== "pass-complete") break;
+      if (pendingSources.frontline !== null
+        || (state !== "skipped" && state !== "pass-complete")) break;
     }
     if (selected === null) {
       return {
@@ -865,15 +883,10 @@ export async function composePrePublicationReviewRequest(
     return evidenceCompositionRefusal(error);
   }
   const standard = withCeilingOverride("standard", policyTarget, standardRequest);
-  let pendingResponse: PrePublicationReviewRequest["pendingResponse"];
-  try {
-    pendingResponse = {
-      frontline: await terminalResponseSource(frontline, dependencies, terminalAttempts.frontline),
-      standard: await terminalResponseSource(standard, dependencies, terminalAttempts.standard),
-    };
-  } catch (error) {
-    return evidenceCompositionRefusal(error);
-  }
+  const pendingResponse: PrePublicationReviewRequest["pendingResponse"] = {
+    frontline: pendingSources.frontline ?? null,
+    standard: pendingSources.standard ?? null,
+  };
 
   const composed = {
     schemaVersion: 1,
@@ -907,7 +920,14 @@ export async function composePrePublicationReviewRequest(
         + request.error.issues.map(({ path, message }) => `${path.join(".")}: ${message}`).join("; "),
     };
   }
-  return { status: "composed", request: request.data, advisories };
+  return {
+    status: "composed",
+    request: request.data,
+    advisories,
+    ...(candidate.pendingFixRootHeadSha === undefined
+      ? {}
+      : { pendingFixRootHeadSha: candidate.pendingFixRootHeadSha }),
+  };
 }
 
 /** Reapply a durable Owner conclusion only to the exact Candidate subject it accepted. */

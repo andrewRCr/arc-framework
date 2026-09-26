@@ -323,6 +323,13 @@ export const HostedRequestEnvelopeSchema: z.ZodType<HostedRequestEnvelope> = z.s
       message: "hosted source invocation must select the request provider",
     });
   }
+  if (request.invocation !== undefined && request.vehicle?.kind !== "delivery-member") {
+    context.addIssue({
+      code: "custom",
+      path: ["invocation"],
+      message: "a hosted source invocation requires one exact delivery-member vehicle",
+    });
+  }
 });
 
 export type HostedRequestOutcome =

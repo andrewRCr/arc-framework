@@ -162,6 +162,7 @@ function fixture() {
         requestedCoverage: "complete",
         effectiveCoverage: null,
         scopeMode: operation.scopeMode,
+        rubricIdentity: { version: requirement.rubricVersion, digest: requirement.rubricDigest },
       },
     }],
   });

@@ -1056,6 +1056,58 @@ describe("evidence-bound review policy", () => {
     });
   });
 
+  it("applies an exhausted-ceiling override after inadequate clean coverage is selected", async () => {
+    const original = cleanHostedResult();
+    if (original.kind !== "hosted") throw new Error("expected hosted result");
+    const requirement = createReviewRequirement({
+      target: original.target,
+      projection: { ...standardReview, retrigger: "incremental" },
+      acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
+      initialAdmission: "automatic",
+    });
+    if (requirement === null) throw new Error("expected requirement");
+    const result: ReviewResult = {
+      ...original,
+      requirement,
+      admission: {
+        ...original.admission,
+        requestedCoverage: "incremental",
+        effectiveCoverage: "incremental",
+        policyVersion: requirement.policyVersion,
+      },
+    };
+    const request = {
+      ...cleanRequest(result),
+      standardReview: { ...standardReview, retrigger: "incremental" as const },
+      ceilingOverride: {
+        target: policyTarget,
+        lane: "standard" as const,
+        exhaustedPassCount: 1,
+        nextPass: 2,
+      },
+    };
+    const evidence = {
+      ...dependencies(result),
+      sources: ["codex-pr"],
+      maxPasses: 1,
+    };
+
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, {
+      terminalResponsePerformed: false,
+      coverageSelected: false,
+    }, evidence)).resolves.toMatchObject({
+      state: "coverage-required",
+      nextAction: "select-coverage",
+    });
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, {
+      terminalResponsePerformed: false,
+      coverageSelected: true,
+    }, evidence)).resolves.toMatchObject({
+      state: "ready",
+      payload: { pass: 2, sourceId: "codex-pr", ceilingOverrideApplied: true },
+    });
+  });
+
   it("derives adequate incremental coverage from an explicit applicable complete predecessor", async () => {
     const predecessor = cleanHostedResult();
     const current = cleanHostedResult();

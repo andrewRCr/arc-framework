@@ -202,7 +202,7 @@ function createLocalContributionConfirmation(input: {
         predecessor,
         currentTarget,
         currentLineage,
-        currentClaimId: live?.context.errand?.identity === currentLineage.vehicleIdentity
+        currentClaimId: live?.context.errand?.claimId === currentLineage.vehicleIdentity
           ? live.context.errand.claimId : null,
         ...(currentResult === undefined ? {} : { currentResult }),
         observeTarget,
@@ -416,10 +416,14 @@ export function createLocalPrepareDependencies(input: {
           candidateId: boundary.candidateId,
         });
       }
+      const claim = (await readLive()).context.errand;
+      if (claim?.identity !== vehicle.identity || claim.claimId !== vehicle.claimId) {
+        throw new Error("Errand claim authority is unavailable for local review");
+      }
       return LaneSubjectLineageSchema.parse({
         kind: "head-bound",
-        vehicleKind: vehicle.kind,
-        vehicleIdentity: vehicle.identity,
+        vehicleKind: "errand",
+        vehicleIdentity: claim.claimId,
         headSha: target.headSha,
       });
     },

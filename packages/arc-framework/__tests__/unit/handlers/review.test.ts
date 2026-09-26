@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createHostedHandleFixture } from "../../fixtures/hosted-review.js";
 
 import {
+  assertHostedFixSettlementPerformance,
   handleMergeLockHold,
   handleMergeLockRelease,
   handleMergeLockResolve,
@@ -31,6 +32,7 @@ import {
   handleReviewTerminusAccept,
   stageDeliveryReviewTerminusBoundary,
 } from "../../../src/handlers/review.js";
+
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 import { SlugSchema } from "../../../src/lib/kernel/schema/slug.js";
 import { resolveProcessInteractionContext } from
@@ -71,6 +73,38 @@ import { LocalPrepareRequestSchema } from "../../../src/scripts/review-gate/runt
 import {
   LocalPrepareCommandError,
 } from "../../../src/scripts/review-gate/runtime/local-prepare.js";
+
+describe("hosted fix settlement pre-effect guard", () => {
+  const evidence = {
+    schemaVersion: 1 as const,
+    producerId: "attempt-1",
+    dispositionSetId: `sha256:${"d".repeat(64)}`,
+    originatingHeadSha: "a".repeat(40),
+    producedHeadSha: "b".repeat(40),
+    performedAt: "2026-09-26T12:00:00Z",
+  };
+  const input = {
+    attemptId: evidence.producerId,
+    originatingHeadSha: evidence.originatingHeadSha,
+    dispositionSetId: evidence.dispositionSetId,
+    producedHeadSha: evidence.producedHeadSha,
+    responsePerformance: evidence,
+  };
+
+  it("requires durable response performance before any provider settlement", () => {
+    expect(() => assertHostedFixSettlementPerformance({ ...input, responsePerformance: undefined }))
+      .toThrow("durable response-performance evidence");
+    expect(() => assertHostedFixSettlementPerformance({
+      ...input,
+      dispositionSetId: `sha256:${"e".repeat(64)}`,
+    })).toThrow("durable response-performance evidence");
+    expect(() => assertHostedFixSettlementPerformance({
+      ...input,
+      producedHeadSha: "c".repeat(40),
+    })).toThrow("durable response-performance evidence");
+    expect(() => assertHostedFixSettlementPerformance(input)).not.toThrow();
+  });
+});
 
 const target = {
   schemaVersion: 2 as const,
@@ -2982,6 +3016,60 @@ describe("handleReviewPrePublication", () => {
     expect(JSON.parse(String(recovered.write.mock.calls[0]?.[0]))).not.toHaveProperty("error");
   });
 
+  it("retains the saved continuation when ordering recovery still projects pending review", async () => {
+    const currentHead = "f".repeat(40);
+    const version = `sha256:${"9".repeat(64)}`;
+    const savedToken = Buffer.from(JSON.stringify({ selfReview: "settled" }), "utf8").toString("base64url");
+    const pending = projectCandidateReviewResumeBoundary({
+      workUnit: "example",
+      candidateId: request.candidateId,
+      candidateSubjectDigest: request.candidate.subjectDigest,
+      reservation: null,
+      postAttestContinuation: {
+        reviewedHead: target.headSha,
+        nextAction: {
+          kind: "continue-pre-publication-review",
+          command: `arc review pre-publication example --resume ${savedToken}`,
+          interactionText: "Resume pre-publication review over the converged Candidate.",
+        },
+        projectionDisposition: "keep-staged-until-publication",
+      },
+    });
+    const currentRequest = {
+      ...request,
+      reservationTarget: { ...request.reservationTarget, headSha: currentHead },
+      target: { ...request.target, headSha: currentHead },
+      frontline: { ...request.frontline, target: { ...request.frontline.target, headSha: currentHead } },
+      standard: {
+        ...request.standard,
+        target: { ...request.standard.target, headSha: currentHead },
+        sources: ["delegated-agent"],
+      },
+    };
+    const compose = vi.fn(async () => ({ status: "composed" as const, request: currentRequest, advisories: [] }));
+    const shared = {
+      readRootGitHead: async () => currentHead,
+      readBoundary: async () => ({ boundary: pending, version }),
+      compose,
+    };
+    const conflict = boundary(shared);
+    await handleReviewPrePublication("example", {}, conflict);
+    const recoveryToken = JSON.parse(String(conflict.write.mock.calls[0]?.[0])).remedy.argv[5];
+    const recovery = boundary(shared);
+    await handleReviewPrePublication("example", { resume: recoveryToken }, recovery);
+
+    expect(JSON.parse(String(recovery.write.mock.calls[0]?.[0]))).toMatchObject({
+      locus: "candidate-review-pending",
+    });
+    expect(recovery.recoverAttestationOrdering).not.toHaveBeenCalled();
+    expect(recovery.persistBoundary).not.toHaveBeenCalled();
+    const retry = boundary(shared);
+    await handleReviewPrePublication("example", { resume: recoveryToken }, retry);
+    expect(JSON.parse(String(retry.write.mock.calls[0]?.[0]))).toMatchObject({
+      locus: "candidate-review-pending",
+    });
+  });
+
   it("applies only the matching recovery and cannot replace a newer boundary version", async () => {
     const reviewedHead = target.headSha;
     const currentHead = "f".repeat(40);
@@ -3300,6 +3388,65 @@ describe("handleReviewPrePublication", () => {
     expect(JSON.parse(String(performed.write.mock.calls[0]?.[0]))).toMatchObject({
       locus: "candidate-publish-ready",
       nextAction: { kind: "publish-candidate" },
+    });
+  });
+
+  it("returns the bound response route after an approved fix advances the Candidate head", async () => {
+    const fixedHead = "f".repeat(40);
+    const pendingFixRequest = {
+      ...request,
+      standard: {
+        ...request.standard,
+        sources: ["delegated-agent"],
+        completedPasses: 1,
+        attempts: [{
+          sourceId: "delegated-agent",
+          outcome: "findings" as const,
+          reviewOperationId: "local/attempt-1",
+        }],
+        verifiedTerminalSignal: {
+          reviewOperationId: "local/attempt-1",
+          confirmedFindingCount: 1,
+          maxConfirmedSeverity: "major" as const,
+          coverageAdequate: true,
+        },
+      },
+      pendingResponse: { frontline: null, standard: {
+        kind: "attested-local" as const,
+        receiptRef: "arc-review-source:v1:attested-local:local%2Fattempt-1:receipt%2F1",
+      } },
+    };
+    const compose = vi.fn(async () => ({
+      status: "composed",
+      request: pendingFixRequest,
+      advisories: [],
+      pendingFixRootHeadSha: fixedHead,
+    }));
+    const dependencies = boundary({
+      readRootGitHead: async () => fixedHead,
+      compose,
+    });
+
+    await handleReviewPrePublication("example", {}, dependencies);
+
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      locus: "candidate-fix-pending",
+      nextAction: {
+        command: "arc review respond -",
+        responseOperationId: "local/attempt-1",
+        responseSource: { kind: "attested-local" },
+      },
+    });
+    expect(dependencies.setExitCode).not.toHaveBeenCalled();
+    expect(dependencies.persistBoundary).not.toHaveBeenCalled();
+
+    const unrelated = boundary({
+      readRootGitHead: async () => "e".repeat(40),
+      compose,
+    });
+    await handleReviewPrePublication("example", {}, unrelated);
+    expect(JSON.parse(String(unrelated.write.mock.calls[0]?.[0]))).toMatchObject({
+      error: { code: "attestation-ordering-conflict" },
     });
   });
 

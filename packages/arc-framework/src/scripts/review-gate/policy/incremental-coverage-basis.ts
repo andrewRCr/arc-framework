@@ -249,7 +249,7 @@ async function resolveCoverageChain(
     }
     const predecessorFailure = validatePredecessor(predecessor, result, scope.predecessorHeadSha);
     if (predecessorFailure !== null) return predecessorFailure;
-    const applicability = await dependencies.confirmApplicability(predecessor, current)
+    const applicability = await dependencies.confirmApplicability(predecessor, result)
       .catch(() => "unavailable" as const);
     if (applicability !== "applicable") {
       return inadequate(

@@ -477,4 +477,82 @@ describe("hosted await lane recording", () => {
       now: "2026-08-15T12:02:00Z",
     })).rejects.toThrow("does not match durable response-head evidence");
   });
+
+  it("reopens a host-side fix when its successor response has no matching head evidence", async () => {
+    const store = createStore();
+    await seedAcknowledgedRequest(store, handle);
+    const progress = await recordHostedAwaitAttempt(store, {
+      repositoryId: "repo-1",
+      ...hostedContext,
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-await",
+        handle,
+        state: "findings",
+        nextAction: "triage",
+        reviewUrl: "https://example.invalid/review",
+        findings: [{
+          findingId: "thread-1", origin: "review-thread", commentId: "comment-1",
+          threadId: "thread-1", settlement: "reply-and-resolve", severity: "major",
+          locus: "src/index.ts:7", url: "https://example.invalid/thread-1",
+          sourceOrdinal: 1, sourceLabel: "Thread native label",
+        }],
+      },
+      now: "2026-08-15T12:00:00Z",
+    });
+    if (progress === null) throw new Error("expected hosted lane progress");
+    const attemptId = hostedLaneAttemptId(handle);
+    const predecessorDispositionSetId = `sha256:${"f".repeat(64)}`;
+    const successorDispositionSetId = `sha256:${"2".repeat(64)}`;
+    const findingDispositions = [{
+      findingId: "thread-1", disposition: "fix" as const,
+      channelAction: "reply-and-resolve" as const,
+    }];
+    await bindHostedAttemptDisposition(store, {
+      operationId: progress.operationId, attemptId, dispositionSetId: predecessorDispositionSetId,
+      findingDispositions, now: "2026-08-15T12:00:30Z",
+    });
+    await recordLaneResponsePerformance(store, {
+      lane: "standard", repositoryId: "repo-1", headSha: handle.target.headSha,
+      lineage: hostedAdmission.lineage, attemptId, dispositionSetId: predecessorDispositionSetId,
+      producedHeadSha: objectId("d"), now: "2026-08-15T12:01:00Z",
+    });
+    await settleHostedAttemptFinding(store, {
+      operationId: progress.operationId, attemptId, dispositionSetId: predecessorDispositionSetId,
+      findingId: "thread-1", disposition: "fix", actorIdentity: hostedContext.actorIdentity,
+      target: handle.target, fixTarget: { ...handle.target, headSha: objectId("d") },
+      commentId: "comment-1", threadId: "thread-1",
+      replyDigest: `sha256:${"1".repeat(64)}`, replyId: "reply-1",
+      now: "2026-08-15T12:02:00Z",
+    });
+    const successor = await supersedeHostedAttemptDisposition(store, {
+      operationId: progress.operationId, attemptId,
+      predecessorDispositionSetId, successorDispositionSetId, findingDispositions,
+      now: "2026-08-15T12:03:00Z",
+    });
+    expect(successor.carriedFindingIds).toEqual([]);
+    expect(successor.reopenedFindingIds).toEqual(["thread-1"]);
+    const performed = await recordLaneResponsePerformance(store, {
+      lane: "standard", repositoryId: "repo-1", headSha: handle.target.headSha,
+      lineage: hostedAdmission.lineage, attemptId, dispositionSetId: successorDispositionSetId,
+      predecessorDispositionSetId, producedHeadSha: objectId("e"),
+      now: "2026-08-15T12:04:00Z",
+    });
+    expect(performed.attempts[0]?.outcome).toBe("findings");
+    const replay = await supersedeHostedAttemptDisposition(store, {
+      operationId: progress.operationId, attemptId,
+      predecessorDispositionSetId, successorDispositionSetId, findingDispositions,
+      now: "2026-08-15T12:04:30Z",
+    });
+    expect(replay.reopenedFindingIds).toEqual(["thread-1"]);
+    const settled = await settleHostedAttemptFinding(store, {
+      operationId: progress.operationId, attemptId, dispositionSetId: successorDispositionSetId,
+      findingId: "thread-1", disposition: "fix", actorIdentity: hostedContext.actorIdentity,
+      target: handle.target, fixTarget: { ...handle.target, headSha: objectId("e") },
+      commentId: "comment-1", threadId: "thread-1",
+      replyDigest: `sha256:${"2".repeat(64)}`, replyId: "reply-2",
+      now: "2026-08-15T12:05:00Z",
+    });
+    expect(settled.attempts[0]?.outcome).toBe("settled-findings");
+  });
 });

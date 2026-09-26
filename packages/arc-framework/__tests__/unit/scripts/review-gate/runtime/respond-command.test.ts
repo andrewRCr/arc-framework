@@ -395,6 +395,7 @@ function dependencies(records: ReturnType<typeof fixture>) {
       target,
       dirtyPaths: expectedFixPaths,
     }),
+    confirmPinnedDeliveryMemberTarget: async () => null,
     resolveLocalActors: async () => ({
       approverIdentity: records.authority.authorIdentity,
       proposerIdentity: records.authority.runtimeIdentity,
@@ -1569,6 +1570,42 @@ describe("review response command", () => {
       nextAction: "stop",
       payload: { reason: "dirty-paths-without-fix-authorization" },
     });
+  });
+
+  it("corrects a pinned delivery-member record from a successor checkout", async () => {
+    const records = deliveryLocalFixture();
+    const deps = dependencies(records);
+    const original = localRequest(records, "defer");
+    await respondToReviewCommand(original, deps);
+    deps.confirmCorrectionTarget = async (target) => ({
+      state: "stale-head",
+      attemptedTarget: target,
+      currentHeadSha: objectId("e"),
+    });
+    deps.confirmPinnedDeliveryMemberTarget = async () => records.target;
+
+    await expect(respondToReviewCommand({
+      schemaVersion: 1,
+      source: original.source,
+      supersedes: {
+        predecessorDispositionSetId: original.dispositions.dispositionSet.dispositionSetId,
+        expectedFixPaths: [],
+      },
+      proposal: {
+        proposedVerification: "targeted",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: records.finding.findingId,
+          sourceVerification: "not-supported",
+          verificationRefs: ["verification://pinned-member-correction"],
+          verifiedSeverity: null,
+          disposition: "reject",
+          rationale: "Fresh evidence disproved the original deferral.",
+          recommendation: "Record the corrected finding judgment.",
+          openQuestions: [],
+        }],
+      },
+    }, deps)).resolves.toMatchObject({ state: "awaiting-approval" });
   });
 
   it("publishes a freshly approved successor and returns its response plan", async () => {
@@ -3755,6 +3792,39 @@ function movingCheckout(records: ReturnType<typeof fixture>) {
 }
 
 describe("approved-settlement replay", () => {
+  it("replays a durably approved conditional pass without approval-time consent fields", async () => {
+    const records = fixture();
+    const { deps, moveTo } = movingCheckout(records);
+    const base = policyRequest(records);
+    const settledFixTarget = settledHead(records.target.repositoryId, objectId("e"), objectId("f"));
+    const request = {
+      ...localRequest(records, "defer"),
+      policyRequest: {
+        ...base,
+        ceilingOverride: {
+          target: base.target,
+          lane: base.lane,
+          exhaustedPassCount: 1,
+          nextPass: 2,
+        },
+      },
+      conditionalNextPassAuthorization: {
+        authorizedBy: records.authority.authorIdentity,
+        exhaustedPassCount: 1,
+        nextPass: 2,
+      },
+    };
+    const approved = await respondToReviewCommand(request, deps);
+    if (approved.state !== "settled") throw new Error("expected approved response");
+    moveTo(settledFixTarget);
+
+    await expect(respondToReviewCommand({
+      ...localRequest(records, "defer"),
+      policyRequest: approved.payload.policyRequest,
+      settledFixTarget,
+    }, deps)).resolves.toMatchObject({ state: "already-settled", nextAction: "reduce" });
+  });
+
   it("does not settle a fix approval from head movement alone", async () => {
     const records = fixture();
     const { deps, moveTo } = movingCheckout(records);

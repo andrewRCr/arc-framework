@@ -322,7 +322,7 @@ describe("local review coverage selection", () => {
     const errandLineage = {
       kind: "head-bound" as const,
       vehicleKind: "errand" as const,
-      vehicleIdentity: "repair-review-state",
+      vehicleIdentity: "claim-old",
       headSha: objectId("a"),
     };
     const predecessor = {
@@ -371,7 +371,7 @@ describe("local review coverage selection", () => {
     const errandLineage = {
       kind: "head-bound" as const,
       vehicleKind: "errand" as const,
-      vehicleIdentity: "repair-review-state",
+      vehicleIdentity: "claim-old",
       headSha: objectId("a"),
     };
     const predecessor = {
@@ -648,6 +648,116 @@ describe("local review coverage selection", () => {
           ? "applicable"
           : "unavailable"
       ),
+    })).resolves.toMatchObject({
+      state: "pass-complete",
+      payload: { verifiedTerminalSignal: { coverageAdequate: true } },
+    });
+  });
+
+  it("offers and completes a third Errand pass over two exact correction legs", async () => {
+    const owner = { kind: "head-bound" as const, vehicleKind: "errand" as const,
+      vehicleIdentity: "claim-1" };
+    const first = completeLocalResult({ ...owner, headSha: objectId("a") });
+    const middleTarget = target(objectId("b"));
+    const currentTarget = target(objectId("c"));
+    const requirementFor = (reviewTarget: typeof middleTarget) => {
+      const requirement = createReviewRequirement({
+        target: reviewTarget,
+        projection: standardReview,
+        acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }],
+        initialAdmission: "checkpoint",
+      });
+      if (requirement === null) throw new Error("expected local requirement");
+      return requirement;
+    };
+    const middleRequirement = requirementFor(middleTarget);
+    const middle: ReviewResult = {
+      ...first,
+      producerId: "errand-middle",
+      target: middleTarget,
+      resultDigest: digest("errand-middle"),
+      admission: {
+        ...first.admission,
+        lineage: { ...owner, headSha: middleTarget.headSha },
+        logicalPass: 2,
+        requestedCoverage: "incremental",
+        effectiveCoverage: "incremental",
+        correctionScope: {
+          schemaVersion: 1,
+          predecessorProducerId: first.producerId,
+          predecessorHeadSha: first.target.headSha,
+          basisHeadSha: first.target.headSha,
+          headSha: middleTarget.headSha,
+          requiredFindings: [],
+        },
+        policyVersion: middleRequirement.policyVersion,
+      },
+      requirement: middleRequirement,
+    };
+    const reader: ReviewResultReader = { readResult: async (producerId) => {
+      if (producerId === first.producerId) return first;
+      if (producerId === middle.producerId) return middle;
+      throw new Error("missing result");
+    } };
+    const applicable = async (earlier: ReviewResult, later: ReviewResult) => (
+      (earlier.producerId === first.producerId && later.producerId === middle.producerId)
+      || (earlier.producerId === middle.producerId && later.producerId === "errand-current")
+        ? "applicable" as const : "unavailable" as const
+    );
+    const policy = resolveReviewPolicy({
+      schemaVersion: 1,
+      target: { repository: "local/repo-1", pullRequest: null, headSha: currentTarget.headSha },
+      lane: "standard",
+      frontlineActive: false,
+      standardReview,
+      completedPasses: 2,
+      attempts: [],
+      sources: ["delegated-agent"],
+      maxPasses: 3,
+      invocation: { mode: "force", sourceId: "delegated-agent" },
+    });
+    const offered = await resolveLocalReviewCoverageSelection({
+      policy, target: currentTarget, sourceId: "delegated-agent",
+      lineage: { ...owner, headSha: currentTarget.headSha }, standardReview,
+      predecessorOperationId: middle.producerId,
+    }, {
+      resultReader: reader,
+      dispositionStore: dependencies(first).dispositionStore,
+      confirmIncrementalApplicability: applicable,
+      confirmCurrentApplicability: async () => "applicable",
+    });
+    if (offered.state !== "coverage-required") throw new Error("expected coverage selection");
+    const coverage = offered.action.choices[0];
+    if (coverage?.requestedCoverage !== "incremental") throw new Error("expected incremental choice");
+    const currentRequirement = requirementFor(currentTarget);
+    const current: ReviewResult = {
+      ...first,
+      producerId: "errand-current",
+      target: currentTarget,
+      resultDigest: digest("errand-current"),
+      admission: {
+        ...first.admission,
+        lineage: { ...owner, headSha: currentTarget.headSha },
+        logicalPass: 3,
+        requestedCoverage: "incremental",
+        effectiveCoverage: "incremental",
+        correctionScope: coverage.correctionScope,
+        policyVersion: currentRequirement.policyVersion,
+      },
+      requirement: currentRequirement,
+    };
+    await expect(resolveEvidenceBoundReviewPolicy({
+      schemaVersion: 1,
+      target: { repository: "local/repo-1", pullRequest: null, headSha: currentTarget.headSha },
+      lane: "standard", frontlineActive: false, standardReview, completedPasses: 3,
+      attempts: [{ sourceId: "delegated-agent", outcome: "clean", reviewOperationId: current.producerId }],
+    }, {
+      sources: ["delegated-agent"], maxPasses: 3,
+      resultReader: { readResult: async (producerId) => producerId === current.producerId
+        ? current : reader.readResult(producerId) },
+      dispositionStore: dependencies(first).dispositionStore,
+      confirmTarget: async () => currentTarget,
+      confirmIncrementalApplicability: applicable,
     })).resolves.toMatchObject({
       state: "pass-complete",
       payload: { verifiedTerminalSignal: { coverageAdequate: true } },

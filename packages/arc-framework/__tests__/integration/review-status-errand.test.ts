@@ -332,8 +332,8 @@ describe("Errand review status", () => {
           repositoryId,
           lineage: {
             kind: "head-bound",
-            vehicleKind: "review-target",
-            vehicleIdentity: `${repositoryId}/${fields.target.headSha}`,
+            vehicleKind: "errand",
+            vehicleIdentity: fields.vehicle.claimId,
             headSha: fields.target.headSha,
           },
           logicalPass,
@@ -467,6 +467,7 @@ describe("Errand review status", () => {
       repositoryId,
       changeRequestId: "pull/42",
       headSha,
+      lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: claimId, headSha },
       attemptId: "hosted-request/later-unavailable",
       sourceId: "codex-pr",
       outcome: "rate-limited",
@@ -488,8 +489,8 @@ describe("Errand review status", () => {
     await git(root, ["update-ref", "refs/arc/user/andrew/errands", "HEAD"]);
     await git(root, ["switch", branch]);
     await expect(readRoutedObligation(root, exec, target, 42)).resolves.toMatchObject({
-      state: "blocked",
-      detail: "Recorded review progress does not match the exact Errand identity and change request.",
+      state: "review-required",
+      detail: "No standard review is recorded for this Errand head.",
     });
 
     await mkdir(join(root, ".arc", "system"), { recursive: true });
@@ -537,7 +538,7 @@ describe("Errand review status", () => {
         createdAt: "2026-09-13T00:03:30Z",
       },
       vehicle: { ...errandVehicle, claimId: nextRecord.claimId },
-    }, requirement, 4);
+    }, requirement, 1);
     await recordHostedPendingRequest(store, { ...context, handle: nextHandle, now: "2026-09-13T00:03:30Z" });
     await recordHostedAwaitAttempt(store, {
       ...context,
@@ -576,6 +577,7 @@ describe("Errand review status", () => {
       repositoryId,
       changeRequestId: null,
       headSha: localHeadSha,
+      lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: nextRecord.claimId, headSha: localHeadSha },
       attemptId: "local/review-1",
       sourceId: "delegated-agent",
       outcome: "clean",
@@ -593,6 +595,7 @@ describe("Errand review status", () => {
       repositoryId,
       changeRequestId: null,
       headSha: localHeadSha,
+      lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: nextRecord.claimId, headSha: localHeadSha },
       attemptId: "local/stale-rubric",
       sourceId: "delegated-agent",
       outcome: "clean",
@@ -609,6 +612,7 @@ describe("Errand review status", () => {
       repositoryId,
       changeRequestId: null,
       headSha: localHeadSha,
+      lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: nextRecord.claimId, headSha: localHeadSha },
       attemptId: "local/current-rubric",
       sourceId: "delegated-agent",
       outcome: "clean",
@@ -634,8 +638,8 @@ describe("Errand review status", () => {
     await git(root, ["update-ref", "refs/arc/user/andrew/errands", "HEAD"]);
     await git(root, ["switch", branch]);
     await expect(readRoutedObligation(root, exec, localStatusTarget, 42)).resolves.toMatchObject({
-      state: "blocked",
-      detail: "Recorded local review does not match the exact Errand target.",
+      state: "review-required",
+      detail: "No standard review is recorded for this Errand head.",
     });
 
     await recordLaneAttempt(store, {
@@ -643,6 +647,7 @@ describe("Errand review status", () => {
       repositoryId,
       changeRequestId: null,
       headSha: localHeadSha,
+      lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: finalRecord.claimId, headSha: localHeadSha },
       attemptId: "local/review-2",
       sourceId: "delegated-agent",
       outcome: "clean",
@@ -687,8 +692,8 @@ describe("Errand review status", () => {
       ...target,
       headSha: legacyHeadSha,
     }, 42)).resolves.toMatchObject({
-      state: "blocked",
-      detail: "Recorded local review does not match the exact Errand target.",
+      state: "review-required",
+      detail: "The exact Errand standard-review lane is not settled.",
     });
   });
 });

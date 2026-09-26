@@ -364,6 +364,23 @@ function priorRetryMatches(
     && prior.retryGeneration < binding.admission.retryGeneration;
 }
 
+function recoveredPriorOutcomeMatches(
+  record: FrontlineOutcomeRecord,
+  priorState: FrontlineRunState,
+  binding: FrontlineRunBinding,
+  input: FrontlineRunExecutionInput,
+  priorOperationId: string,
+): boolean {
+  return record.operationId === priorOperationId
+    && record.repositoryId === priorState.repositoryId
+    && record.outcome.target.repositoryId === priorState.repositoryId
+    && record.outcome.target.targetId === priorState.targetId
+    && record.outcome.target.targetId === binding.target.targetId
+    && record.outcome.pass === priorState.logicalPass
+    && record.outcome.maxPasses === input.admission.maxPasses
+    && matchesPriorOutcomeBinding(record, priorState);
+}
+
 async function validateExplicitRetry(
   dependencies: FrontlineRunExecutionDependencies,
   input: FrontlineRunExecutionInput,
@@ -383,10 +400,7 @@ async function validateExplicitRetry(
   const priorOutcome = await dependencies.outcomeStore.readOutcome(input.retryOfOperationId);
   if (priorOutcome.record === null) return;
   const record = FrontlineOutcomeRecordSchema.parse(priorOutcome.record);
-  if (record.operationId !== input.retryOfOperationId
-    || record.outcome.target.targetId !== priorState.targetId
-    || record.outcome.pass !== priorState.logicalPass
-    || !matchesPriorOutcomeBinding(record, priorState)) {
+  if (!recoveredPriorOutcomeMatches(record, priorState, binding, input, input.retryOfOperationId)) {
     throw new FrontlineOperationCorruptStateError("prior frontline outcome does not match its admission");
   }
   await dependencies.operationStore.publishOperation(FrontlineRunStateSchema.parse({
@@ -394,6 +408,9 @@ async function validateExplicitRetry(
     updatedAt: dependencies.now(),
     outcome: record.outcome.outcome,
   }), prior.version);
+  if (record.outcome.outcome === "clean" || record.outcome.outcome === "findings") {
+    throw new FrontlineOperationRetryError("retry requires an inconclusive prior operation");
+  }
 }
 
 function terminalFromRecord(

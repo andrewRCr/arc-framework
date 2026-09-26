@@ -149,6 +149,12 @@ export async function readErrandRoutedObligation(input: {
       lane: "standard",
       repositoryId,
       headSha: input.target.headSha,
+      lineage: {
+        kind: "head-bound",
+        vehicleKind: "errand",
+        vehicleIdentity: selected.record.claimId,
+        headSha: input.target.headSha,
+      },
     });
     if (progress.status === "unrecorded") {
       return { state: "review-required", detail: "No standard review is recorded for this Errand head." };

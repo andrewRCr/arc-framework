@@ -424,6 +424,70 @@ describe("frontline operation continuity", () => {
     }, executionBinding())).rejects.toMatchObject({ code: "corrupt-state" });
   });
 
+  it.each(["clean", "findings"] as const)(
+    "reconciles an interrupted %s outcome and refuses an explicit retry",
+    async (verdict) => {
+      const operationStore = memoryStore();
+      const outcomeStore = memoryOutcomeStore();
+      const pending = await resolveFrontlineRun(operationStore, binding());
+      if (pending.action !== "execute") throw new Error("expected execution");
+      await persistFrontlineRunPending(operationStore, {
+        ...binding(), updatedAt: "2026-07-23T19:00:00Z", expectedVersion: pending.expectedVersion,
+      });
+      await outcomeStore.appendOutcome(createFrontlineOutcomeRecord({
+        schemaVersion: 1,
+        semanticsVersion: "review-advisory/v1",
+        repositoryId: target("c").repositoryId,
+        operationId: pending.operationId,
+        sourceIdentity: source.sourceId,
+        executableIdentity,
+        outcome: normalizedOutcome(verdict),
+      }), 0);
+      const execute = vi.fn();
+      const retry = {
+        ...executionBinding({ retryGeneration: 1 }),
+        retryOfOperationId: pending.operationId,
+      };
+
+      await expect(executeFrontlineRun({
+        operationStore, outcomeStore, withOperationLock: passThroughOperationLock,
+        execute, now: () => "2026-07-23T19:01:00Z",
+      }, retry)).rejects.toMatchObject({ code: "invalid-input" });
+      expect(operationStore.records.get(pending.operationId)?.state).toMatchObject({ outcome: verdict });
+      expect(execute).not.toHaveBeenCalled();
+    },
+  );
+
+  it("refuses an explicit retry when the interrupted prior outcome names another target", async () => {
+    const operationStore = memoryStore();
+    const outcomeStore = memoryOutcomeStore();
+    const pending = await resolveFrontlineRun(operationStore, binding());
+    if (pending.action !== "execute") throw new Error("expected execution");
+    await persistFrontlineRunPending(operationStore, {
+      ...binding(), updatedAt: "2026-07-23T19:00:00Z", expectedVersion: pending.expectedVersion,
+    });
+    const other = target("d");
+    await outcomeStore.appendOutcome(createFrontlineOutcomeRecord({
+      schemaVersion: 1,
+      semanticsVersion: "review-advisory/v1",
+      repositoryId: other.repositoryId,
+      operationId: pending.operationId,
+      sourceIdentity: source.sourceId,
+      executableIdentity,
+      outcome: normalizeFrontlineOutcome({ providerResult: { kind: "clean" }, source,
+        target: other, pass: 1, maxPasses: 2 }),
+    }), 0);
+    const execute = vi.fn();
+
+    await expect(executeFrontlineRun({
+      operationStore, outcomeStore, withOperationLock: passThroughOperationLock,
+      execute, now: () => "2026-07-23T19:01:00Z",
+    }, { ...executionBinding({ retryGeneration: 1 }), retryOfOperationId: pending.operationId }))
+      .rejects.toMatchObject({ code: "corrupt-state" });
+    expect(operationStore.records.get(pending.operationId)?.state).toMatchObject({ outcome: "pending" });
+    expect(execute).not.toHaveBeenCalled();
+  });
+
   it("refuses to replay a pending provider effect without an outcome", async () => {
     const operationStore = memoryStore();
     const outcomeStore = memoryOutcomeStore();

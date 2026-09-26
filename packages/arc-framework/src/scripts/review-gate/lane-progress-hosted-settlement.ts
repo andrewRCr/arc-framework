@@ -359,7 +359,9 @@ function projectSuccessorCarry(
     const successor = successorByFindingId.get(findingId);
     if (evidence === undefined || successor === undefined
       || evidence.disposition !== successor.disposition
-      || evidence.channelAction !== successor.channelAction) {
+      || evidence.channelAction !== successor.channelAction
+      || (successor.disposition === "fix"
+        && successor.channelAction === "reply-and-resolve")) {
       return [];
     }
     return [{

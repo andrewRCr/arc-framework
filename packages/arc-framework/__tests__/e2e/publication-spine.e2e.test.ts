@@ -493,6 +493,45 @@ describe("attest → pre-publication → publish", () => {
     if (repository !== null) await cleanupTempDir(repository);
   });
 
+  it("offers the findings response before approval and after the approved fix commit", async () => {
+    repository = await createAtCapPublicationRepo();
+    expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
+    await git(repository, ["commit", "-m", "verification"]);
+    const findings = await completeLocalReview(repository, "findings", "run-prepublication-findings");
+    expect(findings).toMatchObject({ state: "findings", nextAction: "respond" });
+    const source = (findings.payload as unknown as FindingsReductionPayload).responseSource;
+    await git(repository, ["remote", "add", "origin", OFFLINE_ORIGIN]);
+    const judgments = await writeNonDefaultPrePublicationJudgments(repository);
+    const argv = [
+      "review", "pre-publication", "example",
+      "--self-review", "settled",
+      "--change-set", judgments.changeSetPath,
+      "--lanes", judgments.lanesPath,
+    ];
+    const fresh = await runArc(argv, repository, { env: OFFLINE_ENV });
+    expect(fresh.exitCode, JSON.stringify(fresh)).toBe(0);
+    expect(JSON.parse(fresh.stdout)).toMatchObject({
+      locus: "candidate-fix-pending",
+      nextAction: { command: "arc review respond -", responseSource: source },
+    });
+
+    const dispositions = await approveFix(repository, source);
+    const policyRequest = await responsePolicyRequest(repository, source);
+    await expect(invokeReview(repository, ["review", "respond", "-"], {
+      schemaVersion: 1, source, policyRequest, dispositions,
+    })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+    await writeFile(join(repository, "src", "example.ts"), "export const example = 'fixed';\n");
+    await git(repository, ["add", "src/example.ts"]);
+    await git(repository, ["commit", "-m", "apply approved fix"]);
+
+    const committed = await runArc(argv, repository, { env: OFFLINE_ENV });
+    expect(committed.exitCode, JSON.stringify(committed)).toBe(0);
+    expect(JSON.parse(committed.stdout)).toMatchObject({
+      locus: "candidate-fix-pending",
+      nextAction: { command: "arc review respond -", responseSource: source },
+    });
+  }, 120_000);
+
   it("settles the boundary at pre-publication and submits on the first call", async () => {
     repository = await createAttestableRepo();
 

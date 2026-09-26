@@ -262,6 +262,7 @@ export function projectPrePublicationCandidateRead(input: {
       implementationChanged: baseline.implementationChanged,
       ...convergence,
       pendingReviewTarget: input.pending.reviewedTarget,
+      pendingFixRootHeadSha: input.effective.currentTarget.revision,
       lineageHeadShas: [...new Set([
         input.record.attestation.baseRevision,
         ...candidateReviewResponses(input.record)

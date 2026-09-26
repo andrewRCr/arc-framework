@@ -176,6 +176,10 @@ async function attestLocalReviewWithinLocalReviewLock(
           : { correctionScope: state.coverageAdmission.correctionScope }),
         effectiveCoverage: null,
         scopeMode: state.scopeMode,
+        rubricIdentity: {
+          version: state.requirement.rubricVersion,
+          digest: state.requirement.rubricDigest,
+        },
         ...(state.deliveryAdmission === undefined
           ? {}
           : { deliveryAdmission: state.deliveryAdmission }),

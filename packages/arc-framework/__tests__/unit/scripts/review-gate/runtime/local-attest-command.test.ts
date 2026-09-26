@@ -171,6 +171,7 @@ function fixture(vehicle: LocalReviewAuthority["vehicle"] = workUnitVehicle, ret
         requestedCoverage: "complete",
         effectiveCoverage: null,
         scopeMode: operation.scopeMode,
+        rubricIdentity: { version: requirement.rubricVersion, digest: requirement.rubricDigest },
       },
     }],
   });

@@ -1314,7 +1314,7 @@ async function completeLocalReviewThroughHandlers(
     write: (text) => attestOutput.push(text),
     setExitCode: (code) => attestExitCodes.push(code),
   });
-  expect(attestExitCodes).toEqual([]);
+  expect(attestExitCodes, JSON.stringify(attestOutput)).toEqual([]);
   const attested = LocalAttestEnvelopeSchema.parse(JSON.parse(attestOutput.join("")));
   expect(attested).toMatchObject(result === "failed"
     ? { state: "not-attestable", nextAction: "rerun-review" }
@@ -2767,7 +2767,7 @@ describe("hosted review fan-out lifecycle", () => {
     });
   });
 
-  it("admits hosted delivery-member review after a same-head performed local fix", async () => {
+  it("admits hosted delivery-member review after a changed-head performed local fix", async () => {
     const harness = await createHarness(["delegated-agent", "coderabbit-pr"]);
     const statusTarget = {
       repository, headRef: "delivery/delivery-plan-record/first", headSha: harness.oldFirst,
@@ -2813,16 +2813,36 @@ describe("hosted review fan-out lifecycle", () => {
       })],
     });
 
-    // A same-head performance record keeps the local terminal attempt in the current policy pass.
-    const fixedHead = harness.oldFirst;
-    const operation = await harness.store.readOperation(local.prepared.payload.operationId);
-    if (operation.state?.kind !== "local-review") throw new Error("expected local producer");
-    await recordLaneResponsePerformance(harness.store, {
-      lane: "standard", repositoryId: harness.repositoryId,
-      headSha: harness.oldFirst, lineage: operation.state.lineage,
-      attemptId: operation.state.operationId,
-      dispositionSetId: dispositions.dispositionSet.dispositionSetId,
-      producedHeadSha: fixedHead, now: "2026-09-10T12:01:00.000Z",
+    await git(harness.root, ["checkout", "delivery/delivery-plan-record/first"]);
+    await writeFile(join(harness.root, "first.txt"), "fixed local finding\n", "utf8");
+    await git(harness.root, ["add", "first.txt"]);
+    await git(harness.root, ["commit", "-m", "fix local member finding"]);
+    const fixedHead = await git(harness.root, ["rev-parse", "HEAD"]);
+    const fixedTree = await git(harness.root, ["rev-parse", "HEAD^{tree}"]);
+    expect(fixedHead).not.toBe(harness.oldFirst);
+    const fixedState: DeliveryStateV1 = {
+      ...harness.state,
+      members: [
+        {
+          ...harness.state.members[0]!,
+          coordinates: { base: harness.baseHead, head: fixedHead, tree: fixedTree },
+        },
+        harness.state.members[1]!,
+      ],
+    };
+    const published = await harness.states.publish(harness.plan.planId, fixedState, harness.stateRevision);
+    if (published.status !== "ok") throw new Error("expected fixed delivery state");
+    harness.state = fixedState;
+    harness.stateRevision = published.value.revision;
+    await expect(respondThroughHandler(harness, {
+      schemaVersion: 1, source, policyRequest, dispositions,
+      verifiedFix: {
+        applicability: "focused",
+        verificationEvidenceRefs: ["verification://local-member-fix"],
+      },
+    })).resolves.toMatchObject({
+      state: "delivery-member-advanced",
+      payload: { currentTarget: { headSha: fixedHead } },
     });
 
     const correctedTarget = {

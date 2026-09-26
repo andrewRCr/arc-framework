@@ -45,6 +45,8 @@ export interface EvidenceBoundReviewPolicyDependencies {
   ) => Promise<LaneResponsePerformance | null>;
   /** Producer ID already proven applicable to the current Candidate by the owning composition. */
   readonly historicalProducerId?: string;
+  /** Pre-publication may project a pending response before its disposition is approved. */
+  readonly allowUnapprovedFindings?: boolean;
 }
 
 function requestScope(request: ReviewPolicyCommandRequest): "whole-target" | "chunked" {
@@ -220,6 +222,7 @@ async function deriveVerifiedTerminalSignal(
   dependencies: Pick<
     EvidenceBoundReviewPolicyDependencies,
     "resultReader" | "dispositionStore" | "confirmIncrementalApplicability" | "readResponsePerformance"
+      | "allowUnapprovedFindings"
   >,
 ): Promise<VerifiedTerminalReviewSignal> {
   const coverage = await resolveIncrementalCoverageBasis(result, {
@@ -245,6 +248,16 @@ async function deriveVerifiedTerminalSignal(
   }
   const record = await dependencies.dispositionStore.readDispositionRecord(operationId);
   if (record === null) {
+    if (dependencies.allowUnapprovedFindings === true) {
+      // Only the pre-publication response route consumes this provisional signal.
+      // It cannot count findings or settle policy before the disposition exists.
+      return {
+        reviewOperationId: operationId,
+        confirmedFindingCount: 0,
+        maxConfirmedSeverity: null,
+        coverageAdequate,
+      };
+    }
     throw new Error("terminal findings producer has no approved disposition record");
   }
   const approved = validateApprovedDispositionRecordForResult(record, result);
@@ -340,7 +353,8 @@ export async function resolveEvidenceBoundReviewPolicyContinuation(
   dependencies: EvidenceBoundReviewPolicyDependencies,
 ): Promise<ReviewResolveEnvelope> {
   const request = ReviewPolicyCommandRequestSchema.parse(input);
-  const terminalRequest = request.attempts.at(-1)?.outcome === "findings"
+  const terminalOutcome = request.attempts.at(-1)?.outcome;
+  const terminalRequest = terminalOutcome === "findings" || terminalOutcome === "clean"
     ? ReviewPolicyCommandRequestSchema.parse({ ...request, ceilingOverride: undefined })
     : request;
   const terminalAttempt = terminalRequest.attempts.at(-1);

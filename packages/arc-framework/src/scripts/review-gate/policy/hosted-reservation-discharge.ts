@@ -567,6 +567,22 @@ export async function projectHostedReservationDischarge(input: {
   };
 }
 
+/** Require the retained producer to cover the same standard-review policy as this reservation. */
+export function predecessorMatchesHostedReservationPolicy(
+  predecessor: Exclude<ReviewResult, { kind: "frontline" }>,
+  reservation: StandardReviewReservationV1,
+): boolean {
+  const predecessorPolicy = {
+    obligation: predecessor.requirement.obligation,
+    reasons: [...predecessor.requirement.reasons].sort(),
+    rubricVersion: predecessor.requirement.rubricVersion, rubricDigest: predecessor.requirement.rubricDigest,
+    retrigger: predecessor.requirement.retrigger, count: predecessor.requirement.count,
+  };
+  return canonicalize(predecessorPolicy) === canonicalize({
+    ...reservation.obligation, reasons: [...reservation.obligation.reasons].sort(),
+  });
+}
+
 /**
  * Bind the repository's durable lane progress and Candidate span to the discharge projection.
  *
@@ -799,6 +815,7 @@ export function createHostedReservationDischargeReader(input: {
           ? predecessor.sourceIdentity !== attempt.sourceId
           : attempt.sourceId !== "delegated-agent")
         || canonicalize(predecessor.target) !== canonicalize(attempt.producerTarget)) return null;
+      if (!predecessorMatchesHostedReservationPolicy(predecessor, reservation)) return null;
       return resolveVerifiedIncrementalCorrectionScope({
         predecessor,
         currentHeadSha,

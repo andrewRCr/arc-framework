@@ -195,6 +195,7 @@ function operationOver(target: ReviewTarget) {
         requestedCoverage: "complete",
         effectiveCoverage: null,
         scopeMode: state.scopeMode,
+        rubricIdentity: { version: requirement.rubricVersion, digest: requirement.rubricDigest },
       },
     }],
   });

@@ -257,14 +257,14 @@ function exactErrandClaimMatches(input: ErrandFixApplicabilityInput): boolean {
   const priorVehicle = predecessor.vehicle;
   const priorCarrier = predecessor.request.carrier;
   if (priorVehicle.kind !== "errand"
-    || priorVehicle.identity !== currentLineage.vehicleIdentity
+    || priorVehicle.claimId !== currentLineage.vehicleIdentity
     || priorVehicle.claimId !== currentClaimId
     || priorCarrier.kind !== "local-change-set"
     || priorCarrier.errandClaimId !== currentClaimId) return false;
   if (currentResult === undefined) return true;
   return currentResult.kind === "attested-local"
     && currentResult.vehicle.kind === "errand"
-    && currentResult.vehicle.identity === currentLineage.vehicleIdentity
+    && currentResult.vehicle.identity === priorVehicle.identity
     && currentResult.vehicle.claimId === currentClaimId
     && currentResult.request.carrier.kind === "local-change-set"
     && currentResult.request.carrier.errandClaimId === currentClaimId;
@@ -295,7 +295,10 @@ export async function confirmErrandFixResponseApplicability(
   const { predecessor, currentTarget } = input;
   if (!exactErrandResponseContext(input)) return "unavailable";
   try {
-    if (canonicalize(await input.observeTarget()) !== canonicalize(currentTarget)) return "unavailable";
+    const historicalSuccessor = input.currentResult !== undefined;
+    if (historicalSuccessor
+      ? canonicalize(input.currentResult.target) !== canonicalize(currentTarget)
+      : canonicalize(await input.observeTarget()) !== canonicalize(currentTarget)) return "unavailable";
     const performance = await input.readResponsePerformance(predecessor);
     if (performance === null
       || performance.producerId !== predecessor.producerId
@@ -307,7 +310,7 @@ export async function confirmErrandFixResponseApplicability(
       () => Promise.resolve(performance),
     );
     if (response.status !== "performed") return "unavailable";
-    return canonicalize(await input.observeTarget()) === canonicalize(currentTarget)
+    return historicalSuccessor || canonicalize(await input.observeTarget()) === canonicalize(currentTarget)
       ? "applicable" : "unavailable";
   } catch {
     return "unavailable";

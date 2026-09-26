@@ -282,6 +282,10 @@ function localLaneAttemptMatchesState(attempt: LaneAttempt, state: LocalReviewSt
         : { correctionScope: state.coverageAdmission.correctionScope }),
       effectiveCoverage: attempt.terminalProducer ? requestedCoverage : null,
       scopeMode: state.scopeMode,
+      rubricIdentity: {
+        version: state.requirement.rubricVersion,
+        digest: state.requirement.rubricDigest,
+      },
       ...(state.deliveryAdmission === undefined
         ? {}
         : { deliveryAdmission: state.deliveryAdmission }),
@@ -360,6 +364,10 @@ export async function recordLocalReceiptConclusion(
         : { correctionScope: state.coverageAdmission.correctionScope }),
       effectiveCoverage: consumedPass ? requestedCoverage : null,
       scopeMode: state.scopeMode,
+      rubricIdentity: {
+        version: state.requirement.rubricVersion,
+        digest: state.requirement.rubricDigest,
+      },
       ...(state.deliveryAdmission === undefined
         ? {}
         : { deliveryAdmission: state.deliveryAdmission }),
@@ -617,6 +625,10 @@ export async function recordLocalPendingAttempt(
         : { correctionScope: state.coverageAdmission.correctionScope }),
       effectiveCoverage: null,
       scopeMode: state.scopeMode,
+      rubricIdentity: {
+        version: state.requirement.rubricVersion,
+        digest: state.requirement.rubricDigest,
+      },
       ...(state.deliveryAdmission === undefined ? {} : { deliveryAdmission: state.deliveryAdmission }),
     },
     now: input.now,

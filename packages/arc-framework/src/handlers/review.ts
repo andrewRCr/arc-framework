@@ -264,7 +264,10 @@ import {
   settleHostedAttemptFinding,
 } from "../scripts/review-gate/lane-progress.js";
 import { laneSubjectOwnerMatches } from "../scripts/review-gate/core/lane-admission.js";
-import type { LaneProgressState } from "../scripts/review-gate/core/operation-state-schema.js";
+import type {
+  LaneProgressState,
+  LaneResponsePerformance,
+} from "../scripts/review-gate/core/operation-state-schema.js";
 import {
   assertEvidenceBoundCandidateHostedReservationPolicyAdmission,
   assertHostedErrandAdmission,
@@ -1565,7 +1568,7 @@ async function resolveConfiguredReviewPolicy(
           predecessor,
           currentTarget: current.target,
           currentLineage: current.admission.lineage,
-          currentClaimId: live?.context.errand?.identity === current.admission.lineage.vehicleIdentity
+          currentClaimId: live?.context.errand?.claimId === current.admission.lineage.vehicleIdentity
             ? live.context.errand.claimId : null,
           currentResult: current,
           observeTarget,
@@ -3707,6 +3710,23 @@ export interface ReviewHostedSettleHandlerDependencies extends HostedReviewHandl
   settle(input: unknown): Promise<unknown>;
 }
 
+/** Guard the provider mutation with the response performance committed for this exact approved set. */
+export function assertHostedFixSettlementPerformance(input: {
+  attemptId: string;
+  originatingHeadSha: string;
+  dispositionSetId: string;
+  producedHeadSha: string | undefined;
+  responsePerformance: LaneResponsePerformance | undefined;
+}): void {
+  const performance = input.responsePerformance;
+  if (performance?.producerId !== input.attemptId
+    || performance.dispositionSetId !== input.dispositionSetId
+    || performance.originatingHeadSha !== input.originatingHeadSha
+    || performance.producedHeadSha !== input.producedHeadSha) {
+    throw new Error("Hosted fix settlement requires matching durable response-performance evidence.");
+  }
+}
+
 function defaultHostedSettleDependencies(): ReviewHostedSettleHandlerDependencies {
   const { port } = createHostedAdapters();
   const root = resolveArcRoot(process.cwd());
@@ -3767,10 +3787,14 @@ function defaultHostedSettleDependencies(): ReviewHostedSettleHandlerDependencie
             || disposition?.disposition !== request.disposition) {
             throw new Error("Hosted settlement does not match its approved disposition.");
           }
-          if (disposition.disposition === "fix"
-            && attempt.responsePerformance !== undefined
-            && request.fixTarget?.headSha !== attempt.responsePerformance.producedHeadSha) {
-            throw new Error("Hosted fix settlement does not match durable response-head evidence.");
+          if (disposition.disposition === "fix") {
+            assertHostedFixSettlementPerformance({
+              attemptId: attempt.attemptId,
+              originatingHeadSha: attempt.headSha,
+              dispositionSetId: request.response.dispositionSetId,
+              producedHeadSha: request.fixTarget?.headSha,
+              responsePerformance: attempt.responsePerformance,
+            });
           }
           const result = await settleHostedFinding(request, { port });
           if (result.state === "settled" || result.state === "already-settled") {
@@ -3895,6 +3919,21 @@ export interface ReviewPrePublicationHandlerDependencies {
   write(text: string): void;
   warn(text: string): void;
   setExitCode(code: number): void;
+}
+
+async function recoverProjectedPublicationBoundary(
+  dependencies: ReviewPrePublicationHandlerDependencies,
+  root: string,
+  boundary: IntegrationBoundaryLocus,
+  expectedVersion: string,
+): Promise<SubmissionBoundaryVersionConflictError | null> {
+  try {
+    await dependencies.recoverAttestationOrdering(root, boundary, expectedVersion);
+    return null;
+  } catch (error) {
+    if (error instanceof SubmissionBoundaryVersionConflictError) return error;
+    throw error;
+  }
 }
 
 async function persistAcceptedFrontlineSkip(input: {
@@ -4371,7 +4410,11 @@ export async function handleReviewPrePublication(
       ?? (composition.request.reservationTarget.kind === "pinned-head"
         ? composition.request.reservationTarget.headSha
         : null);
-    if (candidateRootHead === null || candidateRootHead !== currentRootHead) {
+    const pendingFixAtCurrentRoot = candidateRootHead !== null
+      && composition.pendingFixRootHeadSha === currentRootHead
+      && candidateRootHead !== currentRootHead;
+    if (candidateRootHead === null
+      || (candidateRootHead !== currentRootHead && !pendingFixAtCurrentRoot)) {
       emitFailure(new Error("The root Candidate and Git heads disagree before publication readiness."),
         "execution", "attestation-ordering-conflict");
       return;
@@ -4390,19 +4433,6 @@ export async function handleReviewPrePublication(
         || currentRootHead === pending.reviewedHead) {
         emitFailure(new Error("The attestation-ordering recovery input is stale or no longer matches the pending boundary."),
           "execution", "attestation-ordering-conflict");
-        return;
-      }
-      const recovered = { ...pendingBoundary };
-      delete recovered.postAttestContinuation;
-      try {
-        await dependencies.recoverAttestationOrdering(
-          root,
-          parseIntegrationBoundaryLocus(recovered),
-          boundarySnapshot.version,
-        );
-      } catch (error) {
-        if (!(error instanceof SubmissionBoundaryVersionConflictError)) throw error;
-        emitFailure(error, "execution", "attestation-ordering-conflict");
         return;
       }
     }
@@ -4427,6 +4457,13 @@ export async function handleReviewPrePublication(
       projectionDisposition: "keep-staged-until-publication",
     };
     envelope = projectPrePublicationReview(composition.request, postAttestContinuation);
+    if (pendingFixAtCurrentRoot
+      && (envelope.locus !== "candidate-fix-pending"
+        || envelope.nextAction.command !== "arc review respond -")) {
+      emitFailure(new Error("The pending Candidate fix must complete its bound response before publication readiness."),
+        "execution", "attestation-ordering-conflict");
+      return;
+    }
     if (envelope.nextAction.kind === "continue-pre-publication-review"
       || envelope.nextAction.kind === "run-self-review") {
       // The run-self-review command is the re-entry *after* the method has run, so it carries
@@ -4463,7 +4500,7 @@ export async function handleReviewPrePublication(
         nextAction,
       });
     }
-    if (acceptedSingletonFrontlineSkip(composition.request, envelope)) {
+    if (!pendingFixAtCurrentRoot && acceptedSingletonFrontlineSkip(composition.request, envelope)) {
       await dependencies.persistAcceptedFrontlineSkip(root, {
         workUnit: composition.request.workUnit,
         candidateId: composition.request.candidateId,
@@ -4476,7 +4513,20 @@ export async function handleReviewPrePublication(
     // absent boundary now means genuinely open obligations rather than a write nobody performed.
     if (envelope.locus === "candidate-publish-ready"
       || envelope.locus === "candidate-convergence-verification-pending") {
-      await dependencies.persistBoundary(root, prePublicationBoundary(envelope));
+      if (orderingRecovery !== undefined) {
+        const conflict = await recoverProjectedPublicationBoundary(
+          dependencies,
+          root,
+          prePublicationBoundary(envelope),
+          orderingRecovery.expectedBoundaryVersion,
+        );
+        if (conflict !== null) {
+          emitFailure(conflict, "execution", "attestation-ordering-conflict");
+          return;
+        }
+      } else {
+        await dependencies.persistBoundary(root, prePublicationBoundary(envelope));
+      }
     }
   } catch (error) {
     emitFailure(error, "execution");

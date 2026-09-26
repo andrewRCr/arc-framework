@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Local preparation scenarios share one durable in-memory fixture. */
 import { describe, expect, it, vi } from "vitest";
 
 import { createHostedTerminalAttemptFixture } from "../../../../fixtures/hosted-review.js";
@@ -16,7 +17,7 @@ import { DEFAULT_LOCAL_REVIEW_POLICY_BINDING } from "../../../../../src/scripts/
 import { assertStandardReviewExecutionAdmission } from "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 import { attestLocalReviewCommand } from "../../../../../src/scripts/review-gate/runtime/local-attest-command.js";
 import { prepareLocalReview } from "../../../../../src/scripts/review-gate/runtime/local-prepare.js";
-import { captureConditionalNextPassAuthorization, readLaneProgressOwner, recordLaneAttempt, settleLaneAttempt } from "../../../../../src/scripts/review-gate/lane-progress.js";
+import { captureConditionalNextPassAuthorization, readLaneProgressOwner, recordLaneAttempt, recordLocalReceiptConclusion, settleLaneAttempt } from "../../../../../src/scripts/review-gate/lane-progress.js";
 
 const objectId = (character: string): string => character.repeat(40);
 const routingFacts = {
@@ -454,6 +455,55 @@ describe("local review member preparation", () => {
         completedPasses: 0,
         attempts: [],
       }));
+    });
+
+    it("keeps the admitted rubric through receipt settlement and rechecks a changed diff base", async () => {
+      const context = fixture();
+      const prepared = await prepareLocalReview(request, context.dependencies);
+      if (prepared.state !== "ready") throw new Error("expected a prepared local review");
+      const state = context.published();
+      if (state?.kind !== "local-review") throw new Error("expected local operation state");
+      expect(context.laneProgress()).toMatchObject({ attempts: [{ local: { rubricIdentity: {
+        version: state.requirement.rubricVersion,
+        digest: state.requirement.rubricDigest,
+      } } }] });
+      const receipt = createReviewReceipt({
+        target: state.target,
+        requirement: state.requirement,
+        request: state.request,
+        applicabilityId: null,
+        reviewRunId: "review-run-1",
+        evaluatorIdentity: state.request.evaluatorIdentity,
+        attestingRuntimeIdentity: state.attestation.runtimeIdentity,
+        attestationMechanism: state.attestation.mechanism,
+        providerEventIdentity: null,
+        result: "clean",
+        findings: [],
+      });
+      await recordLocalReceiptConclusion(context.dependencies.operationStore, {
+        state, receipt, now: "2026-08-06T17:10:00Z",
+      });
+      context.dependencies.readReceipts = async () => ({ ledgerVersion: 1, receipts: [receipt] });
+      await expect(prepareLocalReview(request, context.dependencies)).resolves.toMatchObject({
+        state: "review-complete",
+        payload: { operationId: state.operationId },
+      });
+
+      const changedTarget = createReviewTarget({
+        schemaVersion: 2, semanticsVersion: "review-gate/v2", kind: "change-set",
+        repositoryId: state.repositoryId, baseRef: state.target.baseRef,
+        diffBaseSha: objectId("9"), diffBaseTree: objectId("8"),
+        headSha: state.target.headSha, headTree: state.target.headTree,
+      });
+      context.deriveTarget.mockResolvedValue(changedTarget);
+      context.validatePolicyAdmission.mockResolvedValue({ state: "ready", pass: 2 });
+      const fresh = await prepareLocalReview(request, context.dependencies);
+      expect(fresh).toMatchObject({
+        state: "ready",
+        payload: { target: changedTarget },
+      });
+      if (fresh.state !== "ready") throw new Error("expected a fresh local review");
+      expect(fresh.payload.operationId).not.toBe(state.operationId);
     });
 
     it("persists ordinary local chunk scope through operation and lane admission", async () => {

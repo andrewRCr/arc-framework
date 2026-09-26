@@ -1,5 +1,3 @@
-/** End-to-end orchestration for `arc review local prepare`. */
-
 import { z } from "zod";
 
 import { canonicalize } from "../../../lib/kernel/index.js";
@@ -36,31 +34,20 @@ import {
   publishLocalReviewPreparation,
   type LocalReviewPreparation,
 } from "../core/local-prepare.js";
-import {
-  LocalPrepareEnvelopeSchema,
-} from "../core/review-command-envelope.js";
-import {
-  LocalReviewSourceSchema,
-  type LocalReviewSource,
-} from "../core/local-review-source.js";
+import { LocalPrepareEnvelopeSchema } from "../core/review-command-envelope.js";
+import { LocalReviewSourceSchema, type LocalReviewSource } from "../core/local-review-source.js";
 import type {
   LocalReviewAuthority,
   LocalReviewAuthorityResolution,
   LocalReviewMemberCoordinates,
 } from "../core/local-review-authority.js";
-import {
-  LocalReviewStateSchema,
-  type LocalReviewState,
-} from "../core/operation-state-schema.js";
+import { LocalReviewStateSchema, type LocalReviewState } from "../core/operation-state-schema.js";
 import type {
   ForwardReceiptLedger,
   LocalReviewSourceStore,
   ReviewOperationStateStore,
 } from "../core/ports.js";
-import {
-  isReviewVersionConflict,
-  REVIEW_VERSION_RETRY_ATTEMPTS,
-} from "../core/version-conflict.js";
+import { isReviewVersionConflict, REVIEW_VERSION_RETRY_ATTEMPTS } from "../core/version-conflict.js";
 import type { LocalReviewPolicyBinding } from "../policy/local-review-policy.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import type { CandidateSupersessionAncestor } from
@@ -259,6 +246,7 @@ function completedReplayAttemptMatches(
     && attempt.local !== undefined
     && attempt.local.scopeMode === input.scopeMode
     && attempt.headSha === input.target.headSha
+    && attempt.local.target.targetId === input.target.targetId
     && (input.request.deliveryAdmission !== undefined || attempt.outcome !== "settled-findings")
     && (input.request.deliveryAdmission === undefined
       || attempt.logicalPass === input.request.deliveryAdmission.pass);
@@ -307,6 +295,9 @@ function replayIdentityMatches(
   return state.operationId === attempt.attemptId
     && state.operationId === binding.operationId
     && state.requestId === binding.requestId
+    && state.targetId === input.target.targetId
+    && binding.target.targetId === input.target.targetId
+    && canonicalize(state.target) === canonicalize(input.target)
     && state.scopeMode === binding.scopeMode
     && state.scopeMode === input.scopeMode
     && state.logicalPass === attempt.logicalPass

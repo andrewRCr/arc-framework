@@ -506,6 +506,33 @@ describe("hosted review request", () => {
     });
   });
 
+  it.each([undefined, { kind: "errand" as const, standardReview: STANDARD_REVIEW }])(
+    "refuses forced invocation without a delivery-member vehicle before admission or dispatch (%s)",
+    async (vehicle) => {
+      let admitted = false;
+      let dispatched = false;
+      await expect(requestHostedReview({
+        schemaVersion: 1,
+        target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+        provider: "codex-pr",
+        coverage: "complete",
+        ...(vehicle === undefined ? {} : { vehicle }),
+        invocation: { mode: "force", sourceId: "codex-pr" },
+      }, {
+        adapters: [{ ...adapter(async () => {
+          dispatched = true;
+          return { kind: "rate-limited" };
+        }), id: "codex-pr" }],
+        admitRequest: async () => {
+          admitted = true;
+          throw new Error("admission should not run");
+        },
+      })).rejects.toThrow(/requires one exact delivery-member vehicle/u);
+      expect(admitted).toBe(false);
+      expect(dispatched).toBe(false);
+    },
+  );
+
   it("rechecks delivery-member admission before invoking the hosted adapter", async () => {
     let providerCalled = false;
     await expect(requestHostedReview({

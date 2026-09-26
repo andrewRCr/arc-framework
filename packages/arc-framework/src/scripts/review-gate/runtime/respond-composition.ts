@@ -12,6 +12,7 @@ import type { GitExec } from "../../../lib/git/exec.js";
 import type { RawGitExec } from "../../../lib/change-facts.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
+import type { DeliveryReviewMemberVehicle } from "../../../lib/delivery/review-vehicle.js";
 import { getFrameworkVersion } from "../../../lib/version.js";
 import {
   readCandidateRecord,
@@ -109,7 +110,7 @@ function rethrowUncollectableSubject(error: unknown): never {
 }
 
 /** Bind local policy coordinates to the live branch and change request, as local admission does. */
-async function resolveRespondPolicyTarget(
+export async function resolveRespondPolicyTarget(
   input: { exec: GitExec; cwd: string },
   current: ReviewResult,
   baseRef: string,
@@ -125,14 +126,14 @@ async function resolveRespondPolicyTarget(
     headSha: current.target.headSha,
     baseRef,
   }, createGhChangeRequestResolutionPort(input.exec, input.cwd));
-  if (changeRequest.targetRef !== null && (changeRequest.state === "blocked"
-    || changeRequest.state === "ambiguous")) return null;
-  return changeRequest.targetRef === null
-    ? { repository: `local/${current.repositoryId}`, pullRequest: null }
-    : {
-        repository: changeRequest.targetRef.repository,
-        pullRequest: changeRequest.state === "open" ? changeRequest.candidate.number : null,
-      };
+  if (changeRequest.state === "blocked" || changeRequest.state === "ambiguous") return null;
+  if (changeRequest.state === "none") {
+    return { repository: `local/${current.repositoryId}`, pullRequest: null };
+  }
+  return {
+    repository: changeRequest.targetRef.repository,
+    pullRequest: changeRequest.state === "open" ? changeRequest.candidate.number : null,
+  };
 }
 
 /** Select only the unique managed Candidate that owns the immutable producer lineage. */
@@ -211,6 +212,99 @@ async function confirmRespondDeliveryMemberApplicability(input: {
   });
 }
 
+function samePinnedMember(
+  member: { planId: string; deliverableId: string; workUnitId: string; head: string },
+  vehicle: DeliveryReviewMemberVehicle,
+): boolean {
+  return member.planId === vehicle.planId
+    && member.deliverableId === vehicle.deliverableId
+    && member.workUnitId === vehicle.workUnitId
+    && member.head === vehicle.head;
+}
+
+async function observePrivatePinnedMember(input: {
+  result: ReviewResult;
+  vehicle: DeliveryReviewMemberVehicle;
+  privateDeliveryTargets: ReturnType<typeof createPreBindingDeliveryReviewTargetDependencies>;
+}): Promise<ReviewResult["target"] | null> {
+  const read = await composePreBindingDeliveryReviewTargets({
+    workUnitId: input.vehicle.workUnitId,
+    baseRef: input.result.target.baseRef,
+  }, input.privateDeliveryTargets);
+  const matches = read.status === "composed" ? read.targets.filter(({ vehicle: member }) =>
+    samePinnedMember(member, input.vehicle)) : [];
+  return matches.length === 1 ? matches[0]?.target ?? null : null;
+}
+
+async function observePublicPinnedMember(input: {
+  result: ReviewResult;
+  vehicle: DeliveryReviewMemberVehicle;
+  pullRequest: number;
+  exec: GitExec;
+  cwd: string;
+  deliveryMembers: RepositoryDeliveryMemberLookup;
+}): Promise<ReviewResult["target"] | null> {
+  const read = await input.deliveryMembers.resolveDischargeTargets(input.vehicle.workUnitId);
+  const matches = read.status === "resolved" ? read.targets.filter((member) =>
+    samePinnedMember(member, input.vehicle)
+    && member.changeRequestId === String(input.pullRequest)) : [];
+  if (matches.length !== 1 || matches[0] === undefined) return null;
+  return await composeDeliveryMemberTarget({
+    exec: input.exec,
+    cwd: input.cwd,
+    baseRef: input.result.target.baseRef,
+    repositoryId: input.result.target.repositoryId,
+    member: matches[0],
+  });
+}
+
+function pinnedCorrectionVehicle(result: ReviewResult): DeliveryReviewMemberVehicle | null {
+  const lineage = result.admission.lineage;
+  if (result.target.kind !== "delivery-member" || lineage.kind !== "delivery-member") return null;
+  const vehicle = result.kind === "hosted" ? result.vehicle
+    : result.kind === "attested-local" ? result.deliveryAdmission?.vehicle
+      : result.responseBinding?.deliveryMember;
+  return vehicle !== undefined
+    && vehicle.planId === lineage.planId
+    && vehicle.deliverableId === lineage.deliverableId
+    && vehicle.workUnitId === lineage.workUnitId
+    && vehicle.head === result.target.headSha ? vehicle : null;
+}
+
+/** Re-observe the planned member itself; a successor checkout may have a different HEAD. */
+async function observePinnedCorrectionMember(input: {
+  readonly result: ReviewResult;
+  readonly exec: GitExec;
+  readonly cwd: string;
+  readonly deliveryMembers: RepositoryDeliveryMemberLookup;
+  readonly privateDeliveryTargets: ReturnType<typeof createPreBindingDeliveryReviewTargetDependencies>;
+}): Promise<ReviewResult["target"] | null> {
+  const { result } = input;
+  const vehicle = pinnedCorrectionVehicle(result);
+  if (vehicle === null) return null;
+  const pullRequest = result.kind === "hosted" ? result.hostedTarget.pullRequest
+    : result.kind === "attested-local" ? result.deliveryAdmission?.target.pullRequest : null;
+  try {
+    if (pullRequest === null || pullRequest === undefined) {
+      return await observePrivatePinnedMember({
+        result,
+        vehicle,
+        privateDeliveryTargets: input.privateDeliveryTargets,
+      });
+    }
+    return await observePublicPinnedMember({
+      result,
+      vehicle,
+      pullRequest,
+      exec: input.exec,
+      cwd: input.cwd,
+      deliveryMembers: input.deliveryMembers,
+    });
+  } catch {
+    return null;
+  }
+}
+
 /** Bind respond to repository-common records and trusted local/runtime identities. */
 export function createRespondDependencies(input: {
   exec: GitExec;
@@ -272,6 +366,13 @@ export function createRespondDependencies(input: {
       cwd: input.cwd,
       attemptedTarget: target,
       expectedFixPaths,
+    }),
+    confirmPinnedDeliveryMemberTarget: (result) => observePinnedCorrectionMember({
+      result,
+      exec: input.exec,
+      cwd: input.cwd,
+      deliveryMembers,
+      privateDeliveryTargets,
     }),
     resolveLocalActors: async (evaluatorIdentity, admittedAuthorIdentity) => {
       try {

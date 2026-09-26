@@ -26,6 +26,7 @@ import {
   createHostedReservationDischargeReader,
   incrementalApplicabilityFromEarlierRead,
   projectHostedReservationDischarge as projectHostedReservationDischargeRaw,
+  predecessorMatchesHostedReservationPolicy,
   resolveHostedReservationTargets,
 } from "../../../../../src/scripts/review-gate/policy/hosted-reservation-discharge.js";
 import {
@@ -476,6 +477,21 @@ function hostedReviewResult(input: {
     settled: false,
   };
 }
+
+describe("retained hosted predecessor policy", () => {
+  it("rejects incremental reuse when the current reservation changes the rubric", () => {
+    const predecessor = hostedReviewResult({
+      producerId: "hosted/prior-complete", headSha: oid("a"), coverage: "complete",
+    });
+    if (predecessor.kind === "frontline") throw new Error("expected standard review");
+    const current = reservation("codex-pr", ["codex-pr"]);
+    expect(predecessorMatchesHostedReservationPolicy(predecessor, current)).toBe(true);
+    expect(predecessorMatchesHostedReservationPolicy(predecessor, {
+      ...current,
+      obligation: { ...current.obligation, rubricDigest: `sha256:${"d".repeat(64)}` },
+    })).toBe(false);
+  });
+});
 
 describe("hosted reservation discharge", () => {
   it("does not discharge the work unit from a top-only clean review", () => {

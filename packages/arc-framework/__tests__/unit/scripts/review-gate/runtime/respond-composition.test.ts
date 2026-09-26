@@ -26,6 +26,12 @@ const evidence = vi.hoisted(() => ({
   confirmMemberApplicability: vi.fn(async (): Promise<IncrementalPredecessorApplicability> => "review-required"),
   readPerformance: vi.fn(async () => null as unknown),
 }));
+const changeRequestResolution = vi.hoisted(() => ({ resolve: vi.fn() }));
+
+vi.mock("../../../../../src/scripts/review-gate/change-request.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../../../src/scripts/review-gate/change-request.js")>(),
+  resolveChangeRequest: changeRequestResolution.resolve,
+}));
 
 vi.mock("../../../../../src/lib/config/status-reader.js", () => ({
   readConfigSettings: async () => ({ settings: { "branch.base": "main" } }),
@@ -62,7 +68,7 @@ vi.mock("../../../../../src/scripts/review-gate/policy/local-review-coverage-sel
   confirmDeliveryMemberIncrementalApplicability: evidence.confirmMemberApplicability,
 }));
 
-const { createRespondDependencies } = await import(
+const { createRespondDependencies, resolveRespondPolicyTarget } = await import(
   "../../../../../src/scripts/review-gate/runtime/respond-composition.js"
 );
 
@@ -215,6 +221,31 @@ function approvedRecord(result: ReviewResult, disposition: "fix" | "defer") {
 }
 
 describe("production respond policy composition", () => {
+  it("requires a successful no-PR observation before reusing local policy coordinates", async () => {
+    const result = {
+      kind: "attested-local",
+      repositoryId: "repo-1",
+      target: { headSha: oid("c") },
+    } as unknown as ReviewResult;
+    const exec = vi.fn(async () => ({ stdout: "feat/example\n" })) as never;
+    changeRequestResolution.resolve.mockResolvedValueOnce({
+      state: "blocked",
+      targetRef: null,
+      reason: "host-failure",
+      nextAction: "stop",
+    });
+    await expect(resolveRespondPolicyTarget({ cwd: "/repo", exec }, result, "main"))
+      .resolves.toBeNull();
+
+    changeRequestResolution.resolve.mockResolvedValueOnce({
+      state: "none",
+      targetRef: { repository: "owner/repo", headRef: "feat/example", headSha: oid("c") },
+      nextAction: "create-change-request",
+    });
+    await expect(resolveRespondPolicyTarget({ cwd: "/repo", exec }, result, "main"))
+      .resolves.toEqual({ repository: "local/repo-1", pullRequest: null });
+  });
+
   it("accepts changed-head incremental findings after the prior fix was performed", async () => {
     const prior = hostedFinding(oid("c"), "hosted/prior", "major");
     const current = hostedFinding(oid("d"), "hosted/current", "minor");
