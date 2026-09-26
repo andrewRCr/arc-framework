@@ -43,6 +43,7 @@ import {
 } from "./core/delivery-member-lookup.js";
 import { resolveReviewSubject } from "./core/review-subject.js";
 import { readErrandRoutedObligation } from "./status-errand.js";
+import { optionalReviewStatusJudgment, type ReviewStatusPolicyJudgment } from "./status-judgment.js";
 import { deliveryHeadRef, selectDeliveryReviewStatusTarget } from "./status-delivery-target.js";
 import {
   createHostedReservationDischargeReader,
@@ -75,7 +76,6 @@ import {
   projectHostedReservationPolicyProgress,
   resolveEvidenceBoundHostedReservationPolicy,
 } from "./policy/hosted-reservation-admission.js";
-import type { ReviewPolicyCommandRequest } from "./policy/review-policy-driver.js";
 import type { DeliveryLocalReviewScopeSelection } from
   "./policy/delivery-local-review-admission.js";
 import { selectReviewCoverageChoice } from "./policy/review-coverage-selection.js";
@@ -339,11 +339,7 @@ export async function readRoutedObligation(
   memberLookup: DeliveryMemberLookup & DeliveryDischargeTargetLookup & DeliveryTerminalRecordLookup
     = new RepositoryDeliveryMemberLookup({ cwd, exec }),
   currentBaseRevision?: string,
-  judgment?: {
-    readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
-    readonly coverage?: HostedReviewCoverage;
-    readonly sourceId?: string;
-  },
+  judgment?: ReviewStatusPolicyJudgment,
   host: Pick<DeliveryHostPort, "readRequest"> = new GhDeliveryHostPort(hostedGhRunner),
   options: {
     readonly remote?: string;
@@ -362,6 +358,8 @@ export async function readRoutedObligation(
     exec,
     target,
     pullRequest,
+    ...(judgment?.additionalPassAuthorization === undefined ? {}
+      : { additionalPassAuthorization: judgment.additionalPassAuthorization }),
     ...(currentBaseRevision === undefined ? {} : { currentBaseOid: currentBaseRevision }),
     ...(options.remote === undefined ? {} : { remote: options.remote }),
     ...(options.changeRequestCandidate === undefined
@@ -717,6 +715,8 @@ export async function readRoutedObligation(
           ...(judgment?.ceilingOverride === undefined
             ? {}
             : { ceilingOverride: judgment.ceilingOverride }),
+          ...(judgment?.additionalPassAuthorization === undefined ? {}
+            : { additionalPassAuthorization: judgment.additionalPassAuthorization }),
           ...(judgment?.sourceId === undefined
             ? {}
             : { invocation: { mode: "force" as const, sourceId: judgment.sourceId } }),
@@ -755,6 +755,8 @@ export async function readRoutedObligation(
               ...(judgment?.ceilingOverride === undefined
                 ? {}
                 : { requestCeilingOverride: judgment.ceilingOverride }),
+              ...(judgment?.additionalPassAuthorization === undefined ? {}
+                : { requestAdditionalPassAuthorization: judgment.additionalPassAuthorization }),
               ...(scopeSelection === undefined ? {} : { requestScopeSelection: scopeSelection }),
             });
       }
@@ -817,7 +819,7 @@ export function createReviewStatusPort(
   },
 ): ReviewStatusPort {
   return {
-    observe: async (target, ceilingOverride, coverage, sourceId) => {
+    observe: async (target, ceilingOverride, coverage, sourceId, additionalPassAuthorization) => {
       try {
         const remote = input.remote ?? "origin";
         const changeRequestPort = createGhChangeRequestResolutionPort(input.exec, input.cwd, remote);
@@ -885,13 +887,9 @@ export function createReviewStatusPort(
               resolution.candidate.number,
               memberLookup,
               base.currentBaseOid ?? undefined,
-              ceilingOverride === undefined && coverage === undefined && sourceId === undefined
-                ? undefined
-                : {
-                    ...(ceilingOverride === undefined ? {} : { ceilingOverride }),
-                    ...(coverage === undefined ? {} : { coverage }),
-                    ...(sourceId === undefined ? {} : { sourceId }),
-                  },
+              optionalReviewStatusJudgment({
+                ceilingOverride, additionalPassAuthorization, coverage, sourceId,
+              }),
               undefined,
               {
                 remote,
@@ -947,6 +945,7 @@ export async function resolveReviewStatusForWorkUnit(input: {
   readonly exec: GitExec;
   readonly workUnitId: string;
   readonly ceilingOverride?: ReviewStatusTargetInput["ceilingOverride"];
+  readonly additionalPassAuthorization?: ReviewStatusTargetInput["additionalPassAuthorization"];
   readonly coverage?: HostedReviewCoverage;
   readonly sourceId?: string;
   readonly remote?: string;
@@ -997,13 +996,7 @@ export async function resolveReviewStatusForWorkUnit(input: {
     terminalPullRequest,
     memberLookup,
     undefined,
-    input.ceilingOverride === undefined && input.coverage === undefined && input.sourceId === undefined
-      ? undefined
-      : {
-          ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
-          ...(input.coverage === undefined ? {} : { coverage: input.coverage }),
-          ...(input.sourceId === undefined ? {} : { sourceId: input.sourceId }),
-        },
+    optionalReviewStatusJudgment(input),
     undefined,
     {
       ...(input.remote === undefined ? {} : { remote: input.remote }),
@@ -1031,6 +1024,8 @@ export async function resolveReviewStatusForWorkUnit(input: {
   const result = await resolveReviewStatus({
     target: selectedTarget,
     ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
+    ...(input.additionalPassAuthorization === undefined ? {}
+      : { additionalPassAuthorization: input.additionalPassAuthorization }),
     ...(input.coverage === undefined ? {} : { coverage: input.coverage }),
   }, createReviewStatusPort(input, {
     target: selectedTarget,

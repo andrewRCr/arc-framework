@@ -204,9 +204,15 @@ neither independent review evidence nor a completed pass to the durable lanes.
 
 Convergence is deterministic at the materiality threshold. A confirmed `minor` never buys a pass: the primary must
 not raise `verifiedSeverity` to withhold convergence from a pass the evidence converged. Where a confirmed minor
-still carries unusual signal, the converged completion report names it as a follow-up observation. That observation
-is report content, not a driver state — it neither reopens the completed loop nor requests approval, and a new
-review remains available through the normal entry points.
+still carries unusual signal, the converged completion report names it as a follow-up observation.
+
+(A2) Convergence describes the latest completed pass; it is not a prohibition on another review. An unchanged
+request replays the converged result without spending capacity. Explicit Owner authorization naming the exact target,
+preceding producer, completed-pass count, and next ordinal admits one further standard pass. The Owner may make that
+decision again after any later pass; there is no lifetime limit on separately authorized passes. If the next pass
+finds confirmed `major` or `critical` issues, its latest signal is non-converged and the ordinary response and fresh
+review route resumes. Above the configured cap, one decision naming the pass satisfies both elective review and cap
+override; the cap never supplies authorization by itself. Frontline remains a one-time opening phase.
 
 **Logical passes and coverage.** A logical pass is one completed review over its admitted scope, potentially using
 safe fallback or a carrier-proven chunk series. A complete review and an incremental correction review each consume
@@ -1400,6 +1406,10 @@ retiring owner of any temporary scaffold. No unshipped segmentation machinery is
 26. Under A1, a default producer-backed report displays one explicit shared grade when ARC and reviewer grades and nit
     agree, both labeled grades with ARC first when they differ, and both lanes for an unsupported finding. Canonical
     severity fields and approval identity remain separate. Report-output tests cover each display case.
+27. Under A2, exact Owner authorization admits a named additional standard pass after clean or confirmed-minor
+    convergence, including above the configured cap. Same-head replay spends nothing; each later pass requires its
+    own decision without a lifetime ceiling. A later material result replaces the latest convergence signal and
+    follows ordinary response control. Prepublication, status, local, hosted, delivery, and Errand paths agree.
 
 ## Open Questions
 
@@ -1413,3 +1423,5 @@ private helper names remain implementation details.
 
 - **A1** — 2026-09-25 — design: Collapse equal ARC and reviewer grades in default disposition reports.
   _Supersedes:_ § 4 report shape, criterion 6. _Trigger:_ P6-6 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A2** — 2026-09-26 — design: Permit separately authorized standard passes after convergence.
+  _Supersedes:_ § 3 post-minor continuation. _Trigger:_ P9-4 review. _Work:_ 8.R. _Revalidated:_ review-fix.

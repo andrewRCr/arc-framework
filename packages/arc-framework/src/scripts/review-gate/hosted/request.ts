@@ -11,7 +11,9 @@ import type { DeliveryMemberLookup } from "../core/delivery-member-lookup.js";
 import { StandardReviewObligationProjectionSchema } from
   "../policy/standard-review-projection-schema.js";
 import {
+  ReviewAdditionalPassAuthorizationSchema,
   ReviewCeilingOverrideSchema,
+  type ReviewAdditionalPassAuthorization,
   type ReviewCeilingOverride,
 } from "../policy/review-policy-driver.js";
 import {
@@ -282,6 +284,7 @@ export interface HostedRequestEnvelope {
   vehicle?: HostedRequestVehicle;
   invocation?: { readonly mode: "force"; readonly sourceId: string };
   ceilingOverride?: ReviewCeilingOverride;
+  additionalPassAuthorization?: ReviewAdditionalPassAuthorization;
 }
 
 export const HostedRequestEnvelopeSchema: z.ZodType<HostedRequestEnvelope> = z.strictObject({
@@ -293,6 +296,7 @@ export const HostedRequestEnvelopeSchema: z.ZodType<HostedRequestEnvelope> = z.s
   vehicle: HostedRequestVehicleSchema.optional(),
   invocation: HostedSourceInvocationSchema.optional(),
   ceilingOverride: ReviewCeilingOverrideSchema.optional(),
+  additionalPassAuthorization: ReviewAdditionalPassAuthorizationSchema.optional(),
 }).superRefine((request, context) => {
   if (request.coverage === "incremental" && request.correctionScope === undefined) {
     context.addIssue({

@@ -1,6 +1,7 @@
 /** Positive Errand identity and exact-head lane progress for review status. */
 
 import { readTransientIdentitySnapshot } from "../../lib/errand/identity-snapshot.js";
+import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { resolveChangeRequestLifecycleConfiguration } from "../../lib/errand/change-request-lifecycle.js";
 import type { TransientIdentityRecord } from "../../lib/errand/identity-record.js";
 import { isErrandBranchType } from "../../lib/errand/branch-type.js";
@@ -9,11 +10,17 @@ import type { GitExec } from "../../lib/git/exec.js";
 import { isGitProcessError } from "../../lib/git/process-error.js";
 import { resolveIdentity } from "../../lib/git/index.js";
 import { LocalReviewOperationStateStore } from "./hosts/local/operation-state-store.js";
+import { LocalApprovedDispositionRecordStore } from "./hosts/local/disposition-record-store.js";
+import { createRepositoryReviewResultReader } from "./hosts/local/review-result-reader-composition.js";
 import { resolveRepositoryIdentity } from "./hosts/local/git-common-state.js";
-import { readLaneProgress } from "./lane-progress.js";
+import { readLaneProgress, readLaneResponsePerformance, type LanePolicyAttempt } from "./lane-progress.js";
 import { GitObjectIdSchema, type ReviewTarget } from "./core/gate-contract-v2-schema.js";
 import type { ChangeRequestCandidate } from "./change-request.js";
 import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "./policy/standard-review.js";
+import { resolveConfiguredLanePolicy } from "./policy/lane-policy-config.js";
+import { projectReviewPolicyAttempt } from "./policy/review-policy-driver.js";
+import type { ReviewAdditionalPassAuthorization } from "./policy/review-policy-driver.js";
+import { resolveEvidenceBoundReviewPolicyContinuation } from "./policy/review-policy-evidence.js";
 import type { RoutedReviewObligation } from "./status.js";
 
 interface ExactErrandStatusTarget {
@@ -108,6 +115,7 @@ export async function readErrandRoutedObligation(input: {
   readonly remote?: string;
   readonly changeRequestCandidate?: Pick<ChangeRequestCandidate, "baseRefName" | "url">;
   readonly currentBaseOid?: string;
+  readonly additionalPassAuthorization?: ReviewAdditionalPassAuthorization;
 }): Promise<RoutedReviewObligation | null> {
   // The branch vocabulary only avoids an impossible identity read; the record still grants authority.
   if (!isErrandBranchType(input.target.headRef.split("/", 1)[0] ?? "")) return null;
@@ -145,7 +153,8 @@ export async function readErrandRoutedObligation(input: {
 
     const publisher = new RepositoryGitCommonStatePublisher(exec, input.cwd);
     const repositoryId = await resolveRepositoryIdentity(publisher);
-    const progress = await readLaneProgress(new LocalReviewOperationStateStore(publisher), {
+    const store = new LocalReviewOperationStateStore(publisher);
+    const progress = await readLaneProgress(store, {
       lane: "standard",
       repositoryId,
       headSha: input.target.headSha,
@@ -159,7 +168,7 @@ export async function readErrandRoutedObligation(input: {
     if (progress.status === "unrecorded") {
       return { state: "review-required", detail: "No standard review is recorded for this Errand head." };
     }
-    let latest: { readonly outcome: string; readonly complete: boolean } | null = null;
+    let latest: { readonly attempt: LanePolicyAttempt; readonly complete: boolean } | null = null;
     let currentClaimAttempt = false;
     let obsoleteClaimDetail: string | null = null;
     const rubric = STANDARD_REVIEW_RUBRIC_IDENTITY;
@@ -184,7 +193,7 @@ export async function readErrandRoutedObligation(input: {
         if (handle.target.pullRequest !== input.pullRequest) continue;
         currentClaimAttempt = true;
         latest = {
-          outcome: attempt.outcome,
+          attempt,
           complete: hosted.effectiveCoverage === "complete"
             && vehicle.standardReview.rubricVersion === rubric.version
             && vehicle.standardReview.rubricDigest === rubric.digest
@@ -202,7 +211,7 @@ export async function readErrandRoutedObligation(input: {
           || attempt.outcome === "settled-findings") {
           return blocked("Recorded hosted review has no exact Errand request binding.");
         }
-        latest = { outcome: attempt.outcome, complete: false };
+        latest = { attempt, complete: false };
       } else if (attempt.local !== undefined) {
         if (attempt.local.vehicle.kind !== "errand"
           || attempt.local.vehicle.identity !== selected.record.slug
@@ -215,7 +224,7 @@ export async function readErrandRoutedObligation(input: {
         }
         currentClaimAttempt = true;
         latest = {
-          outcome: attempt.outcome,
+          attempt,
           complete: attempt.chunkSeriesComplete !== false
             && attempt.local.rubricIdentity?.version === rubric.version
             && attempt.local.rubricIdentity.digest === rubric.digest
@@ -227,15 +236,72 @@ export async function readErrandRoutedObligation(input: {
             ),
         };
       } else {
-        latest = { outcome: attempt.outcome, complete: false };
+        latest = { attempt, complete: false };
       }
     }
     if (!currentClaimAttempt && obsoleteClaimDetail !== null) return blocked(obsoleteClaimDetail);
-    const settled = latest !== null && latest.complete && progress.completedPasses > 0
-      && (latest.outcome === "clean" || latest.outcome === "settled-findings");
-    return settled
-      ? { state: "settled", detail: "The exact Errand standard-review lane is settled." }
-      : { state: "review-required", detail: "The exact Errand standard-review lane is not settled." };
+    if (latest === null || !latest.complete || progress.completedPasses === 0
+      || (latest.attempt.outcome !== "clean" && latest.attempt.outcome !== "settled-findings")) {
+      return { state: "review-required", detail: "The exact Errand standard-review lane is not settled." };
+    }
+    const terminal = latest.attempt;
+    const resultReader = createRepositoryReviewResultReader(publisher);
+    const result = await resultReader.readResult(terminal.attemptId);
+    if (result.kind === "frontline" || result.admission.lineage.kind !== "head-bound"
+      || result.admission.lineage.vehicleKind !== "errand"
+      || result.admission.lineage.vehicleIdentity !== selected.record.claimId
+      || result.target.headSha !== input.target.headSha) {
+      return blocked("The terminal review producer does not match the exact Errand claim and head.");
+    }
+    const settings = (await readConfigSettings(input.cwd)).settings;
+    const configured = await resolveConfiguredLanePolicy({
+      lane: "standard",
+      settings,
+      preferences: {
+        readDeveloperSourceIds: () => Promise.resolve([]),
+        readProjectSourceIds: () => Promise.resolve([]),
+      },
+    });
+    const policyTarget = {
+      repository: input.target.repository,
+      pullRequest: input.pullRequest,
+      headSha: input.target.headSha,
+    };
+    const requirement = result.requirement;
+    const policy = await resolveEvidenceBoundReviewPolicyContinuation({
+      schemaVersion: 1,
+      target: policyTarget,
+      lane: "standard",
+      frontlineActive: false,
+      standardReview: {
+        obligation: requirement.obligation,
+        reasons: requirement.reasons,
+        rubricVersion: requirement.rubricVersion,
+        rubricDigest: requirement.rubricDigest,
+        retrigger: requirement.retrigger,
+        count: requirement.count,
+      },
+      completedPasses: progress.completedPasses,
+      attempts: [projectReviewPolicyAttempt(terminal)],
+      ...(input.additionalPassAuthorization === undefined ? {}
+        : { additionalPassAuthorization: input.additionalPassAuthorization }),
+      ...(result.admission.scopeMode === "whole-target" ? {} : {
+        scopeSelection: { mode: result.admission.scopeMode, target: policyTarget },
+      }),
+    }, { terminalResponsePerformed: terminal.outcome === "settled-findings" }, {
+      sources: [terminal.sourceId, ...configured.sources.filter((source) => source !== terminal.sourceId)],
+      maxPasses: configured.maxPasses,
+      resultReader,
+      dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+      readResponsePerformance: (producer) => readLaneResponsePerformance(store, producer),
+      confirmTarget: (target) => Promise.resolve(target),
+    });
+    return policy.state === "pass-complete"
+      ? { state: "settled", detail: "The exact Errand standard-review lane is settled by verified convergence." }
+      : {
+        state: "review-required",
+        detail: `The exact Errand standard-review lane requires ${policy.state}/${policy.nextAction}.`,
+      };
   } catch (error) {
     return blocked(error instanceof Error ? error.message : String(error));
   }

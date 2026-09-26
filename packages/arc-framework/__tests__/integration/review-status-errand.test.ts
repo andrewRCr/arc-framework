@@ -30,6 +30,7 @@ import {
   recordHostedAwaitAttempt,
   recordHostedRequestAdmission,
   acknowledgeHostedRequest,
+  hostedLaneAttemptId,
   recordLaneAttempt,
 } from "../../src/scripts/review-gate/lane-progress.js";
 import { readErrandRoutedObligation } from "../../src/scripts/review-gate/status-errand.js";
@@ -385,6 +386,13 @@ describe("Errand review status", () => {
     await expect(readRoutedObligation(root, exec, target, 42, undefined, base)).resolves.toMatchObject({
       state: "settled",
     });
+    await expect(readErrandRoutedObligation({
+      cwd: root, exec, target, pullRequest: 42, currentBaseOid: base,
+      additionalPassAuthorization: {
+        target: hostedTarget, lane: "standard", precedingProducerId: hostedLaneAttemptId(handle),
+        completedPasses: 1, nextPass: 2,
+      },
+    })).resolves.toMatchObject({ state: "review-required", detail: expect.stringContaining("ready/hosted-request") });
     await expect(readRoutedObligation(root, exec, target, 42, undefined, earlierBase))
       .resolves.toMatchObject({ state: "review-required" });
     await expect(readRoutedObligation(root, exec, target, 42, undefined, headSha))
@@ -622,7 +630,7 @@ describe("Errand review status", () => {
       now: "2026-09-13T00:04:20Z",
     });
     await expect(readRoutedObligation(root, exec, localStatusTarget, 42, undefined, base)).resolves.toMatchObject({
-      state: "settled",
+      state: "blocked",
     });
     await expect(readRoutedObligation(root, exec, localStatusTarget, 42, undefined, earlierBase))
       .resolves.toMatchObject({ state: "review-required" });
@@ -657,7 +665,7 @@ describe("Errand review status", () => {
       now: "2026-09-13T00:04:30Z",
     });
     await expect(readRoutedObligation(root, exec, localStatusTarget, 42, undefined, base)).resolves.toMatchObject({
-      state: "settled",
+      state: "blocked",
     });
 
     await writeFile(join(root, "legacy-local-change.txt"), "legacy review\n", "utf8");

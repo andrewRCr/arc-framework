@@ -491,6 +491,64 @@ describe("evidence-bound review policy", () => {
     });
   });
 
+  it("admits a repeatable Owner-requested pass after clean convergence without a disposition", async () => {
+    const result = cleanHostedResult();
+    const request = {
+      ...cleanRequest(result),
+      additionalPassAuthorization: {
+        target: policyTarget,
+        lane: "standard" as const,
+        precedingProducerId: result.producerId,
+        completedPasses: 1,
+        nextPass: 2,
+      },
+    };
+    const evidence = { ...dependencies(result), sources: ["codex-pr"], maxPasses: 1 };
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, {
+      terminalResponsePerformed: false,
+    }, evidence)).resolves.toMatchObject({
+      state: "ready", nextAction: "hosted-request", payload: { pass: 2, ceilingOverrideApplied: true },
+    });
+    await expect(resolveEvidenceBoundReviewPolicyContinuation({
+      ...request,
+      additionalPassAuthorization: { ...request.additionalPassAuthorization, precedingProducerId: "other" },
+    }, { terminalResponsePerformed: false }, evidence)).resolves.toMatchObject({
+      state: "invalid-override", payload: { reason: "preceding-producer-mismatch" },
+    });
+  });
+
+  it("waits for the approved minor response before an elective successor pass", async () => {
+    const result = findingsHostedResult(["minor"]);
+    const record = approvedRecord(result, [{
+      sourceVerification: "verified", verifiedSeverity: "minor", disposition: "fix",
+    }]);
+    const request = {
+      ...findingsRequest(result),
+      additionalPassAuthorization: {
+        target: policyTarget,
+        lane: "standard" as const,
+        precedingProducerId: result.producerId,
+        completedPasses: 1,
+        nextPass: 2,
+      },
+    };
+    const evidence = {
+      ...dependencies(result, record),
+      sources: ["codex-pr"],
+      maxPasses: 2,
+      readResponsePerformance: vi.fn(async () => null as ReturnType<typeof performedFix> | null),
+    };
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, {
+      terminalResponsePerformed: true,
+    }, evidence)).resolves.toMatchObject({ state: "pass-complete", nextAction: "none" });
+    evidence.readResponsePerformance.mockResolvedValue(performedFix(result, record));
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, {
+      terminalResponsePerformed: true,
+    }, evidence)).resolves.toMatchObject({
+      state: "ready", nextAction: "hosted-request", payload: { pass: 2 },
+    });
+  });
+
   it("validates clean and material prior-head producers at their original target", async () => {
     const original = cleanHostedResult();
     const { targetId: _targetId, ...currentInput } = original.target;

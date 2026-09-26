@@ -99,25 +99,23 @@ async function authenticateMember(
 }
 
 /**
- * Resolves review authority from live ARC state and the installed runtime.
+ * Resolve the review vehicle and author before fresh evaluator selection.
  *
- * The evaluator and an optional member selector are the only caller-selected
- * inputs. Vehicle, author, and attesting runtime are read through trusted
- * dependencies.
- *
- * @param input - Explicit evaluator selection, and the member's exact head when one is named.
- * @param dependencies - Live ARC-state, installed-runtime, and delivery readers.
- * @returns The actor-separated local review authority, plus member coordinates when one was named.
+ * @param input - Optional authenticated delivery member selector.
+ * @param dependencies - Live ARC-state and delivery readers.
+ * @returns The exact vehicle, author, and selected member coordinates.
  */
-export async function resolveLocalReviewAuthority(
+export async function resolveLocalReviewVehicle(
   input: {
-    evaluatorIdentity: string;
     memberHeadObjectId?: string;
     deliveryAdmission?: DeliveryLocalReviewAdmission;
   },
-  dependencies: LocalReviewAuthorityDependencies,
-): Promise<LocalReviewAuthorityResolution> {
-  const evaluatorIdentity = ReviewIdentifierSchema.parse(input.evaluatorIdentity);
+  dependencies: Pick<LocalReviewAuthorityDependencies, "readLiveContext" | "memberLookup">,
+): Promise<{
+  vehicle: LocalReviewAuthority["vehicle"];
+  authorIdentity: string;
+  member: LocalReviewMemberCoordinates | null;
+}> {
   const deliveryAdmission = input.deliveryAdmission === undefined
     ? undefined
     : DeliveryLocalReviewAdmissionSchema.parse(input.deliveryAdmission);
@@ -181,6 +179,20 @@ export async function resolveLocalReviewAuthority(
     authorIdentity = activeIdentity;
   }
 
+  return { vehicle, authorIdentity, member };
+}
+
+/** Bind the live vehicle to a distinct evaluator and installed attestation runtime. */
+export async function resolveLocalReviewAuthority(
+  input: {
+    evaluatorIdentity: string;
+    memberHeadObjectId?: string;
+    deliveryAdmission?: DeliveryLocalReviewAdmission;
+  },
+  dependencies: LocalReviewAuthorityDependencies,
+): Promise<LocalReviewAuthorityResolution> {
+  const evaluatorIdentity = ReviewIdentifierSchema.parse(input.evaluatorIdentity);
+  const { vehicle, authorIdentity, member } = await resolveLocalReviewVehicle(input, dependencies);
   if (authorIdentity === evaluatorIdentity) {
     throw new LocalReviewAuthorityError("author-evaluator-must-differ");
   }

@@ -257,16 +257,22 @@ describe("CodeRabbit hosted adapter", () => {
     ["_🟠 Major_ broken boundary", "major"],
     ["_🟡 Minor_ broken boundary", "minor"],
     ["_🔵 Trivial_ broken boundary", "minor"],
+    [`${" ".repeat(513)}_🟠 Major_ broken boundary`, "major"],
   ] as const)("normalizes native finding %s to ARC severity %s", async (body, arcSeverity) => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review({ state: "changes-requested", body: "Review complete." })]),
       readThreads: () => Promise.resolve([findingThread(body)]),
     }));
 
-    await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+    const result = await adapter.observeHandle(target);
+    expect(result).toMatchObject({
       kind: "findings",
       findings: [{ severity: arcSeverity }],
     });
+    if (body.startsWith(" ") && result.kind === "findings") {
+      expect(result.findings[0]).not.toHaveProperty("sourceLabel");
+      expect(result.findings[0]).not.toHaveProperty("sourceLabelTruncated");
+    }
   });
 
   it("accepts a terminal incremental finding sequence with the admitted native range", async () => {

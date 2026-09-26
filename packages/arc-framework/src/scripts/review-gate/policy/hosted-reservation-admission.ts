@@ -11,12 +11,12 @@ import type { IncrementalReviewScope } from "../core/incremental-review-scope.js
 import { hostedProviderAdmitsCoverage } from "../hosted/correction-review-capability.js";
 import { HostedProviderIdSchema, type HostedReviewCoverage } from "../hosted/request.js";
 import {
-  assertStandardReviewExecutionAdmission,
   projectReviewPolicyAttempt,
   resolveReviewPolicy,
   type ReviewPolicyCommandRequest,
   type ReviewResolveEnvelope,
 } from "./review-policy-driver.js";
+import { assertStandardReviewExecutionAdmission } from "./review-execution-admission.js";
 import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
 import type { ReviewApplicabilityConsumerAction } from "./review-applicability-authority.js";
 import type { HostedReservationDischarge } from "./hosted-reservation-discharge.js";
@@ -212,6 +212,7 @@ export function resolveHostedReservationPolicy(input: {
   readonly requestAttempts?: ReviewPolicyCommandRequest["attempts"];
   readonly invocation?: ReviewPolicyCommandRequest["invocation"];
   readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
+  readonly additionalPassAuthorization?: ReviewPolicyCommandRequest["additionalPassAuthorization"];
   readonly scopeSelection?: ReviewPolicyCommandRequest["scopeSelection"];
 }): HostedReservationPolicyResolution {
   const progress = projectHostedReservationPolicyProgress(input);
@@ -240,6 +241,8 @@ export function resolveHostedReservationPolicy(input: {
       attempts,
       ...(input.invocation === undefined ? {} : { invocation: input.invocation }),
       ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
+      ...(input.additionalPassAuthorization === undefined ? {}
+        : { additionalPassAuthorization: input.additionalPassAuthorization }),
       ...(input.scopeSelection === undefined ? {} : { scopeSelection: input.scopeSelection }),
     }),
   };
@@ -278,6 +281,8 @@ export async function resolveEvidenceBoundHostedReservationPolicy(
     attempts,
     ...(input.invocation === undefined ? {} : { invocation: input.invocation }),
     ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
+    ...(input.additionalPassAuthorization === undefined ? {}
+      : { additionalPassAuthorization: input.additionalPassAuthorization }),
     ...(input.scopeSelection === undefined ? {} : { scopeSelection: input.scopeSelection }),
   };
   const latestCurrentAttempt = [...progress.attemptHistory].reverse().find((attempt) => (
@@ -341,6 +346,7 @@ export function assertHostedReservationPolicyAdmission(input: {
   readonly requestAttempts?: ReviewPolicyCommandRequest["attempts"];
   readonly invocation?: ReviewPolicyCommandRequest["invocation"];
   readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
+  readonly additionalPassAuthorization?: ReviewPolicyCommandRequest["additionalPassAuthorization"];
 }): void {
   assertHostedCoverageAdmission(input.provider, input.coverage, input.correctionScope);
   const resolution = resolveHostedReservationPolicy(input);
@@ -440,6 +446,7 @@ export function assertCandidateHostedReservationPolicyAdmission(input: {
   readonly inheritedCompletedPasses?: number;
   readonly invocation?: ReviewPolicyCommandRequest["invocation"];
   readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
+  readonly additionalPassAuthorization?: ReviewPolicyCommandRequest["additionalPassAuthorization"];
 }): void {
   assertCandidateHostedReservationPosition(input);
   const currentHeadAttempts = input.progress?.attempts.filter((attempt) => (
@@ -487,6 +494,8 @@ export function assertCandidateHostedReservationPolicyAdmission(input: {
     ...(input.ceilingOverride === undefined
       ? {}
       : { ceilingOverride: input.ceilingOverride }),
+    ...(input.additionalPassAuthorization === undefined ? {}
+      : { additionalPassAuthorization: input.additionalPassAuthorization }),
   });
   if (admission.payload.pass !== input.logicalPass) {
     throw new Error("Hosted review capacity changed before durable admission.");
@@ -500,6 +509,12 @@ export function assertCandidateHostedReservationPolicyAdmission(input: {
  * @param dependencies - Repository-bound readers and exact-target confirmation.
  * @returns Nothing; throws unless verified policy admits the requested source and logical pass.
  */
+function assertNoPendingHostedRequest(attempts: readonly { outcome: string }[]): void {
+  if (attempts.some(({ outcome }) => outcome === "pending")) {
+    throw new Error("Hosted review capacity is already held by a pending request.");
+  }
+}
+
 export async function assertEvidenceBoundCandidateHostedReservationPolicyAdmission(
   input: Parameters<typeof assertCandidateHostedReservationPolicyAdmission>[0],
   dependencies: HostedReservationEvidenceDependencies,
@@ -508,9 +523,7 @@ export async function assertEvidenceBoundCandidateHostedReservationPolicyAdmissi
   const currentHeadAttempts = input.progress?.attempts.filter((attempt) => (
     candidateCapacityAttemptMatchesTarget(attempt, input.target)
   )) ?? [];
-  if (currentHeadAttempts.some(({ outcome }) => outcome === "pending")) {
-    throw new Error("Hosted review capacity is already held by a pending request.");
-  }
+  assertNoPendingHostedRequest(currentHeadAttempts);
   const completed = currentHeadAttempts.filter((attempt): attempt is typeof attempt & {
     outcome: Exclude<typeof attempt.outcome, "pending">;
   } => attempt.outcome !== "pending");
@@ -543,6 +556,8 @@ export async function assertEvidenceBoundCandidateHostedReservationPolicyAdmissi
     attempts,
     ...(input.invocation === undefined ? {} : { invocation: input.invocation }),
     ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
+    ...(input.additionalPassAuthorization === undefined ? {}
+      : { additionalPassAuthorization: input.additionalPassAuthorization }),
   }, {
     terminalResponsePerformed: latest?.outcome === "settled-findings",
   }, {

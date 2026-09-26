@@ -511,6 +511,7 @@ export const ReviewStatusCliInputSchema = z.strictObject({
   target: z.string().trim().min(1).optional(),
   workUnit: SlugSchema.optional(),
   ceilingOverride: z.string().trim().min(1).optional(),
+  additionalPass: z.string().trim().min(1).optional(),
   coverage: z.enum(["complete", "incremental"]).optional(),
   source: ReviewStatusSourceIdSchema.optional(),
 }).superRefine((input, context) => {
@@ -560,6 +561,7 @@ const reviewStatusInputRegistration: CommandInputRegistration = {
     "option.target": "target",
     "option.work-unit": "workUnit",
     "option.ceiling-override": "ceilingOverride",
+    "option.additional-pass": "additionalPass",
     "option.coverage": "coverage",
     "option.source": "source",
   },
@@ -789,6 +791,7 @@ export interface ReviewStatusOptions {
   target?: string;
   workUnit?: string;
   ceilingOverride?: string;
+  additionalPass?: string;
   coverage?: HostedReviewCoverage;
   source?: string;
 }
@@ -867,6 +870,16 @@ function emitReviewStatusResolutionFailure(
   dependencies.setExitCode(wrongRoute ? 64 : 1);
 }
 
+/** Preserve malformed JSON as invalid input for the status schema. */
+function parseReviewStatusOption(value: string | undefined): unknown {
+  if (value === undefined) return undefined;
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return null;
+  }
+}
+
 /** Resolve review, check, and base state for one opaque exact-target reference. */
 export async function handleReviewStatus(
   options: ReviewStatusOptions,
@@ -882,26 +895,14 @@ export async function handleReviewStatus(
     setExitCode: (code) => { process.exitCode = code; },
     ...overrides,
   };
-  let decoded: unknown;
-  let decodedCeilingOverride: unknown;
-  if (options.target !== undefined) {
-    try {
-      decoded = JSON.parse(options.target) as unknown;
-    } catch {
-      decoded = null;
-    }
-  }
-  if (options.ceilingOverride !== undefined) {
-    try {
-      decodedCeilingOverride = JSON.parse(options.ceilingOverride) as unknown;
-    } catch {
-      decodedCeilingOverride = null;
-    }
-  }
+  const decoded = parseReviewStatusOption(options.target);
+  const decodedCeilingOverride = parseReviewStatusOption(options.ceilingOverride);
+  const decodedAdditionalPass = parseReviewStatusOption(options.additionalPass);
   const parsedCli = ReviewStatusCliInputSchema.safeParse({
     ...(options.target === undefined ? {} : { target: options.target }),
     ...(options.workUnit === undefined ? {} : { workUnit: options.workUnit }),
     ...(options.ceilingOverride === undefined ? {} : { ceilingOverride: options.ceilingOverride }),
+    ...(options.additionalPass === undefined ? {} : { additionalPass: options.additionalPass }),
     ...(options.coverage === undefined ? {} : { coverage: options.coverage }),
     ...(options.source === undefined ? {} : { source: options.source }),
   });
@@ -909,12 +910,16 @@ export async function handleReviewStatus(
     ? ReviewStatusTargetInputSchema.safeParse({
         target: decoded,
         ...(options.ceilingOverride === undefined ? {} : { ceilingOverride: decodedCeilingOverride }),
+        ...(options.additionalPass === undefined ? {}
+          : { additionalPassAuthorization: decodedAdditionalPass }),
         ...(options.coverage === undefined ? {} : { coverage: options.coverage }),
         ...(options.source === undefined ? {} : { sourceId: options.source }),
       })
     : ReviewStatusWorkUnitInputSchema.safeParse({
         workUnitId: options.workUnit,
         ...(options.ceilingOverride === undefined ? {} : { ceilingOverride: decodedCeilingOverride }),
+        ...(options.additionalPass === undefined ? {}
+          : { additionalPassAuthorization: decodedAdditionalPass }),
         ...(options.coverage === undefined ? {} : { coverage: options.coverage }),
         ...(options.source === undefined ? {} : { sourceId: options.source }),
       });
@@ -3375,6 +3380,8 @@ async function executeDefaultHostedRequest(
             ...(request.ceilingOverride === undefined
               ? {}
               : { ceilingOverride: request.ceilingOverride }),
+            ...(request.additionalPassAuthorization === undefined ? {}
+              : { additionalPassAuthorization: request.additionalPassAuthorization }),
           }, {
             resultReader: createRepositoryReviewResultReader(publisher),
             dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
@@ -3399,6 +3406,8 @@ async function executeDefaultHostedRequest(
               ...(request.ceilingOverride === undefined
                 ? {}
                 : { ceilingOverride: request.ceilingOverride }),
+              ...(request.additionalPassAuthorization === undefined ? {}
+                : { additionalPassAuthorization: request.additionalPassAuthorization }),
               coverage: request.coverage,
               ...(request.invocation === undefined
                 ? {}
@@ -3454,6 +3463,8 @@ async function executeDefaultHostedRequest(
             ...(request.ceilingOverride === undefined
               ? {}
               : { ceilingOverride: request.ceilingOverride }),
+            ...(request.additionalPassAuthorization === undefined ? {}
+              : { additionalPassAuthorization: request.additionalPassAuthorization }),
           }, {
             resultReader: createRepositoryReviewResultReader(publisher),
             dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
@@ -3496,6 +3507,8 @@ async function executeDefaultHostedRequest(
           ...(request.ceilingOverride === undefined
             ? {}
             : { ceilingOverride: request.ceilingOverride }),
+          ...(request.additionalPassAuthorization === undefined ? {}
+            : { additionalPassAuthorization: request.additionalPassAuthorization }),
         }, {
           terminalResponsePerformed: latestAttempt?.outcome === "settled-findings",
         }, {

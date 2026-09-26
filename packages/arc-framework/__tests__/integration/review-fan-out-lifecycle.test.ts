@@ -126,7 +126,7 @@ import { LocalApprovedDispositionRecordStore } from
   "../../src/scripts/review-gate/hosts/local/disposition-record-store.js";
 import { RepositoryDeliveryMemberLookup } from
   "../../src/scripts/review-gate/hosts/local/delivery-member-lookup.js";
-import { resolveLocalReviewAuthority } from
+import { resolveLocalReviewAuthority, resolveLocalReviewVehicle } from
   "../../src/scripts/review-gate/hosts/local/review-authority.js";
 import { resolveRepositoryIdentity } from
   "../../src/scripts/review-gate/hosts/local/git-common-state.js";
@@ -1180,8 +1180,20 @@ async function completeLocalReviewThroughHandlers(
 ) {
   const basePrepare = createLocalPrepareDependencies({ exec: harness.exec, cwd: harness.root });
   const memberLookup = new RepositoryDeliveryMemberLookup({ cwd: harness.root, exec: harness.exec });
+  const readLiveContext = async () => ({
+    activeIdentity: "andrew",
+    workUnit: { identity: harness.plan.workUnitId, owner: "andrew" },
+    errand: null,
+  });
   const prepareDependencies = {
     ...basePrepare,
+    resolveVehicle: (
+      memberHeadObjectId?: string,
+      admission?: DeliveryLocalReviewAdmission,
+    ) => resolveLocalReviewVehicle({
+      ...(memberHeadObjectId === undefined ? {} : { memberHeadObjectId }),
+      ...(admission === undefined ? {} : { deliveryAdmission: admission }),
+    }, { readLiveContext, memberLookup }),
     resolveAuthority: (
       evaluatorIdentity: string,
       memberHeadObjectId?: string,
@@ -1191,11 +1203,7 @@ async function completeLocalReviewThroughHandlers(
       ...(memberHeadObjectId === undefined ? {} : { memberHeadObjectId }),
       ...(admission === undefined ? {} : { deliveryAdmission: admission }),
     }, {
-      readLiveContext: async () => ({
-        activeIdentity: "andrew",
-        workUnit: { identity: harness.plan.workUnitId, owner: "andrew" },
-        errand: null,
-      }),
+      readLiveContext,
       resolveRuntimeBinding: async () => ({ kind: "arc-cli", identity: "arc-cli/integration-test" }),
       memberLookup,
     }),
@@ -1248,7 +1256,7 @@ async function completeLocalReviewThroughHandlers(
     write: (text) => prepareOutput.push(text),
     setExitCode: (code) => prepareExitCodes.push(code),
   });
-  expect(prepareExitCodes).toEqual([]);
+  expect(prepareExitCodes, prepareOutput.join("")).toEqual([]);
   const prepared = LocalPrepareEnvelopeSchema.parse(JSON.parse(prepareOutput.join("")));
   expect(prepared).toMatchObject({ state: "ready", nextAction: "launch-review" });
   if (prepared.state !== "ready") throw new Error("expected prepared local review");
@@ -3909,6 +3917,14 @@ describe("hosted review fan-out lifecycle", () => {
       headSha: request.target.headSha, lineage: requested.handle.admission.lineage,
       attemptId: hostedLaneAttemptId(requested.handle), dispositionSetId,
       producedHeadSha: request.target.headSha, now: "2026-09-01T10:03:00.000Z",
+    });
+    await expect(readRoutedObligation(
+      errandRoot, makeGitExec(errandRoot),
+      { repository, headRef: `chore/${slug}`, headSha: errandHead },
+      42, undefined, await git(errandRoot, ["rev-parse", "main"]),
+    )).resolves.toMatchObject({
+      state: "review-required",
+      detail: expect.stringContaining("ready/hosted-request"),
     });
     const second = await requestThroughProductionHandler(errandHarness, fakeBin, request);
     expect(second.exitCodes, JSON.stringify(second.output)).toEqual([]);

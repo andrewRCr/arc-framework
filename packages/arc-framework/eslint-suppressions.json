@@ -1592,11 +1592,6 @@
       "count": 1
     }
   },
-  "src/scripts/review-gate/hosts/local/review-authority.ts": {
-    "complexity": {
-      "count": 1
-    }
-  },
   "src/scripts/review-gate/policy/candidate-review-fix-continuation.ts": {
     "complexity": {
       "count": 2
@@ -1679,7 +1674,7 @@
   },
   "src/scripts/review-gate/policy/review-policy-driver.ts": {
     "complexity": {
-      "count": 2
+      "count": 1
     },
     "max-lines-per-function": {
       "count": 1
@@ -1727,11 +1722,6 @@
     }
   },
   "src/scripts/review-gate/runtime/local-prepare-composition.ts": {
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
-  "src/scripts/review-gate/runtime/local-prepare.ts": {
     "max-lines-per-function": {
       "count": 1
     }

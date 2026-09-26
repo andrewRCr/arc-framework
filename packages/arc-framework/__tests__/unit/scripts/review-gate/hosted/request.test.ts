@@ -15,10 +15,11 @@ import {
   createReviewTarget,
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import {
-  assertStandardReviewExecutionAdmission,
   type ReviewCeilingOverride,
 } from
   "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
+import { assertStandardReviewExecutionAdmission } from
+  "../../../../../src/scripts/review-gate/policy/review-execution-admission.js";
 
 const HEAD = "a".repeat(40);
 const CORRECTION_SCOPE = {

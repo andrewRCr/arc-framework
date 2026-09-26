@@ -161,7 +161,7 @@ describe("local review preparation request", () => {
       headTree: objectId("d"),
     });
     // Refusing at resolution isolates the hand-off: nothing downstream has to be stubbed.
-    const resolveAuthority = vi.fn(async () => {
+    const resolveVehicle = vi.fn(async () => {
       throw new Error("delivery-member-unbound");
     });
     const dependencies = {
@@ -169,7 +169,7 @@ describe("local review preparation request", () => {
       laneSourceId: "delegated-agent",
       resolveRepositoryId: async () => target.repositoryId,
       deriveTarget: async () => target,
-      resolveAuthority,
+      resolveVehicle,
     } as unknown as Parameters<typeof prepareLocalReview>[1];
     const request = { schemaVersion: 1 as const, evaluatorIdentity: "evaluator-1", routingFacts };
 
@@ -177,11 +177,11 @@ describe("local review preparation request", () => {
       { ...request, memberHeadObjectId: objectId("e") },
       dependencies,
     )).rejects.toThrow(/delivery admission/u);
-    expect(resolveAuthority).not.toHaveBeenCalled();
+    expect(resolveVehicle).not.toHaveBeenCalled();
 
-    resolveAuthority.mockClear();
+    resolveVehicle.mockClear();
     await expect(prepareLocalReview(request, dependencies)).rejects.toThrow(/delivery-member-unbound/u);
-    expect(resolveAuthority).toHaveBeenCalledWith("evaluator-1", undefined);
+    expect(resolveVehicle).toHaveBeenCalledWith(undefined, undefined);
   });
 
   it.each([

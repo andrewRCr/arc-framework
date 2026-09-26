@@ -336,13 +336,43 @@ export async function resolveEvidenceBoundReviewPolicy(
   return resolveReviewPolicy(await bindReviewPolicyEvidence(input, dependencies));
 }
 
+async function responsePerformedForTerminal(
+  attempt: ReviewPolicyCommandRequest["attempts"][number] | undefined,
+  responsePerformed: boolean,
+  resultReader: ReviewResultReader,
+  dependencies: EvidenceBoundReviewPolicyDependencies,
+): Promise<boolean> {
+  if (!responsePerformed || attempt?.outcome !== "findings") return false;
+  const result = await resultReader.readResult(attempt.reviewOperationId);
+  const evidence = await readIncrementalPredecessorResponseEvidence(
+    result, dependencies.dispositionStore, dependencies.readResponsePerformance,
+  );
+  return evidence.status === "performed";
+}
+
+function continuationChoice(input: {
+  terminal: ReviewResolveEnvelope;
+  additionalPass: ReviewResolveEnvelope | null;
+  terminalOutcome?: string;
+  currentResponsePerformed: boolean;
+  coverageSelected: boolean;
+}): "terminal" | "additional" | "fresh" {
+  const { terminal, additionalPass, terminalOutcome, currentResponsePerformed, coverageSelected } = input;
+  if (additionalPass !== null && terminal.state === "pass-complete"
+    && (terminalOutcome === "clean" || currentResponsePerformed)) return "additional";
+  if (terminal.state === "findings" && currentResponsePerformed) return "fresh";
+  if (terminal.state === "coverage-required" && coverageSelected
+    && (!terminal.payload.responseRequired || currentResponsePerformed)) return "fresh";
+  return "terminal";
+}
+
 /**
  * Resolve a terminal result and, only after its response is durably performed, enter the next logical pass.
  *
  * @param input - External command request retaining the terminal producer reference.
  * @param response - Durable response-performance fact for that terminal findings producer.
  * @param dependencies - Repository-bound evidence readers and configured policy.
- * @returns The terminal policy result, or the fresh empty-history policy after a performed material response.
+ * @returns The terminal policy result, or the authorized successor after performed response.
  */
 export async function resolveEvidenceBoundReviewPolicyContinuation(
   input: unknown,
@@ -355,7 +385,11 @@ export async function resolveEvidenceBoundReviewPolicyContinuation(
   const request = ReviewPolicyCommandRequestSchema.parse(input);
   const terminalOutcome = request.attempts.at(-1)?.outcome;
   const terminalRequest = terminalOutcome === "findings" || terminalOutcome === "clean"
-    ? ReviewPolicyCommandRequestSchema.parse({ ...request, ceilingOverride: undefined })
+    ? ReviewPolicyCommandRequestSchema.parse({
+        ...request,
+        ceilingOverride: undefined,
+        additionalPassAuthorization: undefined,
+      })
     : request;
   const terminalAttempt = terminalRequest.attempts.at(-1);
   const terminalOperationId = terminalAttempt?.outcome === "findings"
@@ -371,24 +405,28 @@ export async function resolveEvidenceBoundReviewPolicyContinuation(
       return terminalResult;
     },
   };
-  const terminal = await resolveEvidenceBoundReviewPolicy(terminalRequest, {
+  const boundTerminal = await bindReviewPolicyEvidence(terminalRequest, {
     ...dependencies,
     resultReader,
   });
-  // A lane can retain a prior record-only settlement after a successor disposition
-  // approves a fix. Its settled outcome alone does not perform the current fix.
-  const currentResponsePerformed = response.terminalResponsePerformed
-    && terminalAttempt?.outcome === "findings"
-    && (await readIncrementalPredecessorResponseEvidence(
-      await resultReader.readResult(terminalAttempt.reviewOperationId),
-      dependencies.dispositionStore,
-      dependencies.readResponsePerformance,
-    )).status === "performed";
-  const findingsResponseComplete = currentResponsePerformed && terminal.state === "findings";
-  const coverageSelectionComplete = response.coverageSelected === true
-    && terminal.state === "coverage-required"
-    && (!terminal.payload.responseRequired || currentResponsePerformed);
-  if (!findingsResponseComplete && !coverageSelectionComplete) return terminal;
+  const terminal = resolveReviewPolicy(boundTerminal);
+  const additionalPass = request.additionalPassAuthorization === undefined
+    ? null
+    : resolveReviewPolicy({
+        ...boundTerminal,
+        additionalPassAuthorization: request.additionalPassAuthorization,
+      });
+  if (additionalPass?.state === "invalid-override") return additionalPass;
+  // A settled outcome alone does not prove that the current findings response was performed.
+  const currentResponsePerformed = await responsePerformedForTerminal(
+    terminalAttempt, response.terminalResponsePerformed, resultReader, dependencies,
+  );
+  const choice = continuationChoice({
+    terminal, additionalPass, terminalOutcome: terminalAttempt?.outcome,
+    currentResponsePerformed, coverageSelected: response.coverageSelected === true,
+  });
+  if (choice === "terminal") return terminal;
+  if (choice === "additional" && additionalPass !== null) return additionalPass;
   return resolveReviewPolicy({
     ...request,
     attempts: [],

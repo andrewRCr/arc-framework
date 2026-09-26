@@ -10,6 +10,13 @@ import {
 import { CompletedReviewPassCountSchema, ReviewPassSchema } from "../core/review-pass.js";
 import { ReviewScopeModeSchema, ReviewSeveritySchema } from "../core/review-primitives.js";
 import {
+  ReviewAdditionalPassAuthorizationSchema,
+  ReviewPolicyTargetSchema,
+  invalidAdditionalPassReason,
+} from "./review-additional-pass.js";
+export { ReviewAdditionalPassAuthorizationSchema } from "./review-additional-pass.js";
+export type { ReviewAdditionalPassAuthorization } from "./review-additional-pass.js";
+import {
   OwnerAcceptedReviewTerminusJudgmentSchema,
   OwnerAcceptedReviewTerminusSchema,
 } from "./review-terminus.js";
@@ -23,12 +30,6 @@ import {
 export { projectReviewPolicyAttempt } from "./review-policy-attempt.js";
 
 const ReviewSourceIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u);
-const ReviewPolicyTargetShape = {
-  repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u),
-  pullRequest: z.int().positive().nullable(),
-  headSha: GitObjectIdSchema,
-};
-const ReviewPolicyTargetSchema = z.strictObject(ReviewPolicyTargetShape).readonly();
 const FrontlinePolicyInvocationSchema = z.strictObject({
   mode: z.literal("skip"),
 }).readonly();
@@ -164,6 +165,8 @@ const InvalidOverrideReasonSchema = z.enum([
   "pass-count-mismatch",
   "next-pass-mismatch",
   "ceiling-not-exhausted",
+  "preceding-producer-mismatch",
+  "pass-not-converged",
 ]);
 type InvalidOverrideReason = z.infer<typeof InvalidOverrideReasonSchema>;
 
@@ -181,6 +184,7 @@ const ReviewPolicyRequestBaseShape = {
   }).readonly().optional(),
   invocation: ReviewPolicyInvocationSchema.optional(),
   ceilingOverride: ReviewCeilingOverrideSchema.optional(),
+  additionalPassAuthorization: ReviewAdditionalPassAuthorizationSchema.optional(),
   terminus: OwnerAcceptedReviewTerminusSchema.optional(),
 };
 
@@ -227,6 +231,12 @@ export const ReviewLaneJudgmentSchema = z.strictObject({
     exhaustedPassCount: CompletedReviewPassCountSchema,
     nextPass: ReviewPassSchema,
     conditionalPassAuthorizationId: ReviewCanonicalDigestSchema.optional(),
+  }).readonly().optional(),
+  additionalPassAuthorization: z.strictObject({
+    headSha: GitObjectIdSchema,
+    precedingProducerId: ReviewIdentifierSchema,
+    completedPasses: CompletedReviewPassCountSchema,
+    nextPass: ReviewPassSchema,
   }).readonly().optional(),
   terminus: OwnerAcceptedReviewTerminusJudgmentSchema.optional(),
 }).readonly();
@@ -666,7 +676,15 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
       },
     });
   }
-  const invalidOverrideReason = resolveInvalidOverrideReason(request);
+  const invalidOverrideReason = resolveInvalidOverrideReason(request)
+    ?? invalidAdditionalPassReason({
+      target: request.target,
+      lane: request.lane,
+      completedPasses: request.completedPasses,
+      authorization: request.additionalPassAuthorization,
+      terminal: lastAttempt,
+      signal: request.verifiedTerminalSignal,
+    });
   if (invalidOverrideReason !== null) {
     return resolveEnvelope({
       state: "invalid-override",
@@ -683,7 +701,9 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
       message: `The review ceiling override is invalid: ${invalidOverrideReason}.`,
     }]);
   }
-  const ceilingOverrideApplied = request.ceilingOverride !== undefined;
+  const ceilingOverrideApplied = request.ceilingOverride !== undefined
+    || (request.additionalPassAuthorization !== undefined
+      && request.completedPasses >= request.maxPasses);
   if (lastAttempt?.outcome === "partial" && scope === "chunked") {
     return resolveEnvelope({
       state: "chunk-pending",
@@ -762,20 +782,22 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
         },
       });
     }
-    return resolveEnvelope({
-      state: "pass-complete",
-      nextAction: "none",
-      payload: {
-        lane: request.lane,
-        scope,
-        sourceId: lastAttempt.sourceId,
-        pass,
-        completedPasses: request.completedPasses,
-        consumedPass: true,
-        attemptedSources: request.attempts,
-        verifiedTerminalSignal: signal,
-      },
-    });
+    if (request.additionalPassAuthorization === undefined) {
+      return resolveEnvelope({
+        state: "pass-complete",
+        nextAction: "none",
+        payload: {
+          lane: request.lane,
+          scope,
+          sourceId: lastAttempt.sourceId,
+          pass,
+          completedPasses: request.completedPasses,
+          consumedPass: true,
+          attemptedSources: request.attempts,
+          verifiedTerminalSignal: signal,
+        },
+      });
+    }
   }
   if (request.terminus !== undefined) {
     return resolveEnvelope({
@@ -930,80 +952,6 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
       ineligibleSources,
     },
   }, diagnostics);
-}
-
-/**
- * Re-run the standard-lane driver from current facts immediately before a producer spends capacity.
- *
- * @param input - Live target, obligation, progress, configuration, and optional caller-held judgment.
- * @returns The exact ready resolution authorizing the expected producer action and source.
- */
-export function assertStandardReviewExecutionAdmission(input: {
-  readonly target: ReviewPolicyRequest["target"];
-  readonly frontlineActive: boolean;
-  readonly standardReview: ReviewPolicyRequest["standardReview"];
-  readonly completedPasses: number;
-  readonly attempts: ReviewPolicyCommandRequest["attempts"];
-  readonly sources: readonly string[];
-  readonly maxPasses: number;
-  readonly expectedSourceId: string;
-  readonly expectedNextAction: "local-prepare" | "hosted-request";
-  readonly judgment?: ReviewLaneJudgment;
-  readonly ceilingOverride?: ReviewCeilingOverride;
-}): Extract<ReviewResolveEnvelope, { state: "ready" }> {
-  const judgment = input.judgment === undefined
-    ? undefined
-    : ReviewLaneJudgmentSchema.parse(input.judgment);
-  const fullCeilingOverride = input.ceilingOverride === undefined
-    ? undefined
-    : ReviewCeilingOverrideSchema.parse(input.ceilingOverride);
-  if (fullCeilingOverride !== undefined
-    && judgment?.ceilingOverride !== undefined
-    && (fullCeilingOverride.exhaustedPassCount !== judgment.ceilingOverride.exhaustedPassCount
-      || fullCeilingOverride.nextPass !== judgment.ceilingOverride.nextPass)) {
-    throw new Error("Full and targetless review ceiling authority disagree.");
-  }
-  const ceilingOverride = fullCeilingOverride ?? (judgment?.ceilingOverride === undefined
-    ? undefined
-    : {
-        ...judgment.ceilingOverride,
-        target: input.target,
-        lane: "standard" as const,
-      });
-  const resolution = resolveReviewPolicy({
-    schemaVersion: 1,
-    target: input.target,
-    lane: "standard",
-    frontlineActive: input.frontlineActive,
-    standardReview: input.standardReview,
-    completedPasses: input.completedPasses,
-    attempts: input.attempts,
-    sources: input.sources,
-    maxPasses: input.maxPasses,
-    ...(judgment?.scopeMode === undefined
-      ? {}
-      : { scopeSelection: { mode: judgment.scopeMode, target: input.target } }),
-    ...(judgment?.invocation === undefined ? {} : { invocation: judgment.invocation }),
-    ...(ceilingOverride === undefined ? {} : { ceilingOverride }),
-    ...(judgment?.terminus === undefined ? {} : { terminus: judgment.terminus }),
-  });
-  if (resolution.state !== "ready"
-    || resolution.nextAction !== input.expectedNextAction) {
-    const reason = resolution.state === "invalid-override"
-      ? `/${resolution.payload.reason}`
-      : "";
-    throw new Error(
-      `Review capacity lacks standard-review driver admission `
-      + `(${resolution.state}/${resolution.nextAction}${reason}).`,
-    );
-  }
-  if (resolution.payload.sourceId !== input.expectedSourceId) {
-    throw new Error(
-      `Review source \`${input.expectedSourceId}\` is not driver-admissible; `
-      + `the standard lane requires \`${resolution.payload.sourceId}\` next.`,
-    );
-  }
-  return resolution;
 }
 
 function resolveInvalidOverrideReason(

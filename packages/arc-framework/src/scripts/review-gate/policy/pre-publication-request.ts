@@ -77,6 +77,13 @@ export const PrePublicationLaneJudgmentsSchema = z.strictObject({
       path: ["frontline", "terminus"],
     });
   }
+  if (judgments.frontline?.additionalPassAuthorization !== undefined) {
+    context.addIssue({
+      code: "custom",
+      message: "additional review after convergence can be applied only to the standard lane",
+      path: ["frontline", "additionalPassAuthorization"],
+    });
+  }
 }).readonly();
 export type PrePublicationLaneJudgments = z.infer<typeof PrePublicationLaneJudgmentsSchema>;
 
@@ -759,12 +766,25 @@ export async function composePrePublicationReviewRequest(
     const boundToAnotherFrontlineHead = lane === "frontline"
       && input.frontlineCeilingHeadSha !== undefined
       && input.frontlineCeilingHeadSha !== policyTarget.headSha;
-    return ceilingOverride === undefined || boundToAnotherFrontlineHead
-      ? request
-      : {
-          ...request,
-          ceilingOverride: { ...ceilingOverride, target: policyTarget, lane },
-        };
+    const additionalPass = lane === "standard"
+      ? lanes.data.standard?.additionalPassAuthorization
+      : undefined;
+    return {
+      ...request,
+      ...(ceilingOverride === undefined || boundToAnotherFrontlineHead ? {} : {
+        ceilingOverride: { ...ceilingOverride, target: policyTarget, lane },
+      }),
+      ...(additionalPass === undefined
+        || request.completedPasses > additionalPass.completedPasses ? {} : {
+        additionalPassAuthorization: {
+          precedingProducerId: additionalPass.precedingProducerId,
+          completedPasses: additionalPass.completedPasses,
+          nextPass: additionalPass.nextPass,
+          target: { ...policyTarget, headSha: additionalPass.headSha },
+          lane: "standard" as const,
+        },
+      }),
+    };
   };
   let exactTarget: ReviewTarget | null;
   let policyTarget: ReviewPolicyTarget;

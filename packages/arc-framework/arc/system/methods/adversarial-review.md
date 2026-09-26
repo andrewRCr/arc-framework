@@ -268,6 +268,11 @@ named pass; withdrawal or supersession invalidates it, as does an incompatible a
 Launching the named fresh pass consumes that permission, and replay cannot authorize another pass. Any further
 over-cap pass requires fresh approval.
 
+A converged result is a signal about the latest pass, not a veto on an Owner-directed successor. The Owner may
+authorize any number of later passes one at a time; a later material result changes the latest signal to
+non-converged and re-enters the normal response loop. Neither a minor observation nor unused capacity starts a
+pass without that decision.
+
 Advisory planning and criteria callers keep the finding/account/action set, conditional decision, response-performance
 check, and consumption fact in their existing evidence. This creates no lane-progress record, code-review operation,
 Candidate, policy binding, or receipt.

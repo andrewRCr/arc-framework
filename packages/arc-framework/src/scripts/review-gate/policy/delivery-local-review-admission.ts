@@ -5,7 +5,7 @@ import { z } from "zod";
 import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
 import { ChangeRequestTargetRefSchema } from "../change-request.js";
 import { HostedReviewCoverageSchema, HostedTargetSchema } from "../hosted/request.js";
-import { ReviewCeilingOverrideSchema } from "./review-policy-driver.js";
+import { ReviewAdditionalPassAuthorizationSchema, ReviewCeilingOverrideSchema } from "./review-policy-driver.js";
 import { IncrementalReviewScopeSchema } from "../core/incremental-review-scope.js";
 import type { IncrementalReviewScope } from "../core/incremental-review-scope.js";
 
@@ -25,6 +25,7 @@ const DeliveryLocalReviewSelectionShape = {
   pass: z.int().positive(),
   requestedCoverage: HostedReviewCoverageSchema,
   ceilingOverride: ReviewCeilingOverrideSchema.optional(),
+  additionalPassAuthorization: ReviewAdditionalPassAuthorizationSchema.optional(),
   scopeSelection: DeliveryLocalReviewScopeSelectionSchema.optional(),
   correctionScope: IncrementalReviewScopeSchema.optional(),
 };

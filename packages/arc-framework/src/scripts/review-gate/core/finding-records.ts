@@ -89,7 +89,10 @@ export function captureReviewFindingSourceLabel(input: {
   if (candidate === undefined) return {};
   const codePoints = Array.from(candidate);
   if (codePoints.length <= 512) return { sourceLabel: candidate };
-  return { sourceLabel: codePoints.slice(0, 512).join(""), sourceLabelTruncated: true };
+  const prefix = codePoints.slice(0, 512).join("");
+  return prefix.trim().length === 0
+    ? {}
+    : { sourceLabel: prefix, sourceLabelTruncated: true };
 }
 
 /**

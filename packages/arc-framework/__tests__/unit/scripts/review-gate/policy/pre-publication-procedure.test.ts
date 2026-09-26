@@ -613,6 +613,43 @@ function request(overrides: Record<string, unknown> = {}) {
 }
 
 describe("projectPrePublicationReview", () => {
+  it("keeps an Owner-authorized post-convergence pass in review instead of publishing", () => {
+    const base = request({ selfReview: "settled" });
+    const standard = {
+      ...(base.standard as Record<string, unknown>),
+      sources: ["delegated-agent"],
+      completedPasses: 1,
+      attempts: [{ sourceId: "delegated-agent", outcome: "clean", reviewOperationId: "local/clean-1" }],
+      verifiedTerminalSignal: {
+        reviewOperationId: "local/clean-1",
+        confirmedFindingCount: 0,
+        maxConfirmedSeverity: null,
+        coverageAdequate: true,
+      },
+    };
+    const input = {
+      ...base,
+      frontline: { ...(base.frontline as Record<string, unknown>), frontlineActive: false, sources: [] },
+      standard,
+    };
+    expect(projectPrePublicationReview(input, postAttestContinuation)).toMatchObject({
+      locus: "candidate-publish-ready",
+      nextAction: { kind: "publish-candidate" },
+    });
+    expect(projectPrePublicationReview({
+      ...input,
+      standard: {
+        ...standard,
+        additionalPassAuthorization: {
+          target, lane: "standard", precedingProducerId: "local/clean-1",
+          completedPasses: 1, nextPass: 2,
+        },
+      },
+    }, postAttestContinuation)).toMatchObject({
+      locus: "candidate-review-pending",
+      policy: { state: "ready", nextAction: "local-prepare", payload: { pass: 2 } },
+    });
+  });
   it("keeps minor findings at the response boundary until the approved fix is performed", () => {
     const base = request({ selfReview: "settled" });
     const standard = {

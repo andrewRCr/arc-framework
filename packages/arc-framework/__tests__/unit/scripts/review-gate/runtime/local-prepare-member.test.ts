@@ -14,7 +14,7 @@ import type { IncrementalReviewScope } from "../../../../../src/scripts/review-g
 import { createHostedAdmission } from "../../../../../src/scripts/review-gate/hosted/request.js";
 import { projectLocalReviewGuidance } from "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
 import { DEFAULT_LOCAL_REVIEW_POLICY_BINDING } from "../../../../../src/scripts/review-gate/policy/local-review-policy.js";
-import { assertStandardReviewExecutionAdmission } from "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
+import { assertStandardReviewExecutionAdmission } from "../../../../../src/scripts/review-gate/policy/review-execution-admission.js";
 import { attestLocalReviewCommand } from "../../../../../src/scripts/review-gate/runtime/local-attest-command.js";
 import { prepareLocalReview } from "../../../../../src/scripts/review-gate/runtime/local-prepare.js";
 import { captureConditionalNextPassAuthorization, readLaneProgressOwner, recordLaneAttempt, recordLocalReceiptConclusion, settleLaneAttempt } from "../../../../../src/scripts/review-gate/lane-progress.js";
@@ -169,6 +169,18 @@ describe("local review member preparation", () => {
         withLaneOperationLock: async <T>(_input: unknown, action: () => Promise<T>) => action(),
         confirmDispositionSetCurrent: async () => true,
         resolveRepositoryId: async () => "repo-1",
+        readCurrentHeadSha: async () => changeSetTarget.headSha,
+        resolveVehicle: async (memberHeadObjectId?: string) => memberHeadObjectId === undefined
+          ? {
+              vehicle: { kind: "work-unit" as const, identity: "review-surface-binding" },
+              authorIdentity: "author-1",
+              member: null,
+            }
+          : {
+              vehicle: { kind: "delivery-member" as const, identity: DELIVERABLE_ID },
+              authorIdentity: "author-1",
+              member: memberCoordinates,
+            },
         deriveTarget,
         confirmTarget: async (target: typeof memberTarget) => ({ state: "current" as const, target }),
         resolveAuthority,
@@ -506,6 +518,87 @@ describe("local review member preparation", () => {
       expect(fresh.payload.operationId).not.toBe(state.operationId);
     });
 
+    it("admits successive named local passes after clean convergence without duplicate replay", async () => {
+      const context = fixture();
+      const first = await prepareLocalReview(request, context.dependencies);
+      if (first.state !== "ready") throw new Error("first local review was not prepared");
+      const firstState = context.published();
+      if (firstState?.kind !== "local-review") throw new Error("first local operation is unavailable");
+      const firstReceipt = createReviewReceipt({
+        target: firstState.target,
+        requirement: firstState.requirement,
+        request: firstState.request,
+        applicabilityId: null,
+        reviewRunId: "review-run-1",
+        evaluatorIdentity: firstState.request.evaluatorIdentity,
+        attestingRuntimeIdentity: firstState.attestation.runtimeIdentity,
+        attestationMechanism: firstState.attestation.mechanism,
+        providerEventIdentity: null,
+        result: "clean",
+        findings: [],
+      });
+      await recordLocalReceiptConclusion(context.dependencies.operationStore, {
+        state: firstState, receipt: firstReceipt, now: "2026-08-06T17:10:00Z",
+      });
+      context.dependencies.readReceipts = async () => ({ ledgerVersion: 1, receipts: [firstReceipt] });
+      const approval = {
+        headSha: firstState.target.headSha,
+        precedingProducerId: firstState.operationId,
+        completedPasses: 1,
+        nextPass: 2,
+      };
+      context.validatePolicyAdmission.mockResolvedValueOnce({ state: "ready", pass: 2 });
+      const second = await prepareLocalReview({
+        ...request, policyJudgment: { additionalPassAuthorization: approval },
+      }, context.dependencies);
+      if (second.state !== "ready") throw new Error("second local review was not prepared");
+      expect(second.payload.operationId).not.toBe(first.payload.operationId);
+      await expect(prepareLocalReview({
+        ...request, policyJudgment: { additionalPassAuthorization: approval },
+      }, context.dependencies)).resolves.toMatchObject({
+        state: "ready", payload: { operationId: second.payload.operationId },
+      });
+      const secondState = context.published();
+      if (secondState?.kind !== "local-review") throw new Error("second local operation is unavailable");
+      const secondReceipt = createReviewReceipt({
+        target: secondState.target,
+        requirement: secondState.requirement,
+        request: secondState.request,
+        applicabilityId: null,
+        reviewRunId: "review-run-2",
+        evaluatorIdentity: secondState.request.evaluatorIdentity,
+        attestingRuntimeIdentity: secondState.attestation.runtimeIdentity,
+        attestationMechanism: secondState.attestation.mechanism,
+        providerEventIdentity: null,
+        result: "clean",
+        findings: [],
+      });
+      await recordLocalReceiptConclusion(context.dependencies.operationStore, {
+        state: secondState, receipt: secondReceipt, now: "2026-08-06T17:11:00Z",
+      });
+      context.dependencies.readReceipts = async () => ({
+        ledgerVersion: 2, receipts: [firstReceipt, secondReceipt],
+      });
+      await expect(prepareLocalReview({
+        ...request, policyJudgment: { additionalPassAuthorization: approval },
+      }, context.dependencies)).resolves.toMatchObject({
+        state: "review-complete", payload: { operationId: second.payload.operationId },
+      });
+      context.validatePolicyAdmission.mockResolvedValueOnce({ state: "ready", pass: 3 });
+      const third = await prepareLocalReview({
+        ...request,
+        policyJudgment: { additionalPassAuthorization: {
+          headSha: secondState.target.headSha,
+          precedingProducerId: secondState.operationId,
+          completedPasses: 2,
+          nextPass: 3,
+        } },
+      }, context.dependencies);
+      expect(third).toMatchObject({ state: "ready" });
+      if (third.state !== "ready") throw new Error("third local review was not prepared");
+      expect(third.payload.operationId).not.toBe(second.payload.operationId);
+    });
+
     it("persists ordinary local chunk scope through operation and lane admission", async () => {
       const context = fixture();
 
@@ -772,7 +865,7 @@ describe("local review member preparation", () => {
       });
       expect(context.resolveLineage).toHaveBeenCalledWith(
         { kind: "work-unit", identity: "review-surface-binding" },
-        context.changeSetTarget,
+        context.changeSetTarget.headSha,
         undefined,
         undefined,
       );
@@ -831,6 +924,14 @@ describe("local review member preparation", () => {
         const context = fixture();
         const first = await prepareLocalReview(request, context.dependencies);
         if (first.state !== "ready") throw new Error("first local preparation was not ready");
+        const admittedAuthority = context.resolveAuthority.getMockImplementation();
+        context.resolveAuthority.mockImplementation(async (evaluatorIdentity, memberHeadObjectId) => {
+          if (evaluatorIdentity === "replacement-evaluator") {
+            throw new Error("replacement evaluator is not admissible");
+          }
+          if (admittedAuthority === undefined) throw new Error("missing admitted authority");
+          return admittedAuthority(evaluatorIdentity, memberHeadObjectId);
+        });
         context.composeAssurance.mockRejectedValueOnce(new Error("current assurance drifted"));
         context.resolvePolicy.mockImplementationOnce(() => {
           throw new Error("current policy drifted");
@@ -850,6 +951,47 @@ describe("local review member preparation", () => {
         });
         expect(context.composeAssurance).toHaveBeenCalledTimes(1);
         expect(context.resolvePolicy).toHaveBeenCalledTimes(1);
+      });
+
+      it("replays admitted chunked incremental coverage when optional selections are omitted", async () => {
+        const context = fixture();
+        const correctionScope = {
+          schemaVersion: 1 as const,
+          predecessorProducerId: "local-predecessor",
+          predecessorHeadSha: objectId("a"),
+          basisHeadSha: objectId("9"),
+          headSha: context.changeSetTarget.headSha,
+          requiredFindings: [{
+            producerId: "local-predecessor", findingId: "F-material", locus: "src/work-unit.ts:4",
+          }],
+        };
+        const first = await prepareLocalReview({
+          ...request,
+          policyJudgment: { scopeMode: "chunked" },
+          coverageAdmission: { requestedCoverage: "incremental", correctionScope },
+        }, context.dependencies);
+        if (first.state !== "ready") throw new Error("first local preparation was not ready");
+
+        const replay = await prepareLocalReview(request, context.dependencies);
+        expect(replay).toMatchObject({
+          state: "ready",
+          payload: {
+            operationId: first.payload.operationId,
+            reviewerPayload: { correctionScope },
+          },
+        });
+        expect(context.published()).toMatchObject({
+          scopeMode: "chunked", coverageAdmission: { requestedCoverage: "incremental" },
+        });
+      });
+
+      it("keeps a fresh invalid evaluator outside the recovery path", async () => {
+        const context = fixture();
+        context.resolveAuthority.mockRejectedValueOnce(new Error("replacement evaluator is not admissible"));
+        await expect(prepareLocalReview({
+          ...request, evaluatorIdentity: "replacement-evaluator",
+        }, context.dependencies)).rejects.toThrow(/not admissible/u);
+        expect(context.operations.size).toBe(0);
       });
 
       it.each([
@@ -1295,6 +1437,12 @@ describe("local review member preparation", () => {
       withLaneOperationLock: async <T>(_input: unknown, action: () => Promise<T>) => action(),
       confirmDispositionSetCurrent: async () => true,
       resolveRepositoryId: async () => target.repositoryId,
+      readCurrentHeadSha: async () => target.headSha,
+      resolveVehicle: async () => ({
+        vehicle: { kind: "work-unit" as const, identity: "review-surface-binding" },
+        authorIdentity: "author-1",
+        member: null,
+      }),
       deriveTarget: async () => target,
       confirmTarget: async () => ({ state: "current" as const, target }),
       resolveAuthority: async () => ({
@@ -1426,6 +1574,12 @@ describe("local review member preparation", () => {
         withLaneOperationLock: async <T>(_input: unknown, action: () => Promise<T>) => action(),
         confirmDispositionSetCurrent: async () => true,
         resolveRepositoryId: async () => target.repositoryId,
+        readCurrentHeadSha: async () => target.headSha,
+        resolveVehicle: async () => ({
+          vehicle: { kind: "work-unit" as const, identity: "review-surface-binding" },
+          authorIdentity: "author-1",
+          member: null,
+        }),
         deriveTarget: async () => target,
         confirmTarget: async () => ({ state: "current" as const, target }),
         resolveAuthority: async () => ({

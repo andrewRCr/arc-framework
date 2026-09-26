@@ -83,6 +83,7 @@ describe("review-gate canonical serializer inventory", () => {
       "policy/standard-review.ts",
       "runtime/frontline-run-command.ts",
       "runtime/local-attest-command.ts",
+      "runtime/local-pending-replay.ts",
       "runtime/local-prepare-composition.ts",
       "runtime/local-prepare.ts",
       "runtime/respond-command.ts",

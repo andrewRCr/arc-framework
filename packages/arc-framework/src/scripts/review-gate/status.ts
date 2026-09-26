@@ -44,7 +44,9 @@ import {
 } from "./policy/review-applicability-resolution.js";
 import { HostedFindingsResponsePlanSchema } from "./core/response-plan-schema.js";
 import {
+  ReviewAdditionalPassAuthorizationSchema,
   ReviewCeilingOverrideSchema,
+  type ReviewAdditionalPassAuthorization,
   type ReviewCeilingOverride,
   type ReviewResolveEnvelope,
 } from "./policy/review-policy-driver.js";
@@ -80,6 +82,7 @@ const ReviewApplicabilitySelectionActionSchema = z.union([
 export const ReviewStatusTargetInputSchema = z.strictObject({
   target: ChangeRequestTargetRefSchema,
   ceilingOverride: ReviewCeilingOverrideSchema.optional(),
+  additionalPassAuthorization: ReviewAdditionalPassAuthorizationSchema.optional(),
   coverage: HostedReviewCoverageSchema.optional(),
   sourceId: ReviewStatusSourceIdSchema.optional(),
 });
@@ -87,6 +90,7 @@ export type ReviewStatusTargetInput = z.infer<typeof ReviewStatusTargetInputSche
 export const ReviewStatusWorkUnitInputSchema = z.strictObject({
   workUnitId: SlugSchema,
   ceilingOverride: ReviewCeilingOverrideSchema.optional(),
+  additionalPassAuthorization: ReviewAdditionalPassAuthorizationSchema.optional(),
   coverage: HostedReviewCoverageSchema.optional(),
   sourceId: ReviewStatusSourceIdSchema.optional(),
 });
@@ -610,6 +614,7 @@ export function composeDeliveryReviewObligation(input: {
     coverageSelectionAction?: ReviewCoverageSelectionAction;
     requestAdmission?: ReviewResolveEnvelope;
     requestCeilingOverride?: ReviewCeilingOverride;
+    requestAdditionalPassAuthorization?: ReviewAdditionalPassAuthorization;
     requestScopeSelection?: z.infer<typeof DeliveryLocalReviewScopeSelectionSchema>;
     requestCoverage?: HostedReviewCoverage;
     correctionScope?: IncrementalReviewScope;
@@ -739,8 +744,10 @@ export function composeDeliveryReviewObligation(input: {
       detail: "The discharge projection and standard-review driver selected different sources.",
     };
   }
-  if (discharge.requestAdmission.payload.ceilingOverrideApplied
-    !== (discharge.requestCeilingOverride !== undefined)) {
+  const additionalPassCoversCeiling = discharge.requestAdditionalPassAuthorization !== undefined
+    && discharge.completedPasses >= discharge.passCeiling;
+  const authorizedCeiling = discharge.requestCeilingOverride !== undefined || additionalPassCoversCeiling;
+  if (discharge.requestAdmission.payload.ceilingOverrideApplied !== authorizedCeiling) {
     return {
       state: "blocked",
       detail: "The standard-review driver and member review action disagree about ceiling-override admission.",
@@ -795,6 +802,8 @@ export function composeDeliveryReviewObligation(input: {
         ...(discharge.requestCeilingOverride === undefined
           ? {}
           : { ceilingOverride: discharge.requestCeilingOverride }),
+        ...(discharge.requestAdditionalPassAuthorization === undefined ? {}
+          : { additionalPassAuthorization: discharge.requestAdditionalPassAuthorization }),
         ...(discharge.requestScopeSelection === undefined
           ? {}
           : { scopeSelection: discharge.requestScopeSelection }),
@@ -840,6 +849,8 @@ export function composeDeliveryReviewObligation(input: {
       ...(discharge.requestCeilingOverride === undefined
         ? {}
         : { ceilingOverride: discharge.requestCeilingOverride }),
+      ...(discharge.requestAdditionalPassAuthorization === undefined ? {}
+        : { additionalPassAuthorization: discharge.requestAdditionalPassAuthorization }),
     },
   });
 }
@@ -1164,6 +1175,7 @@ export interface ReviewStatusPort {
     ceilingOverride?: ReviewCeilingOverride,
     coverage?: HostedReviewCoverage,
     sourceId?: string,
+    additionalPassAuthorization?: ReviewAdditionalPassAuthorization,
   ): Promise<ReviewStatusObservation>;
 }
 
@@ -1210,6 +1222,7 @@ export async function resolveReviewStatus(
     request.ceilingOverride,
     request.coverage,
     request.sourceId,
+    request.additionalPassAuthorization,
   );
   const actualHeadSha = ObjectIdSchema.parse(observation.actualHeadSha);
   const conjunction = "conjunction" in observation.routedObligation

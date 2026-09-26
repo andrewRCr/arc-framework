@@ -629,6 +629,22 @@ including interrupted writes and premature-commit refusal, without changing revi
 - _Outcome:_ Validated supersession retains the two settled standard passes and closes singleton frontline for this
   work unit. A third standard pass remains subject to the typed one-pass ceiling decision.
 
+### `[x]` **8.R Close Pass 9 review continuation findings**
+
+- _Goal:_ Owner-authorized review can continue after convergence under A2, while local replay, provider labels, and
+  Errand status preserve the exact evidence and authority boundaries found in Pass 9.
+- _Work:_ Admit separately authorized standard passes through policy and every producer boundary; recover a pending
+  local operation before fresh evaluator selection; omit an unusable clipped provider label without losing its
+  finding; and derive Errand clearance from the shared evidence-bound policy.
+- _Verification:_ Focused command and refusal-to-success tests, full Tier 3, and the public E2E lane.
+- _Success criteria:_ Spec criterion 27 and the four approved Pass 9 dispositions are satisfied without a new
+  lifetime review limit, automatic extra pass, or a dead-end recovery refusal.
+- _Outcome:_ Exact Owner authority now admits any separately approved post-convergence standard pass; a later
+  material result returns to response control. Pending local replay uses its durable operation before fresh
+  evaluator selection, clipped blank provider labels are omitted without losing findings, and Errand status uses
+  the shared evidence-bound policy. Full Tier 3 passed (12,940 routine tests, one skipped), all 611 E2E tests
+  passed, and the affected integration and refusal-to-continuation cases passed.
+
 ---
 
 ## Success Criteria

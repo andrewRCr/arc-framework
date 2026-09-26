@@ -76,6 +76,12 @@ is open. An accepted initial skip or durable standard admission closes it; chang
 supersession do not reopen it. Follow the typed pre-publication continuation across a re-root: inherited completed
 standard passes still count toward the ceiling, while older producer evidence remains bound to its original target.
 
+A clean or confirmed-minor standard result remains converged on ordinary replay. If the Owner explicitly authorizes
+another named standard pass, carry its exact head, preceding producer, completed-pass count, and next ordinal as
+`lanes.standard.additionalPassAuthorization` in `--lanes`. This admits that pass only; each further pass needs a
+fresh decision, even after another convergence. If it is above the configured ceiling, the same explicit decision
+covers the named ceiling override. A later material result follows the ordinary response route.
+
 Supply `--change-set`, `--lanes`, and `--self-review` on the initial invocation and whenever the procedure explicitly
 requests new author judgment. After every lane operation, re-enter through the envelope's typed pre-publication
 continuation. For `ready / run-frontline`, `nextAction.command` advances into the frontline resolver; retain

@@ -30,6 +30,7 @@ import {
 } from "../hosts/local/delivery-member-lookup.js";
 import {
   resolveLocalReviewAuthority,
+  resolveLocalReviewVehicle,
 } from "../hosts/local/review-authority.js";
 import type { LocalReviewAuthority } from "../core/local-review-authority.js";
 import {
@@ -163,6 +164,17 @@ function createLocalPolicyRequest(
               ceilingOverride: {
                 ...judgment.ceilingOverride,
                 target: policyTarget,
+                lane: "standard" as const,
+              },
+            }),
+        ...(judgment?.additionalPassAuthorization === undefined
+          ? {}
+          : {
+              additionalPassAuthorization: {
+                precedingProducerId: judgment.additionalPassAuthorization.precedingProducerId,
+                completedPasses: judgment.additionalPassAuthorization.completedPasses,
+                nextPass: judgment.additionalPassAuthorization.nextPass,
+                target: { ...policyTarget, headSha: judgment.additionalPassAuthorization.headSha },
                 lane: "standard" as const,
               },
             }),
@@ -362,6 +374,9 @@ export function createLocalPrepareDependencies(input: {
     },
     readReceipts: async (targetId) => (await receipts()).readReceipts(targetId),
     resolveRepositoryId: () => resolveRepositoryIdentity(publisher),
+    readCurrentHeadSha: async () => (await input.exec("git", ["rev-parse", "HEAD"], {
+      cwd: input.cwd,
+    })).stdout.trim(),
     deriveTarget: async (repositoryId, member) => {
       const config = await readConfigSettings(input.cwd);
       const boundary = {
@@ -394,7 +409,11 @@ export function createLocalPrepareDependencies(input: {
         memberLookup,
       },
     ),
-    resolveLineage: async (vehicle, target, deliveryAdmission, member) => {
+    resolveVehicle: (memberHeadObjectId, deliveryAdmission) => resolveLocalReviewVehicle({
+      ...(memberHeadObjectId === undefined ? {} : { memberHeadObjectId }),
+      ...(deliveryAdmission === undefined ? {} : { deliveryAdmission }),
+    }, { readLiveContext: async () => (await readLive()).context, memberLookup }),
+    resolveLineage: async (vehicle, headSha, deliveryAdmission, member) => {
       if (vehicle.kind === "delivery-member") {
         if (member === undefined) {
           throw new Error("delivery-member lineage authority is unavailable");
@@ -424,7 +443,7 @@ export function createLocalPrepareDependencies(input: {
         kind: "head-bound",
         vehicleKind: "errand",
         vehicleIdentity: claim.claimId,
-        headSha: target.headSha,
+        headSha,
       });
     },
     resolveSupersessionAncestors: async (workUnitId, candidateId) => {
@@ -494,6 +513,8 @@ export function createLocalPrepareDependencies(input: {
         ...(admission.ceilingOverride === undefined
           ? {}
           : { ceilingOverride: admission.ceilingOverride }),
+        ...(admission.additionalPassAuthorization === undefined ? {}
+          : { additionalPassAuthorization: admission.additionalPassAuthorization }),
         coverage: admission.requestedCoverage,
       }, createReviewStatusPort({ ...input, sourceId: admission.sourceId }));
       if (current.nextAction !== "review-local-prepare"

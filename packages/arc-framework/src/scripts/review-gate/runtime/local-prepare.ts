@@ -77,6 +77,9 @@ import {
   sharedLogicalPassCoverageMatches,
 } from "../policy/local-review-coverage-selection.js";
 import { cleanupExpired, retryLaneOwnerConflicts } from "./local-prepare-retry.js";
+import { LocalPrepareCommandError } from "./local-prepare-error.js";
+import { completedReplayAttemptMatches, resolveStablePendingLocalReplay } from "./local-pending-replay.js";
+export { LocalPrepareCommandError } from "./local-prepare-error.js";
 
 const DEFAULT_LOCAL_REVIEW_FRESHNESS_MS = 24 * 60 * 60 * 1_000;
 
@@ -147,6 +150,7 @@ export interface LocalPrepareDependencies {
     lineage: LaneSubjectLineage;
   }, action: () => Promise<T>): Promise<T>;
   resolveRepositoryId(): Promise<string>;
+  readCurrentHeadSha(): Promise<string>;
   /** Configured review-policy source represented by this local carrier. */
   laneSourceId: string;
   deriveTarget(
@@ -159,9 +163,17 @@ export interface LocalPrepareDependencies {
     memberHeadObjectId?: string,
     deliveryAdmission?: DeliveryLocalReviewAdmission,
   ): Promise<LocalReviewAuthorityResolution>;
+  resolveVehicle(
+    memberHeadObjectId?: string,
+    deliveryAdmission?: DeliveryLocalReviewAdmission,
+  ): Promise<{
+    vehicle: LocalReviewAuthority["vehicle"];
+    authorIdentity: string;
+    member: LocalReviewMemberCoordinates | null;
+  }>;
   resolveLineage(
     vehicle: LocalReviewAuthority["vehicle"],
-    target: ReviewTarget,
+    headSha: string,
     deliveryAdmission?: DeliveryLocalReviewAdmission,
     member?: LocalReviewMemberCoordinates,
   ): Promise<LaneSubjectLineage>;
@@ -217,14 +229,15 @@ function diagnostics(messages: readonly string[]) {
   return messages.map((message) => ({ code: "local-prepare", message }));
 }
 
-/** Stable durable-state failure at the local prepare boundary. */
-export class LocalPrepareCommandError extends Error {
-  readonly code = "corrupt-state" as const;
-
-  constructor(message: string) {
-    super(message);
-    this.name = "LocalPrepareCommandError";
-  }
+function unavailableLocalPreparation(messages: readonly string[]) {
+  return LocalPrepareEnvelopeSchema.parse({
+    schemaVersion: 1,
+    mode: "review-local-prepare",
+    diagnostics: diagnostics(messages),
+    state: "unavailable",
+    nextAction: "operator-repair",
+    payload: {},
+  });
 }
 
 type PendingLocalReplayInput = {
@@ -237,20 +250,6 @@ type PendingLocalReplayInput = {
   coverageAdmission: LocalReviewCoverageAdmission;
   cleanupTtlMs: number;
 };
-
-function completedReplayAttemptMatches(
-  attempt: NonNullable<Awaited<ReturnType<typeof readLaneProgressOwner>>>["attempts"][number],
-  input: PendingLocalReplayInput,
-): boolean {
-  return attempt.terminalProducer
-    && attempt.local !== undefined
-    && attempt.local.scopeMode === input.scopeMode
-    && attempt.headSha === input.target.headSha
-    && attempt.local.target.targetId === input.target.targetId
-    && (input.request.deliveryAdmission !== undefined || attempt.outcome !== "settled-findings")
-    && (input.request.deliveryAdmission === undefined
-      || attempt.logicalPass === input.request.deliveryAdmission.pass);
-}
 
 function requireSharedLogicalPassCoverage(
   attempts: readonly LocalLaneAttempt[],
@@ -897,7 +896,7 @@ async function resolveLocalPreparationContext(
   const cleanupTtlMs = request.freshnessMs ?? DEFAULT_LOCAL_REVIEW_FRESHNESS_MS;
   const lineage = await dependencies.resolveLineage(
     authority.vehicle,
-    target,
+    target.headSha,
     request.deliveryAdmission,
     member ?? undefined,
   );
@@ -916,42 +915,42 @@ async function resolveLocalPreparationContext(
   return { repositoryId, authority, target, cleanupTtlMs, lineage, scopeMode, coverageAdmission };
 }
 
+async function replayFreshPendingAdmission(
+  request: LocalPrepareRequest,
+  dependencies: LocalPrepareDependencies,
+  context: Awaited<ReturnType<typeof resolveLocalPreparationContext>>,
+) {
+  const { repositoryId, target, lineage } = context;
+  const laneLock = { lane: "standard" as const, repositoryId, headSha: target.headSha, lineage };
+  const withAdmissionLocks = <T>(action: () => Promise<T>): Promise<T> =>
+    dependencies.withLaneOperationLock(laneLock, () => dependencies.withLocalReviewLock(action));
+  const pendingReplay = await withAdmissionLocks(() => replayPendingLocalAdmission({
+    request,
+    dependencies,
+    ...context,
+  }));
+  return { pendingReplay, withAdmissionLocks };
+}
+
 /** Derive, admit, optionally renew liveness, and prove one local review operation. */
 export async function prepareLocalReview(
   requestInput: unknown,
   dependencies: LocalPrepareDependencies,
 ): Promise<z.infer<typeof LocalPrepareEnvelopeSchema>> {
   const request = LocalPrepareRequestSchema.parse(requestInput);
+  const stableReplay = await resolveStablePendingLocalReplay(request, dependencies, (context) =>
+    replayPendingLocalAdmission({ ...context, dependencies }));
+  if (stableReplay !== null) return stableReplay;
   const { repositoryId, authority, target, cleanupTtlMs, lineage, scopeMode, coverageAdmission } =
     await resolveLocalPreparationContext(request, dependencies);
-  const laneLock = { lane: "standard" as const, repositoryId, headSha: target.headSha, lineage };
-  const withAdmissionLocks = <T>(action: () => Promise<T>): Promise<T> =>
-    dependencies.withLaneOperationLock(
-      laneLock,
-      () => dependencies.withLocalReviewLock(action),
-    );
-  const pendingReplay = await withAdmissionLocks(() => replayPendingLocalAdmission({
-    request,
-    dependencies,
-    repositoryId,
-    target,
-    lineage,
-    scopeMode,
-    coverageAdmission,
-    cleanupTtlMs,
-  }));
+  const { pendingReplay, withAdmissionLocks } = await replayFreshPendingAdmission(request, dependencies, {
+    repositoryId, authority, target, cleanupTtlMs, lineage, scopeMode, coverageAdmission,
+  });
   if (pendingReplay !== null) return pendingReplay;
   await dependencies.sweep();
   const assurance = await dependencies.composeAssurance(authority);
   if (assurance.status === "refused") {
-    return LocalPrepareEnvelopeSchema.parse({
-      schemaVersion: 1,
-      mode: "review-local-prepare",
-      diagnostics: diagnostics(assurance.diagnostics),
-      state: "unavailable",
-      nextAction: "operator-repair",
-      payload: {},
-    });
+    return unavailableLocalPreparation(assurance.diagnostics);
   }
   const routing = resolveReviewRouting({
     schemaVersion: 1,
@@ -978,14 +977,7 @@ export async function prepareLocalReview(
   }
   const policy = dependencies.resolvePolicy();
   if (policy.status === "unavailable") {
-    return LocalPrepareEnvelopeSchema.parse({
-      schemaVersion: 1,
-      mode: "review-local-prepare",
-      diagnostics: diagnostics([...allDiagnostics, ...policy.diagnostics]),
-      state: "unavailable",
-      nextAction: "operator-repair",
-      payload: {},
-    });
+    return unavailableLocalPreparation([...allDiagnostics, ...policy.diagnostics]);
   }
   dependencies.validatePolicySelection(policy.binding, authority);
   const requirement = createReviewRequirement({

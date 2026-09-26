@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  assertStandardReviewExecutionAdmission,
   projectReviewPolicyAttempt,
   ReviewPolicyCommandRequestSchema,
   resolveReviewPolicy,
 } from "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
+import { assertStandardReviewExecutionAdmission } from
+  "../../../../../src/scripts/review-gate/policy/review-execution-admission.js";
 
 const target = {
   repository: "arc-framework/example",
@@ -764,6 +765,85 @@ describe("resolveReviewPolicy", () => {
     });
   });
 
+  it("admits a named additional pass after convergence without erasing the earlier result", () => {
+    const prior = {
+      schemaVersion: 1 as const,
+      target,
+      lane: "standard" as const,
+      standardReview,
+      sources: ["delegated-agent"],
+      completedPasses: 1,
+      maxPasses: 2,
+      attempts: [{
+        sourceId: "delegated-agent",
+        outcome: "clean" as const,
+        reviewOperationId: "local/clean-1",
+      }],
+      verifiedTerminalSignal: {
+        reviewOperationId: "local/clean-1",
+        confirmedFindingCount: 0,
+        maxConfirmedSeverity: null,
+        coverageAdequate: true,
+      },
+    };
+    const additionalPassAuthorization = {
+      target, lane: "standard" as const, precedingProducerId: "local/clean-1",
+      completedPasses: 1, nextPass: 2,
+    };
+    expect(resolveReviewPolicy(prior)).toMatchObject({ state: "pass-complete", nextAction: "none" });
+    expect(resolveReviewPolicy({ ...prior, additionalPassAuthorization })).toMatchObject({
+      state: "ready", nextAction: "local-prepare", payload: { pass: 2 },
+    });
+    expect(resolveReviewPolicy({
+      ...prior, additionalPassAuthorization: { ...additionalPassAuthorization, precedingProducerId: "other" },
+    })).toMatchObject({
+      state: "invalid-override", payload: { reason: "preceding-producer-mismatch" },
+    });
+    expect(resolveReviewPolicy({
+      ...prior, completedPasses: 2, maxPasses: 2,
+      attempts: [{ sourceId: "delegated-agent", outcome: "clean", reviewOperationId: "local/clean-2" }],
+      verifiedTerminalSignal: { ...prior.verifiedTerminalSignal, reviewOperationId: "local/clean-2" },
+      additionalPassAuthorization,
+    })).toMatchObject({ state: "invalid-override", payload: { reason: "pass-count-mismatch" } });
+    expect(resolveReviewPolicy({
+      ...prior, completedPasses: 2, maxPasses: 2,
+      attempts: [{ sourceId: "delegated-agent", outcome: "clean", reviewOperationId: "local/clean-2" }],
+      verifiedTerminalSignal: { ...prior.verifiedTerminalSignal, reviewOperationId: "local/clean-2" },
+      additionalPassAuthorization: {
+        ...additionalPassAuthorization, precedingProducerId: "local/clean-2", completedPasses: 2, nextPass: 3,
+      },
+    })).toMatchObject({ state: "ready", payload: { pass: 3, ceilingOverrideApplied: true } });
+    for (const completedPasses of [3, 4, 7]) {
+      const producer = `local/clean-${String(completedPasses)}`;
+      expect(resolveReviewPolicy({
+        ...prior, completedPasses,
+        attempts: [{ sourceId: "delegated-agent", outcome: "clean", reviewOperationId: producer }],
+        verifiedTerminalSignal: { ...prior.verifiedTerminalSignal, reviewOperationId: producer },
+        additionalPassAuthorization: {
+          ...additionalPassAuthorization, precedingProducerId: producer,
+          completedPasses, nextPass: completedPasses + 1,
+        },
+      })).toMatchObject({ state: "ready", payload: { pass: completedPasses + 1 } });
+    }
+    const material = {
+      ...prior, completedPasses: 3,
+      attempts: [{ sourceId: "delegated-agent", outcome: "findings" as const,
+        reviewOperationId: "local/material-3" }],
+      verifiedTerminalSignal: {
+        reviewOperationId: "local/material-3", confirmedFindingCount: 1,
+        maxConfirmedSeverity: "major" as const, coverageAdequate: true,
+      },
+    };
+    expect(resolveReviewPolicy(material)).toMatchObject({ state: "findings", nextAction: "respond" });
+    expect(resolveReviewPolicy({
+      ...material,
+      additionalPassAuthorization: {
+        ...additionalPassAuthorization, precedingProducerId: "local/material-3",
+        completedPasses: 3, nextPass: 4,
+      },
+    })).toMatchObject({ state: "invalid-override", payload: { reason: "pass-not-converged" } });
+  });
+
   it("requires exceptional approval when a lane exhausts its ceiling", () => {
     const approval = resolveReviewPolicy({
       schemaVersion: 1,
@@ -1340,6 +1420,23 @@ describe("standard review execution admission", () => {
       judgment,
       ceilingOverride: { ...foreignTarget, target, lane: "frontline" },
     } as Parameters<typeof assertStandardReviewExecutionAdmission>[0])).toThrow(/lane-mismatch/u);
+  });
+
+  it("rejects conflicting full and targetless additional-pass authority", () => {
+    expect(() => assertStandardReviewExecutionAdmission({
+      ...base,
+      completedPasses: 1,
+      expectedSourceId: "codex-pr",
+      expectedNextAction: "hosted-request",
+      judgment: { additionalPassAuthorization: {
+        headSha: target.headSha, precedingProducerId: "local/clean-1",
+        completedPasses: 1, nextPass: 2,
+      } },
+      additionalPassAuthorization: {
+        target, lane: "standard", precedingProducerId: "local/other",
+        completedPasses: 1, nextPass: 2,
+      },
+    })).toThrow(/authority disagree/u);
   });
 
   it("refuses a public producer that is not the driver's selected source", () => {

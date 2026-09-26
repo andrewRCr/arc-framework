@@ -152,6 +152,7 @@ describe("normalized finding navigation", () => {
     expect(Array.from(clipped.sourceLabel ?? "")).toHaveLength(512);
     expect(clipped).toEqual({ sourceLabel: exact, sourceLabelTruncated: true });
     expect(captureReviewFindingSourceLabel({ body: exact })).toEqual({ sourceLabel: exact });
+    expect(captureReviewFindingSourceLabel({ body: `${" ".repeat(513)}Visible heading` })).toEqual({});
   });
 
   it("escapes provider text as inert single-line display and validates truthful truncation metadata", () => {
