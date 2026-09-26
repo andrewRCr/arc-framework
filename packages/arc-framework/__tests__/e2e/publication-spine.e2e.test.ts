@@ -1,7 +1,7 @@
 /** Real-CLI coverage for publication readiness, ordering recovery, and submission. */
 
 import { execFile } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -129,6 +129,21 @@ async function createAtCapPublicationRepo(): Promise<string> {
   return repository;
 }
 
+/** Keep origin reachable while the host reports no PR for this private Candidate. */
+async function attachOriginWithoutPr(repository: string): Promise<Record<string, string>> {
+  const remote = join(repository, ".git", "fixture-origin.git");
+  const bin = join(repository, ".git", "fixture-bin");
+  const originUrl = "https://arc-fixture.example/arc-framework/example.git";
+  await git(repository, ["init", "--bare", remote]);
+  await git(repository, ["remote", "add", "origin", originUrl]);
+  await git(repository, ["config", `url.file://${remote}.insteadOf`, originUrl]);
+  await mkdir(bin);
+  const gh = join(bin, "gh");
+  await writeFile(gh, "#!/bin/sh\nprintf '[]\\n'\n");
+  await chmod(gh, 0o755);
+  return { PATH: `${bin}:${process.env.PATH ?? ""}` };
+}
+
 interface ReviewEnvelope {
   state: string;
   nextAction: string;
@@ -162,8 +177,9 @@ async function invokeReview(
   root: string,
   argv: string[],
   input: unknown,
+  env?: Record<string, string>,
 ): Promise<ReviewEnvelope> {
-  const result = await runArcWithStdin(argv, root, `${JSON.stringify(input)}\n`);
+  const result = await runArcWithStdin(argv, root, `${JSON.stringify(input)}\n`, { env });
   expect(result.exitCode, JSON.stringify(result)).toBe(0);
   return JSON.parse(result.stdout) as ReviewEnvelope;
 }
@@ -501,7 +517,10 @@ describe("attest → pre-publication → publish", () => {
     if (repository !== null) await cleanupTempDir(repository);
   });
 
-  it("offers a private Candidate correction review over the exact approved fix and projection", async () => {
+  it.each([
+    ["without origin", false],
+    ["with origin and no PR", true],
+  ])("offers a private Candidate correction review %s", async (_label, originLinked) => {
     repository = await createAtCapPublicationRepo();
     expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
     await git(repository, ["commit", "-m", "verification"]);
@@ -557,9 +576,20 @@ describe("attest → pre-publication → publish", () => {
     })).resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
     await git(repository, ["commit", "-m", "record verified response"]);
     const projectedHead = await git(repository, ["rev-parse", "HEAD"]);
+    const reviewEnv = originLinked ? await attachOriginWithoutPr(repository) : undefined;
+    if (reviewEnv !== undefined) {
+      const noPr = await runArc([
+        "review", "change-request", "resolve", "--head-ref", "feat/example",
+        "--head-sha", projectedHead,
+      ], repository, { env: reviewEnv });
+      expect(noPr.exitCode, JSON.stringify(noPr)).toBe(0);
+      expect(JSON.parse(noPr.stdout)).toMatchObject({
+        state: "none", targetRef: { repository: "arc-framework/example" },
+      });
+    }
 
     const offered = await invokeReview(repository, ["review", "local", "prepare", "-"],
-      localPrepareRequest());
+      localPrepareRequest(), reviewEnv);
     expect(offered).toMatchObject({ state: "coverage-required", nextAction: "select-coverage" });
     const selection = offered.payload.coverageSelectionAction as {
       choices: readonly {
@@ -586,7 +616,7 @@ describe("attest → pre-publication → publish", () => {
     });
     const prepared = await invokeReview(repository, ["review", "local", "prepare", "-"], {
       ...localPrepareRequest(), coverageAdmission: incremental,
-    });
+    }, reviewEnv);
     expect(prepared).toMatchObject({ state: "ready", nextAction: "launch-review" });
     const payload = prepared.payload as unknown as LocalReviewPayload;
     expect(payload.reviewerPayload.correctionScope).toMatchObject(incremental.correctionScope);
@@ -611,14 +641,14 @@ describe("attest → pre-publication → publish", () => {
     await expect(invokeReview(repository, ["review", "reduce", "-"], {
       schemaVersion: 1, operationId: payload.operationId,
     })).resolves.toMatchObject({ state: "advisory-complete", nextAction: "none" });
-    await git(repository, ["remote", "add", "origin", OFFLINE_ORIGIN]);
+    if (!originLinked) await git(repository, ["remote", "add", "origin", OFFLINE_ORIGIN]);
     const judgments = await writeNonDefaultPrePublicationJudgments(repository);
     const converged = await runArc([
       "review", "pre-publication", "example",
       "--self-review", "settled",
       "--change-set", judgments.changeSetPath,
       "--lanes", judgments.lanesPath,
-    ], repository, { env: OFFLINE_ENV });
+    ], repository, { env: { ...OFFLINE_ENV, ...reviewEnv } });
     expect(converged.exitCode, JSON.stringify(converged)).toBe(0);
     expect(JSON.parse(converged.stdout)).toMatchObject({
       locus: "candidate-convergence-verification-pending",

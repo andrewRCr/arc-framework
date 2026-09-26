@@ -223,9 +223,7 @@ function createLocalContributionConfirmation(input: {
         readResponsePerformance: (result) => readLaneResponsePerformance(input.context.operationStore, result),
       });
     }
-    if (input.policyTarget.pullRequest === null
-      && input.policyTarget.repository === `local/${input.repositoryId}`
-      && currentLineage.kind === "candidate") {
+    if (input.policyTarget.pullRequest === null && currentLineage.kind === "candidate") {
       return confirmPrivateCandidateCorrectionBasis({
         predecessor,
         currentTarget,
