@@ -8,7 +8,7 @@ import type { ReviewOperationStateStore } from "./core/ports.js";
 import { HostedAwaitResultSchema, type HostedAwaitResult } from "./hosted/await.js";
 import { createHostedAdmission, hostedAdmissionMatchesRequest, hostedAwaitAction, hostedLaneAttemptId, HostedRequestEnvelopeSchema, type HostedAdmission, type HostedProgressVehicle, type HostedRequestEnvelope, type HostedRequestHandle, type HostedRequestAdmissionResolution } from "./hosted/request.js";
 import { hostedAwaitLaneOutcome, laneProgressOperationId, recordLaneAttempt } from "./lane-progress.js";
-import { consumeConditionalNextPassAuthorization } from "./lane-progress-conditional.js";
+import { bindConditionalPendingAdmission } from "./lane-progress-conditional.js";
 import {
   localAttemptCoverageAdmission,
   sharedLogicalPassCoverageMatches,
@@ -238,27 +238,41 @@ function pendingHostedProgress(
     : { ...existing, updatedAt: input.now, attempts: [...existing.attempts, attempt] });
 }
 
-async function consumeHostedConditionalPass(
+async function publishHostedPendingAdmission(
   store: ReviewOperationStateStore,
   input: HostedRequestAdmissionInput,
+  operationId: string,
+  existing: LaneProgressState | null,
   admission: HostedAdmission,
-): Promise<void> {
-  const authorizationId = input.request.ceilingOverride?.conditionalPassAuthorizationId;
-  if (authorizationId === undefined) return;
-  const confirm = input.confirmDispositionSetCurrent;
-  if (confirm === undefined) {
-    throw new Error("conditional pass authorization disposition reader is unavailable");
+  version: number,
+): Promise<boolean> {
+  try {
+    const pending = pendingHostedProgress(existing, operationId, input, admission);
+    const authorizationId = input.request.ceilingOverride?.conditionalPassAuthorizationId;
+    const next = authorizationId === undefined ? pending : await bindConditionalPendingAdmission(
+      store,
+      {
+        authorizationId,
+        repositoryId: input.repositoryId,
+        lane: "standard",
+        lineage: input.lineage,
+        producedHeadSha: input.request.target.headSha,
+        nextPass: admission.logicalPass,
+        admissionId: admission.admissionId,
+        now: input.now,
+        confirmDispositionSetCurrent: input.confirmDispositionSetCurrent ?? (() => {
+          throw new Error("conditional pass authorization disposition reader is unavailable");
+        }),
+      },
+      version,
+      pending,
+    );
+    await store.publishOperation(next, version);
+    return true;
+  } catch (error) {
+    if (!isReviewVersionConflict(error)) throw error;
+    return false;
   }
-  await consumeConditionalNextPassAuthorization(store, {
-    authorizationId,
-    repositoryId: input.repositoryId,
-    lane: "standard",
-    lineage: input.lineage,
-    producedHeadSha: input.request.target.headSha,
-    nextPass: admission.logicalPass,
-    admissionId: admission.admissionId,
-    now: input.now,
-  }, (producerId, dispositionSetId) => confirm(producerId, dispositionSetId));
 }
 
 export async function recordHostedRequestAdmission(
@@ -330,13 +344,8 @@ export async function recordHostedRequestAdmission(
       progress: existing,
       logicalPass,
     });
-    await consumeHostedConditionalPass(store, input, admission);
-    const next = pendingHostedProgress(existing, operationId, input, admission);
-    try {
-      await store.publishOperation(next, version);
+    if (await publishHostedPendingAdmission(store, input, operationId, existing, admission, version)) {
       return { state: "admitted", admission };
-    } catch (error) {
-      if (!isReviewVersionConflict(error)) throw error;
     }
   }
   throw new Error("hosted admission exceeded version-conflict retry attempts");

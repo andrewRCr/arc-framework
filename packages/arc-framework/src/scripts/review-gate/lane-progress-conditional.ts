@@ -11,6 +11,18 @@ import { laneProgressOperationId } from "./lane-progress.js";
 type LaneAttempt = LaneProgressState["attempts"][number];
 type ConditionalPassAuthorization = NonNullable<LaneAttempt["conditionalPassAuthorizations"]>["authorizations"][number];
 
+export interface ConditionalPendingAdmission {
+  authorizationId: string;
+  repositoryId: string;
+  lane: LaneProgressState["lane"];
+  lineage: LaneSubjectLineage;
+  producedHeadSha: string;
+  nextPass: number;
+  admissionId: string;
+  now: string;
+  confirmDispositionSetCurrent(producerId: string, dispositionSetId: string): Promise<boolean>;
+}
+
 function requireConditionalLaneOwner(
   state: ReviewOperationState | null,
   input: { lane: LaneProgressState["lane"]; repositoryId: string; lineage: LaneSubjectLineage },
@@ -518,7 +530,7 @@ function uniqueAuthorizationSnapshotMatch(
 
 function namedContinuationMatches(
   authorization: ConditionalPassAuthorization,
-  input: Parameters<typeof consumeConditionalNextPassAuthorization>[1],
+  input: ConditionalPendingAdmission,
 ): boolean {
   return authorization.repositoryId === input.repositoryId
     && authorization.lane === input.lane
@@ -528,7 +540,7 @@ function namedContinuationMatches(
 
 function terminalContinuationAttemptIds(
   snapshot: CompleteOperationSnapshot,
-  input: Parameters<typeof consumeConditionalNextPassAuthorization>[1],
+  input: ConditionalPendingAdmission,
 ): string[] {
   return snapshot.records.flatMap(({ state }) => state.kind === "lane-progress"
     && state.repositoryId === input.repositoryId
@@ -540,94 +552,59 @@ function terminalContinuationAttemptIds(
     : []);
 }
 
-/**
- * Consume one bound response-gated authorization for its named logical pass.
- *
- * @param store - Versioned lane-progress store and complete snapshot reader.
- * @param input - Authorization identity and the exact pass admission it enables.
- * @returns The updated authorization owner and retained consumption evidence.
- */
-export async function consumeConditionalNextPassAuthorization(
+/** Fold consumption into the pending attempt's one versioned lane-owner publication. */
+export async function bindConditionalPendingAdmission(
   store: ReviewOperationStateStore,
-  input: {
-    authorizationId: string;
-    repositoryId: string;
-    lane: LaneProgressState["lane"];
-    lineage: LaneSubjectLineage;
-    producedHeadSha: string;
-    nextPass: number;
-    admissionId: string;
-    now: string;
-  },
-  confirmDispositionSetCurrent: (
-    producerId: string,
-    dispositionSetId: string,
-  ) => Promise<boolean>,
+  input: ConditionalPendingAdmission,
+  ownerVersion: number,
+  next: LaneProgressState,
 ): Promise<LaneProgressState> {
   const readOperationSnapshot = (store as Partial<ReviewOperationStateSnapshotIndex>)
     .readOperationSnapshot;
   if (typeof readOperationSnapshot !== "function") {
     throw new Error("conditional pass authorization snapshot reader is unavailable");
   }
-  for (let writeAttempt = 0; writeAttempt < REVIEW_VERSION_RETRY_ATTEMPTS; writeAttempt += 1) {
-    const snapshot: Awaited<ReturnType<ReviewOperationStateSnapshotIndex["readOperationSnapshot"]>> =
-      await readOperationSnapshot.call(store);
-    if (snapshot.status !== "complete") {
-      throw new Error("conditional pass authorization snapshot is unavailable");
-    }
-    const match = uniqueAuthorizationSnapshotMatch(snapshot, input.authorizationId);
-    const { authorization } = match;
-    if (!namedContinuationMatches(authorization, input)) {
-      throw new Error("conditional pass authorization does not match the named admission");
-    }
-    if (authorization.status === "pending") {
-      throw new Error("conditional pass authorization response is not complete");
-    }
-    if (authorization.status === "invalidated") {
-      throw new Error("conditional pass authorization is invalidated");
-    }
-    if (!await confirmDispositionSetCurrent(
-      authorization.producerId,
-      authorization.dispositionSetId,
-    )) {
-      throw new Error("conditional pass authorization disposition set is not current");
-    }
-    if (authorization.producedHeadSha !== input.producedHeadSha) {
-      throw new Error("conditional pass authorization does not match the produced head");
-    }
-    const terminalAttemptIds = terminalContinuationAttemptIds(snapshot, input);
-    if (authorization.status === "consumed") {
-      if (authorization.admissionId !== input.admissionId) {
-        throw new Error("conditional pass authorization was already consumed by another admission");
-      }
-      if (terminalAttemptIds.some((attemptId) => attemptId !== input.admissionId)) {
-        throw new Error("conditional pass authorization named pass is already complete");
-      }
-      return match.progress;
-    }
-    if (terminalAttemptIds.length > 0) {
-      throw new Error("conditional pass authorization named pass is already complete");
-    }
-    const attemptIndex = match.progress.attempts.findIndex((candidate) =>
-      candidate.attemptId === match.attempt.attemptId);
-    const attempts = [...match.progress.attempts];
-    attempts[attemptIndex] = replaceConditionalPassAuthorization(match.attempt, {
-        ...authorization,
-        status: "consumed",
-        admissionId: input.admissionId,
-        consumedAt: input.now,
-    });
-    const progress = LaneProgressStateSchema.parse({
-      ...match.progress,
-      updatedAt: input.now,
-      attempts,
-    });
-    try {
-      await store.publishOperation(progress, match.version);
-      return progress;
-    } catch (error) {
-      if (!isReviewVersionConflict(error)) throw error;
-    }
+  const snapshot = await readOperationSnapshot.call(store);
+  if (snapshot.status !== "complete") {
+    throw new Error("conditional pass authorization snapshot is unavailable");
   }
-  throw new Error("conditional pass authorization consumption exceeded version-conflict retry attempts");
+  const match = uniqueAuthorizationSnapshotMatch(snapshot, input.authorizationId);
+  if (match.progress.operationId !== next.operationId || match.version !== ownerVersion) {
+    throw Object.assign(new Error("version-conflict"), { code: "version-conflict" });
+  }
+  const { authorization } = match;
+  if (!namedContinuationMatches(authorization, input)) {
+    throw new Error("conditional pass authorization does not match the named admission");
+  }
+  if (authorization.status !== "bound") {
+    throw new Error(`conditional pass authorization is ${authorization.status}`);
+  }
+  if (authorization.producedHeadSha !== input.producedHeadSha) {
+    throw new Error("conditional pass authorization does not match the produced head");
+  }
+  if (terminalContinuationAttemptIds(snapshot, input).length > 0) {
+    throw new Error("conditional pass authorization named pass is already complete");
+  }
+  if (!await input.confirmDispositionSetCurrent(
+    authorization.producerId, authorization.dispositionSetId,
+  )) {
+    throw new Error("conditional pass authorization disposition set is not current");
+  }
+  const attemptIndex = next.attempts.findIndex((candidate) =>
+    candidate.attemptId === match.attempt.attemptId);
+  if (attemptIndex < 0 || !next.attempts.some((candidate) =>
+    candidate.attemptId === input.admissionId && candidate.outcome === "pending"
+      && candidate.logicalPass === input.nextPass && candidate.headSha === input.producedHeadSha)) {
+    throw new Error("conditional pass authorization pending admission is unavailable");
+  }
+  const attempts = [...next.attempts];
+  const producer = attempts[attemptIndex];
+  if (producer === undefined) throw new Error("conditional pass authorization producer is unavailable");
+  attempts[attemptIndex] = replaceConditionalPassAuthorization(producer, {
+    ...authorization,
+    status: "consumed",
+    admissionId: input.admissionId,
+    consumedAt: input.now,
+  });
+  return LaneProgressStateSchema.parse({ ...next, attempts });
 }

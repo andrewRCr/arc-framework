@@ -28,7 +28,8 @@ import type { FrontlineExecutionOutcome } from "./policy/frontline-outcome.js";
 
 type LaneAttempt = LaneProgressState["attempts"][number];
 type LaneAttemptOutcome = LaneAttempt["outcome"];
-import { currentConditionalPassAuthorization, bindCompletedConditionalPassAuthorization } from
+import { currentConditionalPassAuthorization, bindCompletedConditionalPassAuthorization,
+  bindConditionalPendingAdmission, type ConditionalPendingAdmission } from
   "./lane-progress-conditional.js";
 import { resolveHostedSealPublishError, sealedHostedReplayMatches } from
   "./lane-progress-seal-recovery.js";
@@ -528,6 +529,34 @@ function buildNextLaneProgress(
   });
 }
 
+async function publishLaneAttemptVersion(
+  store: ReviewOperationStateStore,
+  input: RecordLaneAttemptInput,
+  operationId: string, lineage: LaneSubjectLineage,
+  existing: LaneProgressState | null, replay: LaneAttempt | undefined,
+  attempt: LaneAttempt, version: number,
+): Promise<LaneProgressState | null> {
+  const pending = buildNextLaneProgress(input, operationId, lineage, existing, replay, attempt);
+  let next: LaneProgressState;
+  try {
+    next = input.conditionalPendingAdmission === undefined ? pending
+      : await bindConditionalPendingAdmission(store, input.conditionalPendingAdmission, version, pending);
+  } catch (error) {
+    if (!isReviewVersionConflict(error) || input.expectedOwnerVersion !== undefined) throw error;
+    return null;
+  }
+  try {
+    await store.publishOperation(next, version);
+    return next;
+  } catch (error) {
+    if (isReviewVersionConflict(error) && input.conditionalPendingAdmission !== undefined) {
+      if (input.expectedOwnerVersion !== undefined) throw error;
+      return null;
+    }
+    return resolveHostedSealPublishError(store, next, attempt, error, input.expectedOwnerVersion);
+  }
+}
+
 export async function recordLaneAttempt(
   store: ReviewOperationStateStore,
   input: {
@@ -549,6 +578,7 @@ export async function recordLaneAttempt(
     logicalPass?: number;
     retryGeneration?: number;
     expectedOwnerVersion?: number;
+    conditionalPendingAdmission?: ConditionalPendingAdmission;
   },
 ): Promise<LaneProgressState> {
   const lineage = input.lineage ?? {
@@ -572,16 +602,10 @@ export async function recordLaneAttempt(
       if (existing === null) throw new Error("lane-attempt replay has no lane progress record");
       return LaneProgressStateSchema.parse(existing);
     }
-    const next = buildNextLaneProgress(input, operationId, lineage, existing, replay, attempt);
-    try {
-      await store.publishOperation(next, version);
-      return next;
-    } catch (error) {
-      const recovered = await resolveHostedSealPublishError(
-        store, next, attempt, error, input.expectedOwnerVersion,
-      );
-      if (recovered !== null) return recovered;
-    }
+    const published = await publishLaneAttemptVersion(
+      store, input, operationId, lineage, existing, replay, attempt, version,
+    );
+    if (published !== null) return published;
   }
   throw new Error("lane progress exceeded version-conflict retry attempts");
 }
@@ -598,6 +622,7 @@ export async function recordLocalPendingAttempt(
     state: Extract<import("./core/operation-state-schema.js").ReviewOperationState, { kind: "local-review" }>;
     ownerVersion: number;
     now: string;
+    conditionalPendingAdmission?: ConditionalPendingAdmission;
   },
 ): Promise<LaneProgressState> {
   const { state } = input;
@@ -632,6 +657,7 @@ export async function recordLocalPendingAttempt(
       ...(state.deliveryAdmission === undefined ? {} : { deliveryAdmission: state.deliveryAdmission }),
     },
     now: input.now,
+    conditionalPendingAdmission: input.conditionalPendingAdmission,
   });
 }
 
@@ -642,8 +668,8 @@ export { recordHostedRequestConclusion, bindHostedAttemptDisposition, settleHost
 export type { HostedDispositionSupersessionResult, HostedDispositionSupersessionInput } from "./lane-progress-hosted-settlement.js";
 
 export { captureConditionalNextPassAuthorization, withdrawConditionalNextPassAuthorization,
-  invalidateConditionalNextPassAuthorization, inspectConditionalNextPassInvalidation,
-  consumeConditionalNextPassAuthorization } from "./lane-progress-conditional.js";
+  invalidateConditionalNextPassAuthorization, inspectConditionalNextPassInvalidation } from
+  "./lane-progress-conditional.js";
 export type { ConditionalPassWithdrawalResult } from "./lane-progress-conditional.js";
 
 /**

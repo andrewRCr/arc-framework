@@ -150,7 +150,7 @@ function dispositionSourceContext({ approvedDisposition }: ApprovedDispositionLi
         locus: finding.locus,
         reportedSeverity: finding.reportedSeverity,
         reportedNit: finding.reportedNit,
-      })),
+      })).sort((left, right) => left.findingId.localeCompare(right.findingId)),
   };
 }
 

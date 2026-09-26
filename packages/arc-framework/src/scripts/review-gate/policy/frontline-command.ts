@@ -12,11 +12,13 @@ import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import type { CandidateSupersessionAncestor } from
   "../../../lib/work-unit/candidate-attestation.js";
 import type { ReviewOperationStateStore } from "../core/ports.js";
+import { isReviewVersionConflict, REVIEW_VERSION_RETRY_ATTEMPTS } from "../core/version-conflict.js";
+import type { ConditionalPendingAdmission } from "../lane-progress-conditional.js";
 import { ReviewPassSchema, type ReviewPass } from "../core/review-pass.js";
 import {
-  consumeConditionalNextPassAuthorization,
   laneContinuationOperationId,
   readLaneProgressOwner,
+  readLaneProgressOwnerVersioned,
   readCandidateInheritedLaneProgress,
   recordLaneAttempt,
 } from "../lane-progress.js";
@@ -98,32 +100,21 @@ export async function resolveFrontlineCommand(
     repositoryId: parsed.target.repositoryId,
     headSha: parsed.target.headSha,
     lineage,
-  }), () => resolveFrontlineCommandWithinLock(parsed, lineage, dependencies));
+  }), async () => {
+    for (let attempt = 0; attempt < REVIEW_VERSION_RETRY_ATTEMPTS; attempt += 1) {
+      try {
+        return await resolveFrontlineCommandWithinLock(parsed, lineage, dependencies);
+      } catch (error) {
+        if (!isReviewVersionConflict(error)) throw error;
+      }
+    }
+    throw new Error("frontline admission exceeded version-conflict retry attempts");
+  });
 }
 
-async function resumePendingFrontlineAdmission(
+function resumePendingFrontlineAdmission(
   pendingAdmission: FrontlineAdmission,
-  parsed: FrontlineCommandRequest,
-  lineage: LaneSubjectLineage,
-  dependencies: FrontlineCommandDependencies,
-): Promise<FrontlineCommandResult> {
-    const conditionalPassAuthorizationId = parsed.policyJudgment?.ceilingOverride
-      ?.conditionalPassAuthorizationId;
-    if (conditionalPassAuthorizationId !== undefined) {
-      await consumeConditionalNextPassAuthorization(dependencies.operationStore, {
-        authorizationId: conditionalPassAuthorizationId,
-        repositoryId: parsed.target.repositoryId,
-        lane: "frontline",
-        lineage,
-        producedHeadSha: parsed.target.headSha,
-        nextPass: pendingAdmission.logicalPass,
-        admissionId: pendingAdmission.operationId,
-        now: dependencies.now(),
-      }, (producerId, dispositionSetId) => dependencies.confirmDispositionSetCurrent(
-        producerId,
-        dispositionSetId,
-      ));
-    }
+): FrontlineCommandResult {
   return FrontlineCommandResultEnvelopeSchema.parse({
     schemaVersion: 1,
     mode: "review-frontline-resolve",
@@ -140,29 +131,26 @@ async function resumePendingFrontlineAdmission(
   });
 }
 
-async function consumeFrontlineAdmissionAuthorization(
+function frontlineConditionalAdmission(
   parsed: FrontlineCommandRequest,
   lineage: LaneSubjectLineage,
   dependencies: FrontlineCommandDependencies,
   logicalPass: ReviewPass,
   admission: FrontlineAdmission,
-): Promise<void> {
-    const conditionalPassAuthorizationId = parsed.policyJudgment?.ceilingOverride?.conditionalPassAuthorizationId;
-    if (conditionalPassAuthorizationId !== undefined) {
-      await consumeConditionalNextPassAuthorization(dependencies.operationStore, {
-        authorizationId: conditionalPassAuthorizationId,
-        repositoryId: parsed.target.repositoryId,
-        lane: "frontline",
-        lineage,
-        producedHeadSha: parsed.target.headSha,
-        nextPass: logicalPass,
-        admissionId: admission.operationId,
-        now: dependencies.now(),
-      }, (producerId, dispositionSetId) => dependencies.confirmDispositionSetCurrent(
-        producerId,
-        dispositionSetId,
-      ));
-    }
+): ConditionalPendingAdmission | undefined {
+  const authorizationId = parsed.policyJudgment?.ceilingOverride?.conditionalPassAuthorizationId;
+  if (authorizationId === undefined) return undefined;
+  return {
+    authorizationId,
+    repositoryId: parsed.target.repositoryId,
+    lane: "frontline",
+    lineage,
+    producedHeadSha: parsed.target.headSha,
+    nextPass: logicalPass,
+    admissionId: admission.operationId,
+    now: dependencies.now(),
+    confirmDispositionSetCurrent: dependencies.confirmDispositionSetCurrent,
+  };
 }
 
 async function admitNewFrontlineOperation(
@@ -170,6 +158,7 @@ async function admitNewFrontlineOperation(
   lineage: LaneSubjectLineage,
   dependencies: FrontlineCommandDependencies,
   initialOwner: Awaited<ReturnType<typeof readLaneProgressOwner>>,
+  ownerVersion: number,
   inheritedCompletedPasses: number,
   maxPasses: ReviewPass,
   semantic: Awaited<ReturnType<typeof resolveFrontlineReview>>,
@@ -197,7 +186,9 @@ async function admitNewFrontlineOperation(
     maxPasses,
   });
   try {
-    await consumeFrontlineAdmissionAuthorization(parsed, lineage, dependencies, logicalPass, admission);
+    const conditionalPendingAdmission = frontlineConditionalAdmission(
+      parsed, lineage, dependencies, logicalPass, admission,
+    );
     await recordLaneAttempt(dependencies.operationStore, {
       lane: "frontline",
       repositoryId: parsed.target.repositoryId,
@@ -212,6 +203,8 @@ async function admitNewFrontlineOperation(
       consumedPass: false,
       frontline: { admission, effectiveCoverage: null },
       now: dependencies.now(),
+      expectedOwnerVersion: ownerVersion,
+      conditionalPendingAdmission,
     });
   } catch (error) {
     const owner = await readLaneProgressOwner(dependencies.operationStore, {
@@ -351,7 +344,7 @@ async function resolveFrontlineCommandWithinLock(
   lineage: LaneSubjectLineage,
   dependencies: FrontlineCommandDependencies,
 ): Promise<FrontlineCommandResult> {
-  const owner = await readLaneProgressOwner(dependencies.operationStore, {
+  const { version: ownerVersion, state: owner } = await readLaneProgressOwnerVersioned(dependencies.operationStore, {
     lane: "frontline",
     repositoryId: parsed.target.repositoryId,
     headSha: parsed.target.headSha,
@@ -363,7 +356,7 @@ async function resolveFrontlineCommandWithinLock(
   if (pending.length > 1) throw new Error("frontline lineage has competing pending admissions");
   const pendingAdmission = pending[0]?.frontline?.admission;
   if (pendingAdmission !== undefined) {
-    return resumePendingFrontlineAdmission(pendingAdmission, parsed, lineage, dependencies);
+    return resumePendingFrontlineAdmission(pendingAdmission);
   }
   const phase = await readSingletonFrontlinePhase({ parsed, lineage, owner, dependencies });
   if (phase.unresolvedFindings) {
@@ -418,6 +411,6 @@ async function resolveFrontlineCommandWithinLock(
     });
   }
   return admitNewFrontlineOperation(
-    parsed, lineage, dependencies, owner, phase.inheritedCompletedPasses, maxPasses, semantic, payload, base,
+    parsed, lineage, dependencies, owner, ownerVersion, phase.inheritedCompletedPasses, maxPasses, semantic, payload, base,
   );
 }

@@ -423,6 +423,8 @@ export function assertCandidateHostedReservationPolicyAdmission(input: {
       readonly sourceId: string;
       readonly outcome: "pending" | "settled-findings"
         | ReviewPolicyCommandRequest["attempts"][number]["outcome"];
+      readonly logicalPass?: number;
+      readonly terminalProducer?: boolean;
       readonly chunkSeriesComplete?: boolean;
       readonly hosted?: { readonly target: {
         readonly repository: string;
@@ -515,6 +517,96 @@ function assertNoPendingHostedRequest(attempts: readonly { outcome: string }[]):
   }
 }
 
+async function verifyCandidateAdditionalPassPredecessor(
+  input: Parameters<typeof assertCandidateHostedReservationPolicyAdmission>[0],
+  completed: readonly CandidateCapacityAttempt[],
+  attempts: ReviewPolicyCommandRequest["attempts"],
+  completedPasses: number,
+  dependencies: HostedReservationEvidenceDependencies,
+): Promise<boolean> {
+  const authorization = input.additionalPassAuthorization;
+  if (authorization === undefined
+    || attempts.at(-1)?.outcome === "clean"
+    || attempts.at(-1)?.outcome === "findings") return false;
+  const predecessor = [...completed].reverse().find((attempt) => (
+    attempt.terminalProducer === true
+    && (attempt.outcome === "clean" || attempt.outcome === "findings"
+      || attempt.outcome === "settled-findings")
+  ));
+  if (predecessor === undefined
+    || predecessor.attemptId !== authorization.precedingProducerId
+    || predecessor.logicalPass !== completedPasses) {
+    throw new Error("Additional review pass lacks its exact latest completed terminal producer.");
+  }
+  const predecessorRequest = {
+    schemaVersion: 1,
+    target: input.target,
+    lane: "standard" as const,
+    standardReview: input.reservation.obligation,
+    completedPasses,
+    attempts: [projectReviewPolicyAttempt(predecessor)],
+  };
+  const predecessorResponse = {
+    terminalResponsePerformed: predecessor.outcome === "settled-findings",
+  };
+  const predecessorDependencies = {
+    sources: input.reservation.sources,
+    maxPasses: input.maxPasses,
+    ...dependencies,
+  };
+  const terminalPolicy = await resolveEvidenceBoundReviewPolicyContinuation(
+    predecessorRequest, predecessorResponse, predecessorDependencies,
+  );
+  if (terminalPolicy.state !== "pass-complete") {
+    throw new Error(
+      `Additional review pass lacks a verified, completed predecessor `
+      + `(${terminalPolicy.state}/${terminalPolicy.nextAction}).`,
+    );
+  }
+  const predecessorPolicy = await resolveEvidenceBoundReviewPolicyContinuation({
+    ...predecessorRequest,
+    additionalPassAuthorization: authorization,
+  }, predecessorResponse, predecessorDependencies);
+  if (predecessorPolicy.state !== "ready"
+    || predecessorPolicy.payload.pass !== completedPasses + 1) {
+    throw new Error(
+      `Additional review pass lacks a verified, completed predecessor `
+      + `(${predecessorPolicy.state}/${predecessorPolicy.nextAction}).`,
+    );
+  }
+  return true;
+}
+
+function candidateContinuationRequest(
+  input: Parameters<typeof assertCandidateHostedReservationPolicyAdmission>[0],
+  attempts: ReviewPolicyCommandRequest["attempts"],
+  completedPasses: number,
+  verifiedSettledPredecessor: boolean,
+): ReviewPolicyCommandRequest {
+  const ceilingOverride = input.ceilingOverride
+    ?? (verifiedSettledPredecessor && completedPasses >= input.maxPasses
+      ? {
+          target: input.target,
+          lane: "standard" as const,
+          exhaustedPassCount: completedPasses,
+          nextPass: completedPasses + 1,
+        }
+      : undefined);
+  return {
+    schemaVersion: 1,
+    target: input.target,
+    lane: "standard",
+    frontlineActive: false,
+    standardReview: input.reservation.obligation,
+    completedPasses,
+    attempts,
+    ...(input.invocation === undefined ? {} : { invocation: input.invocation }),
+    ...(ceilingOverride === undefined ? {} : { ceilingOverride }),
+    ...(input.additionalPassAuthorization === undefined || verifiedSettledPredecessor ? {}
+      : { additionalPassAuthorization: input.additionalPassAuthorization }),
+  };
+}
+
 export async function assertEvidenceBoundCandidateHostedReservationPolicyAdmission(
   input: Parameters<typeof assertCandidateHostedReservationPolicyAdmission>[0],
   dependencies: HostedReservationEvidenceDependencies,
@@ -545,20 +637,14 @@ export async function assertEvidenceBoundCandidateHostedReservationPolicyAdmissi
   if (attempts.length !== attemptsBySource.size) {
     throw new Error("Hosted Candidate request progress names a source outside the reservation.");
   }
+  const completedPasses = (input.progress?.completedPasses ?? 0) + (input.inheritedCompletedPasses ?? 0);
+  const verifiedSettledPredecessor = await verifyCandidateAdditionalPassPredecessor(
+    input, completed, attempts, completedPasses, dependencies,
+  );
   const latest = completed.at(-1);
-  const policy = await resolveEvidenceBoundReviewPolicyContinuation({
-    schemaVersion: 1,
-    target: input.target,
-    lane: "standard",
-    frontlineActive: false,
-    standardReview: input.reservation.obligation,
-    completedPasses: (input.progress?.completedPasses ?? 0) + (input.inheritedCompletedPasses ?? 0),
-    attempts,
-    ...(input.invocation === undefined ? {} : { invocation: input.invocation }),
-    ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
-    ...(input.additionalPassAuthorization === undefined ? {}
-      : { additionalPassAuthorization: input.additionalPassAuthorization }),
-  }, {
+  const policy = await resolveEvidenceBoundReviewPolicyContinuation(candidateContinuationRequest(
+    input, attempts, completedPasses, verifiedSettledPredecessor,
+  ), {
     terminalResponsePerformed: latest?.outcome === "settled-findings",
   }, {
     sources: input.reservation.sources,

@@ -53,7 +53,6 @@ import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import type { CandidateSupersessionAncestor } from
   "../../../lib/work-unit/candidate-attestation.js";
 import {
-  consumeConditionalNextPassAuthorization,
   readLaneProgressOwner,
   readLaneProgressOwnerVersioned,
   recordLocalReceiptConclusion,
@@ -322,23 +321,6 @@ async function replayPendingLocalAdmission(input: PendingLocalReplayInput): Prom
     || !replayIdentityMatches(state, attempt, binding, input)
     || !replayContextMatches(state, input)) {
     throw new LocalPrepareCommandError("local pending admission does not match its operation");
-  }
-  const conditionalPassAuthorizationId = input.request.policyJudgment?.ceilingOverride
-    ?.conditionalPassAuthorizationId;
-  if (conditionalPassAuthorizationId !== undefined) {
-    await consumeConditionalNextPassAuthorization(input.dependencies.operationStore, {
-      authorizationId: conditionalPassAuthorizationId,
-      repositoryId: input.repositoryId,
-      lane: "standard",
-      lineage: input.lineage,
-      producedHeadSha: input.target.headSha,
-      nextPass: attempt.logicalPass,
-      admissionId: attempt.attemptId,
-      now: input.dependencies.now(),
-    }, (producerId, dispositionSetId) => input.dependencies.confirmDispositionSetCurrent(
-      producerId,
-      dispositionSetId,
-    ));
   }
   const receipts = (await input.dependencies.readReceipts(state.targetId)).receipts
     .filter((receipt) => receipt.requestId === state.requestId);
@@ -710,37 +692,25 @@ async function recordPreparedLocalAdmission(
 ): Promise<void> {
   const { request, dependencies, repositoryId, target, lineage } = input;
     if (admitted?.state === "prepared") {
-      let pendingOwnerVersion = ownerVersion;
       const conditionalPassAuthorizationId = request.policyJudgment?.ceilingOverride
         ?.conditionalPassAuthorizationId;
-      if (conditionalPassAuthorizationId !== undefined) {
-        await consumeConditionalNextPassAuthorization(dependencies.operationStore, {
-          authorizationId: conditionalPassAuthorizationId,
-          repositoryId,
-          lane: "standard",
-          lineage,
-          producedHeadSha: target.headSha,
-          nextPass: admitted.preparation.state.logicalPass,
-          admissionId: admitted.preparation.state.operationId,
-          now: dependencies.now(),
-        }, (producerId, dispositionSetId) => dependencies.confirmDispositionSetCurrent(
-          producerId,
-          dispositionSetId,
-        ));
-        pendingOwnerVersion = (await readLaneProgressOwnerVersioned(
-          dependencies.operationStore,
-          {
-            lane: "standard",
-            repositoryId,
-            headSha: target.headSha,
-            lineage,
-          },
-        )).version;
-      }
       await recordLocalPendingAttempt(dependencies.operationStore, {
         state: admitted.preparation.state,
-        ownerVersion: pendingOwnerVersion,
+        ownerVersion,
         now: dependencies.now(),
+        ...(conditionalPassAuthorizationId === undefined ? {} : {
+          conditionalPendingAdmission: {
+            authorizationId: conditionalPassAuthorizationId,
+            repositoryId,
+            lane: "standard" as const,
+            lineage,
+            producedHeadSha: target.headSha,
+            nextPass: admitted.preparation.state.logicalPass,
+            admissionId: admitted.preparation.state.operationId,
+            now: dependencies.now(),
+            confirmDispositionSetCurrent: dependencies.confirmDispositionSetCurrent,
+          },
+        }),
       });
     }
 }

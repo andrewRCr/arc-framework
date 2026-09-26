@@ -3334,19 +3334,33 @@ describe("hosted review fan-out lifecycle", () => {
       attempt.conditionalPassAuthorizations?.authorizations ?? []).find((candidate) =>
       candidate.authorizationId === authorizationId);
     expect(authorization).toMatchObject({ status: "invalidated", reason: "withdrawn" });
-    const { consumeConditionalNextPassAuthorization } = await import(
+    const { recordLaneAttempt } = await import(
       "../../src/scripts/review-gate/lane-progress.js"
     );
-    await expect(consumeConditionalNextPassAuthorization(harness.store, {
-      authorizationId: authorizationId!,
+    await expect(recordLaneAttempt(harness.store, {
       repositoryId: owner.repositoryId,
       lane: owner.lane,
       lineage: owner.lineage,
-      producedHeadSha: policyRequest.target.headSha,
-      nextPass: 2,
-      admissionId: "prospective-pass-2",
+      changeRequestId: null,
+      headSha: policyRequest.target.headSha,
+      logicalPass: 2,
+      attemptId: "prospective-pass-2",
+      sourceId: "review-command",
+      outcome: "pending",
+      consumedPass: false,
       now: "2026-09-10T12:03:00.000Z",
-    }, async () => true)).rejects.toThrow("conditional pass authorization is invalidated");
+      conditionalPendingAdmission: {
+        authorizationId: authorizationId!,
+        repositoryId: owner.repositoryId,
+        lane: owner.lane,
+        lineage: owner.lineage,
+        producedHeadSha: policyRequest.target.headSha,
+        nextPass: 2,
+        admissionId: "prospective-pass-2",
+        now: "2026-09-10T12:03:00.000Z",
+        confirmDispositionSetCurrent: async () => true,
+      },
+    })).rejects.toThrow("conditional pass authorization is invalidated");
     await expect(respondThroughHandler(harness, withdrawalRequest)).resolves.toMatchObject({
       state: "conditional-authority-withdrawn",
       payload: { replayed: true },

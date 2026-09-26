@@ -1716,6 +1716,115 @@ describe("review response command", () => {
     });
   });
 
+  it("publishes and replays a two-finding successor when a correction reverses canonical order", async () => {
+    const records = fixture();
+    const earlierFinding = {
+      findingId: "finding-0",
+      severity: "major" as const,
+      locus: "src/index.ts:8",
+      evidenceUrlOrId: "review:finding-0",
+      sourceOrdinal: 2,
+    };
+    records.receipt.findings.push(earlierFinding);
+    const deps = dependencies(records);
+    const original = localRequest(records);
+    const source = original.source;
+    const originalProposal = await respondToReviewCommand({
+      schemaVersion: 1,
+      source,
+      proposal: {
+        proposedVerification: "focused",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [earlierFinding, records.finding].map((finding) => ({
+          findingId: finding.findingId,
+          sourceVerification: "verified" as const,
+          verificationRefs: [`source:${finding.locus}`],
+          verifiedSeverity: "major" as const,
+          disposition: "fix" as const,
+          rationale: "The selected source supports this finding.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        })),
+      },
+    }, deps);
+    if (originalProposal.state !== "awaiting-approval") throw new Error("expected original proposal");
+    const predecessor = approveDispositionState({
+      proposed: originalProposal.payload.proposal,
+      approvedBy: records.authority.authorIdentity,
+      approvedAt: "2026-07-23T21:00:00Z",
+    });
+    await respondToReviewCommand({
+      schemaVersion: 1,
+      source,
+      policyRequest: original.policyRequest,
+      dispositions: predecessor,
+    }, deps);
+
+    const supersedes = {
+      predecessorDispositionSetId: predecessor.dispositionSet.dispositionSetId,
+      expectedFixPaths: ["src/index.ts"],
+    };
+    const successorProposal = await respondToReviewCommand({
+      schemaVersion: 1,
+      source,
+      supersedes,
+      proposal: {
+        proposedVerification: "focused",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: earlierFinding.findingId,
+          sourceVerification: "not-supported",
+          verificationRefs: ["verification://earlier-finding-correction"],
+          verifiedSeverity: null,
+          disposition: "reject",
+          rationale: "Focused verification disproved this finding before the fix landed.",
+          recommendation: "Reject the unsupported finding.",
+          openQuestions: [],
+        }, {
+          findingId: records.finding.findingId,
+          sourceVerification: "verified",
+          verificationRefs: ["source:src/index.ts:7"],
+          verifiedSeverity: "major",
+          disposition: "fix",
+          rationale: "The selected source still supports this finding.",
+          recommendation: "Apply the fix.",
+          openQuestions: [],
+        }],
+      },
+    }, deps);
+    if (successorProposal.state !== "awaiting-approval") throw new Error("expected successor proposal");
+    const successor = approveDispositionState({
+      proposed: successorProposal.payload.proposal,
+      approvedBy: records.authority.authorIdentity,
+      approvedAt: "2026-07-23T22:00:00Z",
+    });
+    expect(predecessor.dispositionSet.findings.map(({ findingId }) => findingId)).toEqual([
+      earlierFinding.findingId, records.finding.findingId,
+    ]);
+    expect(successor.dispositionSet.findings.map(({ findingId }) => findingId)).toEqual([
+      records.finding.findingId, earlierFinding.findingId,
+    ]);
+
+    const request = {
+      schemaVersion: 1,
+      source,
+      policyRequest: original.policyRequest,
+      supersedes,
+      dispositions: successor,
+    } as const;
+    await expect(respondToReviewCommand(request, deps)).resolves.toMatchObject({
+      state: "ready-to-fix",
+      payload: { supersession: { status: "published" } },
+    });
+    await expect(respondToReviewCommand(request, deps)).resolves.toMatchObject({
+      state: "ready-to-fix",
+      payload: { supersession: { status: "replayed" } },
+    });
+    const record = await deps.dispositionStore.readDispositionRecord(records.operation.operationId);
+    expect(record?.approvedDispositionLineage).toHaveLength(2);
+    expect(record?.currentDispositionSetId).toBe(successor.dispositionSet.dispositionSetId);
+  });
+
   it("refuses a consumed conditional authorization before publishing its successor", async () => {
     const records = fixture();
     const deps = dependencies(records);

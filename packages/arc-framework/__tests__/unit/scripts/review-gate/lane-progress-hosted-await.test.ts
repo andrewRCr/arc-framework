@@ -431,7 +431,7 @@ describe("hosted await lane recording", () => {
       },
     };
 
-    const decision = await recordHostedRequestAdmission(store, {
+    const admissionInput = {
       repositoryId: "repo-1",
       lineage,
       request,
@@ -441,7 +441,23 @@ describe("hosted await lane recording", () => {
       authorizeCapacity: async () => undefined,
       confirmDispositionSetCurrent: async () => true,
       now: "2026-08-15T12:02:00Z",
-    });
+    };
+    const originalPublish = store.publishOperation;
+    store.publishOperation = async (next, expectedVersion) => {
+      if (next.kind === "lane-progress" && next.attempts.some(({ logicalPass }) => logicalPass === 2)) {
+        throw new Error("interrupted hosted admission");
+      }
+      return originalPublish(next, expectedVersion);
+    };
+    await expect(recordHostedRequestAdmission(store, admissionInput))
+      .rejects.toThrow("interrupted hosted admission");
+    const interrupted = await store.readOperation(laneProgressOperationId({
+      lane: "standard", repositoryId: "repo-1", headSha: handle.target.headSha, lineage,
+    }));
+    expect(interrupted.state?.kind === "lane-progress"
+      ? currentAuthorization(interrupted.state.attempts[0])?.status : null).toBe("bound");
+    store.publishOperation = originalPublish;
+    const decision = await recordHostedRequestAdmission(store, admissionInput);
     expect(decision.state).toBe("admitted");
     const owner = await store.readOperation(laneProgressOperationId({
       lane: "standard",

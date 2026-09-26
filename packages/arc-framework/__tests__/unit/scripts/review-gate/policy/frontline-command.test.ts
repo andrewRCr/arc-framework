@@ -375,7 +375,7 @@ describe("frontline workflow command", () => {
       now: "2026-09-08T12:00:45Z",
     });
 
-    await expect(resolveFrontlineCommand({
+    const authorizedRequest = {
       schemaVersion: 1,
       target,
       changeSet: routineCode,
@@ -387,7 +387,23 @@ describe("frontline workflow command", () => {
           conditionalPassAuthorizationId: captured.authorizationId,
         },
       },
-    }, dependencies(store, 1))).resolves.toMatchObject({
+    } as const;
+    const originalPublish = store.publishOperation;
+    store.publishOperation = async (next, expectedVersion) => {
+      if (next.kind === "lane-progress" && next.attempts.some(({ logicalPass }) => logicalPass === 2)) {
+        throw new Error("interrupted frontline admission");
+      }
+      return originalPublish(next, expectedVersion);
+    };
+    await expect(resolveFrontlineCommand(authorizedRequest, dependencies(store, 1)))
+      .rejects.toThrow("interrupted frontline admission");
+    const interrupted = await readLaneProgressOwner(store, {
+      lane: "frontline", repositoryId: target.repositoryId, headSha: target.headSha, lineage,
+    });
+    expect(interrupted?.attempts[0]?.conditionalPassAuthorizations?.authorizations[0]?.status)
+      .toBe("bound");
+    store.publishOperation = originalPublish;
+    await expect(resolveFrontlineCommand(authorizedRequest, dependencies(store, 1))).resolves.toMatchObject({
       state: "ready",
       nextAction: "run-frontline",
       payload: { pass: 2, maxPasses: 2 },

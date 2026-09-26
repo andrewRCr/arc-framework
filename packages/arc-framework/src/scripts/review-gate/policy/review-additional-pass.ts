@@ -59,11 +59,10 @@ export function invalidAdditionalPassReason(input: {
   if (authorization.lane !== input.lane) return "lane-mismatch";
   if (authorization.completedPasses !== input.completedPasses) return "pass-count-mismatch";
   if (authorization.nextPass !== input.completedPasses + 1) return "next-pass-mismatch";
-  if (input.terminal?.outcome === "clean" || input.terminal?.outcome === "findings") {
-    if (input.terminal.reviewOperationId !== authorization.precedingProducerId) {
-      return "preceding-producer-mismatch";
-    }
-    if (!convergedSignal(input.signal)) return "pass-not-converged";
+  if ((input.terminal?.outcome !== "clean" && input.terminal?.outcome !== "findings")
+    || input.terminal.reviewOperationId !== authorization.precedingProducerId) {
+    return "preceding-producer-mismatch";
   }
+  if (!convergedSignal(input.signal)) return "pass-not-converged";
   return null;
 }

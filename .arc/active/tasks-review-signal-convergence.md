@@ -645,6 +645,21 @@ including interrupted writes and premature-commit refusal, without changing revi
   the shared evidence-bound policy. Full Tier 3 passed (12,940 routine tests, one skipped), all 611 E2E tests
   passed, and the affected integration and refusal-to-continuation cases passed.
 
+### `[x]` **8.S Close Pass 10 authority and correction findings**
+
+- _Goal:_ Approved next-pass consent, disposition correction, and elective review admission retain their exact
+  authority through interruption, canonical sorting, and hosted reservation continuation.
+- _Work:_ Make conditional authorization consumption and admission recoverable as one bound transition; compare
+  immutable successor finding context by finding identity; and verify a hosted additional-pass authorization
+  against the latest converged producer even when the active attempt list is empty.
+- _Verification:_ Focused public-path and interruption tests, full Tier 3, and the E2E lane.
+- _Success criteria:_ The three approved Pass 10 dispositions are satisfied without bypassing the pass ceiling,
+  stranding a valid approved pass, or rejecting a valid multi-finding disposition correction.
+- _Outcome:_ Conditional consent and pending admission publish in one versioned lane-progress update across local,
+  frontline, and hosted routes; immutable successor findings compare by identity; hosted elective admission proves
+  its exact converged predecessor before a new pass. Full Tier 3 passed (12,945 routine tests, one skipped), all
+  611 E2E tests passed, and focused interruption, replay, correction, and hosted-admission cases passed.
+
 ---
 
 ## Success Criteria
