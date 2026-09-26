@@ -31,13 +31,20 @@ Review decisions now use verified findings and durable evidence to determine whe
 pass is useful, and when explicit approval is needed. Review results and correction coverage remain traceable across
 local, frontline, and hosted review.
 
-- **Added:** Source-bound review results, clearer disposition reports, and exact incremental correction coverage where
-  the reviewer can establish it. Operators can authorize additional named passes after convergence.
-- **Changed:** Review finding severity uses `critical`, `major`, and `minor`. Reports distinguish reviewer and ARC
-  grades when they differ, show a shared grade when they agree, and display pass usage and the reason a review loop
-  stopped.
-- **Fixed:** Pass-cap enforcement, review continuation after findings and fixes, and preservation of pass usage and
-  the one-time frontline phase across an attested Candidate replacement.
+### Added
+
+- Source-bound review results, clearer disposition reports, and exact incremental correction coverage where the
+  reviewer can establish it. Operators can authorize additional named passes after convergence.
+
+### Changed
+
+- Review finding severity uses `critical`, `major`, and `minor`. Reports distinguish reviewer and ARC grades when
+  they differ, show a shared grade when they agree, and display pass usage and the reason a review loop stopped.
+
+### Fixed
+
+- Pass-cap enforcement, review continuation after findings and fixes, and preservation of pass usage and the
+  one-time frontline phase across an attested Candidate replacement.
 
 ## Completion Notes
 
