@@ -1,8 +1,8 @@
 # Metadata: review-signal-convergence
 
-| **State**     | **Owner** | **Branch**                       | **Class** | **Priority** |
-| ------------- | --------- | -------------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/review-signal-convergence` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** `review-protocol-alignment`
 - **Depends On:** [none]
@@ -13,15 +13,15 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:4312fb74e385cd6c75ba7a27149cf8f08a2e26569c29a32815daeb8d244d4cf6`
 
-- **Current Workflow:** `integrate-work-unit`
+- **Current Workflow:** [none]
 - **Last Completed:** Task 8.T — Admit private Candidate incremental correction review
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Complete candidate composition and run the exact-head integration checkpoint.
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/714>
+- **Completed:** 2026-09-26
 
 ---
 
