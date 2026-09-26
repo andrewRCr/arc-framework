@@ -4441,7 +4441,8 @@ export async function handleReviewPrePublication(
             === await dependencies.readStandardLaneOwnerVersion(
               root, advancedBoundary.candidateId, currentRootHead,
             ));
-      if (matchingBoundary && readyLaneUnchanged) {
+      if (matchingBoundary && readyLaneUnchanged
+        && replayInput?.scopeJudgmentTarget === undefined) {
         if (!plainReentry && replayInput === null) {
           emitAdvancedReplayRefusal("A settled Candidate boundary cannot replace its saved author judgment.");
           return;
@@ -4487,6 +4488,11 @@ export async function handleReviewPrePublication(
       }
       if (composition.scopeMismatch !== undefined && beforeCompose.status === "current") {
         const mismatch = composition.scopeMismatch;
+        if (replayInput?.scopeJudgmentTarget !== undefined
+          && canonicalize(mismatch.target) !== canonicalize(replayInput.scopeJudgmentTarget)) {
+          emitAdvancedReplayRefusal("The saved scope judgment no longer matches the current exact review target.");
+          return;
+        }
         const lanes = PrePublicationLaneJudgmentsSchema.parse(judgment.lanes ?? {});
         const requiredLanes = {
           ...lanes,
@@ -4616,6 +4622,7 @@ export async function handleReviewPrePublication(
           judgment,
           replaySelfReview: composition.request.selfReview === "settled" ? "settled" : judgment.selfReview,
           replayLanes: judgment.lanes,
+          scopeJudgmentTarget: replayInput?.scopeJudgmentTarget,
           currentFrontlineHeadSha,
           frontlineCeilingOverrideApplied: false,
         }),
@@ -4653,6 +4660,7 @@ export async function handleReviewPrePublication(
         judgment,
         replaySelfReview,
         replayLanes,
+        scopeJudgmentTarget: replayInput?.scopeJudgmentTarget,
         currentFrontlineHeadSha,
         frontlineCeilingOverrideApplied,
       });

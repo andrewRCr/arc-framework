@@ -2471,6 +2471,129 @@ describe("handleReviewPrePublication", () => {
     expect(moved.persistBoundary).not.toHaveBeenCalled();
   });
 
+  it.each(["self-review", "convergence"])(
+    "keeps a scope judgment bound across the %s continuation",
+    async (continuationKind) => {
+      const resume = Buffer.from(JSON.stringify({
+        candidateId: request.candidateId,
+        candidateSubjectDigest: request.candidate.subjectDigest,
+        selfReview: "settled",
+        lanes: { standard: { scopeMode: "chunked" } },
+        scopeJudgmentTarget: request.target,
+      }), "utf8").toString("base64url");
+      const nextRequest = continuationKind === "self-review"
+        ? { ...request, selfReview: "pending" as const }
+        : {
+            ...request,
+            candidate: {
+              ...request.candidate,
+              implementationChanged: true,
+              convergenceVerification: "pending" as const,
+              convergenceScope: "full" as const,
+            },
+          };
+      const first = boundary({
+        compose: vi.fn(async () => ({ status: "composed" as const, request: nextRequest, advisories: [] })),
+      });
+      await handleReviewPrePublication("example", { resume }, first);
+
+      const envelope = JSON.parse(String(first.write.mock.calls[0]?.[0])) as {
+        nextAction: { command?: string; postAttestContinuation?: { nextAction: { command: string } } };
+      };
+      const command = continuationKind === "self-review"
+        ? envelope.nextAction.command
+        : envelope.nextAction.postAttestContinuation?.nextAction.command;
+      const nextResume = command?.split(" ")[5];
+      expect(nextResume).toBeDefined();
+      expect(JSON.parse(Buffer.from(nextResume ?? "", "base64url").toString("utf8"))).toMatchObject({
+        scopeJudgmentTarget: request.target,
+      });
+
+      const moved = boundary({
+        compose: vi.fn(async () => ({
+          status: "composed" as const,
+          request: { ...request, target: { ...request.target, diffBaseSha: "f".repeat(40) } },
+          advisories: [],
+        })),
+      });
+      await handleReviewPrePublication("example", { resume: nextResume }, moved);
+      expect(JSON.parse(String(moved.write.mock.calls[0]?.[0]))).toMatchObject({
+        error: { code: "invalid-input", message: expect.stringContaining("exact review target") },
+      });
+      expect(moved.persistBoundary).not.toHaveBeenCalled();
+    },
+  );
+
+  it("refuses a changed scope-mismatch target before offering another judgment", async () => {
+    const resume = Buffer.from(JSON.stringify({
+      candidateId: request.candidateId,
+      candidateSubjectDigest: request.candidate.subjectDigest,
+      lanes: { standard: { scopeMode: "chunked" } },
+      scopeJudgmentTarget: request.target,
+    }), "utf8").toString("base64url");
+    const moved = boundary({
+      compose: vi.fn(async () => ({
+        status: "refused" as const,
+        code: "scope-judgment-required" as const,
+        reason: "review producer scope does not match the selected scope",
+        scopeMismatch: {
+          lane: "standard" as const,
+          observedScope: "whole-target" as const,
+          selectedScope: "chunked" as const,
+          target: { ...request.target, diffBaseSha: "f".repeat(40) },
+        },
+      })),
+    });
+
+    await handleReviewPrePublication("example", { resume }, moved);
+
+    expect(JSON.parse(String(moved.write.mock.calls[0]?.[0]))).toMatchObject({
+      error: { code: "invalid-input", message: expect.stringContaining("exact review target") },
+      remedy: { argv: ["arc", "review", "pre-publication", "example"] },
+    });
+    expect(moved.persistBoundary).not.toHaveBeenCalled();
+  });
+
+  it("checks a saved scope target before reusing an advanced boundary", async () => {
+    const initial = boundary({
+      compose: vi.fn(async () => ({ status: "composed" as const, request, advisories: [] })),
+    });
+    await handleReviewPrePublication("example", {}, initial);
+    const ready = initial.persistBoundary.mock.calls[0]?.[1];
+    const resume = Buffer.from(JSON.stringify({
+      candidateId: request.candidateId,
+      candidateSubjectDigest: request.candidate.subjectDigest,
+      lanes: { standard: { scopeMode: "chunked" } },
+      scopeJudgmentTarget: request.target,
+    }), "utf8").toString("base64url");
+    const compose = vi.fn(async () => ({
+      status: "composed" as const,
+      request: { ...request, target: { ...request.target, diffBaseSha: "f".repeat(40) } },
+      advisories: [],
+    }));
+    const moved = boundary({
+      readBoundary: async () => ({ boundary: ready, version: `sha256:${"9".repeat(64)}` }),
+      compose,
+    });
+
+    await handleReviewPrePublication("example", { resume }, moved);
+
+    expect(compose).toHaveBeenCalledOnce();
+    expect(JSON.parse(String(moved.write.mock.calls[0]?.[0]))).toMatchObject({
+      error: { code: "invalid-input", message: expect.stringContaining("exact review target") },
+    });
+    expect(moved.persistBoundary).not.toHaveBeenCalled();
+
+    const matching = boundary({
+      readBoundary: async () => ({ boundary: ready, version: `sha256:${"9".repeat(64)}` }),
+      compose: vi.fn(async () => ({ status: "composed" as const, request, advisories: [] })),
+    });
+    await handleReviewPrePublication("example", { resume }, matching);
+    expect(JSON.parse(String(matching.write.mock.calls[0]?.[0]))).toMatchObject({
+      locus: "candidate-publish-ready",
+    });
+  });
+
   it("persists an accepted singleton frontline skip before standard review admission", async () => {
     const exactTarget = createReviewTarget({
       schemaVersion: 2,
