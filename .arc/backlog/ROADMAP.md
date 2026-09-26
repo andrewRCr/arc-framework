@@ -13,14 +13,13 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State         | Work unit                       | Priority | Owner  | Depends on | Cohort                    |
-| ------------- | ------------------------------- | -------- | ------ | ---------- | ------------------------- |
-| `Integrating` | review-signal-convergence       | P1       | andrew | —          | review-protocol-alignment |
-| `Planning`    | candidate-reroot-recovery-frame | P1       | andrew | —          | —                         |
-| `Planning`    | decomposition-doctrine          | P1       | andrew | —          | —                         |
-| `Planning`    | delivery-rebuild-continuity     | P1       | andrew | —          | —                         |
-| `Planning`    | review-checkout-lifecycle       | P1       | andrew | —          | —                         |
-| `Planning`    | stub-mint-to-launch             | P1       | andrew | —          | —                         |
+| State      | Work unit                       | Priority | Owner  | Depends on | Cohort |
+| ---------- | ------------------------------- | -------- | ------ | ---------- | ------ |
+| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —          | —      |
+| `Planning` | decomposition-doctrine          | P1       | andrew | —          | —      |
+| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —          | —      |
+| `Planning` | review-checkout-lifecycle       | P1       | andrew | —          | —      |
+| `Planning` | stub-mint-to-launch             | P1       | andrew | —          | —      |
 
 ## Ready
 
@@ -31,6 +30,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | lifecycle-advancement-provenance    | P1       | andrew | —          | approval-flow-refinement   |
 | host-policy-evidence                | P1       | andrew | —          | review-protocol-alignment  |
 | review-evaluator-isolation          | P1       | andrew | —          | review-protocol-alignment  |
+| review-source-authority             | P1       | andrew | —          | review-protocol-alignment  |
 | ci-defer-heavy-reconciliation       | P1       | andrew | —          | —                          |
 | cross-worktree-git-state-safety     | P1       | andrew | —          | —                          |
 | delivery-correction-convergence     | P1       | andrew | —          | —                          |
@@ -112,7 +112,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | Work unit                     | Priority | Owner  | Depends on                                                  | Cohort                     |
 | ----------------------------- | -------- | ------ | ----------------------------------------------------------- | -------------------------- |
-| review-source-authority       | P1       | andrew | review-signal-convergence                                   | review-protocol-alignment  |
+| review-activity-contracts     | P1       | andrew | review-source-authority                                     | review-protocol-alignment  |
 | unit-scoped-review            | P2       | andrew | commit-increments                                           | approval-flow-refinement   |
 | documentation-surface-routing | P3       | andrew | handoff-optimization                                        | agent-context-optimization |
 | instruction-optimization      | P3       | andrew | composable-workflows                                        | agent-context-optimization |
@@ -123,18 +123,12 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 2
 
-| Work unit                 | Priority | Owner  | Depends on              | Cohort                    |
-| ------------------------- | -------- | ------ | ----------------------- | ------------------------- |
-| review-activity-contracts | P1       | andrew | review-source-authority | review-protocol-alignment |
-| wu5-public-release        | P3       | andrew | docs-content-sweep      | release-readiness         |
-
-### Depth 3
-
 | Work unit                | Priority | Owner  | Depends on                | Cohort                    |
 | ------------------------ | -------- | ------ | ------------------------- | ------------------------- |
 | review-request-contracts | P1       | andrew | review-activity-contracts | review-protocol-alignment |
+| wu5-public-release       | P3       | andrew | docs-content-sweep        | release-readiness         |
 
-### Depth 4
+### Depth 3
 
 | Work unit                   | Priority | Owner  | Depends on               | Cohort           |
 | --------------------------- | -------- | ------ | ------------------------ | ---------------- |
