@@ -11,7 +11,7 @@
 - **Design:** `spec-review-signal-convergence.md`
 - **Task List:** `tasks-review-signal-convergence.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:0f9308199b8feaf270b77173a3c5f7c7227ab66169450a629e32012e37b451bb`
+- **Candidate:** `sha256:4312fb74e385cd6c75ba7a27149cf8f08a2e26569c29a32815daeb8d244d4cf6`
 
 - **Current Workflow:** `prepare-work-unit`
 - **Last Completed:** Task 8.T — Admit private Candidate incremental correction review
