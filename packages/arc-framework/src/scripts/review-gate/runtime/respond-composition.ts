@@ -13,6 +13,7 @@ import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state
 import { createRawGitExec } from "../../../lib/io-context.js";
 import { getFrameworkVersion } from "../../../lib/version.js";
 import {
+  readCandidateRecord,
   readCandidateRecordVersioned,
   resolveCandidateRecordRelativePath,
   writeCandidateRecord,
@@ -42,6 +43,7 @@ import {
   inspectHostedAttemptDispositionSupersession,
   invalidateConditionalNextPassAuthorization,
   recordLaneResponsePerformance,
+  readLaneResponsePerformance,
   settleLaneAttempt,
   supersedeHostedAttemptDisposition,
   withdrawConditionalNextPassAuthorization,
@@ -54,6 +56,7 @@ import { RepositoryDeliveryMemberLookup } from "../hosts/local/delivery-member-l
 import {
   composeDeliveryMemberTarget,
   confirmLocalReviewCorrectionTarget,
+  deriveLocalReviewTarget,
   deriveLocalReviewTargetFromCoordinates,
   LocalTargetDerivationError,
 } from "../hosts/local/repository-target.js";
@@ -68,8 +71,17 @@ import {
 import { resolveConfiguredLanePolicy } from "../policy/lane-policy-config.js";
 import { resolveEvidenceBoundReviewPolicyContinuation } from
   "../policy/review-policy-evidence.js";
+import { confirmNonDeliveryIncrementalApplicability } from
+  "../policy/local-review-coverage-selection.js";
+import { confirmNoPullRequestCandidatePriorProducer } from
+  "../policy/pre-publication-composition.js";
+import type { ReviewResult } from "../core/review-result.js";
 import { createLocalFrontlineSourcePreferenceReader } from
   "../hosts/local/frontline-source-preferences.js";
+import { createGhChangeRequestResolutionPort } from "../hosts/github/change-request.js";
+import { resolveChangeRequest } from "../change-request.js";
+import { confirmIncrementalPredecessorApplicability } from
+  "../policy/hosted-reservation-support.js";
 
 /**
  * Report a subject the branch and its base leave uncollectable under the boundary's own precondition type.
@@ -83,6 +95,54 @@ function rethrowUncollectableSubject(error: unknown): never {
     throw new LocalTargetDerivationError("ambiguous-merge-base", error.message);
   }
   throw error;
+}
+
+/** Bind local policy coordinates to the live branch and change request, as local admission does. */
+async function resolveRespondPolicyTarget(
+  input: { exec: GitExec; cwd: string },
+  current: ReviewResult,
+  baseRef: string,
+): Promise<{ repository: string; pullRequest: number | null } | null> {
+  if (current.kind === "hosted") return current.hostedTarget;
+  if (current.kind !== "attested-local") return null;
+  const branch = (await input.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+    cwd: input.cwd,
+  })).stdout.trim();
+  if (branch === "" || branch === "HEAD") return null;
+  const changeRequest = await resolveChangeRequest({
+    headRef: branch,
+    headSha: current.target.headSha,
+    baseRef,
+  }, createGhChangeRequestResolutionPort(input.exec, input.cwd));
+  if (changeRequest.targetRef !== null && (changeRequest.state === "blocked"
+    || changeRequest.state === "ambiguous")) return null;
+  return changeRequest.targetRef === null
+    ? { repository: `local/${current.repositoryId}`, pullRequest: null }
+    : {
+        repository: changeRequest.targetRef.repository,
+        pullRequest: changeRequest.state === "open" ? changeRequest.candidate.number : null,
+      };
+}
+
+/** Select only the unique managed Candidate that owns the immutable producer lineage. */
+async function readRespondCandidate(
+  input: { exec: GitExec; cwd: string },
+  current: ReviewResult,
+): Promise<{ workUnit: string; record: CandidateManagedRecordV1 } | null> {
+  const lineage = current.admission.lineage;
+  if (lineage.kind !== "candidate") return null;
+  const owner = await resolveCandidateMutationOwner(input);
+  const workUnits = owner.status === "owned"
+    ? [owner.workUnit]
+    : owner.status === "unowned" ? await resolveCompletedCandidateWorkUnits(input.cwd) : [];
+  const candidates = await Promise.all(workUnits.map(async (workUnit) => ({
+    workUnit,
+    record: await readCandidateRecord(input.cwd, workUnit),
+  })));
+  const matching = candidates.filter(({ record }) =>
+    record?.attestation.candidateId === lineage.candidateId);
+  const selected = matching.length === 1 ? matching[0] : undefined;
+  return selected?.record == null ? null : { workUnit: selected.workUnit, record: selected.record };
 }
 
 /** Bind respond to repository-common records and trusted local/runtime identities. */
@@ -391,9 +451,56 @@ export function createRespondDependencies(input: {
     readConfiguredLanePolicy,
     resolvePolicy: async (request, confirmedProducerTarget) => {
       const configured = await readConfiguredLanePolicy(request.lane);
+      const currentSettings = await settings();
       const retainedSources = configured.sources.length === 0
         ? [...new Set(request.attempts.map(({ sourceId }) => sourceId))]
         : configured.sources;
+      const confirmIncrementalApplicability = async (
+        predecessor: ReviewResult,
+        current: ReviewResult,
+      ) => {
+        if (current.target.kind === "delivery-member") {
+          return confirmIncrementalPredecessorApplicability({ predecessor, current });
+        }
+        const policyTarget = await resolveRespondPolicyTarget(
+          input, current, currentSettings["branch.base"],
+        );
+        if (policyTarget === null
+          || policyTarget.repository.toLowerCase() !== request.target.repository.toLowerCase()
+          || policyTarget.pullRequest !== request.target.pullRequest) return "unavailable";
+        const lineage = current.admission.lineage;
+        const selected = await readRespondCandidate(input, current);
+        const observeTarget = () => deriveLocalReviewTarget({
+          exec: input.exec,
+          cwd: input.cwd,
+          baseRef: currentSettings["branch.base"],
+          repositoryId: current.target.repositoryId,
+        });
+        if (policyTarget.pullRequest === null && selected !== null) {
+          return confirmNoPullRequestCandidatePriorProducer({
+            cwd: input.cwd,
+            workUnit: selected.workUnit,
+            baseBranch: currentSettings["branch.base"],
+            candidate: selected.record,
+            predecessor,
+            currentTarget: current.target,
+            currentLineage: lineage,
+            exec: input.exec,
+            rawExec: rawGit,
+            observeTarget,
+          });
+        }
+        return confirmNonDeliveryIncrementalApplicability({
+          predecessor,
+          currentTarget: current.target,
+          currentLineage: lineage,
+          repository: policyTarget.repository,
+          pullRequest: policyTarget.pullRequest,
+          candidate: selected?.record ?? null,
+          exec: rawGit,
+          observeTarget,
+        });
+      };
       return resolveEvidenceBoundReviewPolicyContinuation(request, {
         terminalResponsePerformed: false,
       }, {
@@ -401,6 +508,11 @@ export function createRespondDependencies(input: {
         sources: retainedSources,
         resultReader: createRepositoryReviewResultReader(publisher),
         dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+        readResponsePerformance: (predecessor) => readLaneResponsePerformance(
+          prepare.operationStore,
+          predecessor,
+        ),
+        confirmIncrementalApplicability,
         confirmTarget: (attemptedTarget) => {
           if (canonicalize(attemptedTarget) !== canonicalize(confirmedProducerTarget)) {
             throw new Error("review producer target does not match the confirmed response target");

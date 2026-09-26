@@ -590,6 +590,7 @@ function request(overrides: Record<string, unknown> = {}) {
       maxPasses: 2,
       attempts: [],
     },
+    pendingResponse: { frontline: null, standard: null },
     candidate: {
       subjectDigest: SUBJECT_DIGEST,
       implementationChanged: false,
@@ -601,6 +602,77 @@ function request(overrides: Record<string, unknown> = {}) {
 }
 
 describe("projectPrePublicationReview", () => {
+  it("keeps minor findings at the response boundary until the approved fix is performed", () => {
+    const base = request({ selfReview: "settled" });
+    const standard = {
+      ...(base.standard as Record<string, unknown>),
+      sources: ["delegated-agent"],
+      completedPasses: 1,
+      attempts: [{ sourceId: "delegated-agent", outcome: "findings", reviewOperationId: "minor-attempt" }],
+      verifiedTerminalSignal: {
+        reviewOperationId: "minor-attempt",
+        confirmedFindingCount: 1,
+        maxConfirmedSeverity: "minor",
+        coverageAdequate: true,
+      },
+    };
+    const pending = projectPrePublicationReview({
+      ...base,
+      frontline: { ...(base.frontline as Record<string, unknown>), frontlineActive: false },
+      standard,
+      pendingResponse: { frontline: null, standard: { kind: "attested-local", receiptRef: "minor-source" } },
+    }, postAttestContinuation);
+    expect(pending).toMatchObject({
+      locus: "candidate-fix-pending",
+      policy: { state: "pass-complete" },
+      nextAction: {
+        command: "arc review respond -",
+        responseOperationId: "minor-attempt",
+        responseSource: { kind: "attested-local", receiptRef: "minor-source" },
+      },
+    });
+    const performed = projectPrePublicationReview({
+      ...base,
+      frontline: { ...(base.frontline as Record<string, unknown>), frontlineActive: false },
+      standard,
+      pendingResponse: { frontline: null, standard: null },
+    }, postAttestContinuation);
+    expect(performed).toMatchObject({
+      locus: "candidate-publish-ready",
+      nextAction: { kind: "publish-candidate" },
+    });
+  });
+
+  it("keeps a minor frontline response pending before standard review", () => {
+    const base = request({ selfReview: "settled" });
+    const frontline = {
+      ...(base.frontline as Record<string, unknown>),
+      completedPasses: 1,
+      attempts: [{ sourceId: "coderabbit-cli", outcome: "findings", reviewOperationId: "frontline-minor" }],
+      verifiedTerminalSignal: {
+        reviewOperationId: "frontline-minor",
+        confirmedFindingCount: 1,
+        maxConfirmedSeverity: "minor",
+        coverageAdequate: true,
+      },
+    };
+    const pending = projectPrePublicationReview({
+      ...base,
+      frontline,
+      pendingResponse: { frontline: { kind: "frontline", outcomeRef: "frontline-source" }, standard: null },
+    }, postAttestContinuation);
+    expect(pending).toMatchObject({
+      locus: "candidate-fix-pending",
+      policy: { state: "pass-complete" },
+      nextAction: {
+        command: "arc review respond -",
+        responseOperationId: "frontline-minor",
+        responseSource: { kind: "frontline", outcomeRef: "frontline-source" },
+      },
+    });
+    expect(pending.nextAction.interactionText).toContain("frontline");
+  });
+
   it("rejects a frontline authorization request that changes more than invocation mode", () => {
     const initialRequest = {
       schemaVersion: 1 as const,

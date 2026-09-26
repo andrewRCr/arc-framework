@@ -2324,6 +2324,7 @@ describe("handleReviewPrePublication", () => {
     },
     frontline: lane("frontline", []),
     standard: lane("standard", ["codex-pr"]),
+    pendingResponse: { frontline: null, standard: null },
     candidate: {
       subjectDigest: `sha256:${"e".repeat(64)}`,
       implementationChanged: false,
@@ -3131,6 +3132,63 @@ describe("handleReviewPrePublication", () => {
         frontline: { invocation: { mode: "skip" } },
         standard: { scopeMode: "chunked" },
       },
+    });
+  });
+
+  it("preserves the exact response action and a working pre-publication resume", async () => {
+    const minorRequest = {
+      ...request,
+      standard: {
+        ...request.standard,
+        sources: ["delegated-agent"],
+        completedPasses: 1,
+        attempts: [{
+          sourceId: "delegated-agent",
+          outcome: "findings" as const,
+          reviewOperationId: "minor-producer",
+        }],
+        verifiedTerminalSignal: {
+          reviewOperationId: "minor-producer",
+          confirmedFindingCount: 1,
+          maxConfirmedSeverity: "minor" as const,
+          coverageAdequate: true,
+        },
+      },
+      pendingResponse: { frontline: null, standard: { kind: "attested-local", receiptRef: "minor-source" } },
+    };
+    const pending = boundary({
+      compose: vi.fn(async () => ({ status: "composed", request: minorRequest, advisories: [] })),
+    });
+    await handleReviewPrePublication("example", {}, pending);
+    const pendingEnvelope = JSON.parse(String(pending.write.mock.calls[0]?.[0])) as {
+      locus: string;
+      nextAction: { command: string; responseOperationId: string; resumeCommand: string };
+      policy: { state: string };
+    };
+    expect(pendingEnvelope).toMatchObject({
+      locus: "candidate-fix-pending",
+      policy: { state: "pass-complete" },
+      nextAction: {
+        command: "arc review respond -",
+        responseOperationId: "minor-producer",
+        responseSource: { kind: "attested-local", receiptRef: "minor-source" },
+      },
+    });
+    expect(pendingEnvelope.nextAction.resumeCommand)
+      .toMatch(/^arc review pre-publication example --resume [A-Za-z0-9_-]+$/u);
+
+    const token = pendingEnvelope.nextAction.resumeCommand.split(" ").at(-1);
+    const performed = boundary({
+      compose: vi.fn(async () => ({
+        status: "composed",
+        request: { ...minorRequest, pendingResponse: { frontline: null, standard: null } },
+        advisories: [],
+      })),
+    });
+    await handleReviewPrePublication("example", { resume: token }, performed);
+    expect(JSON.parse(String(performed.write.mock.calls[0]?.[0]))).toMatchObject({
+      locus: "candidate-publish-ready",
+      nextAction: { kind: "publish-candidate" },
     });
   });
 

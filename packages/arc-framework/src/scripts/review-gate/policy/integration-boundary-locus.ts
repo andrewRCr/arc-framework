@@ -12,7 +12,8 @@ import {
 import { DeliveryPlanIdSchema } from "../../../lib/delivery/schema.js";
 import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
 import { attestConvergenceArgv } from "../../integration/spine-refusal.js";
-import { GitObjectIdSchema } from "../core/gate-contract-v2-schema.js";
+import { GitObjectIdSchema, ReviewIdentifierSchema } from "../core/gate-contract-v2-schema.js";
+import { ReviewResponseSettlementSourceSchema } from "../core/response-plan-schema.js";
 import { FrontlineCommandRequestSchema } from "./frontline-command-schema.js";
 import { ReviewResolveEnvelopeSchema } from "./review-policy-driver.js";
 import { StandardReviewObligationProjectionSchema } from "./standard-review-projection-schema.js";
@@ -39,8 +40,25 @@ export const ContinuePrePublicationActionSchema = z.strictObject({
   authorizationRequest: FrontlineCommandRequestSchema.optional(),
   request: FrontlineCommandRequestSchema.optional(),
   resumeCommand: z.string().trim().min(1).optional(),
+  responseOperationId: ReviewIdentifierSchema.optional(),
+  responseSource: ReviewResponseSettlementSourceSchema.optional(),
   ...ActionFields,
 }).superRefine((action, context) => {
+  const responds = action.command === "arc review respond -";
+  if (responds !== (action.responseOperationId !== undefined)) {
+    context.addIssue({
+      code: "custom",
+      path: ["responseOperationId"],
+      message: "the review response action requires its exact producer operation ID",
+    });
+  }
+  if (responds !== (action.responseSource !== undefined)) {
+    context.addIssue({
+      code: "custom",
+      path: ["responseSource"],
+      message: "the review response action requires its bound producer source",
+    });
+  }
   const resolvesFrontline = action.command === "arc review frontline resolve -";
   if (!resolvesFrontline && (action.request !== undefined || action.authorizationRequest !== undefined)) {
     context.addIssue({

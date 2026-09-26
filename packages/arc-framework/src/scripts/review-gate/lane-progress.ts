@@ -879,6 +879,7 @@ export type LanePolicyAttempt = Pick<
   LaneAttempt,
   "attemptId" | "logicalPass" | "sourceId" | "outcome" | "chunkSeriesComplete"
 > & {
+  responsePerformance?: LaneAttempt["responsePerformance"];
   hosted?: LaneAttempt["hosted"];
   local?: LanePolicyLocalBinding;
   frontline?: LaneAttempt["frontline"];

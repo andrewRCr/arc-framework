@@ -1406,6 +1406,8 @@ describe("composePrePublicationReviewRequest", () => {
       completedPasses: 1,
       attempts: [{ sourceId: "codex-pr", outcome: "findings" }],
     });
+    expect(composition.status === "composed" && composition.request.pendingResponse.standard)
+      .toMatchObject({ kind: "hosted" });
   });
 
   it("carries the review ceiling across a fix-induced Candidate head change", async () => {

@@ -322,6 +322,53 @@ describe("local resume command", () => {
     expect(materialize).toHaveBeenCalledWith(records.source);
   });
 
+  it("routes a failed old operation to a new review without restoring its source", async () => {
+    const records = fixture();
+    records.laneProgress.attempts[0]!.outcome = "terminal-failure";
+    const materialize = vi.fn();
+    const appendReceipt = vi.fn();
+    const readSource = vi.fn();
+
+    await expect(resumeLocalReviewCommand({
+      schemaVersion: 1,
+      operationId: records.operation.operationId,
+    }, {
+      sweep: vi.fn(),
+      withLocalReviewLock,
+      resultReader: unexpectedResultReader,
+      operationStore: {
+        readOperation: readAdmittedOperation(records),
+        publishOperation: vi.fn(),
+      },
+      sourceStore: {
+        readSource,
+        appendSource: vi.fn(),
+      },
+      receiptStore: {
+        readReceipts: async () => ({ ledgerVersion: 0, receipts: [] }),
+        appendReceipt,
+      },
+      dispositionStore: {
+        readDispositionRecord: vi.fn(),
+        appendDispositionRecord: vi.fn(),
+      },
+      confirmTarget: async () => ({ state: "current", target: records.operation.target }),
+      materialize,
+      now: () => "2026-07-23T17:00:30Z",
+    })).resolves.toMatchObject({
+      state: "terminal-operation",
+      nextAction: "rerun-review",
+      payload: {
+        operationId: records.operation.operationId,
+        persistedVersion: 1,
+        currentTarget: records.operation.target,
+      },
+    });
+    expect(materialize).not.toHaveBeenCalled();
+    expect(appendReceipt).not.toHaveBeenCalled();
+    expect(readSource).not.toHaveBeenCalled();
+  });
+
   it("returns expired without restoring a receipt-less source after its cleanup bound", async () => {
     const records = fixture();
     const materialize = vi.fn();
@@ -420,6 +467,10 @@ describe("local resume command", () => {
 
   it("replays a clean receipt reference and returns review-complete", async () => {
     const records = fixture();
+    records.laneProgress.attempts[0]!.outcome = "clean";
+    records.laneProgress.attempts[0]!.terminalProducer = true;
+    records.laneProgress.attempts[0]!.local!.effectiveCoverage = "complete";
+    records.laneProgress.completedPasses = 1;
     const appendReceipt = vi.fn(async () => ({
       ledgerVersion: 1,
       durableEvidenceRef: "receipts-v2.json#1",
@@ -468,19 +519,7 @@ describe("local resume command", () => {
       },
     });
     expect(appendReceipt).toHaveBeenCalledWith(records.receipt, 1);
-    expect(published).toMatchObject({
-      kind: "lane-progress",
-      completedPasses: 1,
-      attempts: [expect.objectContaining({
-        attemptId: records.operation.operationId,
-        outcome: "clean",
-        terminalProducer: true,
-        local: expect.objectContaining({
-          requestedCoverage: "complete",
-          effectiveCoverage: "complete",
-        }),
-      })],
-    });
+    expect(published).toBeNull();
   });
 
   it("rejects multiple terminal receipts for one local operation", async () => {

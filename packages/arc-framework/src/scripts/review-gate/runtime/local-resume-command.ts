@@ -78,7 +78,8 @@ async function resumeLocalReviewWithinLocalReviewLock(
     throw new LocalResumeCommandError("local review operation is unavailable");
   }
   const state = persisted.state;
-  if (await readAdmittedLocalLaneAttempt(dependencies.operationStore, state) === null) {
+  const admittedAttempt = await readAdmittedLocalLaneAttempt(dependencies.operationStore, state);
+  if (admittedAttempt === null) {
     throw new LocalResumeCommandError("local review operation is not durably admitted");
   }
   assertLocalReviewClaimBinding(state);
@@ -103,17 +104,35 @@ async function resumeLocalReviewWithinLocalReviewLock(
       },
     });
   }
+  const ledger = await dependencies.receiptStore.readReceipts(state.targetId);
+  const receipts = ledger.receipts.filter((receipt) => receipt.requestId === state.requestId);
+  if (receipts.length > 1) {
+    throw new LocalResumeCommandError("local review operation has multiple terminal receipts");
+  }
+  if (receipts.length === 0 && admittedAttempt.outcome !== "pending") {
+    if (admittedAttempt.outcome !== "terminal-failure"
+      && admittedAttempt.outcome !== "transient-unavailable") {
+      throw new LocalResumeCommandError("terminal local review operation has no durable receipt");
+    }
+    return LocalResumeEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-local-resume",
+      diagnostics: [],
+      state: "terminal-operation",
+      nextAction: "rerun-review",
+      payload: {
+        operationId: state.operationId,
+        persistedVersion: persisted.version,
+        currentTarget: state.target,
+      },
+    });
+  }
   const source = await dependencies.sourceStore.readSource(state.sourceRef);
   if (source === null
     || source.sourceDigest !== state.sourceDigest
     || source.repositoryId !== state.repositoryId
     || source.targetId !== state.targetId) {
     throw new LocalResumeCommandError("local review source snapshot mismatch");
-  }
-  const ledger = await dependencies.receiptStore.readReceipts(state.targetId);
-  const receipts = ledger.receipts.filter((receipt) => receipt.requestId === state.requestId);
-  if (receipts.length > 1) {
-    throw new LocalResumeCommandError("local review operation has multiple terminal receipts");
   }
   if (receipts.length === 0) {
     const now = Date.parse(dependencies.now());

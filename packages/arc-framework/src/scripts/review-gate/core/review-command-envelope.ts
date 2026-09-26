@@ -605,6 +605,12 @@ export const LocalAttestEnvelopeSchema = z.union([
   ),
   envelopeVariant(
     "review-local-attest",
+    "terminal-operation",
+    "rerun-review",
+    z.strictObject(OperationPayloadShape),
+  ),
+  envelopeVariant(
+    "review-local-attest",
     "not-attestable",
     "rerun-review",
     z.strictObject({
@@ -974,6 +980,12 @@ export const LocalResumeEnvelopeSchema = z.union([
   envelopeVariant(
     "review-local-resume",
     "expired",
+    "rerun-review",
+    z.strictObject(ResumeBasePayload),
+  ),
+  envelopeVariant(
+    "review-local-resume",
+    "terminal-operation",
     "rerun-review",
     z.strictObject(ResumeBasePayload),
   ),

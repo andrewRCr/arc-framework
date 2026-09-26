@@ -15,6 +15,7 @@ import {
   type CandidateReviewResponseEvidenceV1,
 } from "../../../lib/work-unit/candidate-attestation.js";
 import { ReviewTargetSchema } from "../core/gate-contract-v2-schema.js";
+import { ReviewResponseSettlementSourceSchema } from "../core/response-plan-schema.js";
 import {
   ReviewPolicyRequestSchema,
   ReviewResolveEnvelopeSchema,
@@ -80,6 +81,11 @@ export const PrePublicationReviewRequestSchema = z.strictObject({
   selfReview: z.enum(["inactive", "pending", "settled"]),
   frontline: FrontlinePolicyRequestSchema,
   standard: StandardPolicyRequestSchema,
+  /** Repository-derived completion of the latest findings response in each lane. */
+  pendingResponse: z.strictObject({
+    frontline: ReviewResponseSettlementSourceSchema.nullable(),
+    standard: ReviewResponseSettlementSourceSchema.nullable(),
+  }),
   candidate: z.union([
     z.strictObject({
       ...PrePublicationCandidateCommonSchema,
@@ -175,12 +181,18 @@ export function projectPrePublicationReview(
   }
 
   const frontline = resolveReviewPolicy(request.frontline);
+  if (isSettledFrontline(frontline.state) && request.pendingResponse.frontline !== null) {
+    return pendingResponseEnvelope(request, "frontline", frontline, request.pendingResponse.frontline);
+  }
   if (!isSettledFrontline(frontline.state)) {
     return policyEnvelope(request, "frontline", frontline);
   }
 
   const standard = resolveReviewPolicy(request.standard);
   if (standard.state === "findings") return policyEnvelope(request, "standard", standard);
+  if (isSettledStandard(standard.state) && request.pendingResponse.standard !== null) {
+    return pendingResponseEnvelope(request, "standard", standard, request.pendingResponse.standard);
+  }
   if (!isSettledStandard(standard.state)) return policyEnvelope(request, "standard", standard);
   const reservation = standard.state === "awaiting-change-request"
     ? createStandardReviewReservation(request, firstWaitingSource(standard.payload.waitingSources))
@@ -319,6 +331,29 @@ function policyEnvelope(
   return envelope(request, {
     locus: findings ? "candidate-fix-pending" : "candidate-review-pending",
     nextAction,
+    policy,
+  });
+}
+
+function pendingResponseEnvelope(
+  request: PrePublicationReviewRequest,
+  lane: "frontline" | "standard",
+  policy: z.infer<typeof ReviewResolveEnvelopeSchema>,
+  source: z.infer<typeof ReviewResponseSettlementSourceSchema>,
+): PrePublicationReviewEnvelope {
+  const terminal = request[lane].attempts.at(-1);
+  if (terminal?.outcome !== "findings") {
+    throw new Error("pending review response requires its terminal findings producer");
+  }
+  return envelope(request, {
+    locus: "candidate-fix-pending",
+    nextAction: ContinuePrePublicationActionSchema.parse({
+      kind: "continue-pre-publication-review",
+      command: "arc review respond -",
+      responseOperationId: terminal.reviewOperationId,
+      responseSource: source,
+      interactionText: `Complete the ${lane} review findings response, then resume pre-publication review.`,
+    }),
     policy,
   });
 }

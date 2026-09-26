@@ -116,6 +116,14 @@ Re-invoke the procedure with the exact-target scope selection. A selected bounde
 `scope-selected / continue-review`; an explicit capable whole-target choice closes the attention disposition while
 retaining `consider-chunks`. A stale or missing selection stops before the frontline or standard action.
 
+At `candidate-fix-pending` with `nextAction.command: arc review respond -`, the pass may already be
+`pass-complete` or `owner-accepted`, but its current findings response is still unfinished. Use
+`nextAction.responseOperationId` and `nextAction.responseSource` to resume that exact producer through the typed
+`arc review respond -` action and [`review-response`][review-response]. Reconstruct a lost proposal from this bound
+source and obtain any approval still required; continue an existing approved response from its durable disposition.
+Re-enter pre-publication only after durable response completion. The pass conclusion does not authorize publication
+while this response remains pending.
+
 A null `policy` means no lane operation is open — follow the envelope's `nextAction.kind`, one of
 `run-self-review`, `run-convergence-verification`, or `publish-candidate`. Otherwise follow only the `policy`
 state/action pair:

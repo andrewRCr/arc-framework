@@ -123,7 +123,8 @@ async function attestLocalReviewWithinLocalReviewLock(
   }
   const state = persisted.state;
   assertLocalReviewClaimBinding(state);
-  if (await readAdmittedLocalLaneAttempt(dependencies.operationStore, state) === null) {
+  const admittedAttempt = await readAdmittedLocalLaneAttempt(dependencies.operationStore, state);
+  if (admittedAttempt === null) {
     throw new LocalAttestCommandError("corrupt-state", "local review operation is not durably admitted");
   }
   const result = normalizeLocalReviewResult(request.result, {
@@ -136,6 +137,21 @@ async function attestLocalReviewWithinLocalReviewLock(
     sourceDigest: state.sourceDigest,
     guidanceDigest: state.guidanceDigest,
   });
+  const terminalOperation = () => LocalAttestEnvelopeSchema.parse({
+    schemaVersion: 1,
+    mode: "review-local-attest",
+    diagnostics: [],
+    state: "terminal-operation",
+    nextAction: "rerun-review",
+    payload: {
+      operationId: request.operationId,
+      persistedVersion: persisted.version,
+    },
+  });
+  if (admittedAttempt.outcome !== "pending"
+    && (result.status !== "complete" || result.result === null)) {
+    return terminalOperation();
+  }
   if (result.status === "failed") {
     await recordLaneAttempt(dependencies.operationStore, {
       lane: "standard",
@@ -185,6 +201,19 @@ async function attestLocalReviewWithinLocalReviewLock(
       },
     });
   }
+  const ledger = await dependencies.receiptStore.readReceipts(state.targetId);
+  const terminalReceipts = ledger.receipts.filter((receipt) => receipt.requestId === state.requestId);
+  if (terminalReceipts.length > 1) {
+    throw new LocalAttestCommandError("corrupt-state", "local review operation has multiple terminal receipts");
+  }
+  const existing = terminalReceipts[0];
+  if (existing === undefined && admittedAttempt.outcome !== "pending") {
+    if (admittedAttempt.outcome !== "terminal-failure"
+      && admittedAttempt.outcome !== "transient-unavailable") {
+      throw new LocalAttestCommandError("corrupt-state", "terminal local review operation has no durable receipt");
+    }
+    return terminalOperation();
+  }
   const source = await dependencies.sourceStore.readSource(state.sourceRef);
   if (source === null
     || source.sourceDigest !== state.sourceDigest
@@ -192,12 +221,6 @@ async function attestLocalReviewWithinLocalReviewLock(
     || source.targetId !== state.targetId) {
     throw new LocalAttestCommandError("corrupt-state", "local review source snapshot mismatch");
   }
-  const ledger = await dependencies.receiptStore.readReceipts(state.targetId);
-  const terminalReceipts = ledger.receipts.filter((receipt) => receipt.requestId === state.requestId);
-  if (terminalReceipts.length > 1) {
-    throw new LocalAttestCommandError("corrupt-state", "local review operation has multiple terminal receipts");
-  }
-  const existing = terminalReceipts[0];
   const receipt = createLocalReviewReceipt({
     target: state.target,
     requirement: state.requirement,

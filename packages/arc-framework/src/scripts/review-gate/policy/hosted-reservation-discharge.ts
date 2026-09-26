@@ -199,6 +199,28 @@ export async function projectHostedReservationDischarge(input: {
       awaitAction: { schemaVersion: 1, handle: pending.hosted.handle },
     };
   }
+  const earlierReader = input.readEarlierAttemptApplicability;
+  const activeEarlierBySource = earlierReader === undefined ? null : new Map(await Promise.all(
+    reservation.sources.map(async (sourceId) => [sourceId, await earlierReader(sourceId)] as const),
+  ));
+  const readActiveEarlier = (sourceId: string): Promise<EarlierHostedAttemptApplicabilityRead | null> =>
+    Promise.resolve(activeEarlierBySource?.get(sourceId) ?? null);
+  let retainedTerminalLogicalPass = 0;
+  let retainedTerminals: EarlierApplicableAttempt[] = [];
+  if (input.readEarlierAttemptApplicability !== undefined) {
+    retainedTerminals = reservation.sources.flatMap((sourceId) => {
+      const earlier = activeEarlierBySource?.get(sourceId);
+      return earlier?.status === "complete" ? earlier.attempts.filter((attempt) =>
+        attempt.sourceId === sourceId && (attempt.outcome === "clean" || attempt.outcome === "settled-findings") && attempt.applicability === "retain-prior-attempt") : [];
+    });
+    retainedTerminalLogicalPass = Math.max(0, ...retainedTerminals.map((attempt) => attempt.logicalPass));
+    const latestTerminalKeys = new Set(retainedTerminals.filter((attempt) => attempt.logicalPass === retainedTerminalLogicalPass)
+      .map((attempt) => `${attempt.operationId}:${attempt.attemptId}:${attempt.outcome}`));
+    if (latestTerminalKeys.size > 1) return {
+      detail: "The latest retained logical pass contains conflicting terminal review evidence.",
+      discharged: false, nextSource: null,
+    };
+  }
   const latestTerminal = currentAttempts.reduce<ProjectedLaneAttempt | undefined>((latest, attempt) => (
     reservation.sources.includes(attempt.sourceId)
       && (attempt.outcome === "clean" || attempt.outcome === "settled-findings")
@@ -206,10 +228,25 @@ export async function projectHostedReservationDischarge(input: {
       ? attempt
       : latest
   ), undefined);
+  const earlierHistoryReady = input.readEarlierAttemptApplicability === undefined || reservation.sources.every((sourceId) => {
+    const earlier = activeEarlierBySource?.get(sourceId);
+    const required = typeof input.requireEarlierApplicabilityEvidence === "function"
+      ? input.requireEarlierApplicabilityEvidence(sourceId)
+      : input.requireEarlierApplicabilityEvidence === true;
+    return earlier?.status === "complete" ? earlier.attempts.length > 0 : earlier?.status === "not-found" && !required;
+  });
+  if (latestTerminal !== undefined && retainedTerminals.some((attempt) =>
+    attempt.logicalPass === latestTerminal.logicalPass
+      && (attempt.attemptId !== latestTerminal.attemptId || attempt.outcome !== latestTerminal.outcome))) return {
+    discharged: false, detail: "The latest logical pass contains conflicting current and retained terminal review evidence.",
+    nextSource: null,
+  };
+  const currentTerminalIsLatest = latestTerminal !== undefined && earlierHistoryReady
+    && latestTerminal.logicalPass >= retainedTerminalLogicalPass;
   const selectedClean = latestTerminal && selectedOwnerCleanAttempt([latestTerminal], reservation);
   let selectedCleanValidated = false;
   let latestCurrentCorrectionCandidate: IncrementalCorrectionScopeCandidate | null = null;
-  if (latestTerminal !== undefined) {
+  if (currentTerminalIsLatest) {
     const admittedLocalTerminal = [...currentAttemptHistory].reverse().find((attempt) => (
       attempt.logicalPass === latestTerminal.logicalPass
       && (attempt.outcome === "clean" || attempt.outcome === "settled-findings")
@@ -277,32 +314,10 @@ export async function projectHostedReservationDischarge(input: {
       if (retainedSafeUnavailableAttempt(sourceId, sourceAttempts) === null) break;
     }
   }
-  const earlierBySource = new Map<string, EarlierHostedAttemptApplicabilityRead>();
-  const readEarlier = async (sourceId: string): Promise<EarlierHostedAttemptApplicabilityRead | null> => {
-    if (input.readEarlierAttemptApplicability === undefined) return null;
-    const cached = earlierBySource.get(sourceId);
-    if (cached !== undefined) return cached;
-    const read = await input.readEarlierAttemptApplicability(sourceId);
-    earlierBySource.set(sourceId, read);
-    return read;
-  };
-  let activeEarlierBySource: Map<string, EarlierHostedAttemptApplicabilityRead> | null = null;
-  const readActiveEarlier = async (sourceId: string): Promise<EarlierHostedAttemptApplicabilityRead | null> => {
-    if (input.readEarlierAttemptApplicability === undefined) return null;
-    if (activeEarlierBySource === null) {
-      await Promise.all(reservation.sources.map((reservedSourceId) => readEarlier(reservedSourceId)));
-      activeEarlierBySource = new Map([...earlierBySource].map(([reservedSourceId, read]) => [
-        reservedSourceId,
-        read,
-      ]));
-    }
-    return activeEarlierBySource.get(sourceId) ?? null;
-  };
   const correctionContext = async (): Promise<{ correctionScope?: IncrementalReviewScope }> => {
     if (input.resolveIncrementalCorrectionScope === undefined) return {};
     let candidate = latestCurrentCorrectionCandidate;
     if (candidate === null) {
-      await Promise.all(reservation.sources.map((sourceId) => readActiveEarlier(sourceId)));
       const candidates = reservation.sources.flatMap((sourceId) => {
         const earlier = activeEarlierBySource?.get(sourceId);
         return earlier?.status === "complete"
@@ -350,14 +365,13 @@ export async function projectHostedReservationDischarge(input: {
   };
   const retainedFindingsBeforeRequest = async (): Promise<HostedReservationDischarge | null> => {
     if (input.readEarlierAttemptApplicability === undefined) return null;
-    await Promise.all(reservation.sources.map((sourceId) => readActiveEarlier(sourceId)));
     const routes: PendingFindingRoute[] = [];
     for (const sourceId of reservation.sources) {
-      const earlier = activeEarlierBySource?.get(sourceId);
+      const earlier = await readActiveEarlier(sourceId);
       const evidenceRequired = typeof input.requireEarlierApplicabilityEvidence === "function"
         ? input.requireEarlierApplicabilityEvidence(sourceId)
         : input.requireEarlierApplicabilityEvidence === true;
-      if (earlier === undefined || earlier.status === "unavailable") {
+      if (earlier === null || earlier.status === "unavailable") {
         return {
           discharged: false,
           detail: earlier?.status === "unavailable"
@@ -387,29 +401,10 @@ export async function projectHostedReservationDischarge(input: {
     }
     return projectPendingFindings(routes, "retained");
   };
-  if (selectedClean !== undefined && selectedCleanValidated) {
+  if (currentTerminalIsLatest && selectedClean !== undefined && selectedCleanValidated) {
     return projectSelectedOwnerDischarge(selectedClean, await retainedFindingsBeforeRequest());
   }
-  const currentTerminalLogicalPass = reservation.sources.flatMap((sourceId) => (
-    currentAttempts.filter((attempt) => attempt.sourceId === sourceId
-      && attempt.outcome === "clean"
-      && isCompleteStandardVerdict(attempt))
-  ))[0]?.logicalPass;
-  let retainedTerminalLogicalPass: number | undefined;
-  if (currentTerminalLogicalPass === undefined && input.readEarlierAttemptApplicability !== undefined) {
-    await Promise.all(reservation.sources.map((sourceId) => readActiveEarlier(sourceId)));
-    retainedTerminalLogicalPass = reservation.sources.flatMap((sourceId) => {
-      const earlier = activeEarlierBySource?.get(sourceId);
-      return earlier?.status === "complete"
-        ? earlier.attempts.filter((attempt) => attempt.outcome === "clean"
-          && attempt.effectiveCoverage === "complete"
-          && attempt.applicability === "retain-prior-attempt")
-        : [];
-    })[0]?.logicalPass;
-  }
-  const orderedLogicalPass = currentTerminalLogicalPass
-    ?? retainedTerminalLogicalPass
-    ?? activeLogicalPass;
+  const orderedLogicalPass = Math.max(latestTerminal?.logicalPass ?? 0, retainedTerminalLogicalPass) || activeLogicalPass;
   for (const sourceId of reservation.sources) {
     const orderedSourceAttempts = currentAttemptHistory.filter((attempt) => (
       attempt.sourceId === sourceId && attempt.logicalPass === orderedLogicalPass
@@ -503,7 +498,8 @@ export async function projectHostedReservationDischarge(input: {
           ...await correctionContext(),
         };
       }
-      const applicable = standardAttempts.filter(({ applicability }) => applicability === "retain-prior-attempt");
+      const applicable = standardAttempts.filter(({ applicability, logicalPass }) =>
+        applicability === "retain-prior-attempt" && logicalPass === orderedLogicalPass);
       const cleanApplicable = applicable.find(({ outcome }) => outcome === "clean");
       if (cleanApplicable !== undefined) {
         const policy = await input.resolveEarlierTerminalPolicy(cleanApplicable);

@@ -25,6 +25,12 @@ import { createHostedAdmission } from
   "../../../../../src/scripts/review-gate/hosted/request.js";
 import { queryEarlierReviewAttempts } from
   "../../../../../src/scripts/review-gate/policy/earlier-review-attempts.js";
+import { projectHostedReservationDischarge } from
+  "../../../../../src/scripts/review-gate/policy/hosted-reservation-discharge.js";
+import { createStandardReviewReservation } from
+  "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { resolveReviewPolicy } from
+  "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 import { reduceReviewRouting } from
   "../../../../../src/scripts/review-gate/policy/routing.js";
 import {
@@ -681,6 +687,172 @@ describe("earlier review attempt query", () => {
     });
     expect(result.status === "complete" && result.candidates.map(({ attemptId }) => attemptId))
       .toEqual([prior.attempts[0]?.attemptId, laterState.attempts[0]?.attemptId]);
+  });
+
+  it("lets the latest retained logical pass govern discharge across earlier-history ordering", async () => {
+    const olderClean = LaneProgressStateSchema.parse({
+      ...laneState({ headSha: oid("a"), artifactId: "older-clean" }),
+      updatedAt: "2026-08-23T10:00:00Z",
+    });
+    const newerBase = laneState({ headSha: oid("b"), artifactId: "newer-findings" });
+    const prior = newerBase.attempts[0];
+    if (prior?.hosted?.handle === undefined) throw new Error("expected hosted request");
+    const { admissionId: _admissionId, ...admissionPreimage } = prior.hosted.admission;
+    if (_admissionId === "") throw new Error("expected hosted admission identity");
+    const materialAdmission = createHostedAdmission({ ...admissionPreimage, logicalPass: 2 });
+    const finding = {
+      findingId: "material-finding",
+      origin: "review-thread" as const,
+      commentId: "material-comment",
+      threadId: "material-thread",
+      settlement: "reply-and-resolve" as const,
+      severity: "major" as const,
+      locus: "src/example.ts:1",
+      url: "https://example.test/material-finding",
+      sourceOrdinal: 1,
+      sourceLabel: "Material finding",
+    };
+    const dispositionSetId = canonicalDigest({ disposition: "material" });
+    const terminal = createHostedTerminalAttemptFixture({
+      admission: materialAdmission,
+      artifact: prior.hosted.handle.artifact,
+      outcome: "findings",
+      findings: [finding],
+      dispositionSetId,
+      findingActions: [{
+        findingId: finding.findingId,
+        disposition: "reject",
+        channelAction: "reply-and-resolve",
+      }],
+      settledFindingIds: [finding.findingId],
+      settlementEvidence: [{
+        findingId: finding.findingId,
+        dispositionSetId,
+        disposition: "reject",
+        channelAction: "reply-and-resolve",
+        actorIdentity: materialAdmission.actorIdentity,
+        target: prior.hosted.target,
+        fixTarget: null,
+        commentId: finding.commentId,
+        threadId: finding.threadId,
+        replyDigest: canonicalDigest({ reply: "material" }),
+        replyId: "material-reply",
+        performedAt: "2026-08-23T11:01:00Z",
+        carriedFromDispositionSetId: null,
+      }],
+    });
+    const newerMaterial = LaneProgressStateSchema.parse({
+      ...newerBase,
+      operationId: "lane-progress/newer-material",
+      updatedAt: "2026-08-23T11:00:00Z",
+      completedPasses: 2,
+      attempts: [...newerBase.attempts, {
+        ...prior,
+        attemptId: terminal.attemptId,
+        logicalPass: 2,
+        outcome: "settled-findings",
+        hosted: terminal.hosted,
+      }],
+    });
+    const successAdmission = createHostedAdmission({ ...admissionPreimage, logicalPass: 3 });
+    const successTerminal = createHostedTerminalAttemptFixture({
+      admission: successAdmission,
+      artifact: {
+        kind: "issue-comment",
+        id: "settled-success",
+        url: "https://example.invalid/settled-success",
+        createdAt: "2026-08-23T12:00:00Z",
+      },
+      outcome: "clean",
+    });
+    const settledSuccess = LaneProgressStateSchema.parse({
+      ...newerMaterial,
+      operationId: "lane-progress/settled-success",
+      updatedAt: "2026-08-23T10:00:00Z",
+      completedPasses: 3,
+      attempts: [...newerMaterial.attempts, {
+        ...prior,
+        attemptId: successTerminal.attemptId,
+        logicalPass: 3,
+        outcome: "clean",
+        hosted: successTerminal.hosted,
+      }],
+    });
+    const reservation = createStandardReviewReservation({
+      candidateId: candidateRecord().attestation.candidateId,
+      repository: "owner/repository",
+      headSha: oid("a"),
+      sourceId: "codex-pr",
+      sources: ["codex-pr"],
+      obligation: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"e".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+    });
+    const readEarlier = (states: readonly ReturnType<typeof laneState>[]) =>
+      projectEarlierReviewApplicability({
+        query: selector(),
+        currentBase: oid("2"),
+        snapshot: {
+          status: "complete",
+          records: states.map((state) => ({ version: 1, state })),
+        },
+        candidate: candidateRecord(),
+        exec: async () => { throw new Error("injected projection must own Git"); },
+        observeEndpoints: stableEndpoints,
+        projectApplicability: async (applicabilitySelector) => mechanicalApplicability(applicabilitySelector),
+      });
+    const resolveTerminal = async (attempt: {
+      readonly attemptId: string;
+      readonly logicalPass: number;
+      readonly sourceId: string;
+      readonly outcome: string;
+    }) => resolveReviewPolicy({
+      schemaVersion: 1,
+      target: { repository: "owner/repository", pullRequest: 42, headSha: oid("c") },
+      lane: "standard",
+      standardReview: reservation.obligation,
+      sources: reservation.sources,
+      maxPasses: 4,
+      completedPasses: attempt.logicalPass,
+      attempts: [{
+        sourceId: attempt.sourceId,
+        outcome: attempt.outcome === "clean" ? "clean" : "findings",
+        reviewOperationId: attempt.attemptId,
+      }],
+      verifiedTerminalSignal: {
+        reviewOperationId: attempt.attemptId,
+        confirmedFindingCount: attempt.outcome === "clean" ? 0 : 1,
+        maxConfirmedSeverity: attempt.outcome === "clean" ? null : "major",
+        coverageAdequate: true,
+      },
+    });
+    const discharge = async (states: readonly ReturnType<typeof laneState>[]) =>
+      projectHostedReservationDischarge({
+        reservation,
+        span: [oid("c")],
+        target: { repository: "owner/repository", pullRequest: 42, headSha: oid("c") },
+        readLaneProgress: async () => ({ status: "unrecorded" }),
+        readEarlierAttemptApplicability: async () => readEarlier(states),
+        resolveTerminalPolicy: resolveTerminal,
+        resolveEarlierTerminalPolicy: resolveTerminal,
+      });
+
+    const history = await readEarlier([olderClean, newerMaterial]);
+    expect(history.status === "complete" && history.attempts.map((attempt) => attempt.outcome))
+      .toEqual(["clean", "settled-findings", "clean"]);
+    await expect(discharge([olderClean, newerMaterial])).resolves.toMatchObject({
+      discharged: false,
+      nextSource: "codex-pr",
+    });
+    await expect(discharge([olderClean, settledSuccess])).resolves.toMatchObject({
+      discharged: true,
+      nextSource: null,
+    });
   });
 
   it("projects an exact hosted response plan for an earlier findings attempt", async () => {

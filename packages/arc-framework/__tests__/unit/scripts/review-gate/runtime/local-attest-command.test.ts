@@ -50,7 +50,7 @@ const DELIVERABLE_ID = `sha256:${"a".repeat(64)}`;
 const memberVehicle = { kind: "delivery-member", identity: DELIVERABLE_ID } as const;
 const workUnitVehicle = { kind: "work-unit", identity: "review-surface-binding" } as const;
 
-function fixture(vehicle: LocalReviewAuthority["vehicle"] = workUnitVehicle) {
+function fixture(vehicle: LocalReviewAuthority["vehicle"] = workUnitVehicle, retryGeneration = 0) {
   const target = createReviewTarget({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
@@ -90,7 +90,7 @@ function fixture(vehicle: LocalReviewAuthority["vehicle"] = workUnitVehicle) {
     laneSourceId: "delegated-agent",
     lineage: { kind: "candidate" as const, candidateId: "sha256:7777777777777777777777777777777777777777777777777777777777777777" },
     logicalPass: 1,
-    retryGeneration: 0,
+    retryGeneration,
     coverageAdmission: { requestedCoverage: "complete" },
     policyBindingDigest: digest("binding"),
     requestMechanism: "local-attestation",
@@ -428,6 +428,118 @@ describe("local attest command", () => {
     expect(release).toHaveBeenCalledWith(records.operation.operationId);
     expect(readSource).not.toHaveBeenCalled();
     expect(readReceipts).not.toHaveBeenCalled();
+  });
+
+  it.each(["clean", "findings"] as const)(
+    "refuses late %s attestation after a failed attempt before appending a receipt",
+    async (verdict) => {
+      const records = fixture();
+      records.laneProgress.attempts[0]!.outcome = "terminal-failure";
+      const appendReceipt = vi.fn();
+      const inspectMaterialization = vi.fn();
+      const readSource = vi.fn();
+      const result = {
+        ...records.evaluatorResult,
+        status: "complete" as const,
+        result: verdict,
+        findings: verdict === "findings" ? [{
+          findingId: "finding-1",
+          severity: "major" as const,
+          locus: "src/index.ts:7",
+          evidenceUrlOrId: "review:finding-1",
+        }] : [],
+      };
+
+      await expect(attestLocalReviewCommand({
+        schemaVersion: 1,
+        operationId: records.operation.operationId,
+        result,
+      }, {
+        withLocalReviewLock,
+        operationStore: {
+          readOperation: readAdmittedOperation(records),
+          publishOperation: vi.fn(),
+        },
+        sourceStore: {
+          readSource,
+          appendSource: vi.fn(),
+        },
+        receiptStore: {
+          readReceipts: async () => ({ ledgerVersion: 0, receipts: [] }),
+          appendReceipt,
+        },
+        resolveAuthority: vi.fn(),
+        resolveGuidanceDigest: vi.fn(),
+        confirmTarget: vi.fn(),
+        inspectMaterialization,
+        releaseMaterialization: vi.fn(),
+        now: () => "2026-07-23T21:00:00Z",
+      })).resolves.toMatchObject({
+        state: "terminal-operation",
+        nextAction: "rerun-review",
+        payload: {
+          operationId: records.operation.operationId,
+          persistedVersion: 1,
+        },
+      });
+      expect(appendReceipt).not.toHaveBeenCalled();
+      expect(inspectMaterialization).not.toHaveBeenCalled();
+      expect(readSource).not.toHaveBeenCalled();
+    },
+  );
+
+  it("attests a new retry generation after the prior attempt failed", async () => {
+    const previous = fixture();
+    const current = fixture(workUnitVehicle, 1);
+    current.laneProgress.attempts.unshift({
+      ...previous.laneProgress.attempts[0]!,
+      outcome: "terminal-failure",
+    });
+    const appendReceipt = vi.fn(async () => ({
+      ledgerVersion: 1,
+      durableEvidenceRef: "receipt.json#1",
+    }));
+    let published: ReviewOperationState | null = null;
+
+    await expect(attestLocalReviewCommand({
+      schemaVersion: 1,
+      operationId: current.operation.operationId,
+      result: { ...current.evaluatorResult, status: "complete" },
+    }, {
+      withLocalReviewLock,
+      operationStore: {
+        readOperation: readAdmittedOperation(current),
+        publishOperation: async (state) => {
+          published = state;
+          return { version: 2 };
+        },
+      },
+      sourceStore: {
+        readSource: async () => current.source,
+        appendSource: vi.fn(),
+      },
+      receiptStore: {
+        readReceipts: async () => ({ ledgerVersion: 0, receipts: [] }),
+        appendReceipt,
+      },
+      resolveAuthority: async () => current.admission.authority,
+      resolveGuidanceDigest: async () => current.operation.guidanceDigest,
+      confirmTarget: async () => ({ state: "current", target: current.operation.target }),
+      inspectMaterialization: async () => "materialized",
+      releaseMaterialization,
+      now: () => "2026-07-23T21:00:00Z",
+    })).resolves.toMatchObject({
+      state: "attested-current",
+      nextAction: "reduce",
+    });
+    expect(appendReceipt).toHaveBeenCalledOnce();
+    expect(published).toMatchObject({
+      kind: "lane-progress",
+      attempts: [
+        expect.objectContaining({ outcome: "terminal-failure", retryGeneration: 0 }),
+        expect.objectContaining({ outcome: "clean", retryGeneration: 1 }),
+      ],
+    });
   });
 
   it("rejects a terminal result that echoes a different source digest", async () => {
@@ -824,6 +936,10 @@ describe("local attest command", () => {
 
   it("replays an exact recorded receipt without requiring the reaped materialization", async () => {
     const records = fixture();
+    records.laneProgress.attempts[0]!.outcome = "clean";
+    records.laneProgress.attempts[0]!.terminalProducer = true;
+    records.laneProgress.attempts[0]!.local!.effectiveCoverage = "complete";
+    records.laneProgress.completedPasses = 1;
     const result = { ...records.result, status: "complete" as const };
     const receipt = createLocalReviewReceipt({
       target: records.operation.target,

@@ -1143,6 +1143,103 @@ describe("hosted reservation discharge", () => {
     });
   });
 
+  it("refuses contradictory retained terminal evidence in one logical pass", async () => {
+    const common = {
+      sourceId: "coderabbit-pr",
+      requestedCoverage: "complete" as const,
+      effectiveCoverage: "complete" as const,
+      applicability: "retain-prior-attempt" as const,
+    };
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"]),
+      span: [oid("b")],
+      target: target(oid("b")),
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete",
+        attempts: [
+          earlierAttempt({ ...common, attemptId: "older-clean", outcome: "clean" }),
+          earlierAttempt({ ...common, attemptId: "same-pass-material", outcome: "settled-findings" }),
+        ],
+      }),
+    });
+
+    expect(result).toEqual({
+      discharged: false,
+      detail: "The latest retained logical pass contains conflicting terminal review evidence.",
+      nextSource: null,
+    });
+  });
+
+  it("keeps current material pass 3 ahead of retained clean pass 2", async () => {
+    const headSha = oid("b");
+    const currentMaterial = {
+      ...attempt(headSha, "coderabbit-pr", "settled-findings"),
+      logicalPass: 3,
+    };
+    const earlierClean = earlierAttempt({
+      attemptId: "retained-clean-pass-2",
+      logicalPass: 2,
+      sourceId: "coderabbit-pr",
+      outcome: "clean",
+      requestedCoverage: "complete" as const,
+      effectiveCoverage: "complete" as const,
+      applicability: "retain-prior-attempt" as const,
+    });
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"]),
+      span: [headSha],
+      target: target(headSha),
+      readLaneProgress: progress({
+        [headSha]: { status: "recorded", completedPasses: 3, attempts: [currentMaterial] },
+      }),
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete", attempts: [earlierClean],
+      }),
+    });
+
+    expect(result).toMatchObject({ discharged: false, nextSource: "coderabbit-pr" });
+  });
+
+  it("keeps retained material pass 3 ahead of current clean pass 2", async () => {
+    const headSha = oid("b");
+    const retainedMaterial = earlierAttempt({
+      attemptId: "retained-material-pass-3",
+      logicalPass: 3,
+      sourceId: "coderabbit-pr",
+      outcome: "settled-findings",
+      requestedCoverage: "complete" as const,
+      effectiveCoverage: "complete" as const,
+      applicability: "retain-prior-attempt" as const,
+    });
+    const discharge = (pass: number) => projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"]),
+      span: [headSha],
+      target: target(headSha),
+      readLaneProgress: progress({
+        [headSha]: {
+          status: "recorded", completedPasses: pass,
+          attempts: [{ ...attempt(headSha, "coderabbit-pr", "clean"), logicalPass: pass }],
+        },
+      }),
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete", attempts: [retainedMaterial],
+      }),
+    });
+
+    await expect(discharge(2)).resolves.toMatchObject({
+      discharged: false, nextSource: "coderabbit-pr",
+    });
+    await expect(discharge(3)).resolves.toMatchObject({
+      discharged: false,
+      detail: "The latest logical pass contains conflicting current and retained terminal review evidence.",
+      nextSource: null,
+    });
+    await expect(discharge(4)).resolves.toMatchObject({
+      discharged: true, nextSource: null,
+    });
+  });
+
   it("keeps a member outstanding after findings settle so the next pass can converge", async () => {
     const headSha = oid("a");
     const settled = attempt(headSha, "coderabbit-pr", "settled-findings");

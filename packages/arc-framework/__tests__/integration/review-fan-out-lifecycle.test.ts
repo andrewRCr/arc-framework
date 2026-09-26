@@ -9,6 +9,10 @@ import {
   responsePolicyRequest,
   responsePolicyRequestFixture,
 } from "../fixtures/review-response-policy.js";
+import {
+  createHostedTerminalAttemptFixture,
+  publishHostedTerminalProgressFixture,
+} from "../fixtures/hosted-review.js";
 
 import {
   handleCandidateApplicabilityResolve,
@@ -92,6 +96,7 @@ import {
   HostedAwaitResultSchema,
 } from "../../src/scripts/review-gate/hosted/await.js";
 import {
+  createHostedAdmission,
   HostedRequestResultSchema,
   requestHostedReview,
   type HostedRequestEnvelope,
@@ -104,6 +109,7 @@ import {
   acknowledgeHostedRequest,
   bindHostedAttemptDisposition,
   hostedLaneAttemptId,
+  laneProgressOperationId,
   recordHostedAwaitAttempt,
   recordLaneAttempt,
   recordHostedRequestAdmission,
@@ -254,7 +260,7 @@ async function bindApprovedHostedFinding(
       url: string;
       severity: "minor" | "major" | "critical";
     };
-    disposition: "defer" | "reject";
+    disposition: "defer" | "reject" | "fix";
     channelAction: "record-only" | "reply-and-resolve";
     now: string;
   },
@@ -2841,6 +2847,166 @@ describe("hosted review fan-out lifecycle", () => {
     expect(request.exitCodes, JSON.stringify(request.output)).toEqual([]);
     expect(request.output).toMatchObject({ state: "requested", nextAction: "await" });
     await expect(readFile(providerCalled, "utf8")).resolves.toBe("request\n");
+  });
+
+  it("responds to changed-head incremental findings after a performed prior fix", async () => {
+    const harness = await createHarness(["coderabbit-pr"]);
+    await git(harness.root, ["checkout", "prior-top"]);
+    const priorHead = harness.priorSecond;
+    await git(harness.root, ["commit", "--allow-empty", "-m", "apply operational correction"]);
+    const currentHead = await git(harness.root, ["rev-parse", "HEAD"]);
+    expect(currentHead).not.toBe(priorHead);
+    const currentTree = await git(harness.root, ["rev-parse", "HEAD^{tree}"]);
+    await rm(join(harness.root, ".arc", "system"), { recursive: true, force: true });
+    const lineage = (headSha: string) => ({
+      kind: "head-bound" as const,
+      vehicleKind: "errand",
+      vehicleIdentity: "review-response",
+      headSha,
+    });
+    const projection = {
+      obligation: "required" as const,
+      reasons: ["sensitive-change-set" as const],
+      rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
+      rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
+      retrigger: "full-final" as const,
+      count: 1 as const,
+    };
+    const makeAdmission = (
+      headSha: string,
+      headTree: string,
+      logicalPass: number,
+      requestedCoverage: "complete" | "incremental",
+      correctionScope?: {
+        schemaVersion: 1;
+        predecessorProducerId: string;
+        predecessorHeadSha: string;
+        basisHeadSha: string;
+        headSha: string;
+        requiredFindings: { producerId: string; findingId: string; locus: string }[];
+      },
+    ) => {
+      const reviewTarget = createReviewTarget({
+        schemaVersion: 2, semanticsVersion: "review-gate/v2", kind: "change-set",
+        repositoryId: harness.repositoryId, baseRef: "main",
+        diffBaseSha: harness.baseHead, diffBaseTree: harness.baseTree,
+        headSha, headTree,
+      });
+      const requirement = createReviewRequirement({
+        target: reviewTarget, projection,
+        acceptableSources: [{ sourceKind: "hosted", qualifier: "coderabbit-pr" }],
+        initialAdmission: "automatic",
+      });
+      if (requirement === null) throw new Error("expected hosted requirement");
+      return createHostedAdmission({
+        schemaVersion: 1,
+        repositoryId: harness.repositoryId,
+        lineage: lineage(headSha),
+        logicalPass,
+        sourceId: "coderabbit-pr",
+        target: { repository, pullRequest: 42, headSha },
+        requestedCoverage,
+        ...(correctionScope === undefined ? {} : { correctionScope }),
+        reviewTarget,
+        requirement,
+        actorIdentity: "andrew",
+      });
+    };
+    const priorAdmission = makeAdmission(priorHead, harness.priorSecondTree, 1, "complete");
+    const priorFinding = {
+      findingId: "prior-finding", origin: "review-body" as const,
+      reviewId: "prior-review", fingerprint: "prior-fingerprint",
+      settlement: "not-applicable" as const, severity: "major" as const,
+      locus: "second.txt:1", url: "https://example.test/review/prior",
+      body: "The prior review identified an operational correction.", sourceOrdinal: 1,
+    };
+    const priorTerminal = createHostedTerminalAttemptFixture({
+      admission: priorAdmission, outcome: "findings", findings: [priorFinding],
+    });
+    const operationId = laneProgressOperationId({
+      lane: "standard", repositoryId: harness.repositoryId,
+      headSha: priorHead, lineage: lineage(priorHead),
+    });
+    const priorProgress = await publishHostedTerminalProgressFixture(harness.store, {
+      operationId, repositoryId: harness.repositoryId, lineage: lineage(priorHead),
+      logicalPass: 1, changeRequestId: "42", headSha: priorHead,
+      sourceId: "coderabbit-pr", outcome: "findings", terminal: priorTerminal,
+      now: "2026-09-10T12:00:00.000Z",
+    });
+    const dispositionSetId = await bindApprovedHostedFinding(harness, {
+      operationId, handle: priorTerminal.hosted.handle!, progress: priorProgress,
+      finding: priorFinding, disposition: "fix", channelAction: "record-only",
+      now: "2026-09-10T12:01:00.000Z",
+    });
+    await recordLaneResponsePerformance(harness.store, {
+      lane: "standard", repositoryId: harness.repositoryId,
+      headSha: priorHead, lineage: lineage(priorHead),
+      attemptId: priorTerminal.attemptId, dispositionSetId,
+      producedHeadSha: currentHead, now: "2026-09-10T12:02:00.000Z",
+    });
+
+    const currentAdmission = makeAdmission(currentHead, currentTree, 2, "incremental", {
+      schemaVersion: 1,
+      predecessorProducerId: priorTerminal.attemptId,
+      predecessorHeadSha: priorHead,
+      basisHeadSha: priorHead,
+      headSha: currentHead,
+      requiredFindings: [{
+        producerId: priorTerminal.attemptId,
+        findingId: priorFinding.findingId,
+        locus: priorFinding.locus,
+      }],
+    });
+    const currentFinding = {
+      findingId: "current-finding", origin: "review-body" as const,
+      reviewId: "current-review", fingerprint: "current-fingerprint",
+      settlement: "not-applicable" as const, severity: "minor" as const,
+      locus: "first.txt:1", url: "https://example.test/review/current",
+      body: "The incremental review found a minor concern.", sourceOrdinal: 1,
+    };
+    const currentTerminal = createHostedTerminalAttemptFixture({
+      admission: currentAdmission, outcome: "findings", findings: [currentFinding],
+    });
+    await publishHostedTerminalProgressFixture(harness.store, {
+      operationId, repositoryId: harness.repositoryId, lineage: lineage(currentHead),
+      logicalPass: 2, changeRequestId: "42", headSha: currentHead,
+      sourceId: "coderabbit-pr", outcome: "findings", terminal: currentTerminal,
+      now: "2026-09-10T12:03:00.000Z",
+    });
+    const source = { kind: "hosted" as const, attemptRef: bindReviewSourceReference({
+      kind: "hosted", operationId, durableRef: currentTerminal.attemptId,
+    }) };
+    const proposal = await respondThroughHandler(harness, {
+      schemaVersion: 1, source,
+      proposal: {
+        proposedVerification: "focused",
+        severityGatingPolicy: { minorGating: "record-only" },
+        findings: [{
+          findingId: currentFinding.findingId, sourceVerification: "verified",
+          verificationRefs: ["source:first.txt:1"], verifiedSeverity: "minor",
+          disposition: "defer", rationale: "The source supports a minor concern.",
+          recommendation: "Carry the concern to a follow-up.", openQuestions: [],
+        }],
+      },
+    });
+    if (proposal.state !== "awaiting-approval") throw new Error("expected current proposal");
+    const dispositions = approveDispositionState({
+      proposed: proposal.payload.proposal, approvedBy: "andrew",
+      approvedAt: "2026-09-10T12:04:00.000Z",
+    });
+    const policyRequest = responsePolicyRequestFixture({
+      headSha: currentHead, repository, pullRequest: 42,
+      sourceId: "coderabbit-pr", reviewOperationId: currentTerminal.attemptId,
+      completedPasses: 2, standardReview: projection,
+    });
+    await expect(respondThroughHandler(harness, {
+      schemaVersion: 1, source, policyRequest, dispositions,
+    })).resolves.toMatchObject({
+      state: "settled", nextAction: "reduce",
+      payload: { policy: { state: "pass-complete", payload: {
+        verifiedTerminalSignal: { coverageAdequate: true },
+      } } },
+    });
   });
 
   it("retains record-only response performance across a local disposition successor", async () => {

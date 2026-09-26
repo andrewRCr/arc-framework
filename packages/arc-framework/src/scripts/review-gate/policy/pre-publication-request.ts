@@ -2,12 +2,17 @@
 
 import { z } from "zod";
 
+import { currentApprovedDispositionNode } from "../core/advisory-records.js";
+import { validateApprovedDispositionRecordForResult } from
+  "../core/review-result-disposition.js";
 import type { CandidateConvergenceProjection, CandidateSupersessionAncestor } from
   "../../../lib/work-unit/candidate-attestation.js";
 import type { ReviewMethodActivity, ReviewAssuranceInput } from "./assurance-schema.js";
 import type { LanePolicyConfig } from "./lane-policy-config.js";
 import type { LanePolicyAttempt, LaneProgressProjection } from "../lane-progress.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
+import { ReviewResponseSettlementSourceSchema } from "../core/response-plan-schema.js";
+import { bindReviewSourceReference } from "../core/review-source-reference.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import { laneSubjectOwnerMatches } from "../core/lane-admission.js";
 import type {
@@ -27,9 +32,13 @@ import {
   projectReviewPolicyAttempt,
   resolveReviewPolicy,
   ReviewLaneJudgmentSchema,
+  type ReviewPolicyCommandRequest,
   type ReviewLaneJudgment,
 } from "./review-policy-driver.js";
-import { bindReviewPolicyEvidence } from "./review-policy-evidence.js";
+import {
+  bindReviewPolicyEvidence,
+  readIncrementalPredecessorResponseEvidence,
+} from "./review-policy-evidence.js";
 import type { OwnerAcceptedReviewTerminus } from "./review-terminus.js";
 import { projectStandardReviewObligation } from "./standard-review-projection.js";
 import { resolveReviewRouting } from "./routing.js";
@@ -354,6 +363,81 @@ function policyAttempts(
     .map(projectReviewPolicyAttempt);
 }
 
+function effectiveTerminalAttempt(
+  progress: LaneProgressProjection,
+  historicalAttempt?: LanePolicyAttempt,
+): LanePolicyAttempt | undefined {
+  if (historicalAttempt !== undefined) return historicalAttempt;
+  return progress.status === "recorded" ? progress.attempts.at(-1) : undefined;
+}
+
+async function terminalResponseSource(
+  request: ReviewPolicyCommandRequest,
+  dependencies: PrePublicationCompositionDependencies,
+  terminalAttempt?: LanePolicyAttempt,
+): Promise<z.infer<typeof ReviewResponseSettlementSourceSchema> | null> {
+  const terminal = request.attempts.at(-1);
+  if (terminal?.outcome !== "findings") return null;
+  const result = await dependencies.resultReader.readResult(terminal.reviewOperationId);
+  if (result.originalOutcome !== "findings") {
+    throw new Error("terminal findings attempt does not name a findings producer");
+  }
+  const response = await readIncrementalPredecessorResponseEvidence(
+    result,
+    dependencies.dispositionStore,
+    (predecessor) => dependencies.readResponsePerformance(predecessor),
+  );
+  const record = await dependencies.dispositionStore.readDispositionRecord(result.producerId);
+  const current = record === null ? null
+    : currentApprovedDispositionNode(validateApprovedDispositionRecordForResult(record, result));
+  const settled = current !== null && currentDispositionSettled(
+    result,
+    terminalAttempt,
+    current.approvedDisposition.dispositionSet.dispositionSetId,
+    current.policyProjectionPending === true,
+  );
+  return projectPendingResponseSource(result, response.status, settled);
+}
+
+/** Require the exact latest approved set to own the terminal lane settlement. */
+export function currentDispositionSettled(
+  result: Pick<ReviewResult, "kind" | "producerId">,
+  attempt: LanePolicyAttempt | undefined,
+  dispositionSetId: string,
+  policyProjectionPending: boolean,
+): boolean {
+  return !policyProjectionPending
+    && attempt?.attemptId === result.producerId
+    && attempt.outcome === "settled-findings"
+    && (result.kind === "hosted"
+      ? attempt.hosted?.dispositionSetId === dispositionSetId
+      : attempt.responsePerformance?.dispositionSetId === dispositionSetId);
+}
+
+/** Preserve a bound response route until the approved disposition and exact lane settlement both finish. */
+export function projectPendingResponseSource(
+  result: Pick<Extract<ReviewResult, { kind: "attested-local" }>, "kind" | "producerId" | "receiptRef">
+    | Pick<Extract<ReviewResult, { kind: "frontline" }>, "kind" | "producerId" | "outcomeRef">
+    | Pick<Extract<ReviewResult, { kind: "hosted" }>, "kind" | "producerId" | "laneOperationId">,
+  responseStatus: "performed" | "incomplete",
+  terminalSettled: boolean,
+): z.infer<typeof ReviewResponseSettlementSourceSchema> | null {
+  if (responseStatus === "performed" && terminalSettled) return null;
+  if (result.kind === "attested-local") {
+    return { kind: "attested-local", receiptRef: bindReviewSourceReference({
+      kind: "attested-local", operationId: result.producerId, durableRef: result.receiptRef,
+    }) };
+  }
+  if (result.kind === "frontline") {
+    return { kind: "frontline", outcomeRef: bindReviewSourceReference({
+      kind: "frontline", operationId: result.producerId, durableRef: result.outcomeRef,
+    }) };
+  }
+  return { kind: "hosted", attemptRef: bindReviewSourceReference({
+    kind: "hosted", operationId: result.laneOperationId, durableRef: result.producerId,
+  }) };
+}
+
 function readComposedLaneProgress(
   dependencies: PrePublicationCompositionDependencies,
   lane: ReviewLane,
@@ -543,6 +627,7 @@ export async function composePrePublicationReviewRequest(
     dependencies.readLanePolicy("frontline"),
     dependencies.readLanePolicy("standard"),
   ]);
+  const terminalAttempts: { frontline?: LanePolicyAttempt; standard?: LanePolicyAttempt } = {};
   const composeLane = async (
     lane: ReviewLane,
     policyTarget: ReviewPolicyTarget,
@@ -564,6 +649,7 @@ export async function composePrePublicationReviewRequest(
     const historicalAttempt = await applicableHistoricalAttempt({
       lane, progress, exactTarget, lineage, workUnit: input.workUnit, policyTarget, dependencies,
     });
+    terminalAttempts[lane] = effectiveTerminalAttempt(progress, historicalAttempt);
     return bindReviewPolicyEvidence({
       schemaVersion: 1,
       target: policyTarget,
@@ -744,6 +830,15 @@ export async function composePrePublicationReviewRequest(
     return evidenceCompositionRefusal(error);
   }
   const standard = withCeilingOverride("standard", policyTarget, standardRequest);
+  let pendingResponse: PrePublicationReviewRequest["pendingResponse"];
+  try {
+    pendingResponse = {
+      frontline: await terminalResponseSource(frontline, dependencies, terminalAttempts.frontline),
+      standard: await terminalResponseSource(standard, dependencies, terminalAttempts.standard),
+    };
+  } catch (error) {
+    return evidenceCompositionRefusal(error);
+  }
 
   const composed = {
     schemaVersion: 1,
@@ -757,6 +852,7 @@ export async function composePrePublicationReviewRequest(
       : assurance.activity.selfReview ? "pending" : "inactive",
     frontline,
     standard,
+    pendingResponse,
     candidate: {
       subjectDigest: candidate.subjectDigest,
       implementationChanged: candidate.implementationChanged,

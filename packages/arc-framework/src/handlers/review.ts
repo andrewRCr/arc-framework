@@ -4245,7 +4245,9 @@ export async function handleReviewPrePublication(
         currentFrontlineHeadSha,
         frontlineCeilingOverrideApplied,
       });
-      const nextAction = frontlineReadyPolicy !== null
+      const responseAction = envelope.nextAction.kind === "continue-pre-publication-review"
+        && envelope.nextAction.command === "arc review respond -";
+      const nextAction = (frontlineReadyPolicy !== null || responseAction)
         && envelope.nextAction.kind === "continue-pre-publication-review"
         ? { ...envelope.nextAction, resumeCommand }
         : { ...envelope.nextAction, command: resumeCommand };
