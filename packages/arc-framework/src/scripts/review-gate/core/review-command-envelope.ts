@@ -5,6 +5,7 @@ import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 
 import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
+import { FixNotPerformedPayloadSchema } from "./fix-not-performed-envelope.js";
 import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
 import {
   SpineRemedySchema,
@@ -773,6 +774,7 @@ export const RespondEnvelopeSchema = z.union([
   ),
   envelopeVariant("review-respond", "settled", "reduce", DispositionPayloadSchema),
   envelopeVariant("review-respond", "already-settled", "reduce", DispositionPayloadSchema),
+  envelopeVariant("review-respond", "fix-not-performed", "complete-verified-fix", FixNotPerformedPayloadSchema),
   envelopeVariant(
     "review-respond",
     "stale-target",

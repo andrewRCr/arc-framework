@@ -726,6 +726,9 @@ end the foreground attempt. Do not re-invoke recursively. A later retry invokes 
 verb revalidates the exact approved target and lifecycle, so the prior approval carries only while both remain
 unchanged. `invalidated / checkpoint` returns to the checkpoint. `invalidated / reconcile-base` invokes the supplied
 `remedy.argv` unchanged; the remedy carries the planner-observed `--expected-base` and approved `--expected-head`.
+When settlement reports `fix-not-performed`, complete the approved fix and submit its exact `verifiedFix` response
+at the approved verification scope before re-checkpointing the resulting head; the prior merge approval does not
+carry to a changed head.
 Dispatch the typed base-merge result through the same result arms above, including fresh Tier 1, push, checkpoint,
 and approval after `merged / run-quality-gates`. `blocked / stop` stops.
 Render the merge result's supplied `nextAction` and remedy or terminal explanation on every non-success arm rather

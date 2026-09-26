@@ -78,6 +78,7 @@ Verification: <targeted | focused | full>
 
 Finding F{ordinal}: <standalone account of the claim, stable locus, source evidence, and consequence>
 Source: <native label when available> · source #{sourceOrdinal} · <originating reference>
+Verified at: <escaped ARC source-verification references, distinct from the producer source>
 Assessment: CONFIRMED · <shared severity and nit when both agree>
 Assessment: CONFIRMED · <verified severity and nit> (ARC) · <reported severity and nit> (reviewer) [when different]
 Assessment: NOT SUPPORTED · no ARC severity (ARC) · <reported severity and nit> (reviewer)

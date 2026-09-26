@@ -90,6 +90,22 @@ async function resumeLocalReviewWithinLocalReviewLock(
   });
   const confirmation = await dependencies.confirmTarget(state.target);
   if (confirmation.state === "stale-target") {
+    const oldLedger = await dependencies.receiptStore.readReceipts(state.targetId);
+    const oldReceipts = oldLedger.receipts.filter((receipt) => receipt.requestId === state.requestId);
+    if (oldReceipts.length > 1) {
+      throw new LocalResumeCommandError("local review operation has multiple terminal receipts");
+    }
+    if (oldReceipts[0] !== undefined) {
+      const oldReceipt = validateReviewReceipt(
+        state.target, state.requirement, state.request, oldReceipts[0],
+      );
+      await dependencies.receiptStore.appendReceipt(oldReceipt, oldLedger.ledgerVersion);
+      await recordLocalReceiptConclusion(dependencies.operationStore, {
+        state,
+        receipt: oldReceipt,
+        now: dependencies.now(),
+      });
+    }
     return LocalResumeEnvelopeSchema.parse({
       schemaVersion: 1,
       mode: "review-local-resume",

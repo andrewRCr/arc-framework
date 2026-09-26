@@ -1237,6 +1237,33 @@ describe("hosted reservation admission", () => {
     })).not.toThrow();
   });
 
+  it("admits a third Candidate pass after two settled same-head passes from different sources", async () => {
+    const target = { repository: "owner/repo", pullRequest: 42, headSha: CURRENT_HEAD };
+    const input = {
+      reservation, target, provider: "coderabbit-pr", coverage: "complete" as const,
+      maxPasses: 2, logicalPass: 3,
+      discharge: { discharged: false, detail: "The current Candidate requires another pass.",
+        nextSource: "coderabbit-pr" },
+      progress: {
+        completedPasses: 2,
+        attempts: ["coderabbit-pr", "codex-pr"].map((sourceId, index) => ({
+          attemptId: `pass-${index + 1}`, headSha: CURRENT_HEAD, sourceId,
+          outcome: "settled-findings" as const,
+        })),
+      },
+      ceilingOverride: { target, lane: "standard" as const, exhaustedPassCount: 2, nextPass: 3 },
+    };
+
+    await expect(assertEvidenceBoundCandidateHostedReservationPolicyAdmission(input, {
+      resultReader: { readResult: () => Promise.reject(new Error("past pass must not be read")) },
+      dispositionStore: {
+        readDispositionRecord: () => Promise.resolve(null),
+        appendDispositionRecord: () => Promise.reject(new Error("read-only test store")),
+      },
+      confirmTarget: () => Promise.reject(new Error("past pass must not be confirmed")),
+    })).resolves.toBeUndefined();
+  });
+
   it("retains only applicability-approved fallback progress across Candidate heads", async () => {
     const target = { repository: "owner/repo", pullRequest: 42, headSha: CURRENT_HEAD };
     const input = {

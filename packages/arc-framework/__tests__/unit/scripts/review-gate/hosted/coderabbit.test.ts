@@ -462,7 +462,7 @@ Full review finished.`,
 
     await expect(adapter.observe(requestHandle("complete"))).resolves.toMatchObject({
       kind: "findings",
-      findings: [{ findingId: "PRRT_FRESH", commentId: "fresh-finding", severity: "major" }],
+      findings: [{ findingId: "PRRT_FRESH:fresh-finding", commentId: "fresh-finding", severity: "major" }],
     });
   });
 

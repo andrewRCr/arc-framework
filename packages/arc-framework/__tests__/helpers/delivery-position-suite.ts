@@ -1463,7 +1463,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       hostedTarget: { repository: "owner/repo", pullRequest: 400, headSha: oldTarget.headSha },
       currentHead: reviewedMember.coordinates.head,
       currentTree: reviewedMember.coordinates.tree,
-      applicability: "focused",
+      applicability: "full",
       verificationEvidenceRefs: ["verification://historical-member-fix"],
       verifiedAt: "2026-08-31T11:00:00Z",
     });
@@ -1797,14 +1797,14 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const acknowledgementRequest = {
       ...reboundAcknowledgementInput,
       verification: {
-        applicability: "focused",
+        applicability: "full",
         target: reboundContinuation.verification.target,
         tier1: {
           outcome: "passed",
           provenance: "rerun",
           targetTree: reboundContinuation.verification.target.tree,
         },
-        verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+        verificationEvidenceRefs: ["criteria://member-1", "gates://tier-3"],
       },
     };
     const boundaryPath = join(
@@ -2205,8 +2205,8 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       hostedTarget: null,
       currentHead: correctionHead,
       currentTree: correctionTree,
-      applicability: "focused",
-      verificationEvidenceRefs: ["criteria://member-3", "gates://tier-1"],
+      applicability: "full",
+      verificationEvidenceRefs: ["criteria://member-3", "gates://tier-3"],
       verifiedAt: "2026-09-03T12:00:00.000Z",
     });
     if (advanced.status === "refused") throw new Error(advanced.reason);
@@ -3504,7 +3504,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const acknowledgementRequest = {
       ...supersedingAcknowledgementInput,
       verification: {
-        applicability: "focused",
+        applicability: "full",
         target: supersedingVerificationStop.verification.target,
         tier1: {
           outcome: "passed",
@@ -3512,7 +3512,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
           targetTree: supersedingVerificationStop.verification.target.tree,
           coveredInputs: "unchanged",
         },
-        verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+        verificationEvidenceRefs: ["criteria://member-1", "gates://tier-3"],
       },
     } as const;
     const candidatePath = join(
@@ -3536,8 +3536,8 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       authorityRef: supersedingAcknowledgementInput.continuationDigest,
       verifiedBy: "test-user",
       verifiedAt: "2026-09-03T13:55:00.000Z",
-      applicability: "focused",
-      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      applicability: "full",
+      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-3"],
       implementationChanged:
         pendingBaseline.target.subject.subjectDigest !== pendingCurrentTarget.subject.subjectDigest,
     });
@@ -3578,8 +3578,8 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       authorityRef: `sha256:${"0".repeat(64)}`,
       verifiedBy: "test-user",
       verifiedAt: "2026-09-03T13:57:00.000Z",
-      applicability: "focused",
-      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
+      applicability: "full",
+      verificationEvidenceRefs: ["criteria://member-1", "gates://tier-3"],
       implementationChanged: false,
     });
     await writeFile(candidatePath, `${JSON.stringify({

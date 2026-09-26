@@ -55,6 +55,7 @@ function renderFinding(
     `**Rationale:** ${escapeReviewFindingDisplayText(item.rationale)}`,
     `**Locus:** ${escapeReviewFindingDisplayText(finding.locus)}`,
     renderSource(finding),
+    `**Verified at:** ${item.verificationRefs.map(escapeReviewFindingDisplayText).join(" · ")}`,
     renderAssessment(item),
     `**Recommendation:** ${item.disposition.toUpperCase()} [${item.gating}] — `
       + escapeReviewFindingDisplayText(item.recommendation),

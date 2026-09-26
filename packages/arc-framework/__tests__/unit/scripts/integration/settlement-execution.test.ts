@@ -260,6 +260,7 @@ describe("integration settlement execution", () => {
     ["stale-target", "stale"],
     ["actor-mismatch", "actor-mismatched"],
     ["missing-record", "missing"],
+    ["fix-not-performed", "fix-not-performed"],
     ["ready-to-fix", "ambiguous"],
   ] as const)("maps a review-response %s to the %s invalidation", async (state, reason) => {
     const action = reviewResponseAction();

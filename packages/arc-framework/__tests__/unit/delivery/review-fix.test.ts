@@ -207,7 +207,7 @@ describe("delivery review-fix routing", () => {
       hostedTarget: { repository: "owner/repo", pullRequest: 42, headSha: oldTarget.headSha },
       currentHead: "5".repeat(40),
       currentTree: "6".repeat(40),
-      applicability: "focused" as const,
+      applicability: "full" as const,
       verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
       verifiedAt: "2026-08-31T13:00:00Z",
     };
@@ -219,7 +219,7 @@ describe("delivery review-fix routing", () => {
     });
     if (recorded.status !== "recorded") throw new Error("fix response must record");
     expect(currentApprovedDispositionNode(recorded.record).deliveryMemberFixResponse).toMatchObject({
-      applicability: "focused",
+      applicability: "full",
       fixConsumption: { verificationRefs: input.verificationEvidenceRefs },
     });
     expect(advanceDeliveryReviewFixResponse({
@@ -232,6 +232,15 @@ describe("delivery review-fix routing", () => {
       record: recorded.record,
       verificationEvidenceRefs: ["criteria://different"],
     })).toEqual({ status: "refused", reason: "review-fix-response-replay-mismatch" });
+    expect(advanceDeliveryReviewFixResponse({
+      ...input,
+      applicability: "focused",
+    })).toEqual({ status: "refused", reason: "review-fix-verification-insufficient" });
+    expect(advanceDeliveryReviewFixResponse({
+      ...input,
+      record: recorded.record,
+      applicability: "focused",
+    })).toEqual({ status: "refused", reason: "review-fix-verification-insufficient" });
   });
 
   it("records and exactly replays one verified local delivery-member fix response", () => {
@@ -317,7 +326,7 @@ describe("delivery review-fix routing", () => {
       hostedTarget: null,
       currentHead: "5".repeat(40),
       currentTree: "6".repeat(40),
-      applicability: "focused" as const,
+      applicability: "full" as const,
       verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
       verifiedAt: "2026-08-31T13:00:00Z",
     };
@@ -330,7 +339,7 @@ describe("delivery review-fix routing", () => {
     });
     if (recorded.status !== "recorded") throw new Error("fix response must record");
     expect(currentApprovedDispositionNode(recorded.record).deliveryMemberFixResponse).toMatchObject({
-      applicability: "focused",
+      applicability: "full",
       hostedTarget: null,
       hostedFixTarget: null,
     });

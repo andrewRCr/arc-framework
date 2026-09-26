@@ -325,7 +325,7 @@ function precedesBoundary(timestamp: string, boundary: string | null): boolean {
 function findingSequenceKey(item: UnorderedFinding): string {
   return item.origin === "review-body"
     ? `review-body:${item.fingerprint}`
-    : `review-thread:${item.threadId}`;
+    : `review-thread:${item.threadId}:${item.commentId}`;
 }
 
 function findingSequenceContent(item: UnorderedFinding): string {
@@ -339,7 +339,7 @@ function findingSequenceContent(item: UnorderedFinding): string {
     sourceLabelTruncated: item.sourceLabelTruncated ?? false,
     ...(item.origin === "review-body"
       ? { fingerprint: item.fingerprint, body: item.body }
-      : { threadId: item.threadId }),
+      : { threadId: item.threadId, commentId: item.commentId }),
   });
 }
 

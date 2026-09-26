@@ -509,6 +509,7 @@ export function createRespondDependencies(input: {
         now: new Date().toISOString(),
       });
     },
+    readResponsePerformance: (result) => readLaneResponsePerformance(prepare.operationStore, result),
     bindHostedDisposition: async (binding) => {
       await bindHostedAttemptDisposition(prepare.operationStore, {
         ...binding,

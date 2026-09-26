@@ -331,6 +331,7 @@ function localResult(records: ReturnType<typeof fixture>): ReviewResult {
 
 function dependencies(records: ReturnType<typeof fixture>) {
   let disposition: ApprovedDispositionRecord | null = null;
+  let responsePerformance: Awaited<ReturnType<RespondCommandDependencies["readResponsePerformance"]>> = null;
   const deps: RespondCommandDependencies = {
     withOperationLock: async (_operationId, action) => action(),
     resultReader: { readResult: async () => localResult(records) },
@@ -424,7 +425,17 @@ function dependencies(records: ReturnType<typeof fixture>) {
     appendCandidateResponse: () => Promise.reject(new Error("unexpected Candidate append")),
     stageCandidateResponse: () => Promise.reject(new Error("unexpected Candidate stage")),
     settleLaneFindings: async () => undefined,
-    recordResponsePerformance: async () => undefined,
+    recordResponsePerformance: async (performance) => {
+      responsePerformance = {
+        schemaVersion: 1,
+        producerId: performance.attemptId,
+        dispositionSetId: performance.dispositionSetId,
+        originatingHeadSha: performance.headSha,
+        producedHeadSha: performance.producedHeadSha,
+        performedAt: "2026-07-23T21:00:00Z",
+      };
+    },
+    readResponsePerformance: async () => responsePerformance,
     bindHostedDisposition: async () => undefined,
     resolvePolicy: async (request) => {
       const terminalAttempt = request.attempts.at(-1);
@@ -1118,6 +1129,7 @@ describe("review response command", () => {
           "**Rationale:** The selected source supports this disposition\\.",
           "**Locus:** src/earlier\\.ts:3",
           "**Source:** source #2 · review:finding\\-0",
+          "**Verified at:** source:src/earlier\\.ts:3",
           "**Assessment:** CONFIRMED · 🟡 minor (ARC) · 🟠 major (reviewer)",
           "**Recommendation:** FIX [record-only] — Apply the fix\\.",
           "",
@@ -1127,6 +1139,7 @@ describe("review response command", () => {
           "**Rationale:** The selected source supports this disposition\\.",
           "**Locus:** src/index\\.ts:7",
           "**Source:** source #1 · review:finding\\-1",
+          "**Verified at:** source:src/index\\.ts:7",
           "**Assessment:** CONFIRMED · 🟠 major",
           "**Recommendation:** FIX [blocking] — Apply the fix\\.",
         ].join("\n"),
@@ -3742,7 +3755,7 @@ function movingCheckout(records: ReturnType<typeof fixture>) {
 }
 
 describe("approved-settlement replay", () => {
-  it("settles an approved set at the head its fixes landed at", async () => {
+  it("does not settle a fix approval from head movement alone", async () => {
     const records = fixture();
     const { deps, moveTo } = movingCheckout(records);
     const settledFixTarget = settledHead(records.target.repositoryId, objectId("e"), objectId("f"));
@@ -3753,20 +3766,34 @@ describe("approved-settlement replay", () => {
 
     await expect(respondToReviewCommand({ ...localRequest(records), settledFixTarget }, deps))
       .resolves.toMatchObject({
-        state: "already-settled",
-        nextAction: "reduce",
+        state: "fix-not-performed",
+        nextAction: "complete-verified-fix",
         payload: { operationId: records.operation.operationId },
       });
+  });
+
+  it("settles a fix approval after its exact verified Errand response", async () => {
+    const records = fixture(errandVehicle);
+    const { deps, moveTo } = movingCheckout(records);
+    deps.readCandidateLineage = async () => null;
+    deps.resolveActiveErrand = async () => activeErrandBinding();
+    const settledFixTarget = settledHead(records.target.repositoryId, objectId("e"), objectId("f"));
+    await respondToReviewCommand(localRequest(records), deps);
+    moveTo(settledFixTarget);
+    await expect(respondToReviewCommand(verifiedFixRequest(records), deps))
+      .resolves.toMatchObject({ state: "errand-advanced" });
+    await expect(respondToReviewCommand({ ...localRequest(records), settledFixTarget }, deps))
+      .resolves.toMatchObject({ state: "already-settled", nextAction: "reduce" });
   });
 
   it("repeats without deciding anything a second time", async () => {
     const records = fixture();
     const { deps, moveTo } = movingCheckout(records);
     const settledFixTarget = settledHead(records.target.repositoryId, objectId("e"), objectId("f"));
-    await respondToReviewCommand(localRequest(records), deps);
+    await respondToReviewCommand(localRequest(records, "defer"), deps);
     moveTo(settledFixTarget);
 
-    const replay = { ...localRequest(records), settledFixTarget };
+    const replay = { ...localRequest(records, "defer"), settledFixTarget };
     const first = await respondToReviewCommand(replay, deps);
     await expect(respondToReviewCommand(replay, deps)).resolves.toEqual(first);
   });

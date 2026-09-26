@@ -756,7 +756,7 @@ describe("local review member preparation", () => {
     });
 
     describe("re-entrant admission", () => {
-      it("resolves the existing record when the same member is prepared again", async () => {
+      it("replays the same member but refuses changed pull-request authority", async () => {
         const context = fixture();
         const memberRequest = {
           ...request,
@@ -771,6 +771,10 @@ describe("local review member preparation", () => {
 
         expect(second.payload.operationId).toBe(first.payload.operationId);
         expect(context.operations.size).toBe(2);
+        const changed = { ...memberRequest, deliveryAdmission: { ...memberRequest.deliveryAdmission,
+          target: { ...memberRequest.deliveryAdmission.target, pullRequest: 42 } } };
+        await expect(prepareLocalReview(changed, context.dependencies))
+          .rejects.toThrow("local pending admission does not match its operation");
       });
 
       it("replays a pending admission before current policy and evaluator selection", async () => {

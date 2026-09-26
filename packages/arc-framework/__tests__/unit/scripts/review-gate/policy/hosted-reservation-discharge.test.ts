@@ -2082,6 +2082,42 @@ describe("hosted reservation discharge", () => {
     });
   });
 
+  it("keeps ordinary current clean discharge pending until earlier findings are settled", async () => {
+    const headSha = oid("b");
+    const vehicle = DeliveryReviewMemberVehicleSchema.parse({
+      kind: "delivery-member", planId: PLAN_ID, deliverableId: MEMBER_ONE,
+      workUnitId: "delivery", head: headSha,
+    });
+    let settled = false;
+    const input = {
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr", "codex-pr"], {
+        kind: "delivery" as const, repository: "arc-framework/example",
+        workUnitId: "delivery", planId: PLAN_ID,
+      }),
+      span: [headSha],
+      target: { ...target(headSha), vehicle },
+      readLaneProgress: progress({
+        [headSha]: { status: "recorded", completedPasses: 1,
+          attempts: [attempt(headSha, "coderabbit-pr", "clean", vehicle)] },
+      }),
+      readEarlierAttemptApplicability: async (sourceId: string) => sourceId === "codex-pr"
+        ? settled ? { status: "not-found" as const, attempts: [] } : { status: "complete" as const, attempts: [earlierAttempt({
+            sourceId, outcome: "findings" as const, requestedCoverage: "complete" as const,
+            effectiveCoverage: "complete" as const, applicability: "retain-prior-attempt" as const,
+          })] }
+        : { status: "not-found" as const, attempts: [] },
+    };
+
+    const before = await projectHostedReservationDischarge(input);
+    expect(before).toMatchObject({
+      discharged: false,
+      detail: "The reserved standard-review sources have retained findings without one exact response route.",
+    });
+    settled = true;
+    const after = await projectHostedReservationDischarge(input);
+    expect(after).toMatchObject({ discharged: true });
+  });
+
   it("leaves the reservation pending when the reserved source reached no verdict", async () => {
     const result = await projectHostedReservationDischarge({
       reservation: reservation(),

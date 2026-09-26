@@ -1245,8 +1245,13 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       },
       invocation: { mode: "force", sourceId: "coderabbit-cli" },
     };
+    const admitted = await invoke(root, ["review", "frontline", "resolve", "-"], request);
+    expect(admitted).toMatchObject({ state: "ready", nextAction: "run-frontline" });
+    await git(root, ["commit", "--allow-empty", "-m", "advance after frontline admission"]);
     expect(await invoke(root, ["review", "frontline", "resolve", "-"], request))
-      .toMatchObject({ state: "ready", nextAction: "run-frontline" });
+      .toMatchObject({ state: "ready", nextAction: "run-frontline",
+        payload: { admission: { operationId: (admitted.payload as { admission: { operationId: string } })
+          .admission.operationId } } });
     const mismatched = await runArcWithStdin(
       ["review", "frontline", "resolve", "-"], root,
       `${JSON.stringify({
@@ -1259,6 +1264,42 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       mode: "review-frontline-resolve",
       error: { message: expect.stringContaining("lineage authority is unavailable") },
     });
+  }, SUBPROCESS_HEAVY_TIMEOUT);
+
+  it("refuses a reachable commit outside the current Candidate frontline target", async () => {
+    const root = await fixture();
+    await git(root, ["remote", "add", "origin", "https://github.com/owner/repo.git"]);
+    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
+    await git(root, ["commit", "-m", "verification"]);
+    await git(root, ["config", "--add", "arc.frontlineSources", "coderabbit-cli"]);
+    const publisher = new RepositoryGitCommonStatePublisher(gitExec, root);
+    const repositoryId = await resolveRepositoryIdentity(publisher);
+    const target = await deriveLocalReviewTarget({ cwd: root, exec: gitExec, baseRef: "main", repositoryId });
+    const request = {
+      schemaVersion: 1,
+      changeSet: {
+        schemaVersion: 1, changeSetState: "known", contentKind: "code-bearing",
+        reviewRisk: "routine", changeDeterminacy: "ordinary", ownership: "self",
+        surfaceAuthority: "ordinary",
+        assurance: { workContext: "work-unit", workClass: "Light" },
+        activity: { selfReview: true, frontlineReview: true },
+      },
+      invocation: { mode: "force", sourceId: "coderabbit-cli" },
+      target: {
+        kind: target.kind, baseRef: target.baseRef,
+        diffBaseSha: target.diffBaseSha, headSha: target.headSha,
+      },
+    };
+    const otherHead = await git(root, ["rev-parse", "main"]);
+    const refused = await runArcWithStdin(["review", "frontline", "resolve", "-"], root,
+      `${JSON.stringify({ ...request, target: { ...request.target, headSha: otherHead } })}\n`);
+    expect(refused.exitCode).not.toBe(0);
+    expect(JSON.parse(refused.stdout)).toMatchObject({
+      mode: "review-frontline-resolve",
+      error: { message: expect.stringContaining("Candidate target") },
+    });
+    expect(await invoke(root, ["review", "frontline", "resolve", "-"], request))
+      .toMatchObject({ state: "ready", nextAction: "run-frontline" });
   }, SUBPROCESS_HEAVY_TIMEOUT);
 
   it("resumes a Candidate change-set fix before requiring a new root", async () => {

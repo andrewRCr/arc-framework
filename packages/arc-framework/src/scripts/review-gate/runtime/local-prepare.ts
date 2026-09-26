@@ -315,7 +315,8 @@ function replayIdentityMatches(
 
 function replayContextMatches(state: LocalReviewState, input: PendingLocalReplayInput): boolean {
   return canonicalize(state.coverageAdmission) === canonicalize(input.coverageAdmission)
-    && canonicalize(state.lineage) === canonicalize(input.lineage);
+    && canonicalize(state.lineage) === canonicalize(input.lineage)
+    && canonicalize(state.deliveryAdmission ?? null) === canonicalize(input.request.deliveryAdmission ?? null);
 }
 
 async function replayPendingLocalAdmission(input: PendingLocalReplayInput): Promise<z.infer<typeof LocalPrepareEnvelopeSchema> | null> {

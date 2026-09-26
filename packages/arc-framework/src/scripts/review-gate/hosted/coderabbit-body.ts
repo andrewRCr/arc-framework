@@ -35,7 +35,7 @@ export function finding(
   const parsedSeverity = severity(comment.body);
   if (parsedSeverity === null || comment.line === null) return null;
   return {
-    findingId: threadId,
+    findingId: `${threadId}:${comment.id}`,
     origin: "review-thread",
     commentId: comment.id,
     threadId,

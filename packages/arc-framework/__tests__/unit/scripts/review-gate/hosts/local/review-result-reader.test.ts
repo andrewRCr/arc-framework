@@ -265,7 +265,10 @@ function readerForLocalFixture(options: {
   };
 }
 
-function readerForFrontlineFixture(options: { settled?: boolean } = {}) {
+function readerForFrontlineFixture(options: {
+  settled?: boolean;
+  runOutcome?: "findings" | "failed";
+} = {}) {
   const target = createReviewTarget({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
@@ -350,7 +353,7 @@ function readerForFrontlineFixture(options: { settled?: boolean } = {}) {
     lineage,
     logicalPass: 1,
     retryGeneration: 0,
-    outcome: "findings",
+    outcome: options.runOutcome ?? "findings",
     policyVersion: admission.policyVersion,
     sourceBindingId,
   });
@@ -612,6 +615,14 @@ describe("local review result reader", () => {
       kind: "frontline",
       originalOutcome: "findings",
       findings: fixture.outcome.findings,
+    });
+  });
+
+  it("rejects a frontline producer when its run outcome contradicts the terminal evidence", async () => {
+    const fixture = readerForFrontlineFixture({ runOutcome: "failed" });
+
+    await expect(fixture.reader.readResult(fixture.admission.operationId)).rejects.toMatchObject({
+      code: "corrupt-result",
     });
   });
 

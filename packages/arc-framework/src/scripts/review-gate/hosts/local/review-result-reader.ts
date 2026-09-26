@@ -58,6 +58,7 @@ function frontlineOutcomeMatchesState(
   return record.operationId === state.operationId
     && record.repositoryId === state.repositoryId
     && record.sourceIdentity === state.sourceIdentity
+    && record.outcome.outcome === state.outcome
     && record.outcome.outcome === originalOutcome
     && record.outcome.target.targetId === state.targetId
     && record.outcome.pass === state.logicalPass

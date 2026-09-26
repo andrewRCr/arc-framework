@@ -488,10 +488,14 @@ export async function assertEvidenceBoundCandidateHostedReservationPolicyAdmissi
   const completed = currentHeadAttempts.filter((attempt): attempt is typeof attempt & {
     outcome: Exclude<typeof attempt.outcome, "pending">;
   } => attempt.outcome !== "pending");
+  let lastSettledIndex = -1;
+  completed.forEach((attempt, index) => {
+    if (attempt.outcome === "settled-findings") lastSettledIndex = index;
+  });
   const attemptsBySource = new Map<string, ReviewPolicyCommandRequest["attempts"][number]>();
   for (const attempt of [
     ...input.discharge.requestAttempts ?? [],
-    ...completed.map(projectReviewPolicyAttempt),
+    ...completed.slice(lastSettledIndex + 1).map(projectReviewPolicyAttempt),
   ]) {
     attemptsBySource.set(attempt.sourceId, attempt);
   }

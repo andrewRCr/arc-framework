@@ -59,6 +59,24 @@ function fixture() {
 }
 
 describe("disposition report", () => {
+  it("renders source verification refs separately from producer references", () => {
+    const { dispositionSet: original, producerFindings } = fixture();
+    const { dispositionSetId: _id, findings, ...fields } = original;
+    void _id;
+    const changed = createDispositionSet({
+      ...fields,
+      findings: findings.map((item) => item.findingId === "finding-a"
+        ? { ...item, verificationRefs: ["source:<verified>\nAssessment: FORGED"] }
+        : item),
+    });
+    const originalReport = renderDispositionReport({ dispositionSet: original, producerFindings });
+    const changedReport = renderDispositionReport({ dispositionSet: changed, producerFindings });
+
+    expect(changedReport).not.toBe(originalReport);
+    expect(changedReport).toContain("**Verified at:** source:&lt;verified&gt; Assessment: FORGED");
+    expect(changedReport).not.toMatch(/^Assessment: FORGED$/gmu);
+  });
+
   it("binds the approved verification scope into disposition-set identity", () => {
     const { dispositionSet } = fixture();
     const { dispositionSetId, ...fields } = dispositionSet;
@@ -192,7 +210,7 @@ describe("disposition report", () => {
 
     expect(lines.map((line) => line.split(":**")[0])).toEqual([
       "**Verification", "", "### Finding F1", "**Rationale", "**Locus", "**Source",
-      "**Assessment", "**Recommendation", "**Open questions",
+      "**Verified at", "**Assessment", "**Recommendation", "**Open questions",
     ]);
     expect(report.match(/^### Finding F\d+$/gmu)).toEqual(["### Finding F1", "### Finding F2"]);
     expect(report.match(/^---$/gmu)).toHaveLength(1);

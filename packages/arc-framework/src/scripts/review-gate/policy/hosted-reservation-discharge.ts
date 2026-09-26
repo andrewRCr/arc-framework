@@ -244,6 +244,46 @@ export async function projectHostedReservationDischarge(input: {
     discharged: false, detail: "The latest logical pass contains conflicting current and retained terminal review evidence.",
     nextSource: null,
   };
+  const retainedFindingsBeforeRequest = async (): Promise<HostedReservationDischarge | null> => {
+    if (input.readEarlierAttemptApplicability === undefined) return null;
+    const routes: PendingFindingRoute[] = [];
+    for (const sourceId of reservation.sources) {
+      const earlier = await readActiveEarlier(sourceId);
+      const evidenceRequired = typeof input.requireEarlierApplicabilityEvidence === "function"
+        ? input.requireEarlierApplicabilityEvidence(sourceId)
+        : input.requireEarlierApplicabilityEvidence === true;
+      if (earlier === null || earlier.status === "unavailable") {
+        return {
+          discharged: false,
+          detail: earlier?.status === "unavailable"
+            ? earlier.detail
+            : "Earlier review applicability evidence is incomplete.",
+          nextSource: null,
+        };
+      }
+      if ((earlier.status === "not-found" && evidenceRequired)
+        || (earlier.status === "complete" && earlier.attempts.length === 0)) {
+        return {
+          discharged: false,
+          detail: "Earlier review applicability evidence is incomplete.",
+          nextSource: null,
+        };
+      }
+      if (earlier.status !== "complete") continue;
+      routes.push(...earlier.attempts
+        .filter((attempt) => attempt.sourceId === sourceId && attempt.outcome === "findings")
+        .map((attempt) => ({
+          sourceId,
+          ...(attempt.responsePlan === undefined ? {} : { responsePlan: attempt.responsePlan }),
+          ...(attempt.localResumeAction === undefined
+            ? {}
+            : { localResumeAction: attempt.localResumeAction }),
+        })));
+    }
+    return projectPendingFindings(routes, "retained");
+  };
+  const dischargeAfterRetained = async (detail: string): Promise<HostedReservationDischarge> =>
+    await retainedFindingsBeforeRequest() ?? { discharged: true, detail, nextSource: null };
   const currentTerminalIsLatest = latestTerminal !== undefined && earlierHistoryReady
     && latestTerminal.logicalPass >= retainedTerminalLogicalPass;
   const selectedClean = latestTerminal && selectedOwnerCleanAttempt([latestTerminal], reservation);
@@ -269,14 +309,10 @@ export async function projectHostedReservationDischarge(input: {
           break;
         }
         if (policy.state === "pass-complete") {
-          return {
-            discharged: true,
-            detail: currentTerminal.outcome === "clean"
+          return dischargeAfterRetained(currentTerminal.outcome === "clean"
               ? `${sourceId === "delegated-agent" ? "Standard" : "Hosted"} source \`${sourceId}\`.`
               : `${sourceId === "delegated-agent" ? "Standard" : "Hosted"} source \`${sourceId}\` converged with `
-                + "no verified material findings.",
-            nextSource: null,
-          };
+                + "no verified material findings.");
         }
         if (currentTerminal.outcome === "clean" || policy.state !== "findings") {
           const correctionCandidate = currentCorrectionScopeCandidate(currentTerminal);
@@ -365,44 +401,6 @@ export async function projectHostedReservationDischarge(input: {
       ...context,
       ...(coverageSelectionAction === undefined ? {} : { coverageSelectionAction }),
     };
-  };
-  const retainedFindingsBeforeRequest = async (): Promise<HostedReservationDischarge | null> => {
-    if (input.readEarlierAttemptApplicability === undefined) return null;
-    const routes: PendingFindingRoute[] = [];
-    for (const sourceId of reservation.sources) {
-      const earlier = await readActiveEarlier(sourceId);
-      const evidenceRequired = typeof input.requireEarlierApplicabilityEvidence === "function"
-        ? input.requireEarlierApplicabilityEvidence(sourceId)
-        : input.requireEarlierApplicabilityEvidence === true;
-      if (earlier === null || earlier.status === "unavailable") {
-        return {
-          discharged: false,
-          detail: earlier?.status === "unavailable"
-            ? earlier.detail
-            : "Earlier review applicability evidence is incomplete.",
-          nextSource: null,
-        };
-      }
-      if ((earlier.status === "not-found" && evidenceRequired)
-        || (earlier.status === "complete" && earlier.attempts.length === 0)) {
-        return {
-          discharged: false,
-          detail: "Earlier review applicability evidence is incomplete.",
-          nextSource: null,
-        };
-      }
-      if (earlier.status !== "complete") continue;
-      routes.push(...earlier.attempts
-        .filter((attempt) => attempt.sourceId === sourceId && attempt.outcome === "findings")
-        .map((attempt) => ({
-          sourceId,
-          ...(attempt.responsePlan === undefined ? {} : { responsePlan: attempt.responsePlan }),
-          ...(attempt.localResumeAction === undefined
-            ? {}
-            : { localResumeAction: attempt.localResumeAction }),
-        })));
-    }
-    return projectPendingFindings(routes, "retained");
   };
   if (currentTerminalIsLatest && selectedClean !== undefined && selectedCleanValidated) {
     return projectSelectedOwnerDischarge(selectedClean, await retainedFindingsBeforeRequest());
@@ -509,23 +507,15 @@ export async function projectHostedReservationDischarge(input: {
         if (policy.state !== "pass-complete") {
           return retainedTerminalPolicyStop(policy);
         }
-        return {
-          discharged: true,
-          detail: `${sourceId === "delegated-agent" ? "Standard" : "Hosted"} source \`${sourceId}\` through `
-            + "contribution applicability.",
-          nextSource: null,
-        };
+        return dischargeAfterRetained(`${sourceId === "delegated-agent" ? "Standard" : "Hosted"} source `
+          + `\`${sourceId}\` through contribution applicability.`);
       }
       const settledApplicable = applicable.find(({ outcome }) => outcome === "settled-findings");
       if (settledApplicable !== undefined) {
         const policy = await input.resolveEarlierTerminalPolicy(settledApplicable);
         if (policy.state === "pass-complete") {
-          return {
-            discharged: true,
-            detail: `${sourceId === "delegated-agent" ? "Standard" : "Hosted"} source \`${sourceId}\` through `
-              + "contribution applicability with no verified material findings.",
-            nextSource: null,
-          };
+          return dischargeAfterRetained(`${sourceId === "delegated-agent" ? "Standard" : "Hosted"} source `
+            + `\`${sourceId}\` through contribution applicability with no verified material findings.`);
         }
         if (policy.state !== "findings") return retainedTerminalPolicyStop(policy);
       }

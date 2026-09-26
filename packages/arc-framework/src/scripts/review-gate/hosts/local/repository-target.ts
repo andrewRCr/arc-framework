@@ -80,9 +80,11 @@ async function readGit(
   input: GitBoundary,
   args: string[],
   reason: LocalTargetInvalidReason,
+  options: { preserveStdout?: boolean } = {},
 ): Promise<string> {
   try {
-    return (await input.exec("git", args, { cwd: input.cwd })).stdout.trim();
+    const stdout = (await input.exec("git", args, { cwd: input.cwd })).stdout;
+    return options.preserveStdout === true ? stdout : stdout.trim();
   } catch {
     throw new LocalTargetDerivationError(reason);
   }
@@ -329,6 +331,7 @@ export async function confirmLocalReviewCorrectionTarget(input: {
     input,
     ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
     "dirty-worktree",
+    { preserveStdout: true },
   );
   const dirtyPaths = parsePorcelainPaths(status);
   const expected = new Set(input.expectedFixPaths);

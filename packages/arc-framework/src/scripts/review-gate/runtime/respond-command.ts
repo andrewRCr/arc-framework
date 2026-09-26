@@ -39,7 +39,10 @@ import { ReviewFindingIdentitySchema } from "../core/finding-records.js";
 import { ReviewSeveritySchema } from "../core/review-primitives.js";
 import { SeverityGatingPolicySchema } from "../core/severity-gating-policy.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
-import { computeConditionalPassAuthorizationId } from "../core/operation-state-schema.js";
+import {
+  computeConditionalPassAuthorizationId,
+  type LaneResponsePerformance,
+} from "../core/operation-state-schema.js";
 import {
   ReviewTargetSchema,
   type ReviewTarget,
@@ -327,6 +330,7 @@ export interface RespondCommandDependencies {
     predecessorDispositionSetId?: string;
     producedHeadSha: string;
   }): Promise<void>;
+  readResponsePerformance(result: ReviewResult): Promise<LaneResponsePerformance | null>;
   bindHostedDisposition(input: {
     operationId: string;
     attemptId: string;
@@ -1403,13 +1407,60 @@ function supersessionRefusalEnvelope(input: {
   });
 }
 
-/**
- * Settle one approved set the durable record already carries, at the head the response settled at.
- *
- * The replay decides nothing: approval, the fix, and its verification all completed earlier, and the
- * durable record is what proves it. Re-appending the exact record it read is what makes a repeated
- * settlement pass a no-op rather than a second decision, and a record that disagrees refuses.
- */
+async function candidatePerformedFixHead(
+  source: ResolvedResponseSource,
+  existing: ApprovedDispositionRecord,
+  dispositions: ApprovedDispositionSet,
+  dependencies: RespondCommandDependencies,
+): Promise<string | null> {
+  if (existing.candidate === null) return null;
+  const lineage = await dependencies.readCandidateLineage(
+    source.responseBinding?.candidate.target ?? source.target,
+  );
+  const responses = lineage === null ? [] : candidateReviewResponses(lineage.record).filter((response) =>
+    response.dispositionId === dispositions.dispositionSet.dispositionSetId
+    && response.candidateId === existing.candidate?.candidateId
+    && response.approvedBy === dispositions.approval.approvedBy
+    && response.appliedBy === dispositions.dispositionSet.proposedBy);
+  return responses.length === 1 ? responses[0]?.newTarget.revision ?? null : null;
+}
+
+function recordedNonCandidateFixHead(
+  source: ResolvedResponseSource,
+  existing: ApprovedDispositionRecord,
+  dispositions: ApprovedDispositionSet,
+): string | null {
+  const current = currentApprovedDispositionNode(existing);
+  const response = current.deliveryMemberFixResponse ?? current.errandFixResponse;
+  if (current.fixAuthorization === null || response === null
+    || response.oldTarget.targetId !== source.target.targetId
+    || response.fixConsumption.fixAuthorizationId !== current.fixAuthorization.fixAuthorizationId
+    || response.fixConsumption.dispositionSetId !== dispositions.dispositionSet.dispositionSetId) {
+    return null;
+  }
+  return response.newTarget.headSha;
+}
+
+async function approvedFixPerformedForReplay(
+  source: ResolvedResponseSource,
+  existing: ApprovedDispositionRecord,
+  dispositions: ApprovedDispositionSet,
+  dependencies: RespondCommandDependencies,
+): Promise<boolean> {
+  if (currentApprovedDispositionNode(existing).fixAuthorization === null) return false;
+  const performedHead = existing.candidate === null
+    ? recordedNonCandidateFixHead(source, existing, dispositions)
+    : await candidatePerformedFixHead(source, existing, dispositions, dependencies);
+  if (performedHead === null) return false;
+  const performance = await dependencies.readResponsePerformance(source.result);
+  return performance !== null
+    && performance.producerId === source.result.producerId
+    && performance.dispositionSetId === dispositions.dispositionSet.dispositionSetId
+    && performance.originatingHeadSha === source.target.headSha
+    && performance.producedHeadSha === performedHead;
+}
+
+/** Replay only a durable, already performed approved response. */
 async function settleApprovedReplay(
   source: ResolvedResponseSource,
   dispositions: ApprovedDispositionSet,
@@ -1430,6 +1481,24 @@ async function settleApprovedReplay(
   if (canonicalize(currentApprovedDispositionNode(existing).approvedDisposition)
     !== canonicalize(dispositions)) {
     throw new RespondCommandError("corrupt-state", "conflicting approved disposition record");
+  }
+  if (dispositions.dispositionSet.findings.some(({ disposition }) => disposition === "fix")) {
+    if (!await approvedFixPerformedForReplay(source, existing, dispositions, dependencies)) {
+      return RespondEnvelopeSchema.parse({
+        schemaVersion: 1,
+        mode: "review-respond",
+        diagnostics: [],
+        state: "fix-not-performed",
+        nextAction: "complete-verified-fix",
+        payload: {
+          operationId: source.operationId,
+          dispositionSetId: dispositions.dispositionSet.dispositionSetId,
+          approvedVerification: dispositions.dispositionSet.proposedVerification,
+          interactionText: "Complete the approved fix, submit its verifiedFix response with the approved "
+            + "verification scope, then retry the exact settlement request.",
+        },
+      });
+    }
   }
   const appended = await dependencies.dispositionStore.appendDispositionRecord(existing);
   return RespondEnvelopeSchema.parse({

@@ -53,6 +53,12 @@ import {
 
 type StateWriter = Pick<DeliveryStateStore<DeliveryStateV1>, "publish">;
 
+const verificationApplicabilityRank: Record<CandidateVerificationApplicability, number> = {
+  targeted: 0,
+  focused: 1,
+  full: 2,
+};
+
 export type DeliveryReviewFixResponseAdvanceResult =
   | {
       readonly status: "recorded" | "already-recorded";
@@ -84,6 +90,10 @@ export function advanceDeliveryReviewFixResponse(input: {
     || (input.hostedTarget !== null && input.hostedTarget.headSha !== input.oldTarget.headSha)
     || input.verificationEvidenceRefs.length === 0) {
     return { status: "refused", reason: "review-fix-response-invalid" };
+  }
+  if (verificationApplicabilityRank[input.applicability]
+    < verificationApplicabilityRank[current.fixAuthorization.approvedVerification]) {
+    return { status: "refused", reason: "review-fix-verification-insufficient" };
   }
   let newTarget: ReviewTarget;
   try {

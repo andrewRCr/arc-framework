@@ -411,7 +411,7 @@ describe("local resume command", () => {
     expect(materialize).not.toHaveBeenCalled();
   });
 
-  it("returns stale-target before reading source-side publications", async () => {
+  it("records an old-head receipt before returning stale-target for the new head", async () => {
     const records = fixture();
     const currentTarget = createReviewTarget({
       schemaVersion: records.operation.target.schemaVersion,
@@ -425,7 +425,11 @@ describe("local resume command", () => {
       headTree: objectId("f"),
     });
     const readSource = vi.fn();
-    const readReceipts = vi.fn();
+    const readReceipts = vi.fn(async () => ({ ledgerVersion: 1, receipts: [records.receipt] }));
+    const appendReceipt = vi.fn(async () => ({
+      ledgerVersion: 1, durableEvidenceRef: "receipts-v2.json#1",
+    }));
+    let published: ReviewOperationState | null = null;
 
     await expect(resumeLocalReviewCommand({
       schemaVersion: 1,
@@ -436,10 +440,13 @@ describe("local resume command", () => {
       resultReader: unexpectedResultReader,
       operationStore: {
         readOperation: readAdmittedOperation(records),
-        publishOperation: vi.fn(),
+        publishOperation: async (state) => {
+          published = state;
+          return { version: 2 };
+        },
       },
       sourceStore: { readSource, appendSource: vi.fn() },
-      receiptStore: { readReceipts, appendReceipt: vi.fn() },
+      receiptStore: { readReceipts, appendReceipt },
       dispositionStore: {
         readDispositionRecord: vi.fn(),
         appendDispositionRecord: vi.fn(),
@@ -462,7 +469,12 @@ describe("local resume command", () => {
       },
     });
     expect(readSource).not.toHaveBeenCalled();
-    expect(readReceipts).not.toHaveBeenCalled();
+    expect(readReceipts).toHaveBeenCalledWith(records.operation.targetId);
+    expect(appendReceipt).toHaveBeenCalledWith(records.receipt, 1);
+    expect(published).toMatchObject({
+      kind: "lane-progress",
+      attempts: [{ outcome: "clean", terminalProducer: true }],
+    });
   });
 
   it("replays a clean receipt reference and returns review-complete", async () => {

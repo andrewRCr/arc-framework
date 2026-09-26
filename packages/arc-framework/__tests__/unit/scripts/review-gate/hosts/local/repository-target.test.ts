@@ -19,6 +19,34 @@ const target = createReviewTarget({
 });
 
 describe("local correction target dirt authorization", () => {
+  it("preserves the leading status column for an authorized unstaged edit", async () => {
+    const exec: GitExec = (_command, args) => Promise.resolve({
+      stdout: args[0] === "rev-parse" ? headSha : " M src/index.ts\0",
+    });
+
+    await expect(confirmLocalReviewCorrectionTarget({
+      exec,
+      cwd: "/repo",
+      attemptedTarget: target,
+      expectedFixPaths: ["src/index.ts"],
+    })).resolves.toEqual({ state: "current", target, dirtyPaths: ["src/index.ts"] });
+  });
+
+  it("refuses an unrelated unstaged edit even when its suffix is authorized", async () => {
+    const exec: GitExec = (_command, args) => Promise.resolve({
+      stdout: args[0] === "rev-parse" ? headSha : " M src/index.ts\0",
+    });
+
+    await expect(confirmLocalReviewCorrectionTarget({
+      exec,
+      cwd: "/repo",
+      attemptedTarget: target,
+      expectedFixPaths: ["rc/index.ts"],
+    })).resolves.toEqual({
+      state: "unexpected-dirty-paths", target, unexpectedPaths: ["src/index.ts"],
+    });
+  });
+
   it("checks both destination and source of a porcelain rename", async () => {
     const exec: GitExec = (_command, args) => Promise.resolve({
       stdout: args[0] === "rev-parse"

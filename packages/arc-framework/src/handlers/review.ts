@@ -2409,6 +2409,45 @@ async function resolveDeliveryMemberFrontlineLineage(input: {
   });
 }
 
+async function resolveCandidateFrontlineLineage(input: {
+  root: string;
+  exec: GitExec;
+  operationStore: LocalReviewOperationStateStore;
+  workUnit: string;
+  target: FrontlineCommandRequest["target"];
+}) {
+  const { root, exec, operationStore, workUnit, target } = input;
+  const boundary = (await readSubmissionBoundaryVersioned(root, workUnit)).boundary;
+  if (boundary === null || boundary.workUnit !== workUnit) {
+    throw new Error("frontline Candidate lineage authority is unavailable");
+  }
+  const lineage = LaneSubjectLineageSchema.parse({
+    kind: "candidate",
+    candidateId: boundary.candidateId,
+  });
+  const owner = await readLaneProgressOwner(operationStore, {
+    lane: "frontline",
+    repositoryId: target.repositoryId,
+    headSha: target.headSha,
+    lineage,
+  });
+  if (owner?.attempts.some((attempt) => attempt.outcome === "pending"
+    && attempt.frontline !== undefined
+    && canonicalize(attempt.frontline.admission.target) === canonicalize(target)) === true) {
+    return lineage;
+  }
+  const composition = createPrePublicationCompositionDependencies({ cwd: root, exec });
+  const candidate = await composition.readCandidate(workUnit);
+  const currentTarget = candidate.status === "current" && candidate.candidateId === boundary.candidateId
+    ? await composition.deriveImmutableTarget(candidate.headSha)
+    : null;
+  if (currentTarget?.status !== "resolved"
+    || canonicalize(currentTarget.target) !== canonicalize(target)) {
+    throw new Error("frontline Candidate target does not match the current Candidate review target");
+  }
+  return lineage;
+}
+
 function defaultFrontlineResolveDependencies(): ReviewFrontlineResolveHandlerDependencies {
   const exec = createGitExec();
   return {
@@ -2448,16 +2487,8 @@ function defaultFrontlineResolveDependencies(): ReviewFrontlineResolveHandlerDep
             });
           }
           if (live.context.workUnit !== null) {
-            const boundary = (await readSubmissionBoundaryVersioned(
-              root,
-              live.context.workUnit.identity,
-            )).boundary;
-            if (boundary === null || boundary.workUnit !== live.context.workUnit.identity) {
-              throw new Error("frontline Candidate lineage authority is unavailable");
-            }
-            return LaneSubjectLineageSchema.parse({
-              kind: "candidate",
-              candidateId: boundary.candidateId,
+            return resolveCandidateFrontlineLineage({
+              root, exec, operationStore, workUnit: live.context.workUnit.identity, target,
             });
           }
           if (live.context.errand === null) {
