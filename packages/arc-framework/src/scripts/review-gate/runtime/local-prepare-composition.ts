@@ -88,6 +88,7 @@ import {
 import {
   confirmErrandFixResponseApplicability,
   confirmNonDeliveryIncrementalApplicability,
+  confirmPrivateCandidateCorrectionBasis,
   resolveLocalReviewCoverageSelection,
 } from
   "../policy/local-review-coverage-selection.js";
@@ -220,6 +221,24 @@ function createLocalContributionConfirmation(input: {
         observeTarget,
         dispositionStore: input.context.dispositionStore,
         readResponsePerformance: (result) => readLaneResponsePerformance(input.context.operationStore, result),
+      });
+    }
+    if (input.policyTarget.pullRequest === null
+      && input.policyTarget.repository === `local/${input.repositoryId}`
+      && currentLineage.kind === "candidate") {
+      return confirmPrivateCandidateCorrectionBasis({
+        predecessor,
+        currentTarget,
+        currentLineage,
+        ...(currentResult === undefined ? {} : { currentResult }),
+        candidate: input.candidate,
+        cwd: input.context.input.cwd,
+        baseRef: input.baseRef,
+        exec: input.context.input.exec,
+        observeTarget,
+        readResponsePerformance: (result) => readLaneResponsePerformance(
+          input.context.operationStore, result,
+        ),
       });
     }
     return confirmNonDeliveryIncrementalApplicability({

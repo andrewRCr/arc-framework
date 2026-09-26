@@ -22,6 +22,7 @@ import type { ReviewResult } from
 import {
   confirmErrandFixResponseApplicability,
   confirmNonDeliveryIncrementalApplicability,
+  confirmPrivateCandidateCorrectionBasis,
   resolveLocalReviewCoverageSelection,
 } from
   "../../../../../src/scripts/review-gate/policy/local-review-coverage-selection.js";
@@ -197,6 +198,66 @@ function readyPolicy(headSha: string) {
 }
 
 describe("local review coverage selection", () => {
+  it("withholds a private Candidate correction choice without performed response or Candidate authority", async () => {
+    const predecessor = {
+      ...completeLocalResult(),
+      originalOutcome: "findings" as const,
+    };
+    const currentTarget = target(objectId("b"));
+    const exec = vi.fn(async () => { throw new Error("Git proof must not run without response authority"); });
+    const readResponsePerformance = vi.fn(async () => null);
+    const common = {
+      predecessor,
+      currentTarget,
+      currentLineage: lineage,
+      cwd: "/fixture",
+      baseRef: "main",
+      exec,
+      observeTarget: async () => currentTarget,
+      readResponsePerformance,
+    };
+    await expect(confirmPrivateCandidateCorrectionBasis({
+      ...common,
+      candidate: null,
+    })).resolves.toBe("unavailable");
+    expect(readResponsePerformance).not.toHaveBeenCalled();
+    await expect(confirmPrivateCandidateCorrectionBasis({
+      ...common,
+      candidate: {
+        attestation: { candidateId: lineage.candidateId, workUnit: "example" },
+        transitions: [],
+      } as unknown as CandidateManagedRecordV1,
+    })).resolves.toBe("unavailable");
+    expect(readResponsePerformance).toHaveBeenCalledOnce();
+    expect(exec).not.toHaveBeenCalled();
+  });
+
+  it("withholds private correction coverage when the Candidate owner or exact base changes", async () => {
+    const predecessor = { ...completeLocalResult(), originalOutcome: "findings" as const };
+    const currentTarget = target(objectId("b"));
+    const readResponsePerformance = vi.fn(async () => null);
+    const exec = vi.fn(async () => { throw new Error("mismatched authority must stop before Git"); });
+    const candidate = {
+      attestation: { candidateId: lineage.candidateId, workUnit: "example" },
+      transitions: [],
+    } as unknown as CandidateManagedRecordV1;
+    const common = {
+      predecessor, currentTarget, candidate, cwd: "/fixture", baseRef: "main", exec,
+      observeTarget: async () => currentTarget, readResponsePerformance,
+    };
+    await expect(confirmPrivateCandidateCorrectionBasis({
+      ...common,
+      currentLineage: { kind: "candidate", candidateId: digest("different") },
+    })).resolves.toBe("unavailable");
+    await expect(confirmPrivateCandidateCorrectionBasis({
+      ...common,
+      currentLineage: lineage,
+      currentTarget: { ...currentTarget, diffBaseSha: objectId("9") },
+    })).resolves.toBe("unavailable");
+    expect(readResponsePerformance).not.toHaveBeenCalled();
+    expect(exec).not.toHaveBeenCalled();
+  });
+
   it("carries exact Candidate coverage through a mechanically proved later correction", async () => {
     const predecessor = completeLocalResult();
     const selectedTarget = { ...target(objectId("b")), diffBaseSha: objectId("2") };

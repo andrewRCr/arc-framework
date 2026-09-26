@@ -159,6 +159,11 @@ intervening commit. Keep every projection staged while the returned action re-en
 - `stale-target / select-scope` — rerun chunking against the current target.
 - `blocked | unavailable | invalid-override / stop` — surface diagnostics and stop.
 
+When local preparation offers both complete and incremental coverage, explain which scope is proportionate from the
+latest confirmed signal and the exact correction being reviewed. An incremental choice still spends one logical pass;
+it narrows the new evaluator's target without treating the prior review as clearance for changed code. Do not infer a
+scope from a finding count, and keep the Owner's next-pass authorization separate from this choice.
+
 Dispatch local operations only through public typed actions. The evaluator submits status, result, findings, and
 run identity to `arc review local attest -`; runtime-owned bindings come from the immutable operation. Resume with
 `arc review local resume -`, reduce with `arc review reduce -`, and submit approved dispositions with

@@ -143,6 +143,14 @@ interface LocalReviewPayload {
     sourceDigest: string;
     guidanceDigest: string;
     guidance: { rubricVersion: string; rubricDigest: string };
+    correctionScope?: {
+      predecessorProducerId: string;
+      predecessorHeadSha: string;
+      basisHeadSha: string;
+      headSha: string;
+      requiredFindings: readonly { producerId: string; findingId: string; locus: string }[];
+    };
+    reviewerInstructions?: string;
   };
 }
 
@@ -492,6 +500,131 @@ describe("attest → pre-publication → publish", () => {
   afterEach(async () => {
     if (repository !== null) await cleanupTempDir(repository);
   });
+
+  it("offers a private Candidate correction review over the exact approved fix and projection", async () => {
+    repository = await createAtCapPublicationRepo();
+    expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
+    await git(repository, ["commit", "-m", "verification"]);
+    const firstHead = await git(repository, ["rev-parse", "HEAD"]);
+    const firstPrepared = await prepareLocalReview(repository);
+    await invokeReview(repository, ["review", "local", "attest", "-"], {
+      schemaVersion: 1,
+      operationId: firstPrepared.operationId,
+      result: {
+        status: "complete",
+        result: "findings",
+        targetId: firstPrepared.target.targetId,
+        headSha: firstPrepared.target.headSha,
+        headTree: firstPrepared.target.headTree,
+        rubricVersion: firstPrepared.reviewerPayload.guidance.rubricVersion,
+        rubricDigest: firstPrepared.reviewerPayload.guidance.rubricDigest,
+        sourceDigest: firstPrepared.reviewerPayload.sourceDigest,
+        guidanceDigest: firstPrepared.reviewerPayload.guidanceDigest,
+        evaluatorIdentity: firstPrepared.request.evaluatorIdentity,
+        reviewRunId: "run-private-candidate-first",
+        applicabilityId: null,
+        findings: [{
+          findingId: "finding-1",
+          severity: "major",
+          locus: "src/example.ts:1",
+          evidenceUrlOrId: "review:finding-1",
+        }],
+      },
+    });
+    const findings = await invokeReview(repository, ["review", "reduce", "-"], {
+      schemaVersion: 1,
+      operationId: firstPrepared.operationId,
+    });
+    expect(findings).toMatchObject({ state: "findings", nextAction: "respond" });
+    const source = (findings.payload as unknown as FindingsReductionPayload).responseSource;
+    const dispositions = await approveFix(repository, source);
+    const policyRequest = await responsePolicyRequest(repository, source);
+    await expect(invokeReview(repository, ["review", "respond", "-"], {
+      schemaVersion: 1, source, policyRequest, dispositions,
+    })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
+    await writeFile(join(repository, "src", "example.ts"), "export const example = 'fixed';\n");
+    await git(repository, ["add", "src/example.ts"]);
+    await git(repository, ["commit", "-m", "apply approved fix"]);
+    await expect(invokeReview(repository, ["review", "respond", "-"], {
+      schemaVersion: 1,
+      source,
+      policyRequest,
+      dispositions,
+      verifiedFix: {
+        applicability: "focused",
+        verificationEvidenceRefs: ["verification://focused-fix"],
+      },
+    })).resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
+    await git(repository, ["commit", "-m", "record verified response"]);
+    const projectedHead = await git(repository, ["rev-parse", "HEAD"]);
+
+    const offered = await invokeReview(repository, ["review", "local", "prepare", "-"],
+      localPrepareRequest());
+    expect(offered).toMatchObject({ state: "coverage-required", nextAction: "select-coverage" });
+    const selection = offered.payload.coverageSelectionAction as {
+      choices: readonly {
+        requestedCoverage: "incremental" | "complete";
+        correctionScope?: LocalReviewPayload["reviewerPayload"]["correctionScope"];
+      }[];
+    };
+    expect(selection.choices.map(({ requestedCoverage }) => requestedCoverage))
+      .toEqual(["incremental", "complete"]);
+    const incremental = selection.choices[0];
+    if (incremental?.correctionScope === undefined) {
+      throw new Error("private Candidate correction offered no exact incremental scope");
+    }
+    expect(incremental.correctionScope).toMatchObject({
+      predecessorProducerId: firstPrepared.operationId,
+      predecessorHeadSha: firstHead,
+      basisHeadSha: firstHead,
+      headSha: projectedHead,
+      requiredFindings: [{
+        producerId: firstPrepared.operationId,
+        findingId: "finding-1",
+        locus: "src/example.ts:1",
+      }],
+    });
+    const prepared = await invokeReview(repository, ["review", "local", "prepare", "-"], {
+      ...localPrepareRequest(), coverageAdmission: incremental,
+    });
+    expect(prepared).toMatchObject({ state: "ready", nextAction: "launch-review" });
+    const payload = prepared.payload as unknown as LocalReviewPayload;
+    expect(payload.reviewerPayload.correctionScope).toMatchObject(incremental.correctionScope);
+    expect(payload.reviewerPayload.reviewerInstructions).toContain(`${firstHead}..${projectedHead}`);
+    expect(payload.reviewerPayload.reviewerInstructions).toContain("finding-1");
+    await expect(invokeReview(repository, ["review", "local", "attest", "-"], {
+      schemaVersion: 1,
+      operationId: payload.operationId,
+      result: {
+        status: "complete", result: "clean", targetId: payload.target.targetId,
+        headSha: payload.target.headSha, headTree: payload.target.headTree,
+        rubricVersion: payload.reviewerPayload.guidance.rubricVersion,
+        rubricDigest: payload.reviewerPayload.guidance.rubricDigest,
+        sourceDigest: payload.reviewerPayload.sourceDigest,
+        guidanceDigest: payload.reviewerPayload.guidanceDigest,
+        evaluatorIdentity: payload.request.evaluatorIdentity,
+        reviewRunId: "run-private-candidate-correction",
+        applicabilityId: null,
+        findings: [],
+      },
+    })).resolves.toMatchObject({ state: "attested-current", nextAction: "reduce" });
+    await expect(invokeReview(repository, ["review", "reduce", "-"], {
+      schemaVersion: 1, operationId: payload.operationId,
+    })).resolves.toMatchObject({ state: "advisory-complete", nextAction: "none" });
+    await git(repository, ["remote", "add", "origin", OFFLINE_ORIGIN]);
+    const judgments = await writeNonDefaultPrePublicationJudgments(repository);
+    const converged = await runArc([
+      "review", "pre-publication", "example",
+      "--self-review", "settled",
+      "--change-set", judgments.changeSetPath,
+      "--lanes", judgments.lanesPath,
+    ], repository, { env: OFFLINE_ENV });
+    expect(converged.exitCode, JSON.stringify(converged)).toBe(0);
+    expect(JSON.parse(converged.stdout)).toMatchObject({
+      locus: "candidate-convergence-verification-pending",
+      nextAction: { kind: "run-convergence-verification" },
+    });
+  }, 120_000);
 
   it("offers the findings response before approval and after the approved fix commit", async () => {
     repository = await createAtCapPublicationRepo();

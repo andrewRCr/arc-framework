@@ -78,6 +78,7 @@ import { resolveConfiguredLanePolicy } from "./lane-policy-config.js";
 import {
   confirmDeliveryMemberIncrementalApplicability,
   confirmNonDeliveryIncrementalApplicability,
+  confirmPrivateCandidateCorrectionBasis,
 } from "./local-review-coverage-selection.js";
 import type { IncrementalPredecessorApplicability } from "./incremental-coverage-basis.js";
 import {
@@ -547,10 +548,25 @@ export function createPrePublicationCompositionDependencies(input: {
     resultReader,
     dispositionStore,
     readResponsePerformance: (predecessor) => readLaneResponsePerformance(store, predecessor),
-    confirmIncrementalApplicability: (workUnit, predecessor, current, policyTarget) =>
-      confirmPriorProducerApplicability(
+    confirmIncrementalApplicability: async (workUnit, predecessor, current, policyTarget) => {
+      if (policyTarget.pullRequest === null && current.admission.lineage.kind === "candidate") {
+        return confirmPrivateCandidateCorrectionBasis({
+          predecessor,
+          currentTarget: current.target,
+          currentLineage: current.admission.lineage,
+          currentResult: current,
+          candidate: await readCandidateRecord(input.cwd, SlugSchema.parse(workUnit)),
+          cwd: input.cwd,
+          baseRef: (await settings())["branch.base"],
+          exec: input.exec,
+          observeTarget,
+          readResponsePerformance: (result) => readLaneResponsePerformance(store, result),
+        });
+      }
+      return confirmPriorProducerApplicability(
         workUnit, predecessor, current.target, current.admission.lineage, policyTarget,
-      ),
+      );
+    },
     confirmPriorProducerApplicability,
     readCandidate: async (workUnit): Promise<CandidateRead> => {
       const name = SlugSchema.parse(workUnit);

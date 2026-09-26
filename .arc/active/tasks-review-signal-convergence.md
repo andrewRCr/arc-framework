@@ -660,6 +660,25 @@ including interrupted writes and premature-commit refusal, without changing revi
   its exact converged predecessor before a new pass. Full Tier 3 passed (12,945 routine tests, one skipped), all
   611 E2E tests passed, and focused interruption, replay, correction, and hosted-admission cases passed.
 
+### `[x]` **8.T Admit private Candidate incremental correction review**
+
+- _Goal:_ A delegated local reviewer can examine an exact approved A→B Candidate fix before a pull request exists,
+  using the prior complete review as its basis without declaring the changed code already covered.
+- _Work:_ Prove the immutable predecessor, performed response, Candidate lineage, stable Git endpoints, and any
+  subject-stable projection; offer the exact incremental correction scope and complete fallback through the public
+  local admission route. Keep old-result reuse and pass-ceiling authority separate.
+- _Verification:_ Red-green unit and public CLI tests for the private correction offer, required findings, target or
+  base movement, missing response, wrong authority, replay, and complete-plus-incremental convergence; full Tier 3
+  and affected E2E paths.
+- _Success criteria:_ The new local operation carries exact endpoints and material-finding instructions, requires
+  its own authorized logical pass, and validates its coverage chain. Missing proof offers complete coverage rather
+  than a false `covered` decision or an unresumable refusal.
+- _Outcome:_ Private Candidate local preparation now proves the approved and performed A→B response, matching
+  Candidate lineage and A/B/current Git subjects and merge base before offering an exact incremental scope beside
+  complete coverage. Pre-publication validates that new review's chain with the same correction proof while old-result
+  reuse stays strict. The primary receives nonbinding scope guidance; pass-ceiling authority is unchanged. Full Tier 3
+  and 612 E2E tests passed, including the private A→projection C material-finding and convergence path.
+
 ---
 
 ## Success Criteria

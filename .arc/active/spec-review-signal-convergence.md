@@ -569,6 +569,22 @@ exact-scope support. A different, missing, or non-comparable provider baseline c
 Required material finding identities remain in the internal scope and cannot be dropped merely because the provider
 owns range selection.
 
+**Amended 2026-09-26 — Private Candidate correction basis.** A delegated local review can carry exact correction
+endpoints and material-finding instructions before a pull request exists. For a Candidate whose complete prior review
+at A has an approved, performed fix, admit an incremental operation over the exact A→B correction when the current
+Candidate lineage, reviewed producer, response, Git base, and live target establish that range. A subject-stable
+Candidate projection after B may be included only with its own exact proof. The prior review remains a basis for A;
+the new evaluator supplies coverage for the changed contribution and re-examines the required findings. A changed
+subject or `review-required` result is not old-result clearance and must not force an Owner `covered` assertion to
+request this new review. Keep old-result reuse under its existing stricter applicability decision. Missing, moved,
+or conflicting proof offers complete coverage with an actionable reason. This corrects the private no-PR admission
+gap discovered while preparing the twelfth standard pass; it does not authorize that pass or relax its ceiling.
+
+When the CLI offers both complete and incremental coverage, its typed interaction asks the primary to consider the
+latest confirmed signal and exact correction scope before recommending one. The choice is advisory and never selects
+itself from a finding count; either scope consumes a logical pass and neither grants next-pass authority. The Owner
+retains the pass decision, and the delegated evaluator receives only the selected exact scope and rubric.
+
 An admitted local correction operation owns reachability for every required correction endpoint during its existing
 materialization lifetime, including a nonancestor prior head after amend/rebase. Extend existing pin verification,
 enumeration, and cleanup together; a current-head pin alone cannot retain such an endpoint. Check required objects
