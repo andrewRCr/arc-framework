@@ -52,6 +52,11 @@ const PRE_PUBLICATION_REMEDIES: Record<
     "Complete the pending review operation, then re-enter pre-publication",
     prePublicationResumeArgv(workUnit),
   ),
+  "scope-judgment-required": (workUnit) => spineRemedy(
+    "The recorded review producer used a scope different from the selected lane scope.",
+    "Supply an explicit per-lane scope judgment, then re-enter pre-publication",
+    [...prePublicationResumeArgv(workUnit), "--lanes", "-"],
+  ),
 };
 
 /**

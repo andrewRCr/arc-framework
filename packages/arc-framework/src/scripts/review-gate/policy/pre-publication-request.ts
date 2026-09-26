@@ -12,6 +12,7 @@ import type { ReviewMethodActivity, ReviewAssuranceInput } from "./assurance-sch
 import type { LanePolicyConfig } from "./lane-policy-config.js";
 import type { LanePolicyAttempt, LaneProgressProjection } from "../lane-progress.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
+import type { ReviewScopeMode } from "../core/review-primitives.js";
 import { ReviewResponseSettlementSourceSchema } from "../core/response-plan-schema.js";
 import { bindReviewSourceReference } from "../core/review-source-reference.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
@@ -39,6 +40,7 @@ import {
 import {
   bindReviewPolicyEvidence,
   readIncrementalPredecessorResponseEvidence,
+  ReviewProducerScopeMismatchError,
 } from "./review-policy-evidence.js";
 import type { OwnerAcceptedReviewTerminus } from "./review-terminus.js";
 import { projectStandardReviewObligation } from "./standard-review-projection.js";
@@ -247,7 +249,13 @@ export type PrePublicationComposition =
   | {
     status: "refused";
     reason: string;
-    code?: Extract<ReviewPrePublicationRefusalCode, "candidate-unexplained-delta">;
+    code?: Extract<ReviewPrePublicationRefusalCode, "candidate-unexplained-delta" | "scope-judgment-required">;
+    scopeMismatch?: {
+      lane: ReviewLane;
+      observedScope: ReviewScopeMode;
+      selectedScope: ReviewScopeMode;
+      target: ReviewTarget;
+    };
     pendingReview?: {
       lane: ReviewLane;
       operationId: string;
@@ -347,6 +355,19 @@ function evidenceCompositionRefusal(error: unknown): PrePublicationComposition {
       status: "refused",
       reason: `The ${error.pending.lane} review operation ${error.pending.operationId} is still in progress.`,
       pendingReview: error.pending,
+    };
+  }
+  if (error instanceof ReviewProducerScopeMismatchError) {
+    return {
+      status: "refused",
+      code: "scope-judgment-required",
+      reason: error.message,
+      scopeMismatch: {
+        lane: error.lane,
+        observedScope: error.observedScope,
+        selectedScope: error.selectedScope,
+        target: error.target,
+      },
     };
   }
   const detail = error instanceof Error ? error.message : String(error);
@@ -924,11 +945,15 @@ export async function composePrePublicationReviewRequest(
     };
     policyLineage = [immutable.target.headSha];
     selectedLineage = { kind: "candidate", candidateId: candidate.candidateId };
-    frontline = withCeilingOverride(
-      "frontline",
-      policyTarget,
-      await composeLane("frontline", policyTarget, exactTarget, policyLineage, selectedLineage),
-    );
+    try {
+      frontline = withCeilingOverride(
+        "frontline",
+        policyTarget,
+        await composeLane("frontline", policyTarget, exactTarget, policyLineage, selectedLineage),
+      );
+    } catch (error) {
+      return evidenceCompositionRefusal(error);
+    }
   } else {
     exactTarget = immutable.status === "resolved" ? immutable.target : null;
     policyTarget = target;

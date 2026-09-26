@@ -98,6 +98,8 @@ import {
 } from "../scripts/review-gate/core/frontline-run-command-schema.js";
 import { registerReviewDomainSchemas } from "../scripts/review-gate/core/register-review-schemas.js";
 import { DeliveryBindingLookup } from "../scripts/review-gate/core/delivery-binding-lookup.js";
+import { ReviewTargetSchema, type ReviewTarget } from
+  "../scripts/review-gate/core/gate-contract-v2-schema.js";
 import {
   createLocalFrontlineSourcePreferenceReader,
 } from "../scripts/review-gate/hosts/local/frontline-source-preferences.js";
@@ -112,6 +114,7 @@ import {
   consumeFrontlineCeilingOverride,
   consumeOwnerAcceptedTerminus,
   composePrePublicationReviewRequest,
+  PrePublicationLaneJudgmentsSchema,
   type CandidateRead,
   type PrePublicationComposition,
 } from "../scripts/review-gate/policy/pre-publication-request.js";
@@ -3897,6 +3900,7 @@ const PrePublicationReplayInputSchema = z.strictObject({
   selfReview: z.literal("settled").optional(),
   changeSet: z.json().optional(),
   lanes: z.json().optional(),
+  scopeJudgmentTarget: ReviewTargetSchema.optional(),
   frontlineCeilingHeadSha: GitObjectIdSchema.optional(),
   attestationOrderingRecovery: AttestationOrderingRecoverySchema.optional(),
 }).refine(
@@ -4030,6 +4034,7 @@ function buildPrePublicationResumeCommand(input: {
   judgment: ReviewPrePublicationJudgment;
   replaySelfReview: "settled" | undefined;
   replayLanes: unknown;
+  scopeJudgmentTarget?: ReviewTarget;
   currentFrontlineHeadSha: string;
   frontlineCeilingOverrideApplied: boolean;
 }): string {
@@ -4048,6 +4053,8 @@ function buildPrePublicationResumeCommand(input: {
     ...(input.replaySelfReview === undefined ? {} : { selfReview: input.replaySelfReview }),
     ...(input.judgment.changeSet === undefined ? {} : { changeSet: input.judgment.changeSet }),
     ...(replayLanes === undefined ? {} : { lanes: replayLanes }),
+    ...(input.scopeJudgmentTarget === undefined
+      ? {} : { scopeJudgmentTarget: input.scopeJudgmentTarget }),
     ...(replayFrontlineCeilingHeadSha === undefined
       ? {}
       : { frontlineCeilingHeadSha: replayFrontlineCeilingHeadSha }),
@@ -4478,6 +4485,44 @@ export async function handleReviewPrePublication(
         emitPendingReviewRefusal(composition.pendingReview);
         return;
       }
+      if (composition.scopeMismatch !== undefined && beforeCompose.status === "current") {
+        const mismatch = composition.scopeMismatch;
+        const lanes = PrePublicationLaneJudgmentsSchema.parse(judgment.lanes ?? {});
+        const requiredLanes = {
+          ...lanes,
+          [mismatch.lane]: { ...lanes[mismatch.lane], scopeMode: mismatch.observedScope },
+        };
+        const reentry = buildPrePublicationResumeCommand({
+          workUnit: input.data.name,
+          candidateId: beforeCompose.candidateId,
+          candidateSubjectDigest: beforeCompose.subjectDigest,
+          judgment: { ...judgment, lanes: requiredLanes },
+          replaySelfReview: judgment.selfReview,
+          replayLanes: requiredLanes,
+          scopeJudgmentTarget: mismatch.target,
+          currentFrontlineHeadSha: beforeCompose.headSha,
+          frontlineCeilingOverrideApplied: false,
+        });
+        const message = `The ${mismatch.lane} producer used ${mismatch.observedScope} scope, but `
+          + `pre-publication selected ${mismatch.selectedScope} for ${mismatch.target.headSha}.`;
+        dependencies.write(`${JSON.stringify(ReviewCommandErrorEnvelopeSchema.parse({
+          schemaVersion: 1,
+          mode: "review-pre-publication",
+          diagnostics: [{ code: "scope-judgment-required", message }],
+          error: { code: "scope-judgment-required", message },
+          scopeMismatch: {
+            ...mismatch,
+            requiredLaneJudgment: { scopeMode: mismatch.observedScope },
+          },
+          remedy: spineRemedy(
+            "The recorded producer scope must match an explicit caller lane judgment.",
+            `Confirm ${mismatch.lane} scopeMode ${mismatch.observedScope}, then re-enter`,
+            reentry.split(" "),
+          ),
+        }))}\n`);
+        dependencies.setExitCode(1);
+        return;
+      }
       if (orderingRecovery === undefined
         && pendingBoundary !== null
         && pending !== undefined
@@ -4490,7 +4535,12 @@ export async function handleReviewPrePublication(
         ? "The current Candidate must be established at the root Git head before attestation-ordering recovery."
         : composition.reason), "execution", orderingRecovery !== undefined
         ? "attestation-ordering-conflict"
-        : composition.code);
+        : composition.code === "candidate-unexplained-delta" ? composition.code : undefined);
+      return;
+    }
+    if (replayInput?.scopeJudgmentTarget !== undefined
+      && canonicalize(composition.request.target) !== canonicalize(replayInput.scopeJudgmentTarget)) {
+      emitAdvancedReplayRefusal("The saved scope judgment no longer matches the current exact review target.");
       return;
     }
     if (!plainReentry && savedReplay !== null && pendingBoundary !== null && pending !== undefined

@@ -2406,6 +2406,71 @@ describe("handleReviewPrePublication", () => {
     };
   }
 
+  it("offers an exact scope judgment and resumes readiness after caller re-entry", async () => {
+    const mismatch = {
+      lane: "standard" as const,
+      observedScope: "chunked" as const,
+      selectedScope: "whole-target" as const,
+      target: request.target,
+    };
+    const refused = boundary({
+      compose: vi.fn(async () => ({
+        status: "refused" as const,
+        code: "scope-judgment-required" as const,
+        reason: "review producer scope does not match the selected scope",
+        scopeMismatch: mismatch,
+      })),
+    });
+
+    await handleReviewPrePublication("example", { selfReview: "settled" }, refused);
+
+    const refusal = JSON.parse(String(refused.write.mock.calls[0]?.[0])) as {
+      error: { code: string };
+      scopeMismatch: typeof mismatch & { requiredLaneJudgment: { scopeMode: string } };
+      remedy: { argv: string[] };
+    };
+    expect(refusal).toMatchObject({
+      error: { code: "scope-judgment-required" },
+      scopeMismatch: { ...mismatch, requiredLaneJudgment: { scopeMode: "chunked" } },
+      remedy: { argv: ["arc", "review", "pre-publication", "example", "--resume", expect.any(String)] },
+    });
+    expect(refused.persistBoundary).not.toHaveBeenCalled();
+    expect(refused.setExitCode).toHaveBeenCalledWith(1);
+
+    const resume = refusal.remedy.argv[5];
+    const replay = JSON.parse(Buffer.from(resume ?? "", "base64url").toString("utf8")) as {
+      scopeJudgmentTarget: unknown;
+    };
+    expect(replay.scopeJudgmentTarget).toEqual(request.target);
+    const compose = vi.fn(async () => ({ status: "composed" as const, request, advisories: [] }));
+    const resumed = boundary({ compose });
+    await handleReviewPrePublication("example", { resume }, resumed);
+
+    expect(compose).toHaveBeenCalledWith("/repo", expect.anything(), {
+      selfReview: "settled",
+      changeSet: undefined,
+      lanes: { standard: { scopeMode: "chunked" } },
+      frontlineCeilingHeadSha: undefined,
+    });
+    expect(JSON.parse(String(resumed.write.mock.calls[0]?.[0]))).toMatchObject({
+      locus: "candidate-publish-ready",
+      nextAction: { kind: "publish-candidate" },
+    });
+
+    const moved = boundary({
+      compose: vi.fn(async () => ({
+        status: "composed" as const,
+        request: { ...request, target: { ...request.target, diffBaseSha: "f".repeat(40) } },
+        advisories: [],
+      })),
+    });
+    await handleReviewPrePublication("example", { resume }, moved);
+    expect(JSON.parse(String(moved.write.mock.calls[0]?.[0]))).toMatchObject({
+      error: { code: "invalid-input", message: expect.stringContaining("exact review target") },
+    });
+    expect(moved.persistBoundary).not.toHaveBeenCalled();
+  });
+
   it("persists an accepted singleton frontline skip before standard review admission", async () => {
     const exactTarget = createReviewTarget({
       schemaVersion: 2,
