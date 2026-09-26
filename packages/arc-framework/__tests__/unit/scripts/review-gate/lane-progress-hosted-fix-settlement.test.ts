@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { type LaneProgressState, type ReviewOperationState } from "../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { createReviewRequirement, createReviewTarget } from "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 
-import { bindHostedAttemptDisposition, captureConditionalNextPassAuthorization, hostedLaneAttemptId, invalidateConditionalNextPassAuthorization, acknowledgeHostedRequest, recordHostedAwaitAttempt, recordHostedRequestAdmission, recordLaneResponsePerformance, settleHostedAttemptFinding, supersedeHostedAttemptDisposition } from "../../../../src/scripts/review-gate/lane-progress.js";
+import { bindHostedAttemptDisposition, captureConditionalNextPassAuthorization, hostedLaneAttemptId, invalidateConditionalNextPassAuthorization, acknowledgeHostedRequest, recordHostedAwaitAttempt, recordHostedRequestAdmission, recordLaneResponsePerformance, settleHostedAttemptFinding, supersedeHostedAttemptDisposition, withdrawConditionalNextPassAuthorization } from "../../../../src/scripts/review-gate/lane-progress.js";
 import { createHostedAdmission, type HostedRequestEnvelope, type HostedRequestHandle } from "../../../../src/scripts/review-gate/hosted/request.js";
 
 
@@ -140,6 +140,114 @@ async function seedAcknowledgedRequest(
 }
 
 describe("hosted await lane recording", () => {
+  it("completes an approved hosted response after its same-set pass authority is withdrawn", async () => {
+    const store = createStore();
+    await seedAcknowledgedRequest(store, handle);
+    const progress = await recordHostedAwaitAttempt(store, {
+      repositoryId: "repo-1",
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-await",
+        handle,
+        state: "findings",
+        nextAction: "triage",
+        reviewUrl: "https://example.invalid/review",
+        findings: [{
+          findingId: "body-1",
+          origin: "review-body",
+          reviewId: "review-1",
+          fingerprint: "body-fingerprint",
+          settlement: "not-applicable",
+          severity: "minor",
+          locus: "pull-request review body",
+          url: "https://example.invalid/review",
+          body: "Body finding",
+          sourceOrdinal: 1,
+        }, {
+          findingId: "thread-1",
+          origin: "review-thread",
+          commentId: "comment-1",
+          threadId: "thread-1",
+          settlement: "reply-and-resolve",
+          severity: "minor",
+          locus: "src/index.ts:7",
+          url: "https://example.invalid/thread-1",
+          sourceOrdinal: 2,
+        }],
+      },
+      now: "2026-08-15T12:00:00Z",
+    });
+    const attemptId = hostedLaneAttemptId(handle);
+    const dispositionSetId = `sha256:${"f".repeat(64)}`;
+    const captured = await captureConditionalNextPassAuthorization(store, {
+      lane: "standard",
+      repositoryId: "repo-1",
+      headSha: handle.target.headSha,
+      lineage: hostedAdmission.lineage,
+      producerId: attemptId,
+      dispositionSetId,
+      authorizedBy: hostedContext.actorIdentity,
+      exhaustedPassCount: 1,
+      nextPass: 2,
+      now: "2026-08-15T12:00:15Z",
+    });
+    await bindHostedAttemptDisposition(store, {
+      operationId: progress.operationId,
+      attemptId,
+      dispositionSetId,
+      findingDispositions: [
+        { findingId: "body-1", disposition: "fix", channelAction: "record-only" },
+        { findingId: "thread-1", disposition: "defer", channelAction: "reply-and-resolve" },
+      ],
+      now: "2026-08-15T12:00:30Z",
+    });
+    await expect(withdrawConditionalNextPassAuthorization(store, {
+      authorizationId: captured.authorizationId,
+      lane: "standard",
+      repositoryId: "repo-1",
+      headSha: handle.target.headSha,
+      lineage: hostedAdmission.lineage,
+      producerId: attemptId,
+      dispositionSetId,
+      withdrawnBy: hostedContext.actorIdentity,
+      now: "2026-08-15T12:00:45Z",
+    }, async () => true)).resolves.toMatchObject({ state: "withdrawn" });
+    const performed = await recordLaneResponsePerformance(store, {
+      lane: "standard",
+      repositoryId: "repo-1",
+      headSha: handle.target.headSha,
+      lineage: hostedAdmission.lineage,
+      attemptId,
+      dispositionSetId,
+      producedHeadSha: objectId("d"),
+      now: "2026-08-15T12:01:00Z",
+    });
+    expect(performed.attempts[0]?.outcome).toBe("findings");
+    const settled = await settleHostedAttemptFinding(store, {
+      operationId: progress.operationId,
+      attemptId,
+      dispositionSetId,
+      findingId: "thread-1",
+      disposition: "defer",
+      actorIdentity: hostedContext.actorIdentity,
+      target: handle.target,
+      fixTarget: null,
+      commentId: "comment-1",
+      threadId: "thread-1",
+      replyDigest: `sha256:${"1".repeat(64)}`,
+      replyId: "reply-1",
+      now: "2026-08-15T12:02:00Z",
+    });
+    expect(settled.attempts[0]).toMatchObject({
+      outcome: "settled-findings",
+      responsePerformance: { dispositionSetId, producedHeadSha: objectId("d") },
+    });
+    expect(currentAuthorization(settled.attempts[0])).toMatchObject({
+      status: "invalidated",
+      reason: "withdrawn",
+    });
+  });
+
   it("joins record-only fix performance with hosted settlement in either order", async () => {
     for (const withAuthorization of [false, true]) {
       for (const settlementFirst of [false, true]) {

@@ -42,6 +42,11 @@ const PRE_PUBLICATION_REMEDIES: Record<
     "Re-enter the pending continuation and select its explicit recovery action",
     prePublicationResumeArgv(workUnit),
   ),
+  "post-attest-judgment-mismatch": (workUnit) => spineRemedy(
+    "A pending post-attestation continuation retains its recorded Owner judgments.",
+    "Re-enter the pending continuation with its saved resume command",
+    prePublicationResumeArgv(workUnit),
+  ),
 };
 
 /**

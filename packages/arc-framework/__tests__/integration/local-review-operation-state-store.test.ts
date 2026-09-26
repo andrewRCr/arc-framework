@@ -25,6 +25,7 @@ import {
   laneProgressOperationId,
   recordHostedAwaitAttempt,
   recordHostedRequestAdmission,
+  recordLaneAttempt,
   readHostedAwaitReplay,
   resolveHostedAwaitResult,
   supersedeHostedAttemptDisposition,
@@ -542,7 +543,7 @@ describe("local review operation state authority", () => {
     };
     let observations = 0;
 
-    await expect(resolveHostedAwaitResult(uncertainStore, {
+    const first = await resolveHostedAwaitResult(uncertainStore, {
       repositoryId: records.handle.admission.repositoryId,
       handle: records.handle,
       observe: async () => {
@@ -550,9 +551,10 @@ describe("local review operation state authority", () => {
         return result;
       },
       now: () => "2026-08-15T12:00:00Z",
-    })).rejects.toThrow(/publication-acknowledgment-lost/u);
+    });
     const sealed = await readHostedAwaitReplay(records.store, records.handle);
     if (sealed === null) throw new Error("expected the uncertain write to have sealed its result");
+    expect(first).toEqual(sealed);
 
     await expect(resolveHostedAwaitResult(uncertainStore, {
       repositoryId: records.handle.admission.repositoryId,
@@ -566,6 +568,124 @@ describe("local review operation state authority", () => {
     expect(observations).toBe(1);
     expect(sealed.progress.completedPasses).toBe(1);
     expect(sealed.progress.attempts).toHaveLength(1);
+    await expect(records.store.readOperation(sealed.progress.operationId)).resolves.toMatchObject({
+      version: 3,
+      state: sealed.progress,
+    });
+  });
+
+  it("recovers the current settled owner after a hosted seal acknowledgment is lost", async () => {
+    for (const laterPass of [false, true]) {
+      const records = await acknowledgedHostedFixture();
+      const finding = {
+        findingId: "body-1",
+        origin: "review-body" as const,
+        reviewId: "review-1",
+        fingerprint: "body-fingerprint",
+        settlement: "not-applicable" as const,
+        severity: "minor" as const,
+        locus: "pull-request review body",
+        url: "https://example.invalid/review-1",
+        body: "Body finding",
+        sourceOrdinal: 1,
+      };
+      const result = {
+        schemaVersion: 1 as const,
+        mode: "review-hosted-await" as const,
+        handle: records.handle,
+        state: "findings" as const,
+        nextAction: "triage" as const,
+        reviewUrl: "https://example.invalid/review",
+        findings: [finding],
+      };
+      let currentProgress: Awaited<ReturnType<typeof bindHostedAttemptDisposition>> | null = null;
+      const uncertainStore: ReviewOperationStateStore = {
+        readOperation: records.store.readOperation.bind(records.store),
+        publishOperation: async (state, expectedVersion) => {
+          const published = await records.store.publishOperation(state, expectedVersion);
+          if (state.kind === "lane-progress"
+            && state.attempts.some((attempt) => attempt.hosted?.sealedResult !== undefined)) {
+            currentProgress = await bindHostedAttemptDisposition(records.store, {
+              operationId: state.operationId,
+              attemptId: hostedLaneAttemptId(records.handle),
+              dispositionSetId: digest("disposition"),
+              findingDispositions: [{
+                findingId: finding.findingId,
+                disposition: "reject",
+                channelAction: "record-only",
+              }],
+              now: "2026-08-15T12:01:00Z",
+            });
+            if (laterPass) {
+              currentProgress = await recordLaneAttempt(records.store, {
+                lane: "standard",
+                repositoryId: records.handle.admission.repositoryId,
+                changeRequestId: `pull/${records.handle.target.pullRequest}`,
+                headSha: records.handle.target.headSha,
+                lineage: records.handle.admission.lineage,
+                attemptId: "later-pass",
+                sourceId: "delegated-agent",
+                logicalPass: 2,
+                outcome: "clean",
+                consumedPass: true,
+                now: "2026-08-15T12:02:00Z",
+              });
+            }
+            throw new Error("publication-acknowledgment-lost");
+          }
+          return published;
+        },
+      };
+
+      const first = await resolveHostedAwaitResult(uncertainStore, {
+        repositoryId: records.handle.admission.repositoryId,
+        handle: records.handle,
+        observe: async () => result,
+        now: () => "2026-08-15T12:00:00Z",
+      });
+      expect(first.progress).toEqual(currentProgress);
+      expect(first.progress.attempts[0]).toMatchObject({ outcome: "settled-findings" });
+      expect(first.progress.completedPasses).toBe(laterPass ? 2 : 1);
+      expect(first.hostedResultId).toBe(first.progress.attempts[0]?.hosted?.sealedResult?.hostedResultId);
+    }
+  });
+
+  it("refuses uncertain hosted publication when another seal is durable", async () => {
+    const records = await acknowledgedHostedFixture();
+    const result = {
+      schemaVersion: 1 as const,
+      mode: "review-hosted-await" as const,
+      handle: records.handle,
+      state: "clean" as const,
+      nextAction: "complete" as const,
+      reviewUrl: "https://example.invalid/original-review",
+    };
+    const differentResult = { ...result, reviewUrl: "https://example.invalid/different-review" };
+    const uncertainStore: ReviewOperationStateStore = {
+      readOperation: records.store.readOperation.bind(records.store),
+      publishOperation: async (state, expectedVersion) => {
+        if (state.kind === "lane-progress"
+          && state.attempts.some((attempt) => attempt.hosted?.sealedResult !== undefined)) {
+          await recordHostedAwaitAttempt(records.store, {
+            repositoryId: records.handle.admission.repositoryId,
+            result: differentResult,
+            now: "2026-08-15T12:01:00Z",
+          });
+          throw new Error("publication-acknowledgment-lost");
+        }
+        return records.store.publishOperation(state, expectedVersion);
+      },
+    };
+
+    await expect(resolveHostedAwaitResult(uncertainStore, {
+      repositoryId: records.handle.admission.repositoryId,
+      handle: records.handle,
+      observe: async () => result,
+      now: () => "2026-08-15T12:00:00Z",
+    })).rejects.toThrow("publication-acknowledgment-lost");
+    await expect(readHostedAwaitReplay(records.store, records.handle)).resolves.toMatchObject({
+      result: differentResult,
+    });
   });
 
   it("retains acknowledged admission for re-observation when terminal publication fails", async () => {

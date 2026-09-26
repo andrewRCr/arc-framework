@@ -281,6 +281,7 @@ function orderedTerminalReviews(reviews: HostedGitHubReview[]): HostedGitHubRevi
 
 type RequestGenerationBoundary =
   | { readonly status: "bound"; readonly timestamp: string | null; readonly commandArtifactVisible: boolean }
+  | { readonly status: "missing-artifact" }
   | { readonly status: "overlap" };
 
 function nextRequestBoundary(
@@ -299,10 +300,10 @@ function nextRequestBoundary(
       || exactArtifact[0].url !== request.url
       || exactArtifact[0].body.trim() !== COMMANDS[coverage])) return { status: "overlap" };
   if (commandComments.length === 0) {
-    return { status: "bound", timestamp: null, commandArtifactVisible: false };
+    return { status: "missing-artifact" };
   }
   if (exactArtifact[0] === undefined) {
-    return { status: "overlap" };
+    return { status: "missing-artifact" };
   }
   if (commandComments.some((comment) => (
     comment.id !== request.id && comment.createdAt === request.createdAt
@@ -470,6 +471,9 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
         : nextRequestBoundary(comments, requestArtifact, coverage);
       if (generationBoundary.status === "overlap") {
         return { kind: "terminal-failure", reason: "provider-request-generation-overlap" };
+      }
+      if (generationBoundary.status === "missing-artifact") {
+        return { kind: "pending" };
       }
       const requestBoundary = generationBoundary.timestamp;
       const providerReviews = reviews.filter((review) =>

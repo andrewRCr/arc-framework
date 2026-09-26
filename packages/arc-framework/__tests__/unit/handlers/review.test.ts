@@ -2574,6 +2574,112 @@ describe("handleReviewPrePublication", () => {
     );
   });
 
+  it.each([
+    ["different resume", { resume: Buffer.from(JSON.stringify({ selfReview: "settled" }), "utf8").toString("base64url") }],
+    ["different option", { lanes: "lanes.json" }],
+  ])("refuses %s against a matching pending post-attest continuation and resumes with the saved judgment", async (_case, options) => {
+    const savedJudgment = { changeSet: { kind: "implementation" }, lanes: { standard: { scope: "full" } } };
+    const savedToken = Buffer.from(JSON.stringify(savedJudgment), "utf8").toString("base64url");
+    const savedCommand = `arc review pre-publication example --resume ${savedToken}`;
+    const pending = projectCandidateReviewResumeBoundary({
+      workUnit: "example",
+      candidateId: request.candidateId,
+      candidateSubjectDigest: request.candidate.subjectDigest,
+      reservation: null,
+      postAttestContinuation: {
+        reviewedHead: target.headSha,
+        nextAction: {
+          kind: "continue-pre-publication-review",
+          command: savedCommand,
+          interactionText: "Resume pre-publication review over the converged Candidate.",
+        },
+        projectionDisposition: "keep-staged-until-publication",
+      },
+    });
+    const compose = vi.fn(async () => ({ status: "composed" as const, request, advisories: [] }));
+    const dependencies = boundary({
+      readText: async () => JSON.stringify({ standard: { scope: "changed" } }),
+      readBoundary: async () => ({ boundary: pending, version: `sha256:${"9".repeat(64)}` }),
+      compose,
+    });
+
+    await handleReviewPrePublication("example", options, dependencies);
+
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      error: { code: "post-attest-judgment-mismatch" },
+      diagnostics: [{ code: "post-attest-judgment-mismatch" }],
+      remedy: { argv: savedCommand.split(" ") },
+    });
+    expect(dependencies.persistBoundary).not.toHaveBeenCalled();
+    expect(dependencies.setExitCode).toHaveBeenCalledWith(1);
+
+    const repaired = boundary({
+      readBoundary: async () => ({ boundary: pending, version: `sha256:${"9".repeat(64)}` }),
+      compose,
+    });
+    await handleReviewPrePublication("example", { resume: savedToken }, repaired);
+    expect(JSON.parse(String(repaired.write.mock.calls[0]?.[0]))).toMatchObject({
+      locus: "candidate-publish-ready",
+    });
+    expect(compose).toHaveBeenLastCalledWith(
+      "/repo", expect.anything(), {
+        selfReview: undefined,
+        changeSet: savedJudgment.changeSet,
+        lanes: savedJudgment.lanes,
+        frontlineCeilingHeadSha: undefined,
+      },
+    );
+  });
+
+  it("allows an explicit new judgment when the current Candidate differs from the pending boundary", async () => {
+    const savedToken = Buffer.from(JSON.stringify({ selfReview: "settled" }), "utf8").toString("base64url");
+    const pending = projectCandidateReviewResumeBoundary({
+      workUnit: "example",
+      candidateId: request.candidateId,
+      candidateSubjectDigest: request.candidate.subjectDigest,
+      reservation: null,
+      postAttestContinuation: {
+        reviewedHead: target.headSha,
+        nextAction: {
+          kind: "continue-pre-publication-review",
+          command: `arc review pre-publication example --resume ${savedToken}`,
+          interactionText: "Resume pre-publication review over the converged Candidate.",
+        },
+        projectionDisposition: "keep-staged-until-publication",
+      },
+    });
+    const newRequest = { ...request, candidateId: `sha256:${"d".repeat(64)}` };
+    const compose = vi.fn(async () => ({ status: "composed" as const, request: newRequest, advisories: [] }));
+    const dependencies = boundary({
+      readText: async () => JSON.stringify({ standard: { scope: "changed" } }),
+      readBoundary: async () => ({ boundary: pending, version: `sha256:${"9".repeat(64)}` }),
+      compose,
+    });
+
+    await handleReviewPrePublication("example", { lanes: "lanes.json" }, dependencies);
+
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      locus: "candidate-publish-ready",
+      candidateId: newRequest.candidateId,
+    });
+    expect(compose).toHaveBeenNthCalledWith(1,
+      "/repo", expect.anything(), {
+        selfReview: "settled",
+        changeSet: undefined,
+        lanes: undefined,
+        frontlineCeilingHeadSha: undefined,
+      },
+    );
+    expect(compose).toHaveBeenNthCalledWith(2,
+      "/repo", expect.anything(), {
+        selfReview: undefined,
+        changeSet: undefined,
+        lanes: { standard: { scope: "changed" } },
+        frontlineCeilingHeadSha: undefined,
+      },
+    );
+  });
+
   it("refuses a same-subject head change with an explicit version-bound recovery action", async () => {
     const reviewedHead = target.headSha;
     const currentHead = "f".repeat(40);

@@ -30,6 +30,8 @@ type LaneAttempt = LaneProgressState["attempts"][number];
 type LaneAttemptOutcome = LaneAttempt["outcome"];
 import { currentConditionalPassAuthorization, bindCompletedConditionalPassAuthorization } from
   "./lane-progress-conditional.js";
+import { resolveHostedSealPublishError, sealedHostedReplayMatches } from
+  "./lane-progress-seal-recovery.js";
 
 function responsePerformanceReplayMatches(
   attempt: LaneAttempt,
@@ -152,50 +154,6 @@ export function completeHostedAttemptIfReady(attempt: LaneAttempt, now: string):
       ? attempt.responsePerformance?.producedHeadSha ?? attempt.headSha
       : attempt.headSha,
     now,
-  });
-}
-
-function sealedHostedReplayMatches(current: LaneAttempt, proposed: LaneAttempt): boolean {
-  const currentHosted = current.hosted;
-  const proposedHosted = proposed.hosted;
-  if (currentHosted?.sealedResult === undefined || proposedHosted?.sealedResult === undefined
-    || currentHosted.sealedResult.hostedResultId !== proposedHosted.sealedResult.hostedResultId) {
-    return false;
-  }
-  return canonicalize({
-    attemptId: current.attemptId,
-    logicalPass: current.logicalPass,
-    retryGeneration: current.retryGeneration,
-    changeRequestId: current.changeRequestId,
-    headSha: current.headSha,
-    sourceId: current.sourceId,
-    chunkSeriesComplete: current.chunkSeriesComplete ?? null,
-    admission: currentHosted.admission,
-    handle: currentHosted.handle ?? null,
-    target: currentHosted.target,
-    requestedCoverage: currentHosted.requestedCoverage,
-    effectiveCoverage: currentHosted.effectiveCoverage,
-    vehicle: currentHosted.vehicle ?? null,
-    reviewTarget: currentHosted.reviewTarget,
-    requirement: currentHosted.requirement,
-    actorIdentity: currentHosted.actorIdentity,
-  }) === canonicalize({
-    attemptId: proposed.attemptId,
-    logicalPass: proposed.logicalPass,
-    retryGeneration: proposed.retryGeneration,
-    changeRequestId: proposed.changeRequestId,
-    headSha: proposed.headSha,
-    sourceId: proposed.sourceId,
-    chunkSeriesComplete: proposed.chunkSeriesComplete ?? null,
-    admission: proposedHosted.admission,
-    handle: proposedHosted.handle ?? null,
-    target: proposedHosted.target,
-    requestedCoverage: proposedHosted.requestedCoverage,
-    effectiveCoverage: proposedHosted.effectiveCoverage,
-    vehicle: proposedHosted.vehicle ?? null,
-    reviewTarget: proposedHosted.reviewTarget,
-    requirement: proposedHosted.requirement,
-    actorIdentity: proposedHosted.actorIdentity,
   });
 }
 
@@ -611,8 +569,10 @@ export async function recordLaneAttempt(
       await store.publishOperation(next, version);
       return next;
     } catch (error) {
-      if (!isReviewVersionConflict(error)) throw error;
-      if (input.expectedOwnerVersion !== undefined) throw error;
+      const recovered = await resolveHostedSealPublishError(
+        store, next, attempt, error, input.expectedOwnerVersion,
+      );
+      if (recovered !== null) return recovered;
     }
   }
   throw new Error("lane progress exceeded version-conflict retry attempts");
@@ -883,7 +843,8 @@ export async function recordLaneResponsePerformance(
     const authorization = currentConditionalPassAuthorization(attempt);
     if (authorization !== undefined
       && authorization.dispositionSetId === input.dispositionSetId
-      && authorization.status === "invalidated") {
+      && authorization.status === "invalidated"
+      && authorization.reason !== "withdrawn") {
       throw new Error("invalidated conditional pass authorization cannot record response performance");
     }
     let performedAttempt = recordResponsePerformanceOnAttempt(attempt, input);

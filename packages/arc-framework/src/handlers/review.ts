@@ -4072,6 +4072,23 @@ export async function handleReviewPrePublication(
     dependencies.setExitCode(1);
   };
 
+  const emitJudgmentMismatch = (command: string): void => {
+    const message = "The explicit Owner judgment differs from the pending post-attest continuation for this Candidate and head.";
+    const refusal = ReviewCommandErrorEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-pre-publication",
+      diagnostics: [{ code: "post-attest-judgment-mismatch", message }],
+      error: { code: "post-attest-judgment-mismatch", message },
+      remedy: spineRemedy(
+        "The pending continuation retains the recorded Owner judgment.",
+        "Run the saved resume command",
+        command.split(" "),
+      ),
+    });
+    dependencies.write(`${JSON.stringify(refusal)}\n`);
+    dependencies.setExitCode(1);
+  };
+
   let envelope: PrePublicationReviewEnvelope;
   try {
     const boundarySnapshot = await dependencies.readBoundary(root, input.data.name);
@@ -4088,7 +4105,7 @@ export async function handleReviewPrePublication(
       && input.data.selfReview === undefined
       && input.data.changeSet === undefined
       && input.data.lanes === undefined;
-    const savedReplay = plainReentry && pending !== undefined
+    const savedReplay = pending !== undefined
       && currentRootHead === pending.reviewedHead
       ? decodePrePublicationReplay(replayTokenFromAction(pending.nextAction.command, input.data.name))
       : null;
@@ -4122,6 +4139,20 @@ export async function handleReviewPrePublication(
         : composition.reason), "execution", orderingRecovery !== undefined
         ? "attestation-ordering-conflict"
         : composition.code);
+      return;
+    }
+    if (!plainReentry && savedReplay !== null && pendingBoundary !== null && pending !== undefined
+      && composition.request.candidateId === pendingBoundary.candidateId
+      && composition.request.candidate.subjectDigest === pendingBoundary.candidateSubjectDigest
+      && canonicalize({
+        ...(callerJudgment.selfReview === undefined ? {} : { selfReview: callerJudgment.selfReview }),
+        ...(callerJudgment.changeSet === undefined ? {} : { changeSet: callerJudgment.changeSet }),
+        ...(callerJudgment.lanes === undefined ? {} : { lanes: callerJudgment.lanes }),
+        ...(callerJudgment.frontlineCeilingHeadSha === undefined
+          ? {}
+          : { frontlineCeilingHeadSha: callerJudgment.frontlineCeilingHeadSha }),
+      }) !== canonicalize(savedReplay)) {
+      emitJudgmentMismatch(pending.nextAction.command);
       return;
     }
     if (orderingRecovery === undefined

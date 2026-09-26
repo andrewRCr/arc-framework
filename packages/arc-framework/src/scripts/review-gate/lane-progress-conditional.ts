@@ -120,6 +120,7 @@ export function bindCompletedConditionalPassAuthorization(
     throw new Error("conditional pass authorization does not match the performed response");
   }
   if (authorization.status === "invalidated") {
+    if (authorization.reason === "withdrawn") return attempt;
     throw new Error("invalidated conditional pass authorization cannot be bound");
   }
   if (authorization.status === "bound" || authorization.status === "consumed") {

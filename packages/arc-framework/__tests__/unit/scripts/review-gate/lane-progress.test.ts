@@ -975,6 +975,63 @@ describe("lane progress", () => {
     }
   });
 
+  it("settles the approved response after its same-set pass authority is withdrawn", async () => {
+    const store = createStore();
+    const seeded = await seedConditionalAuthorization(store);
+    const withdrawal = {
+      authorizationId: seeded.captured.authorizationId,
+      lane: attempt.lane,
+      repositoryId: attempt.repositoryId,
+      headSha: attempt.headSha,
+      lineage: seeded.lineage,
+      producerId: attempt.attemptId,
+      dispositionSetId: seeded.dispositionSetId,
+      withdrawnBy: "author-1",
+      now: "2026-08-15T12:02:00Z",
+    };
+    await expect(withdrawConditionalNextPassAuthorization(store, withdrawal, async () => true))
+      .resolves.toMatchObject({ state: "withdrawn" });
+
+    const settled = await settleLaneAttempt(store, {
+      ...attempt,
+      lineage: seeded.lineage,
+      dispositionSetId: seeded.dispositionSetId,
+      producedHeadSha: objectId("d"),
+      now: "2026-08-15T12:03:00Z",
+    });
+    expect(settled.attempts[0]).toMatchObject({
+      outcome: "settled-findings",
+      responsePerformance: {
+        dispositionSetId: seeded.dispositionSetId,
+        producedHeadSha: objectId("d"),
+      },
+      conditionalPassAuthorizations: {
+        authorizations: [expect.objectContaining({ status: "invalidated", reason: "withdrawn" })],
+      },
+    });
+    await expect(settleLaneAttempt(store, {
+      ...attempt,
+      lineage: seeded.lineage,
+      dispositionSetId: `sha256:${"7".repeat(64)}`,
+      producedHeadSha: objectId("d"),
+      now: "2026-08-15T12:04:00Z",
+    })).rejects.toThrow(/response performance replay conflicts/u);
+    await expect(consumeConditionalNextPassAuthorization(store, {
+      authorizationId: seeded.captured.authorizationId,
+      repositoryId: attempt.repositoryId,
+      lane: attempt.lane,
+      lineage: seeded.lineage,
+      producedHeadSha: objectId("d"),
+      nextPass: 2,
+      admissionId: "attempt-2",
+      now: "2026-08-15T12:05:00Z",
+    }, async () => true)).rejects.toThrow(/invalidated/u);
+    await expect(withdrawConditionalNextPassAuthorization(store, {
+      ...withdrawal,
+      now: "2026-08-15T12:06:00Z",
+    }, async () => true)).resolves.toMatchObject({ state: "already-withdrawn", progress: settled });
+  });
+
   it("refuses consumed, superseded, stale, and foreign withdrawal without rewriting authority", async () => {
     const consumedStore = createStore();
     const consumed = await seedConditionalAuthorization(consumedStore, { bind: true });

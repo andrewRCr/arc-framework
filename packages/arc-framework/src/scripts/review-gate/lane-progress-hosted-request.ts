@@ -9,6 +9,10 @@ import { HostedAwaitResultSchema, type HostedAwaitResult } from "./hosted/await.
 import { createHostedAdmission, hostedAdmissionMatchesRequest, hostedAwaitAction, hostedLaneAttemptId, HostedRequestEnvelopeSchema, type HostedAdmission, type HostedProgressVehicle, type HostedRequestEnvelope, type HostedRequestHandle, type HostedRequestAdmissionResolution } from "./hosted/request.js";
 import { hostedAwaitLaneOutcome, laneProgressOperationId, recordLaneAttempt } from "./lane-progress.js";
 import { consumeConditionalNextPassAuthorization } from "./lane-progress-conditional.js";
+import {
+  localAttemptCoverageAdmission,
+  sharedLogicalPassCoverageMatches,
+} from "./policy/local-review-coverage-selection.js";
 import type { CandidateSupersessionAncestor } from
   "../../lib/work-unit/candidate-attestation.js";
 import { readCandidateInheritedLaneProgress } from "./lane-progress.js";
@@ -151,16 +155,18 @@ function admittedHostedReplay(
 
 function assertHostedPassCoverage(
   existing: LaneProgressState | null,
-  requestedCoverage: HostedRequestEnvelope["coverage"],
+  request: HostedRequestEnvelope,
   logicalPass: number,
 ): void {
-  const retained = new Set(existing?.attempts.filter((attempt) => attempt.logicalPass === logicalPass)
-    .flatMap((attempt) => {
-      const coverage = attempt.local?.requestedCoverage ?? attempt.hosted?.requestedCoverage;
-      return coverage === undefined ? [] : [coverage];
-    }) ?? []);
-  if (retained.size > 1 || (retained.size === 1 && !retained.has(requestedCoverage))) {
-    throw new Error("hosted admission requested coverage does not match its logical pass");
+  const coverageAdmission = localAttemptCoverageAdmission({
+    requestedCoverage: request.coverage,
+    correctionScope: request.correctionScope,
+  });
+  if (!sharedLogicalPassCoverageMatches(existing?.attempts ?? [], logicalPass, coverageAdmission)) {
+    throw new Error(
+      "hosted admission requested coverage or correction scope does not match its logical pass; "
+      + "reuse the exact coverage admission from the retained attempt",
+    );
   }
 }
 
@@ -301,7 +307,7 @@ export async function recordHostedRequestAdmission(
       if (result !== null) return result;
       throw new Error("hosted admission already concluded with an incompatible result");
     }
-    assertHostedPassCoverage(existing, input.request.coverage, logicalPass);
+    assertHostedPassCoverage(existing, input.request, logicalPass);
     const admission = createAdmittedHostedRequest(input, logicalPass);
     const replay = existing?.attempts.find((attempt) => (
       attempt.hosted?.admission.admissionId === admission.admissionId

@@ -468,7 +468,7 @@ Full review finished.`,
 
   it("recognizes exact-head clean completion without a new review object", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
-      readIssueComments: () => Promise.resolve([summaryComment(), commandReply()]),
+      readIssueComments: () => Promise.resolve([requestComment("incremental"), summaryComment(), commandReply()]),
       readCommitStatuses: () => Promise.resolve([completionStatus()]),
     }));
 
@@ -476,12 +476,6 @@ Full review finished.`,
   });
 
   it.each([
-    {
-      name: "missing admitted command artifact",
-      comments: [summaryComment()],
-      reason: "provider-incremental-range-ambiguous",
-      commandVisible: false,
-    },
     {
       name: "mismatched baseline",
       comments: [summaryComment(HEAD, {
@@ -521,12 +515,10 @@ Reviewing files that changed between ${"c".repeat(40)} and ${HEAD}.
       })],
       reason: "provider-incremental-range-ambiguous",
     },
-  ])("retains a terminal result without crediting $name", async ({ comments, reason, commandVisible }) => {
+  ])("retains a terminal result without crediting $name", async ({ comments, reason }) => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review()]),
-      readIssueComments: () => Promise.resolve([
-        ...(commandVisible === false ? [] : [requestComment("incremental")]), ...comments,
-      ]),
+      readIssueComments: () => Promise.resolve([requestComment("incremental"), ...comments]),
     }));
 
     await expect(adapter.observe(requestHandle("incremental"))).resolves.toMatchObject({
@@ -587,7 +579,7 @@ Reviewing files that changed between ${"c".repeat(40)} and ${HEAD}.
 
   it("retains clean completion when the reply carries multiple invocation markers", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
-      readIssueComments: () => Promise.resolve([summaryComment(), commandReply({
+      readIssueComments: () => Promise.resolve([requestComment("incremental"), summaryComment(), commandReply({
         body: `<!-- CodeRabbit review command invocation: invocation-id -->
 <!-- CodeRabbit review command invocation: duplicate-marker -->
 <summary>✅ Action performed</summary>
@@ -747,11 +739,11 @@ Review finished.`,
 
   it("does not let an incremental completion discharge a complete request", async () => {
     const incremental = new CodeRabbitHostedAdapter(port({
-      readIssueComments: () => Promise.resolve([summaryComment(), commandReply()]),
+      readIssueComments: () => Promise.resolve([requestComment("complete"), summaryComment(), commandReply()]),
       readCommitStatuses: () => Promise.resolve([completionStatus()]),
     }));
     const complete = new CodeRabbitHostedAdapter(port({
-      readIssueComments: () => Promise.resolve([summaryComment(), commandReply({
+      readIssueComments: () => Promise.resolve([requestComment("complete"), summaryComment(), commandReply({
         body: `<!-- CodeRabbit review command invocation: invocation-id -->
 <summary>✅ Action performed</summary>
 
@@ -921,7 +913,7 @@ The later approval is a completion marker, not a replacement result.
         body: "",
         submittedAt: "2026-07-23T12:05:00.000Z",
       })]),
-      readIssueComments: () => Promise.resolve([{
+      readIssueComments: () => Promise.resolve([requestComment("incremental"), {
         id: "IC_NEXT_REQUEST",
         url: "https://github.com/owner/repo/pull/42#issuecomment-next",
         actorIdentity: "5678",
@@ -966,6 +958,7 @@ The later approval is a completion marker, not a replacement result.
           submittedAt: "2026-07-23T12:04:55.000Z",
         }),
       ]),
+      readIssueComments: () => Promise.resolve([requestComment("incremental")]),
     }));
 
     const result = await adapter.observe(requestHandle());

@@ -1388,6 +1388,8 @@ async function installHostedRequestTestHost(
   const fakeGh = join(fakeBin, "gh");
   const providerCalled = join(harness.root, "provider-called");
   const providerVerdict = join(harness.root, "provider-verdict");
+  const firstPostedComment = join(harness.root, "provider-request-comment-41");
+  const secondPostedComment = join(harness.root, "provider-request-comment-42");
   const firstRequest = JSON.stringify([{
     number: 41,
     url: "https://example.test/pull/41",
@@ -1483,7 +1485,7 @@ async function installHostedRequestTestHost(
     `    if [ -f '${providerVerdict}' ]; then printf '%s\\n' '${cleanReview}'; else printf '%s\\n' '[[]]'; fi`,
     "    ;;",
     "  api:repos/owner/repository/issues/41/comments?per_page=100)",
-    "    printf '%s\\n' '[[]]'",
+    `    if [ -f '${firstPostedComment}' ]; then printf '[['; cat '${firstPostedComment}'; printf ']]\\n'; else printf '%s\\n' '[[]]'; fi`,
     "    ;;",
     "  api:graphql)",
     `    printf '%s\\n' '${emptyThreads}'`,
@@ -1494,18 +1496,20 @@ async function installHostedRequestTestHost(
     "  api:repos/owner/repository/issues/41/comments)",
     `    printf 'request\\n' >> '${providerCalled}'`,
     "    case \"$*\" in",
-    `      *"body=@codex review"*) printf '%s\\n' '${comment(41, "@codex review")}' ;;`,
-    `      *"body=@coderabbitai review"*) printf '%s\\n' '${comment(41, "@coderabbitai review")}' ;;`,
-    `      *) printf '%s\\n' '${comment(41, "@coderabbitai full review")}' ;;`,
+    `      *"body=@codex review"*) printf '%s\\n' '${comment(41, "@codex review")}' > '${firstPostedComment}' ;;`,
+    `      *"body=@coderabbitai review"*) printf '%s\\n' '${comment(41, "@coderabbitai review")}' > '${firstPostedComment}' ;;`,
+    `      *) printf '%s\\n' '${comment(41, "@coderabbitai full review")}' > '${firstPostedComment}' ;;`,
     "    esac",
+    `    cat '${firstPostedComment}'`,
     "    ;;",
     "  api:repos/owner/repository/issues/42/comments)",
     `    printf 'request\\n' >> '${providerCalled}'`,
     "    case \"$*\" in",
-    `      *"body=@codex review"*) printf '%s\\n' '${comment(42, "@codex review")}' ;;`,
-    `      *"body=@coderabbitai review"*) printf '%s\\n' '${comment(42, "@coderabbitai review")}' ;;`,
-    `      *) printf '%s\\n' '${comment(42, "@coderabbitai full review")}' ;;`,
+    `      *"body=@codex review"*) printf '%s\\n' '${comment(42, "@codex review")}' > '${secondPostedComment}' ;;`,
+    `      *"body=@coderabbitai review"*) printf '%s\\n' '${comment(42, "@coderabbitai review")}' > '${secondPostedComment}' ;;`,
+    `      *) printf '%s\\n' '${comment(42, "@coderabbitai full review")}' > '${secondPostedComment}' ;;`,
     "    esac",
+    `    cat '${secondPostedComment}'`,
     "    ;;",
     "  *) echo \"unexpected gh invocation: $*\" >&2; exit 1 ;;",
     "esac",
@@ -3110,8 +3114,45 @@ describe("hosted review fan-out lifecycle", () => {
       approverIdentity: "andrew",
       proposerIdentity: "arc-cli/integration-test",
     });
-    await expect(respondToReviewCommand(approvedRequest, replayDependencies))
-      .rejects.toThrow("invalidated conditional pass authorization");
+    const replay = await respondToReviewCommand(approvedRequest, replayDependencies);
+    expect(replay).toMatchObject({
+      state: "already-settled",
+      nextAction: "reduce",
+      payload: {
+        conditionalPassAuthorizationId: authorizationId,
+        policyRequest: {
+          ceilingOverride: {
+            ...ceilingOverride,
+            conditionalPassAuthorizationId: authorizationId,
+          },
+        },
+      },
+    });
+    const snapshot = await harness.store.readOperationSnapshot();
+    if (snapshot.status !== "complete") throw new Error("expected complete lane progress snapshot");
+    const owner = snapshot.records.map(({ state }) => state).find((state) => (
+      state.kind === "lane-progress" && state.attempts.some((attempt) =>
+        attempt.conditionalPassAuthorizations?.authorizations.some((authorization) =>
+          authorization.authorizationId === authorizationId))
+    ));
+    if (owner?.kind !== "lane-progress") throw new Error("expected conditional pass owner");
+    const authorization = owner.attempts.flatMap((attempt) =>
+      attempt.conditionalPassAuthorizations?.authorizations ?? []).find((candidate) =>
+      candidate.authorizationId === authorizationId);
+    expect(authorization).toMatchObject({ status: "invalidated", reason: "withdrawn" });
+    const { consumeConditionalNextPassAuthorization } = await import(
+      "../../src/scripts/review-gate/lane-progress.js"
+    );
+    await expect(consumeConditionalNextPassAuthorization(harness.store, {
+      authorizationId: authorizationId!,
+      repositoryId: owner.repositoryId,
+      lane: owner.lane,
+      lineage: owner.lineage,
+      producedHeadSha: policyRequest.target.headSha,
+      nextPass: 2,
+      admissionId: "prospective-pass-2",
+      now: "2026-09-10T12:03:00.000Z",
+    }, async () => true)).rejects.toThrow("conditional pass authorization is invalidated");
     await expect(respondThroughHandler(harness, withdrawalRequest)).resolves.toMatchObject({
       state: "conditional-authority-withdrawn",
       payload: { replayed: true },

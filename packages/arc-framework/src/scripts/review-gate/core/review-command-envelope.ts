@@ -80,6 +80,7 @@ export const ReviewPrePublicationRefusalCodeSchema = z.enum([
   ...ReviewCommandErrorCodeSchema.options,
   "candidate-unexplained-delta",
   "attestation-ordering-conflict",
+  "post-attest-judgment-mismatch",
 ]);
 export type ReviewPrePublicationRefusalCode = z.infer<
   typeof ReviewPrePublicationRefusalCodeSchema
