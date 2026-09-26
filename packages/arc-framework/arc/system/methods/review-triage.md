@@ -64,29 +64,35 @@ carrier-native blocking state, required conversation, or host requirement.
 ### 3. Materialize and approve before mutation
 
 For a producer-backed set, include the caller's effective severity-gating policy as
-`proposal.severityGatingPolicy` and one proposed verification scope — `targeted | focused | full` — beside the
-complete author-owned judgments. The scope is a recommendation until the approver accepts the immutable set; it does
-not itself skip or narrow any verification. Return the proposal input to the governing caller for the first
-`arc review respond -` invocation. The command resolves the durable producer, constructs the canonical set, and
-returns its default `payload.dispositionReportText`.
+`proposal.severityGatingPolicy` in the first `arc review respond -` request, with one proposed verification scope —
+`targeted | focused | full` — and the complete author-owned judgments. The scope is a recommendation until the
+approver accepts the immutable set; it does not itself skip or narrow any verification. Return that request to the
+governing caller. The command resolves the durable producer, applies the input policy to each finding's canonical
+`gating`, constructs the set, and returns `payload.proposal` with `payload.dispositionReportText`. The returned
+`payload.proposal` does not repeat the input-only `severityGatingPolicy`; its exact canonical finding gates and
+`policyVersion` are part of the approval binding.
 
 Emit that returned report verbatim unless a configured `review-triage` override replaces or extends presentation.
 Its fixed set-level and per-finding field order is:
 
-```text
-Verification: <targeted | focused | full>
+```markdown
+**Verification:** <targeted | focused | full>
 
-Finding F{ordinal}: <standalone account of the claim, stable locus, source evidence, and consequence>
-Source: <native label when available> · source #{sourceOrdinal} · <originating reference>
-Verified at: <escaped ARC source-verification references, distinct from the producer source>
-Assessment: CONFIRMED · <shared severity and nit when both agree>
-Assessment: CONFIRMED · <verified severity and nit> (ARC) · <reported severity and nit> (reviewer) [when different]
-Assessment: NOT SUPPORTED · no ARC severity (ARC) · <reported severity and nit> (reviewer)
-Recommendation: <FIX | DEFER | REJECT> [<blocking | record-only>] — <complete proposed action and boundaries>
-Open questions: <questions, when present>
+### Finding F{ordinal}
+**Rationale:** <standalone account of the claim, source check, and consequence>
+**Locus:** <escaped stable source locus>
+**Source:** <escaped native label when available> · source #{sourceOrdinal} · <escaped originating reference>
+**Verified at:** <escaped ARC source-verification references, distinct from the producer source>
+**Assessment:** CONFIRMED · <shared severity and nit when both agree>
+**Assessment:** CONFIRMED · <verified severity and nit> (ARC) · <reported severity and nit> (reviewer) [when different]
+**Assessment:** NOT SUPPORTED · no ARC severity (ARC) · <reported severity and nit> (reviewer)
+**Recommendation:** <FIX | DEFER | REJECT> [<blocking | record-only>] — <complete proposed action and boundaries>
+**Open questions:** <questions, when present>
 ```
 
-Separate adjacent findings with `---`. The command assigns report-local `F` labels from canonical order while
+Severity grades display with their symbols: `🔴 critical`, `🟠 major`, and `🟡 minor` (plus `nit` when present).
+Separate adjacent findings with a blank line, `---`, and another blank line. The command assigns report-local `F`
+labels from canonical order while
 retaining producer-native labels, capture ordinals, and references. When ARC and reviewer grades or nit markers
 differ, ARC assessment appears before reviewer severity;
 the author-owned rationale and recommendation must make each account understandable without the raw review.

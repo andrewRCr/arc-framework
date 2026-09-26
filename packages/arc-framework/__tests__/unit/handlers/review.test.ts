@@ -2393,6 +2393,9 @@ describe("handleReviewPrePublication", () => {
         lineageHeadShas: [target.headSha],
       }),
       readBoundary: async () => ({ boundary: null, version: null }),
+      readStandardLaneOwnerVersion: vi.fn(async () => 0),
+      withStandardLaneLock: async <T>(_root: string, _candidateId: string, _headSha: string,
+        action: () => Promise<T>): Promise<T> => action(),
       recoverAttestationOrdering: vi.fn(),
       persistBoundary: vi.fn(),
       persistAcceptedFrontlineSkip: vi.fn(),
@@ -2530,6 +2533,48 @@ describe("handleReviewPrePublication", () => {
       expect(dependencies.setExitCode).not.toHaveBeenCalled();
     },
   );
+
+  it("recomposes a saved ready boundary after a same-head standard pass is admitted", async () => {
+    const initial = boundary({
+      compose: vi.fn(async () => ({ status: "composed", request, advisories: [] })),
+    });
+    await handleReviewPrePublication("example", {}, initial);
+    const ready = initial.persistBoundary.mock.calls[0]?.[1];
+    const compose = vi.fn(async () => ({
+      status: "composed" as const,
+      request: { ...request, selfReview: "pending" as const },
+      advisories: [],
+    }));
+    const dependencies = boundary({
+      readBoundary: async () => ({ boundary: ready, version: `sha256:${"9".repeat(64)}` }),
+      readStandardLaneOwnerVersion: vi.fn(async () => 1),
+      compose,
+    });
+
+    await handleReviewPrePublication("example", {}, dependencies);
+
+    expect(compose).toHaveBeenCalledOnce();
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      locus: "candidate-review-pending",
+    });
+    expect(dependencies.persistBoundary).not.toHaveBeenCalled();
+  });
+
+  it("does not record readiness if standard review advances during composition", async () => {
+    const versions = vi.fn().mockResolvedValueOnce(0).mockResolvedValueOnce(1);
+    const dependencies = boundary({
+      compose: vi.fn(async () => ({ status: "composed", request, advisories: [] })),
+      readStandardLaneOwnerVersion: versions,
+    });
+
+    await handleReviewPrePublication("example", {}, dependencies);
+
+    expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+      error: { code: "invalid-input", message: expect.stringContaining("progress changed") },
+      remedy: { argv: ["arc", "review", "pre-publication", "example"] },
+    });
+    expect(dependencies.persistBoundary).not.toHaveBeenCalled();
+  });
 
   it.each(["different Candidate", "different subject", "legacy unbound", "live Candidate advanced"])(
     "refuses a %s saved command against an advanced boundary with a plain re-entry remedy",
@@ -2797,6 +2842,16 @@ describe("handleReviewPrePublication", () => {
     const dependencies = boundary({
       readText: async () => JSON.stringify({ standard: { scope: "changed" } }),
       readBoundary: async () => ({ boundary: pending, version: `sha256:${"9".repeat(64)}` }),
+      readCandidate: async () => ({
+        status: "current" as const,
+        candidateId: newRequest.candidateId,
+        subjectDigest: newRequest.candidate.subjectDigest,
+        headSha: target.headSha,
+        implementationChanged: false,
+        convergenceVerification: "satisfied" as const,
+        convergenceScope: null,
+        lineageHeadShas: [target.headSha],
+      }),
       compose,
     });
 

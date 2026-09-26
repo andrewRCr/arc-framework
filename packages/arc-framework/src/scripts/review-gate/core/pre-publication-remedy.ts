@@ -47,6 +47,11 @@ const PRE_PUBLICATION_REMEDIES: Record<
     "Re-enter the pending continuation with its saved resume command",
     prePublicationResumeArgv(workUnit),
   ),
+  "review-in-progress": (workUnit) => spineRemedy(
+    "An admitted review attempt must finish before pre-publication can evaluate its result.",
+    "Complete the pending review operation, then re-enter pre-publication",
+    prePublicationResumeArgv(workUnit),
+  ),
 };
 
 /**

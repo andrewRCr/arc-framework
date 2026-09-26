@@ -285,6 +285,10 @@ const mockResolveRepositoryIdentity = vi.fn();
 vi.mock("../../../src/scripts/review-gate/hosts/local/git-common-state.js", async (orig) => ({
   ...(await orig<typeof import("../../../src/scripts/review-gate/hosts/local/git-common-state.js")>()),
   resolveRepositoryIdentity: (...a: unknown[]) => mockResolveRepositoryIdentity(...a),
+  withRepositoryReviewOperationLock: async <T>(
+    _exec: unknown, _cwd: string, _operationId: string, _maxWaitMs: number,
+    action: () => Promise<T>,
+  ): Promise<T> => action(),
 }));
 const mockReadLaneProgressOwner = vi.fn();
 vi.mock("../../../src/scripts/review-gate/lane-progress.js", async (orig) => ({

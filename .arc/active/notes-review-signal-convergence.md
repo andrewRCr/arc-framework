@@ -2705,3 +2705,77 @@ universal reliability evidence. Static fixtures and command tests establish reta
 not judgment behavior.
 
 ---
+
+## 2026-09-26 addendum: producer-report exercise refreshed
+
+The September 9 behavioral observation above remains historical evidence for the report format at that time. The
+current `renderDispositionReport` emits Markdown field labels, a separate source-verification reference, and a
+severity symbol; the old verbatim block above is not the current renderer output. The producer-report `scenario.md`
+now carries the current report, and a focused unit test compares its fenced report bytes with
+`renderDispositionReport` over the fixture's normalized finding and canonical disposition set. The response command
+uses this renderer for proposal and approved report text.
+
+The fresh-reader `exercise.md` instructs the evaluator to read the shipped methods and scenario while withholding
+`expected.md` and these session notes. The refreshed exercise has not yet been run in a new independent reader
+context; the byte comparison verifies fixture fidelity, not reader judgment or approval behavior.
+
+### 2026-09-26 attended fresh-reader observation
+
+- **Run:** `2026-09-26T15:22-05:00` against the current worktree at `beeb429ff7078056062d768e75cb0559d4420390`.
+- **Boundary:** new read-only collaboration agent with no conversation fork or delegation. It received only the
+  producer-report `exercise.md` and `scenario.md`, plus the shipped `review-triage.md` and `review-response.md`.
+  The fixture oracle, session notes, source, and tests were withheld.
+
+**Observed output (verbatim):**
+
+```text
+The report faithfully describes the **one supplied finding**: `F1` is a report-local label, `N-7` is the producer label, and `source #1` is its capture ordinal. It preserves the reviewer’s major claim, ARC’s source check and unsupported judgment, the proposed record-only rejection, full verification scope, and the open question. I see no fabricated finding or ordering problem in this one-finding example.
+
+**It is not a standalone complete-set approval surface.** The supplied report lacks the canonical disposition-set identity and exact target, producer result, and policy context needed to bind approval. The methods also require the provisional pass assessment and an agent recommendation beside a findings report; neither is supplied here.
+
+If the complete canonical set were approved, approval would bind this finding’s rejection, rationale, and `full` verification recommendation to that exact target and context. Only then could the caller make the second response-command invocation and follow its selected state. A record-only rejection implies an unchanged-target close with no code mutation; it grants no next-pass authority or synthetic local reply. No approval is given here.
+```
+
+**Comparison with withheld oracle:** The reader matched the expected provenance separation, source judgment,
+record-only disposition, verification scope, and prohibition on preapproval effects. It disagreed with the oracle's
+standalone-surface expectation. The scenario supplies only the report text and source facts, while the shipped method
+calls for approval over the report _and canonical identity_ and for a provisional pass assessment and recommendation
+beside findings proposals. The reader therefore had a source-grounded reason to refuse the stronger claim. This
+exercise is discrepant, not a successful clean behavioral observation; the fixture or expectation needs a bounded
+clarification before a repeat fresh-reader run. No approval or durable response was performed.
+
+### 2026-09-26 exercise correction and repeat observations
+
+The first reader's objection identified a missing presentation boundary. The scenario was expanded to show the
+canonical `payload.proposal` (including its computed disposition-set ID), the command's exact report bytes, the
+provisional pass summary, and an explicitly agent-authored recommendation. The exercise and oracle now evaluate the
+combined surface; they no longer claim that report text alone carries every approval binding. A focused unit test
+parses the fixture proposal and checks it against the canonical set, then byte-compares the fenced report with the
+current renderer.
+
+A second independent read-only agent, again limited to the exercise, scenario, and two shipped methods, correctly
+identified one remaining ambiguity: the scenario had not shown the initial request's
+`proposal.severityGatingPolicy`. The method required that input but the response payload does not repeat it. The
+scenario now names the input policy and explains the canonical per-finding `gating`; both method copies distinguish
+the first request from the returned proposal. The oracle records that distinction.
+
+- **Final repeat:** `2026-09-26T15:25-05:00`, current worktree at `beeb429ff7078056062d768e75cb0559d4420390`.
+- **Boundary:** a third new read-only collaboration agent with no conversation fork or delegation received only
+  the exercise, scenario, packaged `review-triage.md`, and packaged `review-response.md`. The oracle, session notes,
+  source, tests, and prior reader outputs were withheld.
+
+**Final observed output (verbatim):**
+
+```text
+The combined report and proposal are a faithful complete-set approval surface for the **one supplied finding**. They preserve native label `N-7`, capture ordinal `1`, the producer source and separate ARC source check. They accurately distinguish the reviewer’s `major` claim from ARC’s `not-supported` judgment with no verified severity. `reject` and `record-only` follow from that judgment; the input-only severity policy need not appear in the returned proposal. I found no fabricated, missing, misleading, or order-dependent information in the supplied presentation.
+
+Approval would bind the **exact canonical disposition set** identified by `sha256:5529cc2e6e4586d357cbdd4f0d63fccdc7a4cdbcd0204f9ec81e2fd76c91ae4e`: its target, producer result, policy and rubric context, proposing actor, `full` verification scope, and complete finding judgment and disposition. The approving actor and time would be recorded at approval. The provisional Pass 1 of 2 assessment and agent recommendation are context, not next-pass authorization.
+
+Only after approval may the caller submit the exact approved set for response. For this record-only rejection, the planner may return the unchanged-target disposition for the local audience-visible record. The proposed `full` scope grants no shortcut around verification. Any further review follows the typed policy continuation and requires its own named authorization where called for.
+```
+
+**Oracle comparison:** The final reader preserved provenance, independent reported and verified judgments, the
+record-only rejection, scope, exact binding, provisional signal, and the approval and next-pass boundaries. No
+deviation from the corrected fixture oracle was observed in this bounded run. The earlier objections remain useful
+evidence that the original scenario was incomplete; the final observation does not establish universal reliability
+or perform an approval, response, or verification.

@@ -248,6 +248,15 @@ export type PrePublicationComposition =
     status: "refused";
     reason: string;
     code?: Extract<ReviewPrePublicationRefusalCode, "candidate-unexplained-delta">;
+    pendingReview?: {
+      lane: ReviewLane;
+      operationId: string;
+      sourceId: string;
+      kind: "local" | "hosted" | "frontline";
+      request: { schemaVersion: 1; operationId: string }
+        | { schemaVersion: 1; handle: NonNullable<NonNullable<LanePolicyAttempt["hosted"]>["handle"]> }
+        | null;
+    };
   };
 
 /** Keep post-publication source routing on the ordered reservation rather than live config order. */
@@ -333,12 +342,42 @@ function rejectedRoutingAdvisory(paths: readonly string[]): string {
 }
 
 function evidenceCompositionRefusal(error: unknown): PrePublicationComposition {
+  if (error instanceof PendingLaneReviewError) {
+    return {
+      status: "refused",
+      reason: `The ${error.pending.lane} review operation ${error.pending.operationId} is still in progress.`,
+      pendingReview: error.pending,
+    };
+  }
   const detail = error instanceof Error ? error.message : String(error);
   return {
     status: "refused",
     reason: "The recorded lane progress does not compose against the current review target: "
       + detail,
   };
+}
+
+class PendingLaneReviewError extends Error {
+  constructor(readonly pending: NonNullable<Extract<PrePublicationComposition, { status: "refused" }>["pendingReview"]>) {
+    super(`review operation ${pending.operationId} is still in progress`);
+  }
+}
+
+function refusePendingLaneReview(progress: LaneProgressProjection, lane: ReviewLane): void {
+  if (progress.status !== "recorded") return;
+  const pending = progress.attempts.find((attempt) => attempt.outcome === "pending");
+  if (pending === undefined) return;
+  const handle = pending.hosted?.handle;
+  throw new PendingLaneReviewError({
+    lane,
+    operationId: pending.attemptId,
+    sourceId: pending.sourceId,
+    kind: pending.local !== undefined ? "local"
+      : pending.hosted !== undefined ? "hosted" : "frontline",
+    request: pending.local !== undefined
+      ? { schemaVersion: 1, operationId: pending.attemptId }
+      : handle ? { schemaVersion: 1, handle } : null,
+  });
 }
 
 async function applicableHistoricalAttempt(input: {
@@ -401,7 +440,11 @@ function policyAttempts(
   historicalAttempt?: LanePolicyAttempt & { headSha: string },
 ) {
   if (progress.status === "unrecorded") return [];
-  return (historicalAttempt === undefined ? progress.attempts : [historicalAttempt])
+  const attempts = historicalAttempt === undefined ? progress.attempts : [historicalAttempt];
+  // The policy request models one logical pass's ordered source attempts. Earlier passes remain
+  // accounted for by completedPasses, but cannot be replayed as fallback sources in this pass.
+  const logicalPass = attempts.at(-1)?.logicalPass;
+  return attempts.filter((attempt) => attempt.logicalPass === logicalPass)
     .map(projectReviewPolicyAttempt);
 }
 
@@ -698,6 +741,7 @@ export async function composePrePublicationReviewRequest(
     const { progress, sameHeadCandidate } = lane === "standard"
       ? separateSameHeadTerminals(rawProgress, exactTarget)
       : { progress: rawProgress, sameHeadCandidate: undefined };
+    refusePendingLaneReview(progress, lane);
     if (progress.status === "unrecorded") advisories.push(unrecordedLaneAdvisory(lane));
     const judgment = lanes.data[lane];
     const invocation = await laneInvocation({ lane, lineage, candidate, judgment, dependencies });

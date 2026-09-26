@@ -332,6 +332,8 @@ export const CandidatePublishReadyBoundarySchema = z.strictObject({
   nextAction: PublishCandidateActionSchema,
   policy: z.null(),
   reservation: StandardReviewReservationV1Schema.nullable(),
+  /** Version of the Candidate's standard lane owner when readiness was settled. */
+  standardLaneOwnerVersion: z.number().int().nonnegative().optional(),
 });
 export const PublicationPendingBoundarySchema = z.strictObject({
   ...BoundaryCommonShape,
@@ -340,6 +342,8 @@ export const PublicationPendingBoundarySchema = z.strictObject({
   nextAction: ContinuePublicationActionSchema,
   policy: z.null(),
   reservation: StandardReviewReservationV1Schema.nullable(),
+  /** Preserves the review-lane snapshot across a crash before Active → Integrating completes. */
+  standardLaneOwnerVersion: z.number().int().nonnegative().optional(),
 });
 export const HostedReviewPendingBoundarySchema = z.strictObject({
   ...BoundaryCommonShape,
@@ -469,6 +473,7 @@ const PublicationBoundaryInputSchema = z.strictObject({
   candidateSubjectDigest: CandidateSubjectDigestSchema.nullable().default(null),
   reservation: StandardReviewReservationV1Schema.nullable(),
   terminus: OwnerAcceptedReviewTerminusSchema.nullable().default(null),
+  standardLaneOwnerVersion: z.number().int().nonnegative().optional(),
   changeRequest: z.strictObject({
     repository: z.string().trim().min(1),
     pullRequest: z.number().int().positive(),
@@ -666,6 +671,9 @@ export function projectPublicationBoundary(input: unknown): IntegrationBoundaryL
     policy: null,
     reservation: value.reservation,
     terminus: value.terminus,
+    ...(!hosted && value.standardLaneOwnerVersion !== undefined
+      ? { standardLaneOwnerVersion: value.standardLaneOwnerVersion }
+      : {}),
   });
 }
 

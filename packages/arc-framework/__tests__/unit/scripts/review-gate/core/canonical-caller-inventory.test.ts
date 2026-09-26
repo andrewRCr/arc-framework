@@ -87,6 +87,7 @@ describe("review-gate canonical serializer inventory", () => {
       "runtime/local-prepare-composition.ts",
       "runtime/local-prepare.ts",
       "runtime/respond-command.ts",
+      "status-errand.ts",
     ]);
 
     const serializerDeclarations = files.flatMap((path) => {

@@ -9,18 +9,30 @@ import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js
 import type { GitExec } from "../../lib/git/exec.js";
 import { isGitProcessError } from "../../lib/git/process-error.js";
 import { resolveIdentity } from "../../lib/git/index.js";
+import { canonicalize } from "../../lib/kernel/index.js";
 import { LocalReviewOperationStateStore } from "./hosts/local/operation-state-store.js";
 import { LocalApprovedDispositionRecordStore } from "./hosts/local/disposition-record-store.js";
 import { createRepositoryReviewResultReader } from "./hosts/local/review-result-reader-composition.js";
 import { resolveRepositoryIdentity } from "./hosts/local/git-common-state.js";
-import { readLaneProgress, readLaneResponsePerformance, type LanePolicyAttempt } from "./lane-progress.js";
+import {
+  readLaneProgress,
+  readLaneProgressOwner,
+  readLaneResponsePerformance,
+  type LanePolicyAttempt,
+} from "./lane-progress.js";
 import { GitObjectIdSchema, type ReviewTarget } from "./core/gate-contract-v2-schema.js";
+import type { ReviewResult } from "./core/review-result.js";
 import type { ChangeRequestCandidate } from "./change-request.js";
 import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "./policy/standard-review.js";
 import { resolveConfiguredLanePolicy } from "./policy/lane-policy-config.js";
 import { projectReviewPolicyAttempt } from "./policy/review-policy-driver.js";
 import type { ReviewAdditionalPassAuthorization } from "./policy/review-policy-driver.js";
-import { resolveEvidenceBoundReviewPolicyContinuation } from "./policy/review-policy-evidence.js";
+import {
+  readIncrementalPredecessorResponseEvidence,
+  resolveEvidenceBoundReviewPolicyContinuation,
+} from "./policy/review-policy-evidence.js";
+import { confirmErrandFixResponseApplicability } from "./policy/local-review-coverage-selection.js";
+import type { IncrementalPredecessorApplicability } from "./policy/incremental-coverage-basis.js";
 import type { RoutedReviewObligation } from "./status.js";
 
 interface ExactErrandStatusTarget {
@@ -28,6 +40,8 @@ interface ExactErrandStatusTarget {
   readonly headRef: string;
   readonly headSha: string;
 }
+
+type OrdinaryErrand = Extract<TransientIdentityRecord, { kind: "errand"; purpose: "errand" }>;
 
 function blocked(detail: string): RoutedReviewObligation {
   return { state: "blocked", detail };
@@ -99,6 +113,103 @@ function matchingOrdinaryErrand(
     return { kind: "blocked", detail: "The Errand identity's change request does not match the exact target." };
   }
   return { kind: "matched", record };
+}
+
+function localProducerBelongsToErrand(result: Extract<ReviewResult, { kind: "attested-local" }>, errand: OrdinaryErrand): boolean {
+  return result.vehicle.kind === "errand"
+    && result.vehicle.identity === errand.slug
+    && result.vehicle.claimId === errand.claimId
+    && result.request.carrier.kind === "local-change-set"
+    && result.request.carrier.errandClaimId === errand.claimId;
+}
+
+function hasErrandLineage(result: ReviewResult, errand: OrdinaryErrand): boolean {
+  const lineage = result.admission.lineage;
+  return lineage.kind === "head-bound" && lineage.vehicleKind === "errand"
+    && lineage.vehicleIdentity === errand.claimId && lineage.headSha === result.target.headSha;
+}
+
+/** Check the exact producer's Errand binding, including hosted history omitted from normalized results. */
+async function producerBelongsToErrand(
+  result: ReviewResult,
+  store: LocalReviewOperationStateStore,
+  errand: OrdinaryErrand,
+): Promise<boolean> {
+  const lineage = result.admission.lineage;
+  if (!hasErrandLineage(result, errand)) return false;
+  if (result.kind === "attested-local") {
+    return localProducerBelongsToErrand(result, errand);
+  }
+  if (result.kind !== "hosted") return false;
+  const owner = await readLaneProgressOwner(store, {
+    lane: "standard",
+    repositoryId: result.repositoryId,
+    headSha: result.target.headSha,
+    lineage,
+  });
+  const matching = owner?.attempts.filter(({ attemptId }) => attemptId === result.producerId) ?? [];
+  const vehicle = matching.length === 1 ? matching[0]?.hosted?.handle?.vehicle : undefined;
+  return vehicle?.kind === "errand"
+    && vehicle.key === errand.slug
+    && vehicle.claimId === errand.claimId
+    && vehicle.branch === errand.branch;
+}
+
+function sharesCorrectionBase(predecessor: ReviewResult, current: ReviewResult): boolean {
+  return predecessor.originalOutcome === "findings"
+    && predecessor.target.kind === "change-set" && current.target.kind === "change-set"
+    && predecessor.target.baseRef === current.target.baseRef
+    && predecessor.target.diffBaseSha === current.target.diffBaseSha
+    && predecessor.target.diffBaseTree === current.target.diffBaseTree;
+}
+
+async function confirmChangedErrandResponse(input: {
+  predecessor: ReviewResult;
+  current: ReviewResult;
+  store: LocalReviewOperationStateStore;
+  dispositionStore: LocalApprovedDispositionRecordStore;
+  errand: OrdinaryErrand;
+}): Promise<IncrementalPredecessorApplicability> {
+  const { predecessor, current, store, dispositionStore, errand } = input;
+  const readPerformance = (result: ReviewResult) => readLaneResponsePerformance(store, result);
+  if (predecessor.kind === "attested-local" && current.kind === "attested-local") {
+    return confirmErrandFixResponseApplicability({
+      predecessor,
+      currentTarget: current.target,
+      currentLineage: current.admission.lineage,
+      currentClaimId: errand.claimId,
+      currentResult: current,
+      // Historical producer validation never uses this live read; fail closed if that changes.
+      observeTarget: () => Promise.reject(new Error("historical Errand correction has no live checkout target")),
+      dispositionStore,
+      readResponsePerformance: readPerformance,
+    });
+  }
+  const performance = await readPerformance(predecessor);
+  if (performance?.producerId !== predecessor.producerId
+    || performance.originatingHeadSha !== predecessor.target.headSha
+    || performance.producedHeadSha !== current.target.headSha) return "unavailable";
+  const response = await readIncrementalPredecessorResponseEvidence(
+    predecessor, dispositionStore, readPerformance,
+  );
+  return response.status === "performed" ? "applicable" : "unavailable";
+}
+
+/** Prove each changed-head Errand correction leg before the shared coverage-chain validator accepts it. */
+async function confirmErrandCorrectionPredecessor(input: {
+  predecessor: ReviewResult;
+  current: ReviewResult;
+  store: LocalReviewOperationStateStore;
+  dispositionStore: LocalApprovedDispositionRecordStore;
+  errand: OrdinaryErrand;
+}): Promise<IncrementalPredecessorApplicability> {
+  const { predecessor, current, store, errand } = input;
+  if (!await producerBelongsToErrand(predecessor, store, errand)
+    || !await producerBelongsToErrand(current, store, errand)
+    || predecessor.repositoryId !== current.repositoryId) return "unavailable";
+  if (canonicalize(predecessor.target) === canonicalize(current.target)) return "applicable";
+  if (!sharesCorrectionBase(predecessor, current)) return "unavailable";
+  return confirmChangedErrandResponse(input);
 }
 
 /**
@@ -194,7 +305,7 @@ export async function readErrandRoutedObligation(input: {
         currentClaimAttempt = true;
         latest = {
           attempt,
-          complete: hosted.effectiveCoverage === "complete"
+          complete: hosted.effectiveCoverage !== null
             && vehicle.standardReview.rubricVersion === rubric.version
             && vehicle.standardReview.rubricDigest === rubric.digest
             && hosted.requirement.rubricVersion === rubric.version
@@ -268,6 +379,7 @@ export async function readErrandRoutedObligation(input: {
       headSha: input.target.headSha,
     };
     const requirement = result.requirement;
+    const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
     const policy = await resolveEvidenceBoundReviewPolicyContinuation({
       schemaVersion: 1,
       target: policyTarget,
@@ -292,10 +404,16 @@ export async function readErrandRoutedObligation(input: {
       sources: [terminal.sourceId, ...configured.sources.filter((source) => source !== terminal.sourceId)],
       maxPasses: configured.maxPasses,
       resultReader,
-      dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+      dispositionStore,
       readResponsePerformance: (producer) => readLaneResponsePerformance(store, producer),
+      confirmIncrementalApplicability: (predecessor, current) => confirmErrandCorrectionPredecessor({
+        predecessor, current, store, dispositionStore, errand: selected.record,
+      }),
       confirmTarget: (target) => Promise.resolve(target),
     });
+    if (!await branchAtHead(exec, input.target.headRef, input.remote ?? "origin", input.target.headSha)) {
+      return blocked("The Errand identity's branch moved during review status composition.");
+    }
     return policy.state === "pass-complete"
       ? { state: "settled", detail: "The exact Errand standard-review lane is settled by verified convergence." }
       : {

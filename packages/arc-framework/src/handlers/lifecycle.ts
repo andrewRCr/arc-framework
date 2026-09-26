@@ -51,8 +51,15 @@ import { boundedFetch, getCurrentBranch, type GitExec } from "../lib/git/exec.js
 import { canonicalize } from "../lib/canonical/canonical-json.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import { LocalReviewOperationStateStore } from "../scripts/review-gate/hosts/local/operation-state-store.js";
-import { resolveRepositoryIdentity } from "../scripts/review-gate/hosts/local/git-common-state.js";
-import { readLaneProgressOwner } from "../scripts/review-gate/lane-progress.js";
+import {
+  resolveRepositoryIdentity,
+  withRepositoryReviewOperationLock,
+} from "../scripts/review-gate/hosts/local/git-common-state.js";
+import {
+  laneContinuationOperationId,
+  readLaneProgressOwner,
+  readLaneProgressOwnerVersioned,
+} from "../scripts/review-gate/lane-progress.js";
 import { livePredecessorReviewAttempt } from "../scripts/review-gate/lane-progress-supersession.js";
 import {
   createRawGitExec,
@@ -1981,6 +1988,16 @@ export async function handlePublish(
     return;
   }
   const record = candidate.record;
+  const publisher = new RepositoryGitCommonStatePublisher(base.io.exec, base.cwd);
+  const repositoryId = await resolveRepositoryIdentity(publisher);
+  const operationStore = new LocalReviewOperationStateStore(publisher);
+  const currentHead = async () => (await base.io.exec("git", ["rev-parse", "HEAD"], {
+    cwd: base.cwd,
+  })).stdout.trim();
+  const readStandardLaneOwnerVersion = async () => (await readLaneProgressOwnerVersioned(operationStore, {
+    lane: "standard", repositoryId, headSha: await currentHead(),
+    lineage: { kind: "candidate", candidateId: candidate.candidateId },
+  })).version;
   const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, target);
   const boundary = boundarySnapshot.boundary;
   if (boundary === null) {
@@ -1995,7 +2012,13 @@ export async function handlePublish(
     );
     return;
   }
-  const result = await runPublish(executor, {
+  const result = await withRepositoryReviewOperationLock(
+    base.io.exec, base.cwd,
+    laneContinuationOperationId({
+      lane: "standard", repositoryId, headSha: await currentHead(),
+      lineage: { kind: "candidate", candidateId: candidate.candidateId },
+    }),
+    10_000, () => runPublish(executor, {
     name: target,
     ...(lastCompleted === undefined ? {} : { lastCompleted }),
     ...(action === undefined ? {} : { nextAction: action }),
@@ -2014,7 +2037,12 @@ export async function handlePublish(
       }
       return refreshed;
     },
+    readStandardLaneOwnerVersion,
     claimPublicationBoundary: async (publicationBoundary) => {
+      if ((boundary.locus === "candidate-publish-ready" || boundary.locus === "publication-pending")
+        && boundary.standardLaneOwnerVersion !== await readStandardLaneOwnerVersion()) {
+        throw new Error("standard review progress changed after publication readiness was recorded");
+      }
       const boundaryPath = await writeSubmissionBoundary(
         base.cwd,
         publicationBoundary,
@@ -2023,7 +2051,7 @@ export async function handlePublish(
       await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
     },
     ...(input.allowAdvisories === true ? { allowAdvisories: true } : {}),
-  });
+  }));
   if (result.status === "rejected") {
     refuseWithRemedy(result.reason, result.remedy, input.json === true);
     return;

@@ -1,9 +1,13 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import { renderDispositionReport } from
   "../../../../../src/scripts/review-gate/core/disposition-report.js";
 import { createDispositionSet } from "../../../../../src/scripts/review-gate/core/dispositions.js";
+import { ProposedDispositionSetSchema } from
+  "../../../../../src/scripts/review-gate/core/disposition-records.js";
 import type { NormalizedReviewFinding } from
   "../../../../../src/scripts/review-gate/core/finding-records.js";
 
@@ -59,6 +63,58 @@ function fixture() {
 }
 
 describe("disposition report", () => {
+  it("matches the producer triage exercise proposal and report", () => {
+    const producerFindings: NormalizedReviewFinding[] = [{
+      findingId: "finding-1",
+      severity: "major",
+      locus: "src/index.ts:7",
+      evidenceUrlOrId: "review:finding-1",
+      sourceOrdinal: 1,
+      sourceLabel: "N-7",
+    }];
+    const dispositionSet = createDispositionSet({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      targetId: digest("producer-triage-target"),
+      producerId: "producer-1",
+      resultDigest: digest("producer-triage-result"),
+      policyVersion: digest("producer-triage-policy"),
+      rubricVersion: "standard-review/v1",
+      rubricDigest: digest("producer-triage-rubric"),
+      proposedBy: "arc-cli/0.1.0",
+      proposedVerification: "full",
+      findings: [{
+        findingId: "finding-1",
+        sourceIdentity: "reviewer-1",
+        locus: "src/index.ts:7",
+        verificationRefs: ["source:src/index.ts:7"],
+        reportedSeverity: "major",
+        sourceVerification: "not-supported",
+        verifiedSeverity: null,
+        disposition: "reject",
+        rationale: "The reviewer alleges this branch enters a failing path, but source verification shows it is unreachable, so no execution failure occurs.",
+        recommendation: "Reject the finding without changing code.",
+        openQuestions: ["Should the reviewer clarify the cited execution path?"],
+      }],
+    });
+    const scenario = readFileSync(new URL(
+      "../../../../fixtures/review-triage/producer-report/scenario.md",
+      import.meta.url,
+    ), "utf8");
+    const proposalText = scenario.match(/```json\n([\s\S]*?)\n```/u)?.[1];
+    const exerciseReport = scenario.match(/```text\n([\s\S]*?)\n```/u)?.[1];
+
+    expect(proposalText).toBeDefined();
+    expect(ProposedDispositionSetSchema.parse(JSON.parse(String(proposalText)))).toEqual({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      state: "proposed",
+      dispositionSet,
+    });
+    expect(exerciseReport).toBeDefined();
+    expect(exerciseReport).toBe(renderDispositionReport({ dispositionSet, producerFindings }));
+  });
+
   it("renders source verification refs separately from producer references", () => {
     const { dispositionSet: original, producerFindings } = fixture();
     const { dispositionSetId: _id, findings, ...fields } = original;

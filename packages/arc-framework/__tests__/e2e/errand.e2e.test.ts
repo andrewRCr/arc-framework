@@ -26,6 +26,8 @@ import {
 import { advanceBaseStep, movementPaths } from "../helpers/base-advance.js";
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
 import { responsePolicyRequest } from "../fixtures/review-response-policy.js";
+import { makeGitExec } from "../helpers/integration.js";
+import { readErrandRoutedObligation } from "../../src/scripts/review-gate/status-errand.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -529,6 +531,17 @@ describe("arc review respond for an Errand", () => {
         nextAction: "none",
         payload: { verifiedTerminalSignal: { coverageAdequate: true } },
       });
+      await expect(readErrandRoutedObligation({
+        cwd: repository,
+        exec: makeGitExec(repository),
+        target: {
+          repository: policyRequest.target.repository,
+          headRef: (await git(repository, ["symbolic-ref", "--short", "HEAD"])).trim(),
+          headSha: correctionPayload.target.headSha,
+        },
+        pullRequest: 42,
+        currentBaseOid: (await git(repository, ["rev-parse", "main"])).trim(),
+      })).resolves.toMatchObject({ state: "settled" });
     } finally {
       await cleanupTempDir(repository);
       if (remoteDir !== null) await cleanupTempDir(remoteDir);

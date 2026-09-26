@@ -256,6 +256,7 @@ import {
   laneContinuationOperationId,
   readCandidateInheritedLaneProgress,
   readLaneProgressOwner,
+  readLaneProgressOwnerVersioned,
   readLaneResponsePerformance,
   readLaneProgress,
   recordHostedRequestAdmission,
@@ -3927,6 +3928,10 @@ export interface ReviewPrePublicationHandlerDependencies {
   readRootGitHead(root: string): Promise<string>;
   readCandidate(root: string, workUnit: string): Promise<CandidateRead>;
   readBoundary(root: string, workUnit: string): Promise<VersionedSubmissionBoundary>;
+  readStandardLaneOwnerVersion(root: string, candidateId: string, headSha: string): Promise<number>;
+  withStandardLaneLock<T>(
+    root: string, candidateId: string, headSha: string, action: () => Promise<T>,
+  ): Promise<T>;
   compose(
     root: string,
     input: z.infer<typeof ReviewPrePublicationInputSchema>,
@@ -4050,6 +4055,30 @@ function buildPrePublicationResumeCommand(input: {
   return `arc review pre-publication ${input.workUnit} --resume ${resume}`;
 }
 
+function prePublicationStandardLaneAccess(exec: GitExec): Pick<
+  ReviewPrePublicationHandlerDependencies, "readStandardLaneOwnerVersion" | "withStandardLaneLock"
+> {
+  return {
+    readStandardLaneOwnerVersion: async (root, candidateId, headSha) => {
+      const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+      const repositoryId = await resolveRepositoryIdentity(publisher);
+      const store = new LocalReviewOperationStateStore(publisher);
+      return (await readLaneProgressOwnerVersioned(store, {
+        lane: "standard", repositoryId, headSha,
+        lineage: { kind: "candidate", candidateId },
+      })).version;
+    },
+    withStandardLaneLock: async (root, candidateId, headSha, action) => {
+      const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+      const repositoryId = await resolveRepositoryIdentity(publisher);
+      return withRepositoryReviewOperationLock(exec, root, laneContinuationOperationId({
+        lane: "standard", repositoryId, headSha,
+        lineage: { kind: "candidate", candidateId },
+      }), 10_000, action);
+    },
+  };
+}
+
 function defaultPrePublicationDependencies(
   interaction?: InteractionContext,
 ): ReviewPrePublicationHandlerDependencies {
@@ -4069,6 +4098,7 @@ function defaultPrePublicationDependencies(
       boundarySnapshots.set(workUnit, snapshot);
       return snapshot;
     },
+    ...prePublicationStandardLaneAccess(exec),
     compose: async (root, input, judgment) => {
       const snapshot = boundarySnapshots.get(input.name)
         ?? await readSubmissionBoundaryVersioned(root, input.name);
@@ -4315,6 +4345,51 @@ export async function handleReviewPrePublication(
     dependencies.setExitCode(1);
   };
 
+  const emitLaneMovedRefusal = (): void => {
+    const message = "Standard review progress changed while publication readiness was being composed.";
+    const refusal = ReviewCommandErrorEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-pre-publication",
+      diagnostics: [{ code: "invalid-input", message }],
+      error: { code: "invalid-input", message },
+      remedy: spineRemedy(
+        "The saved readiness cannot settle a newly admitted standard pass.",
+        "Re-enter pre-publication against current review progress",
+        ["arc", "review", "pre-publication", input.data.name,
+          ...(input.data.resume === undefined ? [] : ["--resume", input.data.resume])],
+      ),
+    });
+    dependencies.write(`${JSON.stringify(refusal)}\n`);
+    dependencies.setExitCode(1);
+  };
+
+  const emitPendingReviewRefusal = (
+    pending: NonNullable<Extract<PrePublicationComposition, { status: "refused" }>["pendingReview"]>,
+  ): void => {
+    const argv = pending.kind === "local"
+      ? ["arc", "review", "local", "resume", "-"]
+      : pending.kind === "hosted" && pending.request !== null
+        ? ["arc", "review", "hosted", "await", "-"]
+        : ["arc", "review", "status", "--work-unit", input.data.name];
+    const requestDetail = pending.request === null
+      ? "The admitted request has no acknowledged handle yet."
+      : `Exact stdin request: ${JSON.stringify(pending.request)}.`;
+    const message = `The ${pending.lane} review operation ${pending.operationId} from ${pending.sourceId} is still in progress. ${requestDetail}`;
+    const refusal = ReviewCommandErrorEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-pre-publication",
+      diagnostics: [{ code: "review-in-progress", message }],
+      error: { code: "review-in-progress", message },
+      remedy: spineRemedy(
+        "An admitted review is not completed policy evidence.",
+        "Continue that exact operation, then re-enter pre-publication",
+        argv,
+      ),
+    });
+    dependencies.write(`${JSON.stringify(refusal)}\n`);
+    dependencies.setExitCode(1);
+  };
+
   let envelope: PrePublicationReviewEnvelope;
   try {
     const boundarySnapshot = await dependencies.readBoundary(root, input.data.name);
@@ -4353,7 +4428,13 @@ export async function handleReviewPrePublication(
         emitAdvancedReplayRefusal("The saved command is unbound or stale for the current Candidate and subject.");
         return;
       }
-      if (matchingBoundary) {
+      const readyLaneUnchanged = !matchingBoundary
+        || (advancedBoundary.standardLaneOwnerVersion !== undefined
+          && advancedBoundary.standardLaneOwnerVersion
+            === await dependencies.readStandardLaneOwnerVersion(
+              root, advancedBoundary.candidateId, currentRootHead,
+            ));
+      if (matchingBoundary && readyLaneUnchanged) {
         if (!plainReentry && replayInput === null) {
           emitAdvancedReplayRefusal("A settled Candidate boundary cannot replace its saved author judgment.");
           return;
@@ -4380,6 +4461,10 @@ export async function handleReviewPrePublication(
         frontlineCeilingHeadSha: savedReplay.frontlineCeilingHeadSha,
       };
     }
+    const beforeCompose = await dependencies.readCandidate(root, input.data.name);
+    const laneVersionBeforeCompose = beforeCompose.status === "current"
+      ? await dependencies.readStandardLaneOwnerVersion(root, beforeCompose.candidateId, currentRootHead)
+      : null;
     let composition = await dependencies.compose(root, input.data, judgment);
     if (savedReplay !== null && composition.status === "composed"
       && pendingBoundary !== null
@@ -4389,6 +4474,10 @@ export async function handleReviewPrePublication(
       composition = await dependencies.compose(root, input.data, judgment);
     }
     if (composition.status === "refused") {
+      if (composition.pendingReview !== undefined) {
+        emitPendingReviewRefusal(composition.pendingReview);
+        return;
+      }
       if (orderingRecovery === undefined
         && pendingBoundary !== null
         && pending !== undefined
@@ -4539,21 +4628,46 @@ export async function handleReviewPrePublication(
     // The settled locus is where the durable publication boundary is written. Recording it here —
     // before the result is claimed — is what makes `arc publish` succeed on its first call; an
     // absent boundary now means genuinely open obligations rather than a write nobody performed.
+    if (envelope.locus === "candidate-publish-ready") {
+      if (beforeCompose.status !== "current"
+        || beforeCompose.candidateId !== composition.request.candidateId
+        || laneVersionBeforeCompose === null) {
+        emitLaneMovedRefusal();
+        return;
+      }
+      envelope = PrePublicationReviewEnvelopeSchema.parse({
+        ...envelope,
+        standardLaneOwnerVersion: laneVersionBeforeCompose,
+      });
+    }
     if (envelope.locus === "candidate-publish-ready"
       || envelope.locus === "candidate-convergence-verification-pending") {
-      if (orderingRecovery !== undefined) {
-        const conflict = await recoverProjectedPublicationBoundary(
-          dependencies,
-          root,
-          prePublicationBoundary(envelope),
-          orderingRecovery.expectedBoundaryVersion,
-        );
-        if (conflict !== null) {
-          emitFailure(conflict, "execution", "attestation-ordering-conflict");
-          return;
+      const persist = async (): Promise<"written" | "lane-moved" | SubmissionBoundaryVersionConflictError> => {
+        if (envelope.locus === "candidate-publish-ready"
+          && envelope.standardLaneOwnerVersion !== await dependencies.readStandardLaneOwnerVersion(
+            root, composition.request.candidateId, currentRootHead,
+          )) return "lane-moved";
+        if (orderingRecovery !== undefined) {
+          const conflict = await recoverProjectedPublicationBoundary(
+            dependencies, root, prePublicationBoundary(envelope), orderingRecovery.expectedBoundaryVersion,
+          );
+          return conflict ?? "written";
         }
-      } else {
         await dependencies.persistBoundary(root, prePublicationBoundary(envelope));
+        return "written";
+      };
+      const result = envelope.locus === "candidate-publish-ready"
+        ? await dependencies.withStandardLaneLock(
+          root, composition.request.candidateId, currentRootHead, persist,
+        )
+        : await persist();
+      if (result === "lane-moved") {
+        emitLaneMovedRefusal();
+        return;
+      }
+      if (result !== "written") {
+        emitFailure(result, "execution", "attestation-ordering-conflict");
+        return;
       }
     }
   } catch (error) {
