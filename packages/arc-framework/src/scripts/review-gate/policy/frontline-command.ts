@@ -38,9 +38,10 @@ import {
   type FrontlineSemanticRecord,
 } from "./frontline-semantic.js";
 import {
-  readSingletonFrontlinePhaseClosure,
   recordSingletonFrontlineInitialSkip,
+  singletonFrontlinePhaseClosed,
 } from "./frontline-phase.js";
+import type { FrontlineFollowUpAdvice } from "./frontline-follow-up.js";
 import type {
   FrontlineSourcePreferenceReader,
   FrontlineSourceRegistry,
@@ -78,6 +79,7 @@ interface FrontlineCommandDependencies {
     producerId: string,
     dispositionSetId: string,
   ) => Promise<boolean>;
+  readSettledFindingsAdvice(producerId: string): Promise<FrontlineFollowUpAdvice>;
   readMaxPasses(): Promise<number>;
   now(): string;
 }
@@ -275,27 +277,14 @@ async function readSingletonFrontlinePhase(input: {
       unresolvedFindings,
     };
   }
-  const currentStandard = await readLaneProgressOwner(dependencies.operationStore, {
-    lane: "standard",
-    repositoryId: parsed.target.repositoryId,
-    headSha: parsed.target.headSha,
-    lineage,
-  });
-  const inheritedStandard = await readCandidateInheritedLaneProgress(dependencies.operationStore, {
-    lane: "standard",
-    repositoryId: parsed.target.repositoryId,
-    headSha: parsed.target.headSha,
-    ancestors,
-  });
-  const marker = await readSingletonFrontlinePhaseClosure(dependencies.operationStore, {
+  const closed = await singletonFrontlinePhaseClosed(dependencies.operationStore, {
     repositoryId: parsed.target.repositoryId,
     candidateIds: [lineage.candidateId, ...ancestors.map(({ candidateId }) => candidateId)],
+    readSettledFindingsAdvice: (producerId) => dependencies.readSettledFindingsAdvice(producerId),
   });
   return {
     inheritedCompletedPasses: inherited.inheritedCompletedPasses,
-    closed: marker !== null
-      || currentStandard?.attempts.length !== undefined && currentStandard.attempts.length > 0
-      || inheritedStandard.ancestorOwners.some(({ owner: prior }) => (prior?.attempts.length ?? 0) > 0),
+    closed,
     unresolvedFindings,
   };
 }

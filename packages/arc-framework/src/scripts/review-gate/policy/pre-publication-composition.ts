@@ -44,7 +44,6 @@ import { readAncestry } from "../../../lib/work-unit/git-decomposition-object-re
 import { projectGitCandidateEffectiveTarget } from "../../../lib/work-unit/git-candidate-effective-target.js";
 import { resolveChangeRequest } from "../change-request.js";
 import { laneSubjectOwnerMatches } from "../core/lane-admission.js";
-import type { ReviewOperationStateStore } from "../core/ports.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { ReviewResult } from "../core/review-result.js";
 import { resolveAcceptableDeliveryBaseRefs } from "../core/delivery-member-lookup.js";
@@ -70,11 +69,10 @@ import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import {
   readLaneProgressAcrossLineage,
   readCandidateInheritedLaneProgress,
-  readLaneProgressOwner,
   readLaneResponsePerformance,
 } from "../lane-progress.js";
-import { readSingletonFrontlinePhaseClosure } from "./frontline-phase.js";
-import { projectFrontlineFollowUpAdvice, type FrontlineFollowUpAdvice } from "./frontline-follow-up.js";
+import { singletonFrontlinePhaseClosed } from "./frontline-phase.js";
+import { projectFrontlineFollowUpAdvice } from "./frontline-follow-up.js";
 import { composeWorkUnitReviewAssurance } from "./assurance.js";
 import { resolveConfiguredLanePolicy } from "./lane-policy-config.js";
 import {
@@ -426,36 +424,6 @@ export function selectPrePublicationReservationTarget(input: {
     status: "resolved",
     target: { kind: "pinned-head", ...input.singleton },
   };
-}
-
-/** Close singleton frontline after an accepted skip or a terminal frontline/standard admission. */
-export async function singletonFrontlinePhaseClosed(
-  store: Pick<ReviewOperationStateStore, "readOperation">,
-  input: {
-    repositoryId: string;
-    candidateIds: readonly string[];
-    readSettledFindingsAdvice?: (producerId: string) => Promise<FrontlineFollowUpAdvice>;
-  },
-): Promise<boolean> {
-  if (await readSingletonFrontlinePhaseClosure(store, input) !== null) return true;
-  for (const id of input.candidateIds) {
-    const standardOwner = await readLaneProgressOwner(store, {
-      lane: "standard", repositoryId: input.repositoryId, headSha: "",
-      lineage: { kind: "candidate", candidateId: id },
-    });
-    if (standardOwner?.attempts.length) return true;
-    const frontlineOwner = await readLaneProgressOwner(store, {
-      lane: "frontline", repositoryId: input.repositoryId, headSha: "",
-      lineage: { kind: "candidate", candidateId: id },
-    });
-    for (const attempt of frontlineOwner?.attempts ?? []) {
-      if (!attempt.terminalProducer) continue;
-      if (attempt.outcome === "clean") return true;
-      if (attempt.outcome === "settled-findings" && input.readSettledFindingsAdvice !== undefined
-        && (await input.readSettledFindingsAdvice(attempt.attemptId)).action === "stop") return true;
-    }
-  }
-  return false;
 }
 
 /** Bind private-member applicability to the live planned member, which has no PR selector. */

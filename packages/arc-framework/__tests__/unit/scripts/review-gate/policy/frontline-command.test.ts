@@ -43,6 +43,12 @@ const lineage = {
   kind: "candidate" as const,
   candidateId: `sha256:${"1".repeat(64)}`,
 } as const;
+const headBoundLineage = {
+  kind: "head-bound" as const,
+  vehicleKind: "errand",
+  vehicleIdentity: "sample-errand",
+  headSha: target.headSha,
+} as const;
 
 function operationStore(): ReviewOperationStateStore & ReviewOperationStateSnapshotIndex {
   const records = new Map<string, { version: number; state: ReviewOperationState }>();
@@ -100,6 +106,7 @@ function dependencies(store = operationStore(), maxPasses = 2) {
     resolveSupersessionAncestors: async () => [],
     withLaneOperationLock: async <T>(_operationId: string, action: () => Promise<T>) => action(),
     confirmDispositionSetCurrent: async () => true,
+    readSettledFindingsAdvice: async () => ({ action: "stop" as const, reason: "no-approved-material-fix" }),
     readMaxPasses: async () => maxPasses,
     now: () => "2026-09-08T12:01:00Z",
   };
@@ -108,7 +115,7 @@ function dependencies(store = operationStore(), maxPasses = 2) {
 function completedAdmission(
   logicalPass: number,
   maxPasses: number,
-  ownerLineage: Extract<LaneSubjectLineage, { kind: "candidate" }> = lineage,
+  ownerLineage: LaneSubjectLineage = lineage,
 ) {
   const routing = { facts: routineCode, decision: reduceReviewRouting(routineCode) };
   return createFrontlineAdmission({
@@ -134,7 +141,7 @@ async function recordCompletedPass(
   store: ReviewOperationStateStore,
   logicalPass: number,
   maxPasses: number,
-  ownerLineage: Extract<LaneSubjectLineage, { kind: "candidate" }> = lineage,
+  ownerLineage: LaneSubjectLineage = lineage,
 ): Promise<void> {
   const admission = completedAdmission(logicalPass, maxPasses, ownerLineage);
   await recordLaneAttempt(store, {
@@ -155,7 +162,7 @@ async function recordCompletedPass(
 }
 
 describe("frontline workflow command", () => {
-  it("allocates a new Candidate's frontline pass after a validated superseded owner", async () => {
+  it("keeps frontline closed after a validated superseded owner has a clean result", async () => {
     const store = operationStore();
     const ancestorLineage = {
       kind: "candidate" as const,
@@ -175,10 +182,7 @@ describe("frontline workflow command", () => {
       target,
       changeSet: routineCode,
       invocation: { mode: "force", sourceId: "review-command" },
-    }, deps)).resolves.toMatchObject({
-      state: "ready",
-      payload: { pass: 2, admission: { logicalPass: 2, lineage } },
-    });
+    }, deps)).resolves.toMatchObject({ state: "skipped", nextAction: "none" });
     await expect(readLaneProgressOwner(store, {
       lane: "frontline",
       repositoryId: target.repositoryId,
@@ -294,7 +298,7 @@ describe("frontline workflow command", () => {
     }, dependencies(store))).resolves.toMatchObject({ state: "skipped", nextAction: "none" });
   });
 
-  it("derives a fresh logical pass and allowance from durable lineage state", async () => {
+  it("does not admit another pass after a clean Candidate result on the same target", async () => {
     const store = operationStore();
     await recordCompletedPass(store, 1, 3);
     const commandDependencies = dependencies(store, 3);
@@ -304,21 +308,7 @@ describe("frontline workflow command", () => {
       target,
       changeSet: routineCode,
       invocation: { mode: "force", sourceId: "review-command" },
-    }, commandDependencies)).resolves.toMatchObject({
-      state: "ready",
-      nextAction: "run-frontline",
-      payload: {
-        pass: 2,
-        maxPasses: 3,
-        admission: {
-          lineage,
-          logicalPass: 2,
-          retryGeneration: 0,
-          target,
-          requestedCoverage: "complete",
-        },
-      },
-    });
+    }, commandDependencies)).resolves.toMatchObject({ state: "skipped", nextAction: "none" });
     await expect(readLaneProgressOwner(store, {
       lane: "frontline",
       repositoryId: target.repositoryId,
@@ -326,10 +316,7 @@ describe("frontline workflow command", () => {
       lineage,
     })).resolves.toMatchObject({
       completedPasses: 1,
-      attempts: [
-        expect.objectContaining({ logicalPass: 1, outcome: "clean" }),
-        expect.objectContaining({ logicalPass: 2, retryGeneration: 0, outcome: "pending" }),
-      ],
+      attempts: [expect.objectContaining({ logicalPass: 1, outcome: "clean" })],
     });
   });
 
@@ -395,7 +382,13 @@ describe("frontline workflow command", () => {
       }
       return originalPublish(next, expectedVersion);
     };
-    await expect(resolveFrontlineCommand(authorizedRequest, dependencies(store, 1)))
+    const followUpDependencies = {
+      ...dependencies(store, 1),
+      readSettledFindingsAdvice: async () => ({
+        action: "follow-up-after-fix" as const, pass: 2, maxPasses: 2, nextCommand: "frontline-resolve" as const,
+      }),
+    };
+    await expect(resolveFrontlineCommand(authorizedRequest, followUpDependencies))
       .rejects.toThrow("interrupted frontline admission");
     const interrupted = await readLaneProgressOwner(store, {
       lane: "frontline", repositoryId: target.repositoryId, headSha: target.headSha, lineage,
@@ -403,7 +396,7 @@ describe("frontline workflow command", () => {
     expect(interrupted?.attempts[0]?.conditionalPassAuthorizations?.authorizations[0]?.status)
       .toBe("bound");
     store.publishOperation = originalPublish;
-    await expect(resolveFrontlineCommand(authorizedRequest, dependencies(store, 1))).resolves.toMatchObject({
+    await expect(resolveFrontlineCommand(authorizedRequest, followUpDependencies)).resolves.toMatchObject({
       state: "ready",
       nextAction: "run-frontline",
       payload: { pass: 2, maxPasses: 2 },
@@ -534,25 +527,29 @@ describe("frontline workflow command", () => {
 
   it("rejects a fresh pass after the configured allowance is consumed", async () => {
     const store = operationStore();
-    await recordCompletedPass(store, 1, 1);
+    await recordCompletedPass(store, 1, 1, headBoundLineage);
     await expect(resolveFrontlineCommand({
       schemaVersion: 1,
       target,
       changeSet: routineCode,
       invocation: { mode: "force", sourceId: "review-command" },
-    }, dependencies(store, 1))).rejects.toThrow("frontline pass allowance is exhausted");
+    }, {
+      ...dependencies(store, 1), resolveLineage: async () => headBoundLineage,
+    })).rejects.toThrow("frontline pass allowance is exhausted");
   });
 
   it("accepts pass ceilings beyond the former two-pass limit", async () => {
     const store = operationStore();
-    await recordCompletedPass(store, 1, 3);
-    await recordCompletedPass(store, 2, 3);
+    await recordCompletedPass(store, 1, 3, headBoundLineage);
+    await recordCompletedPass(store, 2, 3, headBoundLineage);
     await expect(resolveFrontlineCommand({
       schemaVersion: 1,
       target,
       changeSet: routineCode,
       invocation: { mode: "force", sourceId: "review-command" },
-    }, dependencies(store, 3))).resolves.toMatchObject({
+    }, {
+      ...dependencies(store, 3), resolveLineage: async () => headBoundLineage,
+    })).resolves.toMatchObject({
       state: "ready",
       payload: { pass: 3, maxPasses: 3 },
     });

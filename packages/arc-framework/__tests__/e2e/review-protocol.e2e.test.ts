@@ -534,7 +534,7 @@ describe("built review protocol", () => {
       COUNT_FILE: countFile,
       PATH: `${bin}${delimiter}${process.env.PATH ?? ""}`,
     };
-    const resolved = await invoke(root, ["review", "frontline", "resolve", "-"], {
+    const resolveRequest = {
       schemaVersion: 1,
       target: { kind, baseRef, diffBaseSha, headSha },
       changeSet: {
@@ -549,7 +549,8 @@ describe("built review protocol", () => {
         activity: { selfReview: true, frontlineReview: true },
       },
       invocation: { mode: "force", sourceId: "coderabbit-cli" },
-    });
+    };
+    const resolved = await invoke(root, ["review", "frontline", "resolve", "-"], resolveRequest);
     expect(resolved).toMatchObject({ state: "ready", nextAction: "run-frontline" });
     const runRequest = {
       schemaVersion: 1,
@@ -576,6 +577,9 @@ describe("built review protocol", () => {
     const second = envelope(secondResult);
     expect(second).toMatchObject({ state: "clean", nextAction: "none" });
     expect((await readFile(countFile, "utf8")).trim().split("\n")).toHaveLength(1);
+
+    await expect(invoke(root, ["review", "frontline", "resolve", "-"], resolveRequest))
+      .resolves.toMatchObject({ state: "skipped", nextAction: "none" });
 
     const operationId = (first.payload as FrontlineTerminalPayload).operationId;
     await expect(invoke(root, ["review", "reduce", "-"], {

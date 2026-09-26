@@ -293,6 +293,7 @@ import {
   LocalApprovedDispositionRecordStore,
 } from "../scripts/review-gate/hosts/local/disposition-record-store.js";
 import { currentApprovedDispositionNode } from "../scripts/review-gate/core/advisory-records.js";
+import { projectFrontlineFollowUpAdvice } from "../scripts/review-gate/policy/frontline-follow-up.js";
 import { createRepositoryReviewResultReader } from
   "../scripts/review-gate/hosts/local/review-result-reader-composition.js";
 import {
@@ -2486,6 +2487,20 @@ function defaultFrontlineResolveDependencies(): ReviewFrontlineResolveHandlerDep
           producerId,
           dispositionSetId,
         ),
+        readSettledFindingsAdvice: async (producerId) => {
+          const result = await createRepositoryReviewResultReader(publisher).readResult(producerId);
+          if (result.kind !== "frontline") {
+            throw new Error("settled frontline owner does not match its immutable result");
+          }
+          const dispositions = await dispositionStore.readDispositionRecord(producerId);
+          if (dispositions === null) {
+            throw new Error("settled frontline findings lack an approved disposition record");
+          }
+          return projectFrontlineFollowUpAdvice({
+            outcome: result.outcome,
+            dispositionState: currentApprovedDispositionNode(dispositions).approvedDisposition,
+          });
+        },
         resolveLineage: async (target, vehicle) => {
           const live = await readLocalReviewLiveContext({ exec, cwd: root });
           if (vehicle !== undefined) {

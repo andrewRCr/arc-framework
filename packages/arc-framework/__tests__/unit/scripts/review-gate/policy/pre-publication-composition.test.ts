@@ -30,9 +30,10 @@ import {
   confirmNoPullRequestCandidatePriorProducer,
   noPullRequestCandidatePriorApplicability,
   resolvePrePublicationDiffBase,
-  singletonFrontlinePhaseClosed,
 } from
   "../../../../../src/scripts/review-gate/policy/pre-publication-composition.js";
+import { singletonFrontlinePhaseClosed } from
+  "../../../../../src/scripts/review-gate/policy/frontline-phase.js";
 
 const baseRef = "main";
 const headSha = "a".repeat(40);

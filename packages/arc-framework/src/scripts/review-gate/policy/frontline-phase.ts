@@ -8,6 +8,8 @@ import {
 import type { ReviewOperationStateStore } from "../core/ports.js";
 import { isReviewVersionConflict, REVIEW_VERSION_RETRY_ATTEMPTS } from
   "../core/version-conflict.js";
+import { readLaneProgressOwner } from "../lane-progress.js";
+import type { FrontlineFollowUpAdvice } from "./frontline-follow-up.js";
 
 export function singletonFrontlinePhaseOperationId(input: {
   repositoryId: string;
@@ -42,6 +44,36 @@ export async function readSingletonFrontlinePhaseClosure(
     return marker;
   }
   return null;
+}
+
+/** Close the opening phase after a durable skip, terminal result, or standard admission. */
+export async function singletonFrontlinePhaseClosed(
+  store: Pick<ReviewOperationStateStore, "readOperation">,
+  input: {
+    repositoryId: string;
+    candidateIds: readonly string[];
+    readSettledFindingsAdvice?: (producerId: string) => Promise<FrontlineFollowUpAdvice>;
+  },
+): Promise<boolean> {
+  if (await readSingletonFrontlinePhaseClosure(store, input) !== null) return true;
+  for (const id of input.candidateIds) {
+    const standardOwner = await readLaneProgressOwner(store, {
+      lane: "standard", repositoryId: input.repositoryId, headSha: "",
+      lineage: { kind: "candidate", candidateId: id },
+    });
+    if (standardOwner?.attempts.length) return true;
+    const frontlineOwner = await readLaneProgressOwner(store, {
+      lane: "frontline", repositoryId: input.repositoryId, headSha: "",
+      lineage: { kind: "candidate", candidateId: id },
+    });
+    for (const attempt of frontlineOwner?.attempts ?? []) {
+      if (!attempt.terminalProducer) continue;
+      if (attempt.outcome === "clean") return true;
+      if (attempt.outcome === "settled-findings" && input.readSettledFindingsAdvice !== undefined
+        && (await input.readSettledFindingsAdvice(attempt.attemptId)).action === "stop") return true;
+    }
+  }
+  return false;
 }
 
 /** Persist one accepted initial skip without manufacturing an attempt or clean result. */
