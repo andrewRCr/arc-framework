@@ -130,27 +130,50 @@ export async function readRepositoryCandidateSupersessionChain(input: {
   });
 }
 
-/** Locate the exact reachable commit carrying a named Candidate root for review recovery. */
+/** Locate the named Candidate record in history reachable from the live review head. */
 export async function readRepositoryCandidateRecordRevision(input: {
   cwd: string;
   workUnit: string;
   candidateId: string;
+  reviewHeadSha: string;
   exec: GitExec;
 }): Promise<string> {
   const path = resolveCandidateRecordRelativePath(input.workUnit);
-  const history = await input.exec("git", ["log", "--format=%H", "--", path], {
-    cwd: input.cwd, objectAccess: "local-only",
-  });
-  for (const revision of history.stdout.split(/\r?\n/u).filter((value) => value !== "")) {
-    const raw = await input.exec("git", ["show", `${revision}:${path}`], {
+  let history: Awaited<ReturnType<GitExec>>;
+  try {
+    history = await input.exec("git", ["log", input.reviewHeadSha, "--format=%H", "--", path], {
       cwd: input.cwd, objectAccess: "local-only",
     });
+  } catch (error) {
+    throw new CandidateSupersessionResolutionError(
+      `Candidate record history at review head ${input.reviewHeadSha} cannot be read `
+        + `(${error instanceof Error ? error.message : String(error)}). Restore the review head and retry re-root.`,
+    );
+  }
+  for (const revision of history.stdout.split(/\r?\n/u).filter((value) => value !== "")) {
+    let raw: Awaited<ReturnType<GitExec>>;
+    try {
+      raw = await input.exec("git", ["show", `${revision}:${path}`], {
+        cwd: input.cwd, objectAccess: "local-only",
+      });
+    } catch (error) {
+      throw new CandidateSupersessionResolutionError(
+        `Candidate record at ${revision} cannot be read `
+          + `(${error instanceof Error ? error.message : String(error)}). Restore the record and retry re-root.`,
+      );
+    }
     const record = parseCandidateManagedRecord(raw.stdout);
-    if (record?.attestation.candidateId === input.candidateId
+    if (record === null) {
+      throw new CandidateSupersessionResolutionError(
+        `Candidate record at ${revision} is malformed. Restore the record and retry re-root.`,
+      );
+    }
+    if (record.attestation.candidateId === input.candidateId
       && record.attestation.workUnit === input.workUnit) return revision;
   }
   throw new CandidateSupersessionResolutionError(
-    `Candidate ${input.candidateId} has no reachable committed record for review recovery. Commit or restore its managed record before retrying re-root.`,
+    `Candidate ${input.candidateId} has no committed record at review head ${input.reviewHeadSha} for review recovery. `
+      + "Restore its managed record at that head before retrying re-root.",
   );
 }
 

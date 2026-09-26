@@ -274,10 +274,22 @@ vi.mock("../../../src/lib/work-unit/verbs/publish.js", () => ({
 }));
 
 const mockReadCandidateRecord = vi.fn();
+const mockReadRepositoryCandidateRecordRevision = vi.fn();
 const mockWriteCandidateRecord = vi.fn();
 vi.mock("../../../src/lib/work-unit/candidate-record-store.js", () => ({
   readCandidateRecord: (...a: unknown[]) => mockReadCandidateRecord(...a),
+  readRepositoryCandidateRecordRevision: (...a: unknown[]) => mockReadRepositoryCandidateRecordRevision(...a),
   writeCandidateRecord: (...a: unknown[]) => mockWriteCandidateRecord(...a),
+}));
+const mockResolveRepositoryIdentity = vi.fn();
+vi.mock("../../../src/scripts/review-gate/hosts/local/git-common-state.js", async (orig) => ({
+  ...(await orig<typeof import("../../../src/scripts/review-gate/hosts/local/git-common-state.js")>()),
+  resolveRepositoryIdentity: (...a: unknown[]) => mockResolveRepositoryIdentity(...a),
+}));
+const mockReadLaneProgressOwner = vi.fn();
+vi.mock("../../../src/scripts/review-gate/lane-progress.js", async (orig) => ({
+  ...(await orig<typeof import("../../../src/scripts/review-gate/lane-progress.js")>()),
+  readLaneProgressOwner: (...a: unknown[]) => mockReadLaneProgressOwner(...a),
 }));
 const mockCollectGitCandidateSubject = vi.fn();
 const mockCollectUnstagedReviewablePaths = vi.fn();
@@ -464,6 +476,8 @@ beforeEach(() => {
     reservation: null,
   };
   mockReadCandidateRecord.mockResolvedValue({ attestation: { candidateId } });
+  mockResolveRepositoryIdentity.mockResolvedValue("repository-id");
+  mockReadLaneProgressOwner.mockResolvedValue(null);
   mockCollectGitCandidateSubject.mockResolvedValue({
     status: "collected",
     target: { revision: "a".repeat(40), subject: {} },
@@ -1743,6 +1757,28 @@ describe("handleAttest", () => {
     expect(refusal.remedy.argv).toEqual(["arc", "init"]);
     expect(mockLogError).not.toHaveBeenCalled();
     expect(mockRunAttest).not.toHaveBeenCalled();
+  });
+
+  it("returns a typed restore-and-retry refusal when the live review record cannot be read", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const reviewHeadSha = "a".repeat(40);
+    mockReadLaneProgressOwner.mockResolvedValueOnce({
+      attempts: [{ attemptId: "attempt-1", outcome: "pending", headSha: reviewHeadSha }],
+    });
+    mockReadRepositoryCandidateRecordRevision.mockRejectedValueOnce(new Error("missing review-head record"));
+    mockRunAttest.mockImplementationOnce(async (context) => {
+      await context.inspectReRootReviewAuthority("foo", `sha256:${"a".repeat(64)}`);
+      throw new Error("expected record lookup refusal");
+    });
+
+    await handleAttest("foo", { newRoot: true, json: true });
+
+    const refusal = LifecycleCommandRefusalSchema.parse(
+      JSON.parse(String(stdoutWrite.mock.calls[0]?.[0])),
+    );
+    expect(refusal.reason).toContain("missing review-head record");
+    expect(refusal.remedy.argv).toEqual(["arc", "attest", "foo", "--new-root"]);
+    expect(process.exitCode).toBe(1);
   });
 
   it("attests when the index carries every reviewable edit", async () => {

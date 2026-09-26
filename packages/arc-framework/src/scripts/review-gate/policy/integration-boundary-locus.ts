@@ -14,7 +14,7 @@ import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
 import { attestConvergenceArgv } from "../../integration/spine-refusal.js";
 import { GitObjectIdSchema, ReviewIdentifierSchema } from "../core/gate-contract-v2-schema.js";
 import { ReviewResponseSettlementSourceSchema } from "../core/response-plan-schema.js";
-import { FrontlineCommandRequestSchema } from "./frontline-command-schema.js";
+import { FrontlineResolveRequestSchema } from "./frontline-command-schema.js";
 import { ReviewResolveEnvelopeSchema } from "./review-policy-driver.js";
 import { StandardReviewObligationProjectionSchema } from "./standard-review-projection-schema.js";
 import {
@@ -37,8 +37,8 @@ export const RunSelfReviewActionSchema = z.strictObject({
 });
 export const ContinuePrePublicationActionSchema = z.strictObject({
   kind: z.literal("continue-pre-publication-review"),
-  authorizationRequest: FrontlineCommandRequestSchema.optional(),
-  request: FrontlineCommandRequestSchema.optional(),
+  authorizationRequest: FrontlineResolveRequestSchema.optional(),
+  request: FrontlineResolveRequestSchema.optional(),
   resumeCommand: z.string().trim().min(1).optional(),
   responseOperationId: ReviewIdentifierSchema.optional(),
   responseSource: ReviewResponseSettlementSourceSchema.optional(),

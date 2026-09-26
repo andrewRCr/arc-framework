@@ -389,6 +389,8 @@ async function reachAtCapConvergence(root: string): Promise<{
   });
   const continuationArgv = envelope.nextAction.postAttestContinuation.nextAction.command.split(" ");
   expect(JSON.parse(Buffer.from(continuationArgv[5] ?? "", "base64url").toString("utf8"))).toEqual({
+    candidateId: envelope.candidateId,
+    candidateSubjectDigest: envelope.candidateSubjectDigest,
     selfReview: "settled",
     changeSet: {
       changeSetState: "known",
@@ -628,6 +630,22 @@ describe("attest → pre-publication → publish", () => {
     const readyReplay = await runReturnedCommand(repository, pending.continuationCommand);
     expect(readyReplay.exitCode, JSON.stringify(readyReplay)).toBe(0);
     expect(JSON.parse(readyReplay.stdout)).toMatchObject({ locus: "candidate-publish-ready" });
+    const savedToken = pending.continuationCommand.split(" ")[5] ?? "";
+    const staleInput = JSON.parse(Buffer.from(savedToken, "base64url").toString("utf8"));
+    const staleToken = Buffer.from(JSON.stringify({
+      ...staleInput,
+      candidateSubjectDigest: `sha256:${"f".repeat(64)}`,
+    }), "utf8").toString("base64url");
+    const staleReplay = await runArc(
+      ["review", "pre-publication", "example", "--resume", staleToken],
+      repository,
+      { env: OFFLINE_ENV },
+    );
+    expect(staleReplay.exitCode).toBe(1);
+    expect(JSON.parse(staleReplay.stdout)).toMatchObject({
+      error: { code: "invalid-input" },
+      remedy: { argv: ["arc", "review", "pre-publication", "example"] },
+    });
     const readyBoundaryPath = join(
       repository,
       ".arc", "system", ".internal", "candidates", "example.boundary.json",
@@ -652,10 +670,25 @@ describe("attest → pre-publication → publish", () => {
       status: "published",
       boundary: { locus: "publication-pending", candidateId: pending.candidateId },
     });
+    const publicationReplay = await runReturnedCommand(repository, pending.continuationCommand);
+    expect(publicationReplay.exitCode, JSON.stringify(publicationReplay)).toBe(0);
+    expect(JSON.parse(publicationReplay.stdout)).toMatchObject({
+      locus: "publication-pending",
+      candidateId: pending.candidateId,
+      nextAction: { kind: "continue-publication" },
+    });
+    const publicationPlainRetry = await runArc(["review", "pre-publication", "example"], repository, {
+      env: OFFLINE_ENV,
+    });
+    expect(publicationPlainRetry.exitCode, JSON.stringify(publicationPlainRetry)).toBe(0);
+    expect(JSON.parse(publicationPlainRetry.stdout)).toMatchObject({ locus: "publication-pending" });
     await git(repository, ["add", "-A"]);
     await git(repository, ["commit", "-m", "chore(arc): project publication readiness"]);
     expect(await git(repository, ["rev-list", "--count", `${beforeProjectionCommit}..HEAD`])).toBe("1");
     expect(await git(repository, ["status", "--porcelain"])).toBe("");
+    const committedReplay = await runReturnedCommand(repository, pending.continuationCommand);
+    expect(committedReplay.exitCode, JSON.stringify(committedReplay)).toBe(0);
+    expect(JSON.parse(committedReplay.stdout)).toMatchObject({ locus: "publication-pending" });
     expect(await reviewAccounting(repository)).toEqual(accountingAtCap);
   }, 120_000);
 
@@ -698,18 +731,13 @@ describe("attest → pre-publication → publish", () => {
     const recovered = await runArc(refusal.remedy.argv.slice(1), repository, { env: OFFLINE_ENV });
     expect(recovered.exitCode, JSON.stringify(recovered)).toBe(0);
     expect(JSON.parse(recovered.stdout)).toMatchObject({
-      locus: "candidate-review-pending",
-      nextAction: { kind: "continue-pre-publication-review" },
-      policy: {
-        state: "approval-required",
-        nextAction: "obtain-ceiling-override",
-        payload: {
-          consequence: { exhaustedPassCount: 2, nextPass: 3 },
-        },
-      },
+      locus: "candidate-publish-ready",
+      nextAction: { kind: "publish-candidate" },
       candidateId: pending.candidateId,
       candidateSubjectDigest: pending.candidateSubjectDigest,
     });
+    // The extra commit changed only the operational projection. The clean second pass remains
+    // applicable after the explicit ordering recovery, so no third pass or override is due.
     expect(await reviewAccounting(repository)).toEqual(accountingAtCap);
 
     const boundaryPath = join(
@@ -729,8 +757,8 @@ describe("attest → pre-publication → publish", () => {
     const oldTokenReplay = await runReturnedCommand(repository, continuation);
     expect(oldTokenReplay.exitCode, JSON.stringify(oldTokenReplay)).toBe(0);
     expect(JSON.parse(oldTokenReplay.stdout)).toMatchObject({
-      locus: "candidate-review-pending",
-      policy: { state: "approval-required" },
+      locus: "candidate-publish-ready",
+      nextAction: { kind: "publish-candidate" },
     });
     expect(JSON.parse(await readFile(boundaryPath, "utf8"))).not.toHaveProperty(
       "postAttestContinuation",

@@ -99,8 +99,9 @@ function producerTargetMatches(
   operationId: string,
   historicalProducerId?: string,
 ): boolean {
-  const historical = historicalProducerId === operationId
-    && result.target.headSha !== request.target.headSha;
+  // Composition binds this producer id only after current contribution authority
+  // approves it, including a changed diff base beneath an unchanged head.
+  const historical = historicalProducerId === operationId;
   return currentTarget.headSha === request.target.headSha
     && result.repositoryId === currentTarget.repositoryId
     && result.target.kind === currentTarget.kind

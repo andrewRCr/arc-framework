@@ -311,6 +311,11 @@ report or the primary's private context. A reader with only the disposition repo
 where, what evidence bears on it, and why it matters. ARC assessment appears before reviewer severity because it is
 the control-bearing judgment; reviewer severity remains visible for provenance.
 
+**A1 supersession (2026-09-25):** When ARC and reviewer severity and nit agree, the default report shows one
+explicit shared grade instead of repeating both labeled grades. When they differ, it shows both labeled grades,
+ARC first. An unsupported finding still shows no ARC severity and the reviewer grade. This supersedes the report
+shape above only for equal grades; the canonical record continues to retain both fields separately.
+
 This is the method's default producer-backed presentation contract, not a second durable schema. A configured
 `review-triage` override may replace or extend the projection under the existing method override model. The canonical
 proposal, source binding, approval identity, and command validation remain unchanged by presentation overrides.
@@ -1392,6 +1397,9 @@ retiring owner of any temporary scaffold. No unshipped segmentation machinery is
     predecessor-to-current range bound to the admitted request generation. A label, missing or ambiguous range,
     intervening generation, or mismatched baseline cannot establish coverage; local exact transport, frontline
     completeness, and explicit hosted complete upgrades retain their existing semantics.
+26. Under A1, a default producer-backed report displays one explicit shared grade when ARC and reviewer grades and nit
+    agree, both labeled grades with ARC first when they differ, and both lanes for an unsupported finding. Canonical
+    severity fields and approval identity remain separate. Report-output tests cover each display case.
 
 ## Open Questions
 
@@ -1400,3 +1408,8 @@ capture-order projection, publication continuation, and non-producer self-review
 Task generation must establish complete caller coverage and coherent, reviewable delivery-member boundaries before
 finalization. Surface estimated advisory exceedances for judgment rather than requiring an automatic split. Concrete
 private helper names remain implementation details.
+
+## Amendments
+
+- **A1** — 2026-09-25 — design: Collapse equal ARC and reviewer grades in default disposition reports.
+  _Supersedes:_ § 4 report shape, criterion 6. _Trigger:_ P6-6 review. _Work:_ review-fix. _Revalidated:_ review-fix.

@@ -535,6 +535,30 @@ describe("evidence-bound review policy", () => {
     }
   });
 
+  it("requires an applicability-bound producer id for a changed base at the same head", async () => {
+    const result = cleanHostedResult();
+    const { targetId: _targetId, ...currentInput } = result.target;
+    void _targetId;
+    const currentTarget = createReviewTarget({
+      ...currentInput,
+      diffBaseSha: objectId("7"),
+      diffBaseTree: objectId("8"),
+    });
+    const request = cleanRequest(result);
+    const evidence = {
+      ...dependencies(result, null, currentTarget),
+      sources: ["codex-pr"], maxPasses: 1,
+    };
+    await expect(resolveEvidenceBoundReviewPolicy(request, evidence))
+      .rejects.toThrow("producer target does not match");
+    await expect(resolveEvidenceBoundReviewPolicy(request, {
+      ...evidence,
+      historicalProducerId: result.producerId,
+    })).resolves.toMatchObject({
+      payload: { verifiedTerminalSignal: { reviewOperationId: result.producerId } },
+    });
+  });
+
   it("starts a fresh logical pass only after a material response is durably performed", async () => {
     const result = findingsHostedResult(["major"]);
     const record = approvedRecord(result, [{

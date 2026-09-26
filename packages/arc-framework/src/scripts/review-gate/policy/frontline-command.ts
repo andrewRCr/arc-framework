@@ -1,18 +1,14 @@
 /** Workflow-facing composition API for frontline semantic resolution. */
 
-import { z } from "zod";
-
-import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
 import {
-  FrontlineResolveEnvelopeSchema,
+  FrontlineCommandResultEnvelopeSchema,
 } from "../core/review-command-envelope.js";
 import {
   createFrontlineAdmission,
   type FrontlineAdmission,
 } from "../core/frontline-admission.js";
-import { ReviewTargetSchema, type ReviewTarget } from "../core/gate-contract-v2-schema.js";
+import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
-import { ReviewTargetCoordinatesSchema } from "../core/review-target-coordinates.js";
 import type { CandidateSupersessionAncestor } from
   "../../../lib/work-unit/candidate-attestation.js";
 import type { ReviewOperationStateStore } from "../core/ports.js";
@@ -24,7 +20,16 @@ import {
   readCandidateInheritedLaneProgress,
   recordLaneAttempt,
 } from "../lane-progress.js";
-import { FrontlineInvocationOverrideSchema } from "./frontline-resolution.js";
+import {
+  FrontlineCommandRequestSchema,
+  type FrontlineCommandRequest,
+} from "./frontline-command-schema.js";
+export {
+  FrontlineCommandRequestSchema,
+  FrontlineResolveRequestSchema,
+  type FrontlineCommandRequest,
+  type FrontlineResolveRequest,
+} from "./frontline-command-schema.js";
 import {
   FrontlineSemanticRecordSchema,
   resolveFrontlineReview,
@@ -38,47 +43,7 @@ import type {
   FrontlineSourcePreferenceReader,
   FrontlineSourceRegistry,
 } from "./frontline-source.js";
-import { ReviewLaneJudgmentSchema } from "./review-policy-driver.js";
 import { resolveReviewRouting, type ReviewRoutingResolution } from "./routing.js";
-
-const FrontlinePolicyJudgmentSchema = ReviewLaneJudgmentSchema.unwrap()
-  .pick({ ceilingOverride: true })
-  .readonly();
-
-const FrontlineRequestFields = {
-  schemaVersion: z.literal(1),
-  changeSet: z.unknown(),
-  invocation: FrontlineInvocationOverrideSchema,
-  policyJudgment: FrontlinePolicyJudgmentSchema.optional(),
-  vehicle: DeliveryReviewMemberVehicleSchema.optional(),
-} as const;
-
-function validateFrontlineRequestVehicle(
-  request: { target: { kind: string }; vehicle?: { kind: "delivery-member" } },
-  context: z.RefinementCtx,
-): void {
-  if ((request.target.kind === "delivery-member") !== (request.vehicle !== undefined)) {
-    context.addIssue({
-      code: "custom",
-      path: ["vehicle"],
-      message: "frontline delivery targets require one exact member vehicle",
-    });
-  }
-}
-
-/** Public frontline resolve request composed only from caller-held facts. */
-export const FrontlineResolveRequestSchema = z.strictObject({
-  ...FrontlineRequestFields,
-  target: ReviewTargetCoordinatesSchema,
-}).superRefine(validateFrontlineRequestVehicle);
-export type FrontlineResolveRequest = z.infer<typeof FrontlineResolveRequestSchema>;
-
-/** Trusted frontline resolve request after repository-local target derivation. */
-export const FrontlineCommandRequestSchema = z.strictObject({
-  ...FrontlineRequestFields,
-  target: ReviewTargetSchema,
-}).superRefine(validateFrontlineRequestVehicle);
-export type FrontlineCommandRequest = z.infer<typeof FrontlineCommandRequestSchema>;
 
 export interface FrontlineCommandResult {
   schemaVersion: 1;
@@ -159,7 +124,7 @@ async function resumePendingFrontlineAdmission(
         dispositionSetId,
       ));
     }
-  return FrontlineResolveEnvelopeSchema.parse({
+  return FrontlineCommandResultEnvelopeSchema.parse({
     schemaVersion: 1,
     mode: "review-frontline-resolve",
     diagnostics: [],
@@ -260,7 +225,7 @@ async function admitNewFrontlineOperation(
     )) ?? [];
     const concurrentAdmission = concurrent.length === 1 ? concurrent[0]?.frontline?.admission : undefined;
     if (concurrentAdmission === undefined) throw error;
-    return FrontlineResolveEnvelopeSchema.parse({
+    return FrontlineCommandResultEnvelopeSchema.parse({
       schemaVersion: 1,
       mode: "review-frontline-resolve",
       diagnostics: [],
@@ -275,7 +240,7 @@ async function admitNewFrontlineOperation(
       },
     });
   }
-  return FrontlineResolveEnvelopeSchema.parse({
+  return FrontlineCommandResultEnvelopeSchema.parse({
     ...base,
     state: "ready",
     nextAction: "run-frontline",
@@ -407,7 +372,7 @@ async function resolveFrontlineCommandWithinLock(
   const { routing, maxPasses, semantic, payload, diagnostics, base } =
     await resolveFrontlineSelection(parsed, dependencies);
   if (phase.closed) {
-    return FrontlineResolveEnvelopeSchema.parse({
+    return FrontlineCommandResultEnvelopeSchema.parse({
       ...base,
       diagnostics: [...diagnostics, {
         code: "frontline-phase-closed",
@@ -437,7 +402,7 @@ async function resolveFrontlineCommandWithinLock(
         now: dependencies.now(),
       });
     }
-    return FrontlineResolveEnvelopeSchema.parse({
+    return FrontlineCommandResultEnvelopeSchema.parse({
       ...base,
       state: "skipped",
       nextAction: "none",
@@ -445,7 +410,7 @@ async function resolveFrontlineCommandWithinLock(
     });
   }
   if (semantic.frontlineReview.action === "offer") {
-    return FrontlineResolveEnvelopeSchema.parse({
+    return FrontlineCommandResultEnvelopeSchema.parse({
       ...base,
       state: "offered",
       nextAction: semantic.frontlineReview.source === null ? "bind-source" : "obtain-authorization",

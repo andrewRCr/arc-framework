@@ -2435,28 +2435,18 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         findings: [],
         settledFindingIds: [],
       });
-            await reviewStore.publishOperation({
-        schemaVersion: 1,
-        semanticsVersion: "review-operation/v1",
+      await publishHostedTerminalProgressFixture(reviewStore, {
         operationId: `lane-progress/settled-teardown-${index + 1}`,
-        updatedAt: `2026-09-05T18:0${index}:00.000Z`,
-        kind: "lane-progress",
-        lane: "standard",
         repositoryId,
         lineage: hostedTerminal2.hosted.admission.lineage,
-        completedPasses: 1,
-        attempts: [{
-          attemptId: hostedTerminal2.attemptId,
         logicalPass: 1,
-        retryGeneration: 0,
         changeRequestId: `pull/${hostedTerminal2.hosted.target.pullRequest}`,
         headSha: hostedTerminal2.hosted.target.headSha,
-        terminalProducer: true,
-          sourceId: "codex-pr",
-          outcome: "clean",
-          hosted: hostedTerminal2.hosted,
-        }],
-      }, 0);
+        sourceId: "codex-pr",
+        outcome: "clean",
+        terminal: hostedTerminal2,
+        now: `2026-09-05T18:0${index}:00.000Z`,
+      });
     }
     const candidateTarget = await collectCandidateSubjectTarget({
       cwd: fixture.repository,

@@ -20,6 +20,7 @@ import type { LaneSubjectLineage } from
 import type { ReviewResult } from
   "../../../../../src/scripts/review-gate/core/review-result.js";
 import {
+  confirmErrandFixResponseApplicability,
   confirmNonDeliveryIncrementalApplicability,
   resolveLocalReviewCoverageSelection,
 } from
@@ -101,7 +102,9 @@ function target(headSha: string) {
   });
 }
 
-function completeLocalResult(resultLineage: LaneSubjectLineage = lineage): ReviewResult {
+function completeLocalResult(
+  resultLineage: LaneSubjectLineage = lineage,
+): Extract<ReviewResult, { kind: "attested-local" }> {
   const predecessorTarget = target(objectId("a"));
   const requirement = createReviewRequirement({
     target: predecessorTarget,
@@ -277,6 +280,139 @@ describe("local review coverage selection", () => {
       ["merge-base", "--all", predecessor.target.headSha, currentTarget.diffBaseSha],
       { objectAccess: "local-only" },
     );
+  });
+
+  it("routes a noncandidate D4 divergence to a typed review requirement", async () => {
+    const earlierLineage = {
+      kind: "head-bound" as const,
+      vehicleKind: "errand" as const,
+      vehicleIdentity: "repair-review-state",
+      headSha: objectId("a"),
+    };
+    const { targetId: _priorId, ...priorInput } = target(objectId("a"));
+    const { targetId: _currentId, ...currentInput } = target(objectId("b"));
+    void _priorId;
+    void _currentId;
+    const predecessor = {
+      ...completeLocalResult(earlierLineage),
+      target: createReviewTarget({
+        ...priorInput,
+        diffBaseSha: objectId("1"), diffBaseTree: objectId("4"),
+        headSha: objectId("a"), headTree: objectId("5"),
+      }),
+    };
+    const currentTarget = createReviewTarget({
+      ...currentInput,
+      diffBaseSha: objectId("2"), diffBaseTree: objectId("6"),
+      headSha: objectId("b"), headTree: objectId("7"),
+    });
+    await expect(confirmNonDeliveryIncrementalApplicability({
+      predecessor,
+      currentTarget,
+      currentLineage: { ...earlierLineage, headSha: objectId("b") },
+      repository: "local/repo-1",
+      pullRequest: 42,
+      candidate: null,
+      exec: carriedProofExec(false),
+      observeTarget: async () => currentTarget,
+    })).resolves.toBe("review-required");
+  });
+
+  it("withholds the Errand response bridge when the live target or produced head differs", async () => {
+    const errandLineage = {
+      kind: "head-bound" as const,
+      vehicleKind: "errand" as const,
+      vehicleIdentity: "repair-review-state",
+      headSha: objectId("a"),
+    };
+    const predecessor = {
+      ...completeLocalResult(errandLineage),
+      originalOutcome: "findings" as const,
+      vehicle: { kind: "errand" as const, identity: "repair-review-state", claimId: "claim-old" },
+      request: { carrier: {
+        kind: "local-change-set", adapterId: "delegated-agent",
+        changeRequestId: null, errandClaimId: "claim-old",
+      } } as Extract<ReviewResult, { kind: "attested-local" }>["request"],
+    };
+    const { targetId: _targetId, ...currentInput } = predecessor.target;
+    void _targetId;
+    const currentTarget = createReviewTarget({
+      ...currentInput, headSha: objectId("b"), headTree: objectId("c"),
+    });
+    const readResponsePerformance = vi.fn(async () => ({
+      schemaVersion: 1 as const,
+      producerId: predecessor.producerId,
+      dispositionSetId: digest("approved"),
+      originatingHeadSha: predecessor.target.headSha,
+      producedHeadSha: objectId("c"),
+      performedAt: "2026-09-25T12:00:00.000Z",
+    }));
+    const common = {
+      predecessor,
+      currentTarget,
+      currentLineage: { ...errandLineage, headSha: currentTarget.headSha },
+      currentClaimId: "claim-old",
+      dispositionStore: dependencies(predecessor).dispositionStore,
+      readResponsePerformance,
+    };
+    await expect(confirmErrandFixResponseApplicability({
+      ...common,
+      observeTarget: async () => ({ ...currentTarget, targetId: digest("moved") }),
+    })).resolves.toBe("unavailable");
+    expect(readResponsePerformance).not.toHaveBeenCalled();
+    await expect(confirmErrandFixResponseApplicability({
+      ...common,
+      observeTarget: async () => currentTarget,
+    })).resolves.toBe("unavailable");
+    expect(readResponsePerformance).toHaveBeenCalledOnce();
+  });
+
+  it("does not carry an old Errand response into a new claim using the same slug", async () => {
+    const errandLineage = {
+      kind: "head-bound" as const,
+      vehicleKind: "errand" as const,
+      vehicleIdentity: "repair-review-state",
+      headSha: objectId("a"),
+    };
+    const predecessor = {
+      ...completeLocalResult(errandLineage),
+      originalOutcome: "findings" as const,
+      vehicle: { kind: "errand" as const, identity: "repair-review-state", claimId: "claim-old" },
+      request: { carrier: {
+        kind: "local-change-set", adapterId: "delegated-agent",
+        changeRequestId: null, errandClaimId: "claim-old",
+      } } as Extract<ReviewResult, { kind: "attested-local" }>["request"],
+    };
+    const { targetId: _targetId, ...currentInput } = predecessor.target;
+    void _targetId;
+    const currentTarget = createReviewTarget({
+      ...currentInput, headSha: objectId("b"), headTree: objectId("c"),
+    });
+    const readResponsePerformance = vi.fn(async () => null);
+    await expect(confirmErrandFixResponseApplicability({
+      predecessor,
+      currentTarget,
+      currentLineage: { ...errandLineage, headSha: currentTarget.headSha },
+      currentClaimId: "claim-new",
+      observeTarget: async () => currentTarget,
+      dispositionStore: dependencies(predecessor).dispositionStore,
+      readResponsePerformance,
+    })).resolves.toBe("unavailable");
+    await expect(confirmErrandFixResponseApplicability({
+      predecessor,
+      currentTarget,
+      currentLineage: { ...errandLineage, headSha: currentTarget.headSha },
+      currentClaimId: "claim-old",
+      currentResult: {
+        ...predecessor,
+        target: currentTarget,
+        vehicle: { kind: "errand", identity: "repair-review-state", claimId: "claim-new" },
+      },
+      observeTarget: async () => currentTarget,
+      dispositionStore: dependencies(predecessor).dispositionStore,
+      readResponsePerformance,
+    })).resolves.toBe("unavailable");
+    expect(readResponsePerformance).not.toHaveBeenCalled();
   });
 
   it("requires a real pull request coordinate before applying contribution authority", async () => {

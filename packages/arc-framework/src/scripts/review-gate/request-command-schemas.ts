@@ -7,7 +7,7 @@ import { ReviewPolicyCommandRequestSchema } from "./policy/review-policy-driver.
 import { ReduceRequestSchema } from "./runtime/reduce-command.js";
 import { RespondRequestSchema } from "./runtime/respond-command.js";
 import { ReviewReadinessRequestSchema } from "./readiness.js";
-import { FrontlineCommandRequestSchema } from "./policy/frontline-command.js";
+import { FrontlineResolveRequestSchema } from "./policy/frontline-command-schema.js";
 import { HostedSettleEnvelopeSchema } from "./hosted/settle.js";
 import { LocalPrepareRequestSchema } from "./runtime/local-prepare.js";
 import { LocalAttestRequestSchema } from "./runtime/local-attest-command.js";
@@ -45,7 +45,7 @@ export function registerReviewRequestCommandSchemas(registry: KernelRegistry): K
     [REVIEW_RESPOND_REQUEST_SCHEMA_ID, RespondRequestSchema],
     [REVIEW_HOSTED_REQUEST_REQUEST_SCHEMA_ID, HostedRequestEnvelopeSchema],
     [REVIEW_READINESS_REQUEST_SCHEMA_ID, ReviewReadinessRequestSchema],
-    [REVIEW_FRONTLINE_RESOLVE_REQUEST_SCHEMA_ID, FrontlineCommandRequestSchema],
+    [REVIEW_FRONTLINE_RESOLVE_REQUEST_SCHEMA_ID, FrontlineResolveRequestSchema],
     [REVIEW_HOSTED_SETTLE_REQUEST_SCHEMA_ID, HostedSettleEnvelopeSchema],
     [REVIEW_LOCAL_PREPARE_REQUEST_SCHEMA_ID, LocalPrepareRequestSchema],
     [REVIEW_LOCAL_ATTEST_REQUEST_SCHEMA_ID, LocalAttestRequestSchema],

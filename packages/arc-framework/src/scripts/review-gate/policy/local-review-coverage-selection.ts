@@ -2,6 +2,7 @@
 
 import { canonicalize } from "../../../lib/kernel/index.js";
 import type { RawGitExec } from "../../../lib/change-facts.js";
+import { proveGitDeliveryContribution } from "../../../lib/delivery/git-contribution-proof.js";
 import {
   candidateReviewApplicabilitySelections,
   type CandidateManagedRecordV1,
@@ -167,7 +168,9 @@ export async function confirmNonDeliveryIncrementalApplicability(input: {
   });
   const projection = await projectSelector(selector);
   if (currentLineage.kind !== "candidate") {
-    return projection.state === "applicable" ? "applicable" : "unavailable";
+    return projection.state === "applicable"
+      ? "applicable"
+      : projection.state === "decision-required" ? "review-required" : "unavailable";
   }
   if (input.candidate === null) return "unavailable";
   const selections = candidateReviewApplicabilitySelections(input.candidate);
@@ -190,6 +193,125 @@ export async function confirmNonDeliveryIncrementalApplicability(input: {
     : authority.state === "review-required"
       ? "review-required"
       : "unavailable";
+}
+
+/** Prove one private or hosted delivery member from exact, live member coordinates. */
+export async function confirmDeliveryMemberIncrementalApplicability(input: {
+  readonly predecessor: ReviewResult;
+  readonly currentTarget: ReviewTarget;
+  readonly currentLineage: LaneSubjectLineage;
+  readonly exec: RawGitExec;
+  readonly observeTarget: () => Promise<ReviewTarget>;
+}): Promise<IncrementalPredecessorApplicability> {
+  const { predecessor, currentTarget, currentLineage } = input;
+  if (predecessor.kind === "frontline"
+    || predecessor.target.kind !== "delivery-member"
+    || currentTarget.kind !== "delivery-member"
+    || currentLineage.kind !== "delivery-member"
+    || predecessor.repositoryId !== currentTarget.repositoryId
+    || !laneSubjectOwnerMatches(predecessor.admission.lineage, currentLineage)) {
+    return "unavailable";
+  }
+  try {
+    if ((await input.observeTarget()).targetId !== currentTarget.targetId) return "unavailable";
+    const proof = await proveGitDeliveryContribution({
+      exec: input.exec,
+      before: {
+        predecessor: {
+          head: predecessor.target.diffBaseSha,
+          tree: predecessor.target.diffBaseTree,
+        },
+        member: { head: predecessor.target.headSha, tree: predecessor.target.headTree },
+      },
+      after: {
+        predecessor: { head: currentTarget.diffBaseSha, tree: currentTarget.diffBaseTree },
+        member: { head: currentTarget.headSha, tree: currentTarget.headTree },
+      },
+    });
+    if ((await input.observeTarget()).targetId !== currentTarget.targetId) return "unavailable";
+    if (proof.status === "accepted") return "applicable";
+    return (proof.reason === "contribution-diverged" || proof.reason === "contribution-conflicted")
+      && proof.paths.length > 0 ? "review-required" : "unavailable";
+  } catch {
+    return "unavailable";
+  }
+}
+
+type ErrandFixApplicabilityInput = {
+  readonly predecessor: ReviewResult;
+  readonly currentTarget: ReviewTarget;
+  readonly currentLineage: LaneSubjectLineage;
+  readonly currentClaimId: string | null;
+  readonly currentResult?: ReviewResult;
+  readonly observeTarget: () => Promise<ReviewTarget>;
+  readonly dispositionStore: ApprovedDispositionRecordStore;
+  readonly readResponsePerformance: (
+    predecessor: ReviewResult,
+  ) => Promise<LaneResponsePerformance | null>;
+};
+
+function exactErrandClaimMatches(input: ErrandFixApplicabilityInput): boolean {
+  const { predecessor, currentLineage, currentClaimId, currentResult } = input;
+  if (currentClaimId === null || predecessor.kind !== "attested-local"
+    || currentLineage.kind !== "head-bound") return false;
+  const priorVehicle = predecessor.vehicle;
+  const priorCarrier = predecessor.request.carrier;
+  if (priorVehicle.kind !== "errand"
+    || priorVehicle.identity !== currentLineage.vehicleIdentity
+    || priorVehicle.claimId !== currentClaimId
+    || priorCarrier.kind !== "local-change-set"
+    || priorCarrier.errandClaimId !== currentClaimId) return false;
+  if (currentResult === undefined) return true;
+  return currentResult.kind === "attested-local"
+    && currentResult.vehicle.kind === "errand"
+    && currentResult.vehicle.identity === currentLineage.vehicleIdentity
+    && currentResult.vehicle.claimId === currentClaimId
+    && currentResult.request.carrier.kind === "local-change-set"
+    && currentResult.request.carrier.errandClaimId === currentClaimId;
+}
+
+function exactErrandResponseContext(input: ErrandFixApplicabilityInput): boolean {
+  const { predecessor, currentTarget, currentLineage } = input;
+  return predecessor.kind === "attested-local"
+    && predecessor.originalOutcome === "findings"
+    && predecessor.target.kind === "change-set"
+    && currentTarget.kind === "change-set"
+    && predecessor.admission.lineage.kind === "head-bound"
+    && predecessor.admission.lineage.vehicleKind === "errand"
+    && currentLineage.kind === "head-bound"
+    && currentLineage.vehicleKind === "errand"
+    && predecessor.repositoryId === currentTarget.repositoryId
+    && laneSubjectOwnerMatches(predecessor.admission.lineage, currentLineage)
+    && exactErrandClaimMatches(input)
+    && predecessor.target.baseRef === currentTarget.baseRef
+    && predecessor.target.diffBaseSha === currentTarget.diffBaseSha
+    && predecessor.target.diffBaseTree === currentTarget.diffBaseTree;
+}
+
+/** Carry one Candidate-free Errand across its exact approved and performed fix commit. */
+export async function confirmErrandFixResponseApplicability(
+  input: ErrandFixApplicabilityInput,
+): Promise<IncrementalPredecessorApplicability> {
+  const { predecessor, currentTarget } = input;
+  if (!exactErrandResponseContext(input)) return "unavailable";
+  try {
+    if (canonicalize(await input.observeTarget()) !== canonicalize(currentTarget)) return "unavailable";
+    const performance = await input.readResponsePerformance(predecessor);
+    if (performance === null
+      || performance.producerId !== predecessor.producerId
+      || performance.originatingHeadSha !== predecessor.target.headSha
+      || performance.producedHeadSha !== currentTarget.headSha) return "unavailable";
+    const response = await readIncrementalPredecessorResponseEvidence(
+      predecessor,
+      input.dispositionStore,
+      () => Promise.resolve(performance),
+    );
+    if (response.status !== "performed") return "unavailable";
+    return canonicalize(await input.observeTarget()) === canonicalize(currentTarget)
+      ? "applicable" : "unavailable";
+  } catch {
+    return "unavailable";
+  }
 }
 
 async function resolveOfferedCorrectionScope(

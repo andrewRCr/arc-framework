@@ -109,6 +109,32 @@ export interface GitReviewContributionApplicabilityInput {
   readonly observeEndpoints: () => Promise<{ head: string; base: string }>;
 }
 
+async function comparisonBase(
+  selector: ReviewContributionApplicabilitySelector,
+  exec: RawGitExec,
+): Promise<string | ReviewContributionApplicabilityResult> {
+  if (selector.priorHead === selector.currentHead) return selector.priorBase;
+  const args = ["merge-base", "--all", selector.priorHead, selector.currentBase];
+  let result;
+  try {
+    result = await exec(args, { objectAccess: "local-only" });
+  } catch (error) {
+    const rejected = normalizeGitRejection(error, { command: "git", args });
+    if (rejected.kind === "nonzero-exit" && rejected.exitCode === 1 && rejected.stdout === "") {
+      return unavailable(selector, "merge-base-missing", "No prior-review-to-current merge base is available.");
+    }
+    throw rejected;
+  }
+  const bases = decodeLines(result.stdout);
+  if (bases.length === 0) {
+    return unavailable(selector, "merge-base-missing", "No prior-review-to-current merge base is available.");
+  }
+  if (bases.length > 1) {
+    return unavailable(selector, "merge-base-ambiguous", "Multiple prior-review-to-current merge bases exist.");
+  }
+  return ObjectIdSchema.parse(bases[0]);
+}
+
 /** Derive exact D4 facts while detecting movement before and after the read. */
 export async function projectGitReviewContributionApplicability(
   input: GitReviewContributionApplicabilityInput,
@@ -117,30 +143,17 @@ export async function projectGitReviewContributionApplicability(
   try {
     const initialMovement = movement(selector, await input.observeEndpoints());
     if (initialMovement !== null) return initialMovement;
-    if (selector.priorHead === selector.currentHead) {
+    if (selector.priorHead === selector.currentHead
+      && selector.priorBase === selector.currentBase) {
       return classifyReviewContributionApplicability(selector, null);
     }
-    const mergeBaseArgs = ["merge-base", "--all", selector.priorHead, selector.currentBase];
-    let mergeBaseResult;
-    try {
-      mergeBaseResult = await input.exec(mergeBaseArgs, { objectAccess: "local-only" });
-    } catch (error) {
-      const rejected = normalizeGitRejection(error, { command: "git", args: mergeBaseArgs });
-      if (rejected.kind === "nonzero-exit" && rejected.exitCode === 1 && rejected.stdout === "") {
-        return unavailable(selector, "merge-base-missing", "No prior-review-to-current merge base is available.");
-      }
-      throw rejected;
-    }
-    const mergeBases = decodeLines(mergeBaseResult.stdout);
-    if (mergeBases.length === 0) {
-      return unavailable(selector, "merge-base-missing", "No prior-review-to-current merge base is available.");
-    }
-    if (mergeBases.length > 1) {
-      return unavailable(selector, "merge-base-ambiguous", "Multiple prior-review-to-current merge bases exist.");
-    }
-    const mergeBase = ObjectIdSchema.parse(mergeBases[0]);
+    // A fixed head can expose a different contribution after its diff base moves.
+    // Compare the reviewed base to the current base instead of substituting their
+    // merge base, which would erase the original reviewed contribution.
+    const beforeBaseHead = await comparisonBase(selector, input.exec);
+    if (typeof beforeBaseHead !== "string") return beforeBaseHead;
     const [beforeBase, beforeMember, afterBase, afterMember] = await Promise.all([
-      coordinate(input.exec, mergeBase),
+      coordinate(input.exec, beforeBaseHead),
       coordinate(input.exec, selector.priorHead),
       coordinate(input.exec, selector.currentBase),
       coordinate(input.exec, selector.currentHead),

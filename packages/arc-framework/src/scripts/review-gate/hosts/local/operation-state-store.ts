@@ -241,6 +241,9 @@ function assertHostedAttemptFieldsUnchanged(previous: LaneAttempt, candidate: La
   if (hostedAcknowledgmentInvalid(previousHosted, candidate)) {
     refuseHostedTransition();
   }
+  if (hostedProducerTransitionInvalid(previous, candidate, previousHosted, hosted)) {
+    refuseHostedTransition();
+  }
   if (previousHosted.handle !== undefined
     && canonicalize(previousHosted.handle) !== canonicalize(hosted.handle ?? null)) {
     throw new LocalOperationStateStoreError("immutable-hosted-transition");
@@ -257,6 +260,18 @@ function assertHostedAttemptFieldsUnchanged(previous: LaneAttempt, candidate: La
     && canonicalize(previousHosted.sealedResult) !== canonicalize(hosted.sealedResult ?? null)) {
     throw new LocalOperationStateStoreError("immutable-hosted-transition");
   }
+}
+
+function hostedProducerTransitionInvalid(
+  previous: LaneAttempt,
+  candidate: LaneAttempt,
+  previousHosted: HostedLaneAttempt,
+  hosted: HostedLaneAttempt,
+): boolean {
+  if (previousHosted.sealedResult !== undefined) return false;
+  if (previous.outcome !== "pending" && candidate.outcome !== previous.outcome) return true;
+  return (hosted.sealedResult !== undefined || candidate.terminalProducer)
+    && (previous.outcome !== "pending" || previousHosted.handle === undefined);
 }
 
 function hostedAcknowledgmentInvalid(previous: HostedLaneAttempt, candidate: LaneAttempt): boolean {

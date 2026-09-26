@@ -444,13 +444,8 @@ const FrontlineReadyPayloadSchema = z.strictObject({
     });
   }
 });
-export const FrontlineResolveEnvelopeSchema = z.union([
-  envelopeVariant(
-    "review-frontline-resolve",
-    "skipped",
-    "none",
-    z.strictObject(FrontlineResolveBasePayload),
-  ),
+export const FrontlineCommandResultEnvelopeSchema = z.union([
+  envelopeVariant("review-frontline-resolve", "skipped", "none", z.strictObject(FrontlineResolveBasePayload)),
   envelopeVariant(
     "review-frontline-resolve",
     "offered",
@@ -469,6 +464,12 @@ export const FrontlineResolveEnvelopeSchema = z.union([
     "run-frontline",
     FrontlineReadyPayloadSchema,
   ),
+]);
+export const FrontlineResolveEnvelopeSchema = z.union([
+  ...FrontlineCommandResultEnvelopeSchema.options,
+  envelopeVariant("review-frontline-resolve", "stale-target", "refresh-pre-publication", z.strictObject({
+    workUnit: SlugSchema, reason: z.string().trim().min(1), command: z.string().trim().min(1),
+  })),
 ]);
 
 const FrontlineCompletedPayloadSchema = z.strictObject({

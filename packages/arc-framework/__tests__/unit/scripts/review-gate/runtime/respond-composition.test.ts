@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import { SlugSchema } from "../../../../../src/lib/kernel/schema/slug.js";
 import { ApprovedDispositionRecordSchema } from
   "../../../../../src/scripts/review-gate/core/advisory-records.js";
 import {
@@ -12,6 +13,8 @@ import { createReviewRequirement, createReviewTarget } from
   "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import type { ReviewResult } from
   "../../../../../src/scripts/review-gate/core/review-result.js";
+import type { IncrementalPredecessorApplicability } from
+  "../../../../../src/scripts/review-gate/policy/incremental-coverage-basis.js";
 import { bindReviewSourceReference } from
   "../../../../../src/scripts/review-gate/core/review-source-reference.js";
 import { responsePolicyRequestFixture } from "../../../../fixtures/review-response-policy.js";
@@ -19,7 +22,8 @@ import { responsePolicyRequestFixture } from "../../../../fixtures/review-respon
 const evidence = vi.hoisted(() => ({
   results: new Map<string, ReviewResult>(),
   records: new Map<string, unknown>(),
-  confirmApplicability: vi.fn(async () => "applicable" as const),
+  confirmApplicability: vi.fn(async (): Promise<IncrementalPredecessorApplicability> => "applicable"),
+  confirmMemberApplicability: vi.fn(async (): Promise<IncrementalPredecessorApplicability> => "review-required"),
   readPerformance: vi.fn(async () => null as unknown),
 }));
 
@@ -55,6 +59,7 @@ vi.mock("../../../../../src/scripts/review-gate/lane-progress.js", async (import
 vi.mock("../../../../../src/scripts/review-gate/policy/local-review-coverage-selection.js", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../../../../src/scripts/review-gate/policy/local-review-coverage-selection.js")>(),
   confirmNonDeliveryIncrementalApplicability: evidence.confirmApplicability,
+  confirmDeliveryMemberIncrementalApplicability: evidence.confirmMemberApplicability,
 }));
 
 const { createRespondDependencies } = await import(
@@ -261,5 +266,79 @@ describe("production respond policy composition", () => {
       nextAction: "select-coverage",
       payload: { verifiedTerminalSignal: { coverageAdequate: false } },
     });
+  });
+
+  it("requires current contribution proof for a same-owner delivery member", async () => {
+    const priorRaw = hostedFinding(oid("c"), "hosted/prior", "major");
+    const currentRaw = hostedFinding(oid("d"), "hosted/current", "minor");
+    const memberLineage = {
+      kind: "delivery-member" as const,
+      planId: "123e4567-e89b-12d3-a456-426614174000",
+      deliverableId: digest("member"),
+      workUnitId: SlugSchema.parse("example"),
+    };
+    const memberTarget = (source: ReviewResult["target"], base: string) => {
+      const { targetId: _targetId, ...input } = source;
+      void _targetId;
+      return createReviewTarget({ ...input, kind: "delivery-member", diffBaseSha: base });
+    };
+    const priorTarget = memberTarget(priorRaw.target, oid("a"));
+    const currentTarget = memberTarget(currentRaw.target, oid("b"));
+    const requirement = (target: ReviewResult["target"]) => createReviewRequirement({
+      target,
+      projection,
+      acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
+      initialAdmission: "automatic",
+    });
+    const priorRequirement = requirement(priorTarget);
+    const currentRequirement = requirement(currentTarget);
+    if (priorRequirement === null || currentRequirement === null) throw new Error("missing requirement");
+    const prior: ReviewResult = {
+      ...priorRaw,
+      target: priorTarget,
+      admission: { ...priorRaw.admission, lineage: memberLineage, policyVersion: priorRequirement.policyVersion },
+      requirement: priorRequirement,
+    };
+    const current: ReviewResult = {
+      ...currentRaw,
+      target: currentTarget,
+      admission: { ...currentRaw.admission, lineage: memberLineage, policyVersion: currentRequirement.policyVersion },
+      requirement: currentRequirement,
+    };
+    const priorRecord = approvedRecord(prior, "fix");
+    evidence.results.set(prior.producerId, prior);
+    evidence.results.set(current.producerId, current);
+    evidence.records.set(prior.producerId, priorRecord);
+    evidence.records.set(current.producerId, approvedRecord(current, "defer"));
+    evidence.confirmMemberApplicability.mockReset().mockResolvedValue("review-required");
+    evidence.readPerformance.mockReset().mockResolvedValue({
+      schemaVersion: 1,
+      producerId: prior.producerId,
+      dispositionSetId: priorRecord.currentDispositionSetId,
+      originatingHeadSha: prior.target.headSha,
+      producedHeadSha: current.target.headSha,
+      performedAt: "2026-09-09T20:01:00Z",
+    });
+    const dependencies = createRespondDependencies({ cwd: "/repo", exec: vi.fn() as never });
+    const request = responsePolicyRequestFixture({
+      headSha: current.target.headSha,
+      repository: "owner/repo",
+      pullRequest: 42,
+      sourceId: current.sourceIdentity,
+      reviewOperationId: current.producerId,
+      completedPasses: 2,
+      standardReview: projection,
+    });
+
+    await expect(dependencies.resolvePolicy(request, current.target)).resolves.toMatchObject({
+      state: "coverage-required",
+      nextAction: "select-coverage",
+      payload: { verifiedTerminalSignal: { coverageAdequate: false } },
+    });
+    expect(evidence.confirmMemberApplicability).toHaveBeenCalledWith(expect.objectContaining({
+      predecessor: expect.objectContaining({ producerId: prior.producerId }),
+      currentTarget,
+      currentLineage: memberLineage,
+    }));
   });
 });

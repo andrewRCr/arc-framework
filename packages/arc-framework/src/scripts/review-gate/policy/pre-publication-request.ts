@@ -1,6 +1,7 @@
 /** Lane policy-request composition for the typed pre-publication review procedure. */
 
 import { z } from "zod";
+import { canonicalize } from "../../../lib/canonical/canonical-json.js";
 
 import { currentApprovedDispositionNode } from "../core/advisory-records.js";
 import { validateApprovedDispositionRecordForResult } from
@@ -332,6 +333,7 @@ function evidenceCompositionRefusal(error: unknown): PrePublicationComposition {
 async function applicableHistoricalAttempt(input: {
   lane: ReviewLane;
   progress: LaneProgressProjection;
+  sameHeadCandidate?: LanePolicyAttempt & { headSha: string };
   exactTarget: ReviewTarget | null;
   lineage?: LaneSubjectLineage;
   workUnit: string;
@@ -339,19 +341,48 @@ async function applicableHistoricalAttempt(input: {
   dependencies: PrePublicationCompositionDependencies;
 }): Promise<(LanePolicyAttempt & { headSha: string }) | undefined> {
   const { progress, exactTarget, lineage } = input;
+  const historical = progress.status === "recorded"
+    ? input.sameHeadCandidate ?? progress.historicalAttempt : undefined;
   if (input.lane !== "standard" || progress.status !== "recorded"
-    || progress.attempts.length > 0 || progress.historicalAttempt === undefined
-    || exactTarget === null || lineage === undefined
-    || progress.historicalAttempt.headSha === exactTarget.headSha) return undefined;
-  const prior = await input.dependencies.resultReader.readResult(progress.historicalAttempt.attemptId);
-  if (prior.target.headSha !== progress.historicalAttempt.headSha
-    || prior.admission.logicalPass !== progress.historicalAttempt.logicalPass) {
+    || progress.attempts.length > 0 || historical === undefined
+    || exactTarget === null || lineage === undefined) return undefined;
+  const prior = await input.dependencies.resultReader.readResult(historical.attemptId);
+  if (prior.target.headSha !== historical.headSha
+    || prior.admission.logicalPass !== historical.logicalPass) {
     throw new Error("historical review producer does not match its original admission");
   }
   const applicability = await input.dependencies.confirmPriorProducerApplicability(
     input.workUnit, prior, exactTarget, lineage, input.policyTarget,
   );
-  return applicability === "applicable" ? progress.historicalAttempt : undefined;
+  return applicability === "applicable" ? historical : undefined;
+}
+
+/** Keep an old-base terminal at the same head available for exact applicability proof. */
+function separateSameHeadTerminals(
+  progress: LaneProgressProjection,
+  target: ReviewTarget | null,
+): {
+  progress: LaneProgressProjection;
+  sameHeadCandidate?: LanePolicyAttempt & { headSha: string };
+} {
+  if (progress.status !== "recorded" || target === null) return { progress };
+  const stale = progress.attempts.filter((attempt) => {
+    if (attempt.outcome !== "clean" && attempt.outcome !== "settled-findings") return false;
+    const producerTarget = attempt.hosted?.reviewTarget ?? attempt.local?.target;
+    return producerTarget !== undefined
+      && producerTarget.headSha === target.headSha
+      && canonicalize(producerTarget) !== canonicalize(target);
+  });
+  if (stale.length === 0) return { progress };
+  const retained = progress.attempts.filter((attempt) => !stale.includes(attempt));
+  const latest = [...stale].sort((left, right) => right.logicalPass - left.logicalPass)[0];
+  return {
+    progress: { ...progress, attempts: retained },
+    ...(retained.length === 0 && latest !== undefined
+      && stale.filter((attempt) => attempt.logicalPass === latest.logicalPass).length === 1
+      ? { sameHeadCandidate: { ...latest, headSha: target.headSha } }
+      : {}),
+  };
 }
 
 function policyAttempts(
@@ -635,19 +666,23 @@ export async function composePrePublicationReviewRequest(
     lineageHeadShas: readonly string[],
     lineage?: LaneSubjectLineage,
   ) => {
-    const [policy, progress] = [
+    const [policy, rawProgress] = [
       lane === "frontline" ? frontlinePolicy : standardPolicy,
       await readComposedLaneProgress(
         dependencies, lane, policyTarget.headSha, lineageHeadShas, lineage,
         candidateAncestorsForLineage(candidate, lineage),
       ),
     ];
+    const { progress, sameHeadCandidate } = lane === "standard"
+      ? separateSameHeadTerminals(rawProgress, exactTarget)
+      : { progress: rawProgress, sameHeadCandidate: undefined };
     if (progress.status === "unrecorded") advisories.push(unrecordedLaneAdvisory(lane));
     const judgment = lanes.data[lane];
     const invocation = await laneInvocation({ lane, lineage, candidate, judgment, dependencies });
     const completedPasses = progress.status === "recorded" ? progress.completedPasses : 0;
     const historicalAttempt = await applicableHistoricalAttempt({
-      lane, progress, exactTarget, lineage, workUnit: input.workUnit, policyTarget, dependencies,
+      lane, progress, sameHeadCandidate, exactTarget, lineage,
+      workUnit: input.workUnit, policyTarget, dependencies,
     });
     terminalAttempts[lane] = effectiveTerminalAttempt(progress, historicalAttempt);
     return bindReviewPolicyEvidence({
@@ -686,10 +721,10 @@ export async function composePrePublicationReviewRequest(
       readResponsePerformance: (predecessor) => dependencies.readResponsePerformance(predecessor),
       confirmIncrementalApplicability: (predecessor, current) =>
         current.admission.lineage.kind === "delivery-member"
-          ? Promise.resolve(predecessor.repositoryId === current.repositoryId
-            && laneSubjectOwnerMatches(predecessor.admission.lineage, current.admission.lineage)
-              ? "applicable" as const
-              : "unavailable" as const)
+          && predecessor.repositoryId === current.repositoryId
+          && laneSubjectOwnerMatches(predecessor.admission.lineage, current.admission.lineage)
+          && canonicalize(predecessor.target) === canonicalize(current.target)
+          ? Promise.resolve("applicable" as const)
           : dependencies.confirmIncrementalApplicability(
             input.workUnit, predecessor, current, policyTarget,
           ),

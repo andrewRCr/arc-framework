@@ -7,7 +7,6 @@ import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import type { GitExec } from "../../../lib/git/index.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
-import type { CandidateManagedRecordV1 } from "../../../lib/work-unit/candidate-attestation.js";
 import type { DeliveryDischargeTargetLookup } from "../core/delivery-member-lookup.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { LocalApprovedDispositionRecordStore } from
@@ -50,6 +49,7 @@ import {
   IncrementalCorrectionScopeCandidate,
   incrementalApplicabilityFromEarlierRead,
   confirmIncrementalPredecessorApplicability,
+  confirmExactCurrentCorrectionPredecessor,
   isCompleteStandardVerdict,
   terminalPolicyOutcome,
   currentCorrectionScopeCandidate,
@@ -61,6 +61,8 @@ import {
   selectedOwnerCleanAttempt,
   retainedSafeUnavailableAttempt,
   HostedReservationDischarge,
+  HostedReservationDischargeReaderArgs,
+  HostedReservationDischargeReader,
   coverageSelectionChoices,
   oneRequestedCoverage,
   requestedCoverageOf,
@@ -92,6 +94,7 @@ export async function projectHostedReservationDischarge(input: {
     repository: string;
     pullRequest: number;
     headSha: string;
+    baseRevision?: string;
     vehicle?: DeliveryReviewMemberVehicle;
   } | null;
   readLaneProgress: (headSha: string) => Promise<LaneProgressProjection>;
@@ -574,27 +577,6 @@ export async function projectHostedReservationDischarge(input: {
   };
 }
 
-/** Exact inputs shared by discharge projection and evidence-bound applicability re-entry. */
-export interface HostedReservationDischargeReaderArgs {
-  workUnitId?: string;
-  reservation: StandardReviewReservationV1 | null;
-  baseRevision: string;
-  approvedHead: string;
-  changeRequest: { repository: string; pullRequest: number } | null;
-  vehicle?: DeliveryReviewMemberVehicle;
-  candidate?: CandidateManagedRecordV1;
-}
-
-/** Discharge projection plus its fresh predecessor-applicability boundary. */
-export interface HostedReservationDischargeReader {
-  (args: HostedReservationDischargeReaderArgs): Promise<HostedReservationDischarge>;
-  confirmIncrementalApplicability(
-    args: HostedReservationDischargeReaderArgs,
-    predecessor: ReviewResult,
-    current: ReviewResult,
-  ): Promise<IncrementalPredecessorApplicability>;
-}
-
 /**
  * Bind the repository's durable lane progress and Candidate span to the discharge projection.
  *
@@ -703,6 +685,7 @@ export function createHostedReservationDischargeReader(input: {
               repository: changeRequest.repository,
               pullRequest: changeRequest.pullRequest,
               currentHead: approvedHead,
+              currentBase: baseRevision,
               lane: "standard",
               sourceId,
               lineage,
@@ -838,7 +821,17 @@ export function createHostedReservationDischargeReader(input: {
         ),
         confirmApplicability: confirmIncrementalApplicability,
         confirmCurrentApplicability: async (candidate, headSha) => {
-          if (candidate.target.headSha === headSha) return "applicable";
+          if (await confirmExactCurrentCorrectionPredecessor({
+            predecessor: candidate,
+            currentHeadSha: headSha,
+            approvedHeadSha: approvedHead,
+            baseRevision,
+            currentRepositoryId,
+            currentLineage: lineage,
+            ...(vehicle === undefined ? {} : { vehicle }),
+            exec: input.exec,
+            cwd: input.cwd,
+          })) return "applicable";
           const sourceId = candidate.kind === "hosted"
             ? candidate.sourceIdentity
             : candidate.kind === "attested-local"
@@ -858,7 +851,10 @@ export function createHostedReservationDischargeReader(input: {
       span,
       target: changeRequest === null
         ? null
-        : { ...changeRequest, headSha: approvedHead, ...(vehicle === undefined ? {} : { vehicle }) },
+        : {
+            ...changeRequest, headSha: approvedHead, baseRevision,
+            ...(vehicle === undefined ? {} : { vehicle }),
+          },
       readLaneProgress: (headSha) => readLaneProgressAcrossLineage(store, {
         lane: "standard",
         repositoryId: currentRepositoryId,

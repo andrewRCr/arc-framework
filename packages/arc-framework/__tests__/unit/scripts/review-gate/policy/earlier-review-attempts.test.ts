@@ -350,6 +350,63 @@ describe("earlier review attempt query", () => {
     });
   });
 
+  it("routes a same-head changed-base producer through current contribution authority", async () => {
+    const prior = laneState();
+    const query = { ...selector(), currentHead: oid("a"), currentBase: oid("2") };
+    const snapshot = { status: "complete" as const, records: [{ version: 1, state: prior }] };
+    expect(queryEarlierReviewAttempts(query, snapshot)).toMatchObject({
+      status: "complete",
+      candidates: [{ priorHead: oid("a"), reviewTarget: { diffBaseSha: oid("1") } }],
+    });
+    expect(queryEarlierReviewAttempts({ ...query, currentBase: oid("1") }, snapshot))
+      .toMatchObject({ status: "unavailable", reason: "no-matching-attempt" });
+    const readEarlier = () => projectEarlierReviewApplicability({
+      query,
+      currentBase: oid("2"),
+      snapshot,
+      candidate: candidateRecord(),
+      exec: async () => { throw new Error("injected projection owns Git"); },
+      observeEndpoints: stableEndpoints,
+      projectApplicability: async (selector) => applicabilityDecision(selector),
+    });
+    await expect(readEarlier()).resolves.toMatchObject({
+      status: "complete",
+      attempts: [{ applicability: "stop", projection: { state: "decision-required" } }],
+    });
+    const reservation = createStandardReviewReservation({
+      candidateId: candidateRecord().attestation.candidateId,
+      repository: "owner/repository",
+      headSha: oid("a"),
+      sourceId: "codex-pr",
+      sources: ["codex-pr"],
+      obligation: {
+        obligation: "required", reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1", rubricDigest: `sha256:${"e".repeat(64)}`,
+        retrigger: "full-final", count: 1,
+      },
+    });
+    const unavailableTerminal = async () => { throw new Error("changed contribution is not terminal"); };
+    await expect(projectHostedReservationDischarge({
+      reservation,
+      span: [oid("a")],
+      target: {
+        repository: "owner/repository", pullRequest: 42,
+        headSha: oid("a"), baseRevision: oid("2"),
+      },
+      readLaneProgress: async () => ({
+        status: "recorded", completedPasses: 1, completePasses: 1,
+        attempts: prior.attempts,
+      }),
+      readEarlierAttemptApplicability: async () => readEarlier(),
+      resolveTerminalPolicy: unavailableTerminal,
+      resolveEarlierTerminalPolicy: unavailableTerminal,
+    })).resolves.toMatchObject({
+      discharged: false,
+      nextSource: null,
+      applicability: { state: "decision-required" },
+    });
+  });
+
   it("excludes every mismatched repository, request, lane, source, and current-head dimension", () => {
     const base = laneState();
     const variants = [

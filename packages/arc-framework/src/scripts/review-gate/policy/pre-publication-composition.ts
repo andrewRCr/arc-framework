@@ -77,7 +77,10 @@ import { readSingletonFrontlinePhaseClosure } from "./frontline-phase.js";
 import { projectFrontlineFollowUpAdvice, type FrontlineFollowUpAdvice } from "./frontline-follow-up.js";
 import { composeWorkUnitReviewAssurance } from "./assurance.js";
 import { resolveConfiguredLanePolicy } from "./lane-policy-config.js";
-import { confirmNonDeliveryIncrementalApplicability } from "./local-review-coverage-selection.js";
+import {
+  confirmDeliveryMemberIncrementalApplicability,
+  confirmNonDeliveryIncrementalApplicability,
+} from "./local-review-coverage-selection.js";
 import type { IncrementalPredecessorApplicability } from "./incremental-coverage-basis.js";
 import {
   composePreBindingDeliveryReviewTargets,
@@ -454,6 +457,42 @@ export async function singletonFrontlinePhaseClosed(
   return false;
 }
 
+/** Bind private-member applicability to the live planned member, which has no PR selector. */
+function createPrivateMemberApplicability(input: {
+  settings: () => Promise<Awaited<ReturnType<typeof readConfigSettings>>["settings"]>;
+  rawGit: RawGitExec;
+  targetDependencies: PreBindingDeliveryReviewTargetDependencies;
+}) {
+  const readDeliveryTargets = async (workUnit: string) => composePreBindingDeliveryReviewTargets({
+    workUnitId: workUnit,
+    baseRef: (await input.settings())["branch.base"],
+  }, input.targetDependencies);
+  const confirm = async (
+    workUnit: string,
+    predecessor: ReviewResult,
+    currentTarget: ReviewTarget,
+    currentLineage: Extract<Parameters<PrePublicationCompositionDependencies["confirmPriorProducerApplicability"]>[3],
+      { kind: "delivery-member" }>,
+  ): Promise<IncrementalPredecessorApplicability> => confirmDeliveryMemberIncrementalApplicability({
+    predecessor,
+    currentTarget,
+    currentLineage,
+    exec: input.rawGit,
+    observeTarget: async () => {
+      const read = await readDeliveryTargets(workUnit);
+      const matches = read.status === "composed" ? read.targets.filter(({ vehicle }) => (
+        vehicle.planId === currentLineage.planId
+        && vehicle.deliverableId === currentLineage.deliverableId
+        && vehicle.workUnitId === currentLineage.workUnitId
+      )) : [];
+      const match = matches.length === 1 ? matches[0] : undefined;
+      if (match === undefined) throw new Error("The current delivery-member target is unavailable.");
+      return match.target;
+    },
+  });
+  return { readDeliveryTargets, confirm };
+}
+
 /**
  * Bind the canonical Candidate, meta, host, identity, and durable-progress reads to the composition.
  *
@@ -496,10 +535,17 @@ export function createPrePublicationCompositionDependencies(input: {
       coordinates: { kind: "change-set", baseRef, diffBaseSha, headSha },
     });
   };
+  const { readDeliveryTargets, confirm: confirmPrivateMemberApplicability } = createPrivateMemberApplicability({
+    settings, rawGit,
+    targetDependencies: deliveryReviewTargetDependencies,
+  });
   const confirmPriorProducerApplicability:
     PrePublicationCompositionDependencies["confirmPriorProducerApplicability"] = async (
       workUnit, predecessor, currentTarget, currentLineage, policyTarget,
     ) => {
+      if (currentLineage.kind === "delivery-member") {
+        return confirmPrivateMemberApplicability(workUnit, predecessor, currentTarget, currentLineage);
+      }
       const candidate = await readCandidateRecord(input.cwd, SlugSchema.parse(workUnit));
       if (policyTarget.pullRequest === null) {
         if (candidate === null) return "unavailable";
@@ -667,10 +713,7 @@ export function createPrePublicationCompositionDependencies(input: {
       });
     },
 
-    readDeliveryReviewTargets: async (workUnit) => composePreBindingDeliveryReviewTargets({
-      workUnitId: workUnit,
-      baseRef: (await settings())["branch.base"],
-    }, deliveryReviewTargetDependencies),
+    readDeliveryReviewTargets: readDeliveryTargets,
 
     deriveImmutableTarget: async (headSha): Promise<ImmutableTargetRead> => {
       try {

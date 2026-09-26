@@ -306,12 +306,38 @@ function policyEnvelope(
     : `Continue the ${lane} review from the typed policy result '${policy.state}'.`;
   let nextAction: z.infer<typeof ContinuePrePublicationActionSchema>;
   if (policy.state === "ready" && policy.nextAction === "run-frontline") {
+    if (request.target === null) {
+      throw new Error("ready frontline review requires a current exact review target");
+    }
     const resolverRequest = {
       schemaVersion: 1 as const,
       changeSet: request.routingFacts,
       invocation: { mode: "inherit" as const, sourceId: policy.payload.sourceId },
-      pass: policy.payload.pass,
-      maxPasses: Math.max(policy.payload.pass, policy.payload.maxPasses),
+      target: {
+        kind: request.target.kind,
+        baseRef: request.target.baseRef,
+        diffBaseSha: request.target.diffBaseSha,
+        headSha: request.target.headSha,
+      },
+      ...(request.responseBinding === undefined
+        ? {}
+        : { vehicle: request.responseBinding.deliveryMember }),
+      ...(request.frontline.ceilingOverride === undefined
+        ? {}
+        : {
+            policyJudgment: {
+              ceilingOverride: {
+                exhaustedPassCount: request.frontline.ceilingOverride.exhaustedPassCount,
+                nextPass: request.frontline.ceilingOverride.nextPass,
+                ...(request.frontline.ceilingOverride.conditionalPassAuthorizationId === undefined
+                  ? {}
+                  : {
+                      conditionalPassAuthorizationId:
+                        request.frontline.ceilingOverride.conditionalPassAuthorizationId,
+                    }),
+              },
+            },
+          }),
     };
     nextAction = ContinuePrePublicationActionSchema.parse({
       kind: "continue-pre-publication-review",

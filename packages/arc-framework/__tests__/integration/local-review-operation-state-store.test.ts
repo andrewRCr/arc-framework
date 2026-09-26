@@ -9,6 +9,7 @@ import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import {
   ReviewReceiptV2Schema,
 } from "../../src/scripts/review-gate/core/gate-contract-v2-schema.js";
+import { LaneProgressStateSchema } from "../../src/scripts/review-gate/core/operation-state-schema.js";
 import { parseEvidence } from "../../src/scripts/review-gate/core/evidence.js";
 import type { ReviewOperationStateStore } from "../../src/scripts/review-gate/core/ports.js";
 import {
@@ -25,6 +26,7 @@ import {
   laneProgressOperationId,
   recordHostedAwaitAttempt,
   recordHostedRequestAdmission,
+  recordHostedRequestConclusion,
   recordLaneAttempt,
   readHostedAwaitReplay,
   resolveHostedAwaitResult,
@@ -313,6 +315,72 @@ describe("local review operation state authority", () => {
       }],
     }, before.version)).rejects.toThrow(/immutable-hosted-transition/u);
     await expect(records.store.readOperation(records.progress.operationId)).resolves.toEqual(before);
+  });
+
+  it.each(["rate-limited", "transient-unavailable"] as const)(
+    "rejects a schema-valid direct-store seal after a concluded hosted %s attempt",
+    async (outcome) => {
+      const records = await acknowledgedHostedFixture();
+      const concluded = await recordHostedAwaitAttempt(records.store, {
+        repositoryId: records.handle.admission.repositoryId,
+        result: {
+          schemaVersion: 1,
+          mode: "review-hosted-await",
+          handle: records.handle,
+          state: outcome,
+          nextAction: "try-next-source",
+        },
+        now: "2026-08-15T12:00:00Z",
+      });
+      const current = await records.store.readOperation(concluded.operationId);
+      const attempt = concluded.attempts[0];
+      if (attempt?.hosted === undefined) throw new Error("expected concluded hosted attempt");
+      const terminal = createHostedTerminalAttemptFixture({
+        admission: attempt.hosted.admission,
+        outcome: "clean",
+      });
+      const rewrite = {
+        ...concluded,
+        updatedAt: "2026-08-15T12:01:00Z",
+        completedPasses: 1,
+        attempts: [{
+          ...attempt,
+          attemptId: terminal.attemptId,
+          outcome: "clean" as const,
+          terminalProducer: true,
+          hosted: terminal.hosted,
+        }],
+      };
+      expect(LaneProgressStateSchema.safeParse(rewrite).success).toBe(true);
+
+      await expect(records.store.publishOperation(rewrite, current.version))
+        .rejects.toThrow(/immutable-hosted-transition/u);
+      await expect(records.store.readOperation(concluded.operationId)).resolves.toEqual(current);
+    },
+  );
+
+  it("preserves a concluded request failure instead of letting it become pending", async () => {
+    const records = await admittedHostedFixture();
+    const concluded = await recordHostedRequestConclusion(records.store, {
+      admission: records.admission,
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-request",
+        state: "rate-limited",
+        nextAction: "try-next-source",
+        provider: records.admission.sourceId,
+        requestedCoverage: records.admission.requestedCoverage,
+        attemptedProviders: [records.admission.sourceId],
+      },
+      now: "2026-08-15T12:00:00Z",
+    });
+    const current = await records.store.readOperation(concluded.operationId);
+    const rewrite = { ...concluded, updatedAt: "2026-08-15T12:01:00Z", attempts: records.progress.attempts };
+    expect(LaneProgressStateSchema.safeParse(rewrite).success).toBe(true);
+
+    await expect(records.store.publishOperation(rewrite, current.version))
+      .rejects.toThrow(/immutable-hosted-transition/u);
+    await expect(records.store.readOperation(concluded.operationId)).resolves.toEqual(current);
   });
 
   it("rejects a schema-valid rewrite that removes sealed hosted evidence", async () => {

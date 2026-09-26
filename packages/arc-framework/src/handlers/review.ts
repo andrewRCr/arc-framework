@@ -112,6 +112,7 @@ import {
   consumeFrontlineCeilingOverride,
   consumeOwnerAcceptedTerminus,
   composePrePublicationReviewRequest,
+  type CandidateRead,
   type PrePublicationComposition,
 } from "../scripts/review-gate/policy/pre-publication-request.js";
 import {
@@ -123,6 +124,7 @@ import {
 } from "../scripts/review-gate/policy/pre-publication-procedure.js";
 import {
   CandidateReviewResumeBoundarySchema,
+  IntegrationBoundaryLocusSchema,
   parseIntegrationBoundaryLocus,
   type IntegrationBoundaryLocus,
   type PostAttestContinuation,
@@ -136,6 +138,7 @@ import {
 } from "../lib/work-unit/submission-boundary-store.js";
 import { createReviewRequirement } from "../scripts/review-gate/core/gate-contract-v2.js";
 import { GitObjectIdSchema } from "../scripts/review-gate/core/gate-contract-v2-schema.js";
+import type { ReviewResult } from "../scripts/review-gate/core/review-result.js";
 import {
   candidateExpectsEarlierReviewAttempt,
   earlierAttemptRetainsReservationPosition,
@@ -161,7 +164,10 @@ import {
   LaneSubjectLineageSchema,
   type LaneSubjectLineage,
 } from "../scripts/review-gate/core/lane-admission.js";
-import { confirmNonDeliveryIncrementalApplicability } from
+import {
+  confirmErrandFixResponseApplicability,
+  confirmNonDeliveryIncrementalApplicability,
+} from
   "../scripts/review-gate/policy/local-review-coverage-selection.js";
 import { readLocalReviewLiveContext } from
   "../scripts/review-gate/hosts/local/live-context.js";
@@ -1525,27 +1531,22 @@ async function resolveConfiguredReviewPolicy(
   });
   const publisher = new RepositoryGitCommonStatePublisher(gitExec, root);
   const operationStore = new LocalReviewOperationStateStore(publisher);
+  const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
+  const readResponsePerformance = (predecessor: ReviewResult) =>
+    readLaneResponsePerformance(operationStore, predecessor);
   return resolveEvidenceBoundReviewPolicy(request, {
     sources,
     maxPasses,
     resultReader: createRepositoryReviewResultReader(publisher),
-    dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
-    readResponsePerformance: (predecessor) => readLaneResponsePerformance(operationStore, predecessor),
+    dispositionStore,
+    readResponsePerformance,
     confirmIncrementalApplicability: async (predecessor, current) => {
       const active = await resolveActiveWu({ cwd: root });
       const candidate = current.admission.lineage.kind === "candidate"
         && active.status === "resolved" && active.name !== ""
         ? await readCandidateRecord(root, active.name)
         : null;
-      return confirmNonDeliveryIncrementalApplicability({
-        predecessor,
-        currentTarget: current.target,
-        currentLineage: current.admission.lineage,
-        repository: request.target.repository,
-        pullRequest: request.target.pullRequest,
-        candidate,
-        exec: createRawGitExec(root),
-        observeTarget: async () => {
+      const observeTarget = async () => {
           const confirmation = await confirmLocalReviewTarget({
             exec: gitExec,
             cwd: root,
@@ -1555,7 +1556,32 @@ async function resolveConfiguredReviewPolicy(
             throw new Error("review producer target no longer matches the current exact target");
           }
           return confirmation.target;
-        },
+      };
+      if (request.target.pullRequest === null
+        && current.admission.lineage.kind === "head-bound"
+        && current.admission.lineage.vehicleKind === "errand") {
+        const live = await readLocalReviewLiveContext({ exec: gitExec, cwd: root }).catch(() => null);
+        return confirmErrandFixResponseApplicability({
+          predecessor,
+          currentTarget: current.target,
+          currentLineage: current.admission.lineage,
+          currentClaimId: live?.context.errand?.identity === current.admission.lineage.vehicleIdentity
+            ? live.context.errand.claimId : null,
+          currentResult: current,
+          observeTarget,
+          dispositionStore,
+          readResponsePerformance,
+        });
+      }
+      return confirmNonDeliveryIncrementalApplicability({
+        predecessor,
+        currentTarget: current.target,
+        currentLineage: current.admission.lineage,
+        repository: request.target.repository,
+        pullRequest: request.target.pullRequest,
+        candidate,
+        exec: createRawGitExec(root),
+        observeTarget,
       });
     },
     confirmTarget: async (attemptedTarget) => {
@@ -2306,6 +2332,83 @@ async function deriveFrontlineCommandRequest(
   });
 }
 
+class PlannedFrontlineMemberRefreshError extends Error {
+  constructor(readonly workUnitId: string, reason: string) {
+    super(reason);
+  }
+}
+
+async function resolveDeliveryMemberFrontlineLineage(input: {
+  root: string;
+  exec: GitExec;
+  target: FrontlineCommandRequest["target"];
+  vehicle: NonNullable<FrontlineCommandRequest["vehicle"]>;
+  activeWorkUnit: string | null;
+}): Promise<LaneSubjectLineage> {
+  const { root, exec, target, vehicle } = input;
+  if (input.activeWorkUnit !== vehicle.workUnitId) {
+    throw new PlannedFrontlineMemberRefreshError(
+      vehicle.workUnitId,
+      "The owning work unit is no longer active in this checkout.",
+    );
+  }
+  const lookup = new RepositoryDeliveryMemberLookup({ exec, cwd: root });
+  const settings = (await readConfigSettings(root)).settings;
+  const delivery = await lookup.resolveReservationRecords(vehicle.workUnitId, {
+    status: "established",
+    ref: `refs/heads/${settings["branch.base"]}`,
+  });
+  if (delivery.status === "planned") {
+    const composed = await createPrePublicationCompositionDependencies({ cwd: root, exec })
+      .readDeliveryReviewTargets(vehicle.workUnitId);
+    const matches = composed.status === "composed" && composed.planId === vehicle.planId
+      ? composed.targets.filter((member) => (
+          sameDeliveryReviewMemberVehicle(member.vehicle, vehicle)
+          && canonicalize(member.target) === canonicalize(target)
+        ))
+      : [];
+    if (matches.length !== 1) {
+      throw new PlannedFrontlineMemberRefreshError(
+        vehicle.workUnitId,
+        composed.status === "refused"
+          ? `Current planned delivery evidence is unavailable (${composed.reason}).`
+          : "The planned delivery member or its exact review target has changed.",
+      );
+    }
+  } else {
+    if (delivery.status === "unavailable" || delivery.status === "absent") {
+      throw new PlannedFrontlineMemberRefreshError(
+        vehicle.workUnitId,
+        "Current delivery plan evidence is unavailable.",
+      );
+    }
+    if (delivery.plan.planId !== vehicle.planId) {
+      throw new Error("frontline delivery-member lineage authority is unavailable");
+    }
+    const targets = await lookup.resolveDischargeTargets(vehicle.workUnitId);
+    const matches = targets.status === "resolved"
+      ? targets.targets.filter((candidate) => (
+          candidate.planId === vehicle.planId
+          && candidate.deliverableId === vehicle.deliverableId
+          && candidate.head === vehicle.head
+          && target.kind === "delivery-member"
+          && target.baseRef === settings["branch.base"]
+          && target.headSha === candidate.head
+          && target.diffBaseSha === candidate.base
+        ))
+      : [];
+    if (matches.length !== 1) {
+      throw new Error("frontline delivery-member lineage authority is unavailable");
+    }
+  }
+  return LaneSubjectLineageSchema.parse({
+    kind: "delivery-member",
+    planId: vehicle.planId,
+    workUnitId: vehicle.workUnitId,
+    deliverableId: vehicle.deliverableId,
+  });
+}
+
 function defaultFrontlineResolveDependencies(): ReviewFrontlineResolveHandlerDependencies {
   const exec = createGitExec();
   return {
@@ -2315,7 +2418,8 @@ function defaultFrontlineResolveDependencies(): ReviewFrontlineResolveHandlerDep
       const publisher = new RepositoryGitCommonStatePublisher(exec, root);
       const operationStore = new LocalReviewOperationStateStore(publisher);
       const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
-      return resolveFrontlineCommand(request, {
+      try {
+        return await resolveFrontlineCommand(request, {
         preferences: createLocalFrontlineSourcePreferenceReader({
           cwd: root,
           exec,
@@ -2338,28 +2442,9 @@ function defaultFrontlineResolveDependencies(): ReviewFrontlineResolveHandlerDep
         resolveLineage: async (target, vehicle) => {
           const live = await readLocalReviewLiveContext({ exec, cwd: root });
           if (vehicle !== undefined) {
-            if (live.context.workUnit?.identity !== vehicle.workUnitId) {
-              throw new Error("frontline delivery-member lineage authority is unavailable");
-            }
-            const targets = await new RepositoryDeliveryMemberLookup({ exec, cwd: root })
-              .resolveDischargeTargets(vehicle.workUnitId);
-            const matches = targets.status === "resolved"
-              ? targets.targets.filter((candidate) => (
-                  candidate.planId === vehicle.planId
-                  && candidate.deliverableId === vehicle.deliverableId
-                  && candidate.head === vehicle.head
-                  && target.headSha === candidate.head
-                  && target.diffBaseSha === candidate.base
-                ))
-              : [];
-            if (matches.length !== 1) {
-              throw new Error("frontline delivery-member lineage authority is unavailable");
-            }
-            return LaneSubjectLineageSchema.parse({
-              kind: "delivery-member",
-              planId: vehicle.planId,
-              workUnitId: vehicle.workUnitId,
-              deliverableId: vehicle.deliverableId,
+            return resolveDeliveryMemberFrontlineLineage({
+              root, exec, target, vehicle,
+              activeWorkUnit: live.context.workUnit?.identity ?? null,
             });
           }
           if (live.context.workUnit !== null) {
@@ -2392,6 +2477,21 @@ function defaultFrontlineResolveDependencies(): ReviewFrontlineResolveHandlerDep
         ).settings["review.frontline_max_passes"]),
         now: () => new Date().toISOString(),
       });
+      } catch (error) {
+        if (!(error instanceof PlannedFrontlineMemberRefreshError)) throw error;
+        return FrontlineResolveEnvelopeSchema.parse({
+          schemaVersion: 1,
+          mode: "review-frontline-resolve",
+          diagnostics: [{ code: "planned-member-refresh-required", message: error.message }],
+          state: "stale-target",
+          nextAction: "refresh-pre-publication",
+          payload: {
+            workUnit: error.workUnitId,
+            reason: error.message,
+            command: `arc review pre-publication ${error.workUnitId}`,
+          },
+        });
+      }
     },
   };
 }
@@ -3708,12 +3808,17 @@ const AttestationOrderingRecoverySchema = z.strictObject({
   expectedBoundaryVersion: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
 });
 const PrePublicationReplayInputSchema = z.strictObject({
+  candidateId: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
+  candidateSubjectDigest: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
   selfReview: z.literal("settled").optional(),
   changeSet: z.json().optional(),
   lanes: z.json().optional(),
   frontlineCeilingHeadSha: GitObjectIdSchema.optional(),
   attestationOrderingRecovery: AttestationOrderingRecoverySchema.optional(),
-});
+}).refine(
+  (replay) => (replay.candidateId === undefined) === (replay.candidateSubjectDigest === undefined),
+  "Candidate replay identity requires both Candidate ID and subject digest",
+);
 type PrePublicationReplayInput = z.infer<typeof PrePublicationReplayInputSchema>;
 
 function decodePrePublicationReplay(token: string): PrePublicationReplayInput {
@@ -3737,6 +3842,7 @@ export interface ReviewPrePublicationHandlerDependencies {
   resolveRoot(cwd: string): string | null;
   readText(source: string): Promise<string>;
   readRootGitHead(root: string): Promise<string>;
+  readCandidate(root: string, workUnit: string): Promise<CandidateRead>;
   readBoundary(root: string, workUnit: string): Promise<VersionedSubmissionBoundary>;
   compose(
     root: string,
@@ -3816,6 +3922,8 @@ function acceptedSingletonFrontlineSkip(
 
 function buildPrePublicationResumeCommand(input: {
   workUnit: string;
+  candidateId: string;
+  candidateSubjectDigest: string;
   judgment: ReviewPrePublicationJudgment;
   replaySelfReview: "settled" | undefined;
   replayLanes: unknown;
@@ -3832,6 +3940,8 @@ function buildPrePublicationResumeCommand(input: {
     replayFrontlineCeilingHeadSha = undefined;
   }
   const resume = Buffer.from(canonicalize({
+    candidateId: input.candidateId,
+    candidateSubjectDigest: input.candidateSubjectDigest,
     ...(input.replaySelfReview === undefined ? {} : { selfReview: input.replaySelfReview }),
     ...(input.judgment.changeSet === undefined ? {} : { changeSet: input.judgment.changeSet }),
     ...(replayLanes === undefined ? {} : { lanes: replayLanes }),
@@ -3854,6 +3964,8 @@ function defaultPrePublicationDependencies(
     readRootGitHead: async (root) => GitObjectIdSchema.parse(
       (await exec("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim(),
     ),
+    readCandidate: (root, workUnit) => createPrePublicationCompositionDependencies({ cwd: root, exec })
+      .readCandidate(workUnit),
     readBoundary: async (root, workUnit) => {
       const snapshot = await readSubmissionBoundaryVersioned(root, workUnit);
       boundarySnapshots.set(workUnit, snapshot);
@@ -4089,6 +4201,22 @@ export async function handleReviewPrePublication(
     dependencies.setExitCode(1);
   };
 
+  const emitAdvancedReplayRefusal = (reason: string): void => {
+    const refusal = ReviewCommandErrorEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-pre-publication",
+      diagnostics: [{ code: "invalid-input", message: reason }],
+      error: { code: "invalid-input", message: reason },
+      remedy: spineRemedy(
+        "The saved pre-publication command does not match the current Candidate boundary.",
+        "Re-enter the current Candidate's pre-publication procedure",
+        ["arc", "review", "pre-publication", input.data.name],
+      ),
+    });
+    dependencies.write(`${JSON.stringify(refusal)}\n`);
+    dependencies.setExitCode(1);
+  };
+
   let envelope: PrePublicationReviewEnvelope;
   try {
     const boundarySnapshot = await dependencies.readBoundary(root, input.data.name);
@@ -4105,6 +4233,43 @@ export async function handleReviewPrePublication(
       && input.data.selfReview === undefined
       && input.data.changeSet === undefined
       && input.data.lanes === undefined;
+    const advancedBoundary = boundarySnapshot.boundary?.locus === "candidate-publish-ready"
+      || boundarySnapshot.boundary?.locus === "publication-pending"
+      ? boundarySnapshot.boundary
+      : null;
+    if (advancedBoundary !== null) {
+      const candidate = await dependencies.readCandidate(root, input.data.name);
+      const matchingBoundary = candidate.status === "current"
+        && candidate.headSha === currentRootHead
+        && candidate.candidateId === advancedBoundary.candidateId
+        && candidate.subjectDigest === advancedBoundary.candidateSubjectDigest;
+      if (orderingRecovery !== undefined) {
+        emitFailure(new Error("The attestation-ordering recovery input is stale after the Candidate boundary advanced."),
+          "execution", "attestation-ordering-conflict");
+        return;
+      }
+      if (replayInput !== null && (replayInput.candidateId === undefined
+        || replayInput.candidateId !== advancedBoundary.candidateId
+        || replayInput.candidateSubjectDigest !== advancedBoundary.candidateSubjectDigest
+        || !matchingBoundary)) {
+        emitAdvancedReplayRefusal("The saved command is unbound or stale for the current Candidate and subject.");
+        return;
+      }
+      if (matchingBoundary) {
+        if (!plainReentry && replayInput === null) {
+          emitAdvancedReplayRefusal("A settled Candidate boundary cannot replace its saved author judgment.");
+          return;
+        }
+        const continuation = advancedBoundary.locus === "candidate-publish-ready"
+          ? PrePublicationReviewEnvelopeSchema.parse({
+              ...advancedBoundary,
+              target: null,
+            })
+          : IntegrationBoundaryLocusSchema.parse(advancedBoundary);
+        dependencies.write(`${JSON.stringify(continuation)}\n`);
+        return;
+      }
+    }
     const savedReplay = pending !== undefined
       && currentRootHead === pending.reviewedHead
       ? decodePrePublicationReplay(replayTokenFromAction(pending.nextAction.command, input.data.name))
@@ -4151,7 +4316,14 @@ export async function handleReviewPrePublication(
         ...(callerJudgment.frontlineCeilingHeadSha === undefined
           ? {}
           : { frontlineCeilingHeadSha: callerJudgment.frontlineCeilingHeadSha }),
-      }) !== canonicalize(savedReplay)) {
+      }) !== canonicalize({
+        ...(savedReplay.selfReview === undefined ? {} : { selfReview: savedReplay.selfReview }),
+        ...(savedReplay.changeSet === undefined ? {} : { changeSet: savedReplay.changeSet }),
+        ...(savedReplay.lanes === undefined ? {} : { lanes: savedReplay.lanes }),
+        ...(savedReplay.frontlineCeilingHeadSha === undefined
+          ? {}
+          : { frontlineCeilingHeadSha: savedReplay.frontlineCeilingHeadSha }),
+      })) {
       emitJudgmentMismatch(pending.nextAction.command);
       return;
     }
@@ -4211,6 +4383,8 @@ export async function handleReviewPrePublication(
         kind: "continue-pre-publication-review",
         command: buildPrePublicationResumeCommand({
           workUnit: composition.request.workUnit,
+          candidateId: composition.request.candidateId,
+          candidateSubjectDigest: composition.request.candidate.subjectDigest,
           judgment,
           replaySelfReview: composition.request.selfReview === "settled" ? "settled" : judgment.selfReview,
           replayLanes: judgment.lanes,
@@ -4239,6 +4413,8 @@ export async function handleReviewPrePublication(
       const frontlineCeilingOverrideApplied = frontlineReadyPolicy?.payload.ceilingOverrideApplied ?? false;
       const resumeCommand = buildPrePublicationResumeCommand({
         workUnit: envelope.workUnit,
+        candidateId: composition.request.candidateId,
+        candidateSubjectDigest: composition.request.candidate.subjectDigest,
         judgment,
         replaySelfReview,
         replayLanes,

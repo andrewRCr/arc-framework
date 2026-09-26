@@ -6,7 +6,10 @@ import {
   type DeliveryReviewMemberVehicle,
 } from "../../../lib/delivery/review-vehicle.js";
 import { canonicalize } from "../../../lib/canonical/canonical-json.js";
+import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import type { DeliveryHostChangeRequest, DeliveryHostPort } from "../../../lib/delivery/host.js";
+import type { GitExec } from "../../../lib/git/index.js";
+import type { CandidateManagedRecordV1 } from "../../../lib/work-unit/candidate-attestation.js";
 import type {
   DeliveryDischargeTargetBinding,
   DeliveryDischargeTargetLookup,
@@ -27,7 +30,9 @@ import {
   type HostedReviewCoverage,
 } from "../hosted/request.js";
 import { hostedProviderAdmitsCoverage } from "../hosted/correction-review-capability.js";
-import { laneSubjectOwnerMatches } from "../core/lane-admission.js";
+import { laneSubjectOwnerMatches, type LaneSubjectLineage } from "../core/lane-admission.js";
+import { deriveLocalReviewTargetFromCoordinates } from
+  "../hosts/local/repository-target.js";
 import type { IncrementalReviewScope } from "../core/incremental-review-scope.js";
 import {
   type IncrementalPredecessorApplicability,
@@ -88,9 +93,8 @@ export async function confirmIncrementalPredecessorApplicability(input: {
   if (!laneSubjectOwnerMatches(predecessor.admission.lineage, current.admission.lineage)) {
     return "unavailable";
   }
-  if (predecessor.target.headSha === current.target.headSha
-    || (predecessor.admission.lineage.kind === "head-bound"
-      && current.admission.lineage.kind === "head-bound")) return "applicable";
+  if (predecessor.repositoryId !== current.repositoryId) return "unavailable";
+  if (canonicalize(predecessor.target) === canonicalize(current.target)) return "applicable";
   const sourceId = predecessor.kind === "hosted"
     ? predecessor.sourceIdentity
     : predecessor.kind === "attested-local"
@@ -102,6 +106,57 @@ export async function confirmIncrementalPredecessorApplicability(input: {
     producerTarget: predecessor.target,
     earlier: await input.readEarlierAttemptApplicability(sourceId),
   });
+}
+
+/** Retain a current-head correction predecessor only for its exact live review target and owner. */
+export function exactCurrentCorrectionPredecessorMatches(input: {
+  readonly predecessor: ReviewResult;
+  readonly currentTarget: ReviewResult["target"];
+  readonly currentRepositoryId: string;
+  readonly currentLineage?: LaneSubjectLineage;
+}): boolean {
+  return input.currentLineage !== undefined
+    && input.predecessor.repositoryId === input.currentRepositoryId
+    && laneSubjectOwnerMatches(input.predecessor.admission.lineage, input.currentLineage)
+    && canonicalize(input.predecessor.target) === canonicalize(input.currentTarget);
+}
+
+/** Re-derive the current immutable target before offering the same-head correction scope. */
+export async function confirmExactCurrentCorrectionPredecessor(input: {
+  readonly predecessor: ReviewResult;
+  readonly currentHeadSha: string;
+  readonly approvedHeadSha: string;
+  readonly baseRevision: string;
+  readonly currentRepositoryId: string;
+  readonly currentLineage?: LaneSubjectLineage;
+  readonly vehicle?: DeliveryReviewMemberVehicle;
+  readonly exec: GitExec;
+  readonly cwd: string;
+}): Promise<boolean> {
+  if (input.currentHeadSha !== input.approvedHeadSha
+    || input.predecessor.target.headSha !== input.currentHeadSha) return false;
+  try {
+    const { settings } = await readConfigSettings(input.cwd);
+    const currentTarget = await deriveLocalReviewTargetFromCoordinates({
+      exec: input.exec,
+      cwd: input.cwd,
+      repositoryId: input.currentRepositoryId,
+      coordinates: {
+        kind: input.vehicle === undefined ? "change-set" : "delivery-member",
+        baseRef: settings["branch.base"],
+        diffBaseSha: input.baseRevision,
+        headSha: input.currentHeadSha,
+      },
+    });
+    return exactCurrentCorrectionPredecessorMatches({
+      predecessor: input.predecessor,
+      currentTarget,
+      currentRepositoryId: input.currentRepositoryId,
+      currentLineage: input.currentLineage,
+    });
+  } catch {
+    return false;
+  }
 }
 
 export function isCompleteStandardVerdict(attempt: ProjectedLaneAttempt): boolean {
@@ -157,25 +212,43 @@ export function currentCorrectionScopeCandidate(
   };
 }
 
-export function attemptMatchesTarget(
-  attempt: ProjectedLaneAttempt,
-  stateHead: string,
-  target: {
+type ReservationAttemptTarget = {
     repository: string;
     pullRequest: number;
     headSha: string;
+    baseRevision?: string;
     vehicle?: DeliveryReviewMemberVehicle;
-  },
+};
+
+function currentBaseMatches(
+  producerBase: string,
+  stateHead: string,
+  target: ReservationAttemptTarget,
 ): boolean {
-  const hosted = attempt.hosted;
-  if (hosted !== undefined) {
-    return hosted.target.repository.toLowerCase() === target.repository.toLowerCase()
-      && hosted.target.pullRequest === target.pullRequest
-      && hosted.target.headSha === stateHead
-      && sameDeliveryReviewMemberVehicle(target.vehicle, hosted.vehicle);
-  }
+  return stateHead !== target.headSha || target.baseRevision === undefined
+    || producerBase === target.baseRevision;
+}
+
+function hostedAttemptMatchesTarget(
+  hosted: NonNullable<ProjectedLaneAttempt["hosted"]>,
+  stateHead: string,
+  target: ReservationAttemptTarget,
+): boolean {
+  return hosted.target.repository.toLowerCase() === target.repository.toLowerCase()
+    && hosted.target.pullRequest === target.pullRequest
+    && hosted.target.headSha === stateHead
+    && currentBaseMatches(hosted.reviewTarget.diffBaseSha, stateHead, target)
+    && sameDeliveryReviewMemberVehicle(target.vehicle, hosted.vehicle);
+}
+
+function localAttemptMatchesTarget(
+  attempt: ProjectedLaneAttempt,
+  stateHead: string,
+  target: ReservationAttemptTarget,
+): boolean {
   const local = attempt.local;
   if (local === undefined || local.target.headSha !== stateHead) return false;
+  if (!currentBaseMatches(local.target.diffBaseSha, stateHead, target)) return false;
   if (target.vehicle === undefined) return local.vehicle.kind === "work-unit";
   const admission = local.deliveryAdmission;
   return admission !== undefined
@@ -185,6 +258,16 @@ export function attemptMatchesTarget(
     && admission.target.repository.toLowerCase() === target.repository.toLowerCase()
     && admission.target.pullRequest === target.pullRequest
     && admission.target.headSha === stateHead;
+}
+
+export function attemptMatchesTarget(
+  attempt: ProjectedLaneAttempt,
+  stateHead: string,
+  target: ReservationAttemptTarget,
+): boolean {
+  return attempt.hosted === undefined
+    ? localAttemptMatchesTarget(attempt, stateHead, target)
+    : hostedAttemptMatchesTarget(attempt.hosted, stateHead, target);
 }
 
 /** Safe source progress retained for the next request's standard-review driver admission. */
@@ -257,6 +340,27 @@ export interface HostedReservationDischarge {
   requestCoverage?: HostedReviewCoverage;
   correctionScope?: IncrementalReviewScope;
   coverageSelectionAction?: ReviewCoverageSelectionAction;
+}
+
+/** Exact inputs shared by discharge projection and evidence-bound applicability re-entry. */
+export interface HostedReservationDischargeReaderArgs {
+  workUnitId?: string;
+  reservation: StandardReviewReservationV1 | null;
+  baseRevision: string;
+  approvedHead: string;
+  changeRequest: { repository: string; pullRequest: number } | null;
+  vehicle?: DeliveryReviewMemberVehicle;
+  candidate?: CandidateManagedRecordV1;
+}
+
+/** Discharge projection plus its fresh predecessor-applicability boundary. */
+export interface HostedReservationDischargeReader {
+  (args: HostedReservationDischargeReaderArgs): Promise<HostedReservationDischarge>;
+  confirmIncrementalApplicability(
+    args: HostedReservationDischargeReaderArgs,
+    predecessor: ReviewResult,
+    current: ReviewResult,
+  ): Promise<IncrementalPredecessorApplicability>;
 }
 
 export function coverageSelectionChoices(

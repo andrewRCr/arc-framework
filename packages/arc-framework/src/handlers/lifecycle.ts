@@ -224,6 +224,7 @@ export {
 // ---------------------------------------------------------------------------
 
 class DeliveryCandidateRenewalRefusal extends Error {}
+class CandidateReviewRecoveryRefusal extends Error {}
 
 /** The production filesystem seam for the lifecycle-index scan (mirrors `start`). */
 const lifecycleFs: LifecycleIndexFs = {
@@ -2928,12 +2929,20 @@ export async function handleAttest(
           });
           if (owner === null) continue;
           const live = livePredecessorReviewAttempt(owner);
-          if (live !== null) return {
-            lane, ...live,
-            recordRevision: await readRepositoryCandidateRecordRevision({
-              cwd: base.cwd, workUnit: input.name, candidateId, exec: base.io.exec,
-            }),
-          };
+          if (live !== null) {
+            let recordRevision: string;
+            try {
+              recordRevision = await readRepositoryCandidateRecordRevision({
+                cwd: base.cwd, workUnit: input.name, candidateId,
+                reviewHeadSha: live.reviewHeadSha, exec: base.io.exec,
+              });
+            } catch (error) {
+              throw new CandidateReviewRecoveryRefusal(
+                error instanceof Error ? error.message : String(error),
+              );
+            }
+            return { lane, ...live, recordRevision };
+          }
         }
         return null;
       },
@@ -3043,6 +3052,18 @@ export async function handleAttest(
           }),
     });
   } catch (error) {
+    if (error instanceof CandidateReviewRecoveryRefusal) {
+      refuseWithRemedy(
+        `\`arc attest\` cannot bind the live review to its Candidate record: ${error.message}`,
+        spineRemedy(
+          "The review-owning Candidate record must be verified at the exact live review head before re-root.",
+          "Restore that review head and its managed Candidate record in local Git history, then retry re-root",
+          input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
+        ),
+        input.json === true,
+      );
+      return;
+    }
     if (!(error instanceof DeliveryCandidateRenewalRefusal)) throw error;
     refuseWithRemedy(
       `\`arc attest\` refused stale or mismatched public delivery Candidate renewal for \`${input.name}\`: `

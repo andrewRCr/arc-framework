@@ -9,6 +9,7 @@ import {
   readTransientInFlightIndexes,
 } from "../../../lib/errand/record.js";
 import type { GitExec } from "../../../lib/git/exec.js";
+import type { RawGitExec } from "../../../lib/change-facts.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
 import { getFrameworkVersion } from "../../../lib/version.js";
@@ -71,10 +72,18 @@ import {
 import { resolveConfiguredLanePolicy } from "../policy/lane-policy-config.js";
 import { resolveEvidenceBoundReviewPolicyContinuation } from
   "../policy/review-policy-evidence.js";
-import { confirmNonDeliveryIncrementalApplicability } from
+import {
+  confirmDeliveryMemberIncrementalApplicability,
+  confirmNonDeliveryIncrementalApplicability,
+} from
   "../policy/local-review-coverage-selection.js";
-import { confirmNoPullRequestCandidatePriorProducer } from
+import {
+  confirmNoPullRequestCandidatePriorProducer,
+  createPreBindingDeliveryReviewTargetDependencies,
+} from
   "../policy/pre-publication-composition.js";
+import { composePreBindingDeliveryReviewTargets } from
+  "../policy/pre-publication-delivery-targets.js";
 import type { ReviewResult } from "../core/review-result.js";
 import { createLocalFrontlineSourcePreferenceReader } from
   "../hosts/local/frontline-source-preferences.js";
@@ -82,6 +91,8 @@ import { createGhChangeRequestResolutionPort } from "../hosts/github/change-requ
 import { resolveChangeRequest } from "../change-request.js";
 import { confirmIncrementalPredecessorApplicability } from
   "../policy/hosted-reservation-support.js";
+import type { IncrementalPredecessorApplicability } from
+  "../policy/incremental-coverage-basis.js";
 
 /**
  * Report a subject the branch and its base leave uncollectable under the boundary's own precondition type.
@@ -145,6 +156,61 @@ async function readRespondCandidate(
   return selected?.record == null ? null : { workUnit: selected.workUnit, record: selected.record };
 }
 
+/** Observe the exact planned or bound member while D4 reads both contribution endpoints. */
+async function confirmRespondDeliveryMemberApplicability(input: {
+  readonly repository: { exec: GitExec; cwd: string };
+  readonly predecessor: ReviewResult;
+  readonly current: ReviewResult;
+  readonly lineage: Extract<ReviewResult["admission"]["lineage"], { kind: "delivery-member" }>;
+  readonly pullRequest: number | null;
+  readonly baseRef: string;
+  readonly rawGit: RawGitExec;
+  readonly deliveryMembers: RepositoryDeliveryMemberLookup;
+  readonly privateDeliveryTargets: ReturnType<typeof createPreBindingDeliveryReviewTargetDependencies>;
+}): Promise<IncrementalPredecessorApplicability> {
+  const observeTarget = async () => {
+    const { lineage } = input;
+    if (input.pullRequest === null) {
+      // Private members have no PR selector; verify their current planned member directly.
+      const read = await composePreBindingDeliveryReviewTargets({
+        workUnitId: lineage.workUnitId,
+        baseRef: input.baseRef,
+      }, input.privateDeliveryTargets);
+      const matches = read.status === "composed" ? read.targets.filter(({ vehicle }) => (
+        vehicle.planId === lineage.planId
+        && vehicle.deliverableId === lineage.deliverableId
+        && vehicle.workUnitId === lineage.workUnitId
+      )) : [];
+      const match = matches.length === 1 ? matches[0] : undefined;
+      if (match === undefined) throw new Error("The private delivery member moved.");
+      return match.target;
+    }
+    const read = await input.deliveryMembers.resolveDischargeTargets(lineage.workUnitId);
+    const matches = read.status === "resolved" ? read.targets.filter((member) => (
+      member.planId === lineage.planId
+      && member.deliverableId === lineage.deliverableId
+      && member.workUnitId === lineage.workUnitId
+      && member.changeRequestId === String(input.pullRequest)
+    )) : [];
+    const match = matches.length === 1 ? matches[0] : undefined;
+    if (match === undefined) throw new Error("The hosted delivery member moved.");
+    return composeDeliveryMemberTarget({
+      exec: input.repository.exec,
+      cwd: input.repository.cwd,
+      baseRef: input.baseRef,
+      repositoryId: input.current.target.repositoryId,
+      member: match,
+    });
+  };
+  return confirmDeliveryMemberIncrementalApplicability({
+    predecessor: input.predecessor,
+    currentTarget: input.current.target,
+    currentLineage: input.lineage,
+    exec: input.rawGit,
+    observeTarget,
+  });
+}
+
 /** Bind respond to repository-common records and trusted local/runtime identities. */
 export function createRespondDependencies(input: {
   exec: GitExec;
@@ -155,6 +221,7 @@ export function createRespondDependencies(input: {
   const prepare = createLocalPrepareDependencies(input);
   const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
   const deliveryMembers = new RepositoryDeliveryMemberLookup(input);
+  const privateDeliveryTargets = createPreBindingDeliveryReviewTargetDependencies(input);
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
   const settings = async () => {
     settingsPromise ??= readConfigSettings(input.cwd);
@@ -459,7 +526,8 @@ export function createRespondDependencies(input: {
         predecessor: ReviewResult,
         current: ReviewResult,
       ) => {
-        if (current.target.kind === "delivery-member") {
+        if (current.target.kind === "delivery-member"
+          && canonicalize(predecessor.target) === canonicalize(current.target)) {
           return confirmIncrementalPredecessorApplicability({ predecessor, current });
         }
         const policyTarget = await resolveRespondPolicyTarget(
@@ -469,6 +537,19 @@ export function createRespondDependencies(input: {
           || policyTarget.repository.toLowerCase() !== request.target.repository.toLowerCase()
           || policyTarget.pullRequest !== request.target.pullRequest) return "unavailable";
         const lineage = current.admission.lineage;
+        if (current.target.kind === "delivery-member" && lineage.kind === "delivery-member") {
+          return confirmRespondDeliveryMemberApplicability({
+            repository: input,
+            predecessor,
+            current,
+            lineage,
+            pullRequest: policyTarget.pullRequest,
+            baseRef: currentSettings["branch.base"],
+            rawGit,
+            deliveryMembers,
+            privateDeliveryTargets,
+          });
+        }
         const selected = await readRespondCandidate(input, current);
         const observeTarget = () => deriveLocalReviewTarget({
           exec: input.exec,

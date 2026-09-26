@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
 import {
   CandidateManagedRecordV1Schema,
+  CandidateSupersessionResolutionError,
   createCandidateAttestation,
   createCandidateLineageAttestation,
   createCandidateReviewResponseEvidence,
@@ -49,12 +50,60 @@ describe("Candidate supersession history", () => {
   it("pins recovery to the commit containing the exact predecessor Candidate", async () => {
     const predecessor = record();
     const revision = "b".repeat(40);
+    const reviewHeadSha = "c".repeat(40);
     expect(await readRepositoryCandidateRecordRevision({
       cwd: "/repo", workUnit: "example", candidateId: predecessor.attestation.candidateId,
+      reviewHeadSha,
       exec: async (_command, args) => args[0] === "log"
-        ? { stdout: `${revision}\n` }
+        ? { stdout: args[1] === reviewHeadSha ? `${revision}\n` : "" }
         : { stdout: serializeCandidateManagedRecord(predecessor) },
     })).toBe(revision);
+  });
+  it("does not choose a later same-Candidate record revision for an older live review head", async () => {
+    const predecessor = record();
+    const reviewHeadSha = "c".repeat(40);
+    const reviewRecordRevision = "b".repeat(40);
+    const laterRecordRevision = "d".repeat(40);
+    const seen: string[] = [];
+    const revision = await readRepositoryCandidateRecordRevision({
+      cwd: "/repo", workUnit: "example", candidateId: predecessor.attestation.candidateId,
+      reviewHeadSha,
+      exec: async (_command, args) => {
+        seen.push(args.join(" "));
+        if (args[0] === "log") {
+          return { stdout: args[1] === reviewHeadSha
+            ? `${reviewRecordRevision}\n`
+            : `${laterRecordRevision}\n${reviewRecordRevision}\n` };
+        }
+        return { stdout: serializeCandidateManagedRecord(predecessor) };
+      },
+    });
+    expect(revision).toBe(reviewRecordRevision);
+    expect(seen[0]).toContain(`log ${reviewHeadSha} --format=%H`);
+    expect(seen).not.toContain(`show ${laterRecordRevision}:.arc/system/.internal/candidates/example.json`);
+  });
+  it.each([
+    { failure: "missing review head", failAt: "log", message: /history at review head.*cannot be read/u },
+    { failure: "missing Candidate record", failAt: "none", message: /no committed record at review head/u },
+    { failure: "unreadable historical record", failAt: "show", message: /record at.*cannot be read/u },
+    { failure: "malformed historical record", failAt: "malformed", message: /record at.*is malformed/u },
+  ])("reports $failure through the recovery domain", async ({ failAt, message }) => {
+    const reviewHeadSha = "c".repeat(40);
+    const revision = "b".repeat(40);
+    const failure = await readRepositoryCandidateRecordRevision({
+      cwd: "/repo", workUnit: "example", candidateId: record().attestation.candidateId,
+      reviewHeadSha,
+      exec: async (_command, args) => {
+        if (args[0] === "log") {
+          if (failAt === "log") throw new Error("missing Git object");
+          return { stdout: failAt === "none" ? "" : `${revision}\n` };
+        }
+        if (failAt === "show") throw new Error("unreadable Git object");
+        return { stdout: failAt === "malformed" ? "{" : serializeCandidateManagedRecord(record()) };
+      },
+    }).then(() => null, (error: unknown) => error);
+    expect(failure).toBeInstanceOf(CandidateSupersessionResolutionError);
+    expect((failure as Error).message).toMatch(message);
   });
   it("reads only the linked predecessor and stops before unrelated older records", async () => {
     const predecessor = record();

@@ -69,9 +69,11 @@ import {
   readCandidateRecord,
   readRepositoryCandidateSupersessionChain,
 } from "../../../lib/work-unit/candidate-record-store.js";
+import type { CandidateManagedRecordV1 } from "../../../lib/work-unit/candidate-attestation.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
 import {
   LaneSubjectLineageSchema,
+  type LaneSubjectLineage,
 } from "../core/lane-admission.js";
 import { createLocalFrontlineSourcePreferenceReader } from
   "../hosts/local/frontline-source-preferences.js";
@@ -83,6 +85,7 @@ import {
   resolveEvidenceBoundReviewPolicyContinuation,
 } from "../policy/review-policy-evidence.js";
 import {
+  confirmErrandFixResponseApplicability,
   confirmNonDeliveryIncrementalApplicability,
   resolveLocalReviewCoverageSelection,
 } from
@@ -168,6 +171,58 @@ function createLocalPolicyRequest(
   return policyRequest;
 }
 
+/** Bind the exact Errand fix-response bridge and ordinary contribution proof to one live target. */
+function createLocalContributionConfirmation(input: {
+  context: {
+    input: { cwd: string; exec: GitExec };
+    dispositionStore: LocalApprovedDispositionRecordStore;
+    operationStore: LocalReviewOperationStateStore;
+  };
+  repositoryId: string;
+  baseRef: string;
+  policyTarget: { repository: string; pullRequest: number | null };
+  candidate: CandidateManagedRecordV1 | null;
+}) {
+  return async (
+    predecessor: ReviewResult,
+    currentTarget: ReviewTarget,
+    currentLineage: LaneSubjectLineage,
+    currentResult?: ReviewResult,
+  ) => {
+    const observeTarget = () => deriveLocalReviewTarget({
+      exec: input.context.input.exec,
+      cwd: input.context.input.cwd,
+      baseRef: input.baseRef,
+      repositoryId: input.repositoryId,
+    });
+    if (input.policyTarget.pullRequest === null && currentLineage.kind === "head-bound"
+      && currentLineage.vehicleKind === "errand") {
+      const live = await readLocalReviewLiveContext(input.context.input).catch(() => null);
+      return confirmErrandFixResponseApplicability({
+        predecessor,
+        currentTarget,
+        currentLineage,
+        currentClaimId: live?.context.errand?.identity === currentLineage.vehicleIdentity
+          ? live.context.errand.claimId : null,
+        ...(currentResult === undefined ? {} : { currentResult }),
+        observeTarget,
+        dispositionStore: input.context.dispositionStore,
+        readResponsePerformance: (result) => readLaneResponsePerformance(input.context.operationStore, result),
+      });
+    }
+    return confirmNonDeliveryIncrementalApplicability({
+      predecessor,
+      currentTarget,
+      currentLineage,
+      repository: input.policyTarget.repository,
+      pullRequest: input.policyTarget.pullRequest,
+      candidate: input.candidate,
+      exec: createRawGitExec(input.context.input.cwd),
+      observeTarget,
+    });
+  };
+}
+
 async function validateLocalPolicyAdmission(
   request: Parameters<LocalPrepareDependencies["validatePolicyAdmission"]>[0],
   context: {
@@ -199,24 +254,8 @@ async function validateLocalPolicyAdmission(
       const candidate = lineage.kind === "candidate" && workUnitId !== undefined
         ? await readCandidateRecord(context.input.cwd, workUnitId)
         : null;
-      const confirmContribution = (
-        predecessor: ReviewResult,
-        currentTarget: ReviewTarget,
-        currentLineage: typeof lineage,
-      ) => confirmNonDeliveryIncrementalApplicability({
-        predecessor,
-        currentTarget,
-        currentLineage,
-        repository: policyTarget.repository,
-        pullRequest: policyTarget.pullRequest,
-        candidate,
-        exec: createRawGitExec(context.input.cwd),
-        observeTarget: () => deriveLocalReviewTarget({
-          exec: context.input.exec,
-          cwd: context.input.cwd,
-          baseRef: settings["branch.base"],
-          repositoryId,
-        }),
+      const confirmContribution = createLocalContributionConfirmation({
+        context, repositoryId, baseRef: settings["branch.base"], policyTarget, candidate,
       });
       const policyDependencies = {
         sources: policy.sources.length === 0 ? ["delegated-agent"] : policy.sources,
@@ -228,7 +267,7 @@ async function validateLocalPolicyAdmission(
           predecessor,
         ),
         confirmIncrementalApplicability: (predecessor: ReviewResult, current: ReviewResult) =>
-          confirmContribution(predecessor, current.target, current.admission.lineage),
+          confirmContribution(predecessor, current.target, current.admission.lineage, current),
         confirmTarget: (attemptedTarget: ReviewTarget) => Promise.resolve(attemptedTarget),
       };
       const unresolved = await resolveEvidenceBoundReviewPolicyContinuation(policyRequest, {
@@ -250,7 +289,7 @@ async function validateLocalPolicyAdmission(
           predecessor,
         ),
         confirmIncrementalApplicability: (predecessor, current) =>
-          confirmContribution(predecessor, current.target, current.admission.lineage),
+          confirmContribution(predecessor, current.target, current.admission.lineage, current),
         confirmCurrentApplicability: (predecessor, currentTarget) =>
           confirmContribution(predecessor, currentTarget, lineage),
       });

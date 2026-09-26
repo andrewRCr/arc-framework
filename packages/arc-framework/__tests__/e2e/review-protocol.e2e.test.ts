@@ -509,7 +509,10 @@ describe("built review protocol", () => {
 
   it("serializes overlapping exact-head frontline reviews through public verbs", async () => {
     const root = await fixture();
-    const prepared = await prepareLocal(root);
+    const headSha = await git(root, ["rev-parse", "HEAD"]);
+    const diffBaseSha = await git(root, ["merge-base", "main", "HEAD"]);
+    const kind = "change-set";
+    const baseRef = "main";
     const bin = join(root, ".git", "provider-bin");
     const countFile = join(root, ".git", "coderabbit-runs");
     const executable = join(bin, "coderabbit");
@@ -531,7 +534,6 @@ describe("built review protocol", () => {
       COUNT_FILE: countFile,
       PATH: `${bin}${delimiter}${process.env.PATH ?? ""}`,
     };
-    const { kind, baseRef, diffBaseSha, headSha } = prepared.target;
     const resolved = await invoke(root, ["review", "frontline", "resolve", "-"], {
       schemaVersion: 1,
       target: { kind, baseRef, diffBaseSha, headSha },

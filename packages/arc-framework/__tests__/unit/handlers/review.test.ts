@@ -2305,6 +2305,17 @@ describe("handleReviewPrePublication", () => {
     schemaVersion: 1 as const,
     workUnit: "example",
     candidateId: `sha256:${"c".repeat(64)}`,
+    target: createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId: target.repository,
+      baseRef: "main",
+      diffBaseSha: "b".repeat(40),
+      diffBaseTree: "c".repeat(40),
+      headSha: target.headSha,
+      headTree: "d".repeat(40),
+    }),
     reservationTarget: {
       kind: "pinned-head" as const,
       repository: target.repository,
@@ -2337,6 +2348,16 @@ describe("handleReviewPrePublication", () => {
     return {
       resolveRoot: () => "/repo",
       readRootGitHead: async () => target.headSha,
+      readCandidate: async () => ({
+        status: "current" as const,
+        candidateId: request.candidateId,
+        subjectDigest: request.candidate.subjectDigest,
+        headSha: target.headSha,
+        implementationChanged: false,
+        convergenceVerification: "satisfied" as const,
+        convergenceScope: null,
+        lineageHeadShas: [target.headSha],
+      }),
       readBoundary: async () => ({ boundary: null, version: null }),
       recoverAttestationOrdering: vi.fn(),
       persistBoundary: vi.fn(),
@@ -2430,6 +2451,90 @@ describe("handleReviewPrePublication", () => {
       candidateSubjectDigest: request.candidate.subjectDigest,
     }));
   });
+
+  it.each(["candidate-publish-ready", "publication-pending"])(
+    "honors a matching %s boundary on saved and plain retries without recomposing judgment",
+    async (locus) => {
+      const initial = boundary({
+        compose: vi.fn(async () => ({ status: "composed", request, advisories: [] })),
+      });
+      await handleReviewPrePublication("example", {}, initial);
+      const ready = initial.persistBoundary.mock.calls[0]?.[1];
+      const advanced = locus === "candidate-publish-ready"
+        ? ready
+        : IntegrationBoundaryLocusSchema.parse({
+            ...ready,
+            mode: "integration-boundary",
+            locus: "publication-pending",
+            nextAction: {
+              kind: "continue-publication",
+              command: "git push -u origin example",
+              interactionText: "Resume publication.",
+            },
+          });
+      const judgment = { changeSet: { contentKind: "code-bearing" }, lanes: { standard: { scopeMode: "whole-target" } } };
+      const token = Buffer.from(JSON.stringify({
+        candidateId: request.candidateId,
+        candidateSubjectDigest: request.candidate.subjectDigest,
+        ...judgment,
+      }), "utf8").toString("base64url");
+      const compose = vi.fn();
+      const dependencies = boundary({
+        readBoundary: async () => ({ boundary: advanced, version: `sha256:${"9".repeat(64)}` }),
+        compose,
+      });
+
+      await handleReviewPrePublication("example", { resume: token }, dependencies);
+      await handleReviewPrePublication("example", {}, dependencies);
+
+      expect(dependencies.write.mock.calls.map(([text]) => JSON.parse(String(text)))).toEqual([
+        expect.objectContaining({ locus, candidateId: request.candidateId }),
+        expect.objectContaining({ locus, candidateId: request.candidateId }),
+      ]);
+      expect(compose).not.toHaveBeenCalled();
+      expect(dependencies.persistBoundary).not.toHaveBeenCalled();
+      expect(dependencies.setExitCode).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["different Candidate", "different subject", "legacy unbound", "live Candidate advanced"])(
+    "refuses a %s saved command against an advanced boundary with a plain re-entry remedy",
+    async (caseName) => {
+      const initial = boundary({ compose: vi.fn(async () => ({ status: "composed", request, advisories: [] })) });
+      await handleReviewPrePublication("example", {}, initial);
+      const ready = initial.persistBoundary.mock.calls[0]?.[1];
+      const token = Buffer.from(JSON.stringify({
+        ...(caseName === "legacy unbound" ? {} : {
+          candidateId: caseName === "different Candidate" ? `sha256:${"f".repeat(64)}` : request.candidateId,
+          candidateSubjectDigest: caseName === "different subject"
+            ? `sha256:${"f".repeat(64)}`
+            : request.candidate.subjectDigest,
+        }),
+        selfReview: "settled",
+      }), "utf8").toString("base64url");
+      const compose = vi.fn();
+      const dependencies = boundary({
+        readBoundary: async () => ({ boundary: ready, version: `sha256:${"9".repeat(64)}` }),
+        readCandidate: async () => ({
+          status: "current" as const,
+          candidateId: caseName === "live Candidate advanced" ? `sha256:${"f".repeat(64)}` : request.candidateId,
+          subjectDigest: request.candidate.subjectDigest,
+          headSha: target.headSha,
+        }),
+        compose,
+      });
+
+      await handleReviewPrePublication("example", { resume: token }, dependencies);
+
+      expect(JSON.parse(String(dependencies.write.mock.calls[0]?.[0]))).toMatchObject({
+        error: { code: "invalid-input", message: expect.stringContaining("stale") },
+        remedy: { argv: ["arc", "review", "pre-publication", "example"] },
+      });
+      expect(compose).not.toHaveBeenCalled();
+      expect(dependencies.persistBoundary).not.toHaveBeenCalled();
+      expect(dependencies.setExitCode).toHaveBeenCalledWith(1);
+    },
+  );
 
   it("writes no boundary while a pre-publication obligation is still open", async () => {
     const dependencies = boundary({
@@ -2533,7 +2638,11 @@ describe("handleReviewPrePublication", () => {
       nextAction: { postAttestContinuation: continuation },
     });
     const replayToken = continuation.nextAction.command.split(" ")[5];
-    expect(JSON.parse(Buffer.from(replayToken ?? "", "base64url").toString("utf8"))).toEqual(judgment);
+    expect(JSON.parse(Buffer.from(replayToken ?? "", "base64url").toString("utf8"))).toEqual({
+      ...judgment,
+      candidateId: request.candidateId,
+      candidateSubjectDigest: request.candidate.subjectDigest,
+    });
 
     const replayCompose = vi.fn(async (_root, _input, replayed) => ({
         status: "composed",
@@ -3128,6 +3237,8 @@ describe("handleReviewPrePublication", () => {
     const token = envelope.nextAction.command.match(/--resume ([A-Za-z0-9_-]+)/u)?.[1];
     expect(token).toBeDefined();
     expect(JSON.parse(Buffer.from(String(token), "base64url").toString("utf8"))).toEqual({
+      candidateId: request.candidateId,
+      candidateSubjectDigest: request.candidate.subjectDigest,
       lanes: {
         frontline: { invocation: { mode: "skip" } },
         standard: { scopeMode: "chunked" },
@@ -3238,19 +3349,31 @@ describe("handleReviewPrePublication", () => {
       schemaVersion: 1,
       changeSet: request.routingFacts,
       invocation: { mode: "inherit", sourceId: "coderabbit-cli" },
-      pass: 3,
-      maxPasses: 3,
+      target: {
+        kind: "change-set",
+        baseRef: "main",
+        diffBaseSha: "b".repeat(40),
+        headSha: target.headSha,
+      },
+      policyJudgment: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } },
     });
     expect(envelope.nextAction.authorizationRequest).toEqual({
       schemaVersion: 1,
       changeSet: request.routingFacts,
       invocation: { mode: "force", sourceId: "coderabbit-cli" },
-      pass: 3,
-      maxPasses: 3,
+      target: {
+        kind: "change-set",
+        baseRef: "main",
+        diffBaseSha: "b".repeat(40),
+        headSha: target.headSha,
+      },
+      policyJudgment: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } },
     });
     const token = envelope.nextAction.resumeCommand.match(/--resume ([A-Za-z0-9_-]+)/u)?.[1];
     expect(token).toBeDefined();
     expect(JSON.parse(Buffer.from(String(token), "base64url").toString("utf8"))).toEqual({
+      candidateId: request.candidateId,
+      candidateSubjectDigest: request.candidate.subjectDigest,
       lanes,
       frontlineCeilingHeadSha: target.headSha,
     });
@@ -3267,6 +3390,17 @@ describe("handleReviewPrePublication", () => {
     const nextTarget = { ...target, headSha: "9".repeat(40) };
     const nextRequest = {
       ...request,
+      target: createReviewTarget({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        kind: "change-set",
+        repositoryId: target.repository,
+        baseRef: "main",
+        diffBaseSha: "b".repeat(40),
+        diffBaseTree: "c".repeat(40),
+        headSha: nextTarget.headSha,
+        headTree: "d".repeat(40),
+      }),
       frontline: {
         ...request.frontline,
         target: nextTarget,
@@ -3301,19 +3435,29 @@ describe("handleReviewPrePublication", () => {
       schemaVersion: 1,
       changeSet: request.routingFacts,
       invocation: { mode: "inherit", sourceId: "coderabbit-cli" },
-      pass: 1,
-      maxPasses: 2,
+      target: {
+        kind: "change-set",
+        baseRef: "main",
+        diffBaseSha: "b".repeat(40),
+        headSha: nextTarget.headSha,
+      },
     });
     expect(envelope.nextAction.authorizationRequest).toEqual({
       schemaVersion: 1,
       changeSet: request.routingFacts,
       invocation: { mode: "force", sourceId: "coderabbit-cli" },
-      pass: 1,
-      maxPasses: 2,
+      target: {
+        kind: "change-set",
+        baseRef: "main",
+        diffBaseSha: "b".repeat(40),
+        headSha: nextTarget.headSha,
+      },
     });
     const token = envelope.nextAction.resumeCommand.match(/--resume ([A-Za-z0-9_-]+)/u)?.[1];
     expect(token).toBeDefined();
     expect(JSON.parse(Buffer.from(String(token), "base64url").toString("utf8"))).toEqual({
+      candidateId: request.candidateId,
+      candidateSubjectDigest: request.candidate.subjectDigest,
       lanes: { frontline: { scopeMode: "whole-target" } },
     });
   });

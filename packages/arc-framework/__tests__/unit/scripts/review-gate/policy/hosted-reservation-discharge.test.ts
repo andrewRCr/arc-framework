@@ -1,6 +1,6 @@
 /** Unit coverage for hosted-review reservation discharge. */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createHostedTerminalAttemptFixture } from "../../../../fixtures/hosted-review.js";
 
@@ -17,9 +17,12 @@ import {
 import { createStandardReviewReservation } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { classifyReviewContributionApplicability } from
   "../../../../../src/scripts/review-gate/policy/review-contribution-applicability.js";
+import type { EarlierHostedAttemptApplicabilityRead } from
+  "../../../../../src/scripts/review-gate/policy/earlier-review-applicability.js";
 import {
   allHostedReservationTargetsDischarged,
   confirmIncrementalPredecessorApplicability,
+  exactCurrentCorrectionPredecessorMatches,
   createHostedReservationDischargeReader,
   incrementalApplicabilityFromEarlierRead,
   projectHostedReservationDischarge as projectHostedReservationDischargeRaw,
@@ -2813,6 +2816,84 @@ describe("hosted reservation discharge", () => {
         })],
       }),
     })).resolves.toBe("review-required");
+  });
+
+  it("does not retain a same-head predecessor after its reviewed base changes", async () => {
+    const predecessor = hostedReviewResult({
+      producerId: "hosted/complete-a",
+      headSha: oid("a"),
+      coverage: "complete",
+    });
+    const { targetId: _targetId, ...targetInput } = predecessor.target;
+    void _targetId;
+    const changedTarget = createReviewTarget({
+      ...targetInput,
+      diffBaseSha: oid("4"),
+      diffBaseTree: oid("5"),
+    });
+    const current = hostedReviewResult({
+      producerId: "hosted/incremental-a",
+      headSha: oid("a"),
+      coverage: "incremental",
+      correctionScope: {
+        predecessorProducerId: predecessor.producerId,
+        predecessorHeadSha: predecessor.target.headSha,
+        basisHeadSha: predecessor.target.headSha,
+        requiredFindings: [],
+      },
+    });
+    const readEarlierAttemptApplicability = vi.fn(async (): Promise<EarlierHostedAttemptApplicabilityRead> => ({
+      status: "complete" as const,
+      attempts: [earlierAttempt({
+        attemptId: predecessor.producerId,
+        sourceId: "codex-pr",
+        outcome: "clean",
+        requestedCoverage: "complete",
+        effectiveCoverage: "complete",
+        producerTarget: predecessor.target,
+        applicability: "request-review",
+      })],
+    }));
+    await expect(confirmIncrementalPredecessorApplicability({
+      predecessor,
+      current: { ...current, target: changedTarget },
+      readEarlierAttemptApplicability,
+    })).resolves.toBe("review-required");
+    expect(readEarlierAttemptApplicability).toHaveBeenCalledWith("codex-pr");
+  });
+
+  it("offers a correction from an exact current target and withholds it after a base change", async () => {
+    const predecessor = hostedReviewResult({
+      producerId: "hosted/current-complete",
+      headSha: oid("a"),
+      coverage: "complete",
+    });
+    const { targetId: _targetId, ...input } = predecessor.target;
+    void _targetId;
+    const changedTarget = createReviewTarget({
+      ...input,
+      diffBaseSha: oid("4"),
+      diffBaseTree: oid("5"),
+    });
+    const offered = (currentTarget: ReviewResult["target"]) => resolveIncrementalCorrectionScope({
+      predecessor,
+      currentHeadSha: predecessor.target.headSha,
+    }, {
+      resultReader: { readResult: async () => predecessor },
+      readResponseEvidence: async () => ({ status: "performed" as const, requiredFindings: [] }),
+      confirmApplicability: async () => "applicable" as const,
+      confirmCurrentApplicability: async (candidate) => exactCurrentCorrectionPredecessorMatches({
+        predecessor: candidate,
+        currentTarget,
+        currentRepositoryId: predecessor.repositoryId,
+        currentLineage: predecessor.admission.lineage,
+      }) ? "applicable" : "unavailable",
+    });
+    await expect(offered(predecessor.target)).resolves.toMatchObject({
+      predecessorProducerId: predecessor.producerId,
+      headSha: predecessor.target.headSha,
+    });
+    await expect(offered(changedTarget)).resolves.toBeNull();
   });
 
   it("withholds a correction offer and rejects reduction after an exact Owner request-review", async () => {

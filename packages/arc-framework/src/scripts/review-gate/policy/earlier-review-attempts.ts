@@ -31,6 +31,8 @@ export const EarlierReviewAttemptQuerySchema = z.strictObject({
   repository: RepositorySchema,
   pullRequest: z.int().positive(),
   currentHead: GitObjectIdSchema,
+  /** Exact current diff base distinguishes a retargeted review at the same head. */
+  currentBase: GitObjectIdSchema.optional(),
   lane: z.enum(["frontline", "standard"]),
   sourceId: SourceIdSchema,
   lineage: LaneSubjectLineageSchema,
@@ -120,7 +122,10 @@ export function queryEarlierReviewAttempts(
       || state.repositoryId !== selector.repositoryId
       || laneSubjectLineageId(state.lineage) !== laneSubjectLineageId(selector.lineage)) continue;
     for (const attempt of state.attempts) {
-      if (attempt.headSha === selector.currentHead) continue;
+      if (attempt.headSha === selector.currentHead
+        && (selector.currentBase === undefined
+          || (attempt.hosted?.reviewTarget.diffBaseSha
+            ?? attempt.local?.target.diffBaseSha) === selector.currentBase)) continue;
       const hosted = attempt.hosted;
       if (attempt.sourceId !== selector.sourceId) continue;
       if (hosted !== undefined

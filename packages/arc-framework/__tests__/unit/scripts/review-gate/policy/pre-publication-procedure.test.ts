@@ -568,6 +568,17 @@ function request(overrides: Record<string, unknown> = {}) {
       headSha: target.headSha,
     },
     selfReview: "pending",
+    target: createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId: target.repository,
+      baseRef: "main",
+      diffBaseSha: "b".repeat(40),
+      diffBaseTree: "c".repeat(40),
+      headSha: target.headSha,
+      headTree: "d".repeat(40),
+    }),
     routingFacts,
     frontline: {
       schemaVersion: 1,
@@ -674,12 +685,17 @@ describe("projectPrePublicationReview", () => {
   });
 
   it("rejects a frontline authorization request that changes more than invocation mode", () => {
+    const exact = request().target as { kind: string; baseRef: string; diffBaseSha: string; headSha: string };
     const initialRequest = {
       schemaVersion: 1 as const,
       changeSet: routingFacts,
       invocation: { mode: "inherit" as const, sourceId: "coderabbit-cli" },
-      pass: 1 as const,
-      maxPasses: 2 as const,
+      target: {
+        kind: exact.kind,
+        baseRef: exact.baseRef,
+        diffBaseSha: exact.diffBaseSha,
+        headSha: exact.headSha,
+      },
     };
     expect(ContinuePrePublicationActionSchema.safeParse({
       kind: "continue-pre-publication-review",
@@ -736,7 +752,7 @@ describe("projectPrePublicationReview", () => {
   });
 
   it("projects a null exact target when the checkout could not compose one", () => {
-    expect(projectPrePublicationReview(request(), postAttestContinuation).target).toBeNull();
+    expect(projectPrePublicationReview(request({ target: null }), postAttestContinuation).target).toBeNull();
   });
 
   it("runs active author self-review before either configured lane", () => {
@@ -757,18 +773,97 @@ describe("projectPrePublicationReview", () => {
           schemaVersion: 1,
           changeSet: routingFacts,
           invocation: { mode: "inherit", sourceId: "coderabbit-cli" },
-          pass: 1,
-          maxPasses: 2,
+          target: {
+            kind: "change-set",
+            baseRef: "main",
+            diffBaseSha: "b".repeat(40),
+            headSha: target.headSha,
+          },
         },
         authorizationRequest: {
           schemaVersion: 1,
           changeSet: routingFacts,
           invocation: { mode: "force", sourceId: "coderabbit-cli" },
-          pass: 1,
-          maxPasses: 2,
+          target: {
+            kind: "change-set",
+            baseRef: "main",
+            diffBaseSha: "b".repeat(40),
+            headSha: target.headSha,
+          },
         },
       },
     });
+  });
+
+  it("carries a private member and ceiling approval in both public resolver requests", () => {
+    const memberHead = target.headSha;
+    const vehicle = {
+      kind: "delivery-member" as const,
+      planId: "11111111-1111-4111-8111-111111111111",
+      deliverableId: `sha256:${"1".repeat(64)}`,
+      workUnitId: "example",
+      head: memberHead,
+    };
+    const exact = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "delivery-member",
+      repositoryId: target.repository,
+      baseRef: "main",
+      diffBaseSha: "b".repeat(40),
+      diffBaseTree: "c".repeat(40),
+      headSha: memberHead,
+      headTree: "d".repeat(40),
+    });
+    const base = request({ selfReview: "settled" });
+    const projected = projectPrePublicationReview({
+      ...base,
+      target: exact,
+      responseBinding: {
+        candidate: {
+          workUnit: "example",
+          candidateId: base.candidateId,
+          head: "f".repeat(40),
+        },
+        deliveryMember: vehicle,
+      },
+      frontline: {
+        ...(base.frontline as Record<string, unknown>),
+        completedPasses: 2,
+        ceilingOverride: {
+          target: { ...target },
+          lane: "frontline",
+          exhaustedPassCount: 2,
+          nextPass: 3,
+          conditionalPassAuthorizationId: `sha256:${"e".repeat(64)}`,
+        },
+      },
+    }, postAttestContinuation);
+    expect(projected.nextAction).toMatchObject({
+      request: {
+        target: { kind: "delivery-member", headSha: memberHead },
+        vehicle,
+        policyJudgment: {
+          ceilingOverride: {
+            exhaustedPassCount: 2,
+            nextPass: 3,
+            conditionalPassAuthorizationId: `sha256:${"e".repeat(64)}`,
+          },
+        },
+      },
+      authorizationRequest: {
+        target: { kind: "delivery-member", headSha: memberHead },
+        vehicle,
+        policyJudgment: {
+          ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 },
+        },
+      },
+    });
+    if (projected.nextAction.kind !== "continue-pre-publication-review") {
+      throw new Error("expected frontline continuation");
+    }
+    expect(projected.nextAction.request).not.toHaveProperty("pass");
+    expect(projected.nextAction.request).not.toHaveProperty("maxPasses");
   });
 
   it("runs frontline before standard and preserves a hosted-first reservation", () => {
