@@ -274,10 +274,26 @@ vi.mock("../../../src/lib/work-unit/verbs/publish.js", () => ({
 }));
 
 const mockReadCandidateRecord = vi.fn();
+const mockReadRepositoryCandidateRecordRevision = vi.fn();
 const mockWriteCandidateRecord = vi.fn();
 vi.mock("../../../src/lib/work-unit/candidate-record-store.js", () => ({
   readCandidateRecord: (...a: unknown[]) => mockReadCandidateRecord(...a),
+  readRepositoryCandidateRecordRevision: (...a: unknown[]) => mockReadRepositoryCandidateRecordRevision(...a),
   writeCandidateRecord: (...a: unknown[]) => mockWriteCandidateRecord(...a),
+}));
+const mockResolveRepositoryIdentity = vi.fn();
+vi.mock("../../../src/scripts/review-gate/hosts/local/git-common-state.js", async (orig) => ({
+  ...(await orig<typeof import("../../../src/scripts/review-gate/hosts/local/git-common-state.js")>()),
+  resolveRepositoryIdentity: (...a: unknown[]) => mockResolveRepositoryIdentity(...a),
+  withRepositoryReviewOperationLock: async <T>(
+    _exec: unknown, _cwd: string, _operationId: string, _maxWaitMs: number,
+    action: () => Promise<T>,
+  ): Promise<T> => action(),
+}));
+const mockReadLaneProgressOwner = vi.fn();
+vi.mock("../../../src/scripts/review-gate/lane-progress.js", async (orig) => ({
+  ...(await orig<typeof import("../../../src/scripts/review-gate/lane-progress.js")>()),
+  readLaneProgressOwner: (...a: unknown[]) => mockReadLaneProgressOwner(...a),
 }));
 const mockCollectGitCandidateSubject = vi.fn();
 const mockCollectUnstagedReviewablePaths = vi.fn();
@@ -464,6 +480,8 @@ beforeEach(() => {
     reservation: null,
   };
   mockReadCandidateRecord.mockResolvedValue({ attestation: { candidateId } });
+  mockResolveRepositoryIdentity.mockResolvedValue("repository-id");
+  mockReadLaneProgressOwner.mockResolvedValue(null);
   mockCollectGitCandidateSubject.mockResolvedValue({
     status: "collected",
     target: { revision: "a".repeat(40), subject: {} },
@@ -1678,6 +1696,45 @@ describe("handleReopen", () => {
 });
 
 describe("handleAttest", () => {
+  const convergencePendingBoundary = () => {
+    const candidateId = `sha256:${"a".repeat(64)}`;
+    const candidateSubjectDigest = `sha256:${"b".repeat(64)}`;
+    const reviewedHead = "a".repeat(40);
+    const resume = Buffer.from(JSON.stringify({ selfReview: "settled" }), "utf8").toString("base64url");
+    const postAttestContinuation = {
+      reviewedHead,
+      nextAction: {
+        kind: "continue-pre-publication-review" as const,
+        command: `arc review pre-publication foo --resume ${resume}`,
+        interactionText: "Resume pre-publication review over the converged Candidate.",
+      },
+      projectionDisposition: "keep-staged-until-publication" as const,
+    };
+    return {
+      candidateId,
+      candidateSubjectDigest,
+      reviewedHead,
+      postAttestContinuation,
+      boundary: {
+        schemaVersion: 1 as const,
+        mode: "integration-boundary" as const,
+        workUnit: "foo",
+        candidateId,
+        candidateSubjectDigest,
+        terminus: null,
+        deliveryReviewTermini: [],
+        locus: "candidate-convergence-verification-pending" as const,
+        nextAction: {
+          kind: "run-convergence-verification" as const,
+          command: "arc attest foo --json",
+          interactionText: "Run convergence verification, then attest.",
+          postAttestContinuation,
+        },
+        policy: null,
+        reservation: null,
+      },
+    };
+  };
   it("defaults convergence scope to full and rejects malformed scope or evidence", () => {
     expect(AttestCommandInputSchema.parse({ name: "foo" })).toMatchObject({ scope: "full" });
     expect(AttestCommandInputSchema.safeParse({ name: "foo", scope: "broad" }).success).toBe(false);
@@ -1706,6 +1763,28 @@ describe("handleAttest", () => {
     expect(mockRunAttest).not.toHaveBeenCalled();
   });
 
+  it("returns a typed restore-and-retry refusal when the live review record cannot be read", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const reviewHeadSha = "a".repeat(40);
+    mockReadLaneProgressOwner.mockResolvedValueOnce({
+      attempts: [{ attemptId: "attempt-1", outcome: "pending", headSha: reviewHeadSha }],
+    });
+    mockReadRepositoryCandidateRecordRevision.mockRejectedValueOnce(new Error("missing review-head record"));
+    mockRunAttest.mockImplementationOnce(async (context) => {
+      await context.inspectReRootReviewAuthority("foo", `sha256:${"a".repeat(64)}`);
+      throw new Error("expected record lookup refusal");
+    });
+
+    await handleAttest("foo", { newRoot: true, json: true });
+
+    const refusal = LifecycleCommandRefusalSchema.parse(
+      JSON.parse(String(stdoutWrite.mock.calls[0]?.[0])),
+    );
+    expect(refusal.reason).toContain("missing review-head record");
+    expect(refusal.remedy.argv).toEqual(["arc", "attest", "foo", "--new-root"]);
+    expect(process.exitCode).toBe(1);
+  });
+
   it("attests when the index carries every reviewable edit", async () => {
     await handleAttest("foo", { json: true });
 
@@ -1716,6 +1795,143 @@ describe("handleAttest", () => {
       newRoot: false,
       scope: "full",
     });
+  });
+
+  it("repairs the exact post-attest continuation after the Candidate write outlives a boundary failure", async () => {
+    const fixture = convergencePendingBoundary();
+    mockReadSubmissionBoundaryVersioned.mockResolvedValue({
+      boundary: fixture.boundary,
+      version: "pending-boundary-version",
+    });
+    let attempt = 0;
+    mockRunAttest.mockImplementation(async (context) => {
+      attempt += 1;
+      const published = await context.publish({
+        name: "foo",
+        record: { attestation: { candidateId: fixture.candidateId } },
+        candidateId: fixture.candidateId,
+        candidateSubjectDigest: fixture.candidateSubjectDigest,
+        currentWorkflow: "prepare-work-unit",
+        nextAction: "Resume pre-publication review",
+        expectedRecordVersion: attempt === 1 ? "candidate-version" : "persisted-candidate-version",
+        repairCurrent: attempt > 1,
+      });
+      return attempt === 1
+        ? { status: "attested", operation: "convergence", ...published }
+        : { status: "unchanged", locus: published.locus };
+    });
+    let persistedBoundary: unknown = null;
+    mockWriteSubmissionBoundary
+      .mockRejectedValueOnce(new Error("boundary write interrupted"))
+      .mockImplementationOnce(async (_cwd, boundary, expectedVersion) => {
+        expect(expectedVersion).toBe("pending-boundary-version");
+        persistedBoundary = boundary;
+        return ".arc/system/.internal/candidates/foo.boundary.json";
+      });
+
+    await expect(handleAttest("foo", { json: true })).rejects.toThrow("boundary write interrupted");
+    expect(mockWriteCandidateRecord).toHaveBeenCalledTimes(1);
+    expect(mockIoWriteFile).not.toHaveBeenCalled();
+    expect(mockIoExec).not.toHaveBeenCalledWith("git", expect.arrayContaining(["add"]), expect.anything());
+
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    await handleAttest("foo", { json: true });
+
+    expect(persistedBoundary).toMatchObject({
+      locus: "candidate-review-pending",
+      candidateId: fixture.candidateId,
+      candidateSubjectDigest: fixture.candidateSubjectDigest,
+      nextAction: fixture.postAttestContinuation.nextAction,
+      postAttestContinuation: fixture.postAttestContinuation,
+    });
+    expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
+      status: "unchanged",
+      locus: {
+        locus: "candidate-review-pending",
+        nextAction: fixture.postAttestContinuation.nextAction,
+        postAttestContinuation: fixture.postAttestContinuation,
+      },
+    });
+    expect(mockIoWriteFile).toHaveBeenCalledTimes(1);
+    expect(mockIoExec).toHaveBeenCalledWith(
+      "git",
+      [
+        "add", "--",
+        ".arc/system/.internal/candidates/foo.json",
+        ".arc/active/meta-foo.md",
+        ".arc/system/.internal/candidates/foo.boundary.json",
+      ],
+      { cwd: "/repo" },
+    );
+  });
+
+  it("preserves the post-attest continuation across metadata and staging retry", async () => {
+    const fixture = convergencePendingBoundary();
+    let currentBoundary = fixture.boundary;
+    let boundaryVersion = "pending-boundary-version";
+    mockReadSubmissionBoundaryVersioned.mockImplementation(async () => ({
+      boundary: currentBoundary,
+      version: boundaryVersion,
+    }));
+    mockWriteSubmissionBoundary.mockImplementation(async (_cwd, boundary) => {
+      currentBoundary = boundary;
+      boundaryVersion = `boundary-version-${mockWriteSubmissionBoundary.mock.calls.length}`;
+      return ".arc/system/.internal/candidates/foo.boundary.json";
+    });
+    let attempt = 0;
+    mockRunAttest.mockImplementation(async (context) => {
+      attempt += 1;
+      const published = await context.publish({
+        name: "foo",
+        record: { attestation: { candidateId: fixture.candidateId } },
+        candidateId: fixture.candidateId,
+        candidateSubjectDigest: fixture.candidateSubjectDigest,
+        currentWorkflow: "prepare-work-unit",
+        nextAction: "Resume pre-publication review",
+        expectedRecordVersion: attempt === 1 ? "candidate-version" : "persisted-candidate-version",
+        repairCurrent: attempt > 1,
+      });
+      return attempt === 1
+        ? { status: "attested", operation: "convergence", ...published }
+        : { status: "unchanged", locus: published.locus };
+    });
+    mockIoWriteFile.mockRejectedValueOnce(new Error("meta write interrupted"));
+
+    await expect(handleAttest("foo", { json: true })).rejects.toThrow("meta write interrupted");
+    expect(currentBoundary).toMatchObject({
+      locus: "candidate-review-pending",
+      postAttestContinuation: fixture.postAttestContinuation,
+    });
+
+    mockIoExec.mockRejectedValueOnce(new Error("index write interrupted"));
+    await expect(handleAttest("foo", { json: true })).rejects.toThrow("index write interrupted");
+    expect(currentBoundary).toMatchObject({
+      locus: "candidate-review-pending",
+      postAttestContinuation: fixture.postAttestContinuation,
+    });
+
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    await handleAttest("foo", { json: true });
+
+    expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
+      status: "unchanged",
+      locus: {
+        locus: "candidate-review-pending",
+        nextAction: fixture.postAttestContinuation.nextAction,
+        postAttestContinuation: fixture.postAttestContinuation,
+      },
+    });
+    expect(mockIoWriteFile).toHaveBeenCalledTimes(3);
+    expect(mockIoExec).toHaveBeenLastCalledWith(
+      "git",
+      [
+        "add", "--",
+        ".arc/system/.internal/candidates/foo.json",
+        ".arc/active/meta-foo.md",
+        ".arc/system/.internal/candidates/foo.boundary.json",
+      ],
+      { cwd: "/repo" },
+    );
   });
 
   it("passes scoped convergence evidence through the public handler", async () => {

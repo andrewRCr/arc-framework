@@ -81,6 +81,7 @@ describe("packaged review CLI surfaces", () => {
         "review-method-activity",
         "review-routing-decision",
         "review-routing-facts",
+        "review-target",
         "slug",
       ],
     ],
@@ -92,7 +93,13 @@ describe("packaged review CLI surfaces", () => {
     [
       ["review", "hosted", "await"],
       "review-hosted-await-request.schema.json",
-      ["review-hosted-await-request", "slug", "standard-review-obligation-projection"],
+      [
+        "review-hosted-await-request",
+        "review-requirement",
+        "review-target",
+        "slug",
+        "standard-review-obligation-projection",
+      ],
     ],
     [
       ["review", "reduce"],
@@ -108,9 +115,12 @@ describe("packaged review CLI surfaces", () => {
         "disposition-report-item",
         "disposition-set",
         "finding-disposition",
+        "review-resolve-request",
         "review-respond-request",
         "review-severity",
         "review-target",
+        "severity-gating-policy",
+        "standard-review-obligation-projection",
       ],
     ],
     [
@@ -126,7 +136,7 @@ describe("packaged review CLI surfaces", () => {
     [
       ["review", "frontline", "resolve"],
       "review-frontline-resolve-request.schema.json",
-      ["review-frontline-resolve-request"],
+      ["review-frontline-resolve-request", "slug"],
     ],
     [
       ["review", "hosted", "settle"],
@@ -141,7 +151,7 @@ describe("packaged review CLI surfaces", () => {
     [
       ["review", "local", "attest"],
       "review-local-attest-request.schema.json",
-      ["normalized-review-finding", "review-local-attest-request", "review-severity"],
+      ["review-local-attest-request", "review-severity"],
     ],
     [
       ["review", "local", "resume"],
@@ -172,6 +182,21 @@ describe("packaged review CLI surfaces", () => {
       schemas: Record<string, AnySchema>;
     };
     expect(output.rootId).toBe(rootId);
+    if (rootId === "review-frontline-resolve-request.schema.json") {
+      const publicRequest = output.schemas["review-frontline-resolve-request"] as {
+        properties: Record<string, AnySchema>;
+        required: string[];
+      };
+      expect(publicRequest.required).toContain("target");
+      expect(publicRequest.properties).not.toHaveProperty("pass");
+      expect(publicRequest.properties).not.toHaveProperty("maxPasses");
+      expect(publicRequest.properties.target).toMatchObject({
+        type: "object",
+        required: ["kind", "baseRef", "diffBaseSha", "headSha"],
+      });
+      expect((publicRequest.properties.target as { properties: Record<string, unknown> }).properties)
+        .not.toHaveProperty("repositoryId");
+    }
     // The production bundle contains a pre-existing empty-tuple projection Ajv rejects as a
     // metaschema defect; compilation still proves every public-root ref resolves in the bundle.
     const validator = new Ajv2020({ strict: false, validateSchema: false });

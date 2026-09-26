@@ -13,14 +13,14 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                       | Priority | Owner  | Depends on | Cohort                    |
-| ---------- | ------------------------------- | -------- | ------ | ---------- | ------------------------- |
-| `Active`   | review-signal-convergence       | P1       | andrew | —          | review-protocol-alignment |
-| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —          | —                         |
-| `Planning` | decomposition-doctrine          | P1       | andrew | —          | —                         |
-| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —          | —                         |
-| `Planning` | review-checkout-lifecycle       | P1       | andrew | —          | —                         |
-| `Planning` | stub-mint-to-launch             | P1       | andrew | —          | —                         |
+| State         | Work unit                       | Priority | Owner  | Depends on | Cohort                    |
+| ------------- | ------------------------------- | -------- | ------ | ---------- | ------------------------- |
+| `Integrating` | review-signal-convergence       | P1       | andrew | —          | review-protocol-alignment |
+| `Planning`    | candidate-reroot-recovery-frame | P1       | andrew | —          | —                         |
+| `Planning`    | decomposition-doctrine          | P1       | andrew | —          | —                         |
+| `Planning`    | delivery-rebuild-continuity     | P1       | andrew | —          | —                         |
+| `Planning`    | review-checkout-lifecycle       | P1       | andrew | —          | —                         |
+| `Planning`    | stub-mint-to-launch             | P1       | andrew | —          | —                         |
 
 ## Ready
 

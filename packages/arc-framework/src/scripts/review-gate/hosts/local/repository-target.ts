@@ -66,6 +66,11 @@ export type LocalTargetConfirmation =
       currentTarget: ReviewTarget;
     };
 
+export type LocalCorrectionTargetConfirmation =
+  | { state: "current"; target: ReviewTarget; dirtyPaths: readonly string[] }
+  | { state: "stale-head"; attemptedTarget: ReviewTarget; currentHeadSha: string }
+  | { state: "unexpected-dirty-paths"; target: ReviewTarget; unexpectedPaths: readonly string[] };
+
 interface GitBoundary {
   exec: GitExec;
   cwd: string;
@@ -75,9 +80,11 @@ async function readGit(
   input: GitBoundary,
   args: string[],
   reason: LocalTargetInvalidReason,
+  options: { preserveStdout?: boolean } = {},
 ): Promise<string> {
   try {
-    return (await input.exec("git", args, { cwd: input.cwd })).stdout.trim();
+    const stdout = (await input.exec("git", args, { cwd: input.cwd })).stdout;
+    return options.preserveStdout === true ? stdout : stdout.trim();
   } catch {
     throw new LocalTargetDerivationError(reason);
   }
@@ -281,4 +288,55 @@ export async function confirmLocalReviewTarget(input: {
   return currentTarget.targetId === attemptedTarget.targetId
     ? { state: "current", target: attemptedTarget }
     : { state: "stale-target", attemptedTarget, currentTarget };
+}
+
+function parsePorcelainPaths(stdout: string): string[] {
+  const records = stdout.split("\0").filter(Boolean);
+  const paths: string[] = [];
+  for (let index = 0; index < records.length; index += 1) {
+    const record = records[index];
+    if (record === undefined || record.length < 4) continue;
+    const status = record.slice(0, 2);
+    paths.push(record.slice(3));
+    if (status.includes("R") || status.includes("C")) {
+      const source = records[index + 1];
+      if (source === undefined) {
+        throw new LocalTargetDerivationError("dirty-worktree", "rename/copy status lacks its source path");
+      }
+      paths.push(source);
+      index += 1;
+    }
+  }
+  return [...new Set(paths)].sort();
+}
+
+/**
+ * Confirm an unchanged reviewed head while allowing only named uncommitted fix paths.
+ *
+ * @param input - Git boundary, reviewed target, and authorized dirty path set.
+ * @returns Current target evidence or a typed head/dirt refusal.
+ */
+export async function confirmLocalReviewCorrectionTarget(input: {
+  exec: GitExec;
+  cwd: string;
+  attemptedTarget: ReviewTarget;
+  expectedFixPaths: readonly string[];
+}): Promise<LocalCorrectionTargetConfirmation> {
+  const attemptedTarget = ReviewTargetSchema.parse(input.attemptedTarget);
+  const currentHeadSha = await readGit(input, ["rev-parse", "--verify", "HEAD"], "unborn-repository");
+  if (currentHeadSha !== attemptedTarget.headSha) {
+    return { state: "stale-head", attemptedTarget, currentHeadSha };
+  }
+  const status = await readGit(
+    input,
+    ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+    "dirty-worktree",
+    { preserveStdout: true },
+  );
+  const dirtyPaths = parsePorcelainPaths(status);
+  const expected = new Set(input.expectedFixPaths);
+  const unexpectedPaths = dirtyPaths.filter((path) => !expected.has(path));
+  return unexpectedPaths.length === 0
+    ? { state: "current", target: attemptedTarget, dirtyPaths }
+    : { state: "unexpected-dirty-paths", target: attemptedTarget, unexpectedPaths };
 }

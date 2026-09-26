@@ -25,6 +25,9 @@ import {
 } from "./helpers.js";
 import { advanceBaseStep, movementPaths } from "../helpers/base-advance.js";
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
+import { responsePolicyRequest } from "../fixtures/review-response-policy.js";
+import { makeGitExec } from "../helpers/integration.js";
+import { readErrandRoutedObligation } from "../../src/scripts/review-gate/status-errand.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -133,6 +136,19 @@ async function setFullProtection(cwd: string): Promise<void> {
   const updated = yaml.replace("branch.protection: partial", "branch.protection: full");
   if (updated === yaml) {
     throw new Error("setFullProtection: expected `branch.protection: partial` in arc-config.yml");
+  }
+  await writeFile(path, updated, "utf-8");
+}
+
+async function setDelegatedStandardReview(cwd: string): Promise<void> {
+  const path = join(cwd, ".arc", "system", "arc-config.yml");
+  const yaml = await readFile(path, "utf-8");
+  const updated = yaml.replace(
+    "review.standard_sources: []",
+    "review.standard_sources: [delegated-agent]",
+  );
+  if (updated === yaml) {
+    throw new Error("setDelegatedStandardReview: expected empty standard-review source list");
   }
   await writeFile(path, updated, "utf-8");
 }
@@ -306,6 +322,7 @@ describe("arc review respond for an Errand", () => {
       const initialized = await runArc(["init", "--yes", "--name", "errand-review"], repository);
       expect(initialized.exitCode, initialized.stderr || initialized.stdout).toBe(0);
       await setFullProtection(repository);
+      await setDelegatedStandardReview(repository);
       await git(repository, ["add", "-A"]);
       await commitFixture(repository, "initialize fixture");
       remoteDir = await createBareRemote(repository, "review-response");
@@ -374,10 +391,13 @@ describe("arc review respond for an Errand", () => {
         schemaVersion: 1,
         source,
         proposal: {
+          proposedVerification: "focused",
+          severityGatingPolicy: { minorGating: "record-only" },
           findings: [{
             findingId: "finding-1",
             sourceVerification: "verified",
             verificationRefs: ["source:reviewed.txt:1"],
+            verifiedSeverity: "major",
             disposition: "fix",
             rationale: "The reviewed source supports applying this fix.",
             recommendation: "Apply the fix.",
@@ -403,9 +423,11 @@ describe("arc review respond for an Errand", () => {
           approvedAt: "2026-08-15T21:00:00Z",
         },
       };
+      const policyRequest = await responsePolicyRequest(repository, source);
       await expect(invokeReview(repository, ["review", "respond", "-"], {
         schemaVersion: 1,
         source,
+        policyRequest,
         dispositions,
       })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
 
@@ -415,6 +437,7 @@ describe("arc review respond for an Errand", () => {
       const verifiedRequest = {
         schemaVersion: 1,
         source,
+        policyRequest,
         dispositions,
         verifiedFix: {
           applicability: "focused",
@@ -425,6 +448,100 @@ describe("arc review respond for an Errand", () => {
         .resolves.toMatchObject({ state: "errand-advanced", nextAction: "continue-review" });
       await expect(invokeReview(repository, ["review", "respond", "-"], verifiedRequest))
         .resolves.toMatchObject({ state: "errand-current", nextAction: "continue-review" });
+
+      const correctionRequest = {
+        schemaVersion: 1,
+        evaluatorIdentity: "reviewer-1",
+        routingFacts: {
+          contentKind: "code-bearing",
+          reviewRisk: "routine",
+          changeDeterminacy: "ordinary",
+          ownership: "self",
+          surfaceAuthority: "ordinary",
+        },
+      };
+      const offered = await invokeReview(
+        repository,
+        ["review", "local", "prepare", "-"],
+        correctionRequest,
+      );
+      expect(offered).toMatchObject({ state: "coverage-required", nextAction: "select-coverage" });
+      const selection = offered.payload.coverageSelectionAction as {
+        choices: readonly {
+          requestedCoverage: "incremental" | "complete";
+          correctionScope?: {
+            predecessorProducerId: string;
+            predecessorHeadSha: string;
+            headSha: string;
+          };
+        }[];
+      };
+      const incremental = selection.choices.find(({ requestedCoverage }) => requestedCoverage === "incremental");
+      if (incremental?.correctionScope === undefined) {
+        throw new Error("changed-head Errand recovery offered no incremental correction scope");
+      }
+      expect(incremental.correctionScope).toMatchObject({
+        predecessorProducerId: preparePayload.operationId,
+        predecessorHeadSha: preparePayload.target.headSha,
+        headSha: (await git(repository, ["rev-parse", "HEAD"])).trim(),
+      });
+
+      const correctionPrepared = await invokeReview(
+        repository,
+        ["review", "local", "prepare", "-"],
+        { ...correctionRequest, coverageAdmission: incremental },
+      );
+      expect(correctionPrepared).toMatchObject({ state: "ready", nextAction: "launch-review" });
+      const correctionPayload = correctionPrepared.payload as typeof preparePayload;
+      await expect(invokeReview(repository, ["review", "local", "attest", "-"], {
+        schemaVersion: 1,
+        operationId: correctionPayload.operationId,
+        result: {
+          status: "complete",
+          result: "clean",
+          targetId: correctionPayload.target.targetId,
+          headSha: correctionPayload.target.headSha,
+          headTree: correctionPayload.target.headTree,
+          rubricVersion: correctionPayload.reviewerPayload.guidance.rubricVersion,
+          rubricDigest: correctionPayload.reviewerPayload.guidance.rubricDigest,
+          sourceDigest: correctionPayload.reviewerPayload.sourceDigest,
+          guidanceDigest: correctionPayload.reviewerPayload.guidanceDigest,
+          evaluatorIdentity: correctionPayload.request.evaluatorIdentity,
+          reviewRunId: "run-incremental-clean",
+          applicabilityId: null,
+          findings: [],
+        },
+      })).resolves.toMatchObject({ state: "attested-current", nextAction: "reduce" });
+      await expect(invokeReview(repository, ["review", "reduce", "-"], {
+        schemaVersion: 1,
+        operationId: correctionPayload.operationId,
+      })).resolves.toMatchObject({ state: "advisory-complete", nextAction: "none" });
+      await expect(invokeReview(repository, ["review", "resolve", "-"], {
+        ...policyRequest,
+        target: { ...policyRequest.target, headSha: correctionPayload.target.headSha },
+        completedPasses: 2,
+        invocation: { mode: "force", sourceId: "delegated-agent" },
+        attempts: [{
+          sourceId: "delegated-agent",
+          outcome: "clean",
+          reviewOperationId: correctionPayload.operationId,
+        }],
+      })).resolves.toMatchObject({
+        state: "pass-complete",
+        nextAction: "none",
+        payload: { verifiedTerminalSignal: { coverageAdequate: true } },
+      });
+      await expect(readErrandRoutedObligation({
+        cwd: repository,
+        exec: makeGitExec(repository),
+        target: {
+          repository: policyRequest.target.repository,
+          headRef: (await git(repository, ["symbolic-ref", "--short", "HEAD"])).trim(),
+          headSha: correctionPayload.target.headSha,
+        },
+        pullRequest: 42,
+        currentBaseOid: (await git(repository, ["rev-parse", "main"])).trim(),
+      })).resolves.toMatchObject({ state: "settled" });
     } finally {
       await cleanupTempDir(repository);
       if (remoteDir !== null) await cleanupTempDir(remoteDir);

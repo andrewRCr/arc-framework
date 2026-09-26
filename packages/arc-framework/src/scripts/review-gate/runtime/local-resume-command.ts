@@ -2,9 +2,6 @@
 
 import { z } from "zod";
 
-import { canonicalize } from "../../../lib/kernel/index.js";
-import { reviewerDispositionNit, reviewerDispositionSeverity } from "../core/disposition-records.js";
-import { ApprovedDispositionRecordSchema } from "../core/advisory-records.js";
 import {
   validateReviewReceipt,
 } from "../core/gate-contract-v2.js";
@@ -19,8 +16,15 @@ import type {
   ForwardReviewReceiptStore,
   LocalReviewSourceStore,
   ReviewOperationStateStore,
+  ReviewResultReader,
 } from "../core/ports.js";
+import { validateApprovedDispositionRecordForResult } from
+  "../core/review-result-disposition.js";
 import { LocalResumeEnvelopeSchema } from "../core/review-command-envelope.js";
+import {
+  readAdmittedLocalLaneAttempt,
+  recordLocalReceiptConclusion,
+} from "../lane-progress.js";
 import type { LocalTargetConfirmation } from "../hosts/local/repository-target.js";
 
 export const LocalResumeRequestSchema = z.strictObject({
@@ -30,10 +34,11 @@ export const LocalResumeRequestSchema = z.strictObject({
 
 export interface LocalResumeDependencies {
   sweep(): Promise<void>;
-  withSourceLock<T>(action: () => Promise<T>): Promise<T>;
+  withLocalReviewLock<T>(action: () => Promise<T>): Promise<T>;
   operationStore: ReviewOperationStateStore;
   sourceStore: LocalReviewSourceStore;
   receiptStore: ForwardReviewReceiptStore;
+  resultReader: ReviewResultReader;
   dispositionStore: ApprovedDispositionRecordStore;
   confirmTarget(target: ReviewTarget): Promise<LocalTargetConfirmation>;
   materialize(
@@ -59,10 +64,10 @@ export async function resumeLocalReviewCommand(
 ): Promise<z.infer<typeof LocalResumeEnvelopeSchema>> {
   const request = LocalResumeRequestSchema.parse(requestInput);
   await dependencies.sweep();
-  return dependencies.withSourceLock(() => resumeLocalReviewWithinSourceLock(request, dependencies));
+  return dependencies.withLocalReviewLock(() => resumeLocalReviewWithinLocalReviewLock(request, dependencies));
 }
 
-async function resumeLocalReviewWithinSourceLock(
+async function resumeLocalReviewWithinLocalReviewLock(
   request: z.infer<typeof LocalResumeRequestSchema>,
   dependencies: LocalResumeDependencies,
 ): Promise<z.infer<typeof LocalResumeEnvelopeSchema>> {
@@ -73,6 +78,10 @@ async function resumeLocalReviewWithinSourceLock(
     throw new LocalResumeCommandError("local review operation is unavailable");
   }
   const state = persisted.state;
+  const admittedAttempt = await readAdmittedLocalLaneAttempt(dependencies.operationStore, state);
+  if (admittedAttempt === null) {
+    throw new LocalResumeCommandError("local review operation is not durably admitted");
+  }
   assertLocalReviewClaimBinding(state);
   const receiptReference = (durableRef: string) => bindReviewSourceReference({
     kind: "attested-local",
@@ -81,6 +90,22 @@ async function resumeLocalReviewWithinSourceLock(
   });
   const confirmation = await dependencies.confirmTarget(state.target);
   if (confirmation.state === "stale-target") {
+    const oldLedger = await dependencies.receiptStore.readReceipts(state.targetId);
+    const oldReceipts = oldLedger.receipts.filter((receipt) => receipt.requestId === state.requestId);
+    if (oldReceipts.length > 1) {
+      throw new LocalResumeCommandError("local review operation has multiple terminal receipts");
+    }
+    if (oldReceipts[0] !== undefined) {
+      const oldReceipt = validateReviewReceipt(
+        state.target, state.requirement, state.request, oldReceipts[0],
+      );
+      await dependencies.receiptStore.appendReceipt(oldReceipt, oldLedger.ledgerVersion);
+      await recordLocalReceiptConclusion(dependencies.operationStore, {
+        state,
+        receipt: oldReceipt,
+        now: dependencies.now(),
+      });
+    }
     return LocalResumeEnvelopeSchema.parse({
       schemaVersion: 1,
       mode: "review-local-resume",
@@ -95,17 +120,35 @@ async function resumeLocalReviewWithinSourceLock(
       },
     });
   }
+  const ledger = await dependencies.receiptStore.readReceipts(state.targetId);
+  const receipts = ledger.receipts.filter((receipt) => receipt.requestId === state.requestId);
+  if (receipts.length > 1) {
+    throw new LocalResumeCommandError("local review operation has multiple terminal receipts");
+  }
+  if (receipts.length === 0 && admittedAttempt.outcome !== "pending") {
+    if (admittedAttempt.outcome !== "terminal-failure"
+      && admittedAttempt.outcome !== "transient-unavailable") {
+      throw new LocalResumeCommandError("terminal local review operation has no durable receipt");
+    }
+    return LocalResumeEnvelopeSchema.parse({
+      schemaVersion: 1,
+      mode: "review-local-resume",
+      diagnostics: [],
+      state: "terminal-operation",
+      nextAction: "rerun-review",
+      payload: {
+        operationId: state.operationId,
+        persistedVersion: persisted.version,
+        currentTarget: state.target,
+      },
+    });
+  }
   const source = await dependencies.sourceStore.readSource(state.sourceRef);
   if (source === null
     || source.sourceDigest !== state.sourceDigest
     || source.repositoryId !== state.repositoryId
     || source.targetId !== state.targetId) {
     throw new LocalResumeCommandError("local review source snapshot mismatch");
-  }
-  const ledger = await dependencies.receiptStore.readReceipts(state.targetId);
-  const receipts = ledger.receipts.filter((receipt) => receipt.requestId === state.requestId);
-  if (receipts.length > 1) {
-    throw new LocalResumeCommandError("local review operation has multiple terminal receipts");
   }
   if (receipts.length === 0) {
     const now = Date.parse(dependencies.now());
@@ -148,7 +191,24 @@ async function resumeLocalReviewWithinSourceLock(
     receipts[0],
   );
   const replay = await dependencies.receiptStore.appendReceipt(receipt, ledger.ledgerVersion);
+  await recordLocalReceiptConclusion(dependencies.operationStore, {
+    state,
+    receipt,
+    now: dependencies.now(),
+  });
+  const disposition = await dependencies.dispositionStore.readDispositionRecord(state.operationId);
   if (receipt.result !== "findings") {
+    if (disposition !== null) {
+      throw new LocalResumeCommandError("non-findings receipt has an approved disposition");
+    }
+    if (receipt.result === "clean") {
+      const result = await dependencies.resultReader.readResult(state.operationId);
+      if (result.kind !== "attested-local"
+        || result.originalOutcome !== "clean"
+        || result.receiptRef !== replay.durableEvidenceRef) {
+        throw new LocalResumeCommandError("local review result snapshot mismatch");
+      }
+    }
     return LocalResumeEnvelopeSchema.parse({
       schemaVersion: 1,
       mode: "review-local-resume",
@@ -163,7 +223,12 @@ async function resumeLocalReviewWithinSourceLock(
       },
     });
   }
-  const disposition = await dependencies.dispositionStore.readDispositionRecord(state.operationId);
+  const result = await dependencies.resultReader.readResult(state.operationId);
+  if (result.kind !== "attested-local"
+    || result.originalOutcome !== "findings"
+    || result.receiptRef !== replay.durableEvidenceRef) {
+    throw new LocalResumeCommandError("local review result snapshot mismatch");
+  }
   if (disposition === null) {
     return LocalResumeEnvelopeSchema.parse({
       schemaVersion: 1,
@@ -188,30 +253,9 @@ async function resumeLocalReviewWithinSourceLock(
       },
     });
   }
-  const approved = ApprovedDispositionRecordSchema.parse(disposition);
-  const approvedSet = approved.approvedDisposition.dispositionSet;
-  const receiptFindings = receipt.findings.map((finding) => ({
-    findingId: finding.findingId,
-    locus: finding.locus,
-    severity: finding.severity,
-    nit: finding.nit === true,
-  }));
-  const dispositionFindings = approvedSet.findings.map((finding) => ({
-    findingId: finding.findingId,
-    locus: finding.locus,
-    severity: reviewerDispositionSeverity(finding),
-    nit: reviewerDispositionNit(finding) === true,
-  }));
-  if (approved.repositoryId !== state.repositoryId
-    || approved.operationId !== state.operationId
-    || approved.source.kind !== "attested-local"
-    || approved.source.receiptRef !== receiptReference(replay.durableEvidenceRef)
-    || approved.source.localSourceRef !== state.sourceRef
-    || approvedSet.targetId !== state.targetId
-    || approvedSet.policyVersion !== state.policyVersion
-    || approvedSet.rubricVersion !== state.requirement.rubricVersion
-    || approvedSet.rubricDigest !== state.requirement.rubricDigest
-    || canonicalize(dispositionFindings) !== canonicalize(receiptFindings)) {
+  try {
+    validateApprovedDispositionRecordForResult(disposition, result);
+  } catch {
     throw new LocalResumeCommandError("local review disposition snapshot mismatch");
   }
   return LocalResumeEnvelopeSchema.parse({

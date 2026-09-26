@@ -14,12 +14,14 @@ import {
   ReviewIdentifierSchema,
   type ReviewTarget,
 } from "../../core/gate-contract-v2-schema.js";
+import type { IncrementalReviewScope } from "../../core/incremental-review-scope.js";
 
 /** Stable failure when a persisted materialization contradicts its source descriptor. */
 export class LocalReviewMaterializationError extends Error {
-  readonly code = "corrupt-state" as const;
-
-  constructor(public readonly reason: string) {
+  constructor(
+    public readonly reason: string,
+    public readonly code: "corrupt-state" | "scope-unavailable" = "corrupt-state",
+  ) {
     super(reason);
     this.name = "LocalReviewMaterializationError";
   }
@@ -58,6 +60,7 @@ export async function createLocalReviewSourceDescriptor(input: {
   cwd: string;
   operationId: string;
   target: ReviewTarget;
+  correctionScope?: IncrementalReviewScope;
 }): Promise<LocalReviewSource> {
   const operationId = ReviewIdentifierSchema.parse(input.operationId);
   const commonDir = await resolveGitCommonDir(input.exec, input.cwd);
@@ -75,6 +78,11 @@ export async function createLocalReviewSourceDescriptor(input: {
     diffBaseTree: input.target.diffBaseTree,
     headSha: input.target.headSha,
     headTree: input.target.headTree,
+    ...(input.correctionScope === undefined ? {} : {
+      correctionScope: input.correctionScope,
+      predecessorReachabilityRef: `refs/arc/review/local-scope/${operationId}/predecessor`,
+      basisReachabilityRef: `refs/arc/review/local-scope/${operationId}/basis`,
+    }),
     reachabilityRef: `refs/arc/review/local/${operationId}`,
     materializationRef: join(commonDir, "arc", "review-gate", "materializations", operationId),
   });
@@ -94,22 +102,58 @@ async function requireObjects(exec: GitExec, source: LocalReviewSource): Promise
       throw new LocalReviewMaterializationError(`missing-object:${label}`);
     }
   }
+  if (source.correctionScope !== undefined) {
+    for (const objectId of [
+      source.correctionScope.predecessorHeadSha,
+      source.correctionScope.basisHeadSha,
+    ]) {
+      if (!await objectExists(exec, commonCwd, `${objectId}^{commit}`)) {
+        throw new LocalReviewMaterializationError(
+          `missing-scope-object:${objectId}`,
+          "scope-unavailable",
+        );
+      }
+    }
+  }
   void repositoryCwd;
 }
 
-async function ensurePin(exec: GitExec, source: LocalReviewSource): Promise<void> {
-  const cwd = dirname(dirname(dirname(dirname(source.materializationRef))));
+async function ensureExactPin(
+  exec: GitExec,
+  cwd: string,
+  reference: string,
+  objectId: string,
+): Promise<void> {
   let pinned: string | null = null;
   try {
-    pinned = await git(exec, cwd, ["show-ref", "--verify", "--hash", source.reachabilityRef]);
+    pinned = await git(exec, cwd, ["show-ref", "--verify", "--hash", reference]);
   } catch {
     // A missing private ref is the recoverable publication-before-pin case.
   }
-  if (pinned !== null && pinned !== source.headSha) {
+  if (pinned !== null && pinned !== objectId) {
     throw new LocalReviewMaterializationError("pin-target-mismatch");
   }
   if (pinned === null) {
-    await git(exec, cwd, ["update-ref", source.reachabilityRef, source.headSha]);
+    await git(exec, cwd, ["update-ref", reference, objectId]);
+  }
+}
+
+async function ensurePins(exec: GitExec, source: LocalReviewSource): Promise<void> {
+  const cwd = dirname(dirname(dirname(dirname(source.materializationRef))));
+  await ensureExactPin(exec, cwd, source.reachabilityRef, source.headSha);
+  if (source.correctionScope !== undefined) {
+    await ensureExactPin(
+      exec,
+      cwd,
+      source.predecessorReachabilityRef as string,
+      source.correctionScope.predecessorHeadSha,
+    );
+    await ensureExactPin(
+      exec,
+      cwd,
+      source.basisReachabilityRef as string,
+      source.correctionScope.basisHeadSha,
+    );
   }
 }
 
@@ -164,6 +208,20 @@ export async function inspectLocalReviewSourceMaterialization(input: {
     return "absent";
   }
   if (pinned !== source.headSha) throw new LocalReviewMaterializationError("pin-target-mismatch");
+  if (source.correctionScope !== undefined) {
+    for (const [reference, objectId] of [
+      [source.predecessorReachabilityRef as string, source.correctionScope.predecessorHeadSha],
+      [source.basisReachabilityRef as string, source.correctionScope.basisHeadSha],
+    ] as const) {
+      let correctionPin: string;
+      try {
+        correctionPin = await git(input.exec, cwd, ["show-ref", "--verify", "--hash", reference]);
+      } catch {
+        return "absent";
+      }
+      if (correctionPin !== objectId) throw new LocalReviewMaterializationError("pin-target-mismatch");
+    }
+  }
   if (!await pathExists(source.materializationRef)) return "absent";
   if (!await isGitWorktree(input.exec, source.materializationRef)) {
     throw new LocalReviewMaterializationError("materialization-not-worktree");
@@ -190,7 +248,7 @@ export async function ensureLocalReviewSourceMaterialized(input: {
 }): Promise<{ reviewRoot: string }> {
   const source = LocalReviewSourceSchema.parse(input.source);
   await requireObjects(input.exec, source);
-  await ensurePin(input.exec, source);
+  await ensurePins(input.exec, source);
   await ensureCheckout(input.exec, source);
   await verifyCheckout(input.exec, source);
   const pinned = await git(

@@ -269,6 +269,10 @@ adversarial-review:
   prior-findings:  # pass two onward; omitted on pass one
 ```
 
+After each returned pass, apply the method's complete-disposition and bounded-continuation protocol. Retain the
+complete source-verified finding/account/action set, `Pass N of M`, stop reason, and any conditional next-pass
+decision in the existing spec review evidence. This advisory evidence creates no lane-progress record.
+
 > [!IMPORTANT]
 > `workflow-interlock` — Gate 1 (review / iterate): Stop after the spec is saved and self-reviewed. Surface the
 > spec location and the self-review findings for a full read and feedback. Iteration loops here against the saved

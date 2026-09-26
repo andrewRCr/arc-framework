@@ -9,6 +9,10 @@ import {
 import type {
   ReviewOperationStateStore,
 } from "../../../../../src/scripts/review-gate/core/ports.js";
+import { LaneSubjectLineageSchema } from
+  "../../../../../src/scripts/review-gate/core/lane-admission.js";
+import { projectLocalReviewGuidance } from
+  "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
 
 const objectId = (character: string): string => character.repeat(40);
 const digest = (value: string): string => canonicalDigest({ value });
@@ -51,6 +55,14 @@ function fixture() {
       attestationMechanism: "local-attestation" as const,
     },
     laneSourceId: "delegated-agent",
+    scopeMode: "whole-target" as const,
+    lineage: {
+      kind: "candidate" as const,
+      candidateId: digest("candidate"),
+    },
+    logicalPass: 1,
+    retryGeneration: 0,
+    coverageAdmission: { requestedCoverage: "complete" as const },
     policyBindingDigest: digest("local-policy"),
     requestMechanism: "local-prepare",
   };
@@ -79,6 +91,7 @@ describe("local review operation identity", () => {
 
   it("returns an identical existing operation and re-verifies it without rebuilding", async () => {
     const admission = createLocalReviewAdmission(fixture());
+    const guidance = projectLocalReviewGuidance();
     const state = {
       schemaVersion: 1 as const,
       semanticsVersion: "review-operation/v1" as const,
@@ -92,10 +105,17 @@ describe("local review operation identity", () => {
       policyVersion: admission.requirement.policyVersion,
       policyBindingDigest: admission.policyBindingDigest,
       laneSourceId: admission.laneSourceId,
+      lineage: admission.lineage,
+      logicalPass: admission.logicalPass,
+      retryGeneration: admission.retryGeneration,
+      coverageAdmission: admission.coverageAdmission,
+      scopeMode: admission.scopeMode,
       attestationRuntimeKind: admission.authority.attestationRuntimeKind,
       sourceRef: "review-source.json",
       sourceDigest: digest("source"),
-      guidanceDigest: digest("guidance"),
+      guidance: guidance.projection,
+      guidanceDigest: guidance.guidanceDigest,
+      reviewerInstructions: guidance.reviewerInstructions,
       target: admission.target,
       requirement: admission.requirement,
       request: admission.carrier.request,
@@ -124,6 +144,7 @@ describe("local review operation identity", () => {
       { ...baseline, requestMechanism: "local-resume" },
       { ...baseline, policyBindingDigest: digest("stricter-policy") },
       { ...baseline, laneSourceId: "other-local-source" },
+      { ...baseline, scopeMode: "chunked" as const },
       { ...baseline, authority: { ...baseline.authority, evaluatorIdentity: "other-reviewer" } },
     ];
     const store: ReviewOperationStateStore = {
@@ -138,6 +159,34 @@ describe("local review operation identity", () => {
       });
       expect(resolution).toMatchObject({ state: "new" });
       expect(resolution.operationId).not.toBe(original.operationId);
+    }
+  });
+
+  it("binds lineage, logical pass, and retry generation into request and operation identity", () => {
+    const baseline = fixture();
+    const original = createLocalReviewAdmission(baseline);
+    const variants = [
+      { ...baseline, logicalPass: 2 },
+      { ...baseline, retryGeneration: 1 },
+      {
+        ...baseline,
+        lineage: { kind: "candidate" as const, candidateId: digest("another-candidate") },
+      },
+      {
+        ...baseline,
+        lineage: LaneSubjectLineageSchema.parse({
+          kind: "delivery-member" as const,
+          planId: "123e4567-e89b-12d3-a456-426614174000",
+          workUnitId: "review-surface-binding",
+          deliverableId: digest("sibling-member"),
+        }),
+      },
+    ];
+
+    for (const variant of variants) {
+      const admission = createLocalReviewAdmission(variant);
+      expect(admission.operationId).not.toBe(original.operationId);
+      expect(admission.carrier.request.requestId).not.toBe(original.carrier.request.requestId);
     }
   });
 });

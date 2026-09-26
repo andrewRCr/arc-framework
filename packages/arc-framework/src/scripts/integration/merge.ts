@@ -466,6 +466,13 @@ function invalidationDetail(
   reason: IntegrationMergeInvalidationReason,
   payload: Record<string, unknown>,
 ): string {
+  const settlement = payload.settlement;
+  if (reason === "settlement-invalidated" && typeof settlement === "object"
+    && settlement !== null && "reason" in settlement
+    && settlement.reason === "fix-not-performed") {
+    return "The approved fix lacks a verified response. Complete the approved fix and its verifiedFix "
+      + "response, then compose a fresh checkpoint for the resulting exact head.";
+  }
   if (typeof payload.detail === "string") return boundedDetail(payload.detail, INVALIDATION_DETAILS[reason]);
   const final = payload.final;
   if (typeof final === "object" && final !== null && "detail" in final) {

@@ -3,6 +3,7 @@
 import { canonicalDigest, canonicalize } from "../../../../lib/kernel/index.js";
 import {
   ApprovedDispositionRecordSchema,
+  currentApprovedDispositionNode,
   isExactDeliveryMemberBindingAdvance,
   type ApprovedDispositionRecord,
 } from "../../core/advisory-records.js";
@@ -23,9 +24,12 @@ function recordName(operationId: string): string {
 function parseRecord(raw: string): ApprovedDispositionRecord {
   try {
     const record = ApprovedDispositionRecordSchema.parse(JSON.parse(raw));
-    const approvedDisposition = validateDispositionState(record.approvedDisposition);
-    if (approvedDisposition.state !== "approved") throw new Error("disposition record requires approval");
-    return { ...record, approvedDisposition };
+    const approvedDispositionLineage = record.approvedDispositionLineage.map((node) => {
+      const approvedDisposition = validateDispositionState(node.approvedDisposition);
+      if (approvedDisposition.state !== "approved") throw new Error("disposition record requires approval");
+      return { ...node, approvedDisposition };
+    });
+    return ApprovedDispositionRecordSchema.parse({ ...record, approvedDispositionLineage });
   } catch (error) {
     throw new LocalReviewRecordStoreError("malformed-local-disposition", { cause: error });
   }
@@ -45,12 +49,97 @@ function isFixResponseAdvance(
   existing: ApprovedDispositionRecord,
   next: ApprovedDispositionRecord,
 ): boolean {
-  const errandAdvance = existing.errandFixResponse === null && next.errandFixResponse !== null;
-  const deliveryAdvance = existing.deliveryMemberFixResponse === null
-    && next.deliveryMemberFixResponse !== null;
+  const existingCurrent = currentApprovedDispositionNode(existing);
+  const nextCurrent = currentApprovedDispositionNode(next);
+  const errandAdvance = existingCurrent.errandFixResponse === null && nextCurrent.errandFixResponse !== null;
+  const deliveryAdvance = existingCurrent.deliveryMemberFixResponse === null
+    && nextCurrent.deliveryMemberFixResponse !== null;
   if (Number(errandAdvance) + Number(deliveryAdvance) !== 1) return false;
-  return canonicalize({ ...existing, errandFixResponse: null, deliveryMemberFixResponse: null })
-    === canonicalize({ ...next, errandFixResponse: null, deliveryMemberFixResponse: null });
+  const withoutCurrentResponse = (record: ApprovedDispositionRecord): ApprovedDispositionRecord => ({
+    ...record,
+    approvedDispositionLineage: record.approvedDispositionLineage.map((node) => (
+      node.approvedDisposition.dispositionSet.dispositionSetId === record.currentDispositionSetId
+        ? { ...node, errandFixResponse: null, deliveryMemberFixResponse: null }
+        : node
+    )),
+  });
+  return canonicalize(withoutCurrentResponse(existing)) === canonicalize(withoutCurrentResponse(next));
+}
+
+function isDispositionSuccessorAdvance(
+  existing: ApprovedDispositionRecord,
+  next: ApprovedDispositionRecord,
+): boolean {
+  if (next.approvedDispositionLineage.length !== existing.approvedDispositionLineage.length + 1) {
+    return false;
+  }
+  const existingCurrent = currentApprovedDispositionNode(existing);
+  const nextCurrent = currentApprovedDispositionNode(next);
+  if (existingCurrent.errandFixResponse !== null
+    || existingCurrent.deliveryMemberFixResponse !== null
+    || nextCurrent.errandFixResponse !== null
+    || nextCurrent.deliveryMemberFixResponse !== null
+    || nextCurrent.predecessorDispositionSetId !== existing.currentDispositionSetId) {
+    return false;
+  }
+  const existingContainer = {
+    ...existing,
+    currentDispositionSetId: null,
+    approvedDispositionLineage: [],
+  };
+  const nextContainer = {
+    ...next,
+    currentDispositionSetId: null,
+    approvedDispositionLineage: [],
+  };
+  if (canonicalize(existingContainer) !== canonicalize(nextContainer)) return false;
+
+  const expectedHistorical = existing.approvedDispositionLineage.map((node, index) => (
+    index === existing.approvedDispositionLineage.length - 1
+      ? { ...node, successorDispositionSetId: next.currentDispositionSetId }
+      : node
+  ));
+  return canonicalize(next.approvedDispositionLineage.slice(0, -1))
+    === canonicalize(expectedHistorical);
+}
+
+function isPolicyProjectionAdvance(
+  existing: ApprovedDispositionRecord,
+  next: ApprovedDispositionRecord,
+): boolean {
+  if (existing.currentDispositionSetId !== next.currentDispositionSetId
+    || existing.approvedDispositionLineage.length !== next.approvedDispositionLineage.length) return false;
+  const oldCurrent = currentApprovedDispositionNode(existing);
+  const newCurrent = currentApprovedDispositionNode(next);
+  if (oldCurrent.policyProjectionPending !== true
+    || newCurrent.policyProjectionPending === true
+    || oldCurrent.errandFixResponse !== null
+    || oldCurrent.deliveryMemberFixResponse !== null) return false;
+  const withoutProjection = (record: ApprovedDispositionRecord): unknown => ({
+    ...record,
+    approvedDispositionLineage: record.approvedDispositionLineage.map((node) => (
+      node.approvedDisposition.dispositionSet.dispositionSetId === record.currentDispositionSetId
+        ? { ...node, responsePolicyRequest: null, policyProjectionPending: null }
+        : node
+    )),
+  });
+  return canonicalize(withoutProjection(existing)) === canonicalize(withoutProjection(next));
+}
+
+/**
+ * Confirm that an approved disposition set remains current for its producing operation.
+ *
+ * @param store - Approved-disposition store for the current repository.
+ * @param producerId - Operation whose approved disposition record owns the set.
+ * @param dispositionSetId - Approved set identity bound into pending authority.
+ * @returns Whether the exact set is still the operation's current approved disposition.
+ */
+export async function confirmCurrentDispositionSet(
+  store: Pick<ApprovedDispositionRecordStore, "readDispositionRecord">,
+  producerId: string,
+  dispositionSetId: string,
+): Promise<boolean> {
+  return (await store.readDispositionRecord(producerId))?.currentDispositionSetId === dispositionSetId;
 }
 
 /** Git-common disposition store with exact replay and one monotonic verified-fix response append. */
@@ -86,20 +175,29 @@ implements ApprovedDispositionRecordStore, ApprovedDispositionRecordIndex {
     recordInput: ApprovedDispositionRecord,
   ): Promise<{ dispositionRecordRef: string }> {
     const structurallyParsed = ApprovedDispositionRecordSchema.parse(recordInput);
-    const approvedDisposition = validateDispositionState(structurallyParsed.approvedDisposition);
-    if (approvedDisposition.state !== "approved") throw new Error("disposition record requires approval");
-    const record = { ...structurallyParsed, approvedDisposition };
+    const approvedDispositionLineage = structurallyParsed.approvedDispositionLineage.map((node) => {
+      const approvedDisposition = validateDispositionState(node.approvedDisposition);
+      if (approvedDisposition.state !== "approved") throw new Error("disposition record requires approval");
+      return { ...node, approvedDisposition };
+    });
+    const record = ApprovedDispositionRecordSchema.parse({
+      ...structurallyParsed,
+      approvedDispositionLineage,
+    });
     const name = recordName(record.operationId);
     return this.publisher.update({ root: "review-gate", namespace: "evidence" }, name, (raw) => {
       if (raw !== null) {
         const existing = parseRecord(raw);
         const fixResponseAdvance = isFixResponseAdvance(existing, record);
         const deliveryMemberBindingAdvance = isExactDeliveryMemberBindingAdvance(existing, record);
+        const successorAdvance = isDispositionSuccessorAdvance(existing, record);
+        const policyProjectionAdvance = isPolicyProjectionAdvance(existing, record);
         if (canonicalize(existing) !== canonicalize(record)
-          && !fixResponseAdvance && !deliveryMemberBindingAdvance) {
+          && !fixResponseAdvance && !deliveryMemberBindingAdvance
+          && !successorAdvance && !policyProjectionAdvance) {
           throw new LocalReviewRecordStoreError("local-disposition-conflict");
         }
-        if (fixResponseAdvance || deliveryMemberBindingAdvance) {
+        if (fixResponseAdvance || deliveryMemberBindingAdvance || successorAdvance || policyProjectionAdvance) {
           return {
             kind: "write",
             content: `${JSON.stringify(record)}\n`,

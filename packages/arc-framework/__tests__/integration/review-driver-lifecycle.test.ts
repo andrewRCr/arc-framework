@@ -68,7 +68,7 @@ describe("lifecycle review driver", () => {
     expect(workflow).toContain("arc integrate merge {name} --checkpoint {payload.checkpointHandle}");
     expect(workflow).toContain("Approve (or redirect)?");
     expect(workflow).toMatch(
-      /not an instruction to invoke merge this turn while those checks are pending/iu,
+      /not\s*(?:>\s*)?an instruction to invoke merge this turn while those checks are pending/iu,
     );
     expect(preparation).toMatch(/runtime-owned bindings/i);
     expect(workflow).toContain("no-action record-only");

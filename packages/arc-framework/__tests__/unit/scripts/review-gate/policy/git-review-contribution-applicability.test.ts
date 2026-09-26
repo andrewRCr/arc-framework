@@ -72,16 +72,40 @@ describe("Git review contribution applicability", () => {
     });
   });
 
-  it("recognizes an unmoved retarget without spending Git proof capacity", async () => {
-    const input = { ...selector(), currentHead: oid("a") };
+  it("recognizes an unchanged target without spending Git proof capacity", async () => {
+    const input = { ...selector(), currentHead: oid("a"), currentBase: oid("1") };
     const exec: RawGitExec = async (args) => {
       throw new Error(`Git must not run for an unmoved head: ${args.join(" ")}`);
     };
     await expect(projectGitReviewContributionApplicability({
       selector: input,
       exec,
-      observeEndpoints: async () => ({ head: oid("a"), base: oid("b") }),
+      observeEndpoints: async () => ({ head: oid("a"), base: oid("1") }),
     })).resolves.toMatchObject({ state: "applicable", proof: "head-unchanged" });
+  });
+
+  it("proves a fixed head against unrelated prior and current bases", async () => {
+    const input = { ...selector(), currentHead: oid("a") };
+    const calls: string[] = [];
+    const exec: RawGitExec = async (args, options) => {
+      calls.push(args.join(" "));
+      if (args[0] === "merge-base") {
+        throw { exitCode: 1, stdout: bytes(""), stderr: bytes("") };
+      }
+      if (args[0] === "diff") return result("src/index.ts\0");
+      return mechanicalExec()(args, options);
+    };
+    await expect(projectGitReviewContributionApplicability({
+      selector: input,
+      exec,
+      observeEndpoints: async () => ({ head: oid("a"), base: oid("b") }),
+    })).resolves.toMatchObject({
+      state: "decision-required",
+      selector: input,
+      baseMoved: true,
+    });
+    expect(calls).toContain(`rev-parse --verify ${oid("1")}^{commit}`);
+    expect(calls.some((call) => call.startsWith("merge-base "))).toBe(false);
   });
 
   it("reruns when either observed endpoint moves before classification", async () => {

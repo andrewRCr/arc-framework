@@ -1,10 +1,20 @@
 /** Lean CodeRabbit hosted-review adapter. */
 
+import {
+  diagnostic,
+  finding,
+  parseCodeRabbitReviewBody,
+  type UnorderedFinding,
+} from "./coderabbit-body.js";
+export { parseCodeRabbitReviewBody } from "./coderabbit-body.js";
+export type { CodeRabbitReviewBodyParseResult } from "./coderabbit-body.js";
+
 import type {
-  HostedFinding,
+  HostedCoverageEvidence,
   HostedObservation,
   HostedReviewObserver,
 } from "./await.js";
+import { HostedFindingsSchema } from "./await.js";
 import {
   HostedGitHubReadError,
   normalizeHostedGitHubReadFailure,
@@ -21,6 +31,7 @@ import type {
   HostedReviewCoverage,
   HostedTarget,
 } from "./request.js";
+import type { IncrementalReviewScope } from "../core/incremental-review-scope.js";
 
 const COMMANDS = {
   complete: "@coderabbitai full review",
@@ -42,6 +53,7 @@ const RESOLVED_THREAD_REPLY_FOOTER = new RegExp(
 export const CODERABBIT_HOSTED_REGISTRATION = {
   id: "coderabbit-pr",
   commands: COMMANDS,
+  correctionReview: "native-incremental",
   identities: { botUserId: BOT_USER_ID, appOwnerId: APP_OWNER_ID, appId: APP_ID },
 } as const;
 
@@ -55,19 +67,87 @@ function recentReviewBody(comment: HostedGitHubIssueComment): string | null {
   return comment.body.slice(start.index + start[0].length, end.index);
 }
 
+function summaryReportsNoFindings(
+  comment: HostedGitHubIssueComment,
+  requestedAt: string,
+): boolean {
+  if (comment.updatedAt < requestedAt) return false;
+  const recent = recentReviewBody(comment);
+  return recent !== null
+    && /\bno actionable comments were generated in the recent review\b/iu.test(recent);
+}
+
 function summaryCompletesHead(
   comment: HostedGitHubIssueComment,
   target: HostedTarget,
   requestedAt: string,
 ): boolean {
-  if (comment.updatedAt < requestedAt) return false;
+  if (!summaryReportsNoFindings(comment, requestedAt)) return false;
   const recent = recentReviewBody(comment);
-  if (recent === null || !/\bno actionable comments were generated in the recent review\b/iu.test(recent)) {
-    return false;
-  }
+  if (recent === null) return false;
   const ranges = [...recent.matchAll(/\bbetween\s+[a-f0-9]{7,40}\s+and\s+([a-f0-9]{7,40})\b/giu)];
   const reviewedHead = ranges[0]?.[1]?.toLowerCase();
   return ranges.length === 1 && reviewedHead !== undefined && target.headSha.startsWith(reviewedHead);
+}
+
+function nativeIncrementalCoverageEvidence(
+  comments: readonly HostedGitHubIssueComment[],
+  target: HostedTarget,
+  scope: IncrementalReviewScope | null,
+  requestArtifactId: string,
+  requestedAt: string,
+  requestBoundary: string | null,
+  commandArtifactVisible: boolean,
+): HostedCoverageEvidence {
+  const unestablished = (
+    reason: Extract<HostedCoverageEvidence, { status: "unestablished" }>["reason"],
+  ): HostedCoverageEvidence => ({
+    schemaVersion: 1,
+    kind: "provider-native-incremental",
+    sourceId: "coderabbit-pr",
+    requestArtifactId,
+    status: "unestablished",
+    reason,
+  });
+  if (!commandArtifactVisible) return unestablished("provider-incremental-range-ambiguous");
+  if (scope === null) return unestablished("provider-incremental-range-missing");
+  const ranges = comments.flatMap((comment) => {
+    if (comment.updatedAt < requestedAt || !precedesBoundary(comment.updatedAt, requestBoundary)) return [];
+    const recent = recentReviewBody(comment);
+    if (recent === null) return [];
+    return [...recent.matchAll(
+      /\bbetween\s+([a-f0-9]{7,40})\s+and\s+([a-f0-9]{7,40})\b/giu,
+    )].map((match) => ({
+      base: match[1]?.toLowerCase(),
+      head: match[2]?.toLowerCase(),
+      comment,
+    }));
+  });
+  if (ranges.length === 0) return unestablished("provider-incremental-range-missing");
+  const range = ranges[0];
+  if (ranges.length !== 1 || range?.base === undefined || range.head === undefined) {
+    return unestablished("provider-incremental-range-ambiguous");
+  }
+  if (!scope.predecessorHeadSha.startsWith(range.base) || !target.headSha.startsWith(range.head)) {
+    return unestablished("provider-incremental-range-mismatch");
+  }
+  return {
+    schemaVersion: 1,
+    kind: "provider-native-incremental",
+    sourceId: "coderabbit-pr",
+    requestArtifactId,
+    status: "established",
+    baselineSha: range.base,
+    headSha: range.head,
+    providerGeneration: {
+      artifactId: range.comment.id,
+      url: range.comment.url,
+      createdAt: range.comment.createdAt,
+      updatedAt: range.comment.updatedAt,
+      actorIdentity: BOT_USER_ID,
+      appId: APP_ID,
+    },
+  };
 }
 
 function commandReplyCompleted(
@@ -192,587 +272,95 @@ function correlatedRefusalReason(
   return null;
 }
 
-function severity(body: string): "blocker" | "major" | "minor" | null {
-  const match = /_([🔴🟠🟡🔵]?)\s*(Critical|Major|Minor|Trivial)_/iu.exec(body);
-  switch (match?.[2]?.toLowerCase()) {
-    case "critical":
-      return "blocker";
-    case "major":
-      return "major";
-    case "minor":
-    case "trivial":
-      return "minor";
-    default:
-      return null;
-  }
-}
-
-function finding(
-  threadId: string,
-  comment: HostedGitHubThreadComment,
-): Extract<HostedObservation, { kind: "findings" }>["findings"][number] | null {
-  const parsedSeverity = severity(comment.body);
-  if (parsedSeverity === null || comment.line === null) return null;
-  return {
-    findingId: threadId,
-    origin: "review-thread",
-    commentId: comment.id,
-    threadId,
-    settlement: "reply-and-resolve",
-    severity: parsedSeverity,
-    locus: `${comment.path}:${comment.line}`,
-    url: comment.url,
-  };
-}
-
-type ReviewBodyFinding = Extract<HostedFinding, { origin: "review-body" }>;
-type SupplementalCategory = "nitpick" | "outside-diff";
-
-export type CodeRabbitReviewBodyParseResult =
-  | {
-    kind: "parsed";
-    actionableCount: number | null;
-    supplementalCounts: Readonly<Record<SupplementalCategory, number>>;
-    findings: ReviewBodyFinding[];
-  }
-  | { kind: "malformed"; reason: string };
-type SupplementalParseResult =
-  | { kind: "parsed"; findings: ReviewBodyFinding[] }
-  | Extract<CodeRabbitReviewBodyParseResult, { kind: "malformed" }>;
-
-interface SupplementalSection {
-  category: SupplementalCategory;
-  count: number;
-  start: number;
-  end: number;
-  blockId: number | null;
-}
-
-interface SummaryMatch {
-  text: string;
-  start: number;
-  end: number;
-}
-
-interface DetailsBlock {
-  id: number;
-  parentId: number | null;
-  openStart: number;
-  openEnd: number;
-  closeStart: number;
-  closeEnd: number;
-}
-
-interface DetailsTag {
-  text: string;
-  index: number;
-}
-
-interface TextRange {
-  start: number;
-  end: number;
-}
-
-interface MarkdownFence {
-  marker: "`" | "~";
-  length: number;
-}
-
-function nonNegativeInteger(value: string): number | null {
-  const normalized = value.trim();
-  if (!/^\d+$/u.test(normalized)) return null;
-  const parsed = Number(normalized);
-  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
-}
-
-function summaryMatches(body: string): SummaryMatch[] {
-  return [...body.matchAll(/^[\t ]*(?:>[\t ]*)*<summary>([^<\r\n]+)<\/summary>/gimu)].map((match) => ({
-    text: (match[1] as string).trim(),
-    start: match.index,
-    end: match.index + match[0].length,
-  }));
-}
-
-function supplementalHeader(text: string): Pick<SupplementalSection, "category" | "count"> | null {
-  const countMatch = /\((\d+)\)\s*$/u.exec(text);
-  if (countMatch?.[1] === undefined) return null;
-  const count = nonNegativeInteger(countMatch[1]);
-  if (count === null) return null;
-  const label = text.slice(0, countMatch.index).toLowerCase();
-  if (label.includes("nitpick") && label.includes("comment")) {
-    return { category: "nitpick", count };
-  }
-  if (label.includes("outside") && label.includes("diff") && label.includes("comment")) {
-    return { category: "outside-diff", count };
-  }
-  return null;
-}
-
-function supplementalSection(match: SummaryMatch, block: DetailsBlock): SupplementalSection | null {
-  const header = supplementalHeader(match.text);
-  return header === null
-    ? null
-    : { ...header, start: match.end, end: block.closeStart, blockId: block.id };
-}
-
-function calloutSections(body: string, blocks: readonly DetailsBlock[]): SupplementalSection[] {
-  const sections: SupplementalSection[] = [];
-  const fencedRanges = fencedMarkdownRanges(body);
-  const callouts = body.matchAll(
-    /^[\t ]*>[\t ]*\[!CAUTION\][^\r\n]*(?:(?:\r\n|\r|\n)[\t ]*>[^\r\n]*)*/gimu,
-  );
-  for (const callout of callouts) {
-    if (fencedRanges.some((range) => range.start <= callout.index && callout.index < range.end)
-      || blocks.some((block) => block.openStart < callout.index && callout.index < block.closeEnd)) continue;
-    const headers = [...callout[0].matchAll(/^[\t ]*>[\t ]*\*\*([^*\r\n]+)\*\*[\t ]*$/gmu)]
-      .flatMap((match) => {
-        const start = callout.index + match.index;
-        const header = supplementalHeader(match[1] ?? "");
-        return header === null
-          || fencedRanges.some((range) => range.start <= start && start < range.end)
-          || blocks.some((block) => block.openStart < start && start < block.closeEnd)
-          ? [] : [{ ...header, start, end: start + match[0].length }];
-      });
-    for (const [index, header] of headers.entries()) {
-      sections.push({
-        category: header.category,
-        count: header.count,
-        start: header.end,
-        end: headers[index + 1]?.start ?? callout.index + callout[0].length,
-        blockId: null,
-      });
-    }
-  }
-  return sections;
-}
-
-function inlineCodeRanges(line: string): TextRange[] {
-  const runs = [...line.matchAll(/`+/gu)];
-  const ranges: TextRange[] = [];
-  for (let index = 0; index < runs.length; index += 1) {
-    const opening = runs[index];
-    if (opening === undefined) continue;
-    const closingIndex = runs.findIndex((candidate, candidateIndex) =>
-      candidateIndex > index && candidate[0].length === opening[0].length);
-    if (closingIndex < 0) continue;
-    const closing = runs[closingIndex];
-    if (closing === undefined) continue;
-    ranges.push({ start: opening.index, end: closing.index + closing[0].length });
-    index = closingIndex;
-  }
-  return ranges;
-}
-
-function fenceRun(line: string): { fence: MarkdownFence; rest: string } | null {
-  const content = line.replace(/^[\t ]*(?:>[\t ]*)*/u, "");
-  const match = /^(`{3,}|~{3,})(.*)$/u.exec(content);
-  if (match?.[1] === undefined || match[2] === undefined) return null;
-  return {
-    fence: { marker: match[1][0] as "`" | "~", length: match[1].length },
-    rest: match[2],
-  };
-}
-
-function fencedMarkdownRanges(body: string): TextRange[] {
-  const ranges: TextRange[] = [];
-  let fence: MarkdownFence | null = null;
-  let start = 0;
-  for (const lineMatch of body.matchAll(/[^\r\n]*(?:\r\n|\r|\n|$)/gu)) {
-    if (lineMatch[0].length === 0) continue;
-    const line = lineMatch[0].replace(/(?:\r\n|\r|\n)$/u, "");
-    const run = fenceRun(line);
-    if (fence === null) {
-      if (run !== null) {
-        fence = run.fence;
-        start = lineMatch.index;
-      }
-    } else if (run !== null
-      && run.fence.marker === fence.marker
-      && run.fence.length >= fence.length
-      && run.rest.trim().length === 0) {
-      ranges.push({ start, end: lineMatch.index + lineMatch[0].length });
-      fence = null;
-    }
-  }
-  if (fence !== null) ranges.push({ start, end: body.length });
-  return ranges;
-}
-
-function isMarkdownEscaped(line: string, index: number): boolean {
-  let backslashes = 0;
-  for (let cursor = index - 1; cursor >= 0 && line[cursor] === "\\"; cursor -= 1) {
-    backslashes += 1;
-  }
-  return backslashes % 2 === 1;
-}
-
-function detailsTags(body: string): DetailsTag[] {
-  const tags: DetailsTag[] = [];
-  let fence: MarkdownFence | null = null;
-  for (const lineMatch of body.matchAll(/[^\r\n]*(?:\r\n|\r|\n|$)/gu)) {
-    if (lineMatch[0].length === 0) continue;
-    const line = lineMatch[0].replace(/(?:\r\n|\r|\n)$/u, "");
-    const run = fenceRun(line);
-    if (fence !== null) {
-      if (run !== null
-        && run.fence.marker === fence.marker
-        && run.fence.length >= fence.length
-        && run.rest.trim().length === 0) {
-        fence = null;
-      }
-      continue;
-    }
-    if (run !== null) {
-      fence = run.fence;
-      continue;
-    }
-    const codeRanges = inlineCodeRanges(line);
-    for (const tag of line.matchAll(/<\/?details(?:\s[^>]*)?>/giu)) {
-      if (isMarkdownEscaped(line, tag.index)
-        || codeRanges.some((range) => tag.index >= range.start && tag.index < range.end)) continue;
-      tags.push({ text: tag[0], index: lineMatch.index + tag.index });
-    }
-  }
-  return tags;
-}
-
-function detailsBlocks(body: string): DetailsBlock[] | null {
-  const blocks: Array<DetailsBlock | null> = [];
-  const stack: number[] = [];
-  for (const tag of detailsTags(body)) {
-    if (!tag.text.startsWith("</")) {
-      const id = blocks.length;
-      blocks.push({
-        id,
-        parentId: stack.at(-1) ?? null,
-        openStart: tag.index,
-        openEnd: tag.index + tag.text.length,
-        closeStart: -1,
-        closeEnd: -1,
-      });
-      stack.push(id);
-      continue;
-    }
-    const id = stack.pop();
-    if (id === undefined) return null;
-    const block = blocks[id];
-    if (block === null || block === undefined) return null;
-    blocks[id] = { ...block, closeStart: tag.index, closeEnd: tag.index + tag.text.length };
-  }
-  if (stack.length > 0
-    || blocks.some((block) => block === null || block.closeStart < 0 || block.closeEnd < 0)) return null;
-  return blocks as DetailsBlock[];
-}
-
-function maskDetailsRanges(
-  body: string,
-  start: number,
-  end: number,
-  blocks: readonly DetailsBlock[],
-): string {
-  let cursor = start;
-  let masked = "";
-  for (const block of [...blocks].sort((left, right) => left.openStart - right.openStart)) {
-    if (block.openStart < cursor || block.closeEnd > end) continue;
-    masked += body.slice(cursor, block.openStart);
-    masked += body.slice(block.openStart, block.closeEnd)
-      .replace(/[^\r\n]/gu, (character) => " ".repeat(character.length));
-    cursor = block.closeEnd;
-  }
-  return masked + body.slice(cursor, end);
-}
-
-function directSummary(
-  body: string,
-  block: DetailsBlock,
-  blocks: readonly DetailsBlock[],
-): SummaryMatch | null {
-  let contentEnd = block.closeStart;
-  for (const candidate of blocks) {
-    if (candidate.parentId === block.id) contentEnd = Math.min(contentEnd, candidate.openEnd);
-  }
-  const match = summaryMatches(body.slice(block.openEnd, contentEnd))[0];
-  return match === undefined
-    ? null
-    : {
-        ...match,
-        start: block.openEnd + match.start,
-        end: block.openEnd + match.end,
-      };
-}
-
-function malformed(reason: string): CodeRabbitReviewBodyParseResult {
-  return { kind: "malformed", reason };
-}
-
-function diagnostic(
-  reason: string,
-  context: Readonly<Record<string, string | number>>,
-): string {
-  return `${reason}: ${JSON.stringify(context)}`;
-}
-
-function malformedWithContext(
-  reason: string,
-  context: Readonly<Record<string, string | number>>,
-): CodeRabbitReviewBodyParseResult {
-  return malformed(diagnostic(reason, context));
-}
-
-function parseCalloutSection(
-  review: HostedGitHubReview,
-  body: string,
-  section: SupplementalSection,
-  blocks: readonly DetailsBlock[],
-): SupplementalParseResult {
-  const items = blocks.filter((block) => block.parentId === null
-    && block.openStart >= section.start && block.closeEnd <= section.end);
-  const findings: ReviewBodyFinding[] = [];
-  for (const item of items) {
-    const semanticItem = maskDetailsRanges(body, item.openEnd, item.closeStart,
-      blocks.filter((block) => block.parentId === item.id));
-    const markers = [...semanticItem.matchAll(/<!--\s*cr-comment:v1:([a-f0-9]+)\s*-->/giu)];
-    const marker = markers[0];
-    if (markers.length !== 1 || marker === undefined) {
-      return malformedWithContext("provider-supplemental-finding-count-mismatch", {
-        category: section.category,
-        group: "callout",
-        advertised: 1,
-        markers: markers.length,
-      });
-    }
-    const fingerprint = marker[1] as string;
-    const content = semanticItem.slice(0, marker.index);
-    const loci = [...content.matchAll(/^[\t ]*(?:>[\t ]*)*`([^`\r\n]+:\d+(?:-\d+)?)`[\t ]*$/gmu)];
-    const locus = loci[0];
-    const context = { category: section.category, fingerprint };
-    if (locus?.[1] === undefined) {
-      return malformedWithContext("provider-body-finding-locus-unrecognized", context);
-    }
-    const locusLineEnd = content.indexOf("\n", locus.index);
-    const severityLineEnd = locusLineEnd === -1 ? -1 : content.indexOf("\n", locusLineEnd + 1);
-    const severityLine = locusLineEnd === -1 ? "" : content.slice(locusLineEnd + 1,
-      severityLineEnd === -1 ? undefined : severityLineEnd);
-    const parsedSeverity = severity(severityLine);
-    if (parsedSeverity === null) {
-      return malformedWithContext("provider-body-finding-severity-unrecognized", context);
-    }
-    const substantiveBody = severityLineEnd === -1 ? "" : content.slice(severityLineEnd + 1)
-      .replace(/^[\t ]*(?:>[\t ]*)*/gmu, "").trim();
-    if (substantiveBody.length === 0) {
-      return malformedWithContext("provider-body-finding-empty", context);
-    }
-    findings.push({
-      findingId: `${review.id}:${fingerprint}`,
-      origin: "review-body",
-      reviewId: review.id,
-      fingerprint,
-      settlement: "not-applicable",
-      severity: parsedSeverity,
-      locus: locus[1],
-      url: review.url,
-      body: body.slice(item.openEnd + locus.index, item.openEnd + marker.index).trim(),
-    });
-  }
-  return { kind: "parsed", findings };
-}
-
-function parseSupplementalSection(
-  review: HostedGitHubReview,
-  body: string,
-  section: SupplementalSection,
-  blocks: readonly DetailsBlock[],
-): SupplementalParseResult {
-  if (section.blockId === null) return parseCalloutSection(review, body, section, blocks);
-  const groups = blocks.filter((block) => block.parentId === section.blockId).flatMap((block) => {
-    const match = directSummary(body, block, blocks);
-    if (match === null) return [];
-    const countMatch = /\((\d+)\)\s*$/u.exec(match.text);
-    if (countMatch?.[1] === undefined) return [];
-    const count = nonNegativeInteger(countMatch[1]);
-    if (count === null) return [];
-    return [{
-      blockId: block.id,
-      path: match.text.slice(0, countMatch.index).trim(),
-      count,
-      start: match.end,
-      end: block.closeStart,
-    }];
+function orderedTerminalReviews(reviews: HostedGitHubReview[]): HostedGitHubReview[] {
+  return [...reviews].sort((left, right) => {
+    const submitted = left.submittedAt.localeCompare(right.submittedAt);
+    return submitted === 0 ? left.id.localeCompare(right.id) : submitted;
   });
-  const groupTotal = groups.reduce((total, group) => total + group.count, 0);
-  if (groupTotal !== section.count) {
-    return malformedWithContext("provider-supplemental-group-count-mismatch", {
-      category: section.category,
-      advertised: section.count,
-      groupTotal,
-    });
-  }
-
-  const findings: ReviewBodyFinding[] = [];
-  for (const group of groups) {
-    const originalGroupBody = body.slice(group.start, group.end);
-    const semanticGroupBody = maskDetailsRanges(
-      body,
-      group.start,
-      group.end,
-      blocks.filter((block) => block.parentId === group.blockId),
-    );
-    const markers = [...semanticGroupBody.matchAll(/<!--\s*cr-comment:v1:([a-f0-9]+)\s*-->/giu)];
-    if (markers.length !== group.count) {
-      return malformedWithContext("provider-supplemental-finding-count-mismatch", {
-        category: section.category,
-        group: group.path,
-        advertised: group.count,
-        markers: markers.length,
-      });
-    }
-
-    let itemStart = 0;
-    for (const marker of markers) {
-      const fingerprint = marker[1] as string;
-      const semanticItem = semanticGroupBody.slice(itemStart, marker.index);
-      const originalItem = originalGroupBody.slice(itemStart, marker.index);
-      const loci = [...semanticItem.matchAll(/^[\t ]*(?:>[\t ]*)*`([^`\r\n]+)`:\s*_/gmu)];
-      const locusMatch = loci.at(-1);
-      const parsedSeverity = severity(semanticItem);
-      const findingContext = {
-        category: section.category,
-        group: group.path,
-        fingerprint,
-      };
-      if (group.path.length === 0) {
-        return malformedWithContext("provider-body-finding-group-path-empty", findingContext);
-      }
-      if (locusMatch?.[1] === undefined) {
-        return malformedWithContext("provider-body-finding-locus-unrecognized", findingContext);
-      }
-      if (parsedSeverity === null) {
-        return malformedWithContext("provider-body-finding-severity-unrecognized", findingContext);
-      }
-      const findingBody = originalItem.slice(locusMatch.index).trim();
-      const metadataLineEnd = semanticItem.indexOf("\n", locusMatch.index);
-      const substantiveBody = metadataLineEnd === -1
-        ? ""
-        : semanticItem.slice(metadataLineEnd + 1)
-          .replace(/^[\t ]*(?:>[\t ]*)*/gmu, "")
-          .trim();
-      if (substantiveBody.length === 0) {
-        return malformedWithContext("provider-body-finding-empty", findingContext);
-      }
-      findings.push({
-        findingId: `${review.id}:${fingerprint}`,
-        origin: "review-body",
-        reviewId: review.id,
-        fingerprint,
-        settlement: "not-applicable",
-        severity: parsedSeverity,
-        locus: `${group.path}:${locusMatch[1]}`,
-        url: review.url,
-        body: findingBody,
-      });
-      itemStart = marker.index + marker[0].length;
-    }
-  }
-  return { kind: "parsed", findings };
 }
 
-/** Parse CodeRabbit's optional review-thread count claim and non-thread findings. */
-export function parseCodeRabbitReviewBody(
-  review: HostedGitHubReview,
-): CodeRabbitReviewBodyParseResult {
-  const actionableMatches = [...review.body.matchAll(
-    /^\*\*Actionable comments posted:\s*([^*\r\n]*?)\s*\*\*\s*$/gimu,
-  )];
-  const actionableText = actionableMatches[0]?.[1];
-  if (actionableMatches.length > 1) {
-    return malformedWithContext("provider-actionable-count-ambiguous", {
-      matches: actionableMatches.length,
-    });
-  }
-  const actionableCount = actionableText === undefined
-    ? null
-    : nonNegativeInteger(actionableText);
-  if (actionableText !== undefined && actionableCount === null) {
-    return malformedWithContext("provider-actionable-count-invalid", {
-      value: actionableText.trim(),
-    });
-  }
+type RequestGenerationBoundary =
+  | { readonly status: "bound"; readonly timestamp: string | null; readonly commandArtifactVisible: boolean }
+  | { readonly status: "missing-artifact" }
+  | { readonly status: "overlap" };
 
-  const detailBody = review.body;
-  const blocks = detailsBlocks(detailBody);
-  if (blocks === null) return malformed("provider-details-structure-unbalanced");
-  const sections = blocks
-    .filter((block) => block.parentId === null)
-    .flatMap((block) => {
-      const summary = directSummary(detailBody, block, blocks);
-      return summary === null ? [] : [supplementalSection(summary, block)];
-    })
-    .filter((section): section is SupplementalSection => section !== null)
-    .concat(calloutSections(detailBody, blocks))
-    .sort((left, right) => left.start - right.start);
-  const findings: ReviewBodyFinding[] = [];
-  for (const section of sections) {
-    const parsed = parseSupplementalSection(
-      review,
-      detailBody,
-      section,
-      blocks,
-    );
-    if (parsed.kind === "malformed") return parsed;
-    if (parsed.findings.length !== section.count) {
-      return malformedWithContext("provider-supplemental-section-count-mismatch", {
-        category: section.category,
-        advertised: section.count,
-        parsed: parsed.findings.length,
-      });
-    }
-    findings.push(...parsed.findings);
-  }
-
-  const advertisedSupplementalCount = sections.reduce((total, section) => total + section.count, 0);
-  const supplementalCounts = {
-    nitpick: sections
-      .filter((section) => section.category === "nitpick")
-      .reduce((total, section) => total + section.count, 0),
-    "outside-diff": sections
-      .filter((section) => section.category === "outside-diff")
-      .reduce((total, section) => total + section.count, 0),
-  };
-  const markerCount = sections.reduce((total, section) => {
-    const groupIds = new Set(blocks.filter((block) => section.blockId === null
-      ? block.parentId === null && block.openStart >= section.start && block.closeEnd <= section.end
-      : block.parentId === section.blockId).map((block) => block.id));
-    const semanticSectionBody = maskDetailsRanges(
-      detailBody,
-      section.start,
-      section.end,
-      blocks.filter((block) => block.parentId !== null && groupIds.has(block.parentId)),
-    );
-    return total + [...semanticSectionBody.matchAll(/<!--\s*cr-comment:v1:[a-f0-9]+\s*-->/giu)].length;
-  }, 0);
-  if (findings.length !== advertisedSupplementalCount || markerCount !== findings.length) {
-    return malformedWithContext("provider-supplemental-total-count-mismatch", {
-      advertised: advertisedSupplementalCount,
-      parsed: findings.length,
-      markers: markerCount,
-    });
-  }
-  const seenFingerprints = new Set<string>();
-  const duplicate = findings.find((item) => {
-    if (seenFingerprints.has(item.fingerprint)) return true;
-    seenFingerprints.add(item.fingerprint);
-    return false;
+function nextRequestBoundary(
+  comments: HostedGitHubIssueComment[],
+  request: HostedRequestHandle["artifact"],
+  coverage: HostedReviewCoverage,
+): RequestGenerationBoundary {
+  const commandComments = comments.filter((comment) => {
+    const body = comment.body.trim();
+    return body === COMMANDS.complete || body === COMMANDS.incremental;
   });
-  if (duplicate !== undefined) {
-    return malformedWithContext("provider-body-finding-fingerprint-duplicate", {
-      fingerprint: duplicate.fingerprint,
-    });
+  const exactArtifact = comments.filter(({ id }) => id === request.id);
+  if (exactArtifact.length > 1) return { status: "overlap" };
+  if (exactArtifact[0] !== undefined
+    && (exactArtifact[0].createdAt !== request.createdAt
+      || exactArtifact[0].url !== request.url
+      || exactArtifact[0].body.trim() !== COMMANDS[coverage])) return { status: "overlap" };
+  if (commandComments.length === 0) {
+    return { status: "missing-artifact" };
   }
-  return { kind: "parsed", actionableCount, supplementalCounts, findings };
+  if (exactArtifact[0] === undefined) {
+    return { status: "missing-artifact" };
+  }
+  if (commandComments.some((comment) => (
+    comment.id !== request.id && comment.createdAt === request.createdAt
+  ))) return { status: "overlap" };
+  if (!earlierRequestGenerationsSettled(comments, request.id)) {
+    return { status: "overlap" };
+  }
+  const next = commandComments
+    .filter((comment) => comment.id !== request.id && comment.createdAt > request.createdAt)
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt)
+      || left.id.localeCompare(right.id))[0];
+  return { status: "bound", timestamp: next?.createdAt ?? null, commandArtifactVisible: true };
 }
 
-function newestTerminalReview(reviews: HostedGitHubReview[]): HostedGitHubReview | undefined {
-  return [...reviews].sort((left, right) => right.submittedAt.localeCompare(left.submittedAt))[0];
+function precedesBoundary(timestamp: string, boundary: string | null): boolean {
+  return boundary === null || timestamp < boundary;
+}
+
+function findingSequenceKey(item: UnorderedFinding): string {
+  return item.origin === "review-body"
+    ? `review-body:${item.fingerprint}`
+    : `review-thread:${item.threadId}:${item.commentId}`;
+}
+
+function findingSequenceContent(item: UnorderedFinding): string {
+  return JSON.stringify({
+    origin: item.origin,
+    settlement: item.settlement,
+    severity: item.severity,
+    nit: item.nit ?? false,
+    locus: item.locus,
+    sourceLabel: item.sourceLabel ?? null,
+    sourceLabelTruncated: item.sourceLabelTruncated ?? false,
+    ...(item.origin === "review-body"
+      ? { fingerprint: item.fingerprint, body: item.body }
+      : { threadId: item.threadId, commentId: item.commentId }),
+  });
+}
+
+function deduplicateTerminalFindings(findings: UnorderedFinding[]):
+  | { kind: "deduplicated"; findings: UnorderedFinding[] }
+  | { kind: "malformed"; reason: string } {
+  const retained = new Map<string, { finding: UnorderedFinding; content: string }>();
+  for (const item of findings) {
+    const key = findingSequenceKey(item);
+    const content = findingSequenceContent(item);
+    const existing = retained.get(key);
+    if (existing === undefined) {
+      retained.set(key, { finding: item, content });
+    } else if (existing.content !== content) {
+      return {
+        kind: "malformed",
+        reason: diagnostic("provider-finding-identity-conflict", { identity: key }),
+      };
+    }
+  }
+  return { kind: "deduplicated", findings: [...retained.values()].map(({ finding }) => finding) };
 }
 
 function isPriorThreadResolutionReply(comment: HostedGitHubThreadComment, reviewId: string): boolean {
@@ -834,18 +422,22 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
       handle.target,
       handle.artifact,
       handle.effectiveCoverage,
+      handle.requestedCoverage === "incremental"
+        ? handle.admission.correctionScope ?? null
+        : null,
       options,
     );
   }
 
   observeHandle(target: HostedTarget): Promise<HostedObservation> {
-    return this.observeSince(target, null, null);
+    return this.observeSince(target, null, null, null);
   }
 
   private async observeSince(
     target: HostedTarget,
     requestArtifact: HostedRequestHandle["artifact"] | null,
     coverage: HostedReviewCoverage | null,
+    correctionScope: IncrementalReviewScope | null,
     options?: { signal?: AbortSignal },
   ): Promise<HostedObservation> {
     try {
@@ -874,81 +466,153 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
         return { kind: "terminal-failure", reason: `provider-check-${failedCheck.conclusion}` };
       }
 
+      const generationBoundary = coverage === null || requestArtifact === null
+        ? { status: "bound" as const, timestamp: null, commandArtifactVisible: false }
+        : nextRequestBoundary(comments, requestArtifact, coverage);
+      if (generationBoundary.status === "overlap") {
+        return { kind: "terminal-failure", reason: "provider-request-generation-overlap" };
+      }
+      if (generationBoundary.status === "missing-artifact") {
+        return { kind: "pending" };
+      }
+      const requestBoundary = generationBoundary.timestamp;
       const providerReviews = reviews.filter((review) =>
         review.actorIdentity === BOT_USER_ID
         && review.headSha === target.headSha
-        && review.submittedAt >= requestedAt);
-      const review = newestTerminalReview(providerReviews.filter((candidate) => (
-        !isConfirmationOnlyReview(candidate, threads)
-      )));
+        && review.submittedAt >= requestedAt
+        && precedesBoundary(review.submittedAt, requestBoundary));
+      const completeSequence = orderedTerminalReviews(providerReviews.filter((candidate) =>
+        !isConfirmationOnlyReview(candidate, threads)));
+      const orderedReviews = coverage === null ? completeSequence.slice(-1) : completeSequence;
+      const review = orderedReviews.at(-1);
+      const providerComments = comments.filter((comment) =>
+        comment.actorIdentity === BOT_USER_ID
+        && comment.appId === APP_ID
+        && precedesBoundary(comment.createdAt, requestBoundary));
+      const coverageEvidence = coverage === "incremental" && requestArtifact !== null
+        ? nativeIncrementalCoverageEvidence(
+            providerComments,
+            target,
+            correctionScope,
+            requestArtifact.id,
+            requestedAt,
+            requestBoundary,
+            generationBoundary.commandArtifactVisible,
+          )
+        : null;
       if (review === undefined) {
-        const providerComments = comments.filter((comment) =>
-          comment.actorIdentity === BOT_USER_ID && comment.appId === APP_ID);
         const completedStatus = statuses.find((status) =>
           status.context === "CodeRabbit"
           && status.state === "success"
           && status.createdAt >= requestedAt
+          && precedesBoundary(status.createdAt, requestBoundary)
           && /\breview completed\b/iu.test(status.description));
         const completedReply = providerComments.find((comment) =>
           commandReplyCompleted(comment, requestedAt, coverage));
         const completedSummary = providerComments.find((comment) =>
-          summaryCompletesHead(comment, target, requestedAt));
-        return completedStatus !== undefined && completedReply !== undefined && completedSummary !== undefined
-          ? { kind: "clean", reviewUrl: completedSummary.url }
-          : { kind: "pending" };
-      }
-      const parsedBody = parseCodeRabbitReviewBody(review);
-      if (parsedBody.kind === "malformed") {
-        return { kind: "terminal-failure", reason: parsedBody.reason };
-      }
-      const candidateComments = threads.flatMap((thread) =>
-        thread.comments
-          .filter((comment) =>
+          precedesBoundary(comment.updatedAt, requestBoundary)
+          && (coverage === "incremental"
+            ? summaryReportsNoFindings(comment, requestedAt)
+            : summaryCompletesHead(comment, target, requestedAt)));
+        if (completedStatus !== undefined && completedReply !== undefined && completedSummary !== undefined) {
+          return {
+            kind: "clean",
+            reviewUrl: completedSummary.url,
+            ...(coverageEvidence === null ? {} : { coverageEvidence }),
+          };
+        }
+        if (requestBoundary !== null) {
+          const laterProviderReply = comments.some((comment) =>
             comment.actorIdentity === BOT_USER_ID
-            && comment.headSha === target.headSha
-            && comment.reviewId === review.id
-            && !isPriorThreadResolutionReply(comment, review.id))
-          .map((comment) => ({ threadId: thread.id, comment })));
-      const parsedComments = candidateComments.map(({ threadId, comment }) => ({
-        threadId,
-        comment,
-        parsed: finding(threadId, comment),
-      }));
-      const rejectedComment = parsedComments.find((candidate) => candidate.parsed === null);
-      if (rejectedComment !== undefined) {
-        const { threadId, comment } = rejectedComment;
-        const context = {
+            && comment.appId === APP_ID
+            && comment.createdAt >= requestBoundary);
+          return laterProviderReply
+            ? { kind: "pending" }
+            : { kind: "terminal-failure", reason: "provider-request-generation-overlap" };
+        }
+        return { kind: "pending" };
+      }
+      if (coverage !== null && review.state === "commented") {
+        const completedReply = providerComments.some((comment) =>
+          commandReplyCompleted(comment, requestedAt, coverage)
+          && comment.updatedAt >= review.submittedAt
+          && precedesBoundary(comment.updatedAt, requestBoundary));
+        if (!completedReply) return { kind: "pending" };
+      }
+      const terminalFindings: UnorderedFinding[] = [];
+      for (const terminalReview of orderedReviews) {
+        const parsedBody = parseCodeRabbitReviewBody(terminalReview);
+        if (parsedBody.kind === "malformed") {
+          return { kind: "terminal-failure", reason: parsedBody.reason };
+        }
+        const candidateComments = threads.flatMap((thread) =>
+          thread.comments
+            .filter((comment) =>
+              comment.actorIdentity === BOT_USER_ID
+              && comment.headSha === target.headSha
+              && comment.reviewId === terminalReview.id
+              && !isPriorThreadResolutionReply(comment, terminalReview.id))
+            .map((comment) => ({ threadId: thread.id, comment })));
+        const parsedComments = candidateComments.map(({ threadId, comment }) => ({
           threadId,
-          commentId: comment.id,
-          path: comment.path,
-          ...(comment.line === null ? {} : { line: comment.line }),
-        };
-        return {
-          kind: "terminal-failure",
-          reason: comment.line === null
-            ? diagnostic("provider-thread-finding-locus-unavailable", context)
-            : diagnostic("provider-thread-finding-severity-unrecognized", context),
-        };
+          comment,
+          parsed: finding(threadId, comment),
+        }));
+        const rejectedComment = parsedComments.find((candidate) => candidate.parsed === null);
+        if (rejectedComment !== undefined) {
+          const { threadId, comment } = rejectedComment;
+          const context = {
+            threadId,
+            commentId: comment.id,
+            path: comment.path,
+            ...(comment.line === null ? {} : { line: comment.line }),
+          };
+          return {
+            kind: "terminal-failure",
+            reason: comment.line === null
+              ? diagnostic("provider-thread-finding-locus-unavailable", context)
+              : diagnostic("provider-thread-finding-severity-unrecognized", context),
+          };
+        }
+        const findings = parsedComments.map((candidate) => candidate.parsed)
+          .filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
+        if (parsedBody.actionableCount !== null && findings.length !== parsedBody.actionableCount) {
+          return {
+            kind: "terminal-failure",
+            reason: diagnostic("provider-actionable-finding-count-mismatch", {
+              advertised: parsedBody.actionableCount,
+              inline: findings.length,
+              outsideDiff: parsedBody.supplementalCounts["outside-diff"],
+              nitpick: parsedBody.supplementalCounts.nitpick,
+            }),
+          };
+        }
+        terminalFindings.push(...findings, ...parsedBody.findings);
       }
-      const findings = parsedComments.map((candidate) => candidate.parsed)
-        .filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
-      if (parsedBody.actionableCount !== null && findings.length !== parsedBody.actionableCount) {
-        return {
-          kind: "terminal-failure",
-          reason: diagnostic("provider-actionable-finding-count-mismatch", {
-            advertised: parsedBody.actionableCount,
-            inline: findings.length,
-            outsideDiff: parsedBody.supplementalCounts["outside-diff"],
-            nitpick: parsedBody.supplementalCounts.nitpick,
-          }),
-        };
+      const deduplicated = deduplicateTerminalFindings(terminalFindings);
+      if (deduplicated.kind === "malformed") {
+        return { kind: "terminal-failure", reason: deduplicated.reason };
       }
-      const allFindings = [...findings, ...parsedBody.findings];
+      const allFindings = HostedFindingsSchema.parse(
+        deduplicated.findings.map((finding, index) => ({
+          ...finding,
+          sourceOrdinal: index + 1,
+        })),
+      );
       if (allFindings.length > 0) {
-        return { kind: "findings", reviewUrl: review.url, findings: allFindings };
+        return {
+          kind: "findings",
+          reviewUrl: review.url,
+          findings: allFindings,
+          ...(coverageEvidence === null ? {} : { coverageEvidence }),
+        };
       }
       if (review.state === "approved") {
-        return { kind: "clean", reviewUrl: review.url };
+        return {
+          kind: "clean",
+          reviewUrl: review.url,
+          ...(coverageEvidence === null ? {} : { coverageEvidence }),
+        };
       }
       return review.state === "changes-requested"
         ? { kind: "terminal-failure", reason: "changes-requested-without-findings" }

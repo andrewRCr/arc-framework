@@ -94,6 +94,15 @@ describe("recoverAttestedOwnerTerminusBoundary", () => {
         candidateSubjectDigest: SOURCE_SUBJECT,
         reservation: null,
         terminus: TERMINUS,
+        postAttestContinuation: {
+          reviewedHead: "a".repeat(40),
+          nextAction: {
+            kind: "continue-pre-publication-review",
+            command: "arc review pre-publication example",
+            interactionText: "Resume pre-publication review.",
+          },
+          projectionDisposition: "keep-staged-until-publication",
+        },
       }),
       workUnit: "example",
       candidateId: SOURCE_CANDIDATE,

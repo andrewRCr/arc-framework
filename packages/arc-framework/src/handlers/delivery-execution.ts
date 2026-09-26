@@ -250,9 +250,11 @@ import {
   resolveGitCandidateBaseRevision,
 } from "../lib/work-unit/git-candidate-subject.js";
 import {
+  CandidateVerificationApplicabilitySchema,
   parseCandidateManagedRecord,
   projectCandidateCurrentness,
   reduceCandidateDurableBaseline,
+  type CandidateVerificationApplicability,
 } from "../lib/work-unit/candidate-attestation.js";
 import {
   readSubmissionBoundary,
@@ -281,6 +283,8 @@ import { createGhMergeMethodPolicyPort } from "../scripts/review-gate/hosts/gith
 import { RepositoryDeliveryMemberLookup } from "../scripts/review-gate/hosts/local/delivery-member-lookup.js";
 import { LocalApprovedDispositionRecordStore } from
   "../scripts/review-gate/hosts/local/disposition-record-store.js";
+import { currentApprovedDispositionNode } from
+  "../scripts/review-gate/core/advisory-records.js";
 import { LocalReviewOperationStateStore } from
   "../scripts/review-gate/hosts/local/operation-state-store.js";
 import { parseReviewSourceReference } from
@@ -289,6 +293,7 @@ import { RespondEnvelopeSchema } from
   "../scripts/review-gate/core/review-command-envelope.js";
 import { HostedFindingsResponsePlanSchema } from
   "../scripts/review-gate/core/response-plan-schema.js";
+import type { LaneSubjectLineage } from "../scripts/review-gate/core/lane-admission.js";
 import { settleLaneAttempt } from "../scripts/review-gate/lane-progress.js";
 import { projectGitReviewContributionApplicability } from
   "../scripts/review-gate/policy/git-review-contribution-applicability.js";
@@ -1163,6 +1168,7 @@ const ReviewFixContinuationResultSchema = z.union([
       workUnitId: SlugSchema,
       selectedDeliverableId: DeliveryCanonicalDigestSchema,
       reviewedHead: GitObjectIdSchema,
+      approvedVerification: CandidateVerificationApplicabilitySchema,
       ref: z.string().min(1),
       checkoutPath: z.string().min(1),
     }).optional(),
@@ -2839,6 +2845,7 @@ async function executeDeliveryCommand(
         readonly fixAuthorizationId: string;
         readonly workUnitId: string;
         readonly reviewedHead: string;
+        readonly approvedVerification: CandidateVerificationApplicability;
       } | undefined;
       let authorityPreservation: {
         readonly reviewedHead: string;
@@ -3254,6 +3261,7 @@ async function executeDeliveryCommand(
           fixAuthorizationId: selection.fixAuthorizationId,
           workUnitId: selection.workUnitId,
           reviewedHead: selection.reviewedHead,
+          approvedVerification: selection.approvedVerification,
         };
         approvedDispositionSet = {
           dispositionSetId: selection.dispositionSetId,
@@ -3675,9 +3683,8 @@ async function executeDeliveryCommand(
             result = {
               status: "refused",
               reason: "review-fix-response-replay-failed",
-              ...(error instanceof RespondCommandError
-                ? { detail: error.message, responseError: error.code }
-                : {}),
+              ...(error instanceof Error ? { detail: error.message } : {}),
+              ...(error instanceof RespondCommandError ? { responseError: error.code } : {}),
             };
           }
         } else {
@@ -3835,6 +3842,7 @@ async function executeDeliveryCommand(
       const dispositionRecords = await dispositionStore.listDispositionRecords();
       const validateLocalResponse = async (record: (typeof dispositionRecords)[number]) => {
         const responseMember = record.deliveryMember;
+        const current = currentApprovedDispositionNode(record);
         if (record.source.kind !== "attested-local" || responseMember === null) return null;
         let sourceReference;
         try {
@@ -3854,14 +3862,18 @@ async function executeDeliveryCommand(
           || admission === undefined
           || canonicalize(admission.vehicle) !== canonicalize(responseMember)
           || operation.state.target.kind !== "delivery-member"
-          || operation.state.target.targetId !== record.approvedDisposition.dispositionSet.targetId
+          || operation.state.target.targetId !== current.approvedDisposition.dispositionSet.targetId
           || operation.state.target.headSha !== responseMember.head) return null;
         return {
           oldTarget: operation.state.target,
           settlement: {
             repositoryId: operation.state.repositoryId,
             headSha: operation.state.target.headSha,
+            lineage: operation.state.lineage,
             attemptId: operation.state.operationId,
+            dispositionSetId: current.approvedDisposition.dispositionSet.dispositionSetId,
+            ...(current.predecessorDispositionSetId === null
+              ? {} : { predecessorDispositionSetId: current.predecessorDispositionSetId }),
           },
         };
       };
@@ -3872,7 +3884,10 @@ async function executeDeliveryCommand(
       let localResponseSettlement: {
         readonly repositoryId: string;
         readonly headSha: string;
+        readonly lineage: LaneSubjectLineage;
         readonly attemptId: string;
+        readonly dispositionSetId: string;
+        readonly predecessorDispositionSetId?: string;
       } | null = null;
       let verification = parsed.verification;
       const selectedIndex = stateRead.value.value.members.findIndex(
@@ -3906,8 +3921,8 @@ async function executeDeliveryCommand(
         record.deliveryMember?.planId === parsed.planId
         && record.deliveryMember.deliverableId === parsed.selectedDeliverableId
         && record.deliveryMember.workUnitId === workUnitId
-        && record.fixAuthorization !== null
-        && record.deliveryMemberFixResponse === null
+        && currentApprovedDispositionNode(record).fixAuthorization !== null
+        && currentApprovedDispositionNode(record).deliveryMemberFixResponse === null
       ));
       if (matchingResponseRecords.length > 1) {
         return { status: "refused", reason: "review-fix-response-ambiguous" };
@@ -3919,7 +3934,7 @@ async function executeDeliveryCommand(
         }
         const replayRecords = dispositionRecords.filter((record) => (
           record.operationId === durableLocalReplay.operationId
-          && record.deliveryMemberFixResponse !== null
+          && currentApprovedDispositionNode(record).deliveryMemberFixResponse !== null
         ));
         const replayRecord = replayRecords.length === 1 ? replayRecords[0] : undefined;
         const validated = replayRecord === undefined ? null : await validateLocalResponse(replayRecord);
@@ -4088,6 +4103,7 @@ async function executeDeliveryCommand(
         await settleLaneAttempt(new LocalReviewOperationStateStore(publisher), {
           lane: "standard",
           ...localResponseSettlement,
+          producedHeadSha: selectedMember.coordinates.head,
           now: verifiedAt,
         });
       }

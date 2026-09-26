@@ -21,7 +21,7 @@ const RepositoryIdentityRecordSchema = z.strictObject({
 const REPOSITORY_IDENTITY_RECORD = "repository-identity.json";
 
 /** Serialize local review source release across concurrent prepare, attest, and resume commands. */
-export async function withRepositoryReviewSweepLock<T>(
+export async function withRepositoryLocalReviewLock<T>(
   exec: GitExec,
   cwd: string,
   action: () => Promise<T>,

@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 
+import { ReviewFindingIdentitySchema } from "../core/finding-records.js";
 import { HostedTargetSchema, type HostedTarget } from "./request.js";
 
 const HostedSettleDispositionSchema = z.enum(["fix", "defer", "reject"]);
@@ -11,7 +12,7 @@ export const HostedSettleEnvelopeSchema = z.strictObject({
   response: z.strictObject({
     attemptRef: z.string().trim().min(1),
     dispositionSetId: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
-    findingId: z.string().trim().min(1),
+    findingId: ReviewFindingIdentitySchema,
   }),
   target: HostedTargetSchema,
   fixTarget: HostedTargetSchema.nullable(),

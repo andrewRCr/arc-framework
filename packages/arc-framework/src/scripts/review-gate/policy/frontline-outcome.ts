@@ -9,14 +9,19 @@ import {
   type ReviewTarget,
 } from "../core/gate-contract-v2-schema.js";
 import { ReviewPassSchema, type ReviewPass } from "../core/review-pass.js";
-import { NormalizedReviewFindingSchema } from "../core/finding-records.js";
+import { NormalizedReviewFindingsSchema } from "../core/finding-records.js";
 import {
   FrontlineSourceDescriptorSchema,
   type FrontlineSourceDescriptor,
 } from "./frontline-source.js";
 
 const GitObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
-const EmptyFindingsSchema = z.array(NormalizedReviewFindingSchema).max(0);
+const EmptyFindingsSchema = NormalizedReviewFindingsSchema.refine((findings) => findings.length === 0, {
+  message: "non-finding outcomes require an empty finding set",
+});
+const NonEmptyFindingsSchema = NormalizedReviewFindingsSchema.refine((findings) => findings.length > 0, {
+  message: "finding outcomes require at least one finding",
+});
 
 export const FrontlineUnavailableRetryReasonSchema = z.strictObject({
   class: z.enum(["rate-limited", "transient-unavailable"]),
@@ -80,7 +85,7 @@ const FrontlineProviderResultSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("clean") }),
   z.strictObject({
     kind: z.literal("findings"),
-    findings: z.array(NormalizedReviewFindingSchema).min(1),
+    findings: NonEmptyFindingsSchema,
   }),
   z.strictObject({ kind: z.literal("rate-limited") }),
   z.strictObject({ kind: z.literal("unavailable"), reason: z.string().min(1) }),
@@ -122,7 +127,7 @@ export const FrontlineExecutionOutcomeSchema = z.discriminatedUnion("outcome", [
   z.strictObject({
     ...FrontlineOutcomeBaseShape,
     outcome: z.literal("findings"),
-    findings: z.array(NormalizedReviewFindingSchema).min(1),
+    findings: NonEmptyFindingsSchema,
     reason: z.null(),
   }),
   z.strictObject({

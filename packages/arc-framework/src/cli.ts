@@ -1735,6 +1735,7 @@ reviewCmd
   .option("--target <target-ref>", "JSON targetRef emitted by review change-request resolve")
   .option("--work-unit <slug>", "Resolve the live stacked-delivery review continuation")
   .option("--ceiling-override <override>", "Exact JSON consequence approving one additional review pass")
+  .option("--additional-pass <authorization>", "Exact JSON Owner authorization for review after convergence")
   .option("--coverage <coverage>", "Requested hosted coverage (complete or incremental)")
   .option("--source <source-id>", "Explicit standard-review source for this work-unit status invocation")
   .addOption(new Option("--json").hideHelp())
@@ -2056,7 +2057,7 @@ localReviewCmd
 
 reviewCmd
   .command("respond")
-  .description("Prepare or persist one source-bound review disposition set as JSON")
+  .description("Prepare, persist, or withdraw one source-bound review disposition or continuation as JSON")
   .usage("[file | -] [--schema]")
   .argument("[input]", "Versioned JSON request file, or - for stdin")
   .option("--schema", "Print the registered public request schema bundle")

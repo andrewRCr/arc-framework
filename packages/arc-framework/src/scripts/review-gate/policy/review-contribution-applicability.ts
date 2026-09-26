@@ -170,7 +170,8 @@ export function classifyReviewContributionApplicability(
 ): ReviewContributionApplicabilityResult {
   const selector = ReviewContributionApplicabilitySelectorSchema.parse(input);
   const base = reviewContributionApplicabilityResultBase(selector);
-  if (selector.priorHead === selector.currentHead) {
+  if (selector.priorHead === selector.currentHead
+    && selector.priorBase === selector.currentBase) {
     const digests = reviewContributionApplicabilityDigests({
       selector,
       projection: null,

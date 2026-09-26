@@ -187,12 +187,14 @@ describe("eight-member delivery integration rehearsal", () => {
         severity: "major" as const,
         locus: "src/example.ts:1",
         evidenceUrlOrId: "https://example.test/retained-finding",
+        sourceOrdinal: 1,
       }],
     };
     const outstanding = composeDeliveryReviewObligation({
       targets,
       discharges: targets.map((_, index) => ({
         completedPasses: 0,
+        completePasses: 0,
         passCeiling: 2,
         attemptHistory: [],
         ...(index === 0
@@ -231,6 +233,7 @@ describe("eight-member delivery integration rehearsal", () => {
         detail: "Hosted source is settled.",
         nextSource: null,
         completedPasses: 1,
+        completePasses: 1,
         passCeiling: 2,
         attemptHistory: [],
       })),

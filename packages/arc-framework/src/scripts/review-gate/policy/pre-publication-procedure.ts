@@ -15,6 +15,7 @@ import {
   type CandidateReviewResponseEvidenceV1,
 } from "../../../lib/work-unit/candidate-attestation.js";
 import { ReviewTargetSchema } from "../core/gate-contract-v2-schema.js";
+import { ReviewResponseSettlementSourceSchema } from "../core/response-plan-schema.js";
 import {
   ReviewPolicyRequestSchema,
   ReviewResolveEnvelopeSchema,
@@ -38,6 +39,7 @@ import {
   StandardReviewReservationTargetSchema,
   parseIntegrationBoundaryLocus,
   type IntegrationBoundaryLocus,
+  type PostAttestContinuation,
   type StandardReviewReservationV1,
 } from "./integration-boundary-locus.js";
 
@@ -79,6 +81,11 @@ export const PrePublicationReviewRequestSchema = z.strictObject({
   selfReview: z.enum(["inactive", "pending", "settled"]),
   frontline: FrontlinePolicyRequestSchema,
   standard: StandardPolicyRequestSchema,
+  /** Repository-derived completion of the latest findings response in each lane. */
+  pendingResponse: z.strictObject({
+    frontline: ReviewResponseSettlementSourceSchema.nullable(),
+    standard: ReviewResponseSettlementSourceSchema.nullable(),
+  }),
   candidate: z.union([
     z.strictObject({
       ...PrePublicationCandidateCommonSchema,
@@ -121,6 +128,10 @@ type PrePublicationNextAction =
   | z.infer<typeof ContinuePrePublicationActionSchema>
   | z.infer<typeof RunConvergenceVerificationActionSchema>
   | z.infer<typeof PublishCandidateActionSchema>;
+type RoutinePrePublicationNextAction = Exclude<
+  PrePublicationNextAction,
+  z.infer<typeof RunConvergenceVerificationActionSchema>
+>;
 
 export { StandardReviewReservationV1Schema } from "./integration-boundary-locus.js";
 export type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
@@ -157,7 +168,10 @@ export function prePublicationBoundary(envelope: PrePublicationReviewEnvelope): 
 }
 
 /** Project the next pre-publication action while delegating lane mechanics to the review-policy driver. */
-export function projectPrePublicationReview(input: unknown): PrePublicationReviewEnvelope {
+export function projectPrePublicationReview(
+  input: unknown,
+  postAttestContinuation: PostAttestContinuation,
+): PrePublicationReviewEnvelope {
   const request = PrePublicationReviewRequestSchema.parse(input);
   if (request.selfReview === "pending") {
     return envelope(request, {
@@ -167,11 +181,19 @@ export function projectPrePublicationReview(input: unknown): PrePublicationRevie
   }
 
   const frontline = resolveReviewPolicy(request.frontline);
+  // A findings producer can exist before the Owner approves dispositions. The response command
+  // is the route that obtains that approval, so it takes precedence over derived policy state.
+  if (request.pendingResponse.frontline !== null) {
+    return pendingResponseEnvelope(request, "frontline", frontline, request.pendingResponse.frontline);
+  }
   if (!isSettledFrontline(frontline.state)) {
     return policyEnvelope(request, "frontline", frontline);
   }
 
   const standard = resolveReviewPolicy(request.standard);
+  if (request.pendingResponse.standard !== null) {
+    return pendingResponseEnvelope(request, "standard", standard, request.pendingResponse.standard);
+  }
   if (standard.state === "findings") return policyEnvelope(request, "standard", standard);
   if (!isSettledStandard(standard.state)) return policyEnvelope(request, "standard", standard);
   const reservation = standard.state === "awaiting-change-request"
@@ -180,10 +202,13 @@ export function projectPrePublicationReview(input: unknown): PrePublicationRevie
   const terminus = standard.state === "owner-accepted" ? standard.payload.terminus : null;
 
   if (request.candidate.convergenceVerification === "pending") {
-    const requiredScope = request.candidate.convergenceScope;
     return envelope(request, {
       locus: "candidate-convergence-verification-pending",
-      nextAction: createRunConvergenceVerificationAction(request.workUnit, requiredScope),
+      nextAction: createRunConvergenceVerificationAction(
+        request.workUnit,
+        request.candidate.convergenceScope,
+        postAttestContinuation,
+      ),
       reservation,
       terminus,
     });
@@ -211,7 +236,7 @@ export const CandidateDeltaVerificationProjectionSchema = z.strictObject({
 });
 export type CandidateDeltaVerificationProjection = z.infer<typeof CandidateDeltaVerificationProjectionSchema>;
 
-/** Supply the exact Candidate delta and prior evidence before the primary chooses verification applicability. */
+/** Supply the exact Candidate delta and prior evidence before performed verification is recorded. */
 export function projectCandidateDeltaVerification(input: {
   record: CandidateManagedRecordV1;
   current: z.input<typeof CandidateLineageTargetSchema>;
@@ -240,11 +265,12 @@ export const RecordCandidateVerifiedResponseInputSchema = z.strictObject({
   dispositionId: CandidateIdSchema,
   approvedBy: z.string().trim().min(1),
   appliedBy: z.string().trim().min(1),
+  approvedVerification: CandidateVerificationApplicabilitySchema.optional(),
   applicability: CandidateVerificationApplicabilitySchema,
   verificationEvidenceRefs: z.array(ReviewEvidenceReferenceSchema).min(1),
 });
 
-/** Record one primary-selected verification applicability over an approved exact Candidate delta. */
+/** Record one performed verification and any approved scope supplied by the response boundary. */
 export function recordCandidateVerifiedResponse(input: unknown): CandidateReviewResponseEvidenceV1 {
   const request = RecordCandidateVerifiedResponseInputSchema.parse(input);
   const exactDelta = diffCandidateSubjectSnapshots(
@@ -254,17 +280,21 @@ export function recordCandidateVerifiedResponse(input: unknown): CandidateReview
   if (!sameDelta(exactDelta, request.projection.delta)) {
     throw new Error("Candidate delta verification projection does not match its exact targets");
   }
-  return createCandidateReviewResponseEvidence({
+  const transitionInput = {
     candidateId: request.projection.candidateId,
     oldTarget: request.projection.oldTarget,
     newTarget: request.projection.newTarget,
     dispositionId: request.dispositionId,
     approvedBy: request.approvedBy,
     appliedBy: request.appliedBy,
+    ...(request.approvedVerification === undefined
+      ? {}
+      : { approvedVerification: request.approvedVerification }),
     applicability: request.applicability,
     verificationEvidenceRefs: request.verificationEvidenceRefs,
     implementationChanged: deltaChanged(exactDelta),
-  });
+  };
+  return createCandidateReviewResponseEvidence(transitionInput);
 }
 
 function policyEnvelope(
@@ -278,12 +308,38 @@ function policyEnvelope(
     : `Continue the ${lane} review from the typed policy result '${policy.state}'.`;
   let nextAction: z.infer<typeof ContinuePrePublicationActionSchema>;
   if (policy.state === "ready" && policy.nextAction === "run-frontline") {
+    if (request.target === null) {
+      throw new Error("ready frontline review requires a current exact review target");
+    }
     const resolverRequest = {
       schemaVersion: 1 as const,
       changeSet: request.routingFacts,
       invocation: { mode: "inherit" as const, sourceId: policy.payload.sourceId },
-      pass: policy.payload.pass,
-      maxPasses: Math.max(policy.payload.pass, policy.payload.maxPasses),
+      target: {
+        kind: request.target.kind,
+        baseRef: request.target.baseRef,
+        diffBaseSha: request.target.diffBaseSha,
+        headSha: request.target.headSha,
+      },
+      ...(request.responseBinding === undefined
+        ? {}
+        : { vehicle: request.responseBinding.deliveryMember }),
+      ...(request.frontline.ceilingOverride === undefined
+        ? {}
+        : {
+            policyJudgment: {
+              ceilingOverride: {
+                exhaustedPassCount: request.frontline.ceilingOverride.exhaustedPassCount,
+                nextPass: request.frontline.ceilingOverride.nextPass,
+                ...(request.frontline.ceilingOverride.conditionalPassAuthorizationId === undefined
+                  ? {}
+                  : {
+                      conditionalPassAuthorizationId:
+                        request.frontline.ceilingOverride.conditionalPassAuthorizationId,
+                    }),
+              },
+            },
+          }),
     };
     nextAction = ContinuePrePublicationActionSchema.parse({
       kind: "continue-pre-publication-review",
@@ -303,6 +359,29 @@ function policyEnvelope(
   return envelope(request, {
     locus: findings ? "candidate-fix-pending" : "candidate-review-pending",
     nextAction,
+    policy,
+  });
+}
+
+function pendingResponseEnvelope(
+  request: PrePublicationReviewRequest,
+  lane: "frontline" | "standard",
+  policy: z.infer<typeof ReviewResolveEnvelopeSchema>,
+  source: z.infer<typeof ReviewResponseSettlementSourceSchema>,
+): PrePublicationReviewEnvelope {
+  const terminal = request[lane].attempts.at(-1);
+  if (terminal?.outcome !== "findings") {
+    throw new Error("pending review response requires its terminal findings producer");
+  }
+  return envelope(request, {
+    locus: "candidate-fix-pending",
+    nextAction: ContinuePrePublicationActionSchema.parse({
+      kind: "continue-pre-publication-review",
+      command: "arc review respond -",
+      responseOperationId: terminal.reviewOperationId,
+      responseSource: source,
+      interactionText: `Complete the ${lane} review findings response, then resume pre-publication review.`,
+    }),
     policy,
   });
 }
@@ -329,24 +408,17 @@ function envelope(
 
 function action(
   workUnit: string,
-  kind: Exclude<PrePublicationNextAction["kind"], "run-convergence-verification">,
+  kind: RoutinePrePublicationNextAction["kind"],
   interactionText: string,
-): PrePublicationNextAction {
-  if (kind === "publish-candidate") {
-    return PublishCandidateActionSchema.parse({
-      kind,
-      command: `arc publish ${workUnit} --json`,
-      interactionText,
-    });
-  }
-  const value = {
-    kind,
-    command: `arc review pre-publication ${workUnit}`,
-    interactionText,
-  };
-  return kind === "run-self-review"
-    ? RunSelfReviewActionSchema.parse(value)
-    : ContinuePrePublicationActionSchema.parse(value);
+): RoutinePrePublicationNextAction {
+  const command = kind === "publish-candidate"
+    ? `arc publish ${workUnit} --json`
+    : `arc review pre-publication ${workUnit}`;
+  return z.union([
+    RunSelfReviewActionSchema,
+    ContinuePrePublicationActionSchema,
+    PublishCandidateActionSchema,
+  ]).parse({ kind, command, interactionText });
 }
 
 function isSettledFrontline(state: z.infer<typeof ReviewResolveEnvelopeSchema>["state"]): boolean {

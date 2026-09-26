@@ -11,7 +11,12 @@ import {
   ReviewTargetSchema,
 } from "../core/gate-contract-v2-schema.js";
 import { HostedReviewCoverageSchema, HostedTargetSchema } from "../hosted/request.js";
-import { HostedFindingSchema } from "../hosted/await.js";
+import { HostedFindingsSchema } from "../hosted/await.js";
+import {
+  LaneSubjectLineageSchema,
+  laneSubjectLineageId,
+} from "../core/lane-admission.js";
+import { ReviewScopeModeSchema } from "../core/review-primitives.js";
 
 const SourceIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u);
 const RepositorySchema = z.string()
@@ -26,8 +31,11 @@ export const EarlierReviewAttemptQuerySchema = z.strictObject({
   repository: RepositorySchema,
   pullRequest: z.int().positive(),
   currentHead: GitObjectIdSchema,
+  /** Exact current diff base distinguishes a retargeted review at the same head. */
+  currentBase: GitObjectIdSchema.optional(),
   lane: z.enum(["frontline", "standard"]),
   sourceId: SourceIdSchema,
+  lineage: LaneSubjectLineageSchema,
   currentVehicle: DeliveryReviewMemberVehicleSchema.optional(),
 }).superRefine((selector, context) => {
   if (selector.currentVehicle !== undefined && selector.currentVehicle.head !== selector.currentHead) {
@@ -45,17 +53,20 @@ const EarlierReviewAttemptCandidateSchema = z.strictObject({
   version: z.number().int().positive(),
   updatedAt: z.iso.datetime({ offset: true }),
   attemptId: ReviewIdentifierSchema,
+  logicalPass: z.int().positive(),
   sourceId: SourceIdSchema,
   sourceKind: z.enum(["hosted", "local"]),
   outcome: z.string().min(1),
   requestedCoverage: HostedReviewCoverageSchema,
   effectiveCoverage: HostedReviewCoverageSchema.nullable(),
+  scopeMode: ReviewScopeModeSchema,
+  chunkSeriesComplete: z.boolean().optional(),
   priorHead: GitObjectIdSchema,
   target: HostedTargetSchema,
   priorVehicle: DeliveryReviewMemberVehicleSchema.optional(),
   reviewTarget: ReviewTargetSchema,
   requirement: ReviewRequirementV2Schema.optional(),
-  findings: z.array(HostedFindingSchema),
+  findings: HostedFindingsSchema,
 });
 export type EarlierReviewAttemptCandidate = z.infer<typeof EarlierReviewAttemptCandidateSchema>;
 
@@ -109,41 +120,50 @@ export function queryEarlierReviewAttempts(
     if (state.kind !== "lane-progress"
       || state.lane !== selector.lane
       || state.repositoryId !== selector.repositoryId
-      || state.headSha === selector.currentHead) continue;
+      || laneSubjectLineageId(state.lineage) !== laneSubjectLineageId(selector.lineage)) continue;
     for (const attempt of state.attempts) {
+      if (attempt.headSha === selector.currentHead
+        && (selector.currentBase === undefined
+          || (attempt.hosted?.reviewTarget.diffBaseSha
+            ?? attempt.local?.target.diffBaseSha) === selector.currentBase)) continue;
       const hosted = attempt.hosted;
       if (attempt.sourceId !== selector.sourceId) continue;
       if (hosted !== undefined
-        && state.changeRequestId === `pull/${String(selector.pullRequest)}`
+        && attempt.changeRequestId === `pull/${String(selector.pullRequest)}`
         && hosted.target.repository.toLowerCase() === selector.repository
         && hosted.target.pullRequest === selector.pullRequest
-        && hosted.target.headSha === state.headSha
+        && hosted.target.headSha === attempt.headSha
         && hosted.reviewTarget.repositoryId === selector.repositoryId
-        && hosted.reviewTarget.headSha === state.headSha
+        && hosted.reviewTarget.headSha === attempt.headSha
         && sameVehicleIdentity(selector.currentVehicle, hosted.vehicle)) {
         candidates.push(EarlierReviewAttemptCandidateSchema.parse({
           operationId: state.operationId,
           version: record.version,
           updatedAt: state.updatedAt,
           attemptId: attempt.attemptId,
+          logicalPass: attempt.logicalPass,
           sourceId: attempt.sourceId,
           sourceKind: "hosted",
           outcome: attempt.outcome,
           requestedCoverage: hosted.requestedCoverage,
           effectiveCoverage: hosted.effectiveCoverage,
-          priorHead: state.headSha,
+          scopeMode: "whole-target",
+          ...(attempt.chunkSeriesComplete === undefined
+            ? {}
+            : { chunkSeriesComplete: attempt.chunkSeriesComplete }),
+          priorHead: attempt.headSha,
           target: hosted.target,
           ...(hosted.vehicle === undefined ? {} : { priorVehicle: hosted.vehicle }),
           reviewTarget: hosted.reviewTarget,
           requirement: hosted.requirement,
-          findings: hosted.findings,
+          findings: hosted.sealedResult?.findings ?? [],
         }));
         continue;
       }
       const local = attempt.local;
       if (local === undefined
         || local.deliveryAdmission === undefined
-        || state.changeRequestId !== null
+        || attempt.changeRequestId !== null
         || selector.currentVehicle === undefined
         || local.vehicle.kind !== "delivery-member"
         || !sameVehicleIdentity(selector.currentVehicle, local.deliveryAdmission.vehicle)
@@ -151,18 +171,23 @@ export function queryEarlierReviewAttempts(
         || local.deliveryAdmission.target.pullRequest !== selector.pullRequest
         || local.target.kind !== "delivery-member"
         || local.target.repositoryId !== selector.repositoryId
-        || local.target.headSha !== state.headSha) continue;
+        || local.target.headSha !== attempt.headSha) continue;
       candidates.push(EarlierReviewAttemptCandidateSchema.parse({
         operationId: state.operationId,
         version: record.version,
         updatedAt: state.updatedAt,
         attemptId: attempt.attemptId,
+        logicalPass: attempt.logicalPass,
         sourceId: attempt.sourceId,
         sourceKind: "local",
         outcome: attempt.outcome,
-        requestedCoverage: "complete",
-        effectiveCoverage: "complete",
-        priorHead: state.headSha,
+        requestedCoverage: local.requestedCoverage,
+        effectiveCoverage: local.effectiveCoverage,
+        scopeMode: local.scopeMode,
+        ...(attempt.chunkSeriesComplete === undefined
+          ? {}
+          : { chunkSeriesComplete: attempt.chunkSeriesComplete }),
+        priorHead: attempt.headSha,
         target: local.deliveryAdmission.target,
         priorVehicle: local.deliveryAdmission.vehicle,
         reviewTarget: local.target,

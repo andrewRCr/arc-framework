@@ -34,8 +34,9 @@ Before the Candidate exists, clean the WU content:
   ad-hoc inline status, or accumulated scratchpad content.
 
 If the [`self-review` method][self-review] is effectively active, execute it against the local aggregate diff vs
-the base branch. Classify findings per [`review-triage`][review-triage], obtain approval for the complete disposition
-set, and commit approved fixes per [`commit-footer`][commit-footer] before continuing.
+the base branch. Classify findings per [`review-triage`][review-triage], present the standalone non-producer report,
+obtain approval for the complete disposition set, and commit approved fixes per [`commit-footer`][commit-footer]
+before continuing. Do not invoke the producer-backed response command or fabricate producer evidence.
 
 When the task list carries a Delivery Plan, inspect every member-close scale-attention result before terminal Tier 3.
 Each completed member must record the resolver's exact target, state, and disposition, plus metrics when the resolver
@@ -149,6 +150,10 @@ closeout point, `blocked / establish-new-root` follows freshly completed Steps 1
 closure: execute its exact `continuation.argv`, then require `attested / re-root` before continuing. A missing or
 malformed continuation, any other action or result, or a blocked result reached without fresh full verification
 stops; never infer or reconstruct a re-root command from prose.
+
+This Step 3 invocation is the initial Candidate attestation or an explicitly requested new root. A later convergence
+attestation belongs to `prepare-work-unit`; it keeps its projections staged and creates no second verification commit
+boundary.
 
 ## Completion Notes
 

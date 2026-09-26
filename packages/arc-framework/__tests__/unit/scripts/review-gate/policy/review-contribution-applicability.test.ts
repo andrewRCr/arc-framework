@@ -46,19 +46,28 @@ function movedSelector() {
 }
 
 describe("review contribution applicability", () => {
-  it("keeps an unmoved retargeted head applicable while reporting base movement separately", () => {
-    expect(classifyReviewContributionApplicability(selector(), null)).toMatchObject({
+  it("uses the head shortcut only when the reviewed base is unchanged", () => {
+    const unchanged = { ...selector(), currentBase: selector().priorBase };
+    expect(classifyReviewContributionApplicability(unchanged, null)).toMatchObject({
       schemaVersion: 1,
       mode: "review-contribution-applicability",
-      selector: selector(),
+      selector: unchanged,
       state: "applicable",
       nextAction: "recognize-prior-review",
       proof: "head-unchanged",
-      baseMoved: true,
+      baseMoved: false,
       contributionChanged: false,
       projection: null,
       paths: [],
     });
+    expect(classifyReviewContributionApplicability(selector(), null)).toMatchObject({
+      state: "classification-unavailable",
+      reason: "projection-evidence-missing",
+    });
+    expect(classifyReviewContributionApplicability(selector(), {
+      endpoints: endpoints(),
+      proof: { status: "refused", reason: "contribution-diverged", paths: ["src/index.ts"] },
+    })).toMatchObject({ state: "decision-required", baseMoved: true });
   });
 
   it("preserves an ordinary work-unit review only when D4 proves the moved contribution", () => {

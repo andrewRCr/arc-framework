@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveReviewPolicy } from "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
+import {
+  projectReviewPolicyAttempt,
+  ReviewPolicyCommandRequestSchema,
+  resolveReviewPolicy,
+} from "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
+import { assertStandardReviewExecutionAdmission } from
+  "../../../../../src/scripts/review-gate/policy/review-execution-admission.js";
 
 const target = {
   repository: "arc-framework/example",
@@ -18,6 +24,186 @@ const standardReview = {
 };
 
 describe("resolveReviewPolicy", () => {
+  it("retains a response-gated authorization identity with its ceiling override", () => {
+    const conditionalPassAuthorizationId = `sha256:${"c".repeat(64)}`;
+    const parsed = ReviewPolicyCommandRequestSchema.parse({
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview,
+      completedPasses: 1,
+      attempts: [{
+        sourceId: "codex-pr",
+        outcome: "findings",
+        reviewOperationId: "hosted/attempt-1",
+      }],
+      ceilingOverride: {
+        target,
+        lane: "standard",
+        exhaustedPassCount: 1,
+        nextPass: 2,
+        conditionalPassAuthorizationId,
+      },
+    });
+
+    expect(parsed.ceilingOverride?.conditionalPassAuthorizationId)
+      .toBe(conditionalPassAuthorizationId);
+  });
+
+  it("retains the immutable producer when projecting terminal lane progress", () => {
+    expect(projectReviewPolicyAttempt({
+      attemptId: "hosted/attempt-1",
+      sourceId: "codex-pr",
+      outcome: "settled-findings",
+    })).toEqual({
+      sourceId: "codex-pr",
+      outcome: "findings",
+      reviewOperationId: "hosted/attempt-1",
+    });
+    expect(projectReviewPolicyAttempt({
+      attemptId: "hosted/attempt-2",
+      sourceId: "codex-pr",
+      outcome: "rate-limited",
+    })).not.toHaveProperty("reviewOperationId");
+  });
+
+  it("resolves a settled material response to the next pass or ceiling", () => {
+    const prior = {
+      schemaVersion: 1 as const,
+      target: { ...target, pullRequest: null },
+      lane: "standard" as const,
+      standardReview,
+      sources: ["delegated-agent"],
+      completedPasses: 1,
+      maxPasses: 2,
+      attempts: [{
+        sourceId: "delegated-agent", outcome: "findings" as const,
+        reviewOperationId: "local/material-1",
+      }],
+      verifiedTerminalSignal: {
+        reviewOperationId: "local/material-1", confirmedFindingCount: 1,
+        maxConfirmedSeverity: "major" as const, coverageAdequate: true,
+      },
+    };
+    expect(resolveReviewPolicy(prior)).toMatchObject({ state: "findings", nextAction: "respond" });
+    expect(resolveReviewPolicy({ ...prior, terminalResponseSettled: true })).toMatchObject({
+      state: "ready", nextAction: "local-prepare", payload: { pass: 2 },
+    });
+    expect(resolveReviewPolicy({
+      ...prior, completedPasses: 2, maxPasses: 2, terminalResponseSettled: true,
+    })).toMatchObject({
+      state: "approval-required", nextAction: "obtain-ceiling-override",
+      payload: { consequence: { exhaustedPassCount: 2, nextPass: 3 } },
+    });
+    expect(ReviewPolicyCommandRequestSchema.safeParse({
+      ...prior, terminalResponseSettled: true,
+    }).success).toBe(false);
+  });
+
+  it("requires one immutable producer reference for a terminal attempt", () => {
+    expect(ReviewPolicyCommandRequestSchema.safeParse({
+      schemaVersion: 1,
+      target,
+      lane: "standard",
+      standardReview,
+      completedPasses: 1,
+      attempts: [{ sourceId: "codex-pr", outcome: "clean" }],
+    }).success).toBe(false);
+  });
+
+  it("rejects producer references on nonterminal progress and standalone settlement", () => {
+    const base = {
+      schemaVersion: 1 as const,
+      target,
+      lane: "standard" as const,
+      standardReview,
+      completedPasses: 1,
+    };
+    expect(ReviewPolicyCommandRequestSchema.safeParse({
+      ...base,
+      attempts: [{
+        sourceId: "codex-pr",
+        outcome: "rate-limited",
+        reviewOperationId: "hosted/attempt-1",
+      }],
+    }).success).toBe(false);
+    expect(ReviewPolicyCommandRequestSchema.safeParse({
+      ...base,
+      attempts: [{ sourceId: "codex-pr", outcome: "settled-findings" }],
+    }).success).toBe(false);
+  });
+
+  it("accepts terminal convergence only through a matching derived verified signal", () => {
+    const request = {
+      schemaVersion: 1 as const,
+      target,
+      lane: "standard" as const,
+      standardReview,
+      completedPasses: 1,
+      maxPasses: 2,
+      sources: ["codex-pr"],
+      attempts: [{
+        sourceId: "codex-pr",
+        outcome: "clean" as const,
+        reviewOperationId: "hosted/attempt-1",
+      }],
+    };
+    expect(() => resolveReviewPolicy(request)).toThrow(/verified terminal signal/u);
+    expect(resolveReviewPolicy({
+      ...request,
+      verifiedTerminalSignal: {
+        reviewOperationId: "hosted/attempt-1",
+        confirmedFindingCount: 0,
+        maxConfirmedSeverity: null,
+        coverageAdequate: true,
+      },
+    })).toMatchObject({
+      state: "pass-complete",
+      nextAction: "none",
+      payload: {
+        verifiedTerminalSignal: {
+          reviewOperationId: "hosted/attempt-1",
+          coverageAdequate: true,
+        },
+      },
+    });
+  });
+
+  it("keeps incomplete chunk progress nonterminal", () => {
+    const base = {
+      schemaVersion: 1 as const,
+      target,
+      lane: "standard" as const,
+      standardReview,
+      completedPasses: 0,
+      scopeSelection: { mode: "chunked" as const, target },
+    };
+    expect(ReviewPolicyCommandRequestSchema.safeParse({
+      ...base,
+      completedPasses: 1,
+      attempts: [{
+        sourceId: "delegated-agent",
+        outcome: "clean",
+        reviewOperationId: "local-aggregate-1",
+        chunkSeriesComplete: false,
+      }],
+    }).success).toBe(false);
+    expect(resolveReviewPolicy({
+      ...base,
+      sources: ["delegated-agent"],
+      maxPasses: 2,
+      attempts: [{
+        sourceId: "delegated-agent",
+        outcome: "partial",
+        chunkSeriesComplete: false,
+      }],
+    })).toMatchObject({
+      state: "chunk-pending",
+      nextAction: "continue-chunks",
+      payload: { consumedPass: false, completedPasses: 0, pass: 1 },
+    });
+  });
+
   it("no-ops standard review when no standard source is configured", () => {
     expect(resolveReviewPolicy({
       schemaVersion: 1,
@@ -68,6 +254,30 @@ describe("resolveReviewPolicy", () => {
         attemptedSources: [],
         ineligibleSources: ["coderabbit-pr", "codex-pr"],
       },
+    });
+  });
+
+  it("keeps the frontline carrier whole-target-only", () => {
+    expect(resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "frontline",
+      frontlineActive: true,
+      standardReview,
+      sources: ["coderabbit-cli"],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts: [],
+      scopeSelection: { mode: "chunked", target },
+    })).toMatchObject({
+      state: "unavailable",
+      nextAction: "stop",
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({
+          code: "source-scope-ineligible",
+          message: expect.stringContaining("coderabbit-cli"),
+        }),
+      ]),
     });
   });
 
@@ -435,7 +645,7 @@ describe("resolveReviewPolicy", () => {
     })).toThrow(/cannot precede recorded source progress/u);
   });
 
-  it("precomposes the human disposition consequence for findings", () => {
+  it("preserves the response continuation for verified material findings", () => {
     expect(resolveReviewPolicy({
       schemaVersion: 1,
       target,
@@ -444,7 +654,17 @@ describe("resolveReviewPolicy", () => {
       sources: ["codex-pr"],
       completedPasses: 1,
       maxPasses: 2,
-      attempts: [{ sourceId: "codex-pr", outcome: "findings" }],
+      attempts: [{
+        sourceId: "codex-pr",
+        outcome: "findings",
+        reviewOperationId: "hosted/attempt-1",
+      }],
+      verifiedTerminalSignal: {
+        reviewOperationId: "hosted/attempt-1",
+        confirmedFindingCount: 1,
+        maxConfirmedSeverity: "major",
+        coverageAdequate: true,
+      },
     })).toMatchObject({
       state: "findings",
       nextAction: "respond",
@@ -453,7 +673,7 @@ describe("resolveReviewPolicy", () => {
         pass: 1,
         completedPasses: 1,
         consumedPass: true,
-        consequence: "disposition-required",
+        postResponseAction: "resolve-next-pass",
       },
     });
   });
@@ -462,14 +682,19 @@ describe("resolveReviewPolicy", () => {
     {
       name: "whole-target completion",
       scopeSelection: undefined,
-      attempt: { sourceId: "codex-pr", outcome: "clean" as const },
+      attempt: {
+        sourceId: "codex-pr",
+        outcome: "clean" as const,
+        reviewOperationId: "hosted/attempt-1",
+      },
     },
     {
       name: "completed chunk series",
       scopeSelection: { mode: "chunked" as const, target },
       attempt: {
         sourceId: "delegated-agent",
-        outcome: "settled-findings" as const,
+        outcome: "findings" as const,
+        reviewOperationId: "local/aggregate-1",
         chunkSeriesComplete: true,
       },
     },
@@ -483,6 +708,12 @@ describe("resolveReviewPolicy", () => {
       completedPasses: 0,
       maxPasses: 2,
       attempts: [attempt],
+      verifiedTerminalSignal: {
+        reviewOperationId: attempt.reviewOperationId,
+        confirmedFindingCount: attempt.outcome === "clean" ? 0 : 1,
+        maxConfirmedSeverity: attempt.outcome === "clean" ? null : "major",
+        coverageAdequate: true,
+      },
       ...(scopeSelection === undefined ? {} : { scopeSelection }),
     })).toThrow(/completedPasses must include the completed terminal pass/u);
   });
@@ -537,7 +768,7 @@ describe("resolveReviewPolicy", () => {
       completedPasses: 0,
       attempts: [{
         sourceId: "delegated-agent",
-        outcome: "clean",
+        outcome: "partial",
         chunkSeriesComplete: false,
       }],
     })).toMatchObject({
@@ -551,13 +782,99 @@ describe("resolveReviewPolicy", () => {
       attempts: [{
         sourceId: "delegated-agent",
         outcome: "clean",
+        reviewOperationId: "local/aggregate-1",
         chunkSeriesComplete: true,
       }],
+      verifiedTerminalSignal: {
+        reviewOperationId: "local/aggregate-1",
+        confirmedFindingCount: 0,
+        maxConfirmedSeverity: null,
+        coverageAdequate: true,
+      },
     })).toMatchObject({
       state: "pass-complete",
       nextAction: "none",
       payload: { pass: 1, completedPasses: 1, consumedPass: true },
     });
+  });
+
+  it("admits a named additional pass after convergence without erasing the earlier result", () => {
+    const prior = {
+      schemaVersion: 1 as const,
+      target,
+      lane: "standard" as const,
+      standardReview,
+      sources: ["delegated-agent"],
+      completedPasses: 1,
+      maxPasses: 2,
+      attempts: [{
+        sourceId: "delegated-agent",
+        outcome: "clean" as const,
+        reviewOperationId: "local/clean-1",
+      }],
+      verifiedTerminalSignal: {
+        reviewOperationId: "local/clean-1",
+        confirmedFindingCount: 0,
+        maxConfirmedSeverity: null,
+        coverageAdequate: true,
+      },
+    };
+    const additionalPassAuthorization = {
+      target, lane: "standard" as const, precedingProducerId: "local/clean-1",
+      completedPasses: 1, nextPass: 2,
+    };
+    expect(resolveReviewPolicy(prior)).toMatchObject({ state: "pass-complete", nextAction: "none" });
+    expect(resolveReviewPolicy({ ...prior, additionalPassAuthorization })).toMatchObject({
+      state: "ready", nextAction: "local-prepare", payload: { pass: 2 },
+    });
+    expect(resolveReviewPolicy({
+      ...prior, additionalPassAuthorization: { ...additionalPassAuthorization, precedingProducerId: "other" },
+    })).toMatchObject({
+      state: "invalid-override", payload: { reason: "preceding-producer-mismatch" },
+    });
+    expect(resolveReviewPolicy({
+      ...prior, completedPasses: 2, maxPasses: 2,
+      attempts: [{ sourceId: "delegated-agent", outcome: "clean", reviewOperationId: "local/clean-2" }],
+      verifiedTerminalSignal: { ...prior.verifiedTerminalSignal, reviewOperationId: "local/clean-2" },
+      additionalPassAuthorization,
+    })).toMatchObject({ state: "invalid-override", payload: { reason: "pass-count-mismatch" } });
+    expect(resolveReviewPolicy({
+      ...prior, completedPasses: 2, maxPasses: 2,
+      attempts: [{ sourceId: "delegated-agent", outcome: "clean", reviewOperationId: "local/clean-2" }],
+      verifiedTerminalSignal: { ...prior.verifiedTerminalSignal, reviewOperationId: "local/clean-2" },
+      additionalPassAuthorization: {
+        ...additionalPassAuthorization, precedingProducerId: "local/clean-2", completedPasses: 2, nextPass: 3,
+      },
+    })).toMatchObject({ state: "ready", payload: { pass: 3, ceilingOverrideApplied: true } });
+    for (const completedPasses of [3, 4, 7]) {
+      const producer = `local/clean-${String(completedPasses)}`;
+      expect(resolveReviewPolicy({
+        ...prior, completedPasses,
+        attempts: [{ sourceId: "delegated-agent", outcome: "clean", reviewOperationId: producer }],
+        verifiedTerminalSignal: { ...prior.verifiedTerminalSignal, reviewOperationId: producer },
+        additionalPassAuthorization: {
+          ...additionalPassAuthorization, precedingProducerId: producer,
+          completedPasses, nextPass: completedPasses + 1,
+        },
+      })).toMatchObject({ state: "ready", payload: { pass: completedPasses + 1 } });
+    }
+    const material = {
+      ...prior, completedPasses: 3,
+      attempts: [{ sourceId: "delegated-agent", outcome: "findings" as const,
+        reviewOperationId: "local/material-3" }],
+      verifiedTerminalSignal: {
+        reviewOperationId: "local/material-3", confirmedFindingCount: 1,
+        maxConfirmedSeverity: "major" as const, coverageAdequate: true,
+      },
+    };
+    expect(resolveReviewPolicy(material)).toMatchObject({ state: "findings", nextAction: "respond" });
+    expect(resolveReviewPolicy({
+      ...material,
+      additionalPassAuthorization: {
+        ...additionalPassAuthorization, precedingProducerId: "local/material-3",
+        completedPasses: 3, nextPass: 4,
+      },
+    })).toMatchObject({ state: "invalid-override", payload: { reason: "pass-not-converged" } });
   });
 
   it("requires exceptional approval when a lane exhausts its ceiling", () => {
@@ -609,7 +926,17 @@ describe("resolveReviewPolicy", () => {
       sources: ["delegated-agent"],
       completedPasses: 3,
       maxPasses: 2,
-      attempts: [{ sourceId: "delegated-agent", outcome: "clean" }],
+      attempts: [{
+        sourceId: "delegated-agent",
+        outcome: "clean",
+        reviewOperationId: "local/attempt-3",
+      }],
+      verifiedTerminalSignal: {
+        reviewOperationId: "local/attempt-3",
+        confirmedFindingCount: 0,
+        maxConfirmedSeverity: null,
+        coverageAdequate: true,
+      },
       ceilingOverride: approval.payload.consequence,
     })).toMatchObject({
       state: "pass-complete",
@@ -664,7 +991,17 @@ describe("resolveReviewPolicy", () => {
       sources: ["delegated-agent"],
       completedPasses: 5,
       maxPasses: 2,
-      attempts: [{ sourceId: "delegated-agent", outcome: "findings" }],
+      attempts: [{
+        sourceId: "delegated-agent",
+        outcome: "findings",
+        reviewOperationId: "local/attempt-5",
+      }],
+      verifiedTerminalSignal: {
+        reviewOperationId: "local/attempt-5",
+        confirmedFindingCount: 1,
+        maxConfirmedSeverity: "major",
+        coverageAdequate: true,
+      },
       terminus: {
         schemaVersion: 1,
         semanticsVersion: "review-terminus/v1",
@@ -676,7 +1013,7 @@ describe("resolveReviewPolicy", () => {
     })).toMatchObject({
       state: "findings",
       nextAction: "respond",
-      payload: { consequence: "disposition-required" },
+      payload: { postResponseAction: "resolve-next-pass" },
     });
   });
 
@@ -689,7 +1026,11 @@ describe("resolveReviewPolicy", () => {
       sources: ["coderabbit-pr", "delegated-agent"],
       completedPasses: 0,
       maxPasses: 2,
-      attempts: [{ sourceId: "coderabbit-pr", outcome: "clean" }],
+      attempts: [{
+        sourceId: "coderabbit-pr",
+        outcome: "clean",
+        reviewOperationId: "hosted/attempt-1",
+      }],
       scopeSelection: { mode: "chunked", target },
     })).toThrow(/attempt source is ineligible/u);
   });
@@ -798,6 +1139,36 @@ describe("resolveReviewPolicy", () => {
         reason: "invocation-skip",
       },
     });
+  });
+
+  it.each([
+    { frontlineActive: false, sources: ["coderabbit-cli"], invocation: undefined },
+    { frontlineActive: true, sources: ["coderabbit-cli"], invocation: { mode: "skip" as const } },
+  ])("retains an admitted frontline findings response across activation changes %j", ({
+    frontlineActive, sources, invocation,
+  }) => {
+    expect(resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "frontline",
+      standardReview,
+      sources,
+      completedPasses: 1,
+      maxPasses: 2,
+      attempts: [{
+        sourceId: "coderabbit-cli",
+        outcome: "findings",
+        reviewOperationId: "frontline/attempt-1",
+      }],
+      verifiedTerminalSignal: {
+        reviewOperationId: "frontline/attempt-1",
+        confirmedFindingCount: 1,
+        maxConfirmedSeverity: "major",
+        coverageAdequate: true,
+      },
+      frontlineActive,
+      ...(invocation === undefined ? {} : { invocation }),
+    })).toMatchObject({ state: "findings", nextAction: "respond" });
   });
 
   it("rejects a frontline invocation override on the standard lane", () => {
@@ -1014,5 +1385,99 @@ describe("resolveReviewPolicy", () => {
       maxPasses: 2,
       attempts,
     })).toThrow();
+  });
+});
+
+describe("standard review execution admission", () => {
+  const base = {
+    target,
+    frontlineActive: false,
+    standardReview,
+    attempts: [],
+    sources: ["codex-pr", "delegated-agent"],
+    maxPasses: 2,
+  } as const;
+
+  it("refuses an exhausted producer admission without exact one-pass authority", () => {
+    expect(() => assertStandardReviewExecutionAdmission({
+      ...base,
+      completedPasses: 2,
+      expectedSourceId: "codex-pr",
+      expectedNextAction: "hosted-request",
+    })).toThrow(/approval-required\/obtain-ceiling-override/u);
+  });
+
+  it("binds a targetless ceiling judgment to exactly its named next pass", () => {
+    const judgment = {
+      ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 },
+    } as const;
+    expect(assertStandardReviewExecutionAdmission({
+      ...base,
+      completedPasses: 2,
+      expectedSourceId: "codex-pr",
+      expectedNextAction: "hosted-request",
+      judgment,
+    }).payload).toMatchObject({ pass: 3, ceilingOverrideApplied: true });
+    expect(() => assertStandardReviewExecutionAdmission({
+      ...base,
+      completedPasses: 3,
+      expectedSourceId: "codex-pr",
+      expectedNextAction: "hosted-request",
+      judgment,
+    })).toThrow(/invalid-override\/stop/u);
+  });
+
+  it("does not rebind full ceiling authority onto another target or lane", () => {
+    const judgment = {
+      ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 },
+    } as const;
+    const foreignTarget = {
+      target: { ...target, headSha: "c".repeat(40) },
+      lane: "standard" as const,
+      exhaustedPassCount: 2,
+      nextPass: 3,
+    };
+    expect(() => assertStandardReviewExecutionAdmission({
+      ...base,
+      completedPasses: 2,
+      expectedSourceId: "codex-pr",
+      expectedNextAction: "hosted-request",
+      judgment,
+      ceilingOverride: foreignTarget,
+    } as Parameters<typeof assertStandardReviewExecutionAdmission>[0])).toThrow(/target-mismatch/u);
+    expect(() => assertStandardReviewExecutionAdmission({
+      ...base,
+      completedPasses: 2,
+      expectedSourceId: "codex-pr",
+      expectedNextAction: "hosted-request",
+      judgment,
+      ceilingOverride: { ...foreignTarget, target, lane: "frontline" },
+    } as Parameters<typeof assertStandardReviewExecutionAdmission>[0])).toThrow(/lane-mismatch/u);
+  });
+
+  it("rejects conflicting full and targetless additional-pass authority", () => {
+    expect(() => assertStandardReviewExecutionAdmission({
+      ...base,
+      completedPasses: 1,
+      expectedSourceId: "codex-pr",
+      expectedNextAction: "hosted-request",
+      judgment: { additionalPassAuthorization: {
+        headSha: target.headSha, precedingProducerId: "local/clean-1",
+        completedPasses: 1, nextPass: 2,
+      } },
+      additionalPassAuthorization: {
+        target, lane: "standard", precedingProducerId: "local/other",
+        completedPasses: 1, nextPass: 2,
+      },
+    })).toThrow(/authority disagree/u);
+  });
+
+  it("refuses a public producer that is not the driver's selected source", () => {
+    expect(() => assertStandardReviewExecutionAdmission({
+      ...base,
+      completedPasses: 0,
+      expectedSourceId: "delegated-agent",
+      expectedNextAction: "hosted-request",
+    })).toThrow(/not driver-admissible/u);
   });
 });

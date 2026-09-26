@@ -2,6 +2,8 @@
 
 import { describe, expect, it } from "vitest";
 
+import { responsePolicyRequestFixture } from "../../../fixtures/review-response-policy.js";
+
 import {
   approveDispositionState,
   createDispositionSet,
@@ -40,17 +42,21 @@ function approvedSet(targetId: string, disposition: "fix" | "defer") {
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
     targetId,
+    producerId: "settlement-operation",
+    resultDigest: digest("3"),
     policyVersion: digest("1"),
     rubricVersion: "standard-review/v1",
     rubricDigest: digest("2"),
     proposedBy: "review-runtime",
+    proposedVerification: "full",
     findings: [{
       findingId: "finding-1",
       sourceIdentity: "reviewer",
       locus: "src/example.ts:1",
       sourceVerification: "verified",
       verificationRefs: ["receipt:1"],
-      severity: "major",
+      reportedSeverity: "major",
+      verifiedSeverity: "major",
       disposition,
       rationale: "The finding is supported.",
       recommendation: disposition === "fix"
@@ -64,6 +70,11 @@ function approvedSet(targetId: string, disposition: "fix" | "defer") {
     request: {
       schemaVersion: 1 as const,
       source: { kind: "frontline" as const, outcomeRef: "frontline:operation:outcome" },
+      policyRequest: responsePolicyRequestFixture({
+        headSha: oid("c"),
+        sourceId: "reviewer",
+        reviewOperationId: "settlement-operation",
+      }),
       dispositions: approveDispositionState({
         proposed: proposeDispositionSet(dispositionSet),
         approvedBy: "andrew",

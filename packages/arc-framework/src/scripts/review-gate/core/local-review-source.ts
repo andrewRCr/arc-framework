@@ -6,6 +6,7 @@ import {
   canonicalDigest,
   type KernelRegistry,
 } from "../../../lib/kernel/index.js";
+import { IncrementalReviewScopeSchema } from "./incremental-review-scope.js";
 
 const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
@@ -22,6 +23,7 @@ const LocalReviewSourceSemanticFieldsSchema = z.strictObject({
   diffBaseTree: GitObjectIdSchema,
   headSha: GitObjectIdSchema,
   headTree: GitObjectIdSchema,
+  correctionScope: IncrementalReviewScopeSchema.optional(),
 }).superRefine((source, context) => {
   const width = source.objectFormat === "sha1" ? 40 : 64;
   for (const field of ["diffBaseSha", "diffBaseTree", "headSha", "headTree"] as const) {
@@ -30,6 +32,27 @@ const LocalReviewSourceSemanticFieldsSchema = z.strictObject({
         code: "custom",
         message: `object id does not match ${source.objectFormat} object format`,
         path: [field],
+      });
+    }
+  }
+  if (source.correctionScope !== undefined) {
+    for (const [field, objectId] of [
+      ["predecessorHeadSha", source.correctionScope.predecessorHeadSha],
+      ["basisHeadSha", source.correctionScope.basisHeadSha],
+    ] as const) {
+      if (objectId.length !== width) {
+        context.addIssue({
+          code: "custom",
+          message: `object id does not match ${source.objectFormat} object format`,
+          path: ["correctionScope", field],
+        });
+      }
+    }
+    if (source.correctionScope.headSha !== source.headSha) {
+      context.addIssue({
+        code: "custom",
+        message: "correction scope must end at the source head",
+        path: ["correctionScope", "headSha"],
       });
     }
   }
@@ -44,6 +67,8 @@ export type LocalReviewSourceDigestPreimage = z.infer<typeof LocalReviewSourceDi
 const LocalReviewSourceInputSchema = z.strictObject({
   ...LocalReviewSourceSemanticFieldsSchema.shape,
   reachabilityRef: OpaqueReferenceSchema,
+  predecessorReachabilityRef: OpaqueReferenceSchema.optional(),
+  basisReachabilityRef: OpaqueReferenceSchema.optional(),
   materializationRef: OpaqueReferenceSchema,
 });
 const LocalReviewSourceObjectSchema = z.strictObject({
@@ -64,6 +89,15 @@ export const LocalReviewSourceSchema = LocalReviewSourceObjectSchema.superRefine
       code: "custom",
       message: "sourceDigest must bind the semantic Git object range",
       path: ["sourceDigest"],
+    });
+  }
+  const hasScope = source.correctionScope !== undefined;
+  if (hasScope !== (source.predecessorReachabilityRef !== undefined)
+    || hasScope !== (source.basisReachabilityRef !== undefined)) {
+    context.addIssue({
+      code: "custom",
+      message: "correction scope and its operation-owned reachability refs must be carried together",
+      path: ["correctionScope"],
     });
   }
 });
@@ -103,6 +137,7 @@ function semanticFieldsFrom(source: z.input<typeof LocalReviewSourceSemanticFiel
     diffBaseTree: source.diffBaseTree,
     headSha: source.headSha,
     headTree: source.headTree,
+    ...(source.correctionScope === undefined ? {} : { correctionScope: source.correctionScope }),
   };
 }
 

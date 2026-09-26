@@ -1,33 +1,22 @@
 import { describe, expect, it } from "vitest";
 
-import { DeliveryReviewMemberVehicleSchema } from
-  "../../../../src/lib/delivery/review-vehicle.js";
-import {
-  LaneProgressStateSchema,
-  type ReviewOperationState,
-} from "../../../../src/scripts/review-gate/core/operation-state-schema.js";
-import {
-  createReviewRequirement,
-  createReviewTarget,
-} from "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
-import {
-  frontlineLaneOutcome,
-  bindHostedAttemptDisposition,
-  hostedAwaitLaneOutcome,
-  hostedLaneAttemptId,
-  laneProgressOperationId,
-  recordFrontlineAttempt,
-  recordHostedAwaitAttempt,
-  recordHostedPendingRequest,
-  recordHostedRequestUnavailableAttempt,
-  readLaneProgress,
-  readLaneProgressAcrossLineage,
-  recordLaneAttempt,
-  settleLaneAttempt,
-  settleHostedAttemptFinding,
-} from "../../../../src/scripts/review-gate/lane-progress.js";
+
+import { DeliveryReviewMemberVehicleSchema } from "../../../../src/lib/delivery/review-vehicle.js";
+import { LaneProgressStateSchema, type LaneProgressState, type ReviewOperationState } from "../../../../src/scripts/review-gate/core/operation-state-schema.js";
+
+
+import { captureConditionalNextPassAuthorization, hostedAwaitLaneOutcome, invalidateConditionalNextPassAuthorization, inspectConditionalNextPassInvalidation, laneContinuationOperationId, laneProgressOperationId, readCandidateInheritedLaneProgress, readLaneProgressAcrossLineage, readLaneProgressOwner, recordLaneAttempt, settleLaneAttempt, withdrawConditionalNextPassAuthorization } from "../../../../src/scripts/review-gate/lane-progress.js";
+
+
 
 const objectId = (character: string): string => character.repeat(40);
+type LaneAttempt = LaneProgressState["attempts"][number];
+
+function currentAuthorization(attempt: LaneAttempt | undefined) {
+  const lineage = attempt?.conditionalPassAuthorizations;
+  return lineage?.authorizations.find(({ authorizationId }) =>
+    authorizationId === lineage.currentAuthorizationId);
+}
 
 function createStore() {
   const records = new Map<string, { version: number; state: ReviewOperationState }>();
@@ -43,11 +32,15 @@ function createStore() {
     },
     publishOperation: async (next: ReviewOperationState, expectedVersion: number) => {
       const current = records.get(next.operationId)?.version ?? 0;
-      if (expectedVersion !== current + store.drift) throw new Error("operation-state-version-conflict");
+      if (expectedVersion !== current + store.drift) throw new Error("version-conflict");
       const version = current + 1;
       records.set(next.operationId, { version, state: next });
       return { version };
     },
+    readOperationSnapshot: async () => ({
+      status: "complete" as const,
+      records: [...records.values()],
+    }),
   };
   return store;
 }
@@ -62,7 +55,283 @@ const attempt = {
   now: "2026-08-15T12:00:00Z",
 };
 
+async function seedConditionalAuthorization(
+  store: ReturnType<typeof createStore>,
+  options: { bind?: boolean } = {},
+) {
+  const lineage = {
+    kind: "candidate" as const,
+    candidateId: `sha256:${"5".repeat(64)}`,
+  };
+  const dispositionSetId = `sha256:${"6".repeat(64)}`;
+  await recordLaneAttempt(store, {
+    ...attempt,
+    lineage,
+    outcome: "findings",
+    consumedPass: true,
+  });
+  const captured = await captureConditionalNextPassAuthorization(store, {
+    lane: attempt.lane,
+    repositoryId: attempt.repositoryId,
+    headSha: attempt.headSha,
+    lineage,
+    producerId: attempt.attemptId,
+    dispositionSetId,
+    authorizedBy: "author-1",
+    exhaustedPassCount: 1,
+    nextPass: 2,
+    now: "2026-08-15T12:01:00Z",
+  });
+  if (options.bind === true) {
+    await settleLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      dispositionSetId,
+      producedHeadSha: attempt.headSha,
+      now: "2026-08-15T12:02:00Z",
+    });
+  }
+  return { captured, lineage, dispositionSetId };
+}
+
+async function admitConditionalPending(
+  store: ReturnType<typeof createStore>,
+  input: {
+    authorizationId: string;
+    repositoryId: string;
+    lane: "standard" | "frontline";
+    lineage: NonNullable<Parameters<typeof recordLaneAttempt>[1]["lineage"]>;
+    producedHeadSha: string;
+    nextPass: number;
+    admissionId: string;
+    now: string;
+    sourceId?: string;
+  },
+  confirmDispositionSetCurrent: (producerId: string, dispositionSetId: string) => Promise<boolean>,
+) {
+  if (input.lineage === undefined) throw new Error("conditional admission lineage is unavailable");
+  return recordLaneAttempt(store, {
+    lane: input.lane,
+    repositoryId: input.repositoryId,
+    changeRequestId: attempt.changeRequestId,
+    headSha: input.producedHeadSha,
+    lineage: input.lineage,
+    logicalPass: input.nextPass,
+    attemptId: input.admissionId,
+    sourceId: input.sourceId ?? attempt.sourceId,
+    outcome: "pending",
+    consumedPass: false,
+    now: input.now,
+    conditionalPendingAdmission: { ...input, lineage: input.lineage, confirmDispositionSetCurrent },
+  });
+}
+
 describe("lane progress", () => {
+  it("publishes conditional consumption and its pending attempt in one owner write", async () => {
+    const store = createStore();
+    const { captured, lineage } = await seedConditionalAuthorization(store, { bind: true });
+    const originalPublish = store.publishOperation;
+    const pending = (attemptId: string, sourceId: string) => recordLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      attemptId,
+      sourceId,
+      logicalPass: 2,
+      headSha: attempt.headSha,
+      outcome: "pending",
+      consumedPass: false,
+      conditionalPendingAdmission: {
+        authorizationId: captured.authorizationId,
+        repositoryId: attempt.repositoryId,
+        lane: "standard" as const,
+        lineage,
+        producedHeadSha: attempt.headSha,
+        nextPass: 2,
+        admissionId: attemptId,
+        now: "2026-08-15T12:03:00Z",
+        confirmDispositionSetCurrent: async () => true,
+      },
+    });
+    store.publishOperation = async () => { throw new Error("interrupted before owner publication"); };
+    await expect(pending("interrupted", "old-source")).rejects.toThrow("interrupted");
+    const before = await readLaneProgressOwner(store, {
+      lane: "standard", repositoryId: attempt.repositoryId, headSha: attempt.headSha, lineage,
+    });
+    expect(currentAuthorization(before?.attempts[0])).toMatchObject({ status: "bound" });
+    expect(before?.attempts).toHaveLength(1);
+
+    store.publishOperation = originalPublish;
+    const admitted = await pending("resumed", "new-source");
+    expect(currentAuthorization(admitted.attempts[0])).toMatchObject({
+      status: "consumed", admissionId: "resumed",
+    });
+    expect(admitted.attempts[1]).toMatchObject({
+      attemptId: "resumed", sourceId: "new-source", outcome: "pending",
+    });
+    await expect(pending("competing", "other-source")).rejects.toThrow("one pending source attempt");
+  });
+
+  it("rechecks conditional authority after a concurrent owner update", async () => {
+    const store = createStore();
+    const { captured, lineage } = await seedConditionalAuthorization(store, { bind: true });
+    const originalPublish = store.publishOperation;
+    let raced = false;
+    let dispositionChecks = 0;
+    store.publishOperation = async (next, expectedVersion) => {
+      if (!raced && next.kind === "lane-progress"
+        && next.attempts.some(({ attemptId }) => attemptId === "raced-admission")) {
+        raced = true;
+        const current = await store.readOperation(next.operationId);
+        if (current.state === null) throw new Error("missing lane owner");
+        await originalPublish({ ...current.state, updatedAt: "2026-08-15T12:03:01Z" }, current.version);
+        throw new Error("version-conflict");
+      }
+      return originalPublish(next, expectedVersion);
+    };
+    const result = await recordLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      attemptId: "raced-admission",
+      logicalPass: 2,
+      outcome: "pending",
+      consumedPass: false,
+      conditionalPendingAdmission: {
+        authorizationId: captured.authorizationId,
+        repositoryId: attempt.repositoryId,
+        lane: "standard",
+        lineage,
+        producedHeadSha: attempt.headSha,
+        nextPass: 2,
+        admissionId: "raced-admission",
+        now: "2026-08-15T12:03:00Z",
+        confirmDispositionSetCurrent: async () => { dispositionChecks += 1; return true; },
+      },
+    });
+    expect(dispositionChecks).toBe(2);
+    expect(result.attempts).toHaveLength(2);
+    expect(currentAuthorization(result.attempts[0])).toMatchObject({
+      status: "consumed", admissionId: "raced-admission",
+    });
+  });
+
+  it("sums nested Candidate ancestor pass budgets without importing old attempts", async () => {
+    const store = createStore();
+    const oldest = `sha256:${"1".repeat(64)}`;
+    const middle = `sha256:${"2".repeat(64)}`;
+    for (const [index, candidateId] of [oldest, middle].entries()) {
+      const lineage = { kind: "candidate" as const, candidateId };
+      await recordLaneAttempt(store, {
+        ...attempt,
+        attemptId: `ancestor-${index}`,
+        lineage,
+        outcome: "findings",
+        consumedPass: true,
+      });
+      await settleLaneAttempt(store, {
+        lane: "standard", repositoryId: attempt.repositoryId,
+        headSha: attempt.headSha, lineage,
+        attemptId: `ancestor-${index}`, now: attempt.now,
+      });
+    }
+    const result = await readCandidateInheritedLaneProgress(store, {
+      lane: "standard", repositoryId: attempt.repositoryId, headSha: objectId("d"),
+      ancestors: [middle, oldest].map((candidateId) => ({
+        candidateId, baseRevision: objectId("a"), reviewResponseCount: 1,
+      })),
+    });
+    expect(result.inheritedCompletedPasses).toBe(2);
+    expect(result.inheritedCompletePasses).toBe(0);
+    expect(result.ancestorOwners.map(({ owner }) => owner?.attempts[0]?.attemptId))
+      .toEqual(["ancestor-1", "ancestor-0"]);
+  });
+
+  it("distinguishes a zero-attempt ancestor from a missing owner with a recorded response", async () => {
+    const store = createStore();
+    const ancestor = {
+      candidateId: `sha256:${"3".repeat(64)}`, baseRevision: objectId("a"), reviewResponseCount: 0,
+    };
+    expect((await readCandidateInheritedLaneProgress(store, {
+      lane: "standard", repositoryId: attempt.repositoryId,
+      headSha: objectId("d"), ancestors: [ancestor],
+    })).inheritedCompletedPasses).toBe(0);
+    await expect(readCandidateInheritedLaneProgress(store, {
+      lane: "standard", repositoryId: attempt.repositoryId,
+      headSha: objectId("d"), ancestors: [{ ...ancestor, reviewResponseCount: 1 }],
+    })).rejects.toThrow(/Restore the shared review operation/u);
+  });
+  it("refuses a predecessor pending pass or unsettled findings until they are resolved", async () => {
+    const pendingStore = createStore();
+    const candidateId = `sha256:${"4".repeat(64)}`;
+    const lineage = { kind: "candidate" as const, candidateId };
+    const input = {
+      lane: "standard" as const, repositoryId: attempt.repositoryId,
+      headSha: objectId("d"),
+      ancestors: [{ candidateId, baseRevision: objectId("a"), reviewResponseCount: 0 }],
+    };
+    await recordLaneAttempt(pendingStore, {
+      ...attempt, lineage, outcome: "pending", consumedPass: false,
+    });
+    await expect(readCandidateInheritedLaneProgress(pendingStore, input)).rejects
+      .toThrow(/restore a branch worktree at the predecessor Candidate record/u);
+    const store = createStore();
+    await recordLaneAttempt(store, {
+      ...attempt, lineage, outcome: "findings", consumedPass: true,
+    });
+    await expect(readCandidateInheritedLaneProgress(store, input)).rejects
+      .toThrow(/restore a branch worktree at the predecessor Candidate record/u);
+    await settleLaneAttempt(store, {
+      lane: "standard", repositoryId: attempt.repositoryId,
+      headSha: attempt.headSha, lineage, attemptId: attempt.attemptId,
+      now: attempt.now,
+    });
+    expect((await readCandidateInheritedLaneProgress(store, input)).inheritedCompletedPasses).toBe(1);
+  });
+  it("lets a superseding root continue after old failed or unavailable zero-pass outcomes", async () => {
+    const outcomes = ["rate-limited", "transient-unavailable", "timed-out", "terminal-failure"] as const;
+    for (const [index, outcome] of outcomes.entries()) {
+      const store = createStore();
+      const candidateId = `sha256:${String(index + 5).repeat(64)}`;
+      await recordLaneAttempt(store, {
+        ...attempt, lineage: { kind: "candidate", candidateId },
+        outcome, consumedPass: false,
+      });
+      const inherited = await readCandidateInheritedLaneProgress(store, {
+        lane: "standard", repositoryId: attempt.repositoryId, headSha: objectId("d"),
+        ancestors: [{ candidateId, baseRevision: objectId("a"), reviewResponseCount: 0 }],
+      });
+      expect(inherited.inheritedCompletedPasses).toBe(0);
+    }
+  });
+  it("retains the latest original-head producer for Candidate applicability", async () => {
+    const store = createStore();
+    const lineage = { kind: "candidate" as const, candidateId: `sha256:${"5".repeat(64)}` };
+    await recordLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      outcome: "clean",
+      consumedPass: true,
+    });
+    const currentHead = objectId("d");
+    const progress = await readLaneProgressAcrossLineage(store, {
+      lane: "standard",
+      repositoryId: attempt.repositoryId,
+      headSha: currentHead,
+      lineageHeadShas: [attempt.headSha, currentHead],
+      lineage,
+    });
+    expect(progress).toMatchObject({
+      status: "recorded",
+      completedPasses: 1,
+      attempts: [],
+      historicalAttempt: {
+        attemptId: attempt.attemptId,
+        logicalPass: 1,
+        headSha: attempt.headSha,
+        outcome: "clean",
+      },
+    });
+  });
+
   it("creates the record on a lane's first recorded attempt", async () => {
     const store = createStore();
     const state = await recordLaneAttempt(store, {
@@ -73,10 +342,13 @@ describe("lane progress", () => {
     expect(LaneProgressStateSchema.parse(state)).toEqual(state);
     expect(state.lane).toBe("standard");
     expect(state.repositoryId).toBe("repo-1");
-    expect(state.changeRequestId).toBe("pull/42");
-    expect(state.headSha).toBe(objectId("c"));
     expect(state.attempts).toEqual([{
       attemptId: "attempt-1",
+      logicalPass: 1,
+      retryGeneration: 0,
+      changeRequestId: "pull/42",
+      headSha: objectId("c"),
+      terminalProducer: false,
       sourceId: "coderabbit-pr",
       outcome: "rate-limited",
     }]);
@@ -131,6 +403,244 @@ describe("lane progress", () => {
       .toBe(standard);
   });
 
+  it("owns progress by stable delivery-member lineage instead of exact head", () => {
+    const member = DeliveryReviewMemberVehicleSchema.omit({ head: true }).parse({
+      kind: "delivery-member" as const,
+      planId: "123e4567-e89b-12d3-a456-426614174000",
+      workUnitId: "review-signal-convergence",
+      deliverableId: "sha256:" + "2".repeat(64),
+    });
+    const firstHead = laneProgressOperationId({
+      lane: "standard",
+      repositoryId: "repo-1",
+      lineage: member,
+      headSha: objectId("c"),
+    });
+    const movedHead = laneProgressOperationId({
+      lane: "standard",
+      repositoryId: "repo-1",
+      lineage: member,
+      headSha: objectId("d"),
+    });
+    const siblingAtSameHead = laneProgressOperationId({
+      lane: "standard",
+      repositoryId: "repo-1",
+      lineage: { ...member, deliverableId: "sha256:" + "3".repeat(64) },
+      headSha: objectId("c"),
+    });
+
+    expect(movedHead).toBe(firstHead);
+    expect(siblingAtSameHead).not.toBe(firstHead);
+  });
+
+  it("serializes a head-bound continuation on one identity across head movement", () => {
+    const first = laneContinuationOperationId({
+      lane: "standard",
+      repositoryId: "repo-1",
+      headSha: objectId("c"),
+      lineage: {
+        kind: "head-bound",
+        vehicleKind: "errand",
+        vehicleIdentity: "repair-review-state",
+        headSha: objectId("c"),
+      },
+    });
+    const moved = laneContinuationOperationId({
+      lane: "standard",
+      repositoryId: "repo-1",
+      headSha: objectId("d"),
+      lineage: {
+        kind: "head-bound",
+        vehicleKind: "errand",
+        vehicleIdentity: "repair-review-state",
+        headSha: objectId("d"),
+      },
+    });
+    const sibling = laneContinuationOperationId({
+      lane: "standard",
+      repositoryId: "repo-1",
+      headSha: objectId("d"),
+      lineage: {
+        kind: "head-bound",
+        vehicleKind: "errand",
+        vehicleIdentity: "other-errand",
+        headSha: objectId("d"),
+      },
+    });
+
+    expect(moved).toBe(first);
+    expect(sibling).not.toBe(first);
+  });
+
+  it("retains one head-bound Errand owner across correction head movement", () => {
+    const owner = (identity: string, headSha: string) => laneProgressOperationId({
+      lane: "standard",
+      repositoryId: "repo-1",
+      headSha,
+      lineage: {
+        kind: "head-bound",
+        vehicleKind: "errand",
+        vehicleIdentity: identity,
+        headSha,
+      },
+    });
+
+    expect(owner("repair-review-state", objectId("d")))
+      .toBe(owner("repair-review-state", objectId("c")));
+    expect(owner("other-errand", objectId("d")))
+      .not.toBe(owner("repair-review-state", objectId("c")));
+  });
+
+  it("reads an Errand predecessor owner from its corrected head", async () => {
+    const store = createStore();
+    const priorLineage = {
+      kind: "head-bound" as const,
+      vehicleKind: "errand" as const,
+      vehicleIdentity: "repair-review-state",
+      headSha: objectId("c"),
+    };
+    await recordLaneAttempt(store, {
+      ...attempt,
+      lineage: priorLineage,
+      outcome: "clean",
+      consumedPass: true,
+    });
+
+    const owner = await readLaneProgressOwner(store, {
+      lane: "standard",
+      repositoryId: "repo-1",
+      headSha: objectId("d"),
+      lineage: { ...priorLineage, headSha: objectId("d") },
+    });
+
+    expect(owner).toMatchObject({
+      completedPasses: 1,
+      attempts: [{ attemptId: attempt.attemptId, outcome: "clean" }],
+    });
+  });
+
+  it("records a conditionally admitted corrected-head attempt under one Errand owner", async () => {
+    const store = createStore();
+    const priorLineage = {
+      kind: "head-bound" as const,
+      vehicleKind: "errand" as const,
+      vehicleIdentity: "repair-review-state",
+      headSha: objectId("c"),
+    };
+    await recordLaneAttempt(store, {
+      ...attempt,
+      lineage: priorLineage,
+      outcome: "findings",
+      consumedPass: true,
+    });
+    const dispositionSetId = `sha256:${"6".repeat(64)}`;
+    const captured = await captureConditionalNextPassAuthorization(store, {
+      lane: attempt.lane,
+      repositoryId: attempt.repositoryId,
+      headSha: attempt.headSha,
+      lineage: priorLineage,
+      producerId: attempt.attemptId,
+      dispositionSetId,
+      authorizedBy: "author-1",
+      exhaustedPassCount: 1,
+      nextPass: 2,
+      now: "2026-08-15T12:01:00Z",
+    });
+    await settleLaneAttempt(store, {
+      ...attempt,
+      lineage: priorLineage,
+      dispositionSetId,
+      producedHeadSha: objectId("d"),
+      now: "2026-08-15T12:02:00Z",
+    } as Parameters<typeof settleLaneAttempt>[1] & {
+      dispositionSetId: string;
+      producedHeadSha: string;
+    });
+    await admitConditionalPending(store, {
+      authorizationId: captured.authorizationId,
+      repositoryId: attempt.repositoryId,
+      lane: attempt.lane,
+      lineage: priorLineage,
+      producedHeadSha: objectId("d"),
+      nextPass: 2,
+      admissionId: "attempt-2",
+      now: "2026-08-15T12:03:00Z",
+      sourceId: "delegated-agent",
+    }, async () => true);
+
+    const corrected = await readLaneProgressOwner(store, {
+      lane: "standard", repositoryId: attempt.repositoryId,
+      headSha: objectId("d"), lineage: { ...priorLineage, headSha: objectId("d") },
+    });
+
+    expect(corrected).toMatchObject({
+      lineage: priorLineage,
+      completedPasses: 1,
+      attempts: [
+        {
+          attemptId: "attempt-1",
+          headSha: objectId("c"),
+          conditionalPassAuthorizations: {
+            currentAuthorizationId: captured.authorizationId,
+            authorizations: [{ authorizationId: captured.authorizationId, status: "consumed" }],
+          },
+        },
+        { attemptId: "attempt-2", headSha: objectId("d"), outcome: "pending" },
+      ],
+    });
+  });
+
+  it("retains exact target facts on attempts owned by one moving lineage", async () => {
+    const store = createStore();
+    const lineage = {
+      kind: "candidate" as const,
+      candidateId: "sha256:" + "4".repeat(64),
+    };
+    await recordLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      logicalPass: 1,
+      retryGeneration: 0,
+      outcome: "rate-limited",
+      consumedPass: false,
+    });
+    const state = await recordLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      logicalPass: 1,
+      retryGeneration: 1,
+      headSha: objectId("d"),
+      changeRequestId: "pull/43",
+      attemptId: "attempt-2",
+      sourceId: "codex-pr",
+      outcome: "clean",
+      consumedPass: true,
+    });
+
+    expect(state.lineage).toEqual(lineage);
+    expect(state).not.toHaveProperty("headSha");
+    expect(state).not.toHaveProperty("changeRequestId");
+    expect(state.attempts.map(({ headSha, changeRequestId, logicalPass, retryGeneration }) => ({
+      headSha,
+      changeRequestId,
+      logicalPass,
+      retryGeneration,
+    }))).toEqual([
+      {
+        headSha: objectId("c"),
+        changeRequestId: "pull/42",
+        logicalPass: 1,
+        retryGeneration: 0,
+      },
+      {
+        headSha: objectId("d"),
+        changeRequestId: "pull/43",
+        logicalPass: 1,
+        retryGeneration: 1,
+      },
+    ]);
+  });
+
   it("carries the chunk-series flag through to the record", async () => {
     const store = createStore();
     const state = await recordLaneAttempt(store, {
@@ -141,6 +651,11 @@ describe("lane progress", () => {
     });
     expect(state.attempts[0]).toEqual({
       attemptId: "attempt-1",
+      logicalPass: 1,
+      retryGeneration: 0,
+      changeRequestId: "pull/42",
+      headSha: objectId("c"),
+      terminalProducer: true,
       sourceId: "coderabbit-pr",
       outcome: "clean",
       chunkSeriesComplete: true,
@@ -160,6 +675,31 @@ describe("lane progress", () => {
       .rejects.toThrow(/version-conflict/u);
   });
 
+  it("repairs an interrupted identical owner write after a version conflict", async () => {
+    const store = createStore();
+    const publish = store.publishOperation;
+    let interrupted = false;
+    store.publishOperation = async (next, expectedVersion) => {
+      if (!interrupted) {
+        interrupted = true;
+        store.records.set(next.operationId, { version: 1, state: next });
+        throw Object.assign(new Error("version-conflict"), { code: "version-conflict" });
+      }
+      return publish(next, expectedVersion);
+    };
+
+    const state = await recordLaneAttempt(store, {
+      ...attempt,
+      logicalPass: 1,
+      outcome: "clean",
+      consumedPass: true,
+    });
+
+    expect(state.completedPasses).toBe(1);
+    expect(state.attempts).toHaveLength(1);
+    expect(state.attempts[0]?.attemptId).toBe(attempt.attemptId);
+  });
+
   it("makes an exact terminal-attempt replay idempotent and rejects a conflicting replay", async () => {
     const store = createStore();
     const first = await recordLaneAttempt(store, { ...attempt, outcome: "findings", consumedPass: true });
@@ -170,6 +710,43 @@ describe("lane progress", () => {
     expect(replay.attempts).toHaveLength(1);
     await expect(recordLaneAttempt(store, { ...attempt, outcome: "clean", consumedPass: true }))
       .rejects.toThrow(/conflicting lane-attempt replay/u);
+  });
+
+  it("allows only one authoritative terminal producer for a logical pass", async () => {
+    const store = createStore();
+    const lineage = {
+      kind: "candidate" as const,
+      candidateId: "sha256:" + "5".repeat(64),
+    };
+    await recordLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      logicalPass: 1,
+      retryGeneration: 0,
+      outcome: "rate-limited",
+      consumedPass: false,
+    });
+    await recordLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      logicalPass: 1,
+      retryGeneration: 0,
+      attemptId: "attempt-2",
+      sourceId: "codex-pr",
+      outcome: "clean",
+      consumedPass: true,
+    });
+
+    await expect(recordLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      logicalPass: 1,
+      retryGeneration: 0,
+      attemptId: "attempt-3",
+      sourceId: "delegated-agent",
+      outcome: "findings",
+      consumedPass: true,
+    })).rejects.toThrow(/terminal producer/u);
   });
 
   it("settles one findings attempt once and preserves its pass count on replay", async () => {
@@ -189,6 +766,614 @@ describe("lane progress", () => {
     expect(replay).toEqual(settled);
   });
 
+  it("captures one response-gated next pass beside its exact terminal producer", async () => {
+    const store = createStore();
+    const lineage = {
+      kind: "candidate" as const,
+      candidateId: `sha256:${"5".repeat(64)}`,
+    };
+    await recordLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      outcome: "findings",
+      consumedPass: true,
+    });
+    const input = {
+      lane: attempt.lane,
+      repositoryId: attempt.repositoryId,
+      headSha: attempt.headSha,
+      lineage,
+      producerId: attempt.attemptId,
+      dispositionSetId: `sha256:${"6".repeat(64)}`,
+      authorizedBy: "author-1",
+      exhaustedPassCount: 1,
+      nextPass: 2,
+      now: "2026-08-15T12:01:00Z",
+    };
+
+    const captured = await captureConditionalNextPassAuthorization(store, input);
+    expect(currentAuthorization(captured.progress.attempts[0])).toMatchObject({
+      authorizationId: captured.authorizationId,
+      status: "pending",
+      authorizedBy: "author-1",
+      producerId: attempt.attemptId,
+      dispositionSetId: input.dispositionSetId,
+      exhaustedPassCount: 1,
+      nextPass: 2,
+    });
+    await expect(captureConditionalNextPassAuthorization(store, {
+      ...input,
+      now: "2026-08-15T12:02:00Z",
+    })).resolves.toEqual(captured);
+    await expect(captureConditionalNextPassAuthorization(store, {
+      ...input,
+      dispositionSetId: `sha256:${"7".repeat(64)}`,
+    })).rejects.toThrow("replay conflicts");
+  });
+
+  it("appends successor authority after retaining predecessor invalidation", async () => {
+    const store = createStore();
+    const lineage = {
+      kind: "candidate" as const,
+      candidateId: `sha256:${"5".repeat(64)}`,
+    };
+    const predecessorDispositionSetId = `sha256:${"6".repeat(64)}`;
+    const successorDispositionSetId = `sha256:${"7".repeat(64)}`;
+    await recordLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      outcome: "findings",
+      consumedPass: true,
+    });
+    const predecessor = await captureConditionalNextPassAuthorization(store, {
+      lane: attempt.lane,
+      repositoryId: attempt.repositoryId,
+      headSha: attempt.headSha,
+      lineage,
+      producerId: attempt.attemptId,
+      dispositionSetId: predecessorDispositionSetId,
+      authorizedBy: "author-1",
+      exhaustedPassCount: 1,
+      nextPass: 2,
+      now: "2026-08-15T12:01:00Z",
+    });
+    await invalidateConditionalNextPassAuthorization(store, {
+      lane: attempt.lane,
+      repositoryId: attempt.repositoryId,
+      headSha: attempt.headSha,
+      lineage,
+      producerId: attempt.attemptId,
+      dispositionSetId: predecessorDispositionSetId,
+      successorDispositionSetId,
+      now: "2026-08-15T12:02:00Z",
+    });
+
+    const successorInput = {
+      lane: attempt.lane,
+      repositoryId: attempt.repositoryId,
+      headSha: attempt.headSha,
+      lineage,
+      producerId: attempt.attemptId,
+      dispositionSetId: successorDispositionSetId,
+      authorizedBy: "author-1",
+      exhaustedPassCount: 1,
+      nextPass: 2,
+      now: "2026-08-15T12:03:00Z",
+    };
+    const successor = await captureConditionalNextPassAuthorization(store, successorInput);
+    const replay = await captureConditionalNextPassAuthorization(store, {
+      ...successorInput,
+      now: "2026-08-15T12:04:00Z",
+    });
+
+    expect(replay).toEqual(successor);
+    expect(successor.authorizationId).not.toBe(predecessor.authorizationId);
+    expect(successor.progress.attempts[0]).toMatchObject({
+      conditionalPassAuthorizations: {
+        currentAuthorizationId: successor.authorizationId,
+        authorizations: [
+          {
+            authorizationId: predecessor.authorizationId,
+            status: "invalidated",
+            reason: "superseded",
+            successorDispositionSetId,
+          },
+          {
+            authorizationId: successor.authorizationId,
+            status: "pending",
+            dispositionSetId: successorDispositionSetId,
+          },
+        ],
+      },
+    });
+    await expect(captureConditionalNextPassAuthorization(store, {
+      ...successorInput,
+      dispositionSetId: `sha256:${"8".repeat(64)}`,
+    })).rejects.toThrow("replay conflicts");
+    await expect(admitConditionalPending(store, {
+      authorizationId: predecessor.authorizationId,
+      repositoryId: attempt.repositoryId,
+      lane: attempt.lane,
+      lineage,
+      producedHeadSha: objectId("d"),
+      nextPass: 2,
+      admissionId: "attempt-2",
+      now: "2026-08-15T12:05:00Z",
+    }, async () => false)).rejects.toThrow("invalidated");
+  });
+
+  it("binds a pending next-pass authorization only when its approved response is settled", async () => {
+    const store = createStore();
+    const lineage = {
+      kind: "candidate" as const,
+      candidateId: `sha256:${"5".repeat(64)}`,
+    };
+    const dispositionSetId = `sha256:${"6".repeat(64)}`;
+    await recordLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      outcome: "findings",
+      consumedPass: true,
+    });
+    await captureConditionalNextPassAuthorization(store, {
+      lane: attempt.lane,
+      repositoryId: attempt.repositoryId,
+      headSha: attempt.headSha,
+      lineage,
+      producerId: attempt.attemptId,
+      dispositionSetId,
+      authorizedBy: "author-1",
+      exhaustedPassCount: 1,
+      nextPass: 2,
+      now: "2026-08-15T12:01:00Z",
+    });
+
+    const settled = await settleLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      dispositionSetId,
+      producedHeadSha: objectId("d"),
+      now: "2026-08-15T12:02:00Z",
+    } as Parameters<typeof settleLaneAttempt>[1] & {
+      dispositionSetId: string;
+      producedHeadSha: string;
+    });
+
+    expect(currentAuthorization(settled.attempts[0])).toMatchObject({
+      status: "bound",
+      producedHeadSha: objectId("d"),
+      boundAt: "2026-08-15T12:02:00Z",
+    });
+    expect(settled.attempts[0]?.responsePerformance).toMatchObject({
+      producerId: attempt.attemptId,
+      dispositionSetId,
+      originatingHeadSha: attempt.headSha,
+      producedHeadSha: objectId("d"),
+    });
+    await expect(settleLaneAttempt(store, {
+      ...attempt, lineage, dispositionSetId,
+      producedHeadSha: objectId("d"), now: "2026-08-15T12:04:00Z",
+    })).resolves.toEqual(settled);
+    await expect(settleLaneAttempt(store, {
+      ...attempt, lineage, dispositionSetId,
+      producedHeadSha: objectId("e"), now: "2026-08-15T12:04:00Z",
+    })).rejects.toThrow(/replay conflicts/u);
+
+    const consumed = await admitConditionalPending(store, {
+      authorizationId: currentAuthorization(settled.attempts[0])?.authorizationId ?? "missing",
+      repositoryId: attempt.repositoryId,
+      lane: attempt.lane,
+      lineage,
+      producedHeadSha: objectId("d"),
+      nextPass: 2,
+      admissionId: "attempt-2",
+      now: "2026-08-15T12:03:00Z",
+    }, async () => true);
+    expect(currentAuthorization(consumed.attempts[0])).toMatchObject({
+      status: "consumed",
+      producedHeadSha: objectId("d"),
+      admissionId: "attempt-2",
+      consumedAt: "2026-08-15T12:03:00Z",
+    });
+    await expect(admitConditionalPending(store, {
+      authorizationId: currentAuthorization(settled.attempts[0])?.authorizationId ?? "missing",
+      repositoryId: attempt.repositoryId,
+      lane: attempt.lane,
+      lineage,
+      producedHeadSha: objectId("d"),
+      nextPass: 2,
+      admissionId: "attempt-2",
+      now: "2026-08-15T12:04:00Z",
+    }, async () => true)).resolves.toEqual(consumed);
+    await expect(admitConditionalPending(store, {
+      authorizationId: currentAuthorization(settled.attempts[0])?.authorizationId ?? "missing",
+      repositoryId: attempt.repositoryId,
+      lane: attempt.lane,
+      lineage,
+      producedHeadSha: objectId("d"),
+      nextPass: 2,
+      admissionId: "competing-attempt-2",
+      now: "2026-08-15T12:04:00Z",
+    }, async () => true)).rejects.toThrow("one pending source attempt");
+    await expect(inspectConditionalNextPassInvalidation(store, {
+      lane: attempt.lane,
+      repositoryId: attempt.repositoryId,
+      headSha: attempt.headSha,
+      lineage,
+      producerId: attempt.attemptId,
+      dispositionSetId,
+      successorDispositionSetId: `sha256:${"7".repeat(64)}`,
+    })).resolves.toMatchObject({
+      state: "refused",
+      reason: "fix-consumed",
+    });
+    expect(consumed.attempts[1]).toMatchObject({
+      attemptId: "attempt-2", logicalPass: 2, outcome: "pending",
+    });
+  });
+
+  it("withdraws exact pending or bound next-pass authority and replays without mutation", async () => {
+    for (const bind of [false, true]) {
+      const store = createStore();
+      const seeded = await seedConditionalAuthorization(store, { bind });
+      const input = {
+        authorizationId: seeded.captured.authorizationId,
+        lane: attempt.lane,
+        repositoryId: attempt.repositoryId,
+        headSha: attempt.headSha,
+        lineage: seeded.lineage,
+        producerId: attempt.attemptId,
+        dispositionSetId: seeded.dispositionSetId,
+        withdrawnBy: "author-1",
+        now: "2026-08-15T12:03:00Z",
+      };
+
+      const withdrawn = await withdrawConditionalNextPassAuthorization(
+        store,
+        input,
+        async () => true,
+      );
+      expect(withdrawn).toMatchObject({
+        state: "withdrawn",
+        authorizationId: seeded.captured.authorizationId,
+        dispositionSetId: seeded.dispositionSetId,
+        progress: {
+          attempts: [expect.objectContaining({
+            conditionalPassAuthorizations: expect.objectContaining({
+              authorizations: [expect.objectContaining({
+                status: "invalidated",
+                reason: "withdrawn",
+                withdrawnBy: "author-1",
+              })],
+            }),
+          })],
+        },
+      });
+      if (withdrawn.state === "refused") throw new Error("expected conditional authority withdrawal");
+      await expect(withdrawConditionalNextPassAuthorization(
+        store,
+        { ...input, now: "2026-08-15T12:04:00Z" },
+        async () => true,
+      )).resolves.toMatchObject({ state: "already-withdrawn", progress: withdrawn.progress });
+      const supersession = {
+        lane: attempt.lane,
+        repositoryId: attempt.repositoryId,
+        headSha: attempt.headSha,
+        lineage: seeded.lineage,
+        producerId: attempt.attemptId,
+        dispositionSetId: seeded.dispositionSetId,
+        successorDispositionSetId: `sha256:${"7".repeat(64)}`,
+      };
+      await expect(inspectConditionalNextPassInvalidation(store, supersession))
+        .resolves.toEqual({ state: "ready" });
+      await expect(invalidateConditionalNextPassAuthorization(store, {
+        ...supersession,
+        now: "2026-08-15T12:05:00Z",
+      })).resolves.toEqual(withdrawn.progress);
+    }
+  });
+
+  it("settles the approved response after its same-set pass authority is withdrawn", async () => {
+    const store = createStore();
+    const seeded = await seedConditionalAuthorization(store);
+    const withdrawal = {
+      authorizationId: seeded.captured.authorizationId,
+      lane: attempt.lane,
+      repositoryId: attempt.repositoryId,
+      headSha: attempt.headSha,
+      lineage: seeded.lineage,
+      producerId: attempt.attemptId,
+      dispositionSetId: seeded.dispositionSetId,
+      withdrawnBy: "author-1",
+      now: "2026-08-15T12:02:00Z",
+    };
+    await expect(withdrawConditionalNextPassAuthorization(store, withdrawal, async () => true))
+      .resolves.toMatchObject({ state: "withdrawn" });
+
+    const settled = await settleLaneAttempt(store, {
+      ...attempt,
+      lineage: seeded.lineage,
+      dispositionSetId: seeded.dispositionSetId,
+      producedHeadSha: objectId("d"),
+      now: "2026-08-15T12:03:00Z",
+    });
+    expect(settled.attempts[0]).toMatchObject({
+      outcome: "settled-findings",
+      responsePerformance: {
+        dispositionSetId: seeded.dispositionSetId,
+        producedHeadSha: objectId("d"),
+      },
+      conditionalPassAuthorizations: {
+        authorizations: [expect.objectContaining({ status: "invalidated", reason: "withdrawn" })],
+      },
+    });
+    await expect(settleLaneAttempt(store, {
+      ...attempt,
+      lineage: seeded.lineage,
+      dispositionSetId: `sha256:${"7".repeat(64)}`,
+      producedHeadSha: objectId("d"),
+      now: "2026-08-15T12:04:00Z",
+    })).rejects.toThrow(/response performance replay conflicts/u);
+    await expect(admitConditionalPending(store, {
+      authorizationId: seeded.captured.authorizationId,
+      repositoryId: attempt.repositoryId,
+      lane: attempt.lane,
+      lineage: seeded.lineage,
+      producedHeadSha: objectId("d"),
+      nextPass: 2,
+      admissionId: "attempt-2",
+      now: "2026-08-15T12:05:00Z",
+    }, async () => true)).rejects.toThrow(/invalidated/u);
+    await expect(withdrawConditionalNextPassAuthorization(store, {
+      ...withdrawal,
+      now: "2026-08-15T12:06:00Z",
+    }, async () => true)).resolves.toMatchObject({ state: "already-withdrawn", progress: settled });
+  });
+
+  it("refuses consumed, superseded, stale, and foreign withdrawal without rewriting authority", async () => {
+    const consumedStore = createStore();
+    const consumed = await seedConditionalAuthorization(consumedStore, { bind: true });
+    await admitConditionalPending(consumedStore, {
+      authorizationId: consumed.captured.authorizationId,
+      repositoryId: attempt.repositoryId,
+      lane: attempt.lane,
+      lineage: consumed.lineage,
+      producedHeadSha: attempt.headSha,
+      nextPass: 2,
+      admissionId: "attempt-2",
+      now: "2026-08-15T12:03:00Z",
+    }, async () => true);
+    const withdrawal = {
+      authorizationId: consumed.captured.authorizationId,
+      lane: attempt.lane,
+      repositoryId: attempt.repositoryId,
+      headSha: attempt.headSha,
+      lineage: consumed.lineage,
+      producerId: attempt.attemptId,
+      dispositionSetId: consumed.dispositionSetId,
+      withdrawnBy: "author-1",
+      now: "2026-08-15T12:04:00Z",
+    };
+    await expect(withdrawConditionalNextPassAuthorization(
+      consumedStore,
+      withdrawal,
+      async () => true,
+    )).resolves.toMatchObject({ state: "refused", reason: "consumed" });
+
+    const supersededStore = createStore();
+    const superseded = await seedConditionalAuthorization(supersededStore);
+    await invalidateConditionalNextPassAuthorization(supersededStore, {
+      lane: attempt.lane,
+      repositoryId: attempt.repositoryId,
+      headSha: attempt.headSha,
+      lineage: superseded.lineage,
+      producerId: attempt.attemptId,
+      dispositionSetId: superseded.dispositionSetId,
+      successorDispositionSetId: `sha256:${"7".repeat(64)}`,
+      now: "2026-08-15T12:03:00Z",
+    });
+    await expect(withdrawConditionalNextPassAuthorization(supersededStore, {
+      ...withdrawal,
+      authorizationId: superseded.captured.authorizationId,
+      lineage: superseded.lineage,
+      dispositionSetId: superseded.dispositionSetId,
+    }, async () => true)).resolves.toMatchObject({ state: "refused", reason: "superseded" });
+
+    const pendingStore = createStore();
+    const pending = await seedConditionalAuthorization(pendingStore);
+    const pendingInput = {
+      ...withdrawal,
+      authorizationId: pending.captured.authorizationId,
+      lineage: pending.lineage,
+      dispositionSetId: pending.dispositionSetId,
+    };
+    await expect(withdrawConditionalNextPassAuthorization(
+      pendingStore,
+      pendingInput,
+      async () => false,
+    )).resolves.toMatchObject({ state: "refused", reason: "stale-current-set" });
+    await expect(withdrawConditionalNextPassAuthorization(pendingStore, {
+      ...pendingInput,
+      authorizationId: `sha256:${"9".repeat(64)}`,
+    }, async () => true)).resolves.toMatchObject({ state: "refused", reason: "foreign-authority" });
+    expect((pendingStore.state?.kind === "lane-progress"
+      ? currentAuthorization(pendingStore.state.attempts[0])
+      : null)).toMatchObject({ status: "pending" });
+  });
+
+  it("does not confuse another lineage's terminal pass with the authorized admission", async () => {
+    const store = createStore();
+    const lineage = {
+      kind: "candidate" as const,
+      candidateId: `sha256:${"5".repeat(64)}`,
+    };
+    const dispositionSetId = `sha256:${"6".repeat(64)}`;
+    await recordLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      outcome: "findings",
+      consumedPass: true,
+    });
+    const captured = await captureConditionalNextPassAuthorization(store, {
+      lane: attempt.lane,
+      repositoryId: attempt.repositoryId,
+      headSha: attempt.headSha,
+      lineage,
+      producerId: attempt.attemptId,
+      dispositionSetId,
+      authorizedBy: "author-1",
+      exhaustedPassCount: 1,
+      nextPass: 2,
+      now: "2026-08-15T12:01:00Z",
+    });
+    await settleLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      dispositionSetId,
+      producedHeadSha: attempt.headSha,
+      now: "2026-08-15T12:02:00Z",
+    });
+    await recordLaneAttempt(store, {
+      ...attempt,
+      lineage: {
+        kind: "candidate" as const,
+        candidateId: `sha256:${"8".repeat(64)}`,
+      },
+      attemptId: "other-lineage-pass-2",
+      outcome: "clean",
+      consumedPass: true,
+      logicalPass: 2,
+    });
+
+    await expect(admitConditionalPending(store, {
+      authorizationId: captured.authorizationId,
+      repositoryId: attempt.repositoryId,
+      lane: attempt.lane,
+      lineage,
+      producedHeadSha: attempt.headSha,
+      nextPass: 2,
+      admissionId: "authorized-pass-2",
+      now: "2026-08-15T12:03:00Z",
+    }, async () => true)).resolves.toMatchObject({
+      attempts: expect.arrayContaining([expect.objectContaining({
+        conditionalPassAuthorizations: expect.objectContaining({
+          authorizations: [expect.objectContaining({ status: "consumed" })],
+        }),
+      })]),
+    });
+  });
+
+  it("replays the exact pending admission without another authorization write", async () => {
+    const store = createStore();
+    const { captured, lineage } = await seedConditionalAuthorization(store, { bind: true });
+    const input = {
+      authorizationId: captured.authorizationId,
+      repositoryId: attempt.repositoryId,
+      lane: attempt.lane,
+      lineage,
+      producedHeadSha: attempt.headSha,
+      nextPass: 2,
+      admissionId: "authorized-pass-2",
+      now: "2026-08-15T12:03:00Z",
+    };
+    const admitted = await admitConditionalPending(store, input, async () => true);
+    await expect(admitConditionalPending(store, input, async () => true))
+      .resolves.toEqual(admitted);
+    await expect(admitConditionalPending(store, {
+      ...input,
+      admissionId: "another-admission",
+    }, async () => true)).rejects.toThrow("one pending source attempt");
+  });
+
+  it("refuses a bound pass authorization after its disposition set stops being current", async () => {
+    const store = createStore();
+    const lineage = {
+      kind: "candidate" as const,
+      candidateId: `sha256:${"5".repeat(64)}`,
+    };
+    const dispositionSetId = `sha256:${"6".repeat(64)}`;
+    await recordLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      outcome: "findings",
+      consumedPass: true,
+    });
+    const captured = await captureConditionalNextPassAuthorization(store, {
+      lane: attempt.lane,
+      repositoryId: attempt.repositoryId,
+      headSha: attempt.headSha,
+      lineage,
+      producerId: attempt.attemptId,
+      dispositionSetId,
+      authorizedBy: "author-1",
+      exhaustedPassCount: 1,
+      nextPass: 2,
+      now: "2026-08-15T12:01:00Z",
+    });
+    await settleLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      dispositionSetId,
+      producedHeadSha: attempt.headSha,
+      now: "2026-08-15T12:02:00Z",
+    });
+
+    await expect(admitConditionalPending(store, {
+      authorizationId: captured.authorizationId,
+      repositoryId: attempt.repositoryId,
+      lane: attempt.lane,
+      lineage,
+      producedHeadSha: attempt.headSha,
+      nextPass: 2,
+      admissionId: "attempt-2",
+      now: "2026-08-15T12:03:00Z",
+    }, async () => false)).rejects.toThrow("disposition set is not current");
+  });
+
+  it("invalidates a predecessor's pending pass authorization on disposition supersession", async () => {
+    const store = createStore();
+    const lineage = {
+      kind: "candidate" as const,
+      candidateId: `sha256:${"5".repeat(64)}`,
+    };
+    await recordLaneAttempt(store, {
+      ...attempt,
+      lineage,
+      outcome: "findings",
+      consumedPass: true,
+    });
+    const dispositionSetId = `sha256:${"6".repeat(64)}`;
+    await captureConditionalNextPassAuthorization(store, {
+      lane: attempt.lane,
+      repositoryId: attempt.repositoryId,
+      headSha: attempt.headSha,
+      lineage,
+      producerId: attempt.attemptId,
+      dispositionSetId,
+      authorizedBy: "author-1",
+      exhaustedPassCount: 1,
+      nextPass: 2,
+      now: "2026-08-15T12:01:00Z",
+    });
+    const successorDispositionSetId = `sha256:${"7".repeat(64)}`;
+
+    const invalidated = await invalidateConditionalNextPassAuthorization(store, {
+      lane: attempt.lane,
+      repositoryId: attempt.repositoryId,
+      headSha: attempt.headSha,
+      lineage,
+      producerId: attempt.attemptId,
+      dispositionSetId,
+      successorDispositionSetId,
+      now: "2026-08-15T12:02:00Z",
+    });
+    expect(currentAuthorization(invalidated?.attempts[0])).toMatchObject({
+      status: "invalidated",
+      reason: "superseded",
+      successorDispositionSetId,
+    });
+  });
+
   it("maps every concluded hosted await state onto the driver's vocabulary", () => {
     expect(hostedAwaitLaneOutcome("clean")).toBe("clean");
     expect(hostedAwaitLaneOutcome("findings")).toBe("findings");
@@ -202,671 +1387,5 @@ describe("lane progress", () => {
 
   it("treats ordinary and attention-bound pending results as no concluded attempt", () => {
     expect(hostedAwaitLaneOutcome("pending")).toBeNull();
-  });
-});
-
-const handle = {
-  schemaVersion: 1 as const,
-  provider: "coderabbit-pr" as const,
-  requestedCoverage: "complete" as const,
-  effectiveCoverage: "complete" as const,
-  target: { repository: "andrewRCr/arc-framework", pullRequest: 42, headSha: objectId("c") },
-  artifact: {
-    kind: "issue-comment" as const,
-    id: "comment-1",
-    url: "https://example.invalid/comment-1",
-    createdAt: "2026-08-15T11:00:00Z",
-  },
-};
-const deliveryVehicle = DeliveryReviewMemberVehicleSchema.parse({
-  kind: "delivery-member",
-  planId: "123e4567-e89b-12d3-a456-426614174000",
-  deliverableId: `sha256:${"9".repeat(64)}`,
-  workUnitId: "example",
-  head: objectId("c"),
-});
-const deliveryHandle = { ...handle, vehicle: deliveryVehicle };
-const hostedReviewTarget = createReviewTarget({
-  schemaVersion: 2,
-  semanticsVersion: "review-gate/v2",
-  kind: "change-set",
-  repositoryId: "repo-1",
-  baseRef: "main",
-  diffBaseSha: objectId("a"),
-  diffBaseTree: objectId("b"),
-  headSha: objectId("c"),
-  headTree: objectId("d"),
-});
-const hostedRequirement = createReviewRequirement({
-  target: hostedReviewTarget,
-  projection: {
-    obligation: "required",
-    reasons: ["sensitive-change-set"],
-    rubricVersion: "standard-review/v1",
-    rubricDigest: `sha256:${"e".repeat(64)}`,
-    retrigger: "full-final",
-    count: 1,
-  },
-  acceptableSources: [{ sourceKind: "hosted", qualifier: handle.provider }],
-  initialAdmission: "automatic",
-});
-if (hostedRequirement === null) throw new Error("expected hosted review requirement");
-const hostedContext = {
-  reviewTarget: hostedReviewTarget,
-  requirement: hostedRequirement,
-  actorIdentity: "github-user-1",
-};
-const deliveryHostedReviewTarget = createReviewTarget({
-  schemaVersion: 2,
-  semanticsVersion: "review-gate/v2",
-  kind: "delivery-member",
-  repositoryId: "repo-1",
-  baseRef: "main",
-  diffBaseSha: objectId("a"),
-  diffBaseTree: objectId("b"),
-  headSha: objectId("c"),
-  headTree: objectId("d"),
-});
-const deliveryHostedRequirement = createReviewRequirement({
-  target: deliveryHostedReviewTarget,
-  projection: {
-    obligation: "required",
-    reasons: ["sensitive-change-set"],
-    rubricVersion: "standard-review/v1",
-    rubricDigest: `sha256:${"e".repeat(64)}`,
-    retrigger: "full-final",
-    count: 1,
-  },
-  acceptableSources: [{ sourceKind: "hosted", qualifier: handle.provider }],
-  initialAdmission: "automatic",
-});
-if (deliveryHostedRequirement === null) throw new Error("expected delivery hosted review requirement");
-const deliveryHostedContext = {
-  reviewTarget: deliveryHostedReviewTarget,
-  requirement: deliveryHostedRequirement,
-  actorIdentity: "github-user-1",
-};
-
-describe("hosted await lane recording", () => {
-  it("durably records safe request-time unavailability for fallback after restart", async () => {
-    const store = createStore();
-    const state = await recordHostedRequestUnavailableAttempt(store, {
-      repositoryId: "repo-1",
-      ...deliveryHostedContext,
-      request: {
-        schemaVersion: 1,
-        target: handle.target,
-        provider: "coderabbit-pr",
-        coverage: "complete",
-        vehicle: deliveryVehicle,
-      },
-      result: {
-        schemaVersion: 1,
-        mode: "review-hosted-request",
-        state: "rate-limited",
-        nextAction: "try-next-source",
-        provider: "coderabbit-pr",
-        requestedCoverage: "complete",
-        attemptedProviders: ["coderabbit-pr"],
-      },
-      now: "2026-08-15T12:00:00Z",
-    });
-
-    expect(state.attempts).toEqual([expect.objectContaining({
-      sourceId: "coderabbit-pr",
-      outcome: "rate-limited",
-      hosted: expect.objectContaining({ target: handle.target, vehicle: deliveryVehicle }),
-    })]);
-    expect(state.completedPasses).toBe(0);
-  });
-
-  it("records a concluded hosted attempt against the standard lane", async () => {
-    const store = createStore();
-    const state = await recordHostedAwaitAttempt(store, {
-      repositoryId: "repo-1",
-      ...hostedContext,
-      result: { schemaVersion: 1, mode: "review-hosted-await", handle, state: "rate-limited", nextAction: "try-next-source" },
-      now: "2026-08-15T12:00:00Z",
-    });
-    expect(state?.lane).toBe("standard");
-    expect(state?.repositoryId).toBe("repo-1");
-    expect(state?.changeRequestId).toBe("pull/42");
-    expect(state?.attempts).toEqual([expect.objectContaining({
-      attemptId: expect.any(String),
-      sourceId: "coderabbit-pr",
-      outcome: "rate-limited",
-    })]);
-    expect(state?.completedPasses).toBe(0);
-  });
-
-  it("retains incremental coverage without consuming a complete-review pass", async () => {
-    const store = createStore();
-    const incrementalHandle = {
-      ...deliveryHandle,
-      requestedCoverage: "incremental" as const,
-      effectiveCoverage: "incremental" as const,
-    };
-    const state = await recordHostedAwaitAttempt(store, {
-      repositoryId: "repo-1",
-      ...deliveryHostedContext,
-      result: {
-        schemaVersion: 1,
-        mode: "review-hosted-await",
-        handle: incrementalHandle,
-        state: "clean",
-        nextAction: "complete",
-        reviewUrl: "https://example.test/review-incremental",
-      },
-      now: "2026-08-15T12:00:00Z",
-    });
-
-    expect(state?.completedPasses).toBe(0);
-    expect(state?.attempts[0]?.hosted).toMatchObject({
-      requestedCoverage: "incremental",
-      effectiveCoverage: "incremental",
-    });
-  });
-
-  it("retains a delivery selector on the concluded hosted attempt", async () => {
-    const store = createStore();
-    const state = await recordHostedAwaitAttempt(store, {
-      repositoryId: "repo-1",
-      ...deliveryHostedContext,
-      result: {
-        schemaVersion: 1,
-        mode: "review-hosted-await",
-        handle: deliveryHandle,
-        state: "clean",
-        nextAction: "complete",
-        reviewUrl: "https://example.invalid/review",
-      },
-      now: "2026-08-15T12:00:00Z",
-    });
-
-    expect(state?.attempts[0]?.hosted).toMatchObject({ vehicle: deliveryVehicle });
-  });
-
-  it("consumes a pass only for a verdict-bearing outcome", async () => {
-    const store = createStore();
-    const state = await recordHostedAwaitAttempt(store, {
-      repositoryId: "repo-1",
-      ...hostedContext,
-      result: {
-        schemaVersion: 1,
-        mode: "review-hosted-await",
-        handle,
-        state: "clean",
-        nextAction: "complete",
-        reviewUrl: "https://example.invalid/review",
-      },
-      now: "2026-08-15T12:00:00Z",
-    });
-    expect(state?.completedPasses).toBe(1);
-  });
-
-  it("persists the request handle and advances that same attempt monotonically through await", async () => {
-    const store = createStore();
-    const requested = await recordHostedPendingRequest(store, {
-      repositoryId: "repo-1",
-      ...hostedContext,
-      handle,
-      now: "2026-08-15T12:00:00Z",
-    });
-    const pending = await recordHostedAwaitAttempt(store, {
-      repositoryId: "repo-1",
-      ...hostedContext,
-      result: {
-        schemaVersion: 1,
-        mode: "review-hosted-await",
-        handle,
-        action: { schemaVersion: 1, handle },
-        state: "pending",
-        nextAction: "await",
-        elapsedMs: 10,
-      },
-      now: "2026-08-15T12:01:00Z",
-    });
-    expect(requested.completedPasses).toBe(0);
-    expect(pending).toEqual(requested);
-    expect(pending?.attempts).toEqual([expect.objectContaining({
-      attemptId: hostedLaneAttemptId(handle),
-      outcome: "pending",
-      hosted: expect.objectContaining({ handle }),
-    })]);
-
-    const concluded = await recordHostedAwaitAttempt(store, {
-      repositoryId: "repo-1",
-      ...hostedContext,
-      result: {
-        schemaVersion: 1,
-        mode: "review-hosted-await",
-        handle,
-        state: "clean",
-        nextAction: "complete",
-        reviewUrl: "https://example.invalid/review",
-      },
-      now: "2026-08-15T12:02:00Z",
-    });
-    expect(concluded?.completedPasses).toBe(1);
-    expect(concluded?.attempts).toEqual([expect.objectContaining({
-      attemptId: hostedLaneAttemptId(handle),
-      outcome: "clean",
-      hosted: expect.objectContaining({ handle }),
-    })]);
-
-    const replay = await recordHostedAwaitAttempt(store, {
-      repositoryId: "repo-1",
-      ...hostedContext,
-      result: {
-        schemaVersion: 1,
-        mode: "review-hosted-await",
-        handle,
-        state: "clean",
-        nextAction: "complete",
-        reviewUrl: "https://example.invalid/review",
-      },
-      now: "2026-08-15T12:03:00Z",
-    });
-    expect(replay).toEqual(concluded);
-  });
-
-  it("rejects selection added to a caller-supplied await handle after an unselected request", async () => {
-    const store = createStore();
-    await recordHostedPendingRequest(store, {
-      repositoryId: "repo-1",
-      ...deliveryHostedContext,
-      handle: deliveryHandle,
-      now: "2026-08-15T12:00:00Z",
-    });
-    const selectedHandle = {
-      ...deliveryHandle,
-      invocation: { mode: "force" as const, sourceId: deliveryHandle.provider },
-    };
-
-    await expect(recordHostedAwaitAttempt(store, {
-      repositoryId: "repo-1",
-      ...deliveryHostedContext,
-      result: {
-        schemaVersion: 1,
-        mode: "review-hosted-await",
-        handle: selectedHandle,
-        state: "clean",
-        nextAction: "complete",
-        reviewUrl: "https://example.invalid/review",
-      },
-      now: "2026-08-15T12:01:00Z",
-    })).rejects.toThrow("selected hosted attempt has no matching admitted request");
-  });
-
-  it("rejects a selected pending await without an admitted selected request", async () => {
-    const store = createStore();
-    await recordHostedPendingRequest(store, {
-      repositoryId: "repo-1",
-      ...deliveryHostedContext,
-      handle: deliveryHandle,
-      now: "2026-08-15T12:00:00Z",
-    });
-    const selectedHandle = {
-      ...deliveryHandle,
-      invocation: { mode: "force" as const, sourceId: deliveryHandle.provider },
-    };
-
-    await expect(recordHostedAwaitAttempt(store, {
-      repositoryId: "repo-1",
-      ...deliveryHostedContext,
-      result: {
-        schemaVersion: 1,
-        mode: "review-hosted-await",
-        handle: selectedHandle,
-        action: { schemaVersion: 1, handle: selectedHandle },
-        state: "pending",
-        nextAction: "await",
-        elapsedMs: 10,
-      },
-      now: "2026-08-15T12:01:00Z",
-    })).rejects.toThrow("selected hosted attempt has no matching admitted request");
-  });
-
-  it("advances an admitted selected request to a durable clean result", async () => {
-    const store = createStore();
-    const selectedHandle = {
-      ...deliveryHandle,
-      invocation: { mode: "force" as const, sourceId: deliveryHandle.provider },
-    };
-    await recordHostedPendingRequest(store, {
-      repositoryId: "repo-1",
-      ...deliveryHostedContext,
-      handle: selectedHandle,
-      now: "2026-08-15T12:00:00Z",
-    });
-    const stillPending = await recordHostedAwaitAttempt(store, {
-      repositoryId: "repo-1",
-      ...deliveryHostedContext,
-      result: {
-        schemaVersion: 1,
-        mode: "review-hosted-await",
-        handle: selectedHandle,
-        action: { schemaVersion: 1, handle: selectedHandle },
-        state: "pending",
-        nextAction: "await",
-        elapsedMs: 10,
-      },
-      now: "2026-08-15T12:00:30Z",
-    });
-    const concluded = await recordHostedAwaitAttempt(store, {
-      repositoryId: "repo-1",
-      ...deliveryHostedContext,
-      result: {
-        schemaVersion: 1,
-        mode: "review-hosted-await",
-        handle: selectedHandle,
-        state: "clean",
-        nextAction: "complete",
-        reviewUrl: "https://example.invalid/review",
-      },
-      now: "2026-08-15T12:01:00Z",
-    });
-
-    expect(concluded.attempts).toEqual([expect.objectContaining({
-      outcome: "clean",
-      hosted: expect.objectContaining({ handle: selectedHandle }),
-    })]);
-    expect(stillPending.attempts).toEqual([expect.objectContaining({ outcome: "pending" })]);
-  });
-
-  it("retains the exact pending handle when unattended waiting requests inspection or extension", async () => {
-    const store = createStore();
-    const state = await recordHostedAwaitAttempt(store, {
-      repositoryId: "repo-1",
-      ...hostedContext,
-      result: {
-        schemaVersion: 1,
-        mode: "review-hosted-await",
-        handle,
-        action: { schemaVersion: 1, handle },
-        state: "pending",
-        nextAction: "inspect-or-extend",
-        ageMs: 900_000,
-        attentionAfterMs: 900_000,
-      },
-      now: "2026-08-15T12:00:00Z",
-    });
-
-    expect(state?.completedPasses).toBe(0);
-    expect(state?.attempts).toEqual([expect.objectContaining({
-      attemptId: hostedLaneAttemptId(handle),
-      outcome: "pending",
-      hosted: expect.objectContaining({ handle }),
-    })]);
-  });
-
-  it("settles only the approved hosted finding set and is idempotent per finding", async () => {
-    const store = createStore();
-    const findings = [{
-      findingId: "thread-1",
-      origin: "review-thread" as const,
-      commentId: "comment-1",
-      threadId: "thread-1",
-      settlement: "reply-and-resolve" as const,
-      severity: "major" as const,
-      locus: "src/index.ts:7",
-      url: "https://example.invalid/thread-1",
-    }, {
-      findingId: "body-1",
-      origin: "review-body" as const,
-      reviewId: "review-1",
-      fingerprint: "body-fingerprint",
-      settlement: "not-applicable" as const,
-      severity: "minor" as const,
-      locus: "pull-request review body",
-      url: "https://example.invalid/review-1",
-      body: "Body finding",
-    }];
-    const progress = await recordHostedAwaitAttempt(store, {
-      repositoryId: "repo-1",
-      ...hostedContext,
-      result: {
-        schemaVersion: 1,
-        mode: "review-hosted-await",
-        handle,
-        state: "findings",
-        nextAction: "triage",
-        reviewUrl: "https://example.invalid/review",
-        findings,
-      },
-      now: "2026-08-15T12:00:00Z",
-    });
-    if (progress === null) throw new Error("expected hosted lane progress");
-    const attemptId = hostedLaneAttemptId(handle);
-    const bound = await bindHostedAttemptDisposition(store, {
-      operationId: progress.operationId,
-      attemptId,
-      dispositionSetId: `sha256:${"f".repeat(64)}`,
-      findingIds: findings.map(({ findingId }) => findingId),
-      noHostSettlementFindingIds: ["body-1"],
-      now: "2026-08-15T12:01:00Z",
-    });
-    expect(bound.attempts[0]).toMatchObject({
-      outcome: "findings",
-      hosted: { settledFindingIds: ["body-1"] },
-    });
-    const settled = await settleHostedAttemptFinding(store, {
-      operationId: progress.operationId,
-      attemptId,
-      dispositionSetId: `sha256:${"f".repeat(64)}`,
-      findingId: "thread-1",
-      now: "2026-08-15T12:02:00Z",
-    });
-    expect(settled.attempts[0]).toMatchObject({
-      outcome: "settled-findings",
-      hosted: { settledFindingIds: ["body-1", "thread-1"] },
-    });
-    await expect(settleHostedAttemptFinding(store, {
-      operationId: progress.operationId,
-      attemptId,
-      dispositionSetId: `sha256:${"f".repeat(64)}`,
-      findingId: "thread-1",
-      now: "2026-08-15T12:03:00Z",
-    })).resolves.toEqual(settled);
-  });
-});
-
-const frontlineTarget = createReviewTarget({
-  schemaVersion: 2,
-  semanticsVersion: "review-gate/v2",
-  kind: "change-set",
-  repositoryId: "repo-1",
-  baseRef: "main",
-  diffBaseSha: objectId("a"),
-  diffBaseTree: objectId("b"),
-  headSha: objectId("c"),
-  headTree: objectId("d"),
-});
-
-function frontlineOutcome(
-  outcome: string,
-  reason: { class: string } | null,
-): Parameters<typeof recordFrontlineAttempt>[1]["outcome"] {
-  return {
-    schemaVersion: 1,
-    semanticsVersion: "frontline-review/v1",
-    source: { sourceId: "coderabbit", kind: "agent", handle: { agent: "coderabbit" } },
-    target: frontlineTarget,
-    pass: 1,
-    maxPasses: 2,
-    outcome,
-    findings: [],
-    reason,
-  } as unknown as Parameters<typeof recordFrontlineAttempt>[1]["outcome"];
-}
-
-describe("frontline lane recording", () => {
-  it("preserves the unavailable-class distinction the fall-through decision reads", () => {
-    expect(frontlineLaneOutcome("unavailable", "rate-limited")).toBe("rate-limited");
-    expect(frontlineLaneOutcome("unavailable", "transient-unavailable")).toBe("transient-unavailable");
-    expect(frontlineLaneOutcome("unavailable", "source-unbound")).toBe("source-unbound");
-    expect(frontlineLaneOutcome("unavailable", "capability-unsupported")).toBe("capability-unsupported");
-  });
-
-  it("maps the verdict, timeout, and stale-target outcomes", () => {
-    expect(frontlineLaneOutcome("clean", null)).toBe("clean");
-    expect(frontlineLaneOutcome("findings", null)).toBe("findings");
-    expect(frontlineLaneOutcome("timed-out", "execution-timeout")).toBe("timed-out");
-    expect(frontlineLaneOutcome("stale-target", "head-mismatch")).toBe("stale-target");
-    expect(frontlineLaneOutcome("stale-target", "target-mismatch")).toBe("stale-target");
-  });
-
-  it("separates a malformed carrier result from a terminal refusal", () => {
-    expect(frontlineLaneOutcome("failed", "invalid-output")).toBe("malformed");
-    expect(frontlineLaneOutcome("failed", "authorization-rejected")).toBe("terminal-failure");
-  });
-
-  it("keeps the lane's own retry classification for transient carrier failures", () => {
-    for (const reasonClass of [
-      "transient-transport",
-      "process-failure",
-      "signal-termination",
-      "unexpected-adapter-failure",
-    ]) {
-      expect(frontlineLaneOutcome("failed", reasonClass)).toBe("transient-unavailable");
-    }
-  });
-
-  it("concludes no attempt for an exhausted pass cap", () => {
-    expect(frontlineLaneOutcome("pass-cap-exhausted", "pass-cap")).toBeNull();
-  });
-
-  it("records a concluded frontline attempt against the frontline lane", async () => {
-    const store = createStore();
-    const state = await recordFrontlineAttempt(store, {
-      attemptId: "frontline-attempt-1",
-      outcome: frontlineOutcome("unavailable", { class: "rate-limited" }),
-      now: "2026-08-15T12:00:00Z",
-    });
-    expect(state?.lane).toBe("frontline");
-    expect(state?.repositoryId).toBe("repo-1");
-    expect(state?.changeRequestId).toBeNull();
-    expect(state?.headSha).toBe(objectId("c"));
-    expect(state?.attempts).toEqual([{
-      attemptId: expect.any(String),
-      sourceId: "coderabbit",
-      outcome: "rate-limited",
-      chunkSeriesComplete: false,
-    }]);
-    expect(state?.completedPasses).toBe(0);
-  });
-
-  it("consumes a pass for a verdict-bearing frontline outcome", async () => {
-    const store = createStore();
-    const state = await recordFrontlineAttempt(store, {
-      attemptId: "frontline-attempt-1",
-      outcome: frontlineOutcome("findings", null),
-      now: "2026-08-15T12:00:00Z",
-    });
-    expect(state?.completedPasses).toBe(1);
-    expect(state?.attempts[0]).toMatchObject({ chunkSeriesComplete: true });
-  });
-
-  it("supersedes a timed-out generation when its retry settles", async () => {
-    const store = createStore();
-    await recordFrontlineAttempt(store, {
-      attemptId: "frontline-generation-0",
-      outcome: frontlineOutcome("timed-out", { class: "execution-timeout" }),
-      now: "2026-08-15T12:00:00Z",
-    });
-    const state = await recordFrontlineAttempt(store, {
-      attemptId: "frontline-generation-1",
-      outcome: frontlineOutcome("findings", null),
-      now: "2026-08-15T12:01:00Z",
-    });
-
-    expect(state).toMatchObject({
-      completedPasses: 1,
-      attempts: [{
-        attemptId: "frontline-generation-1",
-        sourceId: "coderabbit",
-        outcome: "findings",
-        chunkSeriesComplete: true,
-      }],
-    });
-  });
-});
-
-describe("lane progress reader", () => {
-  it("reports an unrecorded lane distinctly from one that recorded attempts", async () => {
-    const store = createStore();
-    await expect(readLaneProgress(store, {
-      lane: "standard",
-      repositoryId: "repo-1",
-      headSha: objectId("c"),
-    })).resolves.toEqual({ status: "unrecorded" });
-  });
-
-  it("projects recorded progress into the driver's pass count and ordered attempts", async () => {
-    const store = createStore();
-    await recordLaneAttempt(store, { ...attempt, outcome: "rate-limited", consumedPass: false });
-    await recordLaneAttempt(store, {
-      ...attempt,
-      attemptId: "attempt-2",
-      sourceId: "codex-pr",
-      outcome: "findings",
-      consumedPass: true,
-    });
-    await expect(readLaneProgress(store, {
-      lane: "standard",
-      repositoryId: "repo-1",
-      headSha: objectId("c"),
-    })).resolves.toEqual({
-      status: "recorded",
-      completedPasses: 1,
-      attempts: [
-        { attemptId: "attempt-1", sourceId: "coderabbit-pr", outcome: "rate-limited" },
-        { attemptId: "attempt-2", sourceId: "codex-pr", outcome: "findings" },
-      ],
-    });
-  });
-
-  it("does not read another lane's progress against the same head", async () => {
-    const store = createStore();
-    await recordLaneAttempt(store, { ...attempt, outcome: "clean", consumedPass: true });
-    await expect(readLaneProgress(store, {
-      lane: "frontline",
-      repositoryId: "repo-1",
-      headSha: objectId("c"),
-    })).resolves.toEqual({ status: "unrecorded" });
-  });
-
-  it("does not read progress recorded against a different head", async () => {
-    const store = createStore();
-    await recordLaneAttempt(store, { ...attempt, outcome: "clean", consumedPass: true });
-    await expect(readLaneProgress(store, {
-      lane: "standard",
-      repositoryId: "repo-1",
-      headSha: objectId("d"),
-    })).resolves.toEqual({ status: "unrecorded" });
-  });
-
-  it("carries consumed passes across Candidate heads while exposing only current-head attempts", async () => {
-    const store = createStore();
-    await recordLaneAttempt(store, { ...attempt, outcome: "findings", consumedPass: true });
-    await recordLaneAttempt(store, {
-      ...attempt,
-      headSha: objectId("d"),
-      attemptId: "attempt-2",
-      sourceId: "codex-pr",
-      outcome: "clean",
-      consumedPass: true,
-    });
-
-    await expect(readLaneProgressAcrossLineage(store, {
-      lane: "standard",
-      repositoryId: "repo-1",
-      headSha: objectId("d"),
-      lineageHeadShas: [objectId("c"), objectId("d"), objectId("c")],
-    })).resolves.toEqual({
-      status: "recorded",
-      completedPasses: 2,
-      attempts: [{ attemptId: "attempt-2", sourceId: "codex-pr", outcome: "clean" }],
-    });
   });
 });

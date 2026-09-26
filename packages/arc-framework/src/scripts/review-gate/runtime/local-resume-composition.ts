@@ -8,6 +8,8 @@ import {
 } from "../hosts/local/disposition-record-store.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
+import { createRepositoryReviewResultReader } from
+  "../hosts/local/review-result-reader-composition.js";
 import {
   ensureLocalReviewSourceMaterialized,
 } from "../hosts/local/review-materialization.js";
@@ -29,7 +31,7 @@ export function createLocalResumeDependencies(input: {
   };
   return {
     sweep: () => prepare.sweep(),
-    withSourceLock: (action) => prepare.withSourceLock(action),
+    withLocalReviewLock: (action) => prepare.withLocalReviewLock(action),
     operationStore: prepare.operationStore,
     sourceStore: prepare.sourceStore,
     receiptStore: {
@@ -39,6 +41,7 @@ export function createLocalResumeDependencies(input: {
       ),
     },
     dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+    resultReader: createRepositoryReviewResultReader(publisher),
     confirmTarget: (target) => prepare.confirmTarget(target),
     materialize: (source) => ensureLocalReviewSourceMaterialized({
       exec: input.exec,

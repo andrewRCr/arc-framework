@@ -3,9 +3,7 @@
 import { z } from "zod";
 
 import {
-  effectiveDispositionSeverity,
-  reviewerDispositionNit,
-  reviewerDispositionSeverity,
+  verifiedDispositionSeverity,
   type ApprovedDispositionSet,
 } from "../core/disposition-records.js";
 import { validateDispositionState } from "../core/dispositions.js";
@@ -59,15 +57,15 @@ export function projectFrontlineFollowUpAdvice(input: {
       return finding !== undefined
         && item.sourceIdentity === outcome.source.sourceId
         && item.locus === finding.locus
-        && reviewerDispositionSeverity(item) === finding.severity
-        && reviewerDispositionNit(item) === finding.nit;
+        && item.reportedSeverity === finding.severity
+        && item.reportedNit === finding.nit;
     })) {
     throw new Error("approved dispositions do not match the frontline outcome");
   }
 
   const materialFix = dispositionSet.findings.some((item) =>
     item.disposition === "fix"
-      && (effectiveDispositionSeverity(item) === "major" || effectiveDispositionSeverity(item) === "blocker"));
+      && (verifiedDispositionSeverity(item) === "major" || verifiedDispositionSeverity(item) === "critical"));
   if (!materialFix) return { action: "stop", reason: "no-approved-material-fix" };
   if (outcome.pass >= outcome.maxPasses) return { action: "stop", reason: "pass-cap-exhausted" };
   return {

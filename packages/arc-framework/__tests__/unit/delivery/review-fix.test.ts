@@ -17,6 +17,7 @@ import type { DeliveryRevisionedRecord } from "../../../src/lib/delivery/ports.j
 import type { DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
 import { deliveryFourMemberStackPlanFixture } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
+import { responsePolicyRequestFixture } from "../../fixtures/review-response-policy.js";
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
@@ -29,7 +30,7 @@ import {
   projectCorrectiveDeliveryStatusBoundary,
   projectPublicationBoundary,
 } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
-import { ApprovedDispositionRecordSchema } from
+import { ApprovedDispositionRecordSchema, currentApprovedDispositionNode } from
   "../../../src/scripts/review-gate/core/advisory-records.js";
 import {
   approveDispositionState,
@@ -141,17 +142,21 @@ describe("delivery review-fix routing", () => {
         schemaVersion: 2,
         semanticsVersion: "review-gate/v2",
         targetId: oldTarget.targetId,
+        producerId: "operation-member-fix",
+        resultDigest: canonicalDigest({ result: "operation-member-fix" }),
         policyVersion: canonicalDigest({ policy: "review" }),
         rubricVersion: "standard-review/v1",
         rubricDigest: canonicalDigest({ rubric: "standard" }),
         proposedBy: "agent-1",
+        proposedVerification: "full",
         findings: [{
           findingId: "finding-1",
           sourceIdentity: "codex-pr",
           locus: "src/example.ts:1",
           sourceVerification: "verified",
           verificationRefs: ["review:finding-1"],
-          severity: "major",
+          reportedSeverity: "major",
+          verifiedSeverity: "major",
           disposition: "fix",
           gating: "blocking",
           rationale: "The source confirms the issue.",
@@ -179,11 +184,22 @@ describe("delivery review-fix routing", () => {
       source: {
         kind: "hosted",
         attemptRef: "arc-review-source:v1:hosted:lane-progress%2F1:hosted%2F1",
+        hostedResultId: canonicalDigest({ result: "operation-member-fix" }),
       },
-      approvedDisposition,
-      fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
-      errandFixResponse: null,
-      deliveryMemberFixResponse: null,
+      currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+      approvedDispositionLineage: [{
+        approvedDisposition,
+        responsePolicyRequest: responsePolicyRequestFixture({
+          headSha: oldTarget.headSha,
+          sourceId: "codex-pr",
+          reviewOperationId: "operation-member-fix",
+        }),
+        fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+        predecessorDispositionSetId: null,
+        successorDispositionSetId: null,
+      }],
     });
     const input = {
       record,
@@ -191,7 +207,7 @@ describe("delivery review-fix routing", () => {
       hostedTarget: { repository: "owner/repo", pullRequest: 42, headSha: oldTarget.headSha },
       currentHead: "5".repeat(40),
       currentTree: "6".repeat(40),
-      applicability: "focused" as const,
+      applicability: "full" as const,
       verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
       verifiedAt: "2026-08-31T13:00:00Z",
     };
@@ -200,14 +216,12 @@ describe("delivery review-fix routing", () => {
       status: "recorded",
       newTarget: { headSha: input.currentHead, headTree: input.currentTree },
       hostedFixTarget: { headSha: input.currentHead },
-      record: {
-        deliveryMemberFixResponse: {
-          applicability: "focused",
-          fixConsumption: { verificationRefs: input.verificationEvidenceRefs },
-        },
-      },
     });
     if (recorded.status !== "recorded") throw new Error("fix response must record");
+    expect(currentApprovedDispositionNode(recorded.record).deliveryMemberFixResponse).toMatchObject({
+      applicability: "full",
+      fixConsumption: { verificationRefs: input.verificationEvidenceRefs },
+    });
     expect(advanceDeliveryReviewFixResponse({
       ...input,
       record: recorded.record,
@@ -218,6 +232,15 @@ describe("delivery review-fix routing", () => {
       record: recorded.record,
       verificationEvidenceRefs: ["criteria://different"],
     })).toEqual({ status: "refused", reason: "review-fix-response-replay-mismatch" });
+    expect(advanceDeliveryReviewFixResponse({
+      ...input,
+      applicability: "focused",
+    })).toEqual({ status: "refused", reason: "review-fix-verification-insufficient" });
+    expect(advanceDeliveryReviewFixResponse({
+      ...input,
+      record: recorded.record,
+      applicability: "focused",
+    })).toEqual({ status: "refused", reason: "review-fix-verification-insufficient" });
   });
 
   it("records and exactly replays one verified local delivery-member fix response", () => {
@@ -239,17 +262,21 @@ describe("delivery review-fix routing", () => {
         schemaVersion: 2,
         semanticsVersion: "review-gate/v2",
         targetId: oldTarget.targetId,
+        producerId: "local-operation-member-fix",
+        resultDigest: canonicalDigest({ result: "local-operation-member-fix" }),
         policyVersion: canonicalDigest({ policy: "review" }),
         rubricVersion: "standard-review/v1",
         rubricDigest: canonicalDigest({ rubric: "standard" }),
         proposedBy: "agent-1",
+        proposedVerification: "full",
         findings: [{
           findingId: "finding-1",
           sourceIdentity: "delegated-agent",
           locus: "src/example.ts:1",
           sourceVerification: "verified",
           verificationRefs: ["review:finding-1"],
-          severity: "major",
+          reportedSeverity: "major",
+          verifiedSeverity: "major",
           disposition: "fix",
           gating: "blocking",
           rationale: "The source confirms the issue.",
@@ -279,10 +306,19 @@ describe("delivery review-fix routing", () => {
         receiptRef: "arc-review-source:v1:attested-local:local-operation-member-fix:receipt%2F1",
         localSourceRef: "git-common:review-gate/local/source.json",
       },
-      approvedDisposition,
-      fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
-      errandFixResponse: null,
-      deliveryMemberFixResponse: null,
+      currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+      approvedDispositionLineage: [{
+        approvedDisposition,
+        responsePolicyRequest: responsePolicyRequestFixture({
+          headSha: oldTarget.headSha,
+          reviewOperationId: "local-operation-member-fix",
+        }),
+        fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
+        errandFixResponse: null,
+        deliveryMemberFixResponse: null,
+        predecessorDispositionSetId: null,
+        successorDispositionSetId: null,
+      }],
     });
     const input = {
       record,
@@ -290,7 +326,7 @@ describe("delivery review-fix routing", () => {
       hostedTarget: null,
       currentHead: "5".repeat(40),
       currentTree: "6".repeat(40),
-      applicability: "focused" as const,
+      applicability: "full" as const,
       verificationEvidenceRefs: ["criteria://member-1", "gates://tier-1"],
       verifiedAt: "2026-08-31T13:00:00Z",
     };
@@ -300,15 +336,13 @@ describe("delivery review-fix routing", () => {
       status: "recorded",
       newTarget: { headSha: input.currentHead, headTree: input.currentTree },
       hostedFixTarget: null,
-      record: {
-        deliveryMemberFixResponse: {
-          applicability: "focused",
-          hostedTarget: null,
-          hostedFixTarget: null,
-        },
-      },
     });
     if (recorded.status !== "recorded") throw new Error("fix response must record");
+    expect(currentApprovedDispositionNode(recorded.record).deliveryMemberFixResponse).toMatchObject({
+      applicability: "full",
+      hostedTarget: null,
+      hostedFixTarget: null,
+    });
     expect(advanceDeliveryReviewFixResponse({ ...input, record: recorded.record }))
       .toMatchObject({ status: "already-recorded", hostedFixTarget: null });
   });

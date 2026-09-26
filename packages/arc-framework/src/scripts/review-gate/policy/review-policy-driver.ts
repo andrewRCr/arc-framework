@@ -2,22 +2,34 @@
 
 import { z } from "zod";
 
-import { GitObjectIdSchema } from "../core/gate-contract-v2-schema.js";
+import {
+  GitObjectIdSchema,
+  ReviewCanonicalDigestSchema,
+  ReviewIdentifierSchema,
+} from "../core/gate-contract-v2-schema.js";
 import { CompletedReviewPassCountSchema, ReviewPassSchema } from "../core/review-pass.js";
+import { ReviewScopeModeSchema, ReviewSeveritySchema } from "../core/review-primitives.js";
+import {
+  ReviewAdditionalPassAuthorizationSchema,
+  ReviewPolicyTargetSchema,
+  invalidAdditionalPassReason,
+} from "./review-additional-pass.js";
+export { ReviewAdditionalPassAuthorizationSchema } from "./review-additional-pass.js";
+export type { ReviewAdditionalPassAuthorization } from "./review-additional-pass.js";
 import {
   OwnerAcceptedReviewTerminusJudgmentSchema,
   OwnerAcceptedReviewTerminusSchema,
 } from "./review-terminus.js";
 import { StandardReviewObligationProjectionSchema } from "./standard-review-projection-schema.js";
 
+import {
+  ReviewAttemptOutcomeSchema,
+  ReviewAttemptSchema,
+  type ReviewAttempt,
+} from "./review-policy-attempt.js";
+export { projectReviewPolicyAttempt } from "./review-policy-attempt.js";
+
 const ReviewSourceIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u);
-const ReviewPolicyTargetShape = {
-  repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u),
-  pullRequest: z.int().positive().nullable(),
-  headSha: GitObjectIdSchema,
-};
-const ReviewPolicyTargetSchema = z.strictObject(ReviewPolicyTargetShape).readonly();
-const ReviewScopeModeSchema = z.enum(["whole-target", "chunked"]);
 const FrontlinePolicyInvocationSchema = z.strictObject({
   mode: z.literal("skip"),
 }).readonly();
@@ -29,27 +41,21 @@ const ReviewPolicyInvocationSchema = z.discriminatedUnion("mode", [
   FrontlinePolicyInvocationSchema,
   StandardPolicyInvocationSchema,
 ]);
-const ReviewAttemptOutcomeSchema = z.enum([
-  "clean",
-  "findings",
-  "settled-findings",
-  "rate-limited",
-  "transient-unavailable",
-  "partial",
-  "ambiguous-delivery",
-  "malformed",
-  "timed-out",
-  "stale-target",
-  "capability-unsupported",
-  "source-unbound",
-  "terminal-failure",
-]);
-const ReviewAttemptSchema = z.strictObject({
-  sourceId: ReviewSourceIdSchema,
-  outcome: ReviewAttemptOutcomeSchema,
-  chunkSeriesComplete: z.boolean().optional(),
+export const VerifiedTerminalReviewSignalSchema = z.strictObject({
+  reviewOperationId: ReviewIdentifierSchema,
+  confirmedFindingCount: z.number().int().nonnegative(),
+  maxConfirmedSeverity: ReviewSeveritySchema.nullable(),
+  coverageAdequate: z.boolean(),
+}).superRefine((signal, context) => {
+  if ((signal.confirmedFindingCount === 0) !== (signal.maxConfirmedSeverity === null)) {
+    context.addIssue({
+      code: "custom",
+      message: "confirmed finding count and maximum severity must agree",
+      path: ["maxConfirmedSeverity"],
+    });
+  }
 }).readonly();
-type ReviewAttempt = z.infer<typeof ReviewAttemptSchema>;
+export type VerifiedTerminalReviewSignal = z.infer<typeof VerifiedTerminalReviewSignalSchema>;
 
 interface ReviewPassProgressInput {
   target: { pullRequest: number | null };
@@ -78,8 +84,16 @@ function validateTerminalPassProgress(
   const lastAttempt = lastEligibleAttempt(request);
   if (lastAttempt === undefined) return;
   const terminalOutcome = lastAttempt.outcome === "clean"
-    || lastAttempt.outcome === "findings"
-    || lastAttempt.outcome === "settled-findings";
+    || lastAttempt.outcome === "findings";
+  if (terminalOutcome
+    && request.scopeSelection?.mode === "chunked"
+    && lastAttempt.chunkSeriesComplete !== true) {
+    context.addIssue({
+      code: "custom",
+      message: "chunked terminal attempt requires one complete aggregate producer",
+      path: ["attempts", request.attempts.length - 1, "chunkSeriesComplete"],
+    });
+  }
   const completedTerminalPass = terminalOutcome
     && (request.scopeSelection?.mode !== "chunked" || lastAttempt.chunkSeriesComplete === true);
   if (completedTerminalPass && request.completedPasses === 0) {
@@ -91,11 +105,72 @@ function validateTerminalPassProgress(
   }
 }
 
+function validateVerifiedTerminalSignal(
+  request: ReviewPassProgressInput & {
+    verifiedTerminalSignal?: VerifiedTerminalReviewSignal;
+  },
+  context: z.RefinementCtx,
+): void {
+  const lastAttempt = lastEligibleAttempt(request);
+  const terminalAttempt = lastAttempt?.outcome === "clean" || lastAttempt?.outcome === "findings"
+    ? lastAttempt
+    : undefined;
+  const signal = request.verifiedTerminalSignal;
+  if (terminalAttempt === undefined) {
+    if (signal !== undefined) {
+      context.addIssue({
+        code: "custom",
+        message: "verified terminal signal requires one terminal attempt",
+        path: ["verifiedTerminalSignal"],
+      });
+    }
+    return;
+  }
+  if (signal === undefined) {
+    context.addIssue({
+      code: "custom",
+      message: "terminal attempt requires a verified terminal signal",
+      path: ["verifiedTerminalSignal"],
+    });
+    return;
+  }
+  if (signal.reviewOperationId !== terminalAttempt.reviewOperationId) {
+    context.addIssue({
+      code: "custom",
+      message: "verified terminal signal must bind the terminal attempt producer",
+      path: ["verifiedTerminalSignal", "reviewOperationId"],
+    });
+  }
+  if (terminalAttempt.outcome === "clean"
+    && (signal.confirmedFindingCount !== 0 || signal.maxConfirmedSeverity !== null)) {
+    context.addIssue({
+      code: "custom",
+      message: "a clean terminal producer cannot carry confirmed findings",
+      path: ["verifiedTerminalSignal"],
+    });
+  }
+}
+
+function validateTerminalResponseSettlement(
+  request: ReviewPassProgressInput & { terminalResponseSettled?: true },
+  context: z.RefinementCtx,
+): void {
+  if (request.terminalResponseSettled === true
+    && lastEligibleAttempt(request)?.outcome !== "findings") {
+    context.addIssue({
+      code: "custom",
+      message: "terminal response settlement requires a findings producer",
+      path: ["terminalResponseSettled"],
+    });
+  }
+}
+
 export const ReviewCeilingOverrideSchema = z.strictObject({
   target: ReviewPolicyTargetSchema,
   lane: z.enum(["frontline", "standard"]),
   exhaustedPassCount: CompletedReviewPassCountSchema,
   nextPass: ReviewPassSchema,
+  conditionalPassAuthorizationId: ReviewCanonicalDigestSchema.optional(),
 }).readonly();
 export type ReviewCeilingOverride = z.infer<typeof ReviewCeilingOverrideSchema>;
 const InvalidOverrideReasonSchema = z.enum([
@@ -104,6 +179,8 @@ const InvalidOverrideReasonSchema = z.enum([
   "pass-count-mismatch",
   "next-pass-mismatch",
   "ceiling-not-exhausted",
+  "preceding-producer-mismatch",
+  "pass-not-converged",
 ]);
 type InvalidOverrideReason = z.infer<typeof InvalidOverrideReasonSchema>;
 
@@ -121,6 +198,7 @@ const ReviewPolicyRequestBaseShape = {
   }).readonly().optional(),
   invocation: ReviewPolicyInvocationSchema.optional(),
   ceilingOverride: ReviewCeilingOverrideSchema.optional(),
+  additionalPassAuthorization: ReviewAdditionalPassAuthorizationSchema.optional(),
   terminus: OwnerAcceptedReviewTerminusSchema.optional(),
 };
 
@@ -166,45 +244,29 @@ export const ReviewLaneJudgmentSchema = z.strictObject({
   ceilingOverride: z.strictObject({
     exhaustedPassCount: CompletedReviewPassCountSchema,
     nextPass: ReviewPassSchema,
+    conditionalPassAuthorizationId: ReviewCanonicalDigestSchema.optional(),
+  }).readonly().optional(),
+  additionalPassAuthorization: z.strictObject({
+    headSha: GitObjectIdSchema,
+    precedingProducerId: ReviewIdentifierSchema,
+    completedPasses: CompletedReviewPassCountSchema,
+    nextPass: ReviewPassSchema,
   }).readonly().optional(),
   terminus: OwnerAcceptedReviewTerminusJudgmentSchema.optional(),
 }).readonly();
 export type ReviewLaneJudgment = z.infer<typeof ReviewLaneJudgmentSchema>;
 
-export const ReviewPolicyRequestSchema = z.strictObject({
-  ...ReviewPolicyRequestBaseShape,
-  sources: z.array(ReviewSourceIdSchema).readonly(),
-  maxPasses: ReviewPassSchema,
-}).superRefine((request, context) => {
-  validateTerminalPassProgress(request, context);
-  if (request.lane === "standard" && request.invocation?.mode === "skip") {
-    context.addIssue({
-      code: "custom",
-      message: "frontline invocation override cannot be applied to the standard lane",
-      path: ["invocation"],
-    });
-  }
-  if (request.lane === "frontline" && request.invocation?.mode === "force") {
-    context.addIssue({
-      code: "custom",
-      message: "standard source invocation cannot be applied to the frontline lane",
-      path: ["invocation"],
-    });
-  }
-  if (request.lane !== "standard" && request.terminus !== undefined) {
-    context.addIssue({
-      code: "custom",
-      message: "owner-accepted terminus can be applied only to the standard lane",
-      path: ["terminus"],
-    });
-  }
+function validateConfiguredAttempts(
+  request: z.infer<typeof ReviewPolicyRequestSchema>,
+  context: z.RefinementCtx,
+): number {
   let previousSourceIndex = -1;
   const scope = request.scopeSelection?.mode ?? "whole-target";
   for (const [attemptIndex, attempt] of request.attempts.entries()) {
     const sourceIndex = request.sources.indexOf(attempt.sourceId);
     const diagnostic = sourceDiagnostic(attempt.sourceId, request.lane, scope, request.target.pullRequest);
     const historicalScopeAttempt = diagnostic?.code === "source-scope-ineligible"
-      && !["clean", "findings", "settled-findings"].includes(attempt.outcome);
+      && attempt.outcome !== "clean" && attempt.outcome !== "findings";
     if (sourceIndex <= previousSourceIndex) {
       context.addIssue({
         code: "custom",
@@ -230,6 +292,42 @@ export const ReviewPolicyRequestSchema = z.strictObject({
     }
     previousSourceIndex = sourceIndex;
   }
+  return previousSourceIndex;
+}
+
+export const ReviewPolicyRequestSchema = z.strictObject({
+  ...ReviewPolicyRequestBaseShape,
+  sources: z.array(ReviewSourceIdSchema).readonly(),
+  maxPasses: ReviewPassSchema,
+  verifiedTerminalSignal: VerifiedTerminalReviewSignalSchema.optional(),
+  /** Repository-proven settlement of the terminal findings response; never a command input. */
+  terminalResponseSettled: z.literal(true).optional(),
+}).superRefine((request, context) => {
+  validateTerminalPassProgress(request, context);
+  validateVerifiedTerminalSignal(request, context);
+  validateTerminalResponseSettlement(request, context);
+  if (request.lane === "standard" && request.invocation?.mode === "skip") {
+    context.addIssue({
+      code: "custom",
+      message: "frontline invocation override cannot be applied to the standard lane",
+      path: ["invocation"],
+    });
+  }
+  if (request.lane === "frontline" && request.invocation?.mode === "force") {
+    context.addIssue({
+      code: "custom",
+      message: "standard source invocation cannot be applied to the frontline lane",
+      path: ["invocation"],
+    });
+  }
+  if (request.lane !== "standard" && request.terminus !== undefined) {
+    context.addIssue({
+      code: "custom",
+      message: "owner-accepted terminus can be applied only to the standard lane",
+      path: ["terminus"],
+    });
+  }
+  const previousSourceIndex = validateConfiguredAttempts(request, context);
   if (request.lane === "standard" && request.invocation?.mode === "force") {
     const selectedSourceId = request.invocation.sourceId;
     const selectedSourceIndex = request.sources.indexOf(selectedSourceId);
@@ -363,6 +461,7 @@ export const ReviewResolveEnvelopeSchema = z.discriminatedUnion("state", [
       completedPasses: CompletedReviewPassCountSchema,
       consumedPass: z.literal(true),
       attemptedSources: z.array(ReviewAttemptSchema).readonly(),
+      verifiedTerminalSignal: VerifiedTerminalReviewSignalSchema,
     }),
   }),
   z.strictObject({
@@ -377,7 +476,24 @@ export const ReviewResolveEnvelopeSchema = z.discriminatedUnion("state", [
       completedPasses: CompletedReviewPassCountSchema,
       consumedPass: z.literal(true),
       attemptedSources: z.array(ReviewAttemptSchema).readonly(),
-      consequence: z.literal("disposition-required"),
+      verifiedTerminalSignal: VerifiedTerminalReviewSignalSchema,
+      postResponseAction: z.literal("resolve-next-pass"),
+    }),
+  }),
+  z.strictObject({
+    ...ReviewResolveHeaderShape,
+    state: z.literal("coverage-required"),
+    nextAction: z.literal("select-coverage"),
+    payload: z.strictObject({
+      lane: z.enum(["frontline", "standard"]),
+      scope: ReviewScopeModeSchema,
+      sourceId: ReviewSourceIdSchema,
+      pass: ReviewPassSchema,
+      completedPasses: CompletedReviewPassCountSchema,
+      consumedPass: z.literal(true),
+      attemptedSources: z.array(ReviewAttemptSchema).readonly(),
+      verifiedTerminalSignal: VerifiedTerminalReviewSignalSchema,
+      responseRequired: z.boolean(),
     }),
   }),
   z.strictObject({
@@ -449,7 +565,7 @@ interface ReviewSourceCapability {
 const REVIEW_SOURCE_CAPABILITIES: Readonly<Record<string, ReviewSourceCapability>> = {
   "coderabbit-cli": {
     lanes: ["frontline"],
-    scopes: ["whole-target", "chunked"],
+    scopes: ["whole-target"],
     requiresPullRequest: false,
     nextAction: "run-frontline",
   },
@@ -516,6 +632,11 @@ function sourceDiagnostic(
 export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
   const request = ReviewPolicyRequestSchema.parse(input);
   const scope = request.scopeSelection?.mode ?? "whole-target";
+  const lastAttempt = lastEligibleAttempt(request);
+  // An admitted findings result keeps its response obligation even if a later invocation
+  // changes frontline activation or asks to skip a fresh run.
+  const unresolvedFindings = lastAttempt?.outcome === "findings"
+    && request.terminalResponseSettled !== true;
   if (request.scopeSelection !== undefined
     && !sameTarget(request.scopeSelection.target, request.target)) {
     return resolveEnvelope({
@@ -532,7 +653,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
       message: "The selected review scope does not belong to the current target.",
     }]);
   }
-  if (request.lane === "frontline" && request.invocation?.mode === "skip") {
+  if (request.lane === "frontline" && !unresolvedFindings && request.invocation?.mode === "skip") {
     return resolveEnvelope({
       state: "skipped",
       nextAction: "none",
@@ -546,6 +667,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
     });
   }
   if (request.lane === "frontline"
+    && !unresolvedFindings
     && (!request.frontlineActive || request.sources.length === 0)) {
     return resolveEnvelope({
       state: "skipped",
@@ -572,7 +694,15 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
       },
     });
   }
-  const invalidOverrideReason = resolveInvalidOverrideReason(request);
+  const invalidOverrideReason = resolveInvalidOverrideReason(request)
+    ?? invalidAdditionalPassReason({
+      target: request.target,
+      lane: request.lane,
+      completedPasses: request.completedPasses,
+      authorization: request.additionalPassAuthorization,
+      terminal: lastAttempt,
+      signal: request.verifiedTerminalSignal,
+    });
   if (invalidOverrideReason !== null) {
     return resolveEnvelope({
       state: "invalid-override",
@@ -589,13 +719,28 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
       message: `The review ceiling override is invalid: ${invalidOverrideReason}.`,
     }]);
   }
-  const ceilingOverrideApplied = request.ceilingOverride !== undefined;
-  const lastAttempt = lastEligibleAttempt(request);
+  const ceilingOverrideApplied = request.ceilingOverride !== undefined
+    || (request.additionalPassAuthorization !== undefined
+      && request.completedPasses >= request.maxPasses);
+  if (lastAttempt?.outcome === "partial" && scope === "chunked") {
+    return resolveEnvelope({
+      state: "chunk-pending",
+      nextAction: "continue-chunks",
+      payload: {
+        lane: request.lane,
+        scope,
+        sourceId: lastAttempt.sourceId,
+        pass: request.completedPasses + 1,
+        completedPasses: request.completedPasses,
+        consumedPass: false,
+        attemptedSources: request.attempts,
+      },
+    });
+  }
   if (lastAttempt !== undefined
     && !isSafeUnavailable(lastAttempt.outcome)
     && lastAttempt.outcome !== "clean"
-    && lastAttempt.outcome !== "findings"
-    && lastAttempt.outcome !== "settled-findings") {
+    && lastAttempt.outcome !== "findings") {
     return resolveEnvelope({
       state: "blocked",
       nextAction: "stop",
@@ -613,26 +758,32 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
     }]);
   }
   if (lastAttempt !== undefined
-    && ["clean", "findings", "settled-findings"].includes(lastAttempt.outcome)) {
-    const pass = scope === "chunked" && lastAttempt.chunkSeriesComplete !== true
-      ? request.completedPasses + 1
-      : request.completedPasses;
-    if (scope === "chunked" && lastAttempt.chunkSeriesComplete !== true) {
+    && (lastAttempt.outcome === "clean" || lastAttempt.outcome === "findings")) {
+    const pass = request.completedPasses;
+    const signal = request.verifiedTerminalSignal;
+    if (signal === undefined) {
+      throw new Error("terminal attempt requires a verified terminal signal");
+    }
+    if (!signal.coverageAdequate) {
       return resolveEnvelope({
-        state: "chunk-pending",
-        nextAction: "continue-chunks",
+        state: "coverage-required",
+        nextAction: "select-coverage",
         payload: {
           lane: request.lane,
           scope,
           sourceId: lastAttempt.sourceId,
           pass,
           completedPasses: request.completedPasses,
-          consumedPass: false,
+          consumedPass: true,
           attemptedSources: request.attempts,
+          verifiedTerminalSignal: signal,
+          responseRequired: lastAttempt.outcome === "findings",
         },
       });
     }
-    if (lastAttempt.outcome === "findings") {
+    const materialFindings = lastAttempt.outcome === "findings"
+      && (signal.maxConfirmedSeverity === "major" || signal.maxConfirmedSeverity === "critical");
+    if (materialFindings && !request.terminalResponseSettled) {
       return resolveEnvelope({
         state: "findings",
         nextAction: "respond",
@@ -644,23 +795,28 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
           completedPasses: request.completedPasses,
           consumedPass: true,
           attemptedSources: request.attempts,
-          consequence: "disposition-required",
+          verifiedTerminalSignal: signal,
+          postResponseAction: "resolve-next-pass",
         },
       });
     }
-    return resolveEnvelope({
-      state: "pass-complete",
-      nextAction: "none",
-      payload: {
-        lane: request.lane,
-        scope,
-        sourceId: lastAttempt.sourceId,
-        pass,
-        completedPasses: request.completedPasses,
-        consumedPass: true,
-        attemptedSources: request.attempts,
-      },
-    });
+    if (request.additionalPassAuthorization === undefined
+      && !(materialFindings && request.terminalResponseSettled)) {
+      return resolveEnvelope({
+        state: "pass-complete",
+        nextAction: "none",
+        payload: {
+          lane: request.lane,
+          scope,
+          sourceId: lastAttempt.sourceId,
+          pass,
+          completedPasses: request.completedPasses,
+          consumedPass: true,
+          attemptedSources: request.attempts,
+          verifiedTerminalSignal: signal,
+        },
+      });
+    }
   }
   if (request.terminus !== undefined) {
     return resolveEnvelope({
@@ -827,7 +983,7 @@ function resolveInvalidOverrideReason(
   const lastAttempt = lastEligibleAttempt(request);
   const scope = request.scopeSelection?.mode ?? "whole-target";
   const terminalPassRecorded = lastAttempt !== undefined
-    && ["clean", "findings", "settled-findings"].includes(lastAttempt.outcome)
+    && (lastAttempt.outcome === "clean" || lastAttempt.outcome === "findings")
     && (scope !== "chunked" || lastAttempt.chunkSeriesComplete === true);
   const overrideBasePasses = request.completedPasses - (terminalPassRecorded ? 1 : 0);
   if (override.exhaustedPassCount !== overrideBasePasses) return "pass-count-mismatch";

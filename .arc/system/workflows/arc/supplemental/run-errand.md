@@ -219,6 +219,14 @@ remote base all name the same exact head. Any tracked change continues through t
    `invocation: { mode: "force", sourceId: "<source-id>" }` on every policy call for that target; the resulting
    Errand binding carries that source and its ordered fallbacks through hosted request and await.
 
+   A converged clean or confirmed-minor result replays as complete. If the Owner explicitly authorizes another
+   named standard pass, carry the exact target, preceding producer, completed-pass count, and next ordinal as
+   `additionalPassAuthorization` through `arc review resolve -`. Carry the full authorization on hosted
+   admission, or its targetless fields under `policyJudgment.additionalPassAuthorization` on local preparation.
+   For an open PR, `arc review status --target <targetRef> --additional-pass '<authorization>'` reports the
+   outstanding review. A fresh decision is required for each later pass; the same decision covers a named
+   above-ceiling pass. A later material result enters the ordinary response route.
+
    Resolve frontline, then the pre-PR standard lane. Follow only the driver's typed `state` / `nextAction`:
 
    - `skipped | no-op | pass-complete / none` — complete the lane at this boundary.
@@ -227,8 +235,13 @@ remote base all name the same exact head. Any tracked change continues through t
      with the ready resolution and the target's `{ kind, baseRef, diffBaseSha, headSha }` projection.
    - `ready / local-prepare` — invoke `arc review local prepare -`; submit evaluator-owned result content through
      `arc review local attest -`, with runtime-owned bindings injected from the immutable operation.
-   - `findings / respond` — run [`review-triage`][review-triage] and [`review-response`][review-response], then
-     submit approved mutation/commitment decisions through `arc review respond -`.
+   - `findings / respond` — run [`review-triage`][review-triage], include the effective policy as
+     `proposal.severityGatingPolicy`, submit the proposal through the first `arc review respond -` call, emit
+     `payload.dispositionReportText`, obtain complete-set approval, submit the exact
+     approved set through the second `arc review respond -` call, and perform only its returned action through
+     [`review-response`][review-response]. Preserve the `ready-to-fix` authorization's `approvedVerification` through
+     re-entry and changed-target continuation; it does not select fewer checks here. Retain any returned
+     `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged for the named next-pass admission.
    - `approval-required / obtain-ceiling-override` — surface the exact one-pass consequence and
      `Approve (or redirect)?`; return only exact approval to the same target/lane call.
    - `stale-target / select-scope` — recompose the exact target, bind its whole-target scope, and rerun the driver.
@@ -354,17 +367,26 @@ remote base all name the same exact head. Any tracked change continues through t
    series and non-pass outcomes retain the prior count.
 
    - `clean / complete` — feed a `clean` attempt to `arc review resolve -`.
-   - `findings / triage` — run the disposition protocol. When `arc review respond -` returns
-     `payload.hostedSettlementPlan` for approved `settlement: reply-and-resolve` findings, execute its phases in
-     order: invoke `arc review hosted settle -` for every ID in the active phase. Settle each `beforeFixFindingIds`
+   - `findings / triage` — run [`review-triage`][review-triage], include the effective policy as
+     `proposal.severityGatingPolicy`, submit the proposal through the first `arc review respond -` call, emit
+     `payload.dispositionReportText`, obtain complete-set approval, submit the exact
+     approved set through the second `arc review respond -` call, and perform only its returned action through
+     [`review-response`][review-response]. When the approved call returns `payload.hostedSettlementPlan` for
+     `settlement: reply-and-resolve` findings, execute its phases in order: invoke `arc review hosted settle -` for
+     every ID in the active phase, passing `payload.hostedSettlementPlan.actorIdentity` unchanged as the settlement
+     actor. Settle each `beforeFixFindingIds`
      entry against the unchanged originating `target` with `fixTarget: null`, and require every result to complete
      before any approved fix changes the head; then apply, verify, commit, and push the approved fixes; then settle
      every `afterFixFindingIds` entry against the originating `target` plus the changed `fixTarget` verified for the
      current head. A `settlement: not-applicable` finding appears in neither phase and remains triage-only:
      never invoke `hosted settle`, post a reply or compensating summary comment, or resolve anything for it.
+     Retain any returned `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged and pass its exact
+     ceiling override into the named hosted, local, or frontline admission; never reconstruct the authorization ID.
      On re-entry, re-invoke the exact settlement request. `already-settled / complete` advances the durable attempt
      only after the verb verifies the exact approved reply, actor, comment, and resolved thread with no host
-     mutation; every stop state remains a stop. Feed `findings` back to the driver only after both phases complete.
+     mutation; every stop state remains a stop. After the required phases complete, follow the approved response
+     continuation and, after a fix, the verified-fix response continuation through the owning status or resolve
+     action. Do not feed the same findings to the driver again.
    - `rate-limited | transient-unavailable / try-next-source` — feed that safe outcome to the same driver call; it
      may select the next configured source without consuming the pass.
    - Any ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops. Never replay
@@ -470,13 +492,16 @@ remote base all name the same exact head. Any tracked change continues through t
 
 > [!IMPORTANT]
 > `integration-interlock`: Stop after the exact Errand merge request and extension report are settled. Surface the
-> request, review applicability, proposed final dispositions, required checks and approvals, and resolved lane. Name
+> request, exact head, applicable planning-grooming adapter target, review applicability calls and targeted
+> verification, approved responses already performed, proposed final dispositions, required checks and approvals,
+> base freshness, and resolved lane. State that completed responses are not re-approved at this gate. Name
 > the retained last-observed base OID; disclose that required checks are bound to the approved head unless the host
 > supplies a stronger currency guarantee, and that base movement during the provider's in-call merge window remains
 > a residual race. The base OID qualifies the evidence but is not merge authority. Distinguish an Owner-accepted
 > residual review risk from provider-clean evidence and surface native-review or deferred-CI blockers separately.
-> State that approval applies dispositions and channel settlement, ends review or confirms the exact Owner-directed
-> stop, and authorizes the exact-head merge represented by this request. Approval authorizes that exact request and
+> State that approval applies remaining dispositions and channel settlement, ends review or confirms the exact
+> Owner-directed stop, invokes exact-head release on the selected lane, and authorizes the exact-head merge represented
+> by this request. Approval authorizes that exact request and
 > the bounded exact-head wait below; it never satisfies required checks, and merge proceeds only after they report
 > green or not-required. A redirect may instead select release-only for asynchronous host review or later manual
 > merge. Close with `Approve (or redirect)?`.
@@ -486,7 +511,7 @@ composes `releaseRequest` with `schemaVersion: 1`, the absolute checkout path as
 `target: { repository, pullRequest, headSha }`, and the strict Errand identity as
 `vehicle: { kind: "errand", slug }`. Pass `releaseRequest` as JSON stdin to `arc merge lock release -` and stop after
 `released / proceed` or `no-lock / none`; `blocked / stop` renders its typed reason and stops.
-This separate operation authorizes no merge.
+This separate operation authorizes no merge. Otherwise, continue to the selected lane action.
 
 6. **Run the approved terminal operation.** Under an Owner-directed review stop, immediately recheck the accepted
    Errand claim, PR, base OID, head, and known review/response state. Any movement or new finding returns to Step 4

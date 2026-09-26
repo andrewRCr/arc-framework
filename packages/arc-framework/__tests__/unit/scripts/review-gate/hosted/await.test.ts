@@ -4,18 +4,16 @@ import { DeliveryReviewMemberVehicleSchema } from
   "../../../../../src/lib/delivery/review-vehicle.js";
 import {
   HostedAwaitResultSchema,
+  HostedReviewBodyFindingSchema,
+  HostedThreadFindingSchema,
   awaitHostedReview,
   type HostedAwaitClock,
   type HostedReviewObserver,
 } from "../../../../../src/scripts/review-gate/hosted/await.js";
-import type { HostedRequestHandle } from "../../../../../src/scripts/review-gate/hosted/request.js";
+import { createHostedHandleFixture } from "../../../../fixtures/hosted-review.js";
 
 const HEAD = "a".repeat(40);
-const handle: HostedRequestHandle = {
-  schemaVersion: 1,
-  provider: "coderabbit-pr",
-  requestedCoverage: "complete",
-  effectiveCoverage: "complete",
+const handle = createHostedHandleFixture({
   target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
   artifact: {
     kind: "issue-comment",
@@ -23,16 +21,40 @@ const handle: HostedRequestHandle = {
     url: "https://github.com/owner/repo/pull/42#issuecomment-1",
     createdAt: "2026-07-23T12:00:00.000Z",
   },
-};
-const deliveryHandle: HostedRequestHandle = {
-  ...handle,
-  vehicle: DeliveryReviewMemberVehicleSchema.parse({
+});
+const deliveryVehicle = DeliveryReviewMemberVehicleSchema.parse({
     kind: "delivery-member",
     planId: "123e4567-e89b-12d3-a456-426614174000",
     deliverableId: `sha256:${"d".repeat(64)}`,
     workUnitId: "example",
     head: HEAD,
-  }),
+});
+const deliveryHandle = createHostedHandleFixture({
+  target: handle.target,
+  artifact: handle.artifact,
+  vehicle: deliveryVehicle,
+});
+const incrementalHandle = createHostedHandleFixture({
+  requestedCoverage: "incremental",
+  target: handle.target,
+  artifact: handle.artifact,
+});
+const nativeCoverageEvidence = {
+  schemaVersion: 1 as const,
+  kind: "provider-native-incremental" as const,
+  sourceId: "coderabbit-pr" as const,
+  requestArtifactId: handle.artifact.id,
+  status: "established" as const,
+  baselineSha: incrementalHandle.admission.correctionScope!.predecessorHeadSha,
+  headSha: HEAD,
+  providerGeneration: {
+    artifactId: "IC_SUMMARY",
+    url: "https://github.com/owner/repo/pull/42#issuecomment-summary",
+    createdAt: "2026-07-23T11:00:00.000Z",
+    updatedAt: "2026-07-23T12:05:00.000Z",
+    actorIdentity: "136622811" as const,
+    appId: "347564" as const,
+  },
 };
 
 const CREATED_AT_MS = Date.parse(handle.artifact.createdAt);
@@ -58,6 +80,32 @@ function observer(observe: HostedReviewObserver["observe"]): HostedReviewObserve
 }
 
 describe("hosted review await", () => {
+  it("carries authenticated provider-native coverage evidence into the terminal result", async () => {
+    const result = await awaitHostedReview({
+      schemaVersion: 1,
+      handle: incrementalHandle,
+      timeoutMs: 2_000,
+      pollIntervalMs: 500,
+    }, {
+      clock: clock(),
+      attentionAfterMs: ATTENTION_AFTER_MS,
+      observers: [observer(() => Promise.resolve({
+        kind: "clean",
+        reviewUrl: "https://github.com/owner/repo/pull/42#pullrequestreview-1",
+        coverageEvidence: nativeCoverageEvidence,
+      }))],
+    });
+
+    expect(result).toMatchObject({
+      state: "clean",
+      coverageEvidence: nativeCoverageEvidence,
+    });
+    expect(HostedAwaitResultSchema.safeParse({
+      ...result,
+      coverageEvidence: undefined,
+    }).success).toBe(false);
+  });
+
   it("accepts the durable response source attached to a findings result", () => {
     expect(HostedAwaitResultSchema.safeParse({
       schemaVersion: 1,
@@ -75,9 +123,61 @@ describe("hosted review await", () => {
         severity: "major",
         locus: "src/index.ts:7",
         url: "https://github.com/owner/repo/pull/42#discussion_r1",
+        sourceOrdinal: 1,
       }],
       responseSourceRef: "arc-review-source:v1:hosted:lane-progress%2F1:hosted%2F1",
     }).success).toBe(true);
+  });
+
+  it("rejects hosted findings whose ordinals do not match final combined order", () => {
+    expect(HostedAwaitResultSchema.safeParse({
+      schemaVersion: 1,
+      mode: "review-hosted-await",
+      handle,
+      state: "findings",
+      nextAction: "triage",
+      reviewUrl: "https://github.com/owner/repo/pull/42#pullrequestreview-1",
+      findings: [{
+        findingId: "PRRT_1",
+        origin: "review-thread",
+        commentId: "PRRC_1",
+        threadId: "PRRT_1",
+        settlement: "reply-and-resolve",
+        severity: "major",
+        locus: "src/index.ts:7",
+        url: "https://github.com/owner/repo/pull/42#discussion_r1",
+        sourceOrdinal: 2,
+      }],
+    }).success).toBe(false);
+  });
+
+  it.each([
+    [HostedThreadFindingSchema, {
+      findingId: "PRRT_1",
+      origin: "review-thread",
+      commentId: "PRRC_1",
+      threadId: "PRRT_1",
+      settlement: "reply-and-resolve",
+      locus: "src/index.ts:7",
+      url: "https://github.com/owner/repo/pull/42#discussion_r1",
+      sourceOrdinal: 1,
+    }],
+    [HostedReviewBodyFindingSchema, {
+      findingId: "PRR_1:0",
+      origin: "review-body",
+      reviewId: "PRR_1",
+      fingerprint: "finding-fingerprint",
+      settlement: "not-applicable",
+      locus: "src/index.ts:7",
+      url: "https://github.com/owner/repo/pull/42#pullrequestreview-1",
+      body: "Finding body",
+      sourceOrdinal: 1,
+    }],
+  ] as const)("accepts critical and rejects retired blocker in hosted finding schemas", (schema, finding) => {
+    expect(schema.safeParse({ ...finding, severity: "critical" }).success).toBe(true);
+    expect(schema.safeParse({ ...finding, severity: "blocker" }).success).toBe(false);
+    expect(schema.safeParse({ ...finding, severity: "minor", nit: true }).success).toBe(true);
+    expect(schema.safeParse({ ...finding, severity: "major", nit: true }).success).toBe(false);
   });
 
   it("accepts a pending result that asks for inspection or an explicit extension", () => {
@@ -128,6 +228,7 @@ describe("hosted review await", () => {
         severity: "major",
         locus: "src/a.ts:7",
         url: "https://github.com/owner/repo/pull/42#discussion_r1",
+        sourceOrdinal: 1,
       }],
     }],
     ["rate-limited", { kind: "rate-limited" }],

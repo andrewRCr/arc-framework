@@ -33,6 +33,7 @@ import {
 import {
   RunConvergenceVerificationActionSchema,
   createRunConvergenceVerificationAction,
+  type PostAttestContinuation,
 } from "../review-gate/policy/integration-boundary-locus.js";
 import {
   CanonicalSettlementPlanSchema,
@@ -1074,6 +1075,18 @@ function deliveryTerminalBlockedResult(
  * @param dependencies - Exact repository, lifecycle, review, and persistence boundaries.
  * @returns A ready, reconcile, or blocked result with its typed next action.
  */
+function checkpointPostAttestContinuation(workUnit: string, reviewedHead: string): PostAttestContinuation {
+  return {
+    reviewedHead,
+    nextAction: {
+      kind: "continue-pre-publication-review",
+      command: `arc review pre-publication ${workUnit}`,
+      interactionText: "Resume pre-publication review after Candidate convergence verification.",
+    },
+    projectionDisposition: "keep-staged-until-publication",
+  };
+}
+
 export async function checkpointIntegration(
   input: IntegrationCheckpointRequest,
   dependencies: IntegrationCheckpointDependencies,
@@ -1283,7 +1296,11 @@ export async function checkpointIntegration(
         reason: "candidate-convergence-pending",
         detail: `Candidate convergence verification remains pending at ${candidate.convergenceScope} scope.`,
         coordinates,
-        action: createRunConvergenceVerificationAction(request.workUnit, candidate.convergenceScope),
+        action: createRunConvergenceVerificationAction(
+          request.workUnit,
+          candidate.convergenceScope,
+          checkpointPostAttestContinuation(request.workUnit, candidate.recognizedRevision),
+        ),
         payload: { candidate },
       });
     }
@@ -1372,7 +1389,11 @@ export async function checkpointIntegration(
       reason: "candidate-convergence-pending",
       detail: `Candidate convergence verification remains pending at ${candidate.convergenceScope} scope.`,
       coordinates,
-      action: createRunConvergenceVerificationAction(request.workUnit, candidate.convergenceScope),
+      action: createRunConvergenceVerificationAction(
+        request.workUnit,
+        candidate.convergenceScope,
+        checkpointPostAttestContinuation(request.workUnit, candidate.recognizedRevision),
+      ),
       payload: { candidate },
     });
   }

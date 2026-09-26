@@ -56,6 +56,7 @@ function observation(
           detail: "The exact member review is discharged.",
           progress: {
             completedPasses: 1,
+            completePasses: 1,
             passCeiling: 2,
             attempts: [],
           },
@@ -111,6 +112,7 @@ function deliveryObligation(secondDischarged: boolean) {
       detail: "member one discharged",
       nextSource: null,
       completedPasses: 1,
+      completePasses: 1,
       passCeiling: 2,
       attemptHistory: [],
     }, {
@@ -119,6 +121,7 @@ function deliveryObligation(secondDischarged: boolean) {
       nextSource: secondDischarged ? null : "codex-pr",
       requestAdmission,
       completedPasses: 0,
+      completePasses: 0,
       passCeiling: 2,
       attemptHistory: [],
     }],

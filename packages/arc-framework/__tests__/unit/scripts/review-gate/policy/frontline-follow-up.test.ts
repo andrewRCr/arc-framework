@@ -32,6 +32,7 @@ const finding = {
   severity: "major" as const,
   locus: "src/index.ts:7",
   evidenceUrlOrId: "frontline:finding-1",
+  sourceOrdinal: 1,
 };
 const source = {
   sourceId: "review-cli",
@@ -41,7 +42,7 @@ const source = {
 };
 
 function outcome(
-  severity: "blocker" | "major" | "minor" = "major",
+  severity: "critical" | "major" | "minor" = "major",
   maxPasses = 2,
   pass = 1,
   nit = false,
@@ -59,22 +60,26 @@ function outcome(
   };
 }
 
-function approved(severity: "blocker" | "major" | "minor", disposition: "fix" | "defer" = "fix") {
+function approved(severity: "critical" | "major" | "minor", disposition: "fix" | "defer" = "fix") {
   const dispositionSet = createDispositionSet({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
     targetId: oldTarget.targetId,
+    producerId: "frontline-operation",
+    resultDigest: canonicalDigest({ result: "frontline-operation" }),
     policyVersion: canonicalDigest({ policy: "review" }),
     rubricVersion: "implementation-audit/v1",
     rubricDigest: canonicalDigest({ rubric: "implementation-audit" }),
     proposedBy: "author-1",
+    proposedVerification: "full",
     findings: [{
       findingId: finding.findingId,
       sourceIdentity: source.sourceId,
       locus: finding.locus,
       sourceVerification: "verified" as const,
       verificationRefs: ["source:src/index.ts:7"],
-      severity,
+      reportedSeverity: severity,
+      verifiedSeverity: severity,
       disposition,
       gating: severity === "minor" ? "record-only" as const : "blocking" as const,
       rationale: "The source supports this disposition.",
@@ -97,19 +102,22 @@ function approvedRegradeFromReviewerNit() {
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
     targetId: oldTarget.targetId,
+    producerId: "frontline-operation",
+    resultDigest: canonicalDigest({ result: "frontline-operation" }),
     policyVersion: canonicalDigest({ policy: "review" }),
     rubricVersion: "implementation-audit/v1",
     rubricDigest: canonicalDigest({ rubric: "implementation-audit" }),
     proposedBy: "author-1",
+    proposedVerification: "full",
     findings: [{
       findingId: finding.findingId,
       sourceIdentity: source.sourceId,
       locus: finding.locus,
       sourceVerification: "verified" as const,
       verificationRefs: ["source:src/index.ts:7"],
-      reviewerSeverity: "minor" as const,
-      reviewerNit: true as const,
-      arcSeverity: "major" as const,
+      reportedSeverity: "minor" as const,
+      reportedNit: true as const,
+      verifiedSeverity: "major" as const,
       disposition: "fix" as const,
       gating: "blocking" as const,
       rationale: "The source supports a material regrade.",
@@ -148,7 +156,7 @@ describe("frontline follow-up policy", () => {
     });
   });
 
-  it.each(["major", "blocker"] as const)("permits one follow-up after an approved %s fix changes target", (severity) => {
+  it.each(["major", "critical"] as const)("permits one follow-up after an approved %s fix changes target", (severity) => {
     expect(resolveFrontlineFollowUp({
       outcome: outcome(severity),
       ...approved(severity),

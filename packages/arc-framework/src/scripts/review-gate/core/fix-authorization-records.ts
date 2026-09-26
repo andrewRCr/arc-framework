@@ -3,11 +3,13 @@
 import { z } from "zod";
 
 import { sortByCanonicalBytes, type KernelRegistry } from "../../../lib/kernel/index.js";
+import { CandidateVerificationApplicabilitySchema } from
+  "../../../lib/work-unit/candidate-attestation.js";
+import { ReviewFindingIdentitySchema } from "./finding-records.js";
 
 const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const GitObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
-const FindingIdentitySchema = z.string().trim().min(1).max(512);
 const EvidenceReferenceSchema = z.string().trim().min(1);
 
 export const FixAuthorizationFieldsSchema = z.strictObject({
@@ -16,7 +18,8 @@ export const FixAuthorizationFieldsSchema = z.strictObject({
   oldTargetId: CanonicalDigestSchema,
   oldHeadSha: GitObjectIdSchema,
   dispositionSetId: CanonicalDigestSchema,
-  authorizedFindingIds: z.array(FindingIdentitySchema).min(1),
+  authorizedFindingIds: z.array(ReviewFindingIdentitySchema).min(1),
+  approvedVerification: CandidateVerificationApplicabilitySchema,
   authorizedBy: IdentifierSchema,
   authorizedAt: z.iso.datetime({ offset: true }),
 });

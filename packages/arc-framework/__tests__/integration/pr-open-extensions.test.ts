@@ -446,13 +446,174 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
+  it("keeps withstood advisory and applies claim-type verification proportionally", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/adversarial-review.md"), "utf8");
+      const normalized = method.toLowerCase().replace(/\s+/gu, " ");
+      const prompt = method.match(/\*\*Prompt template:\*\*\s+```text\s+([\s\S]*?)\s+```/u)?.[1];
+      if (prompt === undefined) throw new Error("missing adversarial-review prompt template");
+      const normalizedPrompt = prompt.toLowerCase().replace(/\s+/gu, " ");
+
+      expect(normalized).toContain(
+        "the reviewer examined this decision-relevant claim or region and has no finding to report",
+      );
+      expect(normalized).toContain("does not mean that the artifact is correct, complete, or cleared");
+      expect(normalized).toContain("externally verifiable claims about source, behavior, or the diff");
+      expect(normalized).toContain("are worth spot-checking");
+      expect(normalized).toContain("internal judgments about what the reviewer considered convincing or coherent");
+      expect(normalized).toContain("does not require independent verification of every attention entry");
+      expect(normalized).toContain("the field stays freeform");
+      expect(normalized).toContain(
+        "`withstood` remains outside severity, disposition, convergence, and evidence attestation",
+      );
+      expect(normalizedPrompt).toContain("`withstood` records decision-relevant attention without a finding");
+      expect(normalizedPrompt).toContain("does not mean the artifact is correct, complete, or cleared");
+      expect(method).not.toContain("checked and cleared");
+    }
+  });
+
+  it("separates advisory disposition completeness from pass convergence and bounded continuation", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/adversarial-review.md"), "utf8");
+      const normalized = method.toLowerCase().replace(/\s+/gu, " ");
+      const prompt = method.match(/\*\*Prompt template:\*\*\s+```text\s+([\s\S]*?)\s+```/u)?.[1];
+      const frontmatter = method.match(/^---\n([\s\S]*?)\n---/u)?.[1];
+      if (prompt === undefined) throw new Error("missing adversarial-review prompt template");
+      if (frontmatter === undefined) throw new Error("missing adversarial-review frontmatter");
+
+      expect(method).toContain("override-active: false");
+      expect(method).toContain("[No override configured]");
+      expect(frontmatter).not.toContain("review-triage");
+
+      expect(normalized).toContain("completeness is a property of the disposition backlog");
+      expect(normalized).toContain("every reported finding has one approved disposition");
+      expect(normalized).toContain("including a `reject` disposition for an unsupported finding");
+      expect(normalized).toContain("convergence is a property of the pass result");
+      expect(normalized).toContain("a disposed confirmed `critical` or `major` finding still withholds convergence");
+      expect(normalized).toContain("all-refuted and confirmed-minors-only passes converge");
+      expect(normalized).toContain("a confirmed `minor` never authorizes another pass");
+      expect(normalized).toContain("never raises its verified severity");
+      expect(normalized).toContain("follow-up observation in the converged completion report");
+
+      expect(method).toContain("`Pass N of M`");
+      expect(normalized).toContain("converged, `cap-exhausted`, suspended, or owner-accepted");
+      expect(normalized).toContain("stop before another evaluator invocation");
+      expect(normalized).toContain("same turn as the complete disposition report");
+      expect(normalized).toContain("a recommendation is not authorization");
+      expect(normalized).toContain("names the activity and the next pass");
+      expect(normalized).toContain("authorizes exactly one additional pass");
+      expect(normalized).toContain("disposition approval alone authorizes no additional pass");
+
+      expect(normalized).toContain("existing advisory evidence");
+      expect(normalized).toContain("pending and unusable while any approved response remains incomplete");
+      expect(normalized).toContain("withdrawal or supersession invalidates it");
+      expect(normalized).toContain("consumes that permission");
+      expect(normalized).toContain("replay cannot authorize another pass");
+      expect(normalized).toContain("creates no lane-progress record");
+
+      expect(prompt).not.toMatch(/pass-cap|Pass N of M|cap-exhausted/iu);
+      expect(prompt.toLowerCase().replace(/\s+/gu, " ")).toContain(
+        "do not decide loop state, continuation, or authorization",
+      );
+    }
+  });
+
+  it("keeps the advisory settlement protocol reachable at every direct planning and criteria caller", async () => {
+    const callers = [
+      ["system/workflows/arc/draft-design.md", "draft review evidence"],
+      ["system/workflows/arc/create-spec.md", "spec review evidence"],
+      ["system/workflows/arc/generate-tasks.template.md", "task-list review evidence"],
+      ["system/methods/validate-criteria.md", "ordinary closing-task evidence"],
+    ] as const;
+
+    for (const base of [packageArc, projectArc]) {
+      for (const [packagedPath, evidenceLocus] of callers) {
+        const path = base === projectArc && packagedPath.endsWith("generate-tasks.template.md")
+          ? "system/workflows/arc/generate-tasks.md"
+          : packagedPath;
+        const content = await readFile(resolve(base, path), "utf8");
+        const normalized = content.toLowerCase().replace(/\s+/gu, " ");
+
+        expect(content).toContain("    - adversarial-review");
+        expect(content).toContain("adversarial-review:");
+        expect(normalized).toContain("apply the method's complete-disposition and bounded-continuation protocol");
+        expect(normalized).toContain(evidenceLocus);
+        expect(normalized).toContain("creates no lane-progress record");
+      }
+    }
+
+    const recipe = JSON.parse(
+      await readFile(resolve(root, "packages/arc-framework/init-recipe.json"), "utf8"),
+    ) as { include_files: string[] };
+    for (const path of [
+      "system/methods/adversarial-review.md",
+      "system/methods/validate-criteria.md",
+      "system/workflows/arc/draft-design.md",
+      "system/workflows/arc/create-spec.md",
+      "system/workflows/arc/generate-tasks.template.md",
+    ]) {
+      expect(recipe.include_files).toContain(path);
+    }
+  });
+
+  it("retains a bounded contradicted-withstood exercise without claiming behavioral adherence", async () => {
+    const fixtureRoot = resolve(
+      root,
+      "packages/arc-framework/__tests__/fixtures/adversarial-review/contradicted-withstood",
+    );
+    const [source, artifact, report, exercise, expected] = await Promise.all([
+      readFile(resolve(fixtureRoot, "source.ts"), "utf8"),
+      readFile(resolve(fixtureRoot, "artifact.md"), "utf8"),
+      readFile(resolve(fixtureRoot, "review-report.md"), "utf8"),
+      readFile(resolve(fixtureRoot, "exercise.md"), "utf8"),
+      readFile(resolve(fixtureRoot, "expected.md"), "utf8"),
+    ]);
+
+    expect(source).toContain('return "manual"');
+    expect(artifact).toContain("returns `automatic`");
+    expect(report).toContain("withstood:");
+    expect(report).toContain("defaultMode returns automatic");
+    expect(exercise).toContain("packages/arc-framework/arc/system/methods/adversarial-review.md");
+    expect(exercise).toContain("packages/arc-framework/arc/system/methods/validate-criteria.md");
+    expect(exercise).toContain("Do not read `expected.md`");
+    expect(expected).toContain("refuse to relay or credit the contradicted entry");
+    expect(expected).toContain("only an attended fresh-context run supplies behavioral evidence");
+  });
+
+  it("retains bounded advisory-loop exercises without treating fixtures as behavioral proof", async () => {
+    const fixtureRoot = resolve(root, "packages/arc-framework/__tests__/fixtures/adversarial-review");
+    const cases = [
+      ["unsupported-material", "all-refuted pass converges"],
+      ["fixed-material", "settlement does not rewrite the original pass as converged"],
+      ["over-cap", "stop before another evaluator invocation"],
+      ["conditional-permission", "replay cannot authorize another pass"],
+    ] as const;
+
+    for (const [name, expectedSignal] of cases) {
+      const caseRoot = resolve(fixtureRoot, name);
+      const [scenario, exercise, expected] = await Promise.all([
+        readFile(resolve(caseRoot, "scenario.md"), "utf8"),
+        readFile(resolve(caseRoot, "exercise.md"), "utf8"),
+        readFile(resolve(caseRoot, "expected.md"), "utf8"),
+      ]);
+
+      expect(scenario).toContain("Pass");
+      expect(exercise).toContain("packages/arc-framework/arc/system/methods/adversarial-review.md");
+      expect(exercise).toContain("Do not read `expected.md`");
+      expect(expected.toLowerCase()).toContain(expectedSignal);
+      expect(expected).toContain("only an attended fresh-context run supplies behavioral evidence");
+    }
+  });
+
   it("keeps review severity, disposition, and polish orthogonal", async () => {
     for (const base of [packageArc, projectArc]) {
       const method = await readFile(resolve(base, "system/methods/review-triage.md"), "utf8");
       const normalized = method.toLowerCase().replace(/\s+/gu, " ");
-      expect(normalized).toContain("severity: `blocker | major | minor`");
+      expect(normalized).toContain("`reportedseverity` and optional `reportednit`");
+      expect(normalized).toContain("explicit nullable `verifiedseverity`");
       expect(normalized).toContain("disposition: `fix | defer | reject`");
-      expect(normalized).toContain("`nit` is valid only with `minor`");
+      expect(normalized).toContain("`reportednit` and `verifiednit` are legal only with their respective `minor` grades");
+      expect(normalized).toContain("a verified nit is always record-only");
       expect(normalized).toContain("verify every finding against source");
       expect(normalized).toContain("complete disposition set");
       expect(normalized).toContain("approval before any fix");

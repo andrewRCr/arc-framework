@@ -16,6 +16,29 @@ function section(document: string, heading: string): string {
   return document.slice(start, end < 0 ? undefined : end);
 }
 
+function expectProducerBackedResponseOrder(content: string): void {
+  const start = content.indexOf("`respond-to-findings` uses");
+  const end = content.indexOf("On `requested / await`", start);
+  const response = content.slice(start, end);
+  const triage = response.indexOf("[`review-triage`]");
+  const gatingPolicy = response.indexOf("proposal.severityGatingPolicy", triage);
+  const proposalCall = response.indexOf("arc review respond -", gatingPolicy);
+  const report = response.indexOf("payload.dispositionReportText", proposalCall);
+  const approval = response.indexOf("complete-set approval", report);
+  const approvedCall = response.indexOf("arc review respond -", proposalCall + 1);
+  const performance = response.indexOf("[`review-response`]", approvedCall);
+
+  expect(start).toBeGreaterThanOrEqual(0);
+  expect(end).toBeGreaterThan(start);
+  expect(triage).toBeGreaterThanOrEqual(0);
+  expect(gatingPolicy).toBeGreaterThan(triage);
+  expect(proposalCall).toBeGreaterThan(triage);
+  expect(report).toBeGreaterThan(proposalCall);
+  expect(approval).toBeGreaterThan(report);
+  expect(approvedCall).toBeGreaterThan(approval);
+  expect(performance).toBeGreaterThan(approvedCall);
+}
+
 describe("packaged delivery workflow", () => {
   it("ships one framework-owned workflow with closed prepare/interlock/apply ordering", async () => {
     const [packaged, installed, recipe] = await Promise.all([
@@ -142,9 +165,7 @@ describe("packaged delivery workflow", () => {
     );
     expect(reviewSection).toMatch(/native-stack-required` never enters[\s\S]*semantic native-selection transition/iu);
     expect(nativeSection).toMatch(/delivery-member[\s\S]*planId[\s\S]*deliverableId[\s\S]*workUnitSlug/u);
-    expect(nativeSection).toMatch(
-      /respond-to-findings[\s\S]*responsePlan[\s\S]*review-triage[\s\S]*review-response[\s\S]*arc review respond -/iu,
-    );
+    expectProducerBackedResponseOrder(nativeSection);
     expect(nativeSection).toMatch(/never requests another hosted review/iu);
     expect(reviewSection).toMatch(/review-member[\s\S]*settle exact member review authority above/iu);
     const refreshPlan = reviewSection.indexOf("arc delivery refresh plan");

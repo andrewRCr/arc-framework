@@ -56,6 +56,8 @@ function fixture() {
       runtimeIdentity: "local-attestor-1",
       mechanism: "local-runtime",
     },
+    lineage: { kind: "candidate" as const, candidateId: "sha256:7777777777777777777777777777777777777777777777777777777777777777" },
+    logicalPass: 1,
     generation: 0,
     requestMechanism: "automatic",
   });
@@ -99,6 +101,7 @@ describe("local review attestation", () => {
           severity: "major" as const,
           locus: "src/index.ts:1",
           evidenceUrlOrId: "local:finding-1",
+          sourceOrdinal: 1,
         }] : [],
       },
       currentTarget: async () => records.target,

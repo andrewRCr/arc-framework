@@ -61,6 +61,7 @@ function expectTypedProgression(section: string): void {
     /requested \/ await[\s\S]*returned `action` unchanged[\s\S]*pending \/ await[\s\S]*newly returned `action` unchanged/iu,
   );
   expect(section).toMatch(/returned settlement plan|payload\.hostedSettlementPlan/iu);
+  expect(section).toContain("payload.hostedSettlementPlan.actorIdentity");
   expect(section).toContain("payload.hostedFixTarget");
   expect(section).toMatch(/delivery-member-advanced[\s\S]*delivery-member-current/iu);
   expect(section).toContain("typed discharge conjunction");

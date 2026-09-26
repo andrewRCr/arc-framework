@@ -2,21 +2,14 @@
 
 import { z } from "zod";
 
-import { canonicalize } from "../../../lib/kernel/index.js";
 import {
-  ApprovedDispositionRecordSchema,
+  currentApprovedDispositionNode,
   FrontlineOutcomeRecordSchema,
   ReviewReductionProjectionSchema,
   type ApprovedDispositionRecord,
   type FrontlineOutcomeRecord,
   type ReviewReductionProjection,
 } from "../core/advisory-records.js";
-import {
-  dispositionSetMatchesSourceContext,
-  reviewerDispositionNit,
-  reviewerDispositionSeverity,
-  type DispositionSourceContext,
-} from "../core/disposition-records.js";
 import { validateReviewReceipt } from "../core/gate-contract-v2.js";
 import {
   ReviewIdentifierSchema,
@@ -31,7 +24,11 @@ import type {
   LocalReviewSourceStore,
   ReviewReductionPort,
   ReviewOperationStateStore,
+  ReviewResultReader,
 } from "../core/ports.js";
+import {
+  validateApprovedDispositionRecordForResult,
+} from "../core/review-result-disposition.js";
 import { renderForwardGateProjection } from "../core/projection.js";
 import { ReduceEnvelopeSchema } from "../core/review-command-envelope.js";
 import { projectReviewResponse } from "../core/response-plan.js";
@@ -52,6 +49,7 @@ export interface ReviewReductionAdapterDependencies {
   operationStore: ReviewOperationStateStore;
   sourceStore: LocalReviewSourceStore;
   outcomeStore: FrontlineOutcomeStore;
+  resultReader: ReviewResultReader;
   dispositionStore: ApprovedDispositionRecordStore;
   readReceiptEntries(targetId: string): Promise<LocalReceiptEntry[]>;
   confirmTarget(target: ReviewTarget): Promise<LocalTargetConfirmation>;
@@ -80,51 +78,6 @@ function projection(input: unknown): ReviewReductionProjection {
   });
 }
 
-function findingsIdentity(findings: Array<{
-  findingId: string;
-  locus: string;
-  severity: string;
-  nit?: boolean;
-}>) {
-  return findings.map((finding) => ({
-    findingId: finding.findingId,
-    locus: finding.locus,
-    severity: finding.severity,
-    nit: finding.nit === true,
-  }));
-}
-
-function validateDisposition(input: {
-  record: ApprovedDispositionRecord;
-  operationId: string;
-  repositoryId: string;
-  source: ApprovedDispositionRecord["source"];
-  targetId: string;
-  findings: Array<{ findingId: string; locus: string; severity: string; nit?: boolean }>;
-  sourceIdentity: string;
-  dispositionContext: DispositionSourceContext;
-}): void {
-  const record = ApprovedDispositionRecordSchema.parse(input.record);
-  const set = record.approvedDisposition.dispositionSet;
-  const expectedSource = canonicalize(input.source);
-  const actualSource = canonicalize(record.source);
-  const sourceFindings = findingsIdentity(input.findings);
-  const dispositionFindings = findingsIdentity(set.findings.map((finding) => ({
-    ...finding,
-    severity: reviewerDispositionSeverity(finding),
-    nit: reviewerDispositionNit(finding),
-  })));
-  if (record.operationId !== input.operationId
-    || record.repositoryId !== input.repositoryId
-    || actualSource !== expectedSource
-    || set.targetId !== input.targetId
-    || !dispositionSetMatchesSourceContext(set, input.dispositionContext)
-    || canonicalize(dispositionFindings) !== canonicalize(sourceFindings)
-    || !set.findings.every((finding) => finding.sourceIdentity === input.sourceIdentity)) {
-    throw new ReduceCommandError("approved disposition snapshot mismatch");
-  }
-}
-
 function responsePlan(input: {
   target: ReviewTarget;
   findings: ReviewReceiptV2["findings"];
@@ -142,7 +95,9 @@ function responsePlan(input: {
       assuranceMode: "terminal-aggregate",
       reasons: ["sensitive-change-set"],
     },
-    dispositionState: input.disposition?.approvedDisposition ?? null,
+    dispositionState: input.disposition === null
+      ? null
+      : currentApprovedDispositionNode(input.disposition).approvedDisposition,
     candidateTarget: null,
     persistedTargetId: null,
     verificationPassed: false,
@@ -236,6 +191,12 @@ async function reduceLocal(
   }
   if (receipt.result === "clean") {
     if (disposition !== null) throw new ReduceCommandError("clean receipt has an approved disposition");
+    const result = await dependencies.resultReader.readResult(operationId);
+    if (result.kind !== "attested-local"
+      || result.originalOutcome !== "clean"
+      || result.receiptRef !== entry.durableEvidenceRef) {
+      throw new ReduceCommandError("local review result snapshot mismatch");
+    }
     const projected = projection({
       ...base,
       state: "advisory-complete",
@@ -250,13 +211,14 @@ async function reduceLocal(
       payload: { ...base, projection: projected },
     });
   }
-  const sourceRecord = {
-    kind: "attested-local" as const,
-    receiptRef,
-    localSourceRef: state.sourceRef,
-  };
+  const result = await dependencies.resultReader.readResult(operationId);
+  if (result.kind !== "attested-local"
+    || result.originalOutcome !== "findings"
+    || result.receiptRef !== entry.durableEvidenceRef) {
+    throw new ReduceCommandError("local review result snapshot mismatch");
+  }
   if (disposition === null) {
-    const plan = responsePlan({ target: state.target, findings: receipt.findings, disposition: null });
+    const plan = responsePlan({ target: state.target, findings: [...result.findings], disposition: null });
     if (plan.state !== "awaiting-approval") {
       throw new ReduceCommandError("undispositioned findings did not produce a response checkpoint");
     }
@@ -279,22 +241,12 @@ async function reduceLocal(
       },
     });
   }
-  validateDisposition({
-    record: disposition,
-    operationId,
-    repositoryId: state.repositoryId,
-    source: sourceRecord,
-    targetId: state.targetId,
-    findings: receipt.findings,
-    sourceIdentity: state.request.evaluatorIdentity,
-    dispositionContext: {
-      kind: "rubric",
-      policyVersion: state.policyVersion,
-      rubricVersion: state.requirement.rubricVersion,
-      rubricDigest: state.requirement.rubricDigest,
-    },
-  });
-  const plan = responsePlan({ target: state.target, findings: receipt.findings, disposition });
+  try {
+    validateApprovedDispositionRecordForResult(disposition, result);
+  } catch {
+    throw new ReduceCommandError("approved disposition snapshot mismatch");
+  }
+  const plan = responsePlan({ target: state.target, findings: [...result.findings], disposition });
   if (plan.state !== "ready-to-close" && plan.state !== "ready-to-fix") {
     throw new ReduceCommandError("approved findings did not produce a settled response");
   }
@@ -344,7 +296,7 @@ async function reduceFrontline(
     || outcome.target.targetId !== state.targetId
     || outcome.source.sourceId !== state.sourceIdentity
     || outcome.outcome !== state.outcome
-    || outcome.pass !== state.passCount) {
+    || outcome.pass !== state.logicalPass) {
     throw new ReduceCommandError("frontline outcome does not match its operation");
   }
   const confirmation = await dependencies.confirmTarget(outcome.target);
@@ -374,6 +326,12 @@ async function reduceFrontline(
     currentTarget: outcome.target,
   };
   if (outcome.outcome === "findings") {
+    const result = await dependencies.resultReader.readResult(operationId);
+    if (result.kind !== "frontline"
+      || result.originalOutcome !== "findings"
+      || result.outcomeRef !== outcomeReading.outcomeRef) {
+      throw new ReduceCommandError("frontline review result snapshot mismatch");
+    }
     if (disposition === null) {
       const projected = projection({
         ...base,
@@ -394,24 +352,11 @@ async function reduceFrontline(
         },
       });
     }
-    validateDisposition({
-      record: disposition,
-      operationId,
-      repositoryId: record.repositoryId,
-      source: { kind: "frontline", outcomeRef },
-      targetId: outcome.target.targetId,
-      findings: outcome.findings,
-      sourceIdentity: record.sourceIdentity,
-      dispositionContext: {
-        kind: "frontline",
-        policyVersion: state.policyVersion,
-        frontlineBinding: {
-          operationId: state.operationId,
-          sourceBindingId: state.sourceBindingId,
-          outcomeDigest: record.outcomeDigest,
-        },
-      },
-    });
+    try {
+      validateApprovedDispositionRecordForResult(disposition, result);
+    } catch {
+      throw new ReduceCommandError("approved disposition snapshot mismatch");
+    }
     const projected = projection({ ...base, state: "advisory-complete", nextAction: "none" });
     return ReduceEnvelopeSchema.parse({
       schemaVersion: 1,
@@ -425,12 +370,20 @@ async function reduceFrontline(
         frontlineOutcomeRef: outcomeRef,
         frontlineFollowUp: projectFrontlineFollowUpAdvice({
           outcome,
-          dispositionState: disposition.approvedDisposition,
+          dispositionState: currentApprovedDispositionNode(disposition).approvedDisposition,
         }),
       },
     });
   }
   if (disposition !== null) throw new ReduceCommandError("non-findings outcome has an approved disposition");
+  if (outcome.outcome === "clean") {
+    const result = await dependencies.resultReader.readResult(operationId);
+    if (result.kind !== "frontline"
+      || result.originalOutcome !== "clean"
+      || result.outcomeRef !== outcomeReading.outcomeRef) {
+      throw new ReduceCommandError("frontline review result snapshot mismatch");
+    }
+  }
   if (outcome.outcome === "clean" || outcome.outcome === "pass-cap-exhausted") {
     const projected = projection({ ...base, state: "advisory-complete", nextAction: "none" });
     return ReduceEnvelopeSchema.parse({

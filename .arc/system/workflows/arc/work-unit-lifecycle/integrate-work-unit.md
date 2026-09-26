@@ -212,6 +212,12 @@ A `review-hosted-request` or `review-local-prepare` result may also carry `termi
 pass. Surface it as an optional Owner alternative without turning it into a stop; absent explicit acceptance,
 execute the returned review action unchanged.
 
+After a converged clean or confirmed-minor standard result, status replay remains complete. An explicit Owner
+decision for another named pass is carried as exact JSON with `--additional-pass` on the same status scope. The
+authorization names the current target, preceding producer, completed-pass count, and next ordinal; each later
+pass needs a fresh decision. Above the configured ceiling, that same decision covers the named pass without a
+second approval. A later material result re-enters the ordinary response route.
+
 No review carrier may run while the latest exact-target `consider-chunks / select-review-scope` result is unresolved.
 A selected bounded-review route closes through `scope-selected`; an explicit capable whole-target choice closes the
 attention disposition while retaining `consider-chunks`. Require the status action to carry either the exact-target
@@ -267,14 +273,29 @@ arc review local resume -
 Follow the same typed local sequence, then re-enter through `arc review status`.
 
 `respond-to-findings` uses the returned `responsePlan`'s exact target, source, and findings. Run
-[`review-triage`][review-triage] and [`review-response`][review-response], then submit the approved proposal through:
+[`review-triage`][review-triage] to verify the source, compose the complete proposal with the effective policy in
+`proposal.severityGatingPolicy`, and recommend `proposal.proposedVerification`. Submit the proposal through the first
+call:
 
 ```bash
 arc review respond -
 ```
 
-This resumes the retained attempt and never requests another hosted review. Execute any returned hosted settlement
-plan through the phase-ordered settlement path below, then re-enter through `arc review status`.
+Emit the returned `payload.dispositionReportText` verbatim unless the effective triage override changes presentation,
+then obtain complete-set approval over that exact report and canonical set. Submit the exact approved set through a
+second call:
+
+```bash
+arc review respond -
+```
+
+Follow only its returned action and use [`review-response`][review-response] to perform the approved response. This
+resumes the retained attempt and never requests another hosted review. Preserve the `ready-to-fix` authorization's
+`approvedVerification` through re-entry and changed-target continuation; it does not select fewer checks here. Execute
+any returned hosted settlement plan through the phase-ordered settlement path below, then re-enter through
+`arc review status`.
+Retain any returned `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged and pass its exact
+ceiling override into the named hosted, local, or frontline admission; never reconstruct the authorization ID.
 
 `delivery-correction-required / continue-delivery-correction` is the delivery-owned member fix route. Execute any
 before-fix settlement first, then pass `payload.correctionAction` unchanged. Author only after the driver returns
@@ -343,9 +364,12 @@ prior count.
 
 - `clean / complete` — a delivery member re-enters status; an ordinary singleton feeds a `clean` attempt to
   `arc review resolve -`.
-- `findings / triage` — run [`review-triage`][review-triage] and [`review-response`][review-response]. When
-  `arc review respond -` returns `payload.hostedSettlementPlan` for approved `settlement: reply-and-resolve`
-  findings, execute its phases in order: invoke `arc review hosted settle -` for every ID in the active phase.
+- `findings / triage` — run [`review-triage`][review-triage], submit its complete proposal through the first
+  `arc review respond -` call, emit `payload.dispositionReportText`, obtain complete-set approval, submit the exact
+  approved set through the second `arc review respond -` call, and perform only its returned action through
+  [`review-response`][review-response]. When the approved call returns `payload.hostedSettlementPlan` for
+  `settlement: reply-and-resolve` findings, execute its phases in order: invoke `arc review hosted settle -` for every
+  ID in the active phase, passing `payload.hostedSettlementPlan.actorIdentity` unchanged as the settlement actor.
   Settle each
   `beforeFixFindingIds` entry against the unchanged originating `target` with `fixTarget: null`, and require every
   result to complete before any approved fix changes the head; then apply, verify, commit, and push the approved
@@ -355,9 +379,13 @@ prior count.
   that `fixTarget`; never reconstruct it from the checkout. A `settlement: not-applicable` finding appears in neither
   phase and remains
   triage-only: never invoke `hosted settle`, post a reply or compensating summary comment, or resolve anything for it.
+  Retain any returned `payload.policyRequest` carrying `conditionalPassAuthorizationId` unchanged for the named
+  next-pass admission.
   On re-entry, re-invoke the exact settlement request. `already-settled / complete` advances the durable attempt
   only after the verb verifies the exact approved reply, actor, comment, and resolved thread with no host mutation;
-  every stop state remains a stop. Feed `findings` back to the driver only after both phases complete.
+  every stop state remains a stop. After the required phases complete, follow the approved response continuation
+  and, after a fix, the verified-fix response continuation through the owning status or resolve action. Do not feed
+  the same findings to the driver again.
 - `rate-limited | transient-unavailable / try-next-source` — a delivery member re-enters status; an ordinary
   singleton feeds that safe outcome to the same driver call. The outcome does not consume the pass.
 - Any ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops. Never replay
@@ -681,10 +709,11 @@ No commit or push may occur after `ready`.
 > `integration-interlock`: Stop after the ready evidence and extension report. Surface both, the composed
 > candidate-tail diff — the Release Notes entry and Completion Notes — with any swept or regenerated artifacts
 > named rather than diffed, the review applicability calls and targeted verification retained from Step 2, and the
-> approved final dispositions carried by the checkpointed settlement plan; state that approval executes that exact
-> plan, settles the review-response channel — hosted settlement already ran at Step 2 — ends review, and authorizes
-> merge of the checkpointed head. Approval authorizes that exact request; it does not satisfy required checks and is
-> not an instruction to invoke merge this turn while those checks are pending. Close with `Approve (or redirect)?`.
+> approved responses already performed there and the final dispositions carried by the checkpointed settlement
+> plan. State that completed responses are not re-approved at this gate; approval executes the exact remaining plan,
+> settles the review-response channel — hosted settlement already ran at Step 2 — ends review, and authorizes merge
+> of the checkpointed head. Approval authorizes that exact request; it does not satisfy required checks and is not
+> an instruction to invoke merge this turn while those checks are pending. Close with `Approve (or redirect)?`.
 
 If direction requests a composition correction instead of merge authorization, keep the candidate unmerged. Append
 the requested composition correction — never amend or rewrite the pushed head — rerun affected gates and routing,
@@ -703,6 +732,9 @@ end the foreground attempt. Do not re-invoke recursively. A later retry invokes 
 verb revalidates the exact approved target and lifecycle, so the prior approval carries only while both remain
 unchanged. `invalidated / checkpoint` returns to the checkpoint. `invalidated / reconcile-base` invokes the supplied
 `remedy.argv` unchanged; the remedy carries the planner-observed `--expected-base` and approved `--expected-head`.
+When settlement reports `fix-not-performed`, complete the approved fix and submit its exact `verifiedFix` response
+at the approved verification scope before re-checkpointing the resulting head; the prior merge approval does not
+carry to a changed head.
 Dispatch the typed base-merge result through the same result arms above, including fresh Tier 1, push, checkpoint,
 and approval after `merged / run-quality-gates`. `blocked / stop` stops.
 Render the merge result's supplied `nextAction` and remedy or terminal explanation on every non-success arm rather

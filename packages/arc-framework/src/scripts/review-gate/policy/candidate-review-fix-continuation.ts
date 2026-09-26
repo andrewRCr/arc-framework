@@ -7,7 +7,10 @@ import {
 import type { GitExec } from "../../../lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { canonicalize, SlugSchema, sortByCanonicalBytes } from "../../../lib/kernel/index.js";
-import type { ApprovedDispositionRecord } from "../core/advisory-records.js";
+import {
+  currentApprovedDispositionNode,
+  type ApprovedDispositionRecord,
+} from "../core/advisory-records.js";
 import { validateFixAuthorization } from "../core/fix-authorization.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import { frontlineResponseBindingMatchesTarget } from
@@ -51,7 +54,8 @@ type PendingCandidateReviewFixRecord =
     };
 
 function recordHasExactPendingCandidateFixAuthority(record: ApprovedDispositionRecord): boolean {
-  const authorization = record.fixAuthorization;
+  const current = currentApprovedDispositionNode(record);
+  const authorization = current.fixAuthorization;
   const candidateOwnedPrivateMember = record.deliveryMember !== null
     && record.candidate !== null
     && record.source.kind === "frontline"
@@ -65,16 +69,16 @@ function recordHasExactPendingCandidateFixAuthority(record: ApprovedDispositionR
     return false;
   }
   const authorizedFindingIds = sortByCanonicalBytes(
-    record.approvedDisposition.dispositionSet.findings
+    current.approvedDisposition.dispositionSet.findings
       .filter(({ disposition }) => disposition === "fix")
       .map(({ findingId }) => findingId),
   );
   return authorizedFindingIds.length > 0
     && JSON.stringify(authorization.authorizedFindingIds) === JSON.stringify(authorizedFindingIds)
-    && authorization.authorizedBy === record.approvedDisposition.approval.approvedBy
+    && authorization.authorizedBy === current.approvedDisposition.approval.approvedBy
     && authorization.dispositionSetId
-      === record.approvedDisposition.dispositionSet.dispositionSetId
-    && authorization.oldTargetId === record.approvedDisposition.dispositionSet.targetId;
+      === current.approvedDisposition.dispositionSet.dispositionSetId
+    && authorization.oldTargetId === current.approvedDisposition.dispositionSet.targetId;
 }
 
 /**
@@ -95,10 +99,13 @@ export function selectPendingCandidateReviewFixRecord(input: {
   const consumedDispositionIds = new Set(
     candidateReviewResponses(input.candidate).map(({ dispositionId }) => dispositionId),
   );
-  const pending = input.records.filter((record) => record.candidate?.workUnit === workUnitId
-    && record.candidate.candidateId === input.candidate.attestation.candidateId
-    && record.fixAuthorization !== null
-    && !consumedDispositionIds.has(record.approvedDisposition.dispositionSet.dispositionSetId));
+  const pending = input.records.filter((record) => {
+    const current = currentApprovedDispositionNode(record);
+    return record.candidate?.workUnit === workUnitId
+      && record.candidate.candidateId === input.candidate.attestation.candidateId
+      && current.fixAuthorization !== null
+      && !consumedDispositionIds.has(current.approvedDisposition.dispositionSet.dispositionSetId);
+  });
   if (pending.some((record) => !recordHasExactPendingCandidateFixAuthority(record))) {
     return { status: "refused", reason: "candidate-review-fix-response-invalid" };
   }
@@ -106,13 +113,14 @@ export function selectPendingCandidateReviewFixRecord(input: {
     return { status: "refused", reason: "candidate-review-fix-response-ambiguous" };
   }
   const selected = pending[0];
-  if (selected?.candidate === null || selected?.candidate === undefined
-    || selected.fixAuthorization === null) return { status: "none" };
+  if (selected?.candidate === null || selected?.candidate === undefined) return { status: "none" };
+  const current = currentApprovedDispositionNode(selected);
+  if (current.fixAuthorization === null) return { status: "none" };
   return {
     status: "selected",
     candidateId: selected.candidate.candidateId,
     operationId: selected.operationId,
-    reviewedHead: selected.fixAuthorization.oldHeadSha,
+    reviewedHead: current.fixAuthorization.oldHeadSha,
     record: selected,
   };
 }
@@ -145,13 +153,12 @@ async function readReviewedTarget(
       || operation.state.targetId !== outcome.record.outcome.target.targetId
       || operation.state.sourceIdentity !== outcome.record.sourceIdentity
       || operation.state.outcome !== outcome.record.outcome.outcome
-      || operation.state.passCount !== outcome.record.outcome.pass
+      || operation.state.logicalPass !== outcome.record.outcome.pass
       || operation.state.sourceBindingId !== computeFrontlineSourceBindingId(
         outcome.record.outcome.source,
         responseBinding,
       )
       || canonicalize(operation.state.responseBinding ?? null) !== canonicalize(responseBinding ?? null)
-      || (selection.record.deliveryMember === null) !== (responseBinding === undefined)
       || (responseBinding !== undefined
         && (selection.record.candidate?.workUnit !== responseBinding.candidate.workUnit
           || selection.record.candidate.candidateId !== responseBinding.candidate.candidateId
@@ -172,8 +179,8 @@ async function readReviewedTarget(
       ({ sourceKind, qualifier }) => sourceKind === "hosted" && qualifier === attempt.sourceId,
     )?.qualifier
     || operation.state.repositoryId !== attempt.hosted.reviewTarget.repositoryId
-    || operation.state.headSha !== attempt.hosted.target.headSha
-    || operation.state.changeRequestId !== `pull/${attempt.hosted.target.pullRequest}`
+    || attempt.headSha !== attempt.hosted.target.headSha
+    || attempt.changeRequestId !== `pull/${attempt.hosted.target.pullRequest}`
     || attempt.hosted.reviewTarget.headSha !== attempt.hosted.target.headSha
     || (attempt.hosted.reviewTarget.kind === "delivery-member"
       ? attempt.hosted.vehicle === undefined
@@ -204,7 +211,7 @@ export async function readPendingCandidateReviewFixAuthority(input: {
   if (selected.status !== "selected") return selected;
   try {
     const reviewedTarget = await readReviewedTarget(publisher, selected);
-    const authorization = selected.record.fixAuthorization;
+    const authorization = currentApprovedDispositionNode(selected.record).fixAuthorization;
     if (reviewedTarget === null || authorization === null
       || reviewedTarget.targetId !== authorization.oldTargetId
       || reviewedTarget.headSha !== authorization.oldHeadSha) {

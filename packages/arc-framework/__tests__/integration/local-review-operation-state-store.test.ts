@@ -9,7 +9,9 @@ import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import {
   ReviewReceiptV2Schema,
 } from "../../src/scripts/review-gate/core/gate-contract-v2-schema.js";
+import { LaneProgressStateSchema } from "../../src/scripts/review-gate/core/operation-state-schema.js";
 import { parseEvidence } from "../../src/scripts/review-gate/core/evidence.js";
+import type { ReviewOperationStateStore } from "../../src/scripts/review-gate/core/ports.js";
 import {
   RepositoryGitCommonStatePublisher,
   type GitCommonStatePublisher,
@@ -17,6 +19,23 @@ import {
 import {
   LocalReviewOperationStateStore,
 } from "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
+import {
+  acknowledgeHostedRequest,
+  bindHostedAttemptDisposition,
+  hostedLaneAttemptId,
+  laneProgressOperationId,
+  recordHostedAwaitAttempt,
+  recordHostedRequestAdmission,
+  recordHostedRequestConclusion,
+  recordLaneAttempt,
+  readHostedAwaitReplay,
+  resolveHostedAwaitResult,
+  supersedeHostedAttemptDisposition,
+} from "../../src/scripts/review-gate/lane-progress.js";
+import {
+  createHostedHandleFixture,
+  createHostedTerminalAttemptFixture,
+} from "../fixtures/hosted-review.js";
 
 const roots: string[] = [];
 const digest = (value: string): string => canonicalDigest({ value });
@@ -38,15 +57,115 @@ async function fixture() {
     operationId: "frontline-target-source-0",
     updatedAt: "2026-07-20T20:00:00Z",
     kind: "frontline-run" as const,
+    repositoryId: "repo-1",
     targetId: digest("target"),
     sourceIdentity: "local-frontline",
-    generation: 0,
+    lineage: { kind: "candidate" as const, candidateId: digest("candidate") },
+    logicalPass: 1,
+    retryGeneration: 0,
     outcome: "findings" as const,
-    passCount: 1,
     policyVersion: digest("policy"),
     sourceBindingId: digest("source-binding"),
   };
   return { root, commonDir, exec, store, state };
+}
+
+async function admittedHostedFixture() {
+  const records = await fixture();
+  const handle = createHostedHandleFixture();
+  const decision = await recordHostedRequestAdmission(records.store, {
+    repositoryId: handle.admission.repositoryId,
+    lineage: handle.admission.lineage,
+    request: {
+      schemaVersion: 1,
+      target: handle.target,
+      provider: handle.provider,
+      coverage: handle.requestedCoverage,
+    },
+    reviewTarget: handle.admission.reviewTarget,
+    requirement: handle.admission.requirement,
+    actorIdentity: handle.admission.actorIdentity,
+    authorizeCapacity: async () => undefined,
+    now: "2026-08-15T11:59:00Z",
+  });
+  if (decision.state !== "admitted") throw new Error("expected hosted admission");
+  const { state } = await records.store.readOperation(laneProgressOperationId({
+    lane: "standard",
+    repositoryId: handle.admission.repositoryId,
+    headSha: handle.target.headSha,
+    lineage: handle.admission.lineage,
+  }));
+  if (state === null || state.kind !== "lane-progress") throw new Error("expected hosted lane progress");
+  return { ...records, handle, admission: decision.admission, progress: state };
+}
+
+async function acknowledgedHostedFixture() {
+  const records = await admittedHostedFixture();
+  const progress = await acknowledgeHostedRequest(records.store, {
+    admission: records.admission,
+    handle: records.handle,
+    now: "2026-08-15T11:59:30Z",
+  });
+  return { ...records, progress };
+}
+
+async function sealedHostedFixture() {
+  const records = await acknowledgedHostedFixture();
+  const state = await recordHostedAwaitAttempt(records.store, {
+    repositoryId: records.handle.admission.repositoryId,
+    result: {
+      schemaVersion: 1,
+      mode: "review-hosted-await",
+      handle: records.handle,
+      state: "clean",
+      nextAction: "complete",
+      reviewUrl: "https://example.invalid/review",
+    },
+    now: "2026-08-15T12:00:00Z",
+  });
+  return { ...records, state };
+}
+
+async function boundHostedFindingsFixture() {
+  const records = await acknowledgedHostedFixture();
+  const finding = {
+    findingId: "body-1",
+    origin: "review-body" as const,
+    reviewId: "review-1",
+    fingerprint: "body-fingerprint",
+    settlement: "not-applicable" as const,
+    severity: "minor" as const,
+    locus: "pull-request review body",
+    url: "https://example.invalid/review-1",
+    body: "Body finding",
+    sourceOrdinal: 1,
+  };
+  const sealed = await recordHostedAwaitAttempt(records.store, {
+    repositoryId: records.handle.admission.repositoryId,
+    result: {
+      schemaVersion: 1,
+      mode: "review-hosted-await",
+      handle: records.handle,
+      state: "findings",
+      nextAction: "triage",
+      reviewUrl: "https://example.invalid/review",
+      findings: [finding],
+    },
+    now: "2026-08-15T12:00:00Z",
+  });
+  const dispositionSetId = digest("disposition");
+  const bound = await bindHostedAttemptDisposition(records.store, {
+    operationId: sealed.operationId,
+    attemptId: hostedLaneAttemptId(records.handle),
+    dispositionSetId,
+    findingDispositions: [{
+      findingId: finding.findingId,
+      disposition: "reject",
+      channelAction: "record-only",
+    }],
+    now: "2026-08-15T12:01:00Z",
+  });
+  return { ...records, finding, dispositionSetId, bound };
 }
 
 describe("local review operation state authority", () => {
@@ -141,6 +260,556 @@ describe("local review operation state authority", () => {
       outcome: "clean",
     }, 0)).rejects.toThrow(/version-conflict/u);
     await expect(records.store.readOperation(records.state.operationId)).resolves.toEqual(before);
+  });
+
+  it("rejects a fresh schema-valid terminal hosted attempt without durable admission history", async () => {
+    const admitted = await admittedHostedFixture();
+    const pending = admitted.progress.attempts[0];
+    if (pending?.hosted === undefined) throw new Error("expected pending hosted attempt");
+    const terminal = createHostedTerminalAttemptFixture({
+      admission: pending.hosted.admission,
+      outcome: "clean",
+    });
+    const forged = {
+      ...admitted.progress,
+      updatedAt: "2026-08-15T12:00:00Z",
+      completedPasses: 1,
+      attempts: [{
+        ...pending,
+        attemptId: terminal.attemptId,
+        terminalProducer: true,
+        outcome: "clean" as const,
+        hosted: terminal.hosted,
+      }],
+    };
+    const fresh = await fixture();
+
+    await expect(fresh.store.publishOperation(forged, 0))
+      .rejects.toThrow(/immutable-hosted-transition/u);
+    await expect(fresh.store.readOperation(forged.operationId)).resolves.toEqual({
+      version: 0,
+      state: null,
+    });
+  });
+
+  it("rejects sealing an unacknowledged hosted admission in the same publication", async () => {
+    const records = await admittedHostedFixture();
+    const before = await records.store.readOperation(records.progress.operationId);
+    const pending = records.progress.attempts[0];
+    if (pending?.hosted === undefined) throw new Error("expected pending hosted attempt");
+    const terminal = createHostedTerminalAttemptFixture({
+      admission: pending.hosted.admission,
+      outcome: "clean",
+    });
+
+    await expect(records.store.publishOperation({
+      ...records.progress,
+      updatedAt: "2026-08-15T12:00:00Z",
+      completedPasses: 1,
+      attempts: [{
+        ...pending,
+        attemptId: terminal.attemptId,
+        terminalProducer: true,
+        outcome: "clean",
+        hosted: terminal.hosted,
+      }],
+    }, before.version)).rejects.toThrow(/immutable-hosted-transition/u);
+    await expect(records.store.readOperation(records.progress.operationId)).resolves.toEqual(before);
+  });
+
+  it.each(["rate-limited", "transient-unavailable"] as const)(
+    "rejects a schema-valid direct-store seal after a concluded hosted %s attempt",
+    async (outcome) => {
+      const records = await acknowledgedHostedFixture();
+      const concluded = await recordHostedAwaitAttempt(records.store, {
+        repositoryId: records.handle.admission.repositoryId,
+        result: {
+          schemaVersion: 1,
+          mode: "review-hosted-await",
+          handle: records.handle,
+          state: outcome,
+          nextAction: "try-next-source",
+        },
+        now: "2026-08-15T12:00:00Z",
+      });
+      const current = await records.store.readOperation(concluded.operationId);
+      const attempt = concluded.attempts[0];
+      if (attempt?.hosted === undefined) throw new Error("expected concluded hosted attempt");
+      const terminal = createHostedTerminalAttemptFixture({
+        admission: attempt.hosted.admission,
+        outcome: "clean",
+      });
+      const rewrite = {
+        ...concluded,
+        updatedAt: "2026-08-15T12:01:00Z",
+        completedPasses: 1,
+        attempts: [{
+          ...attempt,
+          attemptId: terminal.attemptId,
+          outcome: "clean" as const,
+          terminalProducer: true,
+          hosted: terminal.hosted,
+        }],
+      };
+      expect(LaneProgressStateSchema.safeParse(rewrite).success).toBe(true);
+
+      await expect(records.store.publishOperation(rewrite, current.version))
+        .rejects.toThrow(/immutable-hosted-transition/u);
+      await expect(records.store.readOperation(concluded.operationId)).resolves.toEqual(current);
+    },
+  );
+
+  it("preserves a concluded request failure instead of letting it become pending", async () => {
+    const records = await admittedHostedFixture();
+    const concluded = await recordHostedRequestConclusion(records.store, {
+      admission: records.admission,
+      result: {
+        schemaVersion: 1,
+        mode: "review-hosted-request",
+        state: "rate-limited",
+        nextAction: "try-next-source",
+        provider: records.admission.sourceId,
+        requestedCoverage: records.admission.requestedCoverage,
+        attemptedProviders: [records.admission.sourceId],
+      },
+      now: "2026-08-15T12:00:00Z",
+    });
+    const current = await records.store.readOperation(concluded.operationId);
+    const rewrite = { ...concluded, updatedAt: "2026-08-15T12:01:00Z", attempts: records.progress.attempts };
+    expect(LaneProgressStateSchema.safeParse(rewrite).success).toBe(true);
+
+    await expect(records.store.publishOperation(rewrite, current.version))
+      .rejects.toThrow(/immutable-hosted-transition/u);
+    await expect(records.store.readOperation(concluded.operationId)).resolves.toEqual(current);
+  });
+
+  it("rejects a schema-valid rewrite that removes sealed hosted evidence", async () => {
+    const records = await sealedHostedFixture();
+    const current = await records.store.readOperation(records.state.operationId);
+
+    await expect(records.store.publishOperation({
+      ...records.state,
+      updatedAt: "2026-08-15T12:01:00Z",
+      completedPasses: 0,
+      attempts: [],
+    }, current.version)).rejects.toThrow(/immutable-hosted-transition/u);
+    await expect(records.store.readOperation(records.state.operationId)).resolves.toEqual(current);
+  });
+
+  it("rejects a schema-valid rewrite that replaces sealed hosted content", async () => {
+    const records = await sealedHostedFixture();
+    const current = await records.store.readOperation(records.state.operationId);
+    const attempt = records.state.attempts[0];
+    if (attempt?.hosted === undefined) throw new Error("expected hosted terminal attempt");
+
+    await expect(records.store.publishOperation({
+      ...records.state,
+      updatedAt: "2026-08-15T12:01:00Z",
+      attempts: [{
+        ...attempt,
+        hosted: createHostedTerminalAttemptFixture({
+          admission: attempt.hosted.admission,
+          outcome: "clean",
+          reviewUrl: "https://example.invalid/replaced-review",
+        }).hosted,
+      }],
+    }, current.version)).rejects.toThrow(/immutable-hosted-transition/u);
+    await expect(records.store.readOperation(records.state.operationId)).resolves.toEqual(current);
+  });
+
+  it("rejects a schema-valid replacement of an approved hosted disposition lineage", async () => {
+    const records = await boundHostedFindingsFixture();
+    const current = await records.store.readOperation(records.bound.operationId);
+    const attempt = records.bound.attempts[0];
+    if (attempt?.hosted === undefined) throw new Error("expected hosted findings attempt");
+    const replacementDispositionSetId = digest("replacement-disposition");
+
+    await expect(records.store.publishOperation({
+      ...records.bound,
+      updatedAt: "2026-08-15T12:02:00Z",
+      attempts: [{
+        ...attempt,
+        hosted: {
+          ...attempt.hosted,
+          dispositionSetId: replacementDispositionSetId,
+          dispositionSetLineage: [{
+            ...attempt.hosted.dispositionSetLineage[0]!,
+            dispositionSetId: replacementDispositionSetId,
+          }],
+          settlementEvidence: attempt.hosted.settlementEvidence.map((evidence) => ({
+            ...evidence,
+            dispositionSetId: replacementDispositionSetId,
+          })),
+        },
+      }],
+    }, current.version)).rejects.toThrow(/immutable-hosted-transition/u);
+    await expect(records.store.readOperation(records.bound.operationId)).resolves.toEqual(current);
+  });
+
+  it("appends one exact hosted successor and rejects later historical settlement rewrites", async () => {
+    const records = await boundHostedFindingsFixture();
+    const successorDispositionSetId = digest("successor-disposition");
+    const superseded = await supersedeHostedAttemptDisposition(records.store, {
+      operationId: records.bound.operationId,
+      attemptId: hostedLaneAttemptId(records.handle),
+      predecessorDispositionSetId: records.dispositionSetId,
+      successorDispositionSetId,
+      findingDispositions: [{
+        findingId: records.finding.findingId,
+        disposition: "reject",
+        channelAction: "record-only",
+      }],
+      now: "2026-08-15T12:02:00Z",
+    });
+    expect(superseded.carriedFindingIds).toEqual([records.finding.findingId]);
+    const current = await records.store.readOperation(records.bound.operationId);
+    const attempt = superseded.progress.attempts[0];
+    if (attempt?.hosted === undefined) throw new Error("expected superseded hosted findings attempt");
+
+    await expect(records.store.publishOperation({
+      ...superseded.progress,
+      updatedAt: "2026-08-15T12:03:00Z",
+      attempts: [{
+        ...attempt,
+        hosted: {
+          ...attempt.hosted,
+          settlementEvidence: attempt.hosted.settlementEvidence.map((evidence, index) => index === 0
+            ? { ...evidence, performedAt: "2026-08-15T12:02:30Z" }
+            : evidence),
+        },
+      }],
+    }, current.version)).rejects.toThrow(/immutable-hosted-transition/u);
+    await expect(records.store.readOperation(records.bound.operationId)).resolves.toEqual(current);
+  });
+
+  it("replays concurrent equal hosted evidence despite different progress timestamps", async () => {
+    const records = await acknowledgedHostedFixture();
+    const result = {
+      schemaVersion: 1 as const,
+      mode: "review-hosted-await" as const,
+      handle: records.handle,
+      state: "clean" as const,
+      nextAction: "complete" as const,
+      reviewUrl: "https://example.invalid/review",
+    };
+
+    const [first, second] = await Promise.all([
+      recordHostedAwaitAttempt(records.store, {
+        repositoryId: records.handle.admission.repositoryId,
+        result,
+        now: "2026-08-15T12:00:00Z",
+      }),
+      recordHostedAwaitAttempt(records.store, {
+        repositoryId: records.handle.admission.repositoryId,
+        result,
+        now: "2026-08-15T12:00:01Z",
+      }),
+    ]);
+
+    expect(second).toEqual(first);
+    expect(first.attempts[0]?.hosted?.sealedResult?.hostedResultId)
+      .toMatch(/^sha256:[0-9a-f]{64}$/u);
+    await expect(records.store.readOperation(first.operationId)).resolves.toEqual({
+      version: 3,
+      state: first,
+    });
+  });
+
+  it("replays equal sealed evidence without replacing later settlement progress", async () => {
+    const records = await acknowledgedHostedFixture();
+    const finding = {
+      findingId: "body-1",
+      origin: "review-body" as const,
+      reviewId: "review-1",
+      fingerprint: "body-fingerprint",
+      settlement: "not-applicable" as const,
+      severity: "minor" as const,
+      locus: "pull-request review body",
+      url: "https://example.invalid/review-1",
+      body: "Body finding",
+      sourceOrdinal: 1,
+    };
+    const result = {
+      schemaVersion: 1 as const,
+      mode: "review-hosted-await" as const,
+      handle: records.handle,
+      state: "findings" as const,
+      nextAction: "triage" as const,
+      reviewUrl: "https://example.invalid/review",
+      findings: [finding],
+    };
+    const sealed = await recordHostedAwaitAttempt(records.store, {
+      repositoryId: records.handle.admission.repositoryId,
+      result,
+      now: "2026-08-15T12:00:00Z",
+    });
+    const settled = await bindHostedAttemptDisposition(records.store, {
+      operationId: sealed.operationId,
+      attemptId: hostedLaneAttemptId(records.handle),
+      dispositionSetId: digest("disposition"),
+      findingDispositions: [{
+        findingId: finding.findingId,
+        disposition: "reject",
+        channelAction: "record-only",
+      }],
+      now: "2026-08-15T12:01:00Z",
+    });
+
+    await expect(recordHostedAwaitAttempt(records.store, {
+      repositoryId: records.handle.admission.repositoryId,
+      result,
+      now: "2026-08-15T12:02:00Z",
+    })).resolves.toEqual(settled);
+    await expect(records.store.readOperation(settled.operationId)).resolves.toEqual({
+      version: 4,
+      state: settled,
+    });
+    await expect(readHostedAwaitReplay(records.store, records.handle)).resolves.toEqual({
+      progress: settled,
+      hostedResultId: settled.attempts[0]?.hosted?.sealedResult?.hostedResultId,
+      result,
+    });
+    let observations = 0;
+    await expect(resolveHostedAwaitResult(records.store, {
+      repositoryId: records.handle.admission.repositoryId,
+      handle: records.handle,
+      observe: async () => {
+        observations += 1;
+        throw new Error("provider observation must not run for sealed replay");
+      },
+      now: () => "2026-08-15T12:03:00Z",
+    })).resolves.toEqual({
+      progress: settled,
+      hostedResultId: settled.attempts[0]?.hosted?.sealedResult?.hostedResultId,
+      result,
+    });
+    expect(observations).toBe(0);
+  });
+
+  it("recovers a durably sealed result after its publication acknowledgment is lost", async () => {
+    const records = await acknowledgedHostedFixture();
+    const result = {
+      schemaVersion: 1 as const,
+      mode: "review-hosted-await" as const,
+      handle: records.handle,
+      state: "clean" as const,
+      nextAction: "complete" as const,
+      reviewUrl: "https://example.invalid/review",
+    };
+    let loseAcknowledgment = true;
+    const uncertainStore: ReviewOperationStateStore = {
+      readOperation: records.store.readOperation.bind(records.store),
+      publishOperation: async (state, expectedVersion) => {
+        const published = await records.store.publishOperation(state, expectedVersion);
+        if (loseAcknowledgment && state.kind === "lane-progress"
+          && state.attempts.some((attempt) => attempt.hosted?.sealedResult !== undefined)) {
+          loseAcknowledgment = false;
+          throw new Error("publication-acknowledgment-lost");
+        }
+        return published;
+      },
+    };
+    let observations = 0;
+
+    const first = await resolveHostedAwaitResult(uncertainStore, {
+      repositoryId: records.handle.admission.repositoryId,
+      handle: records.handle,
+      observe: async () => {
+        observations += 1;
+        return result;
+      },
+      now: () => "2026-08-15T12:00:00Z",
+    });
+    const sealed = await readHostedAwaitReplay(records.store, records.handle);
+    if (sealed === null) throw new Error("expected the uncertain write to have sealed its result");
+    expect(first).toEqual(sealed);
+
+    await expect(resolveHostedAwaitResult(uncertainStore, {
+      repositoryId: records.handle.admission.repositoryId,
+      handle: records.handle,
+      observe: async () => {
+        observations += 1;
+        throw new Error("provider observation must not run after durable sealing");
+      },
+      now: () => "2026-08-15T12:01:00Z",
+    })).resolves.toEqual(sealed);
+    expect(observations).toBe(1);
+    expect(sealed.progress.completedPasses).toBe(1);
+    expect(sealed.progress.attempts).toHaveLength(1);
+    await expect(records.store.readOperation(sealed.progress.operationId)).resolves.toMatchObject({
+      version: 3,
+      state: sealed.progress,
+    });
+  });
+
+  it("recovers the current settled owner after a hosted seal acknowledgment is lost", async () => {
+    for (const laterPass of [false, true]) {
+      const records = await acknowledgedHostedFixture();
+      const finding = {
+        findingId: "body-1",
+        origin: "review-body" as const,
+        reviewId: "review-1",
+        fingerprint: "body-fingerprint",
+        settlement: "not-applicable" as const,
+        severity: "minor" as const,
+        locus: "pull-request review body",
+        url: "https://example.invalid/review-1",
+        body: "Body finding",
+        sourceOrdinal: 1,
+      };
+      const result = {
+        schemaVersion: 1 as const,
+        mode: "review-hosted-await" as const,
+        handle: records.handle,
+        state: "findings" as const,
+        nextAction: "triage" as const,
+        reviewUrl: "https://example.invalid/review",
+        findings: [finding],
+      };
+      let currentProgress: Awaited<ReturnType<typeof bindHostedAttemptDisposition>> | null = null;
+      const uncertainStore: ReviewOperationStateStore = {
+        readOperation: records.store.readOperation.bind(records.store),
+        publishOperation: async (state, expectedVersion) => {
+          const published = await records.store.publishOperation(state, expectedVersion);
+          if (state.kind === "lane-progress"
+            && state.attempts.some((attempt) => attempt.hosted?.sealedResult !== undefined)) {
+            currentProgress = await bindHostedAttemptDisposition(records.store, {
+              operationId: state.operationId,
+              attemptId: hostedLaneAttemptId(records.handle),
+              dispositionSetId: digest("disposition"),
+              findingDispositions: [{
+                findingId: finding.findingId,
+                disposition: "reject",
+                channelAction: "record-only",
+              }],
+              now: "2026-08-15T12:01:00Z",
+            });
+            if (laterPass) {
+              currentProgress = await recordLaneAttempt(records.store, {
+                lane: "standard",
+                repositoryId: records.handle.admission.repositoryId,
+                changeRequestId: `pull/${records.handle.target.pullRequest}`,
+                headSha: records.handle.target.headSha,
+                lineage: records.handle.admission.lineage,
+                attemptId: "later-pass",
+                sourceId: "delegated-agent",
+                logicalPass: 2,
+                outcome: "clean",
+                consumedPass: true,
+                now: "2026-08-15T12:02:00Z",
+              });
+            }
+            throw new Error("publication-acknowledgment-lost");
+          }
+          return published;
+        },
+      };
+
+      const first = await resolveHostedAwaitResult(uncertainStore, {
+        repositoryId: records.handle.admission.repositoryId,
+        handle: records.handle,
+        observe: async () => result,
+        now: () => "2026-08-15T12:00:00Z",
+      });
+      expect(first.progress).toEqual(currentProgress);
+      expect(first.progress.attempts[0]).toMatchObject({ outcome: "settled-findings" });
+      expect(first.progress.completedPasses).toBe(laterPass ? 2 : 1);
+      expect(first.hostedResultId).toBe(first.progress.attempts[0]?.hosted?.sealedResult?.hostedResultId);
+    }
+  });
+
+  it("refuses uncertain hosted publication when another seal is durable", async () => {
+    const records = await acknowledgedHostedFixture();
+    const result = {
+      schemaVersion: 1 as const,
+      mode: "review-hosted-await" as const,
+      handle: records.handle,
+      state: "clean" as const,
+      nextAction: "complete" as const,
+      reviewUrl: "https://example.invalid/original-review",
+    };
+    const differentResult = { ...result, reviewUrl: "https://example.invalid/different-review" };
+    const uncertainStore: ReviewOperationStateStore = {
+      readOperation: records.store.readOperation.bind(records.store),
+      publishOperation: async (state, expectedVersion) => {
+        if (state.kind === "lane-progress"
+          && state.attempts.some((attempt) => attempt.hosted?.sealedResult !== undefined)) {
+          await recordHostedAwaitAttempt(records.store, {
+            repositoryId: records.handle.admission.repositoryId,
+            result: differentResult,
+            now: "2026-08-15T12:01:00Z",
+          });
+          throw new Error("publication-acknowledgment-lost");
+        }
+        return records.store.publishOperation(state, expectedVersion);
+      },
+    };
+
+    await expect(resolveHostedAwaitResult(uncertainStore, {
+      repositoryId: records.handle.admission.repositoryId,
+      handle: records.handle,
+      observe: async () => result,
+      now: () => "2026-08-15T12:00:00Z",
+    })).rejects.toThrow("publication-acknowledgment-lost");
+    await expect(readHostedAwaitReplay(records.store, records.handle)).resolves.toMatchObject({
+      result: differentResult,
+    });
+  });
+
+  it("retains acknowledged admission for re-observation when terminal publication fails", async () => {
+    const records = await acknowledgedHostedFixture();
+    const result = {
+      schemaVersion: 1 as const,
+      mode: "review-hosted-await" as const,
+      handle: records.handle,
+      state: "clean" as const,
+      nextAction: "complete" as const,
+      reviewUrl: "https://example.invalid/review",
+    };
+    let failBeforePublication = true;
+    const interruptedStore: ReviewOperationStateStore = {
+      readOperation: records.store.readOperation.bind(records.store),
+      publishOperation: async (state, expectedVersion) => {
+        if (failBeforePublication && state.kind === "lane-progress"
+          && state.attempts.some((attempt) => attempt.hosted?.sealedResult !== undefined)) {
+          failBeforePublication = false;
+          throw new Error("publication-interrupted-before-write");
+        }
+        return records.store.publishOperation(state, expectedVersion);
+      },
+    };
+    let observations = 0;
+    const observe = async () => {
+      observations += 1;
+      return result;
+    };
+
+    await expect(resolveHostedAwaitResult(interruptedStore, {
+      repositoryId: records.handle.admission.repositoryId,
+      handle: records.handle,
+      observe,
+      now: () => "2026-08-15T12:00:00Z",
+    })).rejects.toThrow(/publication-interrupted-before-write/u);
+    await expect(records.store.readOperation(records.progress.operationId)).resolves.toEqual({
+      version: 2,
+      state: records.progress,
+    });
+    await expect(readHostedAwaitReplay(records.store, records.handle)).resolves.toBeNull();
+
+    const recovered = await resolveHostedAwaitResult(interruptedStore, {
+      repositoryId: records.handle.admission.repositoryId,
+      handle: records.handle,
+      observe,
+      now: () => "2026-08-15T12:01:00Z",
+    });
+    expect(observations).toBe(2);
+    expect(recovered.progress.completedPasses).toBe(1);
+    expect(recovered.progress.attempts).toHaveLength(1);
+    expect(recovered.progress.attempts[0]).toMatchObject({
+      attemptId: hostedLaneAttemptId(records.handle),
+      logicalPass: records.handle.admission.logicalPass,
+      hosted: { handle: records.handle },
+    });
   });
 
   it("rejects a same-record operation identity mismatch without overwriting it", async () => {

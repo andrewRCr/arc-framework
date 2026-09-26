@@ -14,6 +14,7 @@ import {
   type CandidateManagedRecordV1,
   type CandidateLineageTarget,
 } from "../candidate-attestation.js";
+import { CandidateGitObjectIdSchema } from "../candidate-evidence.js";
 import {
   projectCandidateReRootContinuation,
   projectStagedCandidateCurrentness,
@@ -209,6 +210,24 @@ export const AttestResultSchema = z.union([
   }),
   z.strictObject({
     status: z.literal("refused"),
+    reason: z.literal("re-root-live-review"),
+    candidateId: CandidateDigestSchema,
+    lane: z.enum(["frontline", "standard"]),
+    attemptId: z.string().trim().min(1),
+    outcome: z.enum(["pending", "partial", "findings", "ambiguous-delivery"]),
+    reviewHeadSha: CandidateGitObjectIdSchema,
+    recordRevision: CandidateGitObjectIdSchema,
+    nextAction: z.strictObject({
+      kind: z.literal("recover-owning-branch-review"),
+      reviewHeadSha: CandidateGitObjectIdSchema,
+      candidateRecordRevision: CandidateGitObjectIdSchema,
+      reviewArgv: z.tuple([z.literal("arc"), z.literal("review"),
+        z.literal("pre-publication"), SlugSchema]),
+    }),
+    recommendedActionText: z.string().trim().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("refused"),
     reason: z.enum([
       "re-root-candidate-mismatch",
       "re-root-subject-mismatch",
@@ -233,6 +252,13 @@ export interface AttestContext {
   readRecord(name: string): Promise<VersionedCandidateRecord>;
   currentTarget(name: string): Promise<CandidateLineageTarget>;
   effectiveTarget(name: string, record: CandidateManagedRecordV1): Promise<CandidateEffectiveTargetProjection>;
+  inspectReRootReviewAuthority(name: string, candidateId: string): Promise<{
+    lane: "frontline" | "standard";
+    attemptId: string;
+    outcome: "pending" | "partial" | "findings" | "ambiguous-delivery";
+    reviewHeadSha: string;
+    recordRevision: string;
+  } | null>;
   publish(input: {
     name: string;
     record: CandidateManagedRecordV1;
@@ -341,6 +367,22 @@ export async function runAttest(
       }
       if (expectedBlocked !== undefined && expectedBlocked.subjectDigest !== current.subject.subjectDigest) {
         return refuseStaleReRoot("re-root-subject-mismatch", expectedBlocked, currentness.candidateId);
+      }
+      const liveReview = await context.inspectReRootReviewAuthority(name, currentness.candidateId);
+      if (liveReview !== null) {
+        return AttestResultSchema.parse({
+          status: "refused",
+          reason: "re-root-live-review",
+          candidateId: currentness.candidateId,
+          ...liveReview,
+          nextAction: {
+            kind: "recover-owning-branch-review",
+            reviewHeadSha: liveReview.reviewHeadSha,
+            candidateRecordRevision: liveReview.recordRevision,
+            reviewArgv: ["arc", "review", "pre-publication", name],
+          },
+          recommendedActionText: "The predecessor Candidate still owns a live review attempt. With approval for branch restoration, preserve the changed HEAD on a temporary ref, restore the same owning branch and checkout to the exact review head, settle review there, merge the preserved changed ref back (never rebase), run full verification, then retry re-root. Use the Candidate record commit to confirm the predecessor record at the review head.",
+        });
       }
       return establishRoot(context, name, current, orientation, currentness.candidateId, existing.version);
     }

@@ -1,14 +1,35 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createHostedAdmission,
   HostedRequestEnvelopeSchema,
   requestHostedReview,
+  type HostedProgressVehicle,
+  type HostedRequestEnvelope,
   type HostedReviewAdapter,
 } from "../../../../../src/scripts/review-gate/hosted/request.js";
 import { HostedAwaitEnvelopeSchema } from
   "../../../../../src/scripts/review-gate/hosted/await.js";
+import {
+  createReviewRequirement,
+  createReviewTarget,
+} from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import {
+  type ReviewCeilingOverride,
+} from
+  "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
+import { assertStandardReviewExecutionAdmission } from
+  "../../../../../src/scripts/review-gate/policy/review-execution-admission.js";
 
 const HEAD = "a".repeat(40);
+const CORRECTION_SCOPE = {
+  schemaVersion: 1 as const,
+  predecessorProducerId: "prior-review",
+  predecessorHeadSha: "9".repeat(40),
+  basisHeadSha: "8".repeat(40),
+  headSha: HEAD,
+  requiredFindings: [],
+};
 const STANDARD_REVIEW = {
   obligation: "required" as const,
   reasons: ["sensitive-change-set" as const],
@@ -38,6 +59,75 @@ const DELIVERY_MEMBER = {
   isFinalMember: false,
 };
 
+function deliveryMemberLookup() {
+  const resolved = async () => ({ status: "resolved" as const, member: DELIVERY_MEMBER });
+  return {
+    resolveMemberByHead: resolved,
+    resolveMemberByRef: resolved,
+    resolveMemberByVehicle: resolved,
+  };
+}
+
+function admittedRequest(
+  request: HostedRequestEnvelope,
+  vehicle: HostedProgressVehicle | undefined,
+) {
+  const reviewTarget = createReviewTarget({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    kind: vehicle?.kind === "delivery-member" ? "delivery-member" : "change-set",
+    repositoryId: "repo-1",
+    baseRef: "main",
+    diffBaseSha: "b".repeat(40),
+    diffBaseTree: "c".repeat(40),
+    headSha: request.target.headSha,
+    headTree: "d".repeat(40),
+  });
+  const requirement = createReviewRequirement({
+    target: reviewTarget,
+    projection: STANDARD_REVIEW,
+    acceptableSources: [{ sourceKind: "hosted", qualifier: request.provider }],
+    initialAdmission: "automatic",
+  });
+  if (requirement === null) throw new Error("expected hosted requirement");
+  return createHostedAdmission({
+    schemaVersion: 1,
+    repositoryId: "repo-1",
+    lineage: vehicle?.kind === "delivery-member"
+      ? {
+          kind: "delivery-member",
+          planId: vehicle.planId,
+          workUnitId: vehicle.workUnitId,
+          deliverableId: vehicle.deliverableId,
+        }
+      : vehicle?.kind === "errand"
+        ? {
+            kind: "head-bound",
+            vehicleKind: "errand",
+            vehicleIdentity: vehicle.claimId,
+            headSha: request.target.headSha,
+          }
+        : { kind: "candidate", candidateId: `sha256:${"e".repeat(64)}` },
+    logicalPass: 1,
+    sourceId: request.provider,
+    target: request.target,
+    requestedCoverage: request.coverage,
+    ...(request.correctionScope === undefined ? {} : { correctionScope: request.correctionScope }),
+    ...(vehicle === undefined ? {} : { vehicle }),
+    reviewTarget,
+    requirement,
+    actorIdentity: "github-user-1",
+  });
+}
+
+const ADMIT_REQUEST = {
+  admitRequest: async (request: HostedRequestEnvelope, vehicle: HostedProgressVehicle | undefined) => (
+    { state: "admitted" as const, admission: admittedRequest(request, vehicle) }
+  ),
+  acknowledgeRequest: async () => undefined,
+  concludeRequest: async () => undefined,
+};
+
 function adapter(
   request: HostedReviewAdapter["request"],
 ): HostedReviewAdapter {
@@ -49,6 +139,26 @@ function adapter(
 }
 
 describe("hosted review request", () => {
+  it("binds incremental requests to one exact correction scope", () => {
+    const incremental = {
+      schemaVersion: 1,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      provider: "coderabbit-pr",
+      coverage: "incremental",
+    };
+
+    expect(() => HostedRequestEnvelopeSchema.parse(incremental)).toThrow(/correction scope/u);
+    expect(HostedRequestEnvelopeSchema.parse({
+      ...incremental,
+      correctionScope: CORRECTION_SCOPE,
+    })).toMatchObject({ correctionScope: CORRECTION_SCOPE });
+    expect(() => HostedRequestEnvelopeSchema.parse({
+      ...incremental,
+      coverage: "complete",
+      correctionScope: CORRECTION_SCOPE,
+    })).toThrow(/correction scope/u);
+  });
+
   it("returns a deterministic resumable handle for an acknowledged request", async () => {
     const input = {
       schemaVersion: 1,
@@ -71,8 +181,8 @@ describe("hosted review request", () => {
       },
     }));
 
-    const first = await requestHostedReview(input, { adapters: [requested] });
-    const second = await requestHostedReview(input, { adapters: [requested] });
+    const first = await requestHostedReview(input, { adapters: [requested], ...ADMIT_REQUEST });
+    const second = await requestHostedReview(input, { adapters: [requested], ...ADMIT_REQUEST });
 
     expect(first).toEqual(second);
     expect(first).toMatchObject({
@@ -92,6 +202,195 @@ describe("hosted review request", () => {
     if (first.state !== "requested") throw new Error("fixture request must be acknowledged");
     expect(first.action).toEqual({ schemaVersion: 1, handle: first.handle });
     expect(() => HostedAwaitEnvelopeSchema.parse(first.action)).not.toThrow();
+  });
+
+  it("does not invoke a singleton provider when durable admission fails", async () => {
+    await expect(requestHostedReview({
+      schemaVersion: 1,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      provider: "coderabbit-pr",
+      coverage: "complete",
+    }, {
+      adapters: [adapter(async () => {
+        throw new Error("provider effect ran");
+      })],
+      admitRequest: async () => {
+        throw new Error("admission write failed");
+      },
+    })).rejects.toThrow("admission write failed");
+  });
+
+  it("does not invoke a singleton provider when live capacity admission fails", async () => {
+    let providerCalled = false;
+    await expect(requestHostedReview({
+      schemaVersion: 1,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      provider: "coderabbit-pr",
+      coverage: "complete",
+    }, {
+      ...ADMIT_REQUEST,
+      adapters: [adapter(async () => {
+        providerCalled = true;
+        return { kind: "rate-limited" };
+      })],
+      admitRequest: async () => {
+        throw new Error("review pass ceiling requires approval");
+      },
+    } as Parameters<typeof requestHostedReview>[1])).rejects.toThrow(/ceiling requires approval/u);
+    expect(providerCalled).toBe(false);
+  });
+
+  it("invokes a singleton provider for only the exact driver-approved override pass", async () => {
+    const ceilingOverride = {
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      lane: "standard" as const,
+      exhaustedPassCount: 2,
+      nextPass: 3,
+    };
+    const capacity = (override: ReviewCeilingOverride) => {
+      assertStandardReviewExecutionAdmission({
+        target: override.target,
+        frontlineActive: false,
+        standardReview: STANDARD_REVIEW,
+        completedPasses: 2,
+        attempts: [],
+        sources: ["coderabbit-pr"],
+        maxPasses: 2,
+        expectedSourceId: "coderabbit-pr",
+        expectedNextAction: "hosted-request",
+        judgment: {
+          ceilingOverride: {
+            exhaustedPassCount: override.exhaustedPassCount,
+            nextPass: override.nextPass,
+          },
+        },
+      });
+    };
+    const requested = await requestHostedReview({
+      schemaVersion: 1,
+      target: ceilingOverride.target,
+      provider: "coderabbit-pr",
+      coverage: "complete",
+      ceilingOverride,
+    }, {
+      ...ADMIT_REQUEST,
+      adapters: [adapter(async () => ({ kind: "rate-limited" }))],
+      admitRequest: async (request, vehicle) => {
+        capacity(request.ceilingOverride ?? ceilingOverride);
+        return ADMIT_REQUEST.admitRequest(request, vehicle);
+      },
+    });
+    expect(requested).toMatchObject({ state: "rate-limited", nextAction: "try-next-source" });
+
+    await expect(requestHostedReview({
+      schemaVersion: 1,
+      target: ceilingOverride.target,
+      provider: "coderabbit-pr",
+      coverage: "complete",
+      ceilingOverride: { ...ceilingOverride, nextPass: 4 },
+    }, {
+      ...ADMIT_REQUEST,
+      adapters: [adapter(async () => {
+        throw new Error("provider effect ran");
+      })],
+      admitRequest: async (request, vehicle) => {
+        capacity(request.ceilingOverride ?? ceilingOverride);
+        return ADMIT_REQUEST.admitRequest(request, vehicle);
+      },
+    })).rejects.toThrow(/invalid-override\/stop/u);
+  });
+
+  it("does not invoke an Errand provider when durable admission fails", async () => {
+    await expect(requestHostedReview({
+      schemaVersion: 1,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      provider: "coderabbit-pr",
+      coverage: "complete",
+      vehicle: { kind: "errand", standardReview: STANDARD_REVIEW },
+    }, {
+      adapters: [adapter(async () => {
+        throw new Error("provider effect ran");
+      })],
+      errandBinding: ERRAND_BINDING,
+      admitRequest: async () => {
+        throw new Error("admission write failed");
+      },
+    })).rejects.toThrow("admission write failed");
+  });
+
+  it("does not invoke a delivery-member provider when durable admission fails", async () => {
+    await expect(requestHostedReview({
+      schemaVersion: 1,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      provider: "coderabbit-pr",
+      coverage: "complete",
+      vehicle: {
+        kind: "delivery-member",
+        planId: DELIVERY_MEMBER.planId,
+        deliverableId: DELIVERY_MEMBER.deliverableId,
+        workUnitId: DELIVERY_MEMBER.workUnitId,
+        head: DELIVERY_MEMBER.head,
+      },
+    }, {
+      adapters: [adapter(async () => {
+        throw new Error("provider effect ran");
+      })],
+      deliveryMemberLookup: deliveryMemberLookup(),
+      admitRequest: async () => {
+        throw new Error("admission write failed");
+      },
+    })).rejects.toThrow("admission write failed");
+  });
+
+  it("returns the stored await action for an acknowledged admission replay", async () => {
+    const request = {
+      schemaVersion: 1 as const,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      provider: "coderabbit-pr" as const,
+      coverage: "complete" as const,
+    };
+    const admission = admittedRequest(request, undefined);
+    const handle = {
+      schemaVersion: 1 as const,
+      provider: request.provider,
+      requestedCoverage: request.coverage,
+      effectiveCoverage: "complete" as const,
+      target: request.target,
+      artifact: {
+        kind: "issue-comment" as const,
+        id: "comment-1",
+        url: "https://example.invalid/comment-1",
+        createdAt: "2026-07-23T12:00:00.000Z",
+      },
+      admission,
+    };
+
+    expect(await requestHostedReview(request, {
+      adapters: [adapter(async () => {
+        throw new Error("provider effect ran");
+      })],
+      admitRequest: async () => ({
+        state: "acknowledged",
+        handle,
+        action: { schemaVersion: 1, handle },
+      }),
+    })).toMatchObject({ state: "requested", nextAction: "await", handle });
+  });
+
+  it("stops an unacknowledged admission replay without redispatch", async () => {
+    const request = {
+      schemaVersion: 1 as const,
+      target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+      provider: "coderabbit-pr" as const,
+      coverage: "complete" as const,
+    };
+
+    expect(await requestHostedReview(request, {
+      adapters: [adapter(async () => {
+        throw new Error("provider effect ran");
+      })],
+      admitRequest: async () => ({ state: "ambiguous-delivery" }),
+    })).toMatchObject({ state: "ambiguous-delivery", nextAction: "stop" });
   });
 
   it("carries validated Errand progress authority in the resumable handle", async () => {
@@ -123,6 +422,7 @@ describe("hosted review request", () => {
     const result = await requestHostedReview(input, {
       adapters: [requested],
       errandBinding: ERRAND_BINDING,
+      ...ADMIT_REQUEST,
     });
 
     expect(result).toMatchObject({
@@ -156,10 +456,8 @@ describe("hosted review request", () => {
           createdAt: "2026-07-23T12:00:00.000Z",
         },
       }))],
-      deliveryMemberLookup: {
-        resolveMemberByHead: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
-      },
-      admitDeliveryMemberRequest: async () => undefined,
+      deliveryMemberLookup: deliveryMemberLookup(),
+      ...ADMIT_REQUEST,
     });
 
     expect(result).toMatchObject({
@@ -196,8 +494,10 @@ describe("hosted review request", () => {
       })), id: "codex-pr" }],
       deliveryMemberLookup: {
         resolveMemberByHead: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
+        resolveMemberByRef: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
+        resolveMemberByVehicle: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
       },
-      admitDeliveryMemberRequest: async () => undefined,
+      ...ADMIT_REQUEST,
     });
 
     expect(result).toMatchObject({
@@ -206,6 +506,33 @@ describe("hosted review request", () => {
       action: { handle: { invocation: input.invocation } },
     });
   });
+
+  it.each([undefined, { kind: "errand" as const, standardReview: STANDARD_REVIEW }])(
+    "refuses forced invocation without a delivery-member vehicle before admission or dispatch (%s)",
+    async (vehicle) => {
+      let admitted = false;
+      let dispatched = false;
+      await expect(requestHostedReview({
+        schemaVersion: 1,
+        target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+        provider: "codex-pr",
+        coverage: "complete",
+        ...(vehicle === undefined ? {} : { vehicle }),
+        invocation: { mode: "force", sourceId: "codex-pr" },
+      }, {
+        adapters: [{ ...adapter(async () => {
+          dispatched = true;
+          return { kind: "rate-limited" };
+        }), id: "codex-pr" }],
+        admitRequest: async () => {
+          admitted = true;
+          throw new Error("admission should not run");
+        },
+      })).rejects.toThrow(/requires one exact delivery-member vehicle/u);
+      expect(admitted).toBe(false);
+      expect(dispatched).toBe(false);
+    },
+  );
 
   it("rechecks delivery-member admission before invoking the hosted adapter", async () => {
     let providerCalled = false;
@@ -226,10 +553,8 @@ describe("hosted review request", () => {
         providerCalled = true;
         return { kind: "rate-limited" };
       })],
-      deliveryMemberLookup: {
-        resolveMemberByHead: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
-      },
-      admitDeliveryMemberRequest: async () => {
+      deliveryMemberLookup: deliveryMemberLookup(),
+      admitRequest: async () => {
         throw new Error("review pass ceiling requires approval");
       },
     })).rejects.toThrow(/ceiling requires approval/u);
@@ -255,10 +580,8 @@ describe("hosted review request", () => {
         providerCalled = true;
         return { kind: "rate-limited" };
       })],
-      deliveryMemberLookup: {
-        resolveMemberByHead: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
-      },
-    })).rejects.toThrow(/request-time driver admission/u);
+      deliveryMemberLookup: deliveryMemberLookup(),
+    })).rejects.toThrow(/capacity-checked durable request admission/u);
     expect(providerCalled).toBe(false);
   });
 
@@ -277,9 +600,7 @@ describe("hosted review request", () => {
       },
     }, {
       adapters: [],
-      deliveryMemberLookup: {
-        resolveMemberByHead: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
-      },
+      deliveryMemberLookup: deliveryMemberLookup(),
     })).rejects.toThrow("does not match");
   });
 
@@ -308,13 +629,18 @@ describe("hosted review request", () => {
       provider: "codex-pr",
       coverage: "complete",
     })).toThrow();
-    expect(() => HostedRequestEnvelopeSchema.parse({
+    expect(HostedRequestEnvelopeSchema.parse({
       schemaVersion: 1,
       target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
       provider: "codex-pr",
       coverage: "complete",
-      invocation: { mode: "force", sourceId: "codex-pr" },
-    })).toThrow(/exact delivery-member vehicle/u);
+      ceilingOverride: {
+        target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
+        lane: "standard",
+        exhaustedPassCount: 2,
+        nextPass: 3,
+      },
+    }).ceilingOverride).toMatchObject({ exhaustedPassCount: 2, nextPass: 3 });
     expect(() => HostedRequestEnvelopeSchema.parse({
       schemaVersion: 1,
       target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
@@ -337,6 +663,7 @@ describe("hosted review request", () => {
       target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
       provider: "coderabbit-pr",
       coverage: "incremental",
+      correctionScope: CORRECTION_SCOPE,
     }, { adapters: [] });
 
     expect(result).toEqual({
@@ -356,12 +683,15 @@ describe("hosted review request", () => {
       target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
       provider: "coderabbit-pr" as const,
       coverage: "incremental" as const,
+      correctionScope: CORRECTION_SCOPE,
     };
     const unavailable = await requestHostedReview(base, {
       adapters: [adapter(async () => ({ kind: "rate-limited" }))],
+      ...ADMIT_REQUEST,
     });
     const ambiguous = await requestHostedReview(base, {
       adapters: [adapter(async () => ({ kind: "ambiguous-delivery" }))],
+      ...ADMIT_REQUEST,
     });
 
     expect(unavailable).toMatchObject({ state: "rate-limited", nextAction: "try-next-source" });
@@ -385,6 +715,6 @@ describe("hosted review request", () => {
       target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
       provider: "coderabbit-pr",
       coverage: "complete",
-    }, { adapters: [weakened] })).rejects.toThrow();
+    }, { adapters: [weakened], ...ADMIT_REQUEST })).rejects.toThrow();
   });
 });

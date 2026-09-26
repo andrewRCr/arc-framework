@@ -1,6 +1,8 @@
 /** Unit coverage for hosted-review reservation discharge. */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+import { createHostedTerminalAttemptFixture } from "../../../../fixtures/hosted-review.js";
 
 import type { DeliveryHostPort } from
   "../../../../../src/lib/delivery/host.js";
@@ -15,13 +17,31 @@ import {
 import { createStandardReviewReservation } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { classifyReviewContributionApplicability } from
   "../../../../../src/scripts/review-gate/policy/review-contribution-applicability.js";
+import type { EarlierHostedAttemptApplicabilityRead } from
+  "../../../../../src/scripts/review-gate/policy/earlier-review-applicability.js";
 import {
   allHostedReservationTargetsDischarged,
+  confirmIncrementalPredecessorApplicability,
+  exactCurrentCorrectionPredecessorMatches,
   createHostedReservationDischargeReader,
-  projectHostedReservationDischarge,
+  incrementalApplicabilityFromEarlierRead,
+  projectHostedReservationDischarge as projectHostedReservationDischargeRaw,
+  predecessorMatchesHostedReservationPolicy,
   resolveHostedReservationTargets,
 } from "../../../../../src/scripts/review-gate/policy/hosted-reservation-discharge.js";
+import {
+  buildIncrementalCorrectionScope,
+  resolveIncrementalCorrectionScope,
+  resolveIncrementalCoverageBasis,
+} from
+  "../../../../../src/scripts/review-gate/policy/incremental-coverage-basis.js";
+import type { ReviewResult } from
+  "../../../../../src/scripts/review-gate/core/review-result.js";
+import type { HostedCoverageEvidence } from
+  "../../../../../src/scripts/review-gate/hosted/await.js";
 import type { LaneProgressProjection } from "../../../../../src/scripts/review-gate/lane-progress.js";
+import { createHostedAdmission } from
+  "../../../../../src/scripts/review-gate/hosted/request.js";
 import { composeDeliveryReviewObligation } from "../../../../../src/scripts/review-gate/status.js";
 import { resolveReviewPolicy } from
   "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
@@ -31,6 +51,11 @@ const PLAN_ID = "123e4567-e89b-12d3-a456-426614174000";
 const MEMBER_ONE = `sha256:${"3".repeat(64)}`;
 const MEMBER_TWO = `sha256:${"4".repeat(64)}`;
 const target = (headSha: string) => ({ repository: "arc-framework/example", pullRequest: 42, headSha });
+const findingInstruction = (producerId: string, findingId: string) => ({
+  producerId,
+  findingId,
+  locus: `src/${findingId}.ts:1`,
+});
 
 function deliveryHost(
   requests: Readonly<Record<string, {
@@ -68,6 +93,7 @@ const delegatedAdmission = (
   target: target(vehicle.head),
   vehicle,
   pass: 1,
+  requestedCoverage: "complete" as const,
 });
 
 function unresolvedApplicability(
@@ -109,7 +135,11 @@ function attempt(
   sourceId: "coderabbit-pr" | "codex-pr",
   outcome: "pending" | "clean" | "findings" | "settled-findings" | "rate-limited",
   vehicle?: ReturnType<typeof DeliveryReviewMemberVehicleSchema.parse>,
-  coverage: { requested: "complete" | "incremental"; effective: "complete" | "incremental" } = {
+  coverage: {
+    requested: "complete" | "incremental";
+    effective: "complete" | "incremental";
+    evidence?: HostedCoverageEvidence;
+  } = {
     requested: "complete",
     effective: "complete",
   },
@@ -148,12 +178,80 @@ function attempt(
     severity: "major" as const,
     locus: "src/index.ts:1",
     url: "https://example.test/finding-1",
+    sourceOrdinal: 1,
+    sourceLabel: "Current native finding",
   };
+  const hostedTarget = target(headSha);
+  const admission = createHostedAdmission({
+    schemaVersion: 1,
+    repositoryId: "repo-1",
+    lineage: vehicle === undefined
+      ? { kind: "candidate", candidateId: `sha256:${"f".repeat(64)}` }
+      : {
+          kind: "delivery-member",
+          planId: vehicle.planId,
+          workUnitId: vehicle.workUnitId,
+          deliverableId: vehicle.deliverableId,
+        },
+    logicalPass: 1,
+    sourceId,
+    target: hostedTarget,
+    requestedCoverage: coverage.requested,
+    ...(coverage.requested === "incremental"
+      ? {
+          correctionScope: {
+            schemaVersion: 1 as const,
+            predecessorProducerId: "prior-review",
+            predecessorHeadSha: oid("9"),
+            basisHeadSha: oid("9"),
+            headSha: hostedTarget.headSha,
+            requiredFindings: [],
+          },
+        }
+      : {}),
+    ...(vehicle === undefined ? {} : { vehicle }),
+    reviewTarget,
+    requirement,
+    actorIdentity: "actor-1",
+  });
+  const terminal = outcome === "clean" || outcome === "findings" || outcome === "settled-findings"
+      ? createHostedTerminalAttemptFixture({
+        admission,
+        effectiveCoverage: coverage.effective,
+        ...(coverage.evidence === undefined ? {} : { coverageEvidence: coverage.evidence }),
+        outcome: outcome === "clean" ? "clean" : "findings",
+        findings: outcome === "findings" || outcome === "settled-findings" ? [finding] : [],
+        dispositionSetId: outcome === "settled-findings" ? canonicalDigest({ disposition: 1 }) : null,
+        findingActions: outcome === "settled-findings" ? [{
+          findingId: finding.findingId,
+          disposition: "reject",
+          channelAction: "reply-and-resolve",
+        }] : [],
+        settledFindingIds: outcome === "settled-findings" ? [finding.findingId] : [],
+        settlementEvidence: outcome === "settled-findings" ? [{
+          findingId: finding.findingId,
+          dispositionSetId: canonicalDigest({ disposition: 1 }),
+          disposition: "reject",
+          channelAction: "reply-and-resolve",
+          actorIdentity: admission.actorIdentity,
+          target: hostedTarget,
+          fixTarget: null,
+          commentId: finding.commentId,
+          threadId: finding.threadId,
+          replyDigest: canonicalDigest({ reply: 1 }),
+          replyId: "reply-1",
+          performedAt: "2026-08-31T12:01:00Z",
+          carriedFromDispositionSetId: null,
+        }] : [],
+      })
+    : null;
   return {
-    attemptId: `${sourceId}-${headSha}`,
+    attemptId: terminal?.attemptId ?? `${sourceId}-${headSha}`,
+    logicalPass: admission.logicalPass,
     sourceId,
     outcome,
-    hosted: {
+    hosted: terminal?.hosted ?? {
+      admission,
       ...(outcome === "pending"
         ? {
             handle: {
@@ -169,6 +267,7 @@ function attempt(
                 createdAt: "2026-08-31T12:00:00.000Z",
               },
               ...(vehicle === undefined ? {} : { vehicle }),
+              admission,
             },
           }
         : {}),
@@ -179,9 +278,35 @@ function attempt(
       reviewTarget,
       requirement,
       actorIdentity: "actor-1",
+      requestFailureReason: null,
       findings: outcome === "findings" || outcome === "settled-findings" ? [finding] : [],
       dispositionSetId: outcome === "settled-findings" ? canonicalDigest({ disposition: 1 }) : null,
+      dispositionSetLineage: outcome === "settled-findings" ? [{
+        dispositionSetId: canonicalDigest({ disposition: 1 }),
+        predecessorDispositionSetId: null,
+        successorDispositionSetId: null,
+        findingActions: [{
+          findingId: finding.findingId,
+          disposition: "reject" as const,
+          channelAction: "reply-and-resolve" as const,
+        }],
+      }] : [],
       settledFindingIds: outcome === "settled-findings" ? [finding.findingId] : [],
+      settlementEvidence: outcome === "settled-findings" ? [{
+        findingId: finding.findingId,
+        dispositionSetId: canonicalDigest({ disposition: 1 }),
+        disposition: "reject",
+        channelAction: "reply-and-resolve",
+        actorIdentity: admission.actorIdentity,
+        target: hostedTarget,
+        fixTarget: null,
+        commentId: finding.commentId,
+        threadId: finding.threadId,
+        replyDigest: canonicalDigest({ reply: 1 }),
+        replyId: "reply-1",
+        performedAt: "2026-08-31T12:01:00Z",
+        carriedFromDispositionSetId: null,
+      }] : [],
     },
   };
 }
@@ -218,20 +343,155 @@ function reservation(
     : createStandardReviewReservation({ ...common, target: targetVehicle });
 }
 
+type TestLaneProgressProjection = { status: "unrecorded" } | (
+  Omit<Extract<LaneProgressProjection, { status: "recorded" }>, "completePasses">
+  & { completePasses?: number }
+);
+
 function progress(
-  entries: Record<string, LaneProgressProjection>,
+  entries: Record<string, TestLaneProgressProjection>,
 ): (headSha: string) => Promise<LaneProgressProjection> {
-  return async (headSha) => entries[headSha] ?? { status: "unrecorded" };
+  return async (headSha) => {
+    const entry = entries[headSha];
+    if (entry === undefined || entry.status === "unrecorded") return { status: "unrecorded" };
+    return { ...entry, completePasses: entry.completePasses ?? entry.completedPasses };
+  };
+}
+
+type DischargeInput = Parameters<typeof projectHostedReservationDischargeRaw>[0];
+type TerminalPolicyResolvers = Pick<
+  DischargeInput,
+  "resolveTerminalPolicy" | "resolveEarlierTerminalPolicy"
+>;
+type TerminalPolicyAttempt = Parameters<TerminalPolicyResolvers[keyof TerminalPolicyResolvers]>[0];
+
+async function defaultTerminalPolicy(
+  attempt: TerminalPolicyAttempt,
+) {
+  const outcome = attempt.outcome === "clean" ? "clean" as const : "findings" as const;
+  const coverageAdequate = "effectiveCoverage" in attempt
+    ? attempt.effectiveCoverage === "complete"
+    : attempt.local?.effectiveCoverage === "complete" || attempt.hosted?.effectiveCoverage === "complete";
+  return resolveReviewPolicy({
+    schemaVersion: 1,
+    target: target(oid("a")),
+    lane: "standard",
+    standardReview: reservation(attempt.sourceId, [attempt.sourceId]).obligation,
+    sources: [attempt.sourceId],
+    maxPasses: 2,
+    completedPasses: attempt.logicalPass,
+    attempts: [{ sourceId: attempt.sourceId, outcome, reviewOperationId: attempt.attemptId }],
+    verifiedTerminalSignal: {
+      reviewOperationId: attempt.attemptId,
+      confirmedFindingCount: outcome === "clean" ? 0 : 1,
+      maxConfirmedSeverity: outcome === "clean" ? null : "major",
+      coverageAdequate,
+    },
+  });
+}
+
+function projectHostedReservationDischarge(
+  input: Omit<DischargeInput, keyof TerminalPolicyResolvers> & Partial<TerminalPolicyResolvers>,
+) {
+  return projectHostedReservationDischargeRaw({
+    ...input,
+    resolveTerminalPolicy: input.resolveTerminalPolicy ?? defaultTerminalPolicy,
+    resolveEarlierTerminalPolicy: input.resolveEarlierTerminalPolicy ?? defaultTerminalPolicy,
+  });
 }
 
 function earlierAttempt<T extends { readonly sourceId: string }>(input: T) {
   return {
     operationId: `lane-progress/${input.sourceId}`,
     attemptId: `attempt-${input.sourceId}`,
+    logicalPass: 1,
     updatedAt: "2026-08-27T12:00:00.000Z",
+    scopeMode: "whole-target" as const,
     ...input,
   };
 }
+
+function hostedReviewResult(input: {
+  readonly producerId: string;
+  readonly headSha: string;
+  readonly coverage: "complete" | "incremental";
+  readonly correctionScope?: {
+    readonly predecessorProducerId: string;
+    readonly predecessorHeadSha: string;
+    readonly basisHeadSha: string;
+    readonly requiredFindings: readonly ReturnType<typeof findingInstruction>[];
+  };
+}): ReviewResult {
+  const reviewTarget = createReviewTarget({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    kind: "change-set",
+    repositoryId: "repo-1",
+    baseRef: "main",
+    diffBaseSha: oid("0"),
+    diffBaseTree: oid("1"),
+    headSha: input.headSha,
+    headTree: oid("2"),
+  });
+  const requirement = createReviewRequirement({
+    target: reviewTarget,
+    projection: reservation("codex-pr", ["codex-pr"]).obligation,
+    acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
+    initialAdmission: "automatic",
+  });
+  if (requirement === null) throw new Error("expected hosted requirement");
+  return {
+    kind: "hosted",
+    producerId: input.producerId,
+    repositoryId: "repo-1",
+    target: reviewTarget,
+    sourceIdentity: "codex-pr",
+    originalOutcome: "clean",
+    findings: [],
+    resultDigest: canonicalDigest({ producerId: input.producerId }),
+    admission: {
+      lineage: { kind: "candidate", candidateId: `sha256:${"f".repeat(64)}` },
+      logicalPass: 1,
+      retryGeneration: 0,
+      requestedCoverage: input.coverage,
+      effectiveCoverage: input.coverage,
+      scopeMode: "whole-target",
+      policyVersion: requirement.policyVersion,
+      ...(input.correctionScope === undefined
+        ? {}
+        : {
+            correctionScope: {
+              schemaVersion: 1 as const,
+              ...input.correctionScope,
+              headSha: input.headSha,
+              requiredFindings: [...input.correctionScope.requiredFindings],
+            },
+          }),
+    },
+    laneOperationId: `lane/${input.producerId}`,
+    actorIdentity: "reviewer-1",
+    hostedTarget: target(input.headSha),
+    requirement,
+    hostSettlementFindingIds: [],
+    noHostSettlementFindingIds: [],
+    settled: false,
+  };
+}
+
+describe("retained hosted predecessor policy", () => {
+  it("rejects incremental reuse when the current reservation changes the rubric", () => {
+    const predecessor = hostedReviewResult({
+      producerId: "hosted/prior-complete", headSha: oid("a"), coverage: "complete",
+    });
+    if (predecessor.kind === "frontline") throw new Error("expected standard review");
+    const current = reservation("codex-pr", ["codex-pr"]);
+    expect(predecessorMatchesHostedReservationPolicy(predecessor, current)).toBe(true);
+    expect(predecessorMatchesHostedReservationPolicy(predecessor, {
+      ...current,
+      obligation: { ...current.obligation, rubricDigest: `sha256:${"d".repeat(64)}` },
+    })).toBe(false);
+  });
+});
 
 describe("hosted reservation discharge", () => {
   it("does not discharge the work unit from a top-only clean review", () => {
@@ -836,7 +1096,7 @@ describe("hosted reservation discharge", () => {
     })).resolves.toMatchObject({ discharged: true });
   });
 
-  it("discharges from a clean verdict the reserved source returned earlier in the span", async () => {
+  it("does not discharge an earlier clean verdict without current applicability evidence", async () => {
     const result = await projectHostedReservationDischarge({
       reservation: reservation("coderabbit-pr", ["coderabbit-pr", "codex-pr"]),
       span: [oid("a"), oid("b")],
@@ -845,25 +1105,192 @@ describe("hosted reservation discharge", () => {
         [oid("a")]: {
           status: "recorded",
           completedPasses: 1,
+          completePasses: 1,
           attempts: [attempt(oid("a"), "coderabbit-pr", "clean")],
         },
       }),
     });
 
-    expect(result.discharged).toBe(true);
-    expect(result.detail).toBe("Hosted source `coderabbit-pr`.");
+    expect(result).toEqual({
+      discharged: false,
+      detail: "Earlier review applicability evidence is incomplete.",
+      nextSource: null,
+    });
+  });
+
+  it("discharges an applicable earlier settled result only after verified nonmaterial policy", async () => {
+    const prior = earlierAttempt({
+      sourceId: "coderabbit-pr",
+      outcome: "settled-findings",
+      requestedCoverage: "complete" as const,
+      effectiveCoverage: "complete" as const,
+      applicability: "retain-prior-attempt" as const,
+    });
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"]),
+      span: [oid("b")],
+      target: target(oid("b")),
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async () => ({ status: "complete", attempts: [prior] }),
+      requireEarlierApplicabilityEvidence: true,
+      resolveEarlierTerminalPolicy: async () => resolveReviewPolicy({
+        schemaVersion: 1,
+        target: target(oid("a")),
+        lane: "standard",
+        standardReview: reservation("coderabbit-pr", ["coderabbit-pr"]).obligation,
+        sources: ["coderabbit-pr"],
+        maxPasses: 2,
+        completedPasses: 1,
+        attempts: [{
+          sourceId: "coderabbit-pr",
+          outcome: "findings",
+          reviewOperationId: prior.attemptId,
+        }],
+        verifiedTerminalSignal: {
+          reviewOperationId: prior.attemptId,
+          confirmedFindingCount: 1,
+          maxConfirmedSeverity: "minor",
+          coverageAdequate: true,
+        },
+      }),
+    });
+
+    expect(result).toEqual({
+      discharged: true,
+      detail: "Hosted source `coderabbit-pr` through contribution applicability with no verified material findings.",
+      nextSource: null,
+    });
+  });
+
+  it("refuses contradictory retained terminal evidence in one logical pass", async () => {
+    const common = {
+      sourceId: "coderabbit-pr",
+      requestedCoverage: "complete" as const,
+      effectiveCoverage: "complete" as const,
+      applicability: "retain-prior-attempt" as const,
+    };
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"]),
+      span: [oid("b")],
+      target: target(oid("b")),
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete",
+        attempts: [
+          earlierAttempt({ ...common, attemptId: "older-clean", outcome: "clean" }),
+          earlierAttempt({ ...common, attemptId: "same-pass-material", outcome: "settled-findings" }),
+        ],
+      }),
+    });
+
+    expect(result).toEqual({
+      discharged: false,
+      detail: "The latest retained logical pass contains conflicting terminal review evidence.",
+      nextSource: null,
+    });
+  });
+
+  it("keeps current material pass 3 ahead of retained clean pass 2", async () => {
+    const headSha = oid("b");
+    const currentMaterial = {
+      ...attempt(headSha, "coderabbit-pr", "settled-findings"),
+      logicalPass: 3,
+    };
+    const earlierClean = earlierAttempt({
+      attemptId: "retained-clean-pass-2",
+      logicalPass: 2,
+      sourceId: "coderabbit-pr",
+      outcome: "clean",
+      requestedCoverage: "complete" as const,
+      effectiveCoverage: "complete" as const,
+      applicability: "retain-prior-attempt" as const,
+    });
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"]),
+      span: [headSha],
+      target: target(headSha),
+      readLaneProgress: progress({
+        [headSha]: { status: "recorded", completedPasses: 3, attempts: [currentMaterial] },
+      }),
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete", attempts: [earlierClean],
+      }),
+    });
+
+    expect(result).toMatchObject({ discharged: false, nextSource: "coderabbit-pr" });
+  });
+
+  it("keeps retained material pass 3 ahead of current clean pass 2", async () => {
+    const headSha = oid("b");
+    const retainedMaterial = earlierAttempt({
+      attemptId: "retained-material-pass-3",
+      logicalPass: 3,
+      sourceId: "coderabbit-pr",
+      outcome: "settled-findings",
+      requestedCoverage: "complete" as const,
+      effectiveCoverage: "complete" as const,
+      applicability: "retain-prior-attempt" as const,
+    });
+    const discharge = (pass: number) => projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"]),
+      span: [headSha],
+      target: target(headSha),
+      readLaneProgress: progress({
+        [headSha]: {
+          status: "recorded", completedPasses: pass,
+          attempts: [{ ...attempt(headSha, "coderabbit-pr", "clean"), logicalPass: pass }],
+        },
+      }),
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete", attempts: [retainedMaterial],
+      }),
+    });
+
+    await expect(discharge(2)).resolves.toMatchObject({
+      discharged: false, nextSource: "coderabbit-pr",
+    });
+    await expect(discharge(3)).resolves.toMatchObject({
+      discharged: false,
+      detail: "The latest logical pass contains conflicting current and retained terminal review evidence.",
+      nextSource: null,
+    });
+    await expect(discharge(4)).resolves.toMatchObject({
+      discharged: true, nextSource: null,
+    });
   });
 
   it("keeps a member outstanding after findings settle so the next pass can converge", async () => {
+    const headSha = oid("a");
+    const settled = attempt(headSha, "coderabbit-pr", "settled-findings");
     const result = await projectHostedReservationDischarge({
       reservation: reservation("coderabbit-pr", ["coderabbit-pr"]),
-      span: [oid("a")],
-      target: target(oid("a")),
+      span: [headSha],
+      target: target(headSha),
       readLaneProgress: progress({
-        [oid("a")]: {
+        [headSha]: {
           status: "recorded",
           completedPasses: 1,
-          attempts: [attempt(oid("a"), "coderabbit-pr", "settled-findings")],
+          attempts: [settled],
+        },
+      }),
+      resolveTerminalPolicy: async () => resolveReviewPolicy({
+        schemaVersion: 1,
+        target: target(headSha),
+        lane: "standard",
+        standardReview: reservation("coderabbit-pr", ["coderabbit-pr"]).obligation,
+        sources: ["coderabbit-pr"],
+        maxPasses: 2,
+        completedPasses: 1,
+        attempts: [{
+          sourceId: "coderabbit-pr",
+          outcome: "findings",
+          reviewOperationId: settled.attemptId,
+        }],
+        verifiedTerminalSignal: {
+          reviewOperationId: settled.attemptId,
+          confirmedFindingCount: 1,
+          maxConfirmedSeverity: "major",
+          coverageAdequate: true,
         },
       }),
     });
@@ -872,6 +1299,49 @@ describe("hosted reservation discharge", () => {
       discharged: false,
       nextSource: "coderabbit-pr",
       detail: expect.stringContaining("has not produced a settled review"),
+    });
+  });
+
+  it("discharges settled findings only when verified policy finds no material signal", async () => {
+    const headSha = oid("a");
+    const settled = attempt(headSha, "coderabbit-pr", "settled-findings");
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"]),
+      span: [headSha],
+      target: target(headSha),
+      readLaneProgress: progress({
+        [headSha]: {
+          status: "recorded",
+          completedPasses: 1,
+          attempts: [settled],
+        },
+      }),
+      resolveTerminalPolicy: async () => resolveReviewPolicy({
+        schemaVersion: 1,
+        target: target(headSha),
+        lane: "standard",
+        standardReview: reservation("coderabbit-pr", ["coderabbit-pr"]).obligation,
+        sources: ["coderabbit-pr"],
+        maxPasses: 2,
+        completedPasses: 1,
+        attempts: [{
+          sourceId: "coderabbit-pr",
+          outcome: "findings",
+          reviewOperationId: settled.attemptId,
+        }],
+        verifiedTerminalSignal: {
+          reviewOperationId: settled.attemptId,
+          confirmedFindingCount: 0,
+          maxConfirmedSeverity: null,
+          coverageAdequate: true,
+        },
+      }),
+    });
+
+    expect(result).toEqual({
+      discharged: true,
+      detail: "Hosted source `coderabbit-pr` converged with no verified material findings.",
+      nextSource: null,
     });
   });
 
@@ -913,7 +1383,7 @@ describe("hosted reservation discharge", () => {
     });
   });
 
-  it("does not discharge a complete member obligation from incremental hosted coverage", async () => {
+  it("routes unproved provider-native coverage to the typed complete-coverage selection", async () => {
     const vehicle = DeliveryReviewMemberVehicleSchema.parse({
       kind: "delivery-member",
       planId: PLAN_ID,
@@ -933,20 +1403,96 @@ describe("hosted reservation discharge", () => {
       readLaneProgress: progress({
         [oid("b")]: {
           status: "recorded",
-          completedPasses: 0,
+          completedPasses: 1,
+          completePasses: 0,
           attempts: [attempt(
             oid("b"),
             "coderabbit-pr",
             "clean",
             vehicle,
-            { requested: "incremental", effective: "incremental" },
+            {
+              requested: "incremental",
+              effective: "incremental",
+              evidence: {
+                schemaVersion: 1,
+                kind: "provider-native-incremental",
+                sourceId: "coderabbit-pr",
+                requestArtifactId: "comment-1",
+                status: "unestablished",
+                reason: "provider-incremental-range-mismatch",
+              },
+            },
           )],
         },
       }),
     });
 
-    expect(result.discharged).toBe(false);
-    expect(result.nextSource).toBe("coderabbit-pr");
+    expect(result).toMatchObject({
+      discharged: false,
+      nextSource: null,
+      detail: expect.stringContaining("coverage-required/select-coverage"),
+      coverageSelectionAction: {
+        schemaVersion: 1,
+        kind: "review-coverage-selection",
+        workUnitId: "delivery",
+        sourceId: "coderabbit-pr",
+        pass: 1,
+        completedPasses: 1,
+        consumedPass: true,
+        choices: [{ sourceId: "coderabbit-pr", coverage: "complete" }],
+        interactionText: expect.stringContaining("--coverage"),
+      },
+    });
+  });
+
+  it("preserves an incremental terminal result as coverage-required policy evidence", async () => {
+    const headSha = oid("b");
+    const incremental = attempt(
+      headSha,
+      "coderabbit-pr",
+      "clean",
+      undefined,
+      { requested: "incremental", effective: "incremental" },
+    );
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"]),
+      span: [headSha],
+      target: target(headSha),
+      readLaneProgress: progress({
+        [headSha]: {
+          status: "recorded",
+          completedPasses: 1,
+          completePasses: 0,
+          attempts: [incremental],
+        },
+      }),
+      resolveTerminalPolicy: async () => resolveReviewPolicy({
+        schemaVersion: 1,
+        target: target(headSha),
+        lane: "standard",
+        standardReview: reservation("coderabbit-pr", ["coderabbit-pr"]).obligation,
+        sources: ["coderabbit-pr"],
+        maxPasses: 2,
+        completedPasses: 1,
+        attempts: [{
+          sourceId: "coderabbit-pr",
+          outcome: "clean",
+          reviewOperationId: incremental.attemptId,
+        }],
+        verifiedTerminalSignal: {
+          reviewOperationId: incremental.attemptId,
+          confirmedFindingCount: 0,
+          maxConfirmedSeverity: null,
+          coverageAdequate: false,
+        },
+      }),
+    });
+
+    expect(result).toEqual({
+      discharged: false,
+      detail: "The terminal review producer did not establish convergence (coverage-required/select-coverage).",
+      nextSource: null,
+    });
   });
 
   it("discharges the exact member from the driver's delegated-agent result", async () => {
@@ -983,11 +1529,15 @@ describe("hosted reservation discharge", () => {
           completedPasses: 1,
           attempts: [{
             attemptId: "local-review-1",
+            logicalPass: 1,
             sourceId: "delegated-agent",
             outcome: "clean",
             local: {
               vehicle: { kind: "delivery-member", identity: MEMBER_ONE },
               target: localTarget,
+              requestedCoverage: "complete",
+              effectiveCoverage: "complete",
+              scopeMode: "whole-target",
               deliveryAdmission: delegatedAdmission(vehicle),
             },
           }],
@@ -1034,13 +1584,18 @@ describe("hosted reservation discharge", () => {
         [vehicle.head]: {
           status: "recorded",
           completedPasses: 1,
+          completePasses: 1,
           attempts: [{
             attemptId: "local-review-1",
+            logicalPass: 1,
             sourceId: "delegated-agent",
             outcome: "findings",
             local: {
               vehicle: { kind: "delivery-member", identity: MEMBER_ONE },
               target: localTarget,
+              requestedCoverage: "complete",
+              effectiveCoverage: "complete",
+              scopeMode: "whole-target",
               deliveryAdmission: delegatedAdmission(vehicle),
             },
           }],
@@ -1088,11 +1643,12 @@ describe("hosted reservation discharge", () => {
     expect(result.discharged).toBe(false);
   });
 
-  it("does not discharge raw findings before their dispositions settle", async () => {
+  it("preserves native navigation when routing current findings for disposition", async () => {
     const result = await projectHostedReservationDischarge({
       reservation: reservation(),
       span: [oid("a")],
       target: target(oid("a")),
+      bindCurrentAttemptRef: () => "arc-review-source:v1:hosted:lane-progress%2Fcurrent:hosted%2Fcurrent",
       readLaneProgress: progress({
         [oid("a")]: {
           status: "recorded",
@@ -1102,7 +1658,16 @@ describe("hosted reservation discharge", () => {
       }),
     });
 
-    expect(result.discharged).toBe(false);
+    expect(result).toMatchObject({
+      discharged: false,
+      responsePlan: {
+        findings: [{
+          findingId: "finding-1",
+          sourceOrdinal: 1,
+          sourceLabel: "Current native finding",
+        }],
+      },
+    });
   });
 
   it("discharges from the next ordered source only after the preferred source was safely unavailable", async () => {
@@ -1142,6 +1707,33 @@ describe("hosted reservation discharge", () => {
     expect(result).toMatchObject({ discharged: false, nextSource: "codex-pr" });
   });
 
+  it("retains incremental coverage while selecting fallback within the active pass", async () => {
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr", "codex-pr"]),
+      span: [oid("a")],
+      target: target(oid("a")),
+      readLaneProgress: progress({
+        [oid("a")]: {
+          status: "recorded",
+          completedPasses: 0,
+          attempts: [attempt(
+            oid("a"),
+            "coderabbit-pr",
+            "rate-limited",
+            undefined,
+            { requested: "incremental", effective: "incremental" },
+          )],
+        },
+      }),
+    });
+
+    expect(result).toMatchObject({
+      discharged: false,
+      nextSource: "codex-pr",
+      requestCoverage: "incremental",
+    });
+  });
+
   it("does not accept a lower source without safe-unavailability evidence for the ordered prefix", async () => {
     const result = await projectHostedReservationDischarge({
       reservation: reservation("coderabbit-pr", ["coderabbit-pr", "codex-pr"]),
@@ -1158,6 +1750,70 @@ describe("hosted reservation discharge", () => {
 
     expect(result.discharged).toBe(false);
     expect(result.detail).toContain("coderabbit-pr");
+  });
+
+  it("accepts a lower local source after its exact delivery admission was validated", async () => {
+    const vehicle = DeliveryReviewMemberVehicleSchema.parse({
+      kind: "delivery-member",
+      planId: PLAN_ID,
+      deliverableId: MEMBER_ONE,
+      workUnitId: "delivery",
+      head: oid("a"),
+    });
+    const localTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "delivery-member",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: oid("0"),
+      diffBaseTree: oid("1"),
+      headSha: vehicle.head,
+      headTree: oid("2"),
+    });
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr", "delegated-agent"], {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "delivery",
+        planId: PLAN_ID,
+      }),
+      span: [vehicle.head],
+      target: { ...target(vehicle.head), vehicle },
+      readLaneProgress: progress({
+        [vehicle.head]: {
+          status: "recorded",
+          completedPasses: 1,
+          completePasses: 1,
+          attempts: [{
+            attemptId: "local-review-1",
+            logicalPass: 1,
+            sourceId: "delegated-agent",
+            outcome: "clean",
+            local: {
+              vehicle: { kind: "delivery-member", identity: MEMBER_ONE },
+              target: localTarget,
+              requestedCoverage: "complete",
+              effectiveCoverage: "complete",
+              scopeMode: "chunked",
+              deliveryAdmission: {
+                ...delegatedAdmission(vehicle),
+                scopeSelection: {
+                  mode: "chunked",
+                  target: target(vehicle.head),
+                },
+              },
+            },
+          }],
+        },
+      }),
+    });
+
+    expect(result).toMatchObject({
+      discharged: true,
+      nextSource: null,
+      detail: "Standard source `delegated-agent`.",
+    });
   });
 
   it.each([
@@ -1208,6 +1864,98 @@ describe("hosted reservation discharge", () => {
       discharged: true,
       detail: `Hosted source \`${selectedSource}\` by explicit Owner selection.`,
     });
+  });
+
+  it("requires immutable producer policy validation before discharging an Owner-selected clean result", async () => {
+    const headSha = oid("a");
+    const vehicle = DeliveryReviewMemberVehicleSchema.parse({
+      kind: "delivery-member",
+      planId: PLAN_ID,
+      deliverableId: MEMBER_ONE,
+      workUnitId: "delivery",
+      head: headSha,
+    });
+    const pending = attempt(headSha, "codex-pr", "pending", vehicle);
+    const clean = attempt(headSha, "codex-pr", "clean", vehicle);
+    const selected = {
+      ...clean,
+      hosted: {
+        ...clean.hosted,
+        handle: {
+          ...pending.hosted.handle!,
+          invocation: { mode: "force" as const, sourceId: "codex-pr" },
+        },
+      },
+    };
+    let resolvedAttemptId: string | null = null;
+    await expect(projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr", "codex-pr"], {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "delivery",
+        planId: PLAN_ID,
+      }),
+      span: [headSha],
+      target: { ...target(headSha), vehicle },
+      readLaneProgress: progress({
+        [headSha]: { status: "recorded", completedPasses: 1, attempts: [selected] },
+      }),
+      resolveTerminalPolicy: async (terminal) => {
+        resolvedAttemptId = terminal.attemptId;
+        throw new Error("review producer policy or rubric does not match the policy request");
+      },
+    })).rejects.toThrow("review producer policy or rubric does not match the policy request");
+    expect(resolvedAttemptId).toBe(selected.attemptId);
+  });
+
+  it.each([1, 2] as const)(
+    "lets a later settled material result on pass %i govern an earlier Owner-selected clean result",
+    async (laterPass) => {
+    const headSha = oid("a");
+    const vehicle = DeliveryReviewMemberVehicleSchema.parse({
+      kind: "delivery-member",
+      planId: PLAN_ID,
+      deliverableId: MEMBER_ONE,
+      workUnitId: "delivery",
+      head: headSha,
+    });
+    const pending = attempt(headSha, "codex-pr", "pending", vehicle);
+    const clean = attempt(headSha, "codex-pr", "clean", vehicle);
+    const selected = {
+      ...clean,
+      hosted: {
+        ...clean.hosted,
+        handle: {
+          ...pending.hosted.handle!,
+          invocation: { mode: "force" as const, sourceId: "codex-pr" },
+        },
+      },
+    };
+    const settled = {
+      ...attempt(headSha, "coderabbit-pr", "settled-findings", vehicle),
+      logicalPass: laterPass,
+    };
+    const resolvedAttempts: string[] = [];
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr", "codex-pr"], {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "delivery",
+        planId: PLAN_ID,
+      }),
+      span: [headSha],
+      target: { ...target(headSha), vehicle },
+      readLaneProgress: progress({
+        [headSha]: { status: "recorded", completedPasses: laterPass, attempts: [selected, settled] },
+      }),
+      resolveTerminalPolicy: async (terminal) => {
+        resolvedAttempts.push(terminal.attemptId);
+        return defaultTerminalPolicy(terminal);
+      },
+    });
+
+    expect(resolvedAttempts).toEqual([settled.attemptId]);
+    expect(result).toMatchObject({ discharged: false, nextSource: "coderabbit-pr" });
   });
 
   it("advances work-unit review status to the next member after a selected-source discharge", async () => {
@@ -1268,9 +2016,10 @@ describe("hosted reservation discharge", () => {
         chunkKey: `member-${index + 1}`,
         title: `Member ${index + 1}`,
       })),
-      discharges: [{ ...first, completedPasses: 1, passCeiling: 2, attemptHistory: [] }, {
+      discharges: [{ ...first, completedPasses: 1, completePasses: 1, passCeiling: 2, attemptHistory: [] }, {
         ...second,
         completedPasses: 0,
+        completePasses: 0,
         passCeiling: 2,
         attemptHistory: [],
         requestAdmission: resolveReviewPolicy({
@@ -1347,6 +2096,42 @@ describe("hosted reservation discharge", () => {
       discharged: false,
       detail: "The reserved standard-review sources have retained findings without one exact response route.",
     });
+  });
+
+  it("keeps ordinary current clean discharge pending until earlier findings are settled", async () => {
+    const headSha = oid("b");
+    const vehicle = DeliveryReviewMemberVehicleSchema.parse({
+      kind: "delivery-member", planId: PLAN_ID, deliverableId: MEMBER_ONE,
+      workUnitId: "delivery", head: headSha,
+    });
+    let settled = false;
+    const input = {
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr", "codex-pr"], {
+        kind: "delivery" as const, repository: "arc-framework/example",
+        workUnitId: "delivery", planId: PLAN_ID,
+      }),
+      span: [headSha],
+      target: { ...target(headSha), vehicle },
+      readLaneProgress: progress({
+        [headSha]: { status: "recorded", completedPasses: 1,
+          attempts: [attempt(headSha, "coderabbit-pr", "clean", vehicle)] },
+      }),
+      readEarlierAttemptApplicability: async (sourceId: string) => sourceId === "codex-pr"
+        ? settled ? { status: "not-found" as const, attempts: [] } : { status: "complete" as const, attempts: [earlierAttempt({
+            sourceId, outcome: "findings" as const, requestedCoverage: "complete" as const,
+            effectiveCoverage: "complete" as const, applicability: "retain-prior-attempt" as const,
+          })] }
+        : { status: "not-found" as const, attempts: [] },
+    };
+
+    const before = await projectHostedReservationDischarge(input);
+    expect(before).toMatchObject({
+      discharged: false,
+      detail: "The reserved standard-review sources have retained findings without one exact response route.",
+    });
+    settled = true;
+    const after = await projectHostedReservationDischarge(input);
+    expect(after).toMatchObject({ discharged: true });
   });
 
   it("leaves the reservation pending when the reserved source reached no verdict", async () => {
@@ -1445,6 +2230,113 @@ describe("hosted reservation discharge", () => {
     });
   });
 
+  it.each(["clean", "settled-findings"] as const)(
+    "admits retained incremental %s evidence to complete-chain policy validation",
+    async (terminalOutcome) => {
+    const resolveEarlierTerminalPolicy = async (terminal: TerminalPolicyAttempt) => resolveReviewPolicy({
+      schemaVersion: 1,
+      target: target(oid("b")),
+      lane: "standard",
+      standardReview: reservation("coderabbit-pr", ["coderabbit-pr"]).obligation,
+      sources: ["coderabbit-pr"],
+      maxPasses: 2,
+      completedPasses: terminal.logicalPass,
+      attempts: [{
+        sourceId: terminal.sourceId,
+        outcome: terminalOutcome === "clean" ? "clean" : "findings",
+        reviewOperationId: terminal.attemptId,
+      }],
+      verifiedTerminalSignal: {
+        reviewOperationId: terminal.attemptId,
+        confirmedFindingCount: 0,
+        maxConfirmedSeverity: null,
+        coverageAdequate: true,
+      },
+    });
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"]),
+      span: [oid("b")],
+      target: target(oid("b")),
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete",
+        attempts: [earlierAttempt({
+          sourceId: "coderabbit-pr",
+          outcome: terminalOutcome,
+          requestedCoverage: "incremental",
+          effectiveCoverage: "incremental",
+          applicability: "retain-prior-attempt",
+        })],
+      }),
+      resolveEarlierTerminalPolicy,
+    });
+
+    expect(result).toEqual({
+      discharged: true,
+      detail: terminalOutcome === "clean"
+        ? "Hosted source `coderabbit-pr` through contribution applicability."
+        : "Hosted source `coderabbit-pr` through contribution applicability with no verified material findings.",
+      nextSource: null,
+    });
+  });
+
+  it("routes retained incremental evidence with an inadequate chain to coverage selection", async () => {
+    const vehicle = DeliveryReviewMemberVehicleSchema.parse({
+      kind: "delivery-member",
+      planId: PLAN_ID,
+      deliverableId: MEMBER_ONE,
+      workUnitId: "delivery",
+      head: oid("b"),
+    });
+    const correctionScope = {
+      schemaVersion: 1 as const,
+      predecessorProducerId: "attempt-coderabbit-pr",
+      predecessorHeadSha: oid("a"),
+      basisHeadSha: oid("a"),
+      headSha: oid("b"),
+      requiredFindings: [],
+    };
+    const result = await projectHostedReservationDischarge({
+      reservation: reservation("coderabbit-pr", ["coderabbit-pr"]),
+      span: [oid("b")],
+      target: { ...target(oid("b")), vehicle },
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete",
+        attempts: [earlierAttempt({
+          sourceId: "coderabbit-pr",
+          outcome: "clean",
+          requestedCoverage: "incremental",
+          effectiveCoverage: "incremental",
+          applicability: "retain-prior-attempt",
+        })],
+      }),
+      resolveIncrementalCorrectionScope: async () => correctionScope,
+    });
+
+    expect(result).toMatchObject({
+      discharged: false,
+      detail: "The retained terminal review producer did not establish convergence "
+        + "(coverage-required/select-coverage).",
+      nextSource: null,
+      correctionScope,
+      coverageSelectionAction: {
+        schemaVersion: 1,
+        kind: "review-coverage-selection",
+        workUnitId: "delivery",
+        sourceId: "coderabbit-pr",
+        pass: 1,
+        completedPasses: 1,
+        consumedPass: true,
+        choices: [
+          { sourceId: "coderabbit-pr", coverage: "incremental" },
+          { sourceId: "coderabbit-pr", coverage: "complete" },
+        ],
+        interactionText: expect.stringContaining("--coverage"),
+      },
+    });
+  });
+
   it("routes an applicable prior findings attempt back to its exact response plan", async () => {
     const responsePlan = {
       schemaVersion: 1 as const,
@@ -1468,6 +2360,7 @@ describe("hosted reservation discharge", () => {
         severity: "major" as const,
         locus: "src/index.ts:1",
         evidenceUrlOrId: "https://example.test/finding-1",
+        sourceOrdinal: 1,
       }],
     };
     const result = await projectHostedReservationDischarge({
@@ -1546,6 +2439,7 @@ describe("hosted reservation discharge", () => {
         severity: "major" as const,
         locus: "src/index.ts:1",
         evidenceUrlOrId: "https://example.test/finding-1",
+        sourceOrdinal: 1,
       }],
     };
     const result = await projectHostedReservationDischarge({
@@ -1596,6 +2490,7 @@ describe("hosted reservation discharge", () => {
         severity: "major" as const,
         locus: "src/index.ts:1",
         evidenceUrlOrId: "https://example.test/finding-1",
+        sourceOrdinal: 1,
       }],
     };
     const result = await projectHostedReservationDischarge({
@@ -1652,6 +2547,495 @@ describe("hosted reservation discharge", () => {
       discharged: false,
       nextSource: "coderabbit-pr",
     });
+  });
+
+  it("carries a source-neutral complete predecessor into a local correction request", async () => {
+    const priorTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: oid("0"),
+      diffBaseTree: oid("1"),
+      headSha: oid("a"),
+      headTree: oid("2"),
+    });
+    const prior = earlierAttempt({
+      attemptId: "hosted/prior-complete",
+      sourceId: "codex-pr",
+      outcome: "clean",
+      requestedCoverage: "complete" as const,
+      effectiveCoverage: "complete" as const,
+      producerTarget: priorTarget,
+      applicability: "request-review" as const,
+    });
+    const correctionScope = {
+      schemaVersion: 1 as const,
+      predecessorProducerId: prior.attemptId,
+      predecessorHeadSha: prior.producerTarget.headSha,
+      basisHeadSha: prior.producerTarget.headSha,
+      headSha: oid("b"),
+      requiredFindings: [],
+    };
+
+    await expect(projectHostedReservationDischarge({
+      reservation: reservation("delegated-agent", ["delegated-agent", "codex-pr"]),
+      span: [oid("b")],
+      target: target(oid("b")),
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async (sourceId) => sourceId === "codex-pr"
+        ? { status: "complete", attempts: [prior] }
+        : { status: "not-found" },
+      resolveIncrementalCorrectionScope: async (attempt, currentHeadSha) => (
+        attempt.attemptId === prior.attemptId && currentHeadSha === oid("b")
+          ? correctionScope
+          : null
+      ),
+    })).resolves.toMatchObject({
+      discharged: false,
+      nextSource: "delegated-agent",
+      correctionScope,
+    });
+  });
+
+  it("uses the newest responded same-head terminal producer as the correction predecessor", async () => {
+    const headSha = oid("b");
+    const vehicle = DeliveryReviewMemberVehicleSchema.parse({
+      kind: "delivery-member",
+      planId: PLAN_ID,
+      deliverableId: MEMBER_ONE,
+      workUnitId: "delivery",
+      head: headSha,
+    });
+    const current = attempt(headSha, "codex-pr", "settled-findings", vehicle);
+    const producerTarget = current.hosted?.reviewTarget;
+    if (producerTarget === undefined) throw new Error("expected hosted producer target");
+    const correctionScope = {
+      schemaVersion: 1 as const,
+      predecessorProducerId: current.attemptId,
+      predecessorHeadSha: headSha,
+      basisHeadSha: headSha,
+      headSha,
+      requiredFindings: [findingInstruction(current.attemptId, "finding-current")],
+    };
+
+    await expect(projectHostedReservationDischarge({
+      reservation: reservation("codex-pr", ["codex-pr", "delegated-agent"], {
+        kind: "delivery",
+        repository: "arc-framework/example",
+        workUnitId: "delivery",
+        planId: PLAN_ID,
+      }),
+      span: [headSha],
+      target: { ...target(headSha), vehicle },
+      readLaneProgress: progress({
+        [headSha]: {
+          status: "recorded",
+          completedPasses: 1,
+          completePasses: 1,
+          attempts: [current],
+        },
+      }),
+      readEarlierAttemptApplicability: async () => ({ status: "not-found" }),
+      resolveIncrementalCorrectionScope: async (candidate, currentHeadSha) => (
+        candidate.attemptId === current.attemptId
+          && candidate.sourceId === current.sourceId
+          && candidate.producerTarget?.targetId === producerTarget.targetId
+          && currentHeadSha === headSha
+          ? correctionScope
+          : null
+      ),
+    })).resolves.toMatchObject({
+      discharged: false,
+      nextSource: "codex-pr",
+      correctionScope,
+    });
+  });
+
+  it("extends the latest incremental predecessor instead of skipping back to its complete root", async () => {
+    const completeTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: oid("0"),
+      diffBaseTree: oid("1"),
+      headSha: oid("a"),
+      headTree: oid("2"),
+    });
+    const incrementalTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: oid("0"),
+      diffBaseTree: oid("1"),
+      headSha: oid("b"),
+      headTree: oid("3"),
+    });
+    const complete = earlierAttempt({
+      attemptId: "hosted/complete-a",
+      logicalPass: 1,
+      updatedAt: "2026-08-27T12:00:00.000Z",
+      sourceId: "codex-pr",
+      outcome: "clean",
+      requestedCoverage: "complete" as const,
+      effectiveCoverage: "complete" as const,
+      producerTarget: completeTarget,
+      applicability: "request-review" as const,
+    });
+    const incremental = earlierAttempt({
+      attemptId: "hosted/incremental-b",
+      logicalPass: 2,
+      updatedAt: "2026-08-28T12:00:00.000Z",
+      sourceId: "codex-pr",
+      outcome: "settled-findings",
+      requestedCoverage: "incremental" as const,
+      effectiveCoverage: "incremental" as const,
+      producerTarget: incrementalTarget,
+      applicability: "request-review" as const,
+    });
+    const expectedScope = {
+      schemaVersion: 1 as const,
+      predecessorProducerId: incremental.attemptId,
+      predecessorHeadSha: incremental.producerTarget.headSha,
+      basisHeadSha: complete.producerTarget.headSha,
+      headSha: oid("c"),
+      requiredFindings: [
+        findingInstruction(complete.attemptId, "finding-a"),
+        findingInstruction(incremental.attemptId, "finding-b"),
+      ],
+    };
+
+    await expect(projectHostedReservationDischarge({
+      reservation: reservation("codex-pr", ["codex-pr"]),
+      span: [oid("c")],
+      target: target(oid("c")),
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete",
+        attempts: [complete, incremental],
+      }),
+      resolveIncrementalCorrectionScope: async (candidate) => candidate.attemptId === incremental.attemptId
+        ? expectedScope
+        : {
+            ...expectedScope,
+            predecessorProducerId: complete.attemptId,
+            predecessorHeadSha: complete.producerTarget.headSha,
+            requiredFindings: [findingInstruction(complete.attemptId, "finding-a")],
+          },
+    })).resolves.toMatchObject({
+      discharged: false,
+      nextSource: "codex-pr",
+      correctionScope: expectedScope,
+    });
+  });
+
+  it("does not skip an unusable latest predecessor to manufacture an older correction scope", async () => {
+    const producerTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: oid("0"),
+      diffBaseTree: oid("1"),
+      headSha: oid("a"),
+      headTree: oid("2"),
+    });
+    const complete = earlierAttempt({
+      attemptId: "hosted/complete-a",
+      logicalPass: 1,
+      sourceId: "codex-pr",
+      outcome: "clean",
+      requestedCoverage: "complete" as const,
+      effectiveCoverage: "complete" as const,
+      producerTarget,
+      applicability: "request-review" as const,
+    });
+    const incremental = earlierAttempt({
+      attemptId: "hosted/incremental-b",
+      logicalPass: 2,
+      sourceId: "codex-pr",
+      outcome: "settled-findings",
+      requestedCoverage: "incremental" as const,
+      effectiveCoverage: "incremental" as const,
+      producerTarget: createReviewTarget({
+        schemaVersion: 2,
+        semanticsVersion: "review-gate/v2",
+        kind: "change-set",
+        repositoryId: "repo-1",
+        baseRef: "main",
+        diffBaseSha: oid("0"),
+        diffBaseTree: oid("1"),
+        headSha: oid("b"),
+        headTree: oid("3"),
+      }),
+      applicability: "request-review" as const,
+    });
+
+    const projected = await projectHostedReservationDischarge({
+      reservation: reservation("codex-pr", ["codex-pr"]),
+      span: [oid("c")],
+      target: target(oid("c")),
+      readLaneProgress: progress({}),
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete",
+        attempts: [complete, incremental],
+      }),
+      resolveIncrementalCorrectionScope: async (candidate) => candidate.attemptId === complete.attemptId
+        ? {
+            schemaVersion: 1,
+            predecessorProducerId: complete.attemptId,
+            predecessorHeadSha: complete.producerTarget.headSha,
+            basisHeadSha: complete.producerTarget.headSha,
+            headSha: oid("c"),
+            requiredFindings: [],
+          }
+        : null,
+    });
+
+    expect(projected).not.toHaveProperty("correctionScope");
+  });
+
+  it("carries an incremental predecessor's basis and transitive material instructions", () => {
+    const predecessor = hostedReviewResult({
+      producerId: "hosted/incremental-b",
+      headSha: oid("b"),
+      coverage: "incremental",
+      correctionScope: {
+        predecessorProducerId: "hosted/complete-a",
+        predecessorHeadSha: oid("a"),
+        basisHeadSha: oid("a"),
+        requiredFindings: [findingInstruction("hosted/complete-a", "finding-a")],
+      },
+    });
+
+    expect(buildIncrementalCorrectionScope({
+      predecessor,
+      currentHeadSha: oid("c"),
+      response: {
+        status: "performed",
+        requiredFindings: [findingInstruction(predecessor.producerId, "finding-b")],
+      },
+    })).toEqual({
+      schemaVersion: 1,
+      predecessorProducerId: predecessor.producerId,
+      predecessorHeadSha: oid("b"),
+      basisHeadSha: oid("a"),
+      headSha: oid("c"),
+      requiredFindings: [
+        findingInstruction("hosted/complete-a", "finding-a"),
+        findingInstruction(predecessor.producerId, "finding-b"),
+      ],
+    });
+  });
+
+  it("confirms every chain predecessor against the current target rather than only the direct link", async () => {
+    const complete = hostedReviewResult({
+      producerId: "hosted/complete-a",
+      headSha: oid("a"),
+      coverage: "complete",
+    });
+    const current = hostedReviewResult({
+      producerId: "hosted/incremental-c",
+      headSha: oid("c"),
+      coverage: "incremental",
+      correctionScope: {
+        predecessorProducerId: "hosted/incremental-b",
+        predecessorHeadSha: oid("b"),
+        basisHeadSha: oid("a"),
+        requiredFindings: [],
+      },
+    });
+
+    await expect(confirmIncrementalPredecessorApplicability({
+      predecessor: complete,
+      current,
+      readEarlierAttemptApplicability: async () => ({
+        status: "complete",
+        attempts: [earlierAttempt({
+          attemptId: complete.producerId,
+          sourceId: "codex-pr",
+          outcome: "clean",
+          requestedCoverage: "complete",
+          effectiveCoverage: "complete",
+          producerTarget: complete.target,
+          applicability: "request-review",
+        })],
+      }),
+    })).resolves.toBe("review-required");
+  });
+
+  it("does not retain a same-head predecessor after its reviewed base changes", async () => {
+    const predecessor = hostedReviewResult({
+      producerId: "hosted/complete-a",
+      headSha: oid("a"),
+      coverage: "complete",
+    });
+    const { targetId: _targetId, ...targetInput } = predecessor.target;
+    void _targetId;
+    const changedTarget = createReviewTarget({
+      ...targetInput,
+      diffBaseSha: oid("4"),
+      diffBaseTree: oid("5"),
+    });
+    const current = hostedReviewResult({
+      producerId: "hosted/incremental-a",
+      headSha: oid("a"),
+      coverage: "incremental",
+      correctionScope: {
+        predecessorProducerId: predecessor.producerId,
+        predecessorHeadSha: predecessor.target.headSha,
+        basisHeadSha: predecessor.target.headSha,
+        requiredFindings: [],
+      },
+    });
+    const readEarlierAttemptApplicability = vi.fn(async (): Promise<EarlierHostedAttemptApplicabilityRead> => ({
+      status: "complete" as const,
+      attempts: [earlierAttempt({
+        attemptId: predecessor.producerId,
+        sourceId: "codex-pr",
+        outcome: "clean",
+        requestedCoverage: "complete",
+        effectiveCoverage: "complete",
+        producerTarget: predecessor.target,
+        applicability: "request-review",
+      })],
+    }));
+    await expect(confirmIncrementalPredecessorApplicability({
+      predecessor,
+      current: { ...current, target: changedTarget },
+      readEarlierAttemptApplicability,
+    })).resolves.toBe("review-required");
+    expect(readEarlierAttemptApplicability).toHaveBeenCalledWith("codex-pr");
+  });
+
+  it("offers a correction from an exact current target and withholds it after a base change", async () => {
+    const predecessor = hostedReviewResult({
+      producerId: "hosted/current-complete",
+      headSha: oid("a"),
+      coverage: "complete",
+    });
+    const { targetId: _targetId, ...input } = predecessor.target;
+    void _targetId;
+    const changedTarget = createReviewTarget({
+      ...input,
+      diffBaseSha: oid("4"),
+      diffBaseTree: oid("5"),
+    });
+    const offered = (currentTarget: ReviewResult["target"]) => resolveIncrementalCorrectionScope({
+      predecessor,
+      currentHeadSha: predecessor.target.headSha,
+    }, {
+      resultReader: { readResult: async () => predecessor },
+      readResponseEvidence: async () => ({ status: "performed" as const, requiredFindings: [] }),
+      confirmApplicability: async () => "applicable" as const,
+      confirmCurrentApplicability: async (candidate) => exactCurrentCorrectionPredecessorMatches({
+        predecessor: candidate,
+        currentTarget,
+        currentRepositoryId: predecessor.repositoryId,
+        currentLineage: predecessor.admission.lineage,
+      }) ? "applicable" : "unavailable",
+    });
+    await expect(offered(predecessor.target)).resolves.toMatchObject({
+      predecessorProducerId: predecessor.producerId,
+      headSha: predecessor.target.headSha,
+    });
+    await expect(offered(changedTarget)).resolves.toBeNull();
+  });
+
+  it("withholds a correction offer and rejects reduction after an exact Owner request-review", async () => {
+    const complete = hostedReviewResult({
+      producerId: "hosted/complete-a",
+      headSha: oid("a"),
+      coverage: "complete",
+    });
+    const current = hostedReviewResult({
+      producerId: "hosted/incremental-c",
+      headSha: oid("c"),
+      coverage: "incremental",
+      correctionScope: {
+        predecessorProducerId: complete.producerId,
+        predecessorHeadSha: complete.target.headSha,
+        basisHeadSha: complete.target.headSha,
+        requiredFindings: [],
+      },
+    });
+    const applicability = (predecessor: ReviewResult, result: ReviewResult) =>
+      confirmIncrementalPredecessorApplicability({
+        predecessor,
+        current: result,
+        readEarlierAttemptApplicability: async () => ({
+          status: "complete",
+          attempts: [earlierAttempt({
+            attemptId: complete.producerId,
+            sourceId: "codex-pr",
+            outcome: "clean",
+            requestedCoverage: "complete",
+            effectiveCoverage: "complete",
+            producerTarget: complete.target,
+            applicability: "request-review",
+          })],
+        }),
+      });
+    const dependencies = {
+      resultReader: { readResult: async () => complete },
+      confirmApplicability: applicability,
+      readResponseEvidence: async () => ({ status: "performed" as const, requiredFindings: [] }),
+    };
+    await expect(resolveIncrementalCoverageBasis(current, dependencies)).resolves.toMatchObject({
+      status: "inadequate", reason: "applicability-required",
+    });
+    await expect(resolveIncrementalCorrectionScope({
+      predecessor: complete,
+      currentHeadSha: current.target.headSha,
+    }, {
+      ...dependencies,
+      confirmCurrentApplicability: async () => applicability(complete, current),
+    })).resolves.toBeNull();
+  });
+
+  it("recognizes an exact predecessor after retained or requested current-head review", () => {
+    const producerTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: oid("0"),
+      diffBaseTree: oid("1"),
+      headSha: oid("a"),
+      headTree: oid("2"),
+    });
+    const projected = (applicability: "retain-prior-attempt" | "request-review" | "stop") => ({
+      status: "complete" as const,
+      attempts: [earlierAttempt({
+        attemptId: "hosted/prior-complete",
+        sourceId: "codex-pr",
+        outcome: "clean",
+        requestedCoverage: "complete" as const,
+        effectiveCoverage: "complete" as const,
+        producerTarget,
+        applicability,
+      })],
+    });
+
+    for (const applicability of ["retain-prior-attempt", "request-review"] as const) {
+      expect(incrementalApplicabilityFromEarlierRead({
+        producerId: "hosted/prior-complete",
+        producerTarget,
+        earlier: projected(applicability),
+      })).toBe(applicability === "request-review" ? "review-required" : "applicable");
+    }
+    expect(incrementalApplicabilityFromEarlierRead({
+      producerId: "hosted/prior-complete",
+      producerTarget,
+      earlier: projected("stop"),
+    })).toBe("unavailable");
   });
 
   it("does not spend provider capacity for an unresolved or unavailable prior projection", async () => {

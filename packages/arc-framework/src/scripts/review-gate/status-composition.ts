@@ -43,6 +43,8 @@ import {
 } from "./core/delivery-member-lookup.js";
 import { resolveReviewSubject } from "./core/review-subject.js";
 import { readErrandRoutedObligation } from "./status-errand.js";
+import { optionalReviewStatusJudgment, type ReviewStatusPolicyJudgment } from "./status-judgment.js";
+import { deliveryHeadRef, selectDeliveryReviewStatusTarget } from "./status-delivery-target.js";
 import {
   createHostedReservationDischargeReader,
   resolveHostedReservationTargets,
@@ -59,6 +61,11 @@ import { createGhRequiredChecksPort } from "./hosts/github/checks-await.js";
 import { RepositoryDeliveryMemberLookup } from "./hosts/local/delivery-member-lookup.js";
 import { resolveRepositoryIdentity } from "./hosts/local/git-common-state.js";
 import { LocalReviewOperationStateStore } from "./hosts/local/operation-state-store.js";
+import { LocalApprovedDispositionRecordStore } from
+  "./hosts/local/disposition-record-store.js";
+import { createRepositoryReviewResultReader } from
+  "./hosts/local/review-result-reader-composition.js";
+import { readLaneResponsePerformance } from "./lane-progress.js";
 import { hostedGhRunner } from "./hosted/gh-process.js";
 import {
   HostedProviderIdSchema,
@@ -67,11 +74,11 @@ import {
 import { resolveConfiguredLanePolicy } from "./policy/lane-policy-config.js";
 import {
   projectHostedReservationPolicyProgress,
-  resolveHostedReservationPolicy,
+  resolveEvidenceBoundHostedReservationPolicy,
 } from "./policy/hosted-reservation-admission.js";
-import type { ReviewPolicyCommandRequest } from "./policy/review-policy-driver.js";
 import type { DeliveryLocalReviewScopeSelection } from
   "./policy/delivery-local-review-admission.js";
+import { selectReviewCoverageChoice } from "./policy/review-coverage-selection.js";
 import {
   parseReviewChunkingThresholds,
   resolveReviewChunkingPolicy,
@@ -89,11 +96,6 @@ import {
   type ReviewStatusTargetInput,
   type RoutedReviewObligation,
 } from "./status.js";
-
-function deliveryHeadRef(ref: string | null): string | null {
-  if (ref === null) return null;
-  return ref.startsWith("refs/heads/") ? ref.slice("refs/heads/".length) : ref;
-}
 
 async function resolveDeliveryMemberScopeSelection(input: {
   readonly cwd: string;
@@ -337,11 +339,7 @@ export async function readRoutedObligation(
   memberLookup: DeliveryMemberLookup & DeliveryDischargeTargetLookup & DeliveryTerminalRecordLookup
     = new RepositoryDeliveryMemberLookup({ cwd, exec }),
   currentBaseRevision?: string,
-  judgment?: {
-    readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
-    readonly coverage?: HostedReviewCoverage;
-    readonly sourceId?: string;
-  },
+  judgment?: ReviewStatusPolicyJudgment,
   host: Pick<DeliveryHostPort, "readRequest"> = new GhDeliveryHostPort(hostedGhRunner),
   options: {
     readonly remote?: string;
@@ -360,6 +358,8 @@ export async function readRoutedObligation(
     exec,
     target,
     pullRequest,
+    ...(judgment?.additionalPassAuthorization === undefined ? {}
+      : { additionalPassAuthorization: judgment.additionalPassAuthorization }),
     ...(currentBaseRevision === undefined ? {} : { currentBaseOid: currentBaseRevision }),
     ...(options.remote === undefined ? {} : { remote: options.remote }),
     ...(options.changeRequestCandidate === undefined
@@ -615,6 +615,8 @@ export async function readRoutedObligation(
       })));
       const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
       const store = new LocalReviewOperationStateStore(publisher);
+      const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
+      const resultReader = createRepositoryReviewResultReader(publisher);
       const snapshot = await store.readOperationSnapshot();
       const repositoryId = await resolveRepositoryIdentity(publisher);
       const policy = await resolveConfiguredLanePolicy({
@@ -648,6 +650,7 @@ export async function readRoutedObligation(
           return {
             ...discharge,
             completedPasses: memberProgress.completedPasses,
+            completePasses: memberProgress.completePasses,
             passCeiling: policy.maxPasses,
             attemptHistory: memberProgress.attemptHistory,
           };
@@ -663,7 +666,27 @@ export async function readRoutedObligation(
             ownerTerminusAdvances,
           }));
       });
-      const firstOutstanding = discharges[firstOutstandingIndex];
+      const rawFirstOutstanding = discharges[firstOutstandingIndex];
+      let firstOutstanding: Parameters<typeof composeDeliveryReviewObligation>[0]["discharges"][number] | undefined =
+        composedDischarges[firstOutstandingIndex];
+      const selectedCoverage = firstOutstanding?.coverageSelectionAction === undefined
+        ? null
+        : selectReviewCoverageChoice(firstOutstanding.coverageSelectionAction, {
+            sourceId: judgment?.sourceId,
+            coverage: judgment?.coverage,
+          });
+      if (firstOutstanding !== undefined && selectedCoverage !== null) {
+        firstOutstanding = {
+          ...firstOutstanding,
+          coverageSelectionAction: undefined,
+          nextSource: selectedCoverage.sourceId,
+          requestCoverage: selectedCoverage.coverage,
+        };
+        const selectedDischarge = firstOutstanding;
+        composedDischarges = composedDischarges.map((discharge, index) => (
+          index === firstOutstandingIndex ? selectedDischarge : discharge
+        ));
+      }
       const firstTarget = deliveryTargets[firstOutstandingIndex];
       if (firstOutstanding?.nextSource !== null
         && firstOutstanding?.nextSource !== undefined
@@ -675,7 +698,7 @@ export async function readRoutedObligation(
           target: firstTarget,
           ...(judgment?.sourceId === undefined ? {} : { sourceId: judgment.sourceId }),
         });
-        const admission = resolveHostedReservationPolicy({
+        const admission = await resolveEvidenceBoundHostedReservationPolicy({
           reservation,
           snapshot,
           repositoryId,
@@ -686,16 +709,37 @@ export async function readRoutedObligation(
           },
           vehicle: firstTarget.vehicle,
           maxPasses: policy.maxPasses,
-          ...(firstOutstanding.requestAttempts === undefined
+          ...(rawFirstOutstanding?.requestAttempts === undefined
             ? {}
-            : { requestAttempts: firstOutstanding.requestAttempts }),
+            : { requestAttempts: rawFirstOutstanding.requestAttempts }),
           ...(judgment?.ceilingOverride === undefined
             ? {}
             : { ceilingOverride: judgment.ceilingOverride }),
+          ...(judgment?.additionalPassAuthorization === undefined ? {}
+            : { additionalPassAuthorization: judgment.additionalPassAuthorization }),
           ...(judgment?.sourceId === undefined
             ? {}
             : { invocation: { mode: "force" as const, sourceId: judgment.sourceId } }),
+          ...(selectedCoverage === null ? {} : { coverageSelection: selectedCoverage }),
           ...(scopeSelection === undefined ? {} : { scopeSelection }),
+        }, {
+          resultReader,
+          dispositionStore,
+          readResponsePerformance: (predecessor) => readLaneResponsePerformance(store, predecessor),
+          confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
+          confirmIncrementalApplicability: (predecessor, current) => (
+            readDischarge.confirmIncrementalApplicability({
+              reservation,
+              baseRevision: firstTarget.baseRevision,
+              approvedHead: firstTarget.headSha,
+              changeRequest: {
+                repository: firstTarget.repository,
+                pullRequest: firstTarget.pullRequest,
+              },
+              vehicle: firstTarget.vehicle,
+              candidate: record,
+            }, predecessor, current)
+          ),
         });
         if (admission.status === "unavailable") {
           return { state: "blocked", detail: admission.detail };
@@ -711,6 +755,8 @@ export async function readRoutedObligation(
               ...(judgment?.ceilingOverride === undefined
                 ? {}
                 : { requestCeilingOverride: judgment.ceilingOverride }),
+              ...(judgment?.additionalPassAuthorization === undefined ? {}
+                : { requestAdditionalPassAuthorization: judgment.additionalPassAuthorization }),
               ...(scopeSelection === undefined ? {} : { requestScopeSelection: scopeSelection }),
             });
       }
@@ -759,6 +805,7 @@ export function createReviewStatusPort(
     cwd: string;
     exec: GitExec;
     remote?: string;
+    sourceId?: string;
     preparedNativeLanding?: {
       readonly planId: string;
       readonly operationId: string;
@@ -772,7 +819,7 @@ export function createReviewStatusPort(
   },
 ): ReviewStatusPort {
   return {
-    observe: async (target, ceilingOverride, coverage, sourceId) => {
+    observe: async (target, ceilingOverride, coverage, sourceId, additionalPassAuthorization) => {
       try {
         const remote = input.remote ?? "origin";
         const changeRequestPort = createGhChangeRequestResolutionPort(input.exec, input.cwd, remote);
@@ -840,13 +887,9 @@ export function createReviewStatusPort(
               resolution.candidate.number,
               memberLookup,
               base.currentBaseOid ?? undefined,
-              ceilingOverride === undefined && coverage === undefined && sourceId === undefined
-                ? undefined
-                : {
-                    ...(ceilingOverride === undefined ? {} : { ceilingOverride }),
-                    ...(coverage === undefined ? {} : { coverage }),
-                    ...(sourceId === undefined ? {} : { sourceId }),
-                  },
+              optionalReviewStatusJudgment({
+                ceilingOverride, additionalPassAuthorization, coverage, sourceId,
+              }),
               undefined,
               {
                 remote,
@@ -886,64 +929,7 @@ export function createReviewStatusPort(
   };
 }
 
-/**
- * Select the exact current member target, carrying only a previously validated terminal advance.
- *
- * @param input - Durable state, routed conjunction, and optional validated terminal movement.
- * @returns The exact selected target plus its state-backed member lookup head, or null when unjustified.
- */
-export function selectDeliveryReviewStatusTarget(input: {
-  readonly anchor: ChangeRequestTargetRef;
-  readonly terminalPullRequest: number;
-  readonly terminalDeliverableId: string;
-  readonly stateMembers: readonly {
-    readonly deliverableId: string;
-    readonly ref: string | null;
-    readonly coordinates: { readonly head: string } | null;
-  }[];
-  readonly outstanding: boolean;
-  readonly firstOutstanding?: {
-    readonly vehicle: { readonly deliverableId: string };
-    readonly target: { readonly repository: string; readonly pullRequest: number; readonly headSha: string };
-  };
-  readonly terminalAdvance?: { readonly stateHead: string; readonly currentHead: string };
-}): {
-  readonly target: ChangeRequestTargetRef;
-  readonly pullRequest: number;
-  readonly deliveryLookupHeadSha: string;
-} | null {
-  if (!input.outstanding) {
-    const headSha = input.terminalAdvance?.stateHead === input.anchor.headSha
-      ? input.terminalAdvance.currentHead
-      : input.anchor.headSha;
-    return {
-      target: { ...input.anchor, headSha },
-      pullRequest: input.terminalPullRequest,
-      deliveryLookupHeadSha: input.anchor.headSha,
-    };
-  }
-  const selected = input.firstOutstanding;
-  const selectedState = selected === undefined
-    ? undefined
-    : input.stateMembers.find(({ deliverableId }) => deliverableId === selected.vehicle.deliverableId);
-  const selectedHeadRef = deliveryHeadRef(selectedState?.ref ?? null);
-  if (selected === undefined || selectedState?.coordinates === null
-    || selectedState?.coordinates === undefined || selectedHeadRef === null) return null;
-  const exactStateHead = selectedState.coordinates.head === selected.target.headSha;
-  const exactTerminalAdvance = selected.vehicle.deliverableId === input.terminalDeliverableId
-    && input.terminalAdvance?.stateHead === selectedState.coordinates.head
-    && input.terminalAdvance.currentHead === selected.target.headSha;
-  if (!exactStateHead && !exactTerminalAdvance) return null;
-  return {
-    target: {
-      repository: selected.target.repository,
-      headRef: selectedHeadRef,
-      headSha: selected.target.headSha,
-    },
-    pullRequest: selected.target.pullRequest,
-    deliveryLookupHeadSha: selectedState.coordinates.head,
-  };
-}
+export { selectDeliveryReviewStatusTarget } from "./status-delivery-target.js";
 
 /** A work-unit cursor was used where no delivery status action exists. */
 export class ReviewStatusWrongRouteError extends Error {
@@ -959,6 +945,7 @@ export async function resolveReviewStatusForWorkUnit(input: {
   readonly exec: GitExec;
   readonly workUnitId: string;
   readonly ceilingOverride?: ReviewStatusTargetInput["ceilingOverride"];
+  readonly additionalPassAuthorization?: ReviewStatusTargetInput["additionalPassAuthorization"];
   readonly coverage?: HostedReviewCoverage;
   readonly sourceId?: string;
   readonly remote?: string;
@@ -1009,13 +996,7 @@ export async function resolveReviewStatusForWorkUnit(input: {
     terminalPullRequest,
     memberLookup,
     undefined,
-    input.ceilingOverride === undefined && input.coverage === undefined && input.sourceId === undefined
-      ? undefined
-      : {
-          ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
-          ...(input.coverage === undefined ? {} : { coverage: input.coverage }),
-          ...(input.sourceId === undefined ? {} : { sourceId: input.sourceId }),
-        },
+    optionalReviewStatusJudgment(input),
     undefined,
     {
       ...(input.remote === undefined ? {} : { remote: input.remote }),
@@ -1043,6 +1024,8 @@ export async function resolveReviewStatusForWorkUnit(input: {
   const result = await resolveReviewStatus({
     target: selectedTarget,
     ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
+    ...(input.additionalPassAuthorization === undefined ? {}
+      : { additionalPassAuthorization: input.additionalPassAuthorization }),
     ...(input.coverage === undefined ? {} : { coverage: input.coverage }),
   }, createReviewStatusPort(input, {
     target: selectedTarget,

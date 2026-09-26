@@ -85,11 +85,11 @@ the other.
 
 ### Severity interpretation
 
-Through the `adversarial-review` mechanism, findings map into the fixed `blocker` / `major` / `minor` enum the
+Through the `adversarial-review` mechanism, findings map into the fixed `critical` / `major` / `minor` enum the
 [severity model][adversarial-review] owns — the rubric maps _into_ the enum and never extends it. What each level
 looks like for a design:
 
-- **`blocker`** — an efficacy break: the design as settled does not achieve a stated goal (a missing mechanism, a
+- **`critical`** — an efficacy break: the design as settled does not achieve a stated goal (a missing mechanism, a
   causal chain that doesn't produce the outcome, a false load-bearing assumption), or an unsettled fundamental
   presented as settled — a masked decision the downstream stage would inherit.
 - **`major`** — a substantive fit or partial-efficacy problem that should resolve: a materially better

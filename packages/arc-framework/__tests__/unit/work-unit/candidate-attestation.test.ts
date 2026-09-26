@@ -13,6 +13,7 @@ import {
   createCandidateVerificationResponseEvidence,
   parseCandidateManagedRecord,
   projectCandidateCurrentness,
+  resolveCandidateSupersessionAncestors,
   serializeCandidateManagedRecord,
 } from "../../../src/lib/work-unit/candidate-attestation.js";
 
@@ -41,6 +42,33 @@ function attestation() {
 }
 
 describe("Candidate attestation", () => {
+  it("follows only explicit nested supersession links in older record order", () => {
+    const record = (at: string, supersedes?: string) => {
+      const subject = snapshot();
+      return CandidateManagedRecordV1Schema.parse({
+        schemaVersion: 1,
+        semanticsVersion: "candidate-attestation/v1",
+        attestation: createCandidateAttestation({
+          workUnit: "example", subject, baseRevision: SHA_A,
+          attestedBy: "andrew", attestedAt: at,
+          verificationEvidenceRef: `verification://example/${at}`,
+          ...(supersedes === undefined ? {} : { supersedes }),
+        }),
+        subject, transitions: [], lineageAttestations: [],
+      });
+    };
+    const oldest = record("2026-08-12T12:00:00.000Z");
+    const middle = record("2026-08-13T12:00:00.000Z", oldest.attestation.candidateId);
+    const current = record("2026-08-14T12:00:00.000Z", middle.attestation.candidateId);
+    expect(resolveCandidateSupersessionAncestors(current, [current, middle, oldest])).toEqual([
+      { candidateId: middle.attestation.candidateId, baseRevision: SHA_A, reviewResponseCount: 0 },
+      { candidateId: oldest.attestation.candidateId, baseRevision: SHA_A, reviewResponseCount: 0 },
+    ]);
+    expect(() => resolveCandidateSupersessionAncestors(current, [current, oldest]))
+      .toThrow(/absent from reachable record history/u);
+    expect(() => resolveCandidateSupersessionAncestors(current, [oldest, middle, current]))
+      .toThrow(/absent from reachable record history/u);
+  });
   it("rejects repository paths whose Unicode spelling is not NFC-normalized", () => {
     expect(() => createCandidateSubjectSnapshot([{
       path: "packages/cafe\u0301.ts",

@@ -8,6 +8,8 @@ import {
 import { createLocalChangeSetCarrier } from "../../../../../src/scripts/review-gate/core/local-carrier.js";
 import type { LocalReviewState } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { sweepLocalReviewSources } from "../../../../../src/scripts/review-gate/core/local-source-sweep.js";
+import { projectLocalReviewGuidance } from
+  "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
 
 const digest = (value: string): string => canonicalDigest({ value });
 const objectId = (character: string): string => character.repeat(40);
@@ -43,8 +45,12 @@ function state(
     initialAdmission: "checkpoint",
   });
   if (requirement === null) throw new Error("expected local requirement");
+  const lineage = { kind: "candidate" as const, candidateId: digest("candidate") };
+  const guidance = projectLocalReviewGuidance();
   const carrier = createLocalChangeSetCarrier({
     target,
+    lineage,
+    logicalPass: 1,
     requirementId: requirement.requirementId,
     snapshot: {
       state: "exact",
@@ -72,16 +78,23 @@ function state(
     operationId,
     updatedAt,
     vehicle: { kind: "work-unit", identity: "review-surface-binding" },
+    lineage,
+    logicalPass: 1,
+    retryGeneration: 0,
+    coverageAdmission: { requestedCoverage: "complete" },
     repositoryId: "repo-1",
     targetId: target.targetId,
     requestId: carrier.request.requestId,
     policyVersion: requirement.policyVersion,
     policyBindingDigest: digest("binding"),
     laneSourceId: "delegated-agent",
+    scopeMode: "whole-target",
     attestationRuntimeKind: "arc-cli",
     sourceRef: "source.json",
     sourceDigest: digest("source"),
-    guidanceDigest: digest("guidance"),
+    guidance: guidance.projection,
+    guidanceDigest: guidance.guidanceDigest,
+    reviewerInstructions: guidance.reviewerInstructions,
     target,
     requirement,
     request: carrier.request,

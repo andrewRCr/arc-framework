@@ -14,7 +14,10 @@ import {
   resolveCandidateRecordRelativePath,
 } from "../../lib/work-unit/candidate-record-store.js";
 import { projectGitCandidateEffectiveTarget } from "../../lib/work-unit/git-candidate-effective-target.js";
-import type { ApprovedDispositionRecord } from "../review-gate/core/advisory-records.js";
+import {
+  currentApprovedDispositionNode,
+  type ApprovedDispositionRecord,
+} from "../review-gate/core/advisory-records.js";
 import type { ReviewTarget } from "../review-gate/core/gate-contract-v2-schema.js";
 import { createFixAuthorization } from "../review-gate/core/fix-authorization.js";
 import { frontlineResponseBindingMatchesTarget } from "../review-gate/core/frontline-response-binding.js";
@@ -88,12 +91,13 @@ export async function composeCandidateResponseConfirmation(input: {
   approved: ApprovedDispositionRecord;
 }): Promise<{ action: CandidateResponseConfirmationAction; order: number } | null> {
   const { approved } = input;
+  const current = currentApprovedDispositionNode(approved);
   if (approved.source.kind !== "frontline" || approved.candidate === null
     || approved.deliveryMember === null || approved.errand !== null
-    || !approved.approvedDisposition.dispositionSet.findings.some(({ disposition }) => disposition === "fix")) {
+    || !current.approvedDisposition.dispositionSet.findings.some(({ disposition }) => disposition === "fix")) {
     return null;
   }
-  const dispositionId = approved.approvedDisposition.dispositionSet.dispositionSetId;
+  const dispositionId = current.approvedDisposition.dispositionSet.dispositionSetId;
   const { stdout: currentHead } = await input.exec("git", ["rev-parse", "HEAD^{commit}"], {
     cwd: input.cwd,
     objectAccess: "local-only",
@@ -133,7 +137,7 @@ export async function composeCandidateResponseConfirmation(input: {
     || state.targetId !== outcome.outcome.target.targetId
     || state.sourceIdentity !== outcome.sourceIdentity
     || state.outcome !== outcome.outcome.outcome
-    || state.passCount !== outcome.outcome.pass
+    || state.logicalPass !== outcome.outcome.pass
     || state.sourceBindingId !== computeFrontlineSourceBindingId(outcome.outcome.source, binding)
     || canonicalize(state.responseBinding ?? null) !== canonicalize(binding)) {
     throw new Error(`The private disposition ${dispositionId} lacks its exact frontline source.`);
@@ -147,10 +151,10 @@ export async function composeCandidateResponseConfirmation(input: {
     || canonicalize(binding.deliveryMember) !== canonicalize(approved.deliveryMember)
     || binding.candidate.workUnit !== input.workUnit
     || binding.candidate.candidateId !== candidate.attestation.candidateId
-    || origin.targetId !== approved.approvedDisposition.dispositionSet.targetId
-    || approved.fixAuthorization === null
-    || canonicalize(approved.fixAuthorization) !== canonicalize(createFixAuthorization({
-      dispositionState: approved.approvedDisposition,
+    || origin.targetId !== current.approvedDisposition.dispositionSet.targetId
+    || current.fixAuthorization === null
+    || canonicalize(current.fixAuthorization) !== canonicalize(createFixAuthorization({
+      dispositionState: current.approvedDisposition,
       oldTarget: origin,
     }))) {
     throw new Error(`The private disposition ${dispositionId} conflicts with its approved source.`);
@@ -161,8 +165,8 @@ export async function composeCandidateResponseConfirmation(input: {
   if (responses.length !== 1 || response === undefined
     || response.candidateId !== candidate.attestation.candidateId
     || response.oldTarget.revision !== binding.candidate.target.headSha
-    || response.approvedBy !== approved.approvedDisposition.approval.approvedBy
-    || response.appliedBy !== approved.approvedDisposition.dispositionSet.proposedBy) {
+    || response.approvedBy !== current.approvedDisposition.approval.approvedBy
+    || response.appliedBy !== current.approvedDisposition.dispositionSet.proposedBy) {
     throw new Error(`The private disposition ${dispositionId} lacks one matching Candidate response.`);
   }
   const span = await readCandidateSpan(input, candidate.attestation.baseRevision, input.approvedHead);
@@ -224,7 +228,8 @@ export async function confirmCandidateResponseAction(input: {
     if (approved === null) return { state: "invalidated", reason: "missing" };
     const matching = enumerated.filter((record) => record.candidate?.workUnit === input.workUnit
       && record.candidate.candidateId === input.action.candidateId
-      && record.approvedDisposition.dispositionSet.dispositionSetId === input.action.dispositionId);
+      && currentApprovedDispositionNode(record).approvedDisposition.dispositionSet.dispositionSetId
+        === input.action.dispositionId);
     if (matching.length !== 1 || matching[0]?.operationId !== input.action.operationId) {
       return { state: "invalidated", reason: "ambiguous" };
     }

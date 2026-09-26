@@ -47,13 +47,13 @@ const reviewIdentities = [
   "disposition-set-state",
   "finding-classification",
   "finding-disposition",
-  "finding-settlement",
   "fix-authorization",
   "fix-authorization-consumption",
   "fix-authorization-preimage",
   "frontline-execution-outcome",
   "frontline-outcome-digest-preimage",
   "frontline-outcome-record",
+  "frontline-phase-state",
   "review-frontline-run-request",
   "frontline-run-state",
   "lane-progress-state",
@@ -262,6 +262,10 @@ describe("review schema registration", () => {
   });
 
   it("registers only caller-held coordinates for the two public exact-target requests", () => {
+    const registry = createKernelRegistry();
+    registerReviewDomainSchemas(registry);
+    const frontlineResolve = registry.get("review-frontline-resolve-request");
+    expect(frontlineResolve).toBeDefined();
     const coordinates = {
       kind: "change-set" as const,
       baseRef: "main",
@@ -302,6 +306,31 @@ describe("review schema registration", () => {
         },
       },
     };
+
+    const resolveRequest = {
+      schemaVersion: 1,
+      changeSet: facts,
+      invocation: { mode: "inherit", sourceId: "coderabbit-cli" },
+      target: coordinates,
+    };
+    expect(frontlineResolve?.safeParse(resolveRequest).success).toBe(true);
+    const member = {
+      ...resolveRequest,
+      target: { ...coordinates, kind: "delivery-member" },
+      vehicle: {
+        kind: "delivery-member",
+        planId: "11111111-1111-4111-8111-111111111111",
+        deliverableId: `sha256:${"1".repeat(64)}`,
+        workUnitId: "example",
+        head: coordinates.headSha,
+      },
+    };
+    expect(frontlineResolve?.safeParse(member).success).toBe(true);
+    expect(frontlineResolve?.safeParse({ ...member, vehicle: undefined }).success).toBe(false);
+    expect(frontlineResolve?.safeParse({ ...resolveRequest, maxPasses: 2 }).success).toBe(false);
+    expect(frontlineResolve?.safeParse({
+      ...resolveRequest, target: { ...coordinates, headTree: "d".repeat(40) },
+    }).success).toBe(false);
 
     expect(FrontlineRunRequestSchema.parse({
       schemaVersion: 1,

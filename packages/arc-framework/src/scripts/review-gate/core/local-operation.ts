@@ -18,9 +18,21 @@ import {
   type ReviewRequirementV2,
   type ReviewTarget,
 } from "./gate-contract-v2-schema.js";
+import {
+  LaneSubjectLineageSchema,
+  type LaneSubjectLineage,
+} from "./lane-admission.js";
 import type { LocalReviewState } from "./operation-state-schema.js";
 import type { ReviewOperationStateStore } from "./ports.js";
+import {
+  ReviewScopeModeSchema,
+  type ReviewScopeMode,
+} from "./review-primitives.js";
 import type { DeliveryLocalReviewAdmission } from "../policy/delivery-local-review-admission.js";
+import {
+  LocalReviewCoverageAdmissionSchema,
+  type LocalReviewCoverageAdmission,
+} from "./local-review-coverage.js";
 
 const LocalOperationIdentityPreimageSchema = z.strictObject({
   domain: z.enum(["arc.review-gate.local-operation-id/v1", "arc.review-gate.local-operation-id/v2"]),
@@ -29,9 +41,14 @@ const LocalOperationIdentityPreimageSchema = z.strictObject({
   authorIdentity: ReviewIdentifierSchema,
   evaluatorIdentity: ReviewIdentifierSchema,
   laneSourceId: ReviewIdentifierSchema,
+  scopeMode: ReviewScopeModeSchema,
   policyBindingDigest: ReviewCanonicalDigestSchema,
   requestMechanism: ReviewIdentifierSchema,
+  coverageAdmission: LocalReviewCoverageAdmissionSchema,
   deliveryAdmissionDigest: ReviewCanonicalDigestSchema.nullable(),
+  lineage: LaneSubjectLineageSchema,
+  logicalPass: z.number().int().positive(),
+  retryGeneration: z.number().int().nonnegative(),
   errandClaimId: ReviewIdentifierSchema.optional(),
   requestId: ReviewCanonicalDigestSchema.optional(),
 });
@@ -41,9 +58,14 @@ export interface LocalReviewAdmissionInput {
   requirement: ReviewRequirementV2;
   authority: LocalReviewAuthority;
   laneSourceId: string;
+  scopeMode?: ReviewScopeMode;
   policyBindingDigest: string;
   requestMechanism: string;
+  coverageAdmission: LocalReviewCoverageAdmission;
   deliveryAdmission?: DeliveryLocalReviewAdmission;
+  lineage: LaneSubjectLineage;
+  logicalPass: number;
+  retryGeneration: number;
 }
 
 export interface LocalReviewAdmission {
@@ -52,9 +74,14 @@ export interface LocalReviewAdmission {
   requirement: ReviewRequirementV2;
   authority: LocalReviewAuthority;
   laneSourceId: string;
+  scopeMode: ReviewScopeMode;
   policyBindingDigest: string;
   requestMechanism: string;
+  coverageAdmission: LocalReviewCoverageAdmission;
   deliveryAdmission?: DeliveryLocalReviewAdmission;
+  lineage: LaneSubjectLineage;
+  logicalPass: number;
+  retryGeneration: number;
   carrier: LocalChangeSetCarrierContract;
 }
 
@@ -109,6 +136,11 @@ export function createLocalReviewAdmission(input: LocalReviewAdmissionInput): Lo
   const requirement = validateReviewRequirement(target, input.requirement);
   const policyBindingDigest = ReviewCanonicalDigestSchema.parse(input.policyBindingDigest);
   const requestMechanism = ReviewIdentifierSchema.parse(input.requestMechanism);
+  const coverageAdmission = LocalReviewCoverageAdmissionSchema.parse(input.coverageAdmission);
+  const lineage = LaneSubjectLineageSchema.parse(input.lineage);
+  const logicalPass = z.number().int().positive().parse(input.logicalPass);
+  const retryGeneration = z.number().int().nonnegative().parse(input.retryGeneration);
+  const scopeMode = ReviewScopeModeSchema.parse(input.scopeMode ?? "whole-target");
   const errandClaimId = input.authority.vehicle.kind === "errand"
     ? input.authority.vehicle.claimId
     : undefined;
@@ -131,7 +163,9 @@ export function createLocalReviewAdmission(input: LocalReviewAdmissionInput): Lo
       runtimeIdentity: input.authority.runtimeIdentity,
       mechanism: input.authority.attestationMechanism,
     },
-    generation: 0,
+    lineage,
+    logicalPass,
+    generation: retryGeneration,
     requestMechanism,
     ...(errandClaimId === undefined ? {} : { errandClaimId }),
   });
@@ -144,17 +178,19 @@ export function createLocalReviewAdmission(input: LocalReviewAdmissionInput): Lo
     authorIdentity: input.authority.authorIdentity,
     evaluatorIdentity: input.authority.evaluatorIdentity,
     laneSourceId: input.laneSourceId,
+    scopeMode,
     policyBindingDigest,
     requestMechanism,
+    coverageAdmission,
     deliveryAdmissionDigest: input.deliveryAdmission === undefined
       ? null
       : canonicalDigest(input.deliveryAdmission),
+    lineage,
+    logicalPass,
+    retryGeneration,
     ...(errandClaimId === undefined
       ? {}
-      : {
-          errandClaimId,
-          requestId: carrier.request.requestId,
-        }),
+      : { errandClaimId, requestId: carrier.request.requestId }),
   });
   const operationId = `local-${canonicalDigest(preimage).slice("sha256:".length)}`;
   return {
@@ -163,8 +199,13 @@ export function createLocalReviewAdmission(input: LocalReviewAdmissionInput): Lo
     requirement,
     authority: input.authority,
     laneSourceId: input.laneSourceId,
+    scopeMode,
     policyBindingDigest,
     requestMechanism,
+    coverageAdmission,
+    lineage,
+    logicalPass,
+    retryGeneration,
     ...(input.deliveryAdmission === undefined
       ? {}
       : { deliveryAdmission: input.deliveryAdmission }),
@@ -202,6 +243,11 @@ export async function resolveLocalReviewAdmission(
     || persisted.state.policyBindingDigest !== admission.policyBindingDigest
     || persisted.state.repositoryId !== admission.target.repositoryId
     || persisted.state.laneSourceId !== admission.laneSourceId
+    || persisted.state.scopeMode !== admission.scopeMode
+    || canonicalize(persisted.state.lineage) !== canonicalize(admission.lineage)
+    || persisted.state.logicalPass !== admission.logicalPass
+    || persisted.state.retryGeneration !== admission.retryGeneration
+    || canonicalize(persisted.state.coverageAdmission) !== canonicalize(admission.coverageAdmission)
     || canonicalize(persisted.state.deliveryAdmission ?? null)
       !== canonicalize(admission.deliveryAdmission ?? null)
     || canonicalize(persisted.state.vehicle) !== canonicalize(admission.authority.vehicle)

@@ -62,8 +62,12 @@ describe("review semantic schemas", () => {
     for (const member of schema.options) expect(schema.parse(member)).toBe(member);
   });
 
-  it.each(["blocker", "major", "minor"])("accepts severity %s", (severity) => {
+  it.each(["critical", "major", "minor"])("accepts severity %s", (severity) => {
     expect(ReviewSeveritySchema.parse(severity)).toBe(severity);
+  });
+
+  it("rejects the retired ARC-owned blocker severity", () => {
+    expect(ReviewSeveritySchema.safeParse("blocker").success).toBe(false);
   });
 
   it.each(["fix", "defer", "reject"])("accepts disposition %s", (disposition) => {
@@ -192,7 +196,7 @@ describe("review semantic schemas", () => {
         id: "review-operation-state",
         version: 1,
         owner: "operation-state",
-        variants: ["frontline-run", "review-suspension", "local-review", "lane-progress"],
+        variants: ["frontline-run", "frontline-phase", "review-suspension", "local-review", "lane-progress"],
       },
     ]);
     expect(new Set(REVIEW_DURABLE_RECORD_INVENTORY.map(({ id }) => id)).size)

@@ -45,10 +45,17 @@ export interface DeliveryRevisionedRecord<T> {
   readonly value: T;
 }
 
-/** Exact member-checkout selector used by authoritative delivery lookup. */
+/** Exact head, retained ref, or stable member selector used by authoritative delivery lookup. */
 export type DeliveryMemberSelector =
   | { readonly kind: "head"; readonly objectId: string }
-  | { readonly kind: "ref"; readonly ref: string; readonly observedHeadObjectId: string };
+  | { readonly kind: "ref"; readonly ref: string; readonly observedHeadObjectId: string }
+  | {
+      readonly kind: "member";
+      readonly planId: string;
+      readonly deliverableId: string;
+      readonly workUnitId: string;
+      readonly observedHeadObjectId: string;
+    };
 
 /** Optional ownership hint validated against, but never used to restrict, global lookup. */
 export interface DeliveryOwningUnitPointer {

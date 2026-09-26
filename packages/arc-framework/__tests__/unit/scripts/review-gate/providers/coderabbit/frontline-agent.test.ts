@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 
 import { describe, expect, it } from "vitest";
 
+import { canonicalDigest } from "../../../../../../src/lib/kernel/index.js";
 import { parseCodeRabbitAgentResult } from "../../../../../../src/scripts/review-gate/providers/coderabbit/frontline-agent.js";
 
 const fixtureUrl = new URL(
@@ -66,7 +67,7 @@ describe("CodeRabbit structured frontline parser", () => {
   it("keeps normalized finding identity stable across executable versions", () => {
     const finding = {
       type: "finding",
-      severity: "minor",
+      severity: "blocker",
       fileName: "src/index.ts",
       codegenInstructions: "Preserve the exact target binding.",
       suggestions: [],
@@ -87,6 +88,62 @@ describe("CodeRabbit structured frontline parser", () => {
     expect(afterUpdate).toMatchObject({ kind: "findings" });
     if (beforeUpdate.kind !== "findings" || afterUpdate.kind !== "findings") return;
     expect(beforeUpdate.findings[0]?.findingId).toBe(afterUpdate.findings[0]?.findingId);
+    expect(beforeUpdate.findings[0]).toMatchObject({
+      findingId: canonicalDigest({
+        schemaVersion: 1,
+        provider: "coderabbit-cli",
+        contract: "coderabbit-agent-ndjson/v1",
+        mode: "agent",
+        finding,
+      }),
+      severity: "critical",
+    });
+  });
+
+  it("preserves NDJSON capture order and genuine bounded source labels", () => {
+    const label = "**Duplicate provider heading**";
+    const longLabel = `${"😀".repeat(512)}Z`;
+    const findings = [
+      {
+        type: "finding",
+        severity: "major",
+        fileName: "src/one.ts",
+        codegenInstructions: `\n${label}\nFirst details`,
+        suggestions: [],
+      },
+      {
+        type: "finding",
+        severity: "minor",
+        fileName: "src/two.ts",
+        codegenInstructions: `${label}\nSecond details`,
+        suggestions: [],
+      },
+      {
+        type: "finding",
+        severity: "minor",
+        fileName: "src/three.ts",
+        codegenInstructions: longLabel,
+        suggestions: [],
+      },
+    ];
+    const result = parse([
+      ...findings,
+      {
+        type: "complete",
+        status: "review_completed",
+        findings: findings.length,
+        reviewedFiles: findings.map((finding) => finding.fileName),
+      },
+    ].map((event) => JSON.stringify(event)).join("\n"));
+
+    expect(result).toMatchObject({
+      kind: "findings",
+      findings: [
+        { sourceOrdinal: 1, sourceLabel: label },
+        { sourceOrdinal: 2, sourceLabel: label },
+        { sourceOrdinal: 3, sourceLabel: "😀".repeat(512), sourceLabelTruncated: true },
+      ],
+    });
   });
 
   it("fails closed on incomplete, skipped, duplicated, or unsupported output", () => {

@@ -49,6 +49,18 @@ import {
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { boundedFetch, getCurrentBranch, type GitExec } from "../lib/git/exec.js";
 import { canonicalize } from "../lib/canonical/canonical-json.js";
+import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
+import { LocalReviewOperationStateStore } from "../scripts/review-gate/hosts/local/operation-state-store.js";
+import {
+  resolveRepositoryIdentity,
+  withRepositoryReviewOperationLock,
+} from "../scripts/review-gate/hosts/local/git-common-state.js";
+import {
+  laneContinuationOperationId,
+  readLaneProgressOwner,
+  readLaneProgressOwnerVersioned,
+} from "../scripts/review-gate/lane-progress.js";
+import { livePredecessorReviewAttempt } from "../scripts/review-gate/lane-progress-supersession.js";
 import {
   createRawGitExec,
   createUserIOContext,
@@ -146,7 +158,7 @@ import { runSetStage } from "../lib/work-unit/verbs/set-stage.js";
 import {
   runFinalizeStage,
 } from "../lib/work-unit/verbs/finalize-stage.js";
-import { AttestResultSchema, runAttest } from "../lib/work-unit/verbs/attest.js";
+import { AttestResultSchema, runAttest, type AttestContext } from "../lib/work-unit/verbs/attest.js";
 import { CandidateVerificationEvidenceRefSchema } from
   "../lib/work-unit/candidate-attestation.js";
 import {
@@ -156,6 +168,7 @@ import {
 import {
   readCandidateRecord,
   readCandidateRecordVersioned,
+  readRepositoryCandidateRecordRevision,
   writeCandidateRecord,
 } from "../lib/work-unit/candidate-record-store.js";
 import { projectGitCandidateEffectiveTarget } from "../lib/work-unit/git-candidate-effective-target.js";
@@ -176,6 +189,7 @@ import {
   projectCandidateReviewResumeBoundary,
   projectCorrectiveDeliveryStatusBoundary,
   recoverAttestedOwnerTerminusBoundary,
+  type IntegrationBoundaryLocus,
 } from "../scripts/review-gate/policy/integration-boundary-locus.js";
 import { runRepointDesign, type RepointDesignEvent } from "../lib/work-unit/verbs/repoint-design.js";
 import {
@@ -217,6 +231,7 @@ export {
 // ---------------------------------------------------------------------------
 
 class DeliveryCandidateRenewalRefusal extends Error {}
+class CandidateReviewRecoveryRefusal extends Error {}
 
 /** The production filesystem seam for the lifecycle-index scan (mirrors `start`). */
 const lifecycleFs: LifecycleIndexFs = {
@@ -1973,6 +1988,16 @@ export async function handlePublish(
     return;
   }
   const record = candidate.record;
+  const publisher = new RepositoryGitCommonStatePublisher(base.io.exec, base.cwd);
+  const repositoryId = await resolveRepositoryIdentity(publisher);
+  const operationStore = new LocalReviewOperationStateStore(publisher);
+  const currentHead = async () => (await base.io.exec("git", ["rev-parse", "HEAD"], {
+    cwd: base.cwd,
+  })).stdout.trim();
+  const readStandardLaneOwnerVersion = async () => (await readLaneProgressOwnerVersioned(operationStore, {
+    lane: "standard", repositoryId, headSha: await currentHead(),
+    lineage: { kind: "candidate", candidateId: candidate.candidateId },
+  })).version;
   const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, target);
   const boundary = boundarySnapshot.boundary;
   if (boundary === null) {
@@ -1987,7 +2012,13 @@ export async function handlePublish(
     );
     return;
   }
-  const result = await runPublish(executor, {
+  const result = await withRepositoryReviewOperationLock(
+    base.io.exec, base.cwd,
+    laneContinuationOperationId({
+      lane: "standard", repositoryId, headSha: await currentHead(),
+      lineage: { kind: "candidate", candidateId: candidate.candidateId },
+    }),
+    10_000, () => runPublish(executor, {
     name: target,
     ...(lastCompleted === undefined ? {} : { lastCompleted }),
     ...(action === undefined ? {} : { nextAction: action }),
@@ -2006,7 +2037,12 @@ export async function handlePublish(
       }
       return refreshed;
     },
+    readStandardLaneOwnerVersion,
     claimPublicationBoundary: async (publicationBoundary) => {
+      if ((boundary.locus === "candidate-publish-ready" || boundary.locus === "publication-pending")
+        && boundary.standardLaneOwnerVersion !== await readStandardLaneOwnerVersion()) {
+        throw new Error("standard review progress changed after publication readiness was recorded");
+      }
       const boundaryPath = await writeSubmissionBoundary(
         base.cwd,
         publicationBoundary,
@@ -2015,7 +2051,7 @@ export async function handlePublish(
       await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
     },
     ...(input.allowAdvisories === true ? { allowAdvisories: true } : {}),
-  });
+  }));
   if (result.status === "rejected") {
     refuseWithRemedy(result.reason, result.remedy, input.json === true);
     return;
@@ -2675,6 +2711,24 @@ export interface AttestOptions {
 }
 
 /** Attest the current verified work-unit subject without changing lifecycle State. */
+function convergenceResumeAfterAttest(
+  existingBoundary: IntegrationBoundaryLocus | null,
+  publication: Parameters<AttestContext["publish"]>[0],
+  boundaryMatches: boolean,
+): IntegrationBoundaryLocus | null {
+  if (existingBoundary === null || !boundaryMatches
+    || existingBoundary.locus !== "candidate-convergence-verification-pending") return null;
+  return projectCandidateReviewResumeBoundary({
+    workUnit: publication.name,
+    candidateId: publication.candidateId,
+    candidateSubjectDigest: publication.candidateSubjectDigest,
+    reservation: existingBoundary.reservation,
+    terminus: existingBoundary.terminus,
+    deliveryReviewTermini: existingBoundary.deliveryReviewTermini,
+    postAttestContinuation: existingBoundary.nextAction.postAttestContinuation,
+  });
+}
+
 export async function handleAttest(
   name: string | undefined,
   opts: AttestOptions,
@@ -2892,6 +2946,34 @@ export async function handleAttest(
         exec: base.io.exec,
         rawExec: createRawGitExec(base.cwd),
       }),
+      inspectReRootReviewAuthority: async (_slug, candidateId) => {
+        const publisher = new RepositoryGitCommonStatePublisher(base.io.exec, base.cwd);
+        const store = new LocalReviewOperationStateStore(publisher);
+        const repositoryId = await resolveRepositoryIdentity(publisher);
+        for (const lane of ["frontline", "standard"] as const) {
+          const owner = await readLaneProgressOwner(store, {
+            lane, repositoryId, headSha: subject.target.revision,
+            lineage: { kind: "candidate", candidateId },
+          });
+          if (owner === null) continue;
+          const live = livePredecessorReviewAttempt(owner);
+          if (live !== null) {
+            let recordRevision: string;
+            try {
+              recordRevision = await readRepositoryCandidateRecordRevision({
+                cwd: base.cwd, workUnit: input.name, candidateId,
+                reviewHeadSha: live.reviewHeadSha, exec: base.io.exec,
+              });
+            } catch (error) {
+              throw new CandidateReviewRecoveryRefusal(
+                error instanceof Error ? error.message : String(error),
+              );
+            }
+            return { lane, ...live, recordRevision };
+          }
+        }
+        return null;
+      },
       publish: async (publication) => {
         let deliveryLocus: ReturnType<typeof projectCorrectiveDeliveryStatusBoundary> | null = null;
         if (deliveryRenewal.status === "ready") {
@@ -2937,17 +3019,7 @@ export async function handleAttest(
         const boundaryMatches = existingBoundary !== null
           && existingBoundary.candidateId === publication.candidateId
           && existingBoundary.candidateSubjectDigest === publication.candidateSubjectDigest;
-        const convergenceResume = existingBoundary !== null
-          && boundaryMatches
-          && existingBoundary.locus === "candidate-convergence-verification-pending"
-          ? projectCandidateReviewResumeBoundary({
-              workUnit: publication.name,
-              candidateId: publication.candidateId,
-              candidateSubjectDigest: publication.candidateSubjectDigest,
-              reservation: existingBoundary.reservation,
-              terminus: existingBoundary.terminus,
-            })
-          : null;
+        const convergenceResume = convergenceResumeAfterAttest(existingBoundary, publication, boundaryMatches);
         const ownerTerminusContinuation = recoverAttestedOwnerTerminusBoundary({
           stored: existingBoundary,
           workUnit: publication.name,
@@ -3008,6 +3080,18 @@ export async function handleAttest(
           }),
     });
   } catch (error) {
+    if (error instanceof CandidateReviewRecoveryRefusal) {
+      refuseWithRemedy(
+        `\`arc attest\` cannot bind the live review to its Candidate record: ${error.message}`,
+        spineRemedy(
+          "The review-owning Candidate record must be verified at the exact live review head before re-root.",
+          "Restore that review head and its managed Candidate record in local Git history, then retry re-root",
+          input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
+        ),
+        input.json === true,
+      );
+      return;
+    }
     if (!(error instanceof DeliveryCandidateRenewalRefusal)) throw error;
     refuseWithRemedy(
       `\`arc attest\` refused stale or mismatched public delivery Candidate renewal for \`${input.name}\`: `
@@ -3040,7 +3124,16 @@ export async function handleAttest(
   } else if (result.status === "blocked") {
     p.log.error(`${result.recommendedActionText}\n${JSON.stringify(result.delta)}`);
   } else if (result.status === "refused") {
-    if ("expected" in result) {
+    if (result.reason === "re-root-live-review") {
+      p.log.error([
+        result.recommendedActionText,
+        `Candidate: ${result.candidateId}`,
+        `Live ${result.lane} attempt: ${result.attemptId} (${result.outcome})`,
+        `Review head: ${result.reviewHeadSha}`,
+        `Predecessor Candidate record commit: ${result.recordRevision}`,
+        `Next after restoring this owning checkout to the review head: ${result.nextAction.reviewArgv.join(" ")}`,
+      ].join("\n"));
+    } else if ("expected" in result) {
       p.log.error([
         result.recommendedActionText,
         `Reason: ${result.reason}`,

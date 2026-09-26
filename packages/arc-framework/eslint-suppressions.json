@@ -1536,14 +1536,6 @@
       "count": 1
     }
   },
-  "src/scripts/review-gate/core/advisory-records.ts": {
-    "complexity": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
   "src/scripts/review-gate/core/delivery-binding-lookup.ts": {
     "complexity": {
       "count": 1
@@ -1556,14 +1548,6 @@
   },
   "src/scripts/review-gate/core/local-operation.ts": {
     "complexity": {
-      "count": 1
-    }
-  },
-  "src/scripts/review-gate/core/operation-state-schema.ts": {
-    "complexity": {
-      "count": 2
-    },
-    "max-lines-per-function": {
       "count": 1
     }
   },
@@ -1608,16 +1592,6 @@
       "count": 1
     }
   },
-  "src/scripts/review-gate/hosts/local/review-authority.ts": {
-    "complexity": {
-      "count": 1
-    }
-  },
-  "src/scripts/review-gate/lane-progress.ts": {
-    "complexity": {
-      "count": 1
-    }
-  },
   "src/scripts/review-gate/policy/candidate-review-fix-continuation.ts": {
     "complexity": {
       "count": 2
@@ -1625,7 +1599,7 @@
   },
   "src/scripts/review-gate/policy/earlier-review-applicability.ts": {
     "complexity": {
-      "count": 3
+      "count": 2
     },
     "max-lines-per-function": {
       "count": 2
@@ -1636,11 +1610,6 @@
       "count": 1
     },
     "max-lines-per-function": {
-      "count": 1
-    }
-  },
-  "src/scripts/review-gate/policy/frontline-operation.ts": {
-    "complexity": {
       "count": 1
     }
   },
@@ -1659,10 +1628,10 @@
   },
   "src/scripts/review-gate/policy/hosted-reservation-discharge.ts": {
     "complexity": {
-      "count": 3
+      "count": 1
     },
     "max-lines-per-function": {
-      "count": 4
+      "count": 3
     }
   },
   "src/scripts/review-gate/policy/pre-publication-composition.ts": {
@@ -1705,7 +1674,7 @@
   },
   "src/scripts/review-gate/policy/review-policy-driver.ts": {
     "complexity": {
-      "count": 2
+      "count": 1
     },
     "max-lines-per-function": {
       "count": 1
@@ -1757,11 +1726,6 @@
       "count": 1
     }
   },
-  "src/scripts/review-gate/runtime/local-prepare.ts": {
-    "max-lines-per-function": {
-      "count": 2
-    }
-  },
   "src/scripts/review-gate/runtime/local-resume-command.ts": {
     "complexity": {
       "count": 1
@@ -1780,13 +1744,13 @@
   },
   "src/scripts/review-gate/runtime/respond-command.ts": {
     "complexity": {
-      "count": 5
+      "count": 3
     },
     "max-lines": {
       "count": 1
     },
     "max-lines-per-function": {
-      "count": 3
+      "count": 1
     }
   },
   "src/scripts/review-gate/runtime/respond-composition.ts": {
@@ -1796,7 +1760,7 @@
   },
   "src/scripts/review-gate/status-composition.ts": {
     "complexity": {
-      "count": 4
+      "count": 3
     },
     "max-lines-per-function": {
       "count": 4

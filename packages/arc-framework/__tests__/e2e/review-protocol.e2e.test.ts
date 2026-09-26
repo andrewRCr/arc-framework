@@ -10,6 +10,8 @@ import {
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { responsePolicyRequest } from "../fixtures/review-response-policy.js";
+
 import {
   cleanupTempDir,
   createTempRepo,
@@ -65,6 +67,7 @@ interface ProposedDispositionState {
     rubricVersion: string;
     rubricDigest: string;
     proposedBy: string;
+    proposedVerification: "targeted" | "focused" | "full";
     findings: unknown[];
     dispositionSetId: string;
   };
@@ -220,10 +223,13 @@ async function approvedRejection(
     schemaVersion: 1,
     source,
     proposal: {
+      proposedVerification: "full",
+      severityGatingPolicy: { minorGating: "record-only" },
       findings: [{
         findingId: "finding-1",
         sourceVerification: "verified",
         verificationRefs: ["source:reviewed.txt:1"],
+        verifiedSeverity: "major",
         disposition: "reject",
         rationale: "The reviewed source supports recording this disposition.",
         recommendation: "Record the rejected finding.",
@@ -389,6 +395,7 @@ describe("built review protocol", () => {
     const request = {
       schemaVersion: 1,
       source: responseSource,
+      policyRequest: await responsePolicyRequest(root, responseSource),
       dispositions: await approvedRejection(root, responseSource),
     };
     await expect(invoke(root, ["review", "respond", "-"], request))
@@ -502,7 +509,10 @@ describe("built review protocol", () => {
 
   it("serializes overlapping exact-head frontline reviews through public verbs", async () => {
     const root = await fixture();
-    const prepared = await prepareLocal(root);
+    const headSha = await git(root, ["rev-parse", "HEAD"]);
+    const diffBaseSha = await git(root, ["merge-base", "main", "HEAD"]);
+    const kind = "change-set";
+    const baseRef = "main";
     const bin = join(root, ".git", "provider-bin");
     const countFile = join(root, ".git", "coderabbit-runs");
     const executable = join(bin, "coderabbit");
@@ -524,8 +534,9 @@ describe("built review protocol", () => {
       COUNT_FILE: countFile,
       PATH: `${bin}${delimiter}${process.env.PATH ?? ""}`,
     };
-    const resolved = await invoke(root, ["review", "frontline", "resolve", "-"], {
+    const resolveRequest = {
       schemaVersion: 1,
+      target: { kind, baseRef, diffBaseSha, headSha },
       changeSet: {
         schemaVersion: 1,
         changeSetState: "known",
@@ -538,10 +549,9 @@ describe("built review protocol", () => {
         activity: { selfReview: true, frontlineReview: true },
       },
       invocation: { mode: "force", sourceId: "coderabbit-cli" },
-      maxPasses: 2,
-    });
+    };
+    const resolved = await invoke(root, ["review", "frontline", "resolve", "-"], resolveRequest);
     expect(resolved).toMatchObject({ state: "ready", nextAction: "run-frontline" });
-    const { kind, baseRef, diffBaseSha, headSha } = prepared.target;
     const runRequest = {
       schemaVersion: 1,
       target: { kind, baseRef, diffBaseSha, headSha },
@@ -567,6 +577,9 @@ describe("built review protocol", () => {
     const second = envelope(secondResult);
     expect(second).toMatchObject({ state: "clean", nextAction: "none" });
     expect((await readFile(countFile, "utf8")).trim().split("\n")).toHaveLength(1);
+
+    await expect(invoke(root, ["review", "frontline", "resolve", "-"], resolveRequest))
+      .resolves.toMatchObject({ state: "skipped", nextAction: "none" });
 
     const operationId = (first.payload as FrontlineTerminalPayload).operationId;
     await expect(invoke(root, ["review", "reduce", "-"], {

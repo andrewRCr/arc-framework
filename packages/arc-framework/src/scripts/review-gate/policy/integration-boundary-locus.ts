@@ -12,13 +12,15 @@ import {
 import { DeliveryPlanIdSchema } from "../../../lib/delivery/schema.js";
 import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
 import { attestConvergenceArgv } from "../../integration/spine-refusal.js";
-import { GitObjectIdSchema } from "../core/gate-contract-v2-schema.js";
-import { FrontlineCommandRequestSchema } from "./frontline-command-schema.js";
+import { GitObjectIdSchema, ReviewIdentifierSchema } from "../core/gate-contract-v2-schema.js";
+import { ReviewResponseSettlementSourceSchema } from "../core/response-plan-schema.js";
+import { FrontlineResolveRequestSchema } from "./frontline-command-schema.js";
 import { ReviewResolveEnvelopeSchema } from "./review-policy-driver.js";
 import { StandardReviewObligationProjectionSchema } from "./standard-review-projection-schema.js";
 import {
   DeliveryReviewMemberTerminusSchema,
   OwnerAcceptedReviewTerminusSchema,
+  type DeliveryReviewMemberTerminus,
   type OwnerAcceptedReviewTerminus,
 } from "./review-terminus.js";
 
@@ -35,11 +37,28 @@ export const RunSelfReviewActionSchema = z.strictObject({
 });
 export const ContinuePrePublicationActionSchema = z.strictObject({
   kind: z.literal("continue-pre-publication-review"),
-  authorizationRequest: FrontlineCommandRequestSchema.optional(),
-  request: FrontlineCommandRequestSchema.optional(),
+  authorizationRequest: FrontlineResolveRequestSchema.optional(),
+  request: FrontlineResolveRequestSchema.optional(),
   resumeCommand: z.string().trim().min(1).optional(),
+  responseOperationId: ReviewIdentifierSchema.optional(),
+  responseSource: ReviewResponseSettlementSourceSchema.optional(),
   ...ActionFields,
 }).superRefine((action, context) => {
+  const responds = action.command === "arc review respond -";
+  if (responds !== (action.responseOperationId !== undefined)) {
+    context.addIssue({
+      code: "custom",
+      path: ["responseOperationId"],
+      message: "the review response action requires its exact producer operation ID",
+    });
+  }
+  if (responds !== (action.responseSource !== undefined)) {
+    context.addIssue({
+      code: "custom",
+      path: ["responseSource"],
+      message: "the review response action requires its bound producer source",
+    });
+  }
   const resolvesFrontline = action.command === "arc review frontline resolve -";
   if (!resolvesFrontline && (action.request !== undefined || action.authorizationRequest !== undefined)) {
     context.addIssue({
@@ -77,6 +96,12 @@ export const ContinuePrePublicationActionSchema = z.strictObject({
     });
   }
 });
+export const PostAttestContinuationSchema = z.strictObject({
+  reviewedHead: GitObjectIdSchema,
+  nextAction: ContinuePrePublicationActionSchema,
+  projectionDisposition: z.literal("keep-staged-until-publication"),
+});
+export type PostAttestContinuation = z.infer<typeof PostAttestContinuationSchema>;
 export const ContinueHostedReviewActionSchema = z.strictObject({
   kind: z.literal("continue-hosted-review"),
   workUnitId: SlugSchema,
@@ -115,25 +140,33 @@ export const RunConvergenceVerificationActionSchema = z.strictObject({
   verificationEvidenceRefRequired: z.literal(true),
   attestArgv: z.array(z.string().trim().min(1)).length(8),
   ...ActionFields,
+  postAttestContinuation: PostAttestContinuationSchema,
 }).superRefine((action, context) => {
   const expectedKind = action.requiredScope === "focused" ? "focused" : "tier-3";
   if (action.verificationKind !== expectedKind) {
     context.addIssue({
       code: "custom",
       path: ["verificationKind"],
-      message: "must match the required convergence scope",
+      message: "convergence verification kind must match the required scope",
     });
   }
-  const expected = [
-    "arc", "attest", action.attestArgv[2], "--scope", action.requiredScope,
-    "--verification-evidence-ref", CANDIDATE_VERIFICATION_EVIDENCE_PLACEHOLDER, "--json",
-  ];
-  if (JSON.stringify(action.attestArgv) !== JSON.stringify(expected)
-    || action.command !== expected.join(" ")) {
+  const expectedArgv = attestConvergenceArgv(
+    action.attestArgv[2] ?? "",
+    action.requiredScope,
+    CANDIDATE_VERIFICATION_EVIDENCE_PLACEHOLDER,
+  );
+  if (canonicalize(action.attestArgv) !== canonicalize(expectedArgv)) {
     context.addIssue({
       code: "custom",
       path: ["attestArgv"],
-      message: "must carry the exact scoped attest invocation",
+      message: "convergence attest argv must match its required scope and evidence placeholder",
+    });
+  }
+  if (action.command !== expectedArgv.join(" ")) {
+    context.addIssue({
+      code: "custom",
+      path: ["command"],
+      message: "convergence attest command must display the exact required argv",
     });
   }
 });
@@ -148,6 +181,7 @@ export const RunConvergenceVerificationActionSchema = z.strictObject({
 export function createRunConvergenceVerificationAction(
   workUnit: string,
   requiredScope: "focused" | "full",
+  postAttestContinuation: PostAttestContinuation,
 ): z.infer<typeof RunConvergenceVerificationActionSchema> {
   const attestArgv = attestConvergenceArgv(
     workUnit,
@@ -164,6 +198,7 @@ export function createRunConvergenceVerificationAction(
     interactionText: requiredScope === "focused"
       ? "Run the bounded focused verification, then replace the carried evidence placeholder and attest."
       : "Run Tier 3, then replace the carried evidence placeholder and attest.",
+    postAttestContinuation,
   });
 }
 export const PublishCandidateActionSchema = z.strictObject({
@@ -260,6 +295,7 @@ export const CandidatePolicyReviewBoundarySchema = z.strictObject({
 export const CandidateReviewResumeBoundarySchema = z.strictObject({
   ...CandidateReviewBoundaryFields,
   nextAction: ContinuePrePublicationActionSchema,
+  postAttestContinuation: PostAttestContinuationSchema.optional(),
   policy: z.null(),
   reservation: StandardReviewReservationV1Schema.nullable(),
 });
@@ -296,6 +332,8 @@ export const CandidatePublishReadyBoundarySchema = z.strictObject({
   nextAction: PublishCandidateActionSchema,
   policy: z.null(),
   reservation: StandardReviewReservationV1Schema.nullable(),
+  /** Version of the Candidate's standard lane owner when readiness was settled. */
+  standardLaneOwnerVersion: z.number().int().nonnegative().optional(),
 });
 export const PublicationPendingBoundarySchema = z.strictObject({
   ...BoundaryCommonShape,
@@ -304,6 +342,8 @@ export const PublicationPendingBoundarySchema = z.strictObject({
   nextAction: ContinuePublicationActionSchema,
   policy: z.null(),
   reservation: StandardReviewReservationV1Schema.nullable(),
+  /** Preserves the review-lane snapshot across a crash before Active → Integrating completes. */
+  standardLaneOwnerVersion: z.number().int().nonnegative().optional(),
 });
 export const HostedReviewPendingBoundarySchema = z.strictObject({
   ...BoundaryCommonShape,
@@ -433,6 +473,7 @@ const PublicationBoundaryInputSchema = z.strictObject({
   candidateSubjectDigest: CandidateSubjectDigestSchema.nullable().default(null),
   reservation: StandardReviewReservationV1Schema.nullable(),
   terminus: OwnerAcceptedReviewTerminusSchema.nullable().default(null),
+  standardLaneOwnerVersion: z.number().int().nonnegative().optional(),
   changeRequest: z.strictObject({
     repository: z.string().trim().min(1),
     pullRequest: z.number().int().positive(),
@@ -505,6 +546,8 @@ export function projectCandidateReviewResumeBoundary(input: {
   candidateSubjectDigest: string;
   reservation: StandardReviewReservationV1 | null;
   terminus?: OwnerAcceptedReviewTerminus | null;
+  deliveryReviewTermini?: readonly DeliveryReviewMemberTerminus[];
+  postAttestContinuation: PostAttestContinuation;
 }): IntegrationBoundaryLocus {
   const workUnit = SlugSchema.parse(input.workUnit);
   const candidateId = CandidateIdSchema.parse(input.candidateId);
@@ -516,14 +559,12 @@ export function projectCandidateReviewResumeBoundary(input: {
     candidateId,
     candidateSubjectDigest,
     locus: "candidate-review-pending",
-    nextAction: {
-      kind: "continue-pre-publication-review",
-      command: `arc review pre-publication ${workUnit}`,
-      interactionText: "Resume pre-publication review over the converged Candidate.",
-    },
+    nextAction: input.postAttestContinuation.nextAction,
+    postAttestContinuation: input.postAttestContinuation,
     policy: null,
     reservation: input.reservation,
     terminus: input.terminus ?? null,
+    deliveryReviewTermini: input.deliveryReviewTermini ?? [],
   });
 }
 
@@ -630,6 +671,9 @@ export function projectPublicationBoundary(input: unknown): IntegrationBoundaryL
     policy: null,
     reservation: value.reservation,
     terminus: value.terminus,
+    ...(!hosted && value.standardLaneOwnerVersion !== undefined
+      ? { standardLaneOwnerVersion: value.standardLaneOwnerVersion }
+      : {}),
   });
 }
 

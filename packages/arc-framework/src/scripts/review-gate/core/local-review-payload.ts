@@ -9,6 +9,7 @@ import {
   GitObjectIdSchema,
   ReviewCanonicalDigestSchema,
 } from "./gate-contract-v2-schema.js";
+import { IncrementalReviewScopeSchema } from "./incremental-review-scope.js";
 
 const DurableReferenceSchema = z.string().trim().min(1);
 
@@ -18,6 +19,7 @@ export const LocalReviewSourcePayloadSchema = z.strictObject({
   headSha: GitObjectIdSchema,
   sourceRef: DurableReferenceSchema,
   sourceDigest: ReviewCanonicalDigestSchema,
+  correctionScope: IncrementalReviewScopeSchema.optional(),
 });
 export type LocalReviewSourcePayload = z.infer<typeof LocalReviewSourcePayloadSchema>;
 

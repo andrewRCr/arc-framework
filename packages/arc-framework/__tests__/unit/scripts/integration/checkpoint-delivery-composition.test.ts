@@ -15,6 +15,8 @@ import {
   createReviewRequirement,
   createReviewTarget,
 } from "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import type { ReviewResult } from
+  "../../../../src/scripts/review-gate/core/review-result.js";
 import { createStandardReviewReservation } from
   "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
@@ -33,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   readConfigSettings: vi.fn(),
   readLaneProgress: vi.fn(),
   readOperationSnapshot: vi.fn(),
+  readResult: vi.fn(),
   readRequest: vi.fn(),
   readSubmissionBoundary: vi.fn(),
   resolveDischargeTargets: vi.fn(),
@@ -104,9 +107,12 @@ vi.mock("../../../../src/scripts/review-gate/hosts/local/operation-state-store.j
     readonly readOperationSnapshot = mocks.readOperationSnapshot;
   },
 }));
+vi.mock("../../../../src/scripts/review-gate/hosts/local/review-result-reader-composition.js", () => ({
+  createRepositoryReviewResultReader: vi.fn(() => ({ readResult: mocks.readResult })),
+}));
 vi.mock("../../../../src/scripts/review-gate/lane-progress.js", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../../../src/scripts/review-gate/lane-progress.js")>(),
-  readLaneProgress: mocks.readLaneProgress,
+  readLaneProgressAcrossLineage: mocks.readLaneProgress,
 }));
 vi.mock("../../../../src/scripts/review-gate/policy/hosted-reservation-discharge.js", async (importOriginal) => {
   const actual = await importOriginal<
@@ -193,7 +199,13 @@ describe("delivery checkpoint composition", () => {
         detail: "The reserved source has no clean attempt.",
         nextSource: "coderabbit-pr",
       }],
-      progress: [{ status: "complete", completedPasses: 2, attempts: [], attemptHistory: [] }],
+      progress: [{
+        status: "complete",
+        completedPasses: 2,
+        completePasses: 2,
+        attempts: [],
+        attemptHistory: [],
+      }],
       ownerTermini: [{
         vehicle,
         terminus: {
@@ -1039,7 +1051,9 @@ describe("delivery checkpoint composition", () => {
       reservation,
       deliveryReviewTermini: [],
     });
-    mocks.readConfigSettings.mockResolvedValue({ settings: { "branch.base": "main" } });
+    mocks.readConfigSettings.mockResolvedValue({
+      settings: { "branch.base": "main", "review.standard_max_passes": 2 },
+    });
     mocks.resolveTerminalRecords.mockResolvedValue({ status: "resolved", plan, state });
     for (const [index, member] of state.members.entries()) {
       mocks.resolveChangeRequest.mockResolvedValueOnce({
@@ -1094,6 +1108,12 @@ describe("delivery checkpoint composition", () => {
     });
     mocks.resolveRepositoryIdentity.mockResolvedValue("repo-1");
     mocks.readOperationSnapshot.mockResolvedValue({ status: "complete", records: [] });
+    const reviewResults = new Map<string, ReviewResult>();
+    mocks.readResult.mockImplementation(async (producerId: string) => {
+      const result = reviewResults.get(producerId);
+      if (result === undefined) throw new Error(`missing review result: ${producerId}`);
+      return result;
+    });
     mocks.readLaneProgress.mockImplementation(async (_store, input) => {
       const target = targets.find(({ headSha }) => headSha === input.headSha);
       if (target === undefined) return { status: "unrecorded" };
@@ -1122,11 +1142,49 @@ describe("delivery checkpoint composition", () => {
         initialAdmission: "automatic",
       });
       if (requirement === null) throw new Error("checkpoint review requirement must derive");
+      const producerId = `coderabbit-pr-${target.headSha}`;
+      reviewResults.set(producerId, {
+        kind: "hosted",
+        producerId,
+        repositoryId: reviewTarget.repositoryId,
+        target: reviewTarget,
+        sourceIdentity: "coderabbit-pr",
+        originalOutcome: "clean",
+        findings: [],
+        resultDigest: canonicalDigest({ producerId }),
+        admission: {
+          lineage: {
+            kind: "delivery-member",
+            planId: vehicle.planId,
+            deliverableId: vehicle.deliverableId,
+            workUnitId: vehicle.workUnitId,
+          },
+          logicalPass: 1,
+          retryGeneration: 0,
+          requestedCoverage: "complete",
+          effectiveCoverage: "complete",
+          scopeMode: "whole-target",
+          policyVersion: requirement.policyVersion,
+        },
+        laneOperationId: `lane-progress-${target.headSha}`,
+        actorIdentity: "reviewer-1",
+        hostedTarget: {
+          repository: target.repository,
+          pullRequest: target.pullRequest,
+          headSha: target.headSha,
+        },
+        requirement,
+        hostSettlementFindingIds: [],
+        noHostSettlementFindingIds: [],
+        settled: false,
+      });
       return {
         status: "recorded",
         completedPasses: 1,
+        completePasses: 1,
         attempts: [{
-          attemptId: `coderabbit-pr-${target.headSha}`,
+          attemptId: producerId,
+          logicalPass: 1,
           sourceId: "coderabbit-pr",
           outcome: "clean",
           hosted: {
@@ -1143,7 +1201,9 @@ describe("delivery checkpoint composition", () => {
             actorIdentity: "reviewer-1",
             findings: [],
             dispositionSetId: null,
+            dispositionSetLineage: [],
             settledFindingIds: [],
+            settlementEvidence: [],
           },
         }],
       };

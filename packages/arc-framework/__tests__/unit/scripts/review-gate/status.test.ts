@@ -1,6 +1,7 @@
 /** Exact-target review status reduction. */
 
 import { describe, expect, it } from "vitest";
+import { createHostedHandleFixture } from "../../../fixtures/hosted-review.js";
 
 import { DeliveryReviewMemberVehicleSchema } from
   "../../../../src/lib/delivery/review-vehicle.js";
@@ -18,6 +19,7 @@ import {
   composeDeliveryReviewObligation,
   composeSingletonReviewObligation,
   ReviewStatusResultSchema,
+  ReviewStatusWorkUnitInputSchema,
   RoutedReviewObligationSchema,
   resolveReviewStatus,
   type ReviewStatusObservation,
@@ -42,8 +44,7 @@ const hostedAction = {
 };
 const hostedAwaitAction = {
   schemaVersion: 1 as const,
-  handle: {
-    schemaVersion: 1 as const,
+  handle: createHostedHandleFixture({
     provider: hostedAction.provider,
     requestedCoverage: hostedAction.coverage,
     effectiveCoverage: hostedAction.coverage,
@@ -55,7 +56,7 @@ const hostedAwaitAction = {
       createdAt: "2026-09-01T12:00:00.000Z",
     },
     vehicle: memberVehicle,
-  },
+  }),
 };
 type DeliveryTargetInput = Parameters<typeof composeDeliveryReviewObligation>[0]["targets"][number];
 type DeliveryDischargeInput = Parameters<typeof composeDeliveryReviewObligation>[0]["discharges"][number];
@@ -77,11 +78,15 @@ function deliveryTarget(
 }
 
 function deliveryDischarge(
-  input: Omit<DeliveryDischargeInput, "completedPasses" | "passCeiling" | "attemptHistory">
-    & Partial<Pick<DeliveryDischargeInput, "completedPasses" | "passCeiling" | "attemptHistory">>,
+  input: Omit<DeliveryDischargeInput, "completedPasses" | "completePasses" | "passCeiling" | "attemptHistory">
+    & Partial<Pick<
+      DeliveryDischargeInput,
+      "completedPasses" | "completePasses" | "passCeiling" | "attemptHistory"
+    >>,
 ): DeliveryDischargeInput {
   return {
     completedPasses: 0,
+    completePasses: 0,
     passCeiling: 2,
     attemptHistory: [],
     ...input,
@@ -90,6 +95,7 @@ function deliveryDischarge(
 
 const conjunctionMemberProgress = {
   completedPasses: 0,
+  completePasses: 0,
   passCeiling: 2,
   attempts: [],
 };
@@ -115,6 +121,7 @@ const hostedResponsePlan = {
     severity: "major" as const,
     locus: "src/example.ts:1",
     evidenceUrlOrId: "https://example.test/finding-prior",
+    sourceOrdinal: 1,
   }],
 };
 
@@ -222,6 +229,14 @@ function port(overrides: Partial<ReviewStatusObservation> = {}): ReviewStatusPor
 }
 
 describe("review status", () => {
+  it("accepts the delegated carrier named by a coverage-selection action", () => {
+    expect(ReviewStatusWorkUnitInputSchema.safeParse({
+      workUnitId: "example",
+      coverage: "incremental",
+      sourceId: "delegated-agent",
+    }).success).toBe(true);
+  });
+
   it("rejects a stale target reference", async () => {
     await expect(resolveReviewStatus({ target }, port({ actualHeadSha: oid("f") }))).resolves.toMatchObject({
       state: "blocked",
@@ -677,6 +692,29 @@ describe("review status", () => {
     });
   });
 
+  it("reports logical and complete member-pass counts independently", () => {
+    const discharge = {
+      ...deliveryDischarge({
+        discharged: false,
+        detail: "The member still needs complete coverage.",
+        nextSource: "coderabbit-pr",
+        requestAdmission: readyAdmission("coderabbit-pr"),
+        completedPasses: 2,
+      }),
+      completePasses: 1,
+    };
+    const obligation = composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [discharge],
+    });
+
+    expect(obligation).toMatchObject({
+      conjunction: {
+        members: [{ progress: { completedPasses: 2, completePasses: 1 } }],
+      },
+    });
+  });
+
   it("binds a ceiling stop to one submit-ready exact member terminus offer", async () => {
     const policy = resolveReviewPolicy({
       schemaVersion: 1,
@@ -913,6 +951,7 @@ describe("review status", () => {
       conjunctionMemberProgress,
       {
         completedPasses: 1,
+        completePasses: 0,
         passCeiling: 2,
         attempts: [{
           updatedAt: "2026-09-02T12:00:00.000Z",
@@ -961,6 +1000,7 @@ describe("review status", () => {
           nextSource: null,
           applicability,
           completedPasses: progress.completedPasses,
+          completePasses: progress.completePasses,
           passCeiling: progress.passCeiling,
           attemptHistory: progress.attempts,
         })],
@@ -981,6 +1021,7 @@ describe("review status", () => {
   it("keeps pending hosted work and findings ahead of a pre-ceiling terminus offer", async () => {
     const completedProgress = {
       completedPasses: 1,
+      completePasses: 1,
       passCeiling: 2,
       attempts: [{
         updatedAt: "2026-09-02T12:00:00.000Z",
@@ -1453,7 +1494,7 @@ describe("review status", () => {
     });
   });
 
-  it("refuses to broaden explicit incremental coverage through the complete-only local carrier", async () => {
+  it("admits incremental local review only with an exact correction scope", async () => {
     const scopeSelection = {
       mode: "chunked" as const,
       target: hostedAction.target,
@@ -1473,7 +1514,7 @@ describe("review status", () => {
         reasons: ["sensitive-change-set"],
         rubricVersion: "standard-review/v1",
         rubricDigest: `sha256:${"e".repeat(64)}`,
-        retrigger: "full-final",
+        retrigger: "incremental",
         count: 1,
       },
       sources: ["coderabbit-pr", "codex-pr", "delegated-agent"],
@@ -1510,21 +1551,214 @@ describe("review status", () => {
       deliveryCursor: { currentMember: { target: hostedAction.target } },
       remedy: {
         argv: [
-          "arc", "review", "status", "--work-unit", "example", "--coverage", "incremental",
+          "arc", "review", "status", "--work-unit", "example", "--coverage", "complete",
+        ],
+      },
+    });
+
+    const correctionScope = {
+      schemaVersion: 1 as const,
+      predecessorProducerId: "hosted/attempt-1",
+      predecessorHeadSha: oid("a"),
+      basisHeadSha: oid("a"),
+      headSha: hostedAction.target.headSha,
+      requiredFindings: [{
+        producerId: "hosted/attempt-1",
+        findingId: "F-material",
+        locus: "src/member.ts:1",
+      }],
+    };
+    expect(composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [{ ...discharge, correctionScope }],
+      requestCoverage: "incremental",
+    })).toMatchObject({
+      state: "review-required",
+      localAction: {
+        sourceId: "delegated-agent",
+        pass: 4,
+        requestedCoverage: "incremental",
+        ceilingOverride,
+        scopeSelection,
+        correctionScope,
+      },
+    });
+
+    expect(composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [{ ...discharge, correctionScope }],
+      requestCoverage: "complete",
+    })).toMatchObject({
+      state: "review-required",
+      localAction: {
+        sourceId: "delegated-agent",
+        pass: 4,
+        requestedCoverage: "complete",
+      },
+    });
+    expect(composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [{ ...discharge, correctionScope }],
+      requestCoverage: "complete",
+    })).not.toHaveProperty("localAction.correctionScope");
+  });
+
+  it("requires an exact scope before dispatching native CodeRabbit correction coverage", async () => {
+    const correctionScope = {
+      schemaVersion: 1 as const,
+      predecessorProducerId: "hosted/attempt-1",
+      predecessorHeadSha: oid("a"),
+      basisHeadSha: oid("a"),
+      headSha: hostedAction.target.headSha,
+      requiredFindings: [],
+    };
+    const coderabbit = composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
+        discharged: false,
+        detail: "The member requires correction review.",
+        nextSource: "coderabbit-pr",
+        requestCoverage: "incremental",
+        requestAdmission: readyAdmission("coderabbit-pr"),
+      })],
+      requestCoverage: "incremental",
+    });
+
+    expect(coderabbit).toMatchObject({
+      state: "blocked",
+      reason: "coverage-unsupported",
+      conjunction: { members: [{ state: "outstanding" }] },
+    });
+    await expect(resolveReviewStatus({ target }, port({ routedObligation: coderabbit }))).resolves.toMatchObject({
+      state: "blocked",
+      reason: "coverage-unsupported",
+      remedy: {
+        invariant: "The selected review carrier cannot preserve the admitted correction scope.",
+        text: expect.stringContaining("Re-run with complete coverage"),
+        argv: [
+          "arc", "review", "status", "--work-unit", "example",
+          "--coverage", "complete",
         ],
       },
     });
 
     expect(composeDeliveryReviewObligation({
       targets: [deliveryTarget(hostedAction.target)],
-      discharges: [discharge],
+      discharges: [deliveryDischarge({
+        discharged: false,
+        detail: "The member requires correction review.",
+        nextSource: "coderabbit-pr",
+        requestCoverage: "incremental",
+        correctionScope,
+        requestAdmission: readyAdmission("coderabbit-pr"),
+      })],
+      requestCoverage: "incremental",
     })).toMatchObject({
       state: "review-required",
-      localAction: {
-        sourceId: "delegated-agent",
-        pass: 4,
-        ceilingOverride,
-        scopeSelection,
+      action: {
+        provider: "coderabbit-pr",
+        coverage: "incremental",
+        correctionScope,
+      },
+    });
+
+    expect(composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
+        discharged: false,
+        detail: "The member requires correction review.",
+        nextSource: "codex-pr",
+        requestCoverage: "incremental",
+        correctionScope,
+        requestAdmission: readyAdmission("codex-pr"),
+      })],
+      requestCoverage: "incremental",
+    })).toMatchObject({
+      state: "review-required",
+      action: { provider: "codex-pr", coverage: "incremental", correctionScope },
+    });
+  });
+
+  it("preserves typed coverage selection through public delivery status", async () => {
+    const coverageSelectionAction = {
+      schemaVersion: 1 as const,
+      kind: "review-coverage-selection" as const,
+      workUnitId: memberVehicle.workUnitId,
+      sourceId: "coderabbit-pr",
+      pass: 1,
+      completedPasses: 1,
+      consumedPass: true as const,
+      choices: [{ sourceId: "coderabbit-pr", coverage: "complete" as const }],
+      interactionText: "Select complete coverage for the next member pass.",
+    };
+    const obligation = composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
+        discharged: false,
+        detail: "The terminal result requires adequate coverage.",
+        nextSource: null,
+        coverageSelectionAction,
+        completedPasses: 1,
+        attemptHistory: [{
+          updatedAt: "2026-09-04T12:00:00.000Z",
+          headSha: hostedAction.target.headSha,
+          sourceId: "coderabbit-pr",
+          outcome: "clean",
+          requestedCoverage: "incremental",
+          effectiveCoverage: "incremental",
+          findingCount: 0,
+          settledFindingCount: 0,
+        }],
+      })],
+    });
+
+    expect(obligation).toMatchObject({
+      state: "coverage-required",
+      coverageSelectionAction,
+      conjunction: {
+        members: [{ progress: { completedPasses: 1, passCeiling: 2 } }],
+      },
+    });
+    await expect(resolveReviewStatus({ target }, port({ routedObligation: obligation }))).resolves.toMatchObject({
+      state: "coverage-required",
+      nextAction: "select-coverage",
+      coverageSelectionAction,
+      deliveryCursor: {
+        currentMember: { progress: { completedPasses: 1, passCeiling: 2 } },
+      },
+    });
+  });
+
+  it("consumes an exact coverage choice into the next admitted request", () => {
+    const coverageSelectionAction = {
+      schemaVersion: 1 as const,
+      kind: "review-coverage-selection" as const,
+      workUnitId: memberVehicle.workUnitId,
+      sourceId: "coderabbit-pr",
+      pass: 1,
+      completedPasses: 1,
+      consumedPass: true as const,
+      choices: [{ sourceId: "coderabbit-pr", coverage: "complete" as const }],
+      interactionText: "Select complete coverage for the next member pass.",
+    };
+
+    expect(composeDeliveryReviewObligation({
+      targets: [deliveryTarget(hostedAction.target)],
+      discharges: [deliveryDischarge({
+        discharged: false,
+        detail: "The next complete pass is admitted.",
+        nextSource: "coderabbit-pr",
+        coverageSelectionAction,
+        requestAdmission: readyAdmission("coderabbit-pr"),
+      })],
+      requestCoverage: "complete",
+      requestInvocation: { mode: "force", sourceId: "coderabbit-pr" },
+    })).toMatchObject({
+      state: "review-required",
+      action: {
+        provider: "coderabbit-pr",
+        coverage: "complete",
+        invocation: { mode: "force", sourceId: "coderabbit-pr" },
       },
     });
   });
@@ -1540,6 +1774,7 @@ describe("review status", () => {
       target: { ...hostedAction.target, headSha: movedVehicle.head },
       vehicle: movedVehicle,
       pass: 1,
+      requestedCoverage: "complete",
       scopeSelection: {
         mode: "chunked",
         target: hostedAction.target,
@@ -1547,6 +1782,63 @@ describe("review status", () => {
     });
 
     expect(result.success).toBe(false);
+  });
+
+  it("refuses a local correction scope that does not end at the selected member", () => {
+    expect(DeliveryLocalReviewSelectionSchema.safeParse({
+      schemaVersion: 1,
+      sourceId: "delegated-agent",
+      target: hostedAction.target,
+      vehicle: memberVehicle,
+      pass: 2,
+      requestedCoverage: "incremental",
+      correctionScope: {
+        schemaVersion: 1,
+        predecessorProducerId: "hosted/attempt-1",
+        predecessorHeadSha: oid("a"),
+        basisHeadSha: oid("a"),
+        headSha: oid("d"),
+        requiredFindings: [],
+      },
+    }).success).toBe(false);
+  });
+
+  it("requires local coverage to agree with correction-scope presence", () => {
+    const selection = {
+      schemaVersion: 1 as const,
+      sourceId: "delegated-agent" as const,
+      target: hostedAction.target,
+      vehicle: memberVehicle,
+      pass: 2,
+    };
+    const correctionScope = {
+      schemaVersion: 1 as const,
+      predecessorProducerId: "hosted/attempt-1",
+      predecessorHeadSha: oid("a"),
+      basisHeadSha: oid("a"),
+      headSha: hostedAction.target.headSha,
+      requiredFindings: [],
+    };
+
+    expect(DeliveryLocalReviewSelectionSchema.safeParse(selection).success).toBe(false);
+    expect(DeliveryLocalReviewSelectionSchema.safeParse({
+      ...selection,
+      requestedCoverage: "complete",
+    }).success).toBe(true);
+    expect(DeliveryLocalReviewSelectionSchema.safeParse({
+      ...selection,
+      requestedCoverage: "complete",
+      correctionScope,
+    }).success).toBe(false);
+    expect(DeliveryLocalReviewSelectionSchema.safeParse({
+      ...selection,
+      requestedCoverage: "incremental",
+    }).success).toBe(false);
+    expect(DeliveryLocalReviewSelectionSchema.safeParse({
+      ...selection,
+      requestedCoverage: "incremental",
+      correctionScope,
+    }).success).toBe(true);
   });
 
   it("returns the exact delegated findings operation for local review resumption", async () => {
@@ -2301,7 +2593,19 @@ describe("review status over a pre-terminal delivery member whose base will not 
     conjunction: preTerminalConjunction(),
     awaitAction: {
       ...hostedAwaitAction,
-      handle: { ...hostedAwaitAction.handle, target: secondTarget, vehicle: secondVehicle },
+      handle: createHostedHandleFixture({
+        provider: hostedAction.provider,
+        requestedCoverage: hostedAction.coverage,
+        effectiveCoverage: hostedAction.coverage,
+        target: secondTarget,
+        artifact: {
+          kind: "issue-comment",
+          id: "request-42",
+          url: "https://example.test/request-42",
+          createdAt: "2026-09-01T12:00:00.000Z",
+        },
+        vehicle: secondVehicle,
+      }),
     },
   };
 

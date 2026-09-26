@@ -71,6 +71,17 @@ it is absent. After the active Work Unit Owner explicitly accepts the current re
 `owner-accepted / none` conclusion; it never means clean, converged, no-op, or evaluator-satisfied. The Owner's
 decision is the authorization, so do not ask for a second confirmation while the exact Candidate remains current.
 
+For a singleton Candidate lineage, frontline is an opening phase. Its configured allowance applies while that phase
+is open. An accepted initial skip or durable standard admission closes it; changed heads and validated Candidate
+supersession do not reopen it. Follow the typed pre-publication continuation across a re-root: inherited completed
+standard passes still count toward the ceiling, while older producer evidence remains bound to its original target.
+
+A clean or confirmed-minor standard result remains converged on ordinary replay. If the Owner explicitly authorizes
+another named standard pass, carry its exact head, preceding producer, completed-pass count, and next ordinal as
+`lanes.standard.additionalPassAuthorization` in `--lanes`. This admits that pass only; each further pass needs a
+fresh decision, even after another convergence. If it is above the configured ceiling, the same explicit decision
+covers the named ceiling override. A later material result follows the ordinary response route.
+
 Supply `--change-set`, `--lanes`, and `--self-review` on the initial invocation and whenever the procedure explicitly
 requests new author judgment. After every lane operation, re-enter through the envelope's typed pre-publication
 continuation. For `ready / run-frontline`, `nextAction.command` advances into the frontline resolver; retain
@@ -111,6 +122,14 @@ Re-invoke the procedure with the exact-target scope selection. A selected bounde
 `scope-selected / continue-review`; an explicit capable whole-target choice closes the attention disposition while
 retaining `consider-chunks`. A stale or missing selection stops before the frontline or standard action.
 
+At `candidate-fix-pending` with `nextAction.command: arc review respond -`, the pass may already be
+`pass-complete` or `owner-accepted`, but its current findings response is still unfinished. Use
+`nextAction.responseOperationId` and `nextAction.responseSource` to resume that exact producer through the typed
+`arc review respond -` action and [`review-response`][review-response]. Reconstruct a lost proposal from this bound
+source and obtain any approval still required; continue an existing approved response from its durable disposition.
+Re-enter pre-publication only after durable response completion. The pass conclusion does not authorize publication
+while this response remains pending.
+
 A null `policy` means no lane operation is open — follow the envelope's `nextAction.kind`, one of
 `run-self-review`, `run-convergence-verification`, or `publish-candidate`. Otherwise follow only the `policy`
 state/action pair:
@@ -118,7 +137,9 @@ state/action pair:
 For `run-convergence-verification`, use only the typed action: run its `nextAction.verificationKind` at
 `nextAction.requiredScope`, obtain a fresh verification evidence reference, replace only the
 `{verificationEvidenceRef}` operand in `nextAction.attestArgv`, and invoke that exact argv. Never select a
-verification scope in prose or substitute the Candidate root task-list reference.
+verification scope in prose or substitute the Candidate root task-list reference. Complete final Tier 3 without an
+intervening commit. Keep every projection staged while the returned action re-enters prepublication, through
+`candidate-publish-ready`; the publication transition in Step 3 is the single lifecycle projection commit.
 
 - `skipped | no-op | pass-complete / none` — lane complete.
 - `owner-accepted / none` — standard lane complete by the Work Unit Owner's explicit accepted-risk decision.
@@ -138,6 +159,11 @@ verification scope in prose or substitute the Candidate root task-list reference
 - `stale-target / select-scope` — rerun chunking against the current target.
 - `blocked | unavailable | invalid-override / stop` — surface diagnostics and stop.
 
+When local preparation offers both complete and incremental coverage, explain which scope is proportionate from the
+latest confirmed signal and the exact correction being reviewed. An incremental choice still spends one logical pass;
+it narrows the new evaluator's target without treating the prior review as clearance for changed code. Do not infer a
+scope from a finding count, and keep the Owner's next-pass authorization separate from this choice.
+
 Dispatch local operations only through public typed actions. The evaluator submits status, result, findings, and
 run identity to `arc review local attest -`; runtime-owned bindings come from the immutable operation. Resume with
 `arc review local resume -`, reduce with `arc review reduce -`, and submit approved dispositions with
@@ -145,19 +171,40 @@ run identity to `arc review local attest -`; runtime-owned bindings come from th
 For frontline `operator-repair`, inspect the reported failure; another provider invocation requires an explicit
 Owner decision and a new run request carrying `retryOfOperationId` from the prior operation.
 
-For every finding, run [`review-triage`][review-triage] and [`review-response`][review-response]. Present one
-unqualified severity when the reviewer and ARC grades agree, label both only when they differ, and include the source
-locus plus a discrete `Recommended disposition:` line. Approval of the complete unchanged surfaced set is required
-before any mutation or commitment; the approver need not repeat its canonical digest. Approved fixes run Tier 1
-gates ([`quality-gate-commands`][arc-methods-qg]), commit
-atomically, and produce a new target. Disclose review applicability from the exact delta: `targeted` for confidently
-narrow non-interacting record or lifecycle changes, `focused` for a bounded interaction, and `full` for behavioral,
-authority, contract, materially interacting, or uncertain changes. Clearance never carries.
-A `ready-to-fix / apply-fix` response carrying `payload.authoring` binds a Candidate-bound private-member fix.
-Author only in its exact `authoring.checkoutPath`, `authoring.ref`, and `authoring.head`; a missing or different
-locus stops before mutation. Never author this fix in the disposable member checkout.
-After the fix commit, re-invoke the same approved `arc review respond -` request with `verifiedFix` carrying the
-selected applicability and verification evidence. Require `candidate-advanced / continue-review` or idempotent
+For every durable producer finding, run [`review-triage`][review-triage] to verify the source and
+[`review-response`][review-response] to compose the complete proposal with the effective policy in
+`proposal.severityGatingPolicy` and recommended `proposal.proposedVerification`. Submit that proposal through the
+first call:
+
+```bash
+arc review respond -
+```
+
+Emit the returned `payload.dispositionReportText` verbatim unless the effective triage override changes
+presentation. Co-present `payload.provisionalPassAssessment.summaryText` and an agent cost-and-signal recommendation
+for stopping or requesting a named next pass. This assessment is provisional until the approved response and policy
+continuation establish the verified action. Keep disposition approval distinct from any later one-pass ceiling
+authorization. Obtain complete-set approval over that exact report and canonical set before any mutation or
+commitment; the approver need not repeat its canonical digest. Submit the exact approved set through a second call:
+
+```bash
+arc review respond -
+```
+
+Follow only its returned action and use [`review-response`][review-response] to perform the approved response. A
+`ready-to-fix` authorization carries `approvedVerification`; preserve it through re-entry and the changed-target
+continuation. The scope does not select fewer checks here. Approved fixes run Tier 1 gates
+([`quality-gate-commands`][arc-methods-qg]), commit atomically, and produce a new target. Disclose review
+applicability from the exact delta: `targeted` for confidently narrow non-interacting record or lifecycle changes,
+`focused` for a bounded interaction, and `full` for behavioral, authority, contract, materially interacting, or
+uncertain changes. Clearance never carries. If the response carries `conditionalPassAuthorizationId`, retain its
+returned `payload.policyRequest` unchanged; the next pre-publication admission projects its exact ceiling override
+into the selected lane request. A `ready-to-fix / apply-fix` response carrying `payload.authoring` binds a
+Candidate-bound private-member fix. Author only in its exact `authoring.checkoutPath`, `authoring.ref`, and
+`authoring.head`; a missing or different locus stops before mutation. Never author this fix in the disposable member
+checkout. After the fix commit, re-invoke the exact approved `arc review respond -` request with `verifiedFix`
+carrying the approved applicability and verification evidence. Require `candidate-advanced / continue-review` or
+idempotent
 `candidate-current / continue-review`, then commit its staged Candidate response under the same approved increment
 before any Candidate-currentness or delivery-preparation read.
 After an approved fix changes the Candidate, rerun Step 1 and repeat [Deliver Stack][deliver-stack]

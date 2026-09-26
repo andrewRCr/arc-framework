@@ -13,10 +13,11 @@ import {
   type HostedGitHubThread,
 } from "../../../../../src/scripts/review-gate/hosted/github.js";
 import type {
-  HostedRequestHandle,
   HostedReviewCoverage,
+  HostedRequestHandle,
   HostedTarget,
 } from "../../../../../src/scripts/review-gate/hosted/request.js";
+import { createHostedHandleFixture } from "../../../../fixtures/hosted-review.js";
 
 const HEAD = "a".repeat(40);
 const REQUESTED_AT = "2026-07-23T12:00:00.000Z";
@@ -187,8 +188,7 @@ Review skipped: 200 files exceed the limit of 150.
 }
 
 function requestHandle(coverage: HostedReviewCoverage = "incremental"): HostedRequestHandle {
-  return {
-    schemaVersion: 1,
+  return createHostedHandleFixture({
     provider: "coderabbit-pr",
     requestedCoverage: coverage,
     effectiveCoverage: coverage,
@@ -199,7 +199,7 @@ function requestHandle(coverage: HostedReviewCoverage = "incremental"): HostedRe
       url: "https://github.com/owner/repo/pull/42#issuecomment-request",
       createdAt: REQUESTED_AT,
     },
-  };
+  });
 }
 
 describe("CodeRabbit hosted adapter", () => {
@@ -243,11 +243,71 @@ describe("CodeRabbit hosted adapter", () => {
         threadId: "PRRT_1",
         settlement: "reply-and-resolve",
         severity: "major",
+        sourceOrdinal: 1,
+        sourceLabel: "_🟠 Major_ broken boundary",
       }],
     });
     expect(CODERABBIT_HOSTED_REGISTRATION.identities.botUserId).toBe("136622811");
     expect(CODERABBIT_HOSTED_REGISTRATION.identities.appOwnerId).toBe("132028505");
     expect(CODERABBIT_HOSTED_REGISTRATION.identities.appId).toBe("347564");
+  });
+
+  it.each([
+    ["_🔴 Critical_ broken boundary", "critical"],
+    ["_🟠 Major_ broken boundary", "major"],
+    ["_🟡 Minor_ broken boundary", "minor"],
+    ["_🔵 Trivial_ broken boundary", "minor"],
+    [`${" ".repeat(513)}_🟠 Major_ broken boundary`, "major"],
+  ] as const)("normalizes native finding %s to ARC severity %s", async (body, arcSeverity) => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({ state: "changes-requested", body: "Review complete." })]),
+      readThreads: () => Promise.resolve([findingThread(body)]),
+    }));
+
+    const result = await adapter.observeHandle(target);
+    expect(result).toMatchObject({
+      kind: "findings",
+      findings: [{ severity: arcSeverity }],
+    });
+    if (body.startsWith(" ") && result.kind === "findings") {
+      expect(result.findings[0]).not.toHaveProperty("sourceLabel");
+      expect(result.findings[0]).not.toHaveProperty("sourceLabelTruncated");
+    }
+  });
+
+  it("accepts a terminal incremental finding sequence with the admitted native range", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        state: "changes-requested",
+        body: "Review complete.",
+      })]),
+      readThreads: () => Promise.resolve([findingThread("_🟠 Major_ broken boundary")]),
+      readIssueComments: () => Promise.resolve([requestComment("incremental"), summaryComment()]),
+    }));
+
+    await expect(adapter.observe(requestHandle("incremental"))).resolves.toMatchObject({
+      kind: "findings",
+      findings: [{ severity: "major", locus: "src/a.ts:7" }],
+      coverageEvidence: {
+        status: "established",
+        requestArtifactId: "IC_REQUEST",
+        baselineSha: "b".repeat(40),
+        headSha: HEAD,
+        providerGeneration: { artifactId: "IC_SUMMARY" },
+      },
+    });
+  });
+
+  it("preserves an explicit thread-level nitpick marker", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({ state: "changes-requested", body: "Review complete." })]),
+      readThreads: () => Promise.resolve([findingThread("_🔵 Trivial_\n\nNitpick: simplify the name")]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+      kind: "findings",
+      findings: [{ severity: "minor", nit: true }],
+    });
   });
 
   it.each(["findings", "clean"] as const)(
@@ -334,30 +394,38 @@ describe("CodeRabbit hosted adapter", () => {
     },
   );
 
-  it("does not discard an ungraded new reply to an older review thread", async () => {
+  it("seals a COMMENTED-only finding and rejects an ungraded reply to an older thread", async () => {
     const oldRoot = {
       ...findingThread("_🟠 Major_ prior concern").comments[0]!,
       id: "old-root",
       reviewId: "PRR_PRIOR",
       headSha: "b".repeat(40),
     };
+    const newReply = {
+      ...oldRoot,
+      id: "new-ungraded-reply",
+      reviewId: "PRR_1",
+      replyToReviewId: "PRR_PRIOR",
+      headSha: HEAD,
+      body: "_🟠 Major_ This new concern has severity metadata.",
+    };
     const adapter = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review({ state: "commented", body: "" })]),
       readThreads: () => Promise.resolve([{
         id: "PRRT_PRIOR",
         isResolved: false,
-        comments: [oldRoot, {
-          ...oldRoot,
-          id: "new-ungraded-reply",
-          reviewId: "PRR_1",
-          replyToReviewId: "PRR_PRIOR",
-          headSha: HEAD,
-          body: "This new concern has no severity marker.",
-        }],
+        comments: [oldRoot, newReply],
       }]),
-      readIssueComments: () => Promise.resolve([requestComment()]),
+      readIssueComments: () => Promise.resolve([requestComment(), commandReply({
+        body: `<!-- CodeRabbit review command invocation: invocation-id -->
+<summary>✅ Action performed</summary>
+
+Full review finished.`,
+      })]),
     }));
 
+    await expect(adapter.observe(requestHandle("complete"))).resolves.toMatchObject({ kind: "findings" });
+    newReply.body = "This new concern has no severity marker.";
     await expect(adapter.observe(requestHandle("complete"))).resolves.toMatchObject({
       kind: "terminal-failure",
       reason: expect.stringContaining("provider-thread-finding-severity-unrecognized"),
@@ -400,22 +468,124 @@ describe("CodeRabbit hosted adapter", () => {
 
     await expect(adapter.observe(requestHandle("complete"))).resolves.toMatchObject({
       kind: "findings",
-      findings: [{ findingId: "PRRT_FRESH", commentId: "fresh-finding", severity: "major" }],
+      findings: [{ findingId: "PRRT_FRESH:fresh-finding", commentId: "fresh-finding", severity: "major" }],
     });
   });
 
   it("recognizes exact-head clean completion without a new review object", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
-      readIssueComments: () => Promise.resolve([summaryComment(), commandReply()]),
+      readIssueComments: () => Promise.resolve([requestComment("incremental"), summaryComment(), commandReply()]),
       readCommitStatuses: () => Promise.resolve([completionStatus()]),
     }));
 
-    await expect(adapter.observe(requestHandle())).resolves.toMatchObject({ kind: "clean" });
+    await expect(adapter.observe(requestHandle("incremental"))).resolves.toMatchObject({ kind: "clean" });
+  });
+
+  it.each([
+    {
+      name: "mismatched baseline",
+      comments: [summaryComment(HEAD, {
+        body: `<!-- recent_review_start -->
+
+Reviewing files that changed between ${"c".repeat(40)} and ${HEAD}.
+
+<!-- recent_review_end -->`,
+      })],
+      reason: "provider-incremental-range-mismatch",
+    },
+    {
+      name: "missing range",
+      comments: [summaryComment(HEAD, {
+        body: `<!-- recent_review_start -->
+
+Review complete.
+
+<!-- recent_review_end -->`,
+      })],
+      reason: "provider-incremental-range-missing",
+    },
+    {
+      name: "untrusted range",
+      comments: [summaryComment(HEAD, { appId: "999" })],
+      reason: "provider-incremental-range-missing",
+    },
+    {
+      name: "ambiguous ranges",
+      comments: [summaryComment(HEAD, {
+        body: `<!-- recent_review_start -->
+
+Reviewing files that changed between ${"b".repeat(40)} and ${HEAD}.
+Reviewing files that changed between ${"c".repeat(40)} and ${HEAD}.
+
+<!-- recent_review_end -->`,
+      })],
+      reason: "provider-incremental-range-ambiguous",
+    },
+  ])("retains a terminal result without crediting $name", async ({ comments, reason }) => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review()]),
+      readIssueComments: () => Promise.resolve([requestComment("incremental"), ...comments]),
+    }));
+
+    await expect(adapter.observe(requestHandle("incremental"))).resolves.toMatchObject({
+      kind: "clean",
+      coverageEvidence: {
+        status: "unestablished",
+        requestArtifactId: "IC_REQUEST",
+        reason,
+      },
+    });
+  });
+
+  it("fails closed when a different request command shares the admitted artifact timestamp", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review()]),
+      readIssueComments: () => Promise.resolve([
+        {
+          id: "IC_REQUEST",
+          url: "https://github.com/owner/repo/pull/42#issuecomment-request",
+          actorIdentity: "1234",
+          body: "@coderabbitai review",
+          createdAt: REQUESTED_AT,
+          updatedAt: REQUESTED_AT,
+        },
+        {
+          id: "IC_COMPETING",
+          url: "https://github.com/owner/repo/pull/42#issuecomment-competing",
+          actorIdentity: "5678",
+          body: "@coderabbitai full review",
+          createdAt: REQUESTED_AT,
+          updatedAt: REQUESTED_AT,
+        },
+        summaryComment(),
+      ]),
+    }));
+
+    await expect(adapter.observe(requestHandle("incremental"))).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "provider-request-generation-overlap",
+    });
+  });
+
+  it("does not attribute a late review to a current command while an earlier generation is unresolved", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review()]),
+      readIssueComments: () => Promise.resolve([
+        earlierRequestComment(),
+        requestComment("incremental"),
+        summaryComment(),
+      ]),
+    }));
+
+    await expect(adapter.observe(requestHandle("incremental"))).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "provider-request-generation-overlap",
+    });
   });
 
   it("retains clean completion when the reply carries multiple invocation markers", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
-      readIssueComments: () => Promise.resolve([summaryComment(), commandReply({
+      readIssueComments: () => Promise.resolve([requestComment("incremental"), summaryComment(), commandReply({
         body: `<!-- CodeRabbit review command invocation: invocation-id -->
 <!-- CodeRabbit review command invocation: duplicate-marker -->
 <summary>✅ Action performed</summary>
@@ -453,7 +623,7 @@ Review finished.`,
     });
   });
 
-  it("keeps a delayed refusal for an unresolved earlier request uncorrelated", async () => {
+  it("refuses attribution while an earlier request remains unresolved", async () => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readIssueComments: () => Promise.resolve([
         earlierRequestComment(),
@@ -462,7 +632,10 @@ Review finished.`,
       ]),
     }));
 
-    await expect(adapter.observe(requestHandle("complete"))).resolves.toEqual({ kind: "pending" });
+    await expect(adapter.observe(requestHandle("complete"))).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "provider-request-generation-overlap",
+    });
   });
 
   it("recognizes the current refusal after an earlier request received an authenticated reply", async () => {
@@ -506,7 +679,7 @@ Review finished.`,
   it.each([
     { name: "untrusted actor", overrides: { actorIdentity: "999" } },
     { name: "untrusted app", overrides: { appId: "999" } },
-  ])("keeps an earlier request unresolved after an invocation reply from an $name", async ({ overrides }: {
+  ])("refuses attribution after an invocation reply from an $name", async ({ overrides }: {
     overrides: Partial<HostedGitHubIssueComment>;
   }) => {
     const adapter = new CodeRabbitHostedAdapter(port({
@@ -518,36 +691,23 @@ Review finished.`,
       ]),
     }));
 
-    await expect(adapter.observe(requestHandle("complete"))).resolves.toEqual({ kind: "pending" });
+    await expect(adapter.observe(requestHandle("complete"))).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "provider-request-generation-overlap",
+    });
   });
 
   it.each([
-    {
-      name: "missing request comment",
-      comments: [refusalReply()],
-    },
-    {
-      name: "different request artifact",
-      comments: [requestComment("complete", { id: "IC_OTHER" }), refusalReply()],
-    },
+    { name: "missing request comment", comments: [refusalReply()] },
     {
       name: "different request URL",
       comments: [requestComment("complete", {
         url: "https://github.com/owner/repo/pull/42#issuecomment-other",
       }), refusalReply()],
     },
-    {
-      name: "different request command",
-      comments: [requestComment("incremental"), refusalReply()],
-    },
-    {
-      name: "untrusted provider actor",
-      comments: [requestComment(), refusalReply({ actorIdentity: "999" })],
-    },
-    {
-      name: "untrusted provider reply",
-      comments: [requestComment(), refusalReply({ appId: "999" })],
-    },
+    { name: "different request command", comments: [requestComment("incremental"), refusalReply()] },
+    { name: "untrusted provider actor", comments: [requestComment(), refusalReply({ actorIdentity: "999" })] },
+    { name: "untrusted provider reply", comments: [requestComment(), refusalReply({ appId: "999" })] },
     {
       name: "reply before the request",
       comments: [requestComment(), refusalReply({
@@ -568,27 +728,28 @@ Review finished.`,
         refusalReply(),
       ],
     },
-    {
-      name: "generic provider comment",
-      comments: [requestComment(), refusalReply({
-        body: "A review was not scheduled.",
-      })],
-    },
-  ])("keeps $name pending instead of inferring a refusal", async ({ comments }) => {
+    { name: "generic provider comment", comments: [
+      requestComment(), refusalReply({ body: "A review was not scheduled." }),
+    ] },
+  ])("does not infer a refusal from $name", async ({ comments, name }) => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readIssueComments: () => Promise.resolve(comments),
     }));
 
-    await expect(adapter.observe(requestHandle("complete"))).resolves.toEqual({ kind: "pending" });
+    await expect(adapter.observe(requestHandle("complete"))).resolves.toEqual(
+      name.startsWith("different request")
+        ? { kind: "terminal-failure", reason: "provider-request-generation-overlap" }
+        : { kind: "pending" },
+    );
   });
 
   it("does not let an incremental completion discharge a complete request", async () => {
     const incremental = new CodeRabbitHostedAdapter(port({
-      readIssueComments: () => Promise.resolve([summaryComment(), commandReply()]),
+      readIssueComments: () => Promise.resolve([requestComment("complete"), summaryComment(), commandReply()]),
       readCommitStatuses: () => Promise.resolve([completionStatus()]),
     }));
     const complete = new CodeRabbitHostedAdapter(port({
-      readIssueComments: () => Promise.resolve([summaryComment(), commandReply({
+      readIssueComments: () => Promise.resolve([requestComment("complete"), summaryComment(), commandReply({
         body: `<!-- CodeRabbit review command invocation: invocation-id -->
 <summary>✅ Action performed</summary>
 
@@ -605,11 +766,6 @@ Full review finished.`,
     {
       name: "stale summary",
       comments: [summaryComment(HEAD, { updatedAt: "2026-07-23T11:59:59.000Z" }), commandReply()],
-      checks: [completionStatus()],
-    },
-    {
-      name: "mismatched reviewed head",
-      comments: [summaryComment("c".repeat(40)), commandReply()],
       checks: [completionStatus()],
     },
     {
@@ -636,12 +792,211 @@ Full review finished.`,
     await expect(adapter.observe(requestHandle())).resolves.toEqual({ kind: "pending" });
   });
 
+  it("records unestablished coverage for a mismatched reviewed head", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readIssueComments: () => Promise.resolve([
+        requestComment("incremental"), summaryComment("c".repeat(40)), commandReply(),
+      ]),
+      readCommitStatuses: () => Promise.resolve([completionStatus()]),
+    }));
+    await expect(adapter.observe(requestHandle())).resolves.toMatchObject({
+      kind: "clean",
+      coverageEvidence: {
+        status: "unestablished",
+        reason: "provider-incremental-range-mismatch",
+      },
+    });
+  });
+
   it.each([
     ["empty-body", ""],
     ["prose-only", "Review complete. No actionable comments."],
   ])("accepts %s approved reviews when structured findings are empty", async (_name, body) => {
     const adapter = new CodeRabbitHostedAdapter(port({
       readReviews: () => Promise.resolve([review({ body })]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({ kind: "clean" });
+  });
+
+  it("retains supplemental observations before an empty approval for one request", async () => {
+    const supplemental = review({
+      id: "PRR_COMMENTED",
+      state: "commented",
+      submittedAt: "2026-07-23T12:04:55.000Z",
+      body: `<details>
+<summary>🧹 Nitpick comments (1)</summary><blockquote>
+
+<details>
+<summary>src/a.ts (1)</summary><blockquote>
+
+\`7\`: _📐 Maintainability & Code Quality_ | _🔵 Trivial_ | _⚡ Quick win_
+
+**Keep the request-bound observation.**
+
+The later approval is a completion marker, not a replacement result.
+
+<!-- cr-comment:v1:cead8563631e4f6a5cb8cb64 -->
+
+</blockquote></details>
+</blockquote></details>`,
+    });
+    const approval = review({
+      id: "PRR_APPROVED",
+      body: "",
+      submittedAt: "2026-07-23T12:05:00.000Z",
+    });
+    const reviews = [supplemental];
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve(reviews),
+      readIssueComments: () => Promise.resolve([requestComment("incremental")]),
+    }));
+
+    await expect(adapter.observe(requestHandle())).resolves.toEqual({ kind: "pending" });
+    reviews.push(approval);
+    await expect(adapter.observe(requestHandle())).resolves.toMatchObject({
+      kind: "findings",
+      reviewUrl: approval.url,
+      findings: [{
+        findingId: "PRR_COMMENTED:cead8563631e4f6a5cb8cb64",
+        origin: "review-body",
+        reviewId: "PRR_COMMENTED",
+        sourceOrdinal: 1,
+        severity: "minor",
+        nit: true,
+      }],
+    });
+  });
+
+  it("does not aggregate a later request generation or another head", async () => {
+    const currentApproval = review({
+      id: "PRR_CURRENT",
+      body: "",
+      submittedAt: "2026-07-23T12:03:00.000Z",
+    });
+    const laterSupplemental = review({
+      id: "PRR_LATER",
+      state: "commented",
+      submittedAt: "2026-07-23T12:05:00.000Z",
+      body: `<summary>🧹 Nitpick comments (1)</summary>
+<summary>src/later.ts (1)</summary>
+
+\`3\`: _📐 Maintainability & Code Quality_ | _🔵 Trivial_
+
+**Belongs to the later request.**
+
+<!-- cr-comment:v1:111111111111111111111111 -->`,
+    });
+    const wrongHead = review({
+      id: "PRR_WRONG_HEAD",
+      headSha: "b".repeat(40),
+      state: "commented",
+      submittedAt: "2026-07-23T12:02:00.000Z",
+      body: laterSupplemental.body,
+    });
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([laterSupplemental, wrongHead, currentApproval]),
+      readIssueComments: () => Promise.resolve([requestComment("incremental"), {
+        id: "IC_NEXT_REQUEST",
+        url: "https://github.com/owner/repo/pull/42#issuecomment-next",
+        actorIdentity: "5678",
+        body: "@coderabbitai review",
+        createdAt: "2026-07-23T12:04:00.000Z",
+        updatedAt: "2026-07-23T12:04:00.000Z",
+      }]),
+    }));
+
+    await expect(adapter.observe(requestHandle())).resolves.toMatchObject({
+      kind: "clean",
+      reviewUrl: currentApproval.url,
+    });
+  });
+
+  it("refuses a request generation superseded before any attributable terminal result", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        id: "PRR_AFTER_NEXT_REQUEST",
+        body: "",
+        submittedAt: "2026-07-23T12:05:00.000Z",
+      })]),
+      readIssueComments: () => Promise.resolve([requestComment("incremental"), {
+        id: "IC_NEXT_REQUEST",
+        url: "https://github.com/owner/repo/pull/42#issuecomment-next",
+        actorIdentity: "5678",
+        body: "@coderabbitai full review",
+        createdAt: "2026-07-23T12:04:00.000Z",
+        updatedAt: "2026-07-23T12:04:00.000Z",
+      }, summaryComment()]),
+    }));
+
+    await expect(adapter.observe(requestHandle("incremental"))).resolves.toEqual({
+      kind: "terminal-failure",
+      reason: "provider-request-generation-overlap",
+    });
+  });
+
+  it("retains a repeated supplemental provider fingerprint exactly once", async () => {
+    const body = `<details>
+<summary>🧹 Nitpick comments (1)</summary><blockquote>
+
+<details>
+<summary>src/a.ts (1)</summary><blockquote>
+
+\`7\`: _📐 Maintainability & Code Quality_ | _🔵 Trivial_
+
+**Repeated provider observation.**
+
+<!-- cr-comment:v1:cead8563631e4f6a5cb8cb64 -->
+
+</blockquote></details>
+</blockquote></details>`;
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([
+        review({
+          id: "PRR_APPROVED",
+          body,
+          submittedAt: "2026-07-23T12:05:00.000Z",
+        }),
+        review({
+          id: "PRR_COMMENTED",
+          state: "commented",
+          body,
+          submittedAt: "2026-07-23T12:04:55.000Z",
+        }),
+      ]),
+      readIssueComments: () => Promise.resolve([requestComment("incremental")]),
+    }));
+
+    const result = await adapter.observe(requestHandle());
+    expect(result.kind).toBe("findings");
+    if (result.kind === "findings") {
+      expect(result.findings).toHaveLength(1);
+      expect(result.findings[0]).toMatchObject({
+        reviewId: "PRR_COMMENTED",
+        fingerprint: "cead8563631e4f6a5cb8cb64",
+        sourceOrdinal: 1,
+      });
+    }
+  });
+
+  it("keeps handle-less observation on the newest exact-head review", async () => {
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([
+        review({ id: "PRR_APPROVED", body: "", submittedAt: "2026-07-23T12:05:00.000Z" }),
+        review({
+          id: "PRR_OLDER",
+          state: "commented",
+          submittedAt: "2026-07-23T12:04:00.000Z",
+          body: `<summary>🧹 Nitpick comments (1)</summary>
+<summary>src/older.ts (1)</summary>
+
+\`2\`: _📐 Maintainability & Code Quality_ | _🔵 Trivial_
+
+**Cannot be request-bound without a handle.**
+
+<!-- cr-comment:v1:222222222222222222222222 -->`,
+        }),
+      ]),
     }));
 
     await expect(adapter.observeHandle(target)).resolves.toMatchObject({ kind: "clean" });
@@ -741,7 +1096,10 @@ The contract should distinguish findings that have no review thread.
         fingerprint: "abcdef1234567890abcdef12",
         settlement: "not-applicable",
         severity: "minor",
+        nit: true,
         locus: "src/a.ts:7-9",
+        sourceOrdinal: 1,
+        sourceLabel: "**Keep the boundary explicit.**",
       }],
     });
     const result = await adapter.observeHandle(target);
@@ -750,6 +1108,42 @@ The contract should distinguish findings that have no review thread.
       expect(result.findings[0]).not.toHaveProperty("commentId");
       expect(result.findings[0]).not.toHaveProperty("threadId");
     }
+  });
+
+  it("assigns one capture order after combining thread and review-body findings", async () => {
+    const duplicateLabel = "_🟠 Major_ duplicated provider label";
+    const adapter = new CodeRabbitHostedAdapter(port({
+      readReviews: () => Promise.resolve([review({
+        state: "changes-requested",
+        body: `**Actionable comments posted: 1**
+
+<details>
+<summary>🧹 Nitpick comments (1)</summary><blockquote>
+
+<details>
+<summary>src/body.ts (1)</summary><blockquote>
+
+\`4\`: _📐 Maintainability & Code Quality_ | _🔵 Trivial_ | _⚡ Quick win_
+
+${duplicateLabel}
+
+Body details.
+
+<!-- cr-comment:v1:abcdef1234567890abcdef12 -->
+
+</blockquote></details>
+</blockquote></details>`,
+      })]),
+      readThreads: () => Promise.resolve([findingThread(duplicateLabel)]),
+    }));
+
+    await expect(adapter.observeHandle(target)).resolves.toMatchObject({
+      kind: "findings",
+      findings: [
+        { origin: "review-thread", sourceOrdinal: 1, sourceLabel: duplicateLabel },
+        { origin: "review-body", sourceOrdinal: 2, sourceLabel: duplicateLabel },
+      ],
+    });
   });
 
   it("bounds supplemental file groups to their enclosing details section", async () => {
@@ -969,6 +1363,7 @@ This finding has no inline review thread.
         severity: "major",
         locus: "src/legacy.ts:12",
         fingerprint: "1234567890abcdef12345678",
+        sourceLabel: "Preserve the boundary",
       }],
     });
   });
@@ -1296,11 +1691,7 @@ line 12: _🩺 Stability & Availability_ | _🟡 Minor_
       },
     }));
 
-    await adapter.readHead({
-      schemaVersion: 1,
-      provider: "coderabbit-pr",
-      requestedCoverage: "complete",
-      effectiveCoverage: "complete",
+    await adapter.readHead(createHostedHandleFixture({
       target,
       artifact: {
         kind: "issue-comment",
@@ -1308,12 +1699,8 @@ line 12: _🩺 Stability & Availability_ | _🟡 Minor_
         url: "https://github.com/owner/repo/pull/42#issuecomment-1",
         createdAt: "2026-07-23T12:00:00.000Z",
       },
-    }, { signal });
-    await adapter.observe({
-      schemaVersion: 1,
-      provider: "coderabbit-pr",
-      requestedCoverage: "complete",
-      effectiveCoverage: "complete",
+    }), { signal });
+    await adapter.observe(createHostedHandleFixture({
       target,
       artifact: {
         kind: "issue-comment",
@@ -1321,7 +1708,7 @@ line 12: _🩺 Stability & Availability_ | _🟡 Minor_
         url: "https://github.com/owner/repo/pull/42#issuecomment-1",
         createdAt: "2026-07-23T12:00:00.000Z",
       },
-    }, { signal });
+    }), { signal });
 
     expect(observed).toEqual([signal, signal, signal, signal, signal, signal]);
   });
