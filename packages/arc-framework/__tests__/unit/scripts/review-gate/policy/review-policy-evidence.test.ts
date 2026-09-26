@@ -654,6 +654,26 @@ describe("evidence-bound review policy", () => {
     });
   });
 
+  it("binds a repository-proven unchanged-head material settlement without admitting a caller assertion", async () => {
+    const result = findingsHostedResult(["major"]);
+    const record = approvedRecord(result, [{
+      sourceVerification: "verified", verifiedSeverity: "major", disposition: "defer",
+    }]);
+    const request = findingsRequest(result);
+    const evidence = { ...dependencies(result, record), sources: ["codex-pr"], maxPasses: 2 };
+    await expect(resolveEvidenceBoundReviewPolicy(request, evidence)).resolves.toMatchObject({
+      state: "findings", nextAction: "respond",
+    });
+    await expect(resolveEvidenceBoundReviewPolicy(request, {
+      ...evidence, terminalResponseSettled: true,
+    })).resolves.toMatchObject({
+      state: "ready", nextAction: "hosted-request", payload: { pass: 2 },
+    });
+    await expect(resolveEvidenceBoundReviewPolicy({
+      ...request, terminalResponseSettled: true,
+    }, evidence)).rejects.toThrow(/Unrecognized key/u);
+  });
+
   it("does not spend a pass from a stale nonhosted record-only settlement after a successor fix", async () => {
     const result = chunkedLocalAggregateResult();
     if (result.kind !== "attested-local") throw new Error("expected local aggregate");

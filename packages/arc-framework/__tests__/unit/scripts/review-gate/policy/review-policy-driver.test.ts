@@ -67,6 +67,39 @@ describe("resolveReviewPolicy", () => {
     })).not.toHaveProperty("reviewOperationId");
   });
 
+  it("resolves a settled material response to the next pass or ceiling", () => {
+    const prior = {
+      schemaVersion: 1 as const,
+      target: { ...target, pullRequest: null },
+      lane: "standard" as const,
+      standardReview,
+      sources: ["delegated-agent"],
+      completedPasses: 1,
+      maxPasses: 2,
+      attempts: [{
+        sourceId: "delegated-agent", outcome: "findings" as const,
+        reviewOperationId: "local/material-1",
+      }],
+      verifiedTerminalSignal: {
+        reviewOperationId: "local/material-1", confirmedFindingCount: 1,
+        maxConfirmedSeverity: "major" as const, coverageAdequate: true,
+      },
+    };
+    expect(resolveReviewPolicy(prior)).toMatchObject({ state: "findings", nextAction: "respond" });
+    expect(resolveReviewPolicy({ ...prior, terminalResponseSettled: true })).toMatchObject({
+      state: "ready", nextAction: "local-prepare", payload: { pass: 2 },
+    });
+    expect(resolveReviewPolicy({
+      ...prior, completedPasses: 2, maxPasses: 2, terminalResponseSettled: true,
+    })).toMatchObject({
+      state: "approval-required", nextAction: "obtain-ceiling-override",
+      payload: { consequence: { exhaustedPassCount: 2, nextPass: 3 } },
+    });
+    expect(ReviewPolicyCommandRequestSchema.safeParse({
+      ...prior, terminalResponseSettled: true,
+    }).success).toBe(false);
+  });
+
   it("requires one immutable producer reference for a terminal attempt", () => {
     expect(ReviewPolicyCommandRequestSchema.safeParse({
       schemaVersion: 1,

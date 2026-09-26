@@ -441,6 +441,13 @@ async function terminalResponseSource(
   return projectPendingResponseSource(result, response.status, settled);
 }
 
+function settledTerminalResponse(
+  attempt: LanePolicyAttempt | undefined,
+  pendingSource: z.infer<typeof ReviewResponseSettlementSourceSchema> | null,
+): boolean {
+  return attempt?.outcome === "settled-findings" && pendingSource === null;
+}
+
 /** Require the exact latest approved set to own the terminal lane settlement. */
 export function currentDispositionSettled(
   result: Pick<ReviewResult, "kind" | "producerId">,
@@ -736,6 +743,7 @@ export async function composePrePublicationReviewRequest(
     pendingSources[lane] = pendingSource;
     return bindReviewPolicyEvidence(policyInput, {
       allowUnapprovedFindings: pendingSource !== null,
+      terminalResponseSettled: settledTerminalResponse(terminalAttempts[lane], pendingSource),
       sources: policy.sources,
       maxPasses: policy.maxPasses,
       ...(historicalAttempt === undefined

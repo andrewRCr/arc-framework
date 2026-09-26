@@ -47,6 +47,8 @@ export interface EvidenceBoundReviewPolicyDependencies {
   readonly historicalProducerId?: string;
   /** Pre-publication may project a pending response before its disposition is approved. */
   readonly allowUnapprovedFindings?: boolean;
+  /** Pre-publication proved exact lane settlement against the current approved disposition. */
+  readonly terminalResponseSettled?: boolean;
 }
 
 function requestScope(request: ReviewPolicyCommandRequest): "whole-target" | "chunked" {
@@ -292,6 +294,9 @@ export async function bindReviewPolicyEvidence(
   const lastAttempt = request.attempts.at(-1);
   if (lastAttempt === undefined
     || (lastAttempt.outcome !== "clean" && lastAttempt.outcome !== "findings")) {
+    if (dependencies.terminalResponseSettled === true) {
+      throw new Error("terminal response settlement has no findings producer");
+    }
     return ReviewPolicyRequestSchema.parse({
       ...request,
       sources: dependencies.sources,
@@ -314,11 +319,20 @@ export async function bindReviewPolicyEvidence(
     lastAttempt.reviewOperationId,
     dependencies,
   );
+  if (dependencies.terminalResponseSettled === true) {
+    const response = await readIncrementalPredecessorResponseEvidence(
+      result, dependencies.dispositionStore, dependencies.readResponsePerformance,
+    );
+    if (response.status !== "performed") {
+      throw new Error("settled terminal findings response lacks performed evidence");
+    }
+  }
   return ReviewPolicyRequestSchema.parse({
     ...request,
     sources: dependencies.sources,
     maxPasses: dependencies.maxPasses,
     verifiedTerminalSignal,
+    ...(dependencies.terminalResponseSettled === true ? { terminalResponseSettled: true } : {}),
   });
 }
 

@@ -691,6 +691,32 @@ describe("projectPrePublicationReview", () => {
     });
   });
 
+  it("routes an unchanged-head settled material response to the next pass", () => {
+    const base = request({ selfReview: "settled" });
+    const standard = {
+      ...(base.standard as Record<string, unknown>),
+      sources: ["delegated-agent"],
+      completedPasses: 1,
+      attempts: [{ sourceId: "delegated-agent", outcome: "findings", reviewOperationId: "material-attempt" }],
+      verifiedTerminalSignal: {
+        reviewOperationId: "material-attempt",
+        confirmedFindingCount: 1,
+        maxConfirmedSeverity: "major",
+        coverageAdequate: true,
+      },
+      terminalResponseSettled: true,
+    };
+    expect(projectPrePublicationReview({
+      ...base,
+      frontline: { ...(base.frontline as Record<string, unknown>), frontlineActive: false },
+      standard,
+      pendingResponse: { frontline: null, standard: null },
+    }, postAttestContinuation)).toMatchObject({
+      locus: "candidate-review-pending",
+      policy: { state: "ready", nextAction: "local-prepare", payload: { pass: 2 } },
+    });
+  });
+
   it("keeps a minor frontline response pending before standard review", () => {
     const base = request({ selfReview: "settled" });
     const frontline = {

@@ -626,6 +626,86 @@ describe("attest → pre-publication → publish", () => {
     });
   }, 120_000);
 
+  it.each(["defer", "reject"] as const)(
+    "continues a settled material %s at the unchanged head to the next pass", async (disposition) => {
+      repository = await createAtCapPublicationRepo();
+      expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
+      await git(repository, ["commit", "-m", "verification"]);
+      const findings = await completeLocalReview(repository, "findings", "run-material-defer-pass-1");
+      expect(findings).toMatchObject({ state: "findings", nextAction: "respond" });
+      const source = (findings.payload as unknown as FindingsReductionPayload).responseSource;
+      const proposed = await invokeReview(repository, ["review", "respond", "-"], {
+        schemaVersion: 1, source,
+        proposal: {
+          proposedVerification: "focused",
+          severityGatingPolicy: { minorGating: "record-only" },
+          findings: [{
+            findingId: "finding-1",
+            sourceVerification: "verified",
+            verificationRefs: ["source:src/example.ts:1"],
+            verifiedSeverity: "major",
+            disposition,
+            rationale: disposition === "defer"
+              ? "The material finding is valid but has an approved destination."
+              : "The material finding is outside the current change responsibility.",
+            recommendation: disposition === "defer"
+              ? "Defer to the recorded destination and continue review."
+              : "Record the approved rejection and continue review.",
+            openQuestions: [],
+          }],
+        },
+      });
+      expect(proposed).toMatchObject({ state: "awaiting-approval", nextAction: "obtain-approval" });
+      await git(repository, ["remote", "add", "origin", OFFLINE_ORIGIN]);
+      const judgments = await writeNonDefaultPrePublicationJudgments(repository);
+      const prePublicationArgv = [
+        "review", "pre-publication", "example",
+        "--self-review", "settled",
+        "--change-set", judgments.changeSetPath,
+        "--lanes", judgments.lanesPath,
+      ];
+      const pending = await runArc(prePublicationArgv, repository, { env: OFFLINE_ENV });
+      expect(pending.exitCode, JSON.stringify(pending)).toBe(0);
+      expect(JSON.parse(pending.stdout)).toMatchObject({
+        locus: "candidate-fix-pending",
+        nextAction: { command: "arc review respond -" },
+      });
+      const proposal = proposed.payload.proposal as {
+        state: "proposed";
+        dispositionSet: { targetId: string; dispositionSetId: string };
+      };
+      const dispositions = {
+        ...proposal,
+        state: "approved" as const,
+        approval: {
+          schemaVersion: 2 as const,
+          semanticsVersion: "review-gate/v2" as const,
+          targetId: proposal.dispositionSet.targetId,
+          dispositionSetId: proposal.dispositionSet.dispositionSetId,
+          approvedBy: "test-user",
+          approvedAt: "2026-09-10T12:00:00Z",
+        },
+      };
+      const policyRequest = await responsePolicyRequest(repository, source);
+      await expect(invokeReview(repository, ["review", "respond", "-"], {
+        schemaVersion: 1, source, policyRequest, dispositions,
+      })).resolves.toMatchObject({ state: "settled", nextAction: "reduce" });
+
+      const continued = await runArc(prePublicationArgv, repository, { env: OFFLINE_ENV });
+      expect(continued.exitCode, JSON.stringify(continued)).toBe(0);
+      expect(JSON.parse(continued.stdout)).toMatchObject({
+        locus: "candidate-review-pending",
+        policy: { state: "ready", nextAction: "local-prepare", payload: { pass: 2 } },
+      });
+      const replay = await runArc(prePublicationArgv, repository, { env: OFFLINE_ENV });
+      expect(replay.exitCode, JSON.stringify(replay)).toBe(0);
+      expect(JSON.parse(replay.stdout)).toMatchObject({
+        locus: "candidate-review-pending",
+        policy: { state: "ready", nextAction: "local-prepare", payload: { pass: 2 } },
+      });
+      expect((await reviewAccounting(repository)).completedPasses).toBe(1);
+  }, 120_000);
+
   it("offers the findings response before approval and after the approved fix commit", async () => {
     repository = await createAtCapPublicationRepo();
     expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);

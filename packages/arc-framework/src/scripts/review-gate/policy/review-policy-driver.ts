@@ -151,6 +151,20 @@ function validateVerifiedTerminalSignal(
   }
 }
 
+function validateTerminalResponseSettlement(
+  request: ReviewPassProgressInput & { terminalResponseSettled?: true },
+  context: z.RefinementCtx,
+): void {
+  if (request.terminalResponseSettled === true
+    && lastEligibleAttempt(request)?.outcome !== "findings") {
+    context.addIssue({
+      code: "custom",
+      message: "terminal response settlement requires a findings producer",
+      path: ["terminalResponseSettled"],
+    });
+  }
+}
+
 export const ReviewCeilingOverrideSchema = z.strictObject({
   target: ReviewPolicyTargetSchema,
   lane: z.enum(["frontline", "standard"]),
@@ -286,9 +300,12 @@ export const ReviewPolicyRequestSchema = z.strictObject({
   sources: z.array(ReviewSourceIdSchema).readonly(),
   maxPasses: ReviewPassSchema,
   verifiedTerminalSignal: VerifiedTerminalReviewSignalSchema.optional(),
+  /** Repository-proven settlement of the terminal findings response; never a command input. */
+  terminalResponseSettled: z.literal(true).optional(),
 }).superRefine((request, context) => {
   validateTerminalPassProgress(request, context);
   validateVerifiedTerminalSignal(request, context);
+  validateTerminalResponseSettlement(request, context);
   if (request.lane === "standard" && request.invocation?.mode === "skip") {
     context.addIssue({
       code: "custom",
@@ -618,7 +635,8 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
   const lastAttempt = lastEligibleAttempt(request);
   // An admitted findings result keeps its response obligation even if a later invocation
   // changes frontline activation or asks to skip a fresh run.
-  const unresolvedFindings = lastAttempt?.outcome === "findings";
+  const unresolvedFindings = lastAttempt?.outcome === "findings"
+    && request.terminalResponseSettled !== true;
   if (request.scopeSelection !== undefined
     && !sameTarget(request.scopeSelection.target, request.target)) {
     return resolveEnvelope({
@@ -763,9 +781,9 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
         },
       });
     }
-    if (lastAttempt.outcome === "findings"
-      && (signal.maxConfirmedSeverity === "major"
-        || signal.maxConfirmedSeverity === "critical")) {
+    const materialFindings = lastAttempt.outcome === "findings"
+      && (signal.maxConfirmedSeverity === "major" || signal.maxConfirmedSeverity === "critical");
+    if (materialFindings && !request.terminalResponseSettled) {
       return resolveEnvelope({
         state: "findings",
         nextAction: "respond",
@@ -782,7 +800,8 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
         },
       });
     }
-    if (request.additionalPassAuthorization === undefined) {
+    if (request.additionalPassAuthorization === undefined
+      && !(materialFindings && request.terminalResponseSettled)) {
       return resolveEnvelope({
         state: "pass-complete",
         nextAction: "none",
