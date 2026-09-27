@@ -56,6 +56,10 @@ interface GitBlobMetadata {
   objectType: "blob" | "commit";
 }
 
+type ParsedGitBlobMetadata =
+  | { entries: Map<string, GitBlobMetadata>; malformedPath: null }
+  | { entries: null; malformedPath: string | null };
+
 /** Keep each captured object batch below the shared 64 MiB process-output ceiling. */
 const GIT_BLOB_CONTENT_BATCH_BYTES = 32 * 1024 * 1024;
 /** Keep literal pathspec batches below conservative cross-platform argument limits. */
@@ -121,21 +125,21 @@ function parseGitBlobMetadata(
   bytes: Uint8Array,
   source: "index" | "tree",
   requestedByBytes: ReadonlyMap<string, string>,
-): Map<string, GitBlobMetadata> | null {
+): ParsedGitBlobMetadata {
   const records = splitNulRecords(bytes);
-  if (records === null) return null;
+  if (records === null) return { entries: null, malformedPath: null };
   const metadataByPath = new Map<string, GitBlobMetadata>();
   for (const record of records) {
     const tab = record.indexOf(9);
-    if (tab < 0) return null;
+    if (tab < 0) return { entries: null, malformedPath: null };
     const path = requestedByBytes.get(byteKey(record.subarray(tab + 1)));
     if (path === undefined) continue;
-    if (metadataByPath.has(path)) return null;
+    if (metadataByPath.has(path)) return { entries: null, malformedPath: path };
     const metadata = parseGitBlobMetadataHeader(gitMetadataDecoder.decode(record.subarray(0, tab)), source);
-    if (metadata === null) return null;
+    if (metadata === null) return { entries: null, malformedPath: path };
     metadataByPath.set(path, metadata);
   }
-  return metadataByPath;
+  return { entries: metadataByPath, malformedPath: null };
 }
 
 function parseGitBlobSizes(
@@ -275,8 +279,13 @@ async function readGitBlobMetadataBatches(input: {
       source,
       input.requestedByBytes,
     );
-    if (batchMetadata === null) throw new Error(errorMessage);
-    for (const [path, entry] of batchMetadata) {
+    if (batchMetadata.entries === null) {
+      const detail = batchMetadata.malformedPath === null
+        ? ""
+        : ` Malformed metadata for ${batchMetadata.malformedPath}.`;
+      throw new Error(`${errorMessage}${detail}`);
+    }
+    for (const [path, entry] of batchMetadata.entries) {
       if (metadata.has(path)) throw new Error(errorMessage);
       metadata.set(path, entry);
     }

@@ -347,14 +347,24 @@ describe("readGitBlobEntries", () => {
     })).toEqual(paths.map((path) => `:(literal)${path}`));
   });
 
-  it("rejects malformed metadata for a requested path", async () => {
+  it.each(["1", "2", "3"])("names the requested path in a malformed stage-%s index refusal", async (stage) => {
+    mocks.execa.mockResolvedValue({
+      stdout: Buffer.from(`100644 ${"a".repeat(40)} ${stage}\twanted.txt\0`),
+      stderr: Buffer.alloc(0),
+    });
+
+    await expect(readGitBlobEntries("/repo", null, ["wanted.txt"]))
+      .rejects.toThrow(/Cannot resolve exact index blobs.*wanted\.txt/u);
+  });
+
+  it("rejects an invalid index object ID and names its requested path", async () => {
     mocks.execa.mockResolvedValue({
       stdout: Buffer.from("100644 abcdef 0\twanted.txt\0"),
       stderr: Buffer.alloc(0),
     });
 
     await expect(readGitBlobEntries("/repo", null, ["wanted.txt"]))
-      .rejects.toThrow("Cannot resolve exact index blobs");
+      .rejects.toThrow(/Cannot resolve exact index blobs.*wanted\.txt/u);
   });
 
   it("rejects a truncated batch object response", async () => {
