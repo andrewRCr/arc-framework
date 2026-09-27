@@ -1042,5 +1042,29 @@ describe("Errand review status", () => {
     await expect(assertEvidenceBoundReviewExecutionAdmission({ ...request, ceilingOverride: consequence },
       { terminalResponsePerformed: false }, expectedSource, dependencies))
       .resolves.toMatchObject({ state: "ready", payload: { pass: 3, ceilingOverrideApplied: true } });
+
+    await recordLaneAttempt(store, {
+      lane: "standard", repositoryId, changeRequestId: "pull/42", headSha: thirdHead,
+      lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: claimId,
+        headSha: thirdHead },
+      attemptId: "local/missing-result", sourceId: "delegated-agent",
+      outcome: "clean", consumedPass: true, logicalPass: 3,
+      now: "2026-09-13T00:04:00Z",
+    });
+    const fourthHead = await advance("fourth\n");
+    await expect(readErrandRoutedObligation({ cwd: root, exec, target: target(fourthHead),
+      pullRequest: 42, currentBaseOid: base })).resolves.toMatchObject({
+      state: "approval-required", scope: "errand",
+      consequence: { exhaustedPassCount: 3, nextPass: 4,
+        target: { ...approvedTarget, headSha: fourthHead } },
+    });
+    const missingResultConsequence = { ...consequence,
+      target: { ...approvedTarget, headSha: fourthHead }, exhaustedPassCount: 3, nextPass: 4 };
+    await expect(readErrandRoutedObligation({ cwd: root, exec, target: target(fourthHead),
+      pullRequest: 42, currentBaseOid: base, ceilingOverride: consequence,
+    })).resolves.toMatchObject({ state: "blocked" });
+    await expect(readErrandRoutedObligation({ cwd: root, exec, target: target(fourthHead),
+      pullRequest: 42, currentBaseOid: base, ceilingOverride: missingResultConsequence,
+    })).resolves.toMatchObject({ state: "review-required" });
   });
 });

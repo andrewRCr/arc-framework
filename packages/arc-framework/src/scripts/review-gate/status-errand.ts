@@ -213,6 +213,38 @@ async function confirmErrandCorrectionPredecessor(input: {
   return confirmChangedErrandResponse(input);
 }
 
+/** Preserve the claim-wide ceiling when an older producer has no readable result artifact. */
+function missingHistoricalResultObligation(input: {
+  readonly policyTarget: { readonly repository: string; readonly pullRequest: number; readonly headSha: string };
+  readonly completedPasses: number;
+  readonly maxPasses: number;
+  readonly ceilingOverride?: ReviewCeilingOverride;
+}): RoutedReviewObligation {
+  if (input.completedPasses < input.maxPasses) {
+    return { state: "review-required", detail: "The exact Errand standard-review lane is not settled." };
+  }
+  const consequence = {
+    target: input.policyTarget, lane: "standard" as const,
+    exhaustedPassCount: input.completedPasses, nextPass: input.completedPasses + 1,
+  };
+  const override = input.ceilingOverride;
+  if (override === undefined) {
+    return { state: "approval-required", scope: "errand",
+      detail: "The Errand claim has exhausted its standard-review pass ceiling; the historical "
+        + "producer result is unavailable, and another pass needs an exact one-pass Owner override.",
+      consequence };
+  }
+  if (canonicalize(override.target) !== canonicalize(consequence.target)
+    || override.lane !== consequence.lane
+    || override.exhaustedPassCount !== consequence.exhaustedPassCount
+    || override.nextPass !== consequence.nextPass) {
+    return blocked("The Errand's standard-review ceiling override does not match this claim and head.");
+  }
+  return { state: "review-required",
+    detail: "The exact ceiling override was supplied, but the historical review producer is unavailable; "
+      + "execution admission must verify the next pass." };
+}
+
 /** Carry one claim's spent passes into the status of a new, unreviewed head. */
 async function readUnreviewedErrandHead(input: {
   cwd: string;
@@ -241,19 +273,6 @@ async function readUnreviewedErrandHead(input: {
         || attempt.outcome === "settled-findings"))
     .sort((left, right) => right.logicalPass - left.logicalPass)[0];
   if (historical === undefined) return blocked("The Errand's completed review producer is unavailable.");
-  const resultReader = createRepositoryReviewResultReader(input.publisher);
-  const result = await resultReader.readResult(historical.attemptId).catch((error: unknown) => {
-    if (error instanceof LocalReviewResultReaderError && error.code === "missing-result") return null;
-    throw error;
-  });
-  if (result === null) {
-    return { state: "review-required", detail: "The exact Errand standard-review lane is not settled." };
-  }
-  if (result.kind === "frontline" || result.repositoryId !== repositoryId
-    || result.target.headSha !== historical.headSha
-    || !await producerBelongsToErrand(result, store, errand)) {
-    return blocked("The Errand's completed review producer does not match its claim.");
-  }
   const settings = (await readConfigSettings(input.cwd)).settings;
   const configured = await resolveConfiguredLanePolicy({
     lane: "standard", settings,
@@ -262,6 +281,20 @@ async function readUnreviewedErrandHead(input: {
   });
   const policyTarget = { repository: target.repository, pullRequest: input.pullRequest,
     headSha: target.headSha };
+  const resultReader = createRepositoryReviewResultReader(input.publisher);
+  const result = await resultReader.readResult(historical.attemptId).catch((error: unknown) => {
+    if (error instanceof LocalReviewResultReaderError && error.code === "missing-result") return null;
+    throw error;
+  });
+  if (result === null) {
+    return missingHistoricalResultObligation({ policyTarget, completedPasses,
+      maxPasses: configured.maxPasses, ceilingOverride: input.ceilingOverride });
+  }
+  if (result.kind === "frontline" || result.repositoryId !== repositoryId
+    || result.target.headSha !== historical.headSha
+    || !await producerBelongsToErrand(result, store, errand)) {
+    return blocked("The Errand's completed review producer does not match its claim.");
+  }
   const requirement = result.requirement;
   const policy = await resolveEvidenceBoundReviewPolicyContinuation({
     schemaVersion: 1, target: policyTarget, lane: "standard", frontlineActive: false,
