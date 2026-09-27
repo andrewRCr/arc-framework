@@ -3,7 +3,7 @@
   "slug": "retry-windows-file-write-refusals",
   "claimId": "8f9bac7dd4956ad4066b1b727e9d984b",
   "createdAt": "2026-09-27T21:20:30.408Z",
-  "updatedAt": "2026-09-27T21:20:30.408Z",
+  "updatedAt": "2026-09-27T22:21:18.905Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Retry Windows rename-over and lock-directory refusals in CLI file writes with bounded backoff and portability coverage",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Retry Windows rename-over and lock-directory refusals in the CLI's file writes",
   "originEntrySourceDigest": "sha256:3a254bbd51688c2ba02a1bcce4276a65655c3b1b11cea3b5b2b64eab9c97ec18",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/retry-windows-file-write-refusals",
+    "headSha": "c8d864905c6d1dd7cfbc8ab2751bdece4e2d3780"
+  }
 }
