@@ -30,6 +30,7 @@ vi.mock("../../../src/lib/work-unit/lifecycle-index.js", () => ({
 const {
   resolveVerbTargetOrReport,
   TeardownCommandInputSchema,
+  FinalizeCommandInputSchema,
 } = await import("../../../src/handlers/lifecycle.js");
 
 function entry(slug: string, phase: Phase, location: Location): LifecycleIndexEntry {
@@ -102,5 +103,13 @@ describe("teardown command input", () => {
 
   it("rejects a relative husk path", () => {
     expect(TeardownCommandInputSchema.safeParse({ name: "widget", husk: "../worktree" }).success).toBe(false);
+  });
+});
+
+describe("finalize command input", () => {
+  it("accepts the amend-design Class write and rejects missing Class or unknown fire-points", () => {
+    expect(FinalizeCommandInputSchema.safeParse({ firePoint: "amend-design", class: "Heavy" }).success).toBe(true);
+    expect(FinalizeCommandInputSchema.safeParse({ firePoint: "amend-design" }).success).toBe(false);
+    expect(FinalizeCommandInputSchema.safeParse({ firePoint: "verify", class: "Heavy" }).success).toBe(false);
   });
 });

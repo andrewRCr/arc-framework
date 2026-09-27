@@ -244,7 +244,7 @@ On the **spec-depth and design arms** the capture — log row, revision tasks, b
 and the `Class` ratchet where the depth read requires one — lands as **one commit before corrective work begins**,
 released at the stop where the Owner authorized it, so the point-in-time design is recoverable.
 
-Write the `Class` ratchet with `arc finalize create-spec --class <Class>` rather than editing the meta by hand:
+Write the `Class` ratchet with `arc finalize amend-design --class <Class>` rather than editing the meta by hand:
 the capture is a planning ceremony and that verb performs the write with no lifecycle guard.
 
 > [!CAUTION]

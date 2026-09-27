@@ -688,7 +688,7 @@ export const SetStageCommandInputSchema = z.object({
   advance: z.boolean().optional(),
 }).strict();
 export const FinalizeCommandInputSchema = z.object({
-  firePoint: z.enum(["create-spec", "generate-tasks"]),
+  firePoint: z.enum(["create-spec", "amend-design", "generate-tasks"]),
   class: WorkClassSchema.optional(),
 }).strict().superRefine((value, refinement) => {
   if (value.class === undefined) {
@@ -2643,10 +2643,10 @@ export async function handleSetStage(
  * `arc finalize <fire-point>` — persist a planning ceremony's
  * deterministic finalize facts at its fire-point: the resolved `Class`, the derived
  * `Task List`, and the fixed terminal `Next Action`, per the fire-point's contract
- * (`create-spec` → Class; `generate-tasks` → Class + Task List + Next Action).
+ * (`create-spec` / `amend-design` → Class; `generate-tasks` → Class + Task List + Next Action).
  * The complement of `set-stage` / `repoint-design` (which
  * own the planning pointers): not a lifecycle transition. `--class` carries the
- * resolved weight, required at both fire-points. Refuses without a single
+ * resolved weight, required at every fire-point. Refuses without a single
  * resolvable active WU.
  */
 export async function handleFinalizeStage(

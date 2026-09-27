@@ -16,6 +16,8 @@
  * - **create-spec** — persists the resolved `Class` only. `Current Workflow` and
  *   the begin-sentinel `Next Action` are PPR's, written by the adjacent
  *   `set-stage generate-tasks --advance`.
+ * - **amend-design** — persists the resolved `Class` only, without changing
+ *   the current planning stage or its pointers.
  * - **generate-tasks** (the planning terminus) — persists `Class`, the derived
  *   `Task List` (`tasks-<name>.md`), and the terminal `Next Action`. No stage
  *   advance (`activate` clears `Current Workflow`), so the `Next Action` is a fixed
@@ -34,18 +36,17 @@ import { isSlugSafe } from "../slug.js";
 import type { ExecuteTransitionContext } from "../lifecycle-executor.js";
 
 /** The planning ceremony whose finalize facts are being written. */
-export type FinalizeFirePoint = "create-spec" | "generate-tasks";
+export type FinalizeFirePoint = "create-spec" | "amend-design" | "generate-tasks";
 
-/** The fire-points, in lifecycle order — the closed set the verb validates against. */
-const FIRE_POINTS: readonly FinalizeFirePoint[] = ["create-spec", "generate-tasks"];
+/** The closed set of ceremony fire-points the verb validates against. */
+const FIRE_POINTS: readonly FinalizeFirePoint[] = ["create-spec", "amend-design", "generate-tasks"];
 
 /** Fire-points that persist the resolved `Class` (the others take no Class). */
 const CLASS_FIRE_POINTS: ReadonlySet<FinalizeFirePoint> = new Set(FIRE_POINTS);
 
 /**
- * The fixed terminal `Next Action` strings, keyed by fire-point. create-spec is
- * absent — its `Next Action` is PPR's begin-sentinel (it advances into a next
- * stage), not a terminal string.
+ * The fixed terminal `Next Action` strings, keyed by fire-point. create-spec
+ * and amend-design are absent — neither writes a terminal pointer.
  */
 const TERMINAL_NEXT_ACTION: Partial<Record<FinalizeFirePoint, string>> = {
   "generate-tasks": "Task list finalized — ready to activate",
@@ -82,7 +83,7 @@ export type FinalizeStageResult =
  *
  * @param ctx - The executor seams carrying the Class and bullet-field writes.
  * @param params - `name` (the WU slug, resolving `.arc/active/meta-<name>.md`), the `firePoint`, and the
- *   resolved `workClass` (required at create-spec / generate-tasks).
+ *   resolved `workClass` (required at every fire-point).
  * @returns `ok` with the written meta path and the facts written, or `rejected` with a reason.
  */
 export async function runFinalizeStage(
