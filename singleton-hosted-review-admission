@@ -3,7 +3,7 @@
   "slug": "singleton-hosted-review-admission",
   "claimId": "894357010bb737f34a9948683aafaa7b",
   "createdAt": "2026-09-27T18:39:06.670Z",
-  "updatedAt": "2026-09-27T18:39:06.670Z",
+  "updatedAt": "2026-09-27T19:20:55.494Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Admit hosted review after a singleton PR opens",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Admit hosted review after a singleton PR opens",
   "originEntrySourceDigest": "sha256:9d5b824553cd051c5c72bd258ec6fcc543b67a3c32dd94601b22b95d7036016c",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/singleton-hosted-review-admission",
+    "headSha": "ade33e97cfb255c340877ab5ef29acba2a8d19ee"
+  }
 }
