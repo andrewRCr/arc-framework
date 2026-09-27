@@ -127,10 +127,7 @@ export const DeliveryPlanV1Schema = z.strictObject({
     parents: z.array(DeliveryTaskInventoryParentV1Schema),
   }),
   entry: z.enum(["from-tasks", "from-branch"]),
-  projection: z.discriminatedUnion("kind", [
-    z.strictObject({ kind: z.literal("wu-integration-target") }),
-    z.strictObject({ kind: z.literal("stack-to-main") }),
-  ]),
+  projection: z.strictObject({ kind: z.literal("stack-to-main") }),
   members: z.array(DeliveryPlanMemberV1Schema).min(1),
   seams: z.array(DeliveryPlanSeamV1Schema),
   planDigest: DeliveryCanonicalDigestSchema,

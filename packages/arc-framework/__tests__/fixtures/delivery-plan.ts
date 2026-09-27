@@ -12,12 +12,12 @@ const defaultPlanId = "123e4567-e89b-42d3-a456-426614174000";
 
 /** Construct a valid two-member plan for delivery-state and operation tests. */
 export function deliveryPlanFixture(planId = defaultPlanId): DeliveryPlanV1 {
-  return buildDeliveryPlanFixture(planId, "wu-integration-target");
+  return buildDeliveryPlanFixture(planId);
 }
 
 /** Construct a valid independently-landable two-member stack plan. */
 export function deliveryStackPlanFixture(planId = defaultPlanId): DeliveryPlanV1 {
-  return buildDeliveryPlanFixture(planId, "stack-to-main");
+  return buildDeliveryPlanFixture(planId);
 }
 
 /** Construct a valid two-member stack plan for a caller-selected work unit. */
@@ -25,22 +25,22 @@ export function deliveryStackPlanForWorkUnitFixture(
   workUnitId: string,
   planId = defaultPlanId,
 ): DeliveryPlanV1 {
-  return buildDeliveryPlanFixture(planId, "stack-to-main", 2, undefined, workUnitId);
+  return buildDeliveryPlanFixture(planId, 2, undefined, workUnitId);
 }
 
 /** Construct a valid stack plan with caller-selected member titles. */
 export function deliveryStackPlanWithMemberTitlesFixture(titles: readonly string[]): DeliveryPlanV1 {
-  return buildDeliveryPlanFixture(defaultPlanId, "stack-to-main", titles.length, titles);
+  return buildDeliveryPlanFixture(defaultPlanId, titles.length, titles);
 }
 
 /** Construct a valid independently-landable one-member stack plan. */
 export function deliverySingleMemberStackPlanFixture(planId = defaultPlanId): DeliveryPlanV1 {
-  return buildDeliveryPlanFixture(planId, "stack-to-main", 1);
+  return buildDeliveryPlanFixture(planId, 1);
 }
 
 /** Construct a valid independently-landable three-member stack plan. */
 export function deliveryThreeMemberStackPlanFixture(planId = defaultPlanId): DeliveryPlanV1 {
-  return buildDeliveryPlanFixture(planId, "stack-to-main", 3);
+  return buildDeliveryPlanFixture(planId, 3);
 }
 
 /** Construct a valid three-member stack plan for a caller-selected work unit. */
@@ -48,27 +48,26 @@ export function deliveryThreeMemberStackPlanForWorkUnitFixture(
   workUnitId: string,
   planId = defaultPlanId,
 ): DeliveryPlanV1 {
-  return buildDeliveryPlanFixture(planId, "stack-to-main", 3, undefined, workUnitId);
+  return buildDeliveryPlanFixture(planId, 3, undefined, workUnitId);
 }
 
 /** Construct a valid independently-landable four-member stack plan. */
 export function deliveryFourMemberStackPlanFixture(planId = defaultPlanId): DeliveryPlanV1 {
-  return buildDeliveryPlanFixture(planId, "stack-to-main", 4);
+  return buildDeliveryPlanFixture(planId, 4);
 }
 
 /** Construct a valid independently-landable five-member stack plan. */
 export function deliveryFiveMemberStackPlanFixture(planId = defaultPlanId): DeliveryPlanV1 {
-  return buildDeliveryPlanFixture(planId, "stack-to-main", 5);
+  return buildDeliveryPlanFixture(planId, 5);
 }
 
 /** Construct a valid independently-landable eight-member stack plan. */
 export function deliveryEightMemberStackPlanFixture(planId = defaultPlanId): DeliveryPlanV1 {
-  return buildDeliveryPlanFixture(planId, "stack-to-main", 8);
+  return buildDeliveryPlanFixture(planId, 8);
 }
 
 function buildDeliveryPlanFixture(
   planId: string,
-  projection: "wu-integration-target" | "stack-to-main",
   memberCount = 2,
   memberTitles: readonly string[] | undefined = undefined,
   workUnitId = "delivery-plan-record",
@@ -111,20 +110,18 @@ function buildDeliveryPlanFixture(
       parents: parents.map(({ taskId, role }) => ({ taskId, role })),
     },
     entry: "from-tasks",
-    projection: { kind: projection },
+    projection: { kind: "stack-to-main" },
     members: assignableParents.map(({ taskId }, index) => ({
       chunkKey: chunkKeys[index],
       title: resolvedMemberTitles[index] ?? `${ordinalNames[index]} member`,
       contract: `Publish the ${chunkKeys[index]} contract.`,
       taskIds: [taskId],
       designElementIds: index === 0 ? ["detailed:state-contract"] : [],
-      mainlineLandability: projection === "stack-to-main" ? "independently-landable" : "integration-only",
+      mainlineLandability: "independently-landable",
     })),
     seams: [],
   };
-  const authoring = projection === "stack-to-main"
-    ? DeliveryPlanAuthoringInputV1Schema.parse(rawAuthoring)
-    : rawAuthoring as unknown as DeliveryPlanAuthoringInputV1;
+  const authoring: DeliveryPlanAuthoringInputV1 = DeliveryPlanAuthoringInputV1Schema.parse(rawAuthoring);
   const design = bindDesignInventory({
     artifacts: [{
       artifactId: "spec-delivery-plan-record.md",

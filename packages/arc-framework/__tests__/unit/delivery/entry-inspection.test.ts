@@ -20,7 +20,6 @@ import {
 } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 import {
-  deliveryPlanFixture,
   deliveryFourMemberStackPlanFixture,
   deliverySingleMemberStackPlanFixture,
   deliveryStackPlanFixture,
@@ -351,54 +350,17 @@ describe("delivery entry inspection", () => {
     });
   });
 
-  it.each(["execution", "prepublication"] as const)(
-    "routes a retired projection to repair before %s entry",
-    async (entryMode) => {
-      const retired = deliveryPlanFixture();
-      const taskList = `${prefix}${renderDeliveryPlanSection(retired)}${suffix}`;
-      const entryDependencies = dependencies({ taskList, resolvedPlan: retired });
-
-      await expect(inspectDeliveryEntry({
-        workUnitId: retired.workUnitId,
-        entryMode,
-      }, entryDependencies)).resolves.toMatchObject({
-        status: "repair-required",
-        nextAction: "reauthor-plan",
-        planId: retired.planId,
-        planRevision: retired.planRevision,
-        reason: "unsupported-projection",
-        recommendedActionText: expect.stringContaining("stack-to-main"),
-      });
-      expect(entryDependencies.readState).not.toHaveBeenCalled();
-    },
-  );
-
-  it("allows an unbound retired projection to reach ordinary reopen", async () => {
-    const retired = deliveryPlanFixture();
-    const taskList = `${prefix}${renderDeliveryPlanSection(retired)}${suffix}`;
-    const entryDependencies = dependencies({ taskList, resolvedPlan: retired });
-
-    await expect(inspectDeliveryReopen(retired.workUnitId, entryDependencies)).resolves.toMatchObject({
-      status: "reopen-permitted",
-      composition: "unbound",
-      planId: retired.planId,
-      nextAction: "continue-reopen",
-    });
-    expect(entryDependencies.readState).toHaveBeenCalledOnce();
-  });
-
-  it("allows a retired projection's exact publication receipt to finish cleanup before repair", async () => {
-    const retired = deliveryPlanFixture();
-    const taskList = `${prefix}${renderDeliveryPlanSection(retired)}${suffix}`;
+  it("uses an exact publication receipt to finish canonicalization", async () => {
+    const taskList = `${prefix}${renderDeliveryPlanSection(plan)}${suffix}`;
     const entryDependencies = dependencies({
       taskList,
-      resolvedPlan: retired,
+      resolvedPlan: plan,
       authoring: "match",
-      authoringPlanDigest: retired.planDigest,
+      authoringPlanDigest: plan.planDigest,
     });
 
     await expect(inspectDeliveryEntry({
-      workUnitId: retired.workUnitId,
+      workUnitId: plan.workUnitId,
       entryMode: "execution",
     }, entryDependencies)).resolves.toMatchObject({
       status: "canonicalize-provisional",

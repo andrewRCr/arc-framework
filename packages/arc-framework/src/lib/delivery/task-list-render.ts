@@ -105,7 +105,6 @@ function landabilitySummary(plan: DeliveryPlanV1): string {
 /** Render the informative section directly from one validated plan record. */
 export function renderDeliveryPlanSection(input: DeliveryPlanV1): string {
   const plan = DeliveryPlanV1Schema.parse(input);
-  const stack = plan.projection.kind === "stack-to-main";
   const taskCounts = new Map<string, number>();
   for (const member of plan.members) {
     for (const taskId of member.taskIds) taskCounts.set(taskId, (taskCounts.get(taskId) ?? 0) + 1);
@@ -165,7 +164,7 @@ export function renderDeliveryPlanSection(input: DeliveryPlanV1): string {
     `- **Plan Revision:** \`${plan.planRevision}\``,
     `- **Plan Digest:** \`${plan.planDigest}\``,
     `- **Projection:** \`${plan.projection.kind}\``,
-    ...stack ? [landabilitySummary(plan)] : [],
+    landabilitySummary(plan),
     "",
     "### Members",
     "",

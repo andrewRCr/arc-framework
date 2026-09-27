@@ -192,7 +192,7 @@ export function rebindDeliveryTerminalCoordinates(input: {
     return { status: "refused", reason: "publication-boundary-mismatch" };
   }
   const validated = validateDeliveryStateAgainstPlan(input.state, input.plan);
-  if (validated.status !== "valid" || input.plan.projection.kind !== "stack-to-main") {
+  if (validated.status !== "valid") {
     return { status: "refused", reason: "state-mismatch" };
   }
   if (validated.state.activeOperation !== null) {
@@ -426,7 +426,7 @@ export async function composeDeliveryTerminalClaim(input: {
     return { status: "refused", reason: "candidate-mismatch" };
   }
   const validated = validateDeliveryStateAgainstPlan(input.state, input.plan);
-  if (validated.status !== "valid" || input.plan.projection.kind !== "stack-to-main") {
+  if (validated.status !== "valid") {
     return { status: "refused", reason: "state-mismatch" };
   }
   if (validated.state.activeOperation !== null) {

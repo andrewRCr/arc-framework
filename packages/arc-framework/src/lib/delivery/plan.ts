@@ -490,7 +490,6 @@ function collectSeamIssues(plan: DeliveryPlanV1, issues: DeliveryPlanIssue[]): v
 }
 
 function collectProjectionIssues(plan: DeliveryPlanV1, issues: DeliveryPlanIssue[]): void {
-  if (plan.projection.kind !== "stack-to-main") return;
   for (const [index, member] of plan.members.entries()) {
     if (member.mainlineLandability !== "independently-landable") {
       issues.push({ code: "stack-member-not-landable", path: ["members", index, "mainlineLandability"] });

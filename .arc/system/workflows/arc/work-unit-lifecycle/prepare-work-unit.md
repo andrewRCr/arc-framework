@@ -40,8 +40,6 @@ printf '%s\n' '{"entryMode":"prepublication"}' | arc delivery entry inspect -
 ```
 
 Dispatch only on the typed result. `not-applicable` continues ordinary singleton preparation.
-`repair-required` with `reauthor-plan` enters [Deliver Stack][deliver-stack], replaces the unsupported plan through its
-returned authoring entry, then reruns this inspection before Candidate preparation.
 `validate-canonical` carries its exact `planId` into [Deliver Stack][deliver-stack]
 § Prepare private delivery candidates; complete only that bounded authoring and gate-preparation section, then return
 here without publishing. `refused` renders `recommendedActionText` and stops. Any other result stops as a

@@ -20,7 +20,7 @@ describe("delivery discovered-entry workflow", () => {
     const content = await readFile(path, "utf8");
     for (const route of [
       "not-applicable", "authoring-required", "canonicalize-provisional",
-      "repair-required", "validate-canonical", "continue-publication", "resume-bound",
+      "validate-canonical", "continue-publication", "resume-bound",
       "correction-routing-required", "review-fix-verification-required", "refused",
     ]) expect(content).toContain(`\`${route}\``);
 
@@ -35,7 +35,6 @@ describe("delivery discovered-entry workflow", () => {
     const continuationEnd = content.indexOf("### Complete a review-fix verification continuation");
     expect(continuationStart).toBeGreaterThan(-1);
     expect(continuationEnd).toBeGreaterThan(continuationStart);
-    expect(content.slice(continuationStart, continuationEnd)).toContain("`repair-required / reauthor-plan`");
   });
 
   it("keeps the package and installed workflow byte-identical", async () => {

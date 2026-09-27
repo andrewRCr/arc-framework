@@ -80,7 +80,7 @@ never infer it from branch movement, task-cursor position, or commit prose.
 `candidate-renewal-required` invokes its exact `attestationAction`, requires `unchanged`, then re-runs this entry
 inspection; attestation alone revalidates and refreshes the public delivery continuation without replaying
 verification or leaving `Integrating`.
-`canonicalize-provisional`, `repair-required`, `validate-canonical`, `continue-publication`, and `resume-bound` leave
+`canonicalize-provisional`, `validate-canonical`, `continue-publication`, and `resume-bound` leave
 this workflow and enter the matching route in
 [`supplemental/deliver-stack.md`](../supplemental/deliver-stack.md); that workflow owns
 publication, state binding, member pull requests, and the landing window. `refused` stops after rendering
