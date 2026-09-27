@@ -136,7 +136,7 @@ describe("atomicWriteJson", () => {
     expect(JSON.parse(content)).toEqual({ version: "2.0.0" });
   });
 
-  it("cleans up temp file on write failure", async () => {
+  it.skipIf(process.platform === "win32")("cleans up temp file on write failure", async () => {
     // Create a target directory, then make it read-only to trigger rename failure
     const subDir = join(tempDir, "readonly");
     await mkdir(subDir);

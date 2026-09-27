@@ -1,6 +1,7 @@
 /** Unit tests for repository-wide admission of subprocess-heavy local test tiers. */
 
 import { describe, expect, it, vi } from "vitest";
+import { join } from "node:path";
 
 import {
   isLocalHeavyTestTier,
@@ -134,7 +135,7 @@ describe("withLocalHeavyTestAdmission", () => {
 
     expect(result).toEqual({ result: "complete", waitMs: 65_000 });
     expect(acquireLock).toHaveBeenCalledWith(
-      "/repo/.git/arc/test-suite/.local-heavy-tests.lock",
+      join("/repo/.git", "arc", "test-suite", ".local-heavy-tests.lock"),
       expect.objectContaining({
         leaseDurationMs: 120_000,
         maxWaitMs: Number.POSITIVE_INFINITY,
