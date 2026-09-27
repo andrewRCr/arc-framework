@@ -6,8 +6,10 @@
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { join } from "node:path";
-import { mkdtemp, readFile, writeFile, rm, mkdir, chmod, readdir, open } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { mkdtemp, readFile, writeFile, rm, mkdir, chmod, readdir, rename } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { setTimeout as delay } from "node:timers/promises";
 
 import {
   atomicWriteJson,
@@ -173,19 +175,62 @@ describe("atomicWriteJson", () => {
     expect(JSON.parse(content)).toEqual({ ok: true });
   });
 
-  it.skipIf(process.platform !== "win32")("replaces a file after a Windows reader releases it", async () => {
+  it.skipIf(process.platform !== "win32")("retries Windows rename-over after a reader releases the target", async () => {
     const target = join(tempDir, "held.json");
     await writeFile(target, '{"version":1}\n');
-    const held = await open(target, "r");
-    const release = setTimeout(() => { void held.close().catch(() => undefined); }, 300);
+    const probe = join(tempDir, "probe.tmp");
+    await writeFile(probe, "probe");
+    const escapedTarget = target.replace(/'/g, "''");
+    const script = `
+$held = [System.IO.FileStream]::new('${escapedTarget}', [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+try {
+  [Console]::Out.WriteLine('READY')
+  [Console]::Out.Flush()
+  [void][Console]::In.ReadLine()
+} finally {
+  $held.Dispose()
+}
+`;
+    const holder = spawn("powershell.exe", ["-NoProfile", "-Command", script], {
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    let holderError = "";
+    holder.stderr.setEncoding("utf8");
+    holder.stderr.on("data", (chunk: string) => { holderError += chunk; });
+    const closed = new Promise<number | null>((resolve) => { holder.once("close", resolve); });
+    const ready = new Promise<void>((resolve, reject) => {
+      let stdout = "";
+      holder.stdout.setEncoding("utf8");
+      holder.stdout.on("data", (chunk: string) => {
+        stdout += chunk;
+        if (stdout.includes("READY")) resolve();
+      });
+      holder.once("error", reject);
+      holder.once("close", (code) => { reject(new Error(`Windows holder exited early (${code}): ${holderError}`)); });
+    });
+    let publication: Promise<void> | undefined;
+    let published = false;
+    let publicationError: unknown;
     try {
-      await atomicWriteJson(target, { version: 2 });
-      expect(await readFile(target, "utf8")).toBe('{\n  "version": 2\n}\n');
+      await ready;
+      await expect(rename(probe, target)).rejects.toMatchObject({
+        code: expect.stringMatching(/^(EPERM|EACCES|EBUSY)$/),
+      });
+      publication = atomicWriteJson(target, { version: 2 }).then(
+        () => { published = true; },
+        (error: unknown) => { published = true; publicationError = error; },
+      );
+      await delay(100);
+      expect(published).toBe(false);
+      expect(await readFile(target, "utf8")).toBe('{"version":1}\n');
     } finally {
-      clearTimeout(release);
-      await held.close().catch(() => undefined);
+      holder.stdin.end("\n");
+      expect(await closed).toBe(0);
     }
-  });
+    await publication;
+    if (publicationError) throw publicationError;
+    expect(await readFile(target, "utf8")).toBe('{\n  "version": 2\n}\n');
+  }, 15_000);
 });
 
 describe("retryTransientFileSystemRefusal", () => {
