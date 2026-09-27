@@ -425,6 +425,7 @@ function dependencies(records: ReturnType<typeof fixture>) {
     },
     appendCandidateResponse: () => Promise.reject(new Error("unexpected Candidate append")),
     stageCandidateResponse: () => Promise.reject(new Error("unexpected Candidate stage")),
+    rebindSingletonPublicationResponse: () => Promise.reject(new Error("unexpected publication rebind")),
     settleLaneFindings: async () => undefined,
     recordResponsePerformance: async (performance) => {
       responsePerformance = {
@@ -600,6 +601,7 @@ function lineageDependencies(
     record: CandidateManagedRecordV1;
     expectedRecordVersion: string;
   }> = [];
+  const rebinds: Parameters<RespondCommandDependencies["rebindSingletonPublicationResponse"]>[0][] = [];
   const deps: RespondCommandDependencies = {
     ...dependencies(records),
     confirmTarget: async (target) => ({
@@ -626,6 +628,7 @@ function lineageDependencies(
       return { recordPath: CANDIDATE_RECORD_PATH };
     },
     stageCandidateResponse: async () => ({ recordPath: CANDIDATE_RECORD_PATH }),
+    rebindSingletonPublicationResponse: async (input) => { rebinds.push(input); },
   };
   const dispositions = localRequest(records, "fix", proposedVerification).dispositions;
   const fixAuthorization = createFixAuthorization({
@@ -657,7 +660,7 @@ function lineageDependencies(
     }],
   });
   deps.dispositionStore.readDispositionRecord = async () => candidateDisposition;
-  return { deps, record, appends };
+  return { deps, record, appends, rebinds };
 }
 
 function verifiedFixRequest(records: ReturnType<typeof fixture>, disposition: "fix" | "defer" = "fix") {
@@ -3356,7 +3359,7 @@ describe("verified-fix Candidate settlement", () => {
 
   it("appends the approved response and its delta evidence to the Candidate record", async () => {
     const records = fixture();
-    const { deps, record, appends } = lineageDependencies(records, {
+    const { deps, record, appends, rebinds } = lineageDependencies(records, {
       revision: objectId("e"),
       subject: candidateSubject("fixed"),
     });
@@ -3388,6 +3391,11 @@ describe("verified-fix Candidate settlement", () => {
       oldTarget: { revision: records.target.headSha },
       newTarget: { revision: objectId("e") },
     });
+    expect(rebinds).toEqual([{
+      workUnit: "example",
+      response,
+      requirePublished: false,
+    }]);
     expect(recordResponsePerformance).toHaveBeenCalledWith({
       lane: "standard",
       repositoryId: records.target.repositoryId,
@@ -3405,7 +3413,7 @@ describe("verified-fix Candidate settlement", () => {
       revision: objectId("e"),
       subject: candidateSubject("fixed"),
     };
-    const { deps, appends } = lineageDependencies(records, current);
+    const { deps, appends, rebinds } = lineageDependencies(records, current);
     const request = verifiedFixRequest(records);
     const authorizationId = digest("approved-next-pass");
     const durable = await deps.dispositionStore.readDispositionRecord(records.operation.operationId);
@@ -3451,6 +3459,8 @@ describe("verified-fix Candidate settlement", () => {
         policyRequest: approvedPolicyRequest,
       },
     });
+    expect(rebinds).toHaveLength(2);
+    expect(rebinds[1]).toEqual(rebinds[0]);
   });
 
   it("uses Candidate lineage when a Candidate-bound delivery-member target confirms unchanged", async () => {

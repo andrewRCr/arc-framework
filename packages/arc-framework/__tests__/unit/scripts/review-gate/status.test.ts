@@ -14,6 +14,8 @@ import { DeliveryLocalReviewSelectionSchema } from
   "../../../../src/scripts/review-gate/policy/delivery-local-review-admission.js";
 import { resolveReviewPolicy } from
   "../../../../src/scripts/review-gate/policy/review-policy-driver.js";
+import { composePublishedSingletonReview } from
+  "../../../../src/scripts/review-gate/status-singleton.js";
 import {
   bindDeliveryReviewTerminusOffer,
   composeDeliveryReviewObligation,
@@ -487,6 +489,38 @@ describe("review status", () => {
         ...selectionAction,
         interactionText: expect.any(String),
       },
+    });
+  });
+
+  it("offers prior-pass applicability using the observed singleton diff base", async () => {
+    const observedBases: string[] = [];
+    const projection = reviewApplicabilityDecision();
+    const readDischarge = Object.assign(async (request: { baseRevision: string }) => {
+      observedBases.push(request.baseRevision);
+      return {
+        discharged: false as const,
+        detail: "The prior hosted pass needs an applicability decision.",
+        nextSource: null,
+        applicability: projection,
+      };
+    }, { confirmIncrementalApplicability: async () => "applicable" as const });
+    const obligation = await composePublishedSingletonReview({
+      cwd: "/repo",
+      exec: (() => Promise.reject(new Error("unexpected Git read"))) as never,
+      settings: {} as never,
+      reservation: {} as never,
+      record: { attestation: { baseRevision: oid("1"), candidateId: canonicalDigest({ candidate: 2 }) } } as never,
+      recordVersion: canonicalDigest({ version: 2 }),
+      baseRevision: oid("2"),
+      workUnit: "example",
+      target: { repository: target.repository, pullRequest: 41, headSha: target.headSha },
+      readDischarge,
+    });
+
+    expect(observedBases).toEqual([oid("2")]);
+    await expect(resolveReviewStatus({ target }, port({ routedObligation: obligation }))).resolves.toMatchObject({
+      state: "review-required",
+      nextAction: "resolve-review-applicability",
     });
   });
 

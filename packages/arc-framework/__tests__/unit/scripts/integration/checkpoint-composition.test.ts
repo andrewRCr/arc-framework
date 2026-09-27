@@ -1,8 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+import type { GitExec } from "../../../../src/lib/git/exec.js";
 
 import {
   checkpointBaseIsAccepted,
   createCheckpointCandidateContext,
+  readSingletonCheckpointDischarge,
 } from "../../../../src/scripts/integration/checkpoint-composition.js";
 
 const oid = (character: string): string => character.repeat(40);
@@ -85,5 +88,39 @@ describe("integration checkpoint composition", () => {
       configuredBaseRef: "main",
       acceptableDeliveryBaseRefs: ["delivery/example/member-1"],
     })).toBe(false);
+  });
+
+  it("reads a post-fix singleton review from the target's observed diff base", async () => {
+    const reviewedBase = oid("2");
+    const currentBase = oid("3");
+    const head = oid("4");
+    const exec: GitExec = vi.fn(async (_cmd, args) => {
+      expect(args).toEqual(["merge-base", "--all", head, currentBase]);
+      return { stdout: `${reviewedBase}\n` };
+    });
+    const readDischarge = vi.fn(async () => ({
+      discharged: false,
+      detail: "Earlier review requires applicability.",
+      nextSource: null,
+    }));
+
+    await expect(readSingletonCheckpointDischarge({
+      cwd: "/repo",
+      exec,
+      baseBranch: "main",
+      baseRevision: currentBase,
+      approvedHead: head,
+      discharge: {
+        reservation: {} as never,
+        approvedHead: head,
+        changeRequest: { repository: "owner/repository", pullRequest: 41 },
+        candidate: { attestation: { baseRevision: oid("1") } } as never,
+      },
+      readDischarge,
+    })).resolves.toMatchObject({ discharged: false });
+    expect(readDischarge).toHaveBeenCalledWith(expect.objectContaining({
+      baseRevision: reviewedBase,
+      approvedHead: head,
+    }));
   });
 });

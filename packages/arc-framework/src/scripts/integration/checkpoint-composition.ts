@@ -93,6 +93,7 @@ import {
   createHostedReservationDischargeReader,
   resolveHostedReservationTargets,
   type HostedReservationDischarge,
+  type HostedReservationDischargeReader,
 } from "../review-gate/policy/hosted-reservation-discharge.js";
 import type { DeliveryReviewMemberTerminus } from
   "../review-gate/policy/review-terminus.js";
@@ -252,6 +253,35 @@ export function checkpointBaseIsAccepted(input: {
 }): boolean {
   return input.candidateBaseRef === input.configuredBaseRef
     || input.acceptableDeliveryBaseRefs.includes(input.candidateBaseRef);
+}
+
+/**
+ * Read singleton review against the observed target's merge base, including after a review fix.
+ *
+ * @param input - Exact head and current base observation plus the carried discharge request.
+ * @returns The hosted reservation's discharge verdict for the reviewed target base.
+ */
+export async function readSingletonCheckpointDischarge(input: {
+  cwd: string;
+  exec: GitExec;
+  baseBranch: string;
+  baseRevision: string;
+  approvedHead: string;
+  discharge: Omit<Parameters<HostedReservationDischargeReader>[0], "baseRevision">;
+  readDischarge: (request: Parameters<HostedReservationDischargeReader>[0]) => Promise<HostedReservationDischarge>;
+}): Promise<HostedReservationDischarge> {
+  if (input.discharge.reservation === null) {
+    return input.readDischarge({ ...input.discharge, baseRevision: input.baseRevision });
+  }
+  const targetBase = await readGitCandidateTargetBase({
+    cwd: input.cwd,
+    revision: input.approvedHead,
+    baseBranch: input.baseBranch,
+    baseRevision: input.baseRevision,
+    exec: input.exec,
+  });
+  if (targetBase.status !== "resolved") throw new CheckpointAmbiguousBaseError(targetBase.detail);
+  return input.readDischarge({ ...input.discharge, baseRevision: targetBase.base });
 }
 
 export type IntegrationLifecycleReadFs = NonNullable<
@@ -1299,21 +1329,31 @@ export function createIntegrationCheckpointDependencies(input: {
           pullRequest: changeRequest.candidate.number,
         },
       });
-      const discharge = delivery.status === "ready"
-        ? {
-            discharged: true,
-            detail: `Every derived delivery-member review is discharged (${delivery.checks.targets.length} checked).`,
-          }
-        : await readHostedReservationDischarge({
+      let discharge;
+      if (delivery.status === "ready") {
+        discharge = {
+          discharged: true,
+          detail: `Every derived delivery-member review is discharged (${delivery.checks.targets.length} checked).`,
+        };
+      } else {
+        discharge = await readSingletonCheckpointDischarge({
+          cwd: input.cwd,
+          baseBranch: configuredBase,
+          baseRevision,
+          approvedHead: currentness.recognizedRevision,
+          exec: input.exec,
+          discharge: {
             reservation: publicationBoundary.reservation,
-            baseRevision: value.record.attestation.baseRevision,
             approvedHead: currentness.recognizedRevision,
             changeRequest: {
               repository: changeRequest.targetRef.repository,
               pullRequest: changeRequest.candidate.number,
             },
             candidate: value.record,
-          });
+          },
+          readDischarge: readHostedReservationDischarge,
+        });
+      }
       const hostedReviewPending = publicationLocus.locus === "hosted-review-pending"
         && !discharge.discharged;
       const checksPort = createGhRequiredChecksPort(hostedGhRunner);

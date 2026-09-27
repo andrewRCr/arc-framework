@@ -3,8 +3,11 @@
 import { z } from "zod";
 
 import { canonicalDigest, canonicalize } from "../../../lib/canonical/canonical-json.js";
-import { CANDIDATE_VERIFICATION_EVIDENCE_PLACEHOLDER } from
-  "../../../lib/work-unit/candidate-attestation.js";
+import {
+  CANDIDATE_VERIFICATION_EVIDENCE_PLACEHOLDER,
+  CandidateReviewResponseEvidenceV1Schema,
+  type CandidateReviewResponseEvidenceV1,
+} from "../../../lib/work-unit/candidate-attestation.js";
 import {
   DeliveryPublicReviewContinuationV1Schema,
   type DeliveryPublicReviewContinuationV1,
@@ -537,6 +540,46 @@ export function recoverAttestedOwnerTerminusBoundary(input: {
     ...stored,
     candidateSubjectDigest,
   });
+}
+
+/**
+ * Carry a verified Candidate response into its published singleton boundary.
+ *
+ * @param input - Stored boundary, exact work unit and response, and whether publication must exist.
+ * @returns The rebound boundary, or null when this is not a published singleton response.
+ */
+export function rebindSingletonPublicationResponseBoundary(input: {
+  stored: IntegrationBoundaryLocus | null;
+  workUnit: string;
+  response: CandidateReviewResponseEvidenceV1;
+  requirePublished: boolean;
+}): IntegrationBoundaryLocus | null {
+  const response = CandidateReviewResponseEvidenceV1Schema.parse(input.response);
+  const stored = input.stored;
+  const singleton = stored !== null
+    && stored.mode === "integration-boundary"
+    && (stored.locus === "publication-pending" || stored.locus === "hosted-review-pending")
+    && stored.reservation?.target.kind !== "delivery";
+  if (!singleton) {
+    if (input.requirePublished) {
+      throw new Error("The hosted singleton response has no published Candidate boundary. "
+        + "Restore the exact boundary and replay the approved response.");
+    }
+    return null;
+  }
+  if (stored.workUnit !== SlugSchema.parse(input.workUnit)
+    || stored.candidateId !== response.candidateId) {
+    throw new Error("The singleton publication boundary belongs to another Candidate. "
+      + "Restore the correct boundary and replay the approved response.");
+  }
+  const oldDigest = response.oldTarget.subject.subjectDigest;
+  const newDigest = response.newTarget.subject.subjectDigest;
+  if (stored.candidateSubjectDigest === newDigest) return stored;
+  if (stored.candidateSubjectDigest !== oldDigest) {
+    throw new Error("The singleton publication boundary does not match the reviewed Candidate subject. "
+      + "Reconcile the boundary and replay the approved response.");
+  }
+  return parseIntegrationBoundaryLocus({ ...stored, candidateSubjectDigest: newDigest });
 }
 
 /** Resume pre-publication after convergence without discarding its carried hosted-review authority. */
