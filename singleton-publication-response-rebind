@@ -3,7 +3,7 @@
   "slug": "singleton-publication-response-rebind",
   "claimId": "98c64f1a534572fbe1418e8eef45dc5f",
   "createdAt": "2026-09-27T19:24:28.522Z",
-  "updatedAt": "2026-09-27T19:24:28.522Z",
+  "updatedAt": "2026-09-27T20:22:06.957Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Rebind singleton publication state after a review response",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Rebind singleton publication state after a review response",
   "originEntrySourceDigest": "sha256:1f928bd993097c58be3ebc5360b80b89006a40a54fc615ccd196354429b924e7",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/singleton-publication-response-rebind",
+    "headSha": "0a483af5e3d64705ea51913150cbace455da54ba"
+  }
 }
