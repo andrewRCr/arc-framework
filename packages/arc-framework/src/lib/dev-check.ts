@@ -40,6 +40,7 @@ import { execFile } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, rename, rm } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve } from "node:path";
+import { retryTransientFileSystemRefusal } from "./fs.js";
 
 /** Filename of the content-hash stamp written beside `dist/cli.js` at build time. */
 export const DEV_BUILD_STAMP_NAME = "dev-build-stamp.json";
@@ -294,16 +295,22 @@ async function promoteStagedDevBuild(stagingDir: string, distDir: string): Promi
   for (const file of stagedFiles.filter((candidate) => candidate !== entry && candidate !== stamp)) {
     const destination = join(distDir, file);
     await mkdir(dirname(destination), { recursive: true });
-    await rename(join(stagingDir, file), destination);
+    await retryTransientFileSystemRefusal(async () => {
+      await rename(join(stagingDir, file), destination);
+    });
   }
 
   // The package bin always resolves this path. Replacing the file by rename keeps
   // either the old or new complete entry visible to concurrent invocations.
-  await rename(join(stagingDir, entry), join(distDir, entry));
+  await retryTransientFileSystemRefusal(async () => {
+    await rename(join(stagingDir, entry), join(distDir, entry));
+  });
 
   // Publish freshness only after the new entry is live. Any earlier promotion
   // failure therefore leaves the old stamp to fail closed against changed source.
-  await rename(join(stagingDir, stamp), join(distDir, stamp));
+  await retryTransientFileSystemRefusal(async () => {
+    await rename(join(stagingDir, stamp), join(distDir, stamp));
+  });
 
   const stagedFileSet = new Set(stagedFiles);
   await Promise.all(liveFiles

@@ -6,12 +6,13 @@
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { join } from "node:path";
-import { mkdtemp, readFile, writeFile, rm, mkdir, chmod, readdir } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile, rm, mkdir, chmod, readdir, open } from "node:fs/promises";
 import { tmpdir } from "node:os";
 
 import {
   atomicWriteJson,
   createAtomicFileCreator,
+  retryTransientFileSystemRefusal,
   toForwardSlash,
   type AtomicCreateFileContext,
 } from "../../src/lib/fs.js";
@@ -170,6 +171,61 @@ describe("atomicWriteJson", () => {
 
     const content = await readFile(target, "utf-8");
     expect(JSON.parse(content)).toEqual({ ok: true });
+  });
+
+  it.skipIf(process.platform !== "win32")("replaces a file after a Windows reader releases it", async () => {
+    const target = join(tempDir, "held.json");
+    await writeFile(target, '{"version":1}\n');
+    const held = await open(target, "r");
+    const release = setTimeout(() => { void held.close().catch(() => undefined); }, 300);
+    try {
+      await atomicWriteJson(target, { version: 2 });
+      expect(await readFile(target, "utf8")).toBe('{\n  "version": 2\n}\n');
+    } finally {
+      clearTimeout(release);
+      await held.close().catch(() => undefined);
+    }
+  });
+});
+
+describe("retryTransientFileSystemRefusal", () => {
+  it.each(["EPERM", "EBUSY", "EACCES"])("retries a temporary %s refusal", async (code) => {
+    let attempts = 0;
+    const delays: number[] = [];
+    const result = await retryTransientFileSystemRefusal(async () => {
+      attempts += 1;
+      if (attempts < 3) throw Object.assign(new Error("busy"), { code });
+      return "published";
+    }, { sleep: async (ms) => { delays.push(ms); }, random: () => 0 });
+
+    expect(result).toBe("published");
+    expect(attempts).toBe(3);
+    expect(delays).toHaveLength(2);
+    expect(delays[0]).toBeGreaterThan(0);
+    expect(delays[1]).toBeGreaterThan(delays[0] ?? 0);
+  });
+
+  it("does not retry another filesystem error", async () => {
+    const failure = Object.assign(new Error("missing"), { code: "ENOENT" });
+    let attempts = 0;
+    await expect(retryTransientFileSystemRefusal(async () => {
+      attempts += 1;
+      throw failure;
+    }, { sleep: async () => { throw new Error("unexpected delay"); } })).rejects.toBe(failure);
+    expect(attempts).toBe(1);
+  });
+
+  it("ends a persistent refusal after a bounded delay", async () => {
+    const failure = Object.assign(new Error("blocked"), { code: "EPERM" });
+    let attempts = 0;
+    const delays: number[] = [];
+    await expect(retryTransientFileSystemRefusal(async () => {
+      attempts += 1;
+      throw failure;
+    }, { sleep: async (ms) => { delays.push(ms); }, random: () => 0 })).rejects.toBe(failure);
+    expect(attempts).toBeGreaterThan(1);
+    expect(attempts).toBeLessThanOrEqual(10);
+    expect(delays.reduce((total, delay) => total + delay, 0)).toBeLessThanOrEqual(1_000);
   });
 });
 

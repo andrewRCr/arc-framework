@@ -16,7 +16,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 
-import { atomicWriteJson } from "../fs.js";
+import { atomicWriteJson, retryTransientFileSystemRefusal } from "../fs.js";
 import { isCanonicalDigest } from "../canonical/canonical-json.js";
 import { SlugSchema } from "../kernel/index.js";
 import {
@@ -718,9 +718,13 @@ async function replaceWorktreeMarkerBytesGeneration(
   let published = false;
   try {
     await writeFile(temporaryPath, replacementBytes, { flag: "wx", mode: 0o600 });
-    const recheck = await readFile(path);
-    if (!recheck.equals(expectedBytes)) return { kind: "generation-mismatch" };
-    await rename(temporaryPath, path);
+    const replaced = await retryTransientFileSystemRefusal(async () => {
+      const recheck = await readFile(path);
+      if (!recheck.equals(expectedBytes)) return false;
+      await rename(temporaryPath, path);
+      return true;
+    });
+    if (!replaced) return { kind: "generation-mismatch" };
     published = true;
     return { kind: "replaced", bytes: replacementBytes };
   } finally {

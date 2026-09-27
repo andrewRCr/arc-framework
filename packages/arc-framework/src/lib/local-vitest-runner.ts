@@ -80,6 +80,10 @@ function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
       return ["--project", "e2e"];
     case "portability":
       return [
+        "fs.test.ts",
+        "local-test-admission.test.ts",
+        "worktree-marker.test.ts",
+        "commit-message-retry-store.test.ts",
         "advisory-lock",
         "user-sync-notes-lock",
         "ref-tree-cas",

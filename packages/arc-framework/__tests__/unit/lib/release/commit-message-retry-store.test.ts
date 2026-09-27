@@ -19,6 +19,7 @@ interface StoredFile {
 function createStore(
   files: Map<string, StoredFile>,
   beforeIdentify?: (path: string, file: StoredFile) => Promise<void>,
+  beforeRename?: () => Promise<void>,
 ) {
   let identifier = 0;
   let lockTail = Promise.resolve();
@@ -43,6 +44,7 @@ function createStore(
       return file.identity;
     },
     rename: async (from, to) => {
+      await beforeRename?.();
       const file = files.get(from);
       if (file === undefined) throw new Error("missing temporary retry");
       files.delete(from);
@@ -66,6 +68,25 @@ function createStore(
 }
 
 describe("createCommitMessageRetryStore", () => {
+  it("replaces the latest retry after a temporary rename refusal", async () => {
+    const retryPath = `/repo/.git/${COMMIT_MESSAGE_RETRY_FILENAME}`;
+    const bytes = Uint8Array.from(Buffer.from("approved message"));
+    const files = new Map<string, StoredFile>([[
+      retryPath,
+      { bytes: Uint8Array.from(Buffer.from("older message")), identity: "older-generation" },
+    ]]);
+    let attempts = 0;
+    const store = createStore(files, undefined, async () => {
+      attempts += 1;
+      if (attempts < 3) throw Object.assign(new Error("held target"), { code: "EPERM" });
+    });
+
+    await expect(store.persist({ cwd: "/repo", bytes })).resolves.toEqual({ path: retryPath });
+    expect(files.get(retryPath)?.bytes).toEqual(bytes);
+    expect(attempts).toBe(3);
+    expect([...files.keys()]).toEqual([retryPath]);
+  });
+
   it("does not let cleanup delete a newer retry replacement", async () => {
     const gitDir = "/repo/.git";
     const retryPath = `${gitDir}/${COMMIT_MESSAGE_RETRY_FILENAME}`;

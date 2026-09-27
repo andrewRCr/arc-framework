@@ -21,6 +21,7 @@ import type { GitExec } from "../git/exec.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
 import { SlugSchema } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
+import { retryTransientFileSystemRefusal } from "../fs.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
 import { isSlugSafe } from "./slug.js";
 
@@ -432,7 +433,13 @@ async function stageExactFiles(
     sourceLease = await deps.prepareRefVerification(`refs/heads/plan/${name}`, transitionCommit);
     const finalSourceRefusal = await currentParkSourceRefusal(deps, name, transitionCommit);
     if (finalSourceRefusal !== null) return { status: "rejected", reason: finalSourceRefusal };
-    await deps.fs.rename(indexLock, indexPath);
+    await retryTransientFileSystemRefusal(async () => {
+      const currentIndex = await deps.fs.readFile(indexPath);
+      if (!Buffer.from(currentIndex).equals(Buffer.from(beforeLock))) {
+        throw new Error("The base changed during park landing; retry from the fresh base.");
+      }
+      await deps.fs.rename(indexLock, indexPath);
+    });
     installed = true;
     return { status: "staged" };
   } catch (err) {

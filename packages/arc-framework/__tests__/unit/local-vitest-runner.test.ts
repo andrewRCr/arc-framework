@@ -27,6 +27,10 @@ describe("runLocalVitestTier", () => {
     ["e2e", ["--project", "e2e"]],
     ["e2e-focused", ["--project", "e2e"]],
     ["portability", [
+      "fs.test.ts",
+      "local-test-admission.test.ts",
+      "worktree-marker.test.ts",
+      "commit-message-retry-store.test.ts",
       "advisory-lock",
       "user-sync-notes-lock",
       "ref-tree-cas",

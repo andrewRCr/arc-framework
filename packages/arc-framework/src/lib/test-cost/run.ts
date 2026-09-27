@@ -9,6 +9,7 @@ import { parseCLI, startVitest, type TestModule } from "vitest/node";
 
 import { withLocalHeavyTestAdmission } from "../local-test-admission.js";
 import type { LocalHeavyTestTier } from "../local-test-admission.js";
+import { retryTransientFileSystemRefusal } from "../fs.js";
 import { captureTestCost, type TestCostFile } from "./capture.js";
 import { summarizeSubstrateShare, type SubstrateShare } from "./metrics.js";
 import type { MeasurementMode, MeasurementProjectSet } from "./mode.js";
@@ -182,5 +183,7 @@ async function persistAtomically(path: string, content: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   const temporaryPath = `${path}.${randomUUID()}.tmp`;
   await writeFile(temporaryPath, content, { encoding: "utf8", flag: "wx", mode: 0o600 });
-  await rename(temporaryPath, path);
+  await retryTransientFileSystemRefusal(async () => {
+    await rename(temporaryPath, path);
+  });
 }

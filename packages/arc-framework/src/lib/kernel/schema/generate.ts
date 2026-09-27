@@ -5,6 +5,7 @@
 import { mkdir, rename, unlink, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
+import { retryTransientFileSystemRefusal } from "../fs-retry.js";
 
 import {
   createKernelRegistry,
@@ -114,7 +115,9 @@ export async function writeKernelSchemaArtifact(options: WriteKernelSchemaArtifa
   await fileSystem.mkdir(schemaDir, { recursive: true });
   try {
     await fileSystem.writeFile(temporaryPath, bytes, "utf8");
-    await fileSystem.rename(temporaryPath, finalPath);
+    await retryTransientFileSystemRefusal(async () => {
+      await fileSystem.rename(temporaryPath, finalPath);
+    });
   } catch (error) {
     await fileSystem.unlink(temporaryPath).catch(() => undefined);
     throw error;

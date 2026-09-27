@@ -24,6 +24,7 @@ import {
   type AdvisoryLockRenewalResult,
 } from "./advisory-lock.js";
 import { resolveGitCommonDir } from "./user-sync/repo-shared-paths.js";
+import { retryTransientFileSystemRefusal } from "./fs.js";
 
 /** Explicit opt-out used only for deliberate local contention experiments. */
 export const LOCAL_TEST_CONCURRENCY_OVERRIDE = "ARC_TEST_ALLOW_CONCURRENCY";
@@ -182,7 +183,9 @@ export async function withLocalHeavyTestAdmission<T>(
   const branch = branchRaw.trim() || "(detached HEAD)";
   const lockRoot = join(commonDir, LOCK_ROOT);
   const lockPath = join(lockRoot, LOCK_FILENAME);
-  await dependencies.mkdir(lockRoot);
+  await retryTransientFileSystemRefusal(async () => {
+    await dependencies.mkdir(lockRoot);
+  });
 
   const admissionStartedAt = dependencies.now();
   const metadata: LocalTestHolderMetadata = {
