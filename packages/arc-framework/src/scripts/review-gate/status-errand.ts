@@ -13,6 +13,7 @@ import { canonicalize } from "../../lib/kernel/index.js";
 import { LocalReviewOperationStateStore } from "./hosts/local/operation-state-store.js";
 import { LocalApprovedDispositionRecordStore } from "./hosts/local/disposition-record-store.js";
 import { createRepositoryReviewResultReader } from "./hosts/local/review-result-reader-composition.js";
+import { LocalReviewResultReaderError } from "./hosts/local/review-result-reader.js";
 import { resolveRepositoryIdentity } from "./hosts/local/git-common-state.js";
 import {
   readLaneProgress,
@@ -26,7 +27,7 @@ import type { ChangeRequestCandidate } from "./change-request.js";
 import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "./policy/standard-review.js";
 import { resolveConfiguredLanePolicy } from "./policy/lane-policy-config.js";
 import { projectReviewPolicyAttempt } from "./policy/review-policy-driver.js";
-import type { ReviewAdditionalPassAuthorization } from "./policy/review-policy-driver.js";
+import type { ReviewAdditionalPassAuthorization, ReviewCeilingOverride } from "./policy/review-policy-driver.js";
 import {
   readIncrementalPredecessorResponseEvidence,
   resolveEvidenceBoundReviewPolicyContinuation,
@@ -212,6 +213,87 @@ async function confirmErrandCorrectionPredecessor(input: {
   return confirmChangedErrandResponse(input);
 }
 
+/** Carry one claim's spent passes into the status of a new, unreviewed head. */
+async function readUnreviewedErrandHead(input: {
+  cwd: string;
+  publisher: RepositoryGitCommonStatePublisher;
+  store: LocalReviewOperationStateStore;
+  repositoryId: string;
+  errand: OrdinaryErrand;
+  target: ExactErrandStatusTarget;
+  pullRequest: number;
+  completedPasses: number;
+  ceilingOverride?: ReviewCeilingOverride;
+  additionalPassAuthorization?: ReviewAdditionalPassAuthorization;
+}): Promise<RoutedReviewObligation> {
+  const { store, repositoryId, errand, target, completedPasses } = input;
+  const owner = await readLaneProgressOwner(store, {
+    lane: "standard", repositoryId, headSha: target.headSha,
+    lineage: { kind: "head-bound", vehicleKind: "errand",
+      vehicleIdentity: errand.claimId, headSha: target.headSha },
+  });
+  if (owner === null || owner.completedPasses !== completedPasses) {
+    return blocked("The Errand's cumulative review progress is unavailable.");
+  }
+  const historical = [...owner.attempts]
+    .filter((attempt) => attempt.headSha !== target.headSha && attempt.terminalProducer
+      && (attempt.outcome === "clean" || attempt.outcome === "findings"
+        || attempt.outcome === "settled-findings"))
+    .sort((left, right) => right.logicalPass - left.logicalPass)[0];
+  if (historical === undefined) return blocked("The Errand's completed review producer is unavailable.");
+  const resultReader = createRepositoryReviewResultReader(input.publisher);
+  const result = await resultReader.readResult(historical.attemptId).catch((error: unknown) => {
+    if (error instanceof LocalReviewResultReaderError && error.code === "missing-result") return null;
+    throw error;
+  });
+  if (result === null) {
+    return { state: "review-required", detail: "The exact Errand standard-review lane is not settled." };
+  }
+  if (result.kind === "frontline" || result.repositoryId !== repositoryId
+    || result.target.headSha !== historical.headSha
+    || !await producerBelongsToErrand(result, store, errand)) {
+    return blocked("The Errand's completed review producer does not match its claim.");
+  }
+  const settings = (await readConfigSettings(input.cwd)).settings;
+  const configured = await resolveConfiguredLanePolicy({
+    lane: "standard", settings,
+    preferences: { readDeveloperSourceIds: () => Promise.resolve([]),
+      readProjectSourceIds: () => Promise.resolve([]) },
+  });
+  const policyTarget = { repository: target.repository, pullRequest: input.pullRequest,
+    headSha: target.headSha };
+  const requirement = result.requirement;
+  const policy = await resolveEvidenceBoundReviewPolicyContinuation({
+    schemaVersion: 1, target: policyTarget, lane: "standard", frontlineActive: false,
+    standardReview: {
+      obligation: requirement.obligation, reasons: requirement.reasons,
+      rubricVersion: requirement.rubricVersion, rubricDigest: requirement.rubricDigest,
+      retrigger: requirement.retrigger, count: requirement.count,
+    },
+    completedPasses, attempts: [],
+    ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
+    ...(input.additionalPassAuthorization === undefined ? {}
+      : { additionalPassAuthorization: input.additionalPassAuthorization }),
+  }, { terminalResponsePerformed: false }, {
+    sources: configured.sources, maxPasses: configured.maxPasses, resultReader,
+    dispositionStore: new LocalApprovedDispositionRecordStore(input.publisher),
+    readResponsePerformance: (producer) => readLaneResponsePerformance(store, producer),
+    confirmTarget: (current) => Promise.resolve(current),
+  });
+  const count = `${completedPasses} of ${configured.maxPasses} configured standard-review passes`;
+  if (policy.state === "approval-required") {
+    return { state: "approval-required", scope: "errand",
+      detail: `This Errand claim has used ${count}; another pass needs an exact one-pass Owner override.`,
+      consequence: policy.payload.consequence };
+  }
+  if (policy.state === "invalid-override" || policy.state === "blocked"
+    || policy.state === "unavailable") {
+    return blocked(`The Errand's next standard-review pass is ${policy.state}/${policy.nextAction}.`);
+  }
+  return { state: "review-required",
+    detail: `This Errand claim has used ${count}; the new head still requires review.` };
+}
+
 /**
  * Read an Errand's standard-review disposition only after a strict identity matches the target branch.
  *
@@ -226,6 +308,7 @@ export async function readErrandRoutedObligation(input: {
   readonly remote?: string;
   readonly changeRequestCandidate?: Pick<ChangeRequestCandidate, "baseRefName" | "url">;
   readonly currentBaseOid?: string;
+  readonly ceilingOverride?: ReviewCeilingOverride;
   readonly additionalPassAuthorization?: ReviewAdditionalPassAuthorization;
 }): Promise<RoutedReviewObligation | null> {
   // The branch vocabulary only avoids an impossible identity read; the record still grants authority.
@@ -278,6 +361,19 @@ export async function readErrandRoutedObligation(input: {
     });
     if (progress.status === "unrecorded") {
       return { state: "review-required", detail: "No standard review is recorded for this Errand head." };
+    }
+    if (progress.attempts.length === 0 && progress.completedPasses > 0) {
+      const continuation = await readUnreviewedErrandHead({
+        cwd: input.cwd, publisher, store, repositoryId, errand: selected.record,
+        target: input.target, pullRequest: input.pullRequest,
+        completedPasses: progress.completedPasses,
+        ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
+        ...(input.additionalPassAuthorization === undefined ? {}
+          : { additionalPassAuthorization: input.additionalPassAuthorization }),
+      });
+      return await branchAtHead(exec, input.target.headRef, input.remote ?? "origin", input.target.headSha)
+        ? continuation
+        : blocked("The Errand identity's branch moved during review status composition.");
     }
     let latest: { readonly attempt: LanePolicyAttempt; readonly complete: boolean } | null = null;
     let currentClaimAttempt = false;
@@ -395,6 +491,8 @@ export async function readErrandRoutedObligation(input: {
       },
       completedPasses: progress.completedPasses,
       attempts: [projectReviewPolicyAttempt(terminal)],
+      ...(input.ceilingOverride === undefined ? {}
+        : { ceilingOverride: input.ceilingOverride }),
       ...(input.additionalPassAuthorization === undefined ? {}
         : { additionalPassAuthorization: input.additionalPassAuthorization }),
       ...(result.admission.scopeMode === "whole-target" ? {} : {
@@ -413,6 +511,15 @@ export async function readErrandRoutedObligation(input: {
     });
     if (!await branchAtHead(exec, input.target.headRef, input.remote ?? "origin", input.target.headSha)) {
       return blocked("The Errand identity's branch moved during review status composition.");
+    }
+    if (policy.state === "approval-required") {
+      return { state: "approval-required", scope: "errand",
+        detail: `This Errand claim has used ${progress.completedPasses} standard-review passes; `
+          + "another pass needs an exact one-pass Owner override.",
+        consequence: policy.payload.consequence };
+    }
+    if (policy.state === "invalid-override") {
+      return blocked(`The Errand's standard-review override is invalid: ${policy.payload.reason}.`);
     }
     return policy.state === "pass-complete"
       ? { state: "settled", detail: "The exact Errand standard-review lane is settled by verified convergence." }

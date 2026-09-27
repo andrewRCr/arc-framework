@@ -5,7 +5,7 @@ import { DeliveryReviewMemberVehicleSchema } from "../../../../src/lib/delivery/
 import { LaneProgressStateSchema, type LaneProgressState, type ReviewOperationState } from "../../../../src/scripts/review-gate/core/operation-state-schema.js";
 
 
-import { captureConditionalNextPassAuthorization, hostedAwaitLaneOutcome, invalidateConditionalNextPassAuthorization, inspectConditionalNextPassInvalidation, laneContinuationOperationId, laneProgressOperationId, readCandidateInheritedLaneProgress, readLaneProgressAcrossLineage, readLaneProgressOwner, recordLaneAttempt, settleLaneAttempt, withdrawConditionalNextPassAuthorization } from "../../../../src/scripts/review-gate/lane-progress.js";
+import { captureConditionalNextPassAuthorization, hostedAwaitLaneOutcome, invalidateConditionalNextPassAuthorization, inspectConditionalNextPassInvalidation, laneContinuationOperationId, laneProgressOperationId, readCandidateInheritedLaneProgress, readLaneProgress, readLaneProgressAcrossLineage, readLaneProgressOwner, recordLaneAttempt, settleLaneAttempt, withdrawConditionalNextPassAuthorization } from "../../../../src/scripts/review-gate/lane-progress.js";
 
 
 
@@ -517,6 +517,35 @@ describe("lane progress", () => {
       completedPasses: 1,
       attempts: [{ attemptId: attempt.attemptId, outcome: "clean" }],
     });
+  });
+
+  it("counts completed passes across Errand heads once and isolates a replacement claim", async () => {
+    const store = createStore();
+    const lineage = (claimId: string, headSha: string) => ({
+      kind: "head-bound" as const, vehicleKind: "errand" as const,
+      vehicleIdentity: claimId, headSha,
+    });
+    const first = {
+      ...attempt, lineage: lineage("claim-one", attempt.headSha),
+      outcome: "findings" as const, consumedPass: true,
+    };
+    await recordLaneAttempt(store, first);
+    await recordLaneAttempt(store, first);
+    const secondHead = objectId("d");
+    await recordLaneAttempt(store, {
+      ...first, headSha: secondHead, lineage: lineage("claim-one", secondHead),
+      attemptId: "attempt-2", outcome: "clean", logicalPass: 2,
+    });
+
+    const nextHead = objectId("e");
+    await expect(readLaneProgress(store, {
+      lane: "standard", repositoryId: attempt.repositoryId, headSha: nextHead,
+      lineage: lineage("claim-one", nextHead),
+    })).resolves.toMatchObject({ status: "recorded", completedPasses: 2, attempts: [] });
+    await expect(readLaneProgress(store, {
+      lane: "standard", repositoryId: attempt.repositoryId, headSha: nextHead,
+      lineage: lineage("claim-two", nextHead),
+    })).resolves.toEqual({ status: "unrecorded" });
   });
 
   it("records a conditionally admitted corrected-head attempt under one Errand owner", async () => {
