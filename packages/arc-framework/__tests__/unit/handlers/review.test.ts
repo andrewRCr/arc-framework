@@ -2406,6 +2406,237 @@ describe("handleReviewPrePublication", () => {
     };
   }
 
+  it("offers an exact scope judgment and resumes readiness after caller re-entry", async () => {
+    const mismatch = {
+      lane: "standard" as const,
+      observedScope: "chunked" as const,
+      selectedScope: "whole-target" as const,
+      target: request.target,
+    };
+    const refused = boundary({
+      compose: vi.fn(async () => ({
+        status: "refused" as const,
+        code: "scope-judgment-required" as const,
+        reason: "review producer scope does not match the selected scope",
+        scopeMismatch: mismatch,
+      })),
+    });
+
+    await handleReviewPrePublication("example", { selfReview: "settled" }, refused);
+
+    const refusal = JSON.parse(String(refused.write.mock.calls[0]?.[0])) as {
+      error: { code: string };
+      scopeMismatch: typeof mismatch & { requiredLaneJudgment: { scopeMode: string } };
+      remedy: { argv: string[] };
+    };
+    expect(refusal).toMatchObject({
+      error: { code: "scope-judgment-required" },
+      scopeMismatch: { ...mismatch, requiredLaneJudgment: { scopeMode: "chunked" } },
+      remedy: { argv: ["arc", "review", "pre-publication", "example", "--resume", expect.any(String)] },
+    });
+    expect(refused.persistBoundary).not.toHaveBeenCalled();
+    expect(refused.setExitCode).toHaveBeenCalledWith(1);
+
+    const resume = refusal.remedy.argv[5];
+    const replay = JSON.parse(Buffer.from(resume ?? "", "base64url").toString("utf8")) as {
+      scopeJudgmentTarget: unknown;
+    };
+    expect(replay.scopeJudgmentTarget).toEqual(request.target);
+    const compose = vi.fn(async () => ({ status: "composed" as const, request, advisories: [] }));
+    const resumed = boundary({ compose });
+    await handleReviewPrePublication("example", { resume }, resumed);
+
+    expect(compose).toHaveBeenCalledWith("/repo", expect.anything(), {
+      selfReview: "settled",
+      changeSet: undefined,
+      lanes: { standard: { scopeMode: "chunked" } },
+      frontlineCeilingHeadSha: undefined,
+    });
+    expect(JSON.parse(String(resumed.write.mock.calls[0]?.[0]))).toMatchObject({
+      locus: "candidate-publish-ready",
+      nextAction: { kind: "publish-candidate" },
+    });
+
+    const moved = boundary({
+      compose: vi.fn(async () => ({
+        status: "composed" as const,
+        request: { ...request, target: { ...request.target, diffBaseSha: "f".repeat(40) } },
+        advisories: [],
+      })),
+    });
+    await handleReviewPrePublication("example", { resume }, moved);
+    expect(JSON.parse(String(moved.write.mock.calls[0]?.[0]))).toMatchObject({
+      error: { code: "invalid-input", message: expect.stringContaining("exact review target") },
+    });
+    expect(moved.persistBoundary).not.toHaveBeenCalled();
+  });
+
+  it.each(["self-review", "convergence"])(
+    "keeps a scope judgment bound across the %s continuation",
+    async (continuationKind) => {
+      const resume = Buffer.from(JSON.stringify({
+        candidateId: request.candidateId,
+        candidateSubjectDigest: request.candidate.subjectDigest,
+        selfReview: "settled",
+        lanes: { standard: { scopeMode: "chunked" } },
+        scopeJudgmentTarget: request.target,
+      }), "utf8").toString("base64url");
+      const nextRequest = continuationKind === "self-review"
+        ? { ...request, selfReview: "pending" as const }
+        : {
+            ...request,
+            candidate: {
+              ...request.candidate,
+              implementationChanged: true,
+              convergenceVerification: "pending" as const,
+              convergenceScope: "full" as const,
+            },
+          };
+      const first = boundary({
+        compose: vi.fn(async () => ({ status: "composed" as const, request: nextRequest, advisories: [] })),
+      });
+      await handleReviewPrePublication("example", { resume }, first);
+
+      const envelope = JSON.parse(String(first.write.mock.calls[0]?.[0])) as {
+        nextAction: { command?: string; postAttestContinuation?: { nextAction: { command: string } } };
+      };
+      const command = continuationKind === "self-review"
+        ? envelope.nextAction.command
+        : envelope.nextAction.postAttestContinuation?.nextAction.command;
+      const nextResume = command?.split(" ")[5];
+      expect(nextResume).toBeDefined();
+      expect(JSON.parse(Buffer.from(nextResume ?? "", "base64url").toString("utf8"))).toMatchObject({
+        scopeJudgmentTarget: request.target,
+      });
+
+      const moved = boundary({
+        compose: vi.fn(async () => ({
+          status: "composed" as const,
+          request: { ...request, target: { ...request.target, diffBaseSha: "f".repeat(40) } },
+          advisories: [],
+        })),
+      });
+      await handleReviewPrePublication("example", { resume: nextResume }, moved);
+      expect(JSON.parse(String(moved.write.mock.calls[0]?.[0]))).toMatchObject({
+        error: { code: "invalid-input", message: expect.stringContaining("exact review target") },
+      });
+      expect(moved.persistBoundary).not.toHaveBeenCalled();
+    },
+  );
+
+  it("refuses a changed scope-mismatch target before offering another judgment", async () => {
+    const resume = Buffer.from(JSON.stringify({
+      candidateId: request.candidateId,
+      candidateSubjectDigest: request.candidate.subjectDigest,
+      lanes: { standard: { scopeMode: "chunked" } },
+      scopeJudgmentTarget: request.target,
+    }), "utf8").toString("base64url");
+    const moved = boundary({
+      compose: vi.fn(async () => ({
+        status: "refused" as const,
+        code: "scope-judgment-required" as const,
+        reason: "review producer scope does not match the selected scope",
+        scopeMismatch: {
+          lane: "standard" as const,
+          observedScope: "whole-target" as const,
+          selectedScope: "chunked" as const,
+          target: { ...request.target, diffBaseSha: "f".repeat(40) },
+        },
+      })),
+    });
+
+    await handleReviewPrePublication("example", { resume }, moved);
+
+    expect(JSON.parse(String(moved.write.mock.calls[0]?.[0]))).toMatchObject({
+      error: { code: "invalid-input", message: expect.stringContaining("exact review target") },
+      remedy: { argv: ["arc", "review", "pre-publication", "example"] },
+    });
+    expect(moved.persistBoundary).not.toHaveBeenCalled();
+  });
+
+  it("retains a scope mismatch when the Candidate becomes current during composition", async () => {
+    const mismatch = {
+      lane: "standard" as const,
+      observedScope: "chunked" as const,
+      selectedScope: "whole-target" as const,
+      target: request.target,
+    };
+    const compose = vi.fn(async () => ({
+      status: "refused" as const,
+      code: "scope-judgment-required" as const,
+      reason: "review producer scope does not match the selected scope",
+      scopeMismatch: mismatch,
+    }));
+    const first = boundary({
+      readCandidate: async () => ({ status: "blocked" as const, reason: "Candidate is changing" }),
+      compose,
+    });
+    await handleReviewPrePublication("example", {}, first);
+
+    expect(JSON.parse(String(first.write.mock.calls[0]?.[0]))).toMatchObject({
+      error: { code: "scope-judgment-required" },
+      scopeMismatch: { ...mismatch, requiredLaneJudgment: { scopeMode: "chunked" } },
+      remedy: { argv: ["arc", "review", "pre-publication", "example"] },
+    });
+    expect(first.persistBoundary).not.toHaveBeenCalled();
+
+    const current = boundary({ compose });
+    await handleReviewPrePublication("example", {}, current);
+    const offer = JSON.parse(String(current.write.mock.calls[0]?.[0])) as {
+      remedy: { argv: string[] };
+    };
+    expect(offer.remedy.argv).toEqual([
+      "arc", "review", "pre-publication", "example", "--resume", expect.any(String),
+    ]);
+    const resumed = boundary({
+      compose: vi.fn(async () => ({ status: "composed" as const, request, advisories: [] })),
+    });
+    await handleReviewPrePublication("example", { resume: offer.remedy.argv[5] }, resumed);
+    expect(JSON.parse(String(resumed.write.mock.calls[0]?.[0]))).toMatchObject({
+      locus: "candidate-publish-ready",
+    });
+  });
+
+  it("checks a saved scope target before reusing an advanced boundary", async () => {
+    const initial = boundary({
+      compose: vi.fn(async () => ({ status: "composed" as const, request, advisories: [] })),
+    });
+    await handleReviewPrePublication("example", {}, initial);
+    const ready = initial.persistBoundary.mock.calls[0]?.[1];
+    const resume = Buffer.from(JSON.stringify({
+      candidateId: request.candidateId,
+      candidateSubjectDigest: request.candidate.subjectDigest,
+      lanes: { standard: { scopeMode: "chunked" } },
+      scopeJudgmentTarget: request.target,
+    }), "utf8").toString("base64url");
+    const compose = vi.fn(async () => ({
+      status: "composed" as const,
+      request: { ...request, target: { ...request.target, diffBaseSha: "f".repeat(40) } },
+      advisories: [],
+    }));
+    const moved = boundary({
+      readBoundary: async () => ({ boundary: ready, version: `sha256:${"9".repeat(64)}` }),
+      compose,
+    });
+
+    await handleReviewPrePublication("example", { resume }, moved);
+
+    expect(compose).toHaveBeenCalledOnce();
+    expect(JSON.parse(String(moved.write.mock.calls[0]?.[0]))).toMatchObject({
+      error: { code: "invalid-input", message: expect.stringContaining("exact review target") },
+    });
+    expect(moved.persistBoundary).not.toHaveBeenCalled();
+
+    const matching = boundary({
+      readBoundary: async () => ({ boundary: ready, version: `sha256:${"9".repeat(64)}` }),
+      compose: vi.fn(async () => ({ status: "composed" as const, request, advisories: [] })),
+    });
+    await handleReviewPrePublication("example", { resume }, matching);
+    expect(JSON.parse(String(matching.write.mock.calls[0]?.[0]))).toMatchObject({
+      locus: "candidate-publish-ready",
+    });
+  });
+
   it("persists an accepted singleton frontline skip before standard review admission", async () => {
     const exactTarget = createReviewTarget({
       schemaVersion: 2,

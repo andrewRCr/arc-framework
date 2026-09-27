@@ -25,6 +25,10 @@ import {
 } from "../policy/review-policy-driver.js";
 import { FrontlineSemanticRecordSchema } from "../policy/frontline-semantic.js";
 import { ReviewPassSchema } from "./review-pass.js";
+import { PrePublicationScopeMismatchSchema } from "./pre-publication-scope-mismatch.js";
+import { ReviewCommandErrorCodeSchema, ReviewPrePublicationRefusalCodeSchema } from
+  "./review-command-error-codes.js";
+import type { ReviewPrePublicationRefusalCode } from "./review-command-error-codes.js";
 import { ReviewRoutingProjectionSchema } from "../policy/routing-schema.js";
 import { ReviewReductionProjectionSchema } from "./advisory-records.js";
 import { NormalizedReviewFindingsSchema } from "./finding-records.js";
@@ -69,28 +73,12 @@ export const ReviewCommandModeSchema = z.enum([
 ]);
 export type ReviewCommandMode = z.infer<typeof ReviewCommandModeSchema>;
 
-export const ReviewCommandErrorCodeSchema = z.enum([
-  "invalid-input",
-  "corrupt-state",
-  "uncertain-provider-execution",
-  "unexpected-failure",
-]);
-export type ReviewCommandErrorCode = z.infer<typeof ReviewCommandErrorCodeSchema>;
-
-export const ReviewPrePublicationRefusalCodeSchema = z.enum([
-  ...ReviewCommandErrorCodeSchema.options,
-  "candidate-unexplained-delta",
-  "attestation-ordering-conflict",
-  "post-attest-judgment-mismatch",
-  "review-in-progress",
-]);
-export type ReviewPrePublicationRefusalCode = z.infer<
-  typeof ReviewPrePublicationRefusalCodeSchema
->;
-
-/** Every shape the pre-publication verb refuses with, for exhaustive iteration. */
-export const REVIEW_PRE_PUBLICATION_REFUSAL_CODES: readonly ReviewPrePublicationRefusalCode[] =
-  ReviewPrePublicationRefusalCodeSchema.options;
+export {
+  ReviewCommandErrorCodeSchema,
+  ReviewPrePublicationRefusalCodeSchema,
+  REVIEW_PRE_PUBLICATION_REFUSAL_CODES,
+} from "./review-command-error-codes.js";
+export type { ReviewCommandErrorCode, ReviewPrePublicationRefusalCode } from "./review-command-error-codes.js";
 
 export { prePublicationRemedy, prePublicationTargetRemedy } from "./pre-publication-remedy.js";
 
@@ -1001,9 +989,11 @@ export const ReviewCommandErrorEnvelopeSchema = z.union([
     .flatMap((mode) => ReviewCommandErrorCodeSchema.options.map((code) => errorVariant(mode, code))),
   // The pre-publication verb is the review spine's middle verb, so its refusals carry the same
   // corrective guidance the checkpoint and merge verbs do.
-  ...ReviewPrePublicationRefusalCodeSchema.options.map(
-    (code) => remedialErrorVariant("review-pre-publication", code),
-  ),
+  ...ReviewPrePublicationRefusalCodeSchema.options
+    .filter((code) => code !== "scope-judgment-required")
+    .map((code) => remedialErrorVariant("review-pre-publication", code)),
+  remedialErrorVariant("review-pre-publication", "scope-judgment-required")
+    .extend({ scopeMismatch: PrePublicationScopeMismatchSchema }),
 ]);
 
 function errorVariant<Mode extends ReviewCommandMode, Code extends ReviewPrePublicationRefusalCode>(

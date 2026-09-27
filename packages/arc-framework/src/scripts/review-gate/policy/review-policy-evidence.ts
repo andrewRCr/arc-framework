@@ -11,7 +11,7 @@ import type {
 import { validateApprovedDispositionRecordForResult } from
   "../core/review-result-disposition.js";
 import type { ReviewResult } from "../core/review-result.js";
-import type { ReviewSeverity } from "../core/review-primitives.js";
+import type { ReviewScopeMode, ReviewSeverity } from "../core/review-primitives.js";
 import type { LaneResponsePerformance } from "../core/operation-state-schema.js";
 import {
   ReviewPolicyCommandRequestSchema,
@@ -57,6 +57,28 @@ function requestScope(request: ReviewPolicyCommandRequest): "whole-target" | "ch
 
 function resultScope(result: ReviewResult): "whole-target" | "chunked" {
   return result.admission.scopeMode;
+}
+
+/** A terminal producer whose recorded scope needs an explicit caller lane judgment. */
+export class ReviewProducerScopeMismatchError extends Error {
+  readonly lane: ReviewPolicyCommandRequest["lane"];
+  readonly observedScope: ReviewScopeMode;
+  readonly selectedScope: ReviewScopeMode;
+  readonly target: ReviewResult["target"];
+
+  constructor(input: {
+    lane: ReviewPolicyCommandRequest["lane"];
+    observedScope: ReviewScopeMode;
+    selectedScope: ReviewScopeMode;
+    target: ReviewResult["target"];
+  }) {
+    super("review producer scope does not match the selected scope");
+    this.name = "ReviewProducerScopeMismatchError";
+    this.lane = input.lane;
+    this.observedScope = input.observedScope;
+    this.selectedScope = input.selectedScope;
+    this.target = input.target;
+  }
 }
 
 function resultMatchesLaneAndSource(
@@ -149,7 +171,12 @@ function validateTerminalResult(
     throw new Error("review producer outcome does not match the terminal attempt");
   }
   if (resultScope(result) !== requestScope(request)) {
-    throw new Error("review producer scope does not match the selected scope");
+    throw new ReviewProducerScopeMismatchError({
+      lane: request.lane,
+      observedScope: resultScope(result),
+      selectedScope: requestScope(request),
+      target: currentTarget,
+    });
   }
   if (!resultMatchesPolicy(result, request, maxPasses)) {
     throw new Error("review producer policy or rubric does not match the policy request");

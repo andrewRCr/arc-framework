@@ -410,6 +410,12 @@ function memoryOperationStore(): ReviewOperationStateStore {
 }
 
 describe("composePrePublicationReviewRequest", () => {
+  it("preserves a corrupt lane-record error for the command's repair refusal", async () => {
+    const corrupt = Object.assign(new Error("malformed disposition record"), { code: "corrupt-state" });
+    await expect(composePrePublicationReviewRequest({ workUnit: "example" },
+      dependencies({ readLaneProgress: async () => { throw corrupt; } }))).rejects.toBe(corrupt);
+  });
+
   it("re-enters after a frontline timeout retry with one composable source attempt", async () => {
     if (immutableTarget.status !== "resolved") throw new Error("expected immutable target");
     const store = memoryOperationStore();
@@ -1540,11 +1546,11 @@ describe("composePrePublicationReviewRequest", () => {
     });
   });
 
-  it("refuses when recorded progress cannot compose against the current target", async () => {
-    // A hosted attempt is recorded at this head, but the change request is no longer open — the
-    // two reads disagree, and the request schema is what detects it.
+  it("propagates a hosted producer target mismatch", async () => {
+    // The hosted result names a PR that the live policy target no longer names.
+    // Evidence binding must preserve that mismatch as an error.
     const result = hostedFindingsResult("attempt-1", 42);
-    const composition = await composePrePublicationReviewRequest({ workUnit: "example" }, dependencies({
+    await expect(composePrePublicationReviewRequest({ workUnit: "example" }, dependencies({
       ...evidenceDependencies([result]),
       readLaneProgress: async (lane) => lane === "standard"
         ? {
@@ -1554,11 +1560,7 @@ describe("composePrePublicationReviewRequest", () => {
             attempts: [{ attemptId: "attempt-1", logicalPass: 1, sourceId: "codex-pr", outcome: "findings" }],
           }
         : { status: "recorded", completedPasses: 0, completePasses: 0, attempts: [] },
-    }));
-
-    expect(composition.status).toBe("refused");
-    expect(composition.status === "refused" && composition.reason)
-      .toContain("does not compose against the current review target");
+    }))).rejects.toThrow("hosted review producer target does not match the policy target");
   });
 
   it("reports an unrecorded lane instead of silently composing it as never attempted", async () => {

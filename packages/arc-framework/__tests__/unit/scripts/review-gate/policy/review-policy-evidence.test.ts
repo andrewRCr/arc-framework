@@ -860,6 +860,23 @@ describe("evidence-bound review policy", () => {
     })).rejects.toThrow(message);
   });
 
+  it("exposes a validated terminal producer's exact scope mismatch", async () => {
+    const wholeTarget = cleanHostedResult();
+    const chunked: ReviewResult = {
+      ...wholeTarget,
+      admission: { ...wholeTarget.admission, scopeMode: "chunked" },
+    };
+    await expect(resolveEvidenceBoundReviewPolicy(cleanRequest(chunked), {
+      ...dependencies(chunked), sources: ["codex-pr"], maxPasses: 2,
+    })).rejects.toMatchObject({
+      name: "ReviewProducerScopeMismatchError",
+      lane: "standard",
+      observedScope: "chunked",
+      selectedScope: "whole-target",
+      target: chunked.target,
+    });
+  });
+
   it.each(["missing-result", "ambiguous-result"])(
     "refuses a %s producer read",
     async (reason) => {
