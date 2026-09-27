@@ -8,7 +8,6 @@ export const REVIEW_DURABLE_RECORD_INVENTORY = [
   { id: "review-request", version: 2, owner: "gate-contract" },
   { id: "review-receipt", version: 2, owner: "gate-contract" },
   { id: "review-receipt-ledger", version: 2, owner: "receipt-store" },
-  { id: "review-applicability", version: 2, owner: "gate-contract" },
   { id: "normalized-finding", version: 2, owner: "finding-settlement" },
   { id: "disposition-set", version: 2, owner: "finding-settlement" },
   { id: "fix-authorization", version: 2, owner: "finding-settlement" },
@@ -21,7 +20,7 @@ export const REVIEW_DURABLE_RECORD_INVENTORY = [
     id: "review-operation-state",
     version: 1,
     owner: "operation-state",
-    variants: ["frontline-run", "review-suspension", "local-review", "lane-progress"],
+    variants: ["frontline-run", "frontline-phase", "review-suspension", "local-review", "lane-progress"],
   },
 ] as const;
 

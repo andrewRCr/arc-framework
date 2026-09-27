@@ -1,5 +1,6 @@
 /** Lean Codex hosted-review adapter. */
 
+import { captureReviewFindingSourceLabel } from "../core/finding-records.js";
 import type { HostedObservation, HostedReviewObserver } from "./await.js";
 import {
   HostedGitHubReadError,
@@ -29,13 +30,14 @@ export const CODEX_HOSTED_REGISTRATION = {
     complete: COMMAND,
     incremental: COMMAND,
   },
+  correctionReview: "complete-upgrade",
   identities: { appId: APP_ID, botUserId: BOT_USER_ID },
 } as const;
 
-function severity(body: string): "blocker" | "major" | "minor" | null {
+function severity(body: string): "critical" | "major" | "minor" | null {
   switch (/\bP([0-3])\b/u.exec(body)?.[1]) {
     case "0":
-      return "blocker";
+      return "critical";
     case "1":
       return "major";
     case "2":
@@ -49,6 +51,7 @@ function severity(body: string): "blocker" | "major" | "minor" | null {
 function finding(
   threadId: string,
   comment: HostedGitHubThreadComment,
+  sourceOrdinal: number,
 ): Extract<HostedObservation, { kind: "findings" }>["findings"][number] | null {
   const parsedSeverity = severity(comment.body);
   if (parsedSeverity === null || comment.line === null) return null;
@@ -61,6 +64,8 @@ function finding(
     severity: parsedSeverity,
     locus: `${comment.path}:${comment.line}`,
     url: comment.url,
+    sourceOrdinal,
+    ...captureReviewFindingSourceLabel({ body: comment.body }),
   };
 }
 
@@ -168,8 +173,8 @@ export class CodexHostedAdapter implements HostedReviewAdapter, HostedReviewObse
             && comment.headSha === target.headSha
             && comment.reviewId === review.id)
           .map((comment) => ({ threadId: thread.id, comment })));
-      const findings = candidateComments.flatMap(({ threadId, comment }) => {
-        const parsed = finding(threadId, comment);
+      const findings = candidateComments.flatMap(({ threadId, comment }, index) => {
+        const parsed = finding(threadId, comment, index + 1);
         return parsed === null ? [] : [parsed];
       });
       if (candidateComments.length !== findings.length) {

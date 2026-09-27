@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { indexOfSoftWrappedProse, softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+
 import { classifyFile } from "../../src/lib/classification.js";
 
 const root = resolve(import.meta.dirname, "../../../..");
@@ -12,6 +14,29 @@ function section(document: string, heading: string): string {
   if (start < 0) throw new Error(`missing workflow section: ${heading}`);
   const end = document.indexOf("\n## ", start + 3);
   return document.slice(start, end < 0 ? undefined : end);
+}
+
+function expectProducerBackedResponseOrder(content: string): void {
+  const start = content.indexOf("`respond-to-findings` uses");
+  const end = content.indexOf("On `requested / await`", start);
+  const response = content.slice(start, end);
+  const triage = response.indexOf("[`review-triage`]");
+  const gatingPolicy = response.indexOf("proposal.severityGatingPolicy", triage);
+  const proposalCall = response.indexOf("arc review respond -", gatingPolicy);
+  const report = response.indexOf("payload.dispositionReportText", proposalCall);
+  const approval = response.indexOf("complete-set approval", report);
+  const approvedCall = response.indexOf("arc review respond -", proposalCall + 1);
+  const performance = response.indexOf("[`review-response`]", approvedCall);
+
+  expect(start).toBeGreaterThanOrEqual(0);
+  expect(end).toBeGreaterThan(start);
+  expect(triage).toBeGreaterThanOrEqual(0);
+  expect(gatingPolicy).toBeGreaterThan(triage);
+  expect(proposalCall).toBeGreaterThan(triage);
+  expect(report).toBeGreaterThan(proposalCall);
+  expect(approval).toBeGreaterThan(report);
+  expect(approvedCall).toBeGreaterThan(approval);
+  expect(performance).toBeGreaterThan(approvedCall);
 }
 
 describe("packaged delivery workflow", () => {
@@ -51,14 +76,16 @@ describe("packaged delivery workflow", () => {
     expect(packaged).not.toContain("arc delivery review-fix plan");
     expect(packaged).toContain("arc delivery review-fix publish");
     expect(packaged).toContain("`review-fix-verification-required`");
-    expect(packaged).toContain("opt-out `unlinked` result makes zero native host calls");
+    expect(packaged).toMatch(/opt-out `unlinked`\s+result makes zero native host calls/u);
     const materializeSection = section(packaged, "Validate and publish");
     const nativeSection = section(packaged, "Select and execute the native landing arm");
     const reviewSection = section(packaged, "Review and land the current member");
+    expect(nativeSection).toMatch(/`member-discharged \/ continue-reconcile`[\s\S]*arc delivery native land-prepare/u);
+    expect(reviewSection).toMatch(/`member-discharged \/ continue-reconcile`[\s\S]*arc delivery land prepare/u);
     const terminalSection = section(packaged, "Terminal handoff");
     const terminalTail = packaged.slice(packaged.indexOf("arc delivery teardown"));
     const recoveryStart = materializeSection.indexOf("After interruption");
-    const recoveryEnd = materializeSection.indexOf("Only after every request ID exists");
+    const recoveryEnd = indexOfSoftWrappedProse(materializeSection, "Only after every request ID exists");
     expect(recoveryStart).toBeGreaterThan(-1);
     expect(recoveryEnd).toBeGreaterThan(recoveryStart);
     const recoverySection = materializeSection.slice(
@@ -90,6 +117,7 @@ describe("packaged delivery workflow", () => {
     expect(disclosure).toBeLessThan(optedRequest);
     expect(materializeSection).toContain("`recommendedOptInText`");
     expect(materializeSection).toContain("`recommendedOptOutText`");
+    expect(materializeSection).toMatch(/initial `unlinked`[\s\S]*ordinary singleton/iu);
     expect(materializeSection).toMatch(/render both texts verbatim[\s\S]*set `optIn`/iu);
     expect(materializeSection).not.toContain("review applicability must be re-evaluated");
     expect(materializeSection).toMatch(/every member ref[\s\S]*before[\s\S]*request/iu);
@@ -100,8 +128,8 @@ describe("packaged delivery workflow", () => {
     expect(nativeSection).toMatch(
       /selected arm[\s\S]*never position facts[\s\S]*handler freshly reobserves position[\s\S]*native effect/iu,
     );
-    expect(nativeSection).not.toContain("only the plan, request, and remote locators");
-    expect(packaged).toContain("never enters the delivery plan or state");
+    expect(nativeSection).not.toMatch(softWrappedProse("only the plan, request, and remote locators"));
+    expect(packaged).toMatch(softWrappedProse("never enters the delivery plan or state"));
     expect(packaged).toContain("integrate-work-unit.md");
     const prepare = packaged.indexOf("arc delivery land prepare");
     const interlock = packaged.indexOf("`integration-interlock`", prepare);
@@ -112,19 +140,19 @@ describe("packaged delivery workflow", () => {
     const positionRequest = reviewSection.indexOf(
       '{"planId":"<planId>","repository":"<repositoryRef>","remote":"origin"}',
     );
-    const positionRead = reviewSection.indexOf("arc delivery position - --json");
+    const positionRead = reviewSection.indexOf("arc delivery position -");
     expect(positionRequest).toBeGreaterThan(-1);
     expect(positionRequest).toBeLessThan(positionRead);
     expect(reviewSection.slice(positionRequest, positionRead)).not.toContain("facts");
     expect(reviewSection).toMatch(
-      /position - --json[\s\S]*Dispatch only on its typed route[\s\S]*review-member[\s\S]*teardown-member[\s\S]*terminal-handoff/u,
+      /position -[\s\S]*Dispatch only on its typed route[\s\S]*review-member[\s\S]*teardown-member[\s\S]*terminal-handoff/u,
     );
     const positionDispatch = reviewSection.slice(
       positionRead,
       reviewSection.indexOf("For `review-member`", positionRead),
     );
     expect(positionDispatch).toMatch(
-      /operation-active[\s\S]*arc delivery reconcile - --json[\s\S]*Every other\s+refusal\s+stops/u,
+      /operation-active[\s\S]*arc delivery reconcile -[\s\S]*Every other\s+refusal\s+stops/u,
     );
     expect(positionDispatch).toMatch(
       /review-fix-routing-required[\s\S]*review-fix continue[\s\S]*no member or operation selector[\s\S]*Every other\s+refusal\s+stops/iu,
@@ -137,9 +165,7 @@ describe("packaged delivery workflow", () => {
     );
     expect(reviewSection).toMatch(/native-stack-required` never enters[\s\S]*semantic native-selection transition/iu);
     expect(nativeSection).toMatch(/delivery-member[\s\S]*planId[\s\S]*deliverableId[\s\S]*workUnitSlug/u);
-    expect(nativeSection).toMatch(
-      /respond-to-findings[\s\S]*responsePlan[\s\S]*review-triage[\s\S]*review-response[\s\S]*arc review respond -/iu,
-    );
+    expectProducerBackedResponseOrder(nativeSection);
     expect(nativeSection).toMatch(/never requests another hosted review/iu);
     expect(reviewSection).toMatch(/review-member[\s\S]*settle exact member review authority above/iu);
     const refreshPlan = reviewSection.indexOf("arc delivery refresh plan");
@@ -180,7 +206,7 @@ describe("packaged delivery workflow", () => {
       /workflow-interlock[\s\S]*exact conflict and restoration offer[\s\S]*approval[\s\S]*resolutionInput[\s\S]*conflictResolution/iu,
     );
     expect(refreshTail).toMatch(/decline[\s\S]*observedHead[\s\S]*restoreHead[\s\S]*exact Git lease/iu);
-    const controller = reviewSection.indexOf("arc delivery review-fix continue - --json", refreshAdopt);
+    const controller = reviewSection.indexOf("arc delivery review-fix continue -", refreshAdopt);
     const verification = reviewSection.indexOf("### Complete a review-fix verification continuation", controller);
     const teardown = reviewSection.indexOf("arc delivery teardown", verification);
     expect(controller).toBeGreaterThan(refreshAdopt);
@@ -197,7 +223,7 @@ describe("packaged delivery workflow", () => {
       /applied \/ verify-review-fix[\s\S]*rematerialized \/ verify-review-fix[\s\S]*rebound \/ verify-review-fix[\s\S]*same exact verification\s+continuation/iu,
     );
     expect(correctionTail).toMatch(/memberDeliverableIds[\s\S]*contribution-equivalent[\s\S]*re-verifies nothing/iu);
-    expect(correctionTail).toMatch(/tier1Reuse[\s\S]*existing passed result[\s\S]*targetTree/iu);
+    expect(correctionTail).toMatch(/tier1ReuseCriteria[\s\S]*existing passed result[\s\S]*targetTree/iu);
     expect(correctionTail).toMatch(/one resubmission shape[\s\S]*resumeAction[\s\S]*verificationResult/iu);
     expect(correctionTail).toMatch(/derivedFrom[\s\S]*open task[\s\S]*pending approved\s+review response/iu);
     expect(correctionTail).toMatch(/same finding-disposition approval/iu);
@@ -291,7 +317,7 @@ describe("packaged delivery workflow", () => {
       expect(workflow).toContain("`review-fix-verification-required`");
       expect(workflow).toContain("selector-free");
       expect(workflow).toContain("invoke its `resumeAction`");
-      expect(workflow).not.toContain("arc delivery review-fix acknowledge - --json");
+      expect(workflow).not.toContain("arc delivery review-fix acknowledge -");
       const closeTask = workflow.indexOf("Mark the task `[x]`");
       const resume = workflow.indexOf("invoke its `resumeAction`", closeTask);
       const renew = workflow.indexOf("Candidate-renewal authority action", resume);

@@ -4,7 +4,8 @@ import type { CommitCheckFinding, CommitCheckPolicy, CommitCheckConfigurationKey
 import type { ParsedCommitMessage, ParsedCommitLine } from "./parser.js";
 import { isTaskNonReferenceContext, parseTaskReference } from "./task-reference.js";
 
-const CONVENTIONAL_TYPES = new Set([
+/** Conventional Commits types ARC admits, shared with delivery request-title composition. */
+export const CONVENTIONAL_TYPES = new Set([
   "feat",
   "fix",
   "chore",

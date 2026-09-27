@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+
 const root = resolve(import.meta.dirname, "../../../..");
 const packageArc = resolve(root, "packages/arc-framework/arc");
 const projectArc = resolve(root, ".arc");
@@ -67,7 +69,7 @@ describe("PR-open lifecycle extensions", () => {
     const preOpen = workflow.indexOf("Immediately before creation");
     const create = workflow.indexOf("gh pr create");
     const postOpen = workflow.indexOf("compose `openedChangeRequest");
-    const checkpoint = workflow.indexOf("arc integrate checkpoint {name} --json");
+    const checkpoint = workflow.indexOf("arc integrate checkpoint {name}");
     const finalHead = workflow.indexOf("payload.interlockSurface.machineEvidence.text", checkpoint);
     const preMerge = workflow.indexOf("**Extension report** · `#pre-merge`", finalHead);
     const mergeInterlock = workflow.indexOf("`integration-interlock`", preMerge);
@@ -80,7 +82,7 @@ describe("PR-open lifecycle extensions", () => {
     expect(preMerge).toBeLessThan(mergeInterlock);
     expect(finalHead).toBeLessThan(mergeInterlock);
     expect(mergeInterlock).toBeLessThan(merge);
-    expect(workflow.slice(finalHead, mergeInterlock)).toContain("No commit or push may occur after `ready`");
+    expect(workflow.slice(finalHead, mergeInterlock)).toMatch(softWrappedProse("No commit or push may occur after `ready`"));
     expect(workflow.match(/\*\*Extension report\*\* · `#pre-merge`/gu)).toHaveLength(1);
     expect(workflow).toContain("`integrating`; `open`");
     expect(workflow).toContain("`post-pr-open` → review iteration");
@@ -115,7 +117,7 @@ describe("PR-open lifecycle extensions", () => {
       expect(reconcileStep).toBeGreaterThan(-1);
       expect(correctionPublish).toBeGreaterThan(reconcileStep);
       expect(integrate.slice(0, reconcileStep)).not.toContain("arc publish {name}");
-      expect(integrate).toContain("Step 1, from the idempotent **push** action");
+      expect(integrate).toMatch(softWrappedProse("Step 1, from the idempotent **push** action"));
     }
   });
 
@@ -125,15 +127,17 @@ describe("PR-open lifecycle extensions", () => {
       readFile(resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"), "utf8"),
     ]);
     const prePublication = prepare.indexOf("## 2) Settle pre-publication review");
-    const resolveFrontline = prepare.indexOf("arc review frontline resolve -", prePublication);
+    const resolveFrontline = prepare.indexOf("`nextAction.command`", prePublication);
+    const resumeFrontline = prepare.indexOf("`nextAction.resumeCommand`", resolveFrontline);
     const submit = prepare.indexOf("arc publish {name}", resolveFrontline);
     const push = integrate.indexOf("Push the WU branch upstream");
     const preOpen = integrate.indexOf("Immediately before creation");
     const create = integrate.indexOf("gh pr create", preOpen);
 
-    expect([prePublication, resolveFrontline, submit, push, preOpen, create]
+    expect([prePublication, resolveFrontline, resumeFrontline, submit, push, preOpen, create]
       .every((index) => index >= 0)).toBe(true);
     expect(prePublication).toBeLessThan(resolveFrontline);
+    expect(resolveFrontline).toBeLessThan(resumeFrontline);
     expect(resolveFrontline).toBeLessThan(submit);
     expect(preOpen).toBeLessThan(create);
 
@@ -164,7 +168,7 @@ describe("PR-open lifecycle extensions", () => {
       .every((index) => index >= 0)).toBe(true);
     expect(openedChangeRequest).toBeLessThan(reservation);
     expect(reservation).toBeLessThan(hostedRequest);
-    expect(workflow.slice(openedChangeRequest, hostedRequest)).not.toContain("arc review chunking resolve -");
+    expect(workflow.slice(openedChangeRequest, hostedRequest)).not.toContain("arc review changeset resolve -");
     const publicDeliveryResume = workflow.slice(deliveryResume, singletonResume);
     expect(publicDeliveryResume).toContain("integrationBoundary.nextAction.command");
     expect(publicDeliveryResume).toContain("WU-scoped public status reducer");
@@ -212,7 +216,7 @@ describe("PR-open lifecycle extensions", () => {
       workflow.indexOf("4. **Enter the open PR.**"),
     );
     expect(resolution).toContain(
-      "arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --json",
+      "arc review change-request resolve --head-ref <branch> --head-sha <head-sha>",
     );
     for (const disposition of [
       "`none / create-change-request`",
@@ -244,14 +248,14 @@ describe("PR-open lifecycle extensions", () => {
     );
     const hook = creation.indexOf("If `pre-pr-open` is active");
     const guard = creation.indexOf(
-      "`arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --require-remote --json`",
+      "`arc review change-request resolve --head-ref <branch> --head-sha <head-sha> --require-remote`",
     );
     const create = creation.indexOf("gh pr create --base");
 
     expect([hook, guard, create].every((index) => index >= 0)).toBe(true);
     expect(hook).toBeLessThan(guard);
     expect(guard).toBeLessThan(create);
-    expect(creation).toContain("pre-create validation requires the remote branch itself");
+    expect(creation).toMatch(softWrappedProse("pre-create validation requires the remote branch itself"));
     // The typed resolver owns the head check; a hand-rolled remote parse here
     // would be a second implementation of what it already returns.
     expect(creation).not.toContain("git ls-remote");
@@ -284,7 +288,7 @@ describe("PR-open lifecycle extensions", () => {
     );
 
     expect(workflow.match(/#pre-push-review/gu)).toHaveLength(1);
-    expect(workflow).toContain("Before every agent-managed push in this workflow");
+    expect(workflow).toMatch(softWrappedProse("Before every agent-managed push in this workflow"));
     const preMerge = workflow.indexOf("**Extension report** · `#pre-merge`");
     const interlock = workflow.indexOf("`integration-interlock`", preMerge);
     expect(preMerge).toBeGreaterThan(-1);
@@ -403,9 +407,9 @@ describe("PR-open lifecycle extensions", () => {
     }
 
     const overview = await readFile(resolve(projectArc, "reference/TECHNICAL-OVERVIEW.md"), "utf8");
-    expect(overview).toContain("one configured review loop through the shipped `arc review` command tree");
-    expect(overview).toContain("The operating agent owns bounded judgment");
-    expect(overview).toContain("Draft-state lock is a per-PR structural hold");
+    expect(overview).toMatch(softWrappedProse("one configured review loop through the shipped `arc review` command tree"));
+    expect(overview).toMatch(softWrappedProse("The operating agent owns bounded judgment"));
+    expect(overview).toMatch(softWrappedProse("Draft-state lock is a per-PR structural hold"));
     expect(overview).toContain("merge.lock: draft");
     expect(overview).toMatch(/integration interlock remains the sole\s+merge authority/);
   });
@@ -442,13 +446,174 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
+  it("keeps withstood advisory and applies claim-type verification proportionally", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/adversarial-review.md"), "utf8");
+      const normalized = method.toLowerCase().replace(/\s+/gu, " ");
+      const prompt = method.match(/\*\*Prompt template:\*\*\s+```text\s+([\s\S]*?)\s+```/u)?.[1];
+      if (prompt === undefined) throw new Error("missing adversarial-review prompt template");
+      const normalizedPrompt = prompt.toLowerCase().replace(/\s+/gu, " ");
+
+      expect(normalized).toContain(
+        "the reviewer examined this decision-relevant claim or region and has no finding to report",
+      );
+      expect(normalized).toContain("does not mean that the artifact is correct, complete, or cleared");
+      expect(normalized).toContain("externally verifiable claims about source, behavior, or the diff");
+      expect(normalized).toContain("are worth spot-checking");
+      expect(normalized).toContain("internal judgments about what the reviewer considered convincing or coherent");
+      expect(normalized).toContain("does not require independent verification of every attention entry");
+      expect(normalized).toContain("the field stays freeform");
+      expect(normalized).toContain(
+        "`withstood` remains outside severity, disposition, convergence, and evidence attestation",
+      );
+      expect(normalizedPrompt).toContain("`withstood` records decision-relevant attention without a finding");
+      expect(normalizedPrompt).toContain("does not mean the artifact is correct, complete, or cleared");
+      expect(method).not.toContain("checked and cleared");
+    }
+  });
+
+  it("separates advisory disposition completeness from pass convergence and bounded continuation", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/adversarial-review.md"), "utf8");
+      const normalized = method.toLowerCase().replace(/\s+/gu, " ");
+      const prompt = method.match(/\*\*Prompt template:\*\*\s+```text\s+([\s\S]*?)\s+```/u)?.[1];
+      const frontmatter = method.match(/^---\n([\s\S]*?)\n---/u)?.[1];
+      if (prompt === undefined) throw new Error("missing adversarial-review prompt template");
+      if (frontmatter === undefined) throw new Error("missing adversarial-review frontmatter");
+
+      expect(method).toContain("override-active: false");
+      expect(method).toContain("[No override configured]");
+      expect(frontmatter).not.toContain("review-triage");
+
+      expect(normalized).toContain("completeness is a property of the disposition backlog");
+      expect(normalized).toContain("every reported finding has one approved disposition");
+      expect(normalized).toContain("including a `reject` disposition for an unsupported finding");
+      expect(normalized).toContain("convergence is a property of the pass result");
+      expect(normalized).toContain("a disposed confirmed `critical` or `major` finding still withholds convergence");
+      expect(normalized).toContain("all-refuted and confirmed-minors-only passes converge");
+      expect(normalized).toContain("a confirmed `minor` never authorizes another pass");
+      expect(normalized).toContain("never raises its verified severity");
+      expect(normalized).toContain("follow-up observation in the converged completion report");
+
+      expect(method).toContain("`Pass N of M`");
+      expect(normalized).toContain("converged, `cap-exhausted`, suspended, or owner-accepted");
+      expect(normalized).toContain("stop before another evaluator invocation");
+      expect(normalized).toContain("same turn as the complete disposition report");
+      expect(normalized).toContain("a recommendation is not authorization");
+      expect(normalized).toContain("names the activity and the next pass");
+      expect(normalized).toContain("authorizes exactly one additional pass");
+      expect(normalized).toContain("disposition approval alone authorizes no additional pass");
+
+      expect(normalized).toContain("existing advisory evidence");
+      expect(normalized).toContain("pending and unusable while any approved response remains incomplete");
+      expect(normalized).toContain("withdrawal or supersession invalidates it");
+      expect(normalized).toContain("consumes that permission");
+      expect(normalized).toContain("replay cannot authorize another pass");
+      expect(normalized).toContain("creates no lane-progress record");
+
+      expect(prompt).not.toMatch(/pass-cap|Pass N of M|cap-exhausted/iu);
+      expect(prompt.toLowerCase().replace(/\s+/gu, " ")).toContain(
+        "do not decide loop state, continuation, or authorization",
+      );
+    }
+  });
+
+  it("keeps the advisory settlement protocol reachable at every direct planning and criteria caller", async () => {
+    const callers = [
+      ["system/workflows/arc/draft-design.md", "draft review evidence"],
+      ["system/workflows/arc/create-spec.md", "spec review evidence"],
+      ["system/workflows/arc/generate-tasks.template.md", "task-list review evidence"],
+      ["system/methods/validate-criteria.md", "ordinary closing-task evidence"],
+    ] as const;
+
+    for (const base of [packageArc, projectArc]) {
+      for (const [packagedPath, evidenceLocus] of callers) {
+        const path = base === projectArc && packagedPath.endsWith("generate-tasks.template.md")
+          ? "system/workflows/arc/generate-tasks.md"
+          : packagedPath;
+        const content = await readFile(resolve(base, path), "utf8");
+        const normalized = content.toLowerCase().replace(/\s+/gu, " ");
+
+        expect(content).toContain("    - adversarial-review");
+        expect(content).toContain("adversarial-review:");
+        expect(normalized).toContain("apply the method's complete-disposition and bounded-continuation protocol");
+        expect(normalized).toContain(evidenceLocus);
+        expect(normalized).toContain("creates no lane-progress record");
+      }
+    }
+
+    const recipe = JSON.parse(
+      await readFile(resolve(root, "packages/arc-framework/init-recipe.json"), "utf8"),
+    ) as { include_files: string[] };
+    for (const path of [
+      "system/methods/adversarial-review.md",
+      "system/methods/validate-criteria.md",
+      "system/workflows/arc/draft-design.md",
+      "system/workflows/arc/create-spec.md",
+      "system/workflows/arc/generate-tasks.template.md",
+    ]) {
+      expect(recipe.include_files).toContain(path);
+    }
+  });
+
+  it("retains a bounded contradicted-withstood exercise without claiming behavioral adherence", async () => {
+    const fixtureRoot = resolve(
+      root,
+      "packages/arc-framework/__tests__/fixtures/adversarial-review/contradicted-withstood",
+    );
+    const [source, artifact, report, exercise, expected] = await Promise.all([
+      readFile(resolve(fixtureRoot, "source.ts"), "utf8"),
+      readFile(resolve(fixtureRoot, "artifact.md"), "utf8"),
+      readFile(resolve(fixtureRoot, "review-report.md"), "utf8"),
+      readFile(resolve(fixtureRoot, "exercise.md"), "utf8"),
+      readFile(resolve(fixtureRoot, "expected.md"), "utf8"),
+    ]);
+
+    expect(source).toContain('return "manual"');
+    expect(artifact).toContain("returns `automatic`");
+    expect(report).toContain("withstood:");
+    expect(report).toContain("defaultMode returns automatic");
+    expect(exercise).toContain("packages/arc-framework/arc/system/methods/adversarial-review.md");
+    expect(exercise).toContain("packages/arc-framework/arc/system/methods/validate-criteria.md");
+    expect(exercise).toContain("Do not read `expected.md`");
+    expect(expected).toContain("refuse to relay or credit the contradicted entry");
+    expect(expected).toContain("only an attended fresh-context run supplies behavioral evidence");
+  });
+
+  it("retains bounded advisory-loop exercises without treating fixtures as behavioral proof", async () => {
+    const fixtureRoot = resolve(root, "packages/arc-framework/__tests__/fixtures/adversarial-review");
+    const cases = [
+      ["unsupported-material", "all-refuted pass converges"],
+      ["fixed-material", "settlement does not rewrite the original pass as converged"],
+      ["over-cap", "stop before another evaluator invocation"],
+      ["conditional-permission", "replay cannot authorize another pass"],
+    ] as const;
+
+    for (const [name, expectedSignal] of cases) {
+      const caseRoot = resolve(fixtureRoot, name);
+      const [scenario, exercise, expected] = await Promise.all([
+        readFile(resolve(caseRoot, "scenario.md"), "utf8"),
+        readFile(resolve(caseRoot, "exercise.md"), "utf8"),
+        readFile(resolve(caseRoot, "expected.md"), "utf8"),
+      ]);
+
+      expect(scenario).toContain("Pass");
+      expect(exercise).toContain("packages/arc-framework/arc/system/methods/adversarial-review.md");
+      expect(exercise).toContain("Do not read `expected.md`");
+      expect(expected.toLowerCase()).toContain(expectedSignal);
+      expect(expected).toContain("only an attended fresh-context run supplies behavioral evidence");
+    }
+  });
+
   it("keeps review severity, disposition, and polish orthogonal", async () => {
     for (const base of [packageArc, projectArc]) {
       const method = await readFile(resolve(base, "system/methods/review-triage.md"), "utf8");
       const normalized = method.toLowerCase().replace(/\s+/gu, " ");
-      expect(normalized).toContain("severity: `blocker | major | minor`");
+      expect(normalized).toContain("`reportedseverity` and optional `reportednit`");
+      expect(normalized).toContain("explicit nullable `verifiedseverity`");
       expect(normalized).toContain("disposition: `fix | defer | reject`");
-      expect(normalized).toContain("`nit` is valid only with `minor`");
+      expect(normalized).toContain("`reportednit` and `verifiednit` are legal only with their respective `minor` grades");
+      expect(normalized).toContain("a verified nit is always record-only");
       expect(normalized).toContain("verify every finding against source");
       expect(normalized).toContain("complete disposition set");
       expect(normalized).toContain("approval before any fix");

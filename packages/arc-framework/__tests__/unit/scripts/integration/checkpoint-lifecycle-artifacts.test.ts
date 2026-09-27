@@ -66,6 +66,17 @@ describe("lifecycleArtifactFacts", () => {
     expect(lifecycleArtifactFacts(meta(COMPLETION_NOTES), META_PATH)).toEqual([]);
   });
 
+  it("accepts the Release Notes example in the integration workflow", async () => {
+    const workflow = await readFile(new URL(
+      "../../../../arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+      import.meta.url,
+    ), "utf8");
+    const example = /```markdown\n(## Release Notes Entry[\s\S]*?)\n```/u.exec(workflow)?.[1];
+    if (example === undefined) throw new Error("Integration workflow has no Release Notes example");
+
+    expect(lifecycleArtifactFacts(meta([COMPLETION_NOTES, example].join("\n")), META_PATH)).toEqual([]);
+  });
+
   it("rejects a Release Notes Entry with no categorized changes", () => {
     const content = meta([COMPLETION_NOTES, "## Release Notes Entry", "", "A summary with no categories.", ""]
       .join("\n"));

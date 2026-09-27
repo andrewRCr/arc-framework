@@ -16,6 +16,10 @@ import {
   createDispositionSet,
   proposeDispositionSet,
 } from "../../../../../src/scripts/review-gate/core/dispositions.js";
+import { createFrontlineAdmission } from
+  "../../../../../src/scripts/review-gate/core/frontline-admission.js";
+import { createReviewTarget } from
+  "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import {
   projectLocalReviewGuidance,
 } from "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
@@ -81,8 +85,27 @@ const offeredFrontlineReview = {
 const readyFrontlineReview = {
   ...offeredFrontlineReview,
   action: "attempt",
-  reasons: ["frontline-policy-attempt", "source-project"],
+  reasons: ["frontline-policy-attempt", "source-project"] as string[],
 } as const;
+const readyFrontlineAdmission = createFrontlineAdmission({
+  lineage: { kind: "candidate", candidateId: `sha256:${"b".repeat(64)}` },
+  target: createReviewTarget({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    kind: "change-set",
+    repositoryId: "repo-1",
+    baseRef: "main",
+    diffBaseSha: "a".repeat(40),
+    diffBaseTree: "b".repeat(40),
+    headSha: "c".repeat(40),
+    headTree: "d".repeat(40),
+  }),
+  routing,
+  frontlineReview: readyFrontlineReview,
+  logicalPass: 1,
+  retryGeneration: 0,
+  maxPasses: 2,
+});
 const guidance = projectLocalReviewGuidance();
 const request = {
   schemaVersion: 2,
@@ -90,6 +113,8 @@ const request = {
   repositoryId: target.repositoryId,
   targetId: target.targetId,
   requirementId: digest,
+  lineageId: digest,
+  logicalPass: 1,
   carrier: {
     kind: "local-change-set",
     adapterId: "git-local",
@@ -132,17 +157,21 @@ const dispositionProposal = proposeDispositionSet(createDispositionSet({
   schemaVersion: 2,
   semanticsVersion: "review-gate/v2",
   targetId: target.targetId,
+  producerId: "review-operation",
+  resultDigest: digest,
   policyVersion: digest,
   rubricVersion: "standard-review/v1",
   rubricDigest: digest,
   proposedBy: "arc-cli/0.1.0",
+  proposedVerification: "full",
   findings: [{
     findingId: "finding-1",
     sourceIdentity: "evaluator-1",
     locus: "src/index.ts:1",
     sourceVerification: "verified",
     verificationRefs: ["source:src/index.ts:1"],
-    severity: "major",
+    reportedSeverity: "major",
+    verifiedSeverity: "major",
     disposition: "fix",
     gating: "blocking",
     rationale: "The source supports this finding.",
@@ -150,6 +179,18 @@ const dispositionProposal = proposeDispositionSet(createDispositionSet({
     openQuestions: [],
   }],
 }));
+const dispositionReportText = "Verification: full\n\nFinding F1: The source supports this finding.";
+const provisionalPassAssessment = {
+  status: "provisional",
+  lane: "standard",
+  admittedLogicalPass: 2,
+  configuredMaxPasses: 2,
+  proposedSignal: { confirmedFindingCount: 1, maxConfirmedSeverity: "major" },
+  capPosition: "at-ceiling",
+  potentialStopReason: "cap-exhausted",
+  nextPassAuthority: "none",
+  summaryText: "Provisional pass 2 of 2; approval and response are pending; no next-pass authority.",
+} as const;
 
 describe("review command envelopes", () => {
   it.each([
@@ -229,7 +270,13 @@ describe("review command envelopes", () => {
     [FrontlineResolveEnvelopeSchema, {
       ...header("review-frontline-resolve"),
       state: "ready", nextAction: "run-frontline",
-      payload: { routing, frontlineReview: readyFrontlineReview, pass: 1, maxPasses: 2 },
+      payload: {
+        routing,
+        frontlineReview: readyFrontlineReview,
+        pass: 1,
+        maxPasses: 2,
+        admission: readyFrontlineAdmission,
+      },
     }],
     [FrontlineRunEnvelopeSchema, {
       ...header("review-frontline-run"),
@@ -241,7 +288,7 @@ describe("review command envelopes", () => {
     }],
     [FrontlineRunEnvelopeSchema, {
       ...header("review-frontline-run"),
-      state: "timed-out", nextAction: "retry",
+      state: "timed-out", nextAction: "operator-repair",
       payload: operationPayload({ reason: { class: "execution-timeout" } }),
     }],
     [FrontlineRunEnvelopeSchema, {
@@ -278,12 +325,15 @@ describe("review command envelopes", () => {
     [RespondEnvelopeSchema, {
       ...header("review-respond"),
       state: "awaiting-approval", nextAction: "obtain-approval",
-      payload: { operationId: "local-1", proposal: dispositionProposal },
+      payload: {
+        operationId: "local-1", proposal: dispositionProposal, dispositionReportText,
+        provisionalPassAssessment,
+      },
     }],
     [RespondEnvelopeSchema, {
       ...header("review-respond"),
       state: "settled", nextAction: "reduce",
-      payload: { operationId: "local-1", dispositionRecordRef: "disposition/1" },
+      payload: { operationId: "local-1", dispositionRecordRef: "disposition/1", dispositionReportText },
     }],
     [RespondEnvelopeSchema, {
       ...header("review-respond"),
@@ -512,14 +562,14 @@ describe("review command envelopes", () => {
   });
 
   it.each([
-    ["rate-limited", "retry"],
-    ["transient-unavailable", "retry"],
+    ["rate-limited", "operator-repair"],
+    ["transient-unavailable", "operator-repair"],
     ["source-unbound", "operator-repair"],
     ["capability-unsupported", "operator-repair"],
-    ["transient-transport", "retry"],
-    ["process-failure", "retry"],
-    ["signal-termination", "retry"],
-    ["unexpected-adapter-failure", "retry"],
+    ["transient-transport", "operator-repair"],
+    ["process-failure", "operator-repair"],
+    ["signal-termination", "operator-repair"],
+    ["unexpected-adapter-failure", "operator-repair"],
     ["invalid-output", "operator-repair"],
     ["authorization-rejected", "operator-repair"],
   ] as const)("maps frontline reason class %s only to %s", (reasonClass, nextAction) => {
@@ -537,7 +587,7 @@ describe("review command envelopes", () => {
     expect(FrontlineRunEnvelopeSchema.parse(envelope)).toEqual(envelope);
     expect(() => FrontlineRunEnvelopeSchema.parse({
       ...envelope,
-      nextAction: nextAction === "retry" ? "operator-repair" : "retry",
+      nextAction: "retry",
     })).toThrow();
   });
 

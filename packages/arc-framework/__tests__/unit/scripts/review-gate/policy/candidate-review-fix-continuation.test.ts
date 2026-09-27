@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import { responsePolicyRequestFixture } from "../../../../fixtures/review-response-policy.js";
 import {
   createCandidateAttestation,
   createCandidateReviewResponseEvidence,
   createCandidateSubjectSnapshot,
   type CandidateManagedRecordV1,
 } from "../../../../../src/lib/work-unit/candidate-attestation.js";
-import { ApprovedDispositionRecordSchema } from
-  "../../../../../src/scripts/review-gate/core/advisory-records.js";
+import {
+  ApprovedDispositionRecordSchema,
+  currentApprovedDispositionNode,
+} from "../../../../../src/scripts/review-gate/core/advisory-records.js";
 import {
   approveDispositionState,
   createDispositionSet,
@@ -84,17 +87,21 @@ function approvedRecord(candidate: CandidateManagedRecordV1, operationId = "oper
       schemaVersion: 2,
       semanticsVersion: "review-gate/v2",
       targetId: target.targetId,
+      producerId: operationId,
+      resultDigest: canonicalDigest({ operationId, outcome: "findings" }),
       policyVersion: requirement.policyVersion,
       rubricVersion: requirement.rubricVersion,
       rubricDigest: requirement.rubricDigest,
       proposedBy: "arc-cli/0.1.0",
+      proposedVerification: "targeted",
       findings: [{
         findingId: "finding-1",
         sourceIdentity: "coderabbit-cli",
         locus: "src/index.ts:1",
         sourceVerification: "verified",
         verificationRefs: ["source:src/index.ts:1"],
-        severity: "major",
+        reportedSeverity: "major",
+        verifiedSeverity: "major",
         disposition: "fix",
         gating: "blocking",
         rationale: "The finding is supported.",
@@ -114,10 +121,28 @@ function approvedRecord(candidate: CandidateManagedRecordV1, operationId = "oper
     errand: null,
     deliveryMember: null,
     source: { kind: "frontline", outcomeRef: `frontline://${operationId}` },
-    approvedDisposition,
-    fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget: target }),
-    errandFixResponse: null,
-    deliveryMemberFixResponse: null,
+    currentDispositionSetId: approvedDisposition.dispositionSet.dispositionSetId,
+    approvedDispositionLineage: [{
+      approvedDisposition,
+      responsePolicyRequest: responsePolicyRequestFixture({
+        headSha: target.headSha,
+        sourceId: "coderabbit-cli",
+        reviewOperationId: operationId,
+        standardReview: {
+          obligation: requirement.obligation,
+          reasons: requirement.reasons,
+          rubricVersion: requirement.rubricVersion,
+          rubricDigest: requirement.rubricDigest,
+          retrigger: requirement.retrigger,
+          count: requirement.count,
+        },
+      }),
+      fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget: target }),
+      errandFixResponse: null,
+      deliveryMemberFixResponse: null,
+      predecessorDispositionSetId: null,
+      successorDispositionSetId: null,
+    }],
   });
 }
 
@@ -125,6 +150,7 @@ describe("Candidate review-fix continuation", () => {
   it("selects one exact unconsumed Candidate-bound fix authorization", () => {
     const candidate = candidateRecord();
     const record = approvedRecord(candidate);
+    const current = currentApprovedDispositionNode(record);
 
     expect(selectPendingCandidateReviewFixRecord({
       workUnitId: "example",
@@ -134,8 +160,34 @@ describe("Candidate review-fix continuation", () => {
       status: "selected",
       candidateId: candidate.attestation.candidateId,
       operationId: record.operationId,
-      reviewedHead: record.fixAuthorization?.oldHeadSha,
+      reviewedHead: current.fixAuthorization?.oldHeadSha,
       record,
+    });
+  });
+
+  it("retains Candidate authority when frontline reviewed a bound private member", () => {
+    const candidate = candidateRecord();
+    const ordinary = approvedRecord(candidate);
+    const record = ApprovedDispositionRecordSchema.parse({
+      ...ordinary,
+      deliveryMember: {
+        kind: "delivery-member",
+        planId: "123e4567-e89b-42d3-a456-426614174000",
+        deliverableId: `sha256:${"d".repeat(64)}`,
+        workUnitId: "example",
+        head: currentApprovedDispositionNode(ordinary).fixAuthorization?.oldHeadSha,
+      },
+    });
+
+    expect(selectPendingCandidateReviewFixRecord({
+      workUnitId: "example",
+      candidate,
+      records: [record],
+    })).toMatchObject({
+      status: "selected",
+      candidateId: candidate.attestation.candidateId,
+      operationId: record.operationId,
+      reviewedHead: currentApprovedDispositionNode(record).fixAuthorization?.oldHeadSha,
     });
   });
 
@@ -148,7 +200,7 @@ describe("Candidate review-fix continuation", () => {
         candidateId: candidate.attestation.candidateId,
         oldTarget: { revision: objectId("c"), subject: candidate.subject },
         newTarget: { revision: objectId("e"), subject: candidateSubject("fixed") },
-        dispositionId: record.approvedDisposition.dispositionSet.dispositionSetId,
+        dispositionId: currentApprovedDispositionNode(record).approvedDisposition.dispositionSet.dispositionSetId,
         approvedBy: "author-1",
         appliedBy: "arc-cli/0.1.0",
         applicability: "targeted",
@@ -177,14 +229,18 @@ describe("Candidate review-fix continuation", () => {
   it("refuses a pending record whose fix authorization no longer matches its approval", () => {
     const candidate = candidateRecord();
     const record = approvedRecord(candidate);
-    if (record.fixAuthorization === null) throw new Error("expected fix authorization");
+    const current = currentApprovedDispositionNode(record);
+    if (current.fixAuthorization === null) throw new Error("expected fix authorization");
 
     expect(selectPendingCandidateReviewFixRecord({
       workUnitId: "example",
       candidate,
       records: [{
         ...record,
-        fixAuthorization: { ...record.fixAuthorization, authorizedBy: "different-author" },
+        approvedDispositionLineage: [{
+          ...current,
+          fixAuthorization: { ...current.fixAuthorization, authorizedBy: "different-author" },
+        }],
       }],
     })).toEqual({ status: "refused", reason: "candidate-review-fix-response-invalid" });
   });

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { canonicalize } from "../../src/lib/canonical/canonical-json.js";
+import { v3DecomposeRemedy } from "../../src/lib/work-unit/decompose-v3-refusal.js";
 
 const mockIntro = vi.fn();
 const mockLogError = vi.fn();
@@ -105,18 +106,23 @@ describe("handleDecompose preflight mode", () => {
     expect(process.exitCode).toBe(1);
   });
 
+  it("keeps a project-root refusal outside the selected-mode envelope", async () => {
+    mockResolveArcRoot.mockReturnValue(null);
+
+    await handleDecompose("origin", { preflight: true });
+
+    expect(stdout).toBe("");
+    expect(stderr).toContain("Not inside an ARC project");
+    expect(process.exitCode).toBe(1);
+    expect(mockIntro).not.toHaveBeenCalled();
+  });
+
   it.each([
-    {
-      name: "project root",
-      configure: () => mockResolveArcRoot.mockReturnValue(null),
-      invoke: () => handleDecompose("origin", { preflight: true }),
-      diagnostic: "Not inside an ARC project",
-    },
     {
       name: "config",
       configure: () => mockReadConfigSettings.mockRejectedValue(new Error("invalid config")),
-      invoke: () => handleDecompose("origin", { preflight: true }),
-      diagnostic: "invalid config",
+      reason: "unexpected-error",
+      locus: "invalid config",
     },
     {
       name: "source profile",
@@ -125,20 +131,25 @@ describe("handleDecompose preflight mode", () => {
         reason: "planning-profile",
         locus: ".arc/active/meta-origin.md#Design",
       }),
-      invoke: () => handleDecompose("origin", { preflight: true }),
-      diagnostic: "planning-profile: .arc/active/meta-origin.md#Design",
+      reason: "planning-profile",
+      locus: ".arc/active/meta-origin.md#Design",
     },
-  ])("keeps stdout empty and writes $name refusal diagnostics only to stderr", async ({
+  ])("emits the selected preflight $name refusal through the typed envelope", async ({
     configure,
-    invoke,
-    diagnostic,
+    reason,
+    locus,
   }) => {
     configure();
+    const remedy = v3DecomposeRemedy({
+      invocation: { mode: "preflight", origin: "origin" },
+      reason,
+      locus,
+    });
 
-    await invoke();
+    await handleDecompose("origin", { preflight: true });
 
-    expect(stdout).toBe("");
-    expect(stderr).toContain(diagnostic);
+    expect(stdout).toBe(`${canonicalize({ status: "refused", reason, locus, remedy })}\n`);
+    expect(stderr).toBe(`${reason}\n${remedy.text}\n`);
     expect(process.exitCode).toBe(1);
     expect(mockIntro).not.toHaveBeenCalled();
   });

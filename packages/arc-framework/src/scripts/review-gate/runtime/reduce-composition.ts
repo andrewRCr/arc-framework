@@ -6,6 +6,8 @@ import { LocalApprovedDispositionRecordStore } from "../hosts/local/disposition-
 import { LocalFrontlineOutcomeStore } from "../hosts/local/frontline-outcome-store.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js";
+import { createRepositoryReviewResultReader } from
+  "../hosts/local/review-result-reader-composition.js";
 import { createLocalPrepareDependencies } from "./local-prepare-composition.js";
 import {
   DurableReviewReductionPort,
@@ -30,6 +32,7 @@ export function createReduceDependencies(input: {
     operationStore: prepare.operationStore,
     sourceStore: prepare.sourceStore,
     outcomeStore: new LocalFrontlineOutcomeStore(publisher),
+    resultReader: createRepositoryReviewResultReader(publisher),
     dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
     readReceiptEntries: async (targetId) => (await receipts()).readReceiptEntries(targetId),
     confirmTarget: (target) => prepare.confirmTarget(target),

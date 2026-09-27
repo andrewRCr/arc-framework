@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import {
+  LocalReviewEvaluatorResultSchema,
   NormalizedLocalReviewResultSchema,
   normalizeLocalReviewResult,
   type LocalReviewResultBindings,
@@ -72,5 +73,50 @@ describe("local review result normalization", () => {
     };
 
     expect(NormalizedLocalReviewResultSchema.safeParse(withoutRepository).success).toBe(false);
+  });
+
+  it("assigns capture ordinals without treating opaque evidence references as labels", () => {
+    const findings = [
+      {
+        findingId: "finding-1",
+        severity: "major",
+        locus: "src/one.ts:1",
+        evidenceUrlOrId: "opaque:one",
+      },
+      {
+        findingId: "finding-2",
+        severity: "minor",
+        locus: "src/two.ts:2",
+        evidenceUrlOrId: "opaque:two",
+      },
+    ];
+
+    expect(normalizeLocalReviewResult({
+      ...evaluatorResult,
+      result: "findings",
+      findings,
+    }, bindings).findings).toEqual([
+      { ...findings[0], sourceOrdinal: 1 },
+      { ...findings[1], sourceOrdinal: 2 },
+    ]);
+  });
+
+  it("keeps runtime navigation fields out of evaluator-owned input", () => {
+    const finding = {
+      findingId: "finding-1",
+      severity: "major",
+      locus: "src/one.ts:1",
+      evidenceUrlOrId: "opaque:one",
+    };
+    expect(LocalReviewEvaluatorResultSchema.safeParse({
+      ...evaluatorResult,
+      result: "findings",
+      findings: [{ ...finding, sourceOrdinal: 1 }],
+    }).success).toBe(false);
+    expect(LocalReviewEvaluatorResultSchema.safeParse({
+      ...evaluatorResult,
+      result: "findings",
+      findings: [{ ...finding, sourceLabel: "Invented label" }],
+    }).success).toBe(false);
   });
 });

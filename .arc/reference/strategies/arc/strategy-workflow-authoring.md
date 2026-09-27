@@ -68,8 +68,11 @@ paths without every entry through that workflow paying for it. So declare by wha
 trimmed to what a typical run happens to reach.
 
 The same direct-consumer rule applies inside a method: its protected `arc.methods` field declares methods that its
-own default or override body may fire. A workflow never redeclares those dependencies. Workflow declarations root
-the deduplicated transitive graph, while each nested method still loads only when its direct fire-point is reached.
+own default or override body may fire. Declare what your own body may fire, and never add a declaration because a
+method you declare needs it — but a method your own body fires directly is your declaration even when a method you
+also declare depends on it. **The test:** strike the other method from your declarations; if you still fire this
+one, it is yours. Workflow declarations root the deduplicated transitive graph, while each nested method still
+loads only when its direct fire-point is reached.
 
 **Mark every fire-point whose consumer is the executing session.** A declared entry with no fire-point in the
 body never loads. That is correct when a CLI verb carries the content on the workflow's behalf — a review lane's

@@ -64,7 +64,11 @@ export function authorizeErrandTerminal(
     return authorizeIdentityOnly(options);
   }
   if (row.kind !== "transient") {
-    return { kind: "refused", reason: "authority-unresolved", message: "Terminal authority is unavailable." };
+    return {
+      kind: "refused",
+      reason: "authority-unresolved",
+      message: renderOffBranchRefusal(options, row) ?? "Terminal authority is unavailable.",
+    };
   }
   const generation = terminalGeneration(row, options.subject);
   if (generation === null) {
@@ -174,6 +178,22 @@ function terminalGeneration(row: DerivedCheckoutRow, subject: ErrandTerminalSubj
   return subject.kind === "errand"
     ? `errand-v1/${subject.slug}/${subject.claimId}`
     : row.markerGeneration;
+}
+
+function renderOffBranchRefusal(
+  options: AuthorizeErrandTerminalOptions,
+  row: DerivedCheckoutRow,
+): string | null {
+  if (options.operation !== "close"
+    || options.subject.kind !== "errand"
+    || row.identity?.kind !== "errand"
+    || row.checkout.branch === row.identity.branch) return null;
+  const observedBranch = row.checkout.branch === null
+    ? "at a detached HEAD"
+    : `on branch '${row.checkout.branch}'`;
+  return `Errand '${options.subject.slug}' remains assigned to checkout ${row.checkout.path}, but that checkout is `
+    + `${observedBranch} instead of '${row.identity.branch}'. Restore ${row.checkout.path} to `
+    + `'${row.identity.branch}', then retry arc errand close ${options.subject.slug} from that checkout.`;
 }
 
 function destructiveEffect(operation: ErrandTerminalOperation): string {

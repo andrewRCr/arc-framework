@@ -11,6 +11,7 @@ import {
 
 const MEMBER_HEAD = "c".repeat(40);
 const DELIVERABLE_ID = `sha256:${"a".repeat(64)}`;
+const ERRAND_CLAIM_ID = "claim-1";
 
 const binding = (overrides: Partial<DeliveryMemberBinding> = {}): DeliveryMemberBinding => ({
   planId: "stack-1",
@@ -20,6 +21,7 @@ const binding = (overrides: Partial<DeliveryMemberBinding> = {}): DeliveryMember
   baseRef: "main",
   head: MEMBER_HEAD,
   candidateHead: MEMBER_HEAD,
+  successorHeads: [],
   isFinalMember: false,
   ...overrides,
   headRef: overrides.headRef === undefined ? "delivery/stack-1/member-1" : overrides.headRef,
@@ -27,6 +29,8 @@ const binding = (overrides: Partial<DeliveryMemberBinding> = {}): DeliveryMember
 
 const lookupOf = (result: DeliveryMemberLookupResult): DeliveryMemberLookup => ({
   resolveMemberByHead: vi.fn(async () => result),
+  resolveMemberByRef: vi.fn(async () => result),
+  resolveMemberByVehicle: vi.fn(async () => result),
 });
 
 const workUnitContext = () => ({
@@ -77,13 +81,13 @@ describe("local review actor authority", () => {
         readLiveContext: async () => ({
           activeIdentity: "andrew",
           workUnit: null,
-          errand: { identity: "repair-review-state" },
+          errand: { identity: "repair-review-state", claimId: ERRAND_CLAIM_ID },
         }),
         resolveRuntimeBinding: runtimeBinding,
       },
     )).resolves.toMatchObject({
       authority: {
-        vehicle: { kind: "errand", identity: "repair-review-state" },
+        vehicle: { kind: "errand", identity: "repair-review-state", claimId: ERRAND_CLAIM_ID },
         authorIdentity: "andrew",
       },
       member: null,
@@ -110,7 +114,7 @@ describe("local review actor authority", () => {
       {
         activeIdentity: "andrew",
         workUnit: { identity: "review-surface-binding", owner: "andrew" },
-        errand: { identity: "repair-review-state" },
+        errand: { identity: "repair-review-state", claimId: ERRAND_CLAIM_ID },
       },
     ]) {
       await expect(resolveLocalReviewAuthority(
@@ -146,7 +150,13 @@ describe("local review actor authority", () => {
         runtimeIdentity: "arc-cli/0.1.0",
         attestationMechanism: "local-attestation",
       },
-      member: { base: "b".repeat(40), head: MEMBER_HEAD },
+      member: {
+        planId: "stack-1",
+        workUnitId: "review-surface-binding",
+        deliverableId: DELIVERABLE_ID,
+        base: "b".repeat(40),
+        head: MEMBER_HEAD,
+      },
     });
     expect(memberLookup.resolveMemberByHead).toHaveBeenCalledWith(MEMBER_HEAD);
   });
@@ -188,7 +198,7 @@ describe("local review actor authority", () => {
         readLiveContext: async () => ({
           activeIdentity: "andrew",
           workUnit: null,
-          errand: { identity: "repair-review-state" },
+          errand: { identity: "repair-review-state", claimId: ERRAND_CLAIM_ID },
         }),
         resolveRuntimeBinding: runtimeBinding,
         memberLookup: lookupOf({ status: "resolved", member: binding() }),

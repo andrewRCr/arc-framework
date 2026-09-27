@@ -241,6 +241,23 @@ function parseOption(
   };
 }
 
+function rejectsJsonOption(calls: readonly ts.CallExpression[]): boolean {
+  return calls.some((call) => {
+    const method = methodCall(call);
+    const handler = call.arguments[1];
+    if (handler === undefined || !ts.isIdentifier(handler)) return false;
+    return (
+      method?.name === "on"
+      && stringValue(call.arguments[0]) === "option:json"
+      && handler.text === "rejectUnsupportedReviewOutputJson"
+    ) || (
+      method?.name === "hook"
+      && stringValue(call.arguments[0]) === "preAction"
+      && handler.text === "rejectUnsupportedReviewJson"
+    );
+  });
+}
+
 function actionSymbol(call: ts.CallExpression): string {
   const candidate = call.arguments[0];
   if (candidate === undefined) return "anonymous";
@@ -309,6 +326,7 @@ export function scanCommanderSource(input: SourceInput): CommanderSourceScan {
         if (syntax !== undefined && parent !== undefined) {
           const pathParts = [...parent, commandName(syntax)];
           const calls = chainedCalls(node);
+          const rejectsJson = rejectsJsonOption(calls);
           const aliases: string[] = [];
           const operands: DiscoveredOperand[] = [];
           operands.push(...commandOperands(syntax, locus(file, node, input.file)));
@@ -328,7 +346,8 @@ export function scanCommanderSource(input: SourceInput): CommanderSourceScan {
               }
             }
             const option = parseOption(call, file, input.file);
-            if (option !== undefined) options.push(option);
+            // A flag wired solely to an explicit refusal is not an accepted command input.
+            if (option !== undefined && !(rejectsJson && option.flags === "--json")) options.push(option);
             if (chainedMethod?.name === "allowUnknownOption") allowUnknownOption = true;
             if (chainedMethod?.name === "action") {
               action = {
@@ -489,18 +508,38 @@ async function typescriptFiles(root: string): Promise<readonly string[]> {
   return nested.flat().sort();
 }
 
-function importedModuleSpecifiers(sourceText: string, fileName: string): readonly string[] {
+/**
+ * Collect relative module specifiers that contribute to one source module's reachable graph.
+ *
+ * @param sourceText - TypeScript source to inspect.
+ * @param fileName - Filename used for TypeScript parsing and diagnostics.
+ * @returns Relative module specifiers in source order.
+ */
+export function importedModuleSpecifiers(sourceText: string, fileName: string): readonly string[] {
   const file = ts.createSourceFile(fileName, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-  return file.statements.flatMap((statement) => {
+  const specifiers: Array<{ readonly position: number; readonly value: string }> = [];
+  const visit = (node: ts.Node): void => {
     if (
-      (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement))
-      && statement.moduleSpecifier !== undefined
-      && ts.isStringLiteral(statement.moduleSpecifier)
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node))
+      && node.moduleSpecifier !== undefined
+      && ts.isStringLiteral(node.moduleSpecifier)
+      && node.moduleSpecifier.text.startsWith(".")
     ) {
-      return statement.moduleSpecifier.text.startsWith(".") ? [statement.moduleSpecifier.text] : [];
+      specifiers.push({ position: node.getStart(file), value: node.moduleSpecifier.text });
+    } else if (
+      ts.isCallExpression(node)
+      && node.expression.kind === ts.SyntaxKind.ImportKeyword
+      && node.arguments.length === 1
+    ) {
+      const [argument] = node.arguments;
+      if (argument !== undefined && ts.isStringLiteral(argument) && argument.text.startsWith(".")) {
+        specifiers.push({ position: node.getStart(file), value: argument.text });
+      }
     }
-    return [];
-  });
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return specifiers.sort((left, right) => left.position - right.position).map(({ value }) => value);
 }
 
 async function loadTypescriptSources(sourceRoot: string): Promise<Readonly<Record<string, string>>> {

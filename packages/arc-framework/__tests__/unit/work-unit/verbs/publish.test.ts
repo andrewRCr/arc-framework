@@ -205,6 +205,7 @@ const BASE: PublishParams = {
     candidateSubjectDigest: CANDIDATE_SUBJECT,
     candidateCurrent: true,
   }),
+  readStandardLaneOwnerVersion: async () => 0,
   claimPublicationBoundary: async () => {},
   boundary: {
     schemaVersion: 1,
@@ -213,6 +214,7 @@ const BASE: PublishParams = {
     candidateId: CANDIDATE_ID,
     candidateSubjectDigest: CANDIDATE_SUBJECT,
     locus: "candidate-publish-ready",
+    standardLaneOwnerVersion: 0,
     nextAction: {
       kind: "publish-candidate",
       command: "arc publish foo --json",
@@ -233,6 +235,7 @@ function publicationBoundary(
     branch: "feat/foo",
     candidateId: CANDIDATE_ID,
     candidateSubjectDigest: CANDIDATE_SUBJECT,
+    standardLaneOwnerVersion: 0,
     reservation,
     changeRequest: null,
   });
@@ -245,11 +248,24 @@ const DERIVED: PublishParams = {
   candidateSubjectDigest: BASE.candidateSubjectDigest,
   candidateCurrent: BASE.candidateCurrent,
   refreshCandidateAuthorization: BASE.refreshCandidateAuthorization,
+  readStandardLaneOwnerVersion: BASE.readStandardLaneOwnerVersion,
   claimPublicationBoundary: BASE.claimPublicationBoundary,
   boundary: BASE.boundary,
 };
 
 describe("authorizeSubmission", () => {
+  it("refuses readiness when a later same-head standard pass changed the lane owner", () => {
+    expect(authorizeSubmission({
+      expectedCandidateId: CANDIDATE_ID,
+      expectedCandidateSubjectDigest: CANDIDATE_SUBJECT,
+      boundary: BASE.boundary,
+      currentStandardLaneOwnerVersion: 1,
+    })).toEqual({
+      status: "refused",
+      reason: "Standard review progress changed after publication readiness was recorded.",
+    });
+  });
+
   it("refuses an open non-reserved pre-publication obligation", () => {
     expect(authorizeSubmission({
       expectedCandidateId: `sha256:${"a".repeat(64)}`,
@@ -263,7 +279,7 @@ describe("authorizeSubmission", () => {
         locus: "candidate-review-pending",
         nextAction: {
           kind: "continue-pre-publication-review",
-          command: "arc review pre-publication foo --json",
+          command: "arc review pre-publication foo",
           interactionText: "Continue the open standard-review obligation.",
         },
         policy: null,
@@ -330,6 +346,31 @@ describe("authorizeSubmission", () => {
 });
 
 describe("runPublish — the set-phase-only move", () => {
+  it("refuses the transition when a same-head review changed ready lane progress", async () => {
+    const { ctx } = buildCtx([ACTIVE]);
+    const result = await runPublish(ctx, {
+      ...BASE,
+      readStandardLaneOwnerVersion: async () => 1,
+    });
+    expect(result).toMatchObject({
+      status: "rejected",
+      reason: expect.stringContaining("Standard review progress changed"),
+    });
+  });
+
+  it("refuses an Active publication-claim retry after later review progress", async () => {
+    const { ctx } = buildCtx([ACTIVE]);
+    const result = await runPublish(ctx, {
+      ...BASE,
+      boundary: publicationBoundary(),
+      readStandardLaneOwnerVersion: async () => 1,
+    });
+    expect(result).toMatchObject({
+      status: "rejected",
+      reason: expect.stringContaining("Standard review progress changed after the publication claim"),
+    });
+  });
+
   it("flips Active to Integrating with no location move and no branch rotation", async () => {
     const { ctx, calls } = buildCtx([ACTIVE]);
 
@@ -423,7 +464,7 @@ describe("runPublish — the set-phase-only move", () => {
     expect(result).toMatchObject({
       status: "rejected",
       reason: "Cannot publish `foo`: Submission boundary was written for different reviewable content.",
-      remedy: { argv: ["arc", "review", "pre-publication", "foo", "--json"] },
+      remedy: { argv: ["arc", "review", "pre-publication", "foo"] },
     });
     expect(calls).not.toContain("reconcile:prepare");
     expect(calls.some((call) => call.startsWith("setPhase:"))).toBe(false);

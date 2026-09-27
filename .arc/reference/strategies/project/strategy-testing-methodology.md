@@ -34,7 +34,7 @@ Pure function and module tests. No filesystem, no child processes, no git repos.
 
 **Characteristics:**
 
-- Fast (milliseconds per test), isolated, run on every change
+- Fast (milliseconds per test), isolated, selected for changes affecting unit tests
 - Import the module directly, call functions, assert on return values
 - Mock only at system boundaries (see [Mocking Rules](#mocking-rules))
 
@@ -173,9 +173,11 @@ be unwieldy inline.
 
 Testing fits into the tiered quality gate system from DEV-RULES.PROJECT:
 
-- **Tier 1 (per-task):** Run relevant unit tests — `npm run test:unit`
-- **Tier 2 (coherent unit):** Full test suite — `npm test`
-- **Tier 3 (per-phase / pre-PR):** Full suite + build + typecheck — all gates
+- **Tier 1 (per-task):** Run affected unit tests — `npm run test:changed`
+- **Tier 2 (coherent unit):** Run the routine unit + integration lane — `npm test`
+- **Tier 3 (per-phase / pre-PR):** Complete the project-designated local gate, including the routine lane, build,
+  and both type checks. Use `npm run test:full` only for an explicit whole-project local run; required CI enforces
+  E2E and portability before merge.
 
 See [QUICK-REFERENCE][quick-ref] for the exact commands at each tier.
 

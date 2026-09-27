@@ -22,8 +22,11 @@ import {
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
+  reduceCandidateDurableBaseline,
   serializeCandidateManagedRecord,
 } from "../../../src/lib/work-unit/candidate-attestation.js";
+import type { CandidateTargetProjector } from
+  "../../../src/lib/work-unit/candidate-effective-target.js";
 import { createReviewTarget } from "../../../src/scripts/review-gate/core/gate-contract-v2.js";
 
 const resolverInputs = vi.hoisted(() => [] as LoadSetProjectionInput[]);
@@ -78,6 +81,29 @@ function candidateRecord(slug: string): { candidateId: string; subjectDigest: st
     }),
   };
 }
+
+const RE_ROOT_SUBJECT = createCandidateSubjectSnapshot([{
+  path: "packages/arc-framework/src/example.ts",
+  mode: "100644",
+  digest: `sha256:${"d".repeat(64)}`,
+  treatment: "reviewable",
+}]);
+
+const projectCandidateReRootTarget: CandidateTargetProjector = async ({ record }) => {
+  const baseline = reduceCandidateDurableBaseline(record);
+  return {
+    schemaVersion: 1,
+    mode: "candidate-effective-target",
+    state: "changed",
+    nextAction: "establish-new-root",
+    candidateId: baseline.candidateId,
+    durableBaselineTarget: baseline.target,
+    currentTarget: { revision: "b".repeat(40), subject: RE_ROOT_SUBJECT },
+    projectionDigest: `sha256:${"e".repeat(64)}`,
+    residualDigest: `sha256:${"f".repeat(64)}`,
+    selectedBy: "andrew",
+  };
+};
 
 function ownerAcceptedPublishBoundary(input: {
   slug: string;
@@ -707,6 +733,45 @@ describe("checkout subject active-extension seam", () => {
     });
   });
 
+  it("returns the exact re-root recovery remedy for a deliberately changed Candidate", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const meta = `# Metadata: demo
+
+- **State:** \`Active\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidate.candidateId}\`
+- **Current Workflow:** \`prepare-work-unit\`
+- **Next Action:** stale narrative
+`;
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+      io: { ...options.io, projectCandidateTarget: projectCandidateReRootTarget },
+    });
+
+    expect(result).toEqual({
+      kind: "unresolved",
+      code: "candidate-re-root-required",
+      message: `Candidate target requires deliberate replacement-root attestation. Resume the work unit outside `
+        + `recovery, complete full verification for the current target, then run \`arc attest demo --new-root `
+        + `--expected-candidate ${candidate.candidateId} --expected-subject `
+        + `${RE_ROOT_SUBJECT.subjectDigest} --json\`; rerun recovery afterward.`,
+      metaPath: ".arc/active/meta-demo.md",
+    });
+  });
+
   it("recovers Active prepublication at the pending Candidate fix before re-root", async () => {
     const { options, files } = fixture();
     const candidate = candidateRecord("demo");
@@ -762,7 +827,7 @@ describe("checkout subject active-extension seam", () => {
         candidateSubjectDigest: candidate.subjectDigest,
         locus: "candidate-fix-pending",
         policy: null,
-        nextAction: { command: "arc review pre-publication demo --json" },
+        nextAction: { command: "arc review pre-publication demo" },
       },
     });
   });
@@ -964,6 +1029,114 @@ describe("checkout subject active-extension seam", () => {
         locus: "candidate-review-pending",
         nextAction: { kind: "run-self-review" },
       },
+    });
+  });
+
+  it("reports an unreadable Candidate record under this build's schema at the record path", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const meta = `# Metadata: demo
+
+- **State:** \`Active\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidate.candidateId}\`
+- **Current Workflow:** \`prepare-work-unit\`
+- **Next Action:** stale narrative
+`;
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, "not-json");
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+    });
+
+    expect(result).toMatchObject({
+      kind: "unresolved",
+      code: "subject-unresolved",
+      message: "Candidate record could not be read under this build's schema: "
+        + ".arc/system/.internal/candidates/demo.json",
+    });
+    if (result.kind !== "unresolved") throw new Error("expected an unresolved Candidate record");
+    expect(result.message).not.toContain("does not match");
+  });
+
+  it("classifies a foreign Candidate record unreadable by this build as schema skew", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const meta = `# Metadata: demo
+
+- **State:** \`Active\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`${candidate.candidateId}\`
+- **Current Workflow:** \`prepare-work-unit\`
+- **Next Action:** stale narrative
+`;
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, "not-json");
+
+    const result = await projectCheckoutSubjectMeta({
+      ...options,
+      foreignCheckout: true,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+    });
+
+    expect(result).toMatchObject({
+      kind: "unresolved",
+      code: "candidate-record-schema-skew",
+      message: expect.stringContaining("checkout-local ARC CLI"),
+    });
+    if (result.kind !== "unresolved") throw new Error("expected foreign Candidate schema skew");
+    expect(result.message).toContain(".arc/system/.internal/candidates/demo.json");
+    expect(result.message).toContain(options.cwd);
+    expect(result.message).not.toContain("before cleanup");
+  });
+
+  it("reports a genuine Candidate id mismatch distinctly", async () => {
+    const { options, files } = fixture();
+    const candidate = candidateRecord("demo");
+    const meta = `# Metadata: demo
+
+- **State:** \`Active\`
+- **Owner:** \`andrew\`
+- **Branch:** \`feat/demo\`
+- **Cohort:** \`release/core\`
+- **Task List:** \`tasks-demo.md\`
+- **Candidate:** \`sha256:${"f".repeat(64)}\`
+- **Current Workflow:** \`prepare-work-unit\`
+- **Next Action:** stale narrative
+`;
+    files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);
+    files.set(`${options.cwd}/.arc/system/.internal/candidates/demo.json`, candidate.content);
+
+    await expect(projectCheckoutSubjectMeta({
+      ...options,
+      candidates: [{
+        kind: "read",
+        name: "meta-demo.md",
+        path: `${options.cwd}/.arc/active/meta-demo.md`,
+        text: meta,
+      }],
+    })).resolves.toMatchObject({
+      kind: "unresolved",
+      code: "subject-unresolved",
+      message: "Candidate metadata does not match the managed Candidate record.",
     });
   });
 

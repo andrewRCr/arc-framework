@@ -56,6 +56,57 @@ describe("scanV3DecomposeContent", () => {
       .toEqual(Buffer.from(bytes(source)));
   });
 
+  it("emits task-list preamble and H2 phase units while retaining nested task bytes", () => {
+    const source = [
+      "\uFEFF# Tasks",
+      "intro",
+      "## Phase",
+      "lead",
+      "### Task",
+      "body",
+      "```md",
+      "## fenced",
+      "```",
+      "Phase",
+      "-----",
+      "again",
+      "",
+    ].join("\r\n");
+    const original = bytes(source);
+    const result = scanV3DecomposeContent("tasks-sample.md", original);
+    expect(result.status).toBe("scanned");
+    if (result.status !== "scanned") return;
+
+    expect(result.units.map(({ locator }) => locator)).toEqual([
+      { artifact: "tasks-sample.md", kind: "preamble" },
+      {
+        artifact: "tasks-sample.md",
+        kind: "section",
+        level: 2,
+        headingSource: "Phase",
+        ancestry: [],
+        occurrence: 0,
+      },
+      {
+        artifact: "tasks-sample.md",
+        kind: "section",
+        level: 2,
+        headingSource: "Phase",
+        ancestry: [],
+        occurrence: 1,
+      },
+    ]);
+    expect(result.units[1]?.content).toContain("### Task\r\nbody\r\n");
+    expect(result.units[1]?.content).toContain("## fenced\r\n");
+    expect(Buffer.concat(result.units.map(({ bytes: unitBytes }) => Buffer.from(unitBytes))))
+      .toEqual(Buffer.from(original));
+    expect(resolveV3DecomposeContentLocator(
+      result.units,
+      result.units[2]?.locator,
+      "tasks-sample.md",
+    )).toEqual({ status: "resolved", unit: result.units[2] });
+  });
+
   it("preserves UTF-8 BOM and multibyte stored bytes exactly", () => {
     const source = "\uFEFFpréface\n## Héading\n😀\n";
     const original = bytes(source);

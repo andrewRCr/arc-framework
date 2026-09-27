@@ -3,28 +3,31 @@
 import { z } from "zod";
 
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
-import { DispositionApprovalSchema } from "./disposition-records.js";
-import { FixAuthorizationConsumptionSchema } from "./fix-authorization-records.js";
 import {
   FindingClassificationSchema,
-  FindingDispositionSchema,
   ReviewSeveritySchema,
 } from "./review-primitives.js";
 
 const EvidenceReferenceSchema = z.string().trim().min(1);
-const FindingIdentitySchema = z.string().trim().min(1).max(512);
-const FindingLocusSchema = z.string().trim().min(1).max(2048);
-const ReviewCanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
-const ReviewGateV2SemanticsSchema = z.literal("review-gate/v2");
-const ReviewIdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
-
-export const NormalizedReviewFindingSchema = z.strictObject({
-  findingId: FindingIdentitySchema,
+/** One finding key whose runtime equality matches canonical identity equality. */
+export const ReviewFindingIdentitySchema = z.string().trim().min(1).max(512)
+  .refine((value) => value.normalize("NFC") === value, {
+    message: "finding identity must use NFC-normalized Unicode",
+  });
+/** Bounded source location carried with a normalized review finding. */
+export const ReviewFindingLocusSchema = z.string().trim().min(1).max(2048);
+const MarkdownPunctuation = new Set(Array.from("\\`*_{}[]()#+.!|-~"));
+export const ReviewFindingSourceOrdinalSchema = z.int().positive();
+export const ReviewFindingSourceLabelSchema = z.string()
+  .refine((value) => value.trim().length > 0, { message: "source label must contain visible text" })
+  .refine((value) => Array.from(value).length <= 512, { message: "source label exceeds 512 Unicode code points" });
+export const ReviewFindingContentSchema = z.strictObject({
+  findingId: ReviewFindingIdentitySchema,
   severity: ReviewSeveritySchema,
   nit: z.literal(true).optional(),
-  locus: FindingLocusSchema,
+  locus: ReviewFindingLocusSchema,
   evidenceUrlOrId: EvidenceReferenceSchema,
-  recursFindingId: FindingIdentitySchema.optional(),
+  recursFindingId: ReviewFindingIdentitySchema.optional(),
 }).superRefine((finding, context) => {
   const classification = FindingClassificationSchema.safeParse({
     severity: finding.severity,
@@ -37,7 +40,77 @@ export const NormalizedReviewFindingSchema = z.strictObject({
     context.addIssue({ code: "custom", message: "a finding cannot recur from itself", path: ["recursFindingId"] });
   }
 });
+
+export const NormalizedReviewFindingSchema = ReviewFindingContentSchema.safeExtend({
+  sourceOrdinal: ReviewFindingSourceOrdinalSchema,
+  sourceLabel: ReviewFindingSourceLabelSchema.optional(),
+  sourceLabelTruncated: z.literal(true).optional(),
+}).superRefine((finding, context) => {
+  if (finding.sourceLabelTruncated === true
+    && (finding.sourceLabel === undefined || Array.from(finding.sourceLabel).length !== 512)) {
+    context.addIssue({
+      code: "custom",
+      message: "truncated source labels must retain a 512-code-point prefix",
+      path: ["sourceLabelTruncated"],
+    });
+  }
+});
 export type NormalizedReviewFinding = z.infer<typeof NormalizedReviewFindingSchema>;
+
+export const NormalizedReviewFindingsSchema = z.array(NormalizedReviewFindingSchema).superRefine(
+  (findings, context) => {
+    for (const [index, finding] of findings.entries()) {
+      if (finding.sourceOrdinal !== index + 1) {
+        context.addIssue({
+          code: "custom",
+          message: "source ordinal must match one-based capture order",
+          path: [index, "sourceOrdinal"],
+        });
+      }
+    }
+  },
+);
+
+function firstNonEmptyLine(value: string | null | undefined): string | undefined {
+  return value?.split(/\r?\n/u).find((line) => line.trim().length > 0);
+}
+
+/**
+ * Capture bounded navigation text from provider-owned title or body content.
+ *
+ * @param input - Provider title and body before downstream projection discards them.
+ * @returns A verbatim single-line prefix and truthful clipping marker, or no fields when text is absent.
+ */
+export function captureReviewFindingSourceLabel(input: {
+  title?: string | null;
+  body?: string | null;
+}): { sourceLabel?: string; sourceLabelTruncated?: true } {
+  const candidate = firstNonEmptyLine(input.title) ?? firstNonEmptyLine(input.body);
+  if (candidate === undefined) return {};
+  const codePoints = Array.from(candidate);
+  if (codePoints.length <= 512) return { sourceLabel: candidate };
+  const prefix = codePoints.slice(0, 512).join("");
+  return prefix.trim().length === 0
+    ? {}
+    : { sourceLabel: prefix, sourceLabelTruncated: true };
+}
+
+/**
+ * Escape provider-owned finding text for inert single-line Markdown display.
+ *
+ * @param value - Validated producer-owned text.
+ * @returns Text with line breaks collapsed, HTML delimiters encoded, and Markdown punctuation escaped.
+ */
+export function escapeReviewFindingDisplayText(value: string): string {
+  const encoded = value
+    .replace(/(?:\r\n|[\n\r\u2028\u2029])+/gu, " ")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+  return Array.from(encoded, (character) => MarkdownPunctuation.has(character)
+    ? `\\${character}`
+    : character).join("");
+}
 
 export const ProviderFindingSeveritySchema = z.enum(["critical", "high", "medium", "low", "info"]);
 export type ProviderFindingSeverity = z.infer<typeof ProviderFindingSeveritySchema>;
@@ -71,7 +144,7 @@ export function normalizeProviderFindingClassification(
   purePolish: boolean,
 ): z.infer<typeof FindingClassificationSchema> {
   const severity = providerSeverity === "critical"
-    ? "blocker"
+    ? "critical"
     : providerSeverity === "high" || providerSeverity === "medium"
       ? "major"
       : "minor";
@@ -81,71 +154,10 @@ export function normalizeProviderFindingClassification(
   });
 }
 
-export const FindingSettlementV2Schema = z.strictObject({
-  schemaVersion: z.literal(2),
-  semanticsVersion: ReviewGateV2SemanticsSchema,
-  targetId: ReviewCanonicalDigestSchema,
-  dispositionSetId: ReviewCanonicalDigestSchema,
-  approval: DispositionApprovalSchema,
-  findingId: FindingIdentitySchema,
-  sourceIdentity: ReviewIdentifierSchema,
-  severity: ReviewSeveritySchema,
-  nit: z.literal(true).optional(),
-  disposition: FindingDispositionSchema,
-  rationale: z.string().trim().min(1).max(4096),
-  settledBy: ReviewIdentifierSchema,
-  settledAt: z.iso.datetime({ offset: true }),
-  fixTargetId: ReviewCanonicalDigestSchema.nullable(),
-  fixConsumption: FixAuthorizationConsumptionSchema.nullable(),
-  verificationRefs: z.array(EvidenceReferenceSchema),
-}).superRefine((settlement, context) => {
-  const classification = FindingClassificationSchema.safeParse({
-    severity: settlement.severity,
-    ...(settlement.nit === undefined ? {} : { nit: settlement.nit }),
-  });
-  if (!classification.success) {
-    context.addIssue({ code: "custom", message: "nit is valid only for minor findings", path: ["nit"] });
-  }
-  const fixesTarget = settlement.fixTargetId !== null;
-  const consumesAuthorization = settlement.fixConsumption !== null;
-  if ((settlement.disposition === "fix") !== fixesTarget
-    || (settlement.disposition === "fix") !== consumesAuthorization) {
-    context.addIssue({
-      code: "custom",
-      message: "only fix dispositions bind a resulting target",
-      path: ["fixTargetId"],
-    });
-  }
-  if (settlement.disposition === "fix" && settlement.verificationRefs.length === 0) {
-    context.addIssue({
-      code: "custom",
-      message: "fix dispositions require verification evidence",
-      path: ["verificationRefs"],
-    });
-  }
-  if (settlement.fixConsumption !== null
-    && (settlement.fixConsumption.oldTargetId !== settlement.targetId
-      || settlement.fixConsumption.newTargetId !== settlement.fixTargetId
-      || settlement.fixConsumption.dispositionSetId !== settlement.dispositionSetId
-      || settlement.fixConsumption.appliedBy !== settlement.settledBy
-      || settlement.fixConsumption.verificationRefs.length !== settlement.verificationRefs.length
-      || settlement.fixConsumption.verificationRefs.some(
-        (reference, index) => reference !== settlement.verificationRefs[index],
-      ))) {
-    context.addIssue({ code: "custom", message: "fix consumption must bind the exact settlement", path: ["fixConsumption"] });
-  }
-});
-export type FindingSettlementV2 = z.infer<typeof FindingSettlementV2Schema>;
-
 /** Register finding-domain records at their semantic owner. */
 export function registerFindingRecordSchemas(registry: KernelRegistry): KernelRegistry {
   registry.register(NormalizedReviewFindingSchema, {
     id: "normalized-review-finding",
-    version: 2,
-    migrationPosture: "strict-current",
-  });
-  registry.register(FindingSettlementV2Schema, {
-    id: "finding-settlement",
     version: 2,
     migrationPosture: "strict-current",
   });

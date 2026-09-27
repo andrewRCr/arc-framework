@@ -61,6 +61,7 @@ export function authorizeSubmission(input: {
   expectedCandidateId: string;
   expectedCandidateSubjectDigest: string;
   boundary: IntegrationBoundaryLocus;
+  currentStandardLaneOwnerVersion?: number;
 }): SubmissionAuthorization {
   const boundary = parseIntegrationBoundaryLocus(input.boundary);
   if (boundary.candidateId !== input.expectedCandidateId) {
@@ -79,6 +80,41 @@ export function authorizeSubmission(input: {
     return {
       status: "refused",
       reason: `Candidate pre-publication obligations remain open (${boundary.locus}).`,
+    };
+  }
+  if (input.currentStandardLaneOwnerVersion !== undefined
+    && boundary.standardLaneOwnerVersion !== input.currentStandardLaneOwnerVersion) {
+    return {
+      status: "refused",
+      reason: "Standard review progress changed after publication readiness was recorded.",
+    };
+  }
+  return { status: "authorized", reservation: boundary.reservation, terminus: boundary.terminus };
+}
+
+function authorizeActivePublication(input: {
+  candidateId: string;
+  candidateSubjectDigest: string;
+  boundary: IntegrationBoundaryLocus;
+  standardLaneOwnerVersion: number;
+}): SubmissionAuthorization {
+  const { boundary, candidateId, candidateSubjectDigest, standardLaneOwnerVersion } = input;
+  if (boundary.locus !== "publication-pending") {
+    return authorizeSubmission({
+      expectedCandidateId: candidateId,
+      expectedCandidateSubjectDigest: candidateSubjectDigest,
+      boundary,
+      currentStandardLaneOwnerVersion: standardLaneOwnerVersion,
+    });
+  }
+  if (boundary.candidateId !== candidateId
+    || boundary.candidateSubjectDigest !== candidateSubjectDigest) {
+    return { status: "refused", reason: "Publication boundary does not match the current Candidate." };
+  }
+  if (boundary.standardLaneOwnerVersion !== standardLaneOwnerVersion) {
+    return {
+      status: "refused",
+      reason: "Standard review progress changed after the publication claim was recorded.",
     };
   }
   return { status: "authorized", reservation: boundary.reservation, terminus: boundary.terminus };
@@ -106,6 +142,8 @@ export interface PublishParams {
     candidateSubjectDigest: string;
     candidateCurrent: boolean;
   }>;
+  /** Re-read the live Candidate standard-lane owner before relying on saved readiness. */
+  readStandardLaneOwnerVersion(): Promise<number>;
   /** Version-check and persist the exact publication claim before lifecycle mutation begins. */
   claimPublicationBoundary(boundary: IntegrationBoundaryLocus): Promise<void>;
   /** Explicit authority to retain advisory-only reconcile findings while entering review. */
@@ -127,7 +165,7 @@ const CANDIDATE_REMEDY = (name: string): SpineRemedy => spineRemedy(
 const PRE_PUBLICATION_REMEDY = (name: string): SpineRemedy => spineRemedy(
   "Submission requires a pre-publication boundary written for the current reviewable content.",
   "Re-run pre-publication review",
-  ["arc", "review", "pre-publication", name, "--json"],
+  ["arc", "review", "pre-publication", name],
 );
 
 const RECONCILE_REMEDY = (name: string): SpineRemedy => spineRemedy(
@@ -321,16 +359,12 @@ export async function runPublish(
     }
     return { status: "unchanged", boundary: IntegrationBoundaryLocusSchema.parse(boundary) };
   }
-  const authorization = lifecycle === "Active"
-    && boundary.locus === "publication-pending"
-    && boundary.candidateId === candidateId
-    && boundary.candidateSubjectDigest === candidateSubjectDigest
-    ? { status: "authorized" as const, reservation: boundary.reservation, terminus: boundary.terminus }
-    : authorizeSubmission({
-        expectedCandidateId: candidateId,
-        expectedCandidateSubjectDigest: candidateSubjectDigest,
-        boundary,
-      });
+  const authorization = authorizeActivePublication({
+    candidateId,
+    candidateSubjectDigest,
+    boundary,
+    standardLaneOwnerVersion: await params.readStandardLaneOwnerVersion(),
+  });
   if (authorization.status === "refused") {
     return {
       status: "rejected",
@@ -346,6 +380,9 @@ export async function runPublish(
       candidateSubjectDigest,
       reservation: authorization.reservation,
       terminus: authorization.terminus,
+      ...("standardLaneOwnerVersion" in boundary
+        ? { standardLaneOwnerVersion: boundary.standardLaneOwnerVersion }
+        : {}),
       changeRequest: null,
     });
     if (currentWorkflow === "integrate-work-unit") {
@@ -427,15 +464,12 @@ export async function runPublish(
       remedy: CANDIDATE_REMEDY(name),
     };
   }
-  const refreshedAuthorization = boundary.locus === "publication-pending"
-    && boundary.candidateId === refreshed.candidateId
-    && boundary.candidateSubjectDigest === refreshed.candidateSubjectDigest
-    ? { status: "authorized" as const, reservation: boundary.reservation, terminus: boundary.terminus }
-    : authorizeSubmission({
-        expectedCandidateId: refreshed.candidateId,
-        expectedCandidateSubjectDigest: refreshed.candidateSubjectDigest,
-        boundary,
-      });
+  const refreshedAuthorization = authorizeActivePublication({
+    candidateId: refreshed.candidateId,
+    candidateSubjectDigest: refreshed.candidateSubjectDigest,
+    boundary,
+    standardLaneOwnerVersion: await params.readStandardLaneOwnerVersion(),
+  });
   if (refreshedAuthorization.status === "refused") {
     return {
       status: "rejected",
@@ -450,6 +484,9 @@ export async function runPublish(
     candidateSubjectDigest: refreshed.candidateSubjectDigest,
     reservation: refreshedAuthorization.reservation,
     terminus: refreshedAuthorization.terminus,
+    ...("standardLaneOwnerVersion" in boundary
+      ? { standardLaneOwnerVersion: boundary.standardLaneOwnerVersion }
+      : {}),
     // Submission fires at the head of the publication step, before the change request exists, so a
     // carried reservation has nothing to run against yet.
     changeRequest: null,

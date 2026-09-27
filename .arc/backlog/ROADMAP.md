@@ -13,26 +13,24 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                       | Priority | Owner  | Depends on                      | Cohort                    |
-| ---------- | ------------------------------- | -------- | ------ | ------------------------------- | ------------------------- |
-| `Active`   | decompose-conservation-coverage | P1       | andrew | —                               | decompose-core-hardening  |
-| `Active`   | review-signal-convergence       | P1       | andrew | —                               | review-protocol-alignment |
-| `Planning` | decomposition-doctrine          | P1       | andrew | decompose-conservation-coverage | —                         |
-| `Planning` | evidence-applicability          | P1       | andrew | —                               | —                         |
-| `Active`   | local-ci-capacity-qualification | P1       | andrew | —                               | —                         |
-| `Planning` | plan-amendment                  | P1       | andrew | —                               | —                         |
-| `Planning` | review-checkout-lifecycle       | P1       | andrew | —                               | —                         |
-| `Planning` | stub-mint-to-launch             | P1       | andrew | —                               | —                         |
-| `Planning` | test-suite-right-sizing         | P2       | andrew | —                               | —                         |
+| State      | Work unit                       | Priority | Owner  | Depends on | Cohort |
+| ---------- | ------------------------------- | -------- | ------ | ---------- | ------ |
+| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —          | —      |
+| `Planning` | decomposition-doctrine          | P1       | andrew | —          | —      |
+| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —          | —      |
+| `Planning` | review-checkout-lifecycle       | P1       | andrew | —          | —      |
+| `Planning` | stub-mint-to-launch             | P1       | andrew | —          | —      |
 
 ## Ready
 
 | Work unit                           | Priority | Owner  | Depends on | Cohort                     |
 | ----------------------------------- | -------- | ------ | ---------- | -------------------------- |
+| errand-autonomous-advance           | P1       | andrew | —          | approval-flow-refinement   |
 | interlock-release-refinement        | P1       | andrew | —          | approval-flow-refinement   |
 | lifecycle-advancement-provenance    | P1       | andrew | —          | approval-flow-refinement   |
 | host-policy-evidence                | P1       | andrew | —          | review-protocol-alignment  |
 | review-evaluator-isolation          | P1       | andrew | —          | review-protocol-alignment  |
+| review-source-authority             | P1       | andrew | —          | review-protocol-alignment  |
 | ci-defer-heavy-reconciliation       | P1       | andrew | —          | —                          |
 | cross-worktree-git-state-safety     | P1       | andrew | —          | —                          |
 | delivery-correction-convergence     | P1       | andrew | —          | —                          |
@@ -40,8 +38,10 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | locus-claim-revalidation            | P1       | andrew | —          | —                          |
 | recovery-hardening                  | P1       | andrew | —          | —                          |
 | recurring-errand-pr-resolution      | P1       | andrew | —          | —                          |
+| review-operation-state-isolation    | P1       | andrew | —          | —                          |
 | roadmap-tooling                     | P1       | andrew | —          | —                          |
 | session-init-performance            | P1       | andrew | —          | —                          |
+| singleton-integration-continuity    | P1       | andrew | —          | —                          |
 | verification-falsification-contract | P1       | andrew | —          | —                          |
 | wu-lifecycle-state-model            | P1       | andrew | —          | —                          |
 | composable-workflows                | P2       | andrew | —          | agent-context-optimization |
@@ -69,6 +69,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | handoff-optimization                | P3       | andrew | —          | agent-context-optimization |
 | ci-cross-platform-hardening         | P3       | andrew | —          | architecture-remediation   |
 | lib-layer-type-extraction           | P3       | andrew | —          | architecture-remediation   |
+| oversized-function-remediation      | P3       | andrew | —          | architecture-remediation   |
 | schema-introspection-layer          | P3       | andrew | —          | architecture-remediation   |
 | sync-handler-decomposition          | P3       | andrew | —          | architecture-remediation   |
 | user-sync-module-split              | P3       | andrew | —          | architecture-remediation   |
@@ -89,6 +90,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | cohort-cut-coherence                | P3       | andrew | —          | —                          |
 | cold-start-init-polish              | P3       | andrew | —          | —                          |
 | contributor-path                    | P3       | andrew | —          | —                          |
+| errand-promotion-concurrency        | P3       | andrew | —          | —                          |
 | external-coord-probe                | P3       | andrew | —          | —                          |
 | external-pm-composition             | P3       | andrew | —          | —                          |
 | grok-compaction-recovery            | P3       | andrew | —          | —                          |
@@ -110,7 +112,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | Work unit                     | Priority | Owner  | Depends on                                                  | Cohort                     |
 | ----------------------------- | -------- | ------ | ----------------------------------------------------------- | -------------------------- |
-| review-source-authority       | P1       | andrew | review-signal-convergence                                   | review-protocol-alignment  |
+| review-activity-contracts     | P1       | andrew | review-source-authority                                     | review-protocol-alignment  |
 | unit-scoped-review            | P2       | andrew | commit-increments                                           | approval-flow-refinement   |
 | documentation-surface-routing | P3       | andrew | handoff-optimization                                        | agent-context-optimization |
 | instruction-optimization      | P3       | andrew | composable-workflows                                        | agent-context-optimization |
@@ -118,22 +120,15 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | docs-content-sweep            | P3       | andrew | docs-site-refresh                                           | release-readiness          |
 | comprehension-preservation    | P3       | andrew | execution-delegation-doctrine                               | —                          |
 | local-mode                    | P3       | andrew | operational-state-docs, scalable-core, composable-workflows | —                          |
-| self-hosted-ci-qualification  | P3       | andrew | local-ci-capacity-qualification                             | —                          |
 
 ### Depth 2
-
-| Work unit                 | Priority | Owner  | Depends on              | Cohort                    |
-| ------------------------- | -------- | ------ | ----------------------- | ------------------------- |
-| review-activity-contracts | P1       | andrew | review-source-authority | review-protocol-alignment |
-| wu5-public-release        | P3       | andrew | docs-content-sweep      | release-readiness         |
-
-### Depth 3
 
 | Work unit                | Priority | Owner  | Depends on                | Cohort                    |
 | ------------------------ | -------- | ------ | ------------------------- | ------------------------- |
 | review-request-contracts | P1       | andrew | review-activity-contracts | review-protocol-alignment |
+| wu5-public-release       | P3       | andrew | docs-content-sweep        | release-readiness         |
 
-### Depth 4
+### Depth 3
 
 | Work unit                   | Priority | Owner  | Depends on               | Cohort           |
 | --------------------------- | -------- | ------ | ------------------------ | ---------------- |

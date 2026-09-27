@@ -140,6 +140,26 @@ describe("branch-derived delivery facts", () => {
     })).resolves.toEqual({ status: "refused", reason: "merge-tree-write-tree-unsupported" });
   });
 
+  it("refuses a base absorb when its ancestry read is unavailable", async () => {
+    const exec = createRawGitExec(repository);
+    let ancestryReadFailed = false;
+    const failingExec: typeof exec = async (args, options) => {
+      if (args[0] === "merge-base" && args[1] === "--is-ancestor"
+        && args[2] === baseAdvance && args[3] === baseAdvance) {
+        ancestryReadFailed = true;
+        throw new Error("synthetic ancestry read failure");
+      }
+      return exec(args, options);
+    };
+
+    await expect(inspectDeliveryBranch({
+      exec: failingExec,
+      base: "main",
+      head: "HEAD",
+    })).resolves.toEqual({ status: "refused", reason: "ambient-purity-unproven" });
+    expect(ancestryReadFailed).toBe(true);
+  });
+
   it("uses an explicit historical base line instead of the moving configured base", async () => {
     const result = await inspectDeliveryBranch({
       exec: createRawGitExec(repository),
@@ -211,6 +231,24 @@ describe("branch-derived delivery facts", () => {
       base: "main",
       head: "HEAD",
     })).resolves.toEqual({ status: "refused", reason: "ambient-purity-unproven" });
+
+    const currentBase = await oid(repository, "main");
+    const exec = createRawGitExec(repository);
+    let ancestryReadFailed = false;
+    const failingExec: typeof exec = async (args, options) => {
+      if (args[0] === "merge-base" && args[1] === "--is-ancestor"
+        && args[2] === currentBase && args[3] === currentBase) {
+        ancestryReadFailed = true;
+        throw new Error("synthetic ancestry read failure");
+      }
+      return exec(args, options);
+    };
+    await expect(inspectDeliveryBranch({
+      exec: failingExec,
+      base: "main",
+      head: "HEAD",
+    })).resolves.toEqual({ status: "refused", reason: "ambient-purity-unproven" });
+    expect(ancestryReadFailed).toBe(true);
   });
 
   it("preserves arbitrary rename endpoints in cumulative contribution shape", async () => {
@@ -306,7 +344,7 @@ describe("branch-derived delivery facts", () => {
     const projection = resolveDeliveryFromBranchProjection({
       snapshot: prepared.snapshot,
       slots: DeliveryAuthoringSlotsV1Schema.parse({
-        projection: { kind: "wu-integration-target" },
+        projection: { kind: "stack-to-main" },
         boundary: {
           kind: "explicit",
           segments: [
@@ -486,7 +524,7 @@ describe("branch-derived delivery facts", () => {
     expect(resolveDeliveryFromBranchProjection({
       snapshot: prepared.snapshot,
       slots: DeliveryAuthoringSlotsV1Schema.parse({
-        projection: { kind: "wu-integration-target" },
+        projection: { kind: "stack-to-main" },
         boundary: {
           kind: "explicit",
           segments: [{
@@ -527,7 +565,7 @@ describe("branch-derived delivery facts", () => {
     expect(prepared.status).toBe("prepared");
     if (prepared.status !== "prepared") return;
     const slots = DeliveryAuthoringSlotsV1Schema.parse({
-      projection: { kind: "wu-integration-target" },
+      projection: { kind: "stack-to-main" },
       boundary: {
         kind: "explicit",
         segments: [{
@@ -613,7 +651,7 @@ describe("branch-derived delivery facts", () => {
     const projection = resolveDeliveryFromBranchProjection({
       snapshot: prepared.snapshot,
       slots: DeliveryAuthoringSlotsV1Schema.parse({
-        projection: { kind: "wu-integration-target" },
+        projection: { kind: "stack-to-main" },
         boundary: {
           kind: "explicit",
           segments: [{
@@ -627,6 +665,46 @@ describe("branch-derived delivery facts", () => {
     });
     expect(projection.status).toBe("resolved");
   });
+
+  it("refuses a retired projection before producing a from-branch authoring projection", async () => {
+    const prepared = await prepareDeliveryFromBranchAuthoring({
+      mapId: "branch-map",
+      planId: "4bce3788-2bd7-49ee-9f7f-af6c28f47bc1",
+      workUnitId: "demo",
+      expectedCurrentPlanDigest: null,
+      taskListPath: ".arc/active/tasks-demo.md",
+      taskListContent: taskListFixture(),
+      designInventory: {
+        artifacts: [{
+          artifactId: "spec-demo.md",
+          revisionDigest: `sha256:${"1".repeat(64)}`,
+          form: "detailed",
+          elements: [],
+        }],
+      },
+      exec: createRawGitExec(repository),
+      base: "main",
+      head: "HEAD",
+    });
+    expect(prepared.status).toBe("prepared");
+    if (prepared.status !== "prepared") return;
+
+    expect(resolveDeliveryFromBranchProjection({
+      snapshot: prepared.snapshot,
+      slots: {
+        projection: { kind: "wu-integration-target" },
+        boundary: {
+          kind: "explicit",
+          segments: [{
+            chunkKey: "only",
+            sourceIds: prepared.inspection.contributionStepIds,
+          }],
+        },
+        members: [memberSlot("only")],
+        seams: [],
+      } as unknown as Parameters<typeof resolveDeliveryFromBranchProjection>[0]["slots"],
+    })).toEqual({ status: "refused", reason: "authoring-projection-invalid" });
+  });
 });
 
 function memberSlot(chunkKey: string) {
@@ -635,7 +713,7 @@ function memberSlot(chunkKey: string) {
     title: `${chunkKey} member`,
     contract: `Publish the ${chunkKey} contribution`,
     designElementIds: [],
-    mainlineLandability: "integration-only" as const,
+    mainlineLandability: "independently-landable" as const,
   };
 }
 

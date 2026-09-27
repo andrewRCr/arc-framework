@@ -21,11 +21,16 @@ const member = {
   headRef: "delivery/plan-1/member-1",
   head: HEAD,
   candidateHead: HEAD,
+  successorHeads: [],
   isFinalMember: false,
 };
 
 function lookup(result: DeliveryMemberLookupResult) {
-  return { resolveMemberByHead: async () => result };
+  return {
+    resolveMemberByHead: async () => result,
+    resolveMemberByRef: async () => result,
+    resolveMemberByVehicle: async () => result,
+  };
 }
 
 describe("review subject resolution", () => {

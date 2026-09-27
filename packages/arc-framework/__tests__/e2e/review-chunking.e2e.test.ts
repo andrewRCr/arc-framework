@@ -65,7 +65,7 @@ async function enabledRepository(): Promise<{
 
 function runStdin(cwd: string, input: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [CLI_PATH, "review", "chunking", "resolve", "-"], {
+    const child = spawn(process.execPath, [CLI_PATH, "review", "changeset", "resolve", "-"], {
       cwd,
       stdio: "pipe",
     });
@@ -87,7 +87,7 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
 
-describe("arc review chunking resolve", () => {
+describe("arc review changeset resolve", () => {
   it("supports file success and stdin error with one JSON envelope each", async () => {
     const root = await mkdtemp(join(tmpdir(), "arc-review-chunking-e2e-"));
     roots.push(root);
@@ -106,7 +106,7 @@ describe("arc review chunking resolve", () => {
     const inputPath = join(root, "request.json");
     await writeFile(inputPath, request({ diffBaseSha: head, headSha: head }));
 
-    const success = await runCli(["review", "chunking", "resolve", inputPath], { cwd: root });
+    const success = await runCli(["review", "changeset", "resolve", inputPath], { cwd: root });
     expect(success.exitCode).toBe(0);
     expect(success.stderr).not.toMatch(/prompt|review provider/iu);
     expect(success.stdout.trim().split("\n"), success.stdout).toHaveLength(1);

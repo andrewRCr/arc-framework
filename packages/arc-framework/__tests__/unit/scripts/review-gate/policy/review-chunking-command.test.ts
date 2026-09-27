@@ -98,35 +98,41 @@ describe("resolveReviewChunkingCommand", () => {
     });
   });
 
-  it("returns scope-selected only for an exact current-target selection", async () => {
-    const result = await resolveReviewChunkingCommand({
-      ...request,
-      scopeSelection: { mode: "chunked", target },
-    }, {
-      readSettings: async () => config("1", "0"),
-      readDeliveryBinding: authoritativeUnbound,
-      exec: async () => ({ stdout: new TextEncoder().encode("1\t0\tfile.txt\0") }),
-    });
-    expect(result).toMatchObject({ state: "scope-selected", nextAction: "continue-review" });
-  });
+  it.each(["chunked", "whole-target"] as const)(
+    "returns scope-selected for an exact current-target %s selection",
+    async (mode) => {
+      const result = await resolveReviewChunkingCommand({
+        ...request,
+        scopeSelection: { mode, target },
+      }, {
+        readSettings: async () => config("1", "0"),
+        readDeliveryBinding: authoritativeUnbound,
+        exec: async () => ({ stdout: new TextEncoder().encode("1\t0\tfile.txt\0") }),
+      });
+      expect(result).toMatchObject({ state: "scope-selected", nextAction: "continue-review" });
+    },
+  );
 
-  it("rejects a stale selected target", async () => {
-    const { targetId, ...targetInput } = target;
-    void targetId;
-    const staleTarget = createReviewTarget({
-      ...targetInput,
-      headSha: "e".repeat(40),
-      headTree: "f".repeat(40),
-    });
-    await expect(resolveReviewChunkingCommand({
-      ...request,
-      scopeSelection: { mode: "chunked", target: staleTarget },
-    }, {
-      readSettings: async () => config("1", "0"),
-      readDeliveryBinding: authoritativeUnbound,
-      exec: async () => ({ stdout: new Uint8Array() }),
-    })).rejects.toMatchObject({ code: "invalid-input" });
-  });
+  it.each(["chunked", "whole-target"] as const)(
+    "rejects a stale selected %s target",
+    async (mode) => {
+      const { targetId, ...targetInput } = target;
+      void targetId;
+      const staleTarget = createReviewTarget({
+        ...targetInput,
+        headSha: "e".repeat(40),
+        headTree: "f".repeat(40),
+      });
+      await expect(resolveReviewChunkingCommand({
+        ...request,
+        scopeSelection: { mode, target: staleTarget },
+      }, {
+        readSettings: async () => config("1", "0"),
+        readDeliveryBinding: authoritativeUnbound,
+        exec: async () => ({ stdout: new Uint8Array() }),
+      })).rejects.toMatchObject({ code: "invalid-input" });
+    },
+  );
 
   it("returns one bound-delivery remedy", async () => {
     const result = await resolveReviewChunkingCommand(request, {

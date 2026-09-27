@@ -29,12 +29,14 @@ const binding = {
   dispositionSetId: request.response.dispositionSetId,
   actorIdentity: "44483269",
   target,
-  findings: [{
-    findingId: "finding-1",
-    origin: "review-thread" as const,
-    commentId: "comment-1",
-    threadId: "thread-1",
-  }],
+  sealedResult: {
+    findings: [{
+      findingId: "finding-1",
+      origin: "review-thread" as const,
+      commentId: "comment-1",
+      threadId: "thread-1",
+    }],
+  },
 };
 
 describe("explainHostedSettlementBindingMismatch", () => {

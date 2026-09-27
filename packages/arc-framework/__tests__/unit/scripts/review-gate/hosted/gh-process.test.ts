@@ -14,6 +14,7 @@ import {
   type HostedAwaitClock,
 } from "../../../../../src/scripts/review-gate/hosted/await.js";
 import type { HostedTarget } from "../../../../../src/scripts/review-gate/hosted/request.js";
+import { createHostedHandleFixture } from "../../../../fixtures/hosted-review.js";
 
 const HEAD = "a".repeat(40);
 const target: HostedTarget = { repository: "owner/repo", pullRequest: 42, headSha: HEAD };
@@ -52,6 +53,7 @@ function comment(id: number) {
     originalLine: id,
     commit: { oid: HEAD },
     pullRequestReview: { id: "PRR_1" },
+    replyTo: null,
     author: { databaseId: 123 },
   };
 }
@@ -92,19 +94,18 @@ describe("hosted GitHub process boundary", () => {
 
     await expect(awaitHostedReview({
       schemaVersion: 1,
-      handle: {
-        schemaVersion: 1,
+      handle: createHostedHandleFixture({
         provider: "coderabbit-pr",
+        target,
         requestedCoverage: "complete",
         effectiveCoverage: "complete",
-        target,
         artifact: {
           kind: "issue-comment",
           id: "IC_1",
           url: "https://github.com/owner/repo/pull/42#issuecomment-1",
           createdAt: "2026-07-24T12:00:00Z",
         },
-      },
+      }),
       timeoutMs: 10,
       pollIntervalMs: 5,
     }, {
@@ -181,6 +182,7 @@ describe("hosted GitHub process boundary", () => {
                     originalLine: 7,
                     commit: { oid: HEAD },
                     pullRequestReview: { id: "PRR_1" },
+                    replyTo: null,
                     author: null,
                   }],
                   pageInfo: { hasNextPage: false },
@@ -244,7 +246,7 @@ describe("hosted GitHub process boundary", () => {
           node: {
             id: "PRRT_1",
             comments: {
-              nodes: [comment(2)],
+              nodes: [{ ...comment(2), replyTo: { pullRequestReview: { id: "PRR_OLD" } } }],
               pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
@@ -254,8 +256,11 @@ describe("hosted GitHub process boundary", () => {
     const port = new GhHostedReviewPort(mock.boundary);
 
     await expect(port.readThreads(target)).resolves.toMatchObject([
-      { id: "PRRT_1", comments: [{ id: "1" }, { id: "2" }] },
-      { id: "PRRT_2", comments: [{ id: "3" }] },
+      { id: "PRRT_1", comments: [
+        { id: "1", replyToReviewId: null },
+        { id: "2", replyToReviewId: "PRR_OLD" },
+      ] },
+      { id: "PRRT_2", comments: [{ id: "3", replyToReviewId: null }] },
     ]);
     expect(mock.calls[1]?.args).toEqual(expect.arrayContaining(["-F", "threadCursor=THREADS_1"]));
     expect(mock.calls[2]?.args).toEqual(expect.arrayContaining([

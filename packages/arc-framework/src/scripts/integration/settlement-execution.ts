@@ -10,6 +10,7 @@ import type {
 import {
   CanonicalSettlementPlanSchema,
   type CanonicalSettlementPlan,
+  type CandidateResponseConfirmationAction,
 } from "./settlement-plan.js";
 
 export const SettlementInvalidationReasonSchema = z.enum([
@@ -17,6 +18,7 @@ export const SettlementInvalidationReasonSchema = z.enum([
   "stale",
   "ambiguous",
   "actor-mismatched",
+  "fix-not-performed",
 ]);
 export type SettlementInvalidationReason = z.infer<typeof SettlementInvalidationReasonSchema>;
 
@@ -44,6 +46,9 @@ export interface ReviewResponseSettlementReplay {
 export interface SettlementExecutionDependencies {
   settleHosted(request: HostedSettleEnvelope): Promise<HostedSettleResult>;
   settleReviewResponse(input: ReviewResponseSettlementReplay): Promise<{ state: string }>;
+  confirmCandidateResponse(
+    action: CandidateResponseConfirmationAction,
+  ): Promise<{ state: "confirmed" } | { state: "invalidated"; reason: SettlementInvalidationReason }>;
 }
 
 /**
@@ -56,6 +61,7 @@ function reviewResponseInvalidation(state: string): SettlementInvalidationReason
   if (state === "missing-record") return "missing";
   if (state === "stale-target") return "stale";
   if (state === "actor-mismatch") return "actor-mismatched";
+  if (state === "fix-not-performed") return "fix-not-performed";
   return "ambiguous";
 }
 
@@ -78,12 +84,15 @@ export async function executeSettlementPlan(
     let reason: SettlementInvalidationReason | null;
     if (action.channel === "hosted") {
       reason = hostedInvalidation(await dependencies.settleHosted(action.request));
-    } else {
+    } else if (action.channel === "review-response") {
       const result = await dependencies.settleReviewResponse({
         request: action.request,
         fixTarget: action.fixTarget,
       });
       reason = reviewResponseInvalidation(result.state);
+    } else {
+      const result = await dependencies.confirmCandidateResponse(action);
+      reason = result.state === "confirmed" ? null : result.reason;
     }
     if (reason !== null) {
       return { state: "invalidated", reason, dispositionId: action.dispositionId, completedActions };

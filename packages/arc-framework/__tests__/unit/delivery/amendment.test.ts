@@ -38,7 +38,7 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
       ],
     },
     entry: "from-tasks",
-    projection: { kind: "wu-integration-target" },
+    projection: { kind: "stack-to-main" },
     members: [
       {
         chunkKey: "first",
@@ -46,7 +46,7 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
         contract: "Publish the first contract.",
         taskIds: ["1.1", "1.2"],
         designElementIds: ["detailed:core-contract"],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       },
       {
         chunkKey: "second",
@@ -54,7 +54,7 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
         contract: "Publish the second contract.",
         taskIds: ["1.3", "1.4"],
         designElementIds: ["detailed:support-contract"],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       },
       {
         chunkKey: "third",
@@ -62,7 +62,7 @@ function authoringInput(): DeliveryPlanAuthoringInputV1 {
         contract: "Publish the third contract.",
         taskIds: ["1.5", "1.6"],
         designElementIds: ["detailed:tail-contract"],
-        mainlineLandability: "integration-only",
+        mainlineLandability: "independently-landable",
       },
     ],
     seams: [],
@@ -298,16 +298,26 @@ describe("classifyDeliveryPlanAmendment", () => {
       reason: "landed-member-changed",
     });
 
-    const projected = successor(current, (authoring) => {
-      authoring.projection = { kind: "stack-to-main" };
-      for (const member of authoring.members) member.mainlineLandability = "independently-landable";
-    });
-    expect(classify({ current, proposed: projected })).toEqual({ status: "accepted" });
-    expect(classify({ current, proposed: projected, bound: [secondId] })).toEqual({
+    const retiredAuthoring = structuredClone(authoringInput()) as unknown as DeliveryPlanAuthoringInputV1;
+    (retiredAuthoring as unknown as { projection: { kind: string } }).projection = {
+      kind: "wu-integration-target",
+    };
+    for (const member of retiredAuthoring.members as unknown as Array<{
+      mainlineLandability: string;
+    }>) member.mainlineLandability = "integration-only";
+    const retiredCurrent = constructPlan(null, retiredAuthoring);
+    const projected = successor(retiredCurrent, () => undefined);
+    expect(classify({ current: retiredCurrent, proposed: projected })).toEqual({ status: "accepted" });
+    expect(classify({ current: retiredCurrent, proposed: projected, bound: [secondId] })).toEqual({
       status: "replacement-required",
       affectedDeliverableIds: [secondId],
     });
-    expect(classify({ current, proposed: projected, bound: [firstId], landed: [firstId] })).toEqual({
+    expect(classify({
+      current: retiredCurrent,
+      proposed: projected,
+      bound: [firstId],
+      landed: [firstId],
+    })).toEqual({
       status: "refused",
       reason: "landed-projection-changed",
     });

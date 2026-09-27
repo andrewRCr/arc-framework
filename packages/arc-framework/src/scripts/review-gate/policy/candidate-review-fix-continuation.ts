@@ -6,14 +6,20 @@ import {
 } from "../../../lib/work-unit/candidate-attestation.js";
 import type { GitExec } from "../../../lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
-import { SlugSchema, sortByCanonicalBytes } from "../../../lib/kernel/index.js";
-import type { ApprovedDispositionRecord } from "../core/advisory-records.js";
+import { canonicalize, SlugSchema, sortByCanonicalBytes } from "../../../lib/kernel/index.js";
+import {
+  currentApprovedDispositionNode,
+  type ApprovedDispositionRecord,
+} from "../core/advisory-records.js";
 import { validateFixAuthorization } from "../core/fix-authorization.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
+import { frontlineResponseBindingMatchesTarget } from
+  "../core/frontline-response-binding.js";
 import { parseReviewSourceReference } from "../core/review-source-reference.js";
 import { LocalFrontlineOutcomeStore } from "../hosts/local/frontline-outcome-store.js";
 import { LocalApprovedDispositionRecordStore } from "../hosts/local/disposition-record-store.js";
 import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
+import { computeFrontlineSourceBindingId } from "./frontline-operation.js";
 
 export type PendingCandidateReviewFixAuthority =
   | { readonly status: "none" }
@@ -48,25 +54,31 @@ type PendingCandidateReviewFixRecord =
     };
 
 function recordHasExactPendingCandidateFixAuthority(record: ApprovedDispositionRecord): boolean {
-  const authorization = record.fixAuthorization;
-  if (record.candidate === null || record.errand !== null || record.deliveryMember !== null
-    || authorization === null) return false;
+  const current = currentApprovedDispositionNode(record);
+  const authorization = current.fixAuthorization;
+  const candidateOwnedPrivateMember = record.deliveryMember !== null
+    && record.candidate !== null
+    && record.source.kind === "frontline"
+    && record.candidate.workUnit === record.deliveryMember.workUnitId
+    && authorization?.oldHeadSha === record.deliveryMember.head;
+  if (record.candidate === null || record.errand !== null || authorization === null
+    || (record.deliveryMember !== null && !candidateOwnedPrivateMember)) return false;
   try {
     validateFixAuthorization(authorization);
   } catch {
     return false;
   }
   const authorizedFindingIds = sortByCanonicalBytes(
-    record.approvedDisposition.dispositionSet.findings
+    current.approvedDisposition.dispositionSet.findings
       .filter(({ disposition }) => disposition === "fix")
       .map(({ findingId }) => findingId),
   );
   return authorizedFindingIds.length > 0
     && JSON.stringify(authorization.authorizedFindingIds) === JSON.stringify(authorizedFindingIds)
-    && authorization.authorizedBy === record.approvedDisposition.approval.approvedBy
+    && authorization.authorizedBy === current.approvedDisposition.approval.approvedBy
     && authorization.dispositionSetId
-      === record.approvedDisposition.dispositionSet.dispositionSetId
-    && authorization.oldTargetId === record.approvedDisposition.dispositionSet.targetId;
+      === current.approvedDisposition.dispositionSet.dispositionSetId
+    && authorization.oldTargetId === current.approvedDisposition.dispositionSet.targetId;
 }
 
 /**
@@ -87,10 +99,13 @@ export function selectPendingCandidateReviewFixRecord(input: {
   const consumedDispositionIds = new Set(
     candidateReviewResponses(input.candidate).map(({ dispositionId }) => dispositionId),
   );
-  const pending = input.records.filter((record) => record.candidate?.workUnit === workUnitId
-    && record.candidate.candidateId === input.candidate.attestation.candidateId
-    && record.fixAuthorization !== null
-    && !consumedDispositionIds.has(record.approvedDisposition.dispositionSet.dispositionSetId));
+  const pending = input.records.filter((record) => {
+    const current = currentApprovedDispositionNode(record);
+    return record.candidate?.workUnit === workUnitId
+      && record.candidate.candidateId === input.candidate.attestation.candidateId
+      && current.fixAuthorization !== null
+      && !consumedDispositionIds.has(current.approvedDisposition.dispositionSet.dispositionSetId);
+  });
   if (pending.some((record) => !recordHasExactPendingCandidateFixAuthority(record))) {
     return { status: "refused", reason: "candidate-review-fix-response-invalid" };
   }
@@ -98,13 +113,14 @@ export function selectPendingCandidateReviewFixRecord(input: {
     return { status: "refused", reason: "candidate-review-fix-response-ambiguous" };
   }
   const selected = pending[0];
-  if (selected?.candidate === null || selected?.candidate === undefined
-    || selected.fixAuthorization === null) return { status: "none" };
+  if (selected?.candidate === null || selected?.candidate === undefined) return { status: "none" };
+  const current = currentApprovedDispositionNode(selected);
+  if (current.fixAuthorization === null) return { status: "none" };
   return {
     status: "selected",
     candidateId: selected.candidate.candidateId,
     operationId: selected.operationId,
-    reviewedHead: selected.fixAuthorization.oldHeadSha,
+    reviewedHead: current.fixAuthorization.oldHeadSha,
     record: selected,
   };
 }
@@ -129,6 +145,7 @@ async function readReviewedTarget(
       new LocalFrontlineOutcomeStore(publisher).readOutcome(reference.operationId),
       operations.readOperation(reference.operationId),
     ]);
+    const responseBinding = outcome.record?.responseBinding;
     if (selection.operationId !== reference.operationId
       || outcome.record === null
       || outcome.outcomeRef !== reference.durableRef
@@ -136,7 +153,17 @@ async function readReviewedTarget(
       || operation.state.targetId !== outcome.record.outcome.target.targetId
       || operation.state.sourceIdentity !== outcome.record.sourceIdentity
       || operation.state.outcome !== outcome.record.outcome.outcome
-      || operation.state.passCount !== outcome.record.outcome.pass
+      || operation.state.logicalPass !== outcome.record.outcome.pass
+      || operation.state.sourceBindingId !== computeFrontlineSourceBindingId(
+        outcome.record.outcome.source,
+        responseBinding,
+      )
+      || canonicalize(operation.state.responseBinding ?? null) !== canonicalize(responseBinding ?? null)
+      || (responseBinding !== undefined
+        && (selection.record.candidate?.workUnit !== responseBinding.candidate.workUnit
+          || selection.record.candidate.candidateId !== responseBinding.candidate.candidateId
+          || canonicalize(selection.record.deliveryMember) !== canonicalize(responseBinding.deliveryMember)
+          || !frontlineResponseBindingMatchesTarget(outcome.record.outcome.target, responseBinding)))
       || outcome.record.outcome.outcome !== "findings") return null;
     return outcome.record.outcome.target;
   }
@@ -152,8 +179,8 @@ async function readReviewedTarget(
       ({ sourceKind, qualifier }) => sourceKind === "hosted" && qualifier === attempt.sourceId,
     )?.qualifier
     || operation.state.repositoryId !== attempt.hosted.reviewTarget.repositoryId
-    || operation.state.headSha !== attempt.hosted.target.headSha
-    || operation.state.changeRequestId !== `pull/${attempt.hosted.target.pullRequest}`
+    || attempt.headSha !== attempt.hosted.target.headSha
+    || attempt.changeRequestId !== `pull/${attempt.hosted.target.pullRequest}`
     || attempt.hosted.reviewTarget.headSha !== attempt.hosted.target.headSha
     || (attempt.hosted.reviewTarget.kind === "delivery-member"
       ? attempt.hosted.vehicle === undefined
@@ -184,7 +211,7 @@ export async function readPendingCandidateReviewFixAuthority(input: {
   if (selected.status !== "selected") return selected;
   try {
     const reviewedTarget = await readReviewedTarget(publisher, selected);
-    const authorization = selected.record.fixAuthorization;
+    const authorization = currentApprovedDispositionNode(selected.record).fixAuthorization;
     if (reviewedTarget === null || authorization === null
       || reviewedTarget.targetId !== authorization.oldTargetId
       || reviewedTarget.headSha !== authorization.oldHeadSha) {

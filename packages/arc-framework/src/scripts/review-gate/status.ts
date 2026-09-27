@@ -2,6 +2,13 @@
 
 import { z } from "zod";
 
+import {
+  BaseMovementObservationSchema,
+  composeEvidenceDelta,
+  reduceEvidenceApplicability,
+  type BaseMovementObservation,
+} from "../../lib/evidence-applicability/index.js";
+
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import {
   DeliveryReviewMemberVehicleSchema,
@@ -18,6 +25,8 @@ import {
   type SpineRemedy,
 } from "../integration/spine-refusal.js";
 import { GitObjectIdSchema } from "./core/gate-contract-v2-schema.js";
+import type { IncrementalReviewScope } from "./core/incremental-review-scope.js";
+import { hostedProviderAdmitsCoverage } from "./hosted/correction-review-capability.js";
 import {
   HostedProviderIdSchema,
   HostedReviewCoverageSchema,
@@ -35,7 +44,9 @@ import {
 } from "./policy/review-applicability-resolution.js";
 import { HostedFindingsResponsePlanSchema } from "./core/response-plan-schema.js";
 import {
+  ReviewAdditionalPassAuthorizationSchema,
   ReviewCeilingOverrideSchema,
+  type ReviewAdditionalPassAuthorization,
   type ReviewCeilingOverride,
   type ReviewResolveEnvelope,
 } from "./policy/review-policy-driver.js";
@@ -48,9 +59,17 @@ import {
   DeliveryReviewTerminusAcceptanceActionSchema,
 } from "./policy/delivery-review-terminus.js";
 import type { DeliveryReviewMemberTerminus } from "./policy/review-terminus.js";
+import {
+  ReviewCoverageSelectionActionSchema,
+  selectReviewCoverageChoice,
+  type ReviewCoverageSelectionAction,
+} from "./policy/review-coverage-selection.js";
 
 const ObjectIdSchema = GitObjectIdSchema;
-export const ReviewStatusSourceIdSchema = HostedProviderIdSchema;
+export const ReviewStatusSourceIdSchema = z.union([
+  HostedProviderIdSchema,
+  z.literal("delegated-agent"),
+]);
 const BlockedReviewApplicabilitySchema = ReviewContributionApplicabilityResultSchema.refine(
   (projection) => projection.state !== "applicable" && projection.state !== "decision-required",
   "blocked review applicability must carry a closed non-decision result",
@@ -63,12 +82,15 @@ const ReviewApplicabilitySelectionActionSchema = z.union([
 export const ReviewStatusTargetInputSchema = z.strictObject({
   target: ChangeRequestTargetRefSchema,
   ceilingOverride: ReviewCeilingOverrideSchema.optional(),
+  additionalPassAuthorization: ReviewAdditionalPassAuthorizationSchema.optional(),
   coverage: HostedReviewCoverageSchema.optional(),
+  sourceId: ReviewStatusSourceIdSchema.optional(),
 });
 export type ReviewStatusTargetInput = z.infer<typeof ReviewStatusTargetInputSchema>;
 export const ReviewStatusWorkUnitInputSchema = z.strictObject({
   workUnitId: SlugSchema,
   ceilingOverride: ReviewCeilingOverrideSchema.optional(),
+  additionalPassAuthorization: ReviewAdditionalPassAuthorizationSchema.optional(),
   coverage: HostedReviewCoverageSchema.optional(),
   sourceId: ReviewStatusSourceIdSchema.optional(),
 });
@@ -95,8 +117,17 @@ export const DeliveryReviewAttemptProgressSchema = z.strictObject({
 
 export const DeliveryReviewMemberProgressSchema = z.strictObject({
   completedPasses: z.number().int().nonnegative(),
+  completePasses: z.number().int().nonnegative(),
   passCeiling: z.number().int().positive(),
   attempts: z.array(DeliveryReviewAttemptProgressSchema),
+}).superRefine((progress, context) => {
+  if (progress.completePasses > progress.completedPasses) {
+    context.addIssue({
+      code: "custom",
+      path: ["completePasses"],
+      message: "complete passes cannot exceed completed logical passes",
+    });
+  }
 });
 
 export const DeliveryReviewConjunctionMemberSchema = z.strictObject({
@@ -161,6 +192,32 @@ export const DeliveryReviewConjunctionSchema = z.strictObject({
 });
 export type DeliveryReviewConjunction = z.infer<typeof DeliveryReviewConjunctionSchema>;
 
+/** Select one uniquely exact member without granting review clearance. */
+function selectExactDeliveryMember(
+  target: z.infer<typeof ChangeRequestTargetRefSchema>,
+  conjunction: DeliveryReviewConjunction,
+): DeliveryReviewConjunction["members"][number] | null {
+  const matches = conjunction.members.filter((member) =>
+    member.target.repository.toLowerCase() === target.repository.toLowerCase()
+      && member.target.headSha === target.headSha);
+  return matches.length === 1 ? matches[0] ?? null : null;
+}
+
+/**
+ * Select one uniquely exact discharged member from a delivery review conjunction.
+ *
+ * @param target - Exact member change-request target selected by the caller.
+ * @param conjunction - Fresh routed review state for the complete delivery.
+ * @returns The discharged selected member, or null when the binding is absent or ambiguous.
+ */
+export function selectDischargedDeliveryMember(
+  target: z.infer<typeof ChangeRequestTargetRefSchema>,
+  conjunction: DeliveryReviewConjunction,
+): DeliveryReviewConjunction["members"][number] | null {
+  const member = selectExactDeliveryMember(target, conjunction);
+  return member?.state === "discharged" ? member : null;
+}
+
 export const DeliveryReviewCursorSchema = z.strictObject({
   status: z.enum(["outstanding", "discharged"]),
   completedMemberCount: z.number().int().nonnegative(),
@@ -194,6 +251,15 @@ const RoutedReviewCoverageUnsupportedSchema = z.strictObject({
     "unsupported delivery review coverage requires an outstanding conjunction",
   ),
 });
+const RoutedReviewCoverageRequiredSchema = z.strictObject({
+  state: z.literal("coverage-required"),
+  detail: z.string().min(1),
+  conjunction: DeliveryReviewConjunctionSchema.refine(
+    (conjunction) => conjunction.status === "outstanding",
+    "coverage selection requires an outstanding delivery review conjunction",
+  ),
+  coverageSelectionAction: ReviewCoverageSelectionActionSchema,
+});
 
 export const RoutedReviewObligationSchema = z.union([
   z.strictObject({
@@ -201,6 +267,7 @@ export const RoutedReviewObligationSchema = z.union([
     detail: z.string().min(1),
   }),
   RoutedReviewCoverageUnsupportedSchema,
+  RoutedReviewCoverageRequiredSchema,
   z.strictObject({
     state: z.literal("settled"),
     detail: z.string().min(1),
@@ -297,6 +364,12 @@ export const RoutedReviewObligationSchema = z.union([
     consequence: ReviewCeilingOverrideSchema,
   }),
   z.strictObject({
+    state: z.literal("approval-required"),
+    detail: z.string().min(1),
+    scope: z.literal("errand"),
+    consequence: ReviewCeilingOverrideSchema,
+  }),
+  z.strictObject({
     state: z.literal("applicability-blocked"),
     detail: z.string().min(1),
     scope: z.literal("singleton"),
@@ -343,6 +416,7 @@ interface ReviewDischargeIntervention {
   readonly responsePlan?: z.infer<typeof HostedFindingsResponsePlanSchema>;
   readonly awaitAction?: z.infer<typeof HostedAwaitEnvelopeSchema>;
   readonly localResumeAction?: z.infer<typeof DeliveryLocalResumeActionSchema>;
+  readonly coverageSelectionAction?: ReviewCoverageSelectionAction;
 }
 
 /** Git-proved mechanical movement from one exact stored terminus vehicle to its current terminal target. */
@@ -368,6 +442,7 @@ export function isDeliveryReviewMemberDischargedByOwnerTerminus(input: {
     readonly responsePlan?: z.infer<typeof HostedFindingsResponsePlanSchema>;
     readonly awaitAction?: z.infer<typeof HostedAwaitEnvelopeSchema>;
     readonly localResumeAction?: z.infer<typeof DeliveryLocalResumeActionSchema>;
+    readonly coverageSelectionAction?: ReviewCoverageSelectionAction;
     readonly completedPasses: number;
   };
   readonly ownerTermini?: readonly DeliveryReviewMemberTerminus[];
@@ -388,6 +463,7 @@ export function isDeliveryReviewMemberDischargedByOwnerTerminus(input: {
   const hasPendingIntervention = input.discharge.responsePlan !== undefined
     || input.discharge.awaitAction !== undefined
     || input.discharge.localResumeAction !== undefined
+    || input.discharge.coverageSelectionAction !== undefined
     || (!replayedApplicability && (input.discharge.nextSource === null
       || (input.discharge.applicability !== undefined && input.discharge.applicability.state !== "applicable")));
   return terminus !== undefined
@@ -479,6 +555,20 @@ function composeReviewDischargeIntervention(
       localResumeAction: discharge.localResumeAction,
     });
   }
+  if (discharge.coverageSelectionAction !== undefined) {
+    if (conjunction === undefined) {
+      return {
+        state: "blocked",
+        detail: "Review coverage selection is unavailable without one exact delivery-member subject.",
+      };
+    }
+    return RoutedReviewObligationSchema.parse({
+      state: "coverage-required",
+      detail: discharge.detail,
+      conjunction,
+      coverageSelectionAction: discharge.coverageSelectionAction,
+    });
+  }
   return null;
 }
 
@@ -527,10 +617,15 @@ export function composeDeliveryReviewObligation(input: {
     responsePlan?: z.infer<typeof HostedFindingsResponsePlanSchema>;
     awaitAction?: z.infer<typeof HostedAwaitEnvelopeSchema>;
     localResumeAction?: z.infer<typeof DeliveryLocalResumeActionSchema>;
+    coverageSelectionAction?: ReviewCoverageSelectionAction;
     requestAdmission?: ReviewResolveEnvelope;
     requestCeilingOverride?: ReviewCeilingOverride;
+    requestAdditionalPassAuthorization?: ReviewAdditionalPassAuthorization;
     requestScopeSelection?: z.infer<typeof DeliveryLocalReviewScopeSelectionSchema>;
+    requestCoverage?: HostedReviewCoverage;
+    correctionScope?: IncrementalReviewScope;
     completedPasses: number;
+    completePasses: number;
     passCeiling: number;
     attemptHistory: readonly z.infer<typeof DeliveryReviewAttemptProgressSchema>[];
   }[];
@@ -583,6 +678,7 @@ export function composeDeliveryReviewObligation(input: {
       detail: discharge.detail,
       progress: {
         completedPasses: discharge.completedPasses,
+        completePasses: discharge.completePasses,
         passCeiling: discharge.passCeiling,
         attempts: [...discharge.attemptHistory],
       },
@@ -597,7 +693,21 @@ export function composeDeliveryReviewObligation(input: {
     });
   }
   const target = input.targets[firstOutstandingIndex];
-  const discharge = effectiveDischarges[firstOutstandingIndex];
+  let discharge = effectiveDischarges[firstOutstandingIndex];
+  const selectedCoverage = discharge?.coverageSelectionAction === undefined
+    ? null
+    : selectReviewCoverageChoice(discharge.coverageSelectionAction, {
+        sourceId: input.requestInvocation?.sourceId,
+        coverage: input.requestCoverage,
+      });
+  if (discharge !== undefined && selectedCoverage !== null) {
+    discharge = {
+      ...discharge,
+      coverageSelectionAction: undefined,
+      nextSource: selectedCoverage.sourceId,
+      requestCoverage: selectedCoverage.coverage,
+    };
+  }
   if (discharge !== undefined) {
     const intervention = composeReviewDischargeIntervention(
       discharge,
@@ -640,8 +750,10 @@ export function composeDeliveryReviewObligation(input: {
       detail: "The discharge projection and standard-review driver selected different sources.",
     };
   }
-  if (discharge.requestAdmission.payload.ceilingOverrideApplied
-    !== (discharge.requestCeilingOverride !== undefined)) {
+  const additionalPassCoversCeiling = discharge.requestAdditionalPassAuthorization !== undefined
+    && discharge.completedPasses >= discharge.passCeiling;
+  const authorizedCeiling = discharge.requestCeilingOverride !== undefined || additionalPassCoversCeiling;
+  if (discharge.requestAdmission.payload.ceilingOverrideApplied !== authorizedCeiling) {
     return {
       state: "blocked",
       detail: "The standard-review driver and member review action disagree about ceiling-override admission.",
@@ -654,6 +766,15 @@ export function composeDeliveryReviewObligation(input: {
       detail: "The standard-review driver and member review action disagree about chunked-scope admission.",
     };
   }
+  if (discharge.requestCoverage !== undefined
+    && input.requestCoverage !== undefined
+    && discharge.requestCoverage !== input.requestCoverage) {
+    return {
+      state: "blocked",
+      detail: "The requested review coverage does not match the active logical pass.",
+    };
+  }
+  const requestCoverage = discharge.requestCoverage ?? input.requestCoverage ?? "complete";
   if (discharge.requestAdmission.nextAction === "local-prepare") {
     if (discharge.nextSource !== "delegated-agent") {
       return {
@@ -661,7 +782,7 @@ export function composeDeliveryReviewObligation(input: {
         detail: "The standard-review driver selected an unsupported local review source.",
       };
     }
-    if (input.requestCoverage === "incremental") {
+    if (requestCoverage === "incremental" && discharge.correctionScope === undefined) {
       return RoutedReviewObligationSchema.parse({
         state: "blocked",
         reason: "coverage-unsupported",
@@ -683,12 +804,18 @@ export function composeDeliveryReviewObligation(input: {
         }),
         vehicle: target.vehicle,
         pass: discharge.requestAdmission.payload.pass,
+        requestedCoverage: requestCoverage,
         ...(discharge.requestCeilingOverride === undefined
           ? {}
           : { ceilingOverride: discharge.requestCeilingOverride }),
+        ...(discharge.requestAdditionalPassAuthorization === undefined ? {}
+          : { additionalPassAuthorization: discharge.requestAdditionalPassAuthorization }),
         ...(discharge.requestScopeSelection === undefined
           ? {}
           : { scopeSelection: discharge.requestScopeSelection }),
+        ...(requestCoverage !== "incremental" || discharge.correctionScope === undefined
+          ? {}
+          : { correctionScope: discharge.correctionScope }),
       },
     });
   }
@@ -698,6 +825,14 @@ export function composeDeliveryReviewObligation(input: {
       state: "blocked",
       detail: `The next reserved source \`${discharge.nextSource}\` is not a hosted request provider.`,
     };
+  }
+  if (!hostedProviderAdmitsCoverage(provider.data, requestCoverage, discharge.correctionScope)) {
+    return RoutedReviewObligationSchema.parse({
+      state: "blocked",
+      reason: "coverage-unsupported",
+      detail: "The selected hosted review carrier cannot preserve the admitted correction scope.",
+      conjunction: { kind: "delivery", status: "outstanding", members },
+    });
   }
   return RoutedReviewObligationSchema.parse({
     state: "review-required",
@@ -711,18 +846,24 @@ export function composeDeliveryReviewObligation(input: {
         headSha: target.headSha,
       }),
       provider: provider.data,
-      coverage: input.requestCoverage ?? "complete",
+      coverage: requestCoverage,
+      ...(requestCoverage !== "incremental" || discharge.correctionScope === undefined
+        ? {}
+        : { correctionScope: discharge.correctionScope }),
       vehicle: target.vehicle,
       ...(input.requestInvocation === undefined ? {} : { invocation: input.requestInvocation }),
       ...(discharge.requestCeilingOverride === undefined
         ? {}
         : { ceilingOverride: discharge.requestCeilingOverride }),
+      ...(discharge.requestAdditionalPassAuthorization === undefined ? {}
+        : { additionalPassAuthorization: discharge.requestAdditionalPassAuthorization }),
     },
   });
 }
 
 export const RequiredCheckStatusSchema = z.enum(["green", "pending", "failed", "not-required", "unavailable"]);
 export type RequiredCheckStatus = z.infer<typeof RequiredCheckStatusSchema>;
+const ReviewStatusMovementSchema = z.enum(["disjoint", "overlapping", "unknown"]);
 
 const ReviewStatusBaseShape = {
   schemaVersion: z.literal(1),
@@ -731,6 +872,10 @@ const ReviewStatusBaseShape = {
   requiredChecks: RequiredCheckStatusSchema,
   routedObligation: RoutedReviewObligationSchema,
   currentBaseOid: GitObjectIdSchema.nullable(),
+  movement: ReviewStatusMovementSchema,
+  baseMovement: BaseMovementObservationSchema.nullable(),
+  baseMovementDetail: z.string().trim().min(1).optional(),
+  baseMovementCause: z.enum(["read-failed", "ambiguous", "unrelated"]).optional(),
   deliveryCursor: DeliveryReviewCursorSchema.optional(),
 };
 
@@ -738,6 +883,27 @@ const ReviewStatusSettledSchema = z.strictObject({
   ...ReviewStatusBaseShape,
   state: z.literal("settled"),
   nextAction: z.literal("continue-reconcile"),
+});
+const ReviewStatusMemberDischargedSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  state: z.literal("member-discharged"),
+  nextAction: z.literal("continue-reconcile"),
+  selectedMember: DeliveryReviewConjunctionMemberSchema,
+}).superRefine((result, context) => {
+  const selected = "conjunction" in result.routedObligation
+    ? selectDischargedDeliveryMember(result.target, result.routedObligation.conjunction)
+    : null;
+  if (selected === null || result.selectedMember.state !== "discharged"
+    || !sameDeliveryReviewMemberVehicle(result.selectedMember.vehicle, selected.vehicle)
+    || result.selectedMember.target.pullRequest !== selected.target.pullRequest
+    || result.selectedMember.target.repository.toLowerCase() !== selected.target.repository.toLowerCase()
+    || result.selectedMember.target.headSha !== selected.target.headSha) {
+    context.addIssue({
+      code: "custom",
+      path: ["selectedMember"],
+      message: "selected landing member must match one discharged exact delivery target",
+    });
+  }
 });
 const ReviewStatusRunReviewSchema = z.strictObject({
   ...ReviewStatusBaseShape,
@@ -825,17 +991,31 @@ const ReviewStatusChecksPendingSchema = z.strictObject({
   state: z.literal("checks-pending"),
   nextAction: z.literal("rerun-checkpoint"),
 });
-const ReviewStatusBaseMovedSchema = z.strictObject({
+const ReviewStatusCheckpointActionSchema = z.strictObject({
+  command: z.literal("rerun-checkpoint"),
+  workUnit: SlugSchema,
+});
+const ReviewStatusBaseMovedShape = {
   ...ReviewStatusBaseShape,
   state: z.literal("base-moved"),
   nextAction: z.literal("rerun-checkpoint"),
   terminusAction: DeliveryReviewTerminusAcceptanceActionSchema.optional(),
-});
+};
+const ReviewStatusBaseMovedSchema = z.union([
+  z.strictObject({
+    ...ReviewStatusBaseMovedShape,
+    checkpointAction: ReviewStatusCheckpointActionSchema,
+  }),
+  z.strictObject({
+    ...ReviewStatusBaseMovedShape,
+    terminalExplanation: z.string().trim().min(1),
+  }),
+]);
 const ReviewStatusBlockedSchema = z.strictObject({
   ...ReviewStatusBaseShape,
   state: z.literal("blocked"),
   nextAction: z.literal("stop"),
-  reason: z.enum(["stale-target", "checks-failed", "status-unavailable"]),
+  reason: z.enum(["stale-target", "checks-failed", "status-unavailable", "base-unrelated"]),
   detail: z.string().trim().min(1),
   remedy: SpineRemedySchema,
 });
@@ -852,8 +1032,20 @@ const ReviewStatusCoverageUnsupportedSchema = z.strictObject({
   detail: z.string().trim().min(1),
   remedy: SpineRemedySchema,
 });
+const ReviewStatusCoverageRequiredSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  routedObligation: RoutedReviewCoverageRequiredSchema,
+  deliveryCursor: DeliveryReviewCursorSchema.refine(
+    (cursor) => cursor.status === "outstanding" && cursor.currentMember !== null,
+    "coverage selection requires an outstanding delivery cursor",
+  ),
+  state: z.literal("coverage-required"),
+  nextAction: z.literal("select-coverage"),
+  coverageSelectionAction: ReviewCoverageSelectionActionSchema,
+});
 export type ReviewStatusResult =
   | z.infer<typeof ReviewStatusSettledSchema>
+  | z.infer<typeof ReviewStatusMemberDischargedSchema>
   | z.infer<typeof ReviewStatusRunReviewSchema>
   | z.infer<typeof ReviewStatusHostedRequestSchema>
   | z.infer<typeof ReviewStatusHostedAwaitSchema>
@@ -869,9 +1061,11 @@ export type ReviewStatusResult =
   | z.infer<typeof ReviewStatusChecksPendingSchema>
   | z.infer<typeof ReviewStatusBaseMovedSchema>
   | z.infer<typeof ReviewStatusCoverageUnsupportedSchema>
+  | z.infer<typeof ReviewStatusCoverageRequiredSchema>
   | z.infer<typeof ReviewStatusBlockedSchema>;
 const ReviewStatusResultSchemaInternal: z.ZodType<ReviewStatusResult> = z.union([
   ReviewStatusSettledSchema,
+  ReviewStatusMemberDischargedSchema,
   ReviewStatusRunReviewSchema,
   ReviewStatusHostedRequestSchema,
   ReviewStatusHostedAwaitSchema,
@@ -887,6 +1081,7 @@ const ReviewStatusResultSchemaInternal: z.ZodType<ReviewStatusResult> = z.union(
   ReviewStatusChecksPendingSchema,
   ReviewStatusBaseMovedSchema,
   ReviewStatusCoverageUnsupportedSchema,
+  ReviewStatusCoverageRequiredSchema,
   ReviewStatusBlockedSchema,
 ]);
 export const ReviewStatusResultSchema: z.ZodType<ReviewStatusResult> = ReviewStatusResultSchemaInternal;
@@ -960,7 +1155,7 @@ const ReviewStatusCommandResultSchemaInternal = z.union([
     currentBaseOid: z.null(),
     state: z.literal("blocked"),
     nextAction: z.literal("stop"),
-    reason: z.enum(["invalid-input", "status-unavailable"]),
+    reason: z.enum(["invalid-input", "wrong-route", "status-unavailable"]),
     detail: z.string().trim().min(1),
     remedy: SpineRemedySchema,
   }),
@@ -975,6 +1170,9 @@ export interface ReviewStatusObservation {
   routedObligation: RoutedReviewObligation;
   currentBaseOid: string | null;
   baseContained: boolean;
+  workUnitId?: string;
+  baseMovement?: BaseMovementObservation | null;
+  baseMovementDetail?: string;
 }
 
 export interface ReviewStatusPort {
@@ -982,7 +1180,41 @@ export interface ReviewStatusPort {
     target: z.infer<typeof ChangeRequestTargetRefSchema>,
     ceilingOverride?: ReviewCeilingOverride,
     coverage?: HostedReviewCoverage,
+    sourceId?: string,
+    additionalPassAuthorization?: ReviewAdditionalPassAuthorization,
   ): Promise<ReviewStatusObservation>;
+}
+
+function projectReviewBaseMovement(observation: ReviewStatusObservation): {
+  movement: z.infer<typeof ReviewStatusMovementSchema>;
+  baseMovement: BaseMovementObservation | null;
+  baseMovementDetail?: string;
+  baseMovementCause?: "read-failed" | "ambiguous" | "unrelated";
+  carries: boolean;
+} {
+  if (observation.baseMovement === undefined || observation.baseMovement === null) {
+    return {
+      movement: "unknown",
+      baseMovement: null,
+      baseMovementDetail: observation.baseMovementDetail ?? "Base movement evidence is unavailable.",
+      carries: false,
+    };
+  }
+  const baseMovement = BaseMovementObservationSchema.parse(observation.baseMovement);
+  const delta = composeEvidenceDelta({ cause: "base-movement", observation: baseMovement });
+  const applicability = reduceEvidenceApplicability(delta, "review-clearance");
+  if (delta.overlap.kind === "not-applicable") {
+    throw new Error("Base movement must produce an overlap classification.");
+  }
+  return {
+    movement: delta.overlap.kind,
+    baseMovement,
+    ...(observation.baseMovementDetail === undefined
+      ? {}
+      : { baseMovementDetail: observation.baseMovementDetail }),
+    ...(delta.overlap.kind === "unknown" ? { baseMovementCause: delta.overlap.cause } : {}),
+    carries: applicability.verdict === "carries",
+  };
 }
 
 /** Reduce live exact-target evidence to one orchestration action. */
@@ -991,12 +1223,19 @@ export async function resolveReviewStatus(
   port: ReviewStatusPort,
 ): Promise<ReviewStatusResult> {
   const request = ReviewStatusTargetInputSchema.parse(input);
-  const observation = await port.observe(request.target, request.ceilingOverride, request.coverage);
+  const observation = await port.observe(
+    request.target,
+    request.ceilingOverride,
+    request.coverage,
+    request.sourceId,
+    request.additionalPassAuthorization,
+  );
   const actualHeadSha = ObjectIdSchema.parse(observation.actualHeadSha);
   const conjunction = "conjunction" in observation.routedObligation
     ? observation.routedObligation.conjunction
     : undefined;
   const currentMember = conjunction?.members.find((member) => member.state === "outstanding") ?? null;
+  const movement = projectReviewBaseMovement(observation);
   const base = {
     schemaVersion: 1 as const,
     mode: "review-status" as const,
@@ -1006,6 +1245,14 @@ export async function resolveReviewStatus(
     currentBaseOid: observation.currentBaseOid === null
       ? null
       : ObjectIdSchema.parse(observation.currentBaseOid),
+    movement: movement.movement,
+    baseMovement: movement.baseMovement,
+    ...(movement.baseMovementDetail === undefined
+      ? {}
+      : { baseMovementDetail: movement.baseMovementDetail }),
+    ...(movement.baseMovementCause === undefined
+      ? {}
+      : { baseMovementCause: movement.baseMovementCause }),
     ...(conjunction === undefined
       ? {}
       : {
@@ -1031,13 +1278,92 @@ export async function resolveReviewStatus(
           "arc", "review", "change-request", "resolve",
           "--head-ref", request.target.headRef,
           "--head-sha", actualHeadSha,
-          "--json",
         ],
       ),
     };
   }
-  if (!observation.baseContained && base.currentBaseOid !== null) {
-    return { ...base, state: "base-moved", nextAction: "rerun-checkpoint" };
+  const exactMember = conjunction === undefined ? null : selectExactDeliveryMember(request.target, conjunction);
+  const selectedMember = conjunction?.status !== "outstanding" || exactMember?.state !== "discharged"
+    ? null
+    : exactMember;
+  const preTerminalMember = exactMember !== null
+    && exactMember.position < exactMember.memberCount
+    && (exactMember.state === "discharged" || currentMember === exactMember);
+  const memberMovementBound = preTerminalMember
+    && movement.baseMovement?.overlap.status === "available"
+    && movement.baseMovement.coordinates.repository.toLowerCase() === exactMember.target.repository.toLowerCase()
+    && movement.baseMovement.coordinates.changeRequest === exactMember.target.pullRequest
+    && movement.baseMovement.coordinates.base === base.currentBaseOid
+    && movement.baseMovement.coordinates.head === exactMember.target.headSha;
+  if (!observation.baseContained && base.currentBaseOid !== null && !movement.carries) {
+    // Both base-resolution causes are answered ahead of the member-binding guard below. That guard requires an
+    // available overlap, which is exactly what neither cause leaves, so it would otherwise fire first and
+    // return a rerun of the read that produced the condition — the one remedy neither cause can clear. Whether
+    // the pair shares an ancestor, or shares two, is a fact about the pair that no member-binding read changes.
+    const baseResolutionDecides = movement.baseMovementCause === "unrelated"
+      || movement.baseMovementCause === "ambiguous";
+    if (preTerminalMember && !baseResolutionDecides) {
+      if (!memberMovementBound) {
+        return {
+          ...base,
+          state: "blocked",
+          nextAction: "stop",
+          reason: "status-unavailable",
+          detail: "Pre-terminal delivery-member base movement is unavailable for the exact selected request.",
+          remedy: reviewStatusRetryRemedy(request.target),
+        };
+      }
+    } else if (movement.baseMovementCause === "unrelated") {
+      return {
+        ...base,
+        state: "blocked",
+        nextAction: "stop",
+        reason: "base-unrelated",
+        detail: "The observed base and the exact reviewed head share no common ancestor, so no movement "
+          + "between them can be proved.",
+        remedy: spineRemedy(
+          "Base movement can be proved only between revisions with a common ancestor.",
+          "Give the branch and the base one common ancestor, then compose review status again",
+          ["git", "merge", "--allow-unrelated-histories", base.currentBaseOid],
+        ),
+      };
+    } else {
+      const workUnitId = observation.workUnitId ?? conjunction?.members[0]?.vehicle.workUnitId;
+      const workUnit = workUnitId === undefined ? undefined : SlugSchema.parse(workUnitId);
+      return {
+        ...base,
+        state: "base-moved",
+        nextAction: "rerun-checkpoint",
+        ...(workUnit === undefined
+          ? {
+              terminalExplanation: "The target-only status request cannot identify a work unit for checkpoint rerun.",
+            }
+          : { checkpointAction: { command: "rerun-checkpoint", workUnit } }),
+      };
+    }
+  }
+  if (selectedMember !== null && base.currentBaseOid !== null) {
+    if (base.requiredChecks === "pending") {
+      return { ...base, state: "checks-pending", nextAction: "rerun-checkpoint" };
+    }
+    if (base.requiredChecks === "failed" || base.requiredChecks === "unavailable") {
+      return {
+        ...base,
+        state: "blocked",
+        nextAction: "stop",
+        reason: base.requiredChecks === "failed" ? "checks-failed" : "status-unavailable",
+        detail: base.requiredChecks === "failed"
+          ? "One or more required checks failed."
+          : "Required-check status is unavailable.",
+        remedy: reviewStatusRetryRemedy(request.target),
+      };
+    }
+    return ReviewStatusMemberDischargedSchema.parse({
+      ...base,
+      state: "member-discharged",
+      nextAction: "continue-reconcile",
+      selectedMember,
+    });
   }
   if (base.routedObligation.state === "applicability-blocked") {
     const applicability = base.routedObligation.applicability;
@@ -1078,6 +1404,23 @@ export async function resolveReviewStatus(
       consequence: base.routedObligation.consequence,
     };
   }
+  if (base.routedObligation.state === "coverage-required") {
+    if (currentMember === null || conjunction === undefined) {
+      throw new Error("Review coverage selection requires one exact outstanding delivery member.");
+    }
+    return ReviewStatusCoverageRequiredSchema.parse({
+      ...base,
+      deliveryCursor: {
+        status: conjunction.status,
+        completedMemberCount: conjunction.members.filter((member) => member.state === "discharged").length,
+        memberCount: conjunction.members.length,
+        currentMember,
+      },
+      state: "coverage-required",
+      nextAction: "select-coverage",
+      coverageSelectionAction: base.routedObligation.coverageSelectionAction,
+    });
+  }
   if (base.currentBaseOid === null) {
     return {
       ...base,
@@ -1104,11 +1447,11 @@ export async function resolveReviewStatus(
         reason: "coverage-unsupported",
         detail: base.routedObligation.detail,
         remedy: spineRemedy(
-          "The selected local carrier cannot preserve explicit incremental coverage.",
-          "Use a carrier that preserves incremental coverage, then re-run",
+          "The selected review carrier cannot preserve the admitted correction scope.",
+          "Re-run with complete coverage",
           [
             "arc", "review", "status", "--work-unit", currentMember.vehicle.workUnitId,
-            "--coverage", "incremental", "--json",
+            "--coverage", "complete",
           ],
         ),
       });
@@ -1198,6 +1541,6 @@ function reviewStatusRetryRemedy(target: z.infer<typeof ChangeRequestTargetRefSc
   return spineRemedy(
     "Review status must be recomposed from an exact current target.",
     "Resolve the reported condition, then re-run",
-    ["arc", "review", "status", "--target", JSON.stringify(target), "--json"],
+    ["arc", "review", "status", "--target", JSON.stringify(target)],
   );
 }

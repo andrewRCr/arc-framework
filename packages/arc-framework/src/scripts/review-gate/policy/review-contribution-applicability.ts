@@ -7,6 +7,15 @@ import {
   DeliveryContributionProofResultSchema,
   type DeliveryContributionEndpoints,
 } from "../../../lib/delivery/contribution-proof.js";
+import {
+  MAX_EVIDENCE_APPLICABILITY_PATH_BYTES,
+  MAX_EVIDENCE_APPLICABILITY_PATHS,
+} from "../../../lib/evidence-applicability/schema.js";
+import {
+  composeEvidenceDelta,
+  EvidenceApplicabilityResultSchema,
+  reduceEvidenceApplicability,
+} from "../../../lib/evidence-applicability/index.js";
 import { canonicalDigest } from "../../../lib/kernel/index.js";
 import { isManagedPath } from "../../../lib/kernel/canonical/managed-path.js";
 import {
@@ -24,8 +33,8 @@ const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const ApplicabilityPathSchema = z.string().min(1)
   .refine(isManagedPath, "must be a managed repository path");
 
-export const MAX_REVIEW_APPLICABILITY_PATHS = 200;
-export const MAX_REVIEW_APPLICABILITY_PATH_BYTES = 16_384;
+export const MAX_REVIEW_APPLICABILITY_PATHS = MAX_EVIDENCE_APPLICABILITY_PATHS;
+export const MAX_REVIEW_APPLICABILITY_PATH_BYTES = MAX_EVIDENCE_APPLICABILITY_PATH_BYTES;
 
 const BoundedResidualSchema = z.array(ApplicabilityPathSchema)
   .min(1)
@@ -74,6 +83,7 @@ export const ReviewContributionApplicabilityResultSchema = z.union([
     state: z.literal("decision-required"),
     nextAction: z.literal("request-authority"),
     verdict: z.enum(["clean-divergence", "interaction"]),
+    applicability: EvidenceApplicabilityResultSchema,
     projection: DeliveryContributionEndpointsSchema,
     paths: BoundedResidualSchema,
     projectionDigest: DigestSchema,
@@ -160,7 +170,8 @@ export function classifyReviewContributionApplicability(
 ): ReviewContributionApplicabilityResult {
   const selector = ReviewContributionApplicabilitySelectorSchema.parse(input);
   const base = reviewContributionApplicabilityResultBase(selector);
-  if (selector.priorHead === selector.currentHead) {
+  if (selector.priorHead === selector.currentHead
+    && selector.priorBase === selector.currentBase) {
     const digests = reviewContributionApplicabilityDigests({
       selector,
       projection: null,
@@ -251,11 +262,17 @@ export function classifyReviewContributionApplicability(
       verdict,
       paths: bounded.data,
     });
+    const applicability = reduceEvidenceApplicability(composeEvidenceDelta({
+      cause: "member-rewrite",
+      endpoints: facts.endpoints,
+      proof: { ...facts.proof, paths: bounded.data },
+    }), "review-clearance");
     return ReviewContributionApplicabilityResultSchema.parse({
       ...base,
       state: "decision-required",
       nextAction: "request-authority",
       verdict,
+      applicability,
       projection: facts.endpoints,
       paths: bounded.data,
       contributionChanged: true,

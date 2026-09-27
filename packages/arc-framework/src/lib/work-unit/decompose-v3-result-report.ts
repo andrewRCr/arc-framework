@@ -1,76 +1,108 @@
 /** Pure reporting projection over immutable plan provenance and materializer outcomes. */
 
+import { z } from "zod";
+
 import type {
   V3MaterializationResult,
   V3MaterializedPath,
 } from "./decompose-v3-materializer.js";
-import type {
-  V3PlanContentContributor,
-  V3ValidatedPathMutation,
-  ValidatedDecomposePlan,
+import {
+  V3ValidatedPathMutationSchema,
+  type ValidatedDecomposePlan,
 } from "./decompose-v3-plan.js";
-import type { CanonicalDigest } from "../canonical/canonical-json.js";
+import { isCanonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
 
-export type V3ReportedPathDisposition =
-  | "applied"
-  | "already-applied"
-  | "refused-conflict";
-
-export interface V3ReportedTopologyOutcome {
-  kind: "topology";
-  action: "none" | "create" | "ensure" | "backfill" | "reuse" | "append";
-  path?: string;
-  disposition: V3ReportedPathDisposition | "no-write";
-}
-
-export interface V3ReportedDestinationOutcome {
-  kind: "destination";
-  path: string;
-  destinationId: string;
-  destinationKind: V3PlanContentContributor["destinationKind"];
-  authoring: {
-    artifactRole: string;
-    contributorKind: string;
-    disposition: V3PlanContentContributor["disposition"];
-  };
-  disposition: V3ReportedPathDisposition;
-}
-
-export interface V3ReportedPathOutcome {
-  path: string;
-  disposition: V3ReportedPathDisposition;
-  mutation: V3ValidatedPathMutation;
-}
-
-export interface V3DecomposeResultReport {
-  status: "reported" | "refused";
-  paths: V3ReportedPathOutcome[];
-  topology: V3ReportedTopologyOutcome[];
-  destinations: V3ReportedDestinationOutcome[];
-  extraction?: V3ExtractionReportFacts;
-}
+const CanonicalDigestSchema = z.custom<CanonicalDigest>(
+  isCanonicalDigest,
+  "must be a canonical digest",
+);
+const NonEmptyStringSchema = z.string().min(1);
 
 /** Authored extraction facts carried from the immutable repository projection. */
-export interface V3ExtractionReportFacts {
-  retainedOrigin: {
-    origin: string;
-    path: string;
-    allocations: Array<{
-      sourceId: CanonicalDigest;
-      ownership: "destination-owned";
-    }>;
-  };
-  reasonedDrops: Array<{
-    sourceId: CanonicalDigest;
-    ownership: "destination-owned";
-    reason: string;
-  }>;
-  anchor: {
-    kind: "surviving-origin";
-    origin: string;
-    path: string;
-  };
-}
+export const V3ExtractionReportFactsSchema = z.strictObject({
+  retainedOrigin: z.strictObject({
+    origin: NonEmptyStringSchema,
+    path: NonEmptyStringSchema,
+    allocations: z.array(z.strictObject({
+      sourceId: CanonicalDigestSchema,
+      ownership: z.literal("destination-owned"),
+    })),
+  }),
+  reasonedDrops: z.array(z.strictObject({
+    sourceId: CanonicalDigestSchema,
+    ownership: z.literal("destination-owned"),
+    reason: NonEmptyStringSchema,
+  })),
+  anchor: z.strictObject({
+    kind: z.literal("surviving-origin"),
+    origin: NonEmptyStringSchema,
+    path: NonEmptyStringSchema,
+  }),
+});
+export type V3ExtractionReportFacts = z.infer<typeof V3ExtractionReportFactsSchema>;
+
+/** Materializer disposition exposed for one planned path. */
+export const V3ReportedPathDispositionSchema = z.enum([
+  "applied",
+  "already-applied",
+  "refused-conflict",
+]);
+export type V3ReportedPathDisposition = z.infer<typeof V3ReportedPathDispositionSchema>;
+
+/** One strict constitutive-topology reporting outcome. */
+export const V3ReportedTopologyOutcomeSchema = z.union([
+  z.strictObject({
+    kind: z.literal("topology"),
+    action: z.literal("none"),
+    disposition: z.literal("no-write"),
+  }),
+  z.strictObject({
+    kind: z.literal("topology"),
+    action: z.literal("reuse"),
+    path: NonEmptyStringSchema,
+    disposition: z.literal("no-write"),
+  }),
+  z.strictObject({
+    kind: z.literal("topology"),
+    action: z.enum(["create", "ensure", "backfill", "append"]),
+    path: NonEmptyStringSchema,
+    disposition: V3ReportedPathDispositionSchema,
+  }),
+]);
+export type V3ReportedTopologyOutcome = z.infer<typeof V3ReportedTopologyOutcomeSchema>;
+
+/** One strict destination provenance outcome. */
+export const V3ReportedDestinationOutcomeSchema = z.strictObject({
+  kind: z.literal("destination"),
+  path: NonEmptyStringSchema,
+  destinationId: NonEmptyStringSchema,
+  destinationKind: z.enum(["new-member", "existing-home", "cohort-coordination"]),
+  authoring: z.strictObject({
+    artifactRole: NonEmptyStringSchema,
+    contributorKind: NonEmptyStringSchema,
+    disposition: z.enum(["whole-file", "patch"]),
+  }),
+  disposition: V3ReportedPathDispositionSchema,
+});
+export type V3ReportedDestinationOutcome = z.infer<typeof V3ReportedDestinationOutcomeSchema>;
+
+/** One strict mutation outcome in the result report. */
+export const V3ReportedPathOutcomeSchema = z.strictObject({
+  path: NonEmptyStringSchema,
+  disposition: V3ReportedPathDispositionSchema,
+  mutation: V3ValidatedPathMutationSchema,
+});
+export type V3ReportedPathOutcome = z.infer<typeof V3ReportedPathOutcomeSchema>;
+
+/** Closed runtime schema for a report preserved on staged and refused operations. */
+export const V3DecomposeResultReportSchema = z.strictObject({
+  status: z.enum(["reported", "refused"]),
+  paths: z.array(V3ReportedPathOutcomeSchema),
+  topology: z.array(V3ReportedTopologyOutcomeSchema),
+  destinations: z.array(V3ReportedDestinationOutcomeSchema),
+  extraction: V3ExtractionReportFactsSchema.optional(),
+});
+export type V3DecomposeResultReport = z.infer<typeof V3DecomposeResultReportSchema>;
 
 function materializedPathMap(paths: readonly V3MaterializedPath[]): Map<string, V3MaterializedPath> {
   return new Map(paths.map((path) => [path.path, path]));

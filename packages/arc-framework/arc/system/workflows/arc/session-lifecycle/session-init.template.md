@@ -105,8 +105,9 @@ When present, run the **spine** below before resolving the entry mode: it outran
 cold-start resolution on **any** arm and never clobbers the active checkout. Signal absent → skip to
 [Entry dispatch](#entry-dispatch) unchanged.
 
-`--next` and `--start <slug>` are handled outside this spine. `--next` is a Resume-arm terminal shortcut (handled
-at the Resume terminal gate). `--start`
+Standalone `--next` and `--start <slug>` are handled outside this spine. Standalone `--next` is a Resume-arm
+terminal shortcut (handled at the Resume terminal gate); `--errand --next` is an Errand-signal startup selector
+handled inside the spine. `--start`
 is the [focused-recon arm](#focused-recon-arm) — checkout-preserving and arm-orthogonal, resolved just below
 when no signal-leaf signal is present.
 
@@ -118,11 +119,18 @@ still applies because USER-INBOX and WORKING-MEMORY must be fresh before enterin
 
 1. **Parse** — resolve the operation (table below) and whether the signal is sufficient: `--housekeep` always is; a
    bare `--errand` / `--plan` **elicits first** — prompt for the concern, adopt a flagged `USER-INBOX § Errand`
-   capture, or disambiguate the stub — before entry; it never silently launches.
+   capture, or disambiguate the stub — before entry; it never silently launches. `--errand --next` is sufficient
+   without elicitation and cannot also carry a slug or description; resolve its queue head only after notes sync.
 2. **Sync notes, then load universal context only** — run the conditional sync pulls' notes channel (the
    worktree channel is skipped per above), then Step 3 items 1–6 and WORKING-MEMORY (item 8.2); skip every
    WU-artifact read (SESSION-NOTES, active task list, lifecycle workflow).
 3. **Enter the selected operation**:
+    - `--errand --next` — invoke `arc errand next --json` and follow only its typed result:
+        - `available / open-errand` — render `recommendedPromptText`, bind `nextOffer.key` as the exact inbox capture,
+          and enter the ordinary [`run-errand`][run-errand] Launch path. Launch still classifies the concern, checks
+          overlap, derives and confirms a branch-safe slug, and opens with `--from-inbox <nextOffer.key>`.
+        - `empty / none` — render `recommendedPromptText` and end the signal path without eliciting another concern.
+        - `refused / stop` — render `reason`, `remedy`, `retryCommand`, and `recommendedPromptText`, then stop.
     - `--errand` — invoke `arc errand open`; render its `recommendedPromptText`, direct subsequent work to
       `allocation.checkoutPath`, and retain `parentCheckoutPath` when present as the warm-return parent.
     - `--housekeep` / `--plan` — run the selected workflow's write-context preflight and relocation path. These
@@ -373,8 +381,9 @@ uses only the free primary and refuses unsafe occupancy.
 2. **Skip Step 5 (Assess Readiness).** No handoff baseline exists to freshness-check, and the setup below
    replaces next-work-unit discovery (that is the _discovery_ intent, not the Errand one).
 3. **Classify, gate, execute.** Follow the [run-errand workflow][run-errand] in Launch mode. The errand seed
-   comes from the `--errand` blurb/slug when present; when it names a flagged `USER-INBOX § Errand` capture,
-   adopt that capture as the originating entry. Launch classifies errand-vs-Work-Unit (with the stop-and-route
+   comes from the `--errand` blurb/slug when present, or from `nextOffer.key` after `--errand --next`; when it names
+   a flagged `USER-INBOX § Errand` capture, adopt that capture as the originating entry. Launch classifies
+   errand-vs-Work-Unit (with the stop-and-route
    exit when the work is really a Work Unit), runs the advisory `arc errand check` overlap, and invokes
    `arc errand open <slug>` (adopt a flagged capture with `--from-inbox <entry-title>`, or with
    `--inbox-entry-file <path>` / `--inbox-entry-file -` for a shell-active title). Render its
@@ -619,6 +628,11 @@ deliberately.
 
 Produce the orientation summary.
 
+**Checkout-local attention.** Report what this checkout can act on. Inbox, housekeep, reminder, and
+compaction-nudge slots exist only on the primary worktree; linked worktrees omit them and must
+not read or write the once-per-day markers. `locusGuidance` diagnostics and unresolved inspect-cleanup
+lines are the entering row only.
+
 Render live git facts exclusively from probe slots (`worktree`, `baseDistance`, `baseBranchSync`, `dirty`,
 `user`, `partialPushMarker`) and the Step 5 freshness result. Do not surface HEAD, ahead/behind, sync, or dirty
 claims copied from SESSION-NOTES prose.
@@ -639,8 +653,9 @@ orientation sections (including advisory sync/base/notes surfaces, route offers,
 no dirty tree, no freshness gap, no blockers, no unconsumed seed or shortcut note, and no Step 7 mismatch.
 Otherwise render the normal orientation and prompt.
 
-- `--next` on the Resume arm: omit the final proceed prompt and begin the active meta's Next Action directly.
-  Bare `--next` on a no-active-WU Orient arm is a no-op.
+- Standalone `--next` on the Resume arm: omit the final proceed prompt and begin the active meta's Next Action
+  directly. Bare standalone `--next` on a no-active-WU Orient arm is a no-op; `--errand --next` was already
+  consumed by the signal-leaf spine.
 **`--start` focused-recon terminal.** On the [focused-recon arm](#focused-recon-arm), frame Step 6 on the
 **target WU**, not the active-work-state shape: report the readiness verdict (ready / not + why — Tier-1 gates,
 Tier-2 invites; see the recon arm's readiness vet) and close on the launch prompt —
@@ -692,9 +707,9 @@ tracked source documents the work.
 - `locusGuidance.kind === "unavailable"` — render `locusGuidance.message` and stop before any role-sensitive
   action.
 - `locusGuidance.kind === "ready"` — collect only present optional strings and non-empty arrays; omit the section
-  when no lines remain. The composer suppresses unmanaged-sibling diagnostics and every expected/no-action frame,
-  availability, recovery, reconciliation, and cleanup fact. Render remaining strings verbatim; do not reconstruct
-  their evidence or deletion conditions.
+  when no lines remain. The composer emits entering-row diagnostics only, omits sibling unresolved
+  inspect-cleanup, and suppresses every expected/no-action frame, availability, recovery, reconciliation,
+  and cleanup fact. Render remaining strings verbatim; do not reconstruct their evidence or deletion conditions.
 - `worktree.value.state == "diverged"` — branch on `worktree.value.supersession`:
     - `supersession.superseded === true` — the local-ahead commits are patch-equal to a rebased remote
       prefix (the branch was rebased and force-pushed elsewhere), so a hard reset to the remote loses no
@@ -767,11 +782,12 @@ tracked source documents the work.
   - `{sha}` attempted {when} by machine `{whose}` — proceed with context; don't force-push to resolve.
   ```
 
-- `compactionAdvisory.value.shouldSuggest` AND `compactionAdvisory.value.nudge.shouldNudge`: local user-notes ref
+- `compactionAdvisory.value.shouldSuggest` AND `compactionAdvisory.value.nudge.shouldNudge` (primary worktree
+  only; the slot is omitted on linked checkouts): local user-notes ref
   history exceeds the advisory threshold. Surface one offer-only line for the interlock-gated command; never run
   compaction automatically. After surfacing, write `compactionAdvisory.value.nudge.today` to
   `compactionAdvisory.value.nudge.markerPath` (create the parent directory if needed) so the offer batches to
-  once per calendar day.
+  once per calendar day. Never write the marker from a linked checkout.
 
   ```text
   **Notes compaction:** user-notes history has {historyCommitCount} commit(s) (threshold {threshold}); run
@@ -949,12 +965,13 @@ tracked source documents the work.
   - `{candidate}`
   ```
 
-- `errandSweep.value.stale` non-empty AND `errandState.value.nudge.shouldNudge`: `_Remind:_`-flagged `§ Errand`
+- `errandSweep.value.stale` non-empty AND `errandState.value.nudge.shouldNudge` (primary worktree only; the
+  sweep slot is omitted on linked checkouts): `_Remind:_`-flagged `§ Errand`
   `USER-INBOX` captures pending past `inbox.remind_after_days` (default 1) — the retired errand queue's "here are
   your committed follow-ups" discoverability, now an inbox filter. Surface them as one batched line for the
   operator to drain via housekeep; advisory only, never auto-removed. After surfacing, write
   `errandState.value.nudge.today` to `errandState.value.nudge.markerPath` (create the parent directory if needed)
-  so the nudge batches to once per calendar day.
+  so the nudge batches to once per calendar day. Never write the marker from a linked checkout.
 
   ```text
   **Reminder:** {N} flagged capture(s) pending past the reminder threshold — drain via `arc-housekeep`:
@@ -1004,9 +1021,10 @@ tracked source documents the work.
   - `{slug}` (`{branch}` at `{expectedHead}`, `{state}`) — materialize and resume?
   ```
 
-- `inboxState.value.housekeepNeeded` (Orient arm — no active WU): `USER-INBOX` holds routable captures. Soft-offer
-  the between-WU drain; never hard-block. A Resume session (active WU) carries the probe but does not surface this
-  — housekeep drains from a base-branch context, not mid-WU.
+- `inboxState.value.housekeepNeeded` (Orient arm — no active WU, primary worktree): `USER-INBOX` holds routable
+  captures. Soft-offer the between-WU drain; never hard-block. Linked worktrees omit the slot. A primary
+  Resume with an active WU still carries it but does not surface this — housekeep drains from a base-branch
+  context, not mid-WU.
 
   ```text
   **Housekeep:** no active WU; `USER-INBOX` has {inboxState.value.routableCount} pending capture(s) — housekeep?

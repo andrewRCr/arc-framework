@@ -72,7 +72,8 @@ export interface RelocateArtifactsResult {
  * A WU artifact filename matcher — `<prefix>-<slug>.md` for an exact slug. The
  * prefix is a hyphen-free token (`meta` / `spec` / `tasks` / `draft` / `notes` /
  * a companion), so the hyphenated slug anchors unambiguously: a foreign WU whose
- * name merely ends with this slug cannot match, nor can a `cohort-<name>.md`.
+ * name merely ends with this slug cannot match. Callers whose search space can
+ * contain a same-name cohort document exclude that semantic neighbor locally.
  *
  * Exported so the `remove`-disposition runner (`abandon`) selects the same set
  * this `relocate` mutator moves — one definition of "a WU's artifact set".

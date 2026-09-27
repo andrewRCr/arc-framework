@@ -5,6 +5,86 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Make a pre-change test-cost baseline recoverable instead of foresight-dependent**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-16).
+
+- _Observation:_ refreshing a test-cost budget requires a run of the tree as it was _before_ the change, and the
+  benchmark only measures the working tree — so the baseline has to be taken before the first new test file lands
+  or it is gone. `test-cost-budgets.json` also carries four tier-isolated rows, and `lane` (unit + unit-mocks +
+  integration, the `npm test` tier) overlaps `integration`, so a change that adds integration tests moves a row
+  nobody thought to baseline. The measurement axes never default and the comparison refuses outright on a single
+  axis mismatch, so a missed or mismatched baseline is unrecoverable without reconstructing the old tree by hand.
+
+- _Approach:_ let the benchmark measure a named ref rather than the working tree, so the merge-base run can be
+  taken at any point, and have it report which budget rows a given change's paths actually move. Either half alone
+  removes most of the trap.
+
+- _Observation (infra smell):_ measuring a ref needs a build at that ref for the tiers that spawn the built CLI,
+  which is a real fork — build-at-ref, or ref-measurement limited to the tiers that do not need `dist/`. Worth a
+  second look at drain for whether that fork makes this a work unit.
+
+- _Files:_ `packages/arc-framework/src/lib/test-cost/`, `src/scripts/measure-test-cost.ts`,
+  `src/scripts/compare-test-cost.ts`, `test-cost-budgets.json`.
+
+- _Captured during:_ `concurrent-integration-characterization` task generation, 2026-09-14.
+
+### `[ ]` **Record the warm-run practice for local test-cost baselines**
+
+- _Routed from:_ `USER-INBOX § Errand` capture "Refresh the stale local tier-isolated test-cost baselines and
+  record the warm-run practice", housekeep drain (2026-09-16).
+- _Settled portion:_ `concurrent-integration-characterization` refreshed the numerical tier-isolated baselines;
+  do not repeat that completed refresh.
+- _Remaining concern:_ document and enforce the benchmark's required warm-run practice so cold dependency,
+  transform, or filesystem cache effects do not masquerade as stable suite cost. Keep the practice reproducible
+  across the local baseline and named-ref measurement paths.
+
+### `[ ]` **Give the test-cost benchmark a clean machine-readable result**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-16).
+
+- _Observation:_ `measure-test-cost.ts` writes its JSON summary to the same stdout stream Vitest
+  writes its run output to, so a scripted consumer cannot simply parse stdout — it has to locate the
+  trailing JSON object heuristically. Taking pre/post baselines around a new integration test needs
+  exactly that parse, which is the routine use the budget discipline asks for.
+
+- _Approach:_ likely smaller than it looks — the run is already retained to a file
+  (`defaultRetainedRunPath`, overridable with `--output`), so the fix may be to emit the
+  budget-evaluated summary there too and print only its path, or to route the summary to a channel
+  Vitest does not share. Check which consumers exist before choosing; a documented "read the retained
+  run" answer may be sufficient and cheaper than changing the output contract.
+
+- _Observation (infra smell):_ touches the benchmark's output contract, which CI budget reporting also
+  reads (`report-test-budget.ts`, `compare-test-cost.ts`). Worth a blast-radius read at drain and a
+  second look for a design fork hiding in the channel choice.
+
+- _Files:_ `packages/arc-framework/src/scripts/measure-test-cost.ts`,
+  `packages/arc-framework/src/lib/test-cost/run.ts`.
+
+- _Captured during:_ `delivery-post-landing-conflict-recovery` draft-design, 2026-09-16, while taking
+  `integration` and `lane` baselines for the terminal-waiver planning probe.
+
+### `[ ]` **Measure and budget the hosted CI fallback mode**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- `WU_Target: hosted-ci-test-budget-coverage (provisional)`
+
+- _Observation:_ The ordinary GitHub-hosted Linux fallback keeps Vitest's native worker sizing for throughput,
+  while `test-cost-budgets.json` has CI-job budgets only for the configured constrained runner's one-worker
+  mode. The budget reporter now warns when a mode is unbudgeted, but cannot truthfully compare hosted native
+  jobs against an unmeasured threshold. The self-hosted one-worker path remains budgeted.
+
+- _Approach:_ obtain representative complete CI-job timings on the hosted fallback and record the effective
+  worker sizing that Vitest actually used. Decide how to key and refresh budgets when native sizing or runner
+  capacity changes, then add measured exact-mode budgets and tests without forcing the hosted runner to one
+  worker or comparing unlike modes.
+
+- _Boundary:_ follow-up measurement and budget policy only; the current review fix is the advisory
+  unbudgeted warning, not a synthetic native baseline.
+
+- _Captured during:_ `test-suite-right-sizing` member 5 hosted review, PR #609, 2026-09-12.
+
 ### `[ ]` **Close the two-copy sync blind spot in gate selection**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: quality-gate-hooks`), housekeep drain (2026-08-10);
@@ -347,6 +427,38 @@
   prose `§` citations.
 
 ---
+
+### `[ ]` **Decide whether cognitive complexity replaces the cyclomatic limit**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-19).
+
+- _Observation:_ the installed size gate runs ESLint's cyclomatic `complexity` alongside `max-depth`.
+  SonarSource's own default profile enables **only** cognitive complexity and leaves cyclomatic opt-in — their
+  stated position is that it replaces cyclomatic as the primary gate rather than joining it. The signal cognitive
+  complexity uniquely adds is nesting depth, which `max-depth` already partly covers, so its marginal value over
+  the installed set is narrower than over cyclomatic alone.
+
+- _Approach:_ measure `sonarjs/cognitive-complexity` against the tree and compare its flagged set with the
+  recorded cyclomatic floor. Adopting it likely means **retiring** that floor rather than recording a second one
+  — that is the decision here, not the dependency.
+
+- _Observation:_ `eslint-plugin-sonarjs` is ~4.3MB across 13 dependencies, LGPL-3.0, dev-only, ESLint 10
+  compatible; its repo shows "archived" only because it moved into a monorepo. Declaring the plugin manually
+  alongside its `recommended` config throws `Cannot redefine plugin` — cherry-pick the single rule.
+
+- _Also:_ `eslint-plugin-vitest`'s `max-nested-describe` and `max-expects` are the purpose-built answer to test
+  bloat, which the per-file limit on `__tests__/**` only approximates. Same dependency call, same drain.
+
+- _Also:_ `max-lines` reports once per file, so a recorded test file can grow without bound while its count
+  stays 1 — 21 suites are already recorded, and `delivery-execution.test.ts` (2208 lines) is free to reach
+  5000 while a fresh suite hits a hard wall at 1500. A per-file line cap cannot express "no worse than this"
+  for a file it already holds; a describe/expect-shaped measure is the candidate that can. Observed
+  2026-09-18 during the `size-floor-reconciliation` errand.
+
+- _Infra smell:_ changes what the installed gate measures and could retire a recorded floor — worth the reviewed
+  lane, and worth re-triaging at the drain for whether it is really a Work Unit.
+
+- _Captured during:_ the `function-size-ratchet` errand, 2026-09-18.
 
 ## Problem / Motivation
 

@@ -1,7 +1,7 @@
 /** Built-CLI coverage for decomposition execution and base mobility. */
 
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { chmod, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { delimiter, dirname, join, resolve } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -16,6 +16,7 @@ import {
   createTempRepo,
   git,
   runArcNoTty,
+  type RunResult,
 } from "./helpers.js";
 
 async function write(repo: string, path: string, content: string): Promise<void> {
@@ -152,7 +153,10 @@ Medium.
   return repo;
 }
 
-async function writeCompletedCutMap(repo: string): Promise<string> {
+async function writeCompletedCutMap(
+  repo: string,
+  externalEdges: Array<{ from: string; to: string }> = [],
+): Promise<string> {
   const preflight = await runArcNoTty(["decompose", "origin", "--preflight"], repo);
   expect(preflight.exitCode, preflight.stderr).toBe(0);
   const starter = JSON.parse(preflight.stdout) as {
@@ -181,6 +185,7 @@ async function writeCompletedCutMap(repo: string): Promise<string> {
         },
       ],
       internalEdges: [],
+      externalEdges,
       sourceAllocations: starter.machine.sourceUnits.map((unit) => ({
         sourceId: unit.sourceId,
         ownership: "destination-owned",
@@ -227,6 +232,7 @@ async function writeExtractionCutMap(repo: string): Promise<string> {
         workClass: "Heavy",
       }],
       internalEdges: [],
+      externalEdges: [],
       sourceAllocations: starter.machine.sourceUnits.map((unit, index) => ({
         sourceId: unit.sourceId,
         ownership: "destination-owned",
@@ -282,6 +288,7 @@ async function writeMultiMemberCohortlessCutMap(repo: string): Promise<string> {
         },
       ],
       internalEdges: [],
+      externalEdges: [],
       sourceAllocations: starter.machine.sourceUnits.map((unit, index) => {
         const destinationId = index % 2 === 0 ? "alpha" : "beta";
         return {
@@ -357,6 +364,7 @@ async function writePartialHeterogeneousCutMap(repo: string): Promise<{
         },
       ],
       internalEdges: [],
+      externalEdges: [],
       sourceAllocations: starter.machine.sourceUnits.map((unit, index) => ({
         sourceId: unit.sourceId,
         ownership: "destination-owned",
@@ -429,6 +437,55 @@ async function repositorySnapshot(repo: string): Promise<{
   };
 }
 
+async function gitReadFailureEnvironment(repo: string): Promise<Record<string, string>> {
+  const shimDir = join(repo, "git-read-failure-shim");
+  await mkdir(shimDir);
+  const driver = [
+    "#!/usr/bin/env node",
+    'const { spawnSync } = require("node:child_process");',
+    'const { delimiter, resolve } = require("node:path");',
+    "const args = process.argv.slice(2);",
+    'if (args[0] === "for-each-ref") {',
+    '  process.stderr.write("injected preflight ref read failure\\n");',
+    "  process.exit(97);",
+    "}",
+    "const shim = resolve(__dirname);",
+    'const path = (process.env.PATH ?? "").split(delimiter)',
+    "  .filter((entry) => resolve(entry) !== shim).join(delimiter);",
+    'const result = spawnSync("git", args, { env: { ...process.env, PATH: path }, stdio: "inherit" });',
+    "process.exit(result.status ?? 1);",
+    "",
+  ].join("\n");
+  const driverPath = join(shimDir, process.platform === "win32" ? "git-shim.cjs" : "git");
+  await writeFile(driverPath, driver, "utf8");
+  if (process.platform === "win32") {
+    await writeFile(join(shimDir, "git.cmd"), '@node "%~dp0git-shim.cjs" %*\r\n', "utf8");
+  } else {
+    await chmod(driverPath, 0o755);
+  }
+  return { PATH: `${shimDir}${delimiter}${process.env.PATH ?? ""}` };
+}
+
+function parseSingleDecomposeRefusal(result: RunResult): {
+  status: string;
+  reason: string;
+  locus?: string;
+  remedy: { argv: string[]; text: string };
+} {
+  expect(result.exitCode).toBe(1);
+  expect(result.stdout.endsWith("\n")).toBe(true);
+  const lines = result.stdout.trimEnd().split("\n");
+  expect(lines).toHaveLength(1);
+  const envelope = JSON.parse(lines[0] ?? "") as {
+    status: string;
+    reason: string;
+    locus?: string;
+    remedy: { argv: string[]; text: string };
+  };
+  expect(result.stderr).toBe(`${envelope.reason}\n${envelope.remedy.text}\n`);
+  return envelope;
+}
+
 describe("arc decompose command modes", () => {
   let repo: string | undefined;
 
@@ -460,6 +517,151 @@ describe("arc decompose command modes", () => {
     expect(executed.stdout).not.toContain("receiptId");
     expect(executed.stdout).not.toContain("continuation");
     expect(executed.stdout).not.toContain("discard");
+  });
+
+  it("emits one actionable refusal envelope from every selected mode without mutation", async () => {
+    repo = await startedRepository();
+    const retirementMap = await writeCompletedCutMap(repo);
+    const extractionMap = await writeExtractionCutMap(repo);
+    const gitFailureEnv = await gitReadFailureEnvironment(repo);
+    const cases = [
+      {
+        mode: "preflight",
+        args: ["decompose", "origin", "--preflight"],
+        options: {
+          timeout: 60_000,
+          env: gitFailureEnv,
+        },
+        reason: "unexpected-error",
+        argv: ["arc", "decompose", "origin", "--preflight"],
+      },
+      {
+        mode: "execute",
+        args: ["decompose", "origin", "--execute", extractionMap],
+        reason: "map:authoring-shape",
+        argv: ["arc", "decompose", "origin", "--extract", extractionMap],
+      },
+      {
+        mode: "extract",
+        args: ["decompose", "origin", "--extract", retirementMap],
+        reason: "map:authoring-shape",
+        argv: ["arc", "decompose", "origin", "--execute", retirementMap],
+      },
+      {
+        mode: "finish preview",
+        args: ["decompose", "origin", "--finish", retirementMap],
+        reason: "map:authoring-shape",
+        argv: ["arc", "decompose", "origin", "--execute", retirementMap],
+      },
+      {
+        mode: "finish apply",
+        args: [
+          "decompose",
+          "origin",
+          "--finish",
+          retirementMap,
+          "--apply",
+          `sha256:${"a".repeat(64)}`,
+        ],
+        reason: "map:authoring-shape",
+        argv: ["arc", "decompose", "origin", "--execute", retirementMap],
+      },
+      {
+        mode: "advance base",
+        args: ["decompose", "origin", "--advance-base", extractionMap],
+        reason: "map:authoring-shape",
+        argv: ["arc", "decompose", "origin", "--extract", extractionMap],
+      },
+    ] as const;
+
+    for (const scenario of cases) {
+      const before = await repositorySnapshot(repo);
+      const result = await runArcNoTty(
+        [...scenario.args],
+        repo,
+        "options" in scenario ? scenario.options : { timeout: 60_000 },
+      );
+      const envelope = parseSingleDecomposeRefusal(result);
+      expect(envelope, scenario.mode).toMatchObject({
+        status: "refused",
+        reason: scenario.reason,
+        locus: expect.any(String),
+        remedy: { argv: scenario.argv },
+      });
+      expect(await repositorySnapshot(repo), scenario.mode).toEqual(before);
+    }
+  });
+
+  it("emits an external-edge refusal with its authored locus and corrective invocation", async () => {
+    repo = await startedRepository();
+    const cutMapPath = await writeCompletedCutMap(repo, [{ from: "member", to: "missing-target" }]);
+    const before = await repositorySnapshot(repo);
+
+    const result = await runArcNoTty(
+      ["decompose", "origin", "--execute", cutMapPath],
+      repo,
+      { timeout: 60_000 },
+    );
+
+    expect(parseSingleDecomposeRefusal(result)).toMatchObject({
+      status: "refused",
+      reason: "conservation:dependency-projection:unknown-external-target",
+      locus: "authoring.externalEdges.0.to",
+      remedy: {
+        argv: ["arc", "decompose", "origin", "--execute", cutMapPath],
+        text: expect.stringContaining("Choose an eligible external target"),
+      },
+    });
+    expect(await repositorySnapshot(repo)).toEqual(before);
+  });
+
+  it("accepts an allocated companion when the committed candidate transform is unchanged", async () => {
+    repo = await startedRepository();
+    let cutMapPath = await writeCompletedCutMap(repo);
+    const executed = await runArcNoTty(
+      ["decompose", "origin", "--execute", cutMapPath],
+      repo,
+      { timeout: 60_000 },
+    );
+    expect(executed.exitCode, executed.stderr).toBe(0);
+    const staged = JSON.parse(executed.stdout) as {
+      operation: { occupation: { protection: string; path: string } };
+    };
+    expect(staged.operation.occupation.protection).toBe("full");
+    const candidatePath = staged.operation.occupation.path;
+    await git(candidatePath, ["commit", "-m", "commit decomposition transition"]);
+    const candidateHead = await git(candidatePath, ["rev-parse", "HEAD"]);
+
+    await git(repo, ["switch", "plan/origin"]);
+    const companionPath = ".arc/active/notes-origin.md";
+    await write(repo, companionPath, "# Notes: origin\n\nUnallocated companion content.\n");
+    await git(repo, ["add", companionPath]);
+    await git(repo, ["commit", "-m", "add uncovered source companion"]);
+    await git(repo, ["push", "origin", "plan/origin"]);
+    await git(repo, ["switch", "main"]);
+    cutMapPath = await writeCompletedCutMap(repo);
+    const advanced = await runArcNoTty(
+      ["decompose", "origin", "--advance-base", cutMapPath],
+      repo,
+      { timeout: 60_000 },
+    );
+
+    expect(advanced.exitCode, advanced.stderr).toBe(0);
+    expect(advanced.stderr).toBe("");
+    const envelope = JSON.parse(advanced.stdout) as {
+      status: string;
+      candidateHead: string;
+    };
+    expect(envelope).toMatchObject({
+      status: "unchanged",
+      candidateHead,
+    });
+    expect(await git(candidatePath, ["rev-parse", "HEAD"])).toBe(candidateHead);
+    await expect(git(candidatePath, ["cat-file", "-e", `HEAD:${companionPath}`]))
+      .rejects.toThrow();
+    await expect(git(repo, ["cat-file", "-e", `plan/origin:${companionPath}`]))
+      .resolves.toBe("");
+    expect(await git(candidatePath, ["status", "--porcelain=v1"])).toBe("");
   });
 
   it("lands a direct-member extraction with a reasoned drop then durably finishes the source", async () => {
@@ -664,6 +866,7 @@ describe("arc decompose command modes", () => {
           before: {
             mode: "100644",
             contentDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+            byteLength: sourceBytes.byteLength,
           },
           after: {
             kind: "file",

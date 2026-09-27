@@ -5,6 +5,8 @@ import {
   createFrontlineOutcomeRecord,
   type FrontlineOutcomeRecord,
 } from "../../../../../src/scripts/review-gate/core/advisory-records.js";
+import { createFrontlineAdmission } from
+  "../../../../../src/scripts/review-gate/core/frontline-admission.js";
 import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import {
   ReviewOperationStateSchema,
@@ -25,6 +27,7 @@ import {
   normalizeFrontlineOutcome,
   type FrontlineExecutionOutcome,
 } from "../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
+import { reduceReviewRouting } from "../../../../../src/scripts/review-gate/policy/routing.js";
 
 const oid = (value: string): string => value.repeat(40);
 const target = (head: string) => createReviewTarget({
@@ -44,7 +47,21 @@ const source = {
   executable: "reviewer",
   argv: ["--plain"],
 };
-const policyVersion = canonicalDigest({ policy: "review" });
+const lineage = {
+  kind: "candidate" as const,
+  candidateId: canonicalDigest({ candidate: "one" }),
+};
+const routingFacts = {
+  schemaVersion: 1,
+  changeSetState: "known",
+  contentKind: "code-bearing",
+  reviewRisk: "routine",
+  changeDeterminacy: "ordinary",
+  ownership: "self",
+  surfaceAuthority: "ordinary",
+  assurance: { workContext: "work-unit", workClass: "Light" },
+  activity: { selfReview: true, frontlineReview: true },
+} as const;
 
 function memoryStore(): ReviewOperationStateStore & { records: Map<string, { version: number; state: ReviewOperationState }> } {
   const records = new Map<string, { version: number; state: ReviewOperationState }>();
@@ -88,21 +105,48 @@ function memoryOutcomeStore(): FrontlineOutcomeStore & {
   };
 }
 
-function binding(overrides: Partial<Parameters<typeof resolveFrontlineRun>[1]> = {}) {
+function admission(overrides: {
+  target?: ReturnType<typeof target>;
+  source?: typeof source;
+  lineage?: typeof lineage;
+  logicalPass?: number;
+  retryGeneration?: number;
+  maxPasses?: number;
+  promptText?: string;
+} = {}) {
+  const maxPasses = overrides.maxPasses ?? 2;
+  const admittedSource = overrides.source ?? source;
+  return createFrontlineAdmission({
+    lineage: overrides.lineage ?? lineage,
+    target: overrides.target ?? target("c"),
+    routing: {
+      facts: routingFacts,
+      decision: reduceReviewRouting(routingFacts),
+    },
+    frontlineReview: {
+      schemaVersion: 1,
+      semanticsVersion: "frontline-review/v1",
+      action: "attempt",
+      reasons: ["routine-code"],
+      source: admittedSource,
+      maxPasses,
+      promptText: overrides.promptText ?? "Review the aggregate candidate.",
+    },
+    logicalPass: overrides.logicalPass ?? 1,
+    retryGeneration: overrides.retryGeneration ?? 0,
+    maxPasses,
+  });
+}
+
+function binding(overrides: Parameters<typeof admission>[0] = {}) {
   return {
-    target: target("c"),
-    source,
-    generation: 0,
-    policyVersion,
-    ...overrides,
+    admission: admission(overrides),
   };
 }
 
-function executionBinding(overrides: Partial<ReturnType<typeof binding>> = {}) {
+function executionBinding(overrides: Parameters<typeof admission>[0] = {}) {
   return {
     ...binding(overrides),
-    pass: 1 as const,
-    maxPasses: 2 as const,
     lockWaitMs: 30_000,
   };
 }
@@ -136,6 +180,7 @@ function normalizedOutcome(
           severity: "major",
           locus: "src/index.ts",
           evidenceUrlOrId: "finding-one",
+          sourceOrdinal: 1,
         }],
       },
       source,
@@ -236,7 +281,7 @@ describe("frontline operation continuity", () => {
     });
   });
 
-  it("reloads the operation after a concurrent exact pending publication", async () => {
+  it("refuses a concurrently published pending operation without a durable outcome", async () => {
     const operationStore = memoryStore();
     const outcomeStore = memoryOutcomeStore();
     const publish = operationStore.publishOperation;
@@ -260,11 +305,8 @@ describe("frontline operation continuity", () => {
       withOperationLock: passThroughOperationLock,
       execute,
       now: () => "2026-07-23T19:00:00Z",
-    }, executionBinding())).resolves.toMatchObject({
-      persistedVersion: 2,
-      outcome: { outcome: "clean" },
-    });
-    expect(execute).toHaveBeenCalledOnce();
+    }, executionBinding())).rejects.toMatchObject({ code: "uncertain-provider-execution" });
+    expect(execute).not.toHaveBeenCalled();
   });
 
   it("reloads exact outcome and terminal publications after concurrent conflicts", async () => {
@@ -382,7 +424,71 @@ describe("frontline operation continuity", () => {
     }, executionBinding())).rejects.toMatchObject({ code: "corrupt-state" });
   });
 
-  it("retries a pending operation without an outcome at the same operation id", async () => {
+  it.each(["clean", "findings"] as const)(
+    "reconciles an interrupted %s outcome and refuses an explicit retry",
+    async (verdict) => {
+      const operationStore = memoryStore();
+      const outcomeStore = memoryOutcomeStore();
+      const pending = await resolveFrontlineRun(operationStore, binding());
+      if (pending.action !== "execute") throw new Error("expected execution");
+      await persistFrontlineRunPending(operationStore, {
+        ...binding(), updatedAt: "2026-07-23T19:00:00Z", expectedVersion: pending.expectedVersion,
+      });
+      await outcomeStore.appendOutcome(createFrontlineOutcomeRecord({
+        schemaVersion: 1,
+        semanticsVersion: "review-advisory/v1",
+        repositoryId: target("c").repositoryId,
+        operationId: pending.operationId,
+        sourceIdentity: source.sourceId,
+        executableIdentity,
+        outcome: normalizedOutcome(verdict),
+      }), 0);
+      const execute = vi.fn();
+      const retry = {
+        ...executionBinding({ retryGeneration: 1 }),
+        retryOfOperationId: pending.operationId,
+      };
+
+      await expect(executeFrontlineRun({
+        operationStore, outcomeStore, withOperationLock: passThroughOperationLock,
+        execute, now: () => "2026-07-23T19:01:00Z",
+      }, retry)).rejects.toMatchObject({ code: "invalid-input" });
+      expect(operationStore.records.get(pending.operationId)?.state).toMatchObject({ outcome: verdict });
+      expect(execute).not.toHaveBeenCalled();
+    },
+  );
+
+  it("refuses an explicit retry when the interrupted prior outcome names another target", async () => {
+    const operationStore = memoryStore();
+    const outcomeStore = memoryOutcomeStore();
+    const pending = await resolveFrontlineRun(operationStore, binding());
+    if (pending.action !== "execute") throw new Error("expected execution");
+    await persistFrontlineRunPending(operationStore, {
+      ...binding(), updatedAt: "2026-07-23T19:00:00Z", expectedVersion: pending.expectedVersion,
+    });
+    const other = target("d");
+    await outcomeStore.appendOutcome(createFrontlineOutcomeRecord({
+      schemaVersion: 1,
+      semanticsVersion: "review-advisory/v1",
+      repositoryId: other.repositoryId,
+      operationId: pending.operationId,
+      sourceIdentity: source.sourceId,
+      executableIdentity,
+      outcome: normalizeFrontlineOutcome({ providerResult: { kind: "clean" }, source,
+        target: other, pass: 1, maxPasses: 2 }),
+    }), 0);
+    const execute = vi.fn();
+
+    await expect(executeFrontlineRun({
+      operationStore, outcomeStore, withOperationLock: passThroughOperationLock,
+      execute, now: () => "2026-07-23T19:01:00Z",
+    }, { ...executionBinding({ retryGeneration: 1 }), retryOfOperationId: pending.operationId }))
+      .rejects.toMatchObject({ code: "corrupt-state" });
+    expect(operationStore.records.get(pending.operationId)?.state).toMatchObject({ outcome: "pending" });
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("refuses to replay a pending provider effect without an outcome", async () => {
     const operationStore = memoryStore();
     const outcomeStore = memoryOutcomeStore();
     const resolved = await resolveFrontlineRun(operationStore, binding());
@@ -403,12 +509,231 @@ describe("frontline operation continuity", () => {
       withOperationLock: passThroughOperationLock,
       execute,
       now: () => "2026-07-23T19:01:00Z",
-    }, executionBinding())).resolves.toMatchObject({
-      operationId: resolved.operationId,
-      persistedVersion: 2,
-      outcome: { outcome: "clean", pass: 1 },
+    }, executionBinding())).rejects.toMatchObject({ code: "uncertain-provider-execution" });
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("allows one explicit restart from an outcome-less pending operation", async () => {
+    const operationStore = memoryStore();
+    const outcomeStore = memoryOutcomeStore();
+    const pending = await resolveFrontlineRun(operationStore, binding());
+    if (pending.action !== "execute") throw new Error("expected execution");
+    await persistFrontlineRunPending(operationStore, {
+      ...binding(),
+      updatedAt: "2026-07-23T19:00:00Z",
+      expectedVersion: pending.expectedVersion,
     });
+    const execute = vi.fn(async () => ({
+      outcome: normalizedOutcome("clean"),
+      executableIdentity,
+    }));
+    const retryInput = {
+      ...executionBinding({ retryGeneration: 1 }),
+      retryOfOperationId: pending.operationId,
+    };
+
+    const result = await executeFrontlineRun({
+      operationStore,
+      outcomeStore,
+      withOperationLock: passThroughOperationLock,
+      execute,
+      now: () => "2026-07-23T19:01:00Z",
+    }, retryInput);
+    expect(result.operationId).not.toBe(pending.operationId);
+    expect(result.outcome).toMatchObject({ outcome: "clean" });
+    await expect(executeFrontlineRun({
+      operationStore,
+      outcomeStore,
+      withOperationLock: passThroughOperationLock,
+      execute,
+      now: () => "2026-07-23T19:02:00Z",
+    }, retryInput)).resolves.toMatchObject({ operationId: result.operationId });
     expect(execute).toHaveBeenCalledOnce();
+  });
+
+  it.each(["policy", "source-binding"] as const)(
+    "requires an explicit retry when a pending operation is invalidated by %s",
+    async (change) => {
+      const operationStore = memoryStore();
+      const outcomeStore = memoryOutcomeStore();
+      const pending = await resolveFrontlineRun(operationStore, binding());
+      if (pending.action !== "execute") throw new Error("expected execution");
+      await persistFrontlineRunPending(operationStore, {
+        ...binding(), updatedAt: "2026-07-23T19:00:00Z", expectedVersion: pending.expectedVersion,
+      });
+      const changed = executionBinding(change === "policy"
+        ? { promptText: "Review the changed policy boundary." }
+        : { source: { ...source, argv: ["--structured"] } });
+      const execute = vi.fn(async () => ({
+        outcome: normalizeFrontlineOutcome({
+          providerResult: { kind: "clean" }, source: changed.admission.frontlineReview.source ?? source,
+          target: changed.admission.target, pass: changed.admission.logicalPass, maxPasses: changed.admission.maxPasses,
+        }),
+        executableIdentity,
+      }));
+      const dependencies = {
+        operationStore, outcomeStore, withOperationLock: passThroughOperationLock,
+        execute, now: () => "2026-07-23T19:01:00Z",
+      };
+
+      await expect(executeFrontlineRun(dependencies, changed))
+        .rejects.toMatchObject({ code: "corrupt-state" });
+      expect(execute).not.toHaveBeenCalled();
+
+      const retried = await executeFrontlineRun(dependencies, {
+        ...executionBinding(change === "policy"
+          ? { promptText: "Review the changed policy boundary.", retryGeneration: 1 }
+          : { source: { ...source, argv: ["--structured"] }, retryGeneration: 1 }),
+        retryOfOperationId: pending.operationId,
+      });
+      expect(retried.operationId).not.toBe(pending.operationId);
+      expect(retried.outcome.outcome).toBe("clean");
+      expect(execute).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("requires an explicit retry when an invalidated operation failed", async () => {
+    const operationStore = memoryStore();
+    const outcomeStore = memoryOutcomeStore();
+    const first = await executeFrontlineRun({
+      operationStore, outcomeStore, withOperationLock: passThroughOperationLock,
+      execute: async () => ({
+        outcome: normalizedOutcome("failed", { class: "unexpected-adapter-failure" }),
+        executableIdentity,
+      }),
+      now: () => "2026-07-23T19:00:00Z",
+    }, executionBinding());
+    const changed = executionBinding({ source: { ...source, argv: ["--structured"] } });
+    const execute = vi.fn(async () => ({
+      outcome: normalizeFrontlineOutcome({
+        providerResult: { kind: "clean" }, source: changed.admission.frontlineReview.source ?? source,
+        target: changed.admission.target, pass: changed.admission.logicalPass, maxPasses: changed.admission.maxPasses,
+      }),
+      executableIdentity,
+    }));
+    const dependencies = {
+      operationStore, outcomeStore, withOperationLock: passThroughOperationLock,
+      execute, now: () => "2026-07-23T19:01:00Z",
+    };
+
+    await expect(executeFrontlineRun(dependencies, changed))
+      .rejects.toMatchObject({ code: "corrupt-state", message: expect.stringContaining(first.operationId) });
+    expect(execute).not.toHaveBeenCalled();
+    await expect(executeFrontlineRun(dependencies, {
+      ...executionBinding({ source: { ...source, argv: ["--structured"] }, retryGeneration: 1 }),
+      retryOfOperationId: first.operationId,
+    })).resolves.toMatchObject({ outcome: { outcome: "clean" } });
+    expect(execute).toHaveBeenCalledOnce();
+  });
+
+  it("recovers an old-bound pending failure before an explicit retry with a new source", async () => {
+    const operationStore = memoryStore();
+    const outcomeStore = memoryOutcomeStore();
+    const pending = await resolveFrontlineRun(operationStore, binding());
+    if (pending.action !== "execute") throw new Error("expected execution");
+    const original = await persistFrontlineRunPending(operationStore, {
+      ...binding(), updatedAt: "2026-07-23T19:00:00Z", expectedVersion: pending.expectedVersion,
+    });
+    await outcomeStore.appendOutcome(createFrontlineOutcomeRecord({
+      schemaVersion: 1,
+      semanticsVersion: "review-advisory/v1",
+      repositoryId: target("c").repositoryId,
+      operationId: pending.operationId,
+      sourceIdentity: source.sourceId,
+      executableIdentity,
+      outcome: normalizedOutcome("failed", { class: "unexpected-adapter-failure" }),
+    }), 0);
+    const changed = executionBinding({ source: { ...source, argv: ["--structured"] } });
+    const execute = vi.fn(async () => ({
+      outcome: normalizeFrontlineOutcome({
+        providerResult: { kind: "clean" }, source: changed.admission.frontlineReview.source ?? source,
+        target: changed.admission.target, pass: changed.admission.logicalPass, maxPasses: changed.admission.maxPasses,
+      }),
+      executableIdentity,
+    }));
+    const dependencies = {
+      operationStore, outcomeStore, withOperationLock: passThroughOperationLock,
+      execute, now: () => "2026-07-23T19:01:00Z",
+    };
+
+    await expect(executeFrontlineRun(dependencies, changed))
+      .rejects.toMatchObject({ code: "corrupt-state" });
+    expect(execute).not.toHaveBeenCalled();
+    await expect(executeFrontlineRun(dependencies, {
+      ...executionBinding({ source: { ...source, argv: ["--structured"] }, retryGeneration: 1 }),
+      retryOfOperationId: pending.operationId,
+    })).resolves.toMatchObject({ outcome: { outcome: "clean" } });
+    expect(operationStore.records.get(pending.operationId)?.state)
+      .toMatchObject({ outcome: "failed", sourceBindingId: original.state.sourceBindingId });
+    expect(execute).toHaveBeenCalledOnce();
+  });
+
+  it("can start a fresh generation after invalidating a completed clean operation", async () => {
+    const operationStore = memoryStore();
+    const outcomeStore = memoryOutcomeStore();
+    const first = await executeFrontlineRun({
+      operationStore, outcomeStore, withOperationLock: passThroughOperationLock,
+      execute: async () => ({ outcome: normalizedOutcome("clean"), executableIdentity }),
+      now: () => "2026-07-23T19:00:00Z",
+    }, executionBinding());
+    const changed = executionBinding({ promptText: "Review the changed policy boundary.", retryGeneration: 1 });
+    const execute = vi.fn(async () => ({ outcome: normalizedOutcome("clean"), executableIdentity }));
+
+    const next = await executeFrontlineRun({
+      operationStore, outcomeStore, withOperationLock: passThroughOperationLock,
+      execute, now: () => "2026-07-23T19:01:00Z",
+    }, changed);
+    expect(next.operationId).not.toBe(first.operationId);
+    expect(execute).toHaveBeenCalledOnce();
+  });
+
+  it("refuses an explicit retry of a completed review", async () => {
+    const operationStore = memoryStore();
+    const outcomeStore = memoryOutcomeStore();
+    const first = await executeFrontlineRun({
+      operationStore,
+      outcomeStore,
+      withOperationLock: passThroughOperationLock,
+      execute: async () => ({ outcome: normalizedOutcome("clean"), executableIdentity }),
+      now: () => "2026-07-23T19:00:00Z",
+    }, executionBinding());
+    const execute = vi.fn();
+
+    await expect(executeFrontlineRun({
+      operationStore,
+      outcomeStore,
+      withOperationLock: passThroughOperationLock,
+      execute,
+      now: () => "2026-07-23T19:01:00Z",
+    }, { ...executionBinding(), retryOfOperationId: first.operationId }))
+      .rejects.toThrow("earlier exact admitted operation");
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("refuses a retry ID from a different exact target", async () => {
+    const operationStore = memoryStore();
+    const outcomeStore = memoryOutcomeStore();
+    const first = await executeFrontlineRun({
+      operationStore,
+      outcomeStore,
+      withOperationLock: passThroughOperationLock,
+      execute: async () => ({
+        outcome: normalizedOutcome("failed", { class: "unexpected-adapter-failure" }),
+        executableIdentity,
+      }),
+      now: () => "2026-07-23T19:00:00Z",
+    }, executionBinding());
+    const execute = vi.fn();
+
+    await expect(executeFrontlineRun({
+      operationStore,
+      outcomeStore,
+      withOperationLock: passThroughOperationLock,
+      execute,
+      now: () => "2026-07-23T19:01:00Z",
+    }, { ...executionBinding({ target: target("d"), retryGeneration: 1 }), retryOfOperationId: first.operationId }))
+      .rejects.toMatchObject({ code: "invalid-input" });
+    expect(execute).not.toHaveBeenCalled();
   });
 
   it("serializes overlapping callers so the carrier executes once", async () => {
@@ -510,13 +835,71 @@ describe("frontline operation continuity", () => {
     },
   );
 
+  it("replays a failed exact request without starting another provider review", async () => {
+    const operationStore = memoryStore();
+    const outcomeStore = memoryOutcomeStore();
+    const first = await executeFrontlineRun({
+      operationStore,
+      outcomeStore,
+      withOperationLock: passThroughOperationLock,
+      execute: async () => ({
+        outcome: normalizedOutcome("failed", { class: "unexpected-adapter-failure" }),
+        executableIdentity,
+      }),
+      now: () => "2026-07-23T19:00:00Z",
+    }, executionBinding());
+    const execute = vi.fn(async () => ({
+      outcome: normalizedOutcome("clean"),
+      executableIdentity,
+    }));
+
+    const replay = await executeFrontlineRun({
+      operationStore,
+      outcomeStore,
+      withOperationLock: passThroughOperationLock,
+      execute,
+      now: () => "2026-07-23T19:01:00Z",
+    }, executionBinding());
+
+    expect(replay.operationId).toBe(first.operationId);
+    expect(replay.outcomeRef).toBe(first.outcomeRef);
+    expect(replay.outcome).toMatchObject({ outcome: "failed" });
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("replays a failed admitted generation until a new generation is admitted", async () => {
+    const operationStore = memoryStore();
+    const outcomeStore = memoryOutcomeStore();
+    const first = await executeFrontlineRun({
+      operationStore,
+      outcomeStore,
+      withOperationLock: passThroughOperationLock,
+      execute: async () => ({
+        outcome: normalizedOutcome("timed-out", { class: "execution-timeout" }),
+        executableIdentity: null,
+      }),
+      now: () => "2026-09-08T14:00:00Z",
+    }, executionBinding());
+
+    await expect(executeFrontlineRun({
+      operationStore,
+      outcomeStore,
+      withOperationLock: passThroughOperationLock,
+      execute: async () => {
+        throw new Error("effect-called");
+      },
+      now: () => "2026-09-08T14:01:00Z",
+    }, executionBinding())).resolves.toEqual(first);
+  });
+
   it.each([
     ["timed-out", { class: "execution-timeout" }],
     ["unavailable", { class: "rate-limited" }],
     ["unavailable", { class: "capability-unsupported" }],
     ["failed", { class: "unexpected-adapter-failure" }],
     ["failed", { class: "invalid-output" }],
-  ] as const)("advances generation after %s with reason %s", async (outcomeName, reason) => {
+    ["stale-target", { class: "head-mismatch", expectedHeadSha: oid("c"), observedHeadSha: oid("d") }],
+  ] as const)("executes a newly admitted generation after %s with reason %s", async (outcomeName, reason) => {
     const operationStore = memoryStore();
     const outcomeStore = memoryOutcomeStore();
     const first = await executeFrontlineRun({
@@ -534,20 +917,30 @@ describe("frontline operation continuity", () => {
       executableIdentity,
     }));
 
+    const retryInput = { ...executionBinding({ retryGeneration: 1 }), retryOfOperationId: first.operationId };
     const retry = await executeFrontlineRun({
       operationStore,
       outcomeStore,
       withOperationLock: passThroughOperationLock,
       execute,
       now: () => "2026-07-23T19:01:00Z",
-    }, executionBinding());
+    }, retryInput);
 
     expect(retry.operationId).not.toBe(first.operationId);
     expect(retry.outcome).toMatchObject({ outcome: "clean", pass: 1 });
     expect(execute).toHaveBeenCalledOnce();
+    const replay = await executeFrontlineRun({
+      operationStore,
+      outcomeStore,
+      withOperationLock: passThroughOperationLock,
+      execute,
+      now: () => "2026-07-23T19:02:00Z",
+    }, retryInput);
+    expect(replay.operationId).toBe(retry.operationId);
+    expect(execute).toHaveBeenCalledOnce();
   });
 
-  it("reuses a durable outcome for an unchanged target, source, policy, and generation", async () => {
+  it("reuses a durable outcome for an unchanged admission", async () => {
     const store = memoryStore();
     const first = await resolveFrontlineRun(store, binding());
     expect(first).toMatchObject({ action: "execute", expectedVersion: 0, invalidatedBy: [] });
@@ -556,11 +949,14 @@ describe("frontline operation continuity", () => {
       ...binding(),
       updatedAt: "2026-07-20T19:59:00Z",
       expectedVersion: first.expectedVersion,
-    })).resolves.toMatchObject({ version: 1, state: { outcome: "pending", passCount: 0 } });
+    })).resolves.toMatchObject({
+      version: 1,
+      state: { outcome: "pending", logicalPass: 1, retryGeneration: 0 },
+    });
     await expect(resolveFrontlineRun(store, binding())).resolves.toMatchObject({
       action: "reuse",
       version: 1,
-      state: { outcome: "pending", passCount: 0 },
+      state: { outcome: "pending", logicalPass: 1, retryGeneration: 0 },
     });
 
     const outcome = normalizeFrontlineOutcome({
@@ -575,54 +971,57 @@ describe("frontline operation continuity", () => {
       outcome,
       updatedAt: "2026-07-20T20:00:00Z",
       expectedVersion: 1,
-    })).resolves.toMatchObject({ version: 2, state: { outcome: "clean", passCount: 1 } });
+    })).resolves.toMatchObject({
+      version: 2,
+      state: { outcome: "clean", logicalPass: 1, retryGeneration: 0 },
+    });
 
     await expect(resolveFrontlineRun(store, binding())).resolves.toMatchObject({
       action: "reuse",
       version: 2,
-      state: { outcome: "clean", passCount: 1 },
+      state: { outcome: "clean", logicalPass: 1, retryGeneration: 0 },
     });
   });
 
-  it("uses distinct operation keys when target, source, or generation changes", async () => {
+  it("uses distinct operation keys when target, source, lineage, pass, or retry generation changes", async () => {
     const store = memoryStore();
     const baseline = await resolveFrontlineRun(store, binding());
     const changed = await Promise.all([
       resolveFrontlineRun(store, binding({ target: target("d") })),
       resolveFrontlineRun(store, binding({ source: { ...source, sourceId: "other-reviewer" } })),
-      resolveFrontlineRun(store, binding({ generation: 1 })),
+      resolveFrontlineRun(store, binding({
+        lineage: { ...lineage, candidateId: canonicalDigest({ candidate: "two" }) },
+      })),
+      resolveFrontlineRun(store, binding({ logicalPass: 2 })),
+      resolveFrontlineRun(store, binding({ retryGeneration: 1 })),
     ]);
 
-    expect(new Set([baseline, ...changed].map((result) => result.operationId)).size).toBe(4);
+    expect(new Set([baseline, ...changed].map((result) => result.operationId)).size).toBe(6);
     for (const result of changed) expect(result).toMatchObject({ action: "execute", expectedVersion: 0 });
   });
 
-  it("invalidates same-key state when policy or source binding changes", async () => {
+  it("blocks same-key state when its admitted policy or source binding changes", async () => {
     const store = memoryStore();
     const first = await resolveFrontlineRun(store, binding());
     if (first.action !== "execute") throw new Error("expected execution");
     await persistFrontlineRunOutcome(store, {
       ...binding(),
-      outcome: normalizeFrontlineOutcome({
-        providerResult: { kind: "pass-cap-exhausted" }, source, target: target("c"), pass: 2, maxPasses: 2,
-      }),
+      outcome: normalizedOutcome("clean"),
       updatedAt: "2026-07-20T20:00:00Z",
       expectedVersion: first.expectedVersion,
     });
 
     await expect(resolveFrontlineRun(store, binding({
-      policyVersion: canonicalDigest({ policy: "changed" }),
+      promptText: "Review under a contradictory policy.",
     }))).resolves.toMatchObject({
-      action: "execute",
-      expectedVersion: 1,
-      invalidatedBy: ["policy"],
+      action: "blocked",
+      reason: "operation-identity-conflict",
     });
     await expect(resolveFrontlineRun(store, binding({
       source: { ...source, argv: ["--structured"] },
     }))).resolves.toMatchObject({
-      action: "execute",
-      expectedVersion: 1,
-      invalidatedBy: ["source-binding"],
+      action: "blocked",
+      reason: "operation-identity-conflict",
     });
   });
 
@@ -631,7 +1030,7 @@ describe("frontline operation continuity", () => {
     const resolution = await resolveFrontlineRun(store, binding());
     if (resolution.action !== "execute") throw new Error("expected execution");
     const outcome = normalizeFrontlineOutcome({
-      providerResult: { kind: "clean" }, source, target: target("c"), pass: 1, maxPasses: 1,
+      providerResult: { kind: "clean" }, source, target: target("c"), pass: 1, maxPasses: 2,
     });
     const published = await persistFrontlineRunOutcome(store, {
       ...binding(), outcome, updatedAt: "2026-07-20T20:00:00Z", expectedVersion: 0,

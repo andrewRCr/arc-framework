@@ -13,7 +13,7 @@ import {
   ProjectRoutingReasonSchema,
   ReviewRetriggerSchema,
 } from "../policy/routing-schema.js";
-import { NormalizedReviewFindingSchema } from "./finding-records.js";
+import { NormalizedReviewFindingsSchema } from "./finding-records.js";
 
 export const ReviewGateV2SemanticsSchema = z.literal("review-gate/v2");
 export type ReviewGateV2Semantics = z.infer<typeof ReviewGateV2SemanticsSchema>;
@@ -62,6 +62,7 @@ export const ReviewCarrierSchema = z.discriminatedUnion("kind", [
     kind: z.literal("local-change-set"),
     adapterId: ReviewIdentifierSchema,
     changeRequestId: z.null(),
+    errandClaimId: ReviewIdentifierSchema.optional(),
   }),
 ]);
 export type ReviewCarrier = z.infer<typeof ReviewCarrierSchema>;
@@ -75,6 +76,8 @@ const ReviewRequestFieldsSchema = z.strictObject({
   carrier: ReviewCarrierSchema,
   authorIdentity: ReviewIdentifierSchema,
   evaluatorIdentity: ReviewIdentifierSchema,
+  lineageId: ReviewCanonicalDigestSchema,
+  logicalPass: z.number().int().positive(),
   generation: z.number().int().nonnegative(),
   requestMechanism: ReviewIdentifierSchema,
 });
@@ -207,7 +210,7 @@ const ReviewReceiptFieldsSchema = z.strictObject({
   rubricVersion: ReviewIdentifierSchema,
   rubricDigest: ReviewCanonicalDigestSchema,
   result: z.enum(["clean", "findings", "unavailable", "failed"]),
-  findings: z.array(NormalizedReviewFindingSchema),
+  findings: NormalizedReviewFindingsSchema,
 });
 
 export const ReviewReceiptV2Schema = ReviewReceiptFieldsSchema.superRefine((receipt, context) => {
@@ -239,7 +242,7 @@ export const ReviewReceiptCreationInputSchema = z.strictObject({
   attestationMechanism: ReviewIdentifierSchema,
   providerEventIdentity: ReviewIdentifierSchema.nullable(),
   result: z.enum(["clean", "findings", "unavailable", "failed"]),
-  findings: z.array(NormalizedReviewFindingSchema),
+  findings: NormalizedReviewFindingsSchema,
 });
 export type ReviewReceiptCreationInput = z.infer<typeof ReviewReceiptCreationInputSchema>;
 

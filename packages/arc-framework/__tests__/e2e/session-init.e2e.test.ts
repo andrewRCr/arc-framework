@@ -59,6 +59,7 @@ interface SessionInitEnvelope {
     value?: {
       mode: string;
       verdict: string;
+      movement?: "disjoint" | "overlapping" | "unknown";
       behind: number;
       integrationEvidence: unknown;
       overlap: unknown;
@@ -1225,7 +1226,7 @@ describe("session-init E2E — sessionType across type variants", () => {
       locus: "candidate-review-pending",
       nextAction: {
         kind: "run-self-review",
-        command: "arc review pre-publication foo --json",
+        command: "arc review pre-publication foo",
       },
     });
   });
@@ -1909,6 +1910,7 @@ describe("session-init E2E — shared advisory base drift", () => {
       remoteEvidence: "pending-fetch",
       recommendedAction: "skip",
     });
+    expect(parseJsonEnvelope(pendingRun.stdout).baseDistance?.value).not.toHaveProperty("movement");
 
     const materialized = await runArc(["base", "sync", "--json"], repo);
     expect(materialized.exitCode, materialized.stdout + materialized.stderr).toBe(0);
@@ -1916,7 +1918,9 @@ describe("session-init E2E — shared advisory base drift", () => {
     expect(run.exitCode).toBe(0);
     const value = parseJsonEnvelope(run.stdout).baseDistance?.value;
     expect(value?.verdict, JSON.stringify(value)).toBe("reconcile");
-    expect(value).toMatchObject({ mode: "advisory", recommendedAction: "surface" });
+    expect(value).toMatchObject({
+      mode: "advisory", movement: "disjoint", recommendedAction: "surface",
+    });
     expect(value?.integrationEvidence).not.toBeNull();
     expect(value?.overlap).not.toBeNull();
     expect(value?.recommendedPromptText).toBe(value?.register?.text);
@@ -1928,11 +1932,13 @@ describe("session-init E2E — shared advisory base drift", () => {
     await writeFile(configPath, config.replace("session.remote_sync: enabled", "session.remote_sync: disabled"));
     const run = await runArc(["status", "--session-init", "--json"], repo);
     expect(run.exitCode).toBe(0);
-    expect(parseJsonEnvelope(run.stdout).baseDistance?.value).toMatchObject({
+    const value = parseJsonEnvelope(run.stdout).baseDistance?.value;
+    expect(value).toMatchObject({
       mode: "advisory",
       verdict: "skipped",
       recommendedAction: "skip",
       recommendedPromptText: "",
     });
+    expect(value).not.toHaveProperty("movement");
   });
 });

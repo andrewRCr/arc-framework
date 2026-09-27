@@ -93,7 +93,8 @@ integration interlock:
 - candidate-tail cleanup
 - archive composition and closeout
 - lifecycle sweep and readiness regeneration
-- a typed safe base reconcile
+- a typed base reconcile selected from complete host-admission evidence, whose overlap is disclosed and whose
+  resulting head passes Tier 1 before fresh checkpoint applicability and exact-head authorization
 
 An implementation or finding-driven fix still requires its structured approval gate before commit, and no
 provisional candidate may merge without exact-head integration authorization. A pre-composition direction may
@@ -427,10 +428,11 @@ Before implementing in a codified domain, follow the [STRATEGY-INDEX][strategy-i
 ### Method and extension loading
 
 A workflow's `arc.methods` / `arc.extensions` frontmatter is an **index of what that workflow may fire**, not a
-preload list. A method's own `arc.methods` field analogously indexes methods its default or override may fire; callers
-never redeclare those dependencies. Load declared content only when its direct consumer reaches the callout,
-signature block, extension marker, or other fire-point that invokes it. A declaration the current path never reaches
-is not a reason to load it. Don't proceed from intuition at a fire-point when the declared content is one read away.
+preload list. A method's own `arc.methods` field analogously indexes methods its default or override may fire.
+Declare what your own body fires, never what you would carry only on a declared method's behalf. Load declared
+content only when its direct consumer reaches the callout, signature block, extension marker, or other fire-point
+that invokes it. A declaration the current path never reaches is not a reason to load it. Don't proceed from
+intuition at a fire-point when the declared content is one read away.
 
 When a loaded method carries a populated `.override`, follow its `override-mode`: `replace` (the default; absent
 ⇒ this) supersedes `.default`, while `extend` applies `.default` first and then the override on top.

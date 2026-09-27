@@ -13,6 +13,8 @@ import {
   projectCandidateReviewBoundary,
   projectPublicationBoundary,
 } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { canonicalize } from "../../../src/lib/canonical/canonical-json.js";
+import { spineRemedy } from "../../../src/scripts/integration/spine-refusal.js";
 
 const mockLogError = vi.fn();
 const mockLogInfo = vi.fn();
@@ -115,11 +117,15 @@ const mockReadActiveMetaCandidates = vi.fn<(cwd: string) => Promise<{ candidates
     candidates: [{ filename: "meta-foo.md" }],
   }),
 );
+const mockSetMetaBulletFields = vi.fn<(
+  content: string,
+  fields: Record<string, string>,
+) => string>((content) => content);
 vi.mock("../../../src/lib/active/meta-reader.js", () => ({
   formatValue: (value: string) => value,
   parseMetaRecord: () => mockParseMetaRecord(),
   readActiveMetaCandidates: (cwd: string) => mockReadActiveMetaCandidates(cwd),
-  setMetaBulletFields: (content: string) => content,
+  setMetaBulletFields: (...args: [string, Record<string, string>]) => mockSetMetaBulletFields(...args),
   setMetaCandidate: (content: string) => content,
 }));
 vi.mock("../../../src/lib/active/current-workflow-consistency.js", async (importOriginal) => ({
@@ -174,7 +180,8 @@ vi.mock("../../../src/lib/work-unit/git-decompose-v3-preflight.js", () => ({
 }));
 const mockExecuteGitV3DecomposeCommand = vi.fn();
 const mockExecuteGitV3ExtractionCommand = vi.fn();
-vi.mock("../../../src/lib/work-unit/git-decompose-v3-operation.js", () => ({
+vi.mock("../../../src/lib/work-unit/git-decompose-v3-operation.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../src/lib/work-unit/git-decompose-v3-operation.js")>(),
   executeGitV3DecomposeCommand: (...args: unknown[]) =>
     mockExecuteGitV3DecomposeCommand(...args),
   executeGitV3ExtractionCommand: (...args: unknown[]) =>
@@ -267,15 +274,31 @@ vi.mock("../../../src/lib/work-unit/verbs/publish.js", () => ({
 }));
 
 const mockReadCandidateRecord = vi.fn();
+const mockReadRepositoryCandidateRecordRevision = vi.fn();
 const mockWriteCandidateRecord = vi.fn();
 vi.mock("../../../src/lib/work-unit/candidate-record-store.js", () => ({
   readCandidateRecord: (...a: unknown[]) => mockReadCandidateRecord(...a),
+  readRepositoryCandidateRecordRevision: (...a: unknown[]) => mockReadRepositoryCandidateRecordRevision(...a),
   writeCandidateRecord: (...a: unknown[]) => mockWriteCandidateRecord(...a),
 }));
-const mockCollectGitCandidateTarget = vi.fn();
+const mockResolveRepositoryIdentity = vi.fn();
+vi.mock("../../../src/scripts/review-gate/hosts/local/git-common-state.js", async (orig) => ({
+  ...(await orig<typeof import("../../../src/scripts/review-gate/hosts/local/git-common-state.js")>()),
+  resolveRepositoryIdentity: (...a: unknown[]) => mockResolveRepositoryIdentity(...a),
+  withRepositoryReviewOperationLock: async <T>(
+    _exec: unknown, _cwd: string, _operationId: string, _maxWaitMs: number,
+    action: () => Promise<T>,
+  ): Promise<T> => action(),
+}));
+const mockReadLaneProgressOwner = vi.fn();
+vi.mock("../../../src/scripts/review-gate/lane-progress.js", async (orig) => ({
+  ...(await orig<typeof import("../../../src/scripts/review-gate/lane-progress.js")>()),
+  readLaneProgressOwner: (...a: unknown[]) => mockReadLaneProgressOwner(...a),
+}));
+const mockCollectGitCandidateSubject = vi.fn();
 const mockCollectUnstagedReviewablePaths = vi.fn();
 vi.mock("../../../src/lib/work-unit/git-candidate-subject.js", () => ({
-  collectGitCandidateTarget: (...a: unknown[]) => mockCollectGitCandidateTarget(...a),
+  collectGitCandidateSubject: (...a: unknown[]) => mockCollectGitCandidateSubject(...a),
   collectUnstagedReviewablePaths: (...a: unknown[]) => mockCollectUnstagedReviewablePaths(...a),
 }));
 const mockRunAttest = vi.fn();
@@ -328,6 +351,7 @@ const {
   handleAbandon,
   handleReopen,
   handleAttest,
+  AttestCommandInputSchema,
   LifecycleCommandRefusalSchema,
 } = await import("../../../src/handlers/lifecycle.js");
 
@@ -456,7 +480,12 @@ beforeEach(() => {
     reservation: null,
   };
   mockReadCandidateRecord.mockResolvedValue({ attestation: { candidateId } });
-  mockCollectGitCandidateTarget.mockResolvedValue({ revision: "a".repeat(40), subject: {} });
+  mockResolveRepositoryIdentity.mockResolvedValue("repository-id");
+  mockReadLaneProgressOwner.mockResolvedValue(null);
+  mockCollectGitCandidateSubject.mockResolvedValue({
+    status: "collected",
+    target: { revision: "a".repeat(40), subject: {} },
+  });
   mockProjectGitCandidateEffectiveTarget.mockResolvedValue({
     state: "current",
     candidateId,
@@ -465,6 +494,7 @@ beforeEach(() => {
       subject: { subjectDigest: `sha256:${"b".repeat(64)}` },
     },
     convergenceVerification: "satisfied",
+    convergenceScope: null,
   });
   mockReadSubmissionBoundaryVersioned.mockResolvedValue({ boundary, version: "boundary-version" });
   mockWriteSubmissionBoundary.mockResolvedValue(".arc/system/.internal/candidates/foo.boundary.json");
@@ -709,6 +739,7 @@ describe("handleDecompose", () => {
         before: {
           mode: "100644" as const,
           contentDigest: `sha256:${"d".repeat(64)}`,
+          byteLength: 128,
         },
         after: {
           kind: "file" as const,
@@ -739,28 +770,127 @@ describe("handleDecompose", () => {
     expect(process.exitCode).toBeUndefined();
   });
 
-  it("surfaces a typed finish refusal", async () => {
+  it.each([
+    ["preview", null],
+    ["apply", `sha256:${"a".repeat(64)}`],
+  ] as const)("emits the same typed finish refusal for %s", async (_mode, authority) => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-    mockFinishGitV3Extraction.mockResolvedValue({
+    const remedy = spineRemedy(
+      "Every extraction destination must be present on the live base.",
+      "Land the reported destination, then retry finish",
+      [
+        "arc",
+        "decompose",
+        "mono",
+        "--finish",
+        "cut-map.json",
+        ...(authority === null ? [] : ["--apply", authority]),
+      ],
+    );
+    const refusal = {
       status: "refused",
       reason: "destination-missing",
       locus: "member",
+      evidence: { expected: "planned", actual: { kind: "absent" } },
+      remedy,
+    };
+    mockFinishGitV3Extraction.mockResolvedValue(refusal);
+
+    await handleDecompose("mono", {
+      finish: "cut-map.json",
+      ...(authority === null ? {} : { apply: authority }),
     });
 
-    await handleDecompose("mono", { finish: "cut-map.json" });
+    expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize(refusal)}\n`);
+    expect(stderrWrite).toHaveBeenCalledWith(`destination-missing\n${remedy.text}\n`);
+    expect(process.exitCode).toBe(1);
+  });
 
-    expect(stdoutWrite).toHaveBeenCalledWith(
-      '{"locus":"member","reason":"destination-missing","status":"refused"}\n',
+  it.each([
+    [
+      "preflight",
+      { preflight: true as const },
+      mockCreateGitV3DecomposePreflight,
+      ["arc", "decompose", "mono", "--preflight"],
+    ],
+    [
+      "execute",
+      { execute: "cut-map.json" },
+      mockExecuteGitV3DecomposeCommand,
+      ["arc", "decompose", "mono", "--execute", "cut-map.json"],
+    ],
+    [
+      "extract",
+      { extract: "cut-map.json" },
+      mockExecuteGitV3ExtractionCommand,
+      ["arc", "decompose", "mono", "--extract", "cut-map.json"],
+    ],
+    [
+      "finish preview",
+      { finish: "cut-map.json" },
+      mockFinishGitV3Extraction,
+      ["arc", "decompose", "mono", "--finish", "cut-map.json"],
+    ],
+    [
+      "finish apply",
+      { finish: "cut-map.json", apply: `sha256:${"a".repeat(64)}` },
+      mockFinishGitV3Extraction,
+      ["arc", "decompose", "mono", "--finish", "cut-map.json", "--apply", `sha256:${"a".repeat(64)}`],
+    ],
+    [
+      "advance base",
+      { advanceBase: "cut-map.json" },
+      mockAdvanceGitDecomposeTransitionBase,
+      ["arc", "decompose", "mono", "--advance-base", "cut-map.json"],
+    ],
+  ] as const)("converts a thrown %s failure to the core refusal", async (mode, options, adapter, argv) => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const locus = `${mode} exploded`;
+    adapter.mockRejectedValue(new Error(locus));
+    const remedy = spineRemedy(
+      "The selected decomposition mode must complete without an unexpected runtime failure.",
+      "Retry the selected mode",
+      argv,
     );
-    expect(stderrWrite).toHaveBeenCalledWith("destination-missing: member\n");
+    const refusal = {
+      status: "refused",
+      reason: "unexpected-error",
+      locus,
+      remedy,
+    };
+
+    await handleDecompose("mono", options);
+
+    expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize(refusal)}\n`);
+    expect(stderrWrite).toHaveBeenCalledWith(`unexpected-error\n${remedy.text}\n`);
+    expect(process.exitCode).toBe(1);
+
+    stdoutWrite.mockClear();
+    stderrWrite.mockClear();
+    process.exitCode = undefined;
+    adapter.mockRejectedValue(new Error(""));
+
+    await handleDecompose("mono", options);
+
+    expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize({
+      status: "refused",
+      reason: "unexpected-error",
+      remedy,
+    })}\n`);
+    expect(stderrWrite).toHaveBeenCalledWith(`unexpected-error\n${remedy.text}\n`);
     expect(process.exitCode).toBe(1);
   });
 
   it("surfaces the execute adapter's precomposed recovery without rebuilding it", async () => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-    const remedy = "ADAPTER-ONLY: retry or clean the owned candidate";
+    const remedy = spineRemedy(
+      "The candidate must be recoverable from its typed operation facts.",
+      "Retry the selected mode",
+      ["arc", "decompose", "mono", "--execute", "cut-map.json"],
+    );
     mockExecuteGitV3DecomposeCommand.mockResolvedValue({
       status: "refused",
       stage: "occupation",
@@ -771,11 +901,38 @@ describe("handleDecompose", () => {
 
     await handleDecompose("mono", { execute: "cut-map.json" });
 
-    expect(stdoutWrite).toHaveBeenCalledWith(
-      `{"reason":"candidate-conflict","recovery":{"kind":"none"},`
-      + `"remedy":"${remedy}","stage":"occupation","status":"refused"}\n`,
-    );
-    expect(stderrWrite).toHaveBeenCalledWith(`candidate-conflict\n${remedy}\n`);
+    expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize({
+      status: "refused",
+      stage: "occupation",
+      reason: "candidate-conflict",
+      recovery: { kind: "none" },
+      remedy,
+    })}\n`);
+    expect(stderrWrite).toHaveBeenCalledWith(`candidate-conflict\n${remedy.text}\n`);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("emits uncovered retirement content through the strict decompose refusal boundary", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const refusal = {
+      status: "refused" as const,
+      stage: "repository-plan" as const,
+      reason: "conservation:live-conservation:uncovered-retirement-content",
+      locus: ".arc/active/notes-mono.md",
+      recovery: { kind: "none" as const },
+      remedy: spineRemedy(
+        "Retirement cannot delete nonempty companion content outside the conservation proof.",
+        "Move the content into a scanned artifact or delete the file, then re-run preflight",
+        ["arc", "decompose", "mono", "--preflight"],
+      ),
+    };
+    mockExecuteGitV3DecomposeCommand.mockResolvedValue(refusal);
+
+    await handleDecompose("mono", { execute: "cut-map.json" });
+
+    expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize(refusal)}\n`);
+    expect(stderrWrite).toHaveBeenCalledWith(`${refusal.reason}\n${refusal.remedy.text}\n`);
     expect(process.exitCode).toBe(1);
   });
 
@@ -792,20 +949,87 @@ describe("handleDecompose", () => {
     );
   });
 
-  it("surfaces advance-base refusals without prescribing a successor", async () => {
+  it("keeps unchanged advance-base output free of refusal fields", async () => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
-    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-    mockAdvanceGitDecomposeTransitionBase.mockResolvedValue({
-      status: "refused",
-      reason: "full-protection-required",
-    });
+    const unchanged = {
+      status: "unchanged",
+      candidateBranch: "chore/decompose-mono",
+      candidateHead: "d".repeat(40),
+      currentBaseHead: "c".repeat(40),
+    } as const;
+    mockAdvanceGitDecomposeTransitionBase.mockResolvedValue(unchanged);
 
     await handleDecompose("mono", { advanceBase: "cut-map.json" });
 
-    expect(stdoutWrite).toHaveBeenCalledWith(
-      '{"reason":"full-protection-required","status":"refused"}\n',
+    expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize(unchanged)}\n`);
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("emits an actionable advance-base comparison refusal", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const refusal = {
+      status: "refused",
+      reason: "base-not-descendant",
+      locus: "main",
+      evidence: { expected: "base-before", actual: "base-now" },
+    } as const;
+    const remedy = spineRemedy(
+      "The live result base must descend from the decomposition plan's authenticated base.",
+      "Land or select a descendant base, then retry base advancement",
+      ["arc", "decompose", "mono", "--advance-base", "cut-map.json"],
     );
-    expect(stderrWrite).toHaveBeenCalledWith("full-protection-required\n");
+    mockAdvanceGitDecomposeTransitionBase.mockResolvedValue(refusal);
+
+    await handleDecompose("mono", { advanceBase: "cut-map.json" });
+
+    expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize({ ...refusal, remedy })}\n`);
+    expect(stderrWrite).toHaveBeenCalledWith(`${refusal.reason}\n${remedy.text}\n`);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("emits an actionable nested advancement-plan refusal", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const refusal = {
+      status: "refused",
+      reason: "advancement-plan-refused:conservation:uncovered-retirement-content",
+      locus: ".arc/active/notes-mono.md",
+      evidence: { expected: "covered", actual: "uncovered" },
+    } as const;
+    const remedy = spineRemedy(
+      "Retirement cannot delete nonempty companion content outside the conservation proof.",
+      "Move the content at .arc/active/notes-mono.md into a scanned artifact or delete the file, then re-run preflight",
+      ["arc", "decompose", "mono", "--preflight"],
+    );
+    mockAdvanceGitDecomposeTransitionBase.mockResolvedValue(refusal);
+
+    await handleDecompose("mono", { advanceBase: "cut-map.json" });
+
+    expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize({ ...refusal, remedy })}\n`);
+    expect(stderrWrite).toHaveBeenCalledWith(`${refusal.reason}\n${remedy.text}\n`);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("emits candidate cleanup for a stranded base-advancement result", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const refusal = {
+      status: "refused",
+      reason: "candidate-restore-failed",
+      locus: "/repo/decompose-mono",
+    } as const;
+    const remedy = spineRemedy(
+      "A refused base advancement must restore its candidate to the authenticated head.",
+      "Clean the stranded candidate at /repo/decompose-mono, then retry with arc decompose mono --advance-base cut-map.json",
+      ["arc", "teardown", "--branch", "chore/decompose-mono"],
+    );
+    mockAdvanceGitDecomposeTransitionBase.mockResolvedValue(refusal);
+
+    await handleDecompose("mono", { advanceBase: "cut-map.json" });
+
+    expect(stdoutWrite).toHaveBeenCalledWith(`${canonicalize({ ...refusal, remedy })}\n`);
+    expect(stderrWrite).toHaveBeenCalledWith(`${refusal.reason}\n${remedy.text}\n`);
     expect(process.exitCode).toBe(1);
   });
 
@@ -814,16 +1038,36 @@ describe("handleDecompose", () => {
     ["advance-base with another mode", { preflight: true, advanceBase: "cut-map.json" }],
     ["apply without finish", { apply: `sha256:${"a".repeat(64)}` }],
   ])("refuses %s before any production adapter", async (_case, options) => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+
     await handleDecompose(
       "mono",
       options as unknown as Parameters<typeof handleDecompose>[1],
     );
 
+    expect(stdoutWrite).not.toHaveBeenCalled();
+    expect(stderrWrite).toHaveBeenCalled();
     expect(mockCreateGitV3DecomposePreflight).not.toHaveBeenCalled();
     expect(mockExecuteGitV3DecomposeCommand).not.toHaveBeenCalled();
     expect(mockExecuteGitV3ExtractionCommand).not.toHaveBeenCalled();
     expect(mockFinishGitV3Extraction).not.toHaveBeenCalled();
     expect(mockAdvanceGitDecomposeTransitionBase).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("keeps a missing-project finish refusal outside the mode envelope", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    mockResolveArcRoot.mockReturnValueOnce(null);
+
+    await handleDecompose("mono", { finish: "cut-map.json" });
+
+    expect(stdoutWrite).not.toHaveBeenCalled();
+    expect(stderrWrite).toHaveBeenCalledWith(
+      "Not inside an ARC project (no .arc/ directory found walking up from cwd).\n",
+    );
+    expect(mockFinishGitV3Extraction).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 
@@ -1452,6 +1696,58 @@ describe("handleReopen", () => {
 });
 
 describe("handleAttest", () => {
+  const convergencePendingBoundary = () => {
+    const candidateId = `sha256:${"a".repeat(64)}`;
+    const candidateSubjectDigest = `sha256:${"b".repeat(64)}`;
+    const reviewedHead = "a".repeat(40);
+    const resume = Buffer.from(JSON.stringify({ selfReview: "settled" }), "utf8").toString("base64url");
+    const postAttestContinuation = {
+      reviewedHead,
+      nextAction: {
+        kind: "continue-pre-publication-review" as const,
+        command: `arc review pre-publication foo --resume ${resume}`,
+        interactionText: "Resume pre-publication review over the converged Candidate.",
+      },
+      projectionDisposition: "keep-staged-until-publication" as const,
+    };
+    return {
+      candidateId,
+      candidateSubjectDigest,
+      reviewedHead,
+      postAttestContinuation,
+      boundary: {
+        schemaVersion: 1 as const,
+        mode: "integration-boundary" as const,
+        workUnit: "foo",
+        candidateId,
+        candidateSubjectDigest,
+        terminus: null,
+        deliveryReviewTermini: [],
+        locus: "candidate-convergence-verification-pending" as const,
+        nextAction: {
+          kind: "run-convergence-verification" as const,
+          command: "arc attest foo --json",
+          interactionText: "Run convergence verification, then attest.",
+          postAttestContinuation,
+        },
+        policy: null,
+        reservation: null,
+      },
+    };
+  };
+  it("defaults convergence scope to full and rejects malformed scope or evidence", () => {
+    expect(AttestCommandInputSchema.parse({ name: "foo" })).toMatchObject({ scope: "full" });
+    expect(AttestCommandInputSchema.safeParse({ name: "foo", scope: "broad" }).success).toBe(false);
+    expect(AttestCommandInputSchema.safeParse({
+      name: "foo",
+      verificationEvidenceRef: " ",
+    }).success).toBe(false);
+    expect(AttestCommandInputSchema.safeParse({
+      name: "foo",
+      verificationEvidenceRef: "{verificationEvidenceRef}",
+    }).success).toBe(false);
+  });
+
   it("emits one typed JSON refusal when identity resolution fails", async () => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     mockResolveUserIdentity.mockRejectedValueOnce(new Error("identity unavailable"));
@@ -1467,6 +1763,28 @@ describe("handleAttest", () => {
     expect(mockRunAttest).not.toHaveBeenCalled();
   });
 
+  it("returns a typed restore-and-retry refusal when the live review record cannot be read", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const reviewHeadSha = "a".repeat(40);
+    mockReadLaneProgressOwner.mockResolvedValueOnce({
+      attempts: [{ attemptId: "attempt-1", outcome: "pending", headSha: reviewHeadSha }],
+    });
+    mockReadRepositoryCandidateRecordRevision.mockRejectedValueOnce(new Error("missing review-head record"));
+    mockRunAttest.mockImplementationOnce(async (context) => {
+      await context.inspectReRootReviewAuthority("foo", `sha256:${"a".repeat(64)}`);
+      throw new Error("expected record lookup refusal");
+    });
+
+    await handleAttest("foo", { newRoot: true, json: true });
+
+    const refusal = LifecycleCommandRefusalSchema.parse(
+      JSON.parse(String(stdoutWrite.mock.calls[0]?.[0])),
+    );
+    expect(refusal.reason).toContain("missing review-head record");
+    expect(refusal.remedy.argv).toEqual(["arc", "attest", "foo", "--new-root"]);
+    expect(process.exitCode).toBe(1);
+  });
+
   it("attests when the index carries every reviewable edit", async () => {
     await handleAttest("foo", { json: true });
 
@@ -1475,7 +1793,285 @@ describe("handleAttest", () => {
       name: "foo",
       lifecycle: "Active",
       newRoot: false,
+      scope: "full",
     });
+  });
+
+  it("repairs the exact post-attest continuation after the Candidate write outlives a boundary failure", async () => {
+    const fixture = convergencePendingBoundary();
+    mockReadSubmissionBoundaryVersioned.mockResolvedValue({
+      boundary: fixture.boundary,
+      version: "pending-boundary-version",
+    });
+    let attempt = 0;
+    mockRunAttest.mockImplementation(async (context) => {
+      attempt += 1;
+      const published = await context.publish({
+        name: "foo",
+        record: { attestation: { candidateId: fixture.candidateId } },
+        candidateId: fixture.candidateId,
+        candidateSubjectDigest: fixture.candidateSubjectDigest,
+        currentWorkflow: "prepare-work-unit",
+        nextAction: "Resume pre-publication review",
+        expectedRecordVersion: attempt === 1 ? "candidate-version" : "persisted-candidate-version",
+        repairCurrent: attempt > 1,
+      });
+      return attempt === 1
+        ? { status: "attested", operation: "convergence", ...published }
+        : { status: "unchanged", locus: published.locus };
+    });
+    let persistedBoundary: unknown = null;
+    mockWriteSubmissionBoundary
+      .mockRejectedValueOnce(new Error("boundary write interrupted"))
+      .mockImplementationOnce(async (_cwd, boundary, expectedVersion) => {
+        expect(expectedVersion).toBe("pending-boundary-version");
+        persistedBoundary = boundary;
+        return ".arc/system/.internal/candidates/foo.boundary.json";
+      });
+
+    await expect(handleAttest("foo", { json: true })).rejects.toThrow("boundary write interrupted");
+    expect(mockWriteCandidateRecord).toHaveBeenCalledTimes(1);
+    expect(mockIoWriteFile).not.toHaveBeenCalled();
+    expect(mockIoExec).not.toHaveBeenCalledWith("git", expect.arrayContaining(["add"]), expect.anything());
+
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    await handleAttest("foo", { json: true });
+
+    expect(persistedBoundary).toMatchObject({
+      locus: "candidate-review-pending",
+      candidateId: fixture.candidateId,
+      candidateSubjectDigest: fixture.candidateSubjectDigest,
+      nextAction: fixture.postAttestContinuation.nextAction,
+      postAttestContinuation: fixture.postAttestContinuation,
+    });
+    expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
+      status: "unchanged",
+      locus: {
+        locus: "candidate-review-pending",
+        nextAction: fixture.postAttestContinuation.nextAction,
+        postAttestContinuation: fixture.postAttestContinuation,
+      },
+    });
+    expect(mockIoWriteFile).toHaveBeenCalledTimes(1);
+    expect(mockIoExec).toHaveBeenCalledWith(
+      "git",
+      [
+        "add", "--",
+        ".arc/system/.internal/candidates/foo.json",
+        ".arc/active/meta-foo.md",
+        ".arc/system/.internal/candidates/foo.boundary.json",
+      ],
+      { cwd: "/repo" },
+    );
+  });
+
+  it("preserves the post-attest continuation across metadata and staging retry", async () => {
+    const fixture = convergencePendingBoundary();
+    let currentBoundary = fixture.boundary;
+    let boundaryVersion = "pending-boundary-version";
+    mockReadSubmissionBoundaryVersioned.mockImplementation(async () => ({
+      boundary: currentBoundary,
+      version: boundaryVersion,
+    }));
+    mockWriteSubmissionBoundary.mockImplementation(async (_cwd, boundary) => {
+      currentBoundary = boundary;
+      boundaryVersion = `boundary-version-${mockWriteSubmissionBoundary.mock.calls.length}`;
+      return ".arc/system/.internal/candidates/foo.boundary.json";
+    });
+    let attempt = 0;
+    mockRunAttest.mockImplementation(async (context) => {
+      attempt += 1;
+      const published = await context.publish({
+        name: "foo",
+        record: { attestation: { candidateId: fixture.candidateId } },
+        candidateId: fixture.candidateId,
+        candidateSubjectDigest: fixture.candidateSubjectDigest,
+        currentWorkflow: "prepare-work-unit",
+        nextAction: "Resume pre-publication review",
+        expectedRecordVersion: attempt === 1 ? "candidate-version" : "persisted-candidate-version",
+        repairCurrent: attempt > 1,
+      });
+      return attempt === 1
+        ? { status: "attested", operation: "convergence", ...published }
+        : { status: "unchanged", locus: published.locus };
+    });
+    mockIoWriteFile.mockRejectedValueOnce(new Error("meta write interrupted"));
+
+    await expect(handleAttest("foo", { json: true })).rejects.toThrow("meta write interrupted");
+    expect(currentBoundary).toMatchObject({
+      locus: "candidate-review-pending",
+      postAttestContinuation: fixture.postAttestContinuation,
+    });
+
+    mockIoExec.mockRejectedValueOnce(new Error("index write interrupted"));
+    await expect(handleAttest("foo", { json: true })).rejects.toThrow("index write interrupted");
+    expect(currentBoundary).toMatchObject({
+      locus: "candidate-review-pending",
+      postAttestContinuation: fixture.postAttestContinuation,
+    });
+
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    await handleAttest("foo", { json: true });
+
+    expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
+      status: "unchanged",
+      locus: {
+        locus: "candidate-review-pending",
+        nextAction: fixture.postAttestContinuation.nextAction,
+        postAttestContinuation: fixture.postAttestContinuation,
+      },
+    });
+    expect(mockIoWriteFile).toHaveBeenCalledTimes(3);
+    expect(mockIoExec).toHaveBeenLastCalledWith(
+      "git",
+      [
+        "add", "--",
+        ".arc/system/.internal/candidates/foo.json",
+        ".arc/active/meta-foo.md",
+        ".arc/system/.internal/candidates/foo.boundary.json",
+      ],
+      { cwd: "/repo" },
+    );
+  });
+
+  it("passes scoped convergence evidence through the public handler", async () => {
+    await handleAttest("foo", {
+      json: true,
+      scope: "focused",
+      verificationEvidenceRef: "verification://focused/current",
+    });
+
+    expect(mockRunAttest).toHaveBeenCalledTimes(1);
+    expect(mockRunAttest.mock.calls[0]?.[1]).toMatchObject({
+      name: "foo",
+      scope: "focused",
+      verificationEvidenceRef: "verification://focused/current",
+    });
+  });
+
+  it("preserves scoped refusal coordinates and action in JSON output", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    mockRunAttest.mockResolvedValueOnce({
+      status: "refused",
+      reason: "verification-evidence-required",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      subjectDigest: `sha256:${"d".repeat(64)}`,
+      requestedScope: "focused",
+      requiredScope: "focused",
+      verificationEvidenceProvided: false,
+      nextAction: {
+        kind: "run-verification",
+        scope: "focused",
+        verificationKind: "focused",
+        verificationEvidenceRequired: true,
+        attestArgv: [
+          "arc", "attest", "foo", "--scope", "focused",
+          "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",
+        ],
+      },
+      recommendedActionText: "Run focused convergence verification and supply its fresh evidence reference.",
+    });
+
+    await handleAttest("foo", { json: true, scope: "focused" });
+
+    expect(JSON.parse(String(stdoutWrite.mock.calls[0]?.[0]))).toMatchObject({
+      status: "refused",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      subjectDigest: `sha256:${"d".repeat(64)}`,
+      requestedScope: "focused",
+      requiredScope: "focused",
+      verificationEvidenceProvided: false,
+      nextAction: {
+        verificationKind: "focused",
+        attestArgv: [
+          "arc", "attest", "foo", "--scope", "focused",
+          "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",
+        ],
+      },
+    });
+  });
+
+  it("renders scoped refusal coordinates and exact action interactively", async () => {
+    mockRunAttest.mockResolvedValueOnce({
+      status: "refused",
+      reason: "verification-scope-insufficient",
+      candidateId: `sha256:${"c".repeat(64)}`,
+      subjectDigest: `sha256:${"d".repeat(64)}`,
+      requestedScope: "focused",
+      requiredScope: "full",
+      verificationEvidenceProvided: true,
+      nextAction: {
+        kind: "run-verification",
+        scope: "full",
+        verificationKind: "tier-3",
+        verificationEvidenceRequired: true,
+        attestArgv: [
+          "arc", "attest", "foo", "--scope", "full",
+          "--verification-evidence-ref", "{verificationEvidenceRef}", "--json",
+        ],
+      },
+      recommendedActionText: "Run full convergence verification.",
+    });
+
+    await handleAttest("foo", {
+      scope: "focused",
+      verificationEvidenceRef: "verification://focused/current",
+    });
+
+    expect(mockLogError).toHaveBeenCalledWith(expect.stringMatching(
+      /Candidate: sha256:c{64}[\s\S]*Subject: sha256:d{64}[\s\S]*focused requested; full required[\s\S]*Fresh evidence: supplied[\s\S]*arc attest foo --scope full --verification-evidence-ref \{verificationEvidenceRef\} --json/u,
+    ));
+  });
+
+  it("renders re-root race coordinates, reason, and refresh action interactively", async () => {
+    mockRunAttest.mockResolvedValueOnce({
+      status: "refused",
+      reason: "re-root-subject-mismatch",
+      expected: {
+        candidateId: `sha256:${"a".repeat(64)}`,
+        subjectDigest: `sha256:${"b".repeat(64)}`,
+      },
+      observed: {
+        candidateId: `sha256:${"a".repeat(64)}`,
+        subjectDigest: `sha256:${"c".repeat(64)}`,
+      },
+      nextAction: {
+        kind: "refresh-attestation",
+        attestArgv: ["arc", "attest", "foo", "--json"],
+      },
+      recommendedActionText: "The bound re-root continuation is stale. Refresh Candidate attestation state.",
+    });
+
+    await handleAttest("foo", { newRoot: true });
+
+    expect(mockLogError).toHaveBeenCalledWith(expect.stringMatching(
+      /Reason: re-root-subject-mismatch[\s\S]*Expected Candidate: sha256:a{64}[\s\S]*Observed Candidate: sha256:a{64}[\s\S]*Expected Subject: sha256:b{64}[\s\S]*Observed Subject: sha256:c{64}[\s\S]*Next: arc attest foo --json/u,
+    ));
+  });
+
+  it("renders recorded convergence scope and evidence in interactive output", async () => {
+    mockRunAttest.mockResolvedValueOnce({
+      status: "attested",
+      operation: "convergence",
+      scope: "focused",
+      verificationEvidenceRef: "verification://focused/current",
+      recordPath: ".arc/system/.internal/candidates/foo.json",
+      metaPath: ".arc/active/meta-foo.md",
+      locus: projectCandidateReviewBoundary({
+        workUnit: "foo",
+        candidateId: `sha256:${"c".repeat(64)}`,
+      }),
+    });
+
+    await handleAttest("foo", {
+      scope: "focused",
+      verificationEvidenceRef: "verification://focused/current",
+    });
+
+    expect(mockNote).toHaveBeenCalledWith(
+      expect.stringMatching(/Scope:\s+focused[\s\S]*Evidence:\s+verification:\/\/focused\/current/u),
+      "Candidate attested",
+    );
   });
 
   it("refuses Integrating attestation before Candidate mutation when public delivery evidence is not exact", async () => {
@@ -1497,6 +2093,76 @@ describe("handleAttest", () => {
       reason: expect.stringContaining("public delivery Candidate renewal"),
     });
     expect(mockRunAttest).not.toHaveBeenCalled();
+  });
+
+  it("recovers an Owner-accepted public boundary across repair-current subject movement", async () => {
+    const candidateId = `sha256:${"a".repeat(64)}`;
+    const sourceSubjectDigest = `sha256:${"b".repeat(64)}`;
+    const movedSubjectDigest = `sha256:${"c".repeat(64)}`;
+    const terminus = {
+      schemaVersion: 1 as const,
+      semanticsVersion: "review-terminus/v1" as const,
+      kind: "owner-accepted" as const,
+      lane: "standard" as const,
+      acceptedBy: "andrew",
+      completedPasses: 2,
+    };
+    const source = projectPublicationBoundary({
+      workUnit: "foo",
+      branch: "feat/foo",
+      candidateId,
+      candidateSubjectDigest: sourceSubjectDigest,
+      reservation: null,
+      terminus,
+      changeRequest: null,
+    });
+    mockParseMetaRecord.mockReturnValue({
+      branch: "feat/foo",
+      state: "Active",
+      taskList: "tasks-foo.md",
+      currentWorkflow: "prepare-work-unit",
+      nextAction: "Candidate review pending — run pre-publication review",
+      lastCompleted: null,
+      nextTask: null,
+    });
+    mockReadSubmissionBoundaryVersioned.mockResolvedValue({
+      boundary: source,
+      version: "source-boundary-version",
+    });
+    let persistedBoundary: unknown = null;
+    mockWriteSubmissionBoundary.mockImplementation(async (_cwd, boundary) => {
+      persistedBoundary = boundary;
+      return ".arc/system/.internal/candidates/foo.boundary.json";
+    });
+    mockSetMetaBulletFields.mockImplementationOnce((_content, fields) => JSON.stringify(fields));
+    let persistedMeta = "";
+    mockIoWriteFile.mockImplementationOnce(async (_path, content) => {
+      persistedMeta = String(content);
+    });
+    mockRunAttest.mockImplementationOnce(async (context) => {
+      const published = await context.publish({
+        name: "foo",
+        record: { attestation: { candidateId } },
+        candidateId,
+        candidateSubjectDigest: movedSubjectDigest,
+        currentWorkflow: "prepare-work-unit",
+        nextAction: "Candidate review pending — run pre-publication review",
+        expectedRecordVersion: "candidate-version",
+        repairCurrent: true,
+      });
+      return { status: "unchanged", locus: published.locus };
+    });
+    vi.spyOn(process.stdout, "write").mockReturnValue(true);
+
+    await handleAttest("foo", { json: true });
+
+    expect(persistedBoundary).toEqual({
+      ...source,
+      candidateSubjectDigest: movedSubjectDigest,
+    });
+    expect(JSON.parse(persistedMeta)).toMatchObject({
+      "Next Action": source.nextAction.interactionText,
+    });
   });
 
   it.each(["Integrating", "Shipped"] as const)("preserves public delivery authority while %s", async (lifecycle) => {
@@ -1940,5 +2606,25 @@ describe("handleAttest", () => {
     expect(reason).toContain("src/file-4.ts");
     expect(reason).not.toContain("src/file-5.ts");
     expect(reason).toContain("and 3 more");
+  });
+
+  it("refuses without attesting when the branch and its base leave no single base to collect against", async () => {
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    mockCollectGitCandidateSubject.mockResolvedValueOnce({
+      status: "refused",
+      reason: "merge-base-ambiguous",
+      detail: "The revisions have more than one best merge base.",
+    });
+
+    await handleAttest("foo", { json: true });
+
+    const refusal = LifecycleCommandRefusalSchema.parse(
+      JSON.parse(String(stdoutWrite.mock.calls[0]?.[0])),
+    );
+    expect(refusal.reason).toContain("merge-base-ambiguous");
+    expect(refusal.reason).toContain("The revisions have more than one best merge base.");
+    expect(refusal.remedy.argv).toEqual(["arc", "attest", "foo"]);
+    expect(mockRunAttest).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
   });
 });

@@ -93,11 +93,11 @@ not implement fixes — present findings and let the caller decide how to procee
 
 ### Severity interpretation
 
-Through the `adversarial-review` mechanism, findings map into the fixed `blocker` / `major` / `minor` enum the
+Through the `adversarial-review` mechanism, findings map into the fixed `critical` / `major` / `minor` enum the
 [severity model][adversarial-review] owns — the rubric maps _into_ the enum and never extends it. What each level
 looks like for a task list:
 
-- **`blocker`** — the gate cannot certify the tasks against their design: an ungrounded referent that makes a
+- **`critical`** — the gate cannot certify the tasks against their design: an ungrounded referent that makes a
   task unexecutable as written, a masked decision that reopens design, an assumption that — if wrong —
   invalidates the decomposition itself.
 - **`major`** — a substantive grounding or planning problem that should resolve before implementation: a hidden
@@ -109,7 +109,7 @@ looks like for a task list:
 **Two-axis reconciliation.** The native tiers above are **dispositions**, not severities — the two axes compose
 rather than compete:
 
-- _Fix before starting_ ≈ a higher-severity finding (`blocker` / `major`) carrying a fix-here disposition.
+- _Fix before starting_ ≈ a higher-severity finding (`critical` / `major`) carrying a fix-here disposition.
 - _Carry as context_ is the carry-forward disposition, available at **any** severity — carrying a finding forward
   durably resolves it for the caller without flattening its severity.
 

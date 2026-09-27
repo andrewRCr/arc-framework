@@ -5,12 +5,18 @@ import { z } from "zod";
 import {
   CandidateManagedRecordV1Schema,
   CandidateLineageTargetSchema,
+  CANDIDATE_VERIFICATION_EVIDENCE_PLACEHOLDER,
+  CandidateVerificationEvidenceRefSchema,
+  candidatePendingConvergenceResponseId,
+  candidateConvergenceScopeCovers,
   createCandidateAttestation,
   createCandidateLineageAttestation,
   type CandidateManagedRecordV1,
   type CandidateLineageTarget,
 } from "../candidate-attestation.js";
+import { CandidateGitObjectIdSchema } from "../candidate-evidence.js";
 import {
+  projectCandidateReRootContinuation,
   projectStagedCandidateCurrentness,
   type CandidateEffectiveTargetProjection,
 } from "../candidate-effective-target.js";
@@ -56,11 +62,132 @@ const AttestReRootContinuationSchema = z.strictObject({
     z.literal("--json"),
   ]),
 });
+const AttestRefreshActionSchema = z.strictObject({
+  kind: z.literal("refresh-attestation"),
+  attestArgv: z.tuple([
+    z.literal("arc"),
+    z.literal("attest"),
+    SlugSchema,
+    z.literal("--json"),
+  ]),
+});
 
-export const AttestResultSchema = z.discriminatedUnion("status", [
+const AttestScopeSchema = z.enum(["focused", "full"]);
+const AttestConvergenceVerificationActionSchema = z.strictObject({
+  kind: z.literal("run-verification"),
+  scope: AttestScopeSchema,
+  verificationKind: z.enum(["focused", "tier-3"]),
+  verificationEvidenceRequired: z.literal(true),
+  attestArgv: z.tuple([
+    z.literal("arc"),
+    z.literal("attest"),
+    SlugSchema,
+    z.literal("--scope"),
+    AttestScopeSchema,
+    z.literal("--verification-evidence-ref"),
+    z.literal(CANDIDATE_VERIFICATION_EVIDENCE_PLACEHOLDER),
+    z.literal("--json"),
+  ]),
+}).superRefine((action, context) => {
+  const expectedKind = action.scope === "focused" ? "focused" : "tier-3";
+  if (action.verificationKind !== expectedKind) {
+    context.addIssue({
+      code: "custom",
+      path: ["verificationKind"],
+      message: "must match the required convergence scope",
+    });
+  }
+  if (action.attestArgv[4] !== action.scope) {
+    context.addIssue({
+      code: "custom",
+      path: ["attestArgv", 4],
+      message: "must match the required convergence scope",
+    });
+  }
+});
+const AttestRootVerificationActionFields = {
+  kind: z.literal("run-verification"),
+  scope: z.literal("full"),
+  verificationKind: z.literal("tier-3"),
+  verificationEvidenceRequired: z.literal(false),
+};
+const AttestRootVerificationActionSchema = z.discriminatedUnion("operation", [
+  z.strictObject({
+    ...AttestRootVerificationActionFields,
+    operation: z.literal("root"),
+    attestArgv: z.tuple([
+      z.literal("arc"), z.literal("attest"), SlugSchema,
+      z.literal("--scope"), z.literal("full"), z.literal("--json"),
+    ]),
+  }),
+  z.strictObject({
+    ...AttestRootVerificationActionFields,
+    operation: z.literal("re-root"),
+    expected: AttestExpectedBlockedSchema,
+    attestArgv: z.tuple([
+      z.literal("arc"), z.literal("attest"), SlugSchema, z.literal("--new-root"),
+      z.literal("--expected-candidate"), CandidateDigestSchema,
+      z.literal("--expected-subject"), CandidateDigestSchema,
+      z.literal("--scope"), z.literal("full"), z.literal("--json"),
+    ]),
+  }).superRefine((action, context) => {
+    if (action.attestArgv[5] !== action.expected.candidateId
+      || action.attestArgv[7] !== action.expected.subjectDigest) {
+      context.addIssue({
+        code: "custom",
+        path: ["attestArgv"],
+        message: "must match the expected blocked Candidate and subject",
+      });
+    }
+  }),
+]);
+const AttestVerificationActionSchema = z.union([
+  AttestConvergenceVerificationActionSchema,
+  AttestRootVerificationActionSchema,
+]);
+
+const AttestScopedRefusalResultSchema = z.strictObject({
+  status: z.literal("refused"),
+  reason: z.enum([
+    "verification-evidence-required",
+    "verification-evidence-reused",
+    "verification-evidence-inapplicable",
+    "verification-scope-insufficient",
+    "focused-scope-inapplicable",
+  ]),
+  candidateId: CandidateDigestSchema.nullable(),
+  subjectDigest: CandidateDigestSchema,
+  requestedScope: AttestScopeSchema,
+  requiredScope: AttestScopeSchema,
+  verificationEvidenceProvided: z.boolean(),
+  nextAction: AttestVerificationActionSchema,
+  recommendedActionText: z.string().trim().min(1),
+}).superRefine((result, context) => {
+  if (!result.nextAction.verificationEvidenceRequired
+    && result.nextAction.operation === "re-root"
+    && (result.candidateId !== result.nextAction.expected.candidateId
+      || result.subjectDigest !== result.nextAction.expected.subjectDigest)) {
+    context.addIssue({
+      code: "custom",
+      path: ["nextAction", "expected"],
+      message: "must match the refused Candidate and subject",
+    });
+  }
+});
+
+export const AttestResultSchema = z.union([
   z.strictObject({
     status: z.literal("attested"),
-    operation: z.enum(["root", "re-root", "convergence"]),
+    operation: z.enum(["root", "re-root"]),
+    recordPath: z.string().trim().min(1),
+    metaPath: z.string().trim().min(1),
+    locus: IntegrationBoundaryLocusSchema,
+  }),
+  z.strictObject({
+    status: z.literal("attested"),
+    operation: z.literal("convergence"),
+    scope: AttestScopeSchema,
+    verificationEvidenceRef: z.string().trim().min(1),
     recordPath: z.string().trim().min(1),
     metaPath: z.string().trim().min(1),
     locus: IntegrationBoundaryLocusSchema,
@@ -83,13 +210,38 @@ export const AttestResultSchema = z.discriminatedUnion("status", [
   }),
   z.strictObject({
     status: z.literal("refused"),
+    reason: z.literal("re-root-live-review"),
+    candidateId: CandidateDigestSchema,
+    lane: z.enum(["frontline", "standard"]),
+    attemptId: z.string().trim().min(1),
+    outcome: z.enum(["pending", "partial", "findings", "ambiguous-delivery"]),
+    reviewHeadSha: CandidateGitObjectIdSchema,
+    recordRevision: CandidateGitObjectIdSchema,
+    nextAction: z.strictObject({
+      kind: z.literal("recover-owning-branch-review"),
+      reviewHeadSha: CandidateGitObjectIdSchema,
+      candidateRecordRevision: CandidateGitObjectIdSchema,
+      reviewArgv: z.tuple([z.literal("arc"), z.literal("review"),
+        z.literal("pre-publication"), SlugSchema]),
+    }),
+    recommendedActionText: z.string().trim().min(1),
+  }),
+  z.strictObject({
+    status: z.literal("refused"),
     reason: z.enum([
       "re-root-candidate-mismatch",
       "re-root-subject-mismatch",
       "re-root-no-longer-blocked",
     ]),
+    expected: AttestExpectedBlockedSchema,
+    observed: z.strictObject({
+      candidateId: CandidateDigestSchema.nullable(),
+      subjectDigest: CandidateDigestSchema,
+    }),
+    nextAction: AttestRefreshActionSchema,
     recommendedActionText: z.string().trim().min(1),
   }),
+  AttestScopedRefusalResultSchema,
 ]);
 export type AttestResult = z.infer<typeof AttestResultSchema>;
 
@@ -100,6 +252,13 @@ export interface AttestContext {
   readRecord(name: string): Promise<VersionedCandidateRecord>;
   currentTarget(name: string): Promise<CandidateLineageTarget>;
   effectiveTarget(name: string, record: CandidateManagedRecordV1): Promise<CandidateEffectiveTargetProjection>;
+  inspectReRootReviewAuthority(name: string, candidateId: string): Promise<{
+    lane: "frontline" | "standard";
+    attemptId: string;
+    outcome: "pending" | "partial" | "findings" | "ambiguous-delivery";
+    reviewHeadSha: string;
+    recordRevision: string;
+  } | null>;
   publish(input: {
     name: string;
     record: CandidateManagedRecordV1;
@@ -128,6 +287,8 @@ export async function runAttest(
     name: string;
     lifecycle: keyof typeof ATTESTED_ORIENTATION;
     newRoot?: boolean;
+    scope?: "focused" | "full";
+    verificationEvidenceRef?: string;
     expectedBlocked?: { candidateId: string; subjectDigest: string };
   },
 ): Promise<AttestResult> {
@@ -136,8 +297,25 @@ export async function runAttest(
     ? undefined
     : AttestExpectedBlockedSchema.parse(params.expectedBlocked);
   const orientation = ATTESTED_ORIENTATION[params.lifecycle];
+  const requestedScope = AttestScopeSchema.parse(params.scope ?? "full");
+  const verificationEvidenceRef = params.verificationEvidenceRef === undefined
+    ? undefined
+    : CandidateVerificationEvidenceRefSchema.parse(params.verificationEvidenceRef);
   const current = CandidateLineageTargetSchema.parse(await context.currentTarget(name));
   const existing = await context.readRecord(name);
+  const refuseStaleReRoot = (
+    reason: "re-root-candidate-mismatch" | "re-root-subject-mismatch" | "re-root-no-longer-blocked",
+    expected: { candidateId: string; subjectDigest: string },
+    observedCandidateId: string | null,
+  ): AttestResult => reRootRefusal({
+    reason,
+    name,
+    expected,
+    observed: {
+      candidateId: observedCandidateId,
+      subjectDigest: current.subject.subjectDigest,
+    },
+  });
   if (existing.record !== null) {
     const record = CandidateManagedRecordV1Schema.parse(existing.record);
     const currentness = projectStagedCandidateCurrentness({
@@ -146,6 +324,30 @@ export async function runAttest(
       committed: await context.effectiveTarget(name, record),
     });
     if (currentness.status === "blocked") {
+      if (requestedScope === "focused") {
+        return scopedRefusal({
+          reason: "focused-scope-inapplicable",
+          name,
+          candidateId: currentness.candidateId,
+          subjectDigest: current.subject.subjectDigest,
+          requestedScope,
+          requiredScope: "full",
+          verificationEvidenceRef,
+          newRoot: true,
+        });
+      }
+      if (verificationEvidenceRef !== undefined) {
+        return scopedRefusal({
+          reason: "verification-evidence-inapplicable",
+          name,
+          candidateId: currentness.candidateId,
+          subjectDigest: current.subject.subjectDigest,
+          requestedScope,
+          requiredScope: "full",
+          verificationEvidenceRef,
+          newRoot: true,
+        });
+      }
       if (params.newRoot !== true) {
         return {
           status: "blocked",
@@ -153,31 +355,55 @@ export async function runAttest(
           delta: currentness.delta,
           nextAction: "establish-new-root",
           recommendedActionText: "Run full work-unit verification, then establish a new Candidate lineage root.",
-          continuation: {
-            argv: [
-              "arc",
-              "attest",
-              name,
-              "--new-root",
-              "--expected-candidate",
-              currentness.candidateId,
-              "--expected-subject",
-              current.subject.subjectDigest,
-              "--json",
-            ],
-          },
+          continuation: projectCandidateReRootContinuation({
+            name,
+            candidateId: currentness.candidateId,
+            subjectDigest: current.subject.subjectDigest,
+          }),
         };
       }
       if (expectedBlocked !== undefined && expectedBlocked.candidateId !== currentness.candidateId) {
-        return reRootRefusal("re-root-candidate-mismatch");
+        return refuseStaleReRoot("re-root-candidate-mismatch", expectedBlocked, currentness.candidateId);
       }
       if (expectedBlocked !== undefined && expectedBlocked.subjectDigest !== current.subject.subjectDigest) {
-        return reRootRefusal("re-root-subject-mismatch");
+        return refuseStaleReRoot("re-root-subject-mismatch", expectedBlocked, currentness.candidateId);
+      }
+      const liveReview = await context.inspectReRootReviewAuthority(name, currentness.candidateId);
+      if (liveReview !== null) {
+        return AttestResultSchema.parse({
+          status: "refused",
+          reason: "re-root-live-review",
+          candidateId: currentness.candidateId,
+          ...liveReview,
+          nextAction: {
+            kind: "recover-owning-branch-review",
+            reviewHeadSha: liveReview.reviewHeadSha,
+            candidateRecordRevision: liveReview.recordRevision,
+            reviewArgv: ["arc", "review", "pre-publication", name],
+          },
+          recommendedActionText: "The predecessor Candidate still owns a live review attempt. With approval for branch restoration, preserve the changed HEAD on a temporary ref, restore the same owning branch and checkout to the exact review head, settle review there, merge the preserved changed ref back (never rebase), run full verification, then retry re-root. Use the Candidate record commit to confirm the predecessor record at the review head.",
+        });
       }
       return establishRoot(context, name, current, orientation, currentness.candidateId, existing.version);
     }
-    if (expectedBlocked !== undefined) return reRootRefusal("re-root-no-longer-blocked");
+    if (expectedBlocked !== undefined) {
+      return refuseStaleReRoot("re-root-no-longer-blocked", expectedBlocked, currentness.candidateId);
+    }
     if (currentness.convergenceVerification === "satisfied") {
+      if (requestedScope === "focused" || verificationEvidenceRef !== undefined) {
+        return scopedRefusal({
+          reason: requestedScope === "focused"
+            ? "focused-scope-inapplicable"
+            : "verification-evidence-inapplicable",
+          name,
+          candidateId: currentness.candidateId,
+          subjectDigest: current.subject.subjectDigest,
+          requestedScope,
+          requiredScope: "full",
+          verificationEvidenceRef,
+          newRoot: false,
+        });
+      }
       const published = await context.publish({
         name,
         record,
@@ -192,12 +418,61 @@ export async function runAttest(
         locus: published.locus,
       };
     }
+    const requiredScope = currentness.convergenceScope;
+    if (!candidateConvergenceScopeCovers(requestedScope, requiredScope)) {
+      return scopedRefusal({
+        reason: "verification-scope-insufficient",
+        name,
+        candidateId: currentness.candidateId,
+        subjectDigest: current.subject.subjectDigest,
+        requestedScope,
+        requiredScope,
+        verificationEvidenceRef,
+        newRoot: false,
+      });
+    }
+    if (verificationEvidenceRef === undefined) {
+      return scopedRefusal({
+        reason: "verification-evidence-required",
+        name,
+        candidateId: currentness.candidateId,
+        subjectDigest: current.subject.subjectDigest,
+        requestedScope,
+        requiredScope,
+        verificationEvidenceRef,
+        newRoot: false,
+      });
+    }
+    if (verificationEvidenceRef === record.attestation.verificationEvidenceRef
+      || record.transitions.some((transition) =>
+        (transition.transitionKind === "review-response"
+          || transition.transitionKind === "verification-response")
+        && transition.verificationEvidenceRefs.includes(verificationEvidenceRef))
+      || record.lineageAttestations.some((attestation) =>
+        attestation.verificationEvidenceRef === verificationEvidenceRef)) {
+      return scopedRefusal({
+        reason: "verification-evidence-reused",
+        name,
+        candidateId: currentness.candidateId,
+        subjectDigest: current.subject.subjectDigest,
+        requestedScope,
+        requiredScope,
+        verificationEvidenceRef,
+        newRoot: false,
+      });
+    }
+    const responseId = candidatePendingConvergenceResponseId(record);
+    if (responseId === null) {
+      throw new Error("Pending Candidate convergence must identify its review-response occurrence");
+    }
     const lineageAttestation = createCandidateLineageAttestation({
       candidateId: currentness.candidateId,
+      responseId,
       target: { revision: currentness.recognizedRevision, subject: current.subject },
       attestedBy: context.actor,
       attestedAt: context.now(),
-      verificationEvidenceRef: context.verificationEvidenceRef(name),
+      verificationEvidenceRef,
+      scope: requestedScope,
     });
     const nextRecord = CandidateManagedRecordV1Schema.parse({
       ...record,
@@ -212,22 +487,124 @@ export async function runAttest(
       repairCurrent: false,
       ...orientation,
     });
-    return { status: "attested", operation: "convergence", ...published };
+    return {
+      status: "attested",
+      operation: "convergence",
+      scope: requestedScope,
+      verificationEvidenceRef,
+      ...published,
+    };
   }
 
-  if (expectedBlocked !== undefined) return reRootRefusal("re-root-candidate-mismatch");
+  if (expectedBlocked !== undefined) {
+    return refuseStaleReRoot("re-root-candidate-mismatch", expectedBlocked, null);
+  }
+  if (requestedScope === "focused" || verificationEvidenceRef !== undefined) {
+    return scopedRefusal({
+      reason: requestedScope === "focused"
+        ? "focused-scope-inapplicable"
+        : "verification-evidence-inapplicable",
+      name,
+      candidateId: null,
+      subjectDigest: current.subject.subjectDigest,
+      requestedScope,
+      requiredScope: "full",
+      verificationEvidenceRef,
+      newRoot: false,
+    });
+  }
 
   return establishRoot(context, name, current, orientation, undefined, existing.version);
 }
 
-function reRootRefusal(
-  reason: "re-root-candidate-mismatch" | "re-root-subject-mismatch" | "re-root-no-longer-blocked",
-): AttestResult {
-  return {
+interface ScopedRefusalInput {
+  reason:
+    | "verification-evidence-required"
+    | "verification-evidence-reused"
+    | "verification-evidence-inapplicable"
+    | "verification-scope-insufficient"
+    | "focused-scope-inapplicable";
+  name: string;
+  candidateId: string | null;
+  subjectDigest: string;
+  requestedScope: "focused" | "full";
+  requiredScope: "focused" | "full";
+  verificationEvidenceRef: string | undefined;
+  newRoot: boolean;
+}
+
+function scopedRefusal(input: ScopedRefusalInput): AttestResult {
+  const convergence = input.reason === "verification-evidence-required"
+    || input.reason === "verification-evidence-reused"
+    || input.reason === "verification-scope-insufficient";
+  const expectedReRoot = !convergence && input.newRoot
+    ? AttestExpectedBlockedSchema.parse({
+        candidateId: input.candidateId,
+        subjectDigest: input.subjectDigest,
+      })
+    : null;
+  const attestArgv = convergence
+    ? [
+        "arc", "attest", input.name, "--scope", input.requiredScope,
+        "--verification-evidence-ref", CANDIDATE_VERIFICATION_EVIDENCE_PLACEHOLDER, "--json",
+      ]
+    : expectedReRoot === null ? [
+        "arc", "attest", input.name,
+        "--scope", "full", "--json",
+      ] : [
+        "arc", "attest", input.name, "--new-root",
+        "--expected-candidate", expectedReRoot.candidateId,
+        "--expected-subject", expectedReRoot.subjectDigest,
+        "--scope", "full", "--json",
+      ];
+  return AttestResultSchema.parse({
     status: "refused",
-    reason,
-    recommendedActionText: "Run fresh full work-unit verification before requesting another Candidate root.",
-  };
+    reason: input.reason,
+    candidateId: input.candidateId,
+    subjectDigest: input.subjectDigest,
+    requestedScope: input.requestedScope,
+    requiredScope: input.requiredScope,
+    verificationEvidenceProvided: input.verificationEvidenceRef !== undefined,
+    nextAction: {
+      kind: "run-verification",
+      scope: input.requiredScope,
+      verificationKind: input.requiredScope === "focused" ? "focused" : "tier-3",
+      verificationEvidenceRequired: convergence,
+      ...(convergence
+        ? {}
+        : {
+            operation: input.newRoot ? "re-root" : "root",
+            ...(expectedReRoot === null ? {} : { expected: expectedReRoot }),
+          }),
+      attestArgv,
+    },
+    recommendedActionText: input.reason === "verification-evidence-required"
+      ? `Run ${input.requiredScope} convergence verification and supply its fresh evidence reference.`
+      : input.reason === "verification-evidence-reused"
+        ? `Run ${input.requiredScope} convergence verification and supply a new evidence reference.`
+      : input.reason === "verification-scope-insufficient"
+        ? `Run full convergence verification; focused evidence cannot satisfy this Candidate subject.`
+        : "Run full work-unit verification before attesting a Candidate root or re-root.",
+  });
+}
+
+function reRootRefusal(input: {
+  reason: "re-root-candidate-mismatch" | "re-root-subject-mismatch" | "re-root-no-longer-blocked";
+  name: string;
+  expected: { candidateId: string; subjectDigest: string };
+  observed: { candidateId: string | null; subjectDigest: string };
+}): AttestResult {
+  return AttestResultSchema.parse({
+    status: "refused",
+    reason: input.reason,
+    expected: input.expected,
+    observed: input.observed,
+    nextAction: {
+      kind: "refresh-attestation",
+      attestArgv: ["arc", "attest", input.name, "--json"],
+    },
+    recommendedActionText: "The bound re-root continuation is stale. Refresh Candidate attestation state.",
+  });
 }
 
 /** Attest one fresh lineage root over the current target, recording any Candidate it supersedes. */

@@ -113,6 +113,22 @@ export const TERMINAL_TRANSITION_ORACLE = [
     },
   },
   {
+    origin: "integration-lane",
+    kind: "rename",
+    successors: ["evidence-applicability"],
+    queries: ["dependent-alpha", "dependent-beta"].map((dependent) => ({
+      dependent,
+      answer: {
+        status: "unique",
+        disposition: { kind: "retarget", targetSlug: "evidence-applicability" },
+      },
+    })),
+    reference: {
+      subject: "integration-lane",
+      outcome: { kind: "rename", targetSlug: "evidence-applicability" },
+    },
+  },
+  {
     receiptFilename: "sha256-5fd33761ecb25ba0d76532a67fbbd11310a15288889555103b2558510fb3335a.json",
     origin: "chunked-delivery",
     kind: "decompose",

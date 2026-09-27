@@ -283,6 +283,14 @@ describe("session-init envelope schema", () => {
     setPath(missingExactBase, ["baseDistance", "value", "baseOid"], null);
     expectInvalid(missingExactBase);
 
+    const missingHealthyMovement = fixture("branch-gone");
+    setPath(missingHealthyMovement, ["baseDistance", "value", "movement"], undefined);
+    expectInvalid(missingHealthyMovement);
+
+    const crossedInapplicableMovement = fixture("orient");
+    setPath(crossedInapplicableMovement, ["baseDistance", "value", "movement"], "disjoint");
+    expectInvalid(crossedInapplicableMovement);
+
     const crossedBaseRecommendation = fixture("branch-gone");
     setPath(crossedBaseRecommendation, ["baseDistance", "value", "recommendedAction"], "surface");
     setPath(crossedBaseRecommendation, ["baseDistance", "value", "recommendedPromptText"], "wrong");
@@ -952,9 +960,22 @@ describe("session-init envelope schema", () => {
     linkedWorktree.value.identity = { kind: "linked", path: "/linked" };
     expectInvalid(identityAbsentLinked);
 
-    const identityScoped = ["retiredSubdirs", "errandSweep", "inboxState", "partialPushMarker"];
+    const identityScoped = ["retiredSubdirs", "partialPushMarker"];
     for (const key of identityScoped) {
       expectInvalid(withoutKey(fixture("orient"), key));
+
+      const impossible = fixture("identity-missing");
+      impossible[key] = fixture("orient")[key];
+      expectInvalid(impossible);
+    }
+
+    const primaryOnly = ["errandSweep", "inboxState"] as const;
+    for (const key of primaryOnly) {
+      expectInvalid(withoutKey(fixture("orient"), key));
+
+      const linked = fixture("active-resume");
+      linked[key] = fixture("orient")[key];
+      expectInvalid(linked);
 
       const impossible = fixture("identity-missing");
       impossible[key] = fixture("orient")[key];
@@ -992,6 +1013,10 @@ describe("session-init envelope schema", () => {
 
     expectInvalid({
       ...fixture("identity-missing"),
+      compactionAdvisory: fixture("orient").compactionAdvisory,
+    });
+    expectInvalid({
+      ...fixture("active-resume"),
       compactionAdvisory: fixture("orient").compactionAdvisory,
     });
     expectInvalid({

@@ -44,7 +44,7 @@ export async function resolveReviewSubject(input: {
   const ordinary = branchToWorkUnitSlug(input.headRef);
   if (ordinary !== null) return { status: "resolved", workUnitId: ordinary, member: null };
   try {
-    const delivery = await input.memberLookup.resolveMemberByHead(input.headSha);
+    const delivery = await input.memberLookup.resolveMemberByRef(input.headRef, input.headSha);
     if (delivery.status !== "resolved") return delivery;
     return {
       status: "resolved",

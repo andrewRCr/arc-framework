@@ -1,5 +1,6 @@
 /** Canonical local Git target derivation for review preparation. */
 
+import { resolveSoleMergeBase } from "../../../../lib/git/base-overlap.js";
 import type { GitExec } from "../../../../lib/git/exec.js";
 import type { DeliveryMemberBinding } from "../../core/delivery-member-lookup.js";
 import { createReviewTarget } from "../../core/gate-contract-v2.js";
@@ -13,6 +14,7 @@ import {
 } from "../../core/review-target-coordinates.js";
 
 export type LocalTargetInvalidReason =
+  | "ambiguous-merge-base"
   | "dirty-worktree"
   | "invalid-base"
   | "no-merge-base"
@@ -24,8 +26,12 @@ export type LocalTargetInvalidReason =
 export class LocalTargetDerivationError extends Error {
   readonly code = "invalid-input" as const;
 
-  constructor(public readonly reason: LocalTargetInvalidReason) {
-    super(reason);
+  /**
+   * @param reason - The stable precondition the boundary reports and routes on.
+   * @param detail - Where the precondition was observed, when the reason alone does not locate it.
+   */
+  constructor(public readonly reason: LocalTargetInvalidReason, detail: string = reason) {
+    super(detail);
     this.name = "LocalTargetDerivationError";
   }
 }
@@ -60,6 +66,11 @@ export type LocalTargetConfirmation =
       currentTarget: ReviewTarget;
     };
 
+export type LocalCorrectionTargetConfirmation =
+  | { state: "current"; target: ReviewTarget; dirtyPaths: readonly string[] }
+  | { state: "stale-head"; attemptedTarget: ReviewTarget; currentHeadSha: string }
+  | { state: "unexpected-dirty-paths"; target: ReviewTarget; unexpectedPaths: readonly string[] };
+
 interface GitBoundary {
   exec: GitExec;
   cwd: string;
@@ -69,9 +80,11 @@ async function readGit(
   input: GitBoundary,
   args: string[],
   reason: LocalTargetInvalidReason,
+  options: { preserveStdout?: boolean } = {},
 ): Promise<string> {
   try {
-    return (await input.exec("git", args, { cwd: input.cwd })).stdout.trim();
+    const stdout = (await input.exec("git", args, { cwd: input.cwd })).stdout;
+    return options.preserveStdout === true ? stdout : stdout.trim();
   } catch {
     throw new LocalTargetDerivationError(reason);
   }
@@ -105,7 +118,19 @@ async function deriveFromCheckout(
   );
   if (status !== "") throw new LocalTargetDerivationError("dirty-worktree");
 
-  const diffBaseSha = await readGit(input, ["merge-base", base.oid, head.oid], "no-merge-base");
+  // Read every best common ancestor rather than the one Git would otherwise return. What this resolves to
+  // becomes the diff base the local host reviews from, so over a history leaving two, the change set examined
+  // would be decided by a choice between them that nothing records and nobody made.
+  const sole = await resolveSoleMergeBase({
+    exec: (command, args) => input.exec(command, args, { cwd: input.cwd }),
+    leftRevision: base.oid,
+    rightRevision: head.oid,
+  });
+  // Two best bases and none at all are separate readings here, and stay separate: one is cleared by merging
+  // the base in, and the other is not reachable from any state this branch can be put into.
+  if (sole.status === "ambiguous") throw new LocalTargetDerivationError("ambiguous-merge-base");
+  if (sole.status !== "resolved") throw new LocalTargetDerivationError("no-merge-base");
+  const diffBaseSha = sole.mergeBase;
   const [diffBaseTree, headTree] = await Promise.all([
     readGit(input, ["rev-parse", `${diffBaseSha}^{tree}`], "no-merge-base"),
     readGit(input, ["rev-parse", `${head.oid}^{tree}`], "non-commit-head"),
@@ -263,4 +288,55 @@ export async function confirmLocalReviewTarget(input: {
   return currentTarget.targetId === attemptedTarget.targetId
     ? { state: "current", target: attemptedTarget }
     : { state: "stale-target", attemptedTarget, currentTarget };
+}
+
+function parsePorcelainPaths(stdout: string): string[] {
+  const records = stdout.split("\0").filter(Boolean);
+  const paths: string[] = [];
+  for (let index = 0; index < records.length; index += 1) {
+    const record = records[index];
+    if (record === undefined || record.length < 4) continue;
+    const status = record.slice(0, 2);
+    paths.push(record.slice(3));
+    if (status.includes("R") || status.includes("C")) {
+      const source = records[index + 1];
+      if (source === undefined) {
+        throw new LocalTargetDerivationError("dirty-worktree", "rename/copy status lacks its source path");
+      }
+      paths.push(source);
+      index += 1;
+    }
+  }
+  return [...new Set(paths)].sort();
+}
+
+/**
+ * Confirm an unchanged reviewed head while allowing only named uncommitted fix paths.
+ *
+ * @param input - Git boundary, reviewed target, and authorized dirty path set.
+ * @returns Current target evidence or a typed head/dirt refusal.
+ */
+export async function confirmLocalReviewCorrectionTarget(input: {
+  exec: GitExec;
+  cwd: string;
+  attemptedTarget: ReviewTarget;
+  expectedFixPaths: readonly string[];
+}): Promise<LocalCorrectionTargetConfirmation> {
+  const attemptedTarget = ReviewTargetSchema.parse(input.attemptedTarget);
+  const currentHeadSha = await readGit(input, ["rev-parse", "--verify", "HEAD"], "unborn-repository");
+  if (currentHeadSha !== attemptedTarget.headSha) {
+    return { state: "stale-head", attemptedTarget, currentHeadSha };
+  }
+  const status = await readGit(
+    input,
+    ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+    "dirty-worktree",
+    { preserveStdout: true },
+  );
+  const dirtyPaths = parsePorcelainPaths(status);
+  const expected = new Set(input.expectedFixPaths);
+  const unexpectedPaths = dirtyPaths.filter((path) => !expected.has(path));
+  return unexpectedPaths.length === 0
+    ? { state: "current", target: attemptedTarget, dirtyPaths }
+    : { state: "unexpected-dirty-paths", target: attemptedTarget, unexpectedPaths };
 }

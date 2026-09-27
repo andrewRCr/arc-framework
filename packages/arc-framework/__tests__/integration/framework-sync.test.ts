@@ -18,6 +18,7 @@
  */
 
 import { describe, it, expect, beforeAll } from "vitest";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -162,6 +163,7 @@ describe("framework sync (self-hosting drift check)", () => {
     const paths = [
       "system/methods/README.md",
       "system/methods/assess-design-proportionality.md",
+      "system/methods/assess-evidence-applicability.md",
       "system/methods/design-audit.md",
       "system/methods/self-review.md",
       "system/methods/standard-review.md",
@@ -230,6 +232,7 @@ describe("framework sync (self-hosting drift check)", () => {
       "system/workflows/arc/draft-design.md",
       "system/workflows/arc/create-spec.md",
       "system/workflows/arc/generate-tasks.template.md",
+      "system/workflows/arc/supplemental/amend-design.md",
     ];
 
     for (const path of workflowPaths) {
@@ -238,6 +241,39 @@ describe("framework sync (self-hosting drift check)", () => {
       expect(declarations.parseError, `${path} frontmatter`).toBeUndefined();
       expect(declarations.methods, `${path} direct methods`).toContain("assess-design-proportionality");
     }
+  });
+
+  it("keeps residual evidence assessment registered across every shipment surface", async () => {
+    const methodPath = "system/methods/assess-evidence-applicability.md";
+    const recipeText = await readFile(join(REPO_ROOT_DIR, "packages/arc-framework/init-recipe.json"), "utf8");
+    const recipe = JSON.parse(recipeText) as Recipe;
+    const packagedMethod = await readFile(join(PKG_ARC_DIR, methodPath), "utf8");
+    const projectMethod = await readFile(join(ARC_DIR, methodPath), "utf8");
+    const pristineHash = createHash("sha256").update(packagedMethod).digest("hex");
+
+    expect(recipe.include_files).toContain(methodPath);
+    expect(classifyFile(methodPath)).toBe("Configurable");
+    expect(projectMethod).toBe(packagedMethod);
+    expect(manifest.files[methodPath]).toEqual({
+      classification: "Configurable",
+      layer: "core",
+      pristine_hash: pristineHash,
+    });
+
+    const [packagedSessionOps, projectSessionOps, inventory] = await Promise.all([
+      readFile(join(PKG_ARC_DIR, "reference/strategies/arc/strategy-session-operations.md"), "utf8"),
+      readFile(join(ARC_DIR, "reference/strategies/arc/strategy-session-operations.md"), "utf8"),
+      readFile(join(ARC_DIR, "reference/strategies/project/strategy-package-project-sync.md"), "utf8"),
+    ]);
+    const triggerRow = /\| assess-evidence-applicability\s+\| integrate \/ deliver \/ errand\s+\|[^\n]+\|/u;
+    const installedPaths = resolveFileList(recipe, conditionals);
+    const configurableCount = installedPaths.filter((path) => classifyFile(path) === "Configurable").length;
+    expect(packagedSessionOps).toMatch(triggerRow);
+    expect(projectSessionOps).toMatch(triggerRow);
+    expect(inventory).toContain(`### Configurable files (project sections expected to differ) — ${configurableCount}`);
+    expect(inventory).toContain(`- \`${methodPath}\``);
+    expect(inventory).toContain(`| Configurable   | ${configurableCount}`);
+    expect(inventory).toContain(`**Self-hosting installed files:** ${installedPaths.length}.`);
   });
 
   it("keeps the self-hosting manifest aligned with recipe-derived membership and classification", async () => {

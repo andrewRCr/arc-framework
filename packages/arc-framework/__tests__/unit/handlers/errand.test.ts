@@ -1,11 +1,48 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildErrandNextResult,
   buildErrandCheckJsonEnvelope,
   formatErrandCheckCaveats,
   formatErrandCloseResult,
+  formatErrandNextResult,
 } from "../../../src/handlers/errand.js";
 import { createErrandTerminalResult } from "../../../src/lib/errand/terminal-result.js";
+
+describe("arc errand next result", () => {
+  it("projects available, empty, and refused queue reads without opening work", () => {
+    const available = buildErrandNextResult({
+      kind: "resolved",
+      nextOffer: { kind: "errand", key: "First queued Errand", parentCheckoutPath: "/parent" },
+    });
+    const empty = buildErrandNextResult({ kind: "resolved", nextOffer: null });
+    const refused = buildErrandNextResult({ kind: "refused", reason: "queue malformed" });
+
+    expect(available).toMatchObject({
+      state: "available",
+      nextAction: "open-errand",
+      nextOffer: { key: "First queued Errand", parentCheckoutPath: null },
+    });
+    expect(empty).toMatchObject({ state: "empty", nextAction: "none", nextOffer: null });
+    expect(refused).toMatchObject({
+      state: "refused",
+      nextAction: "stop",
+      reason: "queue malformed",
+      remedy: "Repair the reported `USER-INBOX` condition.",
+      retryCommand: "arc errand next --json",
+    });
+    expect(formatErrandNextResult(refused, true)).toEqual({
+      stream: "stdout",
+      text: `${JSON.stringify(refused)}\n`,
+      exitCode: 1,
+    });
+    expect(formatErrandNextResult(refused, false)).toEqual({
+      stream: "stderr",
+      text: refused.recommendedPromptText,
+      exitCode: 1,
+    });
+  });
+});
 
 describe("formatErrandCheckCaveats", () => {
   it("renders caveat lines for skipped marked entries and indeterminate probes", () => {

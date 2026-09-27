@@ -6,6 +6,7 @@ import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { parseWorkflowFrontmatter } from "../../../src/scripts/audit-method-triggers.js";
+import { softWrappedProse } from "../../helpers/soft-wrapped-prose.js";
 
 const PACKAGE_ROOT = resolve(import.meta.dirname, "../../..");
 const PROJECT_ROOT = resolve(PACKAGE_ROOT, "../..");
@@ -23,18 +24,18 @@ describe("generate-tasks delivery authoring contract", () => {
     const declarations = parseWorkflowFrontmatter(packaged);
 
     expect(declarations.methods).toContain("assess-boundary-fit");
-    expect(packaged).toContain("exactly one unmarked provisional `## Delivery Plan` locus");
-    expect(packaged).toContain("does not create canonical delivery state");
+    expect(packaged).toMatch(softWrappedProse("exactly one unmarked provisional `## Delivery Plan` locus"));
+    expect(packaged).toMatch(softWrappedProse("does not create canonical delivery state"));
     expect(packaged).toContain("derivation gap");
     expect(packaged).toContain("orthogonal concerns");
-    expect(packaged).toContain("Incubating authoring remains provisional");
+    expect(packaged).toMatch(softWrappedProse("Incubating authoring remains provisional"));
     expect(packaged).toContain("arc delivery plan inventory schema --json");
     expect(packaged).toContain("arc delivery plan from-tasks --task-list");
-    expect(packaged).toContain("fill only the author slots");
+    expect(packaged).toMatch(softWrappedProse("fill only the author slots"));
     expect(packaged).toContain("arc delivery compose");
     expect(packaged).toContain("delivery plan abandon");
-    expect(packaged).toContain("replaceable prebinding intent");
-    expect(packaged).toContain("no ref, change request, state binding, or external projection mutation");
+    expect(packaged).toMatch(softWrappedProse("replaceable prebinding intent"));
+    expect(packaged).toMatch(softWrappedProse("no ref, change request, state binding, or external projection mutation"));
 
     const compose = packaged.indexOf("arc delivery compose");
     const reread = packaged.indexOf("Post-settle coherence re-read", compose);
@@ -58,6 +59,22 @@ describe("generate-tasks delivery authoring contract", () => {
       join(PROJECT_ROOT, ".arc/system/workflows/arc/generate-tasks.md"),
       "utf8",
     );
+    const packagedMethod = readFileSync(
+      join(PACKAGE_ROOT, "arc/system/methods/resolve-plan-segmentation.md"),
+      "utf8",
+    );
+    const installedMethod = readFileSync(
+      join(PROJECT_ROOT, ".arc/system/methods/resolve-plan-segmentation.md"),
+      "utf8",
+    );
+
+    for (const method of [packagedMethod, installedMethod]) {
+      expect(method).toMatch(/\*\*Composition\*\*[^\n]*\*\*`slice`\*\*/u);
+      expect(method).toMatch(/\*\*Substrate contract\*\*[^\n]*\*\*`layer`\*\*/u);
+      expect(method).toMatch(/\*\*Mechanics at scale\*\*[^\n]*\*\*`replication`\*\*/u);
+      expect(method).toContain("Order segments to retire the dominant residual risk earliest");
+      expect(method).toContain("place the first `slice` as early as its required substrate allows");
+    }
 
     for (const workflow of [packaged, installed]) {
       const segmentationStart = workflow.indexOf("## Resolve plan segmentation");
@@ -69,19 +86,15 @@ describe("generate-tasks delivery authoring contract", () => {
       expect(segmentation).toContain(
         "resolve-plan-segmentation(scale-axis read, spec lifecycle statements) → ordered segments with modes",
       );
-      expect(segmentation).toMatch(/\*\*Composition\*\*[^\n]*\*\*`slice`\*\*/u);
-      expect(segmentation).toMatch(/\*\*Substrate contract\*\*[^\n]*\*\*`layer`\*\*/u);
-      expect(segmentation).toMatch(/\*\*Mechanics at scale\*\*[^\n]*\*\*`replication`\*\*/u);
-      expect(segmentation).toContain("Order segments to retire the dominant residual risk earliest");
-      expect(segmentation).toContain("place the first `slice` as early as its required substrate allows");
+      expect(segmentation).toContain("[`resolve-plan-segmentation`][arc-methods-rps]");
+      expect(parseWorkflowFrontmatter(workflow).methods).toContain("resolve-plan-segmentation");
 
-      expect(workflow).toContain(
+      expect(workflow).toMatch(softWrappedProse(
         "On a composition-risk plan, every mandatory lifecycle row stated by the spec is present in Success Criteria",
-      );
-      expect(workflow).toContain(
-        "assigned to a `slice` segment or parent task that wires its production callsite and proves it with an",
-      );
-      expect(workflow).toContain("executable scenario");
+      ));
+      expect(workflow).toMatch(softWrappedProse(
+        "assigned to a `slice` segment or parent task that wires its production callsite and proves it with an executable scenario",
+      ));
     }
   });
 

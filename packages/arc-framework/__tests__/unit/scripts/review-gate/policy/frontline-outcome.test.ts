@@ -52,6 +52,7 @@ describe("frontline outcome normalization", () => {
       severity: "major",
       locus: "src/review.ts:42",
       evidenceUrlOrId: "provider:item-1",
+      sourceOrdinal: 1,
     }] as const;
 
     expect(normalizeFrontlineOutcome({
@@ -68,6 +69,26 @@ describe("frontline outcome normalization", () => {
       target,
       pass: 1,
     });
+  });
+
+  it("rejects frontline findings whose ordinals do not match complete capture order", () => {
+    expect(FrontlineExecutionOutcomeSchema.safeParse({
+      schemaVersion: 1,
+      semanticsVersion: "frontline-review/v1",
+      outcome: "findings",
+      source,
+      target,
+      pass: 1,
+      maxPasses: 2,
+      findings: [{
+        findingId: "finding-1",
+        severity: "major",
+        locus: "src/review.ts:42",
+        evidenceUrlOrId: "provider:item-1",
+        sourceOrdinal: 2,
+      }],
+      reason: null,
+    }).success).toBe(false);
   });
 
   it.each([

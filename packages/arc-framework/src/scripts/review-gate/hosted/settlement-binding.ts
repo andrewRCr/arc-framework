@@ -15,7 +15,9 @@ export interface HostedSettlementAttemptBinding {
   readonly dispositionSetId: string | null;
   readonly actorIdentity: string;
   readonly target: HostedTarget;
-  readonly findings: readonly HostedSettlementFindingBinding[];
+  readonly sealedResult?: {
+    readonly findings: readonly HostedSettlementFindingBinding[];
+  };
 }
 
 function rendered(value: unknown): string {
@@ -38,7 +40,7 @@ export function explainHostedSettlementBindingMismatch(
     return `response.dispositionSetId differs: expected ${rendered(binding.dispositionSetId)}, received ${rendered(request.response.dispositionSetId)}`;
   }
 
-  const finding = binding.findings.find(({ findingId }) => findingId === request.response.findingId);
+  const finding = binding.sealedResult?.findings.find(({ findingId }) => findingId === request.response.findingId);
   if (finding === undefined) {
     return `response.findingId is unavailable: ${rendered(request.response.findingId)}`;
   }

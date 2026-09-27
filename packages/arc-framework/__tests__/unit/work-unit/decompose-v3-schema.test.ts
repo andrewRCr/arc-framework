@@ -55,6 +55,41 @@ function machine(): V3DecomposeMachine {
   return { preflightId: v3PreflightId(facts), ...facts };
 }
 
+function machineWithTaskPhases(): V3DecomposeMachine {
+  const value = machine();
+  const taskPath = ".arc/active/tasks-origin.md";
+  const taskLocators = [
+    { artifact: "tasks-origin.md", kind: "preamble" as const },
+    {
+      artifact: "tasks-origin.md",
+      kind: "section" as const,
+      level: 2,
+      headingSource: "Phase One",
+      ancestry: [],
+      occurrence: 0,
+    },
+    {
+      artifact: "tasks-origin.md",
+      kind: "section" as const,
+      level: 2,
+      headingSource: "Phase Two",
+      ancestry: [],
+      occurrence: 0,
+    },
+  ];
+  value.sourceUnits = [
+    ...value.sourceUnits,
+    ...taskLocators.map((sourceLocator, index) => ({
+      sourceId: v3SourceId({ sourcePath: taskPath, sourceLocator }),
+      sourcePath: taskPath,
+      sourceLocator,
+      contentDigest: canonicalDigest(`task-phase-${index}`),
+    })),
+  ].sort((left, right) => Buffer.compare(Buffer.from(left.sourceId), Buffer.from(right.sourceId)));
+  value.preflightId = v3PreflightId(machinePreimage(value));
+  return value;
+}
+
 function completed(): V3DecomposeCutMap {
   const facts = machine();
   return {
@@ -68,6 +103,7 @@ function completed(): V3DecomposeCutMap {
         { kind: "new-member", destinationId: "member-b", slug: "member-b", workClass: "Heavy" },
       ],
       internalEdges: [{ from: "member-a", to: "member-b" }],
+      externalEdges: [],
       sourceAllocations: [{
         sourceId: facts.sourceUnits[0]!.sourceId,
         ownership: "destination-owned",
@@ -89,6 +125,27 @@ function completed(): V3DecomposeCutMap {
   };
 }
 
+function completedWithTaskPhases(): V3DecomposeCutMap {
+  const value = completed();
+  const facts = machineWithTaskPhases();
+  value.machine = facts;
+  value.authoring.sourceAllocations = facts.sourceUnits.map(({ sourceId, sourceLocator }) => ({
+    sourceId,
+    ownership: "destination-owned",
+    disposition: {
+      kind: "target",
+      destinationId: "member-a",
+      targetLocator: {
+        ...sourceLocator,
+        artifact: sourceLocator.artifact.startsWith("tasks-")
+          ? "tasks-member-a.md"
+          : "draft-member-a.md",
+      },
+    },
+  }));
+  return value;
+}
+
 function extractionCompleted(sourceKind: "active-origin" | "started-planning" = "active-origin"):
 V3DecomposeCutMap {
   const value = structuredClone(completed()) as unknown as V3DecomposeCutMap;
@@ -98,6 +155,34 @@ V3DecomposeCutMap {
   value.authoring.placement = { kind: "direct-member" };
   value.authoring.destinations = [value.authoring.destinations[0]!];
   value.authoring.internalEdges = [];
+  value.authoring.incomingDispositions[0]!.disposition = {
+    kind: "replace",
+    replacementTargets: ["origin"],
+  };
+  value.authoring.outgoingDispositions[0]!.disposition = {
+    kind: "targets",
+    targets: ["member-a"],
+  };
+  return value;
+}
+
+function extractionCompletedWithTaskPhases(): V3DecomposeCutMap {
+  const value = completedWithTaskPhases();
+  value.authoring.shape = "extraction";
+  value.authoring.placement = { kind: "direct-member" };
+  value.authoring.destinations = [value.authoring.destinations[0]!];
+  value.authoring.internalEdges = [];
+  value.authoring.sourceAllocations = value.machine.sourceUnits.map((unit) => ({
+    sourceId: unit.sourceId,
+    ownership: "destination-owned",
+    disposition: unit.sourcePath.endsWith("/tasks-origin.md")
+      ? { kind: "retained-origin" }
+      : {
+          kind: "target",
+          destinationId: "member-a",
+          targetLocator: { artifact: "draft-member-a.md", kind: "preamble" },
+        },
+  }));
   value.authoring.incomingDispositions[0]!.disposition = {
     kind: "replace",
     replacementTargets: ["origin"],
@@ -250,6 +335,7 @@ function comprehensiveCompleted(): V3DecomposeCutMap {
         { from: "existing-work-unit", to: "new-a" },
         { from: "new-a", to: "new-b" },
       ],
+      externalEdges: [],
       sourceAllocations: facts.sourceUnits.map(({ sourceId }, index) => ({
         sourceId,
         ownership: index === 1 ? "cohort-shared" as const : "destination-owned" as const,
@@ -304,6 +390,7 @@ interface LooseCompletedMap {
     placement: unknown;
     destinations: unknown;
     internalEdges: unknown;
+    externalEdges: unknown;
     sourceAllocations: Array<{ ownership: unknown; disposition: unknown }>;
     incomingDispositions: Array<{ disposition: unknown }>;
     outgoingDispositions: Array<{ disposition: unknown }>;
@@ -312,6 +399,163 @@ interface LooseCompletedMap {
 }
 
 describe("v3 decomposition map schema", () => {
+  it("opens and closes external dependency authoring without changing the machine envelope", () => {
+    const facts = machine();
+    const starter = createV3DecomposeStarterMap(facts);
+    const baseline = completed();
+    const authored = {
+      ...baseline,
+      authoring: {
+        ...baseline.authoring,
+        externalEdges: [
+          { from: "member-a", to: "external-a" },
+          { from: "member-b", to: "external-b" },
+        ],
+      },
+    };
+
+    expect(starter?.authoring).toMatchObject({ externalEdges: { status: "author" } });
+    expect(Object.keys(starter?.machine ?? {}).sort()).toEqual(Object.keys(facts).sort());
+    expect(starter?.machine.preflightId).toBe(facts.preflightId);
+    expect(starter?.machine.incomingEdges[0]?.edgeId).toBe(facts.incomingEdges[0]?.edgeId);
+    expect(starter?.machine.outgoingEdges[0]?.edgeId).toBe(facts.outgoingEdges[0]?.edgeId);
+    expect(decodeV3DecomposeCutMap(authored)).toMatchObject({ status: "accepted" });
+    expect(v3CutMapDigest(authored)).not.toBe(v3CutMapDigest({
+      ...authored,
+      authoring: { ...authored.authoring, externalEdges: [] },
+    }));
+  });
+
+  it("requires external edges in unique canonical pair order", () => {
+    for (const externalEdges of [
+      [
+        { from: "member-b", to: "external-b" },
+        { from: "member-a", to: "external-a" },
+      ],
+      [
+        { from: "member-a", to: "external-a" },
+        { from: "member-a", to: "external-a" },
+      ],
+    ]) {
+      const value = completed();
+      value.authoring.externalEdges = externalEdges;
+      expect(decodeV3DecomposeCutMap(value)).toMatchObject({
+        status: "rejected",
+        issue: { code: "authoring-order", path: "authoring.externalEdges" },
+      });
+    }
+  });
+
+  it("accepts only dependency-capable declared external-edge sources", () => {
+    const accepted = comprehensiveCompleted();
+    accepted.authoring.externalEdges = [
+      { from: "existing-work-unit", to: "external-a" },
+      { from: "new-a", to: "external-b" },
+    ];
+    expect(decodeV3DecomposeCutMap(accepted)).toMatchObject({ status: "accepted" });
+
+    for (const from of ["existing-document", "existing-draft", "missing"]) {
+      const value = comprehensiveCompleted();
+      value.authoring.externalEdges = [{ from, to: "external" }];
+      expect(decodeV3DecomposeCutMap(value)).toMatchObject({
+        status: "rejected",
+        issue: { code: "authoring-identity", path: "authoring.externalEdges.0.from" },
+      });
+    }
+  });
+
+  it.each([
+    [{ from: "new-a", to: "new-b" }],
+    [{ from: "existing-work-unit", to: "new-a" }],
+    [{ from: "new-a", to: "existing-work-unit" }],
+    [{ from: "existing-work-unit", to: "existing-work-unit-b" }],
+  ])("accepts internal edges across every dependency-capable destination-kind pair", (edge) => {
+    const value = comprehensiveCompleted();
+    value.authoring.destinations.splice(4, 0, {
+      kind: "existing-home",
+      destinationId: "existing-work-unit-b",
+      target: { kind: "work-unit", slug: "existing-work-unit-b" },
+    });
+    value.authoring.internalEdges = [edge];
+
+    expect(decodeV3DecomposeCutMap(value)).toMatchObject({ status: "accepted" });
+  });
+
+  it.each([
+    ["existing-document", "new-a", "authoring.internalEdges.0.from"],
+    ["existing-draft", "new-a", "authoring.internalEdges.0.from"],
+    ["new-a", "existing-document", "authoring.internalEdges.0.to"],
+    ["new-a", "missing", "authoring.internalEdges.0.to"],
+  ])("refuses an internal edge outside the declared work-unit endpoint set", (from, to, path) => {
+    const value = comprehensiveCompleted();
+    value.authoring.internalEdges = [{ from, to }];
+
+    expect(decodeV3DecomposeCutMap(value)).toMatchObject({
+      status: "rejected",
+      issue: { code: "authoring-identity", path },
+    });
+  });
+
+  it("requires an explicit completed external-edge value", () => {
+    const value = completed();
+    const authoring = { ...value.authoring } as Partial<typeof value.authoring>;
+    delete authoring.externalEdges;
+    expect(decodeV3DecomposeCutMap({ ...value, authoring })).toMatchObject({
+      status: "rejected",
+      issue: { code: "invalid-structure", path: "authoring.externalEdges" },
+    });
+  });
+
+  it("rejects malformed or open external-edge values", () => {
+    for (const externalEdge of [
+      { from: "member-a", to: "Not A Slug" },
+      { from: "member-a", to: "external", extra: true },
+    ]) {
+      const value = completed();
+      const authoring = { ...value.authoring, externalEdges: [externalEdge] };
+      expect(decodeV3DecomposeCutMap({ ...value, authoring })).toMatchObject({
+        status: "rejected",
+        issue: { code: "invalid-structure" },
+      });
+    }
+  });
+
+  it("binds task phases into the unchanged machine and allocation identity contracts", () => {
+    const baseline = machine();
+    const facts = machineWithTaskPhases();
+    const starter = createV3DecomposeStarterMap(facts);
+    const value = completedWithTaskPhases();
+
+    expect(Object.keys(facts).sort()).toEqual(Object.keys(baseline).sort());
+    expect(canonicalize(facts)).not.toBe(canonicalize(baseline));
+    expect(facts.preflightId).not.toBe(baseline.preflightId);
+    expect(starter?.authoring.sourceAllocations.map(({ sourceId }) => sourceId))
+      .toEqual(facts.sourceUnits.map(({ sourceId }) => sourceId));
+    expect(decodeV3DecomposeCutMap(value)).toMatchObject({ status: "accepted" });
+
+    const mutations = [
+      (candidate: V3DecomposeCutMap) => { candidate.authoring.sourceAllocations.shift(); },
+      (candidate: V3DecomposeCutMap) => {
+        candidate.authoring.sourceAllocations.push(candidate.authoring.sourceAllocations[0]!);
+      },
+      (candidate: V3DecomposeCutMap) => { candidate.authoring.sourceAllocations.reverse(); },
+      (candidate: V3DecomposeCutMap) => {
+        const phaseIndex = candidate.authoring.sourceAllocations.findIndex((allocation) =>
+          allocation.sourceId === facts.sourceUnits.find(({ sourcePath }) =>
+            sourcePath.endsWith("tasks-origin.md"))?.sourceId);
+        candidate.authoring.sourceAllocations[phaseIndex]!.sourceId = canonicalDigest("tampered phase");
+      },
+    ];
+    for (const mutate of mutations) {
+      const candidate = structuredClone(value);
+      mutate(candidate);
+      expect(decodeV3DecomposeCutMap(candidate)).toMatchObject({
+        status: "rejected",
+        issue: { code: "authoring-identity", path: "authoring.sourceAllocations" },
+      });
+    }
+  });
+
   it("prepopulates every starter author slot without changing machine identity", () => {
     const facts = machine();
     const starter = createV3DecomposeStarterMap(facts);
@@ -399,6 +643,59 @@ describe("v3 decomposition map schema", () => {
       status: "rejected",
       issue: { code: "source-shape", path: "authoring.sourceAllocations.0.disposition" },
     });
+  });
+
+  it.each([
+    {
+      kind: "target" as const,
+      destinationId: "member-a",
+      targetLocator: { artifact: "tasks-member-a.md", kind: "whole-file" as const },
+    },
+    { kind: "drop" as const, reason: "companion is not needed" },
+  ])("refuses extraction companion disposition $kind at the exact allocation", (disposition) => {
+    const value = extractionCompletedWithTaskPhases();
+    const companionIndex = value.machine.sourceUnits.findIndex(({ sourcePath }) =>
+      sourcePath.endsWith("/tasks-origin.md"));
+    value.authoring.sourceAllocations[companionIndex]!.disposition = disposition;
+
+    expect(decodeV3DecomposeCutMap(value)).toMatchObject({
+      status: "rejected",
+      issue: {
+        code: "companion-disposition",
+        path: `authoring.sourceAllocations.${companionIndex}.disposition`,
+      },
+    });
+  });
+
+  it("accepts destination-owned retained-origin for every extraction companion", () => {
+    const value = extractionCompletedWithTaskPhases();
+    const companionIndexes = value.machine.sourceUnits.flatMap((unit, index) =>
+      unit.sourcePath.endsWith("/tasks-origin.md") ? [index] : []);
+
+    expect(companionIndexes).toHaveLength(3);
+    expect(companionIndexes.map((index) => value.authoring.sourceAllocations[index])).toEqual(
+      companionIndexes.map((index) => ({
+        sourceId: value.machine.sourceUnits[index]!.sourceId,
+        ownership: "destination-owned",
+        disposition: { kind: "retained-origin" },
+      })),
+    );
+    expect(decodeV3DecomposeCutMap(value)).toMatchObject({ status: "accepted" });
+  });
+
+  it("leaves retirement dispositions and design-unit extraction choices unchanged", () => {
+    expect(decodeV3DecomposeCutMap(completedWithTaskPhases())).toMatchObject({ status: "accepted" });
+
+    const extraction = extractionCompleted("started-planning");
+    addRetainedOriginAllocation(extraction);
+    const secondDesignIndex = extraction.authoring.sourceAllocations.findIndex(({ disposition }) =>
+      disposition.kind === "retained-origin");
+    extraction.authoring.sourceAllocations[secondDesignIndex]!.disposition = {
+      kind: "drop",
+      reason: "design section superseded",
+    };
+
+    expect(decodeV3DecomposeCutMap(extraction)).toMatchObject({ status: "accepted" });
   });
 
   it("requires substantive allocation for every extracted new member", () => {
@@ -569,9 +866,9 @@ describe("v3 decomposition map schema", () => {
     const starterBytes = canonicalize(starter);
     const completedBytes = canonicalize(complete);
     expect(canonicalDigest(starterBytes))
-      .toBe("sha256:810d29e2c6983a18169d74d769f4d423dc909260ebae08b657eacb156d7378a0");
+      .toBe("sha256:ae6c92ad4a8602488beaeac59f0a2feaf1c5ca18c0ccb01d4a2201a7dcbce486");
     expect(canonicalDigest(completedBytes))
-      .toBe("sha256:7a75d04b5f04423427b1e9a7c049dfb46cd46026caaa6a6b53a686882622ef36");
+      .toBe("sha256:240ded3cb232dc1e7322f52ca07a00a868d06b3557720699ae941200d8bfd1e2");
     expect(canonicalize(parseV3DecomposeStarterMap(JSON.parse(starterBytes)))).toBe(starterBytes);
     expect(canonicalize(parseV3DecomposeCutMap(JSON.parse(completedBytes)))).toBe(completedBytes);
 
@@ -753,6 +1050,7 @@ describe("v3 decomposition map schema", () => {
       (value) => { value.authoring.placement = { status: "author" }; },
       (value) => { value.authoring.destinations = { status: "author" }; },
       (value) => { value.authoring.internalEdges = { status: "author" }; },
+      (value) => { value.authoring.externalEdges = { status: "author" }; },
       (value) => { value.authoring.sourceAllocations[0]!.ownership = { status: "author" }; },
       (value) => { value.authoring.sourceAllocations[0]!.disposition = { status: "author" }; },
       (value) => { value.authoring.incomingDispositions[0]!.disposition = { status: "author" }; },
@@ -990,7 +1288,7 @@ describe("v3 decomposition map schema", () => {
       sourceId: "sha256:1746baa12ae6a59ab3f2798506769ada531f3c4bd54eddc7b81fe5020bbe4c0e",
       incomingEdgeId: "sha256:6562eeb5557735ce19d452629a0b9dec7c57c0bb75ab5405b2a903699e448038",
       outgoingEdgeId: "sha256:09a2ee82c7ab19d5e8761e65d92c9d2d271afd660910473eea0c19b38fa746c3",
-      cutMapDigest: "sha256:220124864fd22f6743df622ad7c369749208047b9a729349aaff26bd5f30d591",
+      cutMapDigest: "sha256:e8a3305b566ad111c9e4aa677dab076e02b5878cae570b2d339897a6da82fe5c",
       allowedPathsDigest: "sha256:3a7859f5699f28d740ac1a17e3eadc456104ffe68bfd93779ed8e40fdb51100c",
       topologyDigest: "sha256:e82afa273ab2091806eb2b776fba0b97d4d207dc8f4221ba3f505d27980ea1ba",
       sourceArtifactDigest:
@@ -1002,5 +1300,19 @@ describe("v3 decomposition map schema", () => {
       outgoingInventoryDigest:
         "sha256:a5b468bb508f330dec97c0e4e0217283cc408276e0dcb2f94985eaecc0fe16ff",
     });
+  });
+
+  it("keeps external-target discovery outside the preflight identity field set", () => {
+    const machine = comprehensiveMachine();
+
+    expect(Object.keys(machinePreimage(machine))).toEqual([
+      "source",
+      "resultBase",
+      "planningProfile",
+      "sourceUnits",
+      "incomingEdges",
+      "outgoingEdges",
+    ]);
+    expect(Object.keys(machine)).not.toContain("externalEdges");
   });
 });

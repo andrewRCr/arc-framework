@@ -7,6 +7,31 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Harden resource-heavy local gates against concurrent exhaustion**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+
+- _Observation:_ Three concurrent full-project ESLint runs in detached delivery-gate worktrees each exited nonzero
+  without diagnostics; serial reruns of all three passed. Concurrency correlation is established, but the exhausted
+  resource or failure mechanism is not.
+
+- _Approach:_ Reproduce concurrent versus serialized full-project ESLint with process exit, stderr, and host-resource
+  evidence; then decide whether the existing heavy-test admission guard should generalize to resource-heavy gates or
+  gate guidance and dispatch should serialize affected commands. Coordinate any gate-dispatch change with
+  `quality-gate-hooks`.
+
+- _Captured during:_ `test-suite-right-sizing` pre-verification discussion, from `evidence-applicability`
+  dogfooding, 2026-09-12.
+
+- _WU_Target:_ `test-suite-contention-hardening`
+
+---
+
 ## Evidence
 
 Intermittent failures appeared across unrelated subprocess-heavy integration and E2E tests, passed in isolation,

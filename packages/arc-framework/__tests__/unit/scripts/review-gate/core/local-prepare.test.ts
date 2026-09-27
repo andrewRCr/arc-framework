@@ -11,6 +11,8 @@ import {
   publishLocalReviewPreparation,
 } from "../../../../../src/scripts/review-gate/core/local-prepare.js";
 import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
+import { projectLocalReviewGuidance } from
+  "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
 
 const digest = (value: string): string => canonicalDigest({ value });
 const objectId = (character: string): string => character.repeat(40);
@@ -66,6 +68,11 @@ function fixture() {
       attestationMechanism: "local-attestation",
     },
     laneSourceId: "delegated-agent",
+    scopeMode: "chunked",
+    lineage: { kind: "candidate" as const, candidateId: "sha256:7777777777777777777777777777777777777777777777777777777777777777" },
+    logicalPass: 1,
+    retryGeneration: 0,
+    coverageAdmission: { requestedCoverage: "complete" },
     policyBindingDigest: digest("binding"),
     requestMechanism: "local-attestation",
   });
@@ -95,11 +102,12 @@ describe("local prepare publication ordering", () => {
       materialize,
       now: () => "2026-07-23T17:00:00Z",
       cleanupTtlMs: 60_000,
-      guidanceDigest: digest("guidance"),
+      guidance: projectLocalReviewGuidance(),
     })).resolves.toMatchObject({
       persistedVersion: 1,
       sourceRef: "sources/source.json",
       reviewRoot: records.source.materializationRef,
+      state: { scopeMode: "chunked" },
     });
     expect(order).toEqual(["source", "operation", "materialization"]);
   });
@@ -118,7 +126,7 @@ describe("local prepare publication ordering", () => {
       },
       now: () => "2026-07-23T17:00:00Z",
       cleanupTtlMs: 60_000,
-      guidanceDigest: digest("guidance"),
+      guidance: projectLocalReviewGuidance(),
     })).rejects.toThrow(/pin creation interrupted/u);
     expect(publishOperation).toHaveBeenCalledOnce();
   });
@@ -127,7 +135,7 @@ describe("local prepare publication ordering", () => {
     const records = fixture();
     const payload = createLocalReviewSourcePayload(records.admission, {
       persistedVersion: 1,
-      state: {} as never,
+      state: { coverageAdmission: records.admission.coverageAdmission } as never,
       sourceRef: "sources/source.json",
       sourceDigest: records.source.sourceDigest,
       reviewRoot: records.source.materializationRef,

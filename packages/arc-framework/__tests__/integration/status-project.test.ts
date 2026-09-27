@@ -24,12 +24,12 @@ import {
   makeGitExecInput,
   removeGitBackedDir,
 } from "../helpers/integration.js";
+import { runHandlerAt } from "../helpers/handler.js";
 
 const execFileAsync = promisify(execFile);
 
 let repo: string | undefined;
 let remote: string | undefined;
-type ProcessExitCode = string | number | null | undefined;
 
 function meta(slug: string, state: string, branch: string): string {
   return [
@@ -66,80 +66,20 @@ function makeRawGitExec(cwd: string): GitExec {
   };
 }
 
-async function captureStdout(fn: () => Promise<void>): Promise<string> {
-  const chunks: string[] = [];
-  const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: string | Uint8Array) => {
-    chunks.push(typeof chunk === "string" ? chunk : chunk.toString());
-    return true;
-  });
-  try {
-    await fn();
-  } finally {
-    spy.mockRestore();
-  }
-  return chunks.join("");
-}
-
-async function captureProcessOutput(fn: () => Promise<void>): Promise<{ stdout: string; stderr: string }> {
-  const stdout: string[] = [];
-  const stderr: string[] = [];
-  const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: string | Uint8Array) => {
-    stdout.push(typeof chunk === "string" ? chunk : chunk.toString());
-    return true;
-  });
-  const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation((chunk: string | Uint8Array) => {
-    stderr.push(typeof chunk === "string" ? chunk : chunk.toString());
-    return true;
-  });
-  try {
-    await fn();
-  } finally {
-    stdoutSpy.mockRestore();
-    stderrSpy.mockRestore();
-  }
-  return { stdout: stdout.join(""), stderr: stderr.join("") };
-}
-
 async function runProject(cwd: string, opts: StatusCliOptions): Promise<string> {
-  const originalCwd = process.cwd();
-  const savedExitCode: ProcessExitCode = process.exitCode;
-  process.exitCode = undefined;
-  try {
-    process.chdir(cwd);
-    return await captureStdout(() => handleStatus(undefined, opts));
-  } finally {
-    process.chdir(originalCwd);
-    process.exitCode = savedExitCode;
-  }
+  return (await runHandlerAt(cwd, () => handleStatus(undefined, opts))).stdout;
 }
 
 async function runProjectWithDiagnostics(
   cwd: string,
   opts: StatusCliOptions,
 ): Promise<{ stdout: string; stderr: string }> {
-  const originalCwd = process.cwd();
-  const savedExitCode: ProcessExitCode = process.exitCode;
-  process.exitCode = undefined;
-  try {
-    process.chdir(cwd);
-    return await captureProcessOutput(() => handleStatus(undefined, opts));
-  } finally {
-    process.chdir(originalCwd);
-    process.exitCode = savedExitCode;
-  }
+  const { stdout, stderr } = await runHandlerAt(cwd, () => handleStatus(undefined, opts));
+  return { stdout, stderr };
 }
 
 async function runSlug(cwd: string, slug: string, opts: StatusCliOptions): Promise<string> {
-  const originalCwd = process.cwd();
-  const savedExitCode: ProcessExitCode = process.exitCode;
-  process.exitCode = undefined;
-  try {
-    process.chdir(cwd);
-    return await captureStdout(() => handleStatus(slug, opts));
-  } finally {
-    process.chdir(originalCwd);
-    process.exitCode = savedExitCode;
-  }
+  return (await runHandlerAt(cwd, () => handleStatus(slug, opts))).stdout;
 }
 
 describe("arc status --project", () => {
@@ -221,27 +161,15 @@ describe("arc status --project", () => {
 
     await execFileAsync("git", ["checkout", "main"], { cwd: repo });
 
-    const originalCwd = process.cwd();
-    const savedExitCode: ProcessExitCode = process.exitCode;
-    process.exitCode = undefined;
-    const result = await (async (): Promise<{ output: string; exitCode: ProcessExitCode }> => {
-      try {
-        process.chdir(repo);
-        const output = await captureStdout(() => handleStatus(undefined, { project: true }));
-        return { output, exitCode: process.exitCode };
-      } finally {
-        process.chdir(originalCwd);
-        process.exitCode = savedExitCode;
-      }
-    })();
+    const result = await runHandlerAt(repo, () => handleStatus(undefined, { project: true }));
 
-    expect(result.output).toContain("# Roadmap: Project Status");
-    expect(result.output).toContain("Source scope: tree + live refs.");
-    expect(result.output).toContain("| `Active` | ref-only");
-    expect(result.output).toMatch(/\|\s*ref-only\s*\|\s*P1\b/u);
-    expect(result.output).not.toContain("ref-only-errand");
-    expect(sectionBetween(result.output, "## Ready", "## Blocked")).not.toContain("ref-only");
-    expect(result.exitCode).toBeUndefined();
+    expect(result.stdout).toContain("# Roadmap: Project Status");
+    expect(result.stdout).toContain("Source scope: tree + live refs.");
+    expect(result.stdout).toContain("| `Active` | ref-only");
+    expect(result.stdout).toMatch(/\|\s*ref-only\s*\|\s*P1\b/u);
+    expect(result.stdout).not.toContain("ref-only-errand");
+    expect(sectionBetween(result.stdout, "## Ready", "## Blocked")).not.toContain("ref-only");
+    expect(result.exitCode).toBe(0);
   });
 
   it.each(["Planning", "Active", "Integrating"] as const)(
@@ -279,6 +207,54 @@ describe("arc status --project", () => {
         state: state.toLowerCase(),
         occupied: true,
       });
+    },
+  );
+
+  it.each(["Planning", "Active"] as const)(
+    "keeps a committed Shipped record authoritative over a lingering %s ref",
+    async (lingeringState) => {
+      repo = await createTempRepo(`arc-status-slug-shipped-${lingeringState.toLowerCase()}-`);
+      remote = `${repo}-origin.git`;
+      const slug = "swept-status";
+      const planningBranch = `plan/${slug}`;
+      const deliveryBranch = `feat/${slug}`;
+      await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+      await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: remote });
+      await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: repo });
+      await mkdir(join(repo, ".arc", "system"), { recursive: true });
+      await writeFile(join(repo, ".arc", "system", "arc-config.yml"), "branch.base: main\n");
+      await commitAll(repo, "scaffold swept status");
+
+      await execFileAsync("git", ["switch", "-c", planningBranch], { cwd: repo });
+      const activePath = join(repo, ".arc", "active", `meta-${slug}.md`);
+      await mkdir(join(repo, ".arc", "active"), { recursive: true });
+      await writeFile(activePath, meta(slug, lingeringState, planningBranch));
+      await commitAll(repo, "plan swept status");
+      await execFileAsync("git", ["push", "-u", "origin", planningBranch], { cwd: repo });
+
+      await execFileAsync("git", ["switch", "-c", deliveryBranch], { cwd: repo });
+      await execFileAsync("git", ["branch", "-D", planningBranch], { cwd: repo });
+      await writeFile(activePath, meta(slug, "Integrating", deliveryBranch));
+      await commitAll(repo, "integrate swept status");
+      const completedDir = join(repo, ".arc", "completed", "2026-q3", `01_${slug}`);
+      const completedPath = join(completedDir, `meta-${slug}.md`);
+      await mkdir(completedDir, { recursive: true });
+      await execFileAsync("git", ["mv", activePath, completedPath], { cwd: repo });
+      await writeFile(completedPath, meta(slug, "Shipped", deliveryBranch));
+      await commitAll(repo, "archive swept status");
+
+      const output = JSON.parse(await runSlug(repo, slug, { json: true }));
+
+      expect(output).toMatchObject({
+        slug,
+        position: { phase: "Shipped", location: "completed" },
+        state: "shipped",
+        occupied: false,
+        shipped: true,
+      });
+      expect(output.warnings).toContain(
+        `Branch \`${deliveryBranch}\` has no errand record or active work-unit meta; cleanup may be required.`,
+      );
     },
   );
 

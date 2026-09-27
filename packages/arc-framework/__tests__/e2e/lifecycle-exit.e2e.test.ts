@@ -329,6 +329,7 @@ function completedSymmetricMap(starter: PublicStarterMap): unknown {
       placement: { kind: "cohort", cohort: "origin" },
       destinations,
       internalEdges: [{ from: "blocked-leaf", to: "selected-leaf" }],
+      externalEdges: [],
       sourceAllocations: starter.machine.sourceUnits.map((unit) => {
         const destinationId = destinationFor(unit.sourceLocator.artifact);
         return {
@@ -562,17 +563,10 @@ describe("lifecycle exit choreography (CLI seam)", () => {
       "---",
       "",
     ].join("\n"));
-    await writeFile(join(sourceWorktree, ".arc", "active", "tasks-origin.md"), [
-      "# Task List: origin",
-      "",
-      "## Build",
-      "",
-      "- [ ] Separate the publication authority.",
-      "- [ ] Preserve the exact dependency boundary.",
-      "",
-      "---",
-      "",
-    ].join("\n"));
+    await writeFile(
+      join(sourceWorktree, ".arc", "active", "tasks-origin.md"),
+      "# Tasks: origin\n",
+    );
     await git(sourceWorktree, ["add", "-A"]);
     const planningCommit = await commitAttempt(
       sourceWorktree,
@@ -664,10 +658,12 @@ describe("lifecycle exit choreography (CLI seam)", () => {
       stage: "repository-plan",
       recovery: { kind: "none" },
     });
-    expect(JSON.parse(refused.stdout)).toHaveProperty(
-      "remedy",
-      "Re-preflight: arc decompose origin --preflight",
-    );
+    expect(JSON.parse(refused.stdout)).toMatchObject({
+      remedy: {
+        invariant: expect.stringContaining("authored map"),
+        argv: ["arc", "decompose", "origin", "--preflight"],
+      },
+    });
     const afterRefusal = await repositorySnapshot(repo);
     expect(afterRefusal).toEqual(beforeRefusal);
     expect(afterRefusal.worktrees).not.toContain("branch refs/heads/chore/decompose-origin");

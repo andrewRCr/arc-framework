@@ -27,8 +27,18 @@ import {
   resolveV3DecomposeSourceUnit,
   scanV3DecomposeContent,
 } from "./decompose-content.js";
+import type {
+  V3DecomposeEvidenceValue,
+  V3DecomposeRefusalEvidence,
+} from "./decompose-v3-refusal.js";
 
 type PlanningProfile = V3DecomposeMachine["planningProfile"];
+
+type SelectedV3DecomposeSource = {
+  snapshot: V3DecomposeTreeSnapshot;
+  meta: V3DecomposeSourceMeta;
+  kind: V3DecomposeMachine["source"]["kind"];
+};
 
 /** A local branch ref and the exact commit it resolved to in one adapter read. */
 export interface V3DecomposePinnedRef {
@@ -114,27 +124,30 @@ export interface V3DecomposePreflight {
 
 export type V3DecomposePreflightResult =
   | { status: "ready"; preflight: V3DecomposePreflight }
-  | { status: "rejected"; reason: V3DecomposePreflightMismatch; locus?: string };
+  | {
+      status: "rejected";
+      reason: V3DecomposePreflightMismatch;
+      locus?: string;
+      evidence?: V3DecomposeRefusalEvidence;
+    };
 
 export type V3DecomposePreflightRevalidationResult =
   | { status: "current"; preflight: V3DecomposePreflight }
-  | { status: "stale"; reason: V3DecomposePreflightMismatch; locus?: string };
+  | {
+      status: "stale";
+      reason: V3DecomposePreflightMismatch;
+      locus?: string;
+      evidence?: V3DecomposeRefusalEvidence;
+    };
 
 export type V3DecomposeCutMapBindingResult =
   | { status: "current"; preflight: V3DecomposePreflight }
-  | { status: "stale"; reason: V3DecomposePreflightMismatch; locus: string };
-
-/** Tree-derived source facts consumed by exact-ref authority adapters. */
-export type V3DecomposeSourceFactsResult =
   | {
-      status: "ready";
-      sourceArtifactInventory: V3SourceArtifactEntry[];
-      sourceArtifactDigest: NonNullable<ReturnType<typeof v3SourceArtifactDigest>>;
-      sourceUnits: V3DecomposeMachine["sourceUnits"];
-      incomingEdges: V3DecomposeMachine["incomingEdges"];
-      outgoingEdges: V3DecomposeMachine["outgoingEdges"];
-    }
-  | { status: "rejected"; reason: V3DecomposePreflightMismatch; locus?: string };
+      status: "stale";
+      reason: V3DecomposePreflightMismatch;
+      locus: string;
+      evidence?: V3DecomposeRefusalEvidence;
+    };
 
 function compareBytes(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
@@ -155,6 +168,32 @@ function firstArrayMismatchLocus(
     if (!sameCanonicalValue(left[index], right[index])) return `${locus}.${index}`;
   }
   return locus;
+}
+
+function firstArrayMismatchEvidence<T extends V3DecomposeEvidenceValue>(
+  expected: readonly T[],
+  actual: readonly T[],
+): V3DecomposeRefusalEvidence {
+  const length = Math.max(expected.length, actual.length);
+  for (let index = 0; index < length; index += 1) {
+    if (index >= expected.length || index >= actual.length
+      || !sameCanonicalValue(expected[index], actual[index])) {
+      return {
+        expected: expected[index] ?? { kind: "absent" },
+        actual: actual[index] ?? { kind: "absent" },
+      };
+    }
+  }
+  return { expected: [...expected], actual: [...actual] };
+}
+
+function artifactInventoryEvidence(entries: readonly V3SourceArtifactEntry[]): V3DecomposeEvidenceValue[] {
+  return entries.map(({ path, objectKind, mode, contentDigest }) => ({
+    path,
+    objectKind,
+    mode,
+    contentDigest,
+  }));
 }
 
 function isLocalBranchRef(ref: string): boolean {
@@ -263,13 +302,22 @@ function artifactInventory(
 function sourceUnits(
   artifacts: readonly V3DecomposeStoredArtifact[],
   profile: PlanningProfile,
-): { units: V3DecomposeMachine["sourceUnits"]; reason: V3DecomposePreflightMismatch | null } {
+  sourceKind: V3DecomposeMachine["source"]["kind"],
+  sourceMetaPath: string,
+): {
+  units: V3DecomposeMachine["sourceUnits"];
+  reason: V3DecomposePreflightMismatch | null;
+  locus?: string;
+} {
   const units: V3DecomposeMachine["sourceUnits"] = [];
   const designNames = new Set(profile.sourceDesign);
   for (const artifact of artifacts) {
-    if (!designNames.has(posix.basename(artifact.path))) continue;
+    const isDesign = designNames.has(posix.basename(artifact.path));
+    if (artifact.path === sourceMetaPath || (sourceKind === "active-origin" && !isDesign)) continue;
     const scan = scanV3DecomposeContent(posix.basename(artifact.path), artifact.bytes);
-    if (scan.status === "rejected") return { units: [], reason: "source-scan" };
+    if (scan.status === "rejected") {
+      return { units: [], reason: "source-scan", locus: artifact.path };
+    }
     for (const unit of scan.units) {
       units.push({
         sourceId: v3SourceId({ sourcePath: artifact.path, sourceLocator: unit.locator }),
@@ -319,81 +367,29 @@ function outgoingEdges(
   return { edges: normalized, reason: null };
 }
 
-/**
- * Select one self-authenticating local source tree and construct its immutable
- * v3 starter map. Input order never selects a candidate.
- */
-export function createV3DecomposePreflight(input: V3DecomposePreflightInput): V3DecomposePreflightResult {
-  if (!isLocalBranchRef(input.sourceBase.ref)) return { status: "rejected", reason: "source-base-ref" };
-  if (!isLocalBranchRef(input.resultBase.ref)) return { status: "rejected", reason: "result-base-ref" };
-
-  const candidates = input.localBranches.slice().sort((left, right) => compareBytes(left.ref, right.ref));
-  const refs = new Set<string>();
-  for (const candidate of candidates) {
-    if (!isLocalBranchRef(candidate.ref) || candidate.ref === input.sourceBase.ref) {
-      return { status: "rejected", reason: "source-candidate-ref" };
-    }
-    if (refs.has(candidate.ref)) return { status: "rejected", reason: "source-candidate-duplicate" };
-    refs.add(candidate.ref);
-  }
-
-  const qualifying: Array<{ snapshot: V3DecomposeTreeSnapshot; meta: V3DecomposeSourceMeta }> = [];
-  for (const candidate of candidates) {
-    const observed = sourceMetaFor(candidate, input.origin);
-    if (observed.reason !== null) return { status: "rejected", reason: observed.reason };
-    const meta = observed.meta;
-    if (meta === null || meta.location !== "active"
-      || (meta.state !== "Planning" && meta.state !== "Active")) continue;
-    if (meta.branch !== branchName(candidate.ref)) return { status: "rejected", reason: "source-self-identity" };
-    qualifying.push({ snapshot: candidate, meta });
-  }
-  if (qualifying.length > 1) return { status: "rejected", reason: "source-ambiguous" };
-
-  let selected: {
-    snapshot: V3DecomposeTreeSnapshot;
-    meta: V3DecomposeSourceMeta;
-    kind: V3DecomposeMachine["source"]["kind"];
-  };
-  if (qualifying.length === 1) {
-    const winner = qualifying[0];
-    if (winner === undefined) return { status: "rejected", reason: "source-predecessor" };
-    selected = {
-      ...winner,
-      kind: winner.meta.state === "Active" ? "active-origin" : "started-planning",
-    };
-  } else {
-    const observed = sourceMetaFor(input.sourceBase, input.origin);
-    if (observed.reason !== null || observed.meta === null) {
-      return { status: "rejected", reason: observed.reason ?? "source-predecessor" };
-    }
-    const meta = observed.meta;
-    if (meta.location === "active"
-      && (meta.state === "Planning" || meta.state === "Active")
-      && meta.branch === branchName(input.sourceBase.ref)) {
-      selected = {
-        snapshot: input.sourceBase,
-        meta,
-        kind: meta.state === "Active" ? "active-origin" : "started-planning",
-      };
-    } else if (
-      meta.location === "backlog"
-      && (meta.state === "Planning" || meta.state === "Provisional")
-      && meta.branch === null
-    ) {
-      selected = { snapshot: input.sourceBase, meta, kind: "backlog-stub" };
-    } else {
-      return { status: "rejected", reason: "source-predecessor" };
-    }
-  }
-
+function finalizeSelectedV3Preflight(
+  input: V3DecomposePreflightInput,
+  selected: SelectedV3DecomposeSource,
+): V3DecomposePreflightResult {
   const inferred = inferPlanningProfile(selected.meta, selected.snapshot.sourceArtifacts);
   if ("locus" in inferred) {
     return { status: "rejected", reason: "planning-profile", locus: inferred.locus };
   }
   const artifacts = artifactInventory(selected.snapshot.sourceArtifacts);
   if (artifacts.reason !== null) return { status: "rejected", reason: artifacts.reason };
-  const scanned = sourceUnits(selected.snapshot.sourceArtifacts, inferred.profile);
-  if (scanned.reason !== null) return { status: "rejected", reason: scanned.reason };
+  const scanned = sourceUnits(
+    selected.snapshot.sourceArtifacts,
+    inferred.profile,
+    selected.kind,
+    selected.meta.path,
+  );
+  if (scanned.reason !== null) {
+    return {
+      status: "rejected",
+      reason: scanned.reason,
+      ...(scanned.locus === undefined ? {} : { locus: scanned.locus }),
+    };
+  }
   const incoming = incomingEdges(selected.snapshot.incomingEdges);
   if (incoming.reason !== null) return { status: "rejected", reason: incoming.reason };
   const outgoing = outgoingEdges(selected.snapshot.outgoingEdges);
@@ -430,48 +426,70 @@ export function createV3DecomposePreflight(input: V3DecomposePreflightInput): V3
   };
 }
 
-/** Derive canonical source inventory, units, and dependency edges from one pinned source tree. */
-export function deriveV3DecomposeSourceFacts(
-  snapshot: V3DecomposeTreeSnapshot,
-  origin: string,
-): V3DecomposeSourceFactsResult {
-  const observed = sourceMetaFor(snapshot, origin);
-  if (observed.reason !== null || observed.meta === null) {
-    return { status: "rejected", reason: observed.reason ?? "source-predecessor" };
+/**
+ * Select one self-authenticating local source tree and construct its immutable
+ * v3 starter map. Input order never selects a candidate.
+ */
+export function createV3DecomposePreflight(input: V3DecomposePreflightInput): V3DecomposePreflightResult {
+  if (!isLocalBranchRef(input.sourceBase.ref)) return { status: "rejected", reason: "source-base-ref" };
+  if (!isLocalBranchRef(input.resultBase.ref)) return { status: "rejected", reason: "result-base-ref" };
+
+  const candidates = input.localBranches.slice().sort((left, right) => compareBytes(left.ref, right.ref));
+  const refs = new Set<string>();
+  for (const candidate of candidates) {
+    if (!isLocalBranchRef(candidate.ref) || candidate.ref === input.sourceBase.ref) {
+      return { status: "rejected", reason: "source-candidate-ref" };
+    }
+    if (refs.has(candidate.ref)) return { status: "rejected", reason: "source-candidate-duplicate" };
+    refs.add(candidate.ref);
   }
-  const meta = observed.meta;
-  const expectedBranch = branchName(snapshot.ref);
-  const validActive = meta.location === "active"
-    && (meta.state === "Planning" || meta.state === "Active")
-    && meta.branch === expectedBranch;
-  const validBacklog = meta.location === "backlog"
-    && (meta.state === "Planning" || meta.state === "Provisional")
-    && meta.branch === null;
-  if (!validActive && !validBacklog) {
-    return { status: "rejected", reason: "source-predecessor", locus: meta.path };
+
+  const qualifying: Array<{ snapshot: V3DecomposeTreeSnapshot; meta: V3DecomposeSourceMeta }> = [];
+  for (const candidate of candidates) {
+    const observed = sourceMetaFor(candidate, input.origin);
+    if (observed.reason !== null) return { status: "rejected", reason: observed.reason };
+    const meta = observed.meta;
+    if (meta === null || meta.location !== "active"
+      || (meta.state !== "Planning" && meta.state !== "Active")) continue;
+    if (meta.branch !== branchName(candidate.ref)) return { status: "rejected", reason: "source-self-identity" };
+    qualifying.push({ snapshot: candidate, meta });
   }
-  const inferred = inferPlanningProfile(meta, snapshot.sourceArtifacts);
-  if ("locus" in inferred) {
-    return { status: "rejected", reason: "planning-profile", locus: inferred.locus };
+  if (qualifying.length > 1) return { status: "rejected", reason: "source-ambiguous" };
+
+  let selected: SelectedV3DecomposeSource;
+  if (qualifying.length === 1) {
+    const winner = qualifying[0];
+    if (winner === undefined) return { status: "rejected", reason: "source-predecessor" };
+    selected = {
+      ...winner,
+      kind: winner.meta.state === "Active" ? "active-origin" : "started-planning",
+    };
+  } else {
+    const observed = sourceMetaFor(input.sourceBase, input.origin);
+    if (observed.reason !== null || observed.meta === null) {
+      return { status: "rejected", reason: observed.reason ?? "source-predecessor" };
+    }
+    const meta = observed.meta;
+    if (meta.location === "active"
+      && (meta.state === "Planning" || meta.state === "Active")
+      && meta.branch === branchName(input.sourceBase.ref)) {
+      selected = {
+        snapshot: input.sourceBase,
+        meta,
+        kind: meta.state === "Active" ? "active-origin" : "started-planning",
+      };
+    } else if (
+      meta.location === "backlog"
+      && (meta.state === "Planning" || meta.state === "Provisional")
+      && meta.branch === null
+    ) {
+      selected = { snapshot: input.sourceBase, meta, kind: "backlog-stub" };
+    } else {
+      return { status: "rejected", reason: "source-predecessor" };
+    }
   }
-  const artifacts = artifactInventory(snapshot.sourceArtifacts);
-  if (artifacts.reason !== null) return { status: "rejected", reason: artifacts.reason };
-  const scanned = sourceUnits(snapshot.sourceArtifacts, inferred.profile);
-  if (scanned.reason !== null) return { status: "rejected", reason: scanned.reason };
-  const incoming = incomingEdges(snapshot.incomingEdges);
-  if (incoming.reason !== null) return { status: "rejected", reason: incoming.reason };
-  const outgoing = outgoingEdges(snapshot.outgoingEdges);
-  if (outgoing.reason !== null) return { status: "rejected", reason: outgoing.reason };
-  const sourceArtifactDigest = v3SourceArtifactDigest(artifacts.entries);
-  if (sourceArtifactDigest === null) return { status: "rejected", reason: "source-artifact-inventory" };
-  return {
-    status: "ready",
-    sourceArtifactInventory: artifacts.entries,
-    sourceArtifactDigest,
-    sourceUnits: scanned.units,
-    incomingEdges: incoming.edges,
-    outgoingEdges: outgoing.edges,
-  };
+
+  return finalizeSelectedV3Preflight(input, selected);
 }
 
 /**
@@ -498,16 +516,29 @@ export function revalidateV3DecomposeCutMapBinding(
     ["result-head", "machine.resultBase.head", prior.resultBase.head, current.resultBase.head],
   ] as const;
   for (const [reason, locus, previous, refreshed] of scalarMismatches) {
-    if (previous !== refreshed) return { status: "stale", reason, locus };
+    if (previous !== refreshed) {
+      return {
+        status: "stale",
+        reason,
+        locus,
+        evidence: { expected: previous, actual: refreshed },
+      };
+    }
   }
   if (!sameCanonicalValue(prior.planningProfile, current.planningProfile)) {
-    return { status: "stale", reason: "planning-profile", locus: "machine.planningProfile" };
+    return {
+      status: "stale",
+      reason: "planning-profile",
+      locus: "machine.planningProfile",
+      evidence: { expected: prior.planningProfile, actual: current.planningProfile },
+    };
   }
   if (!sameCanonicalValue(prior.sourceUnits, current.sourceUnits)) {
     return {
       status: "stale",
       reason: "source-units",
       locus: firstArrayMismatchLocus(prior.sourceUnits, current.sourceUnits, "machine.sourceUnits"),
+      evidence: firstArrayMismatchEvidence(prior.sourceUnits, current.sourceUnits),
     };
   }
   if (!sameCanonicalValue(prior.incomingEdges, current.incomingEdges)) {
@@ -515,6 +546,7 @@ export function revalidateV3DecomposeCutMapBinding(
       status: "stale",
       reason: "incoming-edges",
       locus: firstArrayMismatchLocus(prior.incomingEdges, current.incomingEdges, "machine.incomingEdges"),
+      evidence: firstArrayMismatchEvidence(prior.incomingEdges, current.incomingEdges),
     };
   }
   if (!sameCanonicalValue(prior.outgoingEdges, current.outgoingEdges)) {
@@ -522,47 +554,74 @@ export function revalidateV3DecomposeCutMapBinding(
       status: "stale",
       reason: "outgoing-edges",
       locus: firstArrayMismatchLocus(prior.outgoingEdges, current.outgoingEdges, "machine.outgoingEdges"),
+      evidence: firstArrayMismatchEvidence(prior.outgoingEdges, current.outgoingEdges),
     };
   }
   if (prior.preflightId !== current.preflightId) {
-    return { status: "stale", reason: "preflight-id", locus: "machine.preflightId" };
+    return {
+      status: "stale",
+      reason: "preflight-id",
+      locus: "machine.preflightId",
+      evidence: { expected: prior.preflightId, actual: current.preflightId },
+    };
   }
   return { status: "current", preflight: currentPreflight };
 }
 
-/**
- * Re-read and compare every stored preflight fact in a fixed order. A stale
- * source never yields a partial planning input.
- */
-export function revalidateV3DecomposePreflight(
-  previous: V3DecomposePreflight,
-  input: V3DecomposePreflightInput,
-): V3DecomposePreflightRevalidationResult {
-  const previousMap = parseV3DecomposeStarterMap(previous.starterMap);
-  if (previousMap === null) return { status: "stale", reason: "starter-map" };
-  const priorArtifactDigest = v3SourceArtifactDigest(previous.sourceArtifactInventory);
-  if (priorArtifactDigest === null || priorArtifactDigest !== previous.sourceArtifactDigest) {
-    return { status: "stale", reason: "source-artifact-inventory" };
-  }
-  const refreshed = createV3DecomposePreflight(input);
-  if (refreshed.status === "rejected") {
-    return { status: "stale", reason: refreshed.reason, ...(refreshed.locus === undefined ? {} : {
-      locus: refreshed.locus,
-    }) };
-  }
-  const currentMap = refreshed.preflight.starterMap;
-  const prior = previousMap.machine;
-  const current = currentMap.machine;
+function revalidateSourceIdentity(
+  prior: V3DecomposeMachine,
+  current: V3DecomposeMachine,
+): V3DecomposePreflightRevalidationResult | null {
   if (prior.source.logicalBranch !== current.source.logicalBranch) {
-    return { status: "stale", reason: "source-logical-branch" };
+    return {
+      status: "stale",
+      reason: "source-logical-branch",
+      evidence: { expected: prior.source.logicalBranch, actual: current.source.logicalBranch },
+    };
   }
-  if (prior.source.ref !== current.source.ref) return { status: "stale", reason: "source-ref" };
-  if (prior.source.head !== current.source.head) return { status: "stale", reason: "source-head" };
-  if (prior.resultBase.ref !== current.resultBase.ref) return { status: "stale", reason: "result-ref" };
-  if (prior.resultBase.head !== current.resultBase.head) return { status: "stale", reason: "result-head" };
+  if (prior.source.ref !== current.source.ref) {
+    return {
+      status: "stale",
+      reason: "source-ref",
+      evidence: { expected: prior.source.ref, actual: current.source.ref },
+    };
+  }
+  if (prior.source.head !== current.source.head) {
+    return {
+      status: "stale",
+      reason: "source-head",
+      evidence: { expected: prior.source.head, actual: current.source.head },
+    };
+  }
+  if (prior.resultBase.ref !== current.resultBase.ref) {
+    return {
+      status: "stale",
+      reason: "result-ref",
+      evidence: { expected: prior.resultBase.ref, actual: current.resultBase.ref },
+    };
+  }
+  if (prior.resultBase.head !== current.resultBase.head) {
+    return {
+      status: "stale",
+      reason: "result-head",
+      evidence: { expected: prior.resultBase.head, actual: current.resultBase.head },
+    };
+  }
   if (!sameCanonicalValue(prior.planningProfile, current.planningProfile)) {
-    return { status: "stale", reason: "planning-profile" };
+    return {
+      status: "stale",
+      reason: "planning-profile",
+      evidence: { expected: prior.planningProfile, actual: current.planningProfile },
+    };
   }
+  return null;
+}
+
+function revalidateStoredSourceUnits(
+  prior: V3DecomposeMachine,
+  current: V3DecomposeMachine,
+  input: V3DecomposePreflightInput,
+): V3DecomposePreflightRevalidationResult | null {
   const currentSource = [input.sourceBase, ...input.localBranches].find((snapshot) =>
     snapshot.ref === current.source.ref && snapshot.head === current.source.head);
   if (currentSource === undefined) return { status: "stale", reason: "source-ref" };
@@ -584,26 +643,89 @@ export function revalidateV3DecomposePreflight(
         : resolution.code === "source-id"
           ? "sourceId"
           : "sourceLocator";
+      const currentUnit = current.sourceUnits[index];
       return {
         status: "stale",
         reason: "source-units",
         locus: `machine.sourceUnits.${index}.${field}`,
+        evidence: {
+          expected: sourceUnit[field],
+          actual: currentUnit?.[field] ?? { kind: "absent" },
+        },
       };
     }
   }
-  if (previous.sourceArtifactDigest !== refreshed.preflight.sourceArtifactDigest) {
+  return null;
+}
+
+/**
+ * Re-read and compare every stored preflight fact in a fixed order. A stale
+ * source never yields a partial planning input.
+ */
+export function revalidateV3DecomposePreflight(
+  previous: V3DecomposePreflight,
+  input: V3DecomposePreflightInput,
+): V3DecomposePreflightRevalidationResult {
+  const previousMap = parseV3DecomposeStarterMap(previous.starterMap);
+  if (previousMap === null) return { status: "stale", reason: "starter-map" };
+  const priorArtifactDigest = v3SourceArtifactDigest(previous.sourceArtifactInventory);
+  if (priorArtifactDigest === null || priorArtifactDigest !== previous.sourceArtifactDigest) {
     return { status: "stale", reason: "source-artifact-inventory" };
   }
+  const refreshed = createV3DecomposePreflight(input);
+  if (refreshed.status === "rejected") {
+    return { status: "stale", reason: refreshed.reason, ...(refreshed.locus === undefined ? {} : {
+      locus: refreshed.locus,
+    }), ...(refreshed.evidence === undefined ? {} : { evidence: refreshed.evidence }) };
+  }
+  const currentMap = refreshed.preflight.starterMap;
+  const prior = previousMap.machine;
+  const current = currentMap.machine;
+  const identityMismatch = revalidateSourceIdentity(prior, current);
+  if (identityMismatch !== null) return identityMismatch;
+  const sourceUnitMismatch = revalidateStoredSourceUnits(prior, current, input);
+  if (sourceUnitMismatch !== null) return sourceUnitMismatch;
+  if (previous.sourceArtifactDigest !== refreshed.preflight.sourceArtifactDigest) {
+    return {
+      status: "stale",
+      reason: "source-artifact-inventory",
+      evidence: {
+        expected: artifactInventoryEvidence(previous.sourceArtifactInventory),
+        actual: artifactInventoryEvidence(refreshed.preflight.sourceArtifactInventory),
+      },
+    };
+  }
   if (!sameCanonicalValue(prior.sourceUnits, current.sourceUnits)) {
-    return { status: "stale", reason: "source-units" };
+    return {
+      status: "stale",
+      reason: "source-units",
+      locus: firstArrayMismatchLocus(prior.sourceUnits, current.sourceUnits, "machine.sourceUnits"),
+      evidence: firstArrayMismatchEvidence(prior.sourceUnits, current.sourceUnits),
+    };
   }
   if (!sameCanonicalValue(prior.incomingEdges, current.incomingEdges)) {
-    return { status: "stale", reason: "incoming-edges" };
+    return {
+      status: "stale",
+      reason: "incoming-edges",
+      locus: firstArrayMismatchLocus(prior.incomingEdges, current.incomingEdges, "machine.incomingEdges"),
+      evidence: firstArrayMismatchEvidence(prior.incomingEdges, current.incomingEdges),
+    };
   }
   if (!sameCanonicalValue(prior.outgoingEdges, current.outgoingEdges)) {
-    return { status: "stale", reason: "outgoing-edges" };
+    return {
+      status: "stale",
+      reason: "outgoing-edges",
+      locus: firstArrayMismatchLocus(prior.outgoingEdges, current.outgoingEdges, "machine.outgoingEdges"),
+      evidence: firstArrayMismatchEvidence(prior.outgoingEdges, current.outgoingEdges),
+    };
   }
-  if (prior.preflightId !== current.preflightId) return { status: "stale", reason: "preflight-id" };
+  if (prior.preflightId !== current.preflightId) {
+    return {
+      status: "stale",
+      reason: "preflight-id",
+      evidence: { expected: prior.preflightId, actual: current.preflightId },
+    };
+  }
   if (!sameCanonicalValue(previousMap, currentMap)) return { status: "stale", reason: "starter-map" };
   return { status: "current", preflight: refreshed.preflight };
 }

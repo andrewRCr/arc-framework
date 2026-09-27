@@ -26,6 +26,7 @@ describe("v3 decomposition plan composition", () => {
   const targetLocator = { artifact: "draft-member-a.md", kind: "whole-file" as const };
   const metaPath = ".arc/backlog/planned/member-a/meta-member-a.md";
   const draftPath = ".arc/backlog/planned/member-a/draft-member-a.md";
+  const notesPath = ".arc/backlog/planned/member-a/notes-member-a.md";
   const roadmapPath = ".arc/backlog/ROADMAP.md";
   const predecessorPath = ".arc/backlog/planned/origin/meta-origin.md";
   const originDraftPath = ".arc/backlog/planned/origin/draft-origin.md";
@@ -123,6 +124,49 @@ describe("v3 decomposition plan composition", () => {
         before: file("before roadmap"),
         after: file("after roadmap"),
       },
+    };
+  }
+
+  function notesInput(): V3PlanCompositionInput {
+    const input = baseInput();
+    const notesSourceId = canonicalDigest("notes-source");
+    const notesLocator = { artifact: "notes-member-a.md", kind: "whole-file" as const };
+    const scaffold = file("# Notes: member-a\n");
+    return {
+      ...input,
+      validatedAllocations: [
+        ...input.validatedAllocations,
+        {
+          sourceId: notesSourceId,
+          ownership: "destination-owned",
+          disposition: {
+            kind: "target",
+            destinationId: "a",
+            targetLocator: notesLocator,
+          },
+        },
+      ],
+      expectedPaths: [...input.expectedPaths, notesPath],
+      content: [
+        ...input.content,
+        content({
+          path: notesPath,
+          artifactRole: "notes",
+          contributorKind: "provisional-notes",
+          before: absent,
+          after: scaffold,
+        }),
+        content({
+          path: notesPath,
+          artifactRole: "notes",
+          contributorKind: "allocation",
+          contributorIdentity: undefined,
+          disposition: "patch",
+          sourceProjection: [{ sourceId: notesSourceId, targetLocator: notesLocator }],
+          before: scaffold,
+          after: file("# Notes: member-a\n\nAllocated body.\n"),
+        }),
+      ],
     };
   }
 
@@ -351,6 +395,70 @@ describe("v3 decomposition plan composition", () => {
     expect(new TextDecoder().decode(
       (input.content.find(({ artifactRole }) => artifactRole === "meta")?.after as { bytes: Uint8Array }).bytes,
     )).toContain("- **Task List:** [none]");
+  });
+
+  it("composes a provisional notes scaffold before its allocated patch", () => {
+    const input = notesInput();
+    const result = composeV3DecomposePlan({
+      ...input,
+      content: [...input.content].reverse(),
+    });
+
+    expect(result.status).toBe("composed");
+    if (result.status !== "composed") return;
+    expect(result.plan.mutations.find(({ path }) => path === notesPath)).toMatchObject({
+      contributors: [
+        {
+          kind: "content",
+          artifactRole: "notes",
+          contributorKind: "provisional-notes",
+          contributorIdentity: "notes",
+        },
+        {
+          kind: "content",
+          artifactRole: "notes",
+          contributorKind: "allocation",
+        },
+      ],
+    });
+  });
+
+  it.each([
+    ["artifact role", (input: V3PlanCompositionInput) => ({
+      ...input,
+      content: input.content.map((entry) => entry.contributorKind === "provisional-notes"
+        ? { ...entry, artifactRole: "tasks" }
+        : entry),
+    }), "incompatible-content-role"],
+    ["disposition", (input: V3PlanCompositionInput) => ({
+      ...input,
+      content: input.content.map((entry) => entry.contributorKind === "provisional-notes"
+        ? { ...entry, disposition: "patch" }
+        : entry),
+    }), "incompatible-content-role"],
+    ["contributor identity", (input: V3PlanCompositionInput) => ({
+      ...input,
+      content: input.content.map((entry) => entry.contributorKind === "provisional-notes"
+        ? { ...entry, contributorIdentity: "wrong-role" }
+        : entry),
+    }), "incompatible-content-role"],
+    ["duplicate owner", (input: V3PlanCompositionInput) => {
+      const scaffold = input.content.find(({ contributorKind }) =>
+        contributorKind === "provisional-notes");
+      if (scaffold === undefined) throw new Error("expected provisional notes scaffold");
+      return { ...input, content: [...input.content, { ...scaffold }] };
+    }, "duplicate-role-owner"],
+  ] satisfies Array<[
+    string,
+    (input: V3PlanCompositionInput) => V3PlanCompositionInput,
+    string,
+  ]>)("refuses a provisional notes %s mismatch", (_case, mutate, code) => {
+    const result = composeV3DecomposePlan(mutate(notesInput()));
+
+    expect(result).toMatchObject({
+      status: "refused",
+      refusal: { code, path: notesPath },
+    });
   });
 
   it("composes topology structure before allocated coordination content", () => {

@@ -3,13 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   resolveHostedAwaitTiming,
 } from "../../../../../src/scripts/review-gate/hosted/await-config.js";
-import type { HostedRequestHandle } from "../../../../../src/scripts/review-gate/hosted/request.js";
+import { createHostedHandleFixture } from "../../../../fixtures/hosted-review.js";
 
-const handle: HostedRequestHandle = {
-  schemaVersion: 1,
+const handle = createHostedHandleFixture({
   provider: "codex-pr",
-  requestedCoverage: "complete",
-  effectiveCoverage: "complete",
   target: {
     repository: "owner/repo",
     pullRequest: 42,
@@ -21,7 +18,7 @@ const handle: HostedRequestHandle = {
     url: "https://github.com/owner/repo/pull/42#issuecomment-1",
     createdAt: "2026-08-21T12:00:00Z",
   },
-};
+});
 
 const settings = {
   "review.hosted_await_timeout_seconds": "120",

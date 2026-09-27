@@ -3,6 +3,11 @@
 import { z } from "zod";
 
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
+import {
+  BoundFrontlineResponseBindingSchema,
+  FrontlineResponseBindingSchema,
+  frontlineResponseBindingMatchesTarget,
+} from "./frontline-response-binding.js";
 import { ReviewTargetSchema } from "./gate-contract-v2-schema.js";
 import { FrontlineResolveEnvelopeSchema } from "./review-command-envelope.js";
 import { ReviewTargetCoordinatesSchema } from "./review-target-coordinates.js";
@@ -13,12 +18,24 @@ const frontlineRunFields = {
   schemaVersion: z.literal(1),
   resolution: FrontlineResolveEnvelopeSchema,
   timeoutMs: z.number().int().positive().max(2_147_483_647).optional(),
+  retryOfOperationId: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
 } as const;
 
 /** Public request: callers supply exact Git coordinates, never repository-local identities. */
 export const FrontlineRunRequestSchema = z.strictObject({
   ...frontlineRunFields,
   target: ReviewTargetCoordinatesSchema,
+  responseBinding: FrontlineResponseBindingSchema.optional(),
+}).superRefine((request, context) => {
+  if (request.responseBinding !== undefined
+    && (request.target.kind !== "delivery-member"
+      || request.target.headSha !== request.responseBinding.deliveryMember.head)) {
+    context.addIssue({
+      code: "custom",
+      path: ["responseBinding", "deliveryMember"],
+      message: "must identify the exact private delivery-member target",
+    });
+  }
 });
 export type FrontlineRunRequest = z.infer<typeof FrontlineRunRequestSchema>;
 
@@ -26,6 +43,16 @@ export type FrontlineRunRequest = z.infer<typeof FrontlineRunRequestSchema>;
 export const FrontlineRunCommandRequestSchema = z.strictObject({
   ...frontlineRunFields,
   target: ReviewTargetSchema,
+  responseBinding: BoundFrontlineResponseBindingSchema.optional(),
+}).superRefine((request, context) => {
+  const binding = request.responseBinding;
+  if (binding !== undefined && !frontlineResponseBindingMatchesTarget(request.target, binding)) {
+    context.addIssue({
+      code: "custom",
+      path: ["responseBinding"],
+      message: "must bind the root Candidate and exact private delivery-member target",
+    });
+  }
 });
 export type FrontlineRunCommandRequest = z.infer<typeof FrontlineRunCommandRequestSchema>;
 

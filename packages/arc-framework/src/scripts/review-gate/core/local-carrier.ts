@@ -14,6 +14,10 @@ import {
   type ReviewRequestV2,
   type ReviewTarget,
 } from "./gate-contract-v2-schema.js";
+import {
+  laneSubjectLineageId,
+  LaneSubjectLineageSchema,
+} from "./lane-admission.js";
 
 export const LocalChangeSetSnapshotSchema = z.strictObject({
   state: z.enum(["exact", "uncommitted", "unborn"]),
@@ -40,8 +44,11 @@ export const LocalChangeSetCarrierInputSchema = z.strictObject({
   authorIdentity: ReviewIdentifierSchema,
   evaluatorIdentity: ReviewIdentifierSchema,
   attestation: LocalAttestationBindingSchema,
+  lineage: LaneSubjectLineageSchema,
+  logicalPass: z.number().int().positive(),
   generation: z.number().int().nonnegative(),
   requestMechanism: ReviewIdentifierSchema,
+  errandClaimId: ReviewIdentifierSchema.optional(),
 });
 export type LocalChangeSetCarrierInput = z.infer<typeof LocalChangeSetCarrierInputSchema>;
 
@@ -91,9 +98,16 @@ export function createLocalChangeSetCarrier(
     repositoryId: target.repositoryId,
     targetId: target.targetId,
     requirementId: parsed.requirementId,
-    carrier: { kind: "local-change-set", adapterId: "local", changeRequestId: null },
+    carrier: {
+      kind: "local-change-set",
+      adapterId: "local",
+      changeRequestId: null,
+      ...(parsed.errandClaimId === undefined ? {} : { errandClaimId: parsed.errandClaimId }),
+    },
     authorIdentity: parsed.authorIdentity,
     evaluatorIdentity: parsed.evaluatorIdentity,
+    lineageId: laneSubjectLineageId(parsed.lineage),
+    logicalPass: parsed.logicalPass,
     generation: parsed.generation,
     requestMechanism: parsed.requestMechanism,
   });

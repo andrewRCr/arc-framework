@@ -99,6 +99,24 @@ function partitionGitPathspecBatches(paths: readonly string[]): string[][] {
   return batches;
 }
 
+function parseGitBlobMetadataHeader(
+  metadata: string,
+  source: "index" | "tree",
+): GitBlobMetadata | null {
+  const match = source === "index"
+    ? /^([0-7]{6}) ([0-9a-f]+) 0$/u.exec(metadata)
+    : /^([0-7]{6}) (blob|commit) ([0-9a-f]+)$/u.exec(metadata);
+  const mode = match?.[1];
+  const objectType = source === "index"
+    ? mode === "160000" ? "commit" : "blob"
+    : match?.[2];
+  const oid = source === "index" ? match?.[2] : match?.[3];
+  if (mode === undefined || (objectType !== "blob" && objectType !== "commit")
+    || oid === undefined || !isGitObjectId(oid)
+    || (mode === "160000") !== (objectType === "commit")) return null;
+  return { mode, oid, objectType };
+}
+
 function parseGitBlobMetadata(
   bytes: Uint8Array,
   source: "index" | "tree",
@@ -113,25 +131,9 @@ function parseGitBlobMetadata(
     const path = requestedByBytes.get(byteKey(record.subarray(tab + 1)));
     if (path === undefined) continue;
     if (metadataByPath.has(path)) return null;
-    const metadata = gitMetadataDecoder.decode(record.subarray(0, tab));
-    const match = source === "index"
-      ? /^([0-7]{6}) ([0-9a-f]+) 0$/u.exec(metadata)
-      : /^([0-7]{6}) (blob|commit) ([0-9a-f]+)$/u.exec(metadata);
-    const mode = match?.[1];
-    const objectType = source === "index"
-      ? mode === "160000" ? "commit" : "blob"
-      : match?.[2];
-    const oid = source === "index" ? match?.[2] : match?.[3];
-    if (
-      mode === undefined
-      || (objectType !== "blob" && objectType !== "commit")
-      || oid === undefined
-      || !isGitObjectId(oid)
-      || (mode === "160000") !== (objectType === "commit")
-    ) {
-      return null;
-    }
-    metadataByPath.set(path, { mode, oid, objectType });
+    const metadata = parseGitBlobMetadataHeader(gitMetadataDecoder.decode(record.subarray(0, tab)), source);
+    if (metadata === null) return null;
+    metadataByPath.set(path, metadata);
   }
   return metadataByPath;
 }
@@ -236,6 +238,52 @@ async function readGitBlobObjects(
   return contents;
 }
 
+function requestedGitPathsByBytes(paths: readonly string[]): Map<string, string> {
+  const requested = new Map<string, string>();
+  for (const path of paths) {
+    const key = byteKey(gitInputEncoder.encode(path));
+    const existing = requested.get(key);
+    if (existing !== undefined && existing !== path) {
+      throw new Error("Cannot resolve distinct Git paths with the same byte representation.");
+    }
+    requested.set(key, path);
+  }
+  return requested;
+}
+
+async function readGitBlobMetadataBatches(input: {
+  exec: RawGitExec;
+  ref: string | null;
+  paths: readonly string[];
+  requestedByBytes: ReadonlyMap<string, string>;
+  objectAccess?: "local-only";
+}): Promise<Map<string, GitBlobMetadata>> {
+  const { exec, ref } = input;
+  const execOptions = input.objectAccess === undefined ? undefined : { objectAccess: input.objectAccess };
+  const source = ref === null ? "index" : "tree";
+  const lookupPrefix = ref === null
+    ? ["ls-files", "--stage", "-z", "--full-name"]
+    : ["ls-tree", "-r", "--full-tree", "-z",
+        "--format=%(objectmode) %(objecttype) %(objectname)%x09%(path)", ref];
+  const errorMessage = ref === null
+    ? "Cannot resolve exact index blobs."
+    : `Cannot resolve exact tree blobs for ${ref}.`;
+  const metadata = new Map<string, GitBlobMetadata>();
+  for (const pathspecs of partitionGitPathspecBatches(input.paths)) {
+    const batchMetadata = parseGitBlobMetadata(
+      (await exec([...lookupPrefix, "--", ...pathspecs], execOptions)).stdout,
+      source,
+      input.requestedByBytes,
+    );
+    if (batchMetadata === null) throw new Error(errorMessage);
+    for (const [path, entry] of batchMetadata) {
+      if (metadata.has(path)) throw new Error(errorMessage);
+      metadata.set(path, entry);
+    }
+  }
+  return metadata;
+}
+
 /**
  * Read many exact Git tree/index leaves through bounded metadata and object batches.
  *
@@ -253,51 +301,12 @@ export async function readGitBlobEntries(
 ): Promise<ReadonlyMap<string, GitBlobEntry>> {
   const selectedPaths = [...new Set(paths)];
   if (selectedPaths.length === 0) return new Map();
-  const requestedByBytes = new Map<string, string>();
-  for (const path of selectedPaths) {
-    const key = byteKey(gitInputEncoder.encode(path));
-    const existing = requestedByBytes.get(key);
-    if (existing !== undefined && existing !== path) {
-      throw new Error("Cannot resolve distinct Git paths with the same byte representation.");
-    }
-    requestedByBytes.set(key, path);
-  }
   const exec = createRawGitExec(cwd);
-  const execOptions = options.objectAccess === undefined
-    ? undefined
-    : { objectAccess: options.objectAccess };
-  const source = ref === null ? "index" : "tree";
-  const lookupPrefix = ref === null
-    ? ["ls-files", "--stage", "-z", "--full-name"]
-    : [
-        "ls-tree",
-        "-r",
-        "--full-tree",
-        "-z",
-        "--format=%(objectmode) %(objecttype) %(objectname)%x09%(path)",
-        ref,
-      ];
-  const metadata = new Map<string, GitBlobMetadata>();
-  for (const pathspecs of partitionGitPathspecBatches(selectedPaths)) {
-    const batchMetadata = parseGitBlobMetadata(
-      (await exec([...lookupPrefix, "--", ...pathspecs], execOptions)).stdout,
-      source,
-      requestedByBytes,
-    );
-    if (batchMetadata === null) {
-      throw new Error(ref === null
-        ? "Cannot resolve exact index blobs."
-        : `Cannot resolve exact tree blobs for ${ref}.`);
-    }
-    for (const [path, entry] of batchMetadata) {
-      if (metadata.has(path)) {
-        throw new Error(ref === null
-          ? "Cannot resolve exact index blobs."
-          : `Cannot resolve exact tree blobs for ${ref}.`);
-      }
-      metadata.set(path, entry);
-    }
-  }
+  const metadata = await readGitBlobMetadataBatches({
+    exec, ref, paths: selectedPaths,
+    requestedByBytes: requestedGitPathsByBytes(selectedPaths),
+    ...(options.objectAccess === undefined ? {} : { objectAccess: options.objectAccess }),
+  });
   const blobOids = [...new Set(selectedPaths.flatMap((path) => {
     const entry = metadata.get(path);
     return entry?.objectType === "blob" ? [entry.oid] : [];

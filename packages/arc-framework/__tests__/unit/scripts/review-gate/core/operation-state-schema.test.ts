@@ -6,15 +6,27 @@ import {
   createReviewTarget,
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { createLocalChangeSetCarrier } from "../../../../../src/scripts/review-gate/core/local-carrier.js";
+import { LaneSubjectLineageSchema } from
+  "../../../../../src/scripts/review-gate/core/lane-admission.js";
 import {
+  ConditionalPassAuthorizationSchema,
   FrontlineRunStateSchema,
   LaneProgressStateSchema,
   LocalReviewStateSchema,
   ReviewOperationStateSchema,
   ReviewSuspensionStateSchema,
+  computeConditionalPassAuthorizationId,
   type ReviewOperationState,
 } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import type { ReviewOperationStateStore } from "../../../../../src/scripts/review-gate/core/ports.js";
+import { createHostedAdmission } from
+  "../../../../../src/scripts/review-gate/hosted/request.js";
+import { projectLocalReviewGuidance } from
+  "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
+import {
+  createHostedHandleFixture,
+  createHostedTerminalAttemptFixture,
+} from "../../../../fixtures/hosted-review.js";
 
 const digest = (value: string) => canonicalDigest({ value });
 const objectId = (character: string): string => character.repeat(40);
@@ -44,8 +56,11 @@ const localRequirement = createReviewRequirement({
   initialAdmission: "checkpoint",
 });
 if (localRequirement === null) throw new Error("expected local requirement");
+const localLineage = { kind: "candidate" as const, candidateId: digest("candidate") };
 const localCarrier = createLocalChangeSetCarrier({
   target: localTarget,
+  lineage: localLineage,
+  logicalPass: 1,
   requirementId: localRequirement.requirementId,
   snapshot: {
     state: "exact",
@@ -73,11 +88,13 @@ const frontline = {
   operationId: "frontline-1",
   updatedAt: "2026-07-20T20:00:00Z",
   kind: "frontline-run" as const,
+  repositoryId: "repo-1",
   targetId: digest("target"),
   sourceIdentity: "local-frontline",
-  generation: 0,
+  lineage: localLineage,
+  logicalPass: 1,
+  retryGeneration: 0,
   outcome: "findings" as const,
-  passCount: 1,
   policyVersion: digest("policy"),
   sourceBindingId: digest("source-binding"),
 };
@@ -109,16 +126,23 @@ const localReview = {
   updatedAt: "2026-07-20T20:00:00Z",
   kind: "local-review" as const,
   vehicle: { kind: "work-unit" as const, identity: "review-surface-binding" },
+  lineage: localLineage,
+  logicalPass: 1,
+  retryGeneration: 0,
+  coverageAdmission: { requestedCoverage: "complete" as const },
   repositoryId: "repo-1",
   targetId: localTarget.targetId,
   requestId: localCarrier.request.requestId,
   policyVersion: localRequirement.policyVersion,
   policyBindingDigest: digest("binding"),
   laneSourceId: "delegated-agent",
+  scopeMode: "whole-target" as const,
   attestationRuntimeKind: "arc-cli",
   sourceRef: "refs/arc/review/local-1",
   sourceDigest: digest("source"),
-  guidanceDigest: digest("guidance"),
+  guidance: projectLocalReviewGuidance().projection,
+  guidanceDigest: projectLocalReviewGuidance().guidanceDigest,
+  reviewerInstructions: projectLocalReviewGuidance().reviewerInstructions,
   target: localTarget,
   requirement: localRequirement,
   request: localCarrier.request,
@@ -134,10 +158,18 @@ const laneProgress = {
   kind: "lane-progress" as const,
   lane: "standard" as const,
   repositoryId: "repo-1",
-  changeRequestId: null,
-  headSha: objectId("c"),
-  completedPasses: 1,
-  attempts: [{ attemptId: "hosted/attempt-1", sourceId: "coderabbit-pr", outcome: "rate-limited" as const }],
+  lineage: localLineage,
+  completedPasses: 0,
+  attempts: [{
+    attemptId: "hosted/attempt-1",
+    logicalPass: 1,
+    retryGeneration: 0,
+    changeRequestId: null,
+    headSha: objectId("c"),
+    terminalProducer: false,
+    sourceId: "coderabbit-pr",
+    outcome: "rate-limited" as const,
+  }],
 };
 
 const memberTarget = createReviewTarget({
@@ -165,8 +197,17 @@ const memberRequirement = createReviewRequirement({
   initialAdmission: "checkpoint",
 });
 if (memberRequirement === null) throw new Error("expected member requirement");
+const memberLineage = LaneSubjectLineageSchema.parse({
+  kind: "delivery-member" as const,
+  planId: "123e4567-e89b-12d3-a456-426614174000",
+  workUnitId: "review-surface-binding",
+  deliverableId: digest("deliverable"),
+});
+if (memberLineage.kind !== "delivery-member") throw new Error("expected delivery-member lineage");
 const memberCarrier = createLocalChangeSetCarrier({
   target: memberTarget,
+  lineage: memberLineage,
+  logicalPass: 1,
   requirementId: memberRequirement.requirementId,
   snapshot: {
     state: "exact",
@@ -190,6 +231,7 @@ const memberCarrier = createLocalChangeSetCarrier({
 const memberReview = {
   ...localReview,
   vehicle: { kind: "delivery-member" as const, identity: digest("deliverable") },
+  lineage: memberLineage,
   targetId: memberTarget.targetId,
   requestId: memberCarrier.request.requestId,
   policyVersion: memberRequirement.policyVersion,
@@ -200,6 +242,36 @@ const memberReview = {
 };
 
 describe("review operation state schemas", () => {
+  it("records explicit conditional-pass withdrawal without a successor identity", () => {
+    const identity = {
+      authorizedBy: "author-1",
+      repositoryId: "repo-1",
+      lane: "standard" as const,
+      lineage: localLineage,
+      producerId: "review-pass-1",
+      dispositionSetId: digest("disposition"),
+      originatingHeadSha: localTarget.headSha,
+      exhaustedPassCount: 1,
+      nextPass: 2,
+    };
+    const withdrawn = {
+      schemaVersion: 1 as const,
+      authorizationId: computeConditionalPassAuthorizationId(identity),
+      ...identity,
+      status: "invalidated" as const,
+      capturedAt: "2026-09-10T12:00:00Z",
+      reason: "withdrawn" as const,
+      withdrawnBy: "author-1",
+      invalidatedAt: "2026-09-10T12:01:00Z",
+    };
+
+    expect(ConditionalPassAuthorizationSchema.parse(withdrawn)).toEqual(withdrawn);
+    expect(() => ConditionalPassAuthorizationSchema.parse({
+      ...withdrawn,
+      successorDispositionSetId: digest("successor"),
+    })).toThrow();
+  });
+
   it("round-trips the immutable local-review operation and rejects missing or extra fields", () => {
     expect(LocalReviewStateSchema.parse(localReview)).toEqual(localReview);
     expect(() => LocalReviewStateSchema.parse({ ...localReview, sourceRef: undefined })).toThrow();
@@ -294,103 +366,380 @@ describe("review operation state schemas", () => {
       "source-unbound",
       "terminal-failure",
     ]) {
+      const terminalProducer = outcome === "clean" || outcome === "findings";
       const parsed = LaneProgressStateSchema.parse({
         ...laneProgress,
-        attempts: [{ attemptId: "hosted/attempt-1", sourceId: "coderabbit-pr", outcome }],
+        completedPasses: terminalProducer ? 1 : 0,
+        attempts: [{ ...laneProgress.attempts[0], outcome, terminalProducer }],
       });
       expect(parsed.attempts[0]?.outcome).toBe(outcome);
     }
   });
 
   it("refuses a collapsed unavailable outcome that loses the fall-through distinction", () => {
-    for (const collapsed of ["unavailable", "failed", "pending"]) {
+    for (const collapsed of ["unavailable", "failed"]) {
       expect(() => LaneProgressStateSchema.parse({
         ...laneProgress,
-        attempts: [{ attemptId: "hosted/attempt-1", sourceId: "coderabbit-pr", outcome: collapsed }],
+        attempts: [{ ...laneProgress.attempts[0], outcome: collapsed }],
       })).toThrow();
     }
   });
 
   it("preserves attempt order as recorded", () => {
     const attempts = [
-      { attemptId: "hosted/attempt-1", sourceId: "coderabbit-pr", outcome: "rate-limited" as const },
-      { attemptId: "hosted/attempt-2", sourceId: "codex-pr", outcome: "transient-unavailable" as const },
-      { attemptId: "local/attempt-3", sourceId: "delegated-agent", outcome: "findings" as const },
+      laneProgress.attempts[0],
+      {
+        ...laneProgress.attempts[0],
+        attemptId: "hosted/attempt-2",
+        retryGeneration: 1,
+        sourceId: "codex-pr",
+        outcome: "transient-unavailable" as const,
+      },
+      {
+        ...laneProgress.attempts[0],
+        attemptId: "local/attempt-3",
+        retryGeneration: 2,
+        terminalProducer: true,
+        sourceId: "delegated-agent",
+        outcome: "findings" as const,
+      },
     ];
-    expect(LaneProgressStateSchema.parse({ ...laneProgress, attempts }).attempts).toEqual(attempts);
+    expect(LaneProgressStateSchema.parse({ ...laneProgress, completedPasses: 1, attempts }).attempts).toEqual(attempts);
+  });
+
+  it("rejects a pending attempt after the same logical pass has a terminal producer", () => {
+    const terminal = {
+      ...laneProgress.attempts[0],
+      terminalProducer: true,
+      outcome: "clean" as const,
+    };
+    const pending = {
+      ...laneProgress.attempts[0],
+      attemptId: "local/attempt-2",
+      sourceId: "delegated-agent",
+      outcome: "pending" as const,
+    };
+    expect(() => LaneProgressStateSchema.parse({
+      ...laneProgress,
+      completedPasses: 1,
+      attempts: [terminal, pending],
+    })).toThrow(/cannot retain a pending source/iu);
   });
 
   it("binds hosted and local attempt evidence to their owning source kinds", () => {
     const localAttempt = {
-      attemptId: "local/attempt-1",
+      ...laneProgress.attempts[0],
+      attemptId: "local-1",
+      terminalProducer: true,
       sourceId: "delegated-agent",
       outcome: "clean" as const,
       local: {
+        operationId: "local-1",
+        requestId: localCarrier.request.requestId,
         vehicle: localReview.vehicle,
         target: localTarget,
+        requestedCoverage: "complete" as const,
+        effectiveCoverage: "complete" as const,
+        scopeMode: localReview.scopeMode,
       },
     };
     expect(LaneProgressStateSchema.parse({
       ...laneProgress,
+      completedPasses: 1,
       attempts: [localAttempt],
     }).attempts).toEqual([localAttempt]);
     expect(() => LaneProgressStateSchema.parse({
       ...laneProgress,
+      completedPasses: 1,
       attempts: [{ ...localAttempt, sourceId: "coderabbit-pr" }],
     })).toThrow(/local attempt source/iu);
+    expect(() => LaneProgressStateSchema.parse({
+      ...laneProgress,
+      completedPasses: 1,
+      attempts: [{
+        ...localAttempt,
+        local: { ...localAttempt.local, effectiveCoverage: "incremental" as const },
+      }],
+    })).toThrow(/must not weaken requested complete coverage/iu);
+    expect(() => LaneProgressStateSchema.parse({
+      ...laneProgress,
+      completedPasses: 1,
+      attempts: [{
+        ...localAttempt,
+        local: { ...localAttempt.local, effectiveCoverage: null },
+      }],
+    })).toThrow(/terminal local coverage/iu);
+    expect(() => LaneProgressStateSchema.parse({
+      ...laneProgress,
+      attempts: [{
+        ...localAttempt,
+        terminalProducer: false,
+        outcome: "pending" as const,
+      }],
+    })).toThrow(/nonterminal local attempts/iu);
+    expect(() => LaneProgressStateSchema.parse({
+      ...laneProgress,
+      completedPasses: 1,
+      attempts: [{
+        ...localAttempt,
+        local: { ...localAttempt.local, operationId: "local-other" },
+      }],
+    })).toThrow(/local attempt operation/iu);
 
+    const hostedRequirement = createReviewRequirement({
+      target: memberTarget,
+      projection: {
+        obligation: "recommended",
+        reasons: ["routine-code"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: digest("rubric"),
+        retrigger: "full-final",
+        count: 1,
+      },
+      acceptableSources: [{ sourceKind: "hosted", qualifier: "coderabbit-pr" }],
+      initialAdmission: "checkpoint",
+    });
+    if (hostedRequirement === null) throw new Error("expected hosted member requirement");
+    const vehicle = {
+      kind: "delivery-member" as const,
+      planId: memberLineage.planId,
+      deliverableId: memberLineage.deliverableId,
+      workUnitId: memberLineage.workUnitId,
+      head: memberTarget.headSha,
+    };
+    const target = { repository: "owner/repo", pullRequest: 42, headSha: memberTarget.headSha };
+    const admission = createHostedAdmission({
+      schemaVersion: 1,
+      repositoryId: "repo-1",
+      lineage: memberLineage,
+      logicalPass: 1,
+      sourceId: "coderabbit-pr",
+      target,
+      requestedCoverage: "complete",
+      vehicle,
+      reviewTarget: memberTarget,
+      requirement: hostedRequirement,
+      actorIdentity: "reviewer-1",
+    });
     const hostedAttempt = {
       ...laneProgress.attempts[0]!,
       sourceId: "delegated-agent",
       hosted: {
-        target: { repository: "owner/repo", pullRequest: 42, headSha: memberTarget.headSha },
+        admission,
+        target,
         requestedCoverage: "complete" as const,
         effectiveCoverage: "complete" as const,
-        vehicle: {
-          kind: "delivery-member" as const,
-          planId: "123e4567-e89b-12d3-a456-426614174000",
-          deliverableId: digest("deliverable"),
-          workUnitId: "review-surface-binding",
-          head: memberTarget.headSha,
-        },
+        vehicle,
         reviewTarget: memberTarget,
-        requirement: memberRequirement,
+        requirement: hostedRequirement,
         actorIdentity: "reviewer-1",
-        findings: [],
+        requestFailureReason: null,
         dispositionSetId: null,
+        dispositionSetLineage: [],
         settledFindingIds: [],
+        settlementEvidence: [],
       },
     };
     expect(() => LaneProgressStateSchema.parse({
       ...laneProgress,
-      changeRequestId: "pull/42",
       attempts: [hostedAttempt],
-    })).toThrow(/hosted attempt source/iu);
+    })).toThrow(/hosted lane attempt/iu);
+  });
+
+  it("rejects an acknowledged hosted attempt whose identity is not derived from its handle", () => {
+    const handle = createHostedHandleFixture();
+    const terminal = createHostedTerminalAttemptFixture({
+      admission: handle.admission,
+      artifact: handle.artifact,
+      outcome: "clean",
+    });
+    const { sealedResult: _sealedResult, ...hosted } = terminal.hosted;
+    void _sealedResult;
+    expect(() => LaneProgressStateSchema.parse({
+      ...laneProgress,
+      repositoryId: handle.admission.repositoryId,
+      lineage: handle.admission.lineage,
+      attempts: [{
+        ...laneProgress.attempts[0],
+        attemptId: "hosted/wrong-attempt",
+        logicalPass: handle.admission.logicalPass,
+        headSha: handle.target.headSha,
+        sourceId: handle.provider,
+        hosted,
+      }],
+    })).toThrow(/acknowledged hosted attempt identity/iu);
+  });
+
+  it("rejects duplicate hosted admissions even when both attempts are nonterminal", () => {
+    const handle = createHostedHandleFixture();
+    const hosted = {
+      admission: handle.admission,
+      target: handle.target,
+      requestedCoverage: handle.requestedCoverage,
+      effectiveCoverage: null,
+      reviewTarget: handle.admission.reviewTarget,
+      requirement: handle.admission.requirement,
+      actorIdentity: handle.admission.actorIdentity,
+      requestFailureReason: null,
+      dispositionSetId: null,
+      dispositionSetLineage: [],
+      settledFindingIds: [],
+      settlementEvidence: [],
+    };
+    const attempt = {
+      ...laneProgress.attempts[0],
+      attemptId: handle.admission.admissionId,
+      logicalPass: handle.admission.logicalPass,
+      headSha: handle.target.headSha,
+      sourceId: handle.provider,
+      outcome: "rate-limited" as const,
+      hosted,
+    };
+    expect(() => LaneProgressStateSchema.parse({
+      ...laneProgress,
+      repositoryId: handle.admission.repositoryId,
+      lineage: handle.admission.lineage,
+      attempts: [
+        attempt,
+        { ...attempt, outcome: "transient-unavailable" as const },
+      ],
+    })).toThrow(/hosted admission identities must be unique/iu);
+  });
+
+  it("binds hosted navigation into the sealed result identity and rejects invalid capture order", () => {
+    const handle = createHostedHandleFixture();
+    const finding = {
+      findingId: "thread-1",
+      origin: "review-thread" as const,
+      commentId: "comment-1",
+      threadId: "thread-1",
+      settlement: "reply-and-resolve" as const,
+      severity: "major" as const,
+      locus: "src/index.ts:7",
+      url: "https://example.invalid/thread-1",
+      sourceOrdinal: 1,
+    };
+    const first = createHostedTerminalAttemptFixture({
+      admission: handle.admission,
+      outcome: "findings",
+      findings: [{ ...finding, sourceLabel: "First native label" }],
+    });
+    const changed = createHostedTerminalAttemptFixture({
+      admission: handle.admission,
+      outcome: "findings",
+      findings: [{ ...finding, sourceLabel: "Changed native label" }],
+    });
+
+    expect(first.hosted.sealedResult?.hostedResultId)
+      .not.toBe(changed.hosted.sealedResult?.hostedResultId);
+    expect(() => createHostedTerminalAttemptFixture({
+      admission: handle.admission,
+      outcome: "findings",
+      findings: [{ ...finding, sourceOrdinal: 2 }],
+    })).toThrow(/source ordinal must match one-based capture order/iu);
+  });
+
+  it("seals native incremental generation proof into identity and rejects range tampering", () => {
+    const handle = createHostedHandleFixture({ requestedCoverage: "incremental" });
+    const first = createHostedTerminalAttemptFixture({
+      admission: handle.admission,
+      artifact: handle.artifact,
+      outcome: "clean",
+    });
+    const firstEvidence = first.hosted.sealedResult?.coverageEvidence;
+    if (firstEvidence?.status !== "established") throw new Error("expected native coverage proof");
+    const changed = createHostedTerminalAttemptFixture({
+      admission: handle.admission,
+      artifact: handle.artifact,
+      outcome: "clean",
+      coverageEvidence: {
+        ...firstEvidence,
+        providerGeneration: {
+          ...firstEvidence.providerGeneration,
+          artifactId: "coderabbit-generation-2",
+        },
+      },
+    });
+    expect(first.hosted.sealedResult?.hostedResultId)
+      .not.toBe(changed.hosted.sealedResult?.hostedResultId);
+
+    const state = {
+      schemaVersion: 1 as const,
+      semanticsVersion: "review-operation/v1" as const,
+      operationId: "lane-progress-native-proof",
+      updatedAt: "2026-08-15T12:00:00Z",
+      kind: "lane-progress" as const,
+      lane: "standard" as const,
+      repositoryId: handle.admission.repositoryId,
+      lineage: handle.admission.lineage,
+      completedPasses: 1,
+      attempts: [{
+        attemptId: first.attemptId,
+        logicalPass: handle.admission.logicalPass,
+        retryGeneration: 0,
+        changeRequestId: `pull/${handle.target.pullRequest}`,
+        headSha: handle.target.headSha,
+        terminalProducer: true,
+        sourceId: handle.provider,
+        outcome: "clean" as const,
+        hosted: first.hosted,
+      }],
+    };
+    expect(LaneProgressStateSchema.safeParse(state).success).toBe(true);
+    expect(() => LaneProgressStateSchema.parse({
+      ...state,
+      attempts: [{
+        ...state.attempts[0],
+        hosted: {
+          ...first.hosted,
+          sealedResult: {
+            ...first.hosted.sealedResult!,
+            coverageEvidence: { ...firstEvidence, baselineSha: objectId("8") },
+          },
+        },
+      }],
+    })).toThrow(/provider evidence/u);
   });
 
   it("rejects a source id the policy driver would refuse", () => {
     for (const sourceId of ["CodeRabbit_PR", "-leading", "trailing-", "has space"]) {
       expect(() => LaneProgressStateSchema.parse({
         ...laneProgress,
-        attempts: [{ attemptId: "hosted/attempt-1", sourceId, outcome: "clean" }],
+        attempts: [{ ...laneProgress.attempts[0], sourceId }],
       })).toThrow();
     }
   });
 
   it("carries a chunk-series completion flag when the attempt had one", () => {
     const attempts = [{
-      attemptId: "hosted/attempt-1",
-      sourceId: "coderabbit-pr",
-      outcome: "clean" as const,
+      ...laneProgress.attempts[0],
       chunkSeriesComplete: true,
     }];
     expect(LaneProgressStateSchema.parse({ ...laneProgress, attempts }).attempts).toEqual(attempts);
   });
 
-  it("accepts an unbound pre-publication target and a change-request-bound one", () => {
-    expect(LaneProgressStateSchema.parse(laneProgress).changeRequestId).toBeNull();
-    const bound = { ...laneProgress, changeRequestId: "pull/42" };
-    expect(LaneProgressStateSchema.parse(bound).changeRequestId).toBe("pull/42");
+  it("retains change-request binding on each attempt", () => {
+    expect(LaneProgressStateSchema.parse(laneProgress).attempts[0]?.changeRequestId).toBeNull();
+    const bound = {
+      ...laneProgress,
+      attempts: [{ ...laneProgress.attempts[0], changeRequestId: "pull/42" }],
+    };
+    expect(LaneProgressStateSchema.parse(bound).attempts[0]?.changeRequestId).toBe("pull/42");
+  });
+
+  it("retains an earlier attempt head inside one moving head-bound owner", () => {
+    const parsed = LaneProgressStateSchema.parse({
+      ...laneProgress,
+      lineage: {
+        kind: "head-bound",
+        vehicleKind: "errand",
+        vehicleIdentity: "repair-review-state",
+        headSha: objectId("e"),
+      },
+    });
+
+    expect(parsed.lineage).toMatchObject({ headSha: objectId("e") });
+    expect(parsed.attempts[0]?.headSha).toBe(objectId("c"));
   });
 
   it("keeps the record free of host vocabulary the core boundary forbids", () => {

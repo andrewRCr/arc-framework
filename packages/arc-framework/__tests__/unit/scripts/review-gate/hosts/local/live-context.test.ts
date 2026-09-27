@@ -34,7 +34,9 @@ beforeEach(() => {
     warnings: [],
   });
   mocks.readTransientInFlightIndexes.mockResolvedValue({
-    indexes: { slugByBranch: new Map() },
+    complete: true,
+    degraded: null,
+    indexes: { records: [] },
   });
 });
 
@@ -45,5 +47,46 @@ describe("readLocalReviewLiveContext", () => {
     await readLocalReviewLiveContext({ exec, cwd: "/repo/root" });
 
     expect(mocks.readConfiguredIdentity).toHaveBeenCalledWith(exec, "/repo/root");
+  });
+
+  it("carries the exact transient claim into local review context", async () => {
+    mocks.readTransientInFlightIndexes.mockResolvedValueOnce({
+      complete: true,
+      degraded: null,
+      indexes: {
+        records: [{
+          kind: "errand",
+          slug: "example",
+          branch: "chore/example",
+          claimId: "claim-1",
+          state: "open",
+        }],
+      },
+    });
+    const exec: GitExec = vi.fn(async () => ({ stdout: "chore/example\n" }));
+
+    await expect(readLocalReviewLiveContext({ exec, cwd: "/repo/root" })).resolves.toMatchObject({
+      context: { errand: { identity: "example", claimId: "claim-1" } },
+    });
+  });
+
+  it("refuses ambiguous branch claims before preparing local review", async () => {
+    mocks.readTransientInFlightIndexes.mockResolvedValueOnce({
+      complete: true,
+      degraded: null,
+      indexes: {
+        records: ["claim-1", "claim-2"].map((claimId) => ({
+          kind: "errand",
+          slug: "example",
+          branch: "chore/example",
+          claimId,
+          state: "open",
+        })),
+      },
+    });
+    const exec: GitExec = vi.fn(async () => ({ stdout: "chore/example\n" }));
+
+    await expect(readLocalReviewLiveContext({ exec, cwd: "/repo/root" }))
+      .rejects.toThrow(/Multiple transient identities/u);
   });
 });

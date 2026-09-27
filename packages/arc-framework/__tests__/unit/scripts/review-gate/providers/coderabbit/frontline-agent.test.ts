@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 
 import { describe, expect, it } from "vitest";
 
+import { canonicalDigest } from "../../../../../../src/lib/kernel/index.js";
 import { parseCodeRabbitAgentResult } from "../../../../../../src/scripts/review-gate/providers/coderabbit/frontline-agent.js";
 
 const fixtureUrl = new URL(
@@ -66,7 +67,7 @@ describe("CodeRabbit structured frontline parser", () => {
   it("keeps normalized finding identity stable across executable versions", () => {
     const finding = {
       type: "finding",
-      severity: "minor",
+      severity: "blocker",
       fileName: "src/index.ts",
       codegenInstructions: "Preserve the exact target binding.",
       suggestions: [],
@@ -87,6 +88,62 @@ describe("CodeRabbit structured frontline parser", () => {
     expect(afterUpdate).toMatchObject({ kind: "findings" });
     if (beforeUpdate.kind !== "findings" || afterUpdate.kind !== "findings") return;
     expect(beforeUpdate.findings[0]?.findingId).toBe(afterUpdate.findings[0]?.findingId);
+    expect(beforeUpdate.findings[0]).toMatchObject({
+      findingId: canonicalDigest({
+        schemaVersion: 1,
+        provider: "coderabbit-cli",
+        contract: "coderabbit-agent-ndjson/v1",
+        mode: "agent",
+        finding,
+      }),
+      severity: "critical",
+    });
+  });
+
+  it("preserves NDJSON capture order and genuine bounded source labels", () => {
+    const label = "**Duplicate provider heading**";
+    const longLabel = `${"😀".repeat(512)}Z`;
+    const findings = [
+      {
+        type: "finding",
+        severity: "major",
+        fileName: "src/one.ts",
+        codegenInstructions: `\n${label}\nFirst details`,
+        suggestions: [],
+      },
+      {
+        type: "finding",
+        severity: "minor",
+        fileName: "src/two.ts",
+        codegenInstructions: `${label}\nSecond details`,
+        suggestions: [],
+      },
+      {
+        type: "finding",
+        severity: "minor",
+        fileName: "src/three.ts",
+        codegenInstructions: longLabel,
+        suggestions: [],
+      },
+    ];
+    const result = parse([
+      ...findings,
+      {
+        type: "complete",
+        status: "review_completed",
+        findings: findings.length,
+        reviewedFiles: findings.map((finding) => finding.fileName),
+      },
+    ].map((event) => JSON.stringify(event)).join("\n"));
+
+    expect(result).toMatchObject({
+      kind: "findings",
+      findings: [
+        { sourceOrdinal: 1, sourceLabel: label },
+        { sourceOrdinal: 2, sourceLabel: label },
+        { sourceOrdinal: 3, sourceLabel: "😀".repeat(512), sourceLabelTruncated: true },
+      ],
+    });
   });
 
   it("fails closed on incomplete, skipped, duplicated, or unsupported output", () => {
@@ -97,6 +154,18 @@ describe("CodeRabbit structured frontline parser", () => {
       reviewedFiles: ["src/index.ts"],
     };
     expect(parse(JSON.stringify(complete))).toEqual({ kind: "partial" });
+    expect(parse(JSON.stringify({ ...complete, findings: 0, outcome: "failed" })))
+      .toEqual({ kind: "partial" });
+    for (const outcome of ["cancelled", "partial", "future_failure"]) {
+      expect(parse(JSON.stringify({ ...complete, findings: 0, outcome })))
+        .toEqual({ kind: "partial" });
+    }
+    for (const outcome of ["completed", "completed_with_warnings"]) {
+      expect(parse(JSON.stringify({ ...complete, findings: 0, outcome })))
+        .toEqual({ kind: "clean" });
+    }
+    expect(parse(JSON.stringify({ ...complete, findings: 0, unreviewedFileCount: 1 })))
+      .toEqual({ kind: "partial" });
     expect(parse(JSON.stringify({ ...complete, status: "review_skipped", findings: 0 })))
       .toEqual({ kind: "malformed" });
     expect(parse([JSON.stringify({ ...complete, findings: 0 }), JSON.stringify({ ...complete, findings: 0 })].join("\n")))
@@ -140,6 +209,36 @@ describe("CodeRabbit structured frontline parser", () => {
     });
     expect(parse("", { exitCode: null, signal: "SIGTERM" }))
       .toEqual({ kind: "failed", reason: "process-signal:SIGTERM" });
+    expect(parse("", { exitCode: 2, stderr: "auth token=private-value denied" }))
+      .toEqual({ kind: "failed", reason: "process-exit:2: auth token=[redacted] denied" });
+    expect(parse(JSON.stringify({
+      type: "error",
+      message: "Review startup failed: token=private-value storage unavailable",
+    }), { exitCode: 1 })).toEqual({
+      kind: "failed",
+      reason: "process-exit:1: Review startup failed: token=[redacted] storage unavailable",
+    });
+  });
+
+  it.each([
+    ["GITHUB_TOKEN=private-value", "GITHUB_TOKEN=[redacted]"],
+    ["AWS_SECRET_ACCESS_KEY=private-value", "AWS_SECRET_ACCESS_KEY=[redacted]"],
+    ["AWS_SECRET_ACCESS_KEY: private-value", "AWS_SECRET_ACCESS_KEY: [redacted]"],
+    ["SECRET_KEY='private value'", "SECRET_KEY='[redacted]'"],
+    ["{\"secret_key\":\"private-value\",\"next\":\"keep\"}", "{\"secret_key\":\"[redacted]\",\"next\":\"keep\"}"],
+    ["PRIVATE_KEY=private-value", "PRIVATE_KEY=[redacted]"],
+    ["SESSION_COOKIE=private-value", "SESSION_COOKIE=[redacted]"],
+    ["credentials: private-value", "credentials: [redacted]"],
+    ["tokens=private-value", "tokens=[redacted]"],
+    ["{\"token\":\"private-value\",\"next\":\"keep\"}", "{\"token\":\"[redacted]\",\"next\":\"keep\"}"],
+    ["BUILD_SECRET='private value'", "BUILD_SECRET='[redacted]'"],
+    ["https://private-user@example.com/path", "https://[redacted]@example.com/path"],
+    ["Authorization: Basic dXNlcjpwYXNz", "Authorization: [redacted]"],
+    ["Authorization: Signature keyId=private signature=secret", "Authorization: [redacted]"],
+    ["Authorization: Basic dXNlcjpwYXNz\nrequest failed", "Authorization: [redacted] request failed"],
+  ])("redacts credential-bearing process output: %s", (stderr, detail) => {
+    expect(parse("", { exitCode: 2, stderr }))
+      .toEqual({ kind: "failed", reason: `process-exit:2: ${detail}` });
   });
 
   it("normalizes a structured provider file-cap refusal as unsupported capability", () => {
