@@ -128,6 +128,7 @@ const hostedResponsePlan = {
 function readyAdmission(
   sourceId: "coderabbit-pr" | "codex-pr",
   admissionTarget = hostedAction.target,
+  completedPasses = 0,
 ) {
   return resolveReviewPolicy({
     schemaVersion: 1,
@@ -143,7 +144,7 @@ function readyAdmission(
     },
     sources: [sourceId],
     maxPasses: 2,
-    completedPasses: 0,
+    completedPasses,
     attempts: [],
   });
 }
@@ -394,6 +395,61 @@ describe("review status", () => {
       state: "review-required",
       nextAction: "run-review",
       routedObligation: { state: "review-required" },
+    });
+  });
+
+  it("returns a complete hosted request for an admitted singleton PR", async () => {
+    const exactTarget = { repository: target.repository, pullRequest: 41, headSha: target.headSha };
+    const obligation = composeSingletonReviewObligation({
+      discharge: { discharged: false, detail: "Reserved review is outstanding." },
+      applicabilityContext: {
+        workUnitId: "example",
+        expectedRecordVersion: canonicalDigest({ version: 1 }),
+        candidateId: canonicalDigest({ candidate: 1 }),
+      },
+      request: {
+        target: exactTarget,
+        admission: readyAdmission("coderabbit-pr", exactTarget),
+        sourceId: "coderabbit-pr",
+        coverage: "complete",
+      },
+    });
+
+    await expect(resolveReviewStatus({ target }, port({ routedObligation: obligation }))).resolves.toMatchObject({
+      state: "review-required",
+      nextAction: "review-hosted-request",
+      action: {
+        schemaVersion: 1,
+        target: exactTarget,
+        provider: "coderabbit-pr",
+        coverage: "complete",
+      },
+    });
+    expect(obligation).not.toHaveProperty("conjunction");
+    if ("action" in obligation) expect(obligation.action).not.toHaveProperty("vehicle");
+  });
+
+  it("returns the exact pass-ceiling consequence for an exhausted singleton reservation", async () => {
+    const exactTarget = { repository: target.repository, pullRequest: 41, headSha: target.headSha };
+    const obligation = composeSingletonReviewObligation({
+      discharge: { discharged: false, detail: "Reserved review still needs a pass." },
+      applicabilityContext: {
+        workUnitId: "example",
+        expectedRecordVersion: canonicalDigest({ version: 1 }),
+        candidateId: canonicalDigest({ candidate: 1 }),
+      },
+      request: {
+        target: exactTarget,
+        admission: readyAdmission("coderabbit-pr", exactTarget, 2),
+        sourceId: "coderabbit-pr",
+        coverage: "complete",
+      },
+    });
+
+    await expect(resolveReviewStatus({ target }, port({ routedObligation: obligation }))).resolves.toMatchObject({
+      state: "approval-required",
+      nextAction: "obtain-ceiling-override",
+      consequence: { target: exactTarget, exhaustedPassCount: 2, nextPass: 3 },
     });
   });
 

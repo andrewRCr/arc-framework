@@ -337,6 +337,7 @@ export interface HostedReservationDischarge {
   awaitAction?: HostedAwaitEnvelope;
   localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string };
   requestAttempts?: readonly HostedReservationRequestAttempt[];
+  completedPasses?: number;
   requestCoverage?: HostedReviewCoverage;
   correctionScope?: IncrementalReviewScope;
   coverageSelectionAction?: ReviewCoverageSelectionAction;

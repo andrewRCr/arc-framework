@@ -161,6 +161,7 @@ describe("PR-open lifecycle extensions", () => {
     const openedChangeRequest = workflow.indexOf("compose `openedChangeRequest");
     const reservation = workflow.indexOf("integrationBoundary.reservation", openedChangeRequest);
     const deliveryResume = workflow.indexOf("`resolve-delivery-status`", reservation);
+    const publishedSingleton = workflow.indexOf("For an ordinary singleton with a carried reservation", deliveryResume);
     const singletonResume = workflow.indexOf("`continue-pre-publication-review`", deliveryResume);
     const hostedRequest = workflow.indexOf("arc review hosted request -", reservation);
 
@@ -168,6 +169,10 @@ describe("PR-open lifecycle extensions", () => {
       .every((index) => index >= 0)).toBe(true);
     expect(openedChangeRequest).toBeLessThan(reservation);
     expect(reservation).toBeLessThan(hostedRequest);
+    expect(deliveryResume).toBeLessThan(publishedSingleton);
+    expect(publishedSingleton).toBeLessThan(singletonResume);
+    expect(workflow.slice(publishedSingleton, singletonResume)).toContain("publication-pending / continue-publication");
+    expect(workflow.slice(publishedSingleton, singletonResume)).toContain("arc review status --target");
     expect(workflow.slice(openedChangeRequest, hostedRequest)).not.toContain("arc review changeset resolve -");
     const publicDeliveryResume = workflow.slice(deliveryResume, singletonResume);
     expect(publicDeliveryResume).toContain("integrationBoundary.nextAction.command");

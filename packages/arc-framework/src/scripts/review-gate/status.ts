@@ -289,6 +289,12 @@ export const RoutedReviewObligationSchema = z.union([
     state: z.literal("review-required"),
     detail: z.string().min(1),
     scope: z.literal("singleton"),
+    action: HostedRequestEnvelopeSchema,
+  }),
+  z.strictObject({
+    state: z.literal("review-required"),
+    detail: z.string().min(1),
+    scope: z.literal("singleton"),
     awaitAction: HostedAwaitEnvelopeSchema,
   }),
   z.strictObject({
@@ -370,6 +376,12 @@ export const RoutedReviewObligationSchema = z.union([
     consequence: ReviewCeilingOverrideSchema,
   }),
   z.strictObject({
+    state: z.literal("approval-required"),
+    detail: z.string().min(1),
+    scope: z.literal("singleton"),
+    consequence: ReviewCeilingOverrideSchema,
+  }),
+  z.strictObject({
     state: z.literal("applicability-blocked"),
     detail: z.string().min(1),
     scope: z.literal("singleton"),
@@ -410,6 +422,7 @@ interface ReviewApplicabilityContext {
 
 interface ReviewDischargeIntervention {
   readonly detail: string;
+  readonly requestCoverage?: HostedReviewCoverage;
   readonly applicability?: z.infer<typeof ReviewContributionApplicabilityResultSchema>;
   readonly equivalentApplicabilities?: readonly z.infer<typeof ReviewContributionApplicabilityResultSchema>[];
   readonly applicabilityAuthority?: "decision-required" | "blocked";
@@ -572,10 +585,21 @@ function composeReviewDischargeIntervention(
   return null;
 }
 
+interface SingletonReviewRequest {
+  readonly target: z.infer<typeof HostedTargetSchema>;
+  readonly admission: ReviewResolveEnvelope;
+  readonly sourceId: string;
+  readonly coverage: HostedReviewCoverage;
+  readonly correctionScope?: IncrementalReviewScope;
+  readonly ceilingOverride?: ReviewCeilingOverride;
+  readonly additionalPassAuthorization?: ReviewAdditionalPassAuthorization;
+}
+
 /** Preserve the typed review intervention projected for one ordinary change-request target. */
 export function composeSingletonReviewObligation(input: {
   readonly discharge: ReviewDischargeIntervention & { readonly discharged: boolean };
   readonly applicabilityContext: ReviewApplicabilityContext;
+  readonly request?: SingletonReviewRequest;
 }): RoutedReviewObligation {
   if (input.discharge.discharged) {
     return RoutedReviewObligationSchema.parse({
@@ -583,11 +607,53 @@ export function composeSingletonReviewObligation(input: {
       detail: input.discharge.detail,
     });
   }
-  return composeReviewDischargeIntervention(input.discharge, input.applicabilityContext)
-    ?? RoutedReviewObligationSchema.parse({
-      state: "review-required",
-      detail: input.discharge.detail,
+  const intervention = composeReviewDischargeIntervention(input.discharge, input.applicabilityContext);
+  if (intervention !== null) return intervention;
+  if (input.request !== undefined) return composeSingletonRequest(input.request, input.discharge);
+  return { state: "review-required", detail: input.discharge.detail };
+}
+
+function composeSingletonRequest(
+  request: SingletonReviewRequest,
+  discharge: ReviewDischargeIntervention,
+): RoutedReviewObligation {
+  if (request.admission.state === "approval-required") {
+    return RoutedReviewObligationSchema.parse({
+      state: "approval-required",
+      detail: discharge.detail,
+      scope: "singleton",
+      consequence: request.admission.payload.consequence,
     });
+  }
+  if (discharge.requestCoverage !== undefined && discharge.requestCoverage !== request.coverage) {
+    return { state: "blocked", detail: "The singleton review coverage differs from the active pass." };
+  }
+  if (request.admission.state === "ready" && request.admission.nextAction === "local-prepare") {
+    return { state: "review-required", detail: discharge.detail };
+  }
+  if (request.admission.state !== "ready" || request.admission.nextAction !== "hosted-request"
+    || request.admission.payload.sourceId !== request.sourceId) {
+    return { state: "blocked", detail: "The standard-review driver did not admit the reserved singleton source." };
+  }
+  const provider = HostedProviderIdSchema.safeParse(request.sourceId);
+  if (!provider.success || !hostedProviderAdmitsCoverage(provider.data, request.coverage, request.correctionScope)) {
+    return { state: "blocked", detail: "The reserved singleton source cannot preserve the requested coverage." };
+  }
+  return RoutedReviewObligationSchema.parse({
+    state: "review-required",
+    detail: discharge.detail,
+    scope: "singleton",
+    action: {
+      schemaVersion: 1,
+      target: request.target,
+      provider: provider.data,
+      coverage: request.coverage,
+      ...(request.coverage !== "incremental" || request.correctionScope === undefined
+        ? {} : { correctionScope: request.correctionScope }),
+      ceilingOverride: request.ceilingOverride,
+      additionalPassAuthorization: request.additionalPassAuthorization,
+    },
+  });
 }
 
 /**

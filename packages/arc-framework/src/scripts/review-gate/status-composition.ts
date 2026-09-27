@@ -79,6 +79,7 @@ import {
 import type { DeliveryLocalReviewScopeSelection } from
   "./policy/delivery-local-review-admission.js";
 import { selectReviewCoverageChoice } from "./policy/review-coverage-selection.js";
+import { composePublishedSingletonReview } from "./status-singleton.js";
 import {
   parseReviewChunkingThresholds,
   resolveReviewChunkingPolicy,
@@ -86,7 +87,6 @@ import {
 import {
   bindDeliveryReviewTerminusOffer,
   composeDeliveryReviewObligation,
-  composeSingletonReviewObligation,
   isDeliveryReviewMemberDischargedByOwnerTerminus,
   resolveReviewStatus,
   type DeliveryReviewOwnerTerminusAdvance,
@@ -778,20 +778,12 @@ export async function readRoutedObligation(
         ownerTerminusAdvances,
       });
     }
-    const discharge = await readDischarge({
-      reservation,
-      baseRevision: record.attestation.baseRevision,
-      approvedHead: target.headSha,
-      changeRequest: { repository: target.repository, pullRequest },
-      candidate: record,
-    });
-    return composeSingletonReviewObligation({
-      discharge,
-      applicabilityContext: {
-        workUnitId: workUnit,
-        expectedRecordVersion: versionedRecord.version,
-        candidateId: record.attestation.candidateId,
-      },
+    return await composePublishedSingletonReview({
+      cwd, exec, settings, reservation, record, workUnit,
+      recordVersion: versionedRecord.version,
+      target: { repository: target.repository, pullRequest, headSha: target.headSha },
+      ...(judgment === undefined ? {} : { judgment }),
+      readDischarge,
     });
   } catch (error) {
     return {
