@@ -3,7 +3,7 @@
 import type { GitExec } from "../git/exec.js";
 import { resolveSoleMergeBase } from "../git/base-overlap.js";
 import { isGitObjectId } from "../git/object-id.js";
-import { readGitBlobEntry, type GitBlobEntry } from "../io-context.js";
+import { readGitBlobEntries, readGitBlobEntry, type GitBlobEntry } from "../io-context.js";
 import { classifyPathTreatment } from "../evidence-applicability/index.js";
 import {
   identifyWorkUnitArtifactPath,
@@ -32,6 +32,12 @@ export interface CollectGitCandidateTargetInput {
   revision?: string;
   readBlob?: (cwd: string, ref: string | null, path: string) => Promise<Uint8Array | null>;
   readEntry?: (cwd: string, ref: string | null, path: string) => Promise<GitBlobEntry | null>;
+  /** Bulk entry reader; when supplied it takes precedence over the single-entry compatibility seams. */
+  readEntries?: (
+    cwd: string,
+    ref: string | null,
+    paths: readonly string[],
+  ) => Promise<ReadonlyMap<string, GitBlobEntry>>;
 }
 
 /**
@@ -223,6 +229,15 @@ export async function collectGitCandidateSubject(
     options,
   )).stdout.split("\0").filter((path) => path !== "");
   const paths = [...new Set(changed)].sort(compareUtf8);
+  const readEntries = input.readEntries ?? (
+    input.readEntry === undefined && input.readBlob === undefined
+      ? (cwd: string, ref: string | null, selectedPaths: readonly string[]) =>
+          readGitBlobEntries(cwd, ref, selectedPaths, { objectAccess: "local-only" })
+      : undefined
+  );
+  const entriesByPath = readEntries === undefined
+    ? null
+    : await readEntries(input.cwd, input.revision ?? null, paths);
   const readEntry = input.readEntry ?? (input.readBlob === undefined
     ? readGitBlobEntry
     : async (cwd: string, ref: string | null, path: string) => {
@@ -242,7 +257,9 @@ export async function collectGitCandidateSubject(
   }>();
   const absentPaths = new Set<string>();
   for (const path of paths) {
-    const entry = await readEntry(input.cwd, input.revision ?? null, path);
+    const entry = entriesByPath === null
+      ? await readEntry(input.cwd, input.revision ?? null, path)
+      : entriesByPath.get(path) ?? null;
     const digest = entry === null ? canonicalDigest({ path, state: "absent" }) : digestBytes(entry.bytes);
     const mode = entry?.mode ?? "absent";
     const classification = classifyCandidateSubjectPath(name, path, projectionPaths);
