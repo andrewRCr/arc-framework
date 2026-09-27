@@ -3,7 +3,7 @@
   "slug": "batch-compaction-seed-candidate-reads",
   "claimId": "01c1f4b29e2447e2ecbc3419d549ff51",
   "createdAt": "2026-09-11T05:10:35.466Z",
-  "updatedAt": "2026-09-27T02:06:23.456Z",
+  "updatedAt": "2026-09-27T02:52:26.731Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "batch-compaction-seed-candidate-reads",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Batch Candidate reads on the compaction-seed path and re-prove the hook deadline",
   "originEntrySourceDigest": "sha256:cb157978e87d262908e24cd9cf32dcad8adfe38895fe4d40bdccdda9bbda1e8f",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/batch-compaction-seed-candidate-reads",
+    "headSha": "e5b8b6db05f203113ef11ee7e7c943fc9b95719d"
+  }
 }
