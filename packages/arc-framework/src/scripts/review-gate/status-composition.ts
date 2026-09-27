@@ -398,6 +398,7 @@ export async function readRoutedObligation(
       ? boundary.deliveryContinuation
       : undefined;
     let effective: Awaited<ReturnType<typeof projectGitCandidateEffectiveTarget>>;
+    let singletonDiffBase: string | undefined;
     let terminalAdvance: { readonly stateHead: string; readonly currentHead: string } | undefined;
     let preparedTerminal: { readonly deliverableId: string; readonly stateHead: string } | undefined;
     if (correctiveContinuation !== undefined) {
@@ -510,6 +511,7 @@ export async function readRoutedObligation(
       if (targetBase.status !== "resolved") {
         return { state: "blocked", detail: targetBase.detail };
       }
+      singletonDiffBase = targetBase.base;
       const projectedCurrent = await projectEffectiveTargetOrUncollectable({
         cwd,
         name: workUnit,
@@ -778,9 +780,13 @@ export async function readRoutedObligation(
         ownerTerminusAdvances,
       });
     }
+    if (singletonDiffBase === undefined) {
+      return { state: "blocked", detail: "The singleton Candidate diff base is unavailable." };
+    }
     return await composePublishedSingletonReview({
       cwd, exec, settings, reservation, record, workUnit,
       recordVersion: versionedRecord.version,
+      baseRevision: singletonDiffBase,
       target: { repository: target.repository, pullRequest, headSha: target.headSha },
       ...(judgment === undefined ? {} : { judgment }),
       readDischarge,

@@ -25,6 +25,7 @@ interface PublishedSingletonInput {
   reservation: StandardReviewReservationV1;
   record: CandidateManagedRecordV1;
   recordVersion: string;
+  baseRevision: string;
   workUnit: string;
   target: { repository: string; pullRequest: number; headSha: string };
   judgment?: ReviewStatusPolicyJudgment;
@@ -41,7 +42,7 @@ export async function composePublishedSingletonReview(input: PublishedSingletonI
   const { target, reservation, readDischarge } = input;
   const dischargeInput = {
     reservation,
-    baseRevision: input.record.attestation.baseRevision,
+    baseRevision: input.baseRevision,
     approvedHead: target.headSha,
     changeRequest: { repository: target.repository, pullRequest: target.pullRequest },
     candidate: input.record,

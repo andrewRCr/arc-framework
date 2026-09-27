@@ -15,8 +15,14 @@ import { afterEach, describe, expect, it } from "vitest";
 import { handleAttest, handlePublish } from "../../src/handlers/lifecycle.js";
 import { handleReviewPrePublication } from "../../src/handlers/review.js";
 import { resolveProcessInteractionContext } from "../../src/lib/command-input/interaction-context.js";
+import { CandidateReviewResponseEvidenceV1Schema } from
+  "../../src/lib/work-unit/candidate-attestation.js";
+import { readSubmissionBoundaryVersioned } from
+  "../../src/lib/work-unit/submission-boundary-store.js";
 import { createReviewStatusPort } from "../../src/scripts/review-gate/status-composition.js";
 import { resolveReviewStatus } from "../../src/scripts/review-gate/status.js";
+import { stageSingletonPublicationResponse } from
+  "../../src/scripts/review-gate/runtime/singleton-publication-response.js";
 import { createStandardReviewReservation } from
   "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
@@ -230,7 +236,7 @@ describe("review status over a base advanced under the work unit", () => {
 });
 
 describe("singleton hosted review after publication", () => {
-  it("admits the reserved hosted pass from an exact open PR despite the saved publication pointer", async () => {
+  it("admits the hosted pass, then stages the reviewed Candidate's rebound public boundary", async () => {
     const fixture = await singletonUnderReview();
     const reviewed = await runHandlerAt(fixture.root, async () => {
       await handleReviewPrePublication(WORK_UNIT, { selfReview: "settled" }, {}, machineContext());
@@ -288,6 +294,46 @@ describe("singleton hosted review after publication", () => {
     });
     if (status.nextAction !== "review-hosted-request") throw new Error("expected hosted review admission");
     expect(status.action).not.toHaveProperty("vehicle");
+
+    const before = (await readSubmissionBoundaryVersioned(fixture.root, WORK_UNIT)).boundary;
+    if (before === null || before.candidateSubjectDigest === null) throw new Error("missing public boundary");
+    const reviewedSubject = `sha256:${"d".repeat(64)}`;
+    const response = CandidateReviewResponseEvidenceV1Schema.parse({
+      transitionKind: "review-response",
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      candidateId: envelope.candidateId,
+      responseId: `sha256:${"f".repeat(64)}`,
+      oldTarget: {
+        revision: fixture.headSha,
+        subject: { entries: [], subjectDigest: before.candidateSubjectDigest },
+      },
+      newTarget: {
+        revision: "b".repeat(40),
+        subject: { entries: [], subjectDigest: reviewedSubject },
+      },
+      dispositionId: `sha256:${"c".repeat(64)}`,
+      approvedBy: "test-user",
+      appliedBy: "test-user",
+      applicability: "focused",
+      verificationEvidenceRefs: ["verification://review-fix"],
+      implementationChanged: true,
+    });
+    await stageSingletonPublicationResponse({
+      cwd: fixture.root,
+      exec: makeGitExec(fixture.root),
+      workUnit: WORK_UNIT,
+      response,
+      requirePublished: true,
+    });
+    const rebound = (await readSubmissionBoundaryVersioned(fixture.root, WORK_UNIT)).boundary;
+    expect(rebound).toMatchObject({
+      candidateSubjectDigest: reviewedSubject,
+      reservation,
+    });
+    expect(await git(fixture.root, ["diff", "--cached", "--name-only"])).toContain(
+      `.arc/system/.internal/candidates/${WORK_UNIT}.boundary.json`,
+    );
   });
 });
 

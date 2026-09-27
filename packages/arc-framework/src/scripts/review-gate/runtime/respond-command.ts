@@ -9,6 +9,7 @@ import {
   candidateReviewResponses,
   type CandidateLineageTarget,
   type CandidateManagedRecordV1,
+  type CandidateReviewResponseEvidenceV1,
 } from "../../../lib/work-unit/candidate-attestation.js";
 import {
   projectEffectiveCandidateCurrentness,
@@ -313,6 +314,11 @@ export interface RespondCommandDependencies {
     expectedRecordVersion: string;
   }): Promise<{ recordPath: string }>;
   stageCandidateResponse(workUnit: string): Promise<{ recordPath: string }>;
+  rebindSingletonPublicationResponse(input: {
+    workUnit: string;
+    response: CandidateReviewResponseEvidenceV1;
+    requirePublished: boolean;
+  }): Promise<void>;
   settleLaneFindings(input: {
     lane: "frontline" | "standard";
     repositoryId: string;
@@ -872,6 +878,11 @@ async function replayCandidateResponse(
       throw new RespondCommandError("invalid-input", "Candidate response replay conflicts with the recorded response");
     }
     const { recordPath } = await dependencies.stageCandidateResponse(lineage.workUnit);
+    await dependencies.rebindSingletonPublicationResponse({
+      workUnit: lineage.workUnit,
+      response: matching,
+      requirePublished: source.result.kind === "hosted" && source.responseBinding?.deliveryMember === undefined,
+    });
     await recordPerformedResponse(
       source,
       dispositions,
@@ -1016,6 +1027,11 @@ async function persistCandidateResponse(
       ...lineage.record,
       transitions: [...lineage.record.transitions, response],
     }),
+  });
+  await dependencies.rebindSingletonPublicationResponse({
+    workUnit: lineage.workUnit,
+    response,
+    requirePublished: source.result.kind === "hosted" && source.responseBinding?.deliveryMember === undefined,
   });
   await recordPerformedResponse(
     source,

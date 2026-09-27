@@ -2175,6 +2175,9 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       baseRef: "main",
       repositoryId,
     });
+    await reserveHostedReview(root, originTarget.headSha);
+    await git(root, ["add", resolveSubmissionBoundaryPath("example")]);
+    await git(root, ["commit", "-m", "publish hosted review boundary"]);
     const requirement = createReviewRequirement({
       target: originTarget,
       projection: OBLIGATION,
@@ -3039,7 +3042,7 @@ function registerRoutedReviewObligation(it: typeof vitestIt): void {
           headRepository: repository,
           headRef: "feat/example",
           headSha: approvedHead,
-          baseRef: candidate.attestation.baseRevision,
+          baseRef: "main",
           state: "open",
           draft: false,
         },

@@ -94,6 +94,7 @@ import { confirmIncrementalPredecessorApplicability } from
   "../policy/hosted-reservation-support.js";
 import type { IncrementalPredecessorApplicability } from
   "../policy/incremental-coverage-basis.js";
+import { stageSingletonPublicationResponse } from "./singleton-publication-response.js";
 
 /**
  * Report a subject the branch and its base leave uncollectable under the boundary's own precondition type.
@@ -597,6 +598,16 @@ export function createRespondDependencies(input: {
       const recordPath = resolveCandidateRecordRelativePath(workUnit);
       await input.exec("git", ["add", "--", recordPath], { cwd: input.cwd });
       return { recordPath };
+    },
+    rebindSingletonPublicationResponse: async ({ workUnit, response, requirePublished }) => {
+      await requireCandidateMutationOwner(workUnit);
+      await stageSingletonPublicationResponse({
+        cwd: input.cwd,
+        exec: input.exec,
+        workUnit,
+        response,
+        requirePublished,
+      });
     },
     settleLaneFindings: async (settlement) => {
       await settleLaneAttempt(prepare.operationStore, {
