@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "integrate-release-notes-shape",
+  "claimId": "74848d872850d2e622719e6ce5e654c6",
+  "createdAt": "2026-09-27T00:21:57.944Z",
+  "updatedAt": "2026-09-27T00:21:57.944Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make integrate-work-unit Step 5 compose the Release Notes shape the checkpoint enforces",
+  "branch": "chore/integrate-release-notes-shape",
+  "origin": "inbox",
+  "originEntry": "Make `integrate-work-unit` Step 5 compose the Release Notes shape the checkpoint enforces",
+  "originEntrySourceDigest": "sha256:1e2a4f0302ff2c6aa078534f016e25f676258763043854a374de01d1cc7620b0",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
