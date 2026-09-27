@@ -73,6 +73,35 @@ describe("runFinalizeStage — create-spec finalize", () => {
   });
 });
 
+describe("runFinalizeStage — amend-design finalize", () => {
+  it("writes only the resolved Class and preserves planning pointer fields", async () => {
+    const { ctx, classWrites, softWrites } = buildCtx();
+    const result = await runFinalizeStage(ctx, {
+      name: "demo-wu",
+      firePoint: "amend-design",
+      workClass: "Novel",
+    });
+    expect(result).toMatchObject({
+      status: "ok",
+      metaPath: META,
+      firePoint: "amend-design",
+      workClass: "Novel",
+      taskList: null,
+      nextAction: null,
+    });
+    expect(classWrites).toEqual([{ metaPath: META, value: "Novel" }]);
+    expect(softWrites).toEqual([]);
+  });
+
+  it("requires a resolved Class before writing", async () => {
+    const { ctx, classWrites, softWrites } = buildCtx();
+    const result = await runFinalizeStage(ctx, { name: "demo-wu", firePoint: "amend-design" });
+    expect(result.status).toBe("rejected");
+    expect(classWrites).toEqual([]);
+    expect(softWrites).toEqual([]);
+  });
+});
+
 describe("runFinalizeStage — generate-tasks finalize (terminus)", () => {
   it("writes Class, the derived Task List filename, and the fixed terminal Next Action", async () => {
     const { ctx, classWrites, softWrites } = buildCtx();

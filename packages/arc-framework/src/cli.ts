@@ -510,9 +510,9 @@ program
   .command("finalize <fire-point>")
   .description(
     "Persist a planning ceremony's finalize facts (meta `Class` / `Task List` / `Next Action`) "
-    + "at its fire-point: create-spec | generate-tasks",
+    + "at its fire-point: create-spec | amend-design | generate-tasks",
   )
-  .option("--class <value>", "Resolved Class to persist (Light | Heavy | Novel) — required at create-spec / generate-tasks")
+  .option("--class <value>", "Resolved Class to persist (Light | Heavy | Novel) — required at every fire-point")
   .action(withInteractionContext(
     {},
     async (context, firePoint: string, opts: { class?: string }) => {
