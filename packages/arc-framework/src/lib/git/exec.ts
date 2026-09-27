@@ -9,6 +9,7 @@ import { normalizeGitRejection } from "./process-error.js";
 import type { InteractionContext } from "../command-input/interaction-context.js";
 import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
+import { retryTransientFileSystemRefusal } from "../fs.js";
 
 /** Result from executing a git command. */
 export interface ExecResult {
@@ -111,11 +112,13 @@ export async function captureGitIndexState(
     indexFile: lockPath,
     commit: async () => {
       if (!active) throw new Error("Git index transaction is no longer active");
-      const current = await readOptionalFile(indexPath);
-      if (!sameBytes(current, snapshot)) {
-        throw new Error("Git index changed during transaction; refusing to overwrite it");
-      }
-      await rename(lockPath, indexPath);
+      await retryTransientFileSystemRefusal(async () => {
+        const current = await readOptionalFile(indexPath);
+        if (!sameBytes(current, snapshot)) {
+          throw new Error("Git index changed during transaction; refusing to overwrite it");
+        }
+        await rename(lockPath, indexPath);
+      });
       active = false;
     },
     rollback: async () => {

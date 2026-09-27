@@ -11,6 +11,9 @@ import { join, dirname, basename, relative } from "node:path";
 import { readdir, stat, writeFile, rename, unlink, mkdir, link } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 
+import { retryTransientFileSystemRefusal } from "./kernel/fs-retry.js";
+export { retryTransientFileSystemRefusal } from "./kernel/fs-retry.js";
+
 /**
  * Write text or bytes to a file atomically using temp-file-then-rename.
  *
@@ -35,7 +38,9 @@ export async function atomicWriteFile(targetPath: string, content: string | Uint
 
   try {
     await writeFile(tmpPath, content, typeof content === "string" ? "utf-8" : undefined);
-    await rename(tmpPath, targetPath);
+    await retryTransientFileSystemRefusal(async () => {
+      await rename(tmpPath, targetPath);
+    });
   } catch (err) {
     // Clean up temp file if it was created before the failure
     await unlink(tmpPath).catch(() => {});

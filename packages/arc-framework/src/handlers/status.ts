@@ -16,6 +16,7 @@
 
 import { access, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { retryTransientFileSystemRefusal } from "../lib/fs.js";
 
 import * as p from "@clack/prompts";
 import { z } from "zod";
@@ -1505,7 +1506,9 @@ export async function handleStatus(
         const temporaryPath = `${roadmapPath}.render-${process.pid}.tmp`;
         await writeFile(temporaryPath, `${result.markdown}\n`, { flag: "wx" });
         try {
-          await rename(temporaryPath, roadmapPath);
+          await retryTransientFileSystemRefusal(async () => {
+            await rename(temporaryPath, roadmapPath);
+          });
         } catch (error) {
           await rm(temporaryPath, { force: true }).catch(() => undefined);
           throw error;

@@ -1,6 +1,7 @@
 /** Unit tests for repository-wide admission of subprocess-heavy local test tiers. */
 
 import { describe, expect, it, vi } from "vitest";
+import { join } from "node:path";
 
 import {
   isLocalHeavyTestTier,
@@ -58,6 +59,28 @@ describe("isLocalHeavyTestTier", () => {
 });
 
 describe("withLocalHeavyTestAdmission", () => {
+  it("enters the shared slot after a delete-pending lock directory clears", async () => {
+    let mkdirAttempts = 0;
+    const result = await withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "portability" },
+      async () => "complete",
+      {
+        acquireLock: vi.fn(async () => ({ path: "/repo/.git/arc/test-suite/.local-heavy-tests.lock", pid: 42, token: "ours" })),
+        git: vi.fn(async (_command, args) => gitResult(args)),
+        mkdir: async () => {
+          mkdirAttempts += 1;
+          if (mkdirAttempts < 3) throw Object.assign(new Error("delete pending"), { code: "EPERM" });
+        },
+        pid: 42,
+        releaseLock: vi.fn(async () => {}),
+        resolveProcessScope: async () => "pid:[test]",
+      },
+    );
+
+    expect(result).toEqual({ result: "complete" });
+    expect(mkdirAttempts).toBe(3);
+  });
+
   it("queues behind the shared holder with useful diagnostics, then releases after the run", async () => {
     const lines: string[] = [];
     let clock = Date.parse("2026-09-08T20:00:00.000Z");
@@ -112,7 +135,7 @@ describe("withLocalHeavyTestAdmission", () => {
 
     expect(result).toEqual({ result: "complete", waitMs: 65_000 });
     expect(acquireLock).toHaveBeenCalledWith(
-      "/repo/.git/arc/test-suite/.local-heavy-tests.lock",
+      join("/repo/.git", "arc", "test-suite", ".local-heavy-tests.lock"),
       expect.objectContaining({
         leaseDurationMs: 120_000,
         maxWaitMs: Number.POSITIVE_INFINITY,
