@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "singleton-publication-response-rebind",
+  "claimId": "98c64f1a534572fbe1418e8eef45dc5f",
+  "createdAt": "2026-09-27T19:24:28.522Z",
+  "updatedAt": "2026-09-27T19:24:28.522Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Rebind singleton publication state after a review response",
+  "branch": "chore/singleton-publication-response-rebind",
+  "origin": "inbox",
+  "originEntry": "Rebind singleton publication state after a review response",
+  "originEntrySourceDigest": "sha256:1f928bd993097c58be3ebc5360b80b89006a40a54fc615ccd196354429b924e7",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
