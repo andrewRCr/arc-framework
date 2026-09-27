@@ -370,12 +370,7 @@ function evidenceCompositionRefusal(error: unknown): PrePublicationComposition {
       },
     };
   }
-  const detail = error instanceof Error ? error.message : String(error);
-  return {
-    status: "refused",
-    reason: "The recorded lane progress does not compose against the current review target: "
-      + detail,
-  };
+  throw error;
 }
 
 class PendingLaneReviewError extends Error {

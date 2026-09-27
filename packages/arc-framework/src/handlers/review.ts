@@ -4486,7 +4486,7 @@ export async function handleReviewPrePublication(
         emitPendingReviewRefusal(composition.pendingReview);
         return;
       }
-      if (composition.scopeMismatch !== undefined && beforeCompose.status === "current") {
+      if (composition.scopeMismatch !== undefined) {
         const mismatch = composition.scopeMismatch;
         if (replayInput?.scopeJudgmentTarget !== undefined
           && canonicalize(mismatch.target) !== canonicalize(replayInput.scopeJudgmentTarget)) {
@@ -4498,17 +4498,19 @@ export async function handleReviewPrePublication(
           ...lanes,
           [mismatch.lane]: { ...lanes[mismatch.lane], scopeMode: mismatch.observedScope },
         };
-        const reentry = buildPrePublicationResumeCommand({
-          workUnit: input.data.name,
-          candidateId: beforeCompose.candidateId,
-          candidateSubjectDigest: beforeCompose.subjectDigest,
-          judgment: { ...judgment, lanes: requiredLanes },
-          replaySelfReview: judgment.selfReview,
-          replayLanes: requiredLanes,
-          scopeJudgmentTarget: mismatch.target,
-          currentFrontlineHeadSha: beforeCompose.headSha,
-          frontlineCeilingOverrideApplied: false,
-        });
+        const reentry = beforeCompose.status === "current"
+          ? buildPrePublicationResumeCommand({
+              workUnit: input.data.name,
+              candidateId: beforeCompose.candidateId,
+              candidateSubjectDigest: beforeCompose.subjectDigest,
+              judgment: { ...judgment, lanes: requiredLanes },
+              replaySelfReview: judgment.selfReview,
+              replayLanes: requiredLanes,
+              scopeJudgmentTarget: mismatch.target,
+              currentFrontlineHeadSha: beforeCompose.headSha,
+              frontlineCeilingOverrideApplied: false,
+            })
+          : null;
         const message = `The ${mismatch.lane} producer used ${mismatch.observedScope} scope, but `
           + `pre-publication selected ${mismatch.selectedScope} for ${mismatch.target.headSha}.`;
         dependencies.write(`${JSON.stringify(ReviewCommandErrorEnvelopeSchema.parse({
@@ -4520,11 +4522,17 @@ export async function handleReviewPrePublication(
             ...mismatch,
             requiredLaneJudgment: { scopeMode: mismatch.observedScope },
           },
-          remedy: spineRemedy(
-            "The recorded producer scope must match an explicit caller lane judgment.",
-            `Confirm ${mismatch.lane} scopeMode ${mismatch.observedScope}, then re-enter`,
-            reentry.split(" "),
-          ),
+          remedy: reentry === null
+            ? spineRemedy(
+                "A current Candidate is required before a scope judgment can be bound to it.",
+                "Re-enter pre-publication against the current Candidate",
+                ["arc", "review", "pre-publication", input.data.name],
+              )
+            : spineRemedy(
+                "The recorded producer scope must match an explicit caller lane judgment.",
+                `Confirm ${mismatch.lane} scopeMode ${mismatch.observedScope}, then re-enter`,
+                reentry.split(" "),
+              ),
         }))}\n`);
         dependencies.setExitCode(1);
         return;

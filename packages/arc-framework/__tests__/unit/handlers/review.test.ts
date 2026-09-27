@@ -2554,6 +2554,49 @@ describe("handleReviewPrePublication", () => {
     expect(moved.persistBoundary).not.toHaveBeenCalled();
   });
 
+  it("retains a scope mismatch when the Candidate becomes current during composition", async () => {
+    const mismatch = {
+      lane: "standard" as const,
+      observedScope: "chunked" as const,
+      selectedScope: "whole-target" as const,
+      target: request.target,
+    };
+    const compose = vi.fn(async () => ({
+      status: "refused" as const,
+      code: "scope-judgment-required" as const,
+      reason: "review producer scope does not match the selected scope",
+      scopeMismatch: mismatch,
+    }));
+    const first = boundary({
+      readCandidate: async () => ({ status: "blocked" as const, reason: "Candidate is changing" }),
+      compose,
+    });
+    await handleReviewPrePublication("example", {}, first);
+
+    expect(JSON.parse(String(first.write.mock.calls[0]?.[0]))).toMatchObject({
+      error: { code: "scope-judgment-required" },
+      scopeMismatch: { ...mismatch, requiredLaneJudgment: { scopeMode: "chunked" } },
+      remedy: { argv: ["arc", "review", "pre-publication", "example"] },
+    });
+    expect(first.persistBoundary).not.toHaveBeenCalled();
+
+    const current = boundary({ compose });
+    await handleReviewPrePublication("example", {}, current);
+    const offer = JSON.parse(String(current.write.mock.calls[0]?.[0])) as {
+      remedy: { argv: string[] };
+    };
+    expect(offer.remedy.argv).toEqual([
+      "arc", "review", "pre-publication", "example", "--resume", expect.any(String),
+    ]);
+    const resumed = boundary({
+      compose: vi.fn(async () => ({ status: "composed" as const, request, advisories: [] })),
+    });
+    await handleReviewPrePublication("example", { resume: offer.remedy.argv[5] }, resumed);
+    expect(JSON.parse(String(resumed.write.mock.calls[0]?.[0]))).toMatchObject({
+      locus: "candidate-publish-ready",
+    });
+  });
+
   it("checks a saved scope target before reusing an advanced boundary", async () => {
     const initial = boundary({
       compose: vi.fn(async () => ({ status: "composed" as const, request, advisories: [] })),
