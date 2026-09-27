@@ -374,8 +374,10 @@ describe("trusted review-gate workflows", () => {
     expect(releaseNotes).toMatch(/roadmap pointers[\s\S]*internal review or provider machinery/u);
     expect(releaseNotes).toContain("planned-but-unshipped work");
     expect(releaseNotes).toMatch(/publicly supported review concepts and configuration[\s\S]*shipped outcome/iu);
-    expect(releaseNotes).toMatch(/\*\*Infrastructure\*\*[\s\S]*externally meaningful operational change/u);
-    expect(releaseNotes).toMatch(/\*\*Breaking\s+Changes\*\*[\s\S]*affected stability contract[\s\S]*migration/u);
+    expect(releaseNotes).toContain("`### <Category>`");
+    expect(releaseNotes).toMatch(/dash and one space[\s\S]*continuation lines at least two spaces/u);
+    expect(releaseNotes).toMatch(/Infrastructure[\s\S]*externally meaningful[\s\S]*operational change/u);
+    expect(releaseNotes).toMatch(/`### Breaking Changes`[\s\S]*affected stability contract[\s\S]*migration/u);
 
     const completionNotes = sectionBetween(
       packaged,
