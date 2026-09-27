@@ -7,15 +7,18 @@
  * dependency here that is not the repository itself.
  */
 
-import { chmod, mkdir, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { handleAttest } from "../../src/handlers/lifecycle.js";
+import { handleAttest, handlePublish } from "../../src/handlers/lifecycle.js";
+import { handleReviewPrePublication } from "../../src/handlers/review.js";
 import { resolveProcessInteractionContext } from "../../src/lib/command-input/interaction-context.js";
 import { createReviewStatusPort } from "../../src/scripts/review-gate/status-composition.js";
 import { resolveReviewStatus } from "../../src/scripts/review-gate/status.js";
+import { createStandardReviewReservation } from
+  "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   advanceBase,
   arrangeAmbiguousMergeBase,
@@ -223,6 +226,68 @@ describe("review status over a base advanced under the work unit", () => {
     // The stop this held is gone: containment no longer decides the reading, so an advance the branch shares
     // no path with costs public review nothing.
     expect(status).toMatchObject({ state: "settled", nextAction: "continue-reconcile" });
+  });
+});
+
+describe("singleton hosted review after publication", () => {
+  it("admits the reserved hosted pass from an exact open PR despite the saved publication pointer", async () => {
+    const fixture = await singletonUnderReview();
+    const reviewed = await runHandlerAt(fixture.root, async () => {
+      await handleReviewPrePublication(WORK_UNIT, { selfReview: "settled" }, {}, machineContext());
+    });
+    expect(reviewed.exitCode, reviewed.stdout + reviewed.stderr).toBe(0);
+    const envelope = JSON.parse(reviewed.stdout) as {
+      candidateId: string;
+      target: { headSha: string };
+    };
+    const boundaryPath = join(fixture.root, ".arc", "system", ".internal", "candidates", `${WORK_UNIT}.boundary.json`);
+    const boundary = JSON.parse(await readFile(boundaryPath, "utf8")) as Record<string, unknown>;
+    const reservation = createStandardReviewReservation({
+      candidateId: envelope.candidateId,
+      sourceId: "coderabbit-pr",
+      sources: ["coderabbit-pr", "codex-pr"],
+      repository: REPOSITORY,
+      headSha: envelope.target.headSha,
+      obligation: {
+        obligation: "required",
+        reasons: ["sensitive-change-set"],
+        rubricVersion: "standard-review/v1",
+        rubricDigest: `sha256:${"e".repeat(64)}`,
+        retrigger: "full-final",
+        count: 1,
+      },
+    });
+    await writeFile(boundaryPath, `${JSON.stringify({ ...boundary, reservation })}\n`);
+    const published = await runHandlerAt(fixture.root, async () => {
+      await handlePublish(WORK_UNIT, {
+        json: true,
+        lastCompleted: "verification",
+        action: "push and open the PR",
+      }, machineContext());
+    });
+    expect(published.exitCode, published.stdout + published.stderr).toBe(0);
+    expect(JSON.parse(published.stdout)).toMatchObject({
+      boundary: { locus: "publication-pending", nextAction: { kind: "continue-publication" } },
+    });
+    await git(fixture.root, ["add", "-A"]);
+    await git(fixture.root, ["commit", "-m", "publish singleton"]);
+    await git(fixture.root, ["push", "origin", HEAD_REF]);
+    fixture.headSha = await git(fixture.root, ["rev-parse", "HEAD"]);
+    fixture.bin = await installHost(fixture.root);
+
+    const status = await statusThroughPort(fixture);
+    expect(status).toMatchObject({
+      state: "review-required",
+      nextAction: "review-hosted-request",
+      action: {
+        schemaVersion: 1,
+        target: { repository: REPOSITORY, pullRequest: PULL_REQUEST, headSha: fixture.headSha },
+        provider: "coderabbit-pr",
+        coverage: "complete",
+      },
+    });
+    if (status.nextAction !== "review-hosted-request") throw new Error("expected hosted review admission");
+    expect(status.action).not.toHaveProperty("vehicle");
   });
 });
 

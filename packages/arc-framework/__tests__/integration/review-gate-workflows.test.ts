@@ -766,7 +766,7 @@ describe("trusted review-gate workflows", () => {
     expect(errand).toMatch(/invocation:\s*\{ mode: "force", sourceId: "<source-id>" \}/u);
     expect(errand).toMatch(/every policy call for that target/u);
     expect(integrate).toMatch(
-      /integrationBoundary\.nextAction\.command[\s\S]*without rerunning[\s\S]*source\s+ordering[\s\S]*policy\.payload\.sourceId/u,
+      /publication-pending \/ continue-publication[\s\S]*arc review status --target[\s\S]*complete hosted request action[\s\S]*arc review hosted request -/u,
     );
   });
 

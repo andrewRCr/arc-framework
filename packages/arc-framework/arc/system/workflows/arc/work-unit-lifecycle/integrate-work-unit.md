@@ -181,11 +181,15 @@ must match the current Candidate and carries the ordered sources and exact oblig
   change request and checks, and returns a top-level `deliveryCursor`, the complete supporting conjunction, and the
   existing driver's next action. Only an exact `review-hosted-request` result authorizes provider work. Do not invoke
   frontline review, generic prepublication, private source selection, or a whole-work-unit fallback.
-- `continue-pre-publication-review` remains the ordinary singleton continuation. Invoke
-  `integrationBoundary.nextAction.command` and continue only from `ready / hosted-request`; the returned policy
-  preserves the reservation without rerunning chunking or source ordering and supplies `policy.payload.sourceId`
-  plus the authorized `policy.payload.pass`. Bind the open pull request, resolve its exact current `targetRef`, and
-  invoke `arc review status --target '{targetRef}'`.
+- For an ordinary singleton with a carried reservation, an exact open PR at the current head completes the
+  `publication-pending / continue-publication` handoff. Resolve its `targetRef` and invoke
+  `arc review status --target '{targetRef}'`. That status binds the reservation and durable pass progress to the
+  open PR and returns the complete hosted request action; pass it unchanged to `arc review hosted request -` when
+  status selects `review-hosted-request`. Do not repeat settled frontline review or build a provider request from
+  pre-publication policy fields.
+- `continue-pre-publication-review` remains the singleton continuation while a pre-publication action is still
+  owed. Invoke `integrationBoundary.nextAction.command`; after it settles and the exact PR is open, re-enter the
+  singleton status route above.
 
 Every other boundary action stops. Dispatch only on `nextAction` from the status result.
 

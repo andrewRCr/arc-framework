@@ -151,7 +151,7 @@ export async function projectHostedReservationDischarge(input: {
   let requestCoverage: HostedReviewCoverage | null = currentRequestCoverage;
   const requestAttempts: HostedReservationRequestAttempt[] = [];
   const requestContext = () => ({
-    requestAttempts,
+    requestAttempts, completedPasses,
     ...(requestCoverage === null ? {} : { requestCoverage }),
   });
   const currentFindingRoutes = reservation.sources.flatMap((sourceId) => (

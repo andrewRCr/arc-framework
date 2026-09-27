@@ -299,6 +299,47 @@ export async function resolveEvidenceBoundHostedReservationPolicy(
   return { status: "resolved", policy };
 }
 
+/**
+ * Resolve the next singleton PR action from its carried Candidate reservation and durable pass count.
+ *
+ * @param input - Exact PR target, discharge position, and configured review judgments.
+ * @param dependencies - Evidence readers that bind any terminal producer to its result.
+ * @returns The verified policy route for the next singleton standard-review action.
+ */
+export async function resolveEvidenceBoundSingletonHostedReservationPolicy(
+  input: {
+    readonly reservation: StandardReviewReservationV1;
+    readonly discharge: HostedReservationDischarge;
+    readonly target: { readonly repository: string; readonly pullRequest: number; readonly headSha: string };
+    readonly maxPasses: number;
+    readonly coverageSelected?: boolean;
+    readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
+    readonly additionalPassAuthorization?: ReviewPolicyCommandRequest["additionalPassAuthorization"];
+  },
+  dependencies: HostedReservationEvidenceDependencies,
+): Promise<ReviewResolveEnvelope> {
+  if (input.discharge.discharged || input.discharge.nextSource === null
+    || input.discharge.completedPasses === undefined || input.discharge.requestAttempts === undefined) {
+    throw new Error("The singleton Candidate has no admissible reserved review position.");
+  }
+  return resolveEvidenceBoundReviewPolicyContinuation({
+    schemaVersion: 1,
+    target: input.target,
+    lane: "standard",
+    frontlineActive: false,
+    standardReview: input.reservation.obligation,
+    completedPasses: input.discharge.completedPasses,
+    attempts: input.discharge.requestAttempts,
+    ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
+    ...(input.additionalPassAuthorization === undefined ? {}
+      : { additionalPassAuthorization: input.additionalPassAuthorization }),
+  }, { terminalResponsePerformed: false, coverageSelected: input.coverageSelected }, {
+    sources: input.reservation.sources,
+    maxPasses: input.maxPasses,
+    ...dependencies,
+  });
+}
+
 function assertHostedPolicyResolution(
   resolution: HostedReservationPolicyResolution,
   provider: string,
