@@ -60,9 +60,8 @@ describe("prepublication workflow boundary", () => {
       expect(privateCandidates).toBeGreaterThan(entry);
       expect(review).toBeGreaterThan(privateCandidates);
       expect(prepare.slice(entry, review)).toMatch(
-        /`not-applicable`[\s\S]*`repair-required`[\s\S]*`validate-canonical`[\s\S]*`refused`/u,
+        /`not-applicable`[\s\S]*`validate-canonical`[\s\S]*`refused`/u,
       );
-      expect(prepare.slice(entry, review)).toContain("reauthor-plan");
       expect(prepare.slice(entry, review)).toContain("planId");
       expect(prepare).toMatch(
         /approved fix changes the Candidate[\s\S]*rerun Step 1[\s\S]*Prepare private delivery candidates/iu,

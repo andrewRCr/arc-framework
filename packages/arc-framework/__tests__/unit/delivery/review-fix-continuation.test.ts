@@ -30,7 +30,7 @@ import {
   createFixAuthorization,
 } from "../../../src/scripts/review-gate/core/fix-authorization.js";
 import { createReviewTarget } from "../../../src/scripts/review-gate/core/gate-contract-v2.js";
-import { deliveryPlanFixture, deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
+import { deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 import { responsePolicyRequestFixture } from "../../fixtures/review-response-policy.js";
 
@@ -1217,18 +1217,4 @@ describe("delivery review-fix continuation projection", () => {
     });
   });
 
-  it("preserves retired-projection repair through the review-fix continuation", () => {
-    const retired = deliveryPlanFixture();
-    const entry: DeliveryEntryInspectionResult = {
-      status: "repair-required",
-      nextAction: "reauthor-plan",
-      reason: "unsupported-projection",
-      planId: retired.planId,
-      planRevision: retired.planRevision,
-      entry: retired.entry,
-      recommendedActionText: "Re-author the retired projection before continuing.",
-    };
-
-    expect(projectDeliveryReviewFixContinuation({ request, entry })).toEqual(entry);
-  });
 });

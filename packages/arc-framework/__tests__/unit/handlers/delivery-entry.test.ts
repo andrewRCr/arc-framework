@@ -34,11 +34,6 @@ describe("delivery entry handler", () => {
       planDigest: `sha256:${"a".repeat(64)}`, recommendedActionText: "Validate.",
     },
     {
-      status: "repair-required", nextAction: "reauthor-plan", reason: "unsupported-projection",
-      planId: "123e4567-e89b-42d3-a456-426614174000", planRevision: 1, entry: "from-tasks",
-      recommendedActionText: "Repair.",
-    },
-    {
       status: "resume-bound", nextAction: "read-position-and-reconcile",
       planId: "123e4567-e89b-42d3-a456-426614174000", stateRevision: 2,
       recommendedActionText: "Resume.",

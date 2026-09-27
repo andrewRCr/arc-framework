@@ -154,10 +154,14 @@ describe("prepareDeliveryEligibility", () => {
     }));
   });
 
-  it("refuses a non-stack plan before observing Git", async () => {
+  it("refuses a retired projection before observing Git", async () => {
     const deps = dependencies();
+    const retired = {
+      ...deliveryPlanFixture(),
+      projection: { kind: "wu-integration-target" },
+    } as unknown as Parameters<typeof prepareDeliveryEligibility>[0]["plan"];
     const result = await prepareDeliveryEligibility({
-      plan: deliveryPlanFixture(),
+      plan: retired,
       protectedBaseRef: "main",
       topRef: "control",
       candidates: [],

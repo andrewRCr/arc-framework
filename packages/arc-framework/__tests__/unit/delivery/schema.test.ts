@@ -46,7 +46,7 @@ function validPlan(): Record<string, unknown> {
       ],
     },
     entry: "from-tasks",
-    projection: { kind: "wu-integration-target" },
+    projection: { kind: "stack-to-main" },
     members: [{
       chunkKey: "record-substrate",
       deliverableId: digest,
@@ -222,8 +222,12 @@ describe("DeliveryPlanV1Schema", () => {
 });
 
 describe("DeliveryPlanAuthoringInputV1Schema", () => {
-  it("keeps retired projections readable but refuses them for new authoring", () => {
+  it("refuses retired projections in persisted and authored plans", () => {
     expect(DeliveryPlanV1Schema.safeParse(validPlan()).success).toBe(true);
+
+    const retiredPlan = validPlan();
+    retiredPlan.projection = { kind: "wu-integration-target" };
+    expect(DeliveryPlanV1Schema.safeParse(retiredPlan).success).toBe(false);
 
     const retired = validAuthoringInput();
     retired.projection = { kind: "wu-integration-target" };

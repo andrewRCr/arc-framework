@@ -29,11 +29,8 @@ Dispatch only on the typed result. `not-applicable` continues below. `correction
 `arc delivery review-fix continue -` procedure in
 [`supplemental/deliver-stack.md`](supplemental/deliver-stack.md). It derives the exact member, operation, verification,
 and acknowledgment from canonical state; dispatch its machine actions and re-enter it without reconstructing a
-selector. `canonicalize-provisional` resumes the matching
-delivery-entry route. `repair-required` with `reauthor-plan` enters the matching authoring route in that workflow and
-reruns inspection after the replacement revision is composed. `refused` renders `recommendedActionText` and stops;
-any other result also stops as an
-execution-entry contract violation.
+selector. `canonicalize-provisional` resumes the matching delivery-entry route. `refused` renders
+`recommendedActionText` and stops; any other result stops as an execution-entry contract violation.
 
 - **One task at a time:** Each checkbox in the task list is one review increment — a bounded unit of
   autonomous execution between human review points. Complete one, mark it `[x]`, report, and **stop**

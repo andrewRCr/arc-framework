@@ -334,7 +334,7 @@ export async function prepareDeliveryEligibility(input: {
   | DeliveryEligibilityRefusal
 > {
   const validation = validateDeliveryPlanRecord(input.plan);
-  if (validation.status !== "valid" || input.plan.projection.kind !== "stack-to-main") {
+  if (validation.status !== "valid") {
     return { status: "refused", reason: "invalid-stack-plan" };
   }
   const memberOffset = input.memberOffset ?? 0;

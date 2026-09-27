@@ -218,7 +218,12 @@ describe("assessDeliveryMemberReadiness", () => {
 
   it("blocks a stack member without the relevant landability assertion", () => {
     const plan = deliveryPlanFixture();
-    const preimage = { ...plan, projection: { kind: "stack-to-main" as const } };
+    const preimage = {
+      ...plan,
+      members: plan.members.map((member, index) => index === 0
+        ? { ...member, mainlineLandability: "integration-only" as const }
+        : member),
+    };
     const stackPlan = { ...preimage, planDigest: deriveDeliveryPlanDigest(preimage) };
     const state = deliveryStateFixture(stackPlan);
     expect(assessDeliveryMemberReadiness(
