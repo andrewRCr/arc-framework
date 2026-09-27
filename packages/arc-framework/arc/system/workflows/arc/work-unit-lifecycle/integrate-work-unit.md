@@ -471,11 +471,29 @@ task or phase references, branches, roadmap pointers, internal review or provide
 development jargon, or planned-but-unshipped work. Publicly supported review concepts and configuration may be
 named when they are the shipped outcome.
 
-Write a one-paragraph summary plus categorized lines from the Keep a Changelog set — **Added**, **Changed**,
-**Removed**, **Fixed**, **Infrastructure**, **Deprecated**, **Security** — omitting empty categories and retaining
-that order. Use **Infrastructure** only for an externally meaningful operational change. An optional **Breaking
-Changes** callout must name the affected stability contract and required migration. Omit the entire section when
-nothing reader/operator-visible ships; otherwise size it to what shipped.
+Write one summary paragraph, then `### <Category>` headings for nonempty categories in this order: Added, Changed,
+Removed, Fixed, Infrastructure, Deprecated, Security. Start one or more list items with a dash and one space under
+each heading; indent continuation lines at least two spaces. Use Infrastructure only for an externally meaningful
+operational change.
+An optional `### Breaking Changes` heading comes last and names the affected stability contract and required
+migration. For example:
+
+```markdown
+## Release Notes Entry
+
+The CLI now gives clearer guidance when an operation needs a retry.
+
+### Added
+
+- A status command that reports the current operation.
+
+### Fixed
+
+- Retry instructions retain the selected target.
+  A changed target requires a fresh decision.
+```
+
+Omit the entire section when nothing reader/operator-visible ships; otherwise size it to what shipped.
 
 Leave the edit uncommitted for the candidate-tail commit in Step 7.
 
