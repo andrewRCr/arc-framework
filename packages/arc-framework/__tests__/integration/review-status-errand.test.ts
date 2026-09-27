@@ -26,6 +26,8 @@ import {
 } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { LocalReviewOperationStateStore } from
   "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
+import { createRepositoryReviewResultReader } from
+  "../../src/scripts/review-gate/hosts/local/review-result-reader-composition.js";
 import { HostedRequestOwnerIndex } from
   "../../src/scripts/review-gate/hosts/local/hosted-request-owner-index.js";
 import { LocalApprovedDispositionRecordStore } from
@@ -40,12 +42,16 @@ import {
   recordLaneAttempt,
   bindHostedAttemptDisposition,
   recordLaneResponsePerformance,
+  readLaneProgressOwner,
+  readLaneResponsePerformance,
 } from "../../src/scripts/review-gate/lane-progress.js";
 import { responsePolicyRequestFixture } from "../fixtures/review-response-policy.js";
 import { readErrandRoutedObligation } from "../../src/scripts/review-gate/status-errand.js";
 import { readRoutedObligation } from "../../src/scripts/review-gate/status-composition.js";
 import { STANDARD_REVIEW_RUBRIC_IDENTITY } from
   "../../src/scripts/review-gate/policy/standard-review.js";
+import { assertEvidenceBoundReviewExecutionAdmission } from
+  "../../src/scripts/review-gate/policy/review-policy-evidence.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
 
@@ -903,4 +909,162 @@ describe("Errand review status", () => {
         pullRequest: 42, currentBaseOid: base,
       })).resolves.toMatchObject({ state: expected });
     });
+
+  it("shows the claim-wide ceiling after two reviews on earlier Errand heads", async () => {
+    const root = await createTempRepoCore({ prefix: "arc-review-status-ceiling-", identity: "andrew" });
+    roots.push(root);
+    await git(root, ["commit", "--allow-empty", "-m", "base"]);
+    const slug = "ceiling-errand";
+    const branch = `chore/${slug}`;
+    const claimId = "0123456789abcdef0123456789abcdef";
+    const record = TransientIdentityRecordV3Schema.parse({
+      version: 3, kind: "errand", slug, claimId, purpose: "errand", origin: "description",
+      originEntry: null, intent: "Limit review passes", branch, state: "open",
+      savedHead: null, changeRequest: null,
+      createdAt: "2026-09-13T00:00:00.000Z", updatedAt: "2026-09-13T00:00:00.000Z",
+    });
+    await writeFile(join(root, slug), serializeTransientIdentityRecord(record), "utf8");
+    await git(root, ["add", slug]);
+    await git(root, ["commit", "-m", "identity snapshot"]);
+    await git(root, ["update-ref", "refs/arc/user/andrew/errands", "HEAD"]);
+    const base = await git(root, ["rev-parse", "HEAD"]);
+    const baseTree = await git(root, ["rev-parse", "HEAD^{tree}"]);
+    await git(root, ["switch", "-c", branch]);
+    await mkdir(join(root, ".arc/system"), { recursive: true });
+    await writeFile(join(root, ".arc/system/arc-config.yml"),
+      "review.standard_sources: [codex-pr]\nreview.standard_max_passes: 2\n", "utf8");
+    const exec = makeGitExec(root);
+    const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+    const repositoryId = await resolveRepositoryIdentity(publisher);
+    const store = new LocalReviewOperationStateStore(publisher);
+    const standardReview = {
+      obligation: "required" as const, reasons: ["sensitive-change-set" as const],
+      rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
+      rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
+      retrigger: "full-final" as const, count: 1 as const,
+    };
+    const review = async (pass: number, headSha: string): Promise<void> => {
+      const headTree = await git(root, ["rev-parse", "HEAD^{tree}"]);
+      const target = { repository: "owner/repo", pullRequest: 42, headSha };
+      const reviewTarget = createReviewTarget({
+        schemaVersion: 2, semanticsVersion: "review-gate/v2", kind: "change-set",
+        repositoryId, baseRef: "main", diffBaseSha: base, diffBaseTree: baseTree,
+        headSha, headTree,
+      });
+      const requirement = createReviewRequirement({
+        target: reviewTarget, projection: standardReview,
+        acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
+        initialAdmission: "automatic",
+      });
+      if (requirement === null) throw new Error("hosted requirement is unavailable");
+      const vehicle = { kind: "errand" as const, key: slug, claimId, branch,
+        sources: ["codex-pr"], standardReview };
+      const handle: HostedRequestHandle = {
+        schemaVersion: 1, provider: "codex-pr", requestedCoverage: "complete",
+        effectiveCoverage: "complete", target,
+        artifact: { kind: "issue-comment", id: `comment-${String(pass)}`,
+          url: `https://example.test/comment-${String(pass)}`,
+          createdAt: `2026-09-13T00:0${String(pass)}:00Z` },
+        vehicle,
+        admission: createHostedAdmission({
+          schemaVersion: 1, repositoryId,
+          lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: claimId, headSha },
+          logicalPass: pass, sourceId: "codex-pr", target,
+          requestedCoverage: "complete", vehicle, reviewTarget, requirement,
+          actorIdentity: "github-user-1",
+        }),
+      };
+      await recordHostedPendingRequest(store, { repositoryId, handle,
+        now: `2026-09-13T00:0${String(pass)}:00Z` });
+      await recordHostedAwaitAttempt(store, {
+        repositoryId,
+        result: { schemaVersion: 1, mode: "review-hosted-await", handle,
+          state: "clean", nextAction: "complete", reviewUrl: `https://example.test/review-${String(pass)}` },
+        now: `2026-09-13T00:0${String(pass)}:30Z`,
+      });
+    };
+    const advance = async (content: string): Promise<string> => {
+      await writeFile(join(root, "change.txt"), content, "utf8");
+      await git(root, ["add", "change.txt"]);
+      await git(root, ["commit", "-m", `change ${content.trim()}`]);
+      return git(root, ["rev-parse", "HEAD"]);
+    };
+    const firstHead = await advance("first\n");
+    await review(1, firstHead);
+    const secondHead = await advance("second\n");
+    const target = (headSha: string) => ({ repository: "owner/repo", headRef: branch, headSha });
+    await expect(readErrandRoutedObligation({ cwd: root, exec, target: target(secondHead),
+      pullRequest: 42, currentBaseOid: base })).resolves.toMatchObject({
+      state: "review-required", detail: expect.stringContaining("1 of 2 configured"),
+    });
+    await review(2, secondHead);
+    const thirdHead = await advance("third\n");
+    const approvedTarget = { repository: "owner/repo", pullRequest: 42, headSha: thirdHead };
+    const consequence = { target: approvedTarget, lane: "standard" as const,
+      exhaustedPassCount: 2, nextPass: 3 };
+    await expect(readErrandRoutedObligation({ cwd: root, exec, target: target(thirdHead),
+      pullRequest: 42, currentBaseOid: base })).resolves.toMatchObject({
+      state: "approval-required", scope: "errand", consequence,
+    });
+    await expect(readErrandRoutedObligation({ cwd: root, exec, target: target(thirdHead),
+      pullRequest: 42, currentBaseOid: base,
+      ceilingOverride: { ...consequence, target: { ...approvedTarget, headSha: secondHead } },
+    })).resolves.toMatchObject({ state: "blocked" });
+    await expect(readErrandRoutedObligation({ cwd: root, exec, target: target(thirdHead),
+      pullRequest: 42, currentBaseOid: base, ceilingOverride: consequence,
+    })).resolves.toMatchObject({ state: "review-required",
+      detail: expect.stringContaining("2 of 2 configured") });
+    await expect(readRoutedObligation(root, exec, target(thirdHead), 42, undefined, base,
+      { ceilingOverride: consequence })).resolves.toMatchObject({ state: "review-required" });
+
+    const owner = await readLaneProgressOwner(store, {
+      lane: "standard", repositoryId, headSha: thirdHead,
+      lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: claimId,
+        headSha: thirdHead },
+    });
+    if (owner === null) throw new Error("the Errand claim must retain its review owner");
+    const request = {
+      schemaVersion: 1, target: approvedTarget, lane: "standard", frontlineActive: false,
+      standardReview, completedPasses: owner.completedPasses, attempts: [],
+    };
+    const dependencies = {
+      sources: ["codex-pr"], maxPasses: 2,
+      resultReader: createRepositoryReviewResultReader(publisher),
+      dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+      readResponsePerformance: (producer: Parameters<typeof readLaneResponsePerformance>[1]) =>
+        readLaneResponsePerformance(store, producer),
+      confirmTarget: async (current: Parameters<typeof createReviewRequirement>[0]["target"]) => current,
+    };
+    const expectedSource = { sourceId: "codex-pr", nextAction: "hosted-request" as const };
+    await expect(assertEvidenceBoundReviewExecutionAdmission(request,
+      { terminalResponsePerformed: false }, expectedSource, dependencies))
+      .rejects.toThrow(/approval-required\/obtain-ceiling-override/u);
+    await expect(assertEvidenceBoundReviewExecutionAdmission({ ...request, ceilingOverride: consequence },
+      { terminalResponsePerformed: false }, expectedSource, dependencies))
+      .resolves.toMatchObject({ state: "ready", payload: { pass: 3, ceilingOverrideApplied: true } });
+
+    await recordLaneAttempt(store, {
+      lane: "standard", repositoryId, changeRequestId: "pull/42", headSha: thirdHead,
+      lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: claimId,
+        headSha: thirdHead },
+      attemptId: "local/missing-result", sourceId: "delegated-agent",
+      outcome: "clean", consumedPass: true, logicalPass: 3,
+      now: "2026-09-13T00:04:00Z",
+    });
+    const fourthHead = await advance("fourth\n");
+    await expect(readErrandRoutedObligation({ cwd: root, exec, target: target(fourthHead),
+      pullRequest: 42, currentBaseOid: base })).resolves.toMatchObject({
+      state: "approval-required", scope: "errand",
+      consequence: { exhaustedPassCount: 3, nextPass: 4,
+        target: { ...approvedTarget, headSha: fourthHead } },
+    });
+    const missingResultConsequence = { ...consequence,
+      target: { ...approvedTarget, headSha: fourthHead }, exhaustedPassCount: 3, nextPass: 4 };
+    await expect(readErrandRoutedObligation({ cwd: root, exec, target: target(fourthHead),
+      pullRequest: 42, currentBaseOid: base, ceilingOverride: consequence,
+    })).resolves.toMatchObject({ state: "blocked" });
+    await expect(readErrandRoutedObligation({ cwd: root, exec, target: target(fourthHead),
+      pullRequest: 42, currentBaseOid: base, ceilingOverride: missingResultConsequence,
+    })).resolves.toMatchObject({ state: "review-required" });
+  });
 });

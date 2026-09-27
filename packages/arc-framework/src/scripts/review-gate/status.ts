@@ -364,6 +364,12 @@ export const RoutedReviewObligationSchema = z.union([
     consequence: ReviewCeilingOverrideSchema,
   }),
   z.strictObject({
+    state: z.literal("approval-required"),
+    detail: z.string().min(1),
+    scope: z.literal("errand"),
+    consequence: ReviewCeilingOverrideSchema,
+  }),
+  z.strictObject({
     state: z.literal("applicability-blocked"),
     detail: z.string().min(1),
     scope: z.literal("singleton"),

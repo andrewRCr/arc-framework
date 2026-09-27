@@ -358,6 +358,8 @@ export async function readRoutedObligation(
     exec,
     target,
     pullRequest,
+    ...(judgment?.ceilingOverride === undefined ? {}
+      : { ceilingOverride: judgment.ceilingOverride }),
     ...(judgment?.additionalPassAuthorization === undefined ? {}
       : { additionalPassAuthorization: judgment.additionalPassAuthorization }),
     ...(currentBaseRevision === undefined ? {} : { currentBaseOid: currentBaseRevision }),

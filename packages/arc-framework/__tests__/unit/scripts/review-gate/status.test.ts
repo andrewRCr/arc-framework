@@ -692,6 +692,21 @@ describe("review status", () => {
     });
   });
 
+  it("routes an Errand claim ceiling without a delivery member", async () => {
+    const consequence = {
+      target: { repository: target.repository, pullRequest: 42, headSha: target.headSha },
+      lane: "standard" as const, exhaustedPassCount: 2, nextPass: 3,
+    };
+    const obligation = RoutedReviewObligationSchema.parse({
+      state: "approval-required", scope: "errand",
+      detail: "The Errand claim used two passes.", consequence,
+    });
+    await expect(resolveReviewStatus({ target }, port({ routedObligation: obligation }))).resolves.toMatchObject({
+      state: "approval-required", nextAction: "obtain-ceiling-override", consequence,
+      routedObligation: { scope: "errand" },
+    });
+  });
+
   it("reports logical and complete member-pass counts independently", () => {
     const discharge = {
       ...deliveryDischarge({
