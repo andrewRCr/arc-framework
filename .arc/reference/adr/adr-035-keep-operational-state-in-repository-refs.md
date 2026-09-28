@@ -11,10 +11,11 @@ strategy (item 6); and the concurrency mechanism for each shared surface (item 7
 substrate analysis][storage-analysis] § 11 reported:
 
 - **Default backend.** It held on GitHub.com, GitLab.com and self-managed GitLab CE, Azure DevOps, Gitea, and Forgejo.
-  GitHub Enterprise Server, on the must-hold floor, and Bitbucket were not tested. Acceptance proceeds on GitHub.com's
-  evidence, and a rejection on GitHub Enterprise Server reopens this decision. One ref per surface held under
-  twenty-writer bursts, and ARC's refspec fetched the refs, which plain clones omit, into a remote-tracking namespace
-  on every tested host.
+  GitHub Enterprise Server, on the must-hold floor, and Bitbucket were not tested, so the condition is not met for
+  GitHub Enterprise Server. Its test is deferred, and this record is accepted on GitHub.com's evidence instead:
+  self-managed GitLab CE, which runs the same code as GitLab.com, held just as GitLab.com did. A rejection on GitHub
+  Enterprise Server reopens this decision. One ref per surface held under twenty-writer bursts, and ARC's refspec
+  fetched the refs, which plain clones omit, into a remote-tracking namespace on every tested host.
 - **Projection.** Workable with the ignore strategy in item 6, under a pass bar loosened on 2026-09-24 to allow one
   editor setting per machine.
 - **Concurrency.** No write was lost at the design envelope once two mechanisms changed through the amend-first
