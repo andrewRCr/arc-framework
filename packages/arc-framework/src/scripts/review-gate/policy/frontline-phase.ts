@@ -1,10 +1,11 @@
-/** Durable, non-evidentiary closure of a singleton Candidate's initial frontline phase. */
+/** Closure of a review subject's opening frontline phase, with a durable skip marker for singleton Candidates. */
 
 import { canonicalDigest } from "../../../lib/kernel/index.js";
 import {
   FrontlinePhaseStateSchema,
   type FrontlinePhaseState,
 } from "../core/operation-state-schema.js";
+import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import type { ReviewOperationStateStore } from "../core/ports.js";
 import { isReviewVersionConflict, REVIEW_VERSION_RETRY_ATTEMPTS } from
   "../core/version-conflict.js";
@@ -46,25 +47,36 @@ export async function readSingletonFrontlinePhaseClosure(
   return null;
 }
 
-/** Close the opening phase after a durable skip, terminal result, or standard admission. */
-export async function singletonFrontlinePhaseClosed(
+/**
+ * Close the opening phase after a durable skip, terminal result, or standard admission. Lane progress is owned per
+ * subject rather than per head, so a closure recorded on an earlier head holds for every later one.
+ *
+ * @param store - Versioned operation-state storage boundary.
+ * @param input - The subject's lineages and the reader that settles findings follow-up advice.
+ * @returns Whether any lineage has closed the phase.
+ */
+export async function frontlinePhaseClosed(
   store: Pick<ReviewOperationStateStore, "readOperation">,
   input: {
     repositoryId: string;
-    candidateIds: readonly string[];
+    lineages: readonly LaneSubjectLineage[];
     readSettledFindingsAdvice?: (producerId: string) => Promise<FrontlineFollowUpAdvice>;
   },
 ): Promise<boolean> {
-  if (await readSingletonFrontlinePhaseClosure(store, input) !== null) return true;
-  for (const id of input.candidateIds) {
+  const candidateIds = input.lineages.flatMap((lineage) => (
+    lineage.kind === "candidate" ? [lineage.candidateId] : []
+  ));
+  if (await readSingletonFrontlinePhaseClosure(store, {
+    repositoryId: input.repositoryId,
+    candidateIds,
+  }) !== null) return true;
+  for (const lineage of input.lineages) {
     const standardOwner = await readLaneProgressOwner(store, {
-      lane: "standard", repositoryId: input.repositoryId, headSha: "",
-      lineage: { kind: "candidate", candidateId: id },
+      lane: "standard", repositoryId: input.repositoryId, headSha: "", lineage,
     });
     if (standardOwner?.attempts.length) return true;
     const frontlineOwner = await readLaneProgressOwner(store, {
-      lane: "frontline", repositoryId: input.repositoryId, headSha: "",
-      lineage: { kind: "candidate", candidateId: id },
+      lane: "frontline", repositoryId: input.repositoryId, headSha: "", lineage,
     });
     for (const attempt of frontlineOwner?.attempts ?? []) {
       if (!attempt.terminalProducer) continue;

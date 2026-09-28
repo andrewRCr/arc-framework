@@ -32,7 +32,7 @@ import {
   resolvePrePublicationDiffBase,
 } from
   "../../../../../src/scripts/review-gate/policy/pre-publication-composition.js";
-import { singletonFrontlinePhaseClosed } from
+import { frontlinePhaseClosed } from
   "../../../../../src/scripts/review-gate/policy/frontline-phase.js";
 
 const baseRef = "main";
@@ -40,7 +40,7 @@ const headSha = "a".repeat(40);
 const firstBase = "b".repeat(40);
 const secondBase = "c".repeat(40);
 
-describe("singleton frontline phase across Candidate roots", () => {
+describe("frontline phase across Candidate roots", () => {
   it("stays closed after an ancestor terminal result before standard admission", async () => {
     const ancestorId = `sha256:${"1".repeat(64)}`;
     const currentId = `sha256:${"2".repeat(64)}`;
@@ -59,24 +59,25 @@ describe("singleton frontline phase across Candidate roots", () => {
         } as unknown as ReviewOperationState : null,
       }),
     };
-    const input = { repositoryId: "repo-1", candidateIds: [currentId, ancestorId] };
-    expect(await singletonFrontlinePhaseClosed(store, input)).toBe(true);
+    const candidate = (candidateId: string) => ({ kind: "candidate" as const, candidateId });
+    const input = { repositoryId: "repo-1", lineages: [candidate(currentId), candidate(ancestorId)] };
+    expect(await frontlinePhaseClosed(store, input)).toBe(true);
     outcome = "findings";
-    expect(await singletonFrontlinePhaseClosed(store, input)).toBe(false);
+    expect(await frontlinePhaseClosed(store, input)).toBe(false);
     outcome = "settled-findings";
-    expect(await singletonFrontlinePhaseClosed(store, {
+    expect(await frontlinePhaseClosed(store, {
       ...input,
       readSettledFindingsAdvice: async () => ({
         action: "follow-up-after-fix", pass: 2, maxPasses: 2, nextCommand: "frontline-resolve",
       }),
     })).toBe(false);
-    expect(await singletonFrontlinePhaseClosed(store, {
+    expect(await frontlinePhaseClosed(store, {
       ...input,
       readSettledFindingsAdvice: async () => ({ action: "stop", reason: "pass-cap-exhausted" }),
     })).toBe(true);
     outcome = "clean";
-    expect(await singletonFrontlinePhaseClosed(store, {
-      repositoryId: "repo-1", candidateIds: [currentId],
+    expect(await frontlinePhaseClosed(store, {
+      repositoryId: "repo-1", lineages: [candidate(currentId)],
     })).toBe(false);
   });
 });
