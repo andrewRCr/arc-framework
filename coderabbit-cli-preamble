@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "coderabbit-cli-preamble",
+  "claimId": "a3a25246972697703989b30eeb4d6abe",
+  "createdAt": "2026-09-28T23:16:13.925Z",
+  "updatedAt": "2026-09-28T23:16:13.925Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Strip the CodeRabbit agent-mode preamble from frontline findings and take the label and line locus from the review comment",
+  "branch": "chore/coderabbit-cli-preamble",
+  "origin": "inbox",
+  "originEntry": "Stop the CodeRabbit CLI frontline parser from labelling every finding with CodeRabbit's agent preamble",
+  "originEntrySourceDigest": "sha256:1d7f55b0fce6ba87dd397856ca34bf293f7c8dff5a5bda840f0bc7e4195b4e3b",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
