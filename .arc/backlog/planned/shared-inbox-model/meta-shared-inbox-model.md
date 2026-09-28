@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P3`         |
 
 - **Cohort:** [none]
-- **Depends On:** `concurrent-work-doctrine`
+- **Depends On:** `concurrent-work-doctrine`, `storage-cutover`
 
 - **Origin:** [internal]
 - **Design:** `draft-shared-inbox-model.md`

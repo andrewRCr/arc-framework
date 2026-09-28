@@ -225,6 +225,22 @@ known rows; the sweep still owed runs across code, rules, strategies, workflows,
   `19fc5ffc96617197821f46c35951b913f47505460d875747925d9896bbc2d042`.
 - _Evidence:_ `team-mode-key`; `scan-result.json#class-team-mode-key`.
 
+### `[ ]` **Review coupling-audit finding: placement reader input**
+
+- _Re-cut:_ moved from `wu-lifecycle-state-model` at the `state-storage` re-cut (2026-09-28): consumer-map input for the
+  lifecycle and in-flight readers.
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-07-18);
+  captured during `coupling-blast-radius-audit` Task 6.2, 2026-07-18.
+- _Concern:_ four lifecycle placement assumptions currently encode state in directory layout and reach 55 code
+  reader/parser files.
+- _Approach:_ use the mandatory placement-reader extract at grooming to define the record-field boundary and
+  account for every linked reader before changing projection layout. Complements the placement-as-record entry
+  above — this is the audit's reader enumeration for the same reform.
+- _Packet:_ `packet-188c5fab90090e83fdbc4591`; content digest
+  `528515469ff26c720e1d7a0643eaebbebf81d4c99b7c9b640b75479d0da38ae5`.
+- _Evidence:_ `active-placement`, `completed-placement`, `planned-placement`, and `provisional-placement`; extract
+  `reportInputs.placementReaders`; corresponding `scan-result.json#class-*` anchors.
+
 ---
 
 ## Prior Design — `arc-backend` (pre-ADR-035 reading input)

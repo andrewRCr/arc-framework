@@ -63,8 +63,10 @@ non-overlap carried over from `arc-view`), and artifact viewing (`arc-view` prop
 
 ## Continuity
 
-- **Readiness:** stub-shaped; provisional pending `arc-view` v1 evidence. Open at grooming: verb naming, card
-  field set and layout, watch-panel layout detail, debounce interval.
+- **Readiness:** stub-shaped; planned at the `state-storage` re-cut (2026-09-28) as one of the storage program's
+  follow-ons, with no edge on it: the card reads records through the oracle, so the store lands underneath it.
+  `arc-view` has shipped. Open at grooming: verb naming, card field set and layout, watch-panel layout detail,
+  debounce interval.
 - **Sequencing:** after `arc-view` v1 ships and the record keystones (`operational-state-docs`,
   `wu-lifecycle-state-model`) are at least underway — the card gets sharply better with them, and v1-with-proxies
   should be weighed against simply waiting.

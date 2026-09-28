@@ -322,6 +322,9 @@ on (it now does). The visible consequence — entries rotting — is the trigger
 ## Dependencies / Coordination
 
 - **`concurrent-work-doctrine`** — shipped; the meta edge is satisfied (discharge lands at activation).
+- **`state-storage`** — waits on `storage-cutover`. The tracked project inbox stops being a multi-writer hotspot
+  once it is a store surface; the inbox model itself is independent of storage. Its storage-shaped mechanisms are
+  rows in `cohort-state-storage.md`'s storage-coupling register.
 - **`operational-state-docs`** — owns the record substrate: the slug-keyed grammar, `arc inbox add` +
   `removeInboxEntry` as a paired I/O surface, `_Awaiting:_` codification. **Seam correction owed:** its buffer's
   `_Awaiting:_` entry records the shared inbox as "sweep-based and nudge-free"; this model adds the staleness

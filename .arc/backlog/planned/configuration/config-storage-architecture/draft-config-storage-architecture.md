@@ -305,3 +305,10 @@ Co-owns (with `cli-substrate-adoption`) `arc-config.yml`'s structure-vs-value mo
 of ADR-022's structural-ownership principle (keys code-owned, values adopter-customizable). Coordinate the
 notes-sync channel + manifest extension with ADR-022's managed-doc surfaces; keep the key-schema treatment
 consistent with the managed-doc schemas. See `adr-022-managed-operational-state-documents.md` § Coordination.
+
+## Coordination — `state-storage`
+
+Co-designs with `storage-contract` and depends on it. The per-machine `.local/` tier is the local-only overlay
+the storage backends need, so the two designs settle that tier together. Syncing `config.user.yml` through
+user notes (§ Sync semantics) is throwaway: notes retire at `storage-cutover`, and user sync moves onto the
+store with `storage-ref-backend`. Design the per-project, per-user tier against the store.

@@ -37,24 +37,19 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | storage-ref-backend                 | P1       | andrew | —          | state-storage              |
 | ci-defer-heavy-reconciliation       | P1       | andrew | —          | —                          |
 | cross-worktree-git-state-safety     | P1       | andrew | —          | —                          |
-| delivery-correction-convergence     | P1       | andrew | —          | —                          |
 | delivery-intent-integrity           | P1       | andrew | —          | —                          |
 | locus-claim-revalidation            | P1       | andrew | —          | —                          |
 | recovery-hardening                  | P1       | andrew | —          | —                          |
 | recurring-errand-pr-resolution      | P1       | andrew | —          | —                          |
 | review-operation-state-isolation    | P1       | andrew | —          | —                          |
-| roadmap-tooling                     | P1       | andrew | —          | —                          |
 | session-init-performance            | P1       | andrew | —          | —                          |
-| singleton-integration-continuity    | P1       | andrew | —          | —                          |
 | verification-falsification-contract | P1       | andrew | —          | —                          |
-| wu-lifecycle-state-model            | P1       | andrew | —          | —                          |
 | composable-workflows                | P2       | andrew | —          | agent-context-optimization |
 | loadset-composition                 | P2       | andrew | —          | agent-context-optimization |
 | commit-increments                   | P2       | andrew | —          | approval-flow-refinement   |
 | check-id-stabilization              | P2       | andrew | —          | architecture-remediation   |
 | decompose-scaling                   | P2       | andrew | —          | decompose-core-hardening   |
 | method-conventions                  | P2       | andrew | —          | doc-conventions            |
-| naming-conventions                  | P2       | andrew | —          | doc-conventions            |
 | pull-request-surface-policy         | P2       | andrew | —          | doc-conventions            |
 | cross-wu-coordination               | P2       | andrew | —          | —                          |
 | execution-delegation-doctrine       | P2       | andrew | —          | —                          |
@@ -64,7 +59,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | knowledge-architecture              | P2       | andrew | —          | —                          |
 | left-errand-resumption              | P2       | andrew | —          | —                          |
 | operational-advisory-registers      | P2       | andrew | —          | —                          |
-| operational-state-docs              | P2       | andrew | —          | —                          |
 | package-project-development-sync    | P2       | andrew | —          | —                          |
 | planning-lane-relief                | P2       | andrew | —          | —                          |
 | review-orchestration-right-sizing   | P2       | andrew | —          | —                          |
@@ -77,7 +71,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | sync-handler-decomposition          | P3       | andrew | —          | architecture-remediation   |
 | user-sync-module-split              | P3       | andrew | —          | architecture-remediation   |
 | config-migration-registry           | P3       | andrew | —          | configuration              |
-| config-storage-architecture         | P3       | andrew | —          | configuration              |
 | customization-arch-realign          | P3       | andrew | —          | configuration              |
 | task-list-conventions               | P3       | andrew | —          | doc-conventions            |
 | traceability-identifiers            | P3       | andrew | —          | doc-conventions            |
@@ -103,8 +96,8 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | quality-gate-hooks                  | P3       | andrew | —          | —                          |
 | rules-restructure                   | P3       | andrew | —          | —                          |
 | session-retitle                     | P3       | andrew | —          | —                          |
-| shared-inbox-model                  | P3       | andrew | —          | —                          |
 | skill-infrastructure-cleanup        | P3       | andrew | —          | —                          |
+| status-hud                          | P3       | andrew | —          | —                          |
 | sync-primitive-discipline           | P3       | andrew | —          | —                          |
 | synthesis-modality                  | P3       | andrew | —          | —                          |
 
@@ -119,6 +112,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | unit-scoped-review            | P2       | andrew | commit-increments                                  | approval-flow-refinement   |
 | documentation-surface-routing | P3       | andrew | handoff-optimization                               | agent-context-optimization |
 | instruction-optimization      | P3       | andrew | composable-workflows                               | agent-context-optimization |
+| config-storage-architecture   | P3       | andrew | storage-contract                                   | configuration              |
 | workflow-template-loads       | P3       | andrew | composable-workflows                               | principle-anchored-core    |
 | docs-content-sweep            | P3       | andrew | docs-site-refresh                                  | release-readiness          |
 | comprehension-preservation    | P3       | andrew | execution-delegation-doctrine                      | —                          |
@@ -129,13 +123,21 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | ------------------------ | -------- | ------ | ----------------------------------------------------- | ------------------------- |
 | review-request-contracts | P1       | andrew | review-activity-contracts                             | review-protocol-alignment |
 | storage-cutover          | P1       | andrew | storage-seam, storage-ref-backend, storage-projection | state-storage             |
+| roadmap-tooling          | P1       | andrew | storage-seam                                          | —                         |
 | wu5-public-release       | P3       | andrew | docs-content-sweep                                    | release-readiness         |
 
 ### Depth 3
 
-| Work unit                   | Priority | Owner  | Depends on               | Cohort           |
-| --------------------------- | -------- | ------ | ------------------------ | ---------------- |
-| delivery-review-cardinality | P2       | andrew | review-request-contracts | chunked-delivery |
+| Work unit                       | Priority | Owner  | Depends on               | Cohort           |
+| ------------------------------- | -------- | ------ | ------------------------ | ---------------- |
+| delivery-correction-convergence | P1       | andrew | storage-cutover          | —                |
+| delivery-observe-attest         | P1       | andrew | storage-cutover          | —                |
+| wu-lifecycle-state-model        | P1       | andrew | storage-cutover          | —                |
+| delivery-review-cardinality     | P2       | andrew | review-request-contracts | chunked-delivery |
+| naming-conventions              | P2       | andrew | storage-cutover          | doc-conventions  |
+| framework-core-from-package     | P2       | andrew | storage-cutover          | —                |
+| operational-state-docs          | P2       | andrew | storage-cutover          | —                |
+| shared-inbox-model              | P3       | andrew | storage-cutover          | —                |
 
 ---
 

@@ -1,8 +1,9 @@
 # Draft: Managed Operational-State Document Model
 
-- **State:** Draft — pre-PRD. Spawned by ADR-022 as its implementation substrate. **Decomposition cut-map settled
-  at the 2026-07-02 grooming (§ Decomposition)** — `decompose-work-unit` is the next action; the inbound buffer
-  distributes to members per the routing map there rather than integrating into this body.
+- **State:** Draft — pre-PRD. Spawned by ADR-022 as its implementation substrate. Re-scoped at the
+  `state-storage` re-cut (2026-09-28) as the storage program's records-engine follow-on (§ Re-scope); the
+  2026-07-02 decomposition cut-map (§ Decomposition) predates that and is re-derived before `decompose-work-unit`
+  runs. The inbound buffer distributes to members rather than integrating into this body.
 - **Created:** 2026-05-27
 - **Origin:** [internal] — ADR-022 (`adr-022-managed-operational-state-documents.md`).
 
@@ -588,6 +589,25 @@
 
 ---
 
+## Re-scope — the records engine
+
+At the `state-storage` re-cut (2026-09-28) this work unit became the storage program's records-engine follow-on.
+It runs after `storage-cutover`; `storage-contract` tags it core or deferred.
+
+- **File-as-record (Owner, 2026-09-25).** A managed document's fields are parsed from the file, which is itself
+  the record, and validated when written back. Rendering is only for derived views — ROADMAP and the `STATUS.*`
+  surfaces. This replaces ADR-022's record-authoritative model, which renders markdown from the record and
+  reconciles one editable region back. This work unit carries the ADR-022 amendment when it designs the records
+  work.
+- **What survives.** The structured schemas and the round-trip harness. The render-and-reconcile engine and the
+  reconciled-editable-region primitive give way to parse-and-validate, and the notes-synced wiring is rebuilt on
+  the store (storage analysis § 8).
+- **Where the parsers meet the contract.** Under the storage contract every reader asks for a document's fields
+  through its record family's parser, never by path or placement, and the query cache indexes the parsed fields.
+  This work unit later changes what sits behind each parser without moving storage.
+- **Independent slice.** `corpus-conformance-gate` validates the stored corpus and does not depend on storage;
+  it can be cut out and run ahead of the cutover.
+
 ## Purpose
 
 Build the cross-cutting substrate that realizes ADR-022's structured-record model for the managed
@@ -677,8 +697,8 @@ origin WU retires into the cohort, its draft content and buffer distributing per
 - **`cli-substrate-adoption`** (hard, upstream) — provides the zod substrate and the meta record schema this
   WU extends to the remaining surfaces.
 - Coordinates with `roadmap-tooling` (the `STATUS.*` renderer is an instance of the render engine),
-  `meta-file-tracking-model` (the meta-storage slice — provisional), and `cross-machine-sync-coherence`
-  (transport hardening for notes-synced members).
+  `storage-contract` (the record-family parsers and where each surface is stored), and
+  `cross-machine-sync-coherence` (transport hardening for notes-synced members).
 - **`knowledge-lint`** (boundary, settled at its 2026-07-02 grooming) — standing consistency enforcement over
   `.arc/` splits by document class: this WU owns record-schema conformance (round-trip harness + corpus gate)
   over the managed class; `knowledge-lint` owns the durable prose corpus no schema governs. Resolve-don't-store

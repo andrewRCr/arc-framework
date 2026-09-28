@@ -89,6 +89,12 @@
 
 - _Captured during:_ `concurrent-integration-characterization` pre-publication review, 2026-09-15.
 
+- _Additional routed evidence:_ a review note carried from the terminus-carry Errand (PR #657), moved from
+  `singleton-integration-continuity` at the `state-storage` re-cut (2026-09-28). A carried terminus keeps the
+  `completedPasses` measured over the pre-movement subject while it feeds `readLaneProgressAcrossLineage`. Keeping that
+  count as provenance of the judgment, not authority over the new subject, looks right; but convergence acceptance is
+  the ordinary terminus, so the durable design should state the choice rather than leave it incidental.
+
 ### `[ ]` **Let the Owner discharge a pending verification convergence, as a review terminus is accepted**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
