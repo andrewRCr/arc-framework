@@ -719,7 +719,7 @@ export const RespondEnvelopeSchema = z.union([
     z.strictObject({
       ...DispositionPayloadSchema.shape,
       fixAuthorization: FixAuthorizationSchema,
-      reentryCommand: z.enum(["local-prepare", "frontline-resolve", "hosted-settle"]),
+      reentryCommand: z.literal("respond-verified-fix"),
       authoring: CandidateBoundMemberFixAuthoringSchema.optional(),
     }),
   ),
