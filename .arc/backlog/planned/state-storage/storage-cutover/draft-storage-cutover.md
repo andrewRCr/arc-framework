@@ -42,17 +42,33 @@
           portions of `commands/user/save-load.ts`, `handlers/user.ts`, `handlers/sync.ts`, and `lib/io-context.ts`.
           `lib/user-sync/` is mixed — these symbols survive and must not go with it: the cross-WU entry parser
           (inbox state and reminders) and `resolveCurrentWuName`. The tail moves the Git failure-text predicates
-          (`isCasRejectionError`, `isRemoteUnavailableError`, `isNonFastForwardError`) to `lib/git/ref-tree.ts`.
+          (`isCasRejectionError`, `isRemoteUnavailableError`, `isNonFastForwardError`), which the Errand refs use,
+          to `lib/git/ref-tree.ts`. Deleting `handlers/user-sync.ts` also removes its registrations in
+          `command-input-registrations.ts` and `cli.ts`.
         - Branch-tree readers: `lib/status/project-view-ref.ts`, `git-retirement-authorization-context.ts`,
-          `git-transition-record-enumeration.ts`, and the ref-reading portions of `in-flight-derivation.ts`,
-          `remote-ref-reader.ts`, `completed-index.ts` (`*FromRef`), and the session-init sweeps' base-archive reads.
+          `git-transition-record-enumeration.ts`, the ref-reading portions of `in-flight-derivation.ts`,
+          `remote-ref-reader.ts`, `completed-index.ts` (`*FromRef`), and the session-init sweeps' base-archive reads,
+          and base drift's read of `.arc/completed/` from base history (`lib/base-drift/current-adapters.ts:131`).
+            - Two modules are mixed: `completed-index.ts` keeps `branchToWorkUnitSlug`, and `remote-ref-reader.ts`
+              keeps `DEFAULT_NETWORK_TIMEOUT_MS` and `readLiveRemoteBranchTip`.
+            - Surviving consumers move to store reads before the readers go: `handlers/start.ts` through
+              `project-view-ref`; `teardown-retirement-driver.ts` through the retirement-authorization context; and
+              the transition-record enumeration's callers — `git-decompose-v3-operation`, `executor-context`,
+              `delivery/plan-resolution`, and the status, user, reconcile, and lifecycle handlers.
         - Lifecycle classification and exclusion: `evidence-applicability/path-treatment.ts`,
           `delivery/lifecycle-contribution.ts` with its Git variant, and the evidence-neutral and regenerable arms.
-        - Lifecycle hook checks: `validate-meta-spec`, `validate-cohort-consistency`, `assert-roadmap-regenerated`,
-          `check-foreign-writes`, `remedy-roadmap-conflict`.
+          Surviving consumers move off them first: `work-unit/candidate-evidence.ts` and `git/base-overlap.ts`
+          through `path-treatment.ts`, and six modules through `lifecycle-contribution.ts` — `entry-inspection`,
+          `chain-containment`, `repository-entry`, and `git-eligibility` in `lib/delivery/`,
+          `handlers/delivery-execution.ts`, and the review gate's `pre-publication-composition`.
+        - Lifecycle hook checks: `validate-meta-spec`, `validate-cohort-consistency`, `assert-roadmap-regenerated`
+          with `lib/status/roadmap-regeneration-assert.ts`, `check-foreign-writes`, `remedy-roadmap-conflict`, and
+          the pre-commit hook's own state-path checks: the contributor-protected paths (the
+          `hooks.contributor_protected_paths` default at `lib/config/schema.ts:270`), the task-list modification
+          check, and the ROADMAP render-field check.
         - CI planning classifier: `isPlanningArtifactPath` and `classifyPlanningLane` in `change-facts.ts`, the
-          `lane-paths` logic in `classify-change.sh`, the lane-attestation workflow, and the planning-grooming
-          command. The rest of `change-facts.ts` survives.
+          `lane-paths` logic in `classify-change.sh`, the lane-attestation workflow, `arc review planning-lane`
+          (`handlers/review.ts`), and the planning-grooming command. The rest of `change-facts.ts` survives.
 
 - _Approach:_ each bullet is one row in `cohort-state-storage.md`'s storage-coupling register. Reconcile the
   carve owner names in `cli-substrate-complete-migration`'s spec to `storage-cutover` (removed) and

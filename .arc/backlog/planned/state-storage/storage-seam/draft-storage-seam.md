@@ -577,17 +577,66 @@ checks — move off Git-history and pull-request-diff reads of state as well (§
         - The notes-related session-init probes, with the `UserSessionInitStatusResult` slot and user-reference
           reconciliation (`user-reference-reconcile.ts`, the `userReferenceReconcile` slot).
         - Locus derivation (`DerivedLocusFrame`), from marker plus store.
+        - The `currentWuReconcile` slot, which reads the lifecycle index over tracked placement plus transition
+          records from the HEAD tree through `enumerateGitTransitionRecords`.
+        - The `StaleWorktreeSweepResult` slot, which takes its shipped set from the archive index's ref readers,
+          its retirements and husk evidence from the retirement-authorization context, and its branched selection
+          from locus classification.
         - Any hook-check content rule moved into a record-family parser rather than deleted.
     - **Inherited obligation:** `cli-session-envelope` routed full schema authority for its thin session-init
       views to the cohort tail. For the rewritten slots above (`WorkUnitStateResult`, `ErrandStateResult`,
-      `UserSessionInitStatusResult`, `userReferenceReconcile`, `DerivedLocusFrame`), that obligation passes to the
-      rewriting partition: author the full schema when the slot is rebuilt, rather than leave a thin view.
+      `UserSessionInitStatusResult`, `userReferenceReconcile`, `DerivedLocusFrame`, `currentWuReconcile`,
+      `StaleWorktreeSweepResult`), that obligation passes to the rewriting partition: author the full schema when
+      the slot is rebuilt, rather than leave a thin view.
     - **Tests** of carved code keep their local doubles. The shared scripted `GitExec` fake and `GitProcessError`
       fixture the tail adds are there for the rewrites.
 
 - _Approach:_ each bullet is one row in `cohort-state-storage.md`'s storage-coupling register. Reconcile the
   carve owner names in `cli-substrate-complete-migration`'s spec to `storage-cutover` (removed) and
   `storage-seam` (rewritten).
+
+- _Captured during:_ `cli-substrate-complete-migration` draft-design, 2026-09-28.
+
+### `[ ]` **Route surviving code's work-unit state paths through the contract, with one layout authority**
+
+- _Routed from:_ `cli-substrate-complete-migration`'s draft-design recount (2026-09-28), which sorted every code line
+  outside its carve that names a work-unit state class by owner.
+
+- _Observation:_ code that survives the carve builds work-unit state paths itself rather than asking for a record,
+  either by hand, joining lifecycle directories and artifact prefixes, or through `resolveArcPath` with a
+  work-unit kind. Counted at `7ddab4979`, paths under `packages/arc-framework/`:
+    - **Hand-built — 36 lines in 19 files:**
+        - `arc/system/.internal/scripts/validate-links.sh:130`, `verify-integrity.sh:118,394`
+        - `src/commands/active/status.ts:587`
+        - `src/handlers/delivery.ts:789`, `src/handlers/status.ts:1690`
+        - `src/lib/active/cohort-consistency.ts:263`, `cohort-live-context.ts:19`, `meta-reader.ts:42`
+        - `src/lib/compaction-seed/emitter.ts:188,220`
+        - `src/lib/delivery/from-branch.ts:555-559`
+        - `src/lib/git/worktree-roster.ts:360,424`
+        - `src/lib/handoff/restate-candidates.ts:64`
+        - `src/lib/markdown/authority.ts:90,98,166`, `descriptor-worktree.ts:39`, `selection.ts:17,18`
+        - `src/lib/recover/audit.ts:551,554`
+        - `src/lib/setup.ts:147`
+        - `src/lib/user-sync/parser.ts:53`, the surviving cross-work-unit parser
+        - `src/scripts/review-gate/readiness.ts:668,715,732,784,903,928,975`
+    - **Layout-resolver calls with a work-unit kind — 12 in 8 files**, under `src/`:
+        - `handlers/plan.ts:155`
+        - `lib/git/foreign-artifact-detection.ts:407`
+        - `lib/load-set/projection.ts:113,121`
+        - `lib/session-init/cohort-doc.ts:78`
+        - `lib/status/project-view.ts:562,711`
+        - `lib/user-surfaces.ts:72,79`
+        - `lib/view-artifact.ts:163,209`
+        - `scripts/review-gate/policy/pre-publication-composition.ts:611`
+    - **Elsewhere:** the recount's other hits sit under existing register rows, are carved, are the resolver's own
+      definitions, or are message text and conventions rather than path access. `lib/user-surface-migration.ts`
+      is a pre-release compatibility reader and is judged there rather than here.
+
+- _Approach:_ callers ask the contract for a record or its projected path. The contract's in-repo implementation and
+  the projection both resolve paths through `resolveArcPath` (`lib/layout/projection.ts`, from `cli-layout-resolver`),
+  so one layout authority remains, and the ref backend later replaces the implementation beneath it with no caller
+  changing. Doing this once at the seam, rather than first moving these sites onto layout tokens, migrates each site
+  a single time.
 
 - _Captured during:_ `cli-substrate-complete-migration` draft-design, 2026-09-28.
 
