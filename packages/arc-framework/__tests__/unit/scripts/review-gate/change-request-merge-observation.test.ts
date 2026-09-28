@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  hostAdmissionRefusalCorrection,
   observeChangeRequestMergeAdmission,
   type ChangeRequestMergeCoordinates,
   type ChangeRequestMergeObservationPort,
@@ -66,5 +67,39 @@ describe("change-request merge admission", () => {
       state: "refused",
       detail: "Repository policy rejects this request.",
     });
+  });
+
+  it("carries a typed refusal condition through normalization", async () => {
+    await expect(observeChangeRequestMergeAdmission(coordinates, port({
+      ...coordinates,
+      state: "refused",
+      condition: "not-mergeable",
+      detail: "The host reports conflicts.",
+    }))).resolves.toEqual({
+      ...coordinates,
+      state: "refused",
+      condition: "not-mergeable",
+      detail: "The host reports conflicts.",
+    });
+  });
+
+  it.each([
+    ["head-moved", "Publish the approved head"],
+    ["base-ref-mismatch", "Retarget the change request"],
+    ["not-mergeable", "resolve the conflicts the host reports"],
+  ] as const)("names the correction a %s refusal asks for", (condition, correction) => {
+    expect(hostAdmissionRefusalCorrection({
+      ...coordinates,
+      state: "refused",
+      condition,
+      detail: "Refused.",
+    })).toContain(correction);
+  });
+
+  it("names no correction for an untyped refusal or a pending observation", () => {
+    expect(hostAdmissionRefusalCorrection({ ...coordinates, state: "refused", detail: "Policy refusal." }))
+      .toBeNull();
+    expect(hostAdmissionRefusalCorrection({ ...coordinates, state: "unresolved", detail: "Still computing." }))
+      .toBeNull();
   });
 });

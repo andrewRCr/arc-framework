@@ -740,6 +740,43 @@ describe("Errand merge operation", () => {
     expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
   });
 
+  it.each([
+    [undefined, "Resolve the refusal, then retry the same approved request"],
+    ["head-moved", "or recompose over the head it now carries, then retry the same approved request"],
+    ["not-mergeable", "resolve the conflicts the host reports, then retry the same approved request"],
+  ] as const)("keys a host admission refusal's continuation on its %s condition", async (condition, correction) => {
+    const reapproval = " if the head is unchanged, or compose a new request and obtain fresh approval if the correction "
+      + "moved it";
+    const { value, state } = dependencies();
+    value.readFinalPlan = async () => ({
+      ...directPlan(),
+      observation: {
+        ...directPlan().observation,
+        admission: {
+          ...directPlan().observation.admission,
+          state: "refused",
+          detail: "The host refused the merge.",
+          ...(condition === undefined ? {} : { condition }),
+        },
+      },
+      plan: { state: "blocked", reason: "host-refused", detail: "The host refused the merge." },
+    });
+
+    await expect(mergeErrand(request, value)).resolves.toMatchObject({
+      state: "host-refused",
+      nextAction: "stop",
+      continuation: {
+        kind: "remedy",
+        remedy: {
+          text: expect.stringContaining(`${correction}${reapproval}`),
+          argv: ["arc", "errand", "merge", "example", "-", "--json"],
+          stdin: request,
+        },
+      },
+    });
+    expect(state).toEqual({ held: true, merged: false, mergeCalls: 0 });
+  });
+
   it("requires a bounded judgment before a reviewed-lane reconcile", async () => {
     const { value, state } = dependencies();
     value.readFinalPlan = async () => ({

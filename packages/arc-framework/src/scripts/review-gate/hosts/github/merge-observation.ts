@@ -5,6 +5,7 @@ import {
   type ChangeRequestMergeCoordinates,
   type ChangeRequestMergeObservation,
   type ChangeRequestMergeObservationPort,
+  type HostAdmissionRefusalCondition,
 } from "../../change-request.js";
 import type { HostedProcessRunner } from "../../hosted/gh-process.js";
 import { GitObjectIdSchema } from "../../core/gate-contract-v2-schema.js";
@@ -81,6 +82,15 @@ function unresolved(
   return ChangeRequestMergeObservationSchema.parse({ ...coordinates, state: "unresolved", detail });
 }
 
+/** A stable condition: another read of the same coordinates reports it again, so it is refused, not pending. */
+function refused(
+  coordinates: ChangeRequestMergeCoordinates,
+  condition: HostAdmissionRefusalCondition,
+  detail: string,
+): ChangeRequestMergeObservation {
+  return ChangeRequestMergeObservationSchema.parse({ ...coordinates, state: "refused", condition, detail });
+}
+
 function failureDetail(error: unknown): string {
   const value = error instanceof Error ? error.message : String(error);
   return value.replace(/\s+/gu, " ").trim().slice(0, 1_024) || "Host evidence was unavailable.";
@@ -105,12 +115,22 @@ export function createGhChangeRequestMergeObservationPort(
           if (signal.aborted) signal.throwIfAborted();
           return unresolved(coordinates, `GitHub pull-request evidence was unavailable: ${failureDetail(error)}`);
         }
-        if (
-          pull.number !== coordinates.changeRequest
-          || pull.baseRef !== coordinates.baseRef
-          || pull.head !== coordinates.head
-        ) {
-          return unresolved(coordinates, "GitHub pull-request coordinates moved during merge observation.");
+        if (pull.number !== coordinates.changeRequest) {
+          return unresolved(coordinates, "GitHub returned a different pull request than the one requested.");
+        }
+        if (pull.baseRef !== coordinates.baseRef) {
+          return refused(
+            coordinates,
+            "base-ref-mismatch",
+            `GitHub reports the pull request targets ${pull.baseRef}, not ${coordinates.baseRef}.`,
+          );
+        }
+        if (pull.head !== coordinates.head) {
+          return refused(
+            coordinates,
+            "head-moved",
+            `GitHub reports the pull request head is ${pull.head}, not ${coordinates.head}.`,
+          );
         }
         if (options?.baseContained !== true) {
           try {
@@ -147,7 +167,11 @@ export function createGhChangeRequestMergeObservationPort(
                 evidenceRef: `github:test-merge:${pull.mergeCommit}`,
               });
             }
-            return unresolved(coordinates, "GitHub test-merge parents did not match the requested coordinates.");
+            return unresolved(
+              coordinates,
+              "GitHub test-merge parents did not match the requested coordinates; GitHub may still be recomputing "
+                + "its test merge after a base or head movement.",
+            );
           } catch (error) {
             if (signal.aborted) signal.throwIfAborted();
             lastDetail = `GitHub test-merge evidence was unavailable: ${failureDetail(error)}`;
@@ -155,9 +179,10 @@ export function createGhChangeRequestMergeObservationPort(
           }
         }
         if (pull.mergeable === false) {
-          return unresolved(
+          return refused(
             coordinates,
-            "GitHub did not establish mergeability and no applicable strict-currentness policy was proved.",
+            "not-mergeable",
+            "GitHub reports the pull request cannot merge cleanly into its base.",
           );
         }
         lastDetail = "GitHub is still computing exact merge admission.";

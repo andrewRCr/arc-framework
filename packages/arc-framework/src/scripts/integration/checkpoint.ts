@@ -28,6 +28,7 @@ import {
 import { RequiredCheckStatusSchema } from "../review-gate/status.js";
 import {
   ChangeRequestMergeObservationSchema,
+  hostAdmissionRefusalCorrection,
   type ChangeRequestMergeObservation,
 } from "../review-gate/change-request.js";
 import {
@@ -633,6 +634,24 @@ export function checkpointRemedy(reason: CheckpointRemedyReason, workUnit: strin
 }
 
 /**
+ * Key a host refusal's remedy on its typed condition, so a stable condition names the correction it needs.
+ *
+ * @param workUnit - The refused work unit, interpolated into the checkpoint rerun.
+ * @param admission - The host admission observation that refused.
+ * @returns The condition's correction ahead of a checkpoint rerun, or the generic host-refusal remedy.
+ */
+export function checkpointHostRefusedRemedy(workUnit: string, admission: ChangeRequestMergeObservation): SpineRemedy {
+  const correction = hostAdmissionRefusalCorrection(admission);
+  return correction === null
+    ? checkpointRemedy("host-refused", workUnit)
+    : spineRemedy(
+        "Host admission must permit the exact change request and coordinates.",
+        `${correction}, then re-run the checkpoint`,
+        checkpointResumeArgv(workUnit),
+      );
+}
+
+/**
  * A checkpoint composition stopped because the branch and its base leave two equally good ancestors.
  *
  * Naming it apart from an ordinary composition failure is what lets the refusal ask for the merge. The
@@ -1227,7 +1246,9 @@ export async function checkpointIntegration(
       coordinates,
       remedy: movementPlan.reason === "base-unrelated"
         ? checkpointUnrelatedBaseRemedy(drift.baseOid)
-        : checkpointRemedy(movementPlan.reason, request.workUnit),
+        : movementPlan.reason === "host-refused"
+          ? checkpointHostRefusedRemedy(request.workUnit, observation.admission)
+          : checkpointRemedy(movementPlan.reason, request.workUnit),
     };
     if (movementPlan.reason === "host-pending" || movementPlan.reason === "host-refused") {
       return IntegrationCheckpointResultSchema.parse({
