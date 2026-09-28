@@ -346,7 +346,7 @@ cmd_close() {
   if ((OPEN_PRS == 1)); then
     while IFS= read -r number; do
       if [[ -n "$number" ]]; then
-        gh pr close "$number" --comment "The work unit's pull request merged; this review projection is closed." >&2 \
+        gh pr close "$number" --comment "This review projection is closed: its work unit merged or was abandoned." >&2 \
           || fail "cannot close #$number"
       fi
     done < <(gh pr list --state open --limit 500 --json number,headRefName \

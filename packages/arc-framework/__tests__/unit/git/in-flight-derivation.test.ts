@@ -55,6 +55,30 @@ describe("isEligibleInFlightBranch", () => {
       expect(result.snapshot.worktrees).toEqual({});
     }
   });
+
+  it.each(EXCLUDED_NAMESPACE_BRANCHES)("never fetches or discovers a live-only %s through expansion", async (branch) => {
+    const exec = makeExec({
+      refSnapshots: [{}, {}],
+      liveBranches: [branch],
+      metas: {
+        [`origin/${branch}:.arc/active/meta-example.md`]: metaContent({ branch }),
+      },
+    });
+
+    const result = await deriveInFlight({
+      exec,
+      localOnly: false,
+      expandLiveOnly: true,
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(vi.mocked(exec).mock.calls.filter(([, args]) => args[0] === "fetch")).toEqual([]);
+    expect(result.entries).toEqual([]);
+    expect(result.residue).toEqual([]);
+    expect(result.marks).toBeUndefined();
+    expect(result.snapshot.refs).toEqual({});
+  });
 });
 
 /** A meta-file body carrying the fields the derivation reads (Owner, Design, Cohort, Class, Priority, Depends On). */

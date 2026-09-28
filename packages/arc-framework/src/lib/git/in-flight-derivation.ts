@@ -802,7 +802,7 @@ async function expandLiveOnlyCandidates(input: {
   for (const [qualifiedRef, sha] of Object.entries(input.branchSet.liveRefs)) {
     const prefix = `${input.remote}/`;
     const branch = qualifiedRef.startsWith(prefix) ? qualifiedRef.slice(prefix.length) : qualifiedRef;
-    if (input.excludedBranches.has(branch)) continue;
+    if (isExcludedBranch(branch) || input.excludedBranches.has(branch)) continue;
     if (input.localRefs.remoteTracking[branch] === sha) continue;
     const ok = await fetchRefBounded({
       exec: input.exec,
