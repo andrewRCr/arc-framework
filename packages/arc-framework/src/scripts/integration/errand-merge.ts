@@ -238,9 +238,13 @@ function exactRetry(
   };
 }
 
-/** Name what clears a host refusal, keyed on its typed condition when the observation carries one. */
+/**
+ * Name what clears a host refusal, keyed on its typed condition when the observation carries one. A correction that
+ * moves the head leaves the approved request stale, so only an unchanged head retries it.
+ */
 function hostRefusalCorrection(admission: ChangeRequestMergeObservation): string {
-  return `${hostAdmissionRefusalCorrection(admission) ?? "Resolve the refusal"}, then retry the same approved request`;
+  return `${hostAdmissionRefusalCorrection(admission) ?? "Resolve the refusal"}, then retry the same approved request `
+    + "if the head is unchanged, or compose a new request and obtain fresh approval if the correction moved it";
 }
 
 function failureDetail(error: unknown): string {

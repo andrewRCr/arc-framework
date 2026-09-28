@@ -745,6 +745,8 @@ describe("Errand merge operation", () => {
     ["head-moved", "or recompose over the head it now carries, then retry the same approved request"],
     ["not-mergeable", "resolve the conflicts the host reports, then retry the same approved request"],
   ] as const)("keys a host admission refusal's continuation on its %s condition", async (condition, correction) => {
+    const reapproval = " if the head is unchanged, or compose a new request and obtain fresh approval if the correction "
+      + "moved it";
     const { value, state } = dependencies();
     value.readFinalPlan = async () => ({
       ...directPlan(),
@@ -766,7 +768,7 @@ describe("Errand merge operation", () => {
       continuation: {
         kind: "remedy",
         remedy: {
-          text: expect.stringContaining(correction),
+          text: expect.stringContaining(`${correction}${reapproval}`),
           argv: ["arc", "errand", "merge", "example", "-", "--json"],
           stdin: request,
         },
