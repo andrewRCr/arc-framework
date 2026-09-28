@@ -8,7 +8,11 @@ permissions: {}
 
 jobs:
   lane-attestation:
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    # Review projections (`review-projection/` heads) are stacked draft pull requests that never merge,
+    # so there is no lane to attest on them.
+    if: >-
+      ${{ github.event.pull_request.head.repo.full_name == github.repository
+      && !startsWith(github.event.pull_request.head.ref, 'review-projection/') }}
     permissions:
       contents: read
       pull-requests: read

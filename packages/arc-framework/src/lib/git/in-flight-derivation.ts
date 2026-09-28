@@ -319,7 +319,7 @@ export function isEligibleInFlightBranch(
   branch: string,
   options: { baseBranch?: string | undefined; errandBranches: ReadonlySet<string> },
 ): boolean {
-  return !isDeliveryBranch(branch)
+  return !isExcludedBranch(branch)
     && branch !== (options.baseBranch ?? DEFAULT_BASE_BRANCH)
     && !options.errandBranches.has(branch);
 }
@@ -689,9 +689,9 @@ async function resolveSuppliedBranchInputs(input: {
     resolveWorktreePathsByBranchResult(input.exec),
     readLocalInFlightRefSnapshot(input.exec, input.remote),
   ]);
-  const worktreePaths = filterDeliveryWorktrees(worktreeResult.paths);
-  const eligibleRefs = filterDeliveryRefs(refs.refs);
-  const branches = input.branches.filter((branch) => !isDeliveryBranch(branch));
+  const worktreePaths = filterExcludedWorktrees(worktreeResult.paths);
+  const eligibleRefs = filterExcludedRefs(refs.refs);
+  const branches = input.branches.filter((branch) => !isExcludedBranch(branch));
   const branchSet: InFlightBranchSet = {
     branches,
     refs: Object.fromEntries(branches.map((branch) => [`${input.remote}/${branch}`, ""])),
@@ -722,8 +722,8 @@ async function resolveAgreedInputs(input: {
 }): Promise<InputResolution> {
   const firstRefs = await readLocalInFlightRefSnapshot(input.exec, input.remote);
   const firstWorktree = await resolveWorktreePathsByBranchResult(input.exec);
-  const firstEligibleRefs = filterDeliveryRefs(firstRefs.refs);
-  const firstEligibleWorktrees = filterDeliveryWorktrees(firstWorktree.paths);
+  const firstEligibleRefs = filterExcludedRefs(firstRefs.refs);
+  const firstEligibleWorktrees = filterExcludedWorktrees(firstWorktree.paths);
   const localFirstBranchSet = firstRefs.ok ? await resolveInFlightBranchSetFromLocalRefs({
     exec: input.exec,
     refs: firstEligibleRefs,
@@ -744,8 +744,8 @@ async function resolveAgreedInputs(input: {
 
   const secondRefs = await readLocalInFlightRefSnapshot(input.exec, input.remote);
   const secondWorktree = await resolveWorktreePathsByBranchResult(input.exec);
-  const secondEligibleRefs = filterDeliveryRefs(secondRefs.refs);
-  const secondEligibleWorktrees = filterDeliveryWorktrees(secondWorktree.paths);
+  const secondEligibleRefs = filterExcludedRefs(secondRefs.refs);
+  const secondEligibleWorktrees = filterExcludedWorktrees(secondWorktree.paths);
   const secondBranchSet = withExpandedBranches(
     branchSetFromMembership({
       refs: secondEligibleRefs,
@@ -864,20 +864,26 @@ function branchSetFromMembership(input: {
   };
 }
 
-function filterDeliveryRefs(refs: LocalInFlightRefSnapshot): LocalInFlightRefSnapshot {
-  const eligible = ([branch]: readonly [string, string]): boolean => !isDeliveryBranch(branch);
+function filterExcludedRefs(refs: LocalInFlightRefSnapshot): LocalInFlightRefSnapshot {
+  const eligible = ([branch]: readonly [string, string]): boolean => !isExcludedBranch(branch);
   return {
     remoteTracking: Object.fromEntries(Object.entries(refs.remoteTracking).filter(eligible)),
     localHeads: Object.fromEntries(Object.entries(refs.localHeads).filter(eligible)),
   };
 }
 
-function filterDeliveryWorktrees(paths: ReadonlyMap<string, string>): Map<string, string> {
-  return new Map([...paths].filter(([branch]) => !isDeliveryBranch(branch)));
+function filterExcludedWorktrees(paths: ReadonlyMap<string, string>): Map<string, string> {
+  return new Map([...paths].filter(([branch]) => !isExcludedBranch(branch)));
 }
 
-function isDeliveryBranch(branch: string): boolean {
-  return branch.startsWith("delivery/");
+/**
+ * Branch namespaces outside the in-flight discovery universe: delivery members, which the delivery
+ * machinery owns, and stacked review projections, which carry no ARC state.
+ */
+const EXCLUDED_BRANCH_PREFIXES = ["delivery/", "review-projection/"] as const;
+
+function isExcludedBranch(branch: string): boolean {
+  return EXCLUDED_BRANCH_PREFIXES.some((prefix) => branch.startsWith(prefix));
 }
 
 function snapshotFor(

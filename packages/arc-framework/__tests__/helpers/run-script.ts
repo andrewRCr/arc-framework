@@ -27,6 +27,9 @@ export const SCRIPTS_DIR = resolve(
 /** Absolute path to the canonical code-surface classifier script. */
 export const CLASSIFY_SCRIPT = resolve(SCRIPTS_DIR, "classify-change.sh");
 
+/** Stacked review-projection builder for single-branch landings. */
+export const REVIEW_PROJECTION_SCRIPT = resolve(SCRIPTS_DIR, "review-projection.sh");
+
 /** Installed host-liveness comparator used by clearance publishers. */
 export const LIVE_PAIR_SCRIPT = resolve(
   SCRIPTS_DIR,

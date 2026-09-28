@@ -14,17 +14,21 @@ import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 const LIVE_REMOTE_TIP = "deadbeef".padEnd(40, "0");
 
+/** Branches in each namespace the in-flight universe excludes: delivery members and review projections. */
+const EXCLUDED_NAMESPACE_BRANCHES = ["delivery/example/first-member", "review-projection/example/1"] as const;
+
 describe("isEligibleInFlightBranch", () => {
-  it("excludes delivery presentation refs while preserving unrelated work-unit branches", () => {
+  it.each(EXCLUDED_NAMESPACE_BRANCHES)("excludes %s while preserving unrelated work-unit branches", (branch) => {
     const options = { baseBranch: "main", errandBranches: new Set<string>() };
-    expect(isEligibleInFlightBranch("delivery/example/first-member", options)).toBe(false);
+    expect(isEligibleInFlightBranch(branch, options)).toBe(false);
     expect(isEligibleInFlightBranch("feat/unrelated", options)).toBe(true);
   });
 
-  it("excludes checked-out delivery branches from observed and supplied in-flight inputs", async () => {
-    const branch = "delivery/example/first-member";
+  it.each(EXCLUDED_NAMESPACE_BRANCHES)("excludes checked-out %s from observed and supplied in-flight inputs", async (
+    branch,
+  ) => {
     const options = {
-      worktrees: [{ path: "/repo.delivery", branch }],
+      worktrees: [{ path: "/repo.excluded", branch }],
       metas: {
         [`${branch}:.arc/active/meta-example.md`]: metaContent({ branch }),
       },
