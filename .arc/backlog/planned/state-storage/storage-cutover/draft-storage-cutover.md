@@ -41,10 +41,12 @@
           compaction, and sync-status family, `handlers/user-sync.ts`, `handlers/push-recovery.ts`, and the notes
           portions of `commands/user/save-load.ts`, `handlers/user.ts`, `handlers/sync.ts`, and `lib/io-context.ts`.
           `lib/user-sync/` is mixed — these symbols survive and must not go with it: the cross-WU entry parser
-          (inbox state and reminders) and `resolveCurrentWuName`. The tail moves the Git failure-text predicates
-          (`isCasRejectionError`, `isRemoteUnavailableError`, `isNonFastForwardError`), which the Errand refs use,
-          to `lib/git/ref-tree.ts`. Deleting `handlers/user-sync.ts` also removes its registrations in
-          `command-input-registrations.ts` and `cli.ts`.
+          (inbox state, reminders, and `matchInboxEntryTitle`), the inbox writer and execution offers (Errand open
+          and link, the `user inbox` mutations, and session-init's inbox state), and `resolveCurrentWuName`. The
+          tail moves the Git failure-text predicates (`isCasRejectionError`, `isRemoteUnavailableError`,
+          `isNonFastForwardError`), which the Errand refs use, to `lib/git/ref-tree.ts`, and
+          `resolveGitCommonDir`, which nine surviving modules import, to `lib/git/exec.ts`. Deleting
+          `handlers/user-sync.ts` also removes its registrations in `command-input-registrations.ts` and `cli.ts`.
         - Branch-tree readers: `lib/status/project-view-ref.ts`, `git-retirement-authorization-context.ts`,
           `git-transition-record-enumeration.ts`, the ref-reading portions of `in-flight-derivation.ts`,
           `remote-ref-reader.ts`, `completed-index.ts` (`*FromRef`), and the session-init sweeps' base-archive reads,
