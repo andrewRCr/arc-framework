@@ -392,7 +392,7 @@ export const ReviewResolveEnvelopeSchema = z.discriminatedUnion("state", [
       scope: ReviewScopeModeSchema,
       consumedPass: z.literal(false),
       attemptedSources: z.array(ReviewAttemptSchema).readonly(),
-      reason: z.enum(["inactive", "no-source", "invocation-skip"]),
+      reason: z.enum(["inactive", "no-source", "invocation-skip", "phase-closed"]),
     }),
   }),
   z.strictObject({
@@ -680,6 +680,23 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
         reason: request.frontlineActive ? "no-source" : "inactive",
       },
     });
+  }
+  // Frontline is an opening phase that precedes the change request; once one is open it is never re-entered.
+  if (request.lane === "frontline" && !unresolvedFindings && request.target.pullRequest !== null) {
+    return resolveEnvelope({
+      state: "skipped",
+      nextAction: "none",
+      payload: {
+        lane: "frontline",
+        scope,
+        consumedPass: false,
+        attemptedSources: request.attempts,
+        reason: "phase-closed",
+      },
+    }, [{
+      code: "frontline-phase-closed",
+      message: "An open change request closes the opening frontline phase.",
+    }]);
   }
   if (request.lane === "standard"
     && (request.sources.length === 0 || request.standardReview.obligation === "exempt")) {
