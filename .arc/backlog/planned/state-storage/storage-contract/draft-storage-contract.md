@@ -1,23 +1,70 @@
-# Draft: ARC Backend (storage-substrate north star)
+# Draft: Storage Contract
 
-**Purpose:** The north-star target for ARC's storage substrate — canonical WU-artifact storage living **git-native
-but outside the project's code repo, materialized locally** — covering the git-only tiers (Local, Shared). The
-substrate is not a novel storage system: it is a second git repo plus a sync discipline, the most ordinary thing in
-git. The **Coordinated** tier (a self-hosted service or SaaS-composed coordination layer) is split out to
-`arc-coordination-service` (provisional) and constrains this design only through the service-optional invariant.
-This plan establishes the shape, audience fit, and forward-compat discipline; detailed design defers to a PRD.
+- **Origin:** [internal] — renamed from `arc-backend` at the `state-storage` re-cut (2026-09-28). It absorbs
+  `local-mode`, whose draft is `research-local-mode.md`, and inherits the integration-time record question from the
+  retired `meta-file-tracking-model`.
+- **Purpose:** Define the one storage contract through which every ARC reader and writer of operational and planning
+  state goes (ADR-035), and ship it over today's tracked layout. The subsystems then move onto the contract before
+  the ref backend exists, and the later backend flip changes nothing above it.
+- **Planning posture:** `Novel`, `P1`. This is the `state-storage` cohort's design core: `storage-seam` inherits
+  its consumer map, and `storage-ref-backend` and `storage-projection` implement its interface. Those two may
+  design alongside this work unit once the decisions they share are drafted here, and may implement once this
+  work unit's spec is approved.
 
-- **State:** Planned (promoted from provisional 2026-07-17 — it started provisional; it is definitely planned now)
-- **Created:** 2026-05-02
-- **Updated:** 2026-06-10 — sharpened to the **git-backing-store-materialized-locally** model (materialization A/B,
-  the one knob, concurrency-with-history, operational gotchas). 2026-07-02 — shared-inbox compose notes
-  (entry-granular ops, tombstones, per-entry version checks). **2026-07-17 (storage-substrate grooming)** — tier-4
-  split (`arc-coordination-service`); composed picture stated up front; scope model (user vs project);
-  placement-as-record; routine-operations walk-through; code-repo footprint policy; compatibility ledger; staging
-  section; both inbound-buffer items resolved into the body; research grounding
-  (`research-storage-landscape-2026-07.md`).
-- **Origin:** Surfaced during cross-machine planning discussion 2026-05-02; reframed 2026-06-10 as one
-  git-backing-store substrate scaled from single-user (Local) to shared (team), rather than a bespoke service.
+---
+
+## Storage Contract
+
+### What this work unit settles
+
+- **Ref layout and sharding** under `refs/arc/*`, with the target namespace as a backend parameter.
+- **Each shared surface's concurrency mechanism.** Concurrent sessions are the normal case: disjoint edits merge
+  without manual action, conflicts refuse with a typed remedy, and nothing is lost silently. The concurrency spike's
+  results are in the storage analysis § 11.4.
+- **The record model.** Readers go through each record family's parser (file-as-record); placement is a record, not
+  an address; locus derives from the checkout marker plus the store, with a primary marker allowed for `--here`.
+- **The projection's caller-visible behavior** — freshness, base stamps, conflicts, adopting new files — and the
+  projection's name. `storage-projection` builds it; the ignore strategy is already settled in ADR-035.
+- **The consumer map** (below).
+- **The core-or-deferred tag of every program item.** 1.0 ships the complete core for solo developers through
+  mid-size teams; larger scale is deferred and never precluded.
+- **The framework-core-from-package constraints** (`framework-core-from-package` runs after the cutover): the
+  projection takes more than one source — the store now, the package later — and supports read-only copies; the
+  ignore strategy works from a path list that `.arc/system/` paths can join; readers load core by its `.arc/` path,
+  never by whether it is tracked; and the tracked line sits at project-owned machinery, not all of `system/`.
+- **Whether an integration-time record rides `storage.track_design_docs`** (ADR-035 item 4).
+- **A guard for unsynced work lost outside ARC's teardown.** `git worktree lock` on each spawned worktree makes a
+  plain `git worktree remove` refuse without `-f -f`; `git clean -x` has no hook (storage analysis § 6.9).
+- **The local-only backend and the everything-untracked option,** absorbed from `local-mode`, for repositories
+  where ARC files cannot be committed.
+- **The in-repo layout as the contract's first implementation,** which this work unit ships.
+
+### The consumer map
+
+For each subsystem — lifecycle and in-flight, delivery, review and evidence, locus and session-init, status and
+roadmap, and user sync — name its readers and writers, the contract operations each uses, and what each
+storage-shaped mechanism becomes. The known rewrites are in-flight derivation, the lifecycle executor's write path
+and `arc start` placement, the archive index, ROADMAP rendering, the notes-related session-init probes, and locus
+derivation.
+
+The map is `storage-seam`'s design core. That work unit decomposes against it when this one's planning closes, and
+its members inherit it rather than redesigning their subsystem. Name the session-init envelope as a consumer, and
+keep the locus and session-init reads narrow: through the contract, without reshaping the prose conditionals the
+session-init agenda (`composable-workflows`) will replace.
+
+### Register first
+
+Draft-design opens by completing the storage-coupling register in `cohort-state-storage.md`. The re-cut seeded its
+known rows; the sweep still owed runs across code, rules, strategies, workflows, drafts, `WORKING-MEMORY`, and
+`USER-INBOX`, looking for mechanisms shaped by tracked or notes-backed state rather than for state by size.
+
+### Reading inputs
+
+- ADR-035 (`adr-035-keep-operational-state-in-repository-refs.md`) and its analysis
+  (`analysis-storage-substrate-direction.md`), including the spike results in § 11.
+- `strategy-storage-evolution.md`.
+- § Prior Design below, `research-local-mode.md`, and `research-storage-landscape-2026-07.md`. All three predate
+  ADR-035, which governs wherever they disagree.
 
 ---
 
@@ -25,6 +72,24 @@ This plan establishes the shape, audience fit, and forward-compat discipline; de
 
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Run the deferred GitHub Enterprise Server host test before the ref layout is final**
+
+- _Routed from:_ ADR-035's acceptance (2026-09-28). The default backend held on GitHub.com, GitLab.com and
+  self-managed GitLab CE, Azure DevOps, Gitea, and Forgejo; GitHub Enterprise Server, on the must-hold host floor,
+  was not tested, and the record was accepted on GitHub.com's evidence.
+- _Concern:_ a rejection on GitHub Enterprise Server reopens ADR-035.
+- _Approach:_ repeat the host spike there — push and fetch of `refs/arc/*`, protection and ruleset interaction, and
+  ordinary-member permissions (storage analysis § 11.3, § 11.7) — before the ref layout is final, so a failure can
+  still route that host to another backend.
+
+### `[ ]` **Decide whether an integration-time record rides `storage.track_design_docs`**
+
+- _Routed from:_ `meta-file-tracking-model`, retired at the `state-storage` re-cut (2026-09-28). Its notes-built
+  options dissolved with the storage direction; this question survives.
+- _Concern:_ that draft's option β composed a tracked archive document at integration from the meta's governance
+  fields plus its Release Notes Entry and Completion Notes, as the durable audit anchor a reviewer sees in the pull
+  request. ADR-035 item 4 leaves open whether such a record rides the one export knob or does not exist at all.
 
 ### `[ ]` **Define Candidate subjects across code-repository and materialized storage**
 
@@ -108,7 +173,85 @@ This plan establishes the shape, audience fit, and forward-compat discipline; de
 - _Captured during:_ `session-locus-model` Phase 7.G design settlement, 2026-07-25 — surfaced by the
   storage-evolution self-check on a storage-touching design decision.
 
+### `[ ]` **Carry delivery's record-port requirements into the shared storage abstraction**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-03); captured during
+  `delivery-plan-record` task generation.
+- _Concern:_ delivery declares adapter-neutral requirements for artifact reads/writes, version-checked reconcile,
+  named failures, assurance-chain export/import, and reverse lookup from repository plus head/ref to plan, member,
+  and owning work unit.
+- _Fold-in:_ make these conformance requirements of the Local-owned shared storage abstraction and coordinate their
+  hosted realization with `arc-backend`. In particular, no adapter may retire until its assurance chains are
+  carried forward because no live query can reconstruct them.
+
+### `[ ]` **Strengthen project identity to remain stable across clones and remote changes**
+
+- _Routed from:_ two `USER-INBOX § Work Unit` captures, housekeep drain (2026-08-03); captured during
+  `delivery-plan-record` planning.
+- _Concern:_ delivery binds project identity into immutable plan identity, so the current remote-URL-first fallback
+  is too weak: forks, mirrors, moved remotes, machines, and users can disagree while referring to one project.
+- _Fold-in:_ settle whether the backing-store key and durable project identity are one value with the stronger
+  contract or distinct values. Delivery consumes a conforming value and remains buildable without minting one.
+
+### `[ ]` **Reconsider append-only branch history after notes retirement**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during decomposition-program
+  grooming.
+- _Concern:_ the prohibition on rebasing pushed WU branches is mechanically load-bearing while session state is
+  stored in SHA-keyed git notes. Once this WU retires that substrate, the rule becomes a history-policy choice.
+- _Approach:_ permit safe rewrite as an explicit user/team choice at minimum, reconsider whether pre-integration
+  linearization should ever be preferred, and retain supersession detection as the compatibility net. Coordinate
+  with `chunked-delivery`'s settled rebase freedom for stateless review refs.
+
+### `[ ]` **Make non-git substitutability an acceptance criterion of the storage abstraction**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: local-mode`), housekeep drain (2026-07-18); captured during
+  the architecture-direction discussion (2026-07-16).
+- _Concern:_ the git-notes lesson generalized: git may be the storage/replication _engine_, never the _schema_. The
+  notes failure was a git mechanism (SHA-keyed attachment, ancestor-walk) becoming the semantic model.
+- _Fold-in:_ when Local's PRD scopes the shared storage abstraction (`strategy-storage-evolution.md` § Holistic
+  Design), record non-git substitutability as an explicit acceptance criterion — could the contract be implemented
+  on a non-git backend (e.g. Postgres) without touching anything above it? A design oracle, not a planned feature.
+  The entry-granular slug-keyed record requirement (arc-backend 2026-07-02 amendment) already points this way; this
+  pins it. Also a candidate principle for `strategy-storage-evolution.md` itself.
+
+### `[ ]` **Review coupling-audit finding: team mode key**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: local-mode`), housekeep drain (2026-07-18); captured
+  during `coupling-blast-radius-audit` Task 6.2, 2026-07-18.
+- _Concern:_ the pending team-mode key change is an abstract configuration assumption spanning 37 files.
+- _Approach:_ at grooming, settle the access and compatibility seam before scheduling the key rename.
+- _Packet:_ `packet-dbd2103ffa3c4df953f89138`; content digest
+  `19fc5ffc96617197821f46c35951b913f47505460d875747925d9896bbc2d042`.
+- _Evidence:_ `team-mode-key`; `scan-result.json#class-team-mode-key`.
+
 ---
+
+## Prior Design — `arc-backend` (pre-ADR-035 reading input)
+
+> _The `arc-backend` draft as it stood before ADR-035, kept as reading input rather than decisions. Everything from
+> here to the end of the file is that draft; ADR-035 governs wherever they disagree._
+
+**Former title:** ARC Backend (storage-substrate north star)
+
+**Purpose:** The north-star target for ARC's storage substrate — canonical WU-artifact storage living **git-native
+but outside the project's code repo, materialized locally** — covering the git-only tiers (Local, Shared). The
+substrate is not a novel storage system: it is a second git repo plus a sync discipline, the most ordinary thing in
+git. The **Coordinated** tier (a self-hosted service or SaaS-composed coordination layer) is split out to
+`arc-coordination-service` (provisional) and constrains this design only through the service-optional invariant.
+This plan establishes the shape, audience fit, and forward-compat discipline; detailed design defers to a PRD.
+
+- **State:** Planned (promoted from provisional 2026-07-17 — it started provisional; it is definitely planned now)
+- **Created:** 2026-05-02
+- **Updated:** 2026-06-10 — sharpened to the **git-backing-store-materialized-locally** model (materialization A/B,
+  the one knob, concurrency-with-history, operational gotchas). 2026-07-02 — shared-inbox compose notes
+  (entry-granular ops, tombstones, per-entry version checks). **2026-07-17 (storage-substrate grooming)** — tier-4
+  split (`arc-coordination-service`); composed picture stated up front; scope model (user vs project);
+  placement-as-record; routine-operations walk-through; code-repo footprint policy; compatibility ledger; staging
+  section; both inbound-buffer items resolved into the body; research grounding
+  (`research-storage-landscape-2026-07.md`).
+- **Origin:** Surfaced during cross-machine planning discussion 2026-05-02; reframed 2026-06-10 as one
+  git-backing-store substrate scaled from single-user (Local) to shared (team), rather than a bespoke service.
 
 ## The Composed Picture
 
@@ -446,7 +589,7 @@ per-record authorization, SaaS-composition variant.
 ## Upstream Dependencies
 
 - **`operational-state-docs`** (ADR-022 engine) — the record/projection layer everything renders through.
-- **Local mode (`draft-local-mode.md`)** — tier-2; the Shared tier is mostly "Local, shared"; co-design the
+- **Local mode (`research-local-mode.md`)** — tier-2; the Shared tier is mostly "Local, shared"; co-design the
   storage abstraction at Local's PRD.
 - **`prd-user-sync-ux.md`** — the sync state machine the store's sync layer extends.
 - **`cli-substrate-adoption`** — the Zod/execa base and (routed capture) schema kernel the verb surface builds on.

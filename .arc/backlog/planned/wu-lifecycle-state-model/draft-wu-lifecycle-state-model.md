@@ -159,7 +159,7 @@
   (attest → drift → re-attest → sign-off) — a per-artifact meta **boolean is the wrong primitive** (it flattens
   the event history the model needs, and hardcodes tracked-in-repo, killing the `storage.track_design_docs` privacy
   knob). It maps to the backend event-log model (the same shape as BI-6's slug-keyed / entry-granular inbox).
-  Sanity-check against `strategy-storage-evolution.md` + `draft-arc-backend.md` (the standing WORKING-MEMORY
+  Sanity-check against `strategy-storage-evolution.md` + `draft-storage-contract.md` (the standing WORKING-MEMORY
   directive for storage-sensitive planning) — the backend substrate could dissolve backlog-planning concurrency by
   moving it off branch-merge onto entry-granular records.
 - _FP relationship (feeds evidence; does NOT build this):_ FP Phase 2.E ships the agentic `--start` vet against a

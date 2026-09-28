@@ -86,7 +86,7 @@
   entries suppressing the age nudge.
 - _Fold-in:_ amend the evaluation-model sentence at OSD's next planning iteration: shared inbox records are
   sweep-based **and age-nudged**, with `_Awaiting:_` as the nudge suppressor. Also carry forward the
-  concurrency shape from `draft-arc-backend.md` / `draft-shared-inbox-model.md`: shared-mutable inbox records
+  concurrency shape from `draft-storage-contract.md` / `draft-shared-inbox-model.md`: shared-mutable inbox records
   are entry-granular (slug-keyed add / remove / re-home), never whole-document state.
 
 ### `[ ]` **Compaction seed as a read-only projection over managed records (sibling to `STATUS.*`)**
@@ -462,7 +462,7 @@
   `cross-machine-sync-coherence` as the notes-synced transport-hardening dependency. Post-decomposition
   (2026-06-25) that dependency is `partial-push-marker`'s (the marker / partial-push owner). This WU owns the
   ADR-022 alignment edits, so the re-point rides the propagation set rather than a standalone errand.
-- _Verified at drain:_ the capture's second premise is already stale — `draft-arc-backend.md` no longer
+- _Verified at drain:_ the capture's second premise is already stale — `draft-storage-contract.md` no longer
   references the retired slug, so the live remainder is ADR-022 only.
 - _Adjacent (flagged, not routed here):_ ADR-027 (line ~134) and several backlog drafts
   (`state-ref-write-safety`, `naming-conventions`, `finalize-parallelism`, `external-coord-probe`, the

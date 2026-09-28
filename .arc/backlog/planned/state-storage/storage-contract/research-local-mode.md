@@ -1,9 +1,13 @@
-# Draft: Local Mode
+# Research: Local Mode (absorbed draft)
+
+> _The `local-mode` work unit's draft, absorbed into `storage-contract` at the `state-storage` re-cut (2026-09-28)
+> and kept as reading input. Its pending items moved to `draft-storage-contract.md`. It predates ADR-035, which
+> governs wherever they disagree._
 
 **Purpose:** Enable ARC in repositories where the developer doesn't control the tracked space — with `.arc/`
 living untracked in the working tree, backed by a private per-project git store. Local mode is **tier-2 of the
 git-backing-store substrate** (`strategy-storage-evolution.md` § The Storage Model): the same
-canonical-store-materialized-locally shape the ARC backend (`draft-arc-backend.md`) hosts and shares at tier-3.
+canonical-store-materialized-locally shape the ARC backend (`draft-storage-contract.md`) hosts and shares at tier-3.
 Local landing first is structurally important — the backend is mostly "Local, hosted."
 
 - **State:** Draft — rough. Consolidated 2026-07-03 from `draft-arc-modes.md` (this WU's prior identity); the
@@ -23,68 +27,9 @@ assumptions — the [Revalidation register](#revalidation-register) below tracks
 `strategy-storage-evolution.md` § Self-Check and scope the **shared storage-abstraction contract** into the PRD
 (the backend PRD later validates and refines the same abstraction). **Permanence note (2026-07-17 grooming):**
 Local's machinery is not a stepping stone the Shared tier subsumes — under the scope model
-(`draft-arc-backend.md` § Scope Model), **user scope runs Local-style per-user private stores permanently at
+(`draft-storage-contract.md` § Scope Model), **user scope runs Local-style per-user private stores permanently at
 every tier**; only project scope promotes to the shared store. Local's store mechanics are a lasting component of
 the substrate, which raises the stakes on getting them right here.
-
----
-
-## Inbound Buffer — Pending Integration
-
-> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
-> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
-
-### `[ ]` **Carry delivery's record-port requirements into the shared storage abstraction**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-03); captured during
-  `delivery-plan-record` task generation.
-- _Concern:_ delivery declares adapter-neutral requirements for artifact reads/writes, version-checked reconcile,
-  named failures, assurance-chain export/import, and reverse lookup from repository plus head/ref to plan, member,
-  and owning work unit.
-- _Fold-in:_ make these conformance requirements of the Local-owned shared storage abstraction and coordinate their
-  hosted realization with `arc-backend`. In particular, no adapter may retire until its assurance chains are
-  carried forward because no live query can reconstruct them.
-
-### `[ ]` **Strengthen project identity to remain stable across clones and remote changes**
-
-- _Routed from:_ two `USER-INBOX § Work Unit` captures, housekeep drain (2026-08-03); captured during
-  `delivery-plan-record` planning.
-- _Concern:_ delivery binds project identity into immutable plan identity, so the current remote-URL-first fallback
-  is too weak: forks, mirrors, moved remotes, machines, and users can disagree while referring to one project.
-- _Fold-in:_ settle whether the backing-store key and durable project identity are one value with the stronger
-  contract or distinct values. Delivery consumes a conforming value and remains buildable without minting one.
-
-### `[ ]` **Reconsider append-only branch history after notes retirement**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during decomposition-program
-  grooming.
-- _Concern:_ the prohibition on rebasing pushed WU branches is mechanically load-bearing while session state is
-  stored in SHA-keyed git notes. Once this WU retires that substrate, the rule becomes a history-policy choice.
-- _Approach:_ permit safe rewrite as an explicit user/team choice at minimum, reconsider whether pre-integration
-  linearization should ever be preferred, and retain supersession detection as the compatibility net. Coordinate
-  with `chunked-delivery`'s settled rebase freedom for stateless review refs.
-
-### `[ ]` **Make non-git substitutability an acceptance criterion of the storage abstraction**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: local-mode`), housekeep drain (2026-07-18); captured during
-  the architecture-direction discussion (2026-07-16).
-- _Concern:_ the git-notes lesson generalized: git may be the storage/replication _engine_, never the _schema_. The
-  notes failure was a git mechanism (SHA-keyed attachment, ancestor-walk) becoming the semantic model.
-- _Fold-in:_ when Local's PRD scopes the shared storage abstraction (`strategy-storage-evolution.md` § Holistic
-  Design), record non-git substitutability as an explicit acceptance criterion — could the contract be implemented
-  on a non-git backend (e.g. Postgres) without touching anything above it? A design oracle, not a planned feature.
-  The entry-granular slug-keyed record requirement (arc-backend 2026-07-02 amendment) already points this way; this
-  pins it. Also a candidate principle for `strategy-storage-evolution.md` itself.
-
-### `[ ]` **Review coupling-audit finding: team mode key**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: local-mode`), housekeep drain (2026-07-18); captured
-  during `coupling-blast-radius-audit` Task 6.2, 2026-07-18.
-- _Concern:_ the pending team-mode key change is an abstract configuration assumption spanning 37 files.
-- _Approach:_ at grooming, settle the access and compatibility seam before scheduling the key rename.
-- _Packet:_ `packet-dbd2103ffa3c4df953f89138`; content digest
-  `19fc5ffc96617197821f46c35951b913f47505460d875747925d9896bbc2d042`.
-- _Evidence:_ `team-mode-key`; `scan-result.json#class-team-mode-key`.
 
 ---
 
@@ -96,7 +41,7 @@ sync-state refs, and partial-push markers are deleted; a one-time import moves e
 family repoints at the store (same verbs, store transport — § Command family). The sync state machine,
 version-checked writes, and failure taxonomy carry over — they are substrate-independent investments. Stop-loss
 rule in force until migration: no new notes-specific machinery beyond keep-the-lights-on. Destination per the
-scope model (`draft-arc-backend.md` § Scope Model): the **per-user private store** — user state never enters a
+scope model (`draft-storage-contract.md` § Scope Model): the **per-user private store** — user state never enters a
 shared project store at any tier, which is strictly more private than notes riding the shared origin repo today.
 
 ---
@@ -137,7 +82,7 @@ and the target share the same parts but **invert authority**:
 Consequences for the carried design, worked through the sections below:
 
 - **Snapshot-at-handoff dies as the write model.** Batch whole-tree snapshots over a session-stale read are
-  exactly the anti-pattern `draft-arc-backend.md` Gotcha 6 names once the store is shared. The _firing points_
+  exactly the anti-pattern `draft-storage-contract.md` Gotcha 6 names once the store is shared. The _firing points_
   survive (handoff remains the canonical moment state must be durable); the _mechanism_ becomes record writes
   through the materialization layer.
 - **The non-bare-store rationale must be re-derived.** Non-bare was chosen because `git add -A` needs a working

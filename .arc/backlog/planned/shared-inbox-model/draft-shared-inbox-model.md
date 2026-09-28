@@ -280,7 +280,7 @@ writes ride the entry-level all-owner gate (R22); foreign-owned overlap → coor
   coordination point); outside the sweep, foreign-entry writes surface the R22 gate.
 - **Backend lift.** Entry-granular ops map 1:1 onto the arc-backend event log (append-plus-tombstone), and
   per-entry version-checked writes replace the serialization convention at the shared tier. Compose notes
-  recorded in `draft-arc-backend.md` (2026-07-02).
+  recorded in `draft-storage-contract.md` (2026-07-02).
 
 ## Workflow shape (fork resolved)
 
@@ -326,7 +326,7 @@ on (it now does). The visible consequence — entries rotting — is the trigger
   `removeInboxEntry` as a paired I/O surface, `_Awaiting:_` codification. **Seam correction owed:** its buffer's
   `_Awaiting:_` entry records the shared inbox as "sweep-based and nudge-free"; this model adds the staleness
   nudge — OSD consumes the corrected assumption at its next iteration. The entry-granular record shape is
-  load-bearing for the backend lift (recorded in `draft-arc-backend.md`).
+  load-bearing for the backend lift (recorded in `draft-storage-contract.md`).
 - **`inbound-routing-method`** — receives the disposition rubric (coupling + horizon) as a buffer entry (routed
   2026-07-02); coordinate the disposition → homing → integration family boundary, and the
   discovery-at-WU-start placement.
