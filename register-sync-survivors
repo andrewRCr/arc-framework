@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "register-sync-survivors",
+  "claimId": "7eb3135a56000e8eab92ca79e94410cb",
+  "createdAt": "2026-09-28T21:03:46.433Z",
+  "updatedAt": "2026-09-28T21:03:46.433Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Name every lib/user-sync/ survivor in the storage register's notes-specific sync row, align the cutover draft's deletion bullet, and record the Owner's session-init agenda sequencing decision in the cohort's Cross-cohort block",
+  "branch": "chore/register-sync-survivors",
+  "origin": "inbox",
+  "originEntry": "Name every `lib/user-sync/` survivor in the storage register's notes-specific sync row",
+  "originEntrySourceDigest": "sha256:4db44e69c88d231c7f85b9df5e607aafd4ad57282e7e93057ecf6a55879e0896",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
