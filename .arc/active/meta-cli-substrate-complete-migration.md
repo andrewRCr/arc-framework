@@ -9,11 +9,11 @@
   `cli-git-executor`, `cli-command-inputs`
 
 - **Origin:** [internal]
-- **Design:** `draft-cli-substrate-complete-migration.md`
+- **Design:** `spec-cli-substrate-complete-migration.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]

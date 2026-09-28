@@ -70,6 +70,12 @@ The cohort is complete when all seven members ship, their shared contracts agree
 edges point at their delivering members, and `cli-substrate-complete-migration` proves that no cohort-scoped
 first-party importer, transitional shim, or parallel reusable test helper remains.
 
+_Amended 2026-09-28 — Code the storage program deletes or rewrites is outside that proof: a first-party importer,
+shim, or test helper in code carved to the `state-storage` cohort does not count against it, and that cohort's
+storage-coupling register is the authority for each carved item's owner and fate. — Planning
+`cli-substrate-complete-migration` against ADR-035, whose program replaces that code after cutover, so migrating it
+here would be discarded._
+
 ## Members
 
 ### `cli-schema-kernel`
