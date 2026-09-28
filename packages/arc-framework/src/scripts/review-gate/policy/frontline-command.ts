@@ -38,8 +38,8 @@ import {
   type FrontlineSemanticRecord,
 } from "./frontline-semantic.js";
 import {
+  frontlinePhaseClosed,
   recordSingletonFrontlineInitialSkip,
-  singletonFrontlinePhaseClosed,
 } from "./frontline-phase.js";
 import type { FrontlineFollowUpAdvice } from "./frontline-follow-up.js";
 import type {
@@ -248,7 +248,7 @@ async function admitNewFrontlineOperation(
   });
 }
 
-async function readSingletonFrontlinePhase(input: {
+async function readOpeningFrontlinePhase(input: {
   parsed: FrontlineCommandRequest;
   lineage: LaneSubjectLineage;
   owner: Awaited<ReturnType<typeof readLaneProgressOwner>>;
@@ -270,23 +270,28 @@ async function readSingletonFrontlinePhase(input: {
   });
   const unresolvedFindings = [owner, ...inherited.ancestorOwners.map(({ owner: prior }) => prior)]
     .some((progress) => progress?.attempts.some((attempt) => attempt.outcome === "findings") === true);
-  if (lineage.kind !== "candidate") {
-    return {
-      inheritedCompletedPasses: 0,
-      closed: false,
-      unresolvedFindings,
-    };
-  }
-  const closed = await singletonFrontlinePhaseClosed(dependencies.operationStore, {
+  const phaseLineages = openingPhaseLineages(lineage, ancestors);
+  const closed = phaseLineages.length > 0 && await frontlinePhaseClosed(dependencies.operationStore, {
     repositoryId: parsed.target.repositoryId,
-    candidateIds: [lineage.candidateId, ...ancestors.map(({ candidateId }) => candidateId)],
+    lineages: phaseLineages,
     readSettledFindingsAdvice: (producerId) => dependencies.readSettledFindingsAdvice(producerId),
   });
   return {
-    inheritedCompletedPasses: inherited.inheritedCompletedPasses,
+    inheritedCompletedPasses: lineage.kind === "candidate" ? inherited.inheritedCompletedPasses : 0,
     closed,
     unresolvedFindings,
   };
+}
+
+/** Name the lineages whose history can close a subject's opening phase: a Candidate's chain, or an Errand claim. */
+function openingPhaseLineages(
+  lineage: LaneSubjectLineage,
+  ancestors: readonly CandidateSupersessionAncestor[],
+): LaneSubjectLineage[] {
+  if (lineage.kind === "candidate") {
+    return [lineage, ...ancestors.map(({ candidateId }) => ({ kind: "candidate" as const, candidateId }))];
+  }
+  return lineage.kind === "head-bound" && lineage.vehicleKind === "errand" ? [lineage] : [];
 }
 
 async function resolveFrontlineSelection(
@@ -347,7 +352,7 @@ async function resolveFrontlineCommandWithinLock(
   if (pendingAdmission !== undefined) {
     return resumePendingFrontlineAdmission(pendingAdmission);
   }
-  const phase = await readSingletonFrontlinePhase({ parsed, lineage, owner, dependencies });
+  const phase = await readOpeningFrontlinePhase({ parsed, lineage, owner, dependencies });
   if (phase.unresolvedFindings) {
     throw new Error("unresolved frontline findings must be settled before another frontline resolution");
   }
@@ -358,7 +363,7 @@ async function resolveFrontlineCommandWithinLock(
       ...base,
       diagnostics: [...diagnostics, {
         code: "frontline-phase-closed",
-        message: "The singleton frontline phase is already closed for this Candidate lineage.",
+        message: "The opening frontline phase is already closed for this review subject.",
       }],
       state: "skipped",
       nextAction: "none",

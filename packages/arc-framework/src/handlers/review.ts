@@ -2525,7 +2525,7 @@ function defaultFrontlineResolveDependencies(): ReviewFrontlineResolveHandlerDep
           return LaneSubjectLineageSchema.parse({
             kind: "head-bound",
             vehicleKind: "errand",
-            vehicleIdentity: live.context.errand.identity,
+            vehicleIdentity: live.context.errand.claimId,
             headSha: target.headSha,
           });
         },

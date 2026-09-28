@@ -71,7 +71,7 @@ import {
   readCandidateInheritedLaneProgress,
   readLaneResponsePerformance,
 } from "../lane-progress.js";
-import { singletonFrontlinePhaseClosed } from "./frontline-phase.js";
+import { frontlinePhaseClosed } from "./frontline-phase.js";
 import { projectFrontlineFollowUpAdvice } from "./frontline-follow-up.js";
 import { composeWorkUnitReviewAssurance } from "./assurance.js";
 import { resolveConfiguredLanePolicy } from "./lane-policy-config.js";
@@ -768,9 +768,10 @@ export function createPrePublicationCompositionDependencies(input: {
     },
     readSingletonFrontlinePhaseClosed: async (candidateId, ancestors) => {
       const repository = await repositoryId();
-      const candidateIds = [candidateId, ...ancestors.map(({ candidateId: id }) => id)];
-      return singletonFrontlinePhaseClosed(store, {
-        repositoryId: repository, candidateIds,
+      const lineages = [candidateId, ...ancestors.map(({ candidateId: id }) => id)]
+        .map((id) => ({ kind: "candidate" as const, candidateId: id }));
+      return frontlinePhaseClosed(store, {
+        repositoryId: repository, lineages,
         readSettledFindingsAdvice: async (producerId) => {
           const result = await resultReader.readResult(producerId);
           if (result.kind !== "frontline") {

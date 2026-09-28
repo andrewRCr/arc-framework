@@ -13,6 +13,7 @@ const target = {
   pullRequest: 42,
   headSha: "a".repeat(40),
 };
+const prePrTarget = { ...target, pullRequest: null };
 
 const standardReview = {
   obligation: "required" as const,
@@ -260,7 +261,7 @@ describe("resolveReviewPolicy", () => {
   it("keeps the frontline carrier whole-target-only", () => {
     expect(resolveReviewPolicy({
       schemaVersion: 1,
-      target,
+      target: prePrTarget,
       lane: "frontline",
       frontlineActive: true,
       standardReview,
@@ -268,7 +269,7 @@ describe("resolveReviewPolicy", () => {
       completedPasses: 0,
       maxPasses: 2,
       attempts: [],
-      scopeSelection: { mode: "chunked", target },
+      scopeSelection: { mode: "chunked", target: prePrTarget },
     })).toMatchObject({
       state: "unavailable",
       nextAction: "stop",
@@ -354,7 +355,7 @@ describe("resolveReviewPolicy", () => {
   it("selects exactly one source for each lane independently", () => {
     const frontline = resolveReviewPolicy({
       schemaVersion: 1,
-      target,
+      target: prePrTarget,
       lane: "frontline",
       standardReview,
       sources: ["coderabbit-cli"],
@@ -1141,10 +1142,35 @@ describe("resolveReviewPolicy", () => {
     });
   });
 
+  it("closes the opening frontline phase once a change request is open", () => {
+    expect(resolveReviewPolicy({
+      schemaVersion: 1,
+      target,
+      lane: "frontline",
+      standardReview,
+      sources: ["coderabbit-cli"],
+      completedPasses: 0,
+      maxPasses: 2,
+      attempts: [],
+      frontlineActive: true,
+    })).toMatchObject({
+      state: "skipped",
+      nextAction: "none",
+      diagnostics: [expect.objectContaining({ code: "frontline-phase-closed" })],
+      payload: {
+        lane: "frontline",
+        scope: "whole-target",
+        attemptedSources: [],
+        reason: "phase-closed",
+      },
+    });
+  });
+
   it.each([
     { frontlineActive: false, sources: ["coderabbit-cli"], invocation: undefined },
     { frontlineActive: true, sources: ["coderabbit-cli"], invocation: { mode: "skip" as const } },
-  ])("retains an admitted frontline findings response across activation changes %j", ({
+    { frontlineActive: true, sources: ["coderabbit-cli"], invocation: undefined },
+  ])("retains an admitted frontline findings response across activation changes and an open change request %j", ({
     frontlineActive, sources, invocation,
   }) => {
     expect(resolveReviewPolicy({

@@ -231,8 +231,9 @@ remote base all name the same exact head. Any tracked change continues through t
 
    - `skipped | no-op | pass-complete / none` — complete the lane at this boundary.
    - `awaiting-change-request / open-change-request` — retain progress and continue to PR creation.
-   - `ready / run-frontline` — invoke `arc review frontline resolve -`, then invoke `arc review frontline run -`
-     with the ready resolution and the target's `{ kind, baseRef, diffBaseSha, headSha }` projection.
+   - `ready / run-frontline` — invoke `arc review frontline resolve -`. Its `skipped / none` completes the lane; from
+     its `ready / run-frontline`, invoke `arc review frontline run -` with the ready resolution and the target's
+     `{ kind, baseRef, diffBaseSha, headSha }` projection.
    - `ready / local-prepare` — invoke `arc review local prepare -`; submit evaluator-owned result content through
      `arc review local attest -`, with runtime-owned bindings injected from the immutable operation.
    - `findings / respond` — run [`review-triage`][review-triage], include the effective policy as
