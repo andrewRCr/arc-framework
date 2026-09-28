@@ -3,7 +3,7 @@
   "slug": "verified-fix-reentry",
   "claimId": "9dd22343c936818b5eb08658cfa8f4a4",
   "createdAt": "2026-09-28T19:31:36.400Z",
-  "updatedAt": "2026-09-28T19:31:36.400Z",
+  "updatedAt": "2026-09-28T19:57:33.196Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Name the verifiedFix respond re-entry after an approved fix and type the hosted settle refusal when no fix response is recorded",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Point an approved hosted fix at its `verifiedFix` re-entry, and type the settlement refusal",
   "originEntrySourceDigest": "sha256:21bbac453acc94d443321dcfb869bb9e55c9950234700894d44acc0c59de8169",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/verified-fix-reentry",
+    "headSha": "5d65a9c551bcd186c2d70587e0f14ea91fffe8e2"
+  }
 }
