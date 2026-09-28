@@ -11,6 +11,9 @@ the foreign-write backstop (`merge-safety-mechanism`), the single-owner-per-WU m
 and the awaiting-review lifecycle seam (`async-merge-lifecycle`). Promote to Accepted when this work unit
 integrates.
 
+Its one hard invariant, append-only until integration, gives way to [ADR-035]'s configurable history policy in each
+repository once that repository's cutover retires Git notes, and holds until then (noted 2026-09-28).
+
 ## Context
 
 The worktree substrate for parallel work has shipped — per-WU worktrees, session-init worktree-awareness,
@@ -167,3 +170,4 @@ internal to this ADR, invisible to the shipping doctrine.
 [ADR-022]: adr-022-managed-operational-state-documents.md
 [ADR-023]: adr-023-class-model-scaled-ceremony.md
 [ADR-024]: adr-024-cohort-decomposition-model.md
+[ADR-035]: adr-035-keep-operational-state-in-repository-refs.md

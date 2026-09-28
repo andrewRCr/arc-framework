@@ -64,6 +64,10 @@ Strategies marked **(arc-in-git)** are only present when arc-in-git Project Mana
     - ALWAYS load when a sync question outruns the always-loaded rule — the file inventory and dependency map,
       template-counterpart handling, what each safeguard actually checks; `DEV-RULES.PROJECT` § Package-Project
       Sync covers the routine edit-flow and never-copy rules.
+- `project/strategy-review-projection.md` - **Transitional.**
+    - ALWAYS load before projecting a work unit's review chunks as stacked draft pull requests, or when a
+      `review-projection/` branch or pull request needs publishing or closing; the script's header carries only
+      its command syntax.
 - `project/strategy-self-hosting-delivery-recovery.md`
     - ALWAYS load when this repository's self-delivery changes the delivery machinery executing its own bound stack
       and terminal ancestry adoption refuses `top-moved`; never apply its anchored composition to an ordinary ARC
@@ -74,9 +78,10 @@ Strategies marked **(arc-in-git)** are only present when arc-in-git Project Mana
 - `project/strategy-user-notes-concurrency.md`
     - Consult when: adding or modifying any mutator of shared user-notes state — canonical notes ref,
       identity-global disk, `.sync-state.json`, partial-push markers, sync-state refs, temp refs, or notes locks
-- `project/strategy-storage-evolution.md` - **In-development.**
-    - Consult when: authoring or iterating plans / PRDs that affect WU-artifact storage, multi-user / multi-machine
-      concerns, external-tool integration boundaries, WU/branch coupling, or new configuration axes
+- `project/strategy-storage-evolution.md` - **In-development.** Direction decided in ADR-035
+    - Consult when: authoring or iterating plans / PRDs that affect where operational or planning state lives, how it
+      syncs or is read, concurrent writers, external-tool integration boundaries, WU/branch coupling or history
+      assumptions, or new configuration axes
 - `project/strategy-knowledge-evolution.md` - **In-development.**
     - Consult when: authoring or iterating plans / PRDs that place or relocate agent-facing guidance content, grow
       always-loaded context, add trigger / index / description surfaces, name new doc families, or add loading /

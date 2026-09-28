@@ -666,6 +666,45 @@ describe("integration merge", () => {
   });
 
   it.each([
+    [undefined, "Resolve the reported host refusal, then re-checkpoint"],
+    ["not-mergeable", "resolve the conflicts the host reports, then re-checkpoint"],
+    ["base-ref-mismatch", "Retarget the change request to the approved base branch, then re-checkpoint"],
+  ] as const)("keys a host admission refusal's remedy on its %s condition", async (condition, correction) => {
+    const { value, state } = dependencies();
+    value.readFinalPlan = async (target) => {
+      const direct = directFinalPlan(target);
+      return {
+        ...direct,
+        observation: {
+          ...direct.observation,
+          admission: {
+            state: "refused",
+            repository: target.repository,
+            changeRequest: target.pullRequest,
+            baseRef: target.baseRef,
+            base: direct.baseOid,
+            head: target.headSha,
+            detail: "The host refused this exact request.",
+            ...(condition === undefined ? {} : { condition }),
+          },
+        },
+        plan: { state: "blocked", reason: "host-refused", detail: "The host refused this exact request." },
+      };
+    };
+
+    await expect(mergeIntegration(request, value)).resolves.toMatchObject({
+      state: "blocked",
+      nextAction: "stop",
+      reason: "host-refused",
+      remedy: {
+        text: expect.stringContaining(correction),
+        argv: ["arc", "integrate", "checkpoint", "example"],
+      },
+    });
+    expect(state).toEqual({ held: true, merged: false });
+  });
+
+  it.each([
     ["lifecycle-moved", (deps: IntegrationMergeDependencies) => {
       deps.readStatus = async () => ({
         actualHead: oid("c"),

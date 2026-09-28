@@ -179,7 +179,7 @@ cohort-completion pull, unblock leverage (downstream fan-out). All pure computat
 - **Storage-evolution self-check (run 2026-07-02):** composes. Records storage-agnostic and entry-granular
   slug-keyed; the project vector is low-churn authored shared state (small-structured-records class, serialized
   base-branch writes interim, version-checked writes at the shared tier); `VECTOR.USER` stays notes-backed
-  per-user state. No tracked-`.arc/` assumptions baked in; compose note recorded in `draft-arc-backend.md`.
+  per-user state. No tracked-`.arc/` assumptions baked in; compose note recorded in `draft-storage-contract.md`.
 
 ## Research grounding (2026-07-02, three-facet external pass)
 

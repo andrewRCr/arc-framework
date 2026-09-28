@@ -458,6 +458,42 @@ describe("integration checkpoint", () => {
       });
   });
 
+  it.each([
+    [undefined, "Resolve the reported host policy refusal before retrying", ["arc", "review", "status"]],
+    [
+      "not-mergeable",
+      "resolve the conflicts the host reports, then re-run the checkpoint",
+      ["arc", "integrate", "checkpoint", "example"],
+    ],
+    [
+      "head-moved",
+      "Publish the approved head to the change request, or recompose over the head it now carries",
+      ["arc", "integrate", "checkpoint", "example"],
+    ],
+  ] as const)("keys a host refusal's remedy on its %s condition", async (condition, correction, argv) => {
+    const deps = dependencies();
+    deps.readMovementObservation = async () => ({
+      feasibility: { state: "clean", base: oid("b"), head: oid("c") },
+      admission: {
+        state: "refused",
+        repository: "owner/repo",
+        changeRequest: 42,
+        baseRef: "main",
+        base: oid("b"),
+        head: oid("c"),
+        detail: "The host refused the exact coordinates.",
+        ...(condition === undefined ? {} : { condition }),
+      },
+    });
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        reason: "host-refused",
+        payload: { detail: "The host refused the exact coordinates." },
+        remedy: { text: expect.stringContaining(correction), argv },
+      });
+  });
+
   it("routes classified terminal residual drift through the guarded base reconcile", async () => {
     const deps = dependencies();
     const events: string[] = [];

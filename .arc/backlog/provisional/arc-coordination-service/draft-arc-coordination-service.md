@@ -1,6 +1,6 @@
 # Draft: ARC Coordination Service (Coordinated tier)
 
-- **Origin:** [internal] — split out of `draft-arc-backend.md` at the storage-substrate grooming (2026-07-17), so
+- **Origin:** [internal] — split out of `draft-storage-contract.md` at the storage-substrate grooming (2026-07-17), so
   the git-only substrate (tiers 1–3) could promote to planned while the service tier stays a someday-target.
 - **Cohort:** [none]
 - **Purpose:** The **Coordinated** tier of the storage substrate: a coordination layer fronting the same git

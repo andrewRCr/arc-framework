@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 
+import { FIX_NOT_PERFORMED_INTERACTION_TEXT } from "../core/fix-not-performed-envelope.js";
 import { ReviewFindingIdentitySchema } from "../core/finding-records.js";
 import { HostedTargetSchema, type HostedTarget } from "./request.js";
 
@@ -123,6 +124,12 @@ export const HostedSettleResultSchema = z.union([
     state: z.enum(["missing-thread", "missing-comment", "actor-mismatch", "stale-target", "ambiguous"]),
     nextAction: z.literal("stop"),
   }),
+  z.strictObject({
+    ...HostedSettleResultBaseShape,
+    state: z.literal("fix-not-performed"),
+    nextAction: z.literal("complete-verified-fix"),
+    interactionText: z.string().trim().min(1),
+  }),
 ]);
 export type HostedSettleResult = z.infer<typeof HostedSettleResultSchema>;
 
@@ -141,6 +148,21 @@ function resultBase(request: HostedSettleEnvelope): HostedSettleBase {
     response: request.response,
     disposition: request.disposition,
     threadId: request.finding.threadId,
+  };
+}
+
+/**
+ * Refuse a fix settlement, before any host mutation, whose approved fix has no recorded verified response.
+ *
+ * @param request - The validated settlement request.
+ * @returns The typed refusal naming the verified-fix response as its remedy.
+ */
+export function hostedFixNotPerformedResult(request: HostedSettleEnvelope): HostedSettleResult {
+  return {
+    ...resultBase(request),
+    state: "fix-not-performed",
+    nextAction: "complete-verified-fix",
+    interactionText: FIX_NOT_PERFORMED_INTERACTION_TEXT,
   };
 }
 

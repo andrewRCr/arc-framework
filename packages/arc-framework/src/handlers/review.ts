@@ -303,6 +303,7 @@ import { createRepositoryReviewResultReader } from
 import {
   HostedSettleEnvelopeSchema,
   HostedSettleResultSchema,
+  hostedFixNotPerformedResult,
   settleHostedFinding,
   type HostedSettlementPort,
 } from "../scripts/review-gate/hosted/settle.js";
@@ -3742,21 +3743,30 @@ export interface ReviewHostedSettleHandlerDependencies extends HostedReviewHandl
   settle(input: unknown): Promise<unknown>;
 }
 
-/** Guard the provider mutation with the response performance committed for this exact approved set. */
-export function assertHostedFixSettlementPerformance(input: {
+/**
+ * Decide, before any provider mutation, whether this exact approved set's fix has a recorded verified response.
+ *
+ * No record for the set means its verified-fix response was never submitted, which the caller can complete. A
+ * record for the set that names another attempt or head contradicts the request and is refused.
+ *
+ * @param input - The approved attempt, the requested fix head, and the attempt's recorded response performance.
+ * @returns `true` when the recorded response matches the request; `false` when none is recorded for the set.
+ */
+export function hostedFixSettlementPerformed(input: {
   attemptId: string;
   originatingHeadSha: string;
   dispositionSetId: string;
   producedHeadSha: string | undefined;
   responsePerformance: LaneResponsePerformance | undefined;
-}): void {
+}): boolean {
   const performance = input.responsePerformance;
-  if (performance?.producerId !== input.attemptId
-    || performance.dispositionSetId !== input.dispositionSetId
+  if (performance?.dispositionSetId !== input.dispositionSetId) return false;
+  if (performance.producerId !== input.attemptId
     || performance.originatingHeadSha !== input.originatingHeadSha
     || performance.producedHeadSha !== input.producedHeadSha) {
     throw new Error("Hosted fix settlement requires matching durable response-performance evidence.");
   }
+  return true;
 }
 
 function defaultHostedSettleDependencies(): ReviewHostedSettleHandlerDependencies {
@@ -3819,14 +3829,14 @@ function defaultHostedSettleDependencies(): ReviewHostedSettleHandlerDependencie
             || disposition?.disposition !== request.disposition) {
             throw new Error("Hosted settlement does not match its approved disposition.");
           }
-          if (disposition.disposition === "fix") {
-            assertHostedFixSettlementPerformance({
-              attemptId: attempt.attemptId,
-              originatingHeadSha: attempt.headSha,
-              dispositionSetId: request.response.dispositionSetId,
-              producedHeadSha: request.fixTarget?.headSha,
-              responsePerformance: attempt.responsePerformance,
-            });
+          if (disposition.disposition === "fix" && !hostedFixSettlementPerformed({
+            attemptId: attempt.attemptId,
+            originatingHeadSha: attempt.headSha,
+            dispositionSetId: request.response.dispositionSetId,
+            producedHeadSha: request.fixTarget?.headSha,
+            responsePerformance: attempt.responsePerformance,
+          })) {
+            return hostedFixNotPerformedResult(request);
           }
           const result = await settleHostedFinding(request, { port });
           if (result.state === "settled" || result.state === "already-settled") {

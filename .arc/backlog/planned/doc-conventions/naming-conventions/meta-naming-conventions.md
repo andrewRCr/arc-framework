@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** `doc-conventions`
-- **Depends On:** `work-routing-discipline`
+- **Depends On:** `work-routing-discipline`, `storage-cutover`
 
 - **Origin:** [internal]
 - **Design:** `draft-naming-conventions.md`

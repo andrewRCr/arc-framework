@@ -63,10 +63,38 @@ non-overlap carried over from `arc-view`), and artifact viewing (`arc-view` prop
 
 ## Continuity
 
-- **Readiness:** stub-shaped; provisional pending `arc-view` v1 evidence. Open at grooming: verb naming, card
-  field set and layout, watch-panel layout detail, debounce interval.
+- **Readiness:** stub-shaped; planned at the `state-storage` re-cut (2026-09-28) as one of the storage program's
+  follow-ons, with no edge on it: the card reads records through the oracle, so the store lands underneath it.
+  `arc-view` has shipped. Open at grooming: verb naming, card field set and layout, watch-panel layout detail,
+  debounce interval.
 - **Sequencing:** after `arc-view` v1 ships and the record keystones (`operational-state-docs`,
   `wu-lifecycle-state-model`) are at least underway — the card gets sharply better with them, and v1-with-proxies
   should be weighed against simply waiting.
+
+---
+
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration at this work unit's first planning iteration. Integrate — or_
+> _consciously reject — each one._
+
+### `[ ]` **Shape the status HUD's general and per-worktree views, and its line against the rendered status files**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, drained at the `state-storage` re-cut (2026-09-28).
+- _Observation:_ The Owner's need (2026-09-25): a HUD-like overview, kept open in a pinned terminal tab and updating
+  live, useful both to editor users, who do not get it from files, and to those who never open them; basic first,
+  with seams toward a lightweight TUI and standalone commands. It resolves into two views, with design still to do:
+  a general ARC view tied to no work unit or Errand, and a separate view that follows one worktree's context ("for
+  this WU or Errand, where are we at?"), which can also be pinned in that worktree. The draft carries the card, the
+  render-only watch panel and TUI non-foreclosure, but is work-unit-only and has no general view. An Errand has
+  little state to report; its originating inbox record is the useful part to show.
+- _Approach:_ Settle at grooming where the file versions end and the HUD begins, and which needs each serves:
+  `STATUS.USER` and `STATUS.PROJECT` (rendered files; `roadmap-tooling` keeps the render standard and writers
+  after the storage program shrinks it), `VECTOR.USER` and `VECTOR.PROJECT` (authored direction,
+  `goal-aware-direction`), and today's `arc status` surfaces. File-as-record (decided 2026-09-25) makes the family
+  parsers the record layer, so the draft's "consume record queries only" should read that way. Under the storage
+  program the live views can re-render when the store's ref tips move; the history spike read every work unit's
+  meta at its tip in one 17 ms batch, so they need no cache for that.
+- _Captured during:_ the storage program's history-growth spike and design discussion.
 
 ---

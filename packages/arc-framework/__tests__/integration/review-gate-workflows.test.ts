@@ -1295,6 +1295,8 @@ describe("trusted review-gate workflows", () => {
     expect(parsed.on).not.toHaveProperty("pull_request");
     expect(parsed.permissions).toEqual({});
     expect(stamp.if).toContain("head.repo.full_name == github.repository");
+    // Review projections are stacked draft pull requests that never merge, so they spend no attestation run.
+    expect(stamp.if).toContain("!startsWith(github.event.pull_request.head.ref, 'review-projection/')");
     expect(stamp.permissions).toEqual({
       contents: "read",
       "pull-requests": "read",

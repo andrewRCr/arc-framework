@@ -70,6 +70,7 @@ function hostedInvalidation(result: HostedSettleResult): SettlementInvalidationR
   if (result.state === "missing-thread" || result.state === "missing-comment") return "missing";
   if (result.state === "stale-target") return "stale";
   if (result.state === "actor-mismatch") return "actor-mismatched";
+  if (result.state === "fix-not-performed") return "fix-not-performed";
   return "ambiguous";
 }
 

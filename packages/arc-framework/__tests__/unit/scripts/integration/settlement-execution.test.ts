@@ -237,6 +237,29 @@ describe("integration settlement execution", () => {
     )).resolves.toMatchObject({ state: "invalidated", reason, completedActions: 0 });
   });
 
+  it("maps a hosted unperformed fix to the fix-not-performed invalidation", async () => {
+    const action = hostedAction("d");
+    const dependencies: SettlementExecutionDependencies = {
+      settleHosted: async (request) => ({
+        schemaVersion: 1,
+        mode: "review-hosted-settle",
+        response: request.response,
+        disposition: action.request.disposition,
+        threadId: action.request.finding.threadId,
+        state: "fix-not-performed",
+        nextAction: "complete-verified-fix",
+        interactionText: "Complete the approved fix, then retry.",
+      }),
+      settleReviewResponse: async () => ({ state: "settled" }),
+      confirmCandidateResponse: () => Promise.reject(new Error("unexpected Candidate response confirmation")),
+    };
+
+    await expect(executeSettlementPlan(
+      composeCanonicalSettlementPlan([action]),
+      dependencies,
+    )).resolves.toMatchObject({ state: "invalidated", reason: "fix-not-performed", completedActions: 0 });
+  });
+
   it("hands the review-response executor the head its approved fixes settled at", async () => {
     const action = reviewResponseAction();
     const seen: unknown[] = [];

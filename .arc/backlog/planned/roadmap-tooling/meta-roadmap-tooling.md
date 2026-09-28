@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
-- **Depends On:** `project-state-integrity`
+- **Depends On:** `project-state-integrity`, `storage-seam`
 
 - **Origin:** [internal]
 - **Design:** `draft-roadmap-tooling.md`

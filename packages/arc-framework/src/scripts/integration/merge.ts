@@ -10,6 +10,10 @@ import {
   RequiredCheckSchema,
   type RequiredChecksObservationResult,
 } from "../review-gate/checks-await.js";
+import {
+  hostAdmissionRefusalCorrection,
+  type ChangeRequestMergeObservation,
+} from "../review-gate/change-request.js";
 import type {
   MergeMethodResolveResult,
   MergeMethodStackPosition,
@@ -270,6 +274,24 @@ export function mergeRemedy(
     );
   }
   return MERGE_REMEDIES[reason](workUnit);
+}
+
+/**
+ * Key a host admission refusal's remedy on its typed condition, so a stable condition names its correction.
+ *
+ * @param workUnit - The refused work unit, interpolated into the re-checkpoint command.
+ * @param admission - The host admission observation that refused.
+ * @returns The condition's correction ahead of a re-checkpoint, or the generic host-refusal remedy.
+ */
+function hostAdmissionRefusedRemedy(workUnit: string, admission: ChangeRequestMergeObservation): SpineRemedy {
+  const correction = hostAdmissionRefusalCorrection(admission);
+  return correction === null
+    ? mergeRemedy("host-refused", workUnit)
+    : spineRemedy(
+        "The host must accept the exact approved-head merge under its configured policy.",
+        `${correction}, then re-checkpoint`,
+        checkpointResumeArgv(workUnit),
+      );
 }
 
 const ResultBaseShape = {
@@ -819,7 +841,7 @@ export async function mergeIntegration(
             observedTarget: final.target,
             observedBaseOid: final.baseOid,
           },
-          remedy: mergeRemedy("host-refused", request.workUnit),
+          remedy: hostAdmissionRefusedRemedy(request.workUnit, final.observation.admission),
           payload: {
             target: final.target,
             baseOid: final.baseOid,
