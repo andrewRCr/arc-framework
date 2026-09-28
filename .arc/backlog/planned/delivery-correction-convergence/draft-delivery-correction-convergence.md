@@ -10,62 +10,41 @@
 
 ## Inbound Buffer — Pending Integration
 
-### `[ ]` **Give a singleton a reachable remedy when its own record writes stale the publication boundary**
+### `[ ]` **Re-scope correction convergence to record-only effects; correction reachability moved out**
 
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
+- _Routed from:_ `USER-INBOX § Work Unit`, drained at the `state-storage` re-cut (2026-09-28).
 
-- `WU_Target: delivery-correction-convergence`
+- _Held:_ apply this with the storage re-scope at the next planning iteration. Keep the three correction-reachability
+  entries in this draft until `delivery-rebuild-continuity`'s spec, held at Planning on its plan branch, lands; the
+  singleton publication-boundary entry moved to `storage-seam`, not `singleton-integration-continuity`, which the re-cut
+  dissolved.
 
-- _Observation:_ This draft already names the mechanism for a stacked delivery — "persisting either `review-required`
-  or record-only `covered` applicability moves the terminal head and immediately reopens applicability over the record
-  effect itself, creating a self-invalidating loop even though the base did not move". The same loop fires on an
-  **ordinary singleton with no delivery plan**, and there it has no exit. Observed live: a criterion-driven reviewable
-  change landed after `arc publish`; the checkpoint refused `candidate-publication-stale`
-  (`checkpoint-composition.ts:1201-1209` compares the boundary's `candidateSubjectDigest` against the recognized
-  target's subject digest); and the offered `resume-pre-publication` remedy requires an active meta that the archive
-  sweep had already removed. The sibling arm built for a shipped work unit, `refresh-shipped-delivery`, is
-  delivery-only and requires a `delivery-status-required` locus that a singleton never holds.
+- _Observation:_ A 2026-09-22 source triage (against `main` at `1e198d444`) split this draft's items in two. Three
+  decide whether a stacked member correction can run at all, in either stack shape, and every stacked delivery so far
+  crossed them by hand. `delivery-rebuild-continuity` takes them, Owner-approved, because it already changes the
+  correction controller they sit in:
+    - the review-fix continuation stopping at a top that advanced append-only — `position` refuses
+      `review-fix-routing-required` on any terminal authoring movement and continue maps it to
+      `review-fix-position-unavailable` ("Keep delivery review-fix continuation reachable across a moved terminal
+      top"). The fix reads the landed prefix internally and leaves public `position`'s refusal as it stands, so that
+      section's pinned probe in `delivery-position.test.ts` stays here (below);
+    - lifecycle normalization in the terminal carry proof (the first paragraph of "Honor correction proof and
+      supersession contracts during rematerialization");
+    - the first correction's acknowledgement requiring `delivery-status-required` while publication leaves
+      `publication-pending` (that section's first bullet).
 
-- _The sharp form:_ the ceremony's own bookkeeping commit — the one recording the Owner's `covered` applicability
-  selection — is what invalidated the boundary the checkpoint needed. Every remedy for that state writes another
-  record.
+- _Scope that stays:_ record-only effects that reopen evidence or add ceremony without blocking — the applicability
+  self-invalidating loop and the stale-target replay (that section's second and third bullets), the record-only terminal
+  rebind's fictitious review-fix task (with its pinned e2e probe), what public `position` reports after a record-only
+  terminal advance (with its pinned probe "resumes the bound chain at a terminal top that advanced by an append-only
+  commit"), staged pre-terminal status, and the hygiene captures (unresolvable terminal ancestry, `resolveSoleMergeBase`
+  diagnostics, single-sourced remedy kinds, the native decline window, rebind fixture coverage). The singleton
+  publication-boundary entry routes to `singleton-integration-continuity` in its own capture.
 
-- _Why this draft rather than a new one:_ the mechanism is identical and this work unit already owns public boundary
-  renewal and machine-owned applicability effects. The design's own consolidate-by-mechanism rule directs one owner
-  per mechanism rather than one per boundary. What is new is the singleton arm, not the failure.
+- _Approach:_ at drain, remove the moved content (leaving a cross-reference to `delivery-rebuild-continuity`),
+  rewrite the Purpose around record-only convergence, and refresh `RELEASE-GATES.md`'s description of this unit.
 
-- _Approach:_ carry the singleton case into the same convergence path — either an arm that renews a publication
-  boundary for a work unit already swept to `completed/`, or a rule that machine-owned record-only effects do not
-  restale the boundary they were written to satisfy.
-
-- _Evidence:_ `concurrent-integration-characterization` PR #629, merged at `7ca98e1c9` under explicit Owner
-  authorization because no typed route to a `ready` checkpoint existed. Base unmoved at `cbf075da7` throughout;
-  Candidate `sha256:4b669fca…`, subject advanced `f78db4bf…` → `4cdee44f…`.
-
-- _Failed workflow-only slice:_ PR #634 tried invoking the final checkpoint before the archive sweep. Source
-  verification proved that route cannot work: after the completion commit but before its push, local and public
-  heads differ and the checkpoint returns `unsafe-reconcile`; after a push but before `with-integration` archival,
-  lifecycle state is still incomplete and the publication read is never reached. The PR was withdrawn with a
-  zero-file diff. Do not reintroduce an early invocation or reinterpret either refusal as clearance.
-
-- _Forward-compatibility:_ recovery authority must bind typed Candidate and lifecycle records rather than whether a
-  Markdown projection currently lives under `active/` or `completed/`. Coordinate the durable continuation with
-  `operational-state-docs`, which owns storage-agnostic lifecycle access and integration-resume derivation; DCC still
-  owns the convergence behavior itself.
-
-- _Sequencing:_ `RELEASE-GATES.md` places this work unit third and says "promote earlier only if an active correction
-  hits this exact blocker". An active integration hit it on 2026-09-15 and had to merge outside the checkpoint, so the
-  promotion trigger this map wrote for itself is now satisfied. Weigh that against
-  `delivery-post-landing-conflict-recovery` holding the first slot.
-
-- _Not `delivery-post-landing-conflict-recovery`:_ considered and rejected on its own text. Its trigger is a landed
-  delivery member whose retained suffix, terminal binding, or base-history shape leaves the exact-head comparison
-  unsatisfiable — none of which a singleton has — and its boundary excludes "unrelated prepublication authoring and
-  review-fix convergence", which is the half this failure lives in. The echo is real but narrow: its purpose warns
-  against letting an Owner authorization become a general escape contract, which is how this landing was made. That
-  is the shape of the escape, not the mechanism that forced it.
-
-- _Captured during:_ `concurrent-integration-characterization` integration, 2026-09-15.
+- _Captured during:_ `delivery-rebuild-continuity` create-spec Gate 1, scope re-cut, 2026-09-22.
 
 ### `[ ]` **Converge record-only terminal rebind without a fictitious review-fix task**
 

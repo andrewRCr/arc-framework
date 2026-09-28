@@ -587,6 +587,29 @@
   as `arc inbox add` paired with remove. Settle verb surface (add / remove / list), composition with
   `arc user save` / `load`, and gate shape (interlock vs emitted proposal).
 
+### `[ ]` **Make execute-bound Errand offers respect typed work-unit dependencies**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, drained at the `state-storage` re-cut (2026-09-28).
+
+- _Observation:_ `nextOffer` selects the first execute-bound `USER-INBOX` entry from file order without consulting
+  dependency state. It therefore offered the paused `batch-compaction-seed-candidate-reads` Errand even though its
+  required `review-signal-convergence` work unit remains active and unshipped, causing a pointless open/leave cycle.
+
+- _Approach:_ model typed work-unit dependency edges in the managed user-surface record and reuse the canonical,
+  storage-agnostic WU lifecycle query when projecting the next eligible execute-bound offer. Preserve file order
+  among eligible entries, treat missing targets as unsatisfied, and cover the blocked-first/eligible-later case plus
+  automatic eligibility after the dependency ships.
+
+- _Boundary:_ automated edges initially target work units only. Closed Errands currently leave no durable completion
+  record, so Errand-to-Errand edges cannot distinguish completed from nonexistent safely. Ecosystem and other
+  external predicates remain `_Awaiting:_` judgment pointers with `_Hold: true`, not machine-guessed dependencies.
+
+- _Forward compatibility:_ do not extend the interim Markdown parser as a second authority. Add the field to the
+  slug-keyed `USER-INBOX` record grammar owned by `user-surface-records`; keep queue selection behind the record/query
+  boundary so the current in-repo lifecycle index can later move to the materialized git backing store unchanged.
+
+- _Captured during:_ the execute-bound Errand sequence after `keep-approved-errand-merges-waiting`, 2026-09-22.
+
 ---
 
 ## Re-scope — the records engine

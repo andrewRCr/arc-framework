@@ -468,6 +468,129 @@ checks — move off Git-history and pull-request-diff reads of state as well (§
   If full projection retirement remains deferred, weigh dropping or read-time deriving the stamp as a focused
   interim correction; that already-recorded option would dissolve this failure class.
 
+### `[ ]` **Retire a work unit's internal Candidate records when it archives**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, drained at the `state-storage` re-cut (2026-09-28); review and evidence
+  partition.
+
+- _Observation:_ `.arc/system/.internal/candidates/` carries 16 tracked files for 8 work units, and every one of
+  those work units is archived — `evidence-applicability`'s record sits in the working tree while its artifacts
+  live in `.arc/completed/2026-q3/61_evidence-applicability/`. Archival relocates artifacts by `git mv` and leaves
+  both the Candidate record and its `.boundary.json` behind. There is no deletion path in source at all:
+  `candidate-record-store.ts` exports a path resolver, three readers, and `writeCandidateRecord`, and
+  `archive-work-unit.md` never mentions the namespace.
+
+- _Approach:_ Decide when retirement fires and whether it lands inside the archive commit; whether the
+  `.boundary.json` follows the same rule; and what still needs the record afterwards — `subject-meta.ts:164`
+  resolves it live, while `candidate-response-confirmation.ts:107` reads it out of git history and so survives
+  deletion. Clearing the 16 existing files is the atomic half, but it rides the mechanism rather than preceding it,
+  because a backfill alone re-accumulates.
+
+- _Scope:_ Checked for an existing owner and found none — `graduation-cleanup` covers planning commit-history noise
+  at spec graduation; `operational-state-docs` covers `user/{identity}/.internal/` and markdown-projected managed
+  documents rather than code-owned JSON records; `cli-substrate-complete-migration` touches legacy record shapes
+  rather than their lifecycle. Route or create at the drain rather than assuming a new stub.
+
+- _Observation:_ this already invalidates evidence held elsewhere — `draft-cli-substrate-complete-migration.md`
+  records that all seven candidate records parse canonically, and there are now eight.
+
+- _Captured during:_ `delivery-rebuild-continuity` draft-design, checking Candidate-record storage for the
+  adversarial pass's blocker, 2026-09-21.
+
+### `[ ]` **Give a singleton a reachable remedy when its own record writes stale the publication boundary**
+
+- _Re-cut:_ moved from `delivery-correction-convergence` at the `state-storage` re-cut (2026-09-28), by the `USER-INBOX`
+  capture "Take the singleton record-write stale-boundary arm from correction convergence"; review and evidence
+  partition. It is one entry condition of the wedge the reading input below inherits ("Residual after errand 1 lands"):
+  a boundary stale for a reason convergence does not satisfy lands a shipped work unit on `resume-pre-publication` with
+  no continuation. PR #657 and `8b606fe20` now carry a boundary that holds an Owner-accepted terminus; the no-terminus
+  case remains. Deduplicate against that residual, with no new scope.
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: delivery-correction-convergence`), housekeep drain
+  (2026-09-16).
+
+- _Observation:_ `delivery-correction-convergence`'s draft names the mechanism for a stacked delivery — "persisting
+  either `review-required` or record-only `covered` applicability moves the terminal head and immediately reopens
+  applicability over the record effect itself, creating a self-invalidating loop even though the base did not move". The
+  same loop fires on an **ordinary singleton with no delivery plan**, and there it has no exit. Observed live: a
+  criterion-driven reviewable change landed after `arc publish`; the checkpoint refused `candidate-publication-stale`
+  (`checkpoint-composition.ts:1201-1209` compares the boundary's `candidateSubjectDigest` against the recognized
+  target's subject digest); and the offered `resume-pre-publication` remedy requires an active meta that the archive
+  sweep had already removed. The sibling arm built for a shipped work unit, `refresh-shipped-delivery`, is delivery-only
+  and requires a `delivery-status-required` locus that a singleton never holds.
+
+- _The sharp form:_ the ceremony's own bookkeeping commit — the one recording the Owner's `covered` applicability
+  selection — is what invalidated the boundary the checkpoint needed. Every remedy for that state writes another
+  record.
+
+- _Why `delivery-correction-convergence` held it before the re-cut:_ the mechanism is identical and that work unit owns
+  public boundary renewal and machine-owned applicability effects. Its design's own consolidate-by-mechanism rule
+  directs one owner per mechanism rather than one per boundary. What is new is the singleton arm, not the failure.
+
+- _Approach:_ carry the singleton case into the same convergence path — either an arm that renews a publication
+  boundary for a work unit already swept to `completed/`, or a rule that machine-owned record-only effects do not
+  restale the boundary they were written to satisfy.
+
+- _Evidence:_ `concurrent-integration-characterization` PR #629, merged at `7ca98e1c9` under explicit Owner
+  authorization because no typed route to a `ready` checkpoint existed. Base unmoved at `cbf075da7` throughout;
+  Candidate `sha256:4b669fca…`, subject advanced `f78db4bf…` → `4cdee44f…`.
+
+- _Failed workflow-only slice:_ PR #634 tried invoking the final checkpoint before the archive sweep. Source
+  verification proved that route cannot work: after the completion commit but before its push, local and public
+  heads differ and the checkpoint returns `unsafe-reconcile`; after a push but before `with-integration` archival,
+  lifecycle state is still incomplete and the publication read is never reached. The PR was withdrawn with a
+  zero-file diff. Do not reintroduce an early invocation or reinterpret either refusal as clearance.
+
+- _Forward-compatibility:_ recovery authority must bind typed Candidate and lifecycle records rather than whether a
+  Markdown projection currently lives under `active/` or `completed/`. After the re-cut that binding is this
+  partition's, and `delivery-correction-convergence` keeps the stacked-delivery convergence behavior.
+
+- _Sequencing:_ `RELEASE-GATES.md` placed `delivery-correction-convergence` third and said "promote earlier only if an
+  active correction hits this exact blocker". An active integration hit it on 2026-09-15 and had to merge outside the
+  checkpoint, so that promotion trigger was satisfied. Weigh that against
+  `delivery-post-landing-conflict-recovery` holding the first slot.
+
+- _Not `delivery-post-landing-conflict-recovery`:_ considered and rejected on its own text. Its trigger is a landed
+  delivery member whose retained suffix, terminal binding, or base-history shape leaves the exact-head comparison
+  unsatisfiable — none of which a singleton has — and its boundary excludes "unrelated prepublication authoring and
+  review-fix convergence", which is the half this failure lives in. The echo is real but narrow: its purpose warns
+  against letting an Owner authorization become a general escape contract, which is how this landing was made. That
+  is the shape of the escape, not the mechanism that forced it.
+
+- _Captured during:_ `concurrent-integration-characterization` integration, 2026-09-15.
+
+### `[ ]` **Rebuild the code `cli-substrate-complete-migration` carves out, with full session-init schemas**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, drained at the `state-storage` re-cut (2026-09-28); each bullet goes to the
+  partition that rewrites it.
+
+- _Observation:_ `cli-substrate-complete-migration` does not migrate code the storage program deletes or rewrites.
+  Its closeout exclusion names the `state-storage` storage-coupling register (`cohort-state-storage.md`) as the
+  authority for each carved item's owner and fate, so the `cli-substrate-adoption` cohort cannot close until these
+  rows exist. The classes follow `analysis-storage-substrate-direction.md` § 10.4; the anchor modules are in
+  `draft-cli-substrate-complete-migration.md` § Storage carve-out (later its spec).
+    - **Rewritten — owner: the `storage-seam` partition that rewrites each item.**
+        - In-flight derivation, with the in-flight oracle behind the `WorkUnitStateResult` and `ErrandStateResult`
+          session-init slots.
+        - The lifecycle executor's write path and `arc start` placement, with the `provisional-placement` callers.
+        - The archive index (`completed-index.ts`).
+        - ROADMAP rendering.
+        - The notes-related session-init probes, with the `UserSessionInitStatusResult` slot and user-reference
+          reconciliation (`user-reference-reconcile.ts`, the `userReferenceReconcile` slot).
+        - Locus derivation (`DerivedLocusFrame`), from marker plus store.
+        - Any hook-check content rule moved into a record-family parser rather than deleted.
+    - **Inherited obligation:** `cli-session-envelope` routed full schema authority for its thin session-init
+      views to the cohort tail. For the rewritten slots above (`WorkUnitStateResult`, `ErrandStateResult`,
+      `UserSessionInitStatusResult`, `userReferenceReconcile`, `DerivedLocusFrame`), that obligation passes to the
+      rewriting partition: author the full schema when the slot is rebuilt, rather than leave a thin view.
+    - **Tests** of carved code keep their local doubles. The shared scripted `GitExec` fake and `GitProcessError`
+      fixture the tail adds are there for the rewrites.
+
+- _Approach:_ each bullet is one row in `cohort-state-storage.md`'s storage-coupling register. Reconcile the
+  carve owner names in `cli-substrate-complete-migration`'s spec to `storage-cutover` (removed) and
+  `storage-seam` (rewritten).
+
+- _Captured during:_ `cli-substrate-complete-migration` draft-design, 2026-09-28.
+
 ---
 
 ## Prior Design — `singleton-integration-continuity` (pre-ADR-035 reading input)

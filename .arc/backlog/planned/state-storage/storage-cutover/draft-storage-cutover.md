@@ -21,3 +21,43 @@
 - **The register's cutover rows** (`cohort-state-storage.md` § Storage-coupling register).
 
 ---
+
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration at this work unit's first planning iteration. Integrate — or_
+> _consciously reject — each one._
+
+### `[ ]` **Delete the code `cli-substrate-complete-migration` carves out**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, drained at the `state-storage` re-cut (2026-09-28).
+
+- _Observation:_ `cli-substrate-complete-migration` does not migrate code the storage program deletes or rewrites.
+  Its closeout exclusion names the `state-storage` storage-coupling register (`cohort-state-storage.md`) as the
+  authority for each carved item's owner and fate, so the `cli-substrate-adoption` cohort cannot close until these
+  rows exist. The classes follow `analysis-storage-substrate-direction.md` § 10.4; the anchor modules are in
+  `draft-cli-substrate-complete-migration.md` § Storage carve-out (later its spec).
+    - **Removed at cutover — owner: `storage-cutover`'s deletion passes.**
+        - Notes-specific sync: the notes machinery in `lib/user-sync/`, the `commands/user/` push, fetch,
+          compaction, and sync-status family, `handlers/user-sync.ts`, `handlers/push-recovery.ts`, and the notes
+          portions of `commands/user/save-load.ts`, `handlers/user.ts`, `handlers/sync.ts`, and `lib/io-context.ts`.
+          `lib/user-sync/` is mixed — these symbols survive and must not go with it: the cross-WU entry parser
+          (inbox state and reminders) and `resolveCurrentWuName`. The tail moves the Git failure-text predicates
+          (`isCasRejectionError`, `isRemoteUnavailableError`, `isNonFastForwardError`) to `lib/git/ref-tree.ts`.
+        - Branch-tree readers: `lib/status/project-view-ref.ts`, `git-retirement-authorization-context.ts`,
+          `git-transition-record-enumeration.ts`, and the ref-reading portions of `in-flight-derivation.ts`,
+          `remote-ref-reader.ts`, `completed-index.ts` (`*FromRef`), and the session-init sweeps' base-archive reads.
+        - Lifecycle classification and exclusion: `evidence-applicability/path-treatment.ts`,
+          `delivery/lifecycle-contribution.ts` with its Git variant, and the evidence-neutral and regenerable arms.
+        - Lifecycle hook checks: `validate-meta-spec`, `validate-cohort-consistency`, `assert-roadmap-regenerated`,
+          `check-foreign-writes`, `remedy-roadmap-conflict`.
+        - CI planning classifier: `isPlanningArtifactPath` and `classifyPlanningLane` in `change-facts.ts`, the
+          `lane-paths` logic in `classify-change.sh`, the lane-attestation workflow, and the planning-grooming
+          command. The rest of `change-facts.ts` survives.
+
+- _Approach:_ each bullet is one row in `cohort-state-storage.md`'s storage-coupling register. Reconcile the
+  carve owner names in `cli-substrate-complete-migration`'s spec to `storage-cutover` (removed) and
+  `storage-seam` (rewritten).
+
+- _Captured during:_ `cli-substrate-complete-migration` draft-design, 2026-09-28.
+
+---

@@ -29,3 +29,42 @@
 - **Fetch-refspec installation** in `arc init` and `arc update`, with one designated state host per repository.
 
 ---
+
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration at this work unit's first planning iteration. Integrate — or_
+> _consciously reject — each one._
+
+### `[ ]` **Give the Git executor the capabilities the ref backend needs**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, drained at the `state-storage` re-cut (2026-09-28).
+
+- _Observation:_ the ref backend needs compare-and-swap ref updates, leased and atomic pushes, and batched Git calls
+  (storage analysis §§ 6.9–6.10 and 11.3: a push loop that retries lost races and ends on hook refusals; about 30 ms per
+  `git` call on Windows). The `cli-git-executor` seam (`lib/git/exec.ts`, `process-executor.ts`,
+  `process-error.ts`) supports little of that. Snapshot 2026-09-28, regex estimates:
+    - compare-and-swap: no seam helper. About 40 inline `update-ref <ref> <new> <old>` calls, with rejections
+      classified by message text (`isCasRejectionError`, `lib/user-sync/notes-merge.ts:36`). The executor
+      contract left CAS to domain classifiers fed by `gitFailureText()`; its typed `expectedOutcome` covers only
+      `absent-remote-ref` and `stale-lease`.
+    - push: `--force-with-lease` at 7 production sites; `--atomic` nowhere.
+    - batching: `cat-file --batch[-check]` only as one-shot piped payloads (4 sites), plus one bespoke long-lived
+      `update-ref --stdin` verify lock outside the seam (`prepareGitRefVerification`, `lib/io-context.ts:452`).
+    - stdin variants: `GitExecInput` (string) and `RawGitExec` (bytes) take no `AbortSignal`. Timeouts are
+      caller-owned through `boundedFetch` / `boundedGitInvocation`; execa's `timeout` is never set.
+    - most CAS and batch precedent sits in Git-notes code the cutover deletes. Errand identity refs are the
+      surviving CAS consumer.
+
+- _Approach:_ design these against the ref backend's actual mechanism rather than ahead of it: a typed rejection
+  taxonomy separating retryable races (`fetch first`, `non-fast-forward`, `incorrect old value provided`,
+  `cannot lock ref`, `TF401028`) from terminal refusals (`pre-receive hook declined`, `VS403702`, `TF402455`);
+  `--atomic` code-plus-state pushes; a batch or long-lived process; signals on the stdin variants.
+  `cli-substrate-complete-migration` first gives `RawGitExec` a home in the executor module; today it lives in
+  `change-facts.ts`, whose planning-lane classifier the cutover deletes.
+
+- _Scope:_ the pending backlog re-cut renames `arc-backend` to `storage-contract`. The Stage 2 ref-backend member
+  may be the final home once the contract settles ref layout and each surface's concurrency mechanism.
+
+- _Captured during:_ `cli-substrate-complete-migration` draft-design, 2026-09-28.
+
+---
