@@ -1,8 +1,8 @@
 # Metadata: cli-substrate-complete-migration
 
-| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
-| ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
+| **State**  | **Owner** | **Branch**                              | **Class** | **Priority** |
+| ---------- | --------- | --------------------------------------- | --------- | ------------ |
+| `Planning` | `andrew`  | `plan/cli-substrate-complete-migration` | `Heavy`   | `P2`         |
 
 - **Cohort:** `cli-substrate-adoption`
 - **Depends On:** `cli-schema-kernel`, `cli-session-envelope`, `cli-layout-resolver`, `cli-validation-surfaces`,
@@ -11,13 +11,14 @@
 - **Origin:** [internal]
 - **Design:** `draft-cli-substrate-complete-migration.md`
 - **Task List:** [none]
+- **Review Rubric:** [none]
 
-- **Current Workflow:** [none]
+- **Current Workflow:** `draft-design`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** —
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]

@@ -13,13 +13,14 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                       | Priority | Owner  | Depends on | Cohort |
-| ---------- | ------------------------------- | -------- | ------ | ---------- | ------ |
-| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —          | —      |
-| `Planning` | decomposition-doctrine          | P1       | andrew | —          | —      |
-| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —          | —      |
-| `Planning` | review-checkout-lifecycle       | P1       | andrew | —          | —      |
-| `Planning` | stub-mint-to-launch             | P1       | andrew | —          | —      |
+| State      | Work unit                        | Priority | Owner  | Depends on | Cohort                 |
+| ---------- | -------------------------------- | -------- | ------ | ---------- | ---------------------- |
+| `Planning` | candidate-reroot-recovery-frame  | P1       | andrew | —          | —                      |
+| `Planning` | decomposition-doctrine           | P1       | andrew | —          | —                      |
+| `Planning` | delivery-rebuild-continuity      | P1       | andrew | —          | —                      |
+| `Planning` | review-checkout-lifecycle        | P1       | andrew | —          | —                      |
+| `Planning` | stub-mint-to-launch              | P1       | andrew | —          | —                      |
+| `Planning` | cli-substrate-complete-migration | P2       | andrew | —          | cli-substrate-adoption |
 
 ## Ready
 
@@ -48,7 +49,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | loadset-composition                 | P2       | andrew | —          | agent-context-optimization |
 | commit-increments                   | P2       | andrew | —          | approval-flow-refinement   |
 | check-id-stabilization              | P2       | andrew | —          | architecture-remediation   |
-| cli-substrate-complete-migration    | P2       | andrew | —          | cli-substrate-adoption     |
 | decompose-scaling                   | P2       | andrew | —          | decompose-core-hardening   |
 | method-conventions                  | P2       | andrew | —          | doc-conventions            |
 | naming-conventions                  | P2       | andrew | —          | doc-conventions            |
