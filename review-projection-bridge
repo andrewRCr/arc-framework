@@ -3,14 +3,20 @@
   "slug": "review-projection-bridge",
   "claimId": "a0b3b2aa77055f631088f7c109d67c59",
   "createdAt": "2026-09-28T17:50:40.125Z",
-  "updatedAt": "2026-09-28T17:50:40.125Z",
+  "updatedAt": "2026-09-28T18:58:24.182Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Build the internal script and runbook that project a program work unit's review chunks as stacked draft pull requests beside its single-branch landing",
   "branch": "chore/review-projection-bridge",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/review-projection-bridge",
+    "headSha": "453b30595ab028f15ed12f8b50df7a583e83cbd7"
+  }
 }
