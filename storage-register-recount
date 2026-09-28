@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "storage-register-recount",
+  "claimId": "0ac12815b78aa0762c438ec3718840b5",
+  "createdAt": "2026-09-28T19:01:34.288Z",
+  "updatedAt": "2026-09-28T19:01:34.288Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Add the storage-seam row for surviving code that builds work-unit state paths, and apply the CLI migration's register corrections",
+  "branch": "chore/storage-register-recount",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
