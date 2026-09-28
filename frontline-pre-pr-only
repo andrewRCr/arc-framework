@@ -3,7 +3,7 @@
   "slug": "frontline-pre-pr-only",
   "claimId": "8d68d94bef866a22edb840586c4a8dda",
   "createdAt": "2026-09-28T21:17:13.593Z",
-  "updatedAt": "2026-09-28T21:17:13.593Z",
+  "updatedAt": "2026-09-28T23:12:06.671Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Resolve the frontline lane as complete once the review target carries a pull request, so a post-PR head movement no longer re-offers frontline review",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Stop re-offering frontline review after the change request opens",
   "originEntrySourceDigest": "sha256:51df2c6e99d830a921f60924b639983d91fc5146876c03109215e73fa5c9c4e7",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/frontline-pre-pr-only",
+    "headSha": "f212bf3de44218ead639fa9cbbcd98b0eff8bbcf"
+  }
 }
