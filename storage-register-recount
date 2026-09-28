@@ -3,14 +3,20 @@
   "slug": "storage-register-recount",
   "claimId": "0ac12815b78aa0762c438ec3718840b5",
   "createdAt": "2026-09-28T19:01:34.288Z",
-  "updatedAt": "2026-09-28T19:01:34.288Z",
+  "updatedAt": "2026-09-28T19:07:58.019Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Add the storage-seam row for surviving code that builds work-unit state paths, and apply the CLI migration's register corrections",
   "branch": "chore/storage-register-recount",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/storage-register-recount",
+    "headSha": "a06c30a242aa77b82657aa3bbd107937767c080f"
+  }
 }
