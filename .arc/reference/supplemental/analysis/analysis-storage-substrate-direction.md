@@ -81,8 +81,9 @@ proposal (§ 11).
 
 9. **The counter-case is real but bounded.** Same-repo refs are invisible in forge UI, get no branch protection, are
    not copied to forks on most hosts, and do not give privacy; planning edits leave PR review. Each has a backend or
-   export answer. The spikes confirmed the default (§ 11): GitHub, GitLab hosted and self-managed, Azure DevOps,
-   Gitea, and Forgejo push, fetch, and delete `refs/arc/*` with no write lost. Bitbucket was not tested.
+   export answer. The spikes confirmed the default (§ 11): GitHub.com, GitLab hosted and self-managed, Azure DevOps,
+   Gitea, and Forgejo push, fetch, and delete `refs/arc/*` with no write lost. GitHub Enterprise Server and Bitbucket
+   were not tested.
 
 10. **Concurrency is a requirement, not a risk.** Concurrent sessions are the normal case. Most state is single-writer
     by construction — each work unit belongs to one exclusive checkout — and the shared surfaces merge entry by entry,
@@ -258,7 +259,7 @@ notes (`draft-arc-backend.md`, lines 422–424). What was missing was separating
 
 | Question                                       | Finding                                                                                                                                                                                                                                                                                                                       | Confidence                                   |
 | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| Push, fetch, delete, and lease on `refs/arc/*` | GitHub, GitLab (gitlab.com and self-managed CE), Azure DevOps, Gitea, and Forgejo accept them, and each host's API lists or reads the refs                                                                                                                                                                                    | Confirmed (§ 11.3)                           |
+| Push, fetch, delete, and lease on `refs/arc/*` | GitHub.com, GitLab (gitlab.com and self-managed CE), Azure DevOps, Gitea, and Forgejo accept them, and each host's API lists or reads the refs                                                                                                                                                                                | Confirmed (§ 11.3)                           |
 | Bitbucket accepts a novel namespace            | Rejects pushes to its reserved namespaces; novel namespaces not tested                                                                                                                                                                                                                                                        | Unverified                                   |
 | Custom-ref-only commits browsable in forge UI  | Not browsable in any branch list; GitLab's and Azure DevOps's APIs read a state file at a ref                                                                                                                                                                                                                                 | Confirmed not, in UI                         |
 | Custom refs copied on fork                     | GitHub, GitLab, Gitea, and Forgejo forks copy none; an Azure DevOps fork of every branch copies them                                                                                                                                                                                                                          | Confirmed (§ 11.3)                           |
@@ -276,7 +277,7 @@ notes (`draft-arc-backend.md`, lines 422–424). What was missing was separating
 | Neovim pickers, Helix                            | Yes                                  | Shell out to `rg --files` or `fd`, or use the same `ignore` crate, so they follow ripgrep                                                                                                                                                                                                                                                                    |
 | Claude Code shell `grep`                         | Yes                                  | Embedded ugrep reading `.gitignore` only — not `.ignore`, not `.git/info/exclude`; given an absolute path, it returns ignored files                                                                                                                                                                                                                          |
 | Claude Code Read, shell `find`                   | No                                   | Open and list ignored files by path                                                                                                                                                                                                                                                                                                                          |
-| Codex CLI                                        | Yes                                  | Shell searches are `rg`; the `@` picker misses gitignored files and walks with the `ignore` crate, so it should follow ripgrep (lead)                                                                                                                                                                                                                        |
+| Codex CLI                                        | Yes                                  | Shell searches are `rg`, so they follow ripgrep; the `@` picker lists no untracked files, so it misses the projection under any ignore strategy                                                                                                                                                                                                              |
 | JetBrains IDEs                                   | No                                   | Long-standing open issue                                                                                                                                                                                                                                                                                                                                     |
 | Zed                                              | Quick-open and search yes; tree no   | Follows Git's ignore sources only: `.ignore` and `.git/info/exclude` change nothing. `file_scan_inclusions` (default `.env*`) re-includes for quick-open and search, confirmed with Zed started fresh, and works from user-level settings in every checkout, over the WSL remote too; `file_finder.include_ignored` and `search.include_ignored` do not help |
 | Git-based tools (`git grep`, Emacs `project.el`) | Yes                                  | Cannot see a gitignored projection under any variant; `consult-ripgrep` or an ARC path handoff reaches it                                                                                                                                                                                                                                                    |
@@ -368,7 +369,8 @@ The editor spike (§ 11.2) settled how the projection meets it, split by privacy
 
 What it gives up: Claude Code's shell `grep` misses `.arc/user/<id>/`, as it does today, so agent guidance names
 `rg --hidden`, and the load set reads those files by path. Git-based tools such as Emacs's `project.el` see none of
-the projection under any variant.
+the projection under any variant, and neither does Codex's `@` picker, which lists no untracked files; Codex's shell
+searches reach it through `rg`.
 
 **Refresh and write-back** (the concurrency spike, § 11.4). Each projected file carries a base stamp, an invisible
 `<!-- arc-base: <blob id> -->` naming the store version it was written from — on the first line, or right after YAML
@@ -484,6 +486,10 @@ project inbox are workarounds for that.
 2. **How a conflict shows in a single-file list** — a marker beside the entry, or only in `arc status` — and whether a
    drain racing a note needs a record at all, since the edited entry stays in the file.
 3. **Sharding of the shared surfaces** — backlog order, cohorts, the project inbox, transition records (§ 7 row 1).
+4. **Unsynced work outside ARC's teardown.** ARC's teardown persists first, but `git clean -x` and a plain
+   `git worktree remove` delete gitignored files without a prompt. A lock on each worktree ARC spawns
+   (`git worktree lock`) makes a plain removal refuse, and a single `-f` too, until the lock is lifted or `-f` is given
+   twice; checked with Git 2.55. `git clean -x` has no hook, so frequent firing points bound what it can lose.
 
 **Envelope.** The default is designed for solo developers through small and mid-size teams, with a working design
 point of about ten people running about six sessions each. The workload model (§ 11.4) puts one person's sessions
@@ -675,17 +681,17 @@ Research on the § 6.9 problems ran first, on 2026-09-24; the spikes followed on
 repositories outside ARC and on the hosts named below. Scripts and raw results stayed outside this repository; this
 section records what they found, each against the bar set for it before it ran.
 
-| Spike                                           | Result                                                                                                           |
-| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Editor ergonomics of a gitignored projection    | Passed with the ignore strategy in § 6.5 and one user-level Zed setting per machine (§ 11.2)                     |
-| Push, fetch, and delete `refs/arc/*` per host   | Held on GitHub, GitLab hosted and self-managed, Azure DevOps, Gitea, and Forgejo; Bitbucket not tested (§ 11.3)  |
-| Fork behavior for custom refs                   | Forks copy none, except an Azure DevOps fork of every branch (§ 11.3)                                            |
-| `git push --atomic` of a branch plus state refs | A stale state ref held the code branch back on every tested host (§ 11.3)                                        |
-| Clone and fetch-refspec installation            | A default clone fetches none; ARC's refspec fetches into a remote-tracking namespace (§ 11.3)                    |
-| `.ignore` negation                              | Re-includes for ripgrep, `fd`, and VS Code; not for Zed, Claude Code's shell `grep`, or Git-based tools (§ 11.2) |
-| Concurrency at the design envelope              | Every pass criterion met; no write lost, local or remote (§ 11.4)                                                |
-| Windows-native checkout (added)                 | No write lost once the Windows requirements in § 6.10 held (§ 11.5)                                              |
-| History growth over a year (added)              | Reads and writes flat at 20,197 commits deep; size set by the stored layout (§ 11.6)                             |
+| Spike                                           | Result                                                                                                                                           |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Editor ergonomics of a gitignored projection    | Passed with the ignore strategy in § 6.5 and one user-level Zed setting per machine (§ 11.2)                                                     |
+| Push, fetch, and delete `refs/arc/*` per host   | Held on GitHub.com, GitLab hosted and self-managed, Azure DevOps, Gitea, and Forgejo; GitHub Enterprise Server and Bitbucket not tested (§ 11.3) |
+| Fork behavior for custom refs                   | Forks copy none, except an Azure DevOps fork of every branch (§ 11.3)                                                                            |
+| `git push --atomic` of a branch plus state refs | A stale state ref held the code branch back on every tested host (§ 11.3)                                                                        |
+| Clone and fetch-refspec installation            | A default clone fetches none; ARC's refspec fetches into a remote-tracking namespace (§ 11.3)                                                    |
+| `.ignore` negation                              | Re-includes for ripgrep, `fd`, and VS Code; not for Zed, Claude Code's shell `grep`, or Git-based tools (§ 11.2)                                 |
+| Concurrency at the design envelope              | Every pass criterion met; no write lost, local or remote (§ 11.4)                                                                                |
+| Windows-native checkout (added)                 | No write lost once the Windows requirements in § 6.10 held (§ 11.5)                                                                              |
+| History growth over a year (added)              | Reads and writes flat at 20,197 commits deep; size set by the stored layout (§ 11.6)                                                             |
 
 ### 11.1 Research on the hard problems
 
@@ -715,7 +721,9 @@ count toward it.
 `.arc/user/<identity>/`: A, plain `.gitignore`; B, A plus a tracked `.ignore` negation; C, `.git/info/exclude` instead
 of `.gitignore`; D, Zed's own settings over A; E, C plus the `.ignore` negation. Each variant had a linked worktree
 with its own copy. Zed and VS Code ran over their WSL remotes, Zed quit completely between variants. The chosen
-strategy (§ 6.5) is E split by privacy class, which keeps the user directory in `.gitignore`.
+strategy (§ 6.5) is E split by privacy class, which keeps the user directory in `.gitignore`. It was not run as a
+variant of its own: its results follow E for the shared surfaces and B for the user directory. Codex's `@` picker
+lists no untracked files at all, so it misses the projection under every variant; Codex's shell searches use `rg`.
 
 | Tool                           | A   | B   | C   | E   | Notes                                                                                                                                                                              |
 | ------------------------------ | --- | --- | --- | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -743,7 +751,8 @@ user directory in `.gitignore`.
 **Bar**, set before the spike: the default must hold on GitHub and GitLab, hosted and self-managed, or the direction
 reopens. Bitbucket and Azure DevOps should hold, and fall back to the backing-repository backend at a documented cost
 where they do not. Gitea and Forgejo are best effort. AWS CodeCommit and Google Cloud Source Repositories are not
-targeted.
+targeted. Against that bar, every tested host held; GitHub Enterprise Server, on the must-hold floor, and Bitbucket
+were not tested.
 
 Private scratch repositories: GitHub on 2026-09-24; Gitea 1.27.3 and Forgejo 16.0.5 on local servers the same day;
 gitlab.com, self-managed GitLab CE 19.4.1, and Azure DevOps on 2026-09-25. Self-managed GitLab repeated the basics
@@ -896,7 +905,7 @@ commits.
   arrive with.
 - One push was refused after the receiving side had packed twice, in one of two history replays, and its message was
   not captured; whether the push loop's retry set covers that refusal is open.
-- Codex's `@` picker under the chosen strategy, and a JetBrains IDE.
+- A JetBrains IDE.
 
 ---
 
