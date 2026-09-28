@@ -118,17 +118,50 @@ describe("GitHub merge-observation port", () => {
     });
     const port = createGhChangeRequestMergeObservationPort({ run } satisfies HostedProcessRunner);
     await expect(port.observe(coordinates)).resolves.toMatchObject({
-      state: "unresolved",
-      detail: expect.stringContaining("no applicable strict-currentness policy"),
+      state: "refused",
+      condition: "not-mergeable",
     });
   });
 
-  it("rejects stale coordinates and malformed test-merge parents", async () => {
-    const moved = createGhChangeRequestMergeObservationPort({
-      run: async () => output(pull({ base: { ref: "release", sha: coordinates.base } })),
+  it("refuses a pull request GitHub cannot merge cleanly without reading it again", async () => {
+    const run = vi.fn(async () => output(pull({ mergeable: false, merge_commit_sha: null })));
+    const port = createGhChangeRequestMergeObservationPort({ run } satisfies HostedProcessRunner);
+
+    await expect(port.observe(coordinates, { baseContained: true })).resolves.toEqual({
+      ...coordinates,
+      state: "refused",
+      condition: "not-mergeable",
+      detail: "GitHub reports the pull request cannot merge cleanly into its base.",
     });
-    await expect(moved.observe(coordinates)).resolves.toMatchObject({
-      state: "unresolved", detail: expect.stringContaining("coordinates moved"),
+    expect(run).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    [
+      "base-ref-mismatch",
+      pull({ base: { ref: "release", sha: coordinates.base } }),
+      "targets release, not main",
+    ],
+    ["head-moved", pull({ head: { sha: oid("e") } }), `head is ${oid("e")}, not ${oid("b")}`],
+  ] as const)("refuses %s as a stable condition naming both values", async (condition, observed, detail) => {
+    const run = vi.fn(async () => output(observed));
+    const port = createGhChangeRequestMergeObservationPort({ run } satisfies HostedProcessRunner);
+
+    await expect(port.observe(coordinates, { baseContained: true })).resolves.toMatchObject({
+      ...coordinates,
+      state: "refused",
+      condition,
+      detail: expect.stringContaining(detail),
+    });
+    expect(run).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a different pull-request number and malformed test-merge parents pending", async () => {
+    const renumbered = createGhChangeRequestMergeObservationPort({
+      run: async () => output(pull({ number: 43 })),
+    });
+    await expect(renumbered.observe(coordinates, { baseContained: true })).resolves.toMatchObject({
+      state: "unresolved", detail: expect.stringContaining("different pull request"),
     });
 
     const malformed = createGhChangeRequestMergeObservationPort({

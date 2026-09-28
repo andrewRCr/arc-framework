@@ -35,6 +35,10 @@ export type ChangeRequestMergeCoordinates = z.infer<typeof ChangeRequestMergeCoo
 const MergeObservationCoordinatesShape = ChangeRequestMergeCoordinatesSchema.shape;
 const MergeObservationEvidenceShape = { evidenceRef: z.string().trim().min(1).optional() };
 
+/** A host admission refusal that another observation of the same coordinates cannot change. */
+export const HostAdmissionRefusalConditionSchema = z.enum(["head-moved", "base-ref-mismatch", "not-mergeable"]);
+export type HostAdmissionRefusalCondition = z.infer<typeof HostAdmissionRefusalConditionSchema>;
+
 /** Provider-neutral, exact-coordinate host admission observation. */
 export const ChangeRequestMergeObservationSchema = z.discriminatedUnion("state", [
   z.strictObject({
@@ -53,6 +57,7 @@ export const ChangeRequestMergeObservationSchema = z.discriminatedUnion("state",
     ...MergeObservationEvidenceShape,
     state: z.literal("refused"),
     detail: z.string().trim().min(1),
+    condition: HostAdmissionRefusalConditionSchema.optional(),
   }),
   z.strictObject({
     ...MergeObservationCoordinatesShape,
@@ -62,6 +67,24 @@ export const ChangeRequestMergeObservationSchema = z.discriminatedUnion("state",
   }),
 ]);
 export type ChangeRequestMergeObservation = z.infer<typeof ChangeRequestMergeObservationSchema>;
+
+const HOST_ADMISSION_REFUSAL_CORRECTIONS: Record<HostAdmissionRefusalCondition, string> = {
+  "head-moved": "Publish the approved head to the change request, or recompose over the head it now carries",
+  "base-ref-mismatch": "Retarget the change request to the approved base branch",
+  "not-mergeable": "Reconcile the branch with its current base and resolve the conflicts the host reports",
+};
+
+/**
+ * Name the correction a typed host admission refusal asks for.
+ *
+ * @param admission - The normalized host admission observation.
+ * @returns The refusal condition's correction, or `null` when the observation carries no typed condition.
+ */
+export function hostAdmissionRefusalCorrection(admission: ChangeRequestMergeObservation): string | null {
+  return admission.state === "refused" && admission.condition !== undefined
+    ? HOST_ADMISSION_REFUSAL_CORRECTIONS[admission.condition]
+    : null;
+}
 
 export interface ChangeRequestMergeObservationPort {
   observe(

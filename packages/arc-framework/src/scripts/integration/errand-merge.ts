@@ -13,6 +13,10 @@ import {
   RequiredCheckSchema,
   type RequiredChecksObservationResult,
 } from "../review-gate/checks-await.js";
+import {
+  hostAdmissionRefusalCorrection,
+  type ChangeRequestMergeObservation,
+} from "../review-gate/change-request.js";
 import type { MergeMethodResolveResult } from "../review-gate/merge-method.js";
 import type { CheckpointMovementObservation, CheckpointMovementPlan } from "./checkpoint.js";
 import {
@@ -232,6 +236,11 @@ function exactRetry(
       request,
     ),
   };
+}
+
+/** Name what clears a host refusal, keyed on its typed condition when the observation carries one. */
+function hostRefusalCorrection(admission: ChangeRequestMergeObservation): string {
+  return `${hostAdmissionRefusalCorrection(admission) ?? "Resolve the refusal"}, then retry the same approved request`;
 }
 
 function failureDetail(error: unknown): string {
@@ -689,7 +698,7 @@ export async function mergeErrand(
         continuation: exactRetry(
           request,
           "The host must accept the exact approved Errand target under its configured policy.",
-          "Resolve the refusal, then retry the same approved request",
+          hostRefusalCorrection(final.observation.admission),
         ),
       });
     }
@@ -925,7 +934,7 @@ export async function mergeErrand(
           continuation: exactRetry(
             request,
             "The host must accept the exact approved Errand target under its configured policy.",
-            "Resolve the refusal, then retry the same approved request",
+            hostRefusalCorrection(refusedPlan.observation.admission),
           ),
         }),
       );
