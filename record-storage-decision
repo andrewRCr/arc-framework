@@ -3,7 +3,7 @@
   "slug": "record-storage-decision",
   "claimId": "8aa9e1b23d1b3b8a5f44b7d664b53f25",
   "createdAt": "2026-09-28T13:17:52.412Z",
-  "updatedAt": "2026-09-28T13:17:52.412Z",
+  "updatedAt": "2026-09-28T16:19:18.943Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Record the storage decision: spike results into the storage analysis, ADR-035 to Accepted, strategy-storage-evolution rewritten",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Record the storage decision: spike results into the analysis, ADR-035 Accepted, strategy rewritten",
   "originEntrySourceDigest": "sha256:4e2d2777789d133410093a2136426644e2bcce2d35ca23ddb3177e4711cd989e",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/record-storage-decision",
+    "headSha": "762c6ddf82995788ac3eed14a2f82439adbfc5d0"
+  }
 }
