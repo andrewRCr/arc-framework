@@ -2287,7 +2287,7 @@ describe("review response command", () => {
     }, deps)).resolves.toMatchObject({
       state: "ready-to-fix",
       payload: {
-        reentryCommand: "hosted-settle",
+        reentryCommand: "respond-verified-fix",
         hostedSettlementPlan: {
           beforeFixFindingIds: [],
           afterFixFindingIds: [hosted.records.finding.findingId],
@@ -2678,7 +2678,7 @@ describe("review response command", () => {
           oldTargetId: records.target.targetId,
           authorizedFindingIds: ["finding-1"],
         },
-        reentryCommand: "local-prepare",
+        reentryCommand: "respond-verified-fix",
       },
     });
   });

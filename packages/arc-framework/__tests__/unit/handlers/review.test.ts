@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createHostedHandleFixture } from "../../fixtures/hosted-review.js";
 
 import {
-  assertHostedFixSettlementPerformance,
+  hostedFixSettlementPerformed,
   handleMergeLockHold,
   handleMergeLockRelease,
   handleMergeLockResolve,
@@ -91,18 +91,32 @@ describe("hosted fix settlement pre-effect guard", () => {
     responsePerformance: evidence,
   };
 
-  it("requires durable response performance before any provider settlement", () => {
-    expect(() => assertHostedFixSettlementPerformance({ ...input, responsePerformance: undefined }))
-      .toThrow("durable response-performance evidence");
-    expect(() => assertHostedFixSettlementPerformance({
+  it("reports an unperformed fix when no verified response is recorded for the approved set", () => {
+    expect(hostedFixSettlementPerformed({ ...input, responsePerformance: undefined })).toBe(false);
+    expect(hostedFixSettlementPerformed({
       ...input,
       dispositionSetId: `sha256:${"e".repeat(64)}`,
-    })).toThrow("durable response-performance evidence");
-    expect(() => assertHostedFixSettlementPerformance({
+    })).toBe(false);
+    expect(hostedFixSettlementPerformed(input)).toBe(true);
+  });
+
+  it("refuses a recorded response that contradicts the requested attempt or heads", () => {
+    expect(() => hostedFixSettlementPerformed({
       ...input,
       producedHeadSha: "c".repeat(40),
     })).toThrow("durable response-performance evidence");
-    expect(() => assertHostedFixSettlementPerformance(input)).not.toThrow();
+    expect(() => hostedFixSettlementPerformed({
+      ...input,
+      producedHeadSha: undefined,
+    })).toThrow("durable response-performance evidence");
+    expect(() => hostedFixSettlementPerformed({
+      ...input,
+      originatingHeadSha: "c".repeat(40),
+    })).toThrow("durable response-performance evidence");
+    expect(() => hostedFixSettlementPerformed({
+      ...input,
+      attemptId: "attempt-2",
+    })).toThrow("durable response-performance evidence");
   });
 });
 

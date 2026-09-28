@@ -36,6 +36,7 @@ import {
   validateDispositionState,
 } from "../core/dispositions.js";
 import { renderDispositionReport } from "../core/disposition-report.js";
+import { FIX_NOT_PERFORMED_INTERACTION_TEXT } from "../core/fix-not-performed-envelope.js";
 import { ReviewFindingIdentitySchema } from "../core/finding-records.js";
 import { ReviewSeveritySchema } from "../core/review-primitives.js";
 import { SeverityGatingPolicySchema } from "../core/severity-gating-policy.js";
@@ -1525,8 +1526,7 @@ async function settleApprovedReplay(
           operationId: source.operationId,
           dispositionSetId: dispositions.dispositionSet.dispositionSetId,
           approvedVerification: dispositions.dispositionSet.proposedVerification,
-          interactionText: "Complete the approved fix, submit its verifiedFix response with the approved "
-            + "verification scope, then retry the exact settlement request.",
+          interactionText: FIX_NOT_PERFORMED_INTERACTION_TEXT,
         },
       });
     }
@@ -2510,11 +2510,7 @@ async function settleNewApprovedResponse(
       ...(plan.fixAuthorization === null
         ? {}
         : {
-            reentryCommand: source.source.kind === "attested-local"
-              ? "local-prepare"
-              : source.source.kind === "frontline"
-                ? "frontline-resolve"
-                : "hosted-settle",
+            reentryCommand: "respond-verified-fix",
           }),
       ...(frontlineFollowUp === undefined ? {} : { frontlineFollowUp }),
       ...(hostedSettlementPlan === undefined ? {} : { hostedSettlementPlan }),
