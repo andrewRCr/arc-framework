@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "state-storage-recut",
+  "claimId": "a7192b6f38396633c37169c8e0394298",
+  "createdAt": "2026-09-28T16:33:39.606Z",
+  "updatedAt": "2026-09-28T16:33:39.606Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Re-cut the backlog into the state-storage cohort",
+  "branch": "chore/state-storage-recut",
+  "origin": "inbox",
+  "originEntry": "Re-cut the backlog into the `state-storage` cohort",
+  "originEntrySourceDigest": "sha256:94c518022f31b4e79f77bc6ff93ec082b47e548d1c937b2e10570c289de08245",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
