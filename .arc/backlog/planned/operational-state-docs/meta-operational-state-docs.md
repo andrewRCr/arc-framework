@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
-- **Depends On:** `cli-validation-surfaces`
+- **Depends On:** `cli-validation-surfaces`, `storage-cutover`
 
 - **Origin:** [internal]
 - **Design:** `draft-operational-state-docs.md`
@@ -15,10 +15,8 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Decomposition cut-map settled at the 2026-07-02 grooming (draft § Decomposition): a
-  three-member `operational-state-docs` cohort — `managed-record-substrate` (keystone; absorbs the
-  session-surface re-homes and the ADR-022 flip), `corpus-conformance-gate` (after CSA, engine-independent),
-  `user-surface-records` (after the substrate). Next: run `decompose-work-unit` (backlog-stub-source arm) on
-  the cut-map; the inbound buffer distributes per the draft's routing map.
+- **Next Action:** Re-derive the decomposition against the file-as-record decision and the storage contract's
+  record-family parsers (draft § Re-scope), then run `decompose-work-unit`. The corpus-conformance slice is
+  independent of storage and may be cut out to run before the cutover.
 
 ---

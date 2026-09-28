@@ -3,6 +3,9 @@
 - **State:** Draft — rescoped at the 2026-07-06 decomposition to the **render-standard + rename slice**; the
   FP-critical state-integrity slice split out to `project-state-integrity`, on which this WU now depends. Iterate
   before PRD/spec promotion.
+- **Re-scoped:** at the `state-storage` re-cut (2026-09-28). ROADMAP becomes a derived projection that is never
+  stored, so the staging, conflict, and regeneration entries moved to `storage-seam`, whose status-and-roadmap
+  partition builds that projection. The render standard, the CLI surface, the rename, and `STATUS.USER` stay here.
 - **Origin:** [internal] — homes the CLI helpers Work Organization Reform codified-but-deferred (the
   rendered-view algorithm + hand-maintenance discipline shipped in WOR; the tooling that automates them did not).
 - **Purpose:** Build the derived-view render **tooling** on top of `project-state-integrity`'s regenerate-wins
@@ -29,75 +32,6 @@
   command's own readiness regeneration. Sequence this with the existing first-class render-verb concern: the flag
   removes the common manual path, while the render verb covers other render-field edits.
 
-### `[ ]` **Treat branch-carried project projections as the defect, not only their merge conflicts**
-
-- _Routed from:_ parallelism-GA operating review and housekeep drain (2026-07-20).
-- _Evidence:_ with three to six work units plus errands running concurrently, `ROADMAP.md` conflicts now add repeated
-  activation, verification, and integration churn. Agents often investigate regeneration mechanics for minutes before
-  discovering the canonical staged-index render command; conflict recovery is only the visible tax of carrying a
-  shared derived projection on every branch.
-- _Posture for grooming:_ strengthen the target beyond a more discoverable resolver or merge driver. A work-unit or
-  grooming branch should not carry a project-level `ROADMAP` / eventual `STATUS.PROJECT` projection diff at all.
-  Prefer on-demand or explicitly materialized/base-owned views sourced from authoritative operational state, aligned
-  with `operational-state-docs`, `local-mode`, `arc-backend`, and the storage-evolution north star. Keep the existing
-  resolver wiring as an interim mitigation, but do not mistake faster recovery for the long-term boundary.
-- _Additional evidence (routed 2026-07-21):_ the projection header pins the render to a HEAD hash, so every commit
-  invalidates it. A verification close that touched one render field across three commits required two renders, with
-  the second failure appearing only at pre-commit after message composition. The tax scales with commit count, not
-  only concurrent merge conflicts. If branch-carried projection retirement is deferred, dropping or read-time
-  deriving the hash is the cheap interim correction.
-- _Evidence-schema constraint (routed 2026-07-31):_ "stop staging ROADMAP" is not a separable interim knob. The
-  finalized-record gate requires the staged set to equal the receipt plus the recorded transition patch, and ROADMAP
-  is currently a managed path in every decomposition projection. Removing it from that patch also removes it from
-  `expectedPaths`, drops the `roadmap-missing` refusal, and changes the required `prospectiveProjection.roadmap`
-  input to the preparation digest. That changes canonical evidence identity and invalidates in-flight preparations,
-  so dematerializing and deleting the projection have roughly the same evidence-migration cost.
-- _Renderer-contract evidence (routed 2026-07-31):_ the decomposition planner, pre-commit assertion, and conflict
-  remedy render from different input contracts. The core flow avoids divergent bytes because finalization pins the
-  candidate head to the result base; a candidate moving across base advancement breaks that structural equality.
-  Treat renderer unification and projection dematerialization as one design decision rather than a cheap staging fix
-  followed by a later schema change.
-
-### `[ ]` **Align activation staging with ceremony commit boundaries**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during
-  `cli-layout-resolver` activation.
-- _Concern:_ `arc activate` staged a nontrivial `ROADMAP` change with the activation meta while the workflow requires
-  a separate projection ceremony commit; manual unstaging and a second staged-index render were needed. The verb
-  also surfaced transient stale-branch evidence while its own rename and field rotation were incomplete.
-- _Fold-in:_ make lifecycle verb and workflow ownership agree for trivial versus nontrivial refreshes, preserve the
-  staged-index renderer as commit-check authority, and suppress transition-internal residue. Keep the longer-term
-  target that WU branches do not carry project-level projections.
-
-### `[ ]` **Expose a first-class readiness-view render verb**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured after hand-editing a dependency
-  edge staled the view emitted by `arc stub`.
-- _Concern:_ lifecycle verbs render as side effects, but no discoverable CLI verb performs the mandatory
-  staged-index refresh after a manual render-field edit; operators learn the shell redirection only from a failed
-  pre-commit diagnostic.
-- _Approach:_ expose the existing staged-index projection as a verb, or eliminate the manual path by making every
-  render-field mutator regenerate before returning. Coordinate with branch-carried projection retirement rather
-  than creating a permanent command solely for a surface this WU may dematerialize.
-
-### `[ ]` **Materialize pollutes ROADMAP consistency; in-flight rows key on ephemeral refs**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-18); captured
-  during FP wave-4 cross-machine burn-in (2026-07-17).
-- _Concern:_ `arc materialize <slug>` regenerates the primary's `ROADMAP.md` to add the newly-in-flight row and
-  **stages it uncommitted** on `main`, where full protection forbids committing it — leaving the primary dirty
-  with no clean reconcile. Root cause is deeper: the project render sources In-Flight rows from **origin/remote
-  refs** (verified — removing the local branch + worktree left the row; only deleting the origin branch cleared
-  it), so any remote plan branch makes _every_ worktree's ROADMAP "want" that row and trips the regen pre-commit
-  hook on a sibling worktree's next commit. Hit live: an FP-branch commit was blocked by a probe-c row FP never
-  authored. Distinct trigger from the merge-boundary ROADMAP conflict class in the entry below (that one is
-  concurrent renders diverging; this one is ref-sourced rows contaminating unrelated worktrees).
-- _Fold-in:_ two coupled fixes to weigh at grooming — (1) materialize should not stage an uncommitted ROADMAP
-  regen on the primary (skip the regen, route it through a committed ceremony, or render on demand);
-  (2) reconsider whether In-Flight rows should derive from **tree metas** (committed, per-worktree coherent)
-  rather than ephemeral local/remote refs — the ref-sourced design is what makes an unrelated worktree's commit
-  depend on another WU's branch existing. Coordinate with the merge-driver entry below (same owner).
-
 ### `[ ]` **The pinned-workspace need: project-level view surfaces under parallelism**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-18); captured
@@ -111,19 +45,6 @@
   Non-overlap holds (`arc view` never grows a project renderer); coordinate verb semantics with the `status-hud`
   stub (status/HUD family vs. artifact-view family, settled 2026-07-17).
 
-### `[ ]` **Merge-driver ownership for ROADMAP conflict auto-resolve**
-
-- _Routed from:_ residual of the 2026-07-15 pull-back errand `hook-roadmap-conflict-auto-remedy` (inbox capture
-  "Hook auto-remedy for ROADMAP-only merge conflicts (pull-back)"); original capture from housekeep drain /
-  FP wave-3 base merge.
-- _Landed interim:_ pre-commit hook-side regenerate-and-restage when `ROADMAP.md` is the only conflicted (or
-  marker-bearing) path — uses the existing staged-index regenerate-wins projection (`remedy-roadmap-conflict.ts`).
-  Covers the post-stage commit path; pure unmerged ROADMAP-only still needs a stage or driver to fire before
-  `git commit` will invoke hooks.
-- _Residual concern:_ settle whether a scoped **merge driver** with install wiring should own recovery at merge
-  time (before pre-commit), or whether the hook-side path is sufficient long-term. Keep any driver constrained to
-  ROADMAP-only conflicts and coordinated with the same projection engine (no second renderer).
-
 ### `[ ]` **Preserve projection diagnostics as out-of-band advisories**
 
 - _Routed from:_ `readiness-advisory-ordering` errand, 2026-07-14.
@@ -136,14 +57,6 @@
   genuine source and dependency warnings remain out-of-band advisories. Treat this as a projection-engine
   contract to carry through the render-standard pass, not a render-standard choice to reopen.
 
-### `[ ]` **Audit lifecycle workflows for stale ROADMAP hand-render advisories**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); captured after `arc publish` was found
-  to regenerate and stage ROADMAP despite stale workflow prose saying to hand-render it.
-- _Approach:_ verify each lifecycle verb's actual render/stage side effects before editing. Correct only workflows
-  whose command already regenerates and stages, in package and project copies; candidate surfaces are promote,
-  deactivate, and planning/init.
-
 ### `[ ]` **STATUS.USER writer offline merge and document chrome**
 
 - _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during
@@ -154,22 +67,6 @@
 - _Document chrome:_ the writer/template also owns the H1, standing header note, intro blurb, and `Updated:`
   footer. Re-evaluate the current local blurb wording at template time, including whether "available" should align
   to the table heading's "ready" vocabulary.
-
-### `[ ]` **Lifecycle-aware link reanchoring for movable ARC artifacts**
-
-- _Routed from:_ `BACKLOG-INBOX`, work-routing-discipline retirement pass (2026-06-01). Folded here because the
-  reanchor belongs to the same lifecycle file-move CLI surface this WU owns (`arc graduate`, the boundary
-  ceremonies that `git mv` artifacts).
-- _Concern:_ in `pm.mode: arc-in-git`, lifecycle workflows move PRDs, task lists, atomic companions, plan docs,
-  and archives between `backlog/`, `active/`, and `completed/`. Markdown links inside moved files can go stale
-  because relative paths anchor to the source file's old directory. The pre-commit link validator catches the
-  failure, but recovery is manual and interrupts the activation/archive flow.
-- _Proposed:_ combined helper + lifecycle CLI improvement — (1) a constrained link-reanchor helper accepting
-  explicit move pairs (or reading staged `git mv` state), parsing Markdown links / reference definitions and
-  rewriting only targets that resolve to moved ARC artifacts; (2) integrate into the lifecycle CLI commands so
-  `npx arc` performs `git mv`, state/PM updates, and link reanchoring as one operation. Keep it structural (not
-  broad grep/replace); support `--check`/`--write`; preserve filename-only references.
-- _Scope:_ M (helper + tests); L if bundled with full activation/archive CLI commands.
 
 ### `[ ]` **Evaluate extracting a standalone STATUS render-standard doc when repurposing § ROADMAP**
 
@@ -386,20 +283,6 @@
   where measurements still justify it. Route any surviving general transition-engine cache debt to
   `architecture-remediation`.
 
-### `[ ]` **Move ROADMAP regeneration to the merge boundary**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-16); captured
-  during FP wave-3 external-budget contention analysis; evidence in `notes-finalize-parallelism.md` § Day-2
-  evidence.
-- _Concern:_ under wave-3 parallelism every shipping PR conflicts on `ROADMAP.md` — the derived-artifact conflict
-  class ADR-020's derived-vs-mutated split predicts: concurrent branches each carry a render derived from their
-  own base snapshot, and git line-merge cannot converge derived content. In-session friction fixes (already
-  shipped) don't touch this; it is structural while branches edit the render.
-- _Proposed:_ branch PRs stop editing ROADMAP; a base-side post-merge regen keeps it current. Branch-side
-  staleness is already the documented model ("derived-at-merge, mid-WU stale"), so nothing is lost; every-PR
-  conflicts and some doc-only CI churn disappear together. Owns-regen-triggers puts this here. Complements (does
-  not replace) the day-1 auto-regen conflict-remedy errand capture — elimination vs. remedy.
-
 ### `[ ]` **Review coupling-audit finding: ROADMAP name**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-18); captured
@@ -410,108 +293,6 @@
 - _Packet:_ `packet-ff5dc5d126f20b5461b3c71c`; content digest
   `defe2b278dd52e42d668a3f3791dc9a80a64b51db79332444e0c2564f0cde115`.
 - _Evidence:_ `roadmap-name`; `scan-result.json#class-roadmap-name`.
-
-### `[ ]` **Make the integration ROADMAP preflight parallel-WU aware**
-
-- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-18) — re-homed here as ROADMAP-projection design
-  input; captured during `arc-view` integration entry, after parallel WU state changes appeared in ROADMAP
-  regeneration.
-- _Concern:_ `integrate-work-unit.md` requires the fresh-entry ROADMAP diff to contain only the current WU's
-  state flip. That assumption is stale now that parallel WUs routinely advance lifecycle state between ROADMAP
-  renders; regeneration correctly folds their already-authoritative live-ref state into the derived projection.
-- _Approach:_ replace the serial "state flip only" rule with a projection-integrity check that distinguishes
-  explainable concurrent live-ref deltas from malformed or unrelated output without forcing stale hand-edits.
-  Confirm whether executable support is needed beyond the prose change (packaged + self-hosted
-  `integrate-work-unit.md` copies; related workflow tests if present).
-
-### `[ ]` **Scope the ROADMAP re-render to what the invoking operation actually changed**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
-
-- _Observation:_ `arc stub` at the **provisional** tier staged a `ROADMAP` re-render, and the render's only
-  substantive content was unrelated to the stub: it dropped an `Integrating` row for a sibling work unit that had
-  merged into the base branch the current branch has not merged. Provisional stubs are not rendered in `ROADMAP`'s
-  tables at all, so the invoking operation changed nothing the projection shows. The regen was dropped from the
-  commit by hand rather than carrying a base-drift projection rewrite into an unrelated planning commit.
-
-- _Observation (why it bites):_ the render reads "tree + local refs," so on any branch behind its base it encodes
-  sibling lifecycle transitions the branch has not absorbed. A regen triggered by an unrelated operation therefore
-  silently converts base drift into staged content, and the operator has to notice and unstage it. The rule in
-  `DEV-RULES.ARC` § Commit Discipline requires regen only for render-field changes on `active/` or
-  `backlog/planned/` metas and for moves into or out of `backlog/planned/` — the provisional-tier case is outside
-  it, so this is tooling reaching wider than the rule.
-
-- _Approach:_ either skip the regen when the invoking operation cannot affect rendered content (provisional-tier
-  stub creation being the clear case), or scope the render so an unrelated cross-branch delta does not ride along.
-  The second is the more general fix and interacts with the projection's source-scope choice, which is this work
-  unit's territory.
-
-- _Captured during:_ `judgment-authority-model` drafting, 2026-07-26 — hit while minting the `planning-lane-relief`
-  stub for a decomposed face.
-
----
-
-### `[ ]` **Keep the post-decomposition ROADMAP current after teardown**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-19); captured
-  during `cli-substrate-adoption` post-merge teardown, 2026-07-18.
-- _Concern:_ the decomposition PR's generated ROADMAP correctly retained the origin while its planning branch still
-  existed. After merge, `arc teardown cli-substrate-adoption --force` deleted that branch and worktree, and the live
-  `arc status --project` view dropped the origin, but the tracked ROADMAP remained unchanged with
-  `cli-substrate-adoption` still listed as Planning. The required post-merge lifecycle leaves the projection stale
-  until an unrelated ceremony regenerates it.
-- _Fold-in:_ fold this concrete teardown case into the existing merge-boundary regeneration design. Settle whether
-  the merge completion path or receipt-aware teardown owns the base-side refresh, without adding another renderer or
-  leaving a dirty uncommitted base checkout. Coordinate with the "Move ROADMAP regeneration to the merge boundary"
-  and materialize-consistency items already in this buffer (same owner).
-
-### `[ ]` **Discoverable ROADMAP regen — close the `arc status --project --staged > file` verb-gap**
-
-- _Routed from:_ self-observed during the 2026-07-19 housekeep-drain grooming PR (live incident); a ROADMAP-only
-  merge conflict against a concurrently-merged sibling had to be hand-reconciled.
-- _Concern (verb-gap):_ the canonical regen is `arc status --project --staged > .arc/backlog/ROADMAP.md` — a
-  `status` subcommand redirected to overwrite a tracked file. It is undiscoverable (`arc view` has no roadmap kind;
-  `arc status --project` renders to stdout only), so awareness depends on tripping the pre-commit hook, which prints
-  the command in its error. That JIT surface works and keeps miss-cost low, but the idiom is mechanics-narration
-  where a verb should exist (DEV-RULES.PROJECT § Verbs over mechanics — verb-gap signal).
-- _Approach:_ when this WU builds the render tooling, expose a discoverable regen verb (e.g. `arc roadmap render`)
-  that writes the file directly, retiring the redirect idiom. Pairs with the merge-driver auto-resolve item already
-  in this buffer — together they close both the awareness gap and the conflict-reconcile gap this incident hit.
-
-### `[ ]` **Make the ROADMAP check reproducible under concurrent sibling sessions**
-
-- _Routed from:_ `USER-INBOX § Errand` (reclassified multi-step), housekeep drain (2026-07-30); captured during
-  `decompose-base-mobility` planning.
-- _Concern:_ the regen check compares the staged projection to a fresh render that reads live local refs and
-  decomposition claims. A sibling branch can move between render and commit, invalidating a projection staged
-  moments earlier. The retry remedy races the same mutable input and becomes less reliable as concurrency grows.
-- _Fold-in:_ make the check-side render a pure function of reproducible staged inputs, excluding live-ref-derived
-  rows from the comparison rather than necessarily from the artifact. If that boundary cannot hold, define a
-  bounded re-render/re-compare retry that reports the race explicitly.
-
-### `[ ]` **Gate the ROADMAP regen warning on a real projection difference**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-30); captured
-  during `chunked-delivery` base reconciliation.
-- _Concern:_ the hook warns whenever a render field changes even when the rendered row is byte-identical. Its
-  suggested full regeneration is actively harmful on a branch behind base because unrelated shipped and
-  in-flight rows enter the diff.
-- _Fold-in:_ compare the would-be render with the committed projection and warn only on a real difference.
-  Evaluate scoping that comparison to rows fed by the staged metas so the result remains correct independently
-  of base distance, coordinated with the branch-carried projection retirement already in this draft.
-
-### `[ ]` **Treat the HEAD-pinned render stamp as a composition blocker**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-30); captured
-  during `decompose-base-mobility` planning.
-- _Concern:_ the existing branch-carried-projection entry records per-commit re-render tax, but the stamp now
-  blocks dependent design. Core decomposition finalization expects a projection stamped at
-  `resultBase.head`; the shared conflict remedy stamps worktree `HEAD`. Those values diverge under the exact
-  base-advancement case the remedy is meant to handle, making the paths impossible to compose without weakening
-  an invariant.
-- _Fold-in:_ sharpen the existing branch-carried-projection evidence rather than creating a separate concern.
-  If full projection retirement remains deferred, weigh dropping or read-time deriving the stamp as a focused
-  interim correction; that already-recorded option would dissolve this failure class.
 
 ---
 

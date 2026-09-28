@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | [TBD]     | `P1`         |
 
 - **Cohort:** [none]
-- **Depends On:** `coupling-blast-radius-audit`
+- **Depends On:** `coupling-blast-radius-audit`, `storage-cutover`
 
 - **Origin:** [internal]
 - **Design:** `draft-wu-lifecycle-state-model.md`
@@ -16,7 +16,8 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** —
+- **Next Action:** Implementation waits on `storage-cutover`: the front half edits the lifecycle handlers the
+  seam rewrites (`cohort-state-storage.md` § Cross-cohort). Its design may run any time.
 
 - **PR URL:** [none]
 - **Completed:** [none]

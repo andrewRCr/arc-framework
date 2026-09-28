@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P3`         |
 
 - **Cohort:** `configuration`
-- **Depends On:** [none]
+- **Depends On:** `storage-contract`
 
 - **Origin:** [internal]
 - **Design:** `draft-config-storage-architecture.md`

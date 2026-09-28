@@ -1,8 +1,9 @@
 # Draft: Managed Operational-State Document Model
 
-- **State:** Draft — pre-PRD. Spawned by ADR-022 as its implementation substrate. **Decomposition cut-map settled
-  at the 2026-07-02 grooming (§ Decomposition)** — `decompose-work-unit` is the next action; the inbound buffer
-  distributes to members per the routing map there rather than integrating into this body.
+- **State:** Draft — pre-PRD. Spawned by ADR-022 as its implementation substrate. Re-scoped at the
+  `state-storage` re-cut (2026-09-28) as the storage program's records-engine follow-on (§ Re-scope); the
+  2026-07-02 decomposition cut-map (§ Decomposition) predates that and is re-derived before `decompose-work-unit`
+  runs. The inbound buffer distributes to members rather than integrating into this body.
 - **Created:** 2026-05-27
 - **Origin:** [internal] — ADR-022 (`adr-022-managed-operational-state-documents.md`).
 
@@ -86,7 +87,7 @@
   entries suppressing the age nudge.
 - _Fold-in:_ amend the evaluation-model sentence at OSD's next planning iteration: shared inbox records are
   sweep-based **and age-nudged**, with `_Awaiting:_` as the nudge suppressor. Also carry forward the
-  concurrency shape from `draft-arc-backend.md` / `draft-shared-inbox-model.md`: shared-mutable inbox records
+  concurrency shape from `draft-storage-contract.md` / `draft-shared-inbox-model.md`: shared-mutable inbox records
   are entry-granular (slug-keyed add / remove / re-home), never whole-document state.
 
 ### `[ ]` **Compaction seed as a read-only projection over managed records (sibling to `STATUS.*`)**
@@ -462,7 +463,7 @@
   `cross-machine-sync-coherence` as the notes-synced transport-hardening dependency. Post-decomposition
   (2026-06-25) that dependency is `partial-push-marker`'s (the marker / partial-push owner). This WU owns the
   ADR-022 alignment edits, so the re-point rides the propagation set rather than a standalone errand.
-- _Verified at drain:_ the capture's second premise is already stale — `draft-arc-backend.md` no longer
+- _Verified at drain:_ the capture's second premise is already stale — `draft-storage-contract.md` no longer
   references the retired slug, so the live remainder is ADR-022 only.
 - _Adjacent (flagged, not routed here):_ ADR-027 (line ~134) and several backlog drafts
   (`state-ref-write-safety`, `naming-conventions`, `finalize-parallelism`, `external-coord-probe`, the
@@ -586,7 +587,49 @@
   as `arc inbox add` paired with remove. Settle verb surface (add / remove / list), composition with
   `arc user save` / `load`, and gate shape (interlock vs emitted proposal).
 
+### `[ ]` **Make execute-bound Errand offers respect typed work-unit dependencies**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, drained at the `state-storage` re-cut (2026-09-28).
+
+- _Observation:_ `nextOffer` selects the first execute-bound `USER-INBOX` entry from file order without consulting
+  dependency state. It therefore offered the paused `batch-compaction-seed-candidate-reads` Errand even though its
+  required `review-signal-convergence` work unit remains active and unshipped, causing a pointless open/leave cycle.
+
+- _Approach:_ model typed work-unit dependency edges in the managed user-surface record and reuse the canonical,
+  storage-agnostic WU lifecycle query when projecting the next eligible execute-bound offer. Preserve file order
+  among eligible entries, treat missing targets as unsatisfied, and cover the blocked-first/eligible-later case plus
+  automatic eligibility after the dependency ships.
+
+- _Boundary:_ automated edges initially target work units only. Closed Errands currently leave no durable completion
+  record, so Errand-to-Errand edges cannot distinguish completed from nonexistent safely. Ecosystem and other
+  external predicates remain `_Awaiting:_` judgment pointers with `_Hold: true`, not machine-guessed dependencies.
+
+- _Forward compatibility:_ do not extend the interim Markdown parser as a second authority. Add the field to the
+  slug-keyed `USER-INBOX` record grammar owned by `user-surface-records`; keep queue selection behind the record/query
+  boundary so the current in-repo lifecycle index can later move to the materialized git backing store unchanged.
+
+- _Captured during:_ the execute-bound Errand sequence after `keep-approved-errand-merges-waiting`, 2026-09-22.
+
 ---
+
+## Re-scope — the records engine
+
+At the `state-storage` re-cut (2026-09-28) this work unit became the storage program's records-engine follow-on.
+It runs after `storage-cutover`; `storage-contract` tags it core or deferred.
+
+- **File-as-record (Owner, 2026-09-25).** A managed document's fields are parsed from the file, which is itself
+  the record, and validated when written back. Rendering is only for derived views — ROADMAP and the `STATUS.*`
+  surfaces. This replaces ADR-022's record-authoritative model, which renders markdown from the record and
+  reconciles one editable region back. This work unit carries the ADR-022 amendment when it designs the records
+  work.
+- **What survives.** The structured schemas and the round-trip harness. The render-and-reconcile engine and the
+  reconciled-editable-region primitive give way to parse-and-validate, and the notes-synced wiring is rebuilt on
+  the store (storage analysis § 8).
+- **Where the parsers meet the contract.** Under the storage contract every reader asks for a document's fields
+  through its record family's parser, never by path or placement, and the query cache indexes the parsed fields.
+  This work unit later changes what sits behind each parser without moving storage.
+- **Independent slice.** `corpus-conformance-gate` validates the stored corpus and does not depend on storage;
+  it can be cut out and run ahead of the cutover.
 
 ## Purpose
 
@@ -677,8 +720,8 @@ origin WU retires into the cohort, its draft content and buffer distributing per
 - **`cli-substrate-adoption`** (hard, upstream) — provides the zod substrate and the meta record schema this
   WU extends to the remaining surfaces.
 - Coordinates with `roadmap-tooling` (the `STATUS.*` renderer is an instance of the render engine),
-  `meta-file-tracking-model` (the meta-storage slice — provisional), and `cross-machine-sync-coherence`
-  (transport hardening for notes-synced members).
+  `storage-contract` (the record-family parsers and where each surface is stored), and
+  `cross-machine-sync-coherence` (transport hardening for notes-synced members).
 - **`knowledge-lint`** (boundary, settled at its 2026-07-02 grooming) — standing consistency enforcement over
   `.arc/` splits by document class: this WU owns record-schema conformance (round-trip harness + corpus gate)
   over the managed class; `knowledge-lint` owns the durable prose corpus no schema governs. Resolve-don't-store

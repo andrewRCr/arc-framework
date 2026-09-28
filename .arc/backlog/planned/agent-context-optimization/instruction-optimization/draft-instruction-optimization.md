@@ -58,7 +58,7 @@ the cohort layers model — see `cohort-agent-context-optimization.md`.
   2026-07-03 re-scope — the WU renamed to `local-mode`, Lite content cut): there is no Lite probe shape to
   design for, and the shipped multi-WU probe runs tier-agnostic on the invariant floor. The **surviving**
   composability concern is the storage axis: Local's session-init pre-check (halt on missing `.arc/`, surface
-  `arc backing status` degraded state) — see `draft-local-mode.md` § Session-init pre-check. At integration:
+  `arc backing status` degraded state) — see `research-local-mode.md` § Session-init pre-check. At integration:
   drop the Lite arms of the callback, re-point the concern at the storage axis, and update the stale
   `plan-arc-modes.md` filename refs.
 
