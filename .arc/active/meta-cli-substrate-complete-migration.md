@@ -5,8 +5,7 @@
 | `Planning` | `andrew`  | `plan/cli-substrate-complete-migration` | `Heavy`   | `P2`         |
 
 - **Cohort:** `cli-substrate-adoption`
-- **Depends On:** `cli-schema-kernel`, `cli-session-envelope`, `cli-layout-resolver`, `cli-validation-surfaces`,
-  `cli-git-executor`, `cli-command-inputs`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `spec-cli-substrate-complete-migration.md`
