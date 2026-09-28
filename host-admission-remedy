@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "host-admission-remedy",
+  "claimId": "852d0b00cf5c418ec84dd1acb159c080",
+  "createdAt": "2026-09-28T20:03:43.798Z",
+  "updatedAt": "2026-09-28T20:03:43.798Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Report stable host-admission conditions as a typed refusal with a condition-keyed remedy instead of a pending retry",
+  "branch": "chore/host-admission-remedy",
+  "origin": "inbox",
+  "originEntry": "Discriminate the host-admission remedy by observed condition, not one pending bucket",
+  "originEntrySourceDigest": "sha256:9af04bcfc3edd947715c0d8e244a9ca559572794e30047469b4f15c14c77ee1e",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
