@@ -328,24 +328,43 @@ Register citations below name the corresponding **Storage-coupling register** ro
 
 ### Git-executor contract
 
-| Surface                                                                 | Destination                   | Disposition      | Citation                  |       Importers | Evidence                   |
-| ----------------------------------------------------------------------- | ----------------------------- | ---------------- | ------------------------- | --------------: | -------------------------- |
-| `RawGitExec` and `RawGitResult` in `src/lib/change-facts.ts`            | `src/lib/git/exec.ts`         | migrated         | Spec § 2.2                | 0 old; 44 moved | AST import sweep; Task 1.4 |
-| `createRawGitExec` spawn factory in `change-facts.ts`                   | `createSpawnRawGitExec`       | migrated         | Spec § 7                  |  4 direct tests | Task 4.6.b                 |
-| `change-facts.ts`: CI weight, tree hash, portability, raw executor      | same module                   | retained by rule | Spec § 1; `R-CI` survivor |            M:51 | Task 4.6.b                 |
-| `change-facts.ts`: planning-lane classifier                             | —                             | carved           | `R-CI`                    |            M:51 | Task 4.6.b                 |
-| Git failure-text predicates in `src/lib/user-sync/notes-merge.ts`       | `src/lib/git/ref-tree.ts`     | migrated         | Spec § 7; `R-NS` survivor |             M:7 | Task 4.5.a                 |
-| `notes-merge.ts`: remaining notes merge functions                       | —                             | carved           | `R-NS`                    |             M:7 | Task 4.5.a                 |
-| `resolveGitCommonDir` in `src/lib/user-sync/repo-shared-paths.ts`       | `src/lib/git/exec.ts`         | migrated         | Spec § 7; `R-NS` survivor |     9 surviving | Task 4.5.b                 |
-| `getRepoSharedUserInternalDir` in `repo-shared-paths.ts`                | correction pending            | retained by rule | `R-LOCK`                  |            M:12 | existing inbox capture     |
-| `getNotesLockPath` in `src/lib/user-sync/notes-lock.ts`                 | correction pending            | retained by rule | `R-LOCK`                  |             M:4 | existing inbox capture     |
-| `src/lib/io-context.ts`: `createRawGitExec`, `createGitExec`, `gitExec` | bound executor factory        | migrated         | Spec § 8                  |            M:98 | Task 4.4                   |
-| `src/lib/io-context.ts`: notes `UserIOContext` and writer               | store-backed IO               | carved           | `R-NS`                    |            M:98 | Task 4.4                   |
-| errand identity `.message` Git classification                           | `gitFailureText()`            | migrated         | Spec § 7                  |               — | Task 4.6.a                 |
-| raw Git in lifecycle hook scripts                                       | —                             | carved           | `R-HC`                    |               — | coupling scan; Task 4.7    |
-| raw `git()` arrangement runners                                         | same modules                  | retained by rule | Spec § 9                  |               — | Task 4.7                   |
-| `gitExec` in standalone scripts and fallback holders                    | same singleton                | retained by rule | Spec § 8                  |      10 scripts | Task 4.4.d                 |
-| `gitExecInput` unbound fallback                                         | `createGitExecInput` fallback | retained by rule | Spec § 8                  |               — | Task 4.4.c                 |
+| Surface                                                                 | Destination               | Disposition      | Citation                  |       Importers | Evidence                   |
+| ----------------------------------------------------------------------- | ------------------------- | ---------------- | ------------------------- | --------------: | -------------------------- |
+| `RawGitExec` and `RawGitResult` in `src/lib/change-facts.ts`            | `src/lib/git/exec.ts`     | migrated         | Spec § 2.2                | 0 old; 44 moved | AST import sweep; Task 1.4 |
+| `createRawGitExec` spawn factory in `change-facts.ts`                   | `createSpawnRawGitExec`   | migrated         | Spec § 7                  |  4 direct tests | Task 4.6.b                 |
+| `change-facts.ts`: CI weight, tree hash, portability, raw executor      | same module               | retained by rule | Spec § 1; `R-CI` survivor |            M:51 | Task 4.6.b                 |
+| `change-facts.ts`: planning-lane classifier                             | —                         | carved           | `R-CI`                    |            M:51 | Task 4.6.b                 |
+| Git failure-text predicates in `src/lib/user-sync/notes-merge.ts`       | `src/lib/git/ref-tree.ts` | migrated         | Spec § 7; `R-NS` survivor |             M:7 | Task 4.5.a                 |
+| `notes-merge.ts`: remaining notes merge functions                       | —                         | carved           | `R-NS`                    |             M:7 | Task 4.5.a                 |
+| `resolveGitCommonDir` in `src/lib/user-sync/repo-shared-paths.ts`       | `src/lib/git/exec.ts`     | migrated         | Spec § 7; `R-NS` survivor |     9 surviving | Task 4.5.b                 |
+| `getRepoSharedUserInternalDir` in `repo-shared-paths.ts`                | correction pending        | retained by rule | `R-LOCK`                  |            M:12 | existing inbox capture     |
+| `getNotesLockPath` in `src/lib/user-sync/notes-lock.ts`                 | correction pending        | retained by rule | `R-LOCK`                  |             M:4 | existing inbox capture     |
+| `src/lib/io-context.ts`: `createRawGitExec`, `createGitExec`            | bound executor factory    | migrated         | Spec § 8                  |            M:98 | Task 4.4                   |
+| `src/lib/io-context.ts`: notes `UserIOContext` and writer               | store-backed IO           | carved           | `R-NS`                    |            M:98 | Task 4.4                   |
+| errand identity `.message` Git classification                           | `gitFailureText()`        | migrated         | Spec § 7                  |               — | Task 4.6.a                 |
+| raw Git in lifecycle hook scripts                                       | —                         | carved           | `R-HC`                    |               — | coupling scan; Task 4.7    |
+| raw `git()` arrangement runners                                         | same modules              | retained by rule | Spec § 9                  |               — | Task 4.7                   |
+| `src/scripts/assert-layout-migration.ts`: `gitExec`                     | same singleton            | retained by rule | Spec § 8                  |               — | Task 5.1 deletes script    |
+| `src/scripts/audit-coupling-blast-radius.ts`: `gitExec`                 | same singleton            | retained by rule | Spec § 8                  |               — | standalone; Task 4.4.d     |
+| `src/scripts/audit-emphasis.ts`: `gitExec`                              | same singleton            | retained by rule | Spec § 8                  |               — | standalone; Task 4.4.d     |
+| `src/scripts/audit-tables.ts`: `gitExec`                                | same singleton            | retained by rule | Spec § 8                  |               — | standalone; Task 4.4.d     |
+| `src/scripts/check-foreign-writes.ts`: `gitExec`                        | same singleton            | retained by rule | Spec § 8                  |               — | standalone; Task 4.4.d     |
+| `src/scripts/lint-markdown-staged.ts`: `gitExec`                        | same singleton            | retained by rule | Spec § 8                  |               — | standalone; Task 4.4.d     |
+| `src/scripts/lint-markdown-worktree.ts`: `gitExec`                      | same singleton            | retained by rule | Spec § 8                  |               — | standalone; Task 4.4.d     |
+| `src/scripts/lint-markdown.ts`: `gitExec`                               | same singleton            | retained by rule | Spec § 8                  |               — | standalone; Task 4.4.d     |
+| `src/scripts/lint-task-descriptors.ts`: `gitExec`                       | same singleton            | retained by rule | Spec § 8                  |               — | standalone; Task 4.4.d     |
+| `src/scripts/markdown-write-command.ts`: `gitExec`                      | same singleton            | retained by rule | Spec § 8                  |               — | standalone; Task 4.4.d     |
+| `src/commands/active/status.ts`: `gitExec`                              | bound caller overrides    | retained by rule | Spec § 8                  |               — | fallback; Task 4.4.a       |
+| `src/commands/config/status.ts`: `gitExec`                              | bound caller overrides    | retained by rule | Spec § 8                  |               — | fallback; Task 4.4.b       |
+| `src/handlers/release/record.ts`: `gitExec`                             | bound caller overrides    | retained by rule | Spec § 8                  |               — | fallback; Task 4.4.a       |
+| `src/handlers/release/setup/verify.ts`: `gitExec`                       | bound caller overrides    | retained by rule | Spec § 8                  |               — | fallback; Task 4.4.a       |
+| `src/lib/recover/committed-progress.ts`: `gitExec`                      | bound caller overrides    | retained by rule | Spec § 8                  |               — | fallback; Task 4.4.a       |
+| `src/lib/local-test-admission.ts`: policy-less `createGitExec()`        | same default executor     | retained by rule | Spec § 8                  |               — | standalone runners; 4.4.d  |
+| `src/lib/io-context.ts`: module-level `candidateGitExec`                | base of bound factory     | retained by rule | Spec § 8                  |               — | Task 4.4.d                 |
+| `src/lib/io-context.ts`: module-level `gitExec`                         | unbound singleton         | retained by rule | Spec § 8                  |               — | Task 4.4.d                 |
+| `src/lib/io-context.ts`: module-level `gitExecInput`                    | unbound factory fallback  | retained by rule | Spec § 8                  |               — | Task 4.4.c                 |
+| `src/lib/io-context.ts`: `prepareGitRefVerification` direct `execa`     | lifecycle landing rewrite | carved           | `R-LW`                    |               — | park --land; Task 4.4.d    |
+| `src/handlers/locus.ts`: `gitExec`                                      | storage locus rewrite     | carved           | `R-LOC`                   |               — | Task 4.1.e                 |
 
 ### Command-inputs contract
 

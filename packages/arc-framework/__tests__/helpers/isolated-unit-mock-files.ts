@@ -23,6 +23,7 @@ export const ISOLATED_UNIT_MOCK_FILES = [
   "__tests__/unit/handlers-shared.test.ts",
   "__tests__/unit/handlers/active.test.ts",
   "__tests__/unit/handlers/base-drift.test.ts",
+  "__tests__/unit/handlers/delivery-review-fix-release-effects.test.ts",
   "__tests__/unit/handlers/delivery.test.ts",
   "__tests__/unit/handlers/errand-check.test.ts",
   "__tests__/unit/handlers/lifecycle-verbs.test.ts",

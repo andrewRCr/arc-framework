@@ -341,7 +341,7 @@ path spawns Git through an unbound executor; the failure-text predicates and `re
 - _Outcome:_ All three helpers now require a Git executor, and a boundary test proves supplied executors control
   identity and repository checks; no surviving caller relies on the implicit singleton.
 
-### `[ ]` **4.4 Thread bound executors through the remaining unbound Git spawns — D8**
+### `[x]` **4.4 Thread bound executors through the remaining unbound Git spawns — D8**
 
 - _Goal:_ No surviving context-bearing command path spawns Git through an unbound executor — the `gitExec` singleton or
   one built without a subprocess policy — exported helpers' callers included; the singletons remain only for standalone
@@ -369,13 +369,14 @@ path spawns Git through an unbound executor; the failure-text predicates and `re
           active in-flight adapter now use the factory; carved `writeGitNote` retains its singleton. Both factory
           tests failed before the implementation and pass with the new binding.
 
-    - `[ ]` **4.4.d Record the remaining unbound executors**
-        - Matrix rows for the standalone scripts that keep `gitExec`, for each of the five fallback holders, for
-          `local-test-admission.ts`, whose policy-less executor serves the standalone test runners, and for the
-          module-level `candidateGitExec`, `gitExec`, and `gitExecInput` in `lib/io-context.ts`, retained as the
-          singletons and their base; the `assert-layout-migration.ts` row Task 5.1 closes when it deletes the script.
-        - A carved row for `prepareGitRefVerification` in `lib/io-context.ts`, whose direct `execa` spawn carries no
-          interaction environment and serves only `park --land`'s planning landing, the carved lifecycle write path.
+    - `[x]` **4.4.d Record the remaining unbound executors**
+        - Added individual matrix rows for all ten standalone scripts, five overridden fallback holders, the
+          standalone test-runner default, and the three module-level executor bases. The layout assertion script's
+          row points to its Task 5.1 deletion. Marked `prepareGitRefVerification` and locus as storage-carved under
+          their register rows.
+
+- _Outcome:_ All surviving context-bearing command paths audited in this task bind Git execution to their invocation
+  context. The retained unbound sites and carved paths have explicit matrix dispositions.
 
 ### `[ ]` **4.5 Move the Git failure-text predicates and `resolveGitCommonDir` into `lib/git/` — D7, D1**
 
