@@ -13,7 +13,7 @@ import {
   projectCandidateReviewBoundary,
   projectPublicationBoundary,
 } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
-import { canonicalize } from "../../../src/lib/canonical/canonical-json.js";
+import { canonicalize } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import { spineRemedy } from "../../../src/scripts/integration/spine-refusal.js";
 
 const mockLogError = vi.fn();

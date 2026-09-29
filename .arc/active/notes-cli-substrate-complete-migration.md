@@ -1335,6 +1335,57 @@ classification, rendering, and source checks name source filenames or policy pat
 Re-run this search and the four framework-class slices of the coupling scan after every base merge. Work-unit state
 paths stay with Task 5.4.b; Git hook, shell, `.mjs`, classifier, explanatory, and policy hits take Task 5.4.c kinds.
 
+### Canonical JSON shim
+
+Search tracked `src/` and `__tests__/` TypeScript string literals, including static imports, dynamic imports, and
+`vi.mock`, for specifiers resolving to `src/lib/canonical/canonical-json.ts`. Re-point only those exact resolved
+specifiers to `src/lib/kernel/canonical/canonical-json.ts`, retaining the `.js` import extension and existing named
+imports. The rule deliberately leaves literals already resolving to the kernel file alone. Re-run it after a base
+merge, then search `rg -n 'canonical/canonical-json|canonical-json\.js|canonical-json\.ts' src __tests__` and
+inspect any remaining old-path hit before deleting the shim.
+
+```js canonical-json-rewrite
+const { execFileSync } = require("node:child_process");
+const { existsSync, readFileSync, writeFileSync } = require("node:fs");
+const path = require("node:path");
+const ts = require("typescript");
+const shim = path.resolve("src/lib/canonical/canonical-json.ts");
+const owner = path.resolve("src/lib/kernel/canonical/canonical-json.ts");
+const files = execFileSync("git", ["ls-files", "-z", "--", "src", "__tests__"])
+  .toString().split("\0").filter((file) => existsSync(file) && /\.(?:[cm]?ts|tsx)$/u.test(file));
+let changed = 0;
+for (const file of files) {
+  const input = readFileSync(file, "utf8");
+  const source = ts.createSourceFile(file, input, ts.ScriptTarget.Latest, true);
+  const edits = [];
+  function visit(node) {
+    if (ts.isStringLiteral(node) && node.text.startsWith(".")) {
+      const resolved = path.resolve(path.dirname(file), node.text.replace(/\.js$/u, ".ts"));
+      if (resolved === shim) {
+        let specifier = path.relative(path.dirname(file), owner).replaceAll("\\", "/").replace(/\.ts$/u, ".js");
+        if (!specifier.startsWith(".")) specifier = `./${specifier}`;
+        edits.push({ start: node.getStart(source) + 1, end: node.getEnd() - 1, specifier });
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  if (!edits.length) continue;
+  let output = input;
+  for (const edit of edits.reverse()) output = output.slice(0, edit.start) + edit.specifier + output.slice(edit.end);
+  writeFileSync(file, output);
+  changed += edits.length;
+  process.stdout.write(`${file}: ${edits.length}\n`);
+}
+process.stdout.write(`rewritten specifiers: ${changed}\n`);
+```
+
+Run from `packages/arc-framework` after extracting the fence to a scratch `.cjs` file under the directory linked to
+the workspace `node_modules`; the command is `node /tmp/arc-cli-substrate-inventory/canonical-json-rewrite.cjs`.
+The first run rewrote 125 specifiers in source, tests, fixtures, and helpers. The corrected recipe's second run
+rewrote zero, including while the deleted test path remained in Git's unstaged index. The canonical behavior tests
+moved to `__tests__/unit/kernel/canonical-json.test.ts`; only the compatibility-export identity case was removed.
+
 ### Raw Git type home
 
 At the merged base, the TypeScript import graph and an AST pass found 44 named imports of `RawGitExec` from

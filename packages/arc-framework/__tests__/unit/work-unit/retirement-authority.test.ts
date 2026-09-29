@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { contentDigest } from "../../../src/lib/canonical/content-digest.js";
-import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import { validateManagedPath } from "../../../src/lib/canonical/managed-path.js";
 import {
   describeTeardownAuthorizationRefusal,

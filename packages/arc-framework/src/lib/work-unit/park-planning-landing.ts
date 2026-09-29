@@ -10,7 +10,7 @@ import { posix, join, resolve } from "node:path";
 
 import { isSafeCohortPath, validateCohortPath } from "../active/cohort-path.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
-import { canonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
+import { canonicalDigest, type CanonicalDigest } from "../kernel/canonical/canonical-json.js";
 import {
   deleteOperation,
   writeOperation,

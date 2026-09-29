@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { canonicalize } from "../../../lib/canonical/canonical-json.js";
+import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
 import {
   CandidateManagedRecordV1Schema,
   CandidateReviewApplicabilitySelectionV1Schema,

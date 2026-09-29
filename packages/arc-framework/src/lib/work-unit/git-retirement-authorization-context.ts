@@ -10,7 +10,7 @@ import { normalizeGitRejection } from "../git/process-error.js";
 import { uniqueRefToken } from "../git/ref-tree.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
 import type { WorktreeSubject } from "../git/worktree-marker.js";
-import { canonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
+import { canonicalDigest, type CanonicalDigest } from "../kernel/canonical/canonical-json.js";
 import {
   contentDigest,
   type ArtifactSetEntry,

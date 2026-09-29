@@ -3,7 +3,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { canonicalize, digestBytes } from "../canonical/canonical-json.js";
+import { canonicalize, digestBytes } from "../kernel/canonical/canonical-json.js";
 import { atomicWriteFile } from "../fs.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 import { acquireAdvisoryLock, releaseAdvisoryLock } from "../advisory-lock.js";

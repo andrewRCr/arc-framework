@@ -5,7 +5,7 @@ import { createHostedHandleFixture } from "../../../fixtures/hosted-review.js";
 
 import { DeliveryReviewMemberVehicleSchema } from
   "../../../../src/lib/delivery/review-vehicle.js";
-import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest } from "../../../../src/lib/kernel/canonical/canonical-json.js";
 import { createReviewTarget } from
   "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { classifyReviewContributionApplicability } from

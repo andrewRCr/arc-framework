@@ -8,7 +8,7 @@ import {
   type DeliveryClassifierCommand,
   type IntegrationCheckpointDependencies,
 } from "../../../../src/scripts/integration/checkpoint.js";
-import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest } from "../../../../src/lib/kernel/canonical/canonical-json.js";
 import { classifyCandidateApplicability } from "../../../../src/lib/work-unit/candidate-applicability.js";
 import { CandidateSubjectUncollectableError } from "../../../../src/lib/work-unit/git-candidate-subject.js";
 import { createCandidateSubjectSnapshot } from "../../../../src/lib/work-unit/candidate-attestation.js";

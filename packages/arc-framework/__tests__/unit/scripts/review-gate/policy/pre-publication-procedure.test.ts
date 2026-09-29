@@ -3,7 +3,7 @@
 import { Ajv2020, type AnySchema } from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
 
-import { canonicalDigest } from "../../../../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest } from "../../../../../src/lib/kernel/canonical/canonical-json.js";
 import { createKernelRegistry } from "../../../../../src/lib/kernel/index.js";
 import {
   registerReviewDomainSchemas,

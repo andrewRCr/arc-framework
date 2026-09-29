@@ -29,7 +29,7 @@ import {
   handleReviewTerminusAccept,
 } from "../../src/handlers/review.js";
 import { runDerivedLocusStateProbe } from "../../src/handlers/derived-locus-state-probe.js";
-import { canonicalDigest, canonicalize } from "../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest, canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
 import {
   serializeTransientIdentityRecord,
   TransientIdentityRecordV3Schema,

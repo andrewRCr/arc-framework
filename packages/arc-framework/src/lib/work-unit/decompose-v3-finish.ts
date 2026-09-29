@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { isCanonicalDigest } from "../canonical/canonical-json.js";
+import { isCanonicalDigest } from "../kernel/canonical/canonical-json.js";
 import { isManagedPath } from "../canonical/managed-path.js";
 import { V3DecomposeCoreRefusalSchema } from "./decompose-v3-refusal.js";
 import { V3DecomposeLocatorSchema } from "./decompose-v3-schema.js";

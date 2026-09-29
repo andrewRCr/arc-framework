@@ -11,7 +11,7 @@ import {
   canonicalize,
   digestBytes,
   sortByCanonicalBytes,
-} from "../../src/lib/canonical/canonical-json.js";
+} from "../../src/lib/kernel/canonical/canonical-json.js";
 import { createSpawnRawGitExec } from "../../src/lib/change-facts.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { createGitV3DecomposePreflight } from "../../src/lib/work-unit/git-decompose-v3-preflight.js";

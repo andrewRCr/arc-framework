@@ -5,7 +5,7 @@
  * adapter storage schema into one opaque digest.
  */
 
-import { canonicalDigest } from "../canonical/canonical-json.js";
+import { canonicalDigest } from "../kernel/canonical/canonical-json.js";
 import type { GitExec } from "../git/exec.js";
 import type {
   RetirementAuthorityScope,

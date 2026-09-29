@@ -6,7 +6,7 @@ import {
   canonicalize,
   digestBytes,
   isCanonicalDigest,
-} from "../canonical/canonical-json.js";
+} from "../kernel/canonical/canonical-json.js";
 import { isManagedPath } from "../canonical/managed-path.js";
 import { normalizeDecomposeHeadingSource } from "./decompose-heading.js";
 import {

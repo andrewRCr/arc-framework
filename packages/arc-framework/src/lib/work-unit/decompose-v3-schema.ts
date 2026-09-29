@@ -7,7 +7,7 @@ import {
   isCanonicalDigest,
   sortByCanonicalBytes,
   type CanonicalDigest,
-} from "../canonical/canonical-json.js";
+} from "../kernel/canonical/canonical-json.js";
 import { isManagedPath } from "../canonical/managed-path.js";
 import { SlugSchema, WorkClassSchema } from "../kernel/index.js";
 import { isSafeCohortPath, validateCohortPath } from "../active/cohort-path.js";

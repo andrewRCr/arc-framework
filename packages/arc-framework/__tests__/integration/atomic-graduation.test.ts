@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
 import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
-import { digestBytes } from "../../src/lib/canonical/canonical-json.js";
+import { digestBytes } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { resolveWorktreeMarkerPath } from "../../src/lib/git/worktree-marker.js";

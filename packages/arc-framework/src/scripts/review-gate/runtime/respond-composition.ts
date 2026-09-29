@@ -2,7 +2,7 @@
 
 import { readFile } from "node:fs/promises";
 
-import { canonicalize } from "../../../lib/canonical/canonical-json.js";
+import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import {
   projectTransientInFlightRead,

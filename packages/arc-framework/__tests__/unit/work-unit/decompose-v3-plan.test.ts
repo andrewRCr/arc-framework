@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canonicalDigest, sortByCanonicalBytes } from "../../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest, sortByCanonicalBytes } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import {
   V3PlanContributorSchema,
   V3ValidatedPathMutationSchema,

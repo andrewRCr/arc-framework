@@ -6,7 +6,7 @@
 
 import { join, posix } from "node:path";
 
-import { digestBytes } from "../canonical/canonical-json.js";
+import { digestBytes } from "../kernel/canonical/canonical-json.js";
 import {
   captureGitIndexState,
   type GitExec,

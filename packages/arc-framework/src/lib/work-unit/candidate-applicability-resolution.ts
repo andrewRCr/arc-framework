@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { canonicalize } from "../canonical/canonical-json.js";
+import { canonicalize } from "../kernel/canonical/canonical-json.js";
 import {
   CandidateApplicabilityResultSchema,
   type CandidateApplicabilityRequest,

@@ -24,7 +24,7 @@ import {
   serializeCandidateManagedRecord,
 } from "../../src/lib/work-unit/candidate-attestation.js";
 import { collectCandidateSubjectTarget } from "../helpers/candidate-subject.js";
-import { canonicalDigest } from "../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { gitExec } from "../../src/lib/io-context.js";
 import { LocalReviewOperationStateStore } from

@@ -10,7 +10,7 @@ import {
   V3ValidatedPathMutationSchema,
   type ValidatedDecomposePlan,
 } from "./decompose-v3-plan.js";
-import { isCanonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
+import { isCanonicalDigest, type CanonicalDigest } from "../kernel/canonical/canonical-json.js";
 
 const CanonicalDigestSchema = z.custom<CanonicalDigest>(
   isCanonicalDigest,

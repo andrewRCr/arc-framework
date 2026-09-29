@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { canonicalDigest } from "../canonical/canonical-json.js";
+import { canonicalDigest } from "../kernel/canonical/canonical-json.js";
 import {
   MAX_EVIDENCE_APPLICABILITY_PATH_BYTES,
   MAX_EVIDENCE_APPLICABILITY_PATHS,

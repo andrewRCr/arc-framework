@@ -1,7 +1,7 @@
 /** Lane policy-request composition for the typed pre-publication review procedure. */
 
 import { z } from "zod";
-import { canonicalize } from "../../../lib/canonical/canonical-json.js";
+import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
 
 import { currentApprovedDispositionNode } from "../core/advisory-records.js";
 import { validateApprovedDispositionRecordForResult } from

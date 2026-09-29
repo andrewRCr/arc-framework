@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 
 import { z } from "zod";
 
-import { canonicalDigest, canonicalize } from "../canonical/canonical-json.js";
+import { canonicalDigest, canonicalize } from "../kernel/canonical/canonical-json.js";
 import {
   composeGitV3ExtractionRepositoryPlan,
   composeGitV3RepositoryPlan,

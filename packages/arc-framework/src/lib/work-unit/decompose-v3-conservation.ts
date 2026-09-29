@@ -1,6 +1,6 @@
 /** Pure pre-creation conservation planning for v3 decomposition. */
 
-import { canonicalDigest, sortByCanonicalBytes } from "../canonical/canonical-json.js";
+import { canonicalDigest, sortByCanonicalBytes } from "../kernel/canonical/canonical-json.js";
 import { isManagedPath } from "../canonical/managed-path.js";
 import {
   decodeV3DecomposeCutMap,

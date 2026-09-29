@@ -1,4 +1,4 @@
-import { canonicalDigest, digestBytes } from "../canonical/canonical-json.js";
+import { canonicalDigest, digestBytes } from "../kernel/canonical/canonical-json.js";
 import type {
   V3PlanCanonicalPathState,
   V3ValidatedPathMutation,

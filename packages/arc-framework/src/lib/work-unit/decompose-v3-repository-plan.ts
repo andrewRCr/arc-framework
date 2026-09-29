@@ -2,7 +2,7 @@
 
 import { posix } from "node:path";
 
-import { digestBytes } from "../canonical/canonical-json.js";
+import { digestBytes } from "../kernel/canonical/canonical-json.js";
 import { formatValue, parseMetaRecord, setMetaBulletFields } from "../active/meta-reader.js";
 import { type ParsedMetaRecord } from "../active/meta-schema.js";
 import { MetaPrioritySchema, type MetaPriority } from "../active/meta-schema.js";

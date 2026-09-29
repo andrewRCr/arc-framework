@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import type { V3MaterializationResult } from "../../../src/lib/work-unit/decompose-v3-materializer.js";
 import type {
   V3TopologyFact,

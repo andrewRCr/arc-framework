@@ -9,7 +9,7 @@
 
 import { join, posix, resolve } from "node:path";
 
-import { canonicalDigest, canonicalize } from "../canonical/canonical-json.js";
+import { canonicalDigest, canonicalize } from "../kernel/canonical/canonical-json.js";
 import {
   contentDigest,
   deleteOperation,

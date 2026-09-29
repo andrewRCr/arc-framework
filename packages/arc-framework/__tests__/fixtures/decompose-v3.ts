@@ -1,4 +1,4 @@
-import { canonicalDigest, sortByCanonicalBytes } from "../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest, sortByCanonicalBytes } from "../../src/lib/kernel/canonical/canonical-json.js";
 import {
   v3PlanId,
   v3TopologyDigest,

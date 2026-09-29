@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { canonicalize, sortByCanonicalBytes } from "../../lib/canonical/canonical-json.js";
+import { canonicalize, sortByCanonicalBytes } from "../../lib/kernel/canonical/canonical-json.js";
 import { DeliveryReviewMemberVehicleSchema } from "../../lib/delivery/review-vehicle.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { ReviewIdentifierSchema } from "../review-gate/core/gate-contract-v2-schema.js";

@@ -8,29 +8,7 @@ import {
   isCanonicalDigest,
   sortByCanonicalBytes,
   type CanonicalDigest,
-} from "../../../src/lib/canonical/canonical-json.js";
-import {
-  assertCanonicalDigest as kernelAssertCanonicalDigest,
-  canonicalDigest as kernelCanonicalDigest,
-  canonicalize as kernelCanonicalize,
-  digestBytes as kernelDigestBytes,
-  isCanonicalDigest as kernelIsCanonicalDigest,
-  sortByCanonicalBytes as kernelSortByCanonicalBytes,
-  type CanonicalDigest as KernelCanonicalDigest,
-} from "../../../src/lib/kernel/index.js";
-
-describe("canonical JSON compatibility exports", () => {
-  it("exposes the exact kernel runtime functions and digest type through the old path", () => {
-    expect(canonicalize).toBe(kernelCanonicalize);
-    expect(digestBytes).toBe(kernelDigestBytes);
-    expect(canonicalDigest).toBe(kernelCanonicalDigest);
-    expect(isCanonicalDigest).toBe(kernelIsCanonicalDigest);
-    expect(assertCanonicalDigest).toBe(kernelAssertCanonicalDigest);
-    expect(sortByCanonicalBytes).toBe(kernelSortByCanonicalBytes);
-    expectTypeOf<CanonicalDigest>().toEqualTypeOf<KernelCanonicalDigest>();
-  });
-});
-
+} from "../../../src/lib/kernel/canonical/canonical-json.js";
 describe("canonical JSON serialization", () => {
   it("serializes object keys in recursively codepoint order regardless of insertion order", () => {
     expect(canonicalize({ z: 1, nested: { y: true, b: "x" }, list: [2, 1] })).toBe(

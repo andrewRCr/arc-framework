@@ -6,7 +6,7 @@ import {
   canonicalize,
   canonicalDigest,
   sortByCanonicalBytes,
-} from "../canonical/canonical-json.js";
+} from "../kernel/canonical/canonical-json.js";
 import { composeEvidenceDelta, reduceEvidenceApplicability } from "../evidence-applicability/index.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 import { ReviewContributionApplicabilitySelectorSchema } from "./review-applicability-selector.js";

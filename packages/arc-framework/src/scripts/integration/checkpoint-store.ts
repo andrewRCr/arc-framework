@@ -6,7 +6,7 @@ import { join } from "node:path";
 
 import { z } from "zod";
 
-import { canonicalDigest, canonicalize } from "../../lib/canonical/canonical-json.js";
+import { canonicalDigest, canonicalize } from "../../lib/kernel/canonical/canonical-json.js";
 import { atomicCreateFile } from "../../lib/fs.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { ValidatedMergeMethodSchema } from "./checkpoint.js";

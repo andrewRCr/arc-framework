@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { RawGitExec } from "../../../src/lib/git/exec.js";
-import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import { createCandidateSubjectSnapshot } from "../../../src/lib/work-unit/candidate-attestation.js";
 import { projectGitCandidateApplicability } from "../../../src/lib/work-unit/git-candidate-applicability.js";
 

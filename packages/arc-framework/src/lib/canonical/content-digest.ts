@@ -8,7 +8,7 @@
  * in, so tests supply bytes directly.
  */
 
-import { canonicalDigest, type CanonicalDigest, digestBytes } from "./canonical-json.js";
+import { canonicalDigest, type CanonicalDigest, digestBytes } from "../kernel/canonical/canonical-json.js";
 import type { ManagedPath } from "./managed-path.js";
 
 /**

@@ -7,7 +7,7 @@ import {
   digestBytes,
   sortByCanonicalBytes,
   type CanonicalDigest,
-} from "../canonical/canonical-json.js";
+} from "../kernel/canonical/canonical-json.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
 import { resolveArcPath } from "../layout/index.js";
 import {

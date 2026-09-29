@@ -6,7 +6,7 @@ import { createHostedTerminalAttemptFixture } from "../../../../fixtures/hosted-
 import { responsePolicyRequestFixture } from "../../../../fixtures/review-response-policy.js";
 
 import { DeliveryReviewMemberVehicleSchema } from "../../../../../src/lib/delivery/review-vehicle.js";
-import { canonicalDigest } from "../../../../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest } from "../../../../../src/lib/kernel/canonical/canonical-json.js";
 import type { RawGitExec } from "../../../../../src/lib/git/exec.js";
 import {
   createCandidateAttestation,

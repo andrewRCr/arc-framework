@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { canonicalDigest, canonicalize } from "../../../lib/canonical/canonical-json.js";
+import { canonicalDigest, canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
 import {
   CANDIDATE_VERIFICATION_EVIDENCE_PLACEHOLDER,
   CandidateReviewResponseEvidenceV1Schema,

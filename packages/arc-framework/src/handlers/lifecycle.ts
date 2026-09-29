@@ -48,7 +48,7 @@ import {
 } from "../commands/active.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { boundedFetch, getCurrentBranch, type GitExec } from "../lib/git/exec.js";
-import { canonicalize } from "../lib/canonical/canonical-json.js";
+import { canonicalize } from "../lib/kernel/canonical/canonical-json.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import { LocalReviewOperationStateStore } from "../scripts/review-gate/hosts/local/operation-state-store.js";
 import {

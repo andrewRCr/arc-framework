@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import { canonicalDigest } from
-  "../../../../../src/lib/canonical/canonical-json.js";
+  "../../../../../src/lib/kernel/canonical/canonical-json.js";
 import { DeliveryReviewMemberVehicleSchema } from
   "../../../../../src/lib/delivery/review-vehicle.js";
 import {

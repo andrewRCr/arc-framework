@@ -15,7 +15,7 @@
 
 import { describe, it, expect } from "vitest";
 
-import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest } from "../../../../src/lib/kernel/canonical/canonical-json.js";
 import type { PatchOperation } from "../../../../src/lib/canonical/content-digest.js";
 import { validateManagedPath } from "../../../../src/lib/canonical/managed-path.js";
 import type {

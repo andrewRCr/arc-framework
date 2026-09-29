@@ -6,7 +6,7 @@
  * inspects adapter storage directly.
  */
 
-import { canonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
+import { canonicalDigest, type CanonicalDigest } from "../kernel/canonical/canonical-json.js";
 import type { ManagedPath } from "../canonical/managed-path.js";
 import type { WorktreeSubject } from "../git/worktree-marker.js";
 

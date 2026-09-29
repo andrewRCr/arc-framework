@@ -1,6 +1,6 @@
 /** Read and revalidate one completed v3 cut map before result planning. */
 
-import { canonicalize } from "../canonical/canonical-json.js";
+import { canonicalize } from "../kernel/canonical/canonical-json.js";
 import {
   decodeV3DecomposeCutMap,
   type V3DecomposeCutMap,

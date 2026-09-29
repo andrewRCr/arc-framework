@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 
-import { canonicalize } from "../../../src/lib/canonical/canonical-json.js";
+import { canonicalize } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import {
   ROADMAP_RERENDER_COMMAND,
   assertRoadmapRegenerated,

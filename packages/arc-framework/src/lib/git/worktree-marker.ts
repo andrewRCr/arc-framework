@@ -17,7 +17,7 @@ import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, posix, resolve } from "node:path";
 
 import { atomicWriteJson, retryTransientFileSystemRefusal } from "../fs.js";
-import { isCanonicalDigest } from "../canonical/canonical-json.js";
+import { isCanonicalDigest } from "../kernel/canonical/canonical-json.js";
 import { INTERNAL_DIR_SEGMENTS } from "../constants.js";
 import { SlugSchema } from "../kernel/index.js";
 import { materializeArcPath, resolveArcPath } from "../layout/index.js";

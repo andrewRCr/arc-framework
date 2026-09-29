@@ -567,25 +567,26 @@ retired paths across static and dynamic imports, `vi.mock` specifiers, fixtures,
 the local slug schemas and re-minted enums are replaced; and every remaining local digest pattern in surviving code
 holds a fenced-owner matrix row.
 
-### `[ ]` **6.1 Retire the canonical-JSON shim — D3**
+### `[x]` **6.1 Retire the canonical-JSON shim — D3**
 
 - _Goal:_ No file imports `lib/canonical/canonical-json.ts`; every importer takes the kernel's canonical module
   directly, and the shim is gone with the test case that only pins it, while the canonical core keeps every behavior
   test.
 
-    - `[ ]` **6.1.a Record the rewrite recipe and convert `src/`**
-        - One search-and-rewrite recipe in notes § Sweep recipes, re-runnable after base merges; carved files take the
-          import-line rewrite as a forced edge.
+    - `[x]` **6.1.a Record the rewrite recipe and convert `src/`**
+        - Recorded an exact resolved-specifier rewrite in notes § Sweep recipes and redirected source importers to the
+          kernel owner. Carved files changed only their import lines.
 
-    - `[ ]` **6.1.b Convert `__tests__/`**
-        - The recipe also covers `vi.mock` specifiers and dynamic imports; none reach the shim today, and Task 6.5's
-          sweep checks both.
+    - `[x]` **6.1.b Convert `__tests__/`**
+        - Redirected test and fixture importers with the same recipe. Its second run changed zero specifiers, including
+          dynamic import and mock strings.
 
-    - `[ ]` **6.1.c Delete the shim and move the canonical core's tests beside the kernel's**
-        - Remove the "canonical JSON compatibility exports" case; move the rest of
-          `unit/canonical/canonical-json.test.ts` to `unit/kernel/canonical-json.test.ts`, importing
-          `lib/kernel/canonical/canonical-json.ts`. It holds every behavior test of the kernel's serialization and
-          digests, which has no other test file.
+    - `[x]` **6.1.c Delete the shim and move the canonical core's tests beside the kernel's**
+        - Deleted the compatibility-only module and its export-identity test; moved all canonical serialization and
+          digest behavior tests to `unit/kernel/canonical-json.test.ts`, importing the kernel owner directly.
+
+- _Outcome:_ The 125 resolved old-path specifiers now import the kernel owner, with no behavior change. The moved
+  behavior suite and both typechecks pass; notes § Canonical JSON shim records the rerunnable recipe.
 
 ### `[ ]` **6.2 Retire the managed-path, slug, `ArcError`, and active-vocabulary re-exports — D3**
 

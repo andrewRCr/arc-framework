@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canonicalDigest, canonicalize } from "../../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest, canonicalize } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import { v3TopologyDigest } from "../../../src/lib/work-unit/decompose-v3-plan.js";
 import {
   createV3DecomposeStarterMap,
