@@ -3,7 +3,7 @@
 import { z } from "zod";
 
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
-import { WorkUnitStateSchema } from "../../lib/kernel/schema/vocabulary.js";
+import { CanonicalDigestSchema, WorkUnitStateSchema } from "../../lib/kernel/schema/vocabulary.js";
 import { ArcPlacementTierSchema } from "../../lib/layout/schema.js";
 import { BaseDriftResultSchema, type BaseDriftResult, type BaseMovement } from "../../lib/git/base-drift-types.js";
 import {
@@ -60,7 +60,7 @@ import {
   type SpineRemedy,
 } from "./spine-refusal.js";
 
-const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+const DigestSchema = CanonicalDigestSchema;
 const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
 const DetailSchema = z.string().trim().min(1).max(4_096);
 

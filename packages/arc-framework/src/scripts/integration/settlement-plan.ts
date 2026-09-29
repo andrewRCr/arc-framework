@@ -5,6 +5,7 @@ import { z } from "zod";
 import { canonicalize, sortByCanonicalBytes } from "../../lib/kernel/canonical/canonical-json.js";
 import { DeliveryReviewMemberVehicleSchema } from "../../lib/delivery/review-vehicle.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
+import { CanonicalDigestSchema } from "../../lib/kernel/schema/vocabulary.js";
 import { ReviewIdentifierSchema } from "../review-gate/core/gate-contract-v2-schema.js";
 import { ReviewResponseSettlementActionSchema } from "../review-gate/core/response-plan-schema.js";
 import {
@@ -12,7 +13,7 @@ import {
   type HostedSettleEnvelope,
 } from "../review-gate/hosted/settle.js";
 
-const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+const DigestSchema = CanonicalDigestSchema;
 
 export const HostedSettlementActionSchema = z.strictObject({
   channel: z.literal("hosted"),
@@ -85,7 +86,12 @@ export function composeHostedSettlementAction(input: {
  * @returns A validated confirmation action for the canonical settlement plan.
  */
 export function composeCandidateResponseConfirmationAction(
-  input: Omit<z.input<typeof CandidateResponseConfirmationActionSchema>, "channel">,
+  input: Omit<z.input<typeof CandidateResponseConfirmationActionSchema>,
+    "channel" | "dispositionId" | "memberTargetId" | "candidateOriginTargetId"> & {
+    dispositionId: string;
+    memberTargetId: string;
+    candidateOriginTargetId: string;
+  },
 ): CandidateResponseConfirmationAction {
   return CandidateResponseConfirmationActionSchema.parse({
     channel: "candidate-response-confirmation",

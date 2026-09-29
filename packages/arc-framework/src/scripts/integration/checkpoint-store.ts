@@ -9,11 +9,12 @@ import { z } from "zod";
 import { canonicalDigest, canonicalize } from "../../lib/kernel/canonical/canonical-json.js";
 import { atomicCreateFile } from "../../lib/fs.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
+import { CanonicalDigestSchema } from "../../lib/kernel/schema/vocabulary.js";
 import { ValidatedMergeMethodSchema } from "./checkpoint.js";
 import { CanonicalSettlementPlanSchema } from "./settlement-plan.js";
 
 const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
-const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+const DigestSchema = CanonicalDigestSchema;
 export const IntegrationCheckpointHandleSchema = z.string().regex(
   /^checkpoint-v1:(?:[0-9a-f]{40}|[0-9a-f]{64}):sha256:[0-9a-f]{64}$/u,
 );
