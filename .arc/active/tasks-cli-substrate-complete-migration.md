@@ -510,9 +510,10 @@ kind.
           transition records remain carved to `R-CR`; declarative patterns and text await Task 5.4 dispositions.
 
     - `[x]` **5.3.b Migrate the `.arc` root, procedure roots, and template outputs**
-        - Converted installed method and workflow paths to `procedure-root`, extension and load-set descendants to
-          `arc-root` plus owner suffixes, and ARC-root discovery to the resolver. The template-output seam already
-          uses `resolveTemplateOutputPath`; remaining template literals are source names and classification policy.
+        - Converted installed method and workflow paths to `procedure-root`, extension, load-set, and project-inbox
+          descendants to `arc-root` plus owner suffixes, and ARC-root discovery to the resolver. The template-output
+          seam already uses `resolveTemplateOutputPath`; remaining template literals are source names and
+          classification policy.
         - Recorded the rerunnable search and rewrite in notes § Sweep recipes. State-path construction remains
           carved for Task 5.4.b and residual framework literals take Task 5.4.c dispositions.
 

@@ -73,7 +73,11 @@ async function resolveViewArtifactUnchecked(
   if (kind === "inbox" && options.project) {
     return presentOrAbsent(
       kind,
-      join(options.cwd, ".arc", "backlog", "ATOMIC-INBOX.md"),
+      join(
+        materializeArcPath(options.cwd, resolveArcPath({ kind: "arc-root" })),
+        "backlog",
+        "ATOMIC-INBOX.md",
+      ),
       null,
       dependencies,
     );
