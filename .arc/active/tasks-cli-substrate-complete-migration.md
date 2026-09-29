@@ -118,31 +118,23 @@ shared support and the doubles that stay local.
   `assertSchemaRefuses` accepts an optional issue path and shows parsed output on unexpected success. Six tests
   cover both forms, including a registered kernel schema.
 
-### `[ ]` **2.4 Move `makeGitExecInput` onto the execa adapter and localize `stubGitExec` — D9**
+### `[x]` **2.4 Move `makeGitExecInput` onto the execa adapter and localize `stubGitExec` — D9**
 
 - _Goal:_ The shared raw test executor rejects with the typed failures production emits, and `integration.ts` no longer
   carries a constant stub that serves one test file.
 
-- _Note:_ `base-advance.ts` keeps its raw `git()` runner — it arranges repositories, and the module avoids runtime
-  imports from `src/` so the spawned test lane can reach it.
+    - `[x]` **2.4.a Build `makeGitExecInput` on `createExecaGitExecInput`**
+        - Replaced the ad hoc spawn wrapper with the production adapter, preserving bound cwd as the default and
+          forwarding caller options. A new integration test proves cwd override and typed local-only failures;
+          all 22 directly and indirectly affected integration suites passed.
 
-    - `[ ]` **2.4.a Build `makeGitExecInput` on `createExecaGitExecInput`**
-        - Follow `makeGitExec`'s pattern in `__tests__/helpers/integration.ts`: default the `cwd` and pass the
-          caller's options through, which today's `spawn` version ignores. Run its 16 direct consumers, the four that
-          reach it only through `makeUserIO`, and `notes-publication-history.test.ts`, which reaches it only through
-          `makeNotesTreeCommit`; none asserts the old rejection text.
+    - `[x]` **2.4.b Move `stubGitExec` into `__tests__/integration/active.test.ts`**
+        - Moved the unchanged constant-response stub to its only consumer; the active integration suite passed.
 
-    - `[ ]` **2.4.b Move `stubGitExec` into `__tests__/integration/active.test.ts`**
-        - Its only consumer; remove it from `integration.ts`.
-
-    - `[ ]` **2.4.c Record the raw test executor rows**
-        - `makeGitNoteWriter` and `makeGitNoteReader` in `integration.ts` stand in for the carved `writeGitNote` and
-          `readGitNote` inside `makeUserIO`, whose seven consumers test carved notes code, so they follow their subject
-          and stay as they are.
-        - Rows: `makeGitExecInput` migrated; the notes helpers carved under the notes-specific sync row; the
-          `base-advance.ts` runner retained under the arrangement-runner rule; and the private `spawn` executors in
-          `e2e/race-worker.ts` retained as real-Git plumbing for a spawned race worker. Together they close the
-          executor member's routed item.
+    - `[x]` **2.4.c Record the raw test executor rows**
+        - Updated the test-support matrix with execution evidence. The carved notes helpers stay with their notes
+          subject; `base-advance.ts` retains its arrangement runner without runtime `src/` imports, and the
+          `e2e/race-worker.ts` executors remain real-Git plumbing for the spawned worker.
 
 ### `[ ]` **2.5 Name the shared test support in the `testing-standards` project override — D9**
 

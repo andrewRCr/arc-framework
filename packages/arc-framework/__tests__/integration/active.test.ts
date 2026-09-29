@@ -24,7 +24,7 @@ import {
   projectCandidateReviewBoundary,
   projectPublicationBoundary,
 } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
-import { stubGitExec } from "../helpers/integration.js";
+import type { GitExec } from "../../src/lib/git/exec.js";
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
@@ -35,6 +35,11 @@ import {
   projectCandidateApplicabilityDecision,
   projectDurableCandidateTarget,
 } from "../helpers/candidate.js";
+
+function stubGitExec(branch: string | null): GitExec {
+  const stdout = branch ?? "HEAD";
+  return async () => ({ stdout, stderr: "" });
+}
 
 /** Shared default — non-planning branch keeps existing assertions stable. */
 const defaultExec = stubGitExec("main");
