@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "storage-research-home",
+  "claimId": "642a5f1a5c4b3a50b1e9ca796aaceade",
+  "createdAt": "2026-09-29T11:52:46.105Z",
+  "updatedAt": "2026-09-29T11:52:46.105Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Move the two foreign-named research inputs out of the storage-contract stub into reference/supplemental/research so the stub can start",
+  "branch": "chore/storage-research-home",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
