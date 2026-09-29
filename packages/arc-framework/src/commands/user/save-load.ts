@@ -326,6 +326,7 @@ export async function runUserLoad(
         join(resolver.identityGlobalRoot, ".internal"),
         io,
         backupManifest,
+        await getNotesLockPath(io.exec, cwd, identity),
       );
     }
 
@@ -729,16 +730,26 @@ function buildBackupManifest(
   };
 }
 
+/**
+ * Write one timestamped backup and prune older ones under the notes lock, so concurrent writers sharing the
+ * backup directory never select the same name or prune around each other.
+ */
 async function writeTimestampedBackup(
   internalDir: string,
   io: UserIOContext,
   manifest: SyncManifest,
+  lockPath: string,
 ): Promise<string> {
   await ensureDir(internalDir, io.mkdir);
-  const backupFilename = await nextTimestampedBackupFilename(internalDir, io.readDir);
-  await io.writeFile(join(internalDir, backupFilename), JSON.stringify(manifest));
-  await pruneTimestampedBackups(internalDir, io.readDir);
-  return backupFilename;
+  const lock = await acquireAdvisoryLock(lockPath);
+  try {
+    const backupFilename = await nextTimestampedBackupFilename(internalDir, io.readDir);
+    await io.writeFile(join(internalDir, backupFilename), JSON.stringify(manifest));
+    await pruneTimestampedBackups(internalDir, io.readDir);
+    return backupFilename;
+  } finally {
+    await releaseAdvisoryLock(lock);
+  }
 }
 
 async function verifyMaterializedSplitUserManifest(
@@ -1188,11 +1199,12 @@ export async function reconcileRetiredSubdirsStandalone(params: {
 
   // Back up only once a removal is pending: the snapshot exists to make the
   // reconcile recoverable, so a no-op open writes nothing.
-  const internalDir = getUserInternalDir(cwd, identity);
-  await ensureDir(internalDir, io.mkdir);
-  const backupFilename = await nextTimestampedBackupFilename(internalDir, io.readDir);
-  await io.writeFile(join(internalDir, backupFilename), JSON.stringify(localManifest));
-  await pruneTimestampedBackups(internalDir, io.readDir);
+  await writeTimestampedBackup(
+    getUserInternalDir(cwd, identity),
+    io,
+    localManifest,
+    await getNotesLockPath(io.exec, cwd, identity),
+  );
 
   return removeReconciledSubdirs({ cwd, identity, reconcile });
 }

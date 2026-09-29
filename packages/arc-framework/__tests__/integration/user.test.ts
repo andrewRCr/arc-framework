@@ -880,6 +880,43 @@ describe("user load — backup and stale detection", () => {
     expect(contents).toEqual(["# Local 2", "# Local 3", "# Local 4"]);
   });
 
+  it("keeps both backups when concurrent loads pick a backup name at the same moment", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+    const internalDir = join(userDir, ".internal");
+
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Original", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Local", "utf-8");
+
+    // Hold the first two listings of the backup directory until both loads arrive. Unserialized name selection
+    // then reads one directory state twice; a serialized writer times the hold out and lists after the first write.
+    let arrivals = 0;
+    let releaseHeld!: () => void;
+    const bothArrived = new Promise<void>((resolve) => { releaseHeld = resolve; });
+    const racingIO = {
+      ...io,
+      readDir: async (dir: string) => {
+        if (dir === internalDir && arrivals < 2) {
+          arrivals += 1;
+          if (arrivals === 2) releaseHeld();
+          await Promise.race([bothArrived, new Promise((resolve) => setTimeout(resolve, 250))]);
+        }
+        return io.readDir(dir);
+      },
+    };
+
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-09-28T23:00:00.000Z") });
+    try {
+      await Promise.all([1, 2].map(() => runUserLoad({ cwd: tempDir, io: racingIO, identity: "test-user" })));
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const timestamped = (await listBackupFiles(userDir)).filter((name) => name !== BACKUP_FILENAME);
+    expect(timestamped).toHaveLength(2);
+  });
+
   it("keeps legacy backup files visible while pruning timestamped snapshots", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
