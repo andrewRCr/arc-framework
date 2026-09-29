@@ -5,12 +5,11 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { isCasRejectionError, isNonFastForwardError } from "../../src/lib/git/ref-tree.js";
 
 import {
   incomingFetchRefspec,
   incomingNotesRef,
-  isCasRejectionError,
-  isNonFastForwardError,
   isResolvedNoteValid,
   notesMergeArgs,
 } from "../../src/lib/user-sync/index.js";

@@ -30,6 +30,28 @@ import { gitFailureText } from "./process-error.js";
  */
 export const MAX_RECONCILE_ATTEMPTS = 3;
 
+/** True when a push error message signals a non-fast-forward / rejected divergence. */
+export function isNonFastForwardError(message: string): boolean {
+  return message.includes("non-fast-forward") || message.includes("[rejected]");
+}
+
+/** True when a push/fetch error signals the remote is unreachable or unconfigured. */
+export function isRemoteUnavailableError(message: string): boolean {
+  return message.includes("Could not read from remote") || message.includes("No such remote");
+}
+
+/**
+ * True when an `update-ref` failure is a compare-and-swap rejection — the ref's
+ * old value did not match what the caller expected. Git emits one of two shapes:
+ * `is at <sha> but expected <sha>` when the ref moved under the writer, and
+ * `reference already exists` when a create-from-absent (empty old value) lost to
+ * a concurrent create. Only these retry under the same-machine CAS frame; every
+ * other Git error surfaces.
+ */
+export function isCasRejectionError(message: string): boolean {
+  return message.includes("but expected") || message.includes("reference already exists");
+}
+
 /** The injected git seams a tree-commit *write* runs over — reads plus the stdin-fed builder. */
 export interface RefTreeWriteIO {
   /** Standard executor for reads and ref moves (`rev-parse`, `ls-tree`, `commit-tree`, `update-ref`). */
@@ -131,7 +153,7 @@ function parseTreeEntries(stdout: string): Map<string, string> {
  * True when an `ls-tree` failure means the ref simply does not resolve — git's
  * "Not a valid object name" for a ref that was never created. Every other read
  * failure (a non-tree object, a corrupt object store, an unavailable repo) is a
- * genuine error, not a clean absence. Sibling in spirit to the user-sync push
+ * genuine error, not a clean absence. Sibling in spirit to the push
  * discriminators (`isNonFastForwardError` / `isRemoteUnavailableError`).
  */
 function isAbsentRefError(message: string): boolean {

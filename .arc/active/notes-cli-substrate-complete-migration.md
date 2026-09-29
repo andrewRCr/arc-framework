@@ -758,6 +758,14 @@ same rewrite. Leave `createRawGitExec` value imports for Task 4.6's distinct fac
 The first pass re-pointed 44 type imports; the post-pass AST search found none still importing either type from
 `change-facts.js`.
 
+### Git failure-text predicate home
+
+Search named imports and re-exports of `isCasRejectionError`, `isRemoteUnavailableError`, and
+`isNonFastForwardError` from `lib/user-sync/notes-merge.ts` or its `index.ts` barrel in `src/` and `__tests__/`.
+Move their definitions unchanged to `lib/git/ref-tree.ts`, re-point each named importer directly to that module,
+split mixed user-sync imports, and remove the barrel re-exports. Re-run the named-symbol search after the rewrite;
+only the definitions, direct `ref-tree.ts` imports, and behavioral tests should remain.
+
 ### Validation-surface old paths
 
 Search static imports, re-exports, dynamic `import()` types, and `vi.mock` specifiers in `src/` and `__tests__/` for

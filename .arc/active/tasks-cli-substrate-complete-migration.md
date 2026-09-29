@@ -387,10 +387,10 @@ path spawns Git through an unbound executor; the failure-text predicates and `re
 - _Note:_ `git-decompose-v3-operation-io.ts` defines its own `resolveGitCommonDirectory`, and
   `pre-publication-delivery-targets.ts` receives `resolveGitCommonDir` as an injected dependency; neither imports it.
 
-    - `[ ]` **4.5.a Move `isCasRejectionError`, `isRemoteUnavailableError`, and `isNonFastForwardError`**
-        - From `lib/user-sync/notes-merge.ts` to the state-ref plumbing the errand refs already use; the errand refs
-          re-point, and carved notes code re-points as a forced edge. Their tests follow them. Record the rewrite
-          recipe in notes § Sweep recipes.
+    - `[x]` **4.5.a Move `isCasRejectionError`, `isRemoteUnavailableError`, and `isNonFastForwardError`**
+        - Moved the three predicates unchanged to `lib/git/ref-tree.ts` and removed the user-sync barrel exports.
+          Errand and carved notes callers now import the owner directly; unit and real-Git CAS tests follow it.
+          The repeatable named-import recipe is in notes § Sweep recipes.
 
     - `[ ]` **4.5.b Move `resolveGitCommonDir` beside `isGitRepo`**
         - From `lib/user-sync/repo-shared-paths.ts`; its nine surviving importers in delivery, the review gate, local

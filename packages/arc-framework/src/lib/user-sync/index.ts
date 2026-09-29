@@ -96,9 +96,6 @@ export {
 } from "./compaction-marker.js";
 
 export {
-  isCasRejectionError,
-  isNonFastForwardError,
-  isRemoteUnavailableError,
   isResolvedNoteValid,
   incomingNotesRef,
   incomingFetchRefspec,

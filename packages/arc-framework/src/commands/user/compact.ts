@@ -9,6 +9,7 @@
  */
 
 import { join } from "node:path";
+import { isRemoteUnavailableError } from "../../lib/git/ref-tree.js";
 
 import {
   acquireAdvisoryLock,
@@ -16,7 +17,6 @@ import {
   compactNotesRefSnapshot,
   decideNotesCompactionRetention,
   getNotesLockPath,
-  isRemoteUnavailableError,
   listNoteEntries,
   publishNotesCompactionSyncMarker,
   readNoteContentAtAnnotatedCommit,

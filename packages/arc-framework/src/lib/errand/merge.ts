@@ -17,9 +17,13 @@
  * @module
  */
 
-import { MAX_RECONCILE_ATTEMPTS, uniqueRefToken } from "../git/ref-tree.js";
+import {
+  isNonFastForwardError,
+  isRemoteUnavailableError,
+  MAX_RECONCILE_ATTEMPTS,
+  uniqueRefToken,
+} from "../git/ref-tree.js";
 import { gitFailureText } from "../git/process-error.js";
-import { isNonFastForwardError, isRemoteUnavailableError } from "../user-sync/index.js";
 import {
   errandsRef,
   readRefTip,

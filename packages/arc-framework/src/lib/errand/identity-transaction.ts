@@ -1,9 +1,12 @@
 /** Complete-basis reconciliation and compare-and-swap identity transactions. */
 
-import { MAX_RECONCILE_ATTEMPTS, uniqueRefToken } from "../git/ref-tree.js";
+import {
+  isCasRejectionError,
+  isRemoteUnavailableError,
+  MAX_RECONCILE_ATTEMPTS,
+  uniqueRefToken,
+} from "../git/ref-tree.js";
 import { gitFailureText, isGitProcessError, normalizeGitRejection } from "../git/process-error.js";
-import { isCasRejectionError } from "../user-sync/notes-merge.js";
-import { isRemoteUnavailableError } from "../user-sync/index.js";
 import {
   serializeTransientIdentityRecord,
   type TransientIdentityRecord,
