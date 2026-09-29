@@ -223,6 +223,62 @@ describe("CodeRabbit structured frontline parser", () => {
     expect(result.findings[2]).not.toHaveProperty("sourceLabel");
   });
 
+  it("identifies a finding without fix instructions by its review comment", () => {
+    const base = { type: "finding", severity: "minor", fileName: "src/one.ts", suggestions: [] };
+    const guardComment = "**Guard the empty case.**\n\nAn empty list reaches the reducer unchecked.";
+    const closeComment = "**Close the handle.**\n\nThe file handle leaks on error.";
+    const findings = [
+      { ...base, comment: guardComment },
+      { ...base, codegenInstructions: " ", comment: closeComment },
+      { ...base, fileName: "src/two.ts", codegenInstructions: "In @src/two.ts at line 3, return early." },
+    ];
+    const result = parse(findingsOutput(findings));
+
+    expect(result).toMatchObject({
+      kind: "findings",
+      findings: [
+        {
+          findingId: canonicalDigest({
+            schemaVersion: 1,
+            provider: "coderabbit-cli",
+            contract: "coderabbit-agent-ndjson/v1",
+            mode: "agent",
+            finding: { ...base, comment: guardComment },
+          }),
+          locus: "src/one.ts",
+          evidenceUrlOrId: guardComment,
+          sourceLabel: "**Guard the empty case.**",
+        },
+        { locus: "src/one.ts", evidenceUrlOrId: closeComment, sourceLabel: "**Close the handle.**" },
+        { locus: "src/two.ts", evidenceUrlOrId: "In @src/two.ts at line 3, return early." },
+      ],
+    });
+  });
+
+  it("gives an absent and an empty fix instruction the same comment identity", () => {
+    const finding = { type: "finding", severity: "major", fileName: "src/index.ts", comment: "Close it.", suggestions: [] };
+    const withEmptyInstructions = { ...finding, codegenInstructions: "" };
+    const absent = parse(findingsOutput([finding]));
+    const empty = parse(findingsOutput([withEmptyInstructions]));
+
+    expect(absent.kind).toBe("findings");
+    expect(empty.kind).toBe("findings");
+    if (absent.kind !== "findings" || empty.kind !== "findings") return;
+    expect(empty.findings[0]?.findingId).toBe(absent.findings[0]?.findingId);
+  });
+
+  it.each([
+    ["neither fix instructions nor a comment", {}],
+    ["empty fix instructions and no comment", { codegenInstructions: "" }],
+    ["a blank comment", { comment: " \n" }],
+    ["a non-string comment", { comment: 42 }],
+    ["non-string fix instructions", { codegenInstructions: null, comment: "Close it." }],
+  ])("fails closed on a finding with %s", (_shape, fields) => {
+    const finding = { type: "finding", severity: "minor", fileName: "src/index.ts", suggestions: [], ...fields };
+
+    expect(parse(findingsOutput([finding]))).toEqual({ kind: "malformed" });
+  });
+
   it.each([
     [
       "a header paragraph naming the file",
