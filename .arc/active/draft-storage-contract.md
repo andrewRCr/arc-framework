@@ -15,10 +15,10 @@
 
 ## Continuity
 
-- **Readiness:** maturing. The scope, what this work unit lands, and the working rules are settled, and so are the
-  three decisions the siblings share — the ref layout (C3), each surface's concurrency mechanism (C4), and the
-  projection's caller-visible behavior (C6) — so `storage-ref-backend` and `storage-projection` may begin designing
-  (2026-09-29). The open items that remain are detail design, and the consumer map.
+- **Readiness:** maturing. The scope, what this work unit lands, and the working rules are settled, and so are the three
+  decisions the siblings share — the ref layout (C3), each surface's concurrency mechanism (C4), and the projection's
+  caller-visible behavior (C6) — so `storage-ref-backend` and `storage-projection` may begin designing (2026-09-29). The
+  consumer map is built; the open items that remain are detail design.
 - **Resolved (2026-09-29):** stage entry (§ Stage entry); what lands here and what is handed off (§ What this work unit
   lands); the register's landing route (§ The storage-coupling register); inbox write serialization (C1); ghost mode as
   a core requirement with a middle-ground split (C8); record format skew (C2); the register sweep, landed on `main` (PR
@@ -26,15 +26,20 @@
   consumer map; reverse lookup and assurance-chain carry-forward (C1); project identity (C7); the GitHub Enterprise
   Server host test, which held (C3); shared surfaces projected into every worktree, the `active/` layout with ownership
   by folder and edit rights under `in-flight/`, the projection's name, the firing points with `arc save`, and opt-in
-  editor settings (C6); the two-level family model and the family list, review evidence as stored, and machine-local
-  state as a projection property (C2); identity as a name plus a UID (C2), the ref surfaces keyed by UID (C3), and slug
-  guards and entry IDs (C4); the local copy following the remote — the code repository's refs by default, a separate Git
-  directory otherwise (C3); conflicts shown in the projected file with standard markers, and a removal racing an edit
-  leaving the edit, with routing receipts (C4); the inbound list as its own kind, which any session routes into directly
-  (C4); the design envelope, confirmed by arithmetic, with a push-contention tripwire (C4); the cohort document's home
-  and parked placement, with edit rights following lifecycle state (C6).
-- **Open:** every `Open` item in § Decision ledger; the consumer map.
-- **Next:** the consumer map, then the remaining detail items and the core-or-deferred tags (C14).
+  editor settings (C6); the two-level family model and the family list, and machine-local state as a projection property
+  (C2); identity as a name plus a UID (C2), the ref surfaces keyed by UID (C3), and slug guards and entry IDs (C4); the
+  local copy following the remote — the code repository's refs by default, a separate Git directory otherwise (C3);
+  conflicts shown in the projected file with standard markers, and a removal racing an edit leaving the edit, with
+  routing receipts (C4); the inbound list as its own kind, which any session routes into directly (C4); the design
+  envelope, confirmed by arithmetic, with a push-contention tripwire (C4); the cohort document's home and parked
+  placement, with edit rights following lifecycle state (C6); the consumer map, with the state version and the
+  multi-record write it surfaced (C1), the store under `.git/arc/store/` beside machine-local state (C3), durable review
+  facts stored at project scope, with review working state machine-local (C2), and the shared seam pieces placed here
+  with file splits as Errands (§ The consumer map).
+- **Open:** every `Open` item in § Decision ledger.
+- **Next:** the remaining detail items — C1's failure taxonomy and per-write message, C2's tracked-versus-stored profile
+  and serialization, C3's rotation cadence, C5's Opens, and C10 — then the core-or-deferred tags (C14); register batch 3
+  as an Errand on `main`.
 
 ---
 
@@ -82,6 +87,8 @@ Lands, as code:
   the non-git substitutability acceptance test: could the contract be implemented on a non-Git backend without
   touching anything above it? Git is the storage engine, never the schema.
 - **The in-repo implementation** over today's tracked layout, which the seam routes onto first.
+- **The shared seam pieces** — the current-work-unit resolver and the lifecycle index keyed by identity, and the store
+  behind delivery's lifecycle port — which every `storage-seam` member calls (§ The consumer map).
 
 Designed here, built elsewhere:
 
@@ -125,15 +132,32 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
   already contract operations.
 - **Decided** (Owner, 2026-09-29): migration carries assurance chains forward. No live query can rebuild them, so the
   import (`storage-ref-backend`) carries every chain, and no adapter retires before its chains are carried.
+- **Decided** (Owner, 2026-09-29; consumer map): a store-wide state version. The store exposes one opaque version
+  covering every record, reads and lists as of a version, and the changes between two versions. Four partitions need it,
+  and none of their uses survives records leaving the branch: delivery binds a checkpoint to its merge by a lifecycle
+  version that is a HEAD SHA today (`merge.ts`, `checkpoint-composition.ts`); handoff restates from `Commit at Handoff`,
+  and recovery compares against its seed's head; readiness is lifecycle state at an exact pull-request head; and
+  delivery asks what a Candidate record said at the approved head (`git show <head>:<path>`). A record that attests to
+  code carries the code head it was written against as a field, so "as of head" becomes a field match rather than a Git
+  lookup.
+    - It settles the continuity anchor: SESSION-NOTES and the compaction seed anchor on the store version, and handoff
+      and recovery read the changes since it, so `rewrite-with-lease` cannot strand them
+      (`strategy-storage-evolution.md` Principle 11).
+- **Decided** (Owner, 2026-09-29; consumer map): one write may change several records, all or nothing, each checked
+  against its own expected version. Archive, abandon, rename, decompose, and park each change several records in one
+  verb; a dependency-edge discharge already hand-builds a guarded re-read and rollback over records it does not own
+  (`side-effects/discharge-dep-edges.ts`); and the review gate's machine-local store runs multi-record transactions
+  under one lock. Git provides it: `git update-ref --stdin` applies a ref transaction atomically, and `git push
+  --atomic` carries it to the remote.
+- **Requirement** (consumer map): callers name records by identity, never by projected path. Lifecycle-index entries
+  carry a path today and at least ten callers read the meta through it. `list` returns parsed fields, which derived
+  views (ROADMAP, `STATUS.USER`, the archive listing) render from; `lookup` also answers lineage by slug and in-flight
+  work by checkout claim.
 - **Open:** the typed refusal and failure taxonomy — harmonize user sync's transient, push-failed, and divergent
   classes with push refusals and typed conflicts. Store-write failures surface as orientation lines at session
   boundaries; sessions never stall on the store.
 - **Open:** whether store history carries a per-write message, so evidence that today rides a ceremony commit body
   (advisory adversarial-pass evidence, review evidence) keeps a home.
-- **Open:** the continuity anchor. SESSION-NOTES' `Commit at Handoff` and handoff's
-  `git show <hash>:<meta-path>` key continuity to a code commit, which `rewrite-with-lease` can make unreachable
-  (`strategy-storage-evolution.md` Principle 11). Candidate: anchor on the store's state version and read previous
-  values through `history`.
 
 ### C2. Record model
 
@@ -187,8 +211,9 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
           `storage-seam`'s review and evidence work and `delivery-observe-attest` split its kinds, and part of the
           delivery machinery may go with the substrate;
         - **project identity and counters** — the project ID (C7) and record-number counters, by compare-and-swap;
-        - **lineage** — terminal transition records (decomposition, `transitions/*.json`) and retirement receipts,
-          keyed by the UID of an origin that no longer exists. A rename is not terminal: the work unit keeps its UID
+        - **lineage** — terminal transition records (`transitions/*.json`), written by decomposition, abandonment,
+          and retirement, which teardown reads as the retirement receipt; keyed by the UID of an origin that no
+          longer exists. A rename is not terminal: the work unit keeps its UID
           and records its former slugs, so an old name still resolves;
         - reserved: `VECTOR.PROJECT` (`goal-aware-direction`).
     - Identity scope, one person across their machines:
@@ -199,10 +224,15 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
     - Not families: the machine-local set (below); derived views, never stored — ROADMAP, `STATUS.USER`, the archive
       index, and the query cache; and the tracked machinery and constitutional documents.
       `strategy-file-classification.md`'s taxonomy governs update behavior, a separate axis.
-- **Decided** (Owner, 2026-09-29): review evidence is stored, at project scope. It must survive archive and a change of
-  machine, and the integration boundary files are today the Owner-accepted terminus's only store. The review records
-  now in the per-work-unit personal workspace, swept at archive (register row on that workspace), move there, beside
-  review receipts. `review-protocol-alignment` designs the terminus's durable form against this.
+- **Decided** (Owner, 2026-09-29): durable review facts are stored, at project scope, and review working state stays
+  machine-local. Review evidence must survive a change of machine, and the integration boundary files are today the
+  Owner-accepted terminus's only store. `review-protocol-alignment` designs the terminus's durable form against this.
+    - **Refined** (Owner, 2026-09-29; consumer map): the decision first placed review records in the per-work-unit
+      personal workspace, swept at archive. No code writes them there: the review gate keeps evidence, outcomes,
+      operations, sources, and its own repository ID under `.git/arc/review-gate/`, machine-local and unsynced.
+      Evidence, outcomes, and termini are the durable facts that move; operations, locks, materializations, and
+      quarantine stay; `storage-seam`'s review member settles the rest. The import maps the review gate's repository ID
+      onto the project ID (C7), so receipts keep their key.
 - **Decided** (Owner, 2026-09-29): everything under `.arc/user/<id>/` except the machine-local set is stored and synced;
   a subdirectory is a work unit's personal workspace only when it is named for one. Today's classifier
   (`lib/user-sync/classifier.ts`) reads any subdirectory as per-work-unit, so personal subdirectories (`archive/`,
@@ -215,6 +245,10 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
   `.notes.lock` and `.machine-id` in the common Git directory. Session locus records under
   `.arc/user/<id>/.internal/loci/` are the sharpest case: synced to another machine, one machine's leases and process
   anchors would read as live foreign occupancy.
+    - The common Git directory also holds machine-local state no family covers, under `.git/arc/`: the review gate's
+      namespaces (above), delivery's plans, state, authoring, gates, and resolutions, transient claims, grooming, and
+      decomposition worktrees; so do integration checkpoint records under a work unit's personal `.internal/`. None is
+      synced, and the store keeps its own directory beside them (C3).
 - **Decided** (Owner, 2026-09-29): identity is a name plus a UID, the Kubernetes model. The slug is the name: the
   human handle, unique among live records of its kind and reusable once its record completes. The UID is minted at
   creation with `crypto.randomUUID()`, never reused, and never changes, so it tells a recreated record from an earlier
@@ -285,9 +319,10 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
       one fetches teammates' personal refs or history by default. In the shared layout (below), its remote-tracking
       namespace stays out of `refs/remotes/`, where it would show as remote branches.
 - **Decided** (Owner, 2026-09-29): the local copy follows the remote. When the state remote is the code remote — the
-  default backend (C7) — the store is the code repository's own refs. When state goes to another remote or to none —
-  the backing repository and local-only, where ghost mode lives — it is a separate Git directory inside `.git`
-  (`.git/arc/`). ADR-035 item 2 left this to the contract and covers both shapes without amendment.
+  default backend (C7) — the store is the code repository's own refs. When state goes to another remote or to none — the
+  backing repository and local-only, where ghost mode lives — it is a separate Git directory inside `.git`
+  (`.git/arc/store/`, beside the machine-local state ARC already keeps under `.git/arc/`, C2). ADR-035 item 2 left this
+  to the contract and covers both shapes without amendment.
     - Precedent draws the same line. State synced to the code's own remote lives in the code repository — git-bug's
       `refs/bugs/*`, git-annex's `git-annex` branch, Gerrit's change metadata — while data with its own destination
       keeps its own store inside `.git`, as submodules do under `.git/modules/` and Git LFS under `.git/lfs/`.
@@ -306,16 +341,16 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
     - No new setting: the layout derives from the backend selection (`strategy-storage-evolution.md` Principles 8 and
       9). Moving between layouts rides the migrate verb (C7), since changing the state remote already moves refs;
       between two local directories it is a local fetch and delete.
-    - The marginal cost over one layout: bootstrapping `.git/arc/`; an explicit `--git-dir` on every store
+    - The marginal cost over one layout: bootstrapping `.git/arc/store/`; an explicit `--git-dir` on every store
       invocation, since the executor pins repositories by `cwd` and `safe.bareRepository=explicit` refuses implicit
       discovery of a bare directory; a second refspec target; and the conformance suite run over both layouts. The
       separate layout sees less field use, so the suite is what exercises it, including the ordered path's "code
       pushed, state push failed" case.
 - **Requirement:** reserve the families `refs/arc/*` already holds. The Errand identity ref
-  (`refs/arc/user/<id>/errands`, pushed straight to origin with no remote-tracking namespace) becomes an
-  identity-scoped store surface; notes sync's `refs/arc/user/<id>/sync-state` retires with notes; delivery candidates,
-  review pins, and `refs/arc/tmp/*` are not state and stay out of the state refspec. ADR-027's "joins the user-notes
-  ref" is amended to match.
+  (`refs/arc/user/<id>/errands`, pushed straight to origin with no remote-tracking namespace) becomes an identity-scoped
+  store surface; notes sync's `refs/arc/user/<id>/sync-state` retires with notes; delivery candidates and refresh
+  candidates, review pins, and `refs/arc/tmp/*` are not state and stay out of the state refspec. ADR-027's "joins the
+  user-notes ref" is amended to match.
 - **Gate passed (2026-09-29):** GitHub Enterprise Server held, so ADR-035 stands on that host and the layout does
   not wait on it. A 3.22.1 trial instance repeated the host spike and matched GitHub.com on every check:
     - push, fetch, delete, and lease of `refs/arc/*`; a default clone fetches none, and ARC's refspec fetches them;
@@ -778,6 +813,24 @@ keep the locus and session-init reads narrow: through the contract, without resh
 session-init agenda (`composable-workflows`) will replace. Mark every file two seam partitions both touch
 (`handlers/status.ts` among them), so parallel members do not collide and rework.
 
+- **Decided** (Owner, 2026-09-29): the map's shape.
+    - Home: the inventory lives in `notes-storage-contract.md`; this section keeps the design layer — partitions,
+      columns, the operations the map exercises, the rules for files two partitions share, and each decision the map
+      raises. `cli-substrate-complete-migration`'s residual matrix is the precedent for the split.
+    - Grain: one row per module, command, workflow, method, hook, or script, never per call site; line-level detail
+      stays in that work unit's notes.
+    - Columns: consumer, partition, owner (when not `storage-seam`), register rows, families (C2), operations (C1),
+      store or projection (a deciding verb reads the store), what it becomes, and the partitions it shares a file with.
+    - Partitions: the six named above; the owner column carries consumers that `storage-cutover`,
+      `storage-ref-backend`, or `storage-projection` owns without making them seam partitions.
+    - Method: seeded from the existing inventories — the sibling's carved-module predicates, session-envelope slots,
+      and state-path recount; the placement readers; and every register row `storage-seam` owns — then swept for gaps
+      by read-only sweepers per partition plus one for workflows, methods, hooks, and scripts, which no inventory
+      covers. Every row is checked against source before it lands.
+    - The map raises, never settles: a file two partitions both rewrite, a member whose rewrite needs another's first,
+      a consumer needing an operation outside C1's set, and which readers must read the store — the consumer list the
+      freshness Open in C5 lacks.
+
 Inputs from `coupling-blast-radius-audit` (2026-07-18), each ranked abstract and high-volatility:
 
 - **Address and artifact-family assumptions** — `arc-root`, `draft-prefix`, `meta-prefix`, `notes-prefix`,
@@ -789,15 +842,58 @@ Inputs from `coupling-blast-radius-audit` (2026-07-18), each ranked abstract and
   enumerates them for the lifecycle and in-flight partition. Packet `packet-188c5fab90090e83fdbc4591`, content digest
   `528515469ff26c720e1d7a0643eaebbebf81d4c99b7c9b640b75479d0da38ae5`.
 
-Known entries so far:
-
-- **User sync — `arc user inbox-remove`** matches its entry on the title; it keys by the entry's `_Id:_` (C4), since
-  a title repeats exactly as a slug does.
-- **Session-init envelope** — orientation carries the current work unit's pending inbound count, so another
-  session's append is not silent until the next planning iteration (C4).
-- **The drain (`drain-inbox`)** — routes into an in-flight work unit's inbound list directly, so in-flight owner
-  adoption and its `_Hold` re-stamp retire; the draft template's `## Inbound Buffer — Pending Integration` section
-  and create-spec's integration hook move to the inbound kind (C4).
+- **Result** (2026-09-29): 301 consumers, inventoried in `notes-storage-contract.md` with how they were swept and
+  verified — lifecycle and in-flight 122, locus and session-init 53, user sync 44, delivery 32, review and evidence 29,
+  status and roadmap 21. `storage-seam` owns 194 of them, `storage-cutover` removes 75, and the rest belong to the ref
+  backend, the projection, and the delivery follow-ons. 202 decide something and so read the store — 12 of them also
+  browse — which is the reader list C5's freshness Open needs. Every operation the map needs is in C1's set, once the
+  state version and the batch write it surfaced were added there. Verification fell short of the Method's bar: every
+  row's evidence was checked against source, but its classifications — owner, operations, and store or projection — were
+  spot-checked rather than re-derived, so each seam member re-verifies its rows before building on them.
+- **Decided** (Owner, 2026-09-29): no foundation member. Shared work splits by kind.
+    - Here, in the in-repo implementation: the current-work-unit resolver and the lifecycle index keyed by identity —
+      `resolveActiveWu` has 23 call sites in 14 files across at least four partitions — and the store behind delivery's
+      `IntegrationLifecycleStoragePort`, which already takes `readSnapshot` → `{ version, fs }`. They define what every
+      member calls, so the parallelism rule puts them here.
+    - As Errands, after `cli-substrate-complete-migration` lands and before `storage-seam` starts: pure refactors that
+      split files two or more partitions rewrite along the map's partition lines — `handlers/status.ts` (four
+      partitions), `handlers/lifecycle.ts`, `handlers/review.ts`, `lib/work-unit/executor-context.ts`, and
+      `scripts/review-gate/readiness.ts`. They record no design and land while this work unit is still planning; one
+      that proves too large becomes a review chunk here. They fix the partition lines before the seam decomposes, which
+      its members inherit from this map anyway.
+    - `lib/user-surfaces.ts`, imported by 16 modules, keeps a resolver shim that `storage-projection` owns with its
+      register row, so members move off it independently.
+    - A foundation member first in the seam was weighed. It keeps this work unit smaller but costs the same critical
+      path plus a member's planning, review, and integration, and its children would depend on a sibling. The collision
+      that argued for it — `cli-substrate-complete-migration` editing the same files — clears before this work unit
+      writes code.
+- **Ordering the seam's decomposition inherits:**
+    - Lifecycle's in-flight derivation (`lib/git/in-flight-derivation.ts`) and locus's worktree roster and evidence are
+      rewritten together; the session-init slot schemas that expose derivation marks are locus's.
+    - Removing the stored ROADMAP runs in order: lifecycle drops the executor's reconcile side effects, delivery drops
+      the regeneration plumbing in merge composition and checkpoints, and cutover removes the pre-commit assert, the
+      conflict remedy, and the merge driver.
+    - The inbox writer's lock moves to per-ref write serialization (C1) before the notes-lock code is deleted.
+    - Planning-lane deletion and the Candidate and boundary store swap both edit `handlers/review.ts`; its split comes
+      first, or they serialize.
+    - Other machines' in-flight work becomes visible once `storage-ref-backend` syncs; the seam routes onto the in-repo
+      implementation first, so no member waits on it.
+- **Slot paths.** Session-init slots — `active.path`, the frame's meta and task-list paths, load-set entries, and
+  `currentWuReconcile`'s command — and the compaction seed carry literal `.arc/active/meta-<slug>.md` paths that
+  workflows read, and recovery and the seed emitter pin them by regular expression. They come from the layout resolver
+  before `active/current/` lands (C6), and the seed's schema version bumps.
+- **A protocol that retires as a class:** writing a tracked record and then staging it with `git add` — about fifteen
+  lifecycle files, seven review writers, and delivery's Candidate and boundary writers — ahead of the `commit-boundary`
+  and `commit-selection` next actions, strict enums the workflows consume.
+- **Decided consumer changes** (C4):
+    - **User sync — `arc user inbox-remove`** matches its entry on the title; it keys by the entry's `_Id:_`, since a
+      title repeats exactly as a slug does.
+    - **Session-init envelope** — orientation carries the current work unit's pending inbound count, so another
+      session's append is not silent until the next planning iteration.
+    - **The drain (`drain-inbox`)** — routes into an in-flight work unit's inbound list directly, so in-flight owner
+      adoption and its `_Hold` re-stamp retire. The `## Inbound Buffer — Pending Integration` section the drain adds to
+      a draft (the draft template has none), and create-spec's and `assess-draft-readiness`'s checks for it, move to the
+      inbound kind.
 
 ## The storage-coupling register
 
@@ -816,6 +912,22 @@ by tracked or notes-backed state rather than for state by size.
   The decisions settled since landed in PR #742 (2026-09-29): six fates amended from C2, C3, C4, and C6, two rows added
   (personal subdirectories, and hold-and-route), ADR-035's dated amendment for the work-unit write rule and slug claims,
   and the `active-layout-nesting` stub retired with its row closed — 81 rows. The consumer map may add rows.
+- **Pending amendments, batch 3** (2026-09-29), from the consumer map's verification, landing by the Route above. New
+  rows go at the table's end, so the notes' register keys still name the same rows.
+    - Corrections: retirement's receipt is the transition record under `.arc/system/.internal/transitions/`, not a
+      `retirement-receipts/` path; ceremony commits are 23 subject lines in 14 workflow files; the checkout-removal
+      guard row adds two more `git status`-only readers, `lib/errand/terminal-occupancy.ts` and
+      `lib/locus/primary-safety.ts`; the hand-built path row adds the harness hooks' JavaScript path building
+      (`pre-compact-seed.mjs`, `codex-recovery-marker.mjs`); the Errand-ref and `sync-state` row adds the plumbing both
+      refs share, `lib/git/ref-tree.ts` and `lib/user-sync/cas-retry.ts`.
+    - The row for record writes that complete only through a code commit adds the write-then-`git add` class (§ The
+      consumer map). The per-work-unit workspace row drops review records, which it never held: its fate becomes user
+      sync moving onto the store, and the spawn seed becoming a store write. The hold-and-route row's "the draft
+      template's Inbound Buffer section" becomes "the Inbound Buffer section the drain adds to a draft".
+    - New rows: machine-local state under `.git/arc/`, which stays local except the durable review facts the import
+      carries, mapping the review gate's repository ID onto the project ID (C2); `arc view`, which builds the
+      `ATOMIC-INBOX` path by hand and returns a completed work unit with no path; and the session-init slots and
+      compaction seed that carry literal meta paths (§ The consumer map).
 - **Route at planning close,** as `USER-INBOX` captures under the coordination-seam rule, one per unit whose plan
   assumes tracked or notes-backed state but needs no register row — a note for its next planning:
     - `composable-workflows` — fixtures assume the notes channel (`arc user pull`, notes-only offers) and a grooming
