@@ -224,6 +224,15 @@ met and the first risk's reopening clause does not fire. On that host an ordinar
 rewrite or delete any state ref, as the second risk states, and one with read access can only fetch. Bitbucket remains
 untested.
 
+**Amendment (2026-09-29):** The contract design refines item 7 for work-unit state and exact claims. A work unit's meta
+and task list stay single-writer, written only from its own checkout; its prose may also be written from the owner's
+other checkouts, through compare-and-swap and three-way line merge. Entries routed to a work unit land in its inbound
+list, merged entry by entry: anyone with write access to the project inserts, and only the owner's sessions edit or
+remove. Every record's identity is now a generated UID, so a slug is no longer claimed by compare-and-swap. Slug
+uniqueness holds by a check against live records at creation, and a clash between machines resolves by write-then-gate:
+both records exist, the projection refuses to place the second on the taken path, and a rename resolves it. Record
+numbers and work-unit claims stay compare-and-swap writes.
+
 ---
 
 [storage-analysis]: ../supplemental/analysis/analysis-storage-substrate-direction.md
