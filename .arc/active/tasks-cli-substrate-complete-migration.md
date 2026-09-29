@@ -509,8 +509,12 @@ kind.
         - Recorded the repeatable search and rewrite in notes § Sweep recipes. Candidate, submission-boundary, and
           transition records remain carved to `R-CR`; declarative patterns and text await Task 5.4 dispositions.
 
-    - `[ ]` **5.3.b Migrate the `.arc` root, procedure roots, and template outputs**
-        - Other `.arc/system` descendants compose their owner's suffix onto `arc-root` the same way.
+    - `[x]` **5.3.b Migrate the `.arc` root, procedure roots, and template outputs**
+        - Converted installed method and workflow paths to `procedure-root`, extension and load-set descendants to
+          `arc-root` plus owner suffixes, and ARC-root discovery to the resolver. The template-output seam already
+          uses `resolveTemplateOutputPath`; remaining template literals are source names and classification policy.
+        - Recorded the rerunnable search and rewrite in notes § Sweep recipes. State-path construction remains
+          carved for Task 5.4.b and residual framework literals take Task 5.4.c dispositions.
 
     - `[ ]` **5.3.c Migrate or dispose the install and file-classification hits**
         - Most may take a disposition kind instead; any that fit no kind migrate.

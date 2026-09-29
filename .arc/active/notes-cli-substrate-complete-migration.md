@@ -885,6 +885,19 @@ used the resolved root. Candidate, submission-boundary, and transition records s
 rules and explanatory strings take Task 5.4 dispositions. Re-run the search after every base merge and convert any
 new framework bookkeeping path builder before reconciling the class hits.
 
+### Framework procedure and extension paths
+
+Search `src/` for hand-built `.arc` roots, `system/methods`, `system/workflows`, `system/extensions`,
+`system/rules`, and `.template` output transformations. For installed method and workflow roots, use
+`resolveArcPath({ kind: "procedure-root", family: "methods" | "workflows" })`; materialize only where the caller
+needs an absolute filesystem path. For another descendant, resolve `arc-root` and append the owner suffix with
+`posix.join` for managed paths or `join` for a materialized filesystem path. The first pass converted extension
+status and validation, local review method reads, recover's workflow paths, load-set reference and rules paths, and
+the ARC-root discovery probe. Template output conversion already belongs to `resolveTemplateOutputPath`; the
+remaining `.template` hits in classification, rendering, and source checks name source filenames or policy patterns.
+Re-run this search and the four framework-class slices of the coupling scan after every base merge. Work-unit state
+paths stay with Task 5.4.b; Git hook, shell, `.mjs`, classifier, explanatory, and policy hits take Task 5.4.c kinds.
+
 ### Raw Git type home
 
 At the merged base, the TypeScript import graph and an AST pass found 44 named imports of `RawGitExec` from
