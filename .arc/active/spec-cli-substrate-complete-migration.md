@@ -332,10 +332,10 @@ therefore tested against output its producer returns (§ Cross-cutting Considera
 ### 6. Layout
 
 **Framework paths.** Framework-path construction in surviving TypeScript moves onto the resolver where a token covers
-it, except where it builds a work-unit state path, which is carved (§ 1): the `.arc` root
-through `arc-root`, the method and workflow roots through `procedure-root`, and template outputs through
-`resolveTemplateOutputPath`. The resolver selects no other `.arc/system` descendant, and the layout contract exports
-no generic join, so an owner of one resolves `arc-root` and composes its own suffix, as the config reader already does.
+it, except where it builds a work-unit state path, which is carved (§ 1): the `.arc` root through `arc-root`, the
+method and workflow roots through `procedure-root`, and template outputs through `resolveTemplateOutputPath`. The
+resolver selects no other `.arc/system` descendant, and the layout contract exports no generic join, so an owner of one
+resolves `arc-root` and composes its own suffix, as the config reader already does.
 Under `.arc/system/.internal/` those owners hold the framework bookkeeping — manifest, pristine store, hook and script
 paths, and the worktree marker; its state-record families are carved (§ 1). A composed suffix no longer matches the
 `arc-root` class, and a hit that remains takes a disposition kind. Framework-class hits in surviving `src/` modules
@@ -375,7 +375,9 @@ layout spec and the residual matrix's vocabulary. The coupling-audit class scan 
 **Routed items.** The layout contract routed two items here. The `provisional-placement` callers all sit in carved
 code: the lifecycle write path, the placement readers, a hook check, and a branch-tree reader (§ 1). The
 draft-retirement residual in `activate-work-unit.md` and `strategy-work-planning.md` belongs to
-`composable-workflows`, whose draft already carries it.
+`composable-workflows`, whose draft already carries it. It is a Git-operation residual rather than path construction,
+so it takes a matrix row owned outside the cohort, not a reconciliation predicate, and the layout-class hits in both
+documents reconcile like any other shipped document's.
 
 ### 7. Git executor
 
@@ -412,8 +414,8 @@ code and tests start from them. The capabilities themselves belong to `storage-r
 - Add the 3 missing machine-mode declarations: the `attest` and `publish` policy declarations, and both the wrap and
   the declaration for `locus`, whose handler body is carved locus derivation.
 - Wrap 4 value-bearing human-output commands: `user close`, `config validate`, `release setup print-patterns`, and
-  `log`. `log` builds its executor from the context; `config validate` and `print-patterns` reach neither Git nor a
-  prompt.
+  `log standalone`. `log standalone` builds its executor from the context; `config validate` and `print-patterns`
+  reach neither Git nor a prompt.
 - Thread subprocess policy wherever a context-bearing command reaches Git through an unbound executor — the `gitExec`
   singleton or one built without a subprocess policy:
     - The shared helpers in `handlers/shared.ts` (`resolveUserIdentity`, `resolveIdentityWithPrompt`,
@@ -472,14 +474,14 @@ local:
 
 Handler tests that `vi.mock` the IO context keep the mock, and the Git doubles inside it follow the same rule.
 
-**Rejection shapes.** Git doubles — functions typed `GitExec`, `RawGitExec`, or `GitExecInput` — that reject with a
-hand-built `Object.assign(new Error(...), {...})` Git-failure shape, carrying stderr, stdout, an exit code or signal,
-or a cancel or timeout flag (about 31 files), or with a plain `Error` whose message is Git's failure text (about 62
-sites in 21 files), convert to the `GitProcessError` fixture, so those tests exercise the typed failure the production
-executor emits rather than the fallback normalization. A plain `Error`'s message becomes the fixture's stderr, with
-exit code 128, Git's status for a fatal error, unless the consumer branches on another status Git uses for that
-condition. A double that stays local builds any Git failure it throws through the same fixture. Converted tests keep
-what they assert, and their call assertions read the fake's recorder.
+**Rejection shapes.** Git doubles — functions typed `GitExec`, `RawGitExec`, or `GitExecInput`, and `vi.fn` doubles
+standing in for one — that reject with a hand-built `Object.assign(new Error(...), {...})` Git-failure shape, carrying
+stderr, stdout, an exit code or signal, or a cancel or timeout flag (about 31 files), or with a plain `Error` whose
+message is Git's failure text (about 62 sites in 21 files), convert to the `GitProcessError` fixture, so those tests
+exercise the typed failure the production executor emits rather than the fallback normalization. A plain `Error`'s
+message becomes the fixture's stderr, with exit code 128, Git's status for a fatal error, unless the consumer branches
+on another status Git uses for that condition. A double that stays local builds any Git failure it throws through the
+same fixture. Converted tests keep what they assert, and their call assertions read the fake's recorder.
 
 A failure that is not a process exit, such as Git being unavailable, keeps its plain `Error`, which the normalization
 types as `unexpected` as production does, and its double stays local. So do `base-advance.ts`'s fault-injecting
@@ -499,7 +501,7 @@ their subject and stay, carved under the notes-specific sync row.
 **Meta fixtures.** A meta fixture builder over `renderMetaFile` serves fixture setup. Tests about meta parsing or
 layout keep literal Markdown as independent evidence, and so do fixtures with values outside the meta vocabulary,
 which the builder refuses by design. Consumer fixtures in the legacy flat-bullet form convert to the builder's form,
-and a text edit keyed on a flat-bullet field becomes a builder override or a meta-state setter call.
+and a text edit keyed on a flat-bullet field becomes a builder override or a meta setter call.
 
 **Schema assertions.** A helper that reports issues on failure replaces inline `safeParse(...).success` assertions in
 surviving tests. A test value typed as a registered schema's output by a cast — configuration objects, audit
@@ -617,12 +619,15 @@ register as the authority for each item's owner and fate. The amendment is appen
   their unchanged IDs, and the bundle gains an ID for each of the ten registered roots (§ 5). The review-readiness
   request and envelope schemas take `$ref: slug` (§ 3). The emitted data does not change, and the session envelope
   carries no version to bump. Verification regenerates the bundle and diffs it.
-- Wire shapes, canonical bytes, error kinds, and the observable behavior the members established are preserved. One
-  message changes: a malformed digest argument is refused with the digest schema's message rather than Zod's regex
-  message, and nothing depends on the old text.
+- Wire shapes, canonical bytes, error kinds, and the observable behavior the members established are preserved.
+  Refusal messages change where a local schema gives way to a shared one: a malformed digest argument is refused with
+  the digest schema's message rather than Zod's regex message, a surviving `z.custom` digest copy's message and issue
+  code become the schema's, and a slug refusal's printed pattern loses the `u` flag the kernel pattern does not carry.
+  No test or consumer depends on the old text.
 
 **Security and subprocess policy.** Threading bound executors (§ 8) extends the command-input contract's policy
-against terminal prompts to every Git spawn a context-bearing command makes. No new trust boundary is introduced.
+against terminal prompts to every Git spawn a surviving context-bearing command path makes. No new trust boundary is
+introduced.
 
 **Testing.** The shared fake, `GitProcessError` fixture, meta builder, and schema-assertion helper land with their own
 unit tests before any conversion uses them. Converted tests keep their assertions; only the double, fixture, or
@@ -721,14 +726,15 @@ Validated at work-unit completion:
   `createRawGitExec` names only the execa adapter. The three failure-text predicates live in `lib/git/ref-tree.ts` and
   `resolveGitCommonDir` in `lib/git/exec.ts`, with no importer reaching either through `lib/user-sync/`. Errand
   identity code classifies failures through `gitFailureText()`.
-- **Command inputs.** The 17 always-JSON adapters, the 4 value-bearing commands, and `release opt-in` and `opt-out`
-  are wrapped, carved handlers' command surfaces included; the always-JSON handlers and `log` build their executors
-  from the context they receive, and the 3 missing declarations exist. The shared helpers in `handlers/shared.ts`
-  require an executor, and their carved callers pass `createGitExec()`. No surviving context-bearing command path
-  spawns Git through an unbound executor, exported helpers' callers included: `gitExec`'s remaining surviving
-  importers are the standalone scripts and the fallback holders their callers override, `gitExecInput`'s remaining
-  surviving use is the unbound fallback `createGitExecInput` returns, and the only surviving executors built without a
-  subprocess policy are the module-level ones in `lib/io-context.ts` and `local-test-admission.ts`'s.
+- **Command inputs.** The 17 always-JSON adapters, the 4 value-bearing commands, and `release opt-in` and `opt-out` are
+  wrapped, carved handlers' command surfaces included; the always-JSON handlers and `log standalone` build their
+  executors from the context they receive, and the 3 missing declarations exist. The shared helpers in
+  `handlers/shared.ts` require an executor, and their carved callers pass `createGitExec()`. No surviving
+  context-bearing command path spawns Git through an unbound executor, exported helpers' callers included: `gitExec`'s
+  remaining surviving importers are the standalone scripts and the fallback holders their callers override,
+  `gitExecInput`'s remaining surviving use is the unbound fallback `createGitExecInput` returns, and the only surviving
+  executors built without a subprocess policy are the module-level ones in `lib/io-context.ts` and
+  `local-test-admission.ts`'s.
 - **Test support.** The scripted fake with every capability in § 9, the `GitProcessError` fixture, the meta builder,
   and the schema-assertion helper exist under `__tests__/helpers/` with their own tests. Apart from hits a
   retained-by-rule matrix row covers, no surviving test keeps a hand-built Git-failure rejection, a local double that

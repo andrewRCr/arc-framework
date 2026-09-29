@@ -293,7 +293,8 @@ singleton:
 - `src/lib/local-test-admission.ts` — `createGitExec()` in the default dependencies of the standalone test runners
   (`run-local-test-tier`, the test-cost benchmark, the local Vitest runner), which keep it with a matrix row
 - `src/lib/io-context.ts` — the module-level `candidateGitExec`, `gitExec`, and `gitExecInput` constructions, which
-  stay as the singletons and their base
+  stay as the singletons and their base; and `prepareGitRefVerification`, a direct `execa` spawn with no interaction
+  environment, carved because only `park --land`'s planning landing, the lifecycle write path, calls it
 
 ## Sweep recipes
 

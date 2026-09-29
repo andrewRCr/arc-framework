@@ -226,8 +226,9 @@ shared support and the doubles that stay local.
 
     - `[ ]` **2.4.a Build `makeGitExecInput` on `createExecaGitExecInput`**
         - Follow `makeGitExec`'s pattern in `__tests__/helpers/integration.ts`: default the `cwd` and pass the
-          caller's options through, which today's `spawn` version ignores. Run its 16 direct consumers and the four
-          that reach it only through `makeUserIO`; none asserts the old rejection text.
+          caller's options through, which today's `spawn` version ignores. Run its 16 direct consumers, the four that
+          reach it only through `makeUserIO`, and `notes-publication-history.test.ts`, which reaches it only through
+          `makeNotesTreeCommit`; none asserts the old rejection text.
 
     - `[ ]` **2.4.b Move `stubGitExec` into `__tests__/integration/active.test.ts`**
         - Its only consumer; remove it from `integration.ts`.
@@ -517,12 +518,13 @@ path spawns Git through an unbound executor; the failure-text predicates and `re
 
 ### `[ ]` **4.2 Wrap the value-bearing human-output commands — D8**
 
-- _Goal:_ `user close`, `config validate`, `release setup print-patterns`, and `log` run under the command-input
-  adapter and inherit its non-interactive behavior, and `log` spawns Git under the context it receives.
+- _Goal:_ `user close`, `config validate`, `release setup print-patterns`, and `log standalone` run under the
+  command-input adapter and inherit its non-interactive behavior, and `log standalone` spawns Git under the context it
+  receives.
 
-- _Approach:_ `log`'s handler takes the context and builds its executor from `context.subprocess`. `config validate`
-  and `print-patterns` reach neither Git nor a prompt, so their handlers are unchanged. The `user close` adapter wraps
-  while its carved body keeps reaching Git through the executor Task 4.3.c passes.
+- _Approach:_ `log standalone`'s handler takes the context and builds its executor from `context.subprocess`.
+  `config validate` and `print-patterns` reach neither Git nor a prompt, so their handlers are unchanged. The
+  `user close` adapter wraps while its carved body keeps reaching Git through the executor Task 4.3.c passes.
 
 ### `[ ]` **4.3 Require an executor in the shared handler helpers — D8, D1**
 
@@ -549,8 +551,8 @@ path spawns Git through an unbound executor; the failure-text predicates and `re
 - **Additional Context:** `notes-cli-substrate-complete-migration.md` § `gitExec` singleton importers
 
     - `[ ]` **4.4.a Thread the CLI-reachable singleton importers**
-        - The 13 importers in the notes list, with `review.ts`'s always-JSON handlers bound in Task 4.1 and `log` in
-          Task 4.2; `review.ts`'s remaining uses sit in the handlers already wrapped.
+        - The 13 importers in the notes list, with `review.ts`'s always-JSON handlers bound in Task 4.1 and
+          `log standalone` in Task 4.2; `review.ts`'s remaining uses sit in the handlers already wrapped.
         - `release opt-in` and `opt-out` reach Git with no command-input wrap; their adapters wrap with an empty policy,
           as `release push` does, and their handlers build their executors from the context.
         - Five hold the singleton only as a fallback and keep it, with every bound caller overriding it: active status,
@@ -584,6 +586,8 @@ path spawns Git through an unbound executor; the failure-text predicates and `re
           `local-test-admission.ts`, whose policy-less executor serves the standalone test runners, and for the
           module-level `candidateGitExec`, `gitExec`, and `gitExecInput` in `lib/io-context.ts`, retained as the
           singletons and their base; the `assert-layout-migration.ts` row Task 5.1 closes when it deletes the script.
+        - A carved row for `prepareGitRefVerification` in `lib/io-context.ts`, whose direct `execa` spawn carries no
+          interaction environment and serves only `park --land`'s planning landing, the carved lifecycle write path.
 
 ### `[ ]` **4.5 Move the Git failure-text predicates and `resolveGitCommonDir` into `lib/git/` — D7, D1**
 
@@ -634,8 +638,8 @@ path spawns Git through an unbound executor; the failure-text predicates and `re
 - _Goal:_ The segment's exit criterion holds as one batch at the post-merge head.
 
     - Confirm reach, not only imports: `gitExec`'s surviving importers are exactly the standalone scripts and the five
-      fallback holders, and no exported helper or module-level constant a context-bearing caller reaches spawns
-      through a singleton or a policy-less executor. `gitExecInput`'s only surviving use is the unbound fallback
+      fallback holders, and no exported helper or module-level constant a surviving context-bearing caller reaches
+      spawns through a singleton or a policy-less executor. `gitExecInput`'s only surviving use is the unbound fallback
       `createGitExecInput` returns, and the only surviving executors built without a subprocess policy are the
       module-level ones in `lib/io-context.ts` and `local-test-admission.ts`'s.
     - Confirm every always-JSON and value-bearing adapter and `release opt-in` and `opt-out` are wrapped, the inventory
@@ -700,10 +704,12 @@ kind.
         - Class-level predicates over surface kind and path for test, prose, workflow, config, and template surfaces,
           in the matrix's non-code predicate table; one predicate per wholly carved module, `external-owner`, citing
           its register row.
-        - The layout contract's two routed items: path predicates for `activate-work-unit.md` and
-          `strategy-work-planning.md`, `external-owner` with owner `composable-workflows`, for the draft-retirement
-          residual; and a carved row for the `provisional-placement` callers, citing their register rows — that class is
-          outside the 15, so it takes no predicate.
+        - The layout contract's two routed items take rows in the layout table, outside the reconciliation's tables.
+          The draft-retirement residual — the guarded retirement mechanic in `activate-work-unit.md` and its
+          description in `strategy-work-planning.md` — is a Git-operation residual, not path construction, so it is
+          owned outside the cohort by `composable-workflows`. The layout-class hits in both documents, whose package
+          copies are what the audit corpus holds, fall under the ordinary non-code predicates. The
+          `provisional-placement` callers take a carved row citing their register rows; that class is outside the 15.
         - Run the negative control and record its report: with one carved-module predicate and one non-code predicate
           removed — each chosen with no less specific rule to fall back to — the reconciliation reports exactly their
           hits beyond the unremoved run's report; restored, it reports none of them.
@@ -913,20 +919,22 @@ in-file scripted doubles last, so the window's first cut removes one trailing pa
 _Mode:_ `replication` — closes when every convertible test surface is exhausted and batch-verified.
 
 _Exit criterion:_ Apart from hits a retained-by-rule matrix row covers, no surviving test keeps a hand-built Git-failure
-rejection, a local double the design converts (apart from any the cut line hands to its named Errand, each listed in the
-matrix), an inline `safeParse(...).success` assertion, or a hand-written meta block outside a test of meta parsing or
-layout.
+rejection, a local double the design converts (other than any the cut line hands to its named Errand, each listed in the
+matrix), a hand-written meta block outside a test of meta parsing or layout, an inline `safeParse(...).success`
+assertion, or a value typed by a cast to a registered schema's output.
 
 ### `[ ]` **7.1 Move rejecting scripted doubles onto the fake with `GitProcessError` failures — D9**
 
 - _Goal:_ Surviving tests that script Git failures exercise the typed failure the production executor emits — through
   the shared fake, or through the fixture in doubles that stay local.
 
-    - Record the search in notes § Sweep recipes. A hit sits inside a function typed `GitExec`, `RawGitExec`, or
-      `GitExecInput` and throws either a hand-built Git-failure shape — `stderr`, `stdout`, `exitCode`, `signal`, a
-      cancel or timeout flag, or a numeric exit `code` — or a plain `Error` whose message is Git's failure text. About
-      31 files carry the shapes, and about 62 sites in 21 files the plain errors. Filesystem errno errors, application
-      errors built with the same idiom, and a guard thrown for an unscripted call are not Git failures and stay.
+    - Record the search in notes § Sweep recipes. A hit is a Git double — a function typed `GitExec`, `RawGitExec`, or
+      `GitExecInput`, or a `vi.fn` double passed or assigned where one is expected — that rejects, by a throw or
+      through `mockRejectedValue` or `mockRejectedValueOnce`, with either a hand-built Git-failure shape — `stderr`,
+      `stdout`, `exitCode`, `signal`, a cancel or timeout flag, or a numeric exit `code` — or a plain `Error` whose
+      message is Git's failure text. About 31 files carry the shapes, and typed doubles throw the plain errors at
+      about 62 sites in 21 files. Filesystem errno errors, application errors built with the same idiom, and a guard
+      thrown for an unscripted call are not Git failures and stay.
     - A plain `Error`'s message becomes the fixture's stderr, with exit code 128, Git's status for a fatal error,
       unless the consumer branches on another status Git uses for that condition, such as 1 for a rejected push.
     - A double modeling a failure that is not a process exit, such as Git being unavailable, keeps its plain `Error`,
@@ -956,11 +964,13 @@ layout.
       cannot produce it. Consumer fixtures in the legacy flat-bullet form convert; tests of the legacy scan keep their
       literals as tests of meta parsing.
     - The search also finds text edits keyed on a flat-bullet field, such as `.replace("- **State:** Active", …)`,
-      which stop matching once the fixture renders the table form. A converted fixture sets its state through a
-      builder override at construction, or through `setMetaState` or `setMetaCurrentWorkflow` for a mid-test change.
-      Nine such edits sit in `helpers/session-envelope-compat.ts`, `helpers/delivery-position-suite.ts`,
-      `e2e/session-init.e2e.test.ts`, and `e2e/wu-reconcile.e2e.test.ts`; the first feeds the session-envelope
-      goldens, whose expectations must not change.
+      which stop matching once the fixture renders the table form. A converted fixture sets a field through a builder
+      override at construction, or through a meta setter for a mid-test change: `setMetaState` and `setMetaBranch` for
+      table fields, `setMetaCurrentWorkflow` and `setMetaBulletFields` for bullet fields. Six such edits sit in
+      surviving tests — one in `helpers/session-envelope-compat.ts`, two in `helpers/delivery-position-suite.ts`, and
+      three in `e2e/session-init.e2e.test.ts`; the first feeds the session-envelope goldens, whose expectations must
+      not change. Edits in tests of carved code, such as `e2e/wu-reconcile.e2e.test.ts` and
+      `integration/status-project.test.ts`, stay with their fixtures.
     - Tests that already call `renderMetaFile` directly already derive from the producer and are not targets.
 
 ### `[ ]` **7.3 Convert inline schema assertions to the schema-assertion helper — D9**
@@ -1072,8 +1082,8 @@ layout.
   no importer reaching either through `lib/user-sync/`, and errand identity classifies through `gitFailureText()`
 
 - `[ ]` The 17 always-JSON adapters, the 4 value-bearing commands, and `release opt-in` and `opt-out` are wrapped,
-  carved handlers' command surfaces included; the always-JSON handlers and `log` build their executors from the
-  context they receive, and the 3 missing declarations exist
+  carved handlers' command surfaces included; the always-JSON handlers and `log standalone` build their executors from
+  the context they receive, and the 3 missing declarations exist
 
 - `[ ]` The shared helpers in `handlers/shared.ts` require an executor, and their carved callers pass `createGitExec()`
 
