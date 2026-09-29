@@ -6,7 +6,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
+import { makeGitProcessError, scriptGitExec } from "../../helpers/git-exec-fake.js";
 import {
   cleanupOrdinaryErrandRefs,
   closeOrdinaryErrandAtRuntime,
@@ -158,18 +158,15 @@ async function closeLockRuntime() {
   const gitDir = join(checkoutPath, ".git");
   await mkdir(gitDir);
   const lockPath = join(gitDir, "HEAD.lock");
-  const exec: GitExec = async (_command, args) => {
-    if (args.join(" ") === "rev-parse --git-path HEAD") {
-      return { stdout: `${join(gitDir, "HEAD")}\n`, stderr: "" };
-    }
-    if (args.join(" ") === "worktree list --porcelain -z") {
-      return {
+  const { exec } = scriptGitExec([
+    { match: ["rev-parse", "--git-path", "HEAD"],
+      responses: [{ stdout: `${join(gitDir, "HEAD")}\n`, stderr: "" }] },
+    { match: ["worktree", "list", "--porcelain", "-z"],
+      responses: [{
         stdout: worktreePorcelainZ(`worktree ${checkoutPath}\nHEAD ${EXPECTED}\nbranch refs/heads/main`),
         stderr: "",
-      };
-    }
-    throw new Error(`unsupported test operation: ${args.join(" ")}`);
-  };
+      }] },
+  ]);
   const acquired = await acquireErrandCloseHeadLock({
     exec,
     checkoutPath,
@@ -208,35 +205,27 @@ function closeResolutionGit(options: {
   pinFailure?: string;
   hostFailure?: string;
 }): GitExec {
-  return async (command, args) => {
-    if (command === "git" && args.join(" ") === "remote get-url origin") {
-      return { stdout: "git@github.com:owner/repo.git\n", stderr: "" };
-    }
-    if (command === "git" && args[0] === "rev-parse" && args.at(-1)?.startsWith("refs/heads/")) {
-      return { stdout: `${EXPECTED}\n`, stderr: "" };
-    }
-    if (command === "git" && args.join(" ") === "check-ref-format --branch main") {
-      return { stdout: "", stderr: "" };
-    }
-    if (command === "git" && args[0] === "fetch") {
-      if (options.pinFailure !== undefined) throw gitError(command, args, options.pinFailure, 128);
-      return { stdout: "", stderr: "" };
-    }
-    if (command === "git" && args[0] === "rev-parse" && args.at(-1)?.startsWith("refs/arc/tmp/base-head/")) {
-      return { stdout: `${options.pinnedBase ?? EXPECTED}\n`, stderr: "" };
-    }
-    if (command === "git" && args[0] === "update-ref" && args[1] === "-d") {
-      return { stdout: "", stderr: "" };
-    }
-    if (command === "git" && args.join(" ") === "config --get remote.origin.url") {
-      return { stdout: "git@github.com:owner/repo.git\n", stderr: "" };
-    }
-    if (command === "gh" && args[0] === "pr") {
+  return scriptGitExec([
+    { match: ["remote", "get-url", "origin"],
+      responses: [{ stdout: "git@github.com:owner/repo.git\n", stderr: "" }] },
+    { match: { predicate: (args) => args[0] === "rev-parse"
+      && args.at(-1)?.startsWith("refs/heads/") === true },
+    responses: [{ stdout: `${EXPECTED}\n`, stderr: "" }] },
+    { match: ["check-ref-format", "--branch", "main"], responses: [{ stdout: "", stderr: "" }] },
+    { match: { prefix: ["fetch"] }, responses: [options.pinFailure === undefined
+      ? { stdout: "", stderr: "" }
+      : { failure: { exitCode: 128, stderr: options.pinFailure } }] },
+    { match: { predicate: (args) => args[0] === "rev-parse"
+      && args.at(-1)?.startsWith("refs/arc/tmp/base-head/") === true },
+    responses: [{ stdout: `${options.pinnedBase ?? EXPECTED}\n`, stderr: "" }] },
+    { match: { prefix: ["update-ref", "-d"] }, responses: [{ stdout: "", stderr: "" }] },
+    { match: ["config", "--get", "remote.origin.url"],
+      responses: [{ stdout: "git@github.com:owner/repo.git\n", stderr: "" }] },
+    { command: "gh", match: { prefix: ["pr"] }, responses: [() => {
       if (options.hostFailure !== undefined) throw new Error(options.hostFailure);
       return { stdout: "[]\n", stderr: "" };
-    }
-    throw new Error(`Unexpected resolution operation: ${command} ${args.join(" ")}`);
-  };
+    }] },
+  ]).exec;
 }
 
 describe("closeOrdinaryErrandAtRuntime unchanged-base resolution", () => {

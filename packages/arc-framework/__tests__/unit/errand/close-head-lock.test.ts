@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import {
   acquireErrandCloseHeadLock,
   recoverFinalizedErrandCloseHeadLock,
@@ -17,15 +18,12 @@ function errno(message: string, code: string): Error & { code: string } {
 }
 
 function fakeGit(): GitExec {
-  return async (_command, args) => {
-    if (args.join(" ") === "worktree list --porcelain -z") {
-      return { stdout: `worktree ${CHECKOUT}\0HEAD ${"a".repeat(40)}\0branch refs/heads/main\0\0`, stderr: "" };
-    }
-    if (args.join(" ") === "rev-parse --git-path HEAD") {
-      return { stdout: "/repo/.git/HEAD\n", stderr: "" };
-    }
-    throw new Error(`Unexpected Git command: ${args.join(" ")}`);
-  };
+  return scriptGitExec([
+    { match: ["worktree", "list", "--porcelain", "-z"],
+      responses: [{ stdout: `worktree ${CHECKOUT}\0HEAD ${"a".repeat(40)}\0branch refs/heads/main\0\0`, stderr: "" }] },
+    { match: ["rev-parse", "--git-path", "HEAD"],
+      responses: [{ stdout: "/repo/.git/HEAD\n", stderr: "" }] },
+  ]).exec;
 }
 
 function fakeFileIO(): {
