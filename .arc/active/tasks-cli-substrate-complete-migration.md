@@ -751,27 +751,15 @@ assertion, or a value typed by a cast to a registered schema's output.
 - _Outcome:_ Restored Phase 7-only edits in 42 carved test files and the carved ranges of two mixed suites. The
   surviving `view --path` cases merged from `main` remain intact.
 
-### `[ ]` **7.5 Sweep surviving tests for convertible residue** — validate exit criterion at segment scope
+### `[x]` **7.5 Sweep surviving tests for convertible residue** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds as one batch at the post-merge head, and the work unit's test-cost effect
   is measured once no further test changes.
 
-    - Run each recorded search over surviving tests; confirm each remaining hit falls under a retained-by-rule matrix
-      row whose evidence names the search — tests of meta parsing or layout, errno and application errors,
-      normalization tests, constructed typed failures, non-exit failures and the `base-advance.ts` hybrids, constant
-      stubs, real-Git doubles, hybrids, simulators, invalid-value and legacy-scan meta fixtures, spec pre-activation
-      metadata, logic-driving `safeParse` calls, invalid and partial cast values, files the cut line hands to its
-      Errand, or tests of carved code.
-    - Run the session-envelope goldens and confirm their expectations match the merge base.
-    - Re-run the layout reconciliation with its negative control, as notes § Segment boundaries sets out.
-    - Build the CLI, take three retained runs of each tier-isolated row on the axes the baselines used, run
-      `benchmark:test-cost:compare` against the baselines in `.test-cost-runs/` that notes § Test-cost baselines
-      records, and record the comparison in notes, naming any row that moved. A moved row is attributed by measuring
-      the final merge base in a scratch checkout; the `ci-job` rows are read from CI's budget report.
-    - Confirm the residual matrix reconciles against all six member scopes and the amended closeout criterion, and
-      that the segment's edits to carved code are compile-forced.
-    - Evidence for the Success Criteria on Git-failure rejections and convertible doubles, meta blocks, inline schema
-      assertions, test cost, and the cohort reconciliation.
+- _Outcome:_ The final sweep reconciles surviving test support, all six member scopes, and the storage carve; no
+  convertible residue remains. Session-envelope goldens match the merge base, and the layout reconciliation and
+  negative control close. Notes § Phase 7 test-cost comparison records four local rows; only integration wall time
+  moved beyond noise, attributable to this branch. The six `ci-job` rows await required CI.
 
 ## **Phase 8:** Verification
 

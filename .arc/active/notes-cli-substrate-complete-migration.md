@@ -439,14 +439,29 @@ Register citations below name the corresponding **Storage-coupling register** ro
 | `makeGitNoteWriter` and `makeGitNoteReader`                                 | same helpers                            | carved           | `R-NS`                        |      M:74 | Task 2.4.c; notes seam           |
 | `base-advance.ts` raw `git()` runner                                        | same helper                             | retained by rule | Spec § 9 arrangement runner   |         — | Task 2.4.c; no src import        |
 | `e2e/race-worker.ts` private spawn executors                                | same worker                             | retained by rule | Spec § 9 real-Git plumbing    |         — | Task 2.4.c; spawned worker       |
-| constant one-response stubs                                                 | local test doubles                      | retained by rule | Spec § 9                      |         — | Task 7.5                         |
-| real-Git doubles, fault-injecting hybrids, scenario simulators              | local test doubles                      | retained by rule | Spec § 9                      |         — | Task 7.5                         |
-| parser/layout literal meta fixtures                                         | local Markdown                          | retained by rule | Spec § 9 independent evidence |         — | Task 7.5                         |
+| constant one-response stubs                                                 | local test doubles                      | retained by rule | Spec § 9                      |         — | scripted-double scan; Task 7.5   |
+| real-Git doubles, fault-injecting hybrids, scenario simulators              | local test doubles                      | retained by rule | Spec § 9                      |         — | scripted-double scan; Task 7.5   |
+| non-exit Git unavailability and unscripted-call guards                      | local test doubles                      | retained by rule | Spec § 9                      |         — | Git-failure scan; Task 7.5       |
+| parser/layout literal meta fixtures                                         | local Markdown                          | retained by rule | Spec § 9 independent evidence |         — | meta block scan; Task 7.5        |
+| status table golden strings                                                 | local Markdown                          | retained by rule | Spec § 9 independent evidence |         — | meta scan false positive; render |
+| invalid and legacy-scan meta fixture blocks                                 | local Markdown                          | retained by rule | Spec § 9                      |         — | meta block scan; 5 invalid files |
+| legacy session-envelope meta projection                                     | builder-derived flat bullets            | retained by rule | Spec § 9 golden byte identity |         — | meta scan; 11 unchanged goldens  |
+| logic-driving `safeParse` calls                                             | same tests                              | retained by rule | Spec § 9                      |         — | AST verdict scan; Task 7.5       |
+| invalid/partial registered output values                                    | local test casts                        | retained by rule | Spec § 9                      |         — | cast scan; 9 partial hits        |
+| parsed subtype and result-narrowing casts                                   | same casts                              | retained by rule | Spec § 9                      |         — | cast scan; 4 narrowing hits      |
 | E2E canonicalizers and Result assertions                                    | same tests                              | retained by rule | Spec § 9                      |         — | Task 7.5                         |
 | notes-sync tests (`user-sync-notes-*`, `notes-*`, integration notes cases)  | same tests                              | carved           | `R-NS`                        |         — | test paths; Task 7.5             |
 | branch-tree tests (`project-view-ref`, `completed-index`, ref-reader cases) | same cases                              | carved           | `R-BR`; `R-AR`                |         — | test paths; Task 7.5             |
 | in-flight and session-init store-source tests                               | same cases                              | carved           | `R-IF`; `R-CW`; `R-NP`        |         — | test paths; Task 7.5             |
+| schema verdicts in carved in-flight cases                                   | same assertions                         | carved           | `R-IF`; `R-BR`                |         — | AST scan; 22 assertions          |
+| schema verdicts in carved session-init cases                                | same assertions                         | carved           | `R-CW`; `R-NS`; `R-BR`        |         — | AST scan; 25 assertions          |
+| schema verdicts in carved decomposition cases                               | same assertions                         | carved           | `R-DCP`                       |         — | AST scan; 23 assertions          |
+| schema verdicts in carved notes-sync cases                                  | same assertions                         | carved           | `R-NS`                        |         — | AST scan; 3 assertions           |
 | lifecycle-contribution and path-treatment tests                             | same tests                              | carved           | `R-LC`                        |         — | test paths; Task 7.5             |
+| lifecycle and placement test fixtures                                       | same fixtures                           | carved           | `R-LW`; `R-PL`                |         — | Git/meta scans; Task 7.5         |
+| hook and locus test fixtures                                                | same fixtures                           | carved           | `R-HC`; `R-LOC`               |         — | Git/meta scans; Task 7.5         |
+| roadmap, teardown, retirement, and branch-history tests                     | same fixtures                           | carved           | `R-RM`; `R-LW`; `R-AR`        |         — | Git/meta scans; Task 7.R2        |
+| decomposition and delivery-scoping test cases                               | same fixtures                           | carved           | `R-DCP`; `R-CI`               |         — | test paths; Task 7.R2            |
 | planning-lane cases in `change-facts` tests                                 | same cases                              | carved           | `R-CI`                        |         — | test paths; Task 7.5             |
 | inbox-writer and execution-offer tests                                      | same tests                              | retained by rule | `R-NS` survivor               |         — | test paths; Task 7.5             |
 | `testing-standards` project override                                        | shared support guidance                 | migrated         | Spec § 9                      |         — | Task 2.5; project-only           |
@@ -1654,6 +1669,98 @@ inbox mutation lock and notes-lock imports. It removed the writer/offer barrel e
 and notes-lock barrel exports still serve carved notes-sync callers; `resolveCurrentWuName` likewise stays for carved
 callers.
 
+### Test-support Git failure doubles
+
+Search surviving tests with
+
+```sh
+rg -n 'throw (Object\.assign|\{)|mockRejectedValue(Once)?\(|new GitProcessError|throw new Error|expectedOutcome\s*:' __tests__ -g '*.ts'
+```
+
+Cross-reference each hit with `GitExec`, `RawGitExec`, `GitExecInput`, or an injected `vi.fn` executor. Classify
+the thrown value by the consumer and command: modeled process exits use `makeGitProcessError` or a shared fake
+`failure` response, preserving the exit status a branch tests; non-exit unavailability, unscripted-call guards,
+filesystem errno, and application errors remain plain. Normalizer and executor-adapter tests keep raw shapes as
+their inputs. Carved-code tests and `helpers/base-advance.ts`'s deliberately non-exit hybrids retain their local
+double. Re-run the search after each base merge and reconcile every surviving process-failure-shaped hit.
+
+### Test-support meta fixtures
+
+Search surviving test Markdown literals with
+`rg -n '\|\s*(\*\*)?State(\*\*)?\s*\||\*\*State:\*\*' __tests__ -g '*.ts'`, then
+inspect each containing template/string block and the flat-bullet edits found by
+`rg -n '\.replace\(["\x27]- \*\*(State|Branch|Current Workflow|Next Action):' __tests__ -g '*.ts'`.
+Classify each block as a fixture, a meta parsing/layout test, or pre-activation spec metadata. The builder
+`makeMetaFixture` converts vocabulary-valid fixtures; parser/layout and legacy-scan evidence, out-of-vocabulary
+invalid fixtures, and carved tests retain their literals. For post-construction changes, use the table setters
+`setMetaState` and `setMetaBranch` and bullet setters `setMetaCurrentWorkflow` and `setMetaBulletFields`.
+The six known flat-bullet edits are in `helpers/session-envelope-compat.ts` (one),
+`helpers/delivery-position-suite.ts` (two), and `e2e/session-init.e2e.test.ts` (three); the envelope goldens
+must remain byte-identical. The compatibility helper validates its semantic fields through `makeMetaFixture`,
+then projects the pre-table bullet layout that the unchanged goldens capture.
+
+### Test-support schema assertions
+
+Find multiline `safeParse(...).success` assertions by parsing tracked `__tests__` TypeScript with the TypeScript
+AST and selecting an `expect` call whose argument is a `.success` property access over a `safeParse` call.
+The initial scan found 508 assertions in 89 files. Re-run it after each batch; a `safeParse` result used to drive
+logic is not an assertion. Search registered-schema output casts with
+
+```sh
+rg -n 'as (OrdinaryErrandRecord|CandidateManagedRecordV1|IntegrationCheckpointCompositionRecord|[A-Za-z]+V1)' __tests__ -g '*.ts'
+```
+
+Classify each candidate against its registered schema; valid fixtures parse through that schema, while
+deliberately invalid and partial values keep their casts. The converting test keeps its existing acceptance or
+refusal verdict and any issue-path assertion.
+
+The scan source lives at `/tmp/arc-cli-substrate-inventory/schema-assertion-scan.cjs` for this execution;
+recreate it from this algorithm after a session boundary: enumerate tracked test TypeScript files with
+`git ls-files -z -- __tests__`, parse each with `typescript.createSourceFile`, recursively visit its nodes,
+and report a `CallExpression` named `expect` when its first argument is a `PropertyAccessExpression` named
+`success` whose receiver is a `CallExpression` with a `PropertyAccessExpression` named `safeParse`.
+Run `node /tmp/arc-cli-substrate-inventory/schema-assertion-scan.cjs` from `packages/arc-framework`;
+its initial output is `/tmp/arc-cli-substrate-inventory/schema-assertion-initial.txt`.
+
+### Test-support scripted Git doubles
+
+Enumerate typed test executor surfaces and injected adapters with
+
+```sh
+rg -l 'GitExec|RawGitExec|GitExecInput' __tests__ -g '*.ts'
+rg -n 'exec:|execInput:|rawExec:|mockImplementation|mockResolvedValue' __tests__ -g '*.ts'
+```
+
+Inspect each function typed as, assigned to, or passed where a Git executor is expected. A branch-bearing
+in-file script of bounded command responses moves to `scriptGitExec`, `scriptRawGitExec`, or
+`scriptGitExecInput`; use exact arguments where known, a prefix or predicate for variable refs, ordered responses
+for repeat calls, and the fake's `calls` recorder for invocation assertions. Constant one-response stubs,
+real-Git runners, fault-injecting hybrids, stateful scenario simulators, and tests of carved code remain local.
+Re-run both searches at the segment close and cross-reference the test-support matrix's retained rows.
+
+**Phase 7 final test-support sweep:** At corrected head `905eff1ba`, the import scan covered 1,965 TypeScript files
+and 977 local target modules. Its 1,522 unresolved specifiers are external or Node built-ins; none is relative.
+The regex scan covered the same files, and the coupling scan covered 2,223 corpus files and all 32 classes. The
+15-class layout reconciliation assigned all 18,399 hits with no unmatched code or non-code hit, overlap, unused
+rule, or count mismatch. Removing the same per-file, carved, and template rules exposed exactly their 5, 1, and
+133 assigned hits; the 139-hit identity comparison found no missing or unexpected hit. Reports:
+`/tmp/arc-cli-substrate-inventory/{import-graph,regex,coupling-classes,layout-reconcile}-phase7-corrected.json`
+and `/tmp/arc-cli-substrate-inventory/layout-reconcile-phase7-corrected-negative.json`.
+
+Task 7.R2 restored Phase 7-only edits in 42 wholly carved test files and carved ranges of two mixed suites; only
+surviving ranges retain conversions. The Git-failure search returned 2,549 broad text hits in 447 files; the added
+hits are in restored carved fixtures, and typed-double inspection found no convertible modeled process exit. The
+META-block search returned 173 hits in 71 files; the added 17 files are restored carved fixtures. The surviving
+hits classify as parser/layout, invalid vocabulary, legacy golden, carved, or the non-META status-table golden.
+The AST verdict scan found 73 assertions, all carved: 22 in-flight, 25 session-init, 23 decomposition, and 3
+notes-sync. The registered-output cast scan leaves nine invalid/partial fixtures and four parsed-subtype or
+result-narrowing casts. The typed-executor search returned 248 files; no convertible local script remains. No
+Task 7.4 Errand cut was needed. Search outputs are
+`/tmp/arc-cli-substrate-inventory/{git-failure,meta-block,scripted-double}-post-a2.txt` and
+`schema-assertion-post-a2.txt` in the same directory. The six member scopes and the storage-carve amendment
+reconcile with the matrix; no Phase 7 edit to carved code remains beyond the compile-forced boundary. The 11
+session-envelope goldens ran in the passing E2E series, and their fixture files have no diff against final `main`.
+
 ## Test-cost baselines
 
 Measured at `882f50431` after the merged-base inventory commits; the package source and tests are identical to
@@ -1671,6 +1778,29 @@ the same file and test counts. Paths below are relative to `packages/arc-framewo
 | `e2e`         | `.test-cost-runs/cli-substrate-base-e2e-1.json`, `.test-cost-runs/cli-substrate-base-e2e-2.json`, `.test-cost-runs/cli-substrate-base-e2e-3.json`                         | 275,113; 233,851; 234,140 |     234,140 | `882f50431`   |
 
 The six `ci-job` rows are measured by CI's budget report, not this local tier-isolated series.
+
+### Phase 7 test-cost comparison
+
+The CLI build and all three retained runs of each project set passed at corrected head `905eff1ba`. Each run used
+the baseline's `tier-isolated` condition and 12 workers. Retained after-run JSON and comparison reports are under
+`packages/arc-framework/.test-cost-runs/` as `cli-substrate-phase7-{set}-{1,2,3}.json` and
+`cli-substrate-comparison-{set}.json` for each set below. The comparison uses a 10% noise band.
+
+| Project set   | Baseline median (ms) | Phase 7 median (ms) | Delta   | Wall-time verdict |
+| ------------- | -------------------: | ------------------: | ------: | ----------------- |
+| `unit`        |               12,837 |              14,051 |  +9.46% | unestablished     |
+| `integration` |               87,879 |              99,910 | +13.69% | established       |
+| `lane`        |               95,021 |             101,299 |  +6.61% | unestablished     |
+| `e2e`         |              234,140 |             245,076 |  +4.67% | unestablished     |
+
+The integration row is the only established movement. Its 20 added tests raise the count from 1,786 to 1,806;
+the comparison's summed-file-time increase of 8.96% remains within noise. To attribute its wall-time change, a
+scratch checkout measured final merge base `2603c21084a693da942dc2949a6806fdc7c4aa2d` on the same axes:
+three passing runs gave an 88,243 ms median and the original 1,786 tests. Baseline to final `main` was +0.41%
+(unestablished); final `main` to this branch was +13.22% (established). The movement is branch-side. Reports:
+`cli-substrate-main-final-integration-{1,2,3}.json`, `cli-substrate-attribution-baseline-to-main.json`, and
+`cli-substrate-attribution-main-to-branch.json` in the same retained-run directory. The six `ci-job` budget rows
+await the required CI report on the unpublished branch head.
 
 ## Review projection
 
