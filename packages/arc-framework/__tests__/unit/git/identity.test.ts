@@ -9,7 +9,7 @@ import { describe, it, expect, vi } from "vitest";
 import { UserFacingError } from "../../../src/lib/errors.js";
 import { readConfiguredIdentity, slugifyIdentity, resolveIdentity } from "../../../src/lib/git/identity.js";
 import type { GitExec } from "../../../src/lib/git/index.js";
-import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 
 // --- slugifyIdentity ---
 
@@ -52,23 +52,28 @@ describe("slugifyIdentity", () => {
 
 // --- resolveIdentity ---
 
-/** Creates a mock GitExec that returns predefined values for config keys. */
+/** Scripts configured Git values and absent keys. */
 function mockExec(configValues: Record<string, string>): GitExec {
-  return vi.fn(async (command: string, args: string[]) => {
-    if (args[0] === "config" && args[1] === "--null" && args[2] === "--get") {
-      const key = args[3];
-      if (key && key in configValues) return { stdout: `${configValues[key]!}\0` };
-      throw makeGitProcessError({ command, args, exitCode: 1 });
-    }
-    if (args[0] === "config" && args[1] === "--get") {
-      const key = args[2];
-      if (key && key in configValues) {
-        return { stdout: configValues[key]! + "\n" };
-      }
-      throw makeGitProcessError({ command, args, exitCode: 1 });
-    }
-    throw new Error(`Unexpected command: ${args.join(" ")}`);
-  });
+  return scriptGitExec([
+    {
+      match: { prefix: ["config", "--null", "--get"] },
+      responses: [({ args }) => {
+        const key = args[3];
+        return key && key in configValues
+          ? { stdout: `${configValues[key]!}\0` }
+          : { failure: { exitCode: 1 } };
+      }],
+    },
+    {
+      match: { prefix: ["config", "--get"] },
+      responses: [({ args }) => {
+        const key = args[2];
+        return key && key in configValues
+          ? { stdout: `${configValues[key]!}\n` }
+          : { failure: { exitCode: 1 } };
+      }],
+    },
+  ]).exec;
 }
 
 describe("resolveIdentity", () => {
@@ -97,14 +102,13 @@ describe("resolveIdentity", () => {
 
   it("passes slugified user.name as prompt default", async () => {
     // user.name exists but arc.identity doesn't — prompt should get the suggestion
-    const exec = vi.fn(async (command: string, args: string[]) => {
-      if (args[0] === "config" && args[1] === "--null") throw makeGitProcessError({ command, args, exitCode: 1 });
-      if (args[0] === "config" && args[1] === "--get") {
-        if (args[2] === "user.name") return { stdout: "Jane Doe\n" };
-        throw makeGitProcessError({ command, args, exitCode: 1, stderr: "not found" });
-      }
-      throw new Error("unexpected");
-    });
+    const { exec } = scriptGitExec([
+      { match: { prefix: ["config", "--null"] }, responses: [{ failure: { exitCode: 1 } }] },
+      { match: ["config", "--get", "user.name"], responses: [{ stdout: "Jane Doe\n" }] },
+      { match: { prefix: ["config", "--get"] }, responses: [{
+        failure: { exitCode: 1, stderr: "not found" },
+      }] },
+    ]);
     const prompt = vi.fn(async () => "jane-doe");
 
     const result = await resolveIdentity({ exec, prompt });

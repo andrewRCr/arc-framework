@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { readObjectAvailability } from "../../../src/lib/git/object-availability.js";
 import type { GitExecInput } from "../../../src/lib/git/exec.js";
+import { scriptGitExecInput } from "../../helpers/git-exec-fake.js";
 
 const oid = (seed: string): string => seed.padEnd(40, "0");
 
@@ -52,10 +53,10 @@ describe("readObjectAvailability", () => {
   it("deduplicates advertised ids before issuing one ordered batch", async () => {
     const first = oid("d4");
     const second = oid("e5");
-    const execInput: GitExecInput = vi.fn(async (_args, input) => {
-      if (input !== `${first}\n${second}\n`) throw new Error("batch was not stably deduplicated");
-      return `${first} commit 1\n${second} missing\n`;
-    });
+    const { exec: execInput, calls } = scriptGitExecInput([{
+      match: ["cat-file", "--batch-check"],
+      responses: [`${first} commit 1\n${second} missing\n`],
+    }]);
 
     await expect(readObjectAvailability({
       execInput,
@@ -64,6 +65,8 @@ describe("readObjectAvailability", () => {
       kind: "complete",
       commits: { [first]: true, [second]: false },
     });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.input).toBe(`${first}\n${second}\n`);
   });
 
   it.each([
@@ -94,23 +97,20 @@ describe("readObjectAvailability", () => {
 
   it("completes one local-only stdin batch and refuses every other Git process", async () => {
     const commit = oid("c9");
-    let processCount = 0;
-    const execInput: GitExecInput = async (args, input, options) => {
-      processCount += 1;
-      if (
-        args.join(" ") !== "cat-file --batch-check"
-        || input !== `${commit}\n`
-        || options?.objectAccess !== "local-only"
-      ) {
-        throw new Error("unexpected or materializing Git process");
-      }
-      return `${commit} commit 1\n`;
-    };
+    const { exec: execInput, calls } = scriptGitExecInput([{
+      match: ["cat-file", "--batch-check"],
+      responses: [`${commit} commit 1\n`],
+    }]);
 
     await expect(readObjectAvailability({ execInput, oids: [commit] })).resolves.toEqual({
       kind: "complete",
       commits: { [commit]: true },
     });
-    expect(processCount).toBe(1);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      args: ["cat-file", "--batch-check"],
+      input: `${commit}\n`,
+      options: { objectAccess: "local-only" },
+    });
   });
 });

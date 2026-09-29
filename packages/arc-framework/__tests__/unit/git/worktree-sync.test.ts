@@ -14,11 +14,10 @@ import {
 import type {
   ExecResult,
   GitExec,
-  GitExecInput,
   GitExecOptions,
 } from "../../../src/lib/git/index.js";
 import { GitProcessError } from "../../../src/lib/git/process-error.js";
-import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
+import { makeGitProcessError, scriptGitExec, scriptGitExecInput } from "../../helpers/git-exec-fake.js";
 
 type ResponseFn = (
   args: string[],
@@ -26,39 +25,19 @@ type ResponseFn = (
 ) => ExecResult | Promise<ExecResult>;
 
 /**
- * Build a GitExec mock keyed off the first argument and an optional second-arg
- * matcher. Returns `{ exec, calls }` so tests can assert recorded invocations.
+ * Script Git by first arguments, with optional wildcard tokens.
  */
 function buildExec(
   responses: Record<string, ExecResult | ResponseFn>,
-): { exec: GitExec; calls: Array<{ cmd: string; args: string[]; options?: GitExecOptions }> } {
-  const calls: Array<{ cmd: string; args: string[]; options?: GitExecOptions }> = [];
-  const exec: GitExec = async (cmd, args, options) => {
-    calls.push({ cmd, args, ...(options === undefined ? {} : { options }) });
-    const key = matchKey(args, responses);
-    if (key === null) {
-      throw new Error(`unmatched git invocation: ${cmd} ${args.join(" ")}`);
-    }
-    const entry = responses[key];
-    if (entry === undefined) {
-      throw new Error(`matched key '${key}' has no response`);
-    }
-    return typeof entry === "function" ? entry(args, options) : entry;
-  };
-  return { exec, calls };
-}
-
-function matchKey(
-  args: string[],
-  responses: Record<string, unknown>,
-): string | null {
-  for (const key of Object.keys(responses)) {
-    const tokens = key.split(" ");
-    if (tokens.every((token, i) => token === "*" || args[i] === token)) {
-      return key;
-    }
-  }
-  return null;
+): ReturnType<typeof scriptGitExec> {
+  return scriptGitExec(Object.entries(responses).map(([key, response]) => ({
+    match: { predicate: (args) => key.split(" ").every(
+      (token, index) => token === "*" || args[index] === token,
+    ) },
+    responses: [typeof response === "function"
+      ? ({ args, options }) => response(args, options)
+      : response],
+  })));
 }
 
 const REV_PARSE_HEAD = "rev-parse --abbrev-ref HEAD";
@@ -570,18 +549,10 @@ describe("runPassiveWorktreeInspection", () => {
       "rev-parse HEAD": { stdout: `${localOid}\n`, stderr: "" },
       [REV_LIST_COUNT]: { stdout: "0\t2\n", stderr: "" },
     });
-    let objectReadCount = 0;
-    const execInput: GitExecInput = async (args, input, options) => {
-      objectReadCount += 1;
-      if (
-        args.join(" ") !== "cat-file --batch-check"
-        || input !== `${advertisedOid}\n`
-        || options?.objectAccess !== "local-only"
-      ) {
-        throw new Error("unexpected object availability read");
-      }
-      return `${advertisedOid} commit 123\n`;
-    };
+    const { exec: execInput, calls: objectCalls } = scriptGitExecInput([{
+      match: ["cat-file", "--batch-check"],
+      responses: [`${advertisedOid} commit 123\n`],
+    }]);
 
     await expect(runPassiveWorktreeInspection({
       exec,
@@ -595,7 +566,12 @@ describe("runPassiveWorktreeInspection", () => {
       remoteEvidence: "exact",
     });
     expect(calls.filter(({ args }) => args[0] === "ls-remote")).toHaveLength(1);
-    expect(objectReadCount).toBe(1);
+    expect(objectCalls).toHaveLength(1);
+    expect(objectCalls[0]).toMatchObject({
+      args: ["cat-file", "--batch-check"],
+      input: `${advertisedOid}\n`,
+      options: { objectAccess: "local-only" },
+    });
     expect(calls.every(({ args }) => !["fetch", "update-ref"].includes(args[0] ?? ""))).toBe(true);
   });
 
@@ -686,14 +662,11 @@ describe("runPassiveWorktreeInspection", () => {
     state,
     branch,
   ) => {
-    const commands: string[] = [];
-    const exec: GitExec = async (_command, args) => {
-      commands.push(args[0] ?? "");
-      if (args[0] === "rev-parse") return { stdout: branchOutput };
-      if (args[0] === "remote") return { stdout: remoteOutput };
-      if (args[0] === "for-each-ref") return { stdout: upstreamOutput };
-      throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
-    };
+    const { exec, calls: gitCalls } = scriptGitExec([
+      { match: { prefix: ["rev-parse"] }, responses: [{ stdout: branchOutput }] },
+      { match: { prefix: ["remote"] }, responses: [{ stdout: remoteOutput }] },
+      { match: { prefix: ["for-each-ref"] }, responses: [{ stdout: upstreamOutput }] },
+    ]);
     let objectRead = false;
 
     await expect(runPassiveWorktreeInspection({
@@ -710,7 +683,7 @@ describe("runPassiveWorktreeInspection", () => {
       branch,
       remoteEvidence: "not-applicable",
     });
-    expect(commands).not.toContain("ls-remote");
+    expect(gitCalls.map(({ args }) => args[0] ?? "")).not.toContain("ls-remote");
     expect(objectRead).toBe(false);
   });
 
@@ -718,30 +691,25 @@ describe("runPassiveWorktreeInspection", () => {
     "propagates a local %s failure",
     async (failureStage) => {
       const advertisedOid = "9".repeat(40);
-      const exec: GitExec = async (command, args) => {
-        if (failureStage === "branch" && args[0] === "rev-parse") {
-          throw makeGitProcessError({ command, args, exitCode: 128, stderr: "branch failed" });
-        }
-        if (args[0] === "rev-parse") return { stdout: "main\n" };
-        if (failureStage === "remote configuration" && args[0] === "remote") {
-          throw makeGitProcessError({ command, args, exitCode: 128, stderr: "remote configuration failed" });
-        }
-        if (args[0] === "remote") return { stdout: "origin\n" };
-        if (failureStage === "upstream" && args[0] === "for-each-ref") {
-          throw makeGitProcessError({ command, args, exitCode: 128, stderr: "upstream failed" });
-        }
-        if (args[0] === "for-each-ref") return { stdout: "origin/main\n" };
-        if (args[0] === "ls-remote") {
-          return { stdout: `${advertisedOid}\trefs/heads/main\n` };
-        }
-        throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
-      };
-      const execInput: GitExecInput = async (args) => {
-        if (failureStage === "object inspection") {
-          throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "object inspection failed" });
-        }
-        return `${advertisedOid} missing\n`;
-      };
+      const { exec } = scriptGitExec([
+        { match: { prefix: ["rev-parse"] }, responses: [failureStage === "branch"
+          ? { failure: { exitCode: 128, stderr: "branch failed" } }
+          : { stdout: "main\n" }] },
+        { match: { prefix: ["remote"] }, responses: [failureStage === "remote configuration"
+          ? { failure: { exitCode: 128, stderr: "remote configuration failed" } }
+          : { stdout: "origin\n" }] },
+        { match: { prefix: ["for-each-ref"] }, responses: [failureStage === "upstream"
+          ? { failure: { exitCode: 128, stderr: "upstream failed" } }
+          : { stdout: "origin/main\n" }] },
+        { match: { prefix: ["ls-remote"] },
+          responses: [{ stdout: `${advertisedOid}\trefs/heads/main\n` }] },
+      ]);
+      const { exec: execInput } = scriptGitExecInput([{
+        match: ["cat-file", "--batch-check"],
+        responses: [failureStage === "object inspection"
+          ? { failure: { exitCode: 128, stderr: "object inspection failed" } }
+          : `${advertisedOid} missing\n`],
+      }]);
 
       const expectedMessage = {
         branch: "branch failed",

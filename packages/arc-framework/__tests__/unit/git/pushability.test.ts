@@ -3,11 +3,10 @@ import { describe, it, expect } from "vitest";
 import { isRefusalCondition, runPushabilityStatus } from "../../../src/lib/git/pushability.js";
 import type {
   ExecResult,
-  GitExec,
   GitExecOptions,
   PushabilityCondition,
 } from "../../../src/lib/git/index.js";
-import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
+import { makeGitProcessError, scriptGitExec, type GitExecCall } from "../../helpers/git-exec-fake.js";
 
 type ResponseFn = (
   args: string[],
@@ -16,34 +15,14 @@ type ResponseFn = (
 
 function buildExec(
   responses: Record<string, ExecResult | ResponseFn>,
-): { exec: GitExec; calls: Array<{ cmd: string; args: string[] }> } {
-  const calls: Array<{ cmd: string; args: string[] }> = [];
-  const exec: GitExec = async (cmd, args, options) => {
-    calls.push({ cmd, args });
-    const key = matchKey(args, responses);
-    if (key === null) {
-      throw new Error(`unmatched git invocation: ${cmd} ${args.join(" ")}`);
-    }
-    const entry = responses[key];
-    if (entry === undefined) {
-      throw new Error(`matched key '${key}' has no response`);
-    }
-    return typeof entry === "function" ? entry(args, options) : entry;
-  };
-  return { exec, calls };
-}
-
-function matchKey(
-  args: string[],
-  responses: Record<string, unknown>,
-): string | null {
-  for (const key of Object.keys(responses)) {
-    const tokens = key.split(" ");
-    if (tokens.every((token, i) => token === "*" || args[i] === token)) {
-      return key;
-    }
-  }
-  return null;
+): ReturnType<typeof scriptGitExec> {
+  return scriptGitExec(Object.entries(responses).map(([key, entry]) => ({
+    match: { predicate: (args: readonly string[]) => key.split(" ").every((token, index) =>
+      token === "*" || args[index] === token) },
+    responses: [typeof entry === "function"
+      ? ({ args, options }: GitExecCall) => entry(args, options)
+      : entry],
+  })));
 }
 
 /** Build an access function whose `present` paths resolve, others reject. */

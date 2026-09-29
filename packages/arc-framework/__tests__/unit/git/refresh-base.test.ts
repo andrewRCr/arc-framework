@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 
 import { refreshBase } from "../../../src/lib/git/refresh-base.js";
-import type { ExecResult, GitExec } from "../../../src/lib/git/index.js";
-import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
+import type { ExecResult } from "../../../src/lib/git/index.js";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 
 const OK: ExecResult = { stdout: "", stderr: "" };
 
@@ -11,16 +11,13 @@ const OK: ExecResult = { stdout: "", stderr: "" };
  * first two args match a `fail` entry, which reject — the pattern for exercising
  * `refreshBase`'s best-effort fallback per failing leg.
  */
-function execWith(fail: string[][] = []): { exec: GitExec; calls: string[][] } {
-  const calls: string[][] = [];
-  const exec: GitExec = async (command, args) => {
-    calls.push(args);
-    if (fail.some((f) => f[0] === args[0] && f[1] === args[1])) {
-      throw makeGitProcessError({ command, args, exitCode: 128, stderr: `git ${args.join(" ")} failed` });
-    }
-    return OK;
-  };
-  return { exec, calls };
+function execWith(fail: string[][] = []): ReturnType<typeof scriptGitExec> {
+  return scriptGitExec([{
+    match: { predicate: () => true },
+    responses: [({ args }) => fail.some((f) => f[0] === args[0] && f[1] === args[1])
+      ? { failure: { exitCode: 128, stderr: `git ${args.join(" ")} failed` } }
+      : OK],
+  }]);
 }
 
 describe("refreshBase", () => {
@@ -28,8 +25,8 @@ describe("refreshBase", () => {
     const { exec, calls } = execWith();
     const ref = await refreshBase(exec, "main");
     expect(ref).toBe("origin/main");
-    expect(calls).toContainEqual(["fetch", "origin", "main"]);
-    expect(calls).toContainEqual(["rev-parse", "--verify", "--quiet", "origin/main"]);
+    expect(calls.map(({ args }) => args)).toContainEqual(["fetch", "origin", "main"]);
+    expect(calls.map(({ args }) => args)).toContainEqual(["rev-parse", "--verify", "--quiet", "origin/main"]);
   });
 
   it("honors a custom remote", async () => {
