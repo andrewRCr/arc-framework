@@ -30,6 +30,7 @@ import { join } from "node:path";
 import { setupMultiClone, type MultiClone } from "../helpers/multi-clone.js";
 import { removeGitBackedDir } from "../helpers/temp-repo.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import { readGitBlobBytes } from "../../src/lib/io-context.js";
 import type { LifecycleIndexFs } from "../../src/lib/work-unit/lifecycle-index.js";
 import { createGitRetirementAuthorizationContext } from
@@ -710,7 +711,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       const failingExec: GitExec = async (cmd, args, opts) => {
         if (refuseDelete && args[0] === "update-ref" && args[1] === "-d") {
           refuseDelete = false;
-          throw new Error("simulated ref lock");
+          throw makeGitProcessError({ command: cmd, args, exitCode: 128, stderr: "simulated ref lock" });
         }
         return realExec(cmd, args, opts);
       };

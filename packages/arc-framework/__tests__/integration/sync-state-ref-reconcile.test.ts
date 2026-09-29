@@ -37,6 +37,7 @@ import {
   type SyncStateMarker,
 } from "../../src/lib/user-sync/sync-state-marker.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 
 const IDENTITY = "andrew";
 const REF = syncStateRef(IDENTITY);
@@ -64,7 +65,7 @@ function makeIncomingReadFailExec(realExec: GitExec, errorMessage: string): GitE
       args[0] === "ls-tree" && !args.includes("-r")
       && incomingTip !== null && args[args.length - 1] === incomingTip
     ) {
-      throw new Error(errorMessage);
+      throw makeGitProcessError({ command: cmd, args, exitCode: 128, stderr: errorMessage });
     }
     return realExec(cmd, args);
   };
@@ -163,7 +164,8 @@ describe("sync-state-ref reconcile-push", () => {
     const rejectingExec: GitExec = async (cmd, args) => {
       if (args[0] === "push") {
         pushCount++;
-        throw new Error("! [rejected] (non-fast-forward)");
+        throw makeGitProcessError({ command: cmd, args, exitCode: 1,
+          stderr: "! [rejected] (non-fast-forward)" });
       }
       return realExec(cmd, args);
     };
@@ -192,7 +194,10 @@ describe("sync-state-ref reconcile-push", () => {
     const settleOnLastExec: GitExec = async (cmd, args) => {
       if (args[0] === "push") {
         pushCount++;
-        if (pushCount <= MAX_RECONCILE_ATTEMPTS) throw new Error("! [rejected] (non-fast-forward)");
+        if (pushCount <= MAX_RECONCILE_ATTEMPTS) {
+          throw makeGitProcessError({ command: cmd, args, exitCode: 1,
+            stderr: "! [rejected] (non-fast-forward)" });
+        }
       }
       return realExec(cmd, args);
     };
@@ -217,8 +222,14 @@ describe("sync-state-ref reconcile-push", () => {
     // then throws. The loop must catch it and surface `failed` through the
     // outcome union, never let it escape as a rejection.
     const failingReconcileExec: GitExec = async (cmd, args) => {
-      if (args[0] === "push") throw new Error("! [rejected] (non-fast-forward)");
-      if (args[0] === "fetch") throw new Error("fatal: simulated reconcile failure");
+      if (args[0] === "push") {
+        throw makeGitProcessError({ command: cmd, args, exitCode: 1,
+          stderr: "! [rejected] (non-fast-forward)" });
+      }
+      if (args[0] === "fetch") {
+        throw makeGitProcessError({ command: cmd, args, exitCode: 128,
+          stderr: "fatal: simulated reconcile failure" });
+      }
       return realExec(cmd, args);
     };
 

@@ -10,6 +10,7 @@ import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
 import { digestBytes } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import { resolveWorktreeMarkerPath } from "../../src/lib/git/worktree-marker.js";
 import {
   nodeReconcileWorkUnitWorktreeFs,
@@ -294,10 +295,11 @@ describe("atomicGraduate", () => {
       let renameCalls = 0;
       const exec: GitExec = async (command, args, options) => {
         if (boundary === "branch" && args[0] === "checkout" && args[1] === "-b") {
-          throw new Error("injected branch failure");
+          throw makeGitProcessError({ command, args, exitCode: 128, stderr: "injected branch failure" });
         }
         if (boundary === "index-stage" && args[0] === "add" && options?.indexFile !== undefined) {
-          throw new Error("injected index staging failure");
+          throw makeGitProcessError({ command, args, exitCode: 128,
+            stderr: "injected index staging failure" });
         }
         return fixture.exec(command, args, options);
       };
@@ -353,8 +355,12 @@ describe("atomicGraduate", () => {
     const fixture = await createInPlaceFixture();
     cleanup.push(fixture.repo);
     const exec: GitExec = async (command, args, options) => {
-      if (args[0] === "add" && options?.indexFile !== undefined) throw new Error("injected staging failure");
-      if (args[0] === "update-ref" && args[1] === "-d") throw new Error("injected rollback failure");
+      if (args[0] === "add" && options?.indexFile !== undefined) {
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "injected staging failure" });
+      }
+      if (args[0] === "update-ref" && args[1] === "-d") {
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "injected rollback failure" });
+      }
       return fixture.exec(command, args, options);
     };
     const result = await atomicGraduate(fixture.transaction, {
@@ -401,7 +407,8 @@ describe("atomicGraduate", () => {
       };
       const exec: GitExec = async (command, args, options) => {
         if (boundary === "worktree-add" && args[0] === "worktree" && args[1] === "add") {
-          throw new Error("injected worktree add failure");
+          throw makeGitProcessError({ command, args, exitCode: 128,
+            stderr: "injected worktree add failure" });
         }
         return fixture.exec(command, args, options);
       };

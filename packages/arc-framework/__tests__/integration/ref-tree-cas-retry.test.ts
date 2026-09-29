@@ -28,6 +28,7 @@ import {
 } from "../../src/lib/git/ref-tree.js";
 import { writeTreeWithCasRetry } from "../../src/lib/user-sync/cas-retry.js";
 import type { GitExec, GitExecInput } from "../../src/lib/git/exec.js";
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 
 const REF = "refs/arc/test/cas-retry";
 
@@ -80,11 +81,12 @@ describe("writeTreeWithCasRetry", () => {
 
   it("surfaces a non-CAS git error immediately without retrying", async () => {
     let updateRefCalls = 0;
-    const fakeExec: GitExec = async (_cmd, args) => {
+    const fakeExec: GitExec = async (command, args) => {
       const sub = args[0];
       if (sub === "update-ref") {
         updateRefCalls++;
-        throw new Error("fatal: update_ref failed for ref: some unrelated git error");
+        throw makeGitProcessError({ command, args, exitCode: 128,
+          stderr: "fatal: update_ref failed for ref: some unrelated git error" });
       }
       if (sub === "commit-tree") return { stdout: "c".repeat(40) };
       // rev-parse (tip) / ls-tree (tree) both read as absent/empty.

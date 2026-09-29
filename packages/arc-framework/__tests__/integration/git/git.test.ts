@@ -13,6 +13,7 @@ import {
   gitConfigUnset,
   gitMergeFile,
 } from "../../../src/lib/git/exec.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 describe("captureGitIndexState", () => {
   const roots: string[] = [];
@@ -160,7 +161,9 @@ describe("isGitRepo", () => {
   it("returns false when not inside a git repo", async () => {
     const mockExec = vi
       .fn()
-      .mockRejectedValue(new Error("fatal: not a git repository"));
+      .mockRejectedValue(makeGitProcessError({ command: "git",
+        args: ["rev-parse", "--is-inside-work-tree"], exitCode: 128,
+        stderr: "fatal: not a git repository" }));
     const result = await isGitRepo(mockExec);
     expect(result).toBe(false);
   });
@@ -179,7 +182,8 @@ describe("gitConfigGet", () => {
   });
 
   it("returns undefined when key does not exist", async () => {
-    const mockExec = vi.fn().mockRejectedValue(new Error("exit code 1"));
+    const mockExec = vi.fn().mockRejectedValue(makeGitProcessError({ command: "git",
+      args: ["config", "--get", "nonexistent.key"], exitCode: 1, stderr: "exit code 1" }));
     const result = await gitConfigGet(mockExec, "nonexistent.key");
     expect(result).toBeUndefined();
   });
@@ -228,7 +232,9 @@ describe("gitConfigUnset", () => {
   it("returns no-op success when key is absent (skips --unset)", async () => {
     const mockExec = vi
       .fn()
-      .mockRejectedValueOnce(new Error("exit code 1")); // --get fails (absent key)
+      .mockRejectedValueOnce(makeGitProcessError({ command: "git",
+        args: ["config", "--get", "missing.key"], exitCode: 1,
+        stderr: "exit code 1" })); // --get fails (absent key)
     await expect(
       gitConfigUnset(mockExec, "missing.key"),
     ).resolves.toBeUndefined();
@@ -263,8 +269,9 @@ describe("gitMergeFile", () => {
   it("returns conflict markers when merge has conflicts", async () => {
     const conflictContent =
       "<<<<<<< current.txt\nours\n=======\ntheirs\n>>>>>>> other.txt\n";
-    const error = Object.assign(new Error("exit code 1"), {
-      code: 1,
+    const error = makeGitProcessError({ command: "git",
+      args: ["merge-file", "-p", "current.txt", "base.txt", "other.txt"],
+      exitCode: 1, stderr: "exit code 1",
       stdout: conflictContent,
     });
     const mockExec = vi.fn().mockRejectedValue(error);
@@ -279,8 +286,9 @@ describe("gitMergeFile", () => {
 
   it("returns conflict markers when merge-file reports multiple conflicts", async () => {
     const conflictContent = "<<<<<<< current.txt\nours\n=======\ntheirs\n>>>>>>> other.txt\n";
-    const error = Object.assign(new Error("exit code 2"), {
-      code: 2,
+    const error = makeGitProcessError({ command: "git",
+      args: ["merge-file", "-p", "current.txt", "base.txt", "other.txt"],
+      exitCode: 2, stderr: "exit code 2",
       stdout: conflictContent,
     });
     const mockExec = vi.fn().mockRejectedValue(error);
@@ -294,8 +302,9 @@ describe("gitMergeFile", () => {
   });
 
   it("throws when input files are missing", async () => {
-    const error = Object.assign(new Error("git merge-file failed"), {
-      code: 255,
+    const error = makeGitProcessError({ command: "git",
+      args: ["merge-file", "-p", "missing.txt", "base.txt", "other.txt"],
+      exitCode: 255,
       stderr: "fatal: could not open 'missing.txt' for reading",
     });
     const mockExec = vi.fn().mockRejectedValue(error);
