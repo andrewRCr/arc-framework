@@ -44,7 +44,6 @@
     "lint:arc:domain-rules": "node --import tsx packages/arc-framework/src/scripts/audit-domain-rules.ts",
     "lint:arc:section-refs": "node --import tsx packages/arc-framework/src/scripts/audit-section-refs.ts",
     "audit:coupling": "node --import tsx packages/arc-framework/src/scripts/audit-coupling-blast-radius.ts",
-    "audit:layout-migration": "node --import tsx packages/arc-framework/src/scripts/assert-layout-migration.ts",
     "prepare": "husky"
   },
   "devDependencies": {

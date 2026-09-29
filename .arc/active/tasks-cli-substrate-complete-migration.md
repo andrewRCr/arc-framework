@@ -446,16 +446,15 @@ hit count moved, and its negative control reports exactly the removed hits beyon
 non-code surface falls under a recorded predicate; and no framework-class hit in a surviving module lacks a disposition
 kind.
 
-### `[ ]` **5.1 Retire the layout migration ledger — D6**
+### `[x]` **5.1 Retire the layout migration ledger — D6**
 
 - _Goal:_ Nothing in the tree carries, checks, or excludes the layout migration ledger.
 
-    - Remove `audits/coupling-blast-radius/layout-migration-ledger.json`,
-      `lib/coupling-audit/layout-migration-ledger.ts`, `scripts/assert-layout-migration.ts`, the root
-      `audit:layout-migration` script, and their unit and integration tests.
-    - Remove the script's entry in `one-shot-script-entrypoints.test.ts` and the ledger's exclusion in the
-      coupling-audit `manifest.json`; search for every remaining reference.
-    - Close the script's `gitExec` matrix row that Task 4.4.d records, citing the deletion.
+    - Deleted the ledger, its parser and assertion script, their unit and integration tests, and the root
+      `audit:layout-migration` script.
+    - Removed the one-shot script expectation and manifest exclusion. The tracked reference sweep found no
+      surviving executable or package/CI dependency; design and archival references remain as records.
+    - Closed the script's `gitExec` matrix row with the deletion and adjusted the standalone-script count.
 
 ### `[ ]` **5.2 Record the code-surface reconciliation and the non-code predicates — D6, D10**
 

@@ -350,7 +350,7 @@ Register citations below name the corresponding **Storage-coupling register** ro
 | errand identity `.message` Git classification                           | `gitFailureText()`        | migrated         | Spec § 7                  |               — | Task 4.6.a                 |
 | raw Git in lifecycle hook scripts                                       | —                         | carved           | `R-HC`                    |               — | coupling scan; Task 4.7    |
 | raw `git()` arrangement runners                                         | same modules              | retained by rule | Spec § 9                  |               — | Task 4.7                   |
-| `src/scripts/assert-layout-migration.ts`: `gitExec`                     | same singleton            | retained by rule | Spec § 8                  |               — | Task 5.1 deletes script    |
+| `src/scripts/assert-layout-migration.ts`: `gitExec`                     | —                         | migrated         | Spec § 6 retirement       |               — | Task 5.1 deleted script    |
 | `src/scripts/audit-coupling-blast-radius.ts`: `gitExec`                 | same singleton            | retained by rule | Spec § 8                  |               — | standalone; Task 4.4.d     |
 | `src/scripts/audit-emphasis.ts`: `gitExec`                              | same singleton            | retained by rule | Spec § 8                  |               — | standalone; Task 4.4.d     |
 | `src/scripts/audit-tables.ts`: `gitExec`                                | same singleton            | retained by rule | Spec § 8                  |               — | standalone; Task 4.4.d     |
@@ -721,9 +721,8 @@ singleton only as a fallback that bound callers override:
 - `src/handlers/view.ts`
 - `src/lib/recover/committed-progress.ts` — fallback only, overridden by every bound caller
 
-**Standalone scripts** — 10, which keep the singleton because they have no invocation context:
+**Standalone scripts** — 9, which keep the singleton because they have no invocation context:
 
-- `src/scripts/assert-layout-migration.ts` — retires with the layout migration ledger
 - `src/scripts/audit-coupling-blast-radius.ts`
 - `src/scripts/audit-emphasis.ts`
 - `src/scripts/audit-tables.ts`
