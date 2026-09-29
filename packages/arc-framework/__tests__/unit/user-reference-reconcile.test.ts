@@ -343,18 +343,20 @@ describe("planUserReferenceReconcile", () => {
   });
 
   it.each([
-    ["timeout", (_args: string[], signal?: AbortSignal) => new Promise<never>((_resolve, reject) => {
-      signal?.addEventListener("abort", () => reject(Object.assign(new Error("canceled"), { isCanceled: true })));
+    ["timeout", (args: string[], signal?: AbortSignal) => new Promise<never>((_resolve, reject) => {
+      signal?.addEventListener("abort", () => reject(makeGitProcessError({
+        command: "git", args, isCanceled: true, stderr: "canceled",
+      })));
     }), "timeout"],
-    ["network", () => Promise.reject(Object.assign(new Error("fetch failed"), {
-      exitCode: 128,
-      stderr: "fatal: Could not resolve host remote.example",
+    ["network", (args: string[]) => Promise.reject(makeGitProcessError({
+      command: "git", args, exitCode: 128, stderr: "fatal: Could not resolve host remote.example",
     })), "network"],
-    ["authentication", () => Promise.reject(Object.assign(new Error("fetch failed"), {
-      exitCode: 128,
-      stderr: "fatal: Authentication failed",
+    ["authentication", (args: string[]) => Promise.reject(makeGitProcessError({
+      command: "git", args, exitCode: 128, stderr: "fatal: Authentication failed",
     })), "auth"],
-    ["local metadata denial", () => Promise.reject(new Error("cannot lock ref: operation not permitted")), "error"],
+    ["local metadata denial", (args: string[]) => Promise.reject(makeGitProcessError({
+      command: "git", args, exitCode: 128, stderr: "cannot lock ref: operation not permitted",
+    })), "error"],
   ] as const)("returns typed unavailable authority on %s", async (_label, fail, failureReason) => {
     let enumerated = false;
     const result = await materializeUserReferenceAuthority({

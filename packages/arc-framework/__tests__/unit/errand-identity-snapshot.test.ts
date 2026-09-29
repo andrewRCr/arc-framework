@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import {
   serializeTransientIdentityRecord,
   TransientIdentityRecordV3Schema,
@@ -58,15 +59,15 @@ describe("transient identity snapshots", () => {
   });
 
   it("distinguishes clean absence from tip and tree failures", async () => {
-    const absent = await readTransientIdentitySnapshot(io(async () => {
-      throw Object.assign(new Error("missing"), { stderr: "fatal: Needed a single revision" });
+    const absent = await readTransientIdentitySnapshot(io(async (command, args) => {
+      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "fatal: Needed a single revision" });
     }));
     const tipFailure = await readTransientIdentitySnapshot(io(async () => {
       throw new Error("git unavailable");
     }));
-    const treeFailure = await readTransientIdentitySnapshot(io(async (_command, args) => {
+    const treeFailure = await readTransientIdentitySnapshot(io(async (command, args) => {
       if (args[0] === "rev-parse") return { stdout: `${tip}\n` };
-      throw new Error("object database corrupt");
+      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "object database corrupt" });
     }));
 
     expect(absent).toEqual({ kind: "absent" });
@@ -107,12 +108,12 @@ describe("transient identity snapshots", () => {
         return `100644 blob ${oid} ${Buffer.byteLength(content)}\t${keys[index]}\0`;
       })
       .join("");
-    const result = await readTransientIdentitySnapshot(io(async (_command, args) => {
+    const result = await readTransientIdentitySnapshot(io(async (command, args) => {
       if (args[0] === "rev-parse") return { stdout: `${tip}\n` };
       if (args[0] === "ls-tree") return { stdout: tree };
       const content = blobs.get(args[2] ?? "");
       if (content !== undefined) return { stdout: content };
-      throw new Error("cannot read blob");
+      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "cannot read blob" });
     }));
 
     expect(result).toMatchObject({
@@ -151,11 +152,15 @@ describe("transient in-flight indexes", () => {
   it("separates an unborn identity from one that could not be read", async () => {
     const absent = await readTransientInFlightIndexes({
       identity: "andrew",
-      exec: async () => { throw new Error(unborn); },
+      exec: async (command, args) => {
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: unborn });
+      },
     });
     const unreadable = await readTransientInFlightIndexes({
       identity: "andrew",
-      exec: async () => { throw new Error("fatal: bad object"); },
+      exec: async (command, args) => {
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "fatal: bad object" });
+      },
     });
 
     // Both carry no records, and that is exactly why the distinction has to survive the

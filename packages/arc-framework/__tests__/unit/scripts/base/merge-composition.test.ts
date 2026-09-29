@@ -1,6 +1,7 @@
 /** Production base-merge cleanup behavior at the Git boundary. */
 
 import { describe, expect, it } from "vitest";
+import { makeGitProcessError } from "../../../helpers/git-exec-fake.js";
 
 import type { ExecResult, GitExec } from "../../../../src/lib/git/exec.js";
 import { createBaseMergePort } from "../../../../src/scripts/base/merge-composition.js";
@@ -15,7 +16,9 @@ describe("base merge composition", () => {
     const exec: GitExec = async (_command, args) => {
       if (args[0] === "status") return ok();
       if (args[0] === "rev-parse" && args.at(-1) === "HEAD") return ok(state.head);
-      if (args[0] === "rev-parse" && args.at(-1) === "MERGE_HEAD") throw new Error("no merge");
+      if (args[0] === "rev-parse" && args.at(-1) === "MERGE_HEAD") {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "no merge" });
+      }
       if (args[0] === "merge" && args.join(" ") === `merge --no-ff --no-edit ${oid("a")}`) {
         state.head = oid("d");
         return ok();
@@ -84,7 +87,9 @@ describe("base merge composition", () => {
         mutations.push([...args]);
         return ok();
       }
-      if (args[0] === "rev-parse" && args.at(-1) === "MERGE_HEAD") throw new Error("no merge");
+      if (args[0] === "rev-parse" && args.at(-1) === "MERGE_HEAD") {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "no merge" });
+      }
       throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
     };
 
@@ -124,13 +129,15 @@ describe("base merge composition", () => {
       if (args[0] === "status") return ok(state.clean ? "" : "UU conflict.txt");
       if (args[0] === "rev-parse" && args.at(-1) === "HEAD") return ok(state.head);
       if (args[0] === "rev-parse" && args.at(-1) === "MERGE_HEAD") {
-        if (!state.merging) throw new Error("no merge");
+        if (!state.merging) {
+          throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "no merge" });
+        }
         return ok(oid("a"));
       }
       if (args[0] === "merge" && args[1] === "--no-ff" && args[2] === "--no-edit") {
         state.clean = false;
         state.merging = true;
-        throw new Error("conflict");
+        throw makeGitProcessError({ command: "git", args, exitCode: 1, stderr: "conflict" });
       }
       if (args[0] === "merge" && args[1] === "--abort") {
         state.clean = true;
@@ -151,13 +158,20 @@ describe("base merge composition", () => {
 
   it("restores the repository but preserves a non-conflict merge failure", async () => {
     const state = { head: oid("c"), clean: true, merging: false };
-    const failure = new Error("commit hook rejected the merge");
+    const failure = makeGitProcessError({
+      command: "git",
+      args: ["merge", "--no-ff", "--no-edit", oid("a")],
+      exitCode: 1,
+      stderr: "commit hook rejected the merge",
+    });
     const ok = (stdout = ""): ExecResult => ({ stdout, stderr: "" });
     const exec: GitExec = async (_command, args) => {
       if (args[0] === "status") return ok(state.clean ? "" : "merge state");
       if (args[0] === "rev-parse" && args.at(-1) === "HEAD") return ok(state.head);
       if (args[0] === "rev-parse" && args.at(-1) === "MERGE_HEAD") {
-        if (!state.merging) throw new Error("no merge");
+        if (!state.merging) {
+          throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "no merge" });
+        }
         return ok(oid("a"));
       }
       if (args[0] === "merge" && args[1] === "--no-ff" && args[2] === "--no-edit") {
@@ -187,13 +201,15 @@ describe("base merge composition", () => {
       if (args[0] === "status") return ok(state.clean ? "" : "merge state");
       if (args[0] === "rev-parse" && args.at(-1) === "HEAD") return ok(state.head);
       if (args[0] === "rev-parse" && args.at(-1) === "MERGE_HEAD") {
-        if (!state.merging) throw new Error("no merge");
+        if (!state.merging) {
+          throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "no merge" });
+        }
         return ok(oid("a"));
       }
       if (args[0] === "merge" && args[1] === "--no-ff") {
         state.clean = false;
         state.merging = true;
-        throw new Error("ROADMAP conflict");
+        throw makeGitProcessError({ command: "git", args, exitCode: 1, stderr: "ROADMAP conflict" });
       }
       if (args[0] === "diff" && args.includes("--diff-filter=U")) {
         return ok(state.remedied ? "" : ".arc/backlog/ROADMAP.md\n");
@@ -229,13 +245,15 @@ describe("base merge composition", () => {
       if (args[0] === "status") return ok(state.clean ? "" : "merge state");
       if (args[0] === "rev-parse" && args.at(-1) === "HEAD") return ok(state.head);
       if (args[0] === "rev-parse" && args.at(-1) === "MERGE_HEAD") {
-        if (!state.merging) throw new Error("no merge");
+        if (!state.merging) {
+          throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "no merge" });
+        }
         return ok(oid("a"));
       }
       if (args[0] === "merge" && args[1] === "--no-ff") {
         state.clean = false;
         state.merging = true;
-        throw new Error("ROADMAP conflict");
+        throw makeGitProcessError({ command: "git", args, exitCode: 1, stderr: "ROADMAP conflict" });
       }
       if (args[0] === "diff" && args.includes("--diff-filter=U")) return ok(".arc/backlog/ROADMAP.md\n");
       if (args[0] === "merge" && args[1] === "--abort") {
@@ -265,13 +283,15 @@ describe("base merge composition", () => {
       if (args[0] === "status") return ok(state.clean ? "" : "merge state");
       if (args[0] === "rev-parse" && args.at(-1) === "HEAD") return ok(state.head);
       if (args[0] === "rev-parse" && args.at(-1) === "MERGE_HEAD") {
-        if (!state.merging) throw new Error("no merge");
+        if (!state.merging) {
+          throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "no merge" });
+        }
         return ok(state.mergeHead);
       }
       if (args[0] === "merge" && args[1] === "--no-ff") {
         state.clean = false;
         state.merging = true;
-        throw new Error("ROADMAP conflict");
+        throw makeGitProcessError({ command: "git", args, exitCode: 1, stderr: "ROADMAP conflict" });
       }
       if (args[0] === "diff" && args.includes("--diff-filter=U")) {
         return ok(state.remedied ? "" : ".arc/backlog/ROADMAP.md\n");

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import {
   MARKDOWN_SELECTION,
   createMarkdownAuthority,
@@ -278,7 +279,10 @@ describe("Markdown authority", () => {
     const boundaries = {
       root: "/repo",
       operation: "worktree-read" as const,
-      exec: vi.fn().mockRejectedValue(new Error("untracked")),
+      exec: scriptGitExec([{
+        match: ["ls-files", "--error-unmatch", "--", "README.md"],
+        responses: [{ failure: { exitCode: 1, stderr: "untracked" } }],
+      }]).exec,
       lstat: vi.fn(),
       realpath: vi.fn(),
     };
