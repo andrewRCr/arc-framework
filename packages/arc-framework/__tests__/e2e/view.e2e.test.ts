@@ -203,7 +203,7 @@ describe("arc view", () => {
       expect(result.stdout).toContain("# Task List: feature");
       expect(result.stderr).toBe("");
       expect(await readFile(logPath, "utf8"))
-        .toBe("--version\nLESS=FRX +/###.*1\\.1\n--pager --width 0 -\n");
+        .toBe("--version\nLESS=FR +/###.*1\\.1\n--pager --width 0 -\n");
     },
   );
 
@@ -222,7 +222,7 @@ describe("arc view", () => {
 
       expect(result.exitCode).toBe(0);
       const log = await readFile(logPath, "utf8");
-      expect(log).toContain("BAT_PAGER=less -RFX +4");
+      expect(log).toContain("BAT_PAGER=less -RF +4");
       expect(log).toContain("--paging=always --style=plain --language=md");
     },
   );

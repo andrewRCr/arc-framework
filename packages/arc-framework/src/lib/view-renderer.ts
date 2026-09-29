@@ -105,7 +105,8 @@ function pagerProcessInput(input: {
   anchor?: ViewPagerAnchor;
   terminalWidth?: number;
 }, environment: NodeJS.ProcessEnv): PagerProcessInput {
-  const baseEnvironment = { ...environment, LESS: "FRX" };
+  // No less `-X`: without the alternate screen, terminals scroll their own history on the mouse wheel, not the pager.
+  const baseEnvironment = { ...environment, LESS: "FR" };
   switch (input.renderer) {
     case "glow":
       return {
@@ -115,8 +116,8 @@ function pagerProcessInput(input: {
         env: {
           ...baseEnvironment,
           LESS: input.anchor === undefined
-            ? "FRX"
-            : `FRX +/###.*${escapeLessSearch(input.anchor.id)}`,
+            ? "FR"
+            : `FR +/###.*${escapeLessSearch(input.anchor.id)}`,
         },
       };
     case "bat":
@@ -134,8 +135,8 @@ function pagerProcessInput(input: {
         env: {
           ...baseEnvironment,
           BAT_PAGER: input.anchor === undefined
-            ? "less -RFX"
-            : `less -RFX +${input.anchor.line}`,
+            ? "less -RF"
+            : `less -RF +${input.anchor.line}`,
         },
       };
     case "plain":
@@ -144,7 +145,6 @@ function pagerProcessInput(input: {
         args: [
           "-R",
           "-F",
-          "-X",
           ...(input.anchor === undefined ? [] : [`+${input.anchor.line}`]),
         ],
         input: input.content,
