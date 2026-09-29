@@ -7,6 +7,8 @@ import {
   runMaterializingWorktreeInspection,
   runPassiveWorktreeInspection,
   runWorktreeSyncStatus,
+  WorktreeSyncStatusResultSchema,
+  WorktreeSnapshotAnalysisResultSchema,
 } from "../../../src/lib/git/worktree-sync.js";
 import type {
   ExecResult,
@@ -62,6 +64,83 @@ const REV_PARSE_UPSTREAM = "rev-parse --abbrev-ref @{upstream}";
 const FETCH_BRANCH = "fetch origin *";
 const REV_LIST_COUNT = "rev-list --left-right --count *";
 const TRACKED_WORKTREE = { remoteSyncEnabled: true, originConfigured: true } as const;
+
+const snapshotRemoteOid = "b".repeat(40);
+const snapshotLocalOid = "a".repeat(40);
+const snapshotBase = {
+  ...TRACKED_WORKTREE,
+  branch: "main",
+  upstreamBranch: "main",
+  snapshot: { kind: "available", scope: "exact", tips: { main: snapshotRemoteOid } },
+  objectAvailability: { kind: "complete", commits: { [snapshotRemoteOid]: true } },
+  history: { kind: "complete" },
+} as const;
+
+describe("worktree snapshot schema", () => {
+  it.each([
+    { state: "skipped", evidence: "not-applicable", overrides: { remoteSyncEnabled: false } },
+    { state: "detached-head", evidence: "not-applicable", overrides: { branch: null } },
+    { state: "no-remote", evidence: "not-applicable", overrides: { originConfigured: false } },
+    { state: "no-upstream", evidence: "not-applicable", overrides: { upstreamBranch: null } },
+    { state: "branch-gone", evidence: "exact", overrides: {
+      snapshot: { kind: "available", scope: "exact", tips: {} },
+    } },
+    { state: "remote-unavailable", evidence: "pending-fetch", overrides: {
+      objectAvailability: { kind: "complete", commits: { [snapshotRemoteOid]: false } },
+    } },
+    { state: "remote-unavailable", evidence: "unreachable", overrides: {
+      snapshot: { kind: "unreachable", failureReason: "network" },
+    } },
+    { state: "clean", evidence: "exact", overrides: {}, localOid: snapshotRemoteOid },
+    { state: "remote-ahead", evidence: "exact", overrides: {}, distance: "0\t2" },
+    { state: "local-ahead", evidence: "exact", overrides: {}, distance: "2\t0" },
+    { state: "diverged", evidence: "exact", overrides: {}, distance: "2\t3" },
+  ])("parses producer $state/$evidence output", async ({ state, evidence, overrides, localOid, distance }) => {
+    const { exec } = buildExec({
+      "rev-parse HEAD": { stdout: localOid ?? snapshotLocalOid, stderr: "" },
+      [REV_LIST_COUNT]: { stdout: distance ?? "0\t0", stderr: "" },
+    });
+    const result = await analyzeWorktreeSnapshot({
+      ...snapshotBase, ...overrides, exec,
+    } as Parameters<typeof analyzeWorktreeSnapshot>[0]);
+    expect(result.state).toBe(state);
+    expect(result.remoteEvidence).toBe(evidence);
+    expect(WorktreeSnapshotAnalysisResultSchema.safeParse(result).success).toBe(true);
+  });
+
+  it("parses the legacy status producer and names an undeclared key", async () => {
+    const { exec } = buildExec({ [REV_PARSE_HEAD]: { stdout: "main", stderr: "" } });
+    const result = await runWorktreeSyncStatus({ exec, remoteSyncEnabled: false });
+    expect(WorktreeSyncStatusResultSchema.safeParse(result).success).toBe(true);
+    expect(() => WorktreeSyncStatusResultSchema.parse({ ...result, unexpected: true })).toThrow(/unexpected/u);
+  });
+
+  it("names an undeclared snapshot field", async () => {
+    const { exec } = buildExec({});
+    const result = await analyzeWorktreeSnapshot({
+      ...snapshotBase, exec, remoteSyncEnabled: false,
+    } as Parameters<typeof analyzeWorktreeSnapshot>[0]);
+    expect(() => WorktreeSnapshotAnalysisResultSchema.parse({ ...result, unexpected: true }))
+      .toThrow(/unexpected/u);
+  });
+
+  it("requires a failure reason only for unreachable snapshot evidence", async () => {
+    const { exec } = buildExec({});
+    const inapplicable = await analyzeWorktreeSnapshot({
+      ...snapshotBase, exec, remoteSyncEnabled: false,
+    } as Parameters<typeof analyzeWorktreeSnapshot>[0]);
+    expect(WorktreeSnapshotAnalysisResultSchema.safeParse({
+      ...inapplicable, failureReason: "network",
+    }).success).toBe(false);
+
+    const unreachable = await analyzeWorktreeSnapshot({
+      ...snapshotBase, exec, snapshot: { kind: "unreachable", failureReason: "network" },
+    } as Parameters<typeof analyzeWorktreeSnapshot>[0]);
+    const withoutReason = structuredClone(unreachable) as Record<string, unknown>;
+    delete withoutReason.failureReason;
+    expect(WorktreeSnapshotAnalysisResultSchema.safeParse(withoutReason).success).toBe(false);
+  });
+});
 
 describe("readConfiguredUpstreamBranch", () => {
   function recordingExec(stdout: string): { exec: GitExec; seen: () => GitExecOptions | undefined } {

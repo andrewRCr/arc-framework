@@ -136,5 +136,6 @@ export const PRODUCTION_SCHEMA_IDS = [
   "work-class",
   "work-unit-review-assurance",
   "work-unit-state",
+  "worktree-sync",
   "__shared",
 ] as const;

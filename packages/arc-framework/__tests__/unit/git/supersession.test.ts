@@ -3,6 +3,9 @@ import { describe, it, expect } from "vitest";
 import {
   analyzeSupersessionSnapshot,
   detectSupersession,
+  emptySupersessionResult,
+  SupersessionResultSchema,
+  SupersessionSnapshotAnalysisResultSchema,
 } from "../../../src/lib/git/supersession.js";
 import type {
   ExecResult,
@@ -52,6 +55,7 @@ describe("detectSupersession", () => {
     const result = await detectSupersession({ exec, branch: "feat/x" });
 
     expect(result.superseded).toBe(true);
+    expect(SupersessionResultSchema.safeParse(result).success).toBe(true);
     expect(result.supersededCommits).toEqual([
       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -152,6 +156,10 @@ describe("analyzeSupersessionSnapshot", () => {
       novelCommits: [],
       remoteEvidence: "exact",
     });
+    expect(SupersessionSnapshotAnalysisResultSchema.safeParse(result).success).toBe(true);
+    expect(SupersessionSnapshotAnalysisResultSchema.safeParse({
+      ...result, unexpected: true,
+    }).success).toBe(false);
   });
 
   it("refuses a supersession verdict when local history is shallow", async () => {
@@ -185,6 +193,10 @@ describe("analyzeSupersessionSnapshot", () => {
       novelCommits: [],
       remoteEvidence: "pending-fetch",
     });
+    expect(SupersessionSnapshotAnalysisResultSchema.safeParse(result).success).toBe(true);
+    expect(SupersessionSnapshotAnalysisResultSchema.safeParse({
+      ...result, superseded: true,
+    }).success).toBe(false);
   });
 
   it("uses the upstream branch name when a local tracking branch was renamed", async () => {
@@ -224,6 +236,7 @@ describe("analyzeSupersessionSnapshot", () => {
       remoteEvidence: "unreachable",
       failureReason: "network",
     });
+    expect(SupersessionSnapshotAnalysisResultSchema.safeParse(result).success).toBe(true);
   });
 
   it("preserves exact branch absence from a complete snapshot", async () => {
@@ -243,6 +256,7 @@ describe("analyzeSupersessionSnapshot", () => {
       novelCommits: [],
       remoteEvidence: "exact",
     });
+    expect(SupersessionSnapshotAnalysisResultSchema.safeParse(result).success).toBe(true);
   });
 
   it("refuses analysis when advertised commit availability is unavailable", async () => {
@@ -301,5 +315,13 @@ describe("analyzeSupersessionSnapshot", () => {
       objectAvailability: { kind: "complete", commits: { [advertisedOid]: true } },
       history: { kind: "complete" },
     })).rejects.toThrow("local graph read failed");
+  });
+});
+
+describe("emptySupersessionResult", () => {
+  it("parses the not-needed result emitted by the session probe", () => {
+    const result = emptySupersessionResult();
+    expect(SupersessionResultSchema.safeParse(result).success).toBe(true);
+    expect(() => SupersessionResultSchema.parse({ ...result, unexpected: true })).toThrow(/unexpected/u);
   });
 });

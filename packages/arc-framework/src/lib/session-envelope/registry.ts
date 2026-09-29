@@ -22,6 +22,7 @@ import { ReleaseRoutingValueSchema } from "../release/routing.js";
 import { RecoverAuditReportSchema } from "../recover/report.js";
 import { BaseBranchSnapshotAnalysisResultSchema } from "../git/base-branch-sync.js";
 import { DirtyStateResultSchema } from "../git/dirty-state.js";
+import { WorktreeSnapshotAnalysisResultSchema } from "../git/worktree-sync.js";
 import { CurrentHuskAdvisorySchema } from "../session-init/current-husk-advisory.js";
 import { CascadeResolutionSchema } from "../session-init/branch-gone-cascade.js";
 import { ErrandStalenessSweepResultSchema } from "../session-init/errand-staleness-sweep.js";
@@ -63,6 +64,7 @@ export const SESSION_ENVELOPE_SCHEMA_IDS = {
   sessionRecoverEnvelope: "session-recover-envelope",
   taskListCursor: "task-list-cursor",
   taskListCursorFileResult: "task-list-cursor-file-result",
+  worktreeSync: "worktree-sync",
 } as const;
 
 const STRICT_CURRENT_V1 = {
@@ -97,6 +99,7 @@ const SESSION_ENVELOPE_SCHEMAS = [
   [SESSION_ENVELOPE_SCHEMA_IDS.retiredSubdirDetection, RetiredSubdirDetectionResultSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.sessionInitEnvelope, SessionInitProbeResultSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.sessionRecoverEnvelope, SessionRecoverProbeResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.worktreeSync, WorktreeSnapshotAnalysisResultSchema],
 ] as const;
 
 /**

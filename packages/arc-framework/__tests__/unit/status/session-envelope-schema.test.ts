@@ -941,6 +941,48 @@ describe("session-init envelope schema", () => {
     expectContractFailure(value, "releaseRouting.value.rationale");
   });
 
+  it("accepts a diverged worktree with snapshot supersession evidence", () => {
+    const value = fixture("active-resume");
+    setPath(value, ["worktree", "value"], {
+      state: "diverged", ahead: 1, behind: 1, branch: "feat/active-widget",
+      remoteEvidence: "exact", recommendedAction: "surface", recommendedPromptText: "Reset safely.",
+      identity: { kind: "linked", path: "/redacted/worktree" },
+      supersession: {
+        superseded: true, supersededCommits: ["a".repeat(40)], novelCommits: [], remoteEvidence: "exact",
+      },
+    });
+    expectValid(value);
+  });
+
+  it.each([
+    ["not-needed", { superseded: false, supersededCommits: [], novelCommits: [] }],
+    ["pending-fetch", {
+      superseded: false, supersededCommits: [], novelCommits: [], remoteEvidence: "pending-fetch",
+    }],
+    ["unreachable", {
+      superseded: false, supersededCommits: [], novelCommits: [],
+      remoteEvidence: "unreachable", failureReason: "network",
+    }],
+  ])("accepts a diverged worktree with %s supersession", (_arm, supersession) => {
+    const value = fixture("active-resume");
+    setPath(value, ["worktree", "value"], {
+      state: "diverged", ahead: 1, behind: 1, branch: "feat/active-widget",
+      remoteEvidence: "exact", recommendedAction: "surface", recommendedPromptText: "",
+      identity: { kind: "linked", path: "/redacted/worktree" }, supersession,
+    });
+    expectValid(value);
+  });
+
+  it("rejects undeclared worktree and identity fields at their session-init slot", () => {
+    const worktree = fixture("orient");
+    setPath(worktree, ["worktree", "value", "unexpected"], true);
+    expectContractFailure(worktree, "worktree.value");
+
+    const identity = fixture("active-resume");
+    setPath(identity, ["worktree", "value", "identity", "unexpected"], true);
+    expectContractFailure(identity, "worktree.value.identity");
+  });
+
   it("enforces roster, recovery, and primary sweep gates", () => {
     const branchGone = fixture("branch-gone");
     delete branchGone.roster;

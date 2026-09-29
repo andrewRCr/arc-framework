@@ -113,7 +113,7 @@ import {
   readLocalBaseOid,
   resolveBaseCheckoutLocus,
 } from "../lib/git/base-branch-sync.js";
-import { analyzeSupersessionSnapshot } from "../lib/git/supersession.js";
+import { analyzeSupersessionSnapshot, emptySupersessionResult } from "../lib/git/supersession.js";
 import { resolveWorktreeIdentity } from "../lib/git/worktree-identity.js";
 import { readWorktreeMarker } from "../lib/git/worktree-marker.js";
 import { deriveRestateCandidates } from "../lib/handoff/restate-candidates.js";
@@ -1049,7 +1049,7 @@ export async function handleStatus(
       supersession: (context, branch) => {
         const prerequisites = sessionRemotePrerequisites(context);
         if (prerequisites.kind === "not-needed") {
-          return Promise.resolve({ superseded: false, supersededCommits: [], novelCommits: [] });
+          return Promise.resolve(emptySupersessionResult());
         }
         return analyzeSupersessionSnapshot({ exec, branch, ...prerequisites });
       },

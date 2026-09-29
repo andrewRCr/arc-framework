@@ -114,7 +114,7 @@ export type SessionInitWorktreeValue = (
    * swaps its generic reconcile for the lossless-reset offer carried in
    * `recommendedPromptText`.
    */
-  supersession: SupersessionResult | null;
+  supersession: SupersessionResult | SupersessionSnapshotAnalysisResult | null;
 };
 
 /**

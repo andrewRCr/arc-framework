@@ -222,22 +222,11 @@ recorded sweep recipes; see `notes-cli-substrate-complete-migration.md` § Segme
 
 - **Additional Context:** `notes-cli-substrate-complete-migration.md` § Session-envelope roots
 
-    - `[ ]` **3.3.a Complete `WorktreeSyncStatusResult` and the worktree snapshot root**
-        - The full schema stays an unregistered component. `WorktreeSnapshotAnalysisResult` is `withRemoteEvidence`
-          over its fields without `failureReason`, registered as `worktree-sync`; each envelope's worktree slot builds
-          its strict arms from those fields plus its own and keeps its cross-field refinements.
-        - The slot's own fields take strict schemas as unregistered components: `WorktreeIdentity` from
-          `lib/git/worktree-identity.ts`, and `supersession` as its probe emits it — `SupersessionResult` when no
-          remote read is needed, otherwise `SupersessionSnapshotAnalysisResult`'s remote-evidence arms, the unreachable
-          one with a failure reason. The slot's declared `SupersessionResult | null` widens to match.
-        - Build `test-first` (one behavior at a time):
-            - The snapshot root parses the snapshot analyzer's output for each state and remote-evidence arm
-            - Only the unreachable arm carries a failure reason
-            - The root refuses an undeclared key, naming it
-            - The supersession schema parses `analyzeSupersessionSnapshot`'s output in each arm and the not-needed
-              result the probe returns
-            - Each envelope's worktree slot accepts its composed value — a diverged worktree with its supersession
-              included — keeps its refinements, and names an undeclared key in its refusal
+    - `[x]` **3.3.a Complete `WorktreeSyncStatusResult` and the worktree snapshot root**
+        - Registered the strict `worktree-sync` snapshot root and derived the status, snapshot, identity, and
+          supersession types from their schemas. Both envelopes compose strict worktree slots; session-init retains
+          its state, evidence, count, branch, supersession, and recommendation refinements. Producer tests cover every
+          worktree state and supersession evidence arm, including the handler's neutral not-needed result.
 
     - `[ ]` **3.3.b Complete `WorktreeRosterResult`**
         - ID `worktree-roster`. The emitted shape keeps its full schema under the type-edge rule, although the roster's

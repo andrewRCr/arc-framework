@@ -9,14 +9,10 @@ import {
   SessionInitBaseDistanceValueViewSchema,
   SessionInitRetiredSubdirsValueViewSchema,
   SessionInitUserValueViewSchema,
-  SessionInitWorktreeValueViewSchema,
-  SessionRecoverWorktreeValueViewSchema,
   StaleWorktreeSweepValueViewSchema,
   UserSessionInitValueViewSchema,
   WorkUnitStateValueViewSchema,
-  WorktreeIdentityViewSchema,
   WorktreeRosterValueViewSchema,
-  WorktreeSyncValueViewSchema,
 } from "../../../src/commands/status/schema.js";
 
 describe("shared git routing views", () => {
@@ -66,27 +62,9 @@ describe("shared git routing views", () => {
   });
 
   it.each([
-    [WorktreeSyncValueViewSchema, { state: "broken" }],
-    [WorktreeSyncValueViewSchema, { state: "clean", branch: 42 }],
     [BaseDistanceValueViewSchema, { verdict: "broken" }],
-    [
-      WorktreeSyncValueViewSchema,
-      { state: "diverged", branch: "feat/test", supersession: { superseded: "yes" } },
-    ],
   ] as const)("rejects a malformed routing field", (schema, value) => {
     expect(schema.safeParse(value).success).toBe(false);
-  });
-
-  it("preserves unowned nested evidence and commit arrays", () => {
-    const value = {
-      state: "diverged",
-      branch: "feat/test",
-      commits: [{ oid: "abc", subject: "kept" }],
-      supersession: { superseded: true, localOnlyCommits: ["abc"] },
-      evidence: { deep: { retained: true } },
-    };
-
-    expect(WorktreeSyncValueViewSchema.parse(value)).toEqual(value);
   });
 
   it("treats the roster as an object-only pass-through view", () => {
@@ -130,7 +108,6 @@ describe("user and recommendation routing views", () => {
   });
 
   it.each([
-    [SessionInitWorktreeValueViewSchema, { state: "clean", branch: "main", identity: { kind: "primary" } }],
     [SessionInitUserValueViewSchema, user],
     [SessionInitBaseDistanceValueViewSchema, { verdict: "clean" }],
     [
@@ -167,17 +144,6 @@ describe("user and recommendation routing views", () => {
     };
     expect(SessionInitUserValueViewSchema.parse(value)).toEqual(value);
   });
-});
-
-describe("identity and release-routing views", () => {
-  it.each([{ kind: "primary" }, { kind: "linked", path: "/wt/feature", retained: true }])(
-    "accepts worktree identity $kind",
-    (value) => expect(WorktreeIdentityViewSchema.parse(value)).toEqual(value),
-  );
-  it.each([{ kind: "other" }, { kind: "linked" }])("rejects malformed worktree identity", (value) => {
-    expect(WorktreeIdentityViewSchema.safeParse(value).success).toBe(false);
-  });
-
 });
 
 describe("deep advisory routing views", () => {
@@ -360,15 +326,6 @@ describe("deep advisory routing views", () => {
   });
 
   it.each([
-    [
-      WorktreeSyncValueViewSchema,
-      {
-        state: "diverged",
-        branch: "feat/test",
-        supersession: { superseded: true, commits: [{ oid: "kept" }] },
-        evidence: { deep: { retained: true } },
-      },
-    ],
     [BaseDistanceValueViewSchema, { verdict: "clean", evidence: { deep: { retained: true } } }],
     [WorktreeRosterValueViewSchema, { entries: [{ evidence: { retained: true } }] }],
     [
@@ -434,24 +391,6 @@ describe("deep advisory routing views", () => {
       },
     ],
     [
-      SessionInitWorktreeValueViewSchema,
-      {
-        state: "clean",
-        ahead: 0,
-        behind: 0,
-        branch: "feat/test",
-        remoteEvidence: "exact",
-        identity: {
-          kind: "linked",
-          path: "/worktree",
-          evidence: { retained: true },
-        },
-        recommendedAction: "skip",
-        recommendedPromptText: "",
-        evidence: { deep: { retained: true } },
-      },
-    ],
-    [
       SessionInitUserValueViewSchema,
       {
         ...passthroughUser,
@@ -477,28 +416,6 @@ describe("deep advisory routing views", () => {
         remoteEvidence: "exact",
         recommendedAction: "skip",
         recommendedPromptText: "",
-        evidence: { deep: { retained: true } },
-      },
-    ],
-    [
-      WorktreeIdentityViewSchema,
-      {
-        kind: "linked",
-        path: "/worktree",
-        evidence: { deep: { retained: true } },
-      },
-    ],
-    [
-      SessionRecoverWorktreeValueViewSchema,
-      {
-        state: "clean",
-        branch: "feat/test",
-        remoteEvidence: "exact",
-        identity: {
-          kind: "linked",
-          path: "/worktree",
-          evidence: { retained: true },
-        },
         evidence: { deep: { retained: true } },
       },
     ],

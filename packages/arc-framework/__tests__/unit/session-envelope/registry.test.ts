@@ -20,6 +20,7 @@ import { ReleaseRoutingValueSchema } from "../../../src/lib/release/routing.js";
 import { RecoverAuditReportSchema } from "../../../src/lib/recover/report.js";
 import { BaseBranchSnapshotAnalysisResultSchema } from "../../../src/lib/git/base-branch-sync.js";
 import { DirtyStateResultSchema } from "../../../src/lib/git/dirty-state.js";
+import { WorktreeSnapshotAnalysisResultSchema } from "../../../src/lib/git/worktree-sync.js";
 import { CurrentHuskAdvisorySchema } from "../../../src/lib/session-init/current-husk-advisory.js";
 import { CascadeResolutionSchema } from "../../../src/lib/session-init/branch-gone-cascade.js";
 import { ErrandStalenessSweepResultSchema } from "../../../src/lib/session-init/errand-staleness-sweep.js";
@@ -75,6 +76,7 @@ describe("session-envelope schema registry", () => {
       "task-list-cursor-file-result",
       "work-class",
       "work-unit-state",
+      "worktree-sync",
     ]);
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.loadSetManifest)).toBe(LoadSetManifestSchema);
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.taskListCursor)).toBe(TaskListCursorSchema);
@@ -104,6 +106,7 @@ describe("session-envelope schema registry", () => {
       [SESSION_ENVELOPE_SCHEMA_IDS.domainRulesSessionInit, DomainRulesSessionInitResultSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.extensionsSessionInit, ExtensionsSessionInitResultSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.releaseRouting, ReleaseRoutingValueSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.worktreeSync, WorktreeSnapshotAnalysisResultSchema],
     ] as const;
     for (const [id, schema] of advisorySchemas) {
       expect(first.get(id)).toBe(schema);

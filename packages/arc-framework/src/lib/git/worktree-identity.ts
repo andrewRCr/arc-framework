@@ -16,6 +16,14 @@
  * @module
  */
 
+import { z } from "zod";
+
+/** Strict physical-worktree identity shared by session envelope slots. */
+export const WorktreeIdentitySchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("primary") }),
+  z.strictObject({ kind: z.literal("linked"), path: z.string().min(1) }),
+]);
+
 import type { GitExec } from "./exec.js";
 
 /**
@@ -25,9 +33,7 @@ import type { GitExec } from "./exec.js";
  * - `linked` — an added worktree; `path` is its absolute working-tree root,
  *   the datum orientation renders (e.g. `worktree: ../arc-wu-b`).
  */
-export type WorktreeIdentity =
-  | { kind: "primary" }
-  | { kind: "linked"; path: string };
+export type WorktreeIdentity = z.infer<typeof WorktreeIdentitySchema>;
 
 /**
  * Resolve whether the current session is in the primary or a linked worktree.

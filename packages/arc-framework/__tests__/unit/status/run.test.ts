@@ -248,7 +248,15 @@ function passiveWorktreeSync(
 function worktreeSnapshot(
   overrides: Partial<Omit<WorktreeSnapshotAnalysisResult, "remoteEvidence" | "failureReason">> = {},
 ): WorktreeSnapshotAnalysisResult {
-  return { ...worktreeSync(), remoteEvidence: "exact", ...overrides };
+  const worktree = worktreeSync();
+  return {
+    state: worktree.state,
+    ahead: worktree.ahead,
+    behind: worktree.behind,
+    branch: worktree.branch,
+    remoteEvidence: "exact",
+    ...overrides,
+  };
 }
 
 function worktreeIdentity(value: WorktreeIdentity = { kind: "primary" }): WorktreeIdentity {

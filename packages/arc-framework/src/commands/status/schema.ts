@@ -9,6 +9,7 @@
 import { isDeepStrictEqual } from "node:util";
 
 import { z } from "zod";
+import { RemoteFailureReasonSchema, withRemoteEvidence } from "../../lib/kernel/index.js";
 import { ActiveSessionInitResultSchema } from "../active/schema.js";
 import { ConfigSessionInitResultSchema } from "../config/status.js";
 import { DomainRulesSessionInitResultSchema } from "../constitution/status.js";
@@ -18,6 +19,12 @@ import type { SessionInitProbeResult, SessionRecoverProbeResult } from "./types.
 import { probe } from "./types.js";
 import { BaseBranchSnapshotAnalysisResultSchema } from "../../lib/git/base-branch-sync.js";
 import { DirtyStateResultSchema } from "../../lib/git/dirty-state.js";
+import { WorktreeSyncStatusFields } from "../../lib/git/worktree-sync.js";
+import { WorktreeIdentitySchema } from "../../lib/git/worktree-identity.js";
+import {
+  SupersessionResultSchema,
+  SupersessionSnapshotAnalysisResultSchema,
+} from "../../lib/git/supersession.js";
 import { LoadSetManifestSchema, LoadSetPathSchema } from "../../lib/load-set/types.js";
 import { SessionInitRecoveryValueSchema } from "../../lib/session-init/branch-gone-cascade.js";
 import { ErrandStalenessSweepResultSchema } from "../../lib/session-init/errand-staleness-sweep.js";
@@ -218,26 +225,6 @@ export const UserReferenceReconcileSessionValueViewSchema = z.object({
     context.addIssue({ code: "custom", path: ["status"], message: "must match the ready-authority reconcile plan" });
   }
 });
-
-/** Thin routing view of a worktree synchronization result. */
-export const WorktreeSyncValueViewSchema = z
-  .object({
-    state: z.enum([
-      "skipped",
-      "clean",
-      "remote-ahead",
-      "local-ahead",
-      "diverged",
-      "no-upstream",
-      "detached-head",
-      "no-remote",
-      "branch-gone",
-      "remote-unavailable",
-    ]),
-    branch: z.string().nullable(),
-    supersession: z.object({ superseded: z.boolean() }).loose().nullable().optional(),
-  })
-  .loose();
 
 /** Thin routing view of a base-distance advisory. */
 export const BaseDistanceValueViewSchema = z
@@ -507,20 +494,19 @@ const RECOMMENDATION_SHAPE = {
   recommendedPromptText: z.string(),
 };
 
-/** Thin view of primary/linked worktree identity. */
-export const WorktreeIdentityViewSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("primary") }).loose(),
-  z.object({ kind: z.literal("linked"), path: NON_EMPTY_TEXT }).loose(),
-]);
+const SupersessionValueSchema = z.strictObject({
+  ...SupersessionResultSchema.shape,
+  remoteEvidence: z.enum(["exact", "pending-fetch", "unreachable"]).optional(),
+  failureReason: RemoteFailureReasonSchema.optional(),
+}).pipe(z.union([SupersessionResultSchema, SupersessionSnapshotAnalysisResultSchema]));
 
-/** Recommendation-enriched session worktree view. */
-export const SessionInitWorktreeValueViewSchema = WorktreeSyncValueViewSchema.extend({
-  ...CleanupRemoteEvidenceViewFields,
+/** Strict recommendation-enriched session worktree slot. */
+export const SessionInitWorktreeValueSchema = withRemoteEvidence({
+  ...WorktreeSyncStatusFields,
   ...RECOMMENDATION_SHAPE,
-  ahead: z.number().int().nonnegative(),
-  behind: z.number().int().nonnegative(),
-  identity: WorktreeIdentityViewSchema,
-}).loose().superRefine((value, context) => {
+  identity: WorktreeIdentitySchema,
+  supersession: SupersessionValueSchema.nullable(),
+}).superRefine((value, context) => {
   requireRemoteFailureReason(value, context);
   const exactStates = new Set(["clean", "remote-ahead", "local-ahead", "diverged", "branch-gone"]);
   const inapplicableStates = new Set(["skipped", "no-upstream", "detached-head", "no-remote"]);
@@ -546,9 +532,7 @@ export const SessionInitWorktreeValueViewSchema = WorktreeSyncValueViewSchema.ex
   if (!branchMatches) {
     context.addIssue({ code: "custom", path: ["branch"], message: "must match worktree state" });
   }
-  const supersessionMatches = value.state === "diverged"
-    || value.supersession === null
-    || value.supersession === undefined;
+  const supersessionMatches = value.state === "diverged" || value.supersession === null;
   if (!supersessionMatches) {
     context.addIssue({ code: "custom", path: ["supersession"], message: "requires a diverged worktree" });
   }
@@ -757,7 +741,7 @@ const SessionInitEnvelopeObjectSchema = z.strictObject({
   derivedLocusState: probe(DerivedLocusFrameValueViewSchema),
   locusGuidance: LocusSessionGuidanceSchema,
   user: probe(SessionInitUserValueViewSchema),
-  worktree: probe(SessionInitWorktreeValueViewSchema),
+  worktree: probe(SessionInitWorktreeValueSchema),
   baseDistance: probe(SessionInitBaseDistanceValueViewSchema),
   baseBranchSync: probe(SessionInitBaseBranchSyncValueViewSchema),
   dirty: probe(DirtyStateResultSchema),
@@ -1076,12 +1060,11 @@ export const SessionInitProbeResultSchema = SessionInitProbeResultRuntimeSchema 
   SessionInitProbeResult
 >;
 
-/** Thin worktree view used by the lean recovery envelope. */
-export const SessionRecoverWorktreeValueViewSchema = WorktreeSyncValueViewSchema.extend({
-  remoteEvidence: z.enum(["exact", "pending-fetch", "unreachable", "not-applicable"]),
-  failureReason: z.enum(["timeout", "network", "auth", "error"]).optional(),
-  identity: WorktreeIdentityViewSchema,
-}).loose().superRefine((value, context) => {
+/** Strict worktree slot for the lean recovery envelope. */
+export const SessionRecoverWorktreeValueSchema = withRemoteEvidence({
+  ...WorktreeSyncStatusFields,
+  identity: WorktreeIdentitySchema,
+}).superRefine((value, context) => {
   const unreachable = value.remoteEvidence === "unreachable";
   if (unreachable !== (value.failureReason !== undefined)) {
     context.addIssue({
@@ -1098,7 +1081,7 @@ const SessionRecoverEnvelopeObjectSchema = z.strictObject({
   derivedLocusState: probe(DerivedLocusFrameValueViewSchema),
   locusGuidance: LocusSessionGuidanceSchema,
   recoveryFrame: probe(RecoveryLocusFrameSchema),
-  worktree: probe(SessionRecoverWorktreeValueViewSchema),
+  worktree: probe(SessionRecoverWorktreeValueSchema),
   dirty: probe(DirtyStateResultSchema),
   extensions: probe(ExtensionsSessionInitResultSchema),
   config: probe(ConfigSessionInitResultSchema),
