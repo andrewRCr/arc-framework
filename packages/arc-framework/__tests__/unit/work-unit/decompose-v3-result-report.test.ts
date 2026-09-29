@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import { canonicalDigest } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import type { V3MaterializationResult } from "../../../src/lib/work-unit/decompose-v3-materializer.js";
@@ -116,15 +117,15 @@ describe("v3 decomposition result reporting", () => {
     const report = reportV3DecomposeResult(source, materialized(source, ["applied"]));
 
     expect(V3DecomposeResultReportSchema.parse(report)).toEqual(report);
-    expect(V3DecomposeResultReportSchema.safeParse({ ...report, extra: true }).success).toBe(false);
-    expect(V3DecomposeResultReportSchema.safeParse({
+    assertSchemaRefuses(V3DecomposeResultReportSchema, { ...report, extra: true });
+    assertSchemaRefuses(V3DecomposeResultReportSchema, {
       ...report,
       paths: [{ ...report.paths[0]!, extra: true }],
-    }).success).toBe(false);
-    expect(V3DecomposeResultReportSchema.safeParse({
+    });
+    assertSchemaRefuses(V3DecomposeResultReportSchema, {
       ...report,
       topology: [{ kind: "topology", action: "none", path: mutation.path, disposition: "no-write" }],
-    }).success).toBe(false);
+    });
   });
 
   it("reports standalone, nested, missing-parent, and at-cap topology actions from planned facts", () => {

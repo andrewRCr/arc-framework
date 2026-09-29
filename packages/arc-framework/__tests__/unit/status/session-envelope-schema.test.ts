@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import { assertSessionInitProbeResult, SessionInitProbeResultSchema } from "../../../src/commands/status/schema.js";
 
@@ -106,12 +107,11 @@ function clone(value: Record<string, unknown>): Record<string, unknown> {
 }
 
 function expectInvalid(value: Record<string, unknown>): void {
-  expect(SessionInitProbeResultSchema.safeParse(value).success).toBe(false);
+  assertSchemaRefuses(SessionInitProbeResultSchema, value);
 }
 
 function expectValid(value: Record<string, unknown>): void {
-  const parsed = SessionInitProbeResultSchema.safeParse(value);
-  expect(parsed.success ? null : parsed.error.message).toBeNull();
+  assertSchemaAccepts(SessionInitProbeResultSchema, value);
 }
 
 function withoutKey(value: Record<string, unknown>, key: string): Record<string, unknown> {
@@ -336,7 +336,7 @@ describe("session-init envelope schema", () => {
       recommendedCommand: null,
       recommendedPromptText: "Base evidence is pending.",
     });
-    expect(SessionInitProbeResultSchema.safeParse(pending).success).toBe(true);
+    assertSchemaAccepts(SessionInitProbeResultSchema, pending);
 
     const unreachable = clone(pending);
     setPath(unreachable, ["userReferenceReconcile", "value", "status"], "unavailable");
@@ -824,7 +824,7 @@ describe("session-init envelope schema", () => {
         text: "git worktree move /wt/old /wt/new",
       },
     }]);
-    expect(SessionInitProbeResultSchema.safeParse(value).success).toBe(true);
+    assertSchemaAccepts(SessionInitProbeResultSchema, value);
 
     setPath(value, ["sweep", "value", "renameMoves", 0, "remedy", "argv", 0], "arc");
     expectContractFailure(value, "sweep.value.renameMoves.0.remedy.argv.0");
@@ -1039,7 +1039,7 @@ describe("session-init envelope schema", () => {
         error: { kind: "runtime", message: "degraded" },
       },
     };
-    expect(SessionInitProbeResultSchema.safeParse(failed).success).toBe(true);
+    assertSchemaAccepts(SessionInitProbeResultSchema, failed);
     expectInvalid({ ...fixture("orient"), currentHusk: failed.currentHusk });
   });
 
@@ -1104,7 +1104,7 @@ describe("session-init envelope schema", () => {
     const orient = fixture("orient");
     delete orient.compactionAdvisory;
     delete orient.inFlightComposition;
-    expect(SessionInitProbeResultSchema.safeParse(orient).success).toBe(true);
+    assertSchemaAccepts(SessionInitProbeResultSchema, orient);
 
     expectInvalid({
       ...fixture("identity-missing"),
@@ -1143,26 +1143,22 @@ describe("session-init envelope schema", () => {
   it("validates but never requires the invocation-only seed-write status", () => {
     const omitted = fixture("orient");
     delete omitted.compactionSeedWrite;
-    expect(SessionInitProbeResultSchema.safeParse(omitted).success).toBe(true);
-    expect(
-      SessionInitProbeResultSchema.safeParse({
-        ...omitted,
-        compactionSeedWrite: {
-          status: "skipped",
-          reason: "identity-missing",
-        },
-      }).success,
-    ).toBe(true);
-    expect(
-      SessionInitProbeResultSchema.safeParse({
-        ...omitted,
-        compactionSeedWrite: {
-          status: "failed",
-          reason: "seed-invalid",
-          message: "invalid",
-        },
-      }).success,
-    ).toBe(true);
+    assertSchemaAccepts(SessionInitProbeResultSchema, omitted);
+    assertSchemaAccepts(SessionInitProbeResultSchema, {
+      ...omitted,
+      compactionSeedWrite: {
+        status: "skipped",
+        reason: "identity-missing",
+      },
+    });
+    assertSchemaAccepts(SessionInitProbeResultSchema, {
+      ...omitted,
+      compactionSeedWrite: {
+        status: "failed",
+        reason: "seed-invalid",
+        message: "invalid",
+      },
+    });
     expectInvalid({
       ...fixture("orient"),
       compactionSeedWrite: { status: "written", path: "" },

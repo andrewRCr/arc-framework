@@ -1,6 +1,7 @@
 /** Unit coverage for persisted and normalized local sync-state schemas. */
 
 import { describe, expect, expectTypeOf, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 import { z } from "zod";
 
 import {
@@ -35,7 +36,7 @@ describe("CrossWuEntrySchema", () => {
     { section: "Memories", key: "entry", raw: "" },
     { section: "Memories", key: "entry", raw: "preserved block", extra: true },
   ])("rejects an invalid entry %#", (value) => {
-    expect(CrossWuEntrySchema.safeParse(value).success).toBe(false);
+    assertSchemaRefuses(CrossWuEntrySchema, value);
   });
 });
 
@@ -57,7 +58,7 @@ describe("CrossWuEntryParseSchema", () => {
     { ok: false, reason: "" },
     { ok: false, reason: "malformed entry", extra: true },
   ])("rejects an invalid parse outcome %#", (value) => {
-    expect(CrossWuEntryParseSchema.safeParse(value).success).toBe(false);
+    assertSchemaRefuses(CrossWuEntryParseSchema, value);
   });
 
   it("derives the public adapter types", () => {
@@ -78,16 +79,16 @@ describe("PersistedLocalSyncStateSchema", () => {
     { ...base, version: 4, sourceCommit: "" },
     { ...base, version: 4, sourceOperation: "merge" },
   ])("rejects malformed required state %#", (value) => {
-    expect(PersistedLocalSyncStateSchema.safeParse(value).success).toBe(false);
+    assertSchemaRefuses(PersistedLocalSyncStateSchema, value);
   });
 
   it("does not impose lexical formats on non-empty basis fields", () => {
-    expect(PersistedLocalSyncStateSchema.safeParse({
+    assertSchemaAccepts(PersistedLocalSyncStateSchema, {
       version: 2,
       materializedManifestHash: "not a digest",
       sourceCommit: "not an oid",
       sourceOperation: "load",
-    }).success).toBe(true);
+    });
   });
 
   it("accepts malformed known extensions and unknown additive fields", () => {
@@ -134,7 +135,7 @@ describe("LocalSyncStateSchema", () => {
     { ...base, version: 4, machineId: "legacy" },
     { ...base, version: 4, futureExtension: true },
   ])("rejects an invalid normalized producer record %#", (value) => {
-    expect(LocalSyncStateSchema.safeParse(value).success).toBe(false);
+    assertSchemaRefuses(LocalSyncStateSchema, value);
   });
 
   it("derives the public record and marker types", () => {

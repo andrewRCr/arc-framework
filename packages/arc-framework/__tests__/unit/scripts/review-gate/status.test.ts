@@ -1,6 +1,7 @@
 /** Exact-target review status reduction. */
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../../helpers/schema-assertion.js";
 import { createHostedHandleFixture } from "../../../fixtures/hosted-review.js";
 
 import { DeliveryReviewMemberVehicleSchema } from
@@ -234,11 +235,11 @@ function port(overrides: Partial<ReviewStatusObservation> = {}): ReviewStatusPor
 
 describe("review status", () => {
   it("accepts the delegated carrier named by a coverage-selection action", () => {
-    expect(ReviewStatusWorkUnitInputSchema.safeParse({
+    assertSchemaAccepts(ReviewStatusWorkUnitInputSchema, {
       workUnitId: "example",
       coverage: "incremental",
       sourceId: "delegated-agent",
-    }).success).toBe(true);
+    });
   });
 
   it("rejects a stale target reference", async () => {
@@ -550,7 +551,7 @@ describe("review status", () => {
       selectionAction: obligation.selectionAction,
     };
 
-    expect(RoutedReviewObligationSchema.safeParse(withoutConjunction).success).toBe(false);
+    assertSchemaRefuses(RoutedReviewObligationSchema, withoutConjunction);
   });
 
   it.each([
@@ -1874,7 +1875,7 @@ describe("review status", () => {
       ...memberVehicle,
       head: oid("d"),
     });
-    const result = DeliveryLocalReviewSelectionSchema.safeParse({
+    assertSchemaRefuses(DeliveryLocalReviewSelectionSchema, {
       schemaVersion: 1,
       sourceId: "delegated-agent",
       target: { ...hostedAction.target, headSha: movedVehicle.head },
@@ -1886,12 +1887,10 @@ describe("review status", () => {
         target: hostedAction.target,
       },
     });
-
-    expect(result.success).toBe(false);
   });
 
   it("refuses a local correction scope that does not end at the selected member", () => {
-    expect(DeliveryLocalReviewSelectionSchema.safeParse({
+    assertSchemaRefuses(DeliveryLocalReviewSelectionSchema, {
       schemaVersion: 1,
       sourceId: "delegated-agent",
       target: hostedAction.target,
@@ -1906,7 +1905,7 @@ describe("review status", () => {
         headSha: oid("d"),
         requiredFindings: [],
       },
-    }).success).toBe(false);
+    });
   });
 
   it("requires local coverage to agree with correction-scope presence", () => {
@@ -1926,25 +1925,25 @@ describe("review status", () => {
       requiredFindings: [],
     };
 
-    expect(DeliveryLocalReviewSelectionSchema.safeParse(selection).success).toBe(false);
-    expect(DeliveryLocalReviewSelectionSchema.safeParse({
+    assertSchemaRefuses(DeliveryLocalReviewSelectionSchema, selection);
+    assertSchemaAccepts(DeliveryLocalReviewSelectionSchema, {
       ...selection,
       requestedCoverage: "complete",
-    }).success).toBe(true);
-    expect(DeliveryLocalReviewSelectionSchema.safeParse({
+    });
+    assertSchemaRefuses(DeliveryLocalReviewSelectionSchema, {
       ...selection,
       requestedCoverage: "complete",
       correctionScope,
-    }).success).toBe(false);
-    expect(DeliveryLocalReviewSelectionSchema.safeParse({
+    });
+    assertSchemaRefuses(DeliveryLocalReviewSelectionSchema, {
       ...selection,
       requestedCoverage: "incremental",
-    }).success).toBe(false);
-    expect(DeliveryLocalReviewSelectionSchema.safeParse({
+    });
+    assertSchemaAccepts(DeliveryLocalReviewSelectionSchema, {
       ...selection,
       requestedCoverage: "incremental",
       correctionScope,
-    }).success).toBe(true);
+    });
   });
 
   it("returns the exact delegated findings operation for local review resumption", async () => {

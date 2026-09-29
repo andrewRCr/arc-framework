@@ -8,10 +8,18 @@ import {
 import type { OrdinaryErrandRecord } from "../../../src/lib/errand/identity-transitions.js";
 import { promoteOrdinaryErrand, type PromotionFrameReceipt } from "../../../src/lib/errand/promote.js";
 
+function parseOrdinaryErrandRecord(value: unknown): OrdinaryErrandRecord {
+  const parsed = TransientIdentityRecordV3Schema.parse(value);
+  if (parsed.kind !== "errand" || parsed.purpose !== "errand") {
+    throw new Error("expected an ordinary Errand record");
+  }
+  return parsed;
+}
+
 const ORIGIN_DIGEST = `sha256:${"a".repeat(64)}` as const;
 
 function record(): OrdinaryErrandRecord {
-  return TransientIdentityRecordV3Schema.parse({
+  return parseOrdinaryErrandRecord({
     version: 3,
     slug: "growing",
     claimId: "c".repeat(32),
@@ -27,7 +35,7 @@ function record(): OrdinaryErrandRecord {
     state: "open",
     savedHead: null,
     changeRequest: null,
-  }) as OrdinaryErrandRecord;
+  });
 }
 
 function frame(kind: "applied" | "idempotent" = "applied"): PromotionFrameReceipt & {
@@ -248,7 +256,7 @@ describe("promoteOrdinaryErrand", () => {
     });
     expect(partial).toMatchObject({ outcome: "refused", reason: "full-protection-required" });
 
-    const paused = { ...value, state: "paused", savedHead: "a".repeat(40) } as OrdinaryErrandRecord;
+    const paused = parseOrdinaryErrandRecord({ ...value, state: "paused", savedHead: "a".repeat(40) });
     const tail = await promoteOrdinaryErrand({
       slug: value.slug,
       name: "growth",

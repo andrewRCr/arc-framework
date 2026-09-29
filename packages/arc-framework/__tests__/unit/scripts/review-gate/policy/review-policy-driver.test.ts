@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../../../helpers/schema-assertion.js";
 
 import { CanonicalDigestSchema } from "../../../../../src/lib/kernel/index.js";
 
@@ -98,20 +99,20 @@ describe("resolveReviewPolicy", () => {
       state: "approval-required", nextAction: "obtain-ceiling-override",
       payload: { consequence: { exhaustedPassCount: 2, nextPass: 3 } },
     });
-    expect(ReviewPolicyCommandRequestSchema.safeParse({
+    assertSchemaRefuses(ReviewPolicyCommandRequestSchema, {
       ...prior, terminalResponseSettled: true,
-    }).success).toBe(false);
+    });
   });
 
   it("requires one immutable producer reference for a terminal attempt", () => {
-    expect(ReviewPolicyCommandRequestSchema.safeParse({
+    assertSchemaRefuses(ReviewPolicyCommandRequestSchema, {
       schemaVersion: 1,
       target,
       lane: "standard",
       standardReview,
       completedPasses: 1,
       attempts: [{ sourceId: "codex-pr", outcome: "clean" }],
-    }).success).toBe(false);
+    });
   });
 
   it("rejects producer references on nonterminal progress and standalone settlement", () => {
@@ -122,18 +123,18 @@ describe("resolveReviewPolicy", () => {
       standardReview,
       completedPasses: 1,
     };
-    expect(ReviewPolicyCommandRequestSchema.safeParse({
+    assertSchemaRefuses(ReviewPolicyCommandRequestSchema, {
       ...base,
       attempts: [{
         sourceId: "codex-pr",
         outcome: "rate-limited",
         reviewOperationId: "hosted/attempt-1",
       }],
-    }).success).toBe(false);
-    expect(ReviewPolicyCommandRequestSchema.safeParse({
+    });
+    assertSchemaRefuses(ReviewPolicyCommandRequestSchema, {
       ...base,
       attempts: [{ sourceId: "codex-pr", outcome: "settled-findings" }],
-    }).success).toBe(false);
+    });
   });
 
   it("accepts terminal convergence only through a matching derived verified signal", () => {
@@ -181,7 +182,7 @@ describe("resolveReviewPolicy", () => {
       completedPasses: 0,
       scopeSelection: { mode: "chunked" as const, target },
     };
-    expect(ReviewPolicyCommandRequestSchema.safeParse({
+    assertSchemaRefuses(ReviewPolicyCommandRequestSchema, {
       ...base,
       completedPasses: 1,
       attempts: [{
@@ -190,7 +191,7 @@ describe("resolveReviewPolicy", () => {
         reviewOperationId: "local-aggregate-1",
         chunkSeriesComplete: false,
       }],
-    }).success).toBe(false);
+    });
     expect(resolveReviewPolicy({
       ...base,
       sources: ["delegated-agent"],

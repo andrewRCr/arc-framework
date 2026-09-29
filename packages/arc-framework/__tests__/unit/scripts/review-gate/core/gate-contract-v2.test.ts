@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../../../helpers/schema-assertion.js";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import {
@@ -478,11 +479,11 @@ describe("review gate v2 contract", () => {
       }],
     };
 
-    expect(ReviewReceiptV2Schema.safeParse(receipt).success).toBe(true);
-    expect(ReviewReceiptV2Schema.safeParse({
+    assertSchemaAccepts(ReviewReceiptV2Schema, receipt);
+    assertSchemaRefuses(ReviewReceiptV2Schema, {
       ...receipt,
       findings: [{ ...receipt.findings[0], severity: "blocker" }],
-    }).success).toBe(false);
+    });
   });
 
   it("rejects receipt findings whose ordinals do not match complete capture order", () => {
@@ -510,7 +511,7 @@ describe("review gate v2 contract", () => {
       }],
     };
 
-    expect(ReviewReceiptV2Schema.safeParse(receipt).success).toBe(false);
+    assertSchemaRefuses(ReviewReceiptV2Schema, receipt);
   });
 
   it("separates identical content across the registered ID domains", () => {

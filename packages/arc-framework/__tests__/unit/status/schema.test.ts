@@ -1,6 +1,7 @@
 /** Unit coverage for deliberately thin session-envelope routing schemas. */
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 import { buildBaseDistanceNotApplicable } from "../../../src/lib/git/base-distance.js";
 
 import {
@@ -33,11 +34,11 @@ describe("shared git routing views", () => {
       recommendedPromptText: "Materialize and synchronize the local main branch. Run `arc base sync`.",
     };
 
-    expect(SessionInitBaseBranchSyncValueViewSchema.safeParse(pending).success).toBe(true);
-    expect(SessionInitBaseBranchSyncValueViewSchema.safeParse({
+    assertSchemaAccepts(SessionInitBaseBranchSyncValueViewSchema, pending);
+    assertSchemaRefuses(SessionInitBaseBranchSyncValueViewSchema, {
       ...pending,
       failureReason: "network",
-    }).success).toBe(false);
+    });
     // A valid unreachable baseline, so the remedy assertion below varies one field
     // rather than relying on other crossed fields to force the rejection.
     const unreachable = {
@@ -53,11 +54,11 @@ describe("shared git routing views", () => {
       recommendedAction: "surface",
       recommendedPromptText: "Remote base evidence is unavailable (network).",
     };
-    expect(SessionInitBaseBranchSyncValueViewSchema.safeParse(unreachable).success).toBe(true);
-    expect(SessionInitBaseBranchSyncValueViewSchema.safeParse({
+    assertSchemaAccepts(SessionInitBaseBranchSyncValueViewSchema, unreachable);
+    assertSchemaRefuses(SessionInitBaseBranchSyncValueViewSchema, {
       ...unreachable,
       refreshRemedy: pending.refreshRemedy,
-    }).success).toBe(false);
+    });
   });
 
 });
@@ -89,7 +90,7 @@ describe("user and recommendation routing views", () => {
     { ...user, notesDrift: { direction: "unknown" } },
     { ...user, loadNeeded: "yes" },
   ])("rejects a malformed user routing field", (value) => {
-    expect(UserSessionInitValueViewSchema.safeParse(value).success).toBe(false);
+    assertSchemaRefuses(UserSessionInitValueViewSchema, value);
   });
 
   it.each([
@@ -107,13 +108,11 @@ describe("user and recommendation routing views", () => {
     ],
     [SessionInitRetiredSubdirsValueViewSchema, { candidates: [] }],
   ] as const)("rejects a corrupted recommendation action", (schema, value) => {
-    expect(
-      schema.safeParse({
-        ...value,
-        recommendedAction: "guess",
-        recommendedPromptText: "kept",
-      }).success,
-    ).toBe(false);
+    assertSchemaRefuses(schema, {
+      ...value,
+      recommendedAction: "guess",
+      recommendedPromptText: "kept",
+    });
   });
 
   it("pins drift-surface routing while preserving detail text", () => {
@@ -171,16 +170,14 @@ describe("deep advisory routing views", () => {
       retained: true,
     };
     expect(StaleWorktreeSweepValueViewSchema.parse(value)).toEqual(value);
-    expect(
-      StaleWorktreeSweepValueViewSchema.safeParse({
-        worktrees: [
-          {
-            kind: "branched",
-            decision: { action: "blocked", reason: "wrong" },
-          },
-        ],
-      }).success,
-    ).toBe(false);
+    assertSchemaRefuses(StaleWorktreeSweepValueViewSchema, {
+      worktrees: [
+        {
+          kind: "branched",
+          decision: { action: "blocked", reason: "wrong" },
+        },
+      ],
+    });
   });
 
   it("pins work-unit classification, behind-base, and nudge fields", () => {
@@ -197,14 +194,12 @@ describe("deep advisory routing views", () => {
       warnings: [],
     };
     expect(WorkUnitStateValueViewSchema.parse(value)).toEqual(value);
-    expect(
-      WorkUnitStateValueViewSchema.safeParse({
-        inFlight: {
-          workUnits: [{ state: "mergeable", behindBase: "yes" }],
-        },
-        nudge: { shouldNudge: false },
-      }).success,
-    ).toBe(false);
+    assertSchemaRefuses(WorkUnitStateValueViewSchema, {
+      inFlight: {
+        workUnits: [{ state: "mergeable", behindBase: "yes" }],
+      },
+      nudge: { shouldNudge: false },
+    });
   });
 
   it("requires precomputed guidance for unavailable mergeability", () => {
@@ -222,10 +217,10 @@ describe("deep advisory routing views", () => {
       },
       nudge: { shouldNudge: false },
     };
-    expect(WorkUnitStateValueViewSchema.safeParse(value).success).toBe(true);
+    assertSchemaAccepts(WorkUnitStateValueViewSchema, value);
     const missingGuidance = structuredClone(value);
     delete (missingGuidance.inFlight.workUnits[0] as { mergeabilityGuidance?: string }).mergeabilityGuidance;
-    expect(WorkUnitStateValueViewSchema.safeParse(missingGuidance).success).toBe(false);
+    assertSchemaRefuses(WorkUnitStateValueViewSchema, missingGuidance);
   });
 
   it("pins errand resume, classification, materialization, and nudge fields", () => {
@@ -247,31 +242,29 @@ describe("deep advisory routing views", () => {
       residue: [],
     };
     expect(ErrandStateValueViewSchema.parse(value)).toEqual(value);
-    expect(
-      ErrandStateValueViewSchema.safeParse({
-        ...value,
-        materializable: {
-          candidates: [{
-            slug: "",
-            claimId: "c".repeat(32),
-            branch: "chore/exact-title",
-            expectedHead: "a".repeat(40),
-            state: "paused",
-            originEntry: "Exact title",
-          }],
-        },
-      }).success,
-    ).toBe(false);
+    assertSchemaRefuses(ErrandStateValueViewSchema, {
+      ...value,
+      materializable: {
+        candidates: [{
+          slug: "",
+          claimId: "c".repeat(32),
+          branch: "chore/exact-title",
+          expectedHead: "a".repeat(40),
+          state: "paused",
+          originEntry: "Exact title",
+        }],
+      },
+    });
   });
 
   it("rejects cleanup authority when remote evidence is incomplete", () => {
-    expect(StaleWorktreeSweepValueViewSchema.safeParse({
+    assertSchemaRefuses(StaleWorktreeSweepValueViewSchema, {
       remoteEvidence: "pending-fetch",
       worktrees: [{ kind: "branched", decision: { action: "removable" } }],
       renameMoves: [],
       retirements: [],
-    }).success).toBe(false);
-    expect(StaleWorktreeSweepValueViewSchema.safeParse({
+    });
+    assertSchemaRefuses(StaleWorktreeSweepValueViewSchema, {
       remoteEvidence: "unreachable",
       failureReason: "network",
       worktrees: [],
@@ -290,23 +283,21 @@ describe("deep advisory routing views", () => {
         },
         teardown: { argv: ["arc", "teardown", "retired"], text: "arc teardown retired" },
       }],
-    }).success).toBe(false);
-    expect(ErrandStateValueViewSchema.safeParse({
+    });
+    assertSchemaRefuses(ErrandStateValueViewSchema, {
       remoteEvidence: "not-applicable",
       resume: { resumable: false },
       inFlight: { errands: [{ state: "merged-cleanup" }] },
       materializable: { candidates: [] },
       nudge: { shouldNudge: false },
-    }).success).toBe(false);
+    });
   });
 
   it("accepts mapped-only payloads because the views are not full mirrors", () => {
-    expect(
-      WorkUnitStateValueViewSchema.safeParse({
-        inFlight: { workUnits: [] },
-        nudge: { shouldNudge: false },
-      }).success,
-    ).toBe(true);
+    assertSchemaAccepts(WorkUnitStateValueViewSchema, {
+      inFlight: { workUnits: [] },
+      nudge: { shouldNudge: false },
+    });
   });
 
   it.each([
@@ -404,18 +395,18 @@ describe("deep advisory routing views", () => {
       recommendedAction: "skip",
       recommendedPromptText: "",
     };
-    expect(SessionInitBaseDistanceValueSchema.safeParse(healthy).success).toBe(true);
+    assertSchemaAccepts(SessionInitBaseDistanceValueSchema, healthy);
     const { movement: _movement, ...missingMovement } = healthy;
     void _movement;
-    expect(SessionInitBaseDistanceValueSchema.safeParse(missingMovement).success).toBe(false);
-    expect(SessionInitBaseDistanceValueSchema.safeParse({
+    assertSchemaRefuses(SessionInitBaseDistanceValueSchema, missingMovement);
+    assertSchemaRefuses(SessionInitBaseDistanceValueSchema, {
       ...healthy,
       verdict: "skipped",
       state: "skipped",
       baseOid: null,
       remoteEvidence: "not-applicable",
-    }).success).toBe(false);
-    expect(SessionInitBaseDistanceValueSchema.safeParse({
+    });
+    assertSchemaAccepts(SessionInitBaseDistanceValueSchema, {
       ...buildBaseDistanceNotApplicable("no-remote", "main"),
       state: "remote-unavailable",
       unavailableReason: "remote-evidence-unreachable",
@@ -423,6 +414,6 @@ describe("deep advisory routing views", () => {
       failureReason: "network",
       recommendedAction: "skip",
       recommendedPromptText: "",
-    }).success).toBe(true);
+    });
   });
 });

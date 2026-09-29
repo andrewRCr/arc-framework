@@ -1,6 +1,7 @@
 /** Unit coverage for exact-bound Candidate applicability selection writes. */
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import { canonicalDigest } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import {
@@ -162,15 +163,15 @@ describe("resolveCandidateApplicability", () => {
   it("requires completed targeted evidence in the same selection input", () => {
     const fixture = harness();
 
-    expect(CandidateApplicabilityResolutionInputSchema.safeParse({
+    assertSchemaRefuses(CandidateApplicabilityResolutionInputSchema, {
       ...fixture.input,
       choice: "targeted-check",
-    }).success).toBe(false);
-    expect(CandidateApplicabilityResolutionInputSchema.safeParse({
+    });
+    assertSchemaAccepts(CandidateApplicabilityResolutionInputSchema, {
       ...fixture.input,
       choice: "targeted-check",
       targetedEvidenceRef: "verification://targeted",
-    }).success).toBe(true);
+    });
   });
 
   it("refuses a stale current target without writing", async () => {

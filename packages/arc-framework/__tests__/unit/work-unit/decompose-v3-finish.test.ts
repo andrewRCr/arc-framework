@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   V3ExtractionFinishResultSchema,
@@ -50,7 +51,7 @@ describe("V3ExtractionFinishResultSchema", () => {
     { status: "already-finished" },
     refusal,
   ])("accepts one canonical finish outcome: %o", (result) => {
-    expect(V3ExtractionFinishResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(V3ExtractionFinishResultSchema, result);
   });
 
   it.each([
@@ -76,6 +77,6 @@ describe("V3ExtractionFinishResultSchema", () => {
       },
     },
   ])("refuses an incomplete or open-ended outcome: %o", (result) => {
-    expect(V3ExtractionFinishResultSchema.safeParse(result).success).toBe(false);
+    assertSchemaRefuses(V3ExtractionFinishResultSchema, result);
   });
 });

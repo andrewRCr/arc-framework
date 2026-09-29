@@ -10,6 +10,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import type { LifecycleIndex, LifecycleIndexEntry } from "../../../src/lib/work-unit/lifecycle-index.js";
 import type { Location, Phase } from "../../../src/lib/work-unit/lifecycle-state.js";
@@ -98,18 +99,18 @@ describe("teardown command input", () => {
     "/repo/worktree",
     String.raw`C:\repo\worktree`,
   ])("accepts cross-platform absolute husk path %s", (husk) => {
-    expect(TeardownCommandInputSchema.safeParse({ name: "widget", husk }).success).toBe(true);
+    assertSchemaAccepts(TeardownCommandInputSchema, { name: "widget", husk });
   });
 
   it("rejects a relative husk path", () => {
-    expect(TeardownCommandInputSchema.safeParse({ name: "widget", husk: "../worktree" }).success).toBe(false);
+    assertSchemaRefuses(TeardownCommandInputSchema, { name: "widget", husk: "../worktree" });
   });
 });
 
 describe("finalize command input", () => {
   it("accepts the amend-design Class write and rejects missing Class or unknown fire-points", () => {
-    expect(FinalizeCommandInputSchema.safeParse({ firePoint: "amend-design", class: "Heavy" }).success).toBe(true);
-    expect(FinalizeCommandInputSchema.safeParse({ firePoint: "amend-design" }).success).toBe(false);
-    expect(FinalizeCommandInputSchema.safeParse({ firePoint: "verify", class: "Heavy" }).success).toBe(false);
+    assertSchemaAccepts(FinalizeCommandInputSchema, { firePoint: "amend-design", class: "Heavy" });
+    assertSchemaRefuses(FinalizeCommandInputSchema, { firePoint: "amend-design" });
+    assertSchemaRefuses(FinalizeCommandInputSchema, { firePoint: "verify", class: "Heavy" });
   });
 });

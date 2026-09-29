@@ -1,6 +1,7 @@
 /** Integration procedure CLI adapter behavior. */
 
 import { describe, expect, it, vi } from "vitest";
+import { assertSchemaAccepts } from "../../helpers/schema-assertion.js";
 import { SlugSchema } from "../../../src/lib/kernel/schema/slug.js";
 import {
   checkpointRemedy,
@@ -50,7 +51,7 @@ describe("integration checkpoint handler", () => {
     await handleIntegrationCheckpoint("Bad name", {}, undefined, { write, setExitCode });
 
     const result = JSON.parse(String(write.mock.calls[0]?.[0]));
-    expect(IntegrationCheckpointResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(IntegrationCheckpointResultSchema, result);
     expect(result).toMatchObject({
       workUnit: null,
       state: "blocked",
@@ -71,7 +72,7 @@ describe("integration checkpoint handler", () => {
     });
 
     const result = JSON.parse(String(write.mock.calls[0]?.[0]));
-    expect(IntegrationCheckpointResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(IntegrationCheckpointResultSchema, result);
     expect(result).toMatchObject({
       workUnit: SlugSchema.parse("example"),
       state: "blocked",
@@ -89,7 +90,7 @@ describe("integration checkpoint handler", () => {
     });
 
     const result = JSON.parse(String(write.mock.calls[0]?.[0]));
-    expect(IntegrationCheckpointResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(IntegrationCheckpointResultSchema, result);
     expect(result.payload.detail).toBe("The integration operation failed without diagnostic detail.");
   });
 
@@ -101,7 +102,7 @@ describe("integration checkpoint handler", () => {
     });
 
     const result = JSON.parse(String(write.mock.calls[0]?.[0]));
-    expect(IntegrationCheckpointResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(IntegrationCheckpointResultSchema, result);
     expect(result.detail).toHaveLength(4_096);
     expect(result.detail).not.toContain("\n");
     expect(result.payload.detail).toBe(result.detail);
@@ -119,7 +120,7 @@ describe("integration checkpoint handler", () => {
     });
 
     const result = JSON.parse(String(write.mock.calls[0]?.[0]));
-    expect(IntegrationCheckpointResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(IntegrationCheckpointResultSchema, result);
     expect(result).toMatchObject({ state: "blocked", reason: "composition-unavailable" });
     expect(checkpoint).not.toHaveBeenCalled();
     expect(setExitCode).toHaveBeenCalledWith(1);
@@ -171,7 +172,7 @@ describe("integration merge handler", () => {
     });
 
     const result = JSON.parse(String(write.mock.calls[0]?.[0]));
-    expect(IntegrationMergeResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(IntegrationMergeResultSchema, result);
     expect(result).toMatchObject({
       workUnit: null,
       state: "blocked",
@@ -193,7 +194,7 @@ describe("integration merge handler", () => {
     });
 
     const result = JSON.parse(String(write.mock.calls[0]?.[0]));
-    expect(IntegrationMergeResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(IntegrationMergeResultSchema, result);
     expect(result).toMatchObject({
       workUnit: SlugSchema.parse("example"),
       state: "blocked",
@@ -212,7 +213,7 @@ describe("integration merge handler", () => {
     });
 
     const result = JSON.parse(String(write.mock.calls[0]?.[0]));
-    expect(IntegrationMergeResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(IntegrationMergeResultSchema, result);
     expect(result.payload.detail).toBe("The integration operation failed without diagnostic detail.");
   });
 
@@ -225,7 +226,7 @@ describe("integration merge handler", () => {
     });
 
     const result = JSON.parse(String(write.mock.calls[0]?.[0]));
-    expect(IntegrationMergeResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(IntegrationMergeResultSchema, result);
     expect(result.detail).toHaveLength(4_096);
     expect(result.detail).not.toContain("\n");
     expect(result.payload.detail).toBe(result.detail);
@@ -244,7 +245,7 @@ describe("integration merge handler", () => {
     });
 
     const result = JSON.parse(String(write.mock.calls[0]?.[0]));
-    expect(IntegrationMergeResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(IntegrationMergeResultSchema, result);
     expect(result).toMatchObject({ state: "blocked", reason: "operation-failed" });
     expect(merge).not.toHaveBeenCalled();
     expect(setExitCode).toHaveBeenCalledWith(1);

@@ -1,4 +1,5 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   SlugSchema,
@@ -19,12 +20,16 @@ describe("kernel slug contract", () => {
   });
 
   it("rejects unsafe and non-canonical path identities", () => {
-    for (const value of invalid) expect(SlugSchema.safeParse(value).success).toBe(false);
+    for (const value of invalid) assertSchemaRefuses(SlugSchema, value);
   });
 
   it("keeps the boolean guard aligned with schema parsing and narrows the brand", () => {
     for (const value of [...valid, ...invalid]) {
-      expect(isSlugSafe(value)).toBe(SlugSchema.safeParse(value).success);
+      if (isSlugSafe(value)) {
+        assertSchemaAccepts(SlugSchema, value);
+      } else {
+        assertSchemaRefuses(SlugSchema, value);
+      }
     }
     const candidate: string = "alpha-beta";
     if (isSlugSafe(candidate)) expectTypeOf(candidate).toEqualTypeOf<Slug>();

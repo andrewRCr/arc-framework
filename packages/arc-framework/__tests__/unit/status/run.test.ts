@@ -11,6 +11,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
+import { assertSchemaAccepts } from "../../helpers/schema-assertion.js";
 
 import {
   runRecoverStatus,
@@ -489,7 +490,7 @@ describe("projectDerivedActiveSession schema", () => {
   ])("parses the derived session result for $resolution", (active) => {
     const frame = derivedFrameFromActive(active, "andrew", [], null, null);
     const result = projectDerivedActiveSession(frame);
-    expect(ActiveSessionInitResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(ActiveSessionInitResultSchema, result);
   });
 });
 

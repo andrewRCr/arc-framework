@@ -1,6 +1,7 @@
 /** Unit coverage for Candidate attestation and converged re-attestation. */
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../../helpers/schema-assertion.js";
 
 import { canonicalDigest } from "../../../../src/lib/kernel/canonical/canonical-json.js";
 import {
@@ -523,14 +524,14 @@ describe("runAttest", () => {
       throw new Error("expected a scoped refusal");
     }
 
-    expect(AttestResultSchema.safeParse({
+    assertSchemaRefuses(AttestResultSchema, {
       ...result,
       nextAction: {
         ...result.nextAction,
         verificationKind: "tier-3",
         attestArgv: ["arc", "attest", "example", "--scope", "full", "--json"],
       },
-    }).success).toBe(false);
+    });
   });
 
   it("refuses focused evidence against pending full convergence", async () => {

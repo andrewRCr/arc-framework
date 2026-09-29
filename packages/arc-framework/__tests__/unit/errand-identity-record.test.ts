@@ -1,6 +1,7 @@
 /** Strict v3 transient identity record schema coverage. */
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../helpers/schema-assertion.js";
 
 import {
   TransientIdentityRecordSchema,
@@ -96,7 +97,7 @@ describe("v3 transient identity records", () => {
         state: "open", changeRequest: null, createdAt: timestamp, updatedAt: timestamp,
       },
     ];
-    for (const value of values) expect(TransientIdentityRecordSchema.safeParse(value).success).toBe(true);
+    for (const value of values) assertSchemaAccepts(TransientIdentityRecordSchema, value);
   });
 
   it("enforces origin, state, namespace, member, and exact-key relationships", () => {
@@ -126,7 +127,11 @@ describe("v3 transient identity records", () => {
       },
     ];
     invalid.forEach((value, index) => {
-      expect(TransientIdentityRecordSchema.safeParse(value).success, `invalid case ${index}`).toBe(false);
+      try {
+        assertSchemaRefuses(TransientIdentityRecordSchema, value);
+      } catch (error) {
+        throw new Error(`invalid case ${index}`, { cause: error });
+      }
     });
     expect(deserializeTransientIdentityRecord(JSON.stringify(ordinary()), "different-key"))
       .toMatchObject({ kind: "key-mismatch" });

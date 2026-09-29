@@ -6,7 +6,15 @@ import { leaveOrdinaryErrand } from "../../../src/lib/errand/leave.js";
 import { TransientIdentityRecordV3Schema } from "../../../src/lib/errand/identity-record.js";
 import type { OrdinaryErrandRecord, PauseHeadEvidence } from "../../../src/lib/errand/identity-transitions.js";
 
-const record = TransientIdentityRecordV3Schema.parse({
+function parseOrdinaryErrandRecord(value: unknown): OrdinaryErrandRecord {
+  const parsed = TransientIdentityRecordV3Schema.parse(value);
+  if (parsed.kind !== "errand" || parsed.purpose !== "errand") {
+    throw new Error("expected an ordinary Errand record");
+  }
+  return parsed;
+}
+
+const record = parseOrdinaryErrandRecord({
   version: 3,
   kind: "errand",
   slug: "fix-output",
@@ -21,7 +29,7 @@ const record = TransientIdentityRecordV3Schema.parse({
   changeRequest: null,
   createdAt: "2026-07-18T00:00:00.000Z",
   updatedAt: "2026-07-18T00:00:00.000Z",
-}) as OrdinaryErrandRecord;
+});
 
 describe("leaveOrdinaryErrand", () => {
   it("persists an exact pause before restoring the parent and popping occupancy", async () => {

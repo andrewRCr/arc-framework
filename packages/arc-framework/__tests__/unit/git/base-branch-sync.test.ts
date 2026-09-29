@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   analyzeBaseBranchSnapshot,
@@ -640,7 +641,7 @@ describe("BaseBranchSyncStatusResultSchema", () => {
     { state: "no-remote", ahead: 0, behind: 0 },
     { state: "remote-unavailable", ahead: 0, behind: 0, failureReason: "timeout" },
   ])("accepts producer state $state", (state) => {
-    expect(BaseBranchSyncStatusResultSchema.safeParse({ ...base, ...state }).success).toBe(true);
+    assertSchemaAccepts(BaseBranchSyncStatusResultSchema, { ...base, ...state });
   });
 
   it.each([
@@ -649,7 +650,7 @@ describe("BaseBranchSyncStatusResultSchema", () => {
     { kind: "elsewhere", path: "/primary", primary: false },
     { kind: "unknown" },
   ])("accepts checkout locus $kind", (checkout) => {
-    expect(BaseCheckoutLocusSchema.safeParse(checkout).success).toBe(true);
+    assertSchemaAccepts(BaseCheckoutLocusSchema, checkout);
   });
 
   it.each([
@@ -662,7 +663,7 @@ describe("BaseBranchSyncStatusResultSchema", () => {
     { state: "clean", ahead: 0, behind: 0, failureReason: "error" },
     { state: "detached-head", ahead: 0, behind: 0 },
   ])("rejects inconsistent state fields", (state) => {
-    expect(BaseBranchSyncStatusResultSchema.safeParse({ ...base, ...state }).success).toBe(false);
+    assertSchemaRefuses(BaseBranchSyncStatusResultSchema, { ...base, ...state });
   });
 
   it.each([
@@ -671,6 +672,6 @@ describe("BaseBranchSyncStatusResultSchema", () => {
     { kind: "elsewhere", path: "/repo" },
     { kind: "unknown", primary: false },
   ])("rejects invalid checkout fields", (checkout) => {
-    expect(BaseCheckoutLocusSchema.safeParse(checkout).success).toBe(false);
+    assertSchemaRefuses(BaseCheckoutLocusSchema, checkout);
   });
 });

@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import { assertRecoverAuditReport, RecoverAuditReportSchema } from "../../../src/lib/recover/report.js";
 import { RecoveryAuditStopKindSchema } from "../../../src/lib/recover/audit.js";
@@ -130,7 +131,7 @@ describe("recovery-audit report schema", () => {
       parentCheckoutPath: "/repo",
     };
     (value.verdict as Record<string, unknown>).locusHint = null;
-    expect(RecoverAuditReportSchema.safeParse(value).success).toBe(false);
+    assertSchemaRefuses(RecoverAuditReportSchema, value);
   });
 
   it("rejects a ready locus comparison that does not match its seed hint", () => {
@@ -145,7 +146,7 @@ describe("recovery-audit report schema", () => {
       actual: hint,
       match: true,
     };
-    expect(RecoverAuditReportSchema.safeParse(value).success).toBe(false);
+    assertSchemaRefuses(RecoverAuditReportSchema, value);
   });
 
   it("accepts a valid early-stop report with no seed or recovery envelope", () => {
@@ -153,53 +154,39 @@ describe("recovery-audit report schema", () => {
   });
 
   it("rejects undeclared root keys and malformed seed summaries", () => {
-    expect(
-      RecoverAuditReportSchema.safeParse({
+    assertSchemaRefuses(RecoverAuditReportSchema, {
         ...earlyStop(),
         undeclared: true,
-      }).success,
-    ).toBe(false);
-    expect(
-      RecoverAuditReportSchema.safeParse({
+      });
+    assertSchemaRefuses(RecoverAuditReportSchema, {
         ...report("ready"),
         seed: { ...(report("ready").seed as object), schemaVersion: 2 },
-      }).success,
-    ).toBe(false);
+      });
   });
 
   it("rejects ready reports without complete live state", () => {
-    expect(
-      RecoverAuditReportSchema.safeParse({
+    assertSchemaRefuses(RecoverAuditReportSchema, {
         ...readyReport(),
         recover: null,
-      }).success,
-    ).toBe(false);
-    expect(
-      RecoverAuditReportSchema.safeParse({
+      });
+    assertSchemaRefuses(RecoverAuditReportSchema, {
         ...readyReport(),
         seed: null,
-      }).success,
-    ).toBe(false);
-    expect(
-      RecoverAuditReportSchema.safeParse({
+      });
+    assertSchemaRefuses(RecoverAuditReportSchema, {
         ...readyReport(),
         seedPath: null,
-      }).success,
-    ).toBe(false);
+      });
   });
 
   it("rejects contradictory early and progressed report state", () => {
-    expect(
-      RecoverAuditReportSchema.safeParse({
+    assertSchemaRefuses(RecoverAuditReportSchema, {
         ...earlyStop(),
         recover: report("ready").recover,
-      }).success,
-    ).toBe(false);
-    expect(
-      RecoverAuditReportSchema.safeParse({
+      });
+    assertSchemaRefuses(RecoverAuditReportSchema, {
         ...earlyStop(),
         seed: report("ready").seed,
-      }).success,
-    ).toBe(false);
+      });
   });
 });

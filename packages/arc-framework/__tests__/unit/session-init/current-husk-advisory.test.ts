@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   CurrentHuskAdvisorySchema,
@@ -40,7 +41,7 @@ describe("deriveCurrentHuskAdvisory", () => {
   it("parses the legacy advisory emitted by the producer", () => {
     const result = derive();
     expect(result).not.toBeNull();
-    expect(CurrentHuskAdvisorySchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(CurrentHuskAdvisorySchema, result);
   });
 
   it("parses a current Git-transition advisory emitted by the producer", () => {
@@ -55,12 +56,12 @@ describe("deriveCurrentHuskAdvisory", () => {
       },
     } });
     expect(result?.stamp.kind).toBe("current");
-    expect(CurrentHuskAdvisorySchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(CurrentHuskAdvisorySchema, result);
     if (result?.stamp.kind !== "current") throw new Error("expected current stamp");
-    expect(CurrentHuskAdvisorySchema.safeParse({
+    assertSchemaRefuses(CurrentHuskAdvisorySchema, {
       ...result,
       stamp: { ...result.stamp, evidence: { ...result.stamp.evidence, resultDigest: "invalid" } },
-    }).success).toBe(false);
+    });
   });
 
   it("parses a current shipped advisory emitted by the producer", () => {
@@ -78,12 +79,12 @@ describe("deriveCurrentHuskAdvisory", () => {
       },
     } });
     expect(result?.stamp.kind).toBe("current");
-    expect(CurrentHuskAdvisorySchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(CurrentHuskAdvisorySchema, result);
     if (result?.stamp.kind !== "current") throw new Error("expected current stamp");
-    expect(CurrentHuskAdvisorySchema.safeParse({
+    assertSchemaRefuses(CurrentHuskAdvisorySchema, {
       ...result,
       stamp: { ...result.stamp, evidence: { ...result.stamp.evidence, resultDigest: "invalid" } },
-    }).success).toBe(false);
+    });
   });
 
   it("parses a manual-only advisory emitted by the producer", () => {
@@ -92,7 +93,7 @@ describe("deriveCurrentHuskAdvisory", () => {
       marker: { ...stampedMarker.marker, husk: { ...stampedMarker.marker.husk!, authorization: "future-policy" } },
     } });
     expect(result?.stamp.kind).toBe("manual-only");
-    expect(CurrentHuskAdvisorySchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(CurrentHuskAdvisorySchema, result);
   });
 
   it("names an undeclared current-husk field", () => {

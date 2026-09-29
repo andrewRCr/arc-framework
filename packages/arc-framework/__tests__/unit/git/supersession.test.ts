@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   analyzeSupersessionSnapshot,
@@ -56,7 +57,7 @@ describe("detectSupersession", () => {
     const result = await detectSupersession({ exec, branch: "feat/x" });
 
     expect(result.superseded).toBe(true);
-    expect(SupersessionResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(SupersessionResultSchema, result);
     expect(result.supersededCommits).toEqual([
       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -158,10 +159,10 @@ describe("analyzeSupersessionSnapshot", () => {
       novelCommits: [],
       remoteEvidence: "exact",
     });
-    expect(SupersessionSnapshotAnalysisResultSchema.safeParse(result).success).toBe(true);
-    expect(SupersessionSnapshotAnalysisResultSchema.safeParse({
+    assertSchemaAccepts(SupersessionSnapshotAnalysisResultSchema, result);
+    assertSchemaRefuses(SupersessionSnapshotAnalysisResultSchema, {
       ...result, unexpected: true,
-    }).success).toBe(false);
+    });
   });
 
   it("refuses a supersession verdict when local history is shallow", async () => {
@@ -195,10 +196,10 @@ describe("analyzeSupersessionSnapshot", () => {
       novelCommits: [],
       remoteEvidence: "pending-fetch",
     });
-    expect(SupersessionSnapshotAnalysisResultSchema.safeParse(result).success).toBe(true);
-    expect(SupersessionSnapshotAnalysisResultSchema.safeParse({
+    assertSchemaAccepts(SupersessionSnapshotAnalysisResultSchema, result);
+    assertSchemaRefuses(SupersessionSnapshotAnalysisResultSchema, {
       ...result, superseded: true,
-    }).success).toBe(false);
+    });
   });
 
   it("uses the upstream branch name when a local tracking branch was renamed", async () => {
@@ -238,7 +239,7 @@ describe("analyzeSupersessionSnapshot", () => {
       remoteEvidence: "unreachable",
       failureReason: "network",
     });
-    expect(SupersessionSnapshotAnalysisResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(SupersessionSnapshotAnalysisResultSchema, result);
   });
 
   it("preserves exact branch absence from a complete snapshot", async () => {
@@ -258,7 +259,7 @@ describe("analyzeSupersessionSnapshot", () => {
       novelCommits: [],
       remoteEvidence: "exact",
     });
-    expect(SupersessionSnapshotAnalysisResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(SupersessionSnapshotAnalysisResultSchema, result);
   });
 
   it("refuses analysis when advertised commit availability is unavailable", async () => {
@@ -324,7 +325,7 @@ describe("analyzeSupersessionSnapshot", () => {
 describe("emptySupersessionResult", () => {
   it("parses the not-needed result emitted by the session probe", () => {
     const result = emptySupersessionResult();
-    expect(SupersessionResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(SupersessionResultSchema, result);
     expect(() => SupersessionResultSchema.parse({ ...result, unexpected: true })).toThrow(/unexpected/u);
   });
 });

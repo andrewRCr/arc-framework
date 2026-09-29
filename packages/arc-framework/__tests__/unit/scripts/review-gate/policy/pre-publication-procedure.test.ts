@@ -2,6 +2,7 @@
 
 import { Ajv2020, type AnySchema } from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../../../helpers/schema-assertion.js";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/canonical/canonical-json.js";
 import { CanonicalDigestSchema, createKernelRegistry } from "../../../../../src/lib/kernel/index.js";
@@ -226,7 +227,7 @@ describe("integration boundary locus", () => {
       },
     };
 
-    expect(IntegrationBoundaryLocusSchema.safeParse(legacy).success).toBe(false);
+    assertSchemaRefuses(IntegrationBoundaryLocusSchema, legacy);
     expect(parseIntegrationBoundaryLocus(legacy)).toMatchObject({
       locus: "delivery-status-required",
       nextAction: {
@@ -260,10 +261,10 @@ describe("integration boundary locus", () => {
       }),
       deliveryReviewTermini: [memberTerminus],
     });
-    expect(IntegrationBoundaryLocusSchema.safeParse({
+    assertSchemaRefuses(IntegrationBoundaryLocusSchema, {
       ...source,
       deliveryReviewTermini: [memberTerminus, memberTerminus],
-    }).success).toBe(false);
+    });
     const deliveryContinuation = {
       schemaVersion: 1 as const,
       semanticsVersion: "delivery-public-review-continuation/v1" as const,
@@ -426,7 +427,7 @@ describe("integration boundary locus", () => {
     "continue-standard-review",
     "respond-to-findings",
   ])("rejects removed next-action kind %s", (kind) => {
-    expect(IntegrationBoundaryLocusSchema.safeParse({
+    assertSchemaRefuses(IntegrationBoundaryLocusSchema, {
       ...projectCandidateReviewBoundary({
         workUnit: "example",
         candidateId: `sha256:${"c".repeat(64)}`,
@@ -436,7 +437,7 @@ describe("integration boundary locus", () => {
         command: "arc review pre-publication example",
         interactionText: "Continue review.",
       },
-    }).success).toBe(false);
+    });
   });
 
   it("rejects hosted-review actions that disagree with the reservation target kind", () => {
@@ -448,7 +449,7 @@ describe("integration boundary locus", () => {
       changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
     });
 
-    expect(IntegrationBoundaryLocusSchema.safeParse({
+    assertSchemaRefuses(IntegrationBoundaryLocusSchema, {
       ...singleton,
       nextAction: {
         kind: "continue-hosted-review",
@@ -456,7 +457,7 @@ describe("integration boundary locus", () => {
         command: "arc review status --work-unit example",
         interactionText: "Resume hosted review.",
       },
-    }).success).toBe(false);
+    });
 
     const delivery = projectPublicationBoundary({
       workUnit: "example",
@@ -465,14 +466,14 @@ describe("integration boundary locus", () => {
       reservation: deliveryReservation(),
       changeRequest: { repository: "arc-framework/example", pullRequest: 42 },
     });
-    expect(IntegrationBoundaryLocusSchema.safeParse({
+    assertSchemaRefuses(IntegrationBoundaryLocusSchema, {
       ...delivery,
       nextAction: {
         kind: "continue-pre-publication-review",
         command: "arc review pre-publication example",
         interactionText: "Continue review.",
       },
-    }).success).toBe(false);
+    });
   });
 
   it("rejects a deferred reservation outside candidate publish readiness", () => {
@@ -509,7 +510,7 @@ describe("integration boundary locus", () => {
   });
 
   it("rejects a convergence boundary without exact post-attest continuation", () => {
-    expect(IntegrationBoundaryLocusSchema.safeParse({
+    assertSchemaRefuses(IntegrationBoundaryLocusSchema, {
       ...projectCandidateReviewBoundary({
         workUnit: "example",
         candidateId: `sha256:${"c".repeat(64)}`,
@@ -521,7 +522,7 @@ describe("integration boundary locus", () => {
         command: "arc attest example --json",
         interactionText: "Run convergence verification.",
       },
-    }).success).toBe(false);
+    });
   });
 
   it("keeps initial Candidate review entry free of reviewed-head continuation evidence", () => {
@@ -760,7 +761,7 @@ describe("projectPrePublicationReview", () => {
         headSha: exact.headSha,
       },
     };
-    expect(ContinuePrePublicationActionSchema.safeParse({
+    assertSchemaRefuses(ContinuePrePublicationActionSchema, {
       kind: "continue-pre-publication-review",
       command: "arc review frontline resolve -",
       request: initialRequest,
@@ -769,26 +770,26 @@ describe("projectPrePublicationReview", () => {
         invocation: { mode: "force", sourceId: "another-source" },
       },
       interactionText: "Continue frontline review.",
-    }).success).toBe(false);
+    });
   });
 
   it("rejects impossible convergence status and scope pairs", () => {
-    expect(PrePublicationReviewRequestSchema.safeParse(request({
+    assertSchemaRefuses(PrePublicationReviewRequestSchema, request({
       candidate: {
         subjectDigest: SUBJECT_DIGEST,
         implementationChanged: true,
         convergenceVerification: "satisfied",
         convergenceScope: "focused",
       },
-    })).success).toBe(false);
-    expect(PrePublicationReviewRequestSchema.safeParse(request({
+    }));
+    assertSchemaRefuses(PrePublicationReviewRequestSchema, request({
       candidate: {
         subjectDigest: SUBJECT_DIGEST,
         implementationChanged: true,
         convergenceVerification: "pending",
         convergenceScope: null,
       },
-    })).success).toBe(false);
+    }));
   });
 
   it("carries the exact target through to every locus that routes to an exact-target operation", () => {
@@ -811,7 +812,7 @@ describe("projectPrePublicationReview", () => {
     expect(settled.target).toEqual(exact);
     // The boundary is keyed to the reviewable subject; a live target would go stale under it.
     expect(prePublicationBoundary(settled)).not.toHaveProperty("target");
-    expect(IntegrationBoundaryLocusSchema.safeParse(prePublicationBoundary(settled)).success).toBe(true);
+    assertSchemaAccepts(IntegrationBoundaryLocusSchema, prePublicationBoundary(settled));
   });
 
   it("projects a null exact target when the checkout could not compose one", () => {
@@ -1240,7 +1241,7 @@ describe("projectPrePublicationReview", () => {
 
   it("binds convergence kind, argv, and displayed command with a valid post-attest continuation", () => {
     const action = createRunConvergenceVerificationAction("example", "focused", postAttestContinuation);
-    expect(RunConvergenceVerificationActionSchema.safeParse(action).success).toBe(true);
+    assertSchemaAccepts(RunConvergenceVerificationActionSchema, action);
     for (const invalid of [
       { ...action, verificationKind: "tier-3" },
       { ...action, requiredScope: "full" },
@@ -1248,12 +1249,12 @@ describe("projectPrePublicationReview", () => {
       { ...action, attestArgv: [...action.attestArgv.slice(0, 6), "invented-evidence", "--json"] },
       { ...action, command: "arc attest example --scope full --verification-evidence-ref ref --json" },
     ]) {
-      expect(RunConvergenceVerificationActionSchema.safeParse(invalid).success).toBe(false);
+      assertSchemaRefuses(RunConvergenceVerificationActionSchema, invalid);
     }
   });
 
   it("rejects a convergence action for another boundary work unit", () => {
-    expect(CandidateConvergenceBoundarySchema.safeParse({
+    assertSchemaRefuses(CandidateConvergenceBoundarySchema, {
       schemaVersion: 1,
       mode: "pre-publication-review",
       workUnit: "example",
@@ -1265,7 +1266,7 @@ describe("projectPrePublicationReview", () => {
       nextAction: createRunConvergenceVerificationAction("other", "focused", postAttestContinuation),
       policy: null,
       reservation: null,
-    }).success).toBe(false);
+    });
   });
 
   it("submits a converged implementation-changing lineage after full verification", () => {
@@ -1388,8 +1389,15 @@ describe("projectPrePublicationReview", () => {
       accepted: false,
     }];
     for (const example of corpus) {
-      expect(PrePublicationReviewEnvelopeSchema.safeParse(example.value).success, `${example.label}: runtime`)
-        .toBe(example.accepted);
+      try {
+        if (example.accepted) {
+          assertSchemaAccepts(PrePublicationReviewEnvelopeSchema, example.value);
+        } else {
+          assertSchemaRefuses(PrePublicationReviewEnvelopeSchema, example.value);
+        }
+      } catch (error) {
+        throw new Error(`${example.label}: runtime schema verdict failed`, { cause: error });
+      }
       expect(projected(example.value), `${example.label}: ${JSON.stringify(projected.errors)}`)
         .toBe(example.accepted);
     }

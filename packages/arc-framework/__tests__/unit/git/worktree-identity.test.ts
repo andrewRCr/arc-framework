@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { assertSchemaAccepts } from "../../helpers/schema-assertion.js";
 
 import { WorktreeIdentitySchema, resolveWorktreeIdentity } from "../../../src/lib/git/worktree-identity.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/index.js";
@@ -36,7 +37,7 @@ describe("resolveWorktreeIdentity", () => {
     const identity = await resolveWorktreeIdentity(exec);
 
     expect(identity).toEqual({ kind: "primary" });
-    expect(WorktreeIdentitySchema.safeParse(identity).success).toBe(true);
+    assertSchemaAccepts(WorktreeIdentitySchema, identity);
     // No path lookup needed once primary is established.
     expect(calls.some((c) => c.args.includes("--show-toplevel"))).toBe(false);
   });
@@ -51,7 +52,7 @@ describe("resolveWorktreeIdentity", () => {
     const identity = await resolveWorktreeIdentity(exec);
 
     expect(identity).toEqual({ kind: "linked", path: "/Users/dev/arc-wu-b" });
-    expect(WorktreeIdentitySchema.safeParse(identity).success).toBe(true);
+    assertSchemaAccepts(WorktreeIdentitySchema, identity);
   });
 
   it("performs no fetch/network call — detection is local rev-parse only", async () => {

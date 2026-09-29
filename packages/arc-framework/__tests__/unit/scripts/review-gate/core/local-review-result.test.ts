@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../../../helpers/schema-assertion.js";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import {
@@ -72,7 +73,7 @@ describe("local review result normalization", () => {
       repositoryId: undefined,
     };
 
-    expect(NormalizedLocalReviewResultSchema.safeParse(withoutRepository).success).toBe(false);
+    assertSchemaRefuses(NormalizedLocalReviewResultSchema, withoutRepository);
   });
 
   it("assigns capture ordinals without treating opaque evidence references as labels", () => {
@@ -108,15 +109,15 @@ describe("local review result normalization", () => {
       locus: "src/one.ts:1",
       evidenceUrlOrId: "opaque:one",
     };
-    expect(LocalReviewEvaluatorResultSchema.safeParse({
+    assertSchemaRefuses(LocalReviewEvaluatorResultSchema, {
       ...evaluatorResult,
       result: "findings",
       findings: [{ ...finding, sourceOrdinal: 1 }],
-    }).success).toBe(false);
-    expect(LocalReviewEvaluatorResultSchema.safeParse({
+    });
+    assertSchemaRefuses(LocalReviewEvaluatorResultSchema, {
       ...evaluatorResult,
       result: "findings",
       findings: [{ ...finding, sourceLabel: "Invented label" }],
-    }).success).toBe(false);
+    });
   });
 });

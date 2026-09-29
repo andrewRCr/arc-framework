@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   DeliveryPlanV1Schema,
@@ -77,7 +78,7 @@ function state(): Record<string, unknown> {
 
 describe("DeliveryStateV1Schema", () => {
   it("accepts exact current coordinates and rejects copied authority or history fields", () => {
-    expect(DeliveryStateV1Schema.safeParse(state()).success).toBe(true);
+    assertSchemaAccepts(DeliveryStateV1Schema, state());
     for (const field of [
       "providerStatus",
       "providerCapability",
@@ -86,7 +87,7 @@ describe("DeliveryStateV1Schema", () => {
       "gateResult",
       "generation",
     ] as const) {
-      expect(DeliveryStateV1Schema.safeParse({ ...state(), [field]: "copied" }).success).toBe(false);
+      assertSchemaRefuses(DeliveryStateV1Schema, { ...state(), [field]: "copied" });
     }
   });
 
@@ -98,7 +99,7 @@ describe("DeliveryStateV1Schema", () => {
     member!.ref = null;
     member!.changeRequest = null;
     member!.coordinates = null;
-    expect(DeliveryStateV1Schema.safeParse(tornDown).success).toBe(true);
+    assertSchemaAccepts(DeliveryStateV1Schema, tornDown);
   });
 
   it("requires a plan-ordered verification set that includes the selected member", () => {
@@ -109,27 +110,27 @@ describe("DeliveryStateV1Schema", () => {
       memberDeliverableIds: [selected!, dependent!],
     };
 
-    expect(DeliveryStateV1Schema.safeParse({
+    assertSchemaAccepts(DeliveryStateV1Schema, {
       ...current,
       pendingReviewFixVerification: pending,
-    }).success).toBe(true);
-    expect(DeliveryStateV1Schema.safeParse({
+    });
+    assertSchemaAccepts(DeliveryStateV1Schema, {
       ...current,
       pendingReviewFixVerification: {
         selectedDeliverableId: terminal!,
         memberDeliverableIds: [terminal!],
       },
-    }).success).toBe(true);
+    });
     for (const memberDeliverableIds of [
       [dependent!, selected!],
       [selected!, selected!],
       [dependent!],
       [selected!, `sha256:${"f".repeat(64)}`],
     ]) {
-      expect(DeliveryStateV1Schema.safeParse({
+      assertSchemaRefuses(DeliveryStateV1Schema, {
         ...current,
         pendingReviewFixVerification: { ...pending, memberDeliverableIds },
-      }).success).toBe(false);
+      });
     }
   });
 });

@@ -31,6 +31,7 @@ import {
 } from "../../../src/lib/kernel/index.js";
 import {
   DeliveryPlanAuthoringInputV1Schema,
+  DeliveryPlanIdSchema,
   type DeliveryPlanV1,
   type DeliveryStateV1,
 } from "../../../src/lib/delivery/schema.js";
@@ -230,7 +231,7 @@ class MemoryPlanStore implements DeliveryPlanStore<DeliveryPlanV1> {
     this.current = plan;
     return {
       status: "ok" as const,
-      value: { currentDigest: plan.planDigest as CanonicalDigest },
+      value: { currentDigest: plan.planDigest },
     };
   }
 
@@ -243,13 +244,13 @@ class MemoryPlanStore implements DeliveryPlanStore<DeliveryPlanV1> {
     this.events.push("publish");
     if (this.refusePublication) return { status: "refused" as const, reason: "version-conflict" as const };
     if (this.current?.planDigest === plan.planDigest) {
-      return { status: "ok" as const, value: { currentDigest: plan.planDigest as CanonicalDigest } };
+      return { status: "ok" as const, value: { currentDigest: plan.planDigest } };
     }
     if ((this.current?.planDigest ?? null) !== expectedCurrentDigest) {
       return { status: "refused" as const, reason: "version-conflict" as const };
     }
     this.current = plan;
-    return { status: "ok" as const, value: { currentDigest: plan.planDigest as CanonicalDigest } };
+    return { status: "ok" as const, value: { currentDigest: plan.planDigest } };
   }
 
   async removeCurrent(planId: string, expectedCurrentDigest: CanonicalDigest) {
@@ -365,7 +366,7 @@ function amendedFixture(
   current: DeliveryPlanV1,
   memberPatch: Partial<DeliveryCompositionProjection["authoring"]["members"][number]>,
 ) {
-  const value = fixture(current.planDigest as CanonicalDigest, current.members.length === 1 ? 1 : 2);
+  const value = fixture(current.planDigest, current.members.length === 1 ? 1 : 2);
   const slots = DeliveryAuthoringSlotsV1Schema.parse({
     ...value.slots,
     members: value.slots.members.map((member) => ({ ...member, ...memberPatch })),
@@ -476,7 +477,7 @@ describe("delivery plan publication orchestration", () => {
     const first = plans.current;
     if (first === null) throw new Error("expected first plan");
 
-    const other = { ...first, planId: OTHER_PLAN_ID as typeof first.planId };
+    const other = { ...first, planId: DeliveryPlanIdSchema.parse(OTHER_PLAN_ID) };
     const conflictingPlans = new MemoryPlanStore(other);
     const conflictValue = fixture();
     await expect(composer(
@@ -488,7 +489,7 @@ describe("delivery plan publication orchestration", () => {
       reason: "plan-already-exists",
     });
 
-    const successorValue = fixture(first.planDigest as CanonicalDigest);
+    const successorValue = fixture(first.planDigest);
     const successorAuthoring = new MemoryAuthoringStore(successorValue.record);
     await expect(composer(successorAuthoring, plans, new MemoryRenderer()).compose(input(successorValue)))
       .resolves.toMatchObject({
@@ -539,7 +540,7 @@ describe("delivery plan publication orchestration", () => {
     const renderer = new MemoryRenderer();
     await expect(composer(authoring, plans, renderer, states).compose({
       ...input(successor),
-      landedDeliverableIds: [first.members[0]!.deliverableId as CanonicalDigest],
+      landedDeliverableIds: [first.members[0]!.deliverableId],
     })).resolves.toEqual({ status: "refused", reason: "landed-member-changed" });
     expect(authoring.calls).toEqual([]);
     expect(renderer.calls).toEqual([]);

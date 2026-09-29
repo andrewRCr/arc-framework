@@ -7,6 +7,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import { ReleaseRoutingValueSchema, resolveReleaseRouting } from "../../../src/lib/release/routing.js";
 
@@ -19,7 +20,7 @@ const ROUTING_COMBINATIONS = [false, true].flatMap((releaseOptedIn) =>
 describe("ReleaseRoutingValueSchema", () => {
   it.each(ROUTING_COMBINATIONS)("parses producer output for $releaseOptedIn/$commitInterlock/$pushInterlock", (input) => {
     const result = resolveReleaseRouting(input);
-    expect(ReleaseRoutingValueSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(ReleaseRoutingValueSchema, result);
   });
 
   it.each([
@@ -27,7 +28,7 @@ describe("ReleaseRoutingValueSchema", () => {
     { commitInterlock: "manual", pushInterlock: "future-push" },
   ])("parses safe-default routing with unknown $commitInterlock/$pushInterlock", (interlocks) => {
     const result = resolveReleaseRouting({ releaseOptedIn: true, ...interlocks });
-    expect(ReleaseRoutingValueSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(ReleaseRoutingValueSchema, result);
   });
 
   it("refuses a wrong-typed rationale field", () => {
@@ -72,7 +73,7 @@ describe("ReleaseRoutingValueSchema", () => {
       const result = resolveReleaseRouting({
         releaseOptedIn: true, commitInterlock: "manual", pushInterlock: "manual",
       });
-      expect(ReleaseRoutingValueSchema.safeParse({ ...result, [key]: "maybe" }).success).toBe(false);
+      assertSchemaRefuses(ReleaseRoutingValueSchema, { ...result, [key]: "maybe" });
     },
   );
 });

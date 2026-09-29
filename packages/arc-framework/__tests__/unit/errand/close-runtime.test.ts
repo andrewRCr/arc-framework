@@ -19,6 +19,14 @@ import * as identityTransaction from "../../../src/lib/errand/identity-transacti
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
+function parseOrdinaryErrandRecord(value: unknown): OrdinaryErrandRecord {
+  const parsed = TransientIdentityRecordV3Schema.parse(value);
+  if (parsed.kind !== "errand" || parsed.purpose !== "errand") {
+    throw new Error("expected an ordinary Errand record");
+  }
+  return parsed;
+}
+
 const EXPECTED = "a".repeat(40);
 const MOVED = "b".repeat(40);
 
@@ -27,7 +35,7 @@ function gitError(command: string, args: readonly string[], message: string, exi
 }
 
 function awaiting(): OrdinaryErrandRecord {
-  return TransientIdentityRecordV3Schema.parse({
+  return parseOrdinaryErrandRecord({
     version: 3,
     slug: "done",
     claimId: "c".repeat(32),
@@ -48,11 +56,11 @@ function awaiting(): OrdinaryErrandRecord {
       headRef: "chore/done",
       headSha: EXPECTED,
     },
-  }) as OrdinaryErrandRecord;
+  });
 }
 
 function open(): OrdinaryErrandRecord {
-  return TransientIdentityRecordV3Schema.parse({
+  return parseOrdinaryErrandRecord({
     version: 3,
     slug: "done",
     claimId: "c".repeat(32),
@@ -67,7 +75,7 @@ function open(): OrdinaryErrandRecord {
     state: "open",
     savedHead: null,
     changeRequest: null,
-  }) as OrdinaryErrandRecord;
+  });
 }
 
 /** The close target an awaiting record produces: its own recorded change request. */

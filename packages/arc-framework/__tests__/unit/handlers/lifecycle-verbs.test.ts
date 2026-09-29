@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   createStandardReviewReservation,
@@ -1749,15 +1750,15 @@ describe("handleAttest", () => {
   };
   it("defaults convergence scope to full and rejects malformed scope or evidence", () => {
     expect(AttestCommandInputSchema.parse({ name: "foo" })).toMatchObject({ scope: "full" });
-    expect(AttestCommandInputSchema.safeParse({ name: "foo", scope: "broad" }).success).toBe(false);
-    expect(AttestCommandInputSchema.safeParse({
+    assertSchemaRefuses(AttestCommandInputSchema, { name: "foo", scope: "broad" });
+    assertSchemaRefuses(AttestCommandInputSchema, {
       name: "foo",
       verificationEvidenceRef: " ",
-    }).success).toBe(false);
-    expect(AttestCommandInputSchema.safeParse({
+    });
+    assertSchemaRefuses(AttestCommandInputSchema, {
       name: "foo",
       verificationEvidenceRef: "{verificationEvidenceRef}",
-    }).success).toBe(false);
+    });
   });
 
   it("emits one typed JSON refusal when identity resolution fails", async () => {

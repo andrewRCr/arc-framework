@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../../helpers/schema-assertion.js";
 
 import {
   createReviewTarget,
@@ -184,14 +185,14 @@ describe("resolvePlanningGroomingReviewCommand", () => {
   });
 
   it("keeps runtime-owned routing facts out of the public request", () => {
-    expect(ReviewPlanningGroomingResolveRequestSchema.safeParse({
+    assertSchemaRefuses(ReviewPlanningGroomingResolveRequestSchema, {
       ...request,
       routingFacts: {
         ...request.routingFacts,
         changeSetState: "known",
       },
-    }).success).toBe(false);
-    expect(ReviewPlanningGroomingResolveRequestSchema.safeParse(request).success).toBe(true);
+    });
+    assertSchemaAccepts(ReviewPlanningGroomingResolveRequestSchema, request);
   });
 
   it.each([

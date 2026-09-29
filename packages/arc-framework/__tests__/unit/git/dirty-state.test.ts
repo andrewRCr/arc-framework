@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { assertSchemaAccepts } from "../../helpers/schema-assertion.js";
 
 import { DirtyStateResultSchema, runDirtyStateStatus } from "../../../src/lib/git/dirty-state.js";
 import { scriptGitExec } from "../../helpers/git-exec-fake.js";
@@ -23,7 +24,7 @@ describe("runDirtyStateStatus", () => {
   ] as const)("parses producer output in the %s case", async (porcelain, state) => {
     const result = await runDirtyStateStatus({ exec: execWithPorcelain(porcelain) });
     expect(result.state).toBe(state);
-    expect(DirtyStateResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(DirtyStateResultSchema, result);
   });
 
   it("names an undeclared dirty-state field", async () => {

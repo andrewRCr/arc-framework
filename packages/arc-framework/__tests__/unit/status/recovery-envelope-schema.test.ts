@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   assertSessionRecoverProbeResult,
@@ -55,15 +56,15 @@ describe("lean recovery envelope schema", () => {
     "recoveryFrame",
     "loadSet",
   ])("requires the %s slot", (key) => {
-    expect(SessionRecoverProbeResultSchema.safeParse(withoutKey(recovery(), key)).success).toBe(false);
+    assertSchemaRefuses(SessionRecoverProbeResultSchema, withoutKey(recovery(), key));
   });
 
   it("rejects undeclared root keys and malformed mapped routing fields", () => {
-    expect(SessionRecoverProbeResultSchema.safeParse({ ...recovery(), undeclared: true }).success).toBe(false);
+    assertSchemaRefuses(SessionRecoverProbeResultSchema, { ...recovery(), undeclared: true });
 
     const invalidWorktree = recovery();
     (invalidWorktree.worktree as { value: { identity: { kind: string } } }).value.identity.kind = "other";
-    expect(SessionRecoverProbeResultSchema.safeParse(invalidWorktree).success).toBe(false);
+    assertSchemaRefuses(SessionRecoverProbeResultSchema, invalidWorktree);
   });
 
   it("rejects undeclared dirty-state fields at the recovery slot", () => {
@@ -103,10 +104,10 @@ describe("lean recovery envelope schema", () => {
       value: { remoteEvidence: string; failureReason?: string };
     };
     unreachableWorktree.value.remoteEvidence = "unreachable";
-    expect(SessionRecoverProbeResultSchema.safeParse(unreachableWithoutReason).success).toBe(false);
+    assertSchemaRefuses(SessionRecoverProbeResultSchema, unreachableWithoutReason);
 
     unreachableWorktree.value.failureReason = "network";
-    expect(SessionRecoverProbeResultSchema.safeParse(unreachableWithoutReason).success).toBe(true);
+    assertSchemaAccepts(SessionRecoverProbeResultSchema, unreachableWithoutReason);
 
     const exactWithReason = recovery();
     const exactWorktree = exactWithReason.worktree as {
@@ -114,20 +115,20 @@ describe("lean recovery envelope schema", () => {
     };
     exactWorktree.value.remoteEvidence = "exact";
     exactWorktree.value.failureReason = "auth";
-    expect(SessionRecoverProbeResultSchema.safeParse(exactWithReason).success).toBe(false);
+    assertSchemaRefuses(SessionRecoverProbeResultSchema, exactWithReason);
   });
 
   it("requires strategic cursors and permits cursor evidence for resolved integration", () => {
-    expect(SessionRecoverProbeResultSchema.safeParse(withoutKey(recovery(), "taskCursor")).success).toBe(false);
+    assertSchemaRefuses(SessionRecoverProbeResultSchema, withoutKey(recovery(), "taskCursor"));
 
     const noTask = recovery();
     delete noTask.taskCursor;
     const loadSet = noTask.loadSet as { value: { entries: Array<{ readMode: { kind: string } }> } };
     loadSet.value.entries = loadSet.value.entries.filter((entry) => entry.readMode.kind !== "partial-strategic");
-    expect(SessionRecoverProbeResultSchema.safeParse(noTask).success).toBe(true);
+    assertSchemaAccepts(SessionRecoverProbeResultSchema, noTask);
 
     noTask.taskCursor = recovery().taskCursor;
-    expect(SessionRecoverProbeResultSchema.safeParse(noTask).success).toBe(false);
+    assertSchemaRefuses(SessionRecoverProbeResultSchema, noTask);
 
     const integration = structuredClone(noTask);
     const recoveryFrame = integration.recoveryFrame as {
@@ -135,9 +136,9 @@ describe("lean recovery envelope schema", () => {
     };
     recoveryFrame.value.workflow = "integrate-work-unit";
     recoveryFrame.value.sessionType = "integration";
-    expect(SessionRecoverProbeResultSchema.safeParse(integration).success).toBe(true);
+    assertSchemaAccepts(SessionRecoverProbeResultSchema, integration);
 
     delete integration.taskCursor;
-    expect(SessionRecoverProbeResultSchema.safeParse(integration).success).toBe(true);
+    assertSchemaAccepts(SessionRecoverProbeResultSchema, integration);
   });
 });

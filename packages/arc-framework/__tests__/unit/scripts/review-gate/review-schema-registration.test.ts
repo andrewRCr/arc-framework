@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../../helpers/schema-assertion.js";
 import { z } from "zod";
 
 import {
@@ -209,7 +210,7 @@ describe("review schema registration", () => {
       expect(canonicalDigest(preimage)).toBe(targetId);
     }
 
-    expect(targetSchema.safeParse({
+    assertSchemaRefuses(targetSchema, {
       schemaVersion: 2,
       semanticsVersion: "review-gate/v2",
       kind: "delivery-slice",
@@ -220,7 +221,7 @@ describe("review schema registration", () => {
       headSha: "c".repeat(40),
       headTree: "d".repeat(40),
       targetId: canonicalDigest({ target: "unrecognized-kind" }),
-    }).success).toBe(false);
+    });
     expect(registry.meta("review-target")?.version).toBe(2);
     expect(registry.meta("review-target-id-preimage")?.version).toBe(2);
   });
@@ -250,22 +251,24 @@ describe("review schema registration", () => {
       target: coordinates,
       scopeSelection: { mode: "chunked", target: coordinates },
     })).toMatchObject({ scopeSelection: { mode: "chunked", target: coordinates } });
-    expect(ReviewChunkingResolveRequestSchema.safeParse({
+    assertSchemaRefuses(ReviewChunkingResolveRequestSchema, {
       schemaVersion: 1,
       target: coordinates,
       workUnitId: "delivery-stack-topology",
-    }).success).toBe(false);
-    expect(ReviewChunkingResolveRequestSchema.safeParse({
+    });
+    assertSchemaRefuses(ReviewChunkingResolveRequestSchema, {
       schemaVersion: 1,
       target,
-    }).success).toBe(false);
+    });
   });
 
   it("registers only caller-held coordinates for the two public exact-target requests", () => {
     const registry = createKernelRegistry();
     registerReviewDomainSchemas(registry);
     const frontlineResolve = registry.get("review-frontline-resolve-request");
-    expect(frontlineResolve).toBeDefined();
+    if (frontlineResolve === undefined) {
+      throw new Error("expected review-frontline-resolve-request to be registered");
+    }
     const coordinates = {
       kind: "change-set" as const,
       baseRef: "main",
@@ -313,7 +316,7 @@ describe("review schema registration", () => {
       invocation: { mode: "inherit", sourceId: "coderabbit-cli" },
       target: coordinates,
     };
-    expect(frontlineResolve?.safeParse(resolveRequest).success).toBe(true);
+    assertSchemaAccepts(frontlineResolve, resolveRequest);
     const member = {
       ...resolveRequest,
       target: { ...coordinates, kind: "delivery-member" },
@@ -325,12 +328,12 @@ describe("review schema registration", () => {
         head: coordinates.headSha,
       },
     };
-    expect(frontlineResolve?.safeParse(member).success).toBe(true);
-    expect(frontlineResolve?.safeParse({ ...member, vehicle: undefined }).success).toBe(false);
-    expect(frontlineResolve?.safeParse({ ...resolveRequest, maxPasses: 2 }).success).toBe(false);
-    expect(frontlineResolve?.safeParse({
+    assertSchemaAccepts(frontlineResolve, member);
+    assertSchemaRefuses(frontlineResolve, { ...member, vehicle: undefined });
+    assertSchemaRefuses(frontlineResolve, { ...resolveRequest, maxPasses: 2 });
+    assertSchemaRefuses(frontlineResolve, {
       ...resolveRequest, target: { ...coordinates, headTree: "d".repeat(40) },
-    }).success).toBe(false);
+    });
 
     expect(FrontlineRunRequestSchema.parse({
       schemaVersion: 1,
@@ -343,23 +346,23 @@ describe("review schema registration", () => {
       resolution,
       retryOfOperationId: `sha256:${"a".repeat(64)}`,
     })).toMatchObject({ retryOfOperationId: `sha256:${"a".repeat(64)}` });
-    expect(FrontlineRunRequestSchema.safeParse({
+    assertSchemaRefuses(FrontlineRunRequestSchema, {
       schemaVersion: 1,
       target: coordinates,
       resolution,
       retryOfOperationId: "previous-run",
-    }).success).toBe(false);
+    });
     for (const extra of [
       { repositoryId: "repo-1" },
       { diffBaseTree: "b".repeat(40) },
       { headTree: "d".repeat(40) },
       { targetId: `sha256:${"e".repeat(64)}` },
     ]) {
-      expect(FrontlineRunRequestSchema.safeParse({
+      assertSchemaRefuses(FrontlineRunRequestSchema, {
         schemaVersion: 1,
         target: { ...coordinates, ...extra },
         resolution,
-      }).success).toBe(false);
+      });
     }
   });
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   COMPACTION_SEED_SCHEMA_VERSION,
@@ -403,7 +404,7 @@ describe("CompactionSeed schema", () => {
 
   it("exposes the strict producer schema", () => {
     expect(CompactionSeedSchema.parse(seed())).toEqual(seed());
-    expect(CompactionSeedSchema.safeParse({ ...seed(), extra: true }).success).toBe(false);
+    assertSchemaRefuses(CompactionSeedSchema, { ...seed(), extra: true });
   });
 
   it("rejects blank task cursor anchors", () => {

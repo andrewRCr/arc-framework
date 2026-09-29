@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   analyzeWorktreeSnapshot,
@@ -106,13 +107,13 @@ describe("worktree snapshot schema", () => {
     } as Parameters<typeof analyzeWorktreeSnapshot>[0]);
     expect(result.state).toBe(state);
     expect(result.remoteEvidence).toBe(evidence);
-    expect(WorktreeSnapshotAnalysisResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(WorktreeSnapshotAnalysisResultSchema, result);
   });
 
   it("parses the legacy status producer and names an undeclared key", async () => {
     const { exec } = buildExec({ [REV_PARSE_HEAD]: { stdout: "main", stderr: "" } });
     const result = await runWorktreeSyncStatus({ exec, remoteSyncEnabled: false });
-    expect(WorktreeSyncStatusResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(WorktreeSyncStatusResultSchema, result);
     expect(() => WorktreeSyncStatusResultSchema.parse({ ...result, unexpected: true })).toThrow(/unexpected/u);
   });
 
@@ -130,16 +131,16 @@ describe("worktree snapshot schema", () => {
     const inapplicable = await analyzeWorktreeSnapshot({
       ...snapshotBase, exec, remoteSyncEnabled: false,
     } as Parameters<typeof analyzeWorktreeSnapshot>[0]);
-    expect(WorktreeSnapshotAnalysisResultSchema.safeParse({
+    assertSchemaRefuses(WorktreeSnapshotAnalysisResultSchema, {
       ...inapplicable, failureReason: "network",
-    }).success).toBe(false);
+    });
 
     const unreachable = await analyzeWorktreeSnapshot({
       ...snapshotBase, exec, snapshot: { kind: "unreachable", failureReason: "network" },
     } as Parameters<typeof analyzeWorktreeSnapshot>[0]);
     const withoutReason = structuredClone(unreachable) as Record<string, unknown>;
     delete withoutReason.failureReason;
-    expect(WorktreeSnapshotAnalysisResultSchema.safeParse(withoutReason).success).toBe(false);
+    assertSchemaRefuses(WorktreeSnapshotAnalysisResultSchema, withoutReason);
   });
 });
 

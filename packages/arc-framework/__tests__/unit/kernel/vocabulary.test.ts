@@ -1,4 +1,5 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 import { z } from "zod";
 
 import {
@@ -57,7 +58,11 @@ describe("kernel work-unit vocabulary", () => {
       `sha256:${"a".repeat(63)}`,
       "a".repeat(64),
     ]) {
-      expect(CanonicalDigestSchema.safeParse(value).success).toBe(isCanonicalDigest(value));
+      if (isCanonicalDigest(value)) {
+        assertSchemaAccepts(CanonicalDigestSchema, value);
+      } else {
+        assertSchemaRefuses(CanonicalDigestSchema, value);
+      }
     }
   });
 
@@ -67,7 +72,7 @@ describe("kernel work-unit vocabulary", () => {
       expectTypeOf(RemoteEvidenceSchema.parse(value)).toEqualTypeOf<RemoteEvidence>();
     }
     for (const invalid of ["pending", "offline", "unknown", "", null]) {
-      expect(RemoteEvidenceSchema.safeParse(invalid).success).toBe(false);
+      assertSchemaRefuses(RemoteEvidenceSchema, invalid);
     }
 
     for (const value of ["timeout", "network", "auth", "error"] as const) {
@@ -75,7 +80,7 @@ describe("kernel work-unit vocabulary", () => {
       expectTypeOf(RemoteFailureReasonSchema.parse(value)).toEqualTypeOf<RemoteFailureReason>();
     }
     for (const invalid of ["permission", "malformed", "offline", "", null]) {
-      expect(RemoteFailureReasonSchema.safeParse(invalid).success).toBe(false);
+      assertSchemaRefuses(RemoteFailureReasonSchema, invalid);
     }
   });
 
@@ -96,13 +101,13 @@ describe("kernel work-unit vocabulary", () => {
       failureReason: "network",
     });
 
-    expect(schema.safeParse({ state: "blocked", remoteEvidence: "unreachable" }).success).toBe(false);
+    assertSchemaRefuses(schema, { state: "blocked", remoteEvidence: "unreachable" });
     for (const remoteEvidence of ["exact", "pending-fetch", "not-applicable"] as const) {
-      expect(schema.safeParse({ state: "blocked", remoteEvidence, failureReason: "timeout" }).success).toBe(false);
-      expect(schema.safeParse({ state: "blocked", remoteEvidence, failureReason: undefined }).success).toBe(false);
+      assertSchemaRefuses(schema, { state: "blocked", remoteEvidence, failureReason: "timeout" });
+      assertSchemaRefuses(schema, { state: "blocked", remoteEvidence, failureReason: undefined });
     }
-    expect(schema.safeParse({ state: "ready", remoteEvidence: "exact", extra: true }).success).toBe(false);
-    expect(schema.safeParse({ remoteEvidence: "exact" }).success).toBe(false);
+    assertSchemaRefuses(schema, { state: "ready", remoteEvidence: "exact", extra: true });
+    assertSchemaRefuses(schema, { remoteEvidence: "exact" });
   });
 
   it("parses only the codified lifecycle states and preserves their order", () => {
@@ -112,7 +117,7 @@ describe("kernel work-unit vocabulary", () => {
       expectTypeOf(WorkUnitStateSchema.parse(state)).toEqualTypeOf<WorkUnitState>();
     }
     for (const invalid of ["In Progress", "Paused", "Complete", "Superseded", "active", "", " ", null]) {
-      expect(WorkUnitStateSchema.safeParse(invalid).success).toBe(false);
+      assertSchemaRefuses(WorkUnitStateSchema, invalid);
       expect(validateState(invalid)).toBe("unknown");
     }
     expect(WORK_UNIT_STATE_ORDER).toEqual({ Planning: 0, Active: 1, Integrating: 2, Shipped: 3 });
@@ -124,7 +129,7 @@ describe("kernel work-unit vocabulary", () => {
       expectTypeOf(WorkClassSchema.parse(value)).toEqualTypeOf<WorkClass>();
     }
     for (const invalid of ["light", "HEAVY", "[TBD]", "", null]) {
-      expect(WorkClassSchema.safeParse(invalid).success).toBe(false);
+      assertSchemaRefuses(WorkClassSchema, invalid);
     }
     expect(validateClass("  LIGHT  ")).toBe("Light");
     expect(validateClass("heavy")).toBe("Heavy");
@@ -139,7 +144,7 @@ describe("kernel work-unit vocabulary", () => {
       expectTypeOf(PrioritySchema.parse(value)).toEqualTypeOf<Priority>();
     }
     for (const invalid of ["p1", "P0", "P4", "", " P1 ", null]) {
-      expect(PrioritySchema.safeParse(invalid).success).toBe(false);
+      assertSchemaRefuses(PrioritySchema, invalid);
       expect(validatePriority(invalid)).toBe("P3");
     }
   });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   analyzeBaseDistanceSnapshot,
@@ -73,7 +74,7 @@ describe("snapshot-driven base distance", () => {
         objectAvailability,
         history: { kind: "complete" },
       });
-      expect(BaseDistanceSnapshotResultSchema.safeParse(result).success).toBe(true);
+      assertSchemaAccepts(BaseDistanceSnapshotResultSchema, result);
       const rejected = BaseDistanceSnapshotResultSchema.safeParse({ ...result, extraEvidence: true });
       expect(rejected.success).toBe(false);
       if (!rejected.success) expect(rejected.error.message).toContain("extraEvidence");
@@ -84,10 +85,10 @@ describe("snapshot-driven base distance", () => {
     "parses the %s not-applicable producer arm and refuses a crossed state",
     (state) => {
       const result = buildBaseDistanceNotApplicable(state, "main");
-      expect(BaseDistanceSnapshotResultSchema.safeParse(result).success).toBe(true);
-      expect(BaseDistanceSnapshotResultSchema.safeParse({
+      assertSchemaAccepts(BaseDistanceSnapshotResultSchema, result);
+      assertSchemaRefuses(BaseDistanceSnapshotResultSchema, {
         ...result, state: "remote-unavailable",
-      }).success).toBe(false);
+      });
     },
   );
 
@@ -304,7 +305,7 @@ describe("base drift raw-distance boundary", () => {
     ]) {
       const { exec } = gitMock(options);
       const result = await runBaseDrift({ exec, baseBranch: "main", mode: "authoritative" });
-      expect(BaseDriftResultSchema.safeParse(result).success).toBe(true);
+      assertSchemaAccepts(BaseDriftResultSchema, result);
       const rejected = BaseDriftResultSchema.safeParse({ ...result, extraEvidence: true });
       expect(rejected.success).toBe(false);
       if (!rejected.success) expect(rejected.error.message).toContain("extraEvidence");

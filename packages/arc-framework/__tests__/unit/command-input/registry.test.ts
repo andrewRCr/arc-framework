@@ -2,6 +2,7 @@ import { Ajv2020, type AnySchema } from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { resolve } from "node:path";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   createCommandInputRegistry,
@@ -112,7 +113,8 @@ describe("command-input schema adapter and registry", () => {
       { cohort: "../../escape", accepted: false },
     ]) {
       const input = { ...base, cohort };
-      expect(runtime.safeParse(input).success, `${cohort}: runtime`).toBe(accepted);
+      if (accepted) assertSchemaAccepts(runtime, input);
+      else assertSchemaRefuses(runtime, input);
       expect(projected(input) as boolean, `${cohort}: projected ${JSON.stringify(projected.errors)}`).toBe(accepted);
     }
   });

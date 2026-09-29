@@ -7,10 +7,18 @@ import { authorizeOrdinaryErrandResume } from "../../../src/lib/errand/open-runt
 import type { OrdinaryErrandRecord } from "../../../src/lib/errand/identity-transitions.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 
+function parseOrdinaryErrandRecord(value: unknown): OrdinaryErrandRecord {
+  const parsed = TransientIdentityRecordV3Schema.parse(value);
+  if (parsed.kind !== "errand" || parsed.purpose !== "errand") {
+    throw new Error("expected an ordinary Errand record");
+  }
+  return parsed;
+}
+
 const HEAD = "a".repeat(40);
 
 function awaiting(): OrdinaryErrandRecord {
-  return TransientIdentityRecordV3Schema.parse({
+  return parseOrdinaryErrandRecord({
     version: 3,
     slug: "fix-output",
     claimId: "c".repeat(32),
@@ -31,11 +39,11 @@ function awaiting(): OrdinaryErrandRecord {
       headRef: "chore/fix-output",
       headSha: HEAD,
     },
-  }) as OrdinaryErrandRecord;
+  });
 }
 
 function paused(): OrdinaryErrandRecord {
-  return TransientIdentityRecordV3Schema.parse({
+  return parseOrdinaryErrandRecord({
     version: 3,
     slug: "fix-output",
     claimId: "c".repeat(32),
@@ -50,7 +58,7 @@ function paused(): OrdinaryErrandRecord {
     state: "paused",
     savedHead: HEAD,
     changeRequest: null,
-  }) as OrdinaryErrandRecord;
+  });
 }
 
 function hostExec(overrides: Record<string, unknown> = {}): GitExec {

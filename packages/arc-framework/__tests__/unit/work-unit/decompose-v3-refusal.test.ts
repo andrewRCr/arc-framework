@@ -1,6 +1,7 @@
 /** The decomposition command boundary exposes one strict refusal contract. */
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import { digestBytes } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import {
@@ -79,13 +80,12 @@ describe("v3 decomposition refusals", () => {
 
     expect(GitV3DecomposeCommandRefusalSchema.parse(retirement)).toEqual(retirement);
     expect(GitV3ExtractionCommandRefusalSchema.parse(extraction)).toEqual(extraction);
-    expect(GitV3ExtractionCommandRefusalSchema.safeParse(retirement).success).toBe(false);
-    expect(GitV3DecomposeCommandRefusalSchema.safeParse({ ...retirement, extra: true }).success)
-      .toBe(false);
-    expect(GitV3ExtractionCommandRefusalSchema.safeParse({
+    assertSchemaRefuses(GitV3ExtractionCommandRefusalSchema, retirement);
+    assertSchemaRefuses(GitV3DecomposeCommandRefusalSchema, { ...retirement, extra: true });
+    assertSchemaRefuses(GitV3ExtractionCommandRefusalSchema, {
       ...extraction,
       recovery: { ...extraction.recovery, extra: true },
-    }).success).toBe(false);
+    });
   });
 
   it("keeps unexpected runtime failures on the core-only command arm", () => {
@@ -106,8 +106,7 @@ describe("v3 decomposition refusals", () => {
       { recovery: { kind: "none" } },
       { report: { status: "refused", paths: [], topology: [], destinations: [] } },
     ]) {
-      expect(GitV3ExtractionCommandRefusalSchema.safeParse({ ...refusal, ...extra }).success)
-        .toBe(false);
+      assertSchemaRefuses(GitV3ExtractionCommandRefusalSchema, { ...refusal, ...extra });
     }
   });
 
@@ -129,10 +128,10 @@ describe("v3 decomposition refusals", () => {
       { report: {} },
       { extra: true },
     ]) {
-      expect(V3DecomposeCoreRefusalSchema.safeParse({ ...refusal, ...extra }).success).toBe(false);
+      assertSchemaRefuses(V3DecomposeCoreRefusalSchema, { ...refusal, ...extra });
     }
-    expect(V3DecomposeCoreRefusalSchema.safeParse({ ...refusal, reason: "" }).success).toBe(false);
-    expect(V3DecomposeCoreRefusalSchema.safeParse({ ...refusal, remedy: undefined }).success).toBe(false);
+    assertSchemaRefuses(V3DecomposeCoreRefusalSchema, { ...refusal, reason: "" });
+    assertSchemaRefuses(V3DecomposeCoreRefusalSchema, { ...refusal, remedy: undefined });
   });
 
   it("accepts exactly two JSON evidence operands", () => {
@@ -155,7 +154,7 @@ describe("v3 decomposition refusals", () => {
       { expected: "value", actual: new Set(["value"]) },
       { expected: "value", actual: { nested: undefined } },
     ]) {
-      expect(V3DecomposeRefusalEvidenceSchema.safeParse(evidence).success).toBe(false);
+      assertSchemaRefuses(V3DecomposeRefusalEvidenceSchema, evidence);
     }
   });
 
@@ -176,7 +175,7 @@ describe("v3 decomposition refusals", () => {
       { path: "z.md", mode: "100644" },
     ]));
     expect(left).toEqual(right);
-    expect(V3DecomposeRefusalEvidenceSchema.safeParse({ expected: left, actual: right }).success).toBe(true);
+    assertSchemaAccepts(V3DecomposeRefusalEvidenceSchema, { expected: left, actual: right });
   });
 
   it("maps uncovered retirement content to its invariant and exact preflight remedy", () => {
@@ -625,7 +624,7 @@ describe("v3 decomposition refusals", () => {
     expect(refusal.remedy.argv).toEqual(expectedArgv);
     expect(refusal.remedy.text).toMatch(/retry.*selected.*mode/iu);
     for (const extra of [{ stage: "operation" }, { recovery: { kind: "none" } }, { report: {} }]) {
-      expect(V3DecomposeCoreRefusalSchema.safeParse({ ...refusal, ...extra }).success).toBe(false);
+      assertSchemaRefuses(V3DecomposeCoreRefusalSchema, { ...refusal, ...extra });
     }
   });
 

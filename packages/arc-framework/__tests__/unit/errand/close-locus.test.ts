@@ -12,6 +12,14 @@ import {
 import { TransientIdentityRecordV3Schema } from "../../../src/lib/errand/identity-record.js";
 import type { OrdinaryErrandRecord } from "../../../src/lib/errand/identity-transitions.js";
 
+function parseOrdinaryErrandRecord(value: unknown): OrdinaryErrandRecord {
+  const parsed = TransientIdentityRecordV3Schema.parse(value);
+  if (parsed.kind !== "errand" || parsed.purpose !== "errand") {
+    throw new Error("expected an ordinary Errand record");
+  }
+  return parsed;
+}
+
 const HEAD = "a".repeat(40);
 const MOVED_HEAD = "b".repeat(40);
 const CHANGE_REQUEST = {
@@ -23,7 +31,7 @@ const CHANGE_REQUEST = {
 };
 
 function openRecord(): OrdinaryErrandRecord {
-  return TransientIdentityRecordV3Schema.parse({
+  return parseOrdinaryErrandRecord({
     version: 3,
     slug: "done",
     claimId: "c".repeat(32),
@@ -39,17 +47,17 @@ function openRecord(): OrdinaryErrandRecord {
     state: "open",
     savedHead: null,
     changeRequest: null,
-  }) as OrdinaryErrandRecord;
+  });
 }
 
 function retainedRecord(previous: OrdinaryErrandRecord): OrdinaryErrandRecord {
-  return TransientIdentityRecordV3Schema.parse({
+  return parseOrdinaryErrandRecord({
     ...previous,
     updatedAt: "2026-08-20T12:02:00.000Z",
     state: "awaiting-merge",
     savedHead: null,
     changeRequest: CHANGE_REQUEST,
-  }) as OrdinaryErrandRecord;
+  });
 }
 
 function lifecycle(changeRequest = CHANGE_REQUEST): ChangeRequestLifecycleEvidence {
@@ -244,10 +252,10 @@ describe("closeOrdinaryErrand", () => {
 
   it("does not delete refs when the retained identity records a different target", async () => {
     const cleanupRefs = vi.fn(async () => ({ kind: "applied" as const }));
-    const mismatchedRecord = TransientIdentityRecordV3Schema.parse({
+    const mismatchedRecord = parseOrdinaryErrandRecord({
       ...retainedRecord(openRecord()),
       changeRequest: { ...CHANGE_REQUEST, headSha: "b".repeat(40) },
-    }) as OrdinaryErrandRecord;
+    });
     const dependencies: CloseOrdinaryErrandDependencies = {
       readIdentity: async () => ({ kind: "ready", record: openRecord() }),
       resolveTarget: async () => ({ kind: "resolved", changeRequest: CHANGE_REQUEST }),
