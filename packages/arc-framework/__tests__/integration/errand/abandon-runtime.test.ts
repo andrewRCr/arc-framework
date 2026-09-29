@@ -6,7 +6,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
+import { makeGitProcessError, scriptGitExec } from "../../helpers/git-exec-fake.js";
 import {
   deleteAbandonedBranchAtExactBase,
   proveOrdinaryErrandAbandonmentPreservation,
@@ -44,11 +44,12 @@ function paused(savedHead = HEAD): OrdinaryErrandRecord {
 
 describe("proveOrdinaryErrandAbandonmentPreservation", () => {
   it("accepts the exact branch head when configured base already preserves it", async () => {
-    const exec: GitExec = async (_command, args) => {
-      if (args[0] === "rev-parse") return { stdout: `${HEAD}\n`, stderr: "" };
-      if (args[0] === "merge-base") return { stdout: "", stderr: "" };
-      throw new Error(`Unexpected git operation: ${args.join(" ")}`);
-    };
+    const { exec } = scriptGitExec([
+      { match: ["rev-parse", "--verify", "refs/heads/chore/discard^{commit}"],
+        responses: [{ stdout: `${HEAD}\n`, stderr: "" }] },
+      { match: ["merge-base", "--is-ancestor", HEAD, "main"],
+        responses: [{ stdout: "", stderr: "" }] },
+    ]);
 
     await expect(proveOrdinaryErrandAbandonmentPreservation(exec, "main", paused()))
       .resolves.toEqual({ kind: "ready", head: HEAD });
@@ -70,28 +71,42 @@ describe("proveOrdinaryErrandAbandonmentPreservation", () => {
   });
 
   it("accepts a head preserved on the configured remote when base does not contain it", async () => {
-    const exec: GitExec = async (command, args) => {
-      if (args[0] === "rev-parse") return { stdout: `${HEAD}\n`, stderr: "" };
-      if (args[0] === "merge-base" && args.at(-1) === "main") {
-        throw gitError(command, args, "not an ancestor", 1);
-      }
-      if (args[0] === "remote") return { stdout: "git@github.com:owner/repo.git\n", stderr: "" };
-      if (["check-ref-format", "fetch", "merge-base", "update-ref"].includes(args[0] ?? "")) {
-        return { stdout: "", stderr: "" };
-      }
-      throw new Error(`Unexpected git operation: ${args.join(" ")}`);
-    };
+    const { exec } = scriptGitExec([
+      { match: ["rev-parse", "--verify", "refs/heads/chore/discard^{commit}"],
+        responses: [{ stdout: `${HEAD}\n`, stderr: "" }] },
+      { match: ["merge-base", "--is-ancestor", HEAD, "main"],
+        responses: [{ failure: { exitCode: 1, stderr: "not an ancestor" } }] },
+      { match: ["remote", "get-url", "origin"],
+        responses: [{ stdout: "git@github.com:owner/repo.git\n", stderr: "" }] },
+      { match: ["check-ref-format", "--branch", "chore/discard"],
+        responses: [{ stdout: "", stderr: "" }] },
+      { match: ["rev-parse", "--verify", "--end-of-options", "refs/heads/chore/discard^{commit}"],
+        responses: [{ stdout: `${HEAD}\n`, stderr: "" }] },
+      { match: { predicate: (args) => args[0] === "fetch" && args[1] === "--"
+        && args[2] === "origin"
+        && args[3]?.startsWith("+refs/heads/chore/discard:refs/arc/tmp/errand-pause/") === true },
+      responses: [{ stdout: "", stderr: "" }] },
+      { match: { predicate: (args) => args[0] === "rev-parse" && args[1] === "--verify"
+        && args[2] === "--end-of-options"
+        && args[3]?.startsWith("refs/arc/tmp/errand-pause/") === true },
+      responses: [{ stdout: `${HEAD}\n`, stderr: "" }] },
+      { match: ["merge-base", "--is-ancestor", HEAD, HEAD], responses: [{ stdout: "", stderr: "" }] },
+      { match: { predicate: (args) => args[0] === "update-ref" && args[1] === "-d"
+        && args[2]?.startsWith("refs/arc/tmp/errand-pause/") === true },
+      responses: [{ stdout: "", stderr: "" }] },
+    ]);
 
     await expect(proveOrdinaryErrandAbandonmentPreservation(exec, "main", paused()))
       .resolves.toEqual({ kind: "ready", head: HEAD });
   });
 
   it("returns an error when the base-containment probe itself fails", async () => {
-    const exec: GitExec = async (command, args) => {
-      if (args[0] === "rev-parse") return { stdout: `${HEAD}\n`, stderr: "" };
-      if (args[0] === "merge-base") throw gitError(command, args, "object database unavailable", 128);
-      throw new Error(`Unexpected git operation: ${args.join(" ")}`);
-    };
+    const { exec } = scriptGitExec([
+      { match: ["rev-parse", "--verify", "refs/heads/chore/discard^{commit}"],
+        responses: [{ stdout: `${HEAD}\n`, stderr: "" }] },
+      { match: ["merge-base", "--is-ancestor", HEAD, "main"],
+        responses: [{ failure: { exitCode: 128, stderr: "object database unavailable" } }] },
+    ]);
 
     await expect(proveOrdinaryErrandAbandonmentPreservation(exec, "main", paused()))
       .resolves.toMatchObject({
@@ -101,12 +116,14 @@ describe("proveOrdinaryErrandAbandonmentPreservation", () => {
   });
 
   it("refuses remote preservation explicitly when origin is absent", async () => {
-    const exec: GitExec = async (command, args) => {
-      if (args[0] === "rev-parse") return { stdout: `${HEAD}\n`, stderr: "" };
-      if (args[0] === "merge-base") throw gitError(command, args, "not an ancestor", 1);
-      if (args[0] === "remote") throw gitError(command, args, "no such remote", 2);
-      throw new Error(`Unexpected git operation: ${args.join(" ")}`);
-    };
+    const { exec } = scriptGitExec([
+      { match: ["rev-parse", "--verify", "refs/heads/chore/discard^{commit}"],
+        responses: [{ stdout: `${HEAD}\n`, stderr: "" }] },
+      { match: ["merge-base", "--is-ancestor", HEAD, "main"],
+        responses: [{ failure: { exitCode: 1, stderr: "not an ancestor" } }] },
+      { match: ["remote", "get-url", "origin"],
+        responses: [{ failure: { exitCode: 2, stderr: "no such remote" } }] },
+    ]);
 
     await expect(proveOrdinaryErrandAbandonmentPreservation(exec, "main", paused()))
       .resolves.toMatchObject({
@@ -178,11 +195,12 @@ describe("reapZeroDeltaBranch verification failures", () => {
     { exitCode: 1, expected: "branch has content outside the local base" },
     { exitCode: 128, expected: "git merge-base: nonzero-exit (exit 128)" },
   ])("distinguishes non-ancestry from a merge-base error ($exitCode)", async ({ exitCode, expected }) => {
-    const exec: GitExec = async (command, args) => {
-      if (args[0] === "rev-parse") return { stdout: `${HEAD}\n`, stderr: "" };
-      if (args[0] === "merge-base") throw gitError(command, args, "object database unavailable", exitCode);
-      throw new Error(`Unexpected Git operation: ${args.join(" ")}`);
-    };
+    const { exec } = scriptGitExec([
+      { match: ["rev-parse", "--verify", "--quiet", "refs/heads/main^{commit}"],
+        responses: [{ stdout: `${HEAD}\n`, stderr: "" }] },
+      { match: ["merge-base", "--is-ancestor", HEAD, HEAD],
+        responses: [{ failure: { exitCode, stderr: "object database unavailable" } }] },
+    ]);
     const result = await reapZeroDeltaBranch(exec, unusedInput, "main", paused(), HEAD, "/tmp/unused");
     expect(result).toMatchObject({ kind: "preserved", reason: expect.stringContaining(expected) });
   });
