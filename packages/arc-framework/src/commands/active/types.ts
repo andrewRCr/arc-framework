@@ -18,19 +18,6 @@ import type { CandidateTargetProjector } from "../../lib/work-unit/candidate-eff
 import type { CandidateReviewFixAuthorityReader } from
   "../../scripts/review-gate/policy/candidate-review-fix-continuation.js";
 
-export {
-  PrioritySchema,
-  WORK_UNIT_STATE_ORDER,
-  WorkClassSchema,
-  WorkUnitStateSchema,
-  validateClass,
-  validatePriority,
-  validateState,
-  type Priority,
-  type WorkClass,
-  type WorkUnitState,
-} from "../../lib/kernel/index.js";
-
 /**
  * Directory layout discovered on disk.
  *

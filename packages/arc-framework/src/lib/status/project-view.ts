@@ -13,7 +13,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 
-import { validatePriority, validateState, type Priority, type WorkUnitState } from "../../commands/active/types.js";
+import { validatePriority, validateState, type Priority, type WorkUnitState } from "../kernel/schema/vocabulary.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 import {

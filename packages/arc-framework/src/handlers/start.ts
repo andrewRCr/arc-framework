@@ -31,7 +31,7 @@ import {
   deriveColdStartWuName,
 } from "../commands/start.js";
 import { expandActiveInFlight } from "../commands/active.js";
-import { validateClass } from "../commands/active/types.js";
+import { validateClass } from "../lib/kernel/schema/vocabulary.js";
 import { parseMetaRecord } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import type { GitExec } from "../lib/git/exec.js";

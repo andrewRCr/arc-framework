@@ -21,18 +21,6 @@ import {
   type WorkClass,
   type WorkUnitState,
 } from "../../../src/lib/kernel/index.js";
-import {
-  PrioritySchema as OldPrioritySchema,
-  WORK_UNIT_STATE_ORDER as OLD_WORK_UNIT_STATE_ORDER,
-  WorkClassSchema as OldWorkClassSchema,
-  WorkUnitStateSchema as OldWorkUnitStateSchema,
-  validateClass as oldValidateClass,
-  validatePriority as oldValidatePriority,
-  validateState as oldValidateState,
-  type Priority as OldPriority,
-  type WorkClass as OldWorkClass,
-  type WorkUnitState as OldWorkUnitState,
-} from "../../../src/commands/active/types.js";
 
 describe("kernel work-unit vocabulary", () => {
   it("parses and types a canonical digest", () => {
@@ -155,17 +143,75 @@ describe("kernel work-unit vocabulary", () => {
       expect(validatePriority(invalid)).toBe("P3");
     }
   });
+});
 
-  it("preserves value and type identity through the command-path shim", () => {
-    expect(OldWorkUnitStateSchema).toBe(WorkUnitStateSchema);
-    expect(OldWorkClassSchema).toBe(WorkClassSchema);
-    expect(OldPrioritySchema).toBe(PrioritySchema);
-    expect(OLD_WORK_UNIT_STATE_ORDER).toBe(WORK_UNIT_STATE_ORDER);
-    expect(oldValidateState).toBe(validateState);
-    expect(oldValidateClass).toBe(validateClass);
-    expect(oldValidatePriority).toBe(validatePriority);
-    expectTypeOf<OldWorkUnitState>().toEqualTypeOf<WorkUnitState>();
-    expectTypeOf<OldWorkClass>().toEqualTypeOf<WorkClass>();
-    expectTypeOf<OldPriority>().toEqualTypeOf<Priority>();
+describe("validateState", () => {
+  it("returns each codified state verbatim", () => {
+    expect(validateState("Planning")).toBe("Planning");
+    expect(validateState("Active")).toBe("Active");
+    expect(validateState("Integrating")).toBe("Integrating");
+    expect(validateState("Shipped")).toBe("Shipped");
+  });
+
+  it("returns 'unknown' for empty or whitespace-only strings", () => {
+    expect(validateState("")).toBe("unknown");
+    expect(validateState("   ")).toBe("unknown");
+  });
+
+  it("returns 'unknown' for unrecognized values", () => {
+    expect(validateState("Bogus")).toBe("unknown");
+    expect(validateState("active")).toBe("unknown"); // case-sensitive
+    expect(validateState("Paused (2026-04-12)")).toBe("unknown"); // parenthetical suffix not stripped
+  });
+});
+
+describe("validatePriority", () => {
+  it("returns each codified priority verbatim", () => {
+    expect(validatePriority("P1")).toBe("P1");
+    expect(validatePriority("P2")).toBe("P2");
+    expect(validatePriority("P3")).toBe("P3");
+  });
+
+  it("defaults a missing value to P3", () => {
+    expect(validatePriority(null)).toBe("P3");
+    expect(validatePriority("")).toBe("P3");
+    expect(validatePriority("   ")).toBe("P3");
+    expect(validatePriority("[none]")).toBe("P3");
+  });
+
+  it("defaults out-of-range and malformed values to P3 without throwing", () => {
+    expect(validatePriority("P0")).toBe("P3");
+    expect(validatePriority("P5")).toBe("P3");
+    expect(validatePriority("p1")).toBe("P3"); // case-sensitive
+    expect(validatePriority("Bogus")).toBe("P3");
+  });
+});
+
+describe("validateClass", () => {
+  it("normalizes each resolved weight to its display form, case-insensitively", () => {
+    expect(validateClass("Light")).toBe("Light");
+    expect(validateClass("light")).toBe("Light");
+    expect(validateClass("Heavy")).toBe("Heavy");
+    expect(validateClass("heavy")).toBe("Heavy");
+    expect(validateClass("Novel")).toBe("Novel");
+    expect(validateClass("novel")).toBe("Novel");
+    expect(validateClass("  NOVEL  ")).toBe("Novel");
+    expect(validateClass("  HEAVY  ")).toBe("Heavy"); // trimmed + case-folded
+  });
+
+  it("resolves the pre-classification sentinel to [TBD]", () => {
+    expect(validateClass("[TBD]")).toBe("[TBD]");
+  });
+
+  it("resolves a missing or empty value to [TBD]", () => {
+    expect(validateClass(null)).toBe("[TBD]");
+    expect(validateClass("")).toBe("[TBD]");
+    expect(validateClass("   ")).toBe("[TBD]");
+  });
+
+  it("resolves unrecognized values to [TBD] without throwing", () => {
+    expect(validateClass("medium")).toBe("[TBD]");
+    expect(validateClass("[none]")).toBe("[TBD]");
+    expect(validateClass("Bogus")).toBe("[TBD]");
   });
 });

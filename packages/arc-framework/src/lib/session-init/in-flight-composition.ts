@@ -10,7 +10,7 @@
  * @module
  */
 
-import { validateClass } from "../../commands/active/types.js";
+import { validateClass } from "../kernel/schema/vocabulary.js";
 import { classComposition, type ClassComposition } from "../status/class-composition.js";
 import type { WorktreeRosterEntry } from "../git/worktree-roster.js";
 

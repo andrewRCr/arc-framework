@@ -588,28 +588,23 @@ holds a fenced-owner matrix row.
 - _Outcome:_ The 125 resolved old-path specifiers now import the kernel owner, with no behavior change. The moved
   behavior suite and both typechecks pass; notes § Canonical JSON shim records the rerunnable recipe.
 
-### `[ ]` **6.2 Retire the managed-path, slug, `ArcError`, and active-vocabulary re-exports — D3**
+### `[x]` **6.2 Retire the managed-path, slug, `ArcError`, and active-vocabulary re-exports — D3**
 
 - _Goal:_ `lib/canonical/managed-path.ts`, `lib/work-unit/slug.ts`, the `ArcError` and `ArcErrorCode` re-export in
   `lib/errors.ts`, and the vocabulary re-exports in `commands/active/types.ts` are gone with the test cases that only
   pin them, and their importers use the owning modules.
 
-- _Approach:_ An importer re-points to the owning kernel module, or to the kernel index where the file already imports
-  it; record the rewrite recipe in notes § Sweep recipes. Carved importers take the rewrite as a forced edge, among
-  them `handlers/user.ts`'s `ArcErrorCode` import.
-
     - `[x]` **6.2.a Retire `lib/canonical/managed-path.ts` and `lib/work-unit/slug.ts`**
         - Redirected 37 resolved specifiers to the kernel owners and deleted both compatibility modules. Moved the
           managed-path behavior suite beside the kernel and removed only the two old-path identity cases.
 
-    - `[ ]` **6.2.b Retire the `ArcError` re-export and the active-vocabulary re-exports**
-        - `lib/errors.ts` itself stays; only its re-export goes. `lib/canonical/content-digest.ts` is not a shim and
-          stays.
-        - Remove "preserves constructor identity through the presentation module" from `unit/kernel/errors.test.ts` and
-          "preserves value and type identity through the command-path shim" from `unit/kernel/vocabulary.test.ts`.
-        - `unit/commands/active/types.test.ts` tests `validateState`, `validateClass`, and `validatePriority` through
-          the re-export, and once it goes `commands/active/types.ts` exports only types. The file's cases that
-          `unit/kernel/vocabulary.test.ts` does not already cover move there, and the file goes.
+    - `[x]` **6.2.b Retire the `ArcError` re-export and the active-vocabulary re-exports**
+        - Split 19 named imports by owner, then removed both presentation re-exports and their identity cases.
+          `lib/errors.ts` retains user-facing errors; `commands/active/types.ts` exports only its own types. Moved
+          active-validator cases missing from the kernel suite into `unit/kernel/vocabulary.test.ts`.
+
+- _Outcome:_ Both file shims and both named re-export sites are gone. The recorded recipes re-run without changes,
+  and the preserved kernel and presentation behavior suites pass.
 
 ### `[ ]` **6.3 Replace the local slug schemas and re-minted state and placement-tier enums — D3**
 

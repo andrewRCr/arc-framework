@@ -29,7 +29,7 @@
  * @module
  */
 
-import { validateClass, type WorkClass } from "../../../commands/active/types.js";
+import { validateClass, type WorkClass } from "../../kernel/schema/vocabulary.js";
 import { formatValue, type MetaFieldName } from "../../active/meta-reader.js";
 import { resolveArcPath } from "../../layout/index.js";
 import { isSlugSafe } from "../../kernel/schema/slug.js";

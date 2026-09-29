@@ -23,7 +23,7 @@
 
 import { join } from "node:path";
 
-import { validateClass } from "../../../commands/active/types.js";
+import { validateClass } from "../../kernel/schema/vocabulary.js";
 import { isSafeCohortPath, validateCohortPath } from "../../active/cohort-path.js";
 import { renderMetaFile, type MetaRenderOverrides } from "../../active/meta-reader.js";
 import { MetaPrioritySchema } from "../../active/meta-schema.js";

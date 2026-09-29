@@ -37,7 +37,8 @@ import {
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { resolveInboxEntryOperand } from "../lib/inbox-entry-operand.js";
 import { resolveCurrentWuName } from "../lib/user-sync/index.js";
-import { formatError, UserFacingError, type ArcErrorCode } from "../lib/errors.js";
+import { formatError, UserFacingError } from "../lib/errors.js";
+import { type ArcErrorCode } from "../lib/kernel/errors.js";
 import { getInternalTemplatePath, resolveArcRoot } from "../lib/paths.js";
 import { createGitExec, createRawGitExec, createUserIOContext } from "../lib/io-context.js";
 import { atomicWriteFile } from "../lib/fs.js";

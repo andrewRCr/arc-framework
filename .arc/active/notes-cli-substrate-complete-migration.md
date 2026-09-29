@@ -1403,6 +1403,79 @@ behavior tests to `unit/kernel/managed-path.test.ts` and remove only the old-pat
 The first runs redirected 28 managed-path and 9 slug specifiers; both reruns redirected zero. The managed-path
 behavior suite moved intact, while the two compatibility-identity cases and both shim modules were removed.
 
+### Kernel presentation re-exports
+
+Search named imports, type imports, re-exports, dynamic imports, and `vi.mock` strings targeting `lib/errors.ts`
+or `commands/active/types.ts`. Split only `ArcError` and `ArcErrorCode` from the first to
+`lib/kernel/errors.ts`; `UserFacingError` and the formatter functions remain. Split the ten work-unit vocabulary
+names from the second to `lib/kernel/schema/vocabulary.ts`; active status and session-result types remain. A mixed
+import retains its local names and gains one direct owner import. Re-run this named-symbol search after a base
+merge and remove the old exports only after no importer still requests them.
+
+```js kernel-export-rewrite
+const { execFileSync } = require("node:child_process");
+const { existsSync, readFileSync, writeFileSync } = require("node:fs");
+const path = require("node:path");
+const ts = require("typescript");
+const routes = new Map([
+  ["src/lib/errors.ts", { owner: "src/lib/kernel/errors.ts", names: new Set(["ArcError", "ArcErrorCode"]) }],
+  ["src/commands/active/types.ts", { owner: "src/lib/kernel/schema/vocabulary.ts", names: new Set([
+    "PrioritySchema", "WORK_UNIT_STATE_ORDER", "WorkClassSchema", "WorkUnitStateSchema", "validateClass",
+    "validatePriority", "validateState", "Priority", "WorkClass", "WorkUnitState",
+  ]) }],
+]);
+const absoluteRoutes = new Map([...routes].map(([old, value]) => [path.resolve(old), value]));
+const files = execFileSync("git", ["ls-files", "-z", "--", "src", "__tests__"])
+  .toString().split("\0").filter((file) => existsSync(file) && /\.(?:[cm]?ts|tsx)$/u.test(file));
+let changed = 0;
+for (const file of files) {
+  const input = readFileSync(file, "utf8");
+  const source = ts.createSourceFile(file, input, ts.ScriptTarget.Latest, true);
+  const edits = [];
+  for (const statement of source.statements) {
+    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
+    const old = path.resolve(path.dirname(file), statement.moduleSpecifier.text.replace(/\.js$/u, ".ts"));
+    const route = absoluteRoutes.get(old);
+    if (!route) continue;
+    const clause = statement.importClause;
+    if (!clause?.namedBindings || !ts.isNamedImports(clause.namedBindings) || clause.name) {
+      throw new Error(`unsupported import shape: ${file}:${statement.getStart(source)}`);
+    }
+    const elements = clause.namedBindings.elements;
+    const moved = elements.filter((element) => route.names.has((element.propertyName ?? element.name).text));
+    if (!moved.length) continue;
+    const kept = elements.filter((element) => !moved.includes(element));
+    const member = (element) => {
+      const name = element.propertyName ? `${element.propertyName.text} as ${element.name.text}` : element.name.text;
+      return `${element.isTypeOnly && !clause.isTypeOnly ? "type " : ""}${name}`;
+    };
+    const render = (members, target) => {
+      let specifier = path.relative(path.dirname(file), path.resolve(target)).replaceAll("\\", "/")
+        .replace(/\.ts$/u, ".js");
+      if (!specifier.startsWith(".")) specifier = `./${specifier}`;
+      return `import ${clause.isTypeOnly ? "type " : ""}{ ${members.map(member).join(", ")} } from "${specifier}";`;
+    };
+    const replacement = [kept.length ? render(kept, old) : "", render(moved, route.owner)]
+      .filter(Boolean).join("\n");
+    edits.push({ start: statement.getStart(source), end: statement.getEnd(), replacement });
+  }
+  if (!edits.length) continue;
+  let output = input;
+  for (const edit of edits.reverse()) output = output.slice(0, edit.start) + edit.replacement + output.slice(edit.end);
+  writeFileSync(file, output);
+  changed += edits.length;
+  process.stdout.write(`${file}: ${edits.length}\n`);
+}
+process.stdout.write(`rewritten imports: ${changed}\n`);
+```
+
+Extract the fence into `/tmp/arc-cli-substrate-inventory/kernel-export-rewrite.cjs` and run it from
+`packages/arc-framework`, where the scratch directory's `node_modules` link resolves TypeScript.
+The first run split or redirected 19 named imports, including the mixed `handlers/user.ts` error import and mixed
+active result/vocabulary imports. The second run changed zero. `lib/errors.ts` kept its user-facing formatting,
+`commands/active/types.ts` kept its result types, and the compatibility re-exports and their identity tests went.
+The active validator cases absent from the kernel suite moved into `unit/kernel/vocabulary.test.ts`.
+
 ### Raw Git type home
 
 At the merged base, the TypeScript import graph and an AST pass found 44 named imports of `RawGitExec` from

@@ -10,7 +10,7 @@
  * @module
  */
 
-import { validateState } from "../../commands/active/types.js";
+import { validateState } from "../kernel/schema/vocabulary.js";
 import { z } from "zod";
 import { WorkUnitStateSchema } from "../kernel/index.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
