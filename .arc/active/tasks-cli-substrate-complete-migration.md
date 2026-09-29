@@ -82,55 +82,23 @@ the meta fixture builder, and the schema-assertion helper exist under `__tests__
 own; `makeGitExecInput` builds on `createExecaGitExecInput`; and the `testing-standards` project override names the
 shared support and the doubles that stay local.
 
-### `[ ]` **2.1 Add the `GitProcessError` fixture and the scripted `GitExec` fake — D9**
+### `[x]` **2.1 Add the `GitProcessError` fixture and the scripted `GitExec` fake — D9**
 
 - _Goal:_ Tests script `GitExec`, `GitExecInput`, and `RawGitExec` through one fake that matches arguments explicitly,
   sequences and computes responses, records calls, rejects with the typed `GitProcessError` the production executor
   emits, and throws on any call nobody scripted.
 
-- _Shape:_ `__tests__/helpers/git-exec-fake.ts` holds the fake and the fixture — one module for the executor contract,
-  matching the existing per-concern modules, with nothing appended to `integration.ts`. Helper tests live in
-  `__tests__/unit/helpers/`.
+    - `[x]` **2.1.a Add the `GitProcessError` fixture**
+        - `makeGitProcessError` feeds process-like failure evidence, including byte stdout, through
+          `normalizeGitRejection`; seven tests cover classification and preserved diagnostics.
 
-    - `[ ]` **2.1.a Add the `GitProcessError` fixture**
-        - The fixture takes the invocation — command and arguments — with an exit code or a signal, or a cancellation
-          or timeout, plus optional stderr and stdout on any of them; stdout takes bytes as well as a string, for the
-          raw variant. It builds the failure through `normalizeGitRejection` (`lib/git/process-error.ts`), so its kind
-          and expected outcome are the production executor's classification, never assigned by hand.
-        - Build `test-first` (one behavior at a time):
-            - A `fetch` exiting 128 that cannot find the remote ref carries `expectedOutcome: "absent-remote-ref"`
-            - A rejected `--force-with-lease` push carries `expectedOutcome: "stale-lease"`
-            - A cancellation and a timeout build the `canceled` and `timed-out` kinds, keeping any stderr they carry
-            - A signal termination builds a `nonzero-exit` failure carrying the signal and no exit code
-            - An exit-1 failure keeps its stdout, as a merge conflict's output, and byte stdout reads back unchanged
-            - `gitFailureText()` reads the fixture failure's stderr
+    - `[x]` **2.1.b Add the scripted `GitExec` fake**
+        - `scriptGitExec` shares an ordered matcher and repeating response sequence, supports computed and typed
+          failure responses, and records every call. Nine tests cover matching, sequencing, recording, and refusal.
 
-    - `[ ]` **2.1.b Add the scripted `GitExec` fake**
-        - Each entry names its command, defaulting to `git`, since `GitExec` also runs `gh`; matching compares the
-          command, then the arguments. Exact matching is the default, and prefix or predicate matching is opt-in,
-          covering the `*` tokens and the length-exact and prefix forms local doubles use.
-        - The first matching entry in declaration order wins, and a sequence's last response repeats once reached,
-          as the counter-based doubles it replaces behave.
-        - Build `test-first` (one behavior at a time):
-            - An entry matches its command and arguments exactly by default
-            - An entry for `gh` answers only `gh` invocations
-            - An entry opts into prefix or predicate matching
-            - When several entries match, the first declared answers
-            - An entry's response sequence is consumed in call order, and its last response repeats
-            - A computed entry answers from the call's arguments and options
-            - The recorder returns every call with its command, arguments, and options
-            - A failure entry rejects with a fixture `GitProcessError` built from the matched invocation
-            - An unmatched call throws, naming its command and arguments
-
-    - `[ ]` **2.1.c Add the `GitExecInput` and `RawGitExec` variants**
-        - Same table, matching, sequencing, and recording semantics. The input variant takes arguments and a string
-          payload and resolves stdout as a string; the raw variant takes arguments and optional byte `input` and
-          resolves a byte `RawGitResult`. Both signal failure only by rejecting with a fixture failure.
-        - Build `test-first` (one behavior at a time):
-            - The input variant matches on arguments and records the stdin payload
-            - The raw variant resolves scripted byte output and records byte input
-            - Both variants reject a failure entry with a fixture `GitProcessError`
-            - Both variants throw on an unmatched call
+    - `[x]` **2.1.c Add the `GitExecInput` and `RawGitExec` variants**
+        - The stdin and byte variants share the matcher and failure behavior while recording their distinct inputs;
+          four tests cover both contracts and unmatched calls.
 
 ### `[ ]` **2.2 Add the meta fixture builder — D9**
 
