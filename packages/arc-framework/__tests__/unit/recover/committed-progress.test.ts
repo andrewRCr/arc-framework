@@ -2,12 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import { resolveCommittedProgress } from "../../../src/lib/recover/committed-progress.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 const SEED_SHA = "72d145021bf4166fa70efc5b9fd11916cf0a359a";
 const HEAD_SHA = "aabbccddeeff00112233445566778899aabbccdd";
 
 /** Build a fake GitExec that dispatches on the joined argument vector. */
-function fakeExec(handler: (key: string) => string): {
+function fakeExec(handler: (key: string, args: readonly string[]) => string): {
   exec: GitExec;
   calls: string[];
 } {
@@ -15,7 +16,7 @@ function fakeExec(handler: (key: string) => string): {
   const exec: GitExec = (_cmd, args) => {
     const key = args.join(" ");
     calls.push(key);
-    return Promise.resolve({ stdout: handler(key) });
+    return Promise.resolve({ stdout: handler(key, args) });
   };
   return { exec, calls };
 }
@@ -108,8 +109,10 @@ describe("resolveCommittedProgress", () => {
   });
 
   it("returns null when git fails", async () => {
-    const { exec } = fakeExec(() => {
-      throw new Error("fatal: not a git repository");
+    const { exec } = fakeExec((_key, args) => {
+      throw makeGitProcessError({
+        command: "git", args, exitCode: 128, stderr: "fatal: not a git repository",
+      });
     });
 
     const result = await resolveCommittedProgress({ exec, seedHead: SEED_SHA });

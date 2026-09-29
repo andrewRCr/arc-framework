@@ -8,6 +8,7 @@ import type { BaseSyncResult } from "../../../src/lib/git/base-sync.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import { createNodeProvisioningDependencies } from "../../../src/lib/locus/provisioning-runtime.js";
 import { PrimaryCheckoutResidueError } from "../../../src/lib/locus/provisioning-types.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 const roots: string[] = [];
 
@@ -94,11 +95,15 @@ describe("node provisioning runtime", () => {
     synchronizePrimaryBase?: () => Promise<BaseSyncResult>,
   ) {
     let mutated = false;
-    const exec: GitExec = async (_command, args) => {
+    const exec: GitExec = async (command, args) => {
       calls.push([...args]);
       if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") return { stdout: `${state.branch}\n` };
       if (args[0] === "rev-parse") {
-        if (mutated && failures.probe === true) throw new Error("fatal: ambiguous argument 'HEAD'");
+        if (mutated && failures.probe === true) {
+          throw makeGitProcessError({
+            command, args, exitCode: 128, stderr: "fatal: ambiguous argument 'HEAD'",
+          });
+        }
         return { stdout: `${state.head}\n` };
       }
       if (args[0] === "checkout" && args[1] === "-b") {
@@ -107,7 +112,9 @@ describe("node provisioning runtime", () => {
         return { stdout: "" };
       }
       if (args[0] === "checkout") {
-        if (mutated && failures.restore === true) throw new Error("fatal: cannot switch branches");
+        if (mutated && failures.restore === true) {
+          throw makeGitProcessError({ command, args, exitCode: 128, stderr: "fatal: cannot switch branches" });
+        }
         state.branch = args[1] ?? "";
         mutated = true;
         return { stdout: "" };

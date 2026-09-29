@@ -4,6 +4,7 @@ import {
   reconcileBranch,
   type ReconcileBranchContext,
 } from "../../../../src/lib/work-unit/mutators/reconcile-branch.js";
+import { makeGitProcessError } from "../../../helpers/git-exec-fake.js";
 
 /**
  * Build a {@link ReconcileBranchContext} recording every git invocation's args.
@@ -21,7 +22,12 @@ function buildCtx(
     exec: async (cmd, args) => {
       calls.push([cmd, ...args]);
       if (failArg0 !== undefined && args[0] === failArg0) {
-        throw failError ?? new Error(`git ${args.join(" ")} failed`);
+        throw failError ?? makeGitProcessError({
+          command: cmd,
+          args,
+          exitCode: args[0] === "rev-parse" ? 1 : 128,
+          stderr: `git ${args.join(" ")} failed`,
+        });
       }
       return { stdout: stdoutByArg0?.(args) ?? "" };
     },
@@ -110,8 +116,10 @@ describe("reconcileBranch", () => {
   it("swallows a remote-delete failure for an unpushed branch (local teardown still lands)", async () => {
     const { ctx, calls } = buildCtx(
       "push",
-      Object.assign(new Error("git push failed"), {
-        code: 1,
+      makeGitProcessError({
+        command: "git",
+        args: ["push", "origin", "--delete", "plan/demo-wu"],
+        exitCode: 1,
         stderr: "error: unable to delete 'plan/demo-wu': remote ref does not exist",
       }),
     );
@@ -132,13 +140,12 @@ describe("reconcileBranch", () => {
   it("propagates an actionable remote-delete failure (auth) instead of masking it", async () => {
     const { ctx, calls } = buildCtx(
       "push",
-      Object.assign(
-        new Error(
-          "Command failed: git push origin --delete feat/demo-wu\n" +
-            "fatal: Authentication failed for 'https://example.com/repo.git'",
-        ),
-        { stderr: "fatal: Authentication failed for 'https://example.com/repo.git'" },
-      ),
+      makeGitProcessError({
+        command: "git",
+        args: ["push", "origin", "--delete", "feat/demo-wu"],
+        exitCode: 128,
+        stderr: "fatal: Authentication failed for 'https://example.com/repo.git'",
+      }),
     );
 
     // A non-benign failure (auth / connectivity) must surface so the executor can
