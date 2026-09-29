@@ -1785,9 +1785,9 @@ reviewCmd
   )
   .addOption(new Option("--json").hideHelp())
   .on("option:json", rejectUnsupportedReviewOutputJson)
-  .action(async (options: ReviewMergeMethodResolveOptions) => {
-    await (await import("./handlers/review.js")).handleReviewMergeMethodResolve(options);
-  });
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, options: ReviewMergeMethodResolveOptions) => {
+    await (await import("./handlers/review.js")).handleReviewMergeMethodResolve(options, {}, context);
+  }));
 
 reviewCmd
   .command("checks")
@@ -1801,9 +1801,9 @@ reviewCmd
   .option("--poll-interval-ms <milliseconds>", "Initial polling interval", "5000")
   .addOption(new Option("--json").hideHelp())
   .on("option:json", rejectUnsupportedReviewOutputJson)
-  .action(async (options: ReviewChecksAwaitOptions) => {
-    await (await import("./handlers/review.js")).handleReviewChecksAwait(options);
-  });
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, options: ReviewChecksAwaitOptions) => {
+    await (await import("./handlers/review.js")).handleReviewChecksAwait(options, {}, context);
+  }));
 
 reviewCmd
   .command("readiness")
@@ -1813,13 +1813,13 @@ reviewCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-readiness-request", input);
       return;
     }
-    await (await import("./handlers/review.js")).handleReviewReadiness(input ?? "");
-  });
+    await (await import("./handlers/review.js")).handleReviewReadiness(input ?? "", {}, context);
+  }));
 
 reviewCmd
   .command("planning-lane <base> <head>")
@@ -1878,13 +1878,13 @@ reviewCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-resolve-request", input);
       return;
     }
-    await (await import("./handlers/review.js")).handleReviewResolve(input ?? "");
-  });
+    await (await import("./handlers/review.js")).handleReviewResolve(input ?? "", {}, context);
+  }));
 
 const frontlineCmd = reviewCmd
   .command("frontline")
@@ -1898,13 +1898,13 @@ frontlineCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-frontline-resolve-request", input);
       return;
     }
-    await (await import("./handlers/review.js")).handleReviewFrontlineResolve(input ?? "");
-  });
+    await (await import("./handlers/review.js")).handleReviewFrontlineResolve(input ?? "", {}, context);
+  }));
 
 frontlineCmd
   .command("run")
@@ -1995,13 +1995,13 @@ reviewCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-chunking-resolve-request", input);
       return;
     }
-    await (await import("./handlers/review.js")).handleReviewChunkingResolve(input ?? "");
-  });
+    await (await import("./handlers/review.js")).handleReviewChunkingResolve(input ?? "", {}, context);
+  }));
 
 const localReviewCmd = reviewCmd
   .command("local")

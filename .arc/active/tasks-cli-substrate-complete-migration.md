@@ -305,15 +305,10 @@ path spawns Git through an unbound executor; the failure-text predicates and `re
         - Scanner distinguishes constant machine policies from predicates; all three merge-lock routes use the adapter
           and invocation-bound Git executor. Readiness and both delivery release paths use the supplied executor.
 
-    - `[ ]` **4.1.b Wrap and bind the six review resolve-family commands**
-        - Review resolve, merge-method resolve, checks await, readiness, frontline resolve, and changeset resolve.
-          Merge-method resolve and checks await reach only the `gh` runner, whose stdin is already closed; they take
-          the context and build no executor.
-        - Build `test-first` (one behavior at a time):
-            - Called without a supplied context, each of the four handlers that reach Git resolves a machine-mode
-              process context and builds its executors from that context's subprocess policy
-            - The inventory case requires the six command paths to route through the adapter under a constant
-              machine-mode policy
+    - `[x]` **4.1.b Wrap and bind the six review resolve-family commands**
+        - Review resolve, merge-method resolve, checks await, readiness, frontline resolve, and changeset resolve
+          now route under constant machine mode. The four Git-using handlers bind their executors to that context;
+          merge-method and checks await retain the host runner's closed stdin behavior.
 
     - `[ ]` **4.1.c Wrap and bind hosted request, await, and settle**
         - Build `test-first` (one behavior at a time):
