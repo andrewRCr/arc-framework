@@ -1,6 +1,13 @@
 /** Shared registration for delivery-position handler checks and its retained real-CLI smoke. */
 
 import { collectCandidateSubjectTarget } from "./candidate-subject.js";
+import { makeMetaFixture } from "./meta-fixture.js";
+import {
+  setMetaBranch,
+  setMetaBulletFields,
+  setMetaCurrentWorkflow,
+  setMetaState,
+} from "../../src/lib/active/meta-reader.js";
 import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -965,20 +972,15 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       "",
     ].join("\n"));
     const metaPath = join(activeDir, `meta-${workUnitId}.md`);
-    await writeFile(metaPath, [
-      `# Metadata: ${workUnitId}`,
-      "",
-      "- **State:** Integrating",
-      "- **Owner:** test-user",
-      `- **Branch:** ${branch}`,
-      `- **Task List:** tasks-${workUnitId}.md`,
-      "- **Candidate:** [none]",
-      "- **Current Workflow:** `integrate-work-unit`",
-      "- **Last Completed:** Task 1.3 — Close member three",
-      "- **Next Task:** [none]",
-      "- **Next Action:** Resume hosted review",
-      "",
-    ].join("\n"));
+    await writeFile(metaPath, makeMetaFixture(workUnitId, {
+      owner: "test-user",
+      state: "Integrating",
+      branch,
+      taskList: `tasks-${workUnitId}.md`,
+      currentWorkflow: "integrate-work-unit",
+      lastCompleted: "Task 1.3 — Close member three",
+      nextAction: "Resume hosted review",
+    }));
     await git(fixture.repository, ["add", "-A"]);
     await git(fixture.repository, ["commit", "--no-verify", "-m", "install integration fixture"]);
 
@@ -1233,20 +1235,13 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       "### `[x]` **2.1 Verify the work unit**",
       "",
     ].join("\n"));
-    await writeFile(metaPath, [
-      `# Metadata: ${workUnitId}`,
-      "",
-      "- **State:** Active",
-      "- **Owner:** test-user",
-      `- **Branch:** ${branch}`,
-      `- **Task List:** tasks-${workUnitId}.md`,
-      "- **Candidate:** [none]",
-      "- **Current Workflow:** [none]",
-      "- **Last Completed:** Task 2.1 — Verify the work unit",
-      "- **Next Task:** [none]",
-      "- **Next Action:** Attest the Candidate",
-      "",
-    ].join("\n"));
+    await writeFile(metaPath, makeMetaFixture(workUnitId, {
+      owner: "test-user",
+      branch,
+      taskList: `tasks-${workUnitId}.md`,
+      lastCompleted: "Task 2.1 — Verify the work unit",
+      nextAction: "Attest the Candidate",
+    }));
     await git(fixture.repository, ["add", "-A"]);
     await git(fixture.repository, ["commit", "--no-verify", "-m", "active fixture"]);
 
@@ -1269,9 +1264,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const attestedMeta = await readFile(metaPath, "utf8");
     await writeFile(
       metaPath,
-      attestedMeta
-        .replace("- **State:** Active", "- **State:** Integrating")
-        .replace("- **Current Workflow:** `prepare-work-unit`", "- **Current Workflow:** `integrate-work-unit`"),
+      setMetaCurrentWorkflow(setMetaState(attestedMeta, "Integrating"), "integrate-work-unit"),
     );
 
     const result = await runArc(["status", "--session-init", "--json"], fixture.repository, {
@@ -1624,20 +1617,14 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       ".arc",
       "active",
       `meta-${fixture.plan.workUnitId}.md`,
-    ), [
-      `# Metadata: ${fixture.plan.workUnitId}`,
-      "",
-      "- **State:** Integrating",
-      "- **Owner:** test-user",
-      `- **Branch:** ${workUnitBranch}`,
-      "- **Task List:** `tasks-delivery-plan-record.md`",
-      `- **Candidate:** \`${candidate.attestation.candidateId}\``,
-      "- **Current Workflow:** `integrate-work-unit`",
-      "- **Last Completed:** [none]",
-      "- **Next Task:** [none]",
-      "- **Next Action:** [none]",
-      "",
-    ].join("\n"));
+    ), makeMetaFixture(fixture.plan.workUnitId, {
+      owner: "test-user",
+      state: "Integrating",
+      branch: workUnitBranch,
+      taskList: "tasks-delivery-plan-record.md",
+      candidateId: candidate.attestation.candidateId,
+      currentWorkflow: "integrate-work-unit",
+    }));
     await git(fixture.repository, ["add", ".arc/active", ".arc/system/.internal/candidates"]);
     await git(fixture.repository, ["commit", "--no-verify", "-m", "install integration fixture"]);
     const installedHead = await git(fixture.repository, ["rev-parse", "HEAD"]);
@@ -1954,20 +1941,16 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       lineageAttestations: [],
     };
     await writeCandidateRecord(fixture.repository, workUnitId, candidate, null);
-    await writeFile(join(activeDir, `meta-${workUnitId}.md`), [
-      `# Metadata: ${workUnitId}`,
-      "",
-      "- **State:** Integrating",
-      "- **Owner:** test-user",
-      `- **Branch:** ${branch}`,
-      `- **Task List:** \`tasks-${workUnitId}.md\``,
-      `- **Candidate:** \`${candidate.attestation.candidateId}\``,
-      "- **Current Workflow:** `integrate-work-unit`",
-      "- **Last Completed:** [none]",
-      "- **Next Task:** 1.1",
-      "- **Next Action:** Finish the correction",
-      "",
-    ].join("\n"));
+    await writeFile(join(activeDir, `meta-${workUnitId}.md`), makeMetaFixture(workUnitId, {
+      owner: "test-user",
+      state: "Integrating",
+      branch,
+      taskList: `tasks-${workUnitId}.md`,
+      candidateId: candidate.attestation.candidateId,
+      currentWorkflow: "integrate-work-unit",
+      nextTask: "1.1",
+      nextAction: "Finish the correction",
+    }));
     const reservation = {
       schemaVersion: 1 as const,
       semanticsVersion: "standard-review-reservation/v1" as const,
@@ -2493,27 +2476,19 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       })],
       lineageAttestations: [],
     };
-    await writeFile(join(activeDir, `meta-${fixture.plan.workUnitId}.md`), [
-      `# Metadata: ${fixture.plan.workUnitId}`,
-      "",
-      "- **State:** Integrating",
-      "- **Owner:** test-user",
-      `- **Branch:** ${branch}`,
-      "- **Class:** Heavy",
-      "- **Priority:** P1",
-      "- **Origin:** [internal]",
-      `- **Task List:** tasks-${fixture.plan.workUnitId}.md`,
-      `- **Candidate:** \`${candidate.attestation.candidateId}\``,
-      "- **Current Workflow:** `integrate-work-unit`",
-      "- **Last Completed:** Task 1.1 — Close delivery",
-      "- **Next Task:** [none]",
-      "- **Next Action:** Resume delivery closeout",
-      "",
-      "## Completion Notes",
-      "",
-      "Delivery verification and review are complete.",
-      "",
-    ].join("\n"));
+    await writeFile(join(activeDir, `meta-${fixture.plan.workUnitId}.md`),
+      `${makeMetaFixture(fixture.plan.workUnitId, {
+        owner: "test-user",
+        state: "Integrating",
+        branch,
+        workClass: "Heavy",
+        priority: "P1",
+        taskList: `tasks-${fixture.plan.workUnitId}.md`,
+        candidateId: candidate.attestation.candidateId,
+        currentWorkflow: "integrate-work-unit",
+        lastCompleted: "Task 1.1 — Close delivery",
+        nextAction: "Resume delivery closeout",
+      })}\n## Completion Notes\n\nDelivery verification and review are complete.\n`);
     await writeCandidateRecord(fixture.repository, fixture.plan.workUnitId, candidate, null);
     const reservation = {
       schemaVersion: 1 as const,
@@ -2590,11 +2565,13 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     );
     await mkdir(completedDir, { recursive: true });
     const activeMetaPath = join(activeDir, `meta-${fixture.plan.workUnitId}.md`);
-    const shippedMeta = (await readFile(activeMetaPath, "utf8"))
-      .replace("- **State:** Integrating", "- **State:** Shipped")
-      .replace(`- **Branch:** ${branch}`, "- **Branch:** [none]")
-      .replace("- **Current Workflow:** `integrate-work-unit`", "- **Current Workflow:** [none]")
-      .replace("- **Next Action:** Resume delivery closeout", "- **Next Action:** [none]");
+    const shippedMeta = setMetaBulletFields(
+      setMetaCurrentWorkflow(
+        setMetaBranch(setMetaState(await readFile(activeMetaPath, "utf8"), "Shipped"), "[none]"),
+        "[none]",
+      ),
+      { "Next Action": "[none]" },
+    );
     await writeFile(activeMetaPath, shippedMeta);
     await rename(
       activeMetaPath,
@@ -3199,23 +3176,16 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       ".arc",
       "active",
       `meta-${fixture.plan.workUnitId}.md`,
-    ), [
-      `# Metadata: ${fixture.plan.workUnitId}`,
-      "",
-      "- **State:** Integrating",
-      "- **Owner:** test-user",
-      "- **Branch:** member-3",
-      "- **Class:** Heavy",
-      "- **Priority:** P1",
-      "- **Origin:** [internal]",
-      `- **Task List:** tasks-${fixture.plan.workUnitId}.md`,
-      `- **Candidate:** \`${candidate.attestation.candidateId}\``,
-      "- **Current Workflow:** `integrate-work-unit`",
-      "- **Last Completed:** [none]",
-      "- **Next Task:** [none]",
-      "- **Next Action:** [none]",
-      "",
-    ].join("\n"));
+    ), makeMetaFixture(fixture.plan.workUnitId, {
+      owner: "test-user",
+      state: "Integrating",
+      branch: "member-3",
+      workClass: "Heavy",
+      priority: "P1",
+      taskList: `tasks-${fixture.plan.workUnitId}.md`,
+      candidateId: candidate.attestation.candidateId,
+      currentWorkflow: "integrate-work-unit",
+    }));
     await writeCandidateRecord(fixture.repository, fixture.plan.workUnitId, candidate, null);
     await writeSubmissionBoundary(fixture.repository, projectPublicationBoundary({
       workUnit: fixture.plan.workUnitId,
@@ -5006,20 +4976,15 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         "### `[x]` **1.1 Close member one**",
         "",
       ].join("\n"));
-      await writeFile(join(activeDir, `meta-${workUnitId}.md`), [
-        `# Metadata: ${workUnitId}`,
-        "",
-        "- **State:** Integrating",
-        "- **Owner:** test-user",
-        `- **Branch:** ${branch}`,
-        `- **Task List:** tasks-${workUnitId}.md`,
-        "- **Candidate:** [none]",
-        "- **Current Workflow:** `integrate-work-unit`",
-        "- **Last Completed:** Task 1.1 — Close member one",
-        "- **Next Task:** [none]",
-        "- **Next Action:** Resume hosted review",
-        "",
-      ].join("\n"));
+      await writeFile(join(activeDir, `meta-${workUnitId}.md`), makeMetaFixture(workUnitId, {
+        owner: "test-user",
+        state: "Integrating",
+        branch,
+        taskList: `tasks-${workUnitId}.md`,
+        currentWorkflow: "integrate-work-unit",
+        lastCompleted: "Task 1.1 — Close member one",
+        nextAction: "Resume hosted review",
+      }));
       await git(fixture.repository, ["add", "-A"]);
       await git(fixture.repository, ["commit", "--no-verify", "-m", "orientation fixture"]);
       return await runArc(["status", "--session-init", "--json"], fixture.repository, {

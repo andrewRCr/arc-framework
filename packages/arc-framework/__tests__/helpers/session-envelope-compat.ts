@@ -90,6 +90,18 @@ const META = (name: string, fields: {
   "",
 ].join("\n");
 
+// This golden fixture deliberately keeps the older flat-bullet meta shape: the canonical
+// builder adds Priority, which changes the captured roster. Keep the mutation local so
+// benchmark consumers of this helper do not load production modules.
+function setLegacyMetaBullet(content: string, field: "State" | "Current Workflow", value: string): string {
+  const marker = `- **${field}:** `;
+  const lines = content.split("\n");
+  const index = lines.findIndex((line) => line.startsWith(marker));
+  if (index < 0) throw new Error(`Missing legacy meta field: ${field}`);
+  lines[index] = `${marker}${value}`;
+  return lines.join("\n");
+}
+
 const TASKS = [
   "# Task List: Envelope Fixture",
   "",
@@ -229,9 +241,11 @@ async function setupOrientFixture(state: MutableFixture): Promise<void> {
   const attestedMeta = await readFile(metaPath, "utf8");
   await writeFile(
     metaPath,
-    attestedMeta
-      .replace("- **State:** Active", "- **State:** Integrating")
-      .replace("- **Current Workflow:** `prepare-work-unit`", "- **Current Workflow:** `integrate-work-unit`"),
+    setLegacyMetaBullet(
+      setLegacyMetaBullet(attestedMeta, "State", "Integrating"),
+      "Current Workflow",
+      "`integrate-work-unit`",
+    ),
   );
   await writeFile(boundaryPath, `${JSON.stringify({
     schemaVersion: 1,

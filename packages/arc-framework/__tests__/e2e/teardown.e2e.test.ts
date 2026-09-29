@@ -11,6 +11,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runArc, createTempRepo, cleanupTempDir, git } from "./helpers.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 async function prepareSelfTeardown(
   repo: string,
@@ -30,7 +31,7 @@ async function prepareSelfTeardown(
   const completedRelative = ".arc/completed/2026-q3/01_demo/meta-demo.md";
   const completed = join(repo, ".arc", "completed", "2026-q3", "01_demo");
   await mkdir(completed, { recursive: true });
-  await writeFile(join(completed, "meta-demo.md"), "# Metadata: demo\n\n- **State:** Shipped\n");
+  await writeFile(join(completed, "meta-demo.md"), makeMetaFixture("demo", { state: "Shipped" }));
   await git(repo, ["add", "-f", "--", completedRelative]);
   await git(repo, ["commit", "-m", "chore: archive demo"]);
   await writeFile(
@@ -43,7 +44,7 @@ async function prepareSelfTeardown(
   await git(repo, ["worktree", "add", worktree, "feat/demo"]);
   const worktreeCompleted = join(worktree, ".arc", "completed", "2026-q3", "01_demo");
   await mkdir(worktreeCompleted, { recursive: true });
-  await writeFile(join(worktreeCompleted, "meta-demo.md"), "# Metadata: demo\n\n- **State:** Shipped\n");
+  await writeFile(join(worktreeCompleted, "meta-demo.md"), makeMetaFixture("demo", { state: "Shipped" }));
   if (options.marked) {
     const markerDir = join(worktree, ".arc", "system", ".internal");
     await mkdir(markerDir, { recursive: true });
