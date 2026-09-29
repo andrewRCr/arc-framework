@@ -452,13 +452,19 @@ Register citations below name the corresponding **Storage-coupling register** ro
 
 ### Carved-module predicates
 
-| Module path | Register row |
-| ----------- | ------------ |
+| Module path                                   | Register row |
+| --------------------------------------------- | ------------ |
+| `src/lib/work-unit/candidate-record-store.ts` | `R-CR`       |
 
 ### Non-code predicates
 
-| Surface kind | Path prefix | Kind | Owner |
-| ------------ | ----------- | ---- | ----- |
+| Surface kind | Path prefix | Kind                    | Owner              |
+| ------------ | ----------- | ----------------------- | ------------------ |
+| `test`       | —           | `independent-evidence`  | test suite         |
+| `template`   | —           | `independent-evidence`  | template contracts |
+| `prose`      | —           | `independent-evidence`  | documentation      |
+| `workflow`   | —           | `semantic-policy-owner` | workflow guidance  |
+| `config`     | —           | `semantic-policy-owner` | configuration      |
 
 ## Segment boundaries
 
@@ -626,6 +632,105 @@ their hits beyond the unremoved run's report. The comparison is differential, so
 nor mimic the removal; a reconciliation that cannot report a removed row proves nothing. Each removed rule is chosen
 with no less specific rule to fall back to, since a hit that falls back to a broader predicate is correctly not
 reported.
+
+### One-off reconciliation command
+
+Run from `packages/arc-framework`. The script stays in `/tmp`; its complete source is recorded here so it can be
+re-extracted after a base merge. It reads the three matrix tables above and emits every hit identity and assignment.
+
+```ts layout-reconcile
+import { execFileSync } from "node:child_process";
+import { readFile } from "node:fs/promises";
+import { relative, resolve } from "node:path";
+import { parseCouplingManifest } from "./src/lib/coupling-audit/contracts.js";
+import { selectCorpusPaths, collectCorpusFromPaths } from "./src/lib/coupling-audit/corpus.js";
+import { scanClassInventory } from "./src/lib/coupling-audit/scan.js";
+
+const classIds = new Set([
+  "arc-root", "method-root", "workflow-root", "template-suffix", "active-placement",
+  "planned-placement", "completed-placement", "meta-prefix", "draft-prefix", "spec-prefix",
+  "tasks-prefix", "notes-prefix", "roadmap-name", "session-notes-name", "working-memory-name",
+]);
+const root = execFileSync("git", ["rev-parse", "--show-toplevel"]).toString().trim();
+const packageRoot = resolve(root, "packages/arc-framework");
+const notes = await readFile(resolve(root, ".arc/active/notes-cli-substrate-complete-migration.md"), "utf8");
+const manifest = parseCouplingManifest(JSON.parse(await readFile(resolve(packageRoot, "audits/coupling-blast-radius/manifest.json"), "utf8")));
+const tracked = execFileSync("git", ["ls-files", "-z"], { cwd: root }).toString().split("\0").filter(Boolean);
+const paths = selectCorpusPaths(manifest.corpus, tracked);
+const corpus = await collectCorpusFromPaths(manifest.corpus, paths, (path) => readFile(resolve(root, path)));
+const inventory = scanClassInventory(manifest, corpus);
+const classes = inventory.classes.filter((entry) => classIds.has(entry.classId));
+if (classes.length !== classIds.size) throw new Error("layout class selection differs from manifest");
+const hits = classes.flatMap((entry) => entry.hits);
+const asRepoPath = (cell) => relative(root, resolve(packageRoot, cell)).replaceAll("\\", "/");
+function table(heading, columns) {
+  const start = notes.indexOf(`### ${heading}\n`);
+  if (start < 0) throw new Error(`missing table ${heading}`);
+  const body = notes.slice(start).split("\n").slice(2);
+  const lines = body.slice(0, body.findIndex((line) => !line.startsWith("|")));
+  if (lines.length < 2) throw new Error(`empty or malformed table ${heading}`);
+  const cells = (line) => line.split("|").slice(1, -1).map((cell) => cell.trim().replace(/^`|`$/gu, ""));
+  if (JSON.stringify(cells(lines[0])) !== JSON.stringify(columns)) throw new Error(`changed columns in ${heading}`);
+  return lines.slice(2).map((line) => cells(line));
+}
+const perFile = table("Layout per-file rows", ["File", "Class", "Kind", "Owner", "Hits", "Lines"])
+  .map(([file, classId, kind, owner, count, lines]) => ({ type: "file", id: `${file}|${classId}`, path: asRepoPath(file), classId, kind, owner, count: Number(count), lines }));
+const carved = table("Carved-module predicates", ["Module path", "Register row"])
+  .map(([path, register]) => ({ type: "carved", id: path, path: asRepoPath(path), register }));
+const nonCode = table("Non-code predicates", ["Surface kind", "Path prefix", "Kind", "Owner"])
+  .map(([surfaceKind, prefix, kind, owner]) => ({ type: "noncode", id: `${surfaceKind}|${prefix}`, surfaceKind,
+    prefix: prefix === "—" ? "" : asRepoPath(prefix), kind, owner }));
+const rules = [...perFile, ...carved, ...nonCode];
+if (new Set(rules.map((rule) => `${rule.type}|${rule.id}`)).size !== rules.length) throw new Error("duplicate rule");
+const hitKey = (hit) => `${hit.classId}|${hit.path}:${hit.line}:${hit.column}|${hit.evidenceDigest}`;
+function reconcile(removed = new Set()) {
+  const assigned = new Map(rules.map((rule) => [`${rule.type}|${rule.id}`, []]));
+  const report = { unmatchedCode: [], unmatchedNonCode: [], overlaps: [], unusedRules: [], countMismatches: [], assigned: {} };
+  for (const hit of hits) {
+    const candidates = rules.filter((rule) => !removed.has(`${rule.type}|${rule.id}`) &&
+      (hit.surfaceKind === "code"
+        ? (rule.type === "file" && rule.path === hit.path && rule.classId === hit.classId) ||
+          (rule.type === "carved" && rule.path === hit.path)
+        : rule.type === "noncode" && rule.surfaceKind === hit.surfaceKind &&
+          (rule.prefix === "" || hit.path === rule.prefix || hit.path.startsWith(`${rule.prefix}/`))));
+    const longest = hit.surfaceKind === "code" ? candidates :
+      candidates.filter((rule) => rule.prefix.length === Math.max(...candidates.map((candidate) => candidate.prefix.length)));
+    const key = hitKey(hit);
+    if (longest.length === 0) report[hit.surfaceKind === "code" ? "unmatchedCode" : "unmatchedNonCode"].push(key);
+    else if (longest.length > 1) report.overlaps.push({ hit: key, rules: longest.map((rule) => `${rule.type}|${rule.id}`) });
+    else assigned.get(`${longest[0].type}|${longest[0].id}`).push(key);
+  }
+  for (const rule of rules) {
+    const id = `${rule.type}|${rule.id}`;
+    if (removed.has(id)) continue;
+    const matches = assigned.get(id);
+    report.assigned[id] = matches;
+    if (matches.length === 0) report.unusedRules.push(id);
+    if (rule.type === "file" && matches.length !== rule.count) report.countMismatches.push({ rule: id, recorded: rule.count, actual: matches.length });
+  }
+  return report;
+}
+const removed = new Set(process.argv.slice(2));
+for (const id of removed) if (!rules.some((rule) => `${rule.type}|${rule.id}` === id)) throw new Error(`unknown removal ${id}`);
+const report = reconcile(removed);
+process.stdout.write(`${JSON.stringify({ head: execFileSync("git", ["rev-parse", "HEAD"]).toString().trim(),
+  corpusFiles: corpus.length, classCount: classes.length, hitCount: hits.length, removed: [...removed], report }, null, 2)}\n`);
+```
+
+```sh
+ARC_SCAN_DIR=/tmp/arc-cli-substrate-inventory && mkdir -p "$ARC_SCAN_DIR" && ln -sfn "$PWD/../../node_modules" "$ARC_SCAN_DIR/node_modules" && ln -sfn "$PWD/src" "$ARC_SCAN_DIR/src" && awk '/^```ts layout-reconcile$/{copy=1;next} copy && /^```$/{exit} copy' ../../.arc/active/notes-cli-substrate-complete-migration.md > "$ARC_SCAN_DIR/layout-reconcile.mts" && node --import tsx "$ARC_SCAN_DIR/layout-reconcile.mts" > "$ARC_SCAN_DIR/layout-reconcile.json"
+```
+
+**Initial run at `cf3347ad0`:** 2,227 corpus files, 15 classes, 18,427 hits. The five non-code predicates assign
+all 17,301 non-code hits; the Candidate-record carved predicate assigns one code hit. The remaining 1,125 code
+hits are the Task 5.3/5.4 migration and disposition queue. The report has zero overlaps, unused rules, and count
+mismatches. Output: `/tmp/arc-cli-substrate-inventory/layout-reconcile.json`.
+
+**Initial negative control:** running the same script with
+`'carved|src/lib/work-unit/candidate-record-store.ts' 'noncode|template|—'` as arguments adds exactly the one
+Candidate-record hit and 133 template hits to unmatched reports. Set comparison against those two rules' baseline
+assignments found zero missing or unexpected hits. Restoring both rules returns them to zero unmatched; the other
+1,125 outstanding code hits do not change. Output: `/tmp/arc-cli-substrate-inventory/layout-reconcile-negative.json`.
 
 ## Work-unit state-path recount
 

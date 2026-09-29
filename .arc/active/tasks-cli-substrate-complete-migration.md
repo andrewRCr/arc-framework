@@ -465,21 +465,14 @@ kind.
 - **Additional Context:** `notes-cli-substrate-complete-migration.md` § Layout reconciliation — the 15 class IDs, the
   framework and state split, and the tables the script reads
 
-    - `[ ]` **5.2.a Write the one-off reconciliation script**
-        - Call the coupling-audit library as the state-path recount did (`parseCouplingManifest`,
-          `selectCorpusPaths`, `collectCorpusFromPaths`, `scanClassInventory`) and keep the 15 layout classes, which the
-          script declares itself because Task 5.1 deletes the module that held them.
-        - Assign each hit to exactly one rule. A per-file row matches on file and class, a carved-module predicate on
-          module path, and a non-code predicate on surface kind and path prefix, where the longest matching prefix wins
-          and `—` (every path of the kind) is the shortest; no other precedence exists.
-        - Report every code hit without a per-file row or carved-module predicate, every non-code hit without a
-          non-code predicate, every hit matched by more than one rule the precedence does not settle, every row or
-          predicate with no hit assigned — a fully shadowed predicate among them — and every per-file row whose
-          assigned hit count differs from its recorded `Hits`.
-        - A row's lines are evidence, re-derived whenever a base merge refreshes the counts; its `Hits` count is
-          refreshed only after any added hit is classified.
-        - Keep it outside the tracked tree, with its source and command in notes § Layout reconciliation; a tracked
-          gate would rebuild the ledger Task 5.1 retires.
+    - `[x]` **5.2.a Write the one-off reconciliation script**
+        - Recorded the complete one-off script and extraction command in notes § Layout reconciliation. It scans the
+          15 declared classes through the four coupling-audit library calls and reads the three matrix tables.
+        - It assigns hits under the specified rule matches and longest-prefix precedence, and reports uncovered
+          code and non-code hits, unresolved overlaps, unused rules, and per-file count drift. Lines remain evidence;
+          assigned hit counts enforce the recorded `Hits` values.
+        - The initial run covered 18,427 hits and exposed 1,125 code hits for Task 5.3/5.4. The script is outside
+          the tracked tree; its source and current report location are recorded in the notes.
 
     - `[ ]` **5.2.b Record the non-code and carved-module predicates**
         - Class-level predicates over surface kind and path for test, prose, workflow, config, and template surfaces,
