@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import {
   readRemoteBranchOid,
@@ -14,21 +14,25 @@ const NEW_BRANCH = "feat/new-name";
 const OLD_OID = "1111111111111111111111111111111111111111";
 const MOVED_OID = "2222222222222222222222222222222222222222";
 
-function localBranchExec(refs: readonly string[]): { exec: GitExec; calls: string[][] } {
-  const calls: string[][] = [];
-  return {
-    calls,
-    exec: async (command, args) => {
-      calls.push([command, ...args]);
-      if (args[0] === "for-each-ref" && args[1] === "--format=%(refname)") {
-        return { stdout: refs.map((ref) => `refs/heads/${ref}`).join("\n") };
-      }
-      if (args[0] === "for-each-ref" && args[1] === "--format=%(upstream)") {
-        return { stdout: `refs/remotes/origin/${OLD_BRANCH}\n` };
-      }
-      return { stdout: "" };
+function localBranchExec(refs: readonly string[]) {
+  return scriptGitExec([
+    {
+      match: ["for-each-ref", "--format=%(refname)", `refs/heads/${OLD_BRANCH}`, `refs/heads/${NEW_BRANCH}`],
+      responses: [{ stdout: refs.map((ref) => `refs/heads/${ref}`).join("\n") }],
     },
-  };
+    {
+      match: ["branch", "-m", OLD_BRANCH, NEW_BRANCH],
+      responses: [{ stdout: "" }],
+    },
+    {
+      match: ["for-each-ref", "--format=%(upstream)", `refs/heads/${NEW_BRANCH}`],
+      responses: [{ stdout: `refs/remotes/origin/${OLD_BRANCH}\n` }],
+    },
+    {
+      match: ["branch", "--unset-upstream", NEW_BRANCH],
+      responses: [{ stdout: "" }],
+    },
+  ]);
 }
 
 describe("reconcileRenameLocalBranch", () => {
@@ -40,8 +44,10 @@ describe("reconcileRenameLocalBranch", () => {
       newBranch: NEW_BRANCH,
     })).resolves.toEqual({ status: "renamed" });
 
-    expect(calls).toContainEqual(["git", "branch", "-m", OLD_BRANCH, NEW_BRANCH]);
-    expect(calls).toContainEqual(["git", "branch", "--unset-upstream", NEW_BRANCH]);
+    expect(calls.map(({ command, args }) => [command, ...args]))
+      .toContainEqual(["git", "branch", "-m", OLD_BRANCH, NEW_BRANCH]);
+    expect(calls.map(({ command, args }) => [command, ...args]))
+      .toContainEqual(["git", "branch", "--unset-upstream", NEW_BRANCH]);
   });
 
   it("skips an already-renamed local branch", async () => {
@@ -52,7 +58,7 @@ describe("reconcileRenameLocalBranch", () => {
       newBranch: NEW_BRANCH,
     })).resolves.toEqual({ status: "already-renamed" });
 
-    expect(calls.some((call) => call[1] === "branch")).toBe(false);
+    expect(calls.some((call) => call.args[0] === "branch")).toBe(false);
   });
 
   it("refuses when neither local branch exists and names both refs", async () => {
@@ -115,15 +121,16 @@ describe("rename remote branch leg", () => {
   });
 
   it("treats an already-absent old remote head as complete", async () => {
-    const exec: GitExec = async (command, args) => {
-      if (args[0] === "push" && args.includes(`:refs/heads/${OLD_BRANCH}`)) {
-        throw makeGitProcessError({
-          command, args, exitCode: 1,
+    const { exec } = scriptGitExec([
+      { match: ["push", "-u", "origin", NEW_BRANCH], responses: [{ stdout: "" }] },
+      {
+        match: ["push", "origin", `--force-with-lease=refs/heads/${OLD_BRANCH}:${OLD_OID}`, `:refs/heads/${OLD_BRANCH}`],
+        responses: [{ failure: {
+          exitCode: 1,
           stderr: `error: unable to delete '${OLD_BRANCH}': remote ref does not exist`,
-        });
-      }
-      return { stdout: "" };
-    };
+        } }],
+      },
+    ]);
 
     await expect(reconcileRenameRemoteBranch({ exec }, {
       remote: "origin",
@@ -134,18 +141,17 @@ describe("rename remote branch leg", () => {
   });
 
   it("surfaces both OIDs when the old remote head moves after preflight", async () => {
-    const exec: GitExec = async (command, args) => {
-      if (args[0] === "push" && args.includes(`:refs/heads/${OLD_BRANCH}`)) {
-        throw makeGitProcessError({
-          command, args, exitCode: 1,
-          stderr: " ! [rejected] (stale info)",
-        });
-      }
-      if (args[0] === "ls-remote") {
-        return { stdout: `${MOVED_OID}\trefs/heads/${OLD_BRANCH}\n` };
-      }
-      return { stdout: "" };
-    };
+    const { exec } = scriptGitExec([
+      { match: ["push", "-u", "origin", NEW_BRANCH], responses: [{ stdout: "" }] },
+      {
+        match: ["push", "origin", `--force-with-lease=refs/heads/${OLD_BRANCH}:${OLD_OID}`, `:refs/heads/${OLD_BRANCH}`],
+        responses: [{ failure: { exitCode: 1, stderr: " ! [rejected] (stale info)" } }],
+      },
+      {
+        match: ["ls-remote", "--heads", "origin", `refs/heads/${OLD_BRANCH}`],
+        responses: [{ stdout: `${MOVED_OID}\trefs/heads/${OLD_BRANCH}\n` }],
+      },
+    ]);
 
     await expect(reconcileRenameRemoteBranch({ exec }, {
       remote: "origin",
@@ -191,21 +197,22 @@ describe("withRenameStubBranch", () => {
   });
 
   it("attaches an existing short-lived branch instead of cutting it again", async () => {
-    const calls: string[][] = [];
     const branch = "chore/rename-old-name-to-new-name";
-    const exec: GitExec = async (command, args) => {
-      calls.push([command, ...args]);
-      if (args[0] === "for-each-ref") return { stdout: `refs/heads/${branch}\n` };
-      return { stdout: "" };
-    };
+    const { exec, calls } = scriptGitExec([
+      { match: ["for-each-ref", "--format=%(refname)", `refs/heads/${branch}`],
+        responses: [{ stdout: `refs/heads/${branch}\n` }] },
+      { match: ["switch", branch], responses: [{ stdout: "" }] },
+      { match: ["switch", "main"], responses: [{ stdout: "" }] },
+    ]);
 
     await expect(withRenameStubBranch({ exec }, {
       baseBranch: "main",
       oldSlug: "old-name",
       newSlug: "new-name",
     }, async () => undefined)).resolves.toMatchObject({ created: false, pendingIntegration: true });
-    expect(calls).toContainEqual(["git", "switch", branch]);
-    expect(calls).not.toContainEqual(["git", "switch", "-c", branch, "main"]);
+    expect(calls.map(({ command, args }) => [command, ...args])).toContainEqual(["git", "switch", branch]);
+    expect(calls.map(({ command, args }) => [command, ...args]))
+      .not.toContainEqual(["git", "switch", "-c", branch, "main"]);
   });
 
   it("returns to base when the rename commit is refused", async () => {

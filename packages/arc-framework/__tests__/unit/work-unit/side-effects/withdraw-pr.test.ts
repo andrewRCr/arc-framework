@@ -10,19 +10,19 @@
 
 import { describe, it, expect } from "vitest";
 
-import type { ExecResult, GitExec } from "../../../../src/lib/git/exec.js";
+import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 import { withdrawPr } from "../../../../src/lib/work-unit/side-effects/withdraw-pr.js";
 
 /** A spy executor recording each `(cmd, args)` invocation. */
 function spyExec(
   observed: { state: "OPEN" | "CLOSED" | "MERGED"; isDraft: boolean } = { state: "OPEN", isDraft: false },
-): { exec: GitExec; calls: { cmd: string; args: string[] }[] } {
-  const calls: { cmd: string; args: string[] }[] = [];
-  const exec: GitExec = (cmd, args) => {
-    calls.push({ cmd, args });
-    return Promise.resolve<ExecResult>({ stdout: args[1] === "view" ? JSON.stringify(observed) : "" });
-  };
-  return { exec, calls };
+) {
+  return scriptGitExec([
+    { command: "gh", match: ["pr", "view", "feat/foo", "--json", "state,isDraft"],
+      responses: [{ stdout: JSON.stringify(observed) }] },
+    { command: "gh", match: ["pr", "close", "feat/foo"], responses: [{ stdout: "" }] },
+    { command: "gh", match: ["pr", "ready", "feat/foo", "--undo"], responses: [{ stdout: "" }] },
+  ]);
 }
 
 describe("withdrawPr — close (default)", () => {
@@ -32,7 +32,7 @@ describe("withdrawPr — close (default)", () => {
     await withdrawPr({ exec }, { branch: "feat/foo", mode: "close" });
 
     expect(calls).toHaveLength(2);
-    expect(calls[0]!.cmd).toBe("gh");
+    expect(calls[0]!.command).toBe("gh");
     expect(calls[0]!.args).toEqual(["pr", "view", "feat/foo", "--json", "state,isDraft"]);
     expect(calls[1]!.args).toEqual(["pr", "close", "feat/foo"]);
   });

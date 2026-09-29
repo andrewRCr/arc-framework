@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import { digestBytes } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import {
@@ -13,20 +13,18 @@ const ANCESTOR = "a".repeat(40);
 const DESCENDANT = "b".repeat(40);
 
 function ancestryExec(outcome: "ancestor" | "not-ancestor" | "unresolvable"): GitExec {
-  return async (command, args) => {
-    if (args[0] === "rev-parse") {
-      const ref = args[2]?.replace(/\^\{commit\}$/u, "");
-      if (outcome === "unresolvable" && ref === DESCENDANT) {
-        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "missing" });
-      }
-      return { stdout: `${ref}\n` };
-    }
-    if (args[0] === "merge-base") {
-      if (outcome === "ancestor") return { stdout: "" };
-      throw makeGitProcessError({ command, args, exitCode: 1, stderr: "not an ancestor" });
-    }
-    throw new Error(`unexpected git call: ${args.join(" ")}`);
-  };
+  return scriptGitExec([
+    { match: ["rev-parse", "--verify", `${ANCESTOR}^{commit}`],
+      responses: [{ stdout: `${ANCESTOR}\n` }] },
+    { match: ["rev-parse", "--verify", `${DESCENDANT}^{commit}`],
+      responses: [outcome === "unresolvable"
+        ? { failure: { exitCode: 128, stderr: "missing" } }
+        : { stdout: `${DESCENDANT}\n` }] },
+    { match: ["merge-base", "--is-ancestor", ANCESTOR, DESCENDANT],
+      responses: [outcome === "ancestor"
+        ? { stdout: "" }
+        : { failure: { exitCode: 1, stderr: "not an ancestor" } }] },
+  ]).exec;
 }
 
 describe("git decomposition object readers", () => {
@@ -88,9 +86,10 @@ describe("git decomposition object readers", () => {
 
   it("distinguishes an unreadable path state from a proven mismatch", async () => {
     const path = ".arc/example.md";
-    const unreadable: GitExec = async (command, args) => {
-      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "tree unavailable" });
-    };
+    const { exec: unreadable } = scriptGitExec([
+      { match: ["ls-tree", "-z", ANCESTOR, "--", `:(literal)${path}`],
+        responses: [{ failure: { exitCode: 128, stderr: "tree unavailable" } }] },
+    ]);
 
     await expect(stateMatches(
       {
