@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "user-backup-collision",
+  "claimId": "9a2e20195293564b3082ad96929c3c5d",
+  "createdAt": "2026-09-29T00:32:44.086Z",
+  "updatedAt": "2026-09-29T00:32:44.086Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Keep same-millisecond user loads from overwriting each other's pre-load backup",
+  "branch": "chore/user-backup-collision",
+  "origin": "inbox",
+  "originEntry": "Stop same-millisecond user loads from overwriting each other's pre-load backup",
+  "originEntrySourceDigest": "sha256:6491e6b76f7ae804658a4b842a8457a6babf7d5ae9448256ff8430cfdf4fc427",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
