@@ -4,8 +4,7 @@ import {
   createSessionRemoteContextReader,
   sessionRemotePrerequisites,
 } from "../../../src/handlers/status-remote-context.js";
-import type { GitExec, GitExecInput } from "../../../src/lib/git/exec.js";
-import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
+import { makeGitProcessError, scriptGitExec, scriptGitExecInput } from "../../helpers/git-exec-fake.js";
 
 const oid = "a".repeat(40);
 
@@ -57,23 +56,16 @@ describe("sessionRemotePrerequisites", () => {
 
 describe("createSessionRemoteContextReader", () => {
   it("memoizes one immutable all-heads context with local prerequisites", async () => {
-    const calls: string[] = [];
-    const exec: GitExec = async (_command, args) => {
-      calls.push(args.join(" "));
-      if (args[0] === "remote") return { stdout: "origin\n", stderr: "" };
-      if (args[0] === "ls-remote") {
-        return {
-          stdout: `${oid}\trefs/heads/main\n${oid}\trefs/heads/topic\n`,
-          stderr: "",
-        };
-      }
-      if (args[0] === "rev-parse") return { stdout: "false", stderr: "" };
-      throw new Error(`Unexpected Git command: ${args.join(" ")}`);
-    };
-    const execInput: GitExecInput = async (_args, input) => {
-      calls.push(`batch:${input}`);
-      return `${oid} commit 123\n`;
-    };
+    const { exec, calls } = scriptGitExec([
+      { match: ["remote"], responses: [{ stdout: "origin\n", stderr: "" }] },
+      { match: ["ls-remote", "--heads", "origin"],
+        responses: [{ stdout: `${oid}\trefs/heads/main\n${oid}\trefs/heads/topic\n`, stderr: "" }] },
+      { match: ["rev-parse", "--is-shallow-repository"],
+        responses: [{ stdout: "false", stderr: "" }] },
+    ]);
+    const { exec: execInput, calls: inputCalls } = scriptGitExecInput([
+      { match: ["cat-file", "--batch-check"], responses: [`${oid} commit 123\n`] },
+    ]);
     const read = createSessionRemoteContextReader({
       cwd: "/repo",
       exec,
@@ -100,17 +92,18 @@ describe("createSessionRemoteContextReader", () => {
     if (first.objectAvailability.kind === "complete") {
       expect(Object.isFrozen(first.objectAvailability.commits)).toBe(true);
     }
-    expect(calls.filter((call) => call.startsWith("ls-remote"))).toHaveLength(1);
-    expect(calls.filter((call) => call.startsWith("batch:"))).toEqual([`batch:${oid}\n`]);
+    expect(calls.filter((call) => call.args[0] === "ls-remote")).toHaveLength(1);
+    expect(inputCalls.map((call) => call.input)).toEqual([`${oid}\n`]);
   });
 
   it("resolves the snapshot and degrades only availability without a stdin-capable executor", async () => {
-    const exec: GitExec = async (_command, args) => {
-      if (args[0] === "remote") return { stdout: "origin\r\n", stderr: "" };
-      if (args[0] === "ls-remote") return { stdout: `${oid}\trefs/heads/main\n`, stderr: "" };
-      if (args[0] === "rev-parse") return { stdout: "false", stderr: "" };
-      throw new Error(`Unexpected Git command: ${args.join(" ")}`);
-    };
+    const { exec } = scriptGitExec([
+      { match: ["remote"], responses: [{ stdout: "origin\r\n", stderr: "" }] },
+      { match: ["ls-remote", "--heads", "origin"],
+        responses: [{ stdout: `${oid}\trefs/heads/main\n`, stderr: "" }] },
+      { match: ["rev-parse", "--is-shallow-repository"],
+        responses: [{ stdout: "false", stderr: "" }] },
+    ]);
     const read = createSessionRemoteContextReader({
       cwd: "/repo",
       exec,
@@ -187,15 +180,12 @@ describe("createSessionRemoteContextReader", () => {
   });
 
   it("retains one failed all-heads read as typed unreachable evidence", async () => {
+    const { exec, calls } = scriptGitExec([
+      { match: ["remote"], responses: [{ stdout: "origin\n", stderr: "" }] },
+      { match: ["ls-remote", "--heads", "origin"],
+        responses: [{ failure: { exitCode: 128, stderr: "network is unreachable" } }] },
+    ]);
     let localPrerequisiteRead = false;
-    const exec: GitExec = async (command, args) => {
-      if (args[0] === "remote") return { stdout: "origin\n", stderr: "" };
-      if (args[0] === "ls-remote") {
-        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "network is unreachable" });
-      }
-      localPrerequisiteRead = true;
-      throw new Error("Local prerequisites must not run.");
-    };
     const read = createSessionRemoteContextReader({
       cwd: "/repo",
       exec,
@@ -211,23 +201,25 @@ describe("createSessionRemoteContextReader", () => {
       snapshot: { kind: "unreachable", failureReason: "network" },
     });
     expect(localPrerequisiteRead).toBe(false);
+    expect(calls.map((call) => call.args[0])).toEqual(["remote", "ls-remote"]);
   });
 
   it("carries shallow history beside an unavailable local object inspection", async () => {
-    const exec: GitExec = async (_command, args) => {
-      if (args[0] === "remote") return { stdout: "origin\n", stderr: "" };
-      if (args[0] === "ls-remote") {
-        return { stdout: `${oid}\trefs/heads/topic\n`, stderr: "" };
-      }
-      if (args[0] === "rev-parse") return { stdout: "true", stderr: "" };
-      throw new Error(`Unexpected Git command: ${args.join(" ")}`);
-    };
+    const { exec } = scriptGitExec([
+      { match: ["remote"], responses: [{ stdout: "origin\n", stderr: "" }] },
+      { match: ["ls-remote", "--heads", "origin"],
+        responses: [{ stdout: `${oid}\trefs/heads/topic\n`, stderr: "" }] },
+      { match: ["rev-parse", "--is-shallow-repository"],
+        responses: [{ stdout: "true", stderr: "" }] },
+    ]);
+    const { exec: execInput } = scriptGitExecInput([
+      { match: ["cat-file", "--batch-check"],
+        responses: [{ failure: { exitCode: 128, stderr: "local object inspection denied" } }] },
+    ]);
     const read = createSessionRemoteContextReader({
       cwd: "/repo",
       exec,
-      execInput: async (args) => {
-        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "local object inspection denied" });
-      },
+      execInput,
       remoteSyncEnabled: async () => true,
     });
 
@@ -240,14 +232,13 @@ describe("createSessionRemoteContextReader", () => {
   });
 
   it("retains malformed local history state as an internal prerequisite failure", async () => {
-    const exec: GitExec = async (_command, args) => {
-      if (args[0] === "remote") return { stdout: "origin\n", stderr: "" };
-      if (args[0] === "ls-remote") {
-        return { stdout: `${oid}\trefs/heads/topic\n`, stderr: "" };
-      }
-      if (args[0] === "rev-parse") return { stdout: "indeterminate", stderr: "" };
-      throw new Error(`Unexpected Git command: ${args.join(" ")}`);
-    };
+    const { exec } = scriptGitExec([
+      { match: ["remote"], responses: [{ stdout: "origin\n", stderr: "" }] },
+      { match: ["ls-remote", "--heads", "origin"],
+        responses: [{ stdout: `${oid}\trefs/heads/topic\n`, stderr: "" }] },
+      { match: ["rev-parse", "--is-shallow-repository"],
+        responses: [{ stdout: "indeterminate", stderr: "" }] },
+    ]);
     const read = createSessionRemoteContextReader({
       cwd: "/repo",
       exec,

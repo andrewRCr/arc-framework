@@ -12,6 +12,7 @@ import {
 } from "../../src/lib/errand/index.js";
 import { resolveChangeRequestLifecycleConfiguration } from "../../src/lib/errand/change-request-lifecycle.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
+import { scriptGitExec } from "../helpers/git-exec-fake.js";
 
 function parseTransientIdentityTailRecord(value: unknown): TransientIdentityTailRecord {
   const parsed = TransientIdentityRecordV3Schema.parse(value);
@@ -88,12 +89,13 @@ describe("GitHub change-request lifecycle port", () => {
       .resolves.toMatchObject({ kind: "missing" });
     await expect(createGhChangeRequestLifecyclePort(ghResult([pull(), pull({ number: 8 })]))
       .read(configured, changeRequest)).resolves.toMatchObject({ kind: "ambiguous" });
-    let query = 0;
-    const movedRef: GitExec = async () => ({
-      stdout: JSON.stringify(query++ === 0 ? [] : [pull({ headRefName: "chore/renamed" })]),
-      stderr: "",
-    });
-    await expect(createGhChangeRequestLifecyclePort(movedRef).read(configured, changeRequest))
+    const { exec } = scriptGitExec([
+      { command: "gh", match: { predicate: (args) => args[0] === "pr" && args.includes("--head") },
+        responses: [{ stdout: "[]", stderr: "" }] },
+      { command: "gh", match: { predicate: (args) => args[0] === "pr" && args.includes("--search") },
+        responses: [{ stdout: JSON.stringify([pull({ headRefName: "chore/renamed" })]), stderr: "" }] },
+    ]);
+    await expect(createGhChangeRequestLifecyclePort(exec).read(configured, changeRequest))
       .resolves.toMatchObject({ kind: "changed-head" });
   });
 

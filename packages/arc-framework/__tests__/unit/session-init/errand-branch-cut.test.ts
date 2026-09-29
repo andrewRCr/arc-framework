@@ -9,32 +9,24 @@
 import { describe, it, expect } from "vitest";
 
 import { cutErrandBranch } from "../../../src/lib/session-init/errand-branch-cut.js";
-import type { GitExec } from "../../../src/lib/git/exec.js";
-import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
-
-interface Call {
-  cmd: string;
-  args: string[];
-}
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 
 /**
  * Fake git seam: records every call, and resolves `show-ref` only for the
  * branches in `existing` (mirroring `git show-ref --verify --quiet`, which exits
  * non-zero — a rejection here — for an absent ref).
  */
-function fakeExec(existing: Set<string>): { exec: GitExec; calls: Call[] } {
-  const calls: Call[] = [];
-  const exec: GitExec = async (cmd, args) => {
-    calls.push({ cmd, args });
-    if (args[0] === "show-ref") {
-      const ref = args[args.length - 1] ?? "";
-      const branch = ref.replace(/^refs\/heads\//, "");
-      if (existing.has(branch)) return { stdout: "" };
-      throw makeGitProcessError({ command: cmd, args, exitCode: 1, stderr: "show-ref: ref not found" });
-    }
-    return { stdout: "" };
-  };
-  return { exec, calls };
+function fakeExec(existing: Set<string>): ReturnType<typeof scriptGitExec> {
+  return scriptGitExec([
+    { match: { prefix: ["show-ref"] }, responses: [(call) => {
+      const ref = call.args.at(-1) ?? "";
+      const branch = ref.replace(/^refs\/heads\//u, "");
+      return existing.has(branch)
+        ? { stdout: "" }
+        : { failure: { exitCode: 1, stderr: "show-ref: ref not found" } };
+    }] },
+    { match: { prefix: ["branch"] }, responses: [{ stdout: "" }] },
+  ]);
 }
 
 describe("cutErrandBranch", () => {
@@ -44,7 +36,9 @@ describe("cutErrandBranch", () => {
     const result = await cutErrandBranch({ exec }, { slug: "fix-flaky-test", base: "main" });
 
     expect(result).toEqual({ branch: "chore/fix-flaky-test", created: true });
-    expect(calls).toContainEqual({ cmd: "git", args: ["branch", "chore/fix-flaky-test", "main"] });
+    expect(calls).toContainEqual(expect.objectContaining({
+      command: "git", args: ["branch", "chore/fix-flaky-test", "main"],
+    }));
   });
 
   it("is a no-clobber no-op when a branch of that name already exists", async () => {
@@ -68,7 +62,9 @@ describe("cutErrandBranch", () => {
     const result = await cutErrandBranch({ exec }, { slug: "flaky-login", base: "main", type: "fix" });
 
     expect(result).toEqual({ branch: "fix/flaky-login", created: true });
-    expect(calls).toContainEqual({ cmd: "git", args: ["branch", "fix/flaky-login", "main"] });
+    expect(calls).toContainEqual(expect.objectContaining({
+      command: "git", args: ["branch", "fix/flaky-login", "main"],
+    }));
   });
 
   it("defaults to a chore/ branch when no type is given (the unchanged cut behavior)", async () => {
@@ -76,7 +72,9 @@ describe("cutErrandBranch", () => {
 
     await cutErrandBranch({ exec }, { slug: "bump-deps", base: "main" });
 
-    expect(calls).toContainEqual({ cmd: "git", args: ["branch", "chore/bump-deps", "main"] });
+    expect(calls).toContainEqual(expect.objectContaining({
+      command: "git", args: ["branch", "chore/bump-deps", "main"],
+    }));
   });
 
   it("no-clobbers a nature-typed branch independently of the chore default", async () => {
