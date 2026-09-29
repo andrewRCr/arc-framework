@@ -544,18 +544,15 @@ kind.
 - _Outcome:_ The complete 15-class reconciliation assigns 1,089 code hits and 17,301 non-code hits, with zero
   uncovered hits, overlaps, unused rules, or count drift; notes § Layout reconciliation records the report.
 
-### `[ ]` **5.5 Reconcile the layout rows both ways** — validate exit criterion at segment scope
+### `[x]` **5.5 Reconcile the layout rows both ways** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds as one batch at the post-merge head.
 
-    - Run the recorded reconciliation after the segment-boundary merge and record its report; confirm every non-code
-      surface falls under a predicate.
-    - Run the negative control over one per-file row, one carved-module predicate, and one non-code predicate, each
-      with no less specific rule to fall back to, and record that it reports exactly their hits beyond the unremoved
-      run's report.
-    - Confirm the segment's edits to carved code are compile-forced.
-    - Evidence for the Success Criteria on the ledger retirement, framework-class dispositions, the code-surface
-      reconciliation, and the layout rows' dispositions.
+- _Outcome:_ The fresh base checkpoint was clean with no incoming commit. At `caa5dba84`, all three inventory scans
+  and the layout reconciliation reran: all 18,390 hits are assigned, with no unmatched hit, overlap, unused rule, or
+  count drift. The three-rule negative control exposed exactly 139 removed-rule hits. Mixed-module code edits derive
+  framework paths without changing carved storage behavior. The complete local gate and build passed; notes § Phase 5
+  segment verifier records the evidence.
 
 ## **Phase 6:** Kernel residual
 

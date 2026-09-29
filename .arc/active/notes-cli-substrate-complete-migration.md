@@ -186,6 +186,12 @@ scanned 1,974 TypeScript files and grouped local imports under 982 modules. All 
 corpus files and all 32 selected classes. The current JSON reports are in `/tmp/arc-cli-substrate-inventory/`;
 the matrix's affected whole-module importer counts were refreshed from this run.
 
+**Phase 5 segment run:** `caa5dba84` — `npx arc base drift --json` fetched base and reported `clean`, `behind: 0`,
+and base OID `9fd22f614`; no merge was needed. The import graph scanned 1,969 TypeScript files and grouped local
+imports under 980 modules. All 1,521 unresolved specifiers were `node:` built-ins. The regex scan found zero
+`z.custom<BaseDriftResult>` sites. The coupling scan covered 2,227 corpus files and all 32 selected classes.
+Reports are in `/tmp/arc-cli-substrate-inventory/`.
+
 ## Residual matrix
 
 One table per owning contract — kernel, validation surfaces, session envelope, layout, Git executor, command inputs,
@@ -1153,6 +1159,14 @@ zero. Output: `/tmp/arc-cli-substrate-inventory/layout-reconcile-negative.json`.
 classification lines and assigns them to lifecycle classification. The current per-file rows classify them under
 `R-LC`; the register owner has a `USER-INBOX` correction to re-derive its count and file set from the current rows.
 The historical recount remains below as the original observation, while these file-exact rows govern Phase 5.
+
+**Phase 5 segment verifier:** After the fresh base checkpoint, all three inventory scripts and both reconciliation
+commands reran at `caa5dba84`. The layout report remained at 18,390 assigned hits and zero unmatched code or
+non-code hits, overlaps, unused rules, or count mismatches. Removing the same three rules exposed exactly 139
+baseline hit identities and no other hit. The framework edits in mixed storage modules derive only procedure or
+framework paths; no carved state-access or lifecycle behavior changed. The complete local gate passed Markdown lint,
+all three ARC contract checks, TypeScript and shell lint, both typechecks, 908 passing test files with 13,142
+passing tests, and the CLI build. `git status` remained clean after the build.
 
 ## Work-unit state-path recount
 
