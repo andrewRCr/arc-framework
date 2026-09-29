@@ -59,6 +59,8 @@ export interface RunViewOptions {
   project: boolean;
   identity: string | null;
   current?: boolean;
+  /** Print the resolved artifact's absolute path instead of its content. */
+  path?: boolean;
   forSlug?: string;
   nonInteractive?: boolean;
 }

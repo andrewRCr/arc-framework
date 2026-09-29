@@ -49,6 +49,7 @@ const execFileAsync = promisify(execFile);
 export interface ViewCliOptions {
   project?: boolean;
   current?: boolean;
+  path?: boolean;
   for?: string;
 }
 
@@ -59,6 +60,7 @@ export const ViewCommandInputSchema = z.object({
   }).optional(),
   project: z.boolean(),
   current: z.boolean(),
+  path: z.boolean(),
   forSlug: z.string().refine(
     (value) => SlugSchema.safeParse(value).success,
     { message: "Invalid work-unit slug" },
@@ -66,6 +68,9 @@ export const ViewCommandInputSchema = z.object({
 }).strict().superRefine((value, refinement) => {
   if (value.current && value.kind !== undefined && value.kind !== "tasks") {
     refinement.addIssue({ code: "custom", path: ["current"], message: "--current is only valid with tasks" });
+  }
+  if (value.path && value.current) {
+    refinement.addIssue({ code: "custom", path: ["path"], message: "--path cannot be combined with --current" });
   }
   if (value.project && value.kind !== "inbox") {
     refinement.addIssue({ code: "custom", path: ["project"], message: "--project is only valid with inbox" });
@@ -87,6 +92,7 @@ export const viewCommandInputRegistration = {
     "operand.kind": "kind",
     "option.project": "project",
     "option.current": "current",
+    "option.path": "path",
     "option.for": "forSlug",
   },
 } satisfies CommandInputRegistration;
@@ -156,6 +162,7 @@ export async function handleView(
     ...(kind === undefined ? {} : { kind }),
     project: options.project === true,
     current: options.current === true,
+    path: options.path === true,
     ...(options.for === undefined ? {} : { forSlug: options.for }),
   });
   if (!parsed.success) {
@@ -182,6 +189,7 @@ export async function handleView(
     project: parsed.data.project,
     identity,
     current: parsed.data.current,
+    path: parsed.data.path,
     ...(parsed.data.forSlug === undefined ? {} : { forSlug: parsed.data.forSlug }),
     nonInteractive: context.subprocess.presenters === "forbidden",
   }, {

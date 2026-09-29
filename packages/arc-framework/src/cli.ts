@@ -1364,6 +1364,7 @@ program
   )
   .option("--project", "With inbox: render the shared project inbox")
   .option("--current", "With tasks: render only the current task region")
+  .option("--path", "Print the artifact's absolute path instead of rendering it")
   .option("--for <slug>", "Override ambient context with the named work-unit slug")
   .action(withInteractionContext(
     {},
