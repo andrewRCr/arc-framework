@@ -8,7 +8,19 @@ import {
   inspectDeliveryCandidateCheckout,
   readDeliveryEligibilityTree,
 } from "../../../src/lib/delivery/git-eligibility.js";
-import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
+import { makeGitProcessError, scriptGitExec } from "../../helpers/git-exec-fake.js";
+
+function checkoutExec(status: string, untrackedFiles: "no" | "all") {
+  const head = "a".repeat(40);
+  const tree = "b".repeat(40);
+  return scriptGitExec([
+    { match: ["rev-parse", "--verify", "HEAD^{commit}"], responses: [{ stdout: `${head}\n` }] },
+    { match: ["rev-list", "--parents", "-n", "1", head], responses: [{ stdout: `${head}\n` }] },
+    { match: ["rev-parse", `${head}^{tree}`], responses: [{ stdout: `${tree}\n` }] },
+    { match: ["status", "--porcelain=v1", "-z", `--untracked-files=${untrackedFiles}`],
+      responses: [{ stdout: status }] },
+  ]);
+}
 
 describe("delivery eligibility Git facts", () => {
   it("preserves exact mode, type, and object identity for every tree leaf", async () => {
@@ -48,32 +60,19 @@ describe("delivery eligibility Git facts", () => {
   it("checks tracked/index dirt while requesting no untracked output", async () => {
     const head = "a".repeat(40);
     const tree = "b".repeat(40);
-    const calls: string[][] = [];
-    const exec: GitExec = async (_command, args) => {
-      calls.push(args);
-      if (args[0] === "rev-parse" && args[2] === "HEAD^{commit}") return { stdout: `${head}\n` };
-      if (args[0] === "rev-list") return { stdout: `${head}\n` };
-      if (args[0] === "rev-parse" && args[1] === `${head}^{tree}`) return { stdout: `${tree}\n` };
-      if (args[0] === "status") return { stdout: "" };
-      throw new Error(`unexpected ${args.join(" ")}`);
-    };
+    const { exec, calls } = checkoutExec("", "no");
 
     await expect(inspectDeliveryCandidateCheckout(exec, "/tmp/candidate")).resolves.toEqual({
       head, tree, trackedDirty: false,
     });
-    expect(calls).toContainEqual(["status", "--porcelain=v1", "-z", "--untracked-files=no"]);
+    expect(calls.map((call) => call.args)).toContainEqual(
+      ["status", "--porcelain=v1", "-z", "--untracked-files=no"]);
   });
 
   it("reports non-empty tracked/index status as dirty", async () => {
     const head = "a".repeat(40);
     const tree = "b".repeat(40);
-    const exec: GitExec = async (_command, args) => {
-      if (args[0] === "rev-parse" && args[2] === "HEAD^{commit}") return { stdout: `${head}\n` };
-      if (args[0] === "rev-list") return { stdout: `${head}\n` };
-      if (args[0] === "rev-parse" && args[1] === `${head}^{tree}`) return { stdout: `${tree}\n` };
-      if (args[0] === "status") return { stdout: " M tracked.ts\0" };
-      throw new Error(`unexpected ${args.join(" ")}`);
-    };
+    const { exec } = checkoutExec(" M tracked.ts\0", "no");
 
     await expect(inspectDeliveryCandidateCheckout(exec, "/tmp/candidate")).resolves.toEqual({
       head, tree, trackedDirty: true,
@@ -83,19 +82,12 @@ describe("delivery eligibility Git facts", () => {
   it("includes untracked residue when inspecting a mutable authoring checkout", async () => {
     const head = "a".repeat(40);
     const tree = "b".repeat(40);
-    const calls: string[][] = [];
-    const exec: GitExec = async (_command, args) => {
-      calls.push(args);
-      if (args[0] === "rev-parse" && args[2] === "HEAD^{commit}") return { stdout: `${head}\n` };
-      if (args[0] === "rev-list") return { stdout: `${head}\n` };
-      if (args[0] === "rev-parse" && args[1] === `${head}^{tree}`) return { stdout: `${tree}\n` };
-      if (args[0] === "status") return { stdout: "?? residue.txt\0" };
-      throw new Error(`unexpected ${args.join(" ")}`);
-    };
+    const { exec, calls } = checkoutExec("?? residue.txt\0", "all");
 
     await expect(inspectDeliveryAuthoringCheckout(exec, "/tmp/authoring")).resolves.toEqual({
       head, tree, trackedDirty: true,
     });
-    expect(calls).toContainEqual(["status", "--porcelain=v1", "-z", "--untracked-files=all"]);
+    expect(calls.map((call) => call.args)).toContainEqual(
+      ["status", "--porcelain=v1", "-z", "--untracked-files=all"]);
   });
 });
