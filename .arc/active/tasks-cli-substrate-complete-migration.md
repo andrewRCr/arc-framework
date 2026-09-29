@@ -255,7 +255,7 @@ recorded sweep recipes; see `notes-cli-substrate-complete-migration.md` § Segme
         - Registered strict `base-distance` snapshot and not-applicable arms and derived both result types from
           their schemas. A named builder supplies the three not-applicable handler states. Producer tests cover
           exact, pending, unreachable, and all fallback readings; the strict session-init slot keeps its
-          recommendation refinements and names undeclared keys.
+          recommendation refinements and names undeclared keys. The builder preserves the wire's original key order.
 
     - `[x]` **3.4.c Validate the checkpoint drift against the full schema**
         - Replaced all four custom drift wraps with the strict component schema. Checkpoint arm tests exercise

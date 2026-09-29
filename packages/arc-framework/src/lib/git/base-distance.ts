@@ -122,7 +122,7 @@ export function buildBaseDistanceNotApplicable(
     };
   }
   const base = state === "detached-head" ? null : baseBranch;
-  return BaseDistanceNotApplicableResultSchema.parse({
+  return {
     mode: "advisory", verdict: "unavailable", state, ahead: 0, behind: 0,
     base, baseOid: null, headOid: null, unavailableReason: state,
     integrationEvidence: null, overlap: null, register: null,
@@ -137,7 +137,7 @@ export function buildBaseDistanceNotApplicable(
         : "Configure the origin remote, then repeat session initialization.",
     },
     remoteEvidence: "not-applicable",
-  });
+  } as BaseDistanceNotApplicableResult;
 }
 
 type WithoutDriftFailureReason<T> = T extends unknown ? Omit<T, "failureReason"> : never;
