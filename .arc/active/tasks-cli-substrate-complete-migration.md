@@ -109,21 +109,14 @@ shared support and the doubles that stay local.
   `renderMetaFile`, and returns canonical Markdown. Tests round-trip the default and an override through the strict
   record, then verify the renderer rejects an invalid semantic value.
 
-### `[ ]` **2.3 Add the schema-assertion helper — D9**
+### `[x]` **2.3 Add the schema-assertion helper — D9**
 
 - _Goal:_ A failing schema assertion in a test reports what went wrong — the schema's issues when a value should
   pass, the parsed output when it should refuse — rather than `expected false to be true`.
 
-    - `__tests__/helpers/schema-assertion.ts`, in two forms: one asserts acceptance and returns the parsed value; one
-      asserts refusal, optionally at an expected issue path. Most inline assertions assert refusal, so both forms are
-      needed for any conversion to finish.
-    - Build `test-first` (one behavior at a time):
-        - The acceptance form returns the parsed value for a conforming value
-        - The acceptance form fails with each issue's path and message for a nonconforming value
-        - The refusal form passes for a nonconforming value
-        - The refusal form fails with the parsed output when the value unexpectedly passes
-        - The refusal form fails when an expected issue path is given and the refusal lands elsewhere
-        - A registered schema validates through both forms
+- _Outcome:_ `assertSchemaAccepts` returns parsed output or throws with every issue path and message;
+  `assertSchemaRefuses` accepts an optional issue path and shows parsed output on unexpected success. Six tests
+  cover both forms, including a registered kernel schema.
 
 ### `[ ]` **2.4 Move `makeGitExecInput` onto the execa adapter and localize `stubGitExec` — D9**
 
