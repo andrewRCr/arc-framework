@@ -694,78 +694,47 @@ rejection, a local double the design converts (other than any the cut line hands
 matrix), a hand-written meta block outside a test of meta parsing or layout, an inline `safeParse(...).success`
 assertion, or a value typed by a cast to a registered schema's output.
 
-### `[ ]` **7.1 Move rejecting scripted doubles onto the fake with `GitProcessError` failures — D9**
+### `[x]` **7.1 Move rejecting scripted doubles onto the fake with `GitProcessError` failures — D9**
 
 - _Goal:_ Surviving tests that script Git failures exercise the typed failure the production executor emits — through
   the shared fake, or through the fixture in doubles that stay local.
 
-    - Record the search in notes § Sweep recipes. A hit is a Git double — a function typed `GitExec`, `RawGitExec`, or
-      `GitExecInput`, or a `vi.fn` double passed or assigned where one is expected — that rejects, by a throw or
-      through `mockRejectedValue` or `mockRejectedValueOnce`, with either a hand-built Git-failure shape — `stderr`,
-      `stdout`, `exitCode`, `signal`, a cancel or timeout flag, or a numeric exit `code` — or a plain `Error` whose
-      message is Git's failure text. About 31 files carry the shapes, and typed doubles throw the plain errors at
-      about 62 sites in 21 files. Filesystem errno errors, application errors built with the same idiom, and a guard
-      thrown for an unscripted call are not Git failures and stay.
-    - A plain `Error`'s message becomes the fixture's stderr, with exit code 128, Git's status for a fatal error,
-      unless the consumer branches on another status Git uses for that condition, such as 1 for a rejected push.
-    - A double modeling a failure that is not a process exit, such as Git being unavailable, keeps its plain `Error`,
-      which the normalization types as `unexpected` as production does, and stays local rather than moving onto the
-      fake. `__tests__/helpers/base-advance.ts`'s fault-injecting hybrids also keep theirs: the module takes no runtime
-      import from `src/`, so the spawned test lane can reach it, and `withUnreadableMergeBases` models a non-exit
-      failure deliberately. Each takes a retained-by-rule row.
-    - Convert by test directory, one batch per review increment. Converted tests keep what they assert; only the
-      double, its failure construction, and call assertions, which read the fake's recorder, change.
-    - Constant stubs, real-Git doubles, fault-injecting hybrids, and scenario simulators stay local, but any Git
-      failure they throw is built by the `GitProcessError` fixture, apart from the non-exit failures above. Tests of
-      carved code are not converted.
-    - Normalization tests — the executor adapter's and `normalizeGitRejection`'s — keep their raw rejection shapes as
-      the input under test. Constructed `GitProcessError` doubles already carry the typed failure and stay, except
-      those that hand-set `expectedOutcome`, which move to the fixture.
+- _Outcome:_ Modeled Git process exits in surviving test doubles use the shared typed failure fixture. The post-merge
+  rejection scan finds no eligible residue; carved, non-exit, normalization, application, and guard cases remain local.
 
-### `[ ]` **7.2 Convert hand-written meta blocks to the meta fixture builder — D9**
+### `[x]` **7.2 Convert hand-written meta blocks to the meta fixture builder — D9**
 
 - _Goal:_ Fixture setup in surviving tests builds metas through the builder, while tests of meta parsing or layout keep
   literal Markdown as independent evidence.
 
-    - Record the search in notes § Sweep recipes. It classifies each meta-shaped block, in the table form or the
-      `**State:**` field form, as a meta fixture, a test of meta parsing or layout, or a spec's pre-activation
-      metadata, which is not a meta.
-    - Convert the meta fixtures by test directory; converted tests keep their assertions.
-    - A fixture carrying a value outside the meta vocabulary stays literal, retained by rule, since the builder
-      cannot produce it. Consumer fixtures in the legacy flat-bullet form convert; tests of the legacy scan keep their
-      literals as tests of meta parsing.
-    - The search also finds text edits keyed on a flat-bullet field, such as `.replace("- **State:** Active", …)`,
-      which stop matching once the fixture renders the table form. A converted fixture sets a field through a builder
-      override at construction, or through a meta setter for a mid-test change: `setMetaState` and `setMetaBranch` for
-      table fields, `setMetaCurrentWorkflow` and `setMetaBulletFields` for bullet fields. Six such edits sit in
-      surviving tests — one in `helpers/session-envelope-compat.ts`, two in `helpers/delivery-position-suite.ts`, and
-      three in `e2e/session-init.e2e.test.ts`; the first feeds the session-envelope goldens, whose expectations must
-      not change. Edits in tests of carved code, such as `e2e/wu-reconcile.e2e.test.ts` and
-      `integration/status-project.test.ts`, stay with their fixtures.
-    - Tests that already call `renderMetaFile` directly already derive from the producer and are not targets.
+- _Amended in:_ 7.R (A1)
 
-### `[ ]` **7.3 Convert inline schema assertions to the schema-assertion helper — D9**
+- _Outcome:_ Valid META fixtures in surviving suites use the builder. The legacy envelope projection derives from
+  validated fields and preserves all 11 goldens; the post-merge block scan finds no valid convertible residue.
+
+### `[x]` **7.3 Convert inline schema assertions to the schema-assertion helper — D9**
 
 - _Goal:_ No surviving test asserts `safeParse(...).success`; failures report schema issues through the helper, and
   registered-schema fixtures validate through their schemas.
 
-    - Convert by test directory from a recorded search in notes § Sweep recipes that matches assertions across lines;
-      about four in ten span several lines, which a single-line search misses. A computed expectation branches between
-      the acceptance and refusal forms.
-    - A `safeParse` call that drives test logic rather than asserting a verdict is not an assertion and stays.
-    - A test value typed by a cast to a registered schema's output parses through that schema instead, found by a
-      search recorded in notes § Sweep recipes. A deliberately invalid value in a refusal test, and a partial value cast
-      for a function that reads only some fields, keep their casts, retained by rule.
+- _Outcome:_ Surviving schema verdicts use diagnostic helpers, and valid registered output fixtures parse through their
+  schemas. The post-merge AST scan leaves 16 carved assertions; remaining casts are partial, invalid, or already parsed
+  before narrowing.
 
-### `[ ]` **7.4 Convert the remaining in-file scripted doubles to the shared fake — D9**
+### `[x]` **7.4 Convert the remaining in-file scripted doubles to the shared fake — D9**
 
 - _Goal:_ Every remaining in-file scripted double in a surviving test runs on the shared fake.
 
-- _Note:_ This parent is the window's cut line. If a segment boundary shows the window at risk, its unconverted files
-  go to a named Errand, the matrix lists each one against it, and nothing else in the plan depends on them.
+- _Outcome:_ Converted deterministic in-file scripts in 42 surviving test files to the shared Git fakes and recorder.
+  The remaining doubles are constant stubs, real-Git runners, hybrids, stateful simulators, or carved tests; no Errand
+  cut was needed.
 
-    - Convert by test directory from a search recorded in notes § Sweep recipes; converted tests keep what they
-      assert, with call assertions reading the fake's recorder.
+### `[x]` **7.R Restore Candidate identity in a converted meta fixture — D9**
+
+- _Goal:_ The delivery-position fixture carries its attested Candidate identity after the canonical meta renderer runs.
+
+- _Outcome:_ The fixture applies `setMetaCandidate` to the rendered meta, including when the renderer omits an unset
+  Candidate field. Both review-fix scenarios now recover their delivery-correction context.
 
 ### `[ ]` **7.5 Sweep surviving tests for convertible residue** — validate exit criterion at segment scope
 

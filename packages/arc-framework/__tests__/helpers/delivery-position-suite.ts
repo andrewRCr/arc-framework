@@ -5,6 +5,7 @@ import { makeMetaFixture } from "./meta-fixture.js";
 import {
   setMetaBranch,
   setMetaBulletFields,
+  setMetaCandidate,
   setMetaCurrentWorkflow,
   setMetaState,
 } from "../../src/lib/active/meta-reader.js";
@@ -1009,10 +1010,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     await writeCandidateRecord(fixture.repository, workUnitId, candidate, null);
     await writeFile(
       metaPath,
-      (await readFile(metaPath, "utf8")).replace(
-        "- **Candidate:** [none]",
-        `- **Candidate:** \`${candidate.attestation.candidateId}\``,
-      ),
+      setMetaCandidate(await readFile(metaPath, "utf8"), candidate.attestation.candidateId),
     );
     await writeSubmissionBoundary(fixture.repository, projectPublicationBoundary({
       workUnit: workUnitId,

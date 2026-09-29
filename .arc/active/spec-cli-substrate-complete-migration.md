@@ -763,3 +763,8 @@ state-path access (36 hand-built lines in 19 files, and 12 resolver calls in 8 f
 `currentWuReconcile` and `StaleWorktreeSweepResult` slots. Until this branch merges base it reads the `state-storage`
 cohort from `main`. Whether surviving callers later ask the contract for a document or for its fields is
 `storage-seam`'s decision and does not change the carve.
+
+## Amendments
+
+- **A1** — 2026-09-29 — task: Populate Candidate metadata after rendering the delivery-position fixture.
+  _Supersedes:_ none. _Trigger:_ 7.5 segment. _Work:_ 7.R. _Revalidated:_ pending → 7.5.
