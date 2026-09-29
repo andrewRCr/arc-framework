@@ -661,7 +661,7 @@ holds a fenced-owner matrix row.
   message. Candidate, integration, review-gate, and delivery digest batches are verified. Notes § Canonical digest
   sites records producer edges and the fenced rows.
 
-### `[ ]` **6.5 Sweep for retired kernel paths** — validate exit criterion at segment scope
+### `[x]` **6.5 Sweep for retired kernel paths** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds as one batch at the post-merge head.
 
@@ -674,6 +674,13 @@ holds a fenced-owner matrix row.
     - Confirm the segment's matrix rows carry their dispositions, and that its edits to carved code are compile-forced.
     - Evidence for the Success Criteria on the kernel shims, the local slug and enum copies, the digest schema and
       its fenced owners, and this segment's share of the bundle diff and the retired-path searches.
+
+- _Outcome:_ The post-merge path and export scan is clean in source, tests, fixtures, mocks, and generated output.
+  The bundle diff contains only the Phase 3 roots and envelope references plus nine readiness slug references.
+  Layout reconciliation and its negative control pass after removing empty shim-import rows. A full routine test
+  run exposed one direct layout schema import in the checkpoint; routing it through the public barrel resolved the
+  boundary test, and the repeated lane passed. Notes § Canonical digest sites, § Schema bundle diff, and
+  § Segment boundaries record the evidence.
 
 ## **Phase 7:** Test-support conversion
 

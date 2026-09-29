@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { CanonicalDigestSchema, WorkUnitStateSchema } from "../../lib/kernel/schema/vocabulary.js";
-import { ArcPlacementTierSchema } from "../../lib/layout/schema.js";
+import { ArcPlacementTierSchema } from "../../lib/layout/index.js";
 import { BaseDriftResultSchema, type BaseDriftResult, type BaseMovement } from "../../lib/git/base-drift-types.js";
 import {
   GitMergeFeasibilitySchema,
