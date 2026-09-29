@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { parseCodeRabbitReviewBody } from
+import { finding, parseCodeRabbitReviewBody } from
   "../../../../../src/scripts/review-gate/hosted/coderabbit-body.js";
-import type { HostedGitHubReview } from
+import type { HostedGitHubReview, HostedGitHubThreadComment } from
   "../../../../../src/scripts/review-gate/hosted/github.js";
 
 function calloutItem(title: string, fingerprint: string, bodyTitle: string): string {
@@ -85,6 +85,52 @@ describe("CodeRabbit callout labels", () => {
       { sourceLabel: Array.from(duplicateTitle).slice(0, 512).join(""), sourceLabelTruncated: true },
       { sourceLabel: "**Body title fallback**", sourceLabelTruncated: undefined },
     ]);
+  });
+});
+
+describe("CodeRabbit inline thread labels", () => {
+  function threadComment(body: string): HostedGitHubThreadComment {
+    return {
+      id: "123",
+      reviewId: "PRR_1",
+      replyToReviewId: null,
+      actorIdentity: "136622811",
+      body,
+      url: "https://github.com/owner/repo/pull/42#discussion_r1",
+      path: "src/a.ts",
+      line: 7,
+      headSha: "a".repeat(40),
+    };
+  }
+
+  const badges = "_🎯 Functional Correctness_ | _🟡 Minor_ | _⚡ Quick win_";
+
+  it.each([
+    [
+      "a title after the badge line",
+      `${badges}\n\n**Match the file on a path boundary.**\n\nDetails.`,
+      "**Match the file on a path boundary.**",
+    ],
+    [
+      "a title after collapsed supporting analysis",
+      `${badges}\r\n\r\n<details>\n<summary>🔎 Supported by static analysis</summary>\n\n**Script output**\n\n`
+        + "<details>\n<summary>Nested</summary>\nMore.\n</details>\n</details>\n\n**Reject a stale scope replay.**\n",
+      "**Reject a stale scope replay.**",
+    ],
+    [
+      "a severity line that carries its own text",
+      "_🟠 Major_ broken boundary\n\nDetails.",
+      "_🟠 Major_ broken boundary",
+    ],
+  ])("labels an inline finding from %s", (_shape, body, label) => {
+    expect(finding("PRRT_1", threadComment(body))).toMatchObject({ severity: expect.any(String), sourceLabel: label });
+  });
+
+  it("carries no label when only badges and collapsed content remain", () => {
+    const labelled = finding("PRRT_1", threadComment(`${badges}\n\n<details>\n<summary>Only analysis</summary>\n</details>`));
+
+    expect(labelled).toMatchObject({ severity: "minor" });
+    expect(labelled).not.toHaveProperty("sourceLabel");
   });
 });
 

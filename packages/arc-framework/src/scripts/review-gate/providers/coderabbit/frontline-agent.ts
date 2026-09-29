@@ -23,12 +23,32 @@ export type CodeRabbitAgentProviderResult =
   | { kind: "malformed" }
   | { kind: "failed"; reason: string };
 
-interface AgentFindingEvent {
+interface AgentFindingFields {
   type: "finding";
   severity: "blocker" | "major" | "minor";
   fileName: string;
-  codegenInstructions: string;
   suggestions: unknown[];
+}
+
+/** A finding carrying agent fix instructions; its identity digests exactly these fields. */
+interface InstructedAgentFinding extends AgentFindingFields {
+  codegenInstructions: string;
+}
+
+/** A finding emitted without fix instructions, identified by the review comment the provider sends instead. */
+interface CommentedAgentFinding extends AgentFindingFields {
+  comment: string;
+}
+
+type AgentFindingEvent = InstructedAgentFinding | CommentedAgentFinding;
+
+/**
+ * A validated finding event plus its review comment. The comment is display-only for an instructed finding and
+ * never enters that finding's identity.
+ */
+interface ParsedAgentFinding {
+  contract: AgentFindingEvent;
+  comment: string | null;
 }
 
 interface AgentCompleteEvent {
@@ -77,23 +97,42 @@ function isStructuredFileCapRefusal(input: {
       event.type === "review_context" || event.type === "status" || event.type === "heartbeat");
 }
 
-function parseFindingEvent(event: Record<string, unknown>): AgentFindingEvent | null {
+/**
+ * Select the text that identifies a finding: its fix instructions, or its review comment when the instructions are
+ * absent or empty. Anything else is not a finding this contract can identify.
+ */
+function findingText(
+  event: Record<string, unknown>,
+): { codegenInstructions: string } | { comment: string } | null {
+  const instructions = event.codegenInstructions;
+  if (typeof instructions === "string" && instructions.trim().length > 0) {
+    return { codegenInstructions: instructions.trim() };
+  }
+  if (instructions !== undefined && typeof instructions !== "string") return null;
+  const comment = typeof event.comment === "string" ? event.comment.trim() : "";
+  return comment.length > 0 ? { comment } : null;
+}
+
+function parseFindingEvent(event: Record<string, unknown>): ParsedAgentFinding | null {
   const severity = event.severity;
+  const text = findingText(event);
   if (event.type !== "finding"
     || (severity !== "blocker" && severity !== "major" && severity !== "minor")
     || typeof event.fileName !== "string"
     || event.fileName.trim().length === 0
-    || typeof event.codegenInstructions !== "string"
-    || event.codegenInstructions.trim().length === 0
+    || text === null
     || !Array.isArray(event.suggestions)) {
     return null;
   }
   return {
-    type: "finding",
-    severity,
-    fileName: event.fileName.trim(),
-    codegenInstructions: event.codegenInstructions.trim(),
-    suggestions: event.suggestions,
+    contract: {
+      type: "finding",
+      severity,
+      fileName: event.fileName.trim(),
+      ...text,
+      suggestions: event.suggestions,
+    },
+    comment: typeof event.comment === "string" ? event.comment : null,
   };
 }
 
@@ -121,20 +160,39 @@ function parseCompleteEvent(event: Record<string, unknown>): AgentCompleteEvent 
   };
 }
 
-function normalizeFinding(event: AgentFindingEvent, sourceOrdinal: number): NormalizedReviewFinding {
+/**
+ * Drop generic provider guidance ahead of a finding's own instruction.
+ *
+ * The provider has reworded that guidance and the instruction header across releases, so the boundary is the first
+ * paragraph naming the finding's file rather than any provider wording; without one, the text is kept whole.
+ */
+function findingInstruction(instructions: string, fileName: string): string {
+  const paragraphStarts = [
+    0,
+    ...Array.from(instructions.matchAll(/\r?\n[\t ]*\r?\n\s*/gu), (match) => match.index + match[0].length),
+  ];
+  const namingStart = paragraphStarts.find((start, index) =>
+    instructions.slice(start, paragraphStarts[index + 1] ?? instructions.length).includes(fileName));
+  return namingStart === undefined ? instructions : instructions.slice(namingStart);
+}
+
+function normalizeFinding(event: ParsedAgentFinding, sourceOrdinal: number): NormalizedReviewFinding {
+  const { contract } = event;
   return {
     findingId: canonicalDigest({
       schemaVersion: 1,
       provider: "coderabbit-cli",
       contract: CODERABBIT_AGENT_CONTRACT,
       mode: CODERABBIT_AGENT_MODE,
-      finding: event,
+      finding: contract,
     }),
-    severity: event.severity === "blocker" ? "critical" : event.severity,
-    locus: event.fileName,
-    evidenceUrlOrId: event.codegenInstructions,
+    severity: contract.severity === "blocker" ? "critical" : contract.severity,
+    locus: contract.fileName,
+    evidenceUrlOrId: "codegenInstructions" in contract
+      ? findingInstruction(contract.codegenInstructions, contract.fileName)
+      : contract.comment,
     sourceOrdinal,
-    ...captureReviewFindingSourceLabel({ body: event.codegenInstructions }),
+    ...captureReviewFindingSourceLabel({ body: event.comment }),
   };
 }
 
