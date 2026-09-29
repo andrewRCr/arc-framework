@@ -32,6 +32,149 @@ the kernel shims, so it still runs after the segment that removes them. This fil
 across sessions and machines and retire with the work unit; a tracked script or gate would rebuild the layout ledger
 this unit retires.
 
+### Import-specifier scan
+
+Groups static TypeScript import and export declarations by resolved local module. `importerCount` counts distinct
+files, while `siteCount` counts declarations. Node built-ins, third-party packages, and unresolved specifiers remain
+distinct from local targets. Dynamic imports and mock specifiers are candidates in the regular-expression scan.
+
+```ts inventory-import-graph
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { relative, resolve } from "node:path";
+import ts from "typescript";
+
+const files = execFileSync("git", ["ls-files", "-z", "--", "src", "__tests__"])
+  .toString("utf8").split("\0").filter((path) => /\.(?:[cm]?ts|tsx)$/u.test(path)).sort();
+const configPath = ts.findConfigFile(process.cwd(), ts.sys.fileExists, "tsconfig.json");
+if (!configPath) throw new Error("tsconfig.json not found");
+const config = ts.readConfigFile(configPath, ts.sys.readFile);
+if (config.error) throw new Error(ts.flattenDiagnosticMessageText(config.error.messageText, "\n"));
+const options = ts.parseJsonConfigFileContent(config.config, ts.sys, process.cwd()).options;
+const groups = new Map<string, { importer: string; line: number; specifier: string }[]>();
+let external = 0;
+let unresolved = 0;
+const unresolvedSpecifiers = new Map<string, number>();
+for (const file of files) {
+  const absolute = resolve(file);
+  const source = ts.createSourceFile(absolute, readFileSync(absolute, "utf8"), ts.ScriptTarget.Latest, true);
+  for (const statement of source.statements) {
+    if (!ts.isImportDeclaration(statement) && !ts.isExportDeclaration(statement)) continue;
+    const literal = statement.moduleSpecifier;
+    if (!literal || !ts.isStringLiteral(literal)) continue;
+    const found = ts.resolveModuleName(literal.text, absolute, options, ts.sys).resolvedModule;
+    if (!found) { unresolved++; unresolvedSpecifiers.set(literal.text, (unresolvedSpecifiers.get(literal.text) ?? 0) + 1); continue; }
+    const target = relative(process.cwd(), found.resolvedFileName).replaceAll("\\", "/");
+    if (target.startsWith("..") || target.includes("/node_modules/")) { external++; continue; }
+    const line = source.getLineAndCharacterOfPosition(statement.getStart(source)).line + 1;
+    groups.set(target, [...(groups.get(target) ?? []), { importer: file, line, specifier: literal.text }]);
+  }
+}
+const modules = [...groups].sort(([a], [b]) => a.localeCompare(b)).map(([target, sites]) => ({
+  target,
+  importerCount: new Set(sites.map(({ importer }) => importer)).size,
+  siteCount: sites.length,
+  sites: sites.sort((a, b) => a.importer.localeCompare(b.importer) || a.line - b.line),
+}));
+process.stdout.write(`${JSON.stringify({ head: execFileSync("git", ["rev-parse", "HEAD"]).toString().trim(),
+  scannedFiles: files.length, external, unresolved,
+  unresolvedSpecifiers: [...unresolvedSpecifiers].sort(([a], [b]) => a.localeCompare(b)), modules }, null, 2)}\n`);
+```
+
+```sh
+ARC_SCAN_DIR=/tmp/arc-cli-substrate-inventory && mkdir -p "$ARC_SCAN_DIR" && ln -sfn "$PWD/../../node_modules" "$ARC_SCAN_DIR/node_modules" && awk '/^```ts inventory-import-graph$/{copy=1;next} copy && /^```$/{exit} copy' ../../.arc/active/notes-cli-substrate-complete-migration.md > "$ARC_SCAN_DIR/import-graph.mts" && node --import tsx "$ARC_SCAN_DIR/import-graph.mts" > "$ARC_SCAN_DIR/import-graph.json"
+```
+
+### Regular-expression scan
+
+Lists symbol-level candidates by path and line. Comments, fixtures, and domain-owned patterns remain visible for
+matrix classification; counts alone do not establish a disposition.
+
+```ts inventory-regex
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+
+const classes = [
+  ["digest-prefix", /sha256:/gu],
+  ["digest-hex-pattern", /\[0-9a-f\]\{64\}|\[a-f0-9\]\{64\}/gu],
+  ["digest-custom-schema", /z\.custom\s*<\s*CanonicalDigest\s*>/gu],
+  ["base-drift-custom-schema", /z\.custom\s*<\s*BaseDriftResult\s*>/gu],
+  ["safe-parse", /\.safeParse\s*\(/gu],
+  ["git-executor-types", /\b(?:RawGitExec|RawGitResult|GitExecInput|GitExec)\b/gu],
+  ["git-executor-constructors", /\b(?:createRawGitExec|createGitExec|gitExecInput|makeGitExecInput|stubGitExec)\b/gu],
+  ["hand-built-git-failure", /Object\.assign\s*\(\s*new Error|\b(?:exitCode|stderr|timedOut|isCanceled)\s*:/gu],
+  ["meta-fixture", /\*\*(?:State|Owner|Branch|Class|Priority)\*\*/gu],
+  ["dynamic-import-or-mock", /\bimport\s*\(|\b(?:vi|jest)\.mock\s*\(/gu],
+] as const;
+const files = execFileSync("git", ["ls-files", "-z", "--", "src", "__tests__"])
+  .toString("utf8").split("\0").filter((path) => /\.(?:[cm]?ts|tsx)$/u.test(path)).sort();
+const hits: { classId: string; path: string; line: number; column: number; match: string }[] = [];
+for (const path of files) {
+  const lines = readFileSync(path, "utf8").split(/\r?\n/u);
+  for (const [index, line] of lines.entries()) {
+    for (const [classId, expression] of classes) {
+      for (const match of line.matchAll(expression)) hits.push({
+        classId, path, line: index + 1, column: (match.index ?? 0) + 1, match: match[0],
+      });
+    }
+  }
+}
+const counts = Object.fromEntries(classes.map(([classId]) =>
+  [classId, hits.filter((hit) => hit.classId === classId).length]));
+process.stdout.write(`${JSON.stringify({ head: execFileSync("git", ["rev-parse", "HEAD"]).toString().trim(),
+  scannedFiles: files.length, counts, hits }, null, 2)}\n`);
+```
+
+```sh
+ARC_SCAN_DIR=/tmp/arc-cli-substrate-inventory && mkdir -p "$ARC_SCAN_DIR" && ln -sfn "$PWD/../../node_modules" "$ARC_SCAN_DIR/node_modules" && awk '/^```ts inventory-regex$/{copy=1;next} copy && /^```$/{exit} copy' ../../.arc/active/notes-cli-substrate-complete-migration.md > "$ARC_SCAN_DIR/regex.mts" && node --import tsx "$ARC_SCAN_DIR/regex.mts" > "$ARC_SCAN_DIR/regex.json"
+```
+
+### Coupling-audit class scan
+
+Reads the tracked corpus from the working tree through the four coupling-audit library entry points. Its explicit
+selection includes the layout and state-path classes plus every other manifest class. Later layout reconciliation
+filters this result to its own 15 classes.
+
+```ts inventory-coupling-classes
+import { execFileSync } from "node:child_process";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import { parseCouplingManifest } from "./src/lib/coupling-audit/contracts.js";
+import { selectCorpusPaths, collectCorpusFromPaths } from "./src/lib/coupling-audit/corpus.js";
+import { scanClassInventory } from "./src/lib/coupling-audit/scan.js";
+
+const classIds = [
+  "arc-root", "active-placement", "planned-placement", "provisional-placement", "completed-placement",
+  "meta-prefix", "tasks-prefix", "draft-prefix", "spec-prefix", "notes-prefix", "roadmap-name",
+  "atomic-inbox-name", "user-inbox-name", "session-notes-name", "working-memory-name",
+  "typed-branch-prefixes", "pm-mode-key", "team-mode-key", "strategy-family", "strategy-index-name",
+  "agent-briefs-root", "workflow-root", "method-root", "extension-root", "internal-skill-root",
+  "arc-methods-key", "arc-extensions-key", "load-set-name", "recommended-text-family",
+  "template-suffix", "domain-rules-name", "tracked-planning-git-operations",
+];
+const root = execFileSync("git", ["rev-parse", "--show-toplevel"]).toString().trim();
+const manifest = parseCouplingManifest(JSON.parse(await readFile("audits/coupling-blast-radius/manifest.json", "utf8")));
+const tracked = execFileSync("git", ["ls-files", "-z"], { cwd: root })
+  .toString("utf8").split("\0").filter(Boolean);
+const paths = selectCorpusPaths(manifest.corpus, tracked);
+const corpus = await collectCorpusFromPaths(manifest.corpus, paths, (path) => readFile(resolve(root, path)));
+const inventory = scanClassInventory(manifest, corpus);
+const classes = inventory.classes.filter((entry) => classIds.includes(entry.classId));
+if (classes.length !== classIds.length) throw new Error("declared coupling class selection differs from manifest");
+process.stdout.write(`${JSON.stringify({ head: execFileSync("git", ["rev-parse", "HEAD"]).toString().trim(),
+  scannedFiles: corpus.length, classes }, null, 2)}\n`);
+```
+
+```sh
+ARC_SCAN_DIR=/tmp/arc-cli-substrate-inventory && mkdir -p "$ARC_SCAN_DIR" && ln -sfn "$PWD/../../node_modules" "$ARC_SCAN_DIR/node_modules" && ln -sfn "$PWD/src" "$ARC_SCAN_DIR/src" && awk '/^```ts inventory-coupling-classes$/{copy=1;next} copy && /^```$/{exit} copy' ../../.arc/active/notes-cli-substrate-complete-migration.md > "$ARC_SCAN_DIR/coupling-classes.mts" && node --import tsx "$ARC_SCAN_DIR/coupling-classes.mts" > "$ARC_SCAN_DIR/coupling-classes.json"
+```
+
+**Merged-base run:** `6f1d01261` — the import graph scanned 1,965 TypeScript files and grouped local imports
+under 978 target modules. Its 1,520 unresolved specifiers were all `node:` built-ins; no relative specifier was
+unresolved. The regular-expression scan covered the same 1,965 files and ten candidate classes. The coupling scan
+covered 2,223 corpus files and all 32 selected manifest classes. Full JSON output is in the scratch directory named
+by the commands above; later segment runs regenerate it.
+
 ## Residual matrix
 
 One table per owning contract — kernel, validation surfaces, session envelope, layout, Git executor, command inputs,

@@ -28,14 +28,9 @@ replication segment builds on.
   `spec-cli-git-executor.md` § Scope boundary (No-gos), and `spec-cli-command-inputs.md`, with each member's task-list
   completion notes
 
-    - `[ ]` **1.1.a Write the three inventory scans and run them at the merged base**
-        - The import-specifier graph over the TypeScript compiler API, the regular-expression searches, and the
-          coupling-audit class scan through `parseCouplingManifest`, `selectCorpusPaths`, `collectCorpusFromPaths`,
-          and `scanClassInventory`.
-        - Record each as a one-off script under notes § Inventory method's convention, so every segment boundary and
-          verification re-runs exactly the same scans. Each script declares its own class selection and imports
-          nothing this unit retires — the layout migration ledger module goes in Task 5.1 and the kernel shims in
-          Phase 6.
+    - `[x]` **1.1.a Write the three inventory scans and run them at the merged base**
+        - Recorded the TypeScript import graph, regular-expression candidates, and coupling-audit class inventory as
+          one-off scripts in `notes-cli-substrate-complete-migration.md`; all three ran at merged head `6f1d01261`.
 
     - `[ ]` **1.1.b Create the residual matrix tables**
         - One table per owning contract in the shape notes § Residual matrix fixes, one row per retired module,
