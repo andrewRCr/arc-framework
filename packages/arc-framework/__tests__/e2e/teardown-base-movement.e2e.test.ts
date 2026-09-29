@@ -17,6 +17,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { cleanupTempDir, createTempRepo, git, runArc, type RunResult } from "./helpers.js";
 import { advanceBase, movementPaths, writeUnavailableBaseReadShim } from "../helpers/base-advance.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -33,16 +34,9 @@ afterEach(async () => {
   }
 });
 
-const ARCHIVED_META = [
-  `# Metadata: ${WORK_UNIT}`,
-  "",
-  "| **State** | **Owner**   | **Branch** | **Class** | **Priority** |",
-  "| --------- | ----------- | ---------- | --------- | ------------ |",
-  "| `Shipped` | `test-user` | `[none]`   | `Light`   | `P2`         |",
-  "",
-  "---",
-  "",
-].join("\n");
+const ARCHIVED_META = makeMetaFixture(WORK_UNIT, {
+  state: "Shipped", owner: "test-user", branch: null, workClass: "Light", priority: "P2",
+});
 
 /**
  * A work unit whose merge and archival have both landed on a live base, standing at its cleanup boundary.

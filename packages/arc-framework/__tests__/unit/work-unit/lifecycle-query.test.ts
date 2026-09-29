@@ -1,16 +1,13 @@
 import { describe, it, expect } from "vitest";
 
+import { makeMetaFixture } from "../../helpers/meta-fixture.js";
+import type { MetaRenderOverrides } from "../../../src/lib/active/meta-reader.js";
 import { buildLifecycleIndexFromMetas } from "../../../src/lib/work-unit/lifecycle-index.js";
 import { resolveSlugQuery } from "../../../src/lib/work-unit/lifecycle-query.js";
 
-/** Minimal valid meta — H1 plus the flat-bullet `State` and an optional `Depends On` edge list. */
-function meta(state: string, dependsOn?: string[]): string {
-  const lines = ["# Metadata: x", "", `- **State:** ${state}`];
-  if (dependsOn !== undefined) {
-    const value = dependsOn.length === 0 ? "[none]" : dependsOn.map((s) => `\`${s}\``).join(", ");
-    lines.push(`- **Depends On:** ${value}`);
-  }
-  return `${lines.join("\n")}\n`;
+/** Valid lifecycle metadata with the requested dependency edges. */
+function meta(state: NonNullable<MetaRenderOverrides["state"]>, dependsOn: string[] = []): string {
+  return makeMetaFixture("x", { state, dependsOn });
 }
 
 const index = buildLifecycleIndexFromMetas([

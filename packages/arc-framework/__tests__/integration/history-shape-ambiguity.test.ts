@@ -44,6 +44,7 @@ import { createGitExec } from "../../src/lib/io-context.js";
 import { checkpointIntegration } from "../../src/scripts/integration/checkpoint.js";
 import { createIntegrationCheckpointDependencies } from "../../src/scripts/integration/checkpoint-composition.js";
 import { runHandlerAt } from "../helpers/handler.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import {
   cleanupTempDir,
   DEFAULT_PROMPTS,
@@ -130,34 +131,11 @@ function machineContext() {
 }
 
 function metaDocument(state: "Active" | "Integrating"): string {
-  return [
-    `# Metadata: ${WORK_UNIT}`,
-    "",
-    "| **State** | **Owner**   | **Branch**           | **Class** | **Priority** |",
-    "| --------- | ----------- | -------------------- | --------- | ------------ |",
-    `| \`${state}\` | \`test-user\` | \`feat/${WORK_UNIT}\` | \`Light\`   | \`P2\`         |`,
-    "",
-    "- **Cohort:** [none]",
-    "- **Depends On:** [none]",
-    "",
-    "- **Origin:** [internal]",
-    "- **Design:** [none]",
-    `- **Task List:** \`tasks-${WORK_UNIT}.md\``,
-    "- **Review Rubric:** [none]",
-    "",
-    "- **Current Workflow:** [none]",
-    "- **Last Completed:** verification",
-    "- **Next Task:** [none]",
-    "- **Blockers:** [none]",
-    "",
-    "- **Next Action:** verification complete",
-    "",
-    "- **PR URL:** [none]",
-    "- **Completed:** [none]",
-    "",
-    "---",
-    "",
-  ].join("\n");
+  return makeMetaFixture(WORK_UNIT, {
+    state, owner: "test-user", branch: `feat/${WORK_UNIT}`, workClass: "Light", priority: "P2",
+    taskList: `tasks-${WORK_UNIT}.md`, lastCompleted: "verification",
+    nextAction: "verification complete",
+  });
 }
 
 function taskDocument(): string {

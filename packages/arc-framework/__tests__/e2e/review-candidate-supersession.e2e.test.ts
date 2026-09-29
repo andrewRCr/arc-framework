@@ -12,23 +12,14 @@ import { readCandidateRecord } from "../../src/lib/work-unit/candidate-record-st
 import { LocalReviewOperationStateStore } from
   "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
 import { responsePolicyRequest } from "../fixtures/review-response-policy.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 const OFFLINE_ORIGIN = "https://arc-fixture.invalid/arc-framework/example.git";
 const OFFLINE_ENV = { GIT_TERMINAL_PROMPT: "0" };
-const META = [
-  "# Metadata: example", "",
-  "| **State** | **Owner**   | **Branch**     | **Class** | **Priority** |",
-  "| --------- | ----------- | -------------- | --------- | ------------ |",
-  "| `Active`  | `test-user` | `feat/example` | `Light`   | `P2`         |", "",
-  "- **Cohort:** [none]", "- **Depends On:** [none]", "",
-  "- **Origin:** [internal]", "- **Design:** [none]",
-  "- **Task List:** `tasks-example.md`", "- **Review Rubric:** [none]",
-  "- **Promotion Receipt:** [none]", "",
-  "- **Current Workflow:** [none]", "- **Last Completed:** verification",
-  "- **Next Task:** [none]", "- **Blockers:** [none]", "",
-  "- **Next Action:** verification complete", "",
-  "- **PR URL:** [none]", "- **Completed:** [none]", "", "---", "",
-].join("\n");
+const META = makeMetaFixture("example", {
+  owner: "test-user", branch: "feat/example", workClass: "Light", priority: "P2",
+  taskList: "tasks-example.md", lastCompleted: "verification", nextAction: "verification complete",
+});
 
 type Envelope = { state: string; nextAction: string; payload: Record<string, unknown> };
 type LocalPreparation = {

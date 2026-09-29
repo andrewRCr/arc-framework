@@ -12,6 +12,7 @@ import { reduceCandidateDurableBaseline } from "../../src/lib/work-unit/candidat
 import { readCandidateRecordVersioned } from "../../src/lib/work-unit/candidate-record-store.js";
 import { projectGitCandidateApplicability } from "../../src/lib/work-unit/git-candidate-applicability.js";
 import { collectCandidateSubjectTarget } from "../helpers/candidate-subject.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import {
   cleanupTempDir,
   createTempRepo,
@@ -20,30 +21,15 @@ import {
   runArcWithStdin,
 } from "./helpers.js";
 
-const META = [
-  "# Metadata: example",
-  "",
-  "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
-  "| --- | --- | --- | --- | --- |",
-  "| `Active` | `test-user` | `feat/example` | `Light` | `P2` |",
-  "",
-  "- **Cohort:** [none]",
-  "- **Depends On:** [none]",
-  "- **Origin:** [internal]",
-  "- **Design:** [none]",
-  "- **Task List:** `tasks-example.md`",
-  "- **Review Rubric:** [none]",
-  "- **Current Workflow:** [none]",
-  "- **Last Completed:** verification",
-  "- **Next Task:** [none]",
-  "- **Blockers:** [none]",
-  "- **Next Action:** verification complete",
-  "- **PR URL:** [none]",
-  "- **Completed:** [none]",
-  "",
-  "---",
-  "",
-].join("\n");
+const META = makeMetaFixture("example", {
+  owner: "test-user",
+  branch: "feat/example",
+  workClass: "Light",
+  priority: "P2",
+  taskList: "tasks-example.md",
+  lastCompleted: "verification",
+  nextAction: "verification complete",
+});
 
 const roots: string[] = [];
 

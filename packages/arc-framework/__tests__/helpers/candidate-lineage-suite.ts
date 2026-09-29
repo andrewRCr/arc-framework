@@ -8,6 +8,7 @@
  */
 
 import { collectCandidateSubjectTarget } from "./candidate-subject.js";
+import { makeMetaFixture } from "./meta-fixture.js";
 import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -262,35 +263,10 @@ interface ProposalPayload {
 
 const SUBPROCESS_HEAVY_TIMEOUT = 60_000;
 
-const META = [
-  "# Metadata: example",
-  "",
-  "| **State** | **Owner**   | **Branch**     | **Class** | **Priority** |",
-  "| --------- | ----------- | -------------- | --------- | ------------ |",
-  "| `Active`  | `test-user` | `feat/example` | `Light`   | `P2`         |",
-  "",
-  "- **Cohort:** [none]",
-  "- **Depends On:** [none]",
-  "",
-  "- **Origin:** [internal]",
-  "- **Design:** [none]",
-  "- **Task List:** `tasks-example.md`",
-  "- **Review Rubric:** [none]",
-  "- **Promotion Receipt:** [none]",
-  "",
-  "- **Current Workflow:** [none]",
-  "- **Last Completed:** verification",
-  "- **Next Task:** [none]",
-  "- **Blockers:** [none]",
-  "",
-  "- **Next Action:** verification complete",
-  "",
-  "- **PR URL:** [none]",
-  "- **Completed:** [none]",
-  "",
-  "---",
-  "",
-].join("\n");
+const META = makeMetaFixture("example", {
+  owner: "test-user", branch: "feat/example", workClass: "Light", priority: "P2",
+  taskList: "tasks-example.md", lastCompleted: "verification", nextAction: "verification complete",
+});
 
 function hostedTerminal(input: {
   repositoryId: string;

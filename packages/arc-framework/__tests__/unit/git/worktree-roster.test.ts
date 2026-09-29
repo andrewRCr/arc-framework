@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { assertSchemaAccepts } from "../../helpers/schema-assertion.js";
+import { makeMetaFixture } from "../../helpers/meta-fixture.js";
 
 import {
   filterRosterByIdentity,
@@ -188,15 +189,10 @@ describe("runWorktreeRoster", () => {
       },
     });
     const fs = buildFs({
-      "/home/dev/repo/.arc/active/meta-feature-x.md":
-        "# Metadata: feature-x\n\n" +
-        "- **State:** Active\n" +
-        "- **Owner:** alice\n" +
-        "- **Branch:** feature/x\n" +
-        "- **Class:** Novel\n" +
-        "- **Priority:** P1\n" +
-        "- **Depends On:** alpha, bravo\n" +
-        "- **Cohort:** parallelism-trio\n",
+      "/home/dev/repo/.arc/active/meta-feature-x.md": makeMetaFixture("feature-x", {
+        owner: "alice", branch: "feature/x", workClass: "Novel", priority: "P1",
+        dependsOn: ["alpha", "bravo"], cohort: "parallelism-trio",
+      }),
     });
 
     const result = await runWorktreeRoster({ exec, fs });
@@ -225,11 +221,9 @@ describe("runWorktreeRoster", () => {
       },
     });
     const fs = buildFs({
-      "/home/dev/repo/.arc/active/meta-feature-x.md":
-        "# Metadata: feature-x\n\n" +
-        "- **State:** Active\n" +
-        "- **Branch:** feature/x\n" +
-        "- **Cohort:** core/sub\n",
+      "/home/dev/repo/.arc/active/meta-feature-x.md": makeMetaFixture("feature-x", {
+        branch: "feature/x", cohort: "core/sub",
+      }),
     });
 
     const result = await runWorktreeRoster({ exec, fs });
@@ -248,10 +242,10 @@ describe("runWorktreeRoster", () => {
       },
     });
     const fs = buildFs({
-      "/home/dev/repo-a/.arc/active/meta-a.md":
-        "# Metadata: a\n\n- **State:** Active\n- **Branch:** feature/a\n- **Cohort:** [none]\n",
-      "/home/dev/repo-b/.arc/active/meta-b.md":
-        "# Metadata: b\n\n- **State:** Integrating\n- **Branch:** feature/b\n- **Cohort:** [none]\n",
+      "/home/dev/repo-a/.arc/active/meta-a.md": makeMetaFixture("a", { branch: "feature/a" }),
+      "/home/dev/repo-b/.arc/active/meta-b.md": makeMetaFixture("b", {
+        state: "Integrating", branch: "feature/b",
+      }),
     });
 
     const result = await runWorktreeRoster({ exec, fs });
@@ -275,8 +269,9 @@ describe("runWorktreeRoster", () => {
       },
     });
     const fs = buildFs({
-      "/home/dev/repo/.arc/active/meta-x.md":
-        "# Metadata: x\n\n- **State:** Active\n- **Owner:** Mixed.Case_Identity\n- **Branch:** feature/x\n",
+      "/home/dev/repo/.arc/active/meta-x.md": makeMetaFixture("x", {
+        owner: "Mixed.Case_Identity", branch: "feature/x",
+      }),
     });
 
     const result = await runWorktreeRoster({ exec, fs });
@@ -311,8 +306,7 @@ describe("runWorktreeRoster", () => {
       },
     });
     const fs = buildFs({
-      "/home/dev/repo/.arc/active/meta-x.md":
-        "# Metadata: x\n\n- **State:** Active\n- **Branch:** feature/x\n- **Cohort:** [none]\n",
+      "/home/dev/repo/.arc/active/meta-x.md": makeMetaFixture("x", { branch: "feature/x" }),
     });
 
     const result = await runWorktreeRoster({ exec, fs });
@@ -331,8 +325,7 @@ describe("runWorktreeRoster", () => {
       },
     });
     const fs = buildFs({
-      "/home/dev/repo-a/.arc/active/meta-a.md":
-        "# Metadata: a\n\n- **State:** Active\n- **Branch:** feature/a\n",
+      "/home/dev/repo-a/.arc/active/meta-a.md": makeMetaFixture("a", { branch: "feature/a" }),
     });
 
     const result = await runWorktreeRoster({ exec, fs });
@@ -368,7 +361,7 @@ describe("runWorktreeRoster", () => {
       },
       readFile: async (path) => {
         if (path === "/home/dev/repo-a/.arc/active/meta-a.md") {
-          return "# Metadata: a\n\n- **State:** Active\n- **Branch:** feature/a\n";
+          return makeMetaFixture("a", { branch: "feature/a" });
         }
         throw new Error("EACCES: permission denied");
       },
@@ -405,8 +398,7 @@ describe("runWorktreeRoster", () => {
         err.code = "ENOENT";
         throw err;
       },
-      readFile: async () =>
-        "# Metadata: a\n\n- **State:** Active\n- **Branch:** feature/a\n",
+      readFile: async () => makeMetaFixture("a", { branch: "feature/a" }),
     };
 
     const result = await runWorktreeRoster({ exec, fs });
@@ -427,10 +419,10 @@ describe("runWorktreeRoster", () => {
     // meta-a sorts alphabetically before meta-b but Branch field points elsewhere;
     // branch matching must pick meta-b (the one whose Branch matches the worktree).
     const fs = buildFs({
-      "/home/dev/repo/.arc/active/meta-a.md":
-        "# Metadata: a\n\n- **State:** Shipped\n- **Branch:** feature/y\n",
-      "/home/dev/repo/.arc/active/meta-b.md":
-        "# Metadata: b\n\n- **State:** Active\n- **Branch:** feature/x\n- **Cohort:** [none]\n",
+      "/home/dev/repo/.arc/active/meta-a.md": makeMetaFixture("a", {
+        state: "Shipped", branch: "feature/y",
+      }),
+      "/home/dev/repo/.arc/active/meta-b.md": makeMetaFixture("b", { branch: "feature/x" }),
     });
 
     const result = await runWorktreeRoster({ exec, fs });
@@ -450,10 +442,8 @@ describe("runWorktreeRoster", () => {
       },
     });
     const fs = buildFs({
-      "/home/dev/repo/.arc/active/meta-y.md":
-        "# Metadata: y\n\n- **State:** Active\n- **Branch:** feature/y\n",
-      "/home/dev/repo/.arc/active/meta-z.md":
-        "# Metadata: z\n\n- **State:** Active\n- **Branch:** feature/z\n",
+      "/home/dev/repo/.arc/active/meta-y.md": makeMetaFixture("y", { branch: "feature/y" }),
+      "/home/dev/repo/.arc/active/meta-z.md": makeMetaFixture("z", { branch: "feature/z" }),
     });
 
     const result = await runWorktreeRoster({ exec, fs });
@@ -476,10 +466,10 @@ describe("runWorktreeRoster", () => {
       },
     });
     const fs = buildFs({
-      "/home/dev/repo/.arc/active/meta-a.md":
-        "# Metadata: a\n\n- **State:** Active\n- **Branch:** feature/x\n",
-      "/home/dev/repo/.arc/active/meta-b.md":
-        "# Metadata: b\n\n- **State:** Integrating\n- **Branch:** feature/x\n",
+      "/home/dev/repo/.arc/active/meta-a.md": makeMetaFixture("a", { branch: "feature/x" }),
+      "/home/dev/repo/.arc/active/meta-b.md": makeMetaFixture("b", {
+        state: "Integrating", branch: "feature/x",
+      }),
     });
 
     const result = await runWorktreeRoster({ exec, fs });

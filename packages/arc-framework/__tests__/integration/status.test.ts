@@ -66,6 +66,7 @@ import type { DerivedLocusFrame } from "../../src/lib/locus/derived-reader.js";
 import { resolveLoadSetManifest } from "../../src/lib/load-set/projection.js";
 import { execFileAsync, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
 import { worktreeStateEvidence } from "../helpers/worktree-evidence.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { createSessionRemoteContextReader } from "../../src/handlers/status-remote-context.js";
 import { DeliveryPositionViewSchema } from "../../src/lib/session-init/delivery-position.js";
 import {
@@ -667,13 +668,7 @@ describe("runSessionInitStatus — companion-file resolution carry-through", () 
     await writeExtension(fixture.extDir, "pre-merge", true);
     await writeFile(
       join(fixture.activeDir, "meta-foo.md"),
-      [
-        "# Metadata: fixture",
-        "",
-        "- **State:** Active",
-        "- **Branch:** technical/foo",
-        "- **Task List:** `.arc/active/tasks-foo.md`",
-      ].join("\n"),
+      makeMetaFixture("fixture", { branch: "technical/foo", taskList: ".arc/active/tasks-foo.md" }),
     );
     await writeFile(
       join(fixture.activeDir, "tasks-foo.md"),

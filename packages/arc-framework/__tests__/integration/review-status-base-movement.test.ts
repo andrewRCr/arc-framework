@@ -35,6 +35,7 @@ import {
   type GitExecLike,
 } from "../helpers/base-advance.js";
 import { runHandlerAt } from "../helpers/handler.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import {
   cleanupTempDir,
   DEFAULT_PROMPTS,
@@ -62,35 +63,11 @@ async function git(cwd: string, args: string[]): Promise<string> {
 }
 
 function metaDocument(): string {
-  return [
-    `# Metadata: ${WORK_UNIT}`,
-    "",
-    "| **State** | **Owner**   | **Branch**     | **Class** | **Priority** |",
-    "| --------- | ----------- | -------------- | --------- | ------------ |",
-    `| \`Active\`  | \`test-user\` | \`${HEAD_REF}\` | \`Light\`   | \`P2\`         |`,
-    "",
-    "- **Cohort:** [none]",
-    "- **Depends On:** [none]",
-    "",
-    "- **Origin:** [internal]",
-    "- **Design:** [none]",
-    `- **Task List:** \`tasks-${WORK_UNIT}.md\``,
-    "- **Review Rubric:** [none]",
-    "- **Promotion Receipt:** [none]",
-    "",
-    "- **Current Workflow:** [none]",
-    "- **Last Completed:** verification",
-    "- **Next Task:** Task 1.1 — Verification complete",
-    "- **Blockers:** [none]",
-    "",
-    "- **Next Action:** verification complete",
-    "",
-    "- **PR URL:** [none]",
-    "- **Completed:** [none]",
-    "",
-    "---",
-    "",
-  ].join("\n");
+  return makeMetaFixture(WORK_UNIT, {
+    owner: "test-user", branch: HEAD_REF, workClass: "Light", priority: "P2",
+    taskList: `tasks-${WORK_UNIT}.md`, lastCompleted: "verification",
+    nextTask: "Task 1.1 — Verification complete", nextAction: "verification complete",
+  });
 }
 
 /** A stub host answering only what the status composition asks of it. */
