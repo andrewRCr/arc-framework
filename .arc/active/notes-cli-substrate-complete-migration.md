@@ -447,32 +447,70 @@ Register citations below name the corresponding **Storage-coupling register** ro
 
 ### Layout per-file rows
 
-| File                                  | Class             | Kind                                            | Owner                            | Hits | Lines                                                                                       |
-| ------------------------------------- | ----------------- | ----------------------------------------------- | -------------------------------- | ---: | ------------------------------------------------------------------------------------------- |
-| `src/commands/diff.ts`                | `arc-root`        | `independent-evidence`                          | installer diagnostics            |    5 |                                                                                             |
-| `src/commands/health.ts`              | `arc-root`        | `independent-evidence`                          | installer diagnostics            |    4 |                                                                                             |
-| `src/commands/init.ts`                | `arc-root`        | `independent-evidence`; `semantic-policy-owner` | installer output / ignore policy |   11 | independent-evidence: 4,77,177,225,237,318,334,337; semantic-policy-owner: 277,278,279      |
-| `src/commands/init.ts`                | `template-suffix` | `independent-evidence`                          | installer diagnostics            |    1 |                                                                                             |
-| `src/commands/init.ts`                | `workflow-root`   | `independent-evidence`                          | installer diagnostics            |    1 |                                                                                             |
-| `src/commands/join.ts`                | `arc-root`        | `independent-evidence`; `semantic-policy-owner` | installer output / ignore policy |   13 | independent-evidence: 4,6,70,82,172,186,276; semantic-policy-owner: 116,117,118,221,222,223 |
-| `src/commands/reconfigure.ts`         | `arc-root`        | `semantic-policy-owner`                         | file and ignore policy           |    3 |                                                                                             |
-| `src/commands/update.ts`              | `arc-root`        | `independent-evidence`; `semantic-policy-owner` | installer output / ignore policy |    6 | independent-evidence: 519,545,586; semantic-policy-owner: 433,434,435                       |
-| `src/handlers/init.ts`                | `arc-root`        | `independent-evidence`                          | installer diagnostics            |    7 |                                                                                             |
-| `src/lib/change-facts.ts`             | `arc-root`        | `semantic-policy-owner`; `external-owner`       | change classifier; `R-CI`        |    6 | semantic-policy-owner: 306,309; external-owner (`R-CI`): 392,393,394,396                    |
-| `src/lib/change-facts.ts`             | `template-suffix` | `semantic-policy-owner`                         | file and ignore policy           |    1 |                                                                                             |
-| `src/lib/classification.ts`           | `method-root`     | `semantic-policy-owner`                         | file and ignore policy           |   26 |                                                                                             |
-| `src/lib/classification.ts`           | `template-suffix` | `semantic-policy-owner`                         | file and ignore policy           |   11 |                                                                                             |
-| `src/lib/kernel/schema/vocabulary.ts` | `template-suffix` | `scanner-false-positive`                        | identifier syntax                |    1 |                                                                                             |
-| `src/lib/manifest/apply.ts`           | `arc-root`        | `independent-evidence`                          | source documentation             |    1 |                                                                                             |
-| `src/lib/manifest/apply.ts`           | `template-suffix` | `scanner-false-positive`                        | identifier syntax                |   10 |                                                                                             |
-| `src/lib/markdown/format-plan.ts`     | `template-suffix` | `scanner-false-positive`                        | identifier syntax                |    1 |                                                                                             |
-| `src/prompts/removal-prompts.ts`      | `arc-root`        | `independent-evidence`                          | installer diagnostics            |    3 |                                                                                             |
+| File                                           | Class             | Kind                                            | Owner                                | Hits | Lines                                                                                       |
+| ---------------------------------------------- | ----------------- | ----------------------------------------------- | ------------------------------------ | ---: | ------------------------------------------------------------------------------------------- |
+| `src/commands/constitution/status.ts`          | `arc-root`        | `independent-evidence`                          | owner documentation or diagnostics   |    1 |                                                                                             |
+| `src/commands/diff.ts`                         | `arc-root`        | `independent-evidence`                          | installer diagnostics                |    5 |                                                                                             |
+| `src/commands/health.ts`                       | `arc-root`        | `independent-evidence`                          | installer diagnostics                |    4 |                                                                                             |
+| `src/commands/init.ts`                         | `arc-root`        | `independent-evidence`; `semantic-policy-owner` | installer output / ignore policy     |   11 | independent-evidence: 4,77,177,225,237,318,334,337; semantic-policy-owner: 277,278,279      |
+| `src/commands/init.ts`                         | `template-suffix` | `independent-evidence`                          | installer diagnostics                |    1 |                                                                                             |
+| `src/commands/init.ts`                         | `workflow-root`   | `independent-evidence`                          | installer diagnostics                |    1 |                                                                                             |
+| `src/commands/join.ts`                         | `arc-root`        | `independent-evidence`; `semantic-policy-owner` | installer output / ignore policy     |   13 | independent-evidence: 4,6,70,82,172,186,276; semantic-policy-owner: 116,117,118,221,222,223 |
+| `src/commands/reconfigure.ts`                  | `arc-root`        | `semantic-policy-owner`                         | file and ignore policy               |    3 |                                                                                             |
+| `src/commands/update.ts`                       | `arc-root`        | `independent-evidence`; `semantic-policy-owner` | installer output / ignore policy     |    6 | independent-evidence: 519,545,586; semantic-policy-owner: 433,434,435                       |
+| `src/handlers/base.ts`                         | `arc-root`        | `independent-evidence`                          | owner documentation or diagnostics   |    1 |                                                                                             |
+| `src/handlers/init.ts`                         | `arc-root`        | `independent-evidence`                          | installer diagnostics                |    7 |                                                                                             |
+| `src/handlers/recover-probes.ts`               | `arc-root`        | `independent-evidence`                          | owner documentation or diagnostics   |    1 |                                                                                             |
+| `src/handlers/shared.ts`                       | `arc-root`        | `independent-evidence`                          | owner documentation or diagnostics   |    2 |                                                                                             |
+| `src/lib/change-facts.ts`                      | `arc-root`        | `semantic-policy-owner`; `external-owner`       | change classifier; `R-CI`            |    6 | semantic-policy-owner: 306,309; external-owner (`R-CI`): 392,393,394,396                    |
+| `src/lib/change-facts.ts`                      | `template-suffix` | `semantic-policy-owner`                         | file and ignore policy               |    1 |                                                                                             |
+| `src/lib/classification.ts`                    | `method-root`     | `semantic-policy-owner`                         | file and ignore policy               |   26 |                                                                                             |
+| `src/lib/classification.ts`                    | `template-suffix` | `semantic-policy-owner`                         | file and ignore policy               |   11 |                                                                                             |
+| `src/lib/config/schema.ts`                     | `arc-root`        | `semantic-policy-owner`                         | configuration schema                 |    1 |                                                                                             |
+| `src/lib/constants.ts`                         | `arc-root`        | `independent-evidence`                          | owner documentation or diagnostics   |    3 |                                                                                             |
+| `src/lib/coupling-audit/surface-classifier.ts` | `arc-root`        | `scanner-false-positive`                        | coupling-audit classifier            |   10 |                                                                                             |
+| `src/lib/coupling-audit/surface-classifier.ts` | `workflow-root`   | `scanner-false-positive`                        | coupling-audit classifier            |    2 |                                                                                             |
+| `src/lib/git/base-distance.ts`                 | `arc-root`        | `independent-evidence`                          | owner documentation or diagnostics   |    1 |                                                                                             |
+| `src/lib/git/worktree-location.ts`             | `template-suffix` | `scanner-false-positive`                        | template type identifier             |    1 |                                                                                             |
+| `src/lib/git/worktree-marker.ts`               | `arc-root`        | `independent-evidence`                          | owner documentation or diagnostics   |    3 |                                                                                             |
+| `src/lib/kernel/schema/vocabulary.ts`          | `template-suffix` | `scanner-false-positive`                        | identifier syntax                    |    1 |                                                                                             |
+| `src/lib/layout/projection.ts`                 | `arc-root`        | `layout-definition`                             | layout resolver                      |   14 |                                                                                             |
+| `src/lib/layout/registry.ts`                   | `template-suffix` | `layout-definition`                             | layout resolver                      |    2 |                                                                                             |
+| `src/lib/layout/template-output.ts`            | `template-suffix` | `layout-definition`                             | layout resolver                      |    2 |                                                                                             |
+| `src/lib/manifest/apply.ts`                    | `arc-root`        | `independent-evidence`                          | source documentation                 |    1 |                                                                                             |
+| `src/lib/manifest/apply.ts`                    | `template-suffix` | `scanner-false-positive`                        | identifier syntax                    |   10 |                                                                                             |
+| `src/lib/markdown/format-plan.ts`              | `template-suffix` | `scanner-false-positive`                        | identifier syntax                    |    1 |                                                                                             |
+| `src/lib/paths.ts`                             | `arc-root`        | `independent-evidence`                          | owner documentation or diagnostics   |    1 |                                                                                             |
+| `src/lib/release/interlock-validation.ts`      | `arc-root`        | `independent-evidence`                          | owner documentation or diagnostics   |    1 |                                                                                             |
+| `src/lib/types.ts`                             | `arc-root`        | `independent-evidence`                          | owner documentation or diagnostics   |    1 |                                                                                             |
+| `src/prompts/removal-prompts.ts`               | `arc-root`        | `independent-evidence`                          | installer diagnostics                |    3 |                                                                                             |
+| `src/scripts/audit-method-triggers.ts`         | `arc-root`        | `independent-evidence`                          | owner documentation or diagnostics   |    1 |                                                                                             |
+| `src/scripts/audit-method-triggers.ts`         | `method-root`     | `pre-resolved-path`                             | method trigger auditor (`systemDir`) |    2 |                                                                                             |
+| `src/scripts/audit-method-triggers.ts`         | `workflow-root`   | `pre-resolved-path`                             | method trigger auditor (`systemDir`) |    1 |                                                                                             |
+| `src/scripts/measure-e2e-shards.ts`            | `workflow-root`   | `scanner-false-positive`                        | CI workflow fixture                  |    1 |                                                                                             |
+| `src/scripts/render-framework.ts`              | `arc-root`        | `independent-evidence`                          | owner documentation or diagnostics   |    1 |                                                                                             |
+| `src/scripts/validate-extension-points.ts`     | `arc-root`        | `independent-evidence`                          | owner documentation or diagnostics   |    3 |                                                                                             |
+| `src/scripts/validate-extension-points.ts`     | `workflow-root`   | `independent-evidence`                          | owner documentation or diagnostics   |    2 |                                                                                             |
+| `src/scripts/validate-package-neutrality.ts`   | `arc-root`        | `independent-evidence`                          | owner documentation or diagnostics   |    5 |                                                                                             |
 
 ### Carved-module predicates
 
-| Module path                                   | Register row |
-| --------------------------------------------- | ------------ |
-| `src/lib/work-unit/candidate-record-store.ts` | `R-CR`       |
+| Module path                                        | Register row |
+| -------------------------------------------------- | ------------ |
+| `src/lib/evidence-applicability/path-treatment.ts` | `R-LC`       |
+| `src/lib/status/project-view-ref.ts`               | `R-BR`       |
+| `src/lib/status/roadmap-conflict-auto-remedy.ts`   | `R-HC`       |
+| `src/lib/status/roadmap-regeneration-assert.ts`    | `R-HC`       |
+| `src/lib/user-sync/compaction-retention.ts`        | `R-NS`       |
+| `src/lib/user-sync/retired-subdir.ts`              | `R-NS`       |
+| `src/lib/user-sync/sync-state.ts`                  | `R-NS`       |
+| `src/lib/user-sync/types.ts`                       | `R-NS`       |
+| `src/lib/work-unit/candidate-record-store.ts`      | `R-CR`       |
+| `src/lib/work-unit/submission-boundary-store.ts`   | `R-CR`       |
+| `src/lib/work-unit/transition-record-store.ts`     | `R-CR`       |
+| `src/scripts/check-foreign-writes.ts`              | `R-HC`       |
+| `src/scripts/validate-cohort-consistency.ts`       | `R-HC`       |
+| `src/scripts/validate-meta-spec.ts`                | `R-HC`       |
 
 ### Non-code predicates
 
@@ -758,6 +796,12 @@ zero overlaps, unused rules, or count mismatches. Its per-file negative control 
 `file|src/commands/diff.ts|arc-root` together with the Candidate-record and template predicates above. They own
 5, 1, and 133 hits respectively; exactly those 139 identities became newly unmatched, with zero missing or
 unexpected identities. The restored table assigns them all again.
+
+**First residual pass:** Twenty-five further framework per-file rows assign 63 code hits in resolver definitions,
+scanner patterns, pre-resolved method auditor paths, explanatory text, and diagnostics. Thirteen further wholly
+carved modules now have exact-path predicates citing their storage-register rows. At this pass the 15 classes still
+contain 18,391 hits: 174 code hits assigned by per-file rows, 64 by carved predicates, and 17,301 by non-code
+predicates. The remaining 852 code hits are unmatched; overlaps, unused rules, and count mismatches remain zero.
 
 ## Work-unit state-path recount
 
