@@ -2097,3 +2097,38 @@ need fresh final measurements. The two new criteria join the terminal's existing
 corrective execution. Propagation: performance body and frozen Gates annotation fold into this capture; 7.5's
 original Goal/Outcome remain and point to 7.R3; 8.1 will consider original criteria plus appended criteria. Earlier
 A1/A2 corrections and production contracts are unaffected. No delivery plan or lifecycle pointer changes.
+
+## A4 — Exact applicability of two accepted storage rows
+
+Owner approval: `Approve A3 and A4` at the Task 8.1 terminal stop. Design arm, low depth: the settled register
+cutoff is changed only for two accepted, source-identified rows; no current-main blanket adoption is inferred.
+
+Superseded original Register statement:
+
+> - **Register.** Every carved item traces to a register row, and every row this carve relies on is on `main` as of
+>   `840d348c`. The residual matrix and the closeout exclusion cite rows rather than restating them. A carved item found
+>   without a row, at a sweep or at verification, goes to the register's owner as a correction; its matrix row cites that
+>   correction, and this unit does not migrate it. The mirror case goes the same way: a surviving symbol that a carved
+>   row's fate would delete is named in its module's split and sent to the register's owner as a correction, which its
+>   matrix row cites. This branch does not edit the `state-storage` cohort document or its register.
+
+Superseded original final relationship statement:
+
+> The register rows this carve cites are on `main` as of `840d348c`, among them `storage-seam`'s rows for work-unit
+> state-path access (36 hand-built lines in 19 files, and 12 resolver calls in 8 files) and for the
+> `currentWuReconcile` and `StaleWorktreeSweepResult` slots. Until this branch merges base it reads the `state-storage`
+> cohort from `main`. Whether surviving callers later ask the contract for a document or for its fields is
+> `storage-seam`'s decision and does not change the carve.
+
+The decomposition and continuity rows are absent at `840d348cbe424bdc9da7c2b32bf15de2fc95aba6` and added at
+`891c911c6474e85ed042a9ec38a0effe0f87ae76`. The branch contains the latter commit. All other carve rows stay bound
+to the original cutoff. The foreign cohort document is unchanged. R-DCP applies the exact decomposition row;
+R-CONT applies handoff commit/notes history and recover task-list/history acquisition. Pure public schemas,
+authored content/map contracts, command surfaces and generic executor binders survive their mixed modules.
+
+Grounding-only task audit: 7.R4 follows 7.R3 before 7.5. The exact historical rows, `deriveRestateCandidates`, its
+unchanged production signature and base test, and recovery/decomposition mixed source modules exist. S1/S6 provide
+the concrete corrective boundaries; recover's history fixture already equals base and stays. The capture commits
+before corrective execution. Propagation: §1 and final relationship fold into this capture; 7.5 points forward with
+its original Goal/Outcome preserved; 8.1 gains the appended A4 criterion. A1/A2 and unrelated register rows are
+unaffected. Final criterion1 will carry the explicit provenance deviation; criterion2 must pass the adopted carve.

@@ -179,12 +179,15 @@ are.
   helper that now requires an executor gets `createGitExec()` at the carved call site, which builds exactly the
   executor the `gitExec` singleton holds.
 - **Tests follow their subject.** Tests of carved code are not converted beyond forced edges.
-- **Register.** Every carved item traces to a register row, and every row this carve relies on is on `main` as of
-  `840d348c`. The residual matrix and the closeout exclusion cite rows rather than restating them. A carved item found
-  without a row, at a sweep or at verification, goes to the register's owner as a correction; its matrix row cites that
-  correction, and this unit does not migrate it. The mirror case goes the same way: a surviving symbol that a carved
-  row's fate would delete is named in its module's split and sent to the register's owner as a correction, which its
-  matrix row cites. This branch does not edit the `state-storage` cohort document or its register.
+- **Register.** Every carved item traces to a register row. Rows relied on remain bound to `main` as of
+  `840d348c`, except the accepted decomposition and continuity-anchored-to-code-commits rows added at
+  `891c911c6474e85ed042a9ec38a0effe0f87ae76`; only those two exact rows apply under A4. The residual matrix and
+  closeout exclusion cite rows rather than restating them. A carved item found without a row, at a sweep or at
+  verification, goes to the register's owner as a correction; its matrix row cites that correction, and this unit
+  does not migrate it. The mirror case goes the same way: a surviving symbol that a carved row's fate would delete
+  is named in its module's split and sent to the register's owner as a correction, which its matrix row cites.
+  Mixed-module symbol ranges and independently surviving type/command contracts retain their original rules.
+  This branch does not edit the `state-storage` cohort document or its register. (A4)
 
 ### 2. Contract completions
 
@@ -764,17 +767,21 @@ Validated at work-unit completion:
 - `[ ]` Implementation verification is complete and ready for Candidate preparation, with required public CI
   and all six `ci-job` cost reports retained against the exact published head before integration authorization
 
+- `[ ]` The two storage-register corrections adopted by A4 are bound to their exact `891c911c` rows, with
+  decomposition and continuity subjects named and all mixed-module survivor ranges preserved
+
 ## Open Questions
 
 No settle-able design question remains. Implementation latitude covers the site-by-site digest split under § 2.1's
 rule, the per-file disposition kind of each framework-class hit under § 6's rule, and batching within the task list's
 review increments.
 
-The register rows this carve cites are on `main` as of `840d348c`, among them `storage-seam`'s rows for work-unit
-state-path access (36 hand-built lines in 19 files, and 12 resolver calls in 8 files) and for the
-`currentWuReconcile` and `StaleWorktreeSweepResult` slots. Until this branch merges base it reads the `state-storage`
-cohort from `main`. Whether surviving callers later ask the contract for a document or for its fields is
-`storage-seam`'s decision and does not change the carve.
+The register rows this carve cites are bound to `main` as of `840d348c`, including work-unit state-path access,
+`currentWuReconcile`, and `StaleWorktreeSweepResult`. A4 additionally applies only the exact decomposition and
+continuity rows added at `891c911c6474e85ed042a9ec38a0effe0f87ae76`; no other later row is adopted. The branch
+contains that accepted correction. The matrix names R-DCP and R-CONT with this provenance and preserves the
+symbol-range/type-edge carve rules. Whether surviving callers later ask the contract for a document or its fields
+is `storage-seam`'s decision and does not change the carve. (A4)
 
 ## Amendments
 
@@ -785,4 +792,6 @@ cohort from `main`. Whether surviving callers later ask the contract for a docum
 <!-- markdownlint-disable MD013 -->
 - **A3** — 2026-09-29 — design: Bind local verification and public CI evidence to their producing boundaries.
   _Supersedes:_ § Cross-cutting Considerations, Performance and test cost ¶1; § Success Criteria, Gates ¶1; task criteria 31–32. _Trigger:_ 8.1 terminal. _Work:_ 7.R3. _Revalidated:_ pending → verify-work-unit.
+- **A4** — 2026-09-29 — design: Apply the accepted decomposition and continuity register corrections explicitly.
+  _Supersedes:_ §1 Register ¶1 and final register-relationship ¶1, only these two rows. _Trigger:_ 8.1 terminal. _Work:_ 7.R4. _Revalidated:_ pending → verify-work-unit.
 <!-- markdownlint-enable MD013 -->

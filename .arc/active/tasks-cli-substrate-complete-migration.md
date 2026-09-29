@@ -764,12 +764,25 @@ assertion, or a value typed by a cast to a registered schema's output.
         - Close local checks at the corrected subject; name andrew, the exact authorized publication head, and all
           required CI and budget reports. Leave unavailable public evidence pending.
 
+### `[ ]` **7.R4 Reconcile the two accepted storage-register corrections**
+
+- _Goal:_ Under A4, the decomposition and continuity carve traces to the two accepted `891c911c` rows;
+  mixed-module survivors are explicit, and carved tests retain their original representations beyond forced edges.
+
+    - `[ ]` **7.R4.a Record the exact row provenance and symbol splits**
+        - Name both accepted rows, retain the historical cutoff for all others, and record S6's owning-symbol splits.
+
+    - `[ ]` **7.R4.b Restore the carved handoff test representation and verify the boundary**
+        - Restore its exact base representation and verify affected tests, types, and the complete carve diff.
+
 ### `[x]` **7.5 Sweep surviving tests for convertible residue** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds as one batch at the post-merge head, and the work unit's test-cost effect
   is measured once no further test changes.
 
     - _Amended in:_ 7.R3 (A3)
+
+    - _Amended in:_ 7.R4 (A4)
 
 - _Outcome:_ The final sweep reconciles surviving test support, all six member scopes, and the storage carve; no
   convertible residue remains. Session-envelope goldens match the merge base, and the layout reconciliation and
@@ -890,3 +903,6 @@ assertion, or a value typed by a cast to a registered schema's output.
 
 - `[ ]` Implementation verification is complete and ready for Candidate preparation, with required public CI
   and all six `ci-job` cost reports retained against the exact published head before integration authorization
+
+- `[ ]` The two storage-register corrections adopted by A4 are bound to their exact `891c911c` rows, with
+  decomposition and continuity subjects named and all mixed-module survivor ranges preserved
