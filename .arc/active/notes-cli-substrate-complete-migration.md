@@ -180,14 +180,14 @@ by the commands above; later segment runs regenerate it.
 One table per owning contract — kernel, validation surfaces, session envelope, layout, Git executor, command inputs,
 and test support — with a row per retired module, re-export site, or migrated surface rather than per importer:
 
-| Column      | Holds                                                                                     |
-| ----------- | ----------------------------------------------------------------------------------------- |
-| Surface     | The old path, helper, symbol range, or surface                                            |
-| Destination | Its owning module or helper after migration, or `—`                                       |
-| Disposition | `migrated`, `retained by rule`, `owned outside the cohort`, or `carved`                   |
-| Citation    | The rule, the named owner, or the register row (or the correction captured for the item)  |
-| Importers   | Importer count at the latest scan                                                         |
-| Evidence    | The search or test that proves the disposition                                            |
+| Column      | Holds                                                                                    |
+| ----------- | ---------------------------------------------------------------------------------------- |
+| Surface     | The old path, helper, symbol range, or surface                                           |
+| Destination | Its owning module or helper after migration, or `—`                                      |
+| Disposition | `migrated`, `retained by rule`, `owned outside the cohort`, or `carved`                  |
+| Citation    | The rule, the named owner, or the register row (or the correction captured for the item) |
+| Importers   | Importer count at the latest scan                                                        |
+| Evidence    | The search or test that proves the disposition                                           |
 
 A mixed module takes one row per side of its symbol-range split, each naming its symbols.
 
@@ -201,6 +201,228 @@ Layout adds three fixed-column tables, which the reconciliation reads and nothin
   `external-owner`.
 - **Non-code predicates** — `Surface kind`, `Path prefix` (or `—` for every path of that kind), `Kind`, and `Owner`,
   each disposing every non-code hit it matches.
+
+### Matrix count and citation conventions
+
+Paths in the tables are relative to `packages/arc-framework`. Importer counts come from the static TypeScript graph
+at `6f1d01261`; `M:n` marks a whole-module count where a row names only some symbols in a mixed module. `—` means
+that the surface is a command, local declaration, literal, or planned helper rather than a statically imported module.
+The regular-expression scan supplies candidates, not semantic counts. Later segment runs refresh these cells and
+remove rows whose surface has retired. The two-way layout tables below begin empty by design and are filled in Phase 5.
+
+Register citations below name the corresponding **Storage-coupling register** row in
+`cohort-state-storage.md`. The correction citation names the existing `USER-INBOX` capture.
+
+| Key      | Register row                                                                               |
+| -------- | ------------------------------------------------------------------------------------------ |
+| `R-NS`   | Notes-specific sync                                                                        |
+| `R-BR`   | Branch-tree readers                                                                        |
+| `R-LC`   | Lifecycle classification and exclusion                                                     |
+| `R-HC`   | Lifecycle hook checks                                                                      |
+| `R-PL`   | Lifecycle state encoded in directory placement                                             |
+| `R-SP`   | Surviving code builds work-unit state paths itself                                         |
+| `R-IF`   | In-flight derivation                                                                       |
+| `R-LW`   | The lifecycle executor's write path and `arc start` placement                              |
+| `R-NP`   | The notes-related session-init probes                                                      |
+| `R-CW`   | The `currentWuReconcile` and `StaleWorktreeSweepResult` session-init slots                 |
+| `R-LOC`  | Locus derivation (`DerivedLocusFrame`)                                                     |
+| `R-AR`   | Archival by `git mv`, the archive index                                                    |
+| `R-UW`   | The per-work-unit user workspace                                                           |
+| `R-RM`   | `ROADMAP.md` carried on every branch                                                       |
+| `R-CR`   | Candidate and transition records tracked under `.arc/system/.internal/`                    |
+| `R-CI`   | The auto-merge lane's planning classification by tracked artifact prefix                   |
+| `R-LOCK` | `USER-INBOX`: Name what the surviving inbox writer locks on in the notes-sync register row |
+| `R-ADD`  | `USER-INBOX`: Cover identity-wide user workspace bootstrap in the storage register         |
+
+### Kernel contract
+
+| Surface                                                                    | Destination                                  | Disposition      | Citation                |   Importers | Evidence                         |
+| -------------------------------------------------------------------------- | -------------------------------------------- | ---------------- | ----------------------- | ----------: | -------------------------------- |
+| `src/lib/canonical/canonical-json.ts` shim                                 | `src/lib/kernel/canonical/canonical-json.ts` | migrated         | Spec § 3                |         127 | import graph; Task 6.1           |
+| `src/lib/canonical/managed-path.ts` shim                                   | `src/lib/kernel/canonical/managed-path.ts`   | migrated         | Spec § 3                |          28 | import graph; Task 6.2           |
+| `src/lib/work-unit/slug.ts` shim                                           | `src/lib/kernel/schema/slug.ts`              | migrated         | Spec § 3                |           9 | import graph; Task 6.2           |
+| `ArcError` re-export in `src/lib/errors.ts`                                | kernel error module                          | migrated         | Spec § 3                |  4 (`M:38`) | named-import search; Task 6.2    |
+| vocabulary re-exports in `src/commands/active/types.ts`                    | kernel vocabulary                            | migrated         | Spec § 3                | 15 (`M:29`) | named-import search; Task 6.2    |
+| local `SlugSchema` in `src/scripts/integration/merge.ts`                   | kernel `SlugSchema`                          | migrated         | Spec § 3                |           — | Task 6.3                         |
+| local `SlugSchema` in `src/scripts/integration/checkpoint.ts`              | kernel `SlugSchema`                          | migrated         | Spec § 3                |           — | Task 6.3                         |
+| local `SlugSchema` in `src/scripts/review-gate/readiness.ts`               | kernel `SlugSchema`                          | migrated         | Spec § 3                |           — | Task 6.3                         |
+| local state and placement enums in `src/scripts/integration/checkpoint.ts` | kernel and layout schemas                    | migrated         | Spec § 3                |           — | Task 6.3                         |
+| kernel digest patterns and three `z.custom<CanonicalDigest>` copies        | `CanonicalDigestSchema`                      | migrated         | Spec § 2.1              |           — | regex candidates; Tasks 1.3, 6.4 |
+| composite `checkpoint-v1:` digest handles                                  | domain schema                                | retained by rule | Spec § 2.1 fenced owner |           — | regex candidates; Task 6.4.c     |
+| review-gate version-1 identities                                           | review-gate schema                           | retained by rule | Spec § 2.1 fenced owner |           — | regex candidates; Task 6.4.c     |
+| `src/lib/canonical/content-digest.ts`                                      | same module                                  | retained by rule | Spec § 3 non-shim       |        M:14 | import graph; Task 6.5           |
+
+### Validation-surfaces contract
+
+| Surface                                                                       | Destination                          | Disposition      | Citation                  |   Importers | Evidence                 |
+| ----------------------------------------------------------------------------- | ------------------------------------ | ---------------- | ------------------------- | ----------: | ------------------------ |
+| re-exports in `src/lib/release/types.ts`                                      | release owning schemas               | migrated         | Spec § 4                  |        M:10 | import graph; Task 3.1.a |
+| re-exports in `src/lib/active/meta-reader.ts`                                 | active owning schemas                | migrated         | Spec § 4                  |       M:112 | import graph; Task 3.1.a |
+| re-exports in `src/lib/config/status-reader.ts`                               | config owning schemas                | migrated         | Spec § 4                  |        M:45 | import graph; Task 3.1.a |
+| re-exports in `src/lib/commit-check/config.ts`                                | commit-check owning schemas          | migrated         | Spec § 4                  |         M:3 | import graph; Task 3.1.a |
+| re-exports in `src/commands/config/types.ts`                                  | config owning schemas                | migrated         | Spec § 4                  |        M:17 | import graph; Task 3.1.a |
+| relay in `src/commands/config.ts`                                             | config owning schemas                | migrated         | Spec § 4                  |         M:6 | import graph; Task 3.1.a |
+| cross-WU entry re-exports in `src/lib/user-sync/index.ts`                     | `schema.ts` and `parser.ts`          | migrated         | Spec § 4; `R-NS` survivor |        M:40 | import graph; Task 3.1.b |
+| sync-state re-exports in `src/lib/user-sync/index.ts`                         | —                                    | carved           | `R-NS`                    |        M:40 | Task 3.1.b               |
+| unused `src/lib/user-sync/types.ts` re-export names                           | —                                    | carved           | `R-NS`                    |     0 named | Task 3.1.b               |
+| `parseCrossWuEntries` and `matchInboxEntryTitle` through the user-sync barrel | direct `parser.ts` imports           | migrated         | Spec § 4; `R-NS` survivor |         M:7 | Task 3.1.c               |
+| `inbox-writer.ts` and `execution-offer.ts`                                    | direct owning modules                | retained by rule | `R-NS` survivor           |   M:7 / M:2 | Task 3.1.c               |
+| `resolveCurrentWuName` in `current-wu.ts`                                     | barrel retained for carved importers | retained by rule | `R-NS` survivor           | 0 surviving | Task 1.1.c               |
+| remaining notes-sync machinery in `src/lib/user-sync/`                        | —                                    | carved           | `R-NS`                    |           — | Task 1.1.c               |
+
+### Session-envelope contract
+
+| Surface                                                         | Destination                                   | Disposition      | Citation           | Importers | Evidence                 |
+| --------------------------------------------------------------- | --------------------------------------------- | ---------------- | ------------------ | --------: | ------------------------ |
+| `DirtyStateResult` in `src/lib/git/dirty-state.ts`              | full schema, `dirty-state` root               | migrated         | Spec § 5           |      M:12 | import graph; Task 3.2.a |
+| `CurrentHuskAdvisory`                                           | full schema, `current-husk-advisory` root     | migrated         | Spec § 5           |       M:3 | import graph; Task 3.2.a |
+| `ExtensionsSessionInitResult`                                   | full schema, `extensions-session-init` root   | migrated         | Spec § 5           |       M:7 | import graph; Task 3.2.b |
+| `ActiveSessionInitResult`                                       | full schema, `active-session-init` root       | migrated         | Spec § 5           |      M:29 | import graph; Task 3.2.b |
+| `DomainRulesSessionInitResult`                                  | full schema, `domain-rules-session-init` root | migrated         | Spec § 5           |       M:5 | import graph; Task 3.2.b |
+| `ConfigSessionInitResult`                                       | full schema, `config-session-init` root       | migrated         | Spec § 5           |      M:17 | import graph; Task 3.2.c |
+| `ReleaseRoutingValue`                                           | full schema, `release-routing` root           | migrated         | Spec § 5           |         — | Task 3.2.d               |
+| `WorktreeSyncStatusResult`                                      | full component schema                         | migrated         | Spec § 5           |      M:26 | import graph; Task 3.3.a |
+| `WorktreeSnapshotAnalysisResult`                                | full schema, `worktree-sync` root             | migrated         | Spec § 5           |         — | Task 3.3.a               |
+| `WorktreeRosterResult`                                          | full schema, `worktree-roster` root           | migrated         | Spec § 5           |      M:63 | import graph; Task 3.3.b |
+| `BaseDriftResult` and `BaseDistanceStatusResult` alias          | full component schema                         | migrated         | Spec § 5           |      M:13 | import graph; Task 3.4.a |
+| base-distance snapshot union                                    | full schema, `base-distance` root             | migrated         | Spec § 5           |      M:14 | import graph; Task 3.4.b |
+| four `z.custom<BaseDriftResult>` checkpoint wraps               | full `BaseDriftResult` schema                 | migrated         | Spec § 2.3         |         — | regex scan; Task 3.4.c   |
+| thin `WorkUnitStateResult` slot                                 | store-backed result schema                    | carved           | `R-IF`             |         — | Task 3.5                 |
+| thin `ErrandStateResult` slot                                   | store-backed result schema                    | carved           | `R-IF`             |         — | Task 3.5                 |
+| thin `UserSessionInitStatusResult` slot                         | store-backed result schema                    | carved           | `R-NP`             |         — | Task 3.5                 |
+| thin `StaleWorktreeSweepResult` slot                            | store-backed result schema                    | carved           | `R-CW`             |         — | Task 3.5                 |
+| `DerivedLocusFrame` slot                                        | store-backed result schema                    | carved           | `R-LOC`            |         — | Task 3.5                 |
+| `currentWuReconcile` slot                                       | store-backed result schema                    | carved           | `R-CW`             |         — | Task 3.5                 |
+| `userReferenceReconcile` slot                                   | store-backed result schema                    | carved           | `R-NP`             |         — | Task 3.5                 |
+| `src/lib/git/in-flight-derivation.ts`: branch-ref oracle        | store read                                    | carved           | `R-IF`; `R-BR`     |      M:21 | import graph; Task 3.5   |
+| `src/lib/git/in-flight-derivation.ts`: emitted in-flight shapes | full surviving result schema                  | retained by rule | Spec § 1 type edge |      M:21 | Task 3.5                 |
+
+### Layout contract
+
+| Surface                                                                     | Destination            | Disposition              | Citation              | Importers | Evidence                |
+| --------------------------------------------------------------------------- | ---------------------- | ------------------------ | --------------------- | --------: | ----------------------- |
+| `layout-migration-ledger.json`                                              | —                      | migrated                 | Spec § 6 retirement   |         — | Task 5.1                |
+| `src/lib/coupling-audit/layout-migration-ledger.ts`                         | —                      | migrated                 | Spec § 6 retirement   |       M:4 | import graph; Task 5.1  |
+| `src/scripts/assert-layout-migration.ts`                                    | —                      | migrated                 | Spec § 6 retirement   |       M:2 | import graph; Task 5.1  |
+| `audit:layout-migration` package script and test entry                      | —                      | migrated                 | Spec § 6 retirement   |         — | Task 5.1                |
+| framework `arc-root` construction in surviving TypeScript                   | layout resolver        | migrated                 | Spec § 6              |         — | coupling scan; Task 5.3 |
+| procedure roots and template output construction                            | layout resolver        | migrated                 | Spec § 6              |         — | coupling scan; Task 5.3 |
+| `src/lib/work-unit/completed-index.ts`: `*FromRef` and archive reads        | store read             | carved                   | `R-BR`; `R-AR`        |      M:25 | import graph; Task 5.2  |
+| `src/lib/work-unit/completed-index.ts`: `branchToWorkUnitSlug`              | same module            | retained by rule         | `R-BR` survivor       |      M:25 | Task 5.2                |
+| `src/lib/git/remote-ref-reader.ts`: in-flight and meta ref reads            | store read             | carved                   | `R-BR`                |      M:25 | Task 5.2                |
+| `src/lib/git/remote-ref-reader.ts`: live branch tip and timeout             | same module            | retained by rule         | `R-BR` survivor       |      M:23 | Task 5.2                |
+| `src/lib/base-drift/current-adapters.ts`: completed-history read            | store read             | carved                   | `R-BR`                |      M:11 | Task 5.2                |
+| `src/lib/base-drift/current-adapters.ts`: current base-drift adapters       | same module            | retained by rule         | Spec § 1 symbol split |      M:11 | Task 5.2                |
+| `src/lib/status/project-view-ref.ts` and retirement/transition ref readers  | store read             | carved                   | `R-BR`                |         — | coupling scan; Task 5.2 |
+| work-unit state-path construction in surviving code                         | store contract         | carved                   | `R-SP`                |         — | coupling scan; Task 5.4 |
+| lifecycle placement readers and `provisional-placement` callers             | store contract         | carved                   | `R-PL`; `R-LW`        |         — | coupling scan; Task 5.4 |
+| Candidate and transition record paths                                       | store contract         | carved                   | `R-CR`                |         — | coupling scan; Task 5.4 |
+| ROADMAP construction and reading                                            | store projection       | carved                   | `R-RM`                |         — | coupling scan; Task 5.4 |
+| draft retirement in `activate-work-unit.md` and `strategy-work-planning.md` | `composable-workflows` | owned outside the cohort | Spec § 6 route        |         — | Task 5.5                |
+
+### Git-executor contract
+
+| Surface                                                                 | Destination                   | Disposition      | Citation                  |      Importers | Evidence                |
+| ----------------------------------------------------------------------- | ----------------------------- | ---------------- | ------------------------- | -------------: | ----------------------- |
+| `RawGitExec` and `RawGitResult` in `src/lib/change-facts.ts`            | `src/lib/git/exec.ts`         | migrated         | Spec § 2.2                |           M:51 | import graph; Task 1.4  |
+| `createRawGitExec` spawn factory in `change-facts.ts`                   | `createSpawnRawGitExec`       | migrated         | Spec § 7                  | 4 direct tests | Task 4.6.b              |
+| `change-facts.ts`: CI weight, tree hash, portability, raw executor      | same module                   | retained by rule | Spec § 1; `R-CI` survivor |           M:51 | Task 4.6.b              |
+| `change-facts.ts`: planning-lane classifier                             | —                             | carved           | `R-CI`                    |           M:51 | Task 4.6.b              |
+| Git failure-text predicates in `src/lib/user-sync/notes-merge.ts`       | `src/lib/git/ref-tree.ts`     | migrated         | Spec § 7; `R-NS` survivor |            M:7 | Task 4.5.a              |
+| `notes-merge.ts`: remaining notes merge functions                       | —                             | carved           | `R-NS`                    |            M:7 | Task 4.5.a              |
+| `resolveGitCommonDir` in `src/lib/user-sync/repo-shared-paths.ts`       | `src/lib/git/exec.ts`         | migrated         | Spec § 7; `R-NS` survivor |    9 surviving | Task 4.5.b              |
+| `getRepoSharedUserInternalDir` in `repo-shared-paths.ts`                | correction pending            | retained by rule | `R-LOCK`                  |           M:12 | existing inbox capture  |
+| `getNotesLockPath` in `src/lib/user-sync/notes-lock.ts`                 | correction pending            | retained by rule | `R-LOCK`                  |            M:4 | existing inbox capture  |
+| `src/lib/io-context.ts`: `createRawGitExec`, `createGitExec`, `gitExec` | bound executor factory        | migrated         | Spec § 8                  |           M:98 | Task 4.4                |
+| `src/lib/io-context.ts`: notes `UserIOContext` and writer               | store-backed IO               | carved           | `R-NS`                    |           M:98 | Task 4.4                |
+| errand identity `.message` Git classification                           | `gitFailureText()`            | migrated         | Spec § 7                  |              — | Task 4.6.a              |
+| raw Git in lifecycle hook scripts                                       | —                             | carved           | `R-HC`                    |              — | coupling scan; Task 4.7 |
+| raw `git()` arrangement runners                                         | same modules                  | retained by rule | Spec § 9                  |              — | Task 4.7                |
+| `gitExec` in standalone scripts and fallback holders                    | same singleton                | retained by rule | Spec § 8                  |     10 scripts | Task 4.4.d              |
+| `gitExecInput` unbound fallback                                         | `createGitExecInput` fallback | retained by rule | Spec § 8                  |              — | Task 4.4.c              |
+
+### Command-inputs contract
+
+| Surface                                                 | Destination                         | Disposition      | Citation               |  Importers | Evidence   |
+| ------------------------------------------------------- | ----------------------------------- | ---------------- | ---------------------- | ---------: | ---------- |
+| merge lock `resolve` adapter                            | machine-mode wrap and bound handler | migrated         | Spec § 8               |          — | Task 4.1.a |
+| merge lock `hold` adapter                               | machine-mode wrap and bound handler | migrated         | Spec § 8               |          — | Task 4.1.a |
+| merge lock `release` adapter                            | machine-mode wrap and bound handler | migrated         | Spec § 8               |          — | Task 4.1.a |
+| review `resolve` adapter                                | machine-mode wrap and bound handler | migrated         | Spec § 8               |          — | Task 4.1.b |
+| review `merge-method resolve` adapter                   | machine-mode wrap and bound handler | migrated         | Spec § 8               |          — | Task 4.1.b |
+| review `checks await` adapter                           | machine-mode wrap and bound handler | migrated         | Spec § 8               |          — | Task 4.1.b |
+| review `readiness` adapter                              | machine-mode wrap and bound handler | migrated         | Spec § 8               |          — | Task 4.1.b |
+| review `frontline resolve` adapter                      | machine-mode wrap and bound handler | migrated         | Spec § 8               |          — | Task 4.1.b |
+| review `changeset resolve` adapter                      | machine-mode wrap and bound handler | migrated         | Spec § 8               |          — | Task 4.1.b |
+| review `hosted request` adapter                         | machine-mode wrap and bound handler | migrated         | Spec § 8               |          — | Task 4.1.c |
+| review `hosted await` adapter                           | machine-mode wrap and bound handler | migrated         | Spec § 8               |          — | Task 4.1.c |
+| review `hosted settle` adapter                          | machine-mode wrap and bound handler | migrated         | Spec § 8               |          — | Task 4.1.c |
+| review `local prepare` adapter                          | machine-mode wrap and bound handler | migrated         | Spec § 8               |          — | Task 4.1.d |
+| review `local attest` adapter                           | machine-mode wrap and bound handler | migrated         | Spec § 8               |          — | Task 4.1.d |
+| review `local resume` adapter                           | machine-mode wrap and bound handler | migrated         | Spec § 8               |          — | Task 4.1.d |
+| review `respond` adapter                                | machine-mode wrap and bound handler | migrated         | Spec § 8               |          — | Task 4.1.d |
+| review `reduce` adapter                                 | machine-mode wrap and bound handler | migrated         | Spec § 8               |          — | Task 4.1.d |
+| `attest`, `publish`, and `locus` declarations           | machine-mode policies               | migrated         | Spec § 8               |          — | Task 4.1.e |
+| `user close` command surface                            | adapter wrap                        | migrated         | Spec § 8; `R-UW` body  |          — | Task 4.2   |
+| `config validate` command surface                       | adapter wrap                        | migrated         | Spec § 8               |          — | Task 4.2   |
+| `release setup print-patterns` command surface          | adapter wrap                        | migrated         | Spec § 8               |          — | Task 4.2   |
+| `log standalone` command surface                        | adapter wrap and bound executor     | migrated         | Spec § 8               |          — | Task 4.2   |
+| `handlers/shared.ts`: three default-`gitExec` helpers   | required executor                   | migrated         | Spec § 8               |       M:35 | Task 4.3   |
+| CLI-reachable `gitExec` singleton importers             | bound invocation executor           | migrated         | Spec § 8               | 13 modules | Task 4.4.a |
+| `active in-flight` adapter's `gitExecInput`             | bound input executor                | migrated         | Spec § 8; `R-IF` body  |          — | Task 4.4.c |
+| `handlers/user.ts`: inbox remove/mark execute-bound     | same mutation handlers              | retained by rule | `R-NS` survivor        |        M:2 | Task 1.1.c |
+| `handlers/user.ts`: reconcile-references/status         | store-backed handlers               | carved           | `R-NP`                 |        M:2 | Task 1.1.c |
+| `handlers/user.ts`: open/close                          | store-backed workspace handlers     | carved           | `R-UW`                 |        M:2 | Task 1.1.c |
+| `handlers/user.ts`: save/load/push/fetch/pull/compact   | store-backed sync                   | carved           | `R-NS`                 |        M:2 | Task 1.1.c |
+| `handlers/user.ts`: add identity workspace              | store-backed user workspace         | carved           | `R-ADD`                |        M:2 | Task 1.1.c |
+| `commands/user/add.ts`: identity-wide bootstrap         | store-backed user workspace         | carved           | `R-ADD`                |        M:1 | Task 1.1.c |
+| `handlers/user-sync.ts` and `handlers/push-recovery.ts` | —                                   | carved           | `R-NS`                 |        M:4 | Task 1.1.c |
+| `handlers/sync.ts`: notes pull/push                     | store-backed sync                   | carved           | `R-NS`                 |        M:3 | Task 1.1.c |
+| `handlers/sync.ts`: worktree sync and adapter           | same handler                        | retained by rule | Spec § 1 symbol split  |        M:3 | Task 1.1.c |
+| `review planning-lane` command                          | —                                   | carved           | `R-CI`                 |          — | Task 4.1   |
+| `locus` command adapter                                 | machine-mode wrap                   | migrated         | Spec § 8; `R-LOC` body |          — | Task 4.1.e |
+
+### Test-support contract
+
+| Surface                                                                     | Destination                             | Disposition      | Citation                      | Importers | Evidence                         |
+| --------------------------------------------------------------------------- | --------------------------------------- | ---------------- | ----------------------------- | --------: | -------------------------------- |
+| repeated scripted `GitExec` doubles                                         | `__tests__/helpers/git-exec-fake.ts`    | migrated         | Spec § 9                      |         — | test scan; Tasks 2.1, 7.1, 7.4   |
+| hand-built Git failure rejections                                           | shared `GitProcessError` fixture        | migrated         | Spec § 9                      |         — | regex candidates; Tasks 2.1, 7.1 |
+| scripted `GitExecInput` and `RawGitExec` doubles                            | shared fake variants                    | migrated         | Spec § 9                      |         — | test scan; Task 2.1.c            |
+| handwritten meta fixture blocks                                             | `__tests__/helpers/meta-fixture.ts`     | migrated         | Spec § 9                      |         — | regex candidates; Tasks 2.2, 7.2 |
+| inline `.safeParse(...).success` assertions                                 | `__tests__/helpers/schema-assertion.ts` | migrated         | Spec § 9                      |         — | regex candidates; Tasks 2.3, 7.3 |
+| registered output casts in tests                                            | schema parse                            | migrated         | Spec § 9                      |         — | Task 7.3                         |
+| `makeGitExecInput` in `__tests__/helpers/integration.ts`                    | execa input adapter                     | migrated         | Spec § 9                      |      M:74 | Task 2.4.a                       |
+| `stubGitExec` in `__tests__/helpers/integration.ts`                         | `__tests__/integration/active.test.ts`  | migrated         | Spec § 9                      |         1 | Task 2.4.b                       |
+| `makeGitNoteWriter` and `makeGitNoteReader`                                 | same helpers                            | carved           | `R-NS`                        |      M:74 | Task 2.4.c                       |
+| `base-advance.ts` raw `git()` runner                                        | same helper                             | retained by rule | Spec § 9 arrangement runner   |         — | Task 2.4.c                       |
+| `e2e/race-worker.ts` private spawn executors                                | same worker                             | retained by rule | Spec § 9 real-Git plumbing    |         — | Task 2.4.c                       |
+| constant one-response stubs                                                 | local test doubles                      | retained by rule | Spec § 9                      |         — | Task 7.5                         |
+| real-Git doubles, fault-injecting hybrids, scenario simulators              | local test doubles                      | retained by rule | Spec § 9                      |         — | Task 7.5                         |
+| parser/layout literal meta fixtures                                         | local Markdown                          | retained by rule | Spec § 9 independent evidence |         — | Task 7.5                         |
+| E2E canonicalizers and Result assertions                                    | same tests                              | retained by rule | Spec § 9                      |         — | Task 7.5                         |
+| notes-sync tests (`user-sync-notes-*`, `notes-*`, integration notes cases)  | same tests                              | carved           | `R-NS`                        |         — | test paths; Task 7.5             |
+| branch-tree tests (`project-view-ref`, `completed-index`, ref-reader cases) | same cases                              | carved           | `R-BR`; `R-AR`                |         — | test paths; Task 7.5             |
+| in-flight and session-init store-source tests                               | same cases                              | carved           | `R-IF`; `R-CW`; `R-NP`        |         — | test paths; Task 7.5             |
+| lifecycle-contribution and path-treatment tests                             | same tests                              | carved           | `R-LC`                        |         — | test paths; Task 7.5             |
+| planning-lane cases in `change-facts` tests                                 | same cases                              | carved           | `R-CI`                        |         — | test paths; Task 7.5             |
+| inbox-writer and execution-offer tests                                      | same tests                              | retained by rule | `R-NS` survivor               |         — | test paths; Task 7.5             |
+| `testing-standards` project override                                        | shared support guidance                 | migrated         | Spec § 9                      |         — | Task 2.5                         |
+
+### Layout per-file rows
+
+| File | Class | Kind | Owner | Hits | Lines |
+| ---- | ----- | ---- | ----- | ---: | ----- |
+
+### Carved-module predicates
+
+| Module path | Register row |
+| ----------- | ------------ |
+
+### Non-code predicates
+
+| Surface kind | Path prefix | Kind | Owner |
+| ------------ | ----------- | ---- | ----- |
 
 ## Segment boundaries
 

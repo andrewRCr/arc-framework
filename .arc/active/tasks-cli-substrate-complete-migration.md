@@ -13,54 +13,28 @@ phases compose over.
 _Mode:_ `layer` through Phase 2 — closes on the settled contract completions and shared test support that every
 replication segment builds on.
 
-### `[ ]` **1.1 Re-derive the residual inventory and seed the residual matrix — D1, D10**
+### `[x]` **1.1 Re-derive the residual inventory and seed the residual matrix — D1, D10**
 
 - _Goal:_ The residual matrix lists every residual at the merged base by owning contract, every carved item cites its
   storage-coupling register row, every mixed module carries its symbol-range split, and every rowless carved item or
   stranded survivor has gone to the register's owner as a correction — so no later phase migrates carved code or
   strands a survivor.
 
-- **Additional Context:** `notes-cli-substrate-complete-migration.md` § Inventory method and § Residual matrix;
-  `cohort-state-storage.md` § Storage-coupling register
-
-- **Additional Context:** the members' residual lists — `spec-cli-schema-kernel.md`,
-  `notes-cli-session-envelope.md`, `spec-cli-layout-resolver.md`, `spec-cli-validation-surfaces.md`,
-  `spec-cli-git-executor.md` § Scope boundary (No-gos), and `spec-cli-command-inputs.md`, with each member's task-list
-  completion notes
-
     - `[x]` **1.1.a Write the three inventory scans and run them at the merged base**
         - Recorded the TypeScript import graph, regular-expression candidates, and coupling-audit class inventory as
           one-off scripts in `notes-cli-substrate-complete-migration.md`; all three ran at merged head `6f1d01261`.
 
-    - `[ ]` **1.1.b Create the residual matrix tables**
-        - One table per owning contract in the shape notes § Residual matrix fixes, one row per retired module,
-          re-export site, or migrated surface. Seed it from the members' residual lists and the fresh scans; the
-          scans, not the lists, define completion.
-        - Add the three layout tables empty, with their fixed columns; Phase 5 fills them, and the reconciliation
-          reads only those three tables.
+    - `[x]` **1.1.b Create the residual matrix tables**
+        - Seeded seven contract tables from the merged-base scans and member residuals, with module-count qualifiers
+          for mixed symbols; added the three fixed-column layout tables for the later reconciliation.
 
-    - `[ ]` **1.1.c Record the storage carve**
-        - Cite the register row for every carved item. The notes-specific sync row names every `lib/user-sync/`
-          survivor except the inbox mutations' lock path, so the other survivors' rows cite it directly.
-        - Name every mixed module with its split — `change-facts.ts`, `lib/user-sync/`, `completed-index.ts`,
-          `remote-ref-reader.ts`, `in-flight-derivation.ts`, `lib/base-drift/current-adapters.ts`, `lib/io-context.ts`,
-          and the user and sync handlers among them.
-        - Classify every command in `handlers/user.ts` against the register, since Tasks 3.1.c, 4.2, and 4.3 follow
-          the split: the `user inbox` mutations survive; `reconcile-references` (the user-reference reconciliation
-          row), `status` (the notes session-init probes row), `open` and `close` (the per-work-unit user workspace
-          row), and `save`, `load`, `push`, `fetch`, `pull`, and `compact` (the notes-specific sync row) are carved;
-          `add` is classified the same way.
-        - `resolveCurrentWuName` survives by the notes-specific sync row, but every importer is carved, so its row
-          records that this unit routes nothing and its carved importers keep the barrel; no correction goes out.
-        - Mark the tests of carved code, which later phases leave alone apart from forced edges.
+    - `[x]` **1.1.c Record the storage carve**
+        - Named each mixed module's surviving and carved symbols, classified every `handlers/user.ts` command, and
+          marked carved test subjects. `resolveCurrentWuName` keeps its barrel for carved importers.
 
-    - `[ ]` **1.1.d Route register corrections**
-        - Capture any carved item found without a row, and any surviving symbol a carved row's fate would delete, to
-          the register's owner through `arc-inbox`; the matrix row cites the capture. This branch never edits the
-          `state-storage` cohort document.
-        - `getNotesLockPath` and `getRepoSharedUserInternalDir` are such survivors: the surviving `user inbox`
-          mutations lock through them, and no row names them. Their correction is already captured in `USER-INBOX`
-          ("Name what the surviving inbox writer locks on in the notes-sync register row"); confirm it and cite it.
+    - `[x]` **1.1.d Route register corrections**
+        - Confirmed the existing inbox-lock correction and captured the rowless identity-wide `user add` bootstrap
+          for the storage owner in `USER-INBOX`. Both corrections have matrix citations; the register was not edited.
 
 ### `[ ]` **1.2 Take every affected test-cost baseline**
 
