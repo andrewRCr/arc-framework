@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { GitExec } from "../../../../../../src/lib/git/exec.js";
 import { createGitTreeReadFs } from "../../../../../../src/scripts/review-gate/hosts/local/git-tree-fs.js";
 import { evaluateReviewReadiness } from "../../../../../../src/scripts/review-gate/readiness.js";
+import { makeGitProcessError } from "../../../../../helpers/git-exec-fake.js";
 
 const revision = "a".repeat(40);
 const tree = "b".repeat(40);
@@ -64,7 +65,9 @@ describe("Git-tree filesystem", () => {
 
   it("makes root-only readiness depend on the exact revision", async () => {
     const validExec = vi.fn<GitExec>(async () => ({ stdout: tree }));
-    const missingExec: GitExec = async () => { throw new Error("unknown revision"); };
+    const missingExec: GitExec = async (command, args) => {
+      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "unknown revision" });
+    };
 
     await expect(evaluateReviewReadiness(errandRequest, {
       fs: createGitTreeReadFs({ cwd: "/repo", revision, exec: validExec }),

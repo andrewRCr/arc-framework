@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { RawGitExec } from "../../../../../src/lib/git/exec.js";
+import { makeGitProcessError } from "../../../../helpers/git-exec-fake.js";
 import type { ReaderResult } from "../../../../../src/lib/config/status-reader.js";
 import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import {
@@ -89,8 +90,8 @@ describe("resolveReviewChunkingCommand", () => {
     await expect(resolveReviewChunkingCommand(request, {
       readSettings: async () => config("1", "0"),
       readDeliveryBinding: authoritativeUnbound,
-      exec: async () => {
-        throw new Error("missing object");
+      exec: async (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "missing object" });
       },
     })).rejects.toMatchObject({
       code: "invalid-input",

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import type { RawGitExec } from "../../../../../src/lib/git/exec.js";
+import { makeGitProcessError } from "../../../../helpers/git-exec-fake.js";
 import type {
   CandidateManagedRecordV1,
 } from "../../../../../src/lib/work-unit/candidate-attestation.js";
@@ -326,7 +327,9 @@ describe("local review coverage selection", () => {
     };
     const predecessor = completeLocalResult(earlierLineage);
     const currentTarget = { ...target(objectId("c")), diffBaseSha: objectId("b") };
-    const exec = vi.fn(async () => { throw new Error("contribution proof unavailable"); });
+    const exec = vi.fn(async (args: string[]) => {
+      throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "contribution proof unavailable" });
+    });
     await expect(confirmNonDeliveryIncrementalApplicability({
       predecessor,
       currentTarget,

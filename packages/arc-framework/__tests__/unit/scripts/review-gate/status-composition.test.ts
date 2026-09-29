@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { GitProcessError } from "../../../../src/lib/git/process-error.js";
+import { makeGitProcessError } from "../../../helpers/git-exec-fake.js";
 import {
   ensureCandidateHeadAvailable,
   readBasePosition,
@@ -103,7 +104,9 @@ describe("review status composition", () => {
       if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
         throw new GitProcessError({ kind: "nonzero-exit", command: "git", args, exitCode: 1 });
       }
-      if (args[0] === "merge-base") throw new Error("private git diagnostic");
+      if (args[0] === "merge-base") {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "private git diagnostic" });
+      }
       throw new Error(`unexpected git args: ${args.join(" ")}`);
     });
 

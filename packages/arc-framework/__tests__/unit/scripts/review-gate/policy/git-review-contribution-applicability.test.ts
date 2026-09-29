@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { RawGitExec } from "../../../../../src/lib/git/exec.js";
 import { projectGitReviewContributionApplicability } from
   "../../../../../src/scripts/review-gate/policy/git-review-contribution-applicability.js";
+import { makeGitProcessError } from "../../../../helpers/git-exec-fake.js";
 
 const oid = (character: string): string => character.repeat(40);
 const bytes = (value: string): Uint8Array => new TextEncoder().encode(value);
@@ -90,7 +91,7 @@ describe("Git review contribution applicability", () => {
     const exec: RawGitExec = async (args, options) => {
       calls.push(args.join(" "));
       if (args[0] === "merge-base") {
-        throw { exitCode: 1, stdout: bytes(""), stderr: bytes("") };
+        throw makeGitProcessError({ command: "git", args, exitCode: 1, stdout: bytes(""), stderr: "" });
       }
       if (args[0] === "diff") return result("src/index.ts\0");
       return mechanicalExec()(args, options);
@@ -143,7 +144,9 @@ describe("Git review contribution applicability", () => {
     await expect(projectGitReviewContributionApplicability({
       selector: selector(),
       exec: async (args) => {
-        if (args[0] === "merge-base") throw { exitCode: 1, stdout: bytes(""), stderr: bytes("") };
+        if (args[0] === "merge-base") {
+          throw makeGitProcessError({ command: "git", args, exitCode: 1, stdout: bytes(""), stderr: "" });
+        }
         throw new Error("unexpected Git invocation");
       },
       observeEndpoints,

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { GitExec } from "../../../../../../src/lib/git/exec.js";
 import { createGhChangeRequestResolutionPort } from "../../../../../../src/scripts/review-gate/hosts/github/change-request.js";
+import { makeGitProcessError } from "../../../../../helpers/git-exec-fake.js";
 
 const head = "a".repeat(40);
 const candidate = {
@@ -49,7 +50,9 @@ describe("GitHub change-request port", () => {
     const exec = vi.fn<GitExec>(async (_command, args) => {
       if (args[0] === "config") return { stdout: "git@github.com:owner/repo.git\n" };
       if (args[0] === "check-ref-format") return { stdout: "" };
-      if (args[0] === "rev-parse") throw new Error("missing local branch");
+      if (args[0] === "rev-parse") {
+        throw makeGitProcessError({ command: "git", args, exitCode: 1, stderr: "missing local branch" });
+      }
       if (args[0] === "ls-remote") return { stdout: `${head}\trefs/heads/feat/example\n` };
       throw new Error(`unexpected invocation: ${args.join(" ")}`);
     });
@@ -68,7 +71,9 @@ describe("GitHub change-request port", () => {
   it("represents an absent local and remote branch without inventing an identity", async () => {
     const exec: GitExec = async (_command, args) => {
       if (args[0] === "check-ref-format") return { stdout: "" };
-      if (args[0] === "rev-parse") throw new Error("missing local branch");
+      if (args[0] === "rev-parse") {
+        throw makeGitProcessError({ command: "git", args, exitCode: 1, stderr: "missing local branch" });
+      }
       if (args[0] === "ls-remote") return { stdout: "" };
       throw new Error(`unexpected invocation: ${args.join(" ")}`);
     };

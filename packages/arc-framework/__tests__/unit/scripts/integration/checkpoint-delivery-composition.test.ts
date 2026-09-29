@@ -4,6 +4,7 @@ import { deliveryThreeMemberStackPlanFixture } from "../../../fixtures/delivery-
 import { deliveryStateFixture } from "../../../fixtures/delivery-state.js";
 import { canonicalDigest, CanonicalDigestSchema } from "../../../../src/lib/kernel/index.js";
 import { GitProcessError } from "../../../../src/lib/git/process-error.js";
+import { makeGitProcessError } from "../../../helpers/git-exec-fake.js";
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
@@ -801,7 +802,9 @@ describe("delivery checkpoint composition", () => {
     });
     const dependencies = createIntegrationCheckpointDependencies({
       cwd: "/repository",
-      exec: vi.fn(async () => { throw new Error("missing object"); }),
+      exec: vi.fn(async (command, args) => {
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "missing object" });
+      }),
     });
 
     await expect(dependencies.classifyDeliveryDrift(plan.workUnitId, {
@@ -855,9 +858,11 @@ describe("delivery checkpoint composition", () => {
         throw new Error(`unexpected git args: ${args.join(" ")}`);
       });
       let diffReads = 0;
-      const rawExec = vi.fn(async () => {
+      const rawExec = vi.fn(async (args) => {
         diffReads += 1;
-        if (diffReads === failureIndex) throw new Error("private git diagnostic");
+        if (diffReads === failureIndex) {
+          throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "private git diagnostic" });
+        }
         return { stdout: new Uint8Array() };
       });
       const dependencies = createIntegrationCheckpointDependencies({ cwd: "/repository", exec, rawExec });
