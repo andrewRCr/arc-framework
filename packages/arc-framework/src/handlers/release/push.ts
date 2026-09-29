@@ -37,14 +37,14 @@ import {
   formatRefusal,
 } from "../../lib/release/interlock-validation.js";
 import { resolveActiveWu } from "../../lib/release/wu-resolution.js";
+import type { AuthorizationDecision } from "../../lib/release/types.js";
 import type {
   AuditEntry,
   AuditInterlockState,
   AuditOutcome,
   AuditWorkUnit,
-  AuthorizationDecision,
   RefusalCode,
-} from "../../lib/release/types.js";
+} from "../../lib/release/schema.js";
 import { AuditEntrySchema } from "../../lib/release/schema.js";
 import { isRefusalCondition } from "../../lib/git/pushability.js";
 import type {

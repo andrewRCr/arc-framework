@@ -683,6 +683,29 @@ same rewrite. Leave `createRawGitExec` value imports for Task 4.6's distinct fac
 The first pass re-pointed 44 type imports; the post-pass AST search found none still importing either type from
 `change-facts.js`.
 
+### Validation-surface old paths
+
+Search static imports, re-exports, dynamic `import()` types, and `vi.mock` specifiers in `src/` and `__tests__/` for
+`release/types.js`, `active/meta-reader.js`, `config/status-reader.js`, `commit-check/config.js`,
+`commands/config/types.js`, `commands/config.js`, and `commit-check/index.js`. Match named symbols, not whole files:
+move the six audit types from `release/types.ts` to `release/schema.ts`; `MetaProjectionRecord` and
+`ParsedMetaRecord` from `meta-reader.ts` to `active/meta-schema.ts`; `AGENT_CONSUMABLE_CONFIG_FIELDS` and
+`COMMIT_CHECK_CONFIG_FIELDS` to `config/schema.ts`; and `ConfigSettings` to `config/schema.ts`. Split mixed imports
+without moving locally owned names, then remove the matching re-exports and the two relay exports. Re-run the same
+named-symbol search and `typecheck:all` after a base merge; any added importer takes the same owner path.
+The first pass moved 31 import declarations, including the sibling `release/audit-log.ts` import of `./types.js`;
+the dynamic imports and `vi.mock` sites inspected referenced owned functions and needed no rewrite.
+
+### User-sync surviving symbols
+
+Search static imports, dynamic `import()` types, and `vi.mock` specifiers of `user-sync/index.js` and group each
+named import by its owner. Move cross-WU entry types to `user-sync/schema.ts`, parsing to `user-sync/parser.ts`,
+execute-bound inbox writes to `user-sync/inbox-writer.ts`, and execution offers to
+`user-sync/execution-offer.ts`; move the advisory lock to `lib/advisory-lock.ts` and `getNotesLockPath` to
+`user-sync/notes-lock.ts` only for surviving callers. Keep barrel imports for carved notes-sync consumers and
+`resolveCurrentWuName`'s carved callers. Re-run the named-symbol search after each base merge; remove only exports
+whose surviving callers have moved, retaining carved exports until the notes deletion pass.
+
 ## Test-cost baselines
 
 Measured at `882f50431` after the merged-base inventory commits; the package source and tests are identical to

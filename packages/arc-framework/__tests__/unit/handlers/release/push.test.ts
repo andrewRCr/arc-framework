@@ -20,7 +20,7 @@ import { tmpdir } from "node:os";
 
 import { runReleasePush } from "../../../../src/handlers/release/push.js";
 import type { ReleasePushDeps } from "../../../../src/handlers/release/push.js";
-import type { AuditEntry } from "../../../../src/lib/release/types.js";
+import type { AuditEntry } from "../../../../src/lib/release/schema.js";
 import type {
   PushabilityCondition,
   PushabilityResult,
@@ -30,7 +30,7 @@ import type {
   PushInterlock,
   ResolvedSettingsResult,
 } from "../../../../src/lib/config/resolved-settings.js";
-import type { ConfigSettings } from "../../../../src/commands/config/types.js";
+import type { ConfigSettings } from "../../../../src/lib/config/schema.js";
 
 // --- Fixture helpers ---
 

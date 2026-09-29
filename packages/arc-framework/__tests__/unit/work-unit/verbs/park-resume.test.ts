@@ -17,7 +17,8 @@
 
 import { describe, it, expect } from "vitest";
 
-import { parseMetaRecord, type ParsedMetaRecord } from "../../../../src/lib/active/meta-reader.js";
+import { parseMetaRecord } from "../../../../src/lib/active/meta-reader.js";
+import { type ParsedMetaRecord } from "../../../../src/lib/active/meta-schema.js";
 import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
 import { validateManagedPath } from "../../../../src/lib/canonical/managed-path.js";
 import type {

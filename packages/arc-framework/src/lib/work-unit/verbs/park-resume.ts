@@ -43,11 +43,8 @@
 import { join } from "node:path";
 
 import { isSafeCohortPath, validateCohortPath } from "../../active/cohort-path.js";
-import {
-  parseMetaRecord,
-  type MetaRenderOverrides,
-  type ParsedMetaRecord,
-} from "../../active/meta-reader.js";
+import { parseMetaRecord, type MetaRenderOverrides } from "../../active/meta-reader.js";
+import { type ParsedMetaRecord } from "../../active/meta-schema.js";
 import { MetaPrioritySchema, MetaWorkClassSchema } from "../../active/meta-schema.js";
 import type { ManagedPath } from "../../canonical/managed-path.js";
 import { SlugSchema, type Slug } from "../../kernel/index.js";

@@ -35,8 +35,6 @@ import {
 import { SlugSchema, type Slug } from "../kernel/schema/slug.js";
 import { displayWidth, padToDisplayWidth } from "../markdown/display-width.js";
 
-export type { MetaProjectionRecord, ParsedMetaRecord } from "./meta-schema.js";
-
 const DEFAULT_ROOT_SEGMENTS = [".arc", "active"] as const;
 const LITE_FILENAME = "status.md";
 const META_PREFIX = "meta-";

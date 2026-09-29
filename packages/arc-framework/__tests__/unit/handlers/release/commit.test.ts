@@ -18,13 +18,13 @@ import { tmpdir } from "node:os";
 
 import { runReleaseCommit } from "../../../../src/handlers/release/commit.js";
 import type { ReleaseCommitDeps } from "../../../../src/handlers/release/commit.js";
-import type { AuditEntry } from "../../../../src/lib/release/types.js";
+import type { AuditEntry } from "../../../../src/lib/release/schema.js";
 import type {
   CommitInterlock,
   PushInterlock,
   ResolvedSettingsResult,
 } from "../../../../src/lib/config/resolved-settings.js";
-import type { ConfigSettings } from "../../../../src/commands/config/types.js";
+import type { ConfigSettings } from "../../../../src/lib/config/schema.js";
 
 // --- Fixture helpers ---
 

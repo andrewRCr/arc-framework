@@ -1,11 +1,9 @@
 /**
  * Public type surface for the release-wrapper validation library.
  *
- * Pins the refusal taxonomy, authorization-decision shape, audit-entry
- * schema, and shared refusal-formatter signature consumed by the release
- * commit/push handlers and the sync audit-log retrofit. Importing from
- * this module gives callers the single source of truth for the names and
- * shapes — internal modules are not reached into directly.
+ * Pins the refusal taxonomy, authorization-decision shape, and shared
+ * refusal-formatter signature consumed by the release commit/push handlers.
+ * Audit-entry contracts are owned by `schema.ts`.
  *
  * Type declarations only; no runtime. Compiler-validated.
  *
@@ -18,15 +16,6 @@ import type {
 } from "../config/resolved-settings.js";
 import type { PushabilityCondition } from "../git/index.js";
 import type { RefusalCode } from "./schema.js";
-
-export type {
-  AuditCommand,
-  AuditEntry,
-  AuditInterlockState,
-  AuditOutcome,
-  AuditWorkUnit,
-  RefusalCode,
-} from "./schema.js";
 
 // --- Refusal taxonomy ---
 

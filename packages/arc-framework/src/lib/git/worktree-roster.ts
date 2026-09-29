@@ -11,10 +11,8 @@
  */
 
 import { validateState, type WorkUnitState } from "../../commands/active/types.js";
-import {
-  parseMetaRecord,
-  type ParsedMetaRecord,
-} from "../active/meta-reader.js";
+import { parseMetaRecord } from "../active/meta-reader.js";
+import { type ParsedMetaRecord } from "../active/meta-schema.js";
 
 import type { GitExec } from "./exec.js";
 import {

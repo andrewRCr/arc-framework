@@ -37,8 +37,8 @@ import {
   readActiveMetaCandidates,
   setMetaBulletFields,
   setMetaCandidate,
-  type ParsedMetaRecord,
 } from "../lib/active/meta-reader.js";
+import { type ParsedMetaRecord } from "../lib/active/meta-schema.js";
 import { checkCurrentWorkflowConsistency } from "../lib/active/current-workflow-consistency.js";
 import { COHORT_SEGMENT_CAP } from "../lib/active/cohort-path.js";
 import {

@@ -29,7 +29,8 @@
 
 import { join } from "node:path";
 
-import { parseMetaRecord, type ParsedMetaRecord } from "../../active/meta-reader.js";
+import { parseMetaRecord } from "../../active/meta-reader.js";
+import { type ParsedMetaRecord } from "../../active/meta-schema.js";
 import { SlugSchema } from "../../kernel/index.js";
 import { resolveArcPath } from "../../layout/index.js";
 import {

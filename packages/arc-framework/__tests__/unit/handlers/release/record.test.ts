@@ -17,7 +17,7 @@ import {
 } from "../../../../src/handlers/release/record.js";
 import type { ResolvedSettingsResult } from "../../../../src/lib/config/resolved-settings.js";
 import type { HarnessEntry, MarkerReadResult } from "../../../../src/lib/release/setup-marker.js";
-import type { ConfigSettings } from "../../../../src/commands/config/types.js";
+import type { ConfigSettings } from "../../../../src/lib/config/schema.js";
 
 function buildSettings(overrides: {
   releaseOptedIn?: { value: "true" | "false"; source: "git-config" | "yaml" | "default" };

@@ -99,7 +99,7 @@ import {
 import { resolveArcRoot } from "../lib/paths.js";
 import type { ResolvedConfigOverride } from "../lib/config/resolve-override.js";
 import { appendAuditEntry, toAuditWorkUnit } from "../lib/release/audit-log.js";
-import type { AuditEntry, AuditOutcome } from "../lib/release/types.js";
+import type { AuditEntry, AuditOutcome } from "../lib/release/schema.js";
 import { AuditEntrySchema } from "../lib/release/schema.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";

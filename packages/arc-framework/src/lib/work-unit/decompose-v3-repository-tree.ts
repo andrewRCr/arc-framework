@@ -3,7 +3,8 @@
 import { posix } from "node:path";
 
 import { digestBytes } from "../canonical/canonical-json.js";
-import { parseMetaRecord, type ParsedMetaRecord } from "../active/meta-reader.js";
+import { parseMetaRecord } from "../active/meta-reader.js";
+import { type ParsedMetaRecord } from "../active/meta-schema.js";
 import type {
   V3PlannedByteState,
   V3PlannedContentContribution,

@@ -3,12 +3,8 @@
 import { posix } from "node:path";
 
 import { digestBytes } from "../canonical/canonical-json.js";
-import {
-  formatValue,
-  parseMetaRecord,
-  setMetaBulletFields,
-  type ParsedMetaRecord,
-} from "../active/meta-reader.js";
+import { formatValue, parseMetaRecord, setMetaBulletFields } from "../active/meta-reader.js";
+import { type ParsedMetaRecord } from "../active/meta-schema.js";
 import { MetaPrioritySchema, type MetaPriority } from "../active/meta-schema.js";
 import { SlugSchema } from "../kernel/index.js";
 import { resolveArcPath, type WorkUnitPlacement } from "../layout/index.js";

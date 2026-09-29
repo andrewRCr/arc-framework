@@ -19,7 +19,7 @@ import type {
   WorktreeMaterializingInspectionResult,
   WorktreeSyncState,
 } from "../../src/lib/git/worktree-sync.js";
-import type { AuditEntry } from "../../src/lib/release/types.js";
+import type { AuditEntry } from "../../src/lib/release/schema.js";
 import { makeCapturingSyncOutput } from "../helpers/sync-output.js";
 
 const mockIntro = vi.fn();

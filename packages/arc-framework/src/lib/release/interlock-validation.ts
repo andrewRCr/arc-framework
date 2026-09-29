@@ -36,7 +36,7 @@
  */
 
 import type { ResolvedSettingsResult } from "../config/resolved-settings.js";
-import type { ConfigSettings } from "../../commands/config/types.js";
+import type { ConfigSettings } from "../config/schema.js";
 import type { AuthorizationDecision, FormatRefusal } from "./types.js";
 
 /** Release-wrapper operation kind. */

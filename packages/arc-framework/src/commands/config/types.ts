@@ -11,9 +11,6 @@
 
 import type { ConfigSettings } from "../../lib/config/schema.js";
 
-/** Compatibility export for the schema-derived agent-consumable settings record. */
-export type { ConfigSettings } from "../../lib/config/schema.js";
-
 /**
  * Init-gating subset — fields that affect session-init decisions before a
  * dedicated workflow or method loads (sync probe, planning branch under

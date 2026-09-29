@@ -169,14 +169,10 @@ recorded sweep recipes; see `notes-cli-substrate-complete-migration.md` § Segme
   segment routes, reaches it through its owning module; the old-path and cross-WU entry re-exports are gone, and
   barrel exports only carved importers still use stay for the notes deletion pass.
 
-    - `[ ]` **3.1.a Retire the five old-path re-export sites**
-        - `lib/release/types.ts`, `lib/active/meta-reader.ts`, `lib/config/status-reader.ts`,
-          `lib/commit-check/config.ts`, and `commands/config/types.ts`, with the relays that pass them on:
-          `commands/config.ts`, and `lib/commit-check/index.ts` for `COMMIT_CHECK_CONFIG_FIELDS`, whose importers take
-          it from `lib/config/schema.ts`.
-        - Re-point every importer; search static and dynamic imports, `vi.mock` specifiers, and fixtures before
-          deleting each re-export, and record the rewrite recipe in notes § Sweep recipes. `lib/release/types.ts`'s
-          header stops claiming the audit types as its own.
+    - `[x]` **3.1.a Retire the five old-path re-export sites**
+        - Re-pointed 31 named import declarations to their schema owners, removed the five old-path re-exports and
+          two relays, and corrected `release/types.ts`'s header. The search-and-rewrite recipe is in notes § Sweep
+          recipes; dynamic imports and mocks still target owned functions.
 
     - `[ ]` **3.1.b Retire the cross-WU entry re-exports in `lib/user-sync/index.ts`**
         - Inbox state and reminders take the entry types from `lib/user-sync/schema.ts` and the parser from

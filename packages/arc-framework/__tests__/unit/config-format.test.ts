@@ -15,9 +15,9 @@ import {
 import type {
   ConfigSessionInitResult,
   ConfigSessionInitSettings,
-  ConfigSettings,
   ConfigStatusResult,
 } from "../../src/commands/config/types.js";
+import type { ConfigSettings } from "../../src/lib/config/schema.js";
 
 const FULL_SETTINGS: ConfigSettings = {
   "inbox.remind_after_days": "1",

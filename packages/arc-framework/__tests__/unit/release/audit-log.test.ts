@@ -21,7 +21,7 @@ import {
   toAuditWorkUnit,
 } from "../../../src/lib/release/audit-log.js";
 import { REFUSAL_IDENTIFIERS } from "../../../src/lib/release/types.js";
-import type { AuditEntry } from "../../../src/lib/release/types.js";
+import type { AuditEntry } from "../../../src/lib/release/schema.js";
 
 interface Fixture {
   root: string;
