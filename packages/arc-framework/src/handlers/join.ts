@@ -14,7 +14,6 @@ import { runJoinPrompts } from "../prompts/join-prompts.js";
 import { getArcTemplatePath, getInternalTemplatePath } from "../lib/paths.js";
 import { getFrameworkVersion } from "../lib/version.js";
 import { createIOContext } from "../lib/io-context.js";
-import { gitExec } from "../lib/io-context.js";
 import {
   resolveProcessInteractionContext,
   type InteractionContext,
@@ -116,7 +115,7 @@ async function handleJoinReconfigure(opts: JoinOptions, context: InteractionCont
   // Read current role from git config
   let currentRole: "maintainer" | "contributor" = "maintainer";
   try {
-    const result = await gitExec("git", ["config", "--get", "arc.role"]);
+    const result = await io.exec("git", ["config", "--get", "arc.role"]);
     const val = result.stdout.trim();
     if (val === "contributor") currentRole = "contributor";
   } catch {
@@ -126,7 +125,7 @@ async function handleJoinReconfigure(opts: JoinOptions, context: InteractionCont
   // Read current tools from git config
   let currentTools: string[] = [];
   try {
-    const result = await gitExec("git", ["config", "--get", "arc.tools"]);
+    const result = await io.exec("git", ["config", "--get", "arc.tools"]);
     const val = result.stdout.trim();
     if (val) {
       currentTools = val.split(",").map((t) => t.trim()).filter(Boolean);

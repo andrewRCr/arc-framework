@@ -349,13 +349,11 @@ path spawns Git through an unbound executor; the failure-text predicates and `re
 
 - **Additional Context:** `notes-cli-substrate-complete-migration.md` § `gitExec` singleton importers
 
-    - `[ ]` **4.4.a Thread the CLI-reachable singleton importers**
-        - The 13 importers in the notes list, with `review.ts`'s always-JSON handlers bound in Task 4.1 and
-          `log standalone` in Task 4.2; `review.ts`'s remaining uses sit in the handlers already wrapped.
-        - `release opt-in` and `opt-out` reach Git with no command-input wrap; their adapters wrap with an empty policy,
-          as `release push` does, and their handlers build their executors from the context.
-        - Five hold the singleton only as a fallback and keep it, with every bound caller overriding it: active status,
-          config status, setup verify, `release status` in `record.ts`, and `committed-progress.ts`.
+    - `[x]` **4.4.a Thread the CLI-reachable singleton importers**
+        - Replaced live singleton use in `init`, `join`, and `view` with invocation-bound executors. Release opt-in and
+          opt-out now have empty-policy interaction adapters and bind Git to their contexts; the inventory test covers
+          both wraps. Earlier tasks bound review, log, and shared helpers. The five fallback holders remain for their
+          bound callers to override; the locus body remains carved.
 
     - `[ ]` **4.4.b Thread `config status` and the `release commit` module executors**
         - The `config status` adapter stops discarding its context and threads its executor.

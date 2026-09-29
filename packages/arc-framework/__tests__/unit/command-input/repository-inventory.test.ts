@@ -250,6 +250,13 @@ describe("repository command-input inventory", () => {
     }
   });
 
+  it("routes release opt-in and opt-out through the interaction adapter", () => {
+    for (const path of ["release opt-in", "release opt-out"]) {
+      const command = snapshot.source.commands.find((entry) => entry.path === path);
+      expect(command?.action?.interactionContext, path).toBe(true);
+    }
+  });
+
   it("routes every terminal-prompt subprocess command through the interaction-context adapter", () => {
     const subprocessCommands = new Set(inventory.entries
       .filter((entry) => entry.subprocess === "terminal-prompts")

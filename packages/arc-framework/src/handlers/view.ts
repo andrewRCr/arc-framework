@@ -18,9 +18,10 @@ import type { ActiveSessionInitInternalResult } from "../commands/active/types.j
 import { runView } from "../commands/view.js";
 import { parseMetaRecord } from "../lib/active/meta-reader.js";
 import { gitConfigGet } from "../lib/git/exec.js";
+import type { GitExec } from "../lib/git/exec.js";
 import { resolveIdentity } from "../lib/git/identity.js";
 import { resolveWorkUnitSessionNotesPath } from "../lib/handoff/session-notes-path.js";
-import { createUserIOContext, gitExec } from "../lib/io-context.js";
+import { createUserIOContext } from "../lib/io-context.js";
 import { resolveActiveCohortDocPath } from "../lib/session-init/cohort-doc.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import { SlugSchema } from "../lib/kernel/index.js";
@@ -169,11 +170,12 @@ export async function handleView(
   const cwd = requireArcProjectRoot();
   if (cwd === null) return;
   const io = createUserIOContext(context.subprocess);
-  const identity = await resolveIdentity({ exec: gitExec });
-  const dependencies = createViewDependencies(cwd, io.readFile);
+  const exec = io.exec;
+  const identity = await resolveIdentity({ exec });
+  const dependencies = createViewDependencies(cwd, io.readFile, exec);
   const clock = await resolveViewClock({
     cwd,
-    exec: (command, args, execOptions) => gitExec(command, args, { ...execOptions, cwd }),
+    exec: (command, args, execOptions) => exec(command, args, { ...execOptions, cwd }),
     readFile: io.readFile,
   });
   const result = await runView({
@@ -189,7 +191,7 @@ export async function handleView(
     readFile: io.readFile,
     resolveRenderer: () => resolveViewRenderer({
       cwd,
-      exec: (command, args, execOptions) => gitExec(command, args, { ...execOptions, cwd }),
+      exec: (command, args, execOptions) => exec(command, args, { ...execOptions, cwd }),
       readFile: io.readFile,
       probe: probePathCommand,
     }),
@@ -208,16 +210,17 @@ export async function handleView(
 function createViewDependencies(
   cwd: string,
   readUtf8: (path: string) => Promise<string>,
+  exec: GitExec,
 ): ViewArtifactDependencies {
   return {
     resolveAmbientTarget: async ({ identity }) => {
       const result = await runActiveSessionInitStatusInternal({
         cwd,
         identity,
-        role: await gitConfigGet(gitExec, "arc.role"),
-        exec: gitExec,
+        role: await gitConfigGet(exec, "arc.role"),
+        exec,
       });
-      return adaptActiveViewTarget(result, await resolveCurrentBranch(cwd));
+      return adaptActiveViewTarget(result, await resolveCurrentBranch(cwd, exec));
     },
     resolveExplicitTarget: async ({ slug }) => {
       const index = await buildLifecycleIndex({
@@ -237,7 +240,7 @@ function createViewDependencies(
     resolveSessionNotes: ({ identity: resolvedIdentity, workUnitName }) =>
       resolveWorkUnitSessionNotesPath(cwd, resolvedIdentity, workUnitName, { access }),
     resolveUserSurfaces: ({ identity: resolvedIdentity }) =>
-      resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(resolvedIdentity), exec: gitExec }),
+      resolveUserSurfaceResolver({ cwd, identity: SlugSchema.parse(resolvedIdentity), exec }),
     pathExists,
   };
 }
@@ -283,9 +286,9 @@ export async function resolveExplicitViewTarget(input: {
   }
 }
 
-async function resolveCurrentBranch(cwd: string): Promise<string | null> {
+async function resolveCurrentBranch(cwd: string, exec: GitExec): Promise<string | null> {
   try {
-    const result = await gitExec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd });
+    const result = await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd });
     const branch = result.stdout.trim();
     return branch === "" || branch === "HEAD" ? null : branch;
   } catch {

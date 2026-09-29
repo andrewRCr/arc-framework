@@ -18,7 +18,6 @@ import { getArcTemplatePath, getInternalTemplatePath, getRecipePath } from "../l
 import { getFrameworkVersion } from "../lib/version.js";
 import { createIOContext } from "../lib/io-context.js";
 import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
-import { gitExec } from "../lib/io-context.js";
 import {
   resolveProcessInteractionContext,
   type InteractionContext,
@@ -188,7 +187,7 @@ async function handleReconfigure(
   // Role gate: require maintainer (or unset)
   let role: string | undefined;
   try {
-    const result = await gitExec("git", ["config", "--get", "arc.role"]);
+    const result = await io.exec("git", ["config", "--get", "arc.role"]);
     role = result.stdout.trim() || undefined;
   } catch {
     // Not set — treated as maintainer

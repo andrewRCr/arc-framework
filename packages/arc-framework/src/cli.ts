@@ -1532,18 +1532,18 @@ releaseCmd
   .description(
     "Record per-developer opt-in for release-mode wrappers (writes local git config `arc.releaseOptedIn = true`)",
   )
-  .action(async () => {
-    await (await import("./commands/release.js")).handleReleaseOptIn();
-  });
+  .action(withInteractionContext({}, async (context) => {
+    await (await import("./commands/release.js")).handleReleaseOptIn(context);
+  }));
 
 releaseCmd
   .command("opt-out")
   .description(
     "Record per-developer opt-out for release-mode wrappers (writes local git config `arc.releaseOptedIn = false`)",
   )
-  .action(async () => {
-    await (await import("./commands/release.js")).handleReleaseOptOut();
-  });
+  .action(withInteractionContext({}, async (context) => {
+    await (await import("./commands/release.js")).handleReleaseOptOut(context);
+  }));
 
 releaseCmd
   .command("status")
