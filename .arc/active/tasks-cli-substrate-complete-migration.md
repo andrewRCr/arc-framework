@@ -163,7 +163,7 @@ unchanged.
 _Design decisions:_ Every replication segment closes after a base merge that re-runs the inventory scans and the
 recorded sweep recipes; see `notes-cli-substrate-complete-migration.md` § Segment boundaries.
 
-### `[ ]` **3.1 Retire the validation-surface re-exports and route `lib/user-sync/` survivors — D4, D1**
+### `[x]` **3.1 Retire the validation-surface re-exports and route `lib/user-sync/` survivors — D4, D1**
 
 - _Goal:_ Every importer of a validation surface, and every surviving importer of a `lib/user-sync/` survivor this
   segment routes, reaches it through its owning module; the old-path and cross-WU entry re-exports are gone, and
@@ -178,15 +178,11 @@ recorded sweep recipes; see `notes-cli-substrate-complete-migration.md` § Segme
         - Removed the parser/schema re-export blocks and routed three imports to their owners. Inbox state and
           reminders use direct parser and schema imports; the carved merge test took only its forced import rewrite.
 
-    - `[ ]` **3.1.c Route the remaining survivors through their owning modules**
-        - `inbox-writer.ts` and `execution-offer.ts` for the surviving barrel importers `handlers/errand.ts`,
-          `commands/user/inbox-mutation.ts`, and `lib/session-init/inbox-state.ts`, with the survivors' tests; carved
-          importers keep the barrel, `resolveCurrentWuName`'s among them (Task 1.1.c).
-        - `inbox-mutation.ts` also takes the advisory lock the barrel relays from `lib/advisory-lock.ts`, and
-          `getNotesLockPath` from `lib/user-sync/notes-lock.ts`; its matrix row cites the correction Task 1.1.d
-          confirms. The failure-text predicates and `resolveGitCommonDir` move in Task 4.5.
-        - Search static and dynamic imports and `vi.mock` specifiers of the barrel, as Task 3.1.a does, and record
-          the rewrite recipe in notes § Sweep recipes.
+    - `[x]` **3.1.c Route the remaining survivors through their owning modules**
+        - Routed six source/test imports of inbox writing and execution offers directly, along with inbox mutation's
+          advisory lock and notes-lock imports; removed the writer/offer barrel export blocks. Carved notes-sync
+          callers retain their barrel routes, including `resolveCurrentWuName`; notes § Sweep recipes records the
+          static, dynamic, and mock search.
 
 ### `[ ]` **3.2 Complete the leaf session-init slot schemas — D5**
 

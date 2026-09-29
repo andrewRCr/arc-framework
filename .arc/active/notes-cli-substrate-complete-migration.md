@@ -266,7 +266,7 @@ Register citations below name the corresponding **Storage-coupling register** ro
 | sync-state re-exports in `src/lib/user-sync/index.ts`                         | —                                    | carved           | `R-NS`                    |        M:40 | Task 3.1.b               |
 | unused `src/lib/user-sync/types.ts` re-export names                           | —                                    | carved           | `R-NS`                    |     0 named | Task 3.1.b               |
 | `parseCrossWuEntries` and `matchInboxEntryTitle` through the user-sync barrel | direct `parser.ts` imports           | migrated         | Spec § 4; `R-NS` survivor |         M:7 | Task 3.1.c               |
-| `inbox-writer.ts` and `execution-offer.ts`                                    | direct owning modules                | retained by rule | `R-NS` survivor           |   M:7 / M:2 | Task 3.1.c               |
+| `inbox-writer.ts` and `execution-offer.ts`                                    | direct owning modules                | retained by rule | `R-NS` survivor           |   M:7 / M:2 | Task 3.1.c; direct       |
 | `resolveCurrentWuName` in `current-wu.ts`                                     | barrel retained for carved importers | retained by rule | `R-NS` survivor           | 0 surviving | Task 1.1.c               |
 | remaining notes-sync machinery in `src/lib/user-sync/`                        | —                                    | carved           | `R-NS`                    |           — | Task 1.1.c               |
 
@@ -707,6 +707,10 @@ execute-bound inbox writes to `user-sync/inbox-writer.ts`, and execution offers 
 whose surviving callers have moved, retaining carved exports until the notes deletion pass.
 The first cross-WU pass re-pointed three imports (including the carved merge test's forced edge) and removed the
 parser/schema re-export blocks; no remaining barrel importer names a cross-WU entry symbol.
+The second pass routed six surviving source/test imports of inbox writing and execution offers directly, plus the
+inbox mutation lock and notes-lock imports. It removed the writer/offer barrel export blocks. The remaining lock
+and notes-lock barrel exports still serve carved notes-sync callers; `resolveCurrentWuName` likewise stays for carved
+callers.
 
 ## Test-cost baselines
 

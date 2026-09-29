@@ -21,7 +21,7 @@ import {
   type UserIOContext,
 } from "../../src/commands/user.js";
 import { contentDigest } from "../../src/lib/canonical/content-digest.js";
-import { inboxEntrySourceDigest } from "../../src/lib/user-sync/index.js";
+import { inboxEntrySourceDigest } from "../../src/lib/user-sync/inbox-writer.js";
 import type { ExecResult, GitExec } from "../../src/lib/git/exec.js";
 
 const IDENTITY = "tester";

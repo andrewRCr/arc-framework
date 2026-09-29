@@ -98,11 +98,13 @@ import type { CommandInputRegistration } from "../lib/command-input/registry.js"
 import {
   InboxMutationConflictError,
   inspectInboxEntry,
+} from "../lib/user-sync/inbox-writer.js";
+import {
   resolveExecutionNextOffer,
   resolveExecutionStartupOffer,
   type ExecutionOfferResolution,
   type ExecutionStartupOfferResolution,
-} from "../lib/user-sync/index.js";
+} from "../lib/user-sync/execution-offer.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";

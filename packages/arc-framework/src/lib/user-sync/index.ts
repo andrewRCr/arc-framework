@@ -20,36 +20,6 @@ export { classifyUserSyncPath, wuNameOfPath, type UserSyncClass } from "./classi
 export { resolveCurrentWuName, type ExecForBranch } from "./current-wu.js";
 
 export {
-  InboxMutationConflictError,
-  hasExecuteBoundDisposition,
-  inboxEntrySourceDigest,
-  listExecuteBoundInboxEntries,
-  markInboxEntriesExecuteBoundInOrder,
-  inspectInboxEntry,
-  listInboxEntryTitles,
-  mutateInboxEntries,
-  removeInboxEntry,
-  removeInspectedInboxEntry,
-  requireLiveInboxTitle,
-  type InboxEntryMutation,
-  type InboxMutationConflictCode,
-  type InboxEntryMutationOutcome,
-  type InspectedInboxEntry,
-  type ExecuteBoundInboxEntry,
-  type ExecuteBoundInboxListing,
-  type MutateInboxEntriesResult,
-  type RemoveInboxEntryResult,
-} from "./inbox-writer.js";
-
-export {
-  resolveExecutionNextOffer,
-  resolveExecutionStartupOffer,
-  type ExecutionNextOffer,
-  type ExecutionOfferResolution,
-  type ExecutionStartupOfferResolution,
-} from "./execution-offer.js";
-
-export {
   listAnnotatedNoteCommits,
   listNoteEntries,
   listNoteTreeEntries,

@@ -4,16 +4,18 @@ import { atomicWriteFile } from "../../lib/fs.js";
 import { contentDigest } from "../../lib/canonical/content-digest.js";
 import {
   acquireAdvisoryLock,
-  getNotesLockPath,
+  releaseAdvisoryLock,
+  type AdvisoryLockHandle,
+} from "../../lib/advisory-lock.js";
+import { getNotesLockPath } from "../../lib/user-sync/notes-lock.js";
+import {
   inboxEntrySourceDigest,
   inspectInboxEntry,
   markInboxEntriesExecuteBoundInOrder,
   mutateInboxEntries,
-  releaseAdvisoryLock,
-  type AdvisoryLockHandle,
   type InboxEntryMutation,
   type MutateInboxEntriesResult,
-} from "../../lib/user-sync/index.js";
+} from "../../lib/user-sync/inbox-writer.js";
 import { resolveUserSurfaceResolver } from "../../lib/user-surfaces.js";
 import { SlugSchema } from "../../lib/kernel/index.js";
 import type { UserInboxPostImage, UserIOContext } from "./types.js";

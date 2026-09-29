@@ -11,7 +11,7 @@ import {
   runInboxState,
 } from "../../../src/lib/session-init/inbox-state.js";
 import { extractReminderEntries } from "../../../src/lib/session-init/inbox-reminders.js";
-import { markInboxEntriesExecuteBoundInOrder } from "../../../src/lib/user-sync/index.js";
+import { markInboxEntriesExecuteBoundInOrder } from "../../../src/lib/user-sync/inbox-writer.js";
 
 const atomicEntry = (title: string): string =>
   ["### `[ ]` **" + title + "**", "", "- _Created:_ `2026-05-30`", "- A routable atomic capture.", ""].join("\n");
