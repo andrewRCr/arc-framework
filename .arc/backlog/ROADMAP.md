@@ -20,7 +20,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Planning` | delivery-rebuild-continuity      | P1       | andrew | —          | —                      |
 | `Planning` | review-checkout-lifecycle        | P1       | andrew | —          | —                      |
 | `Planning` | stub-mint-to-launch              | P1       | andrew | —          | —                      |
-| `Planning` | cli-substrate-complete-migration | P2       | andrew | —          | cli-substrate-adoption |
+| `Active`   | cli-substrate-complete-migration | P2       | andrew | —          | cli-substrate-adoption |
 
 ## Ready
 

@@ -1,8 +1,8 @@
 # Metadata: cli-substrate-complete-migration
 
-| **State**  | **Owner** | **Branch**                              | **Class** | **Priority** |
-| ---------- | --------- | --------------------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/cli-substrate-complete-migration` | `Heavy`   | `P2`         |
+| **State** | **Owner** | **Branch**                                  | **Class** | **Priority** |
+| --------- | --------- | ------------------------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `refactor/cli-substrate-complete-migration` | `Heavy`   | `P2`         |
 
 - **Cohort:** `cli-substrate-adoption`
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-cli-substrate-complete-migration.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Begin Task 1.1 — Re-derive the residual inventory and seed the residual matrix
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Run Task 1.1 via process-task-loop from 1.1.a (the three inventory scans at the merged base)
 
 - **PR URL:** [none]
 - **Completed:** [none]
