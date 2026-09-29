@@ -1136,9 +1136,10 @@ userCmd
 userCmd
   .command("close <wu-name>")
   .description("Close per-WU user workspace subdir (removes user/{identity}/<wu-name>/ recursively)")
-  .action(async (wuName: string) => {
+  .action(withInteractionContext({}, async (context, wuName: string) => {
+    void context;
     await (await import("./handlers/user.js")).handleUserClose(wuName);
-  });
+  }));
 
 userCmd
   .command("inbox-mark-execute-bound")
@@ -1307,9 +1308,10 @@ configCmd
   .command("validate")
   .description("Validate arc-config.yml settings")
   .option("--file <path>", "Validate an explicitly selected configuration file")
-  .action(async (opts: ConfigValidateCliOptions) => {
+  .action(withInteractionContext({}, async (context, opts: ConfigValidateCliOptions) => {
+    void context;
     await (await import("./handlers/config.js")).handleConfigValidate(opts);
-  });
+  }));
 
 // --- Active ---
 
@@ -1589,9 +1591,10 @@ setupCmd
       .choices(["harness", "raw"])
       .default("harness"),
   )
-  .action(async (opts: ReleaseSetupPrintPatternsOptions) => {
+  .action(withInteractionContext({}, async (context, opts: ReleaseSetupPrintPatternsOptions) => {
+    void context;
     (await import("./commands/release.js")).handleReleaseSetupPrintPatterns(opts);
-  });
+  }));
 
 setupCmd
   .command("uninstall")
@@ -1634,9 +1637,9 @@ logCmd
     "--category <category>",
     "Filter by standalone category (maintenance|planning|documentation|refactor|code review)",
   )
-  .action(async (opts: LogStandaloneOptions) => {
-    await (await import("./handlers/log.js")).handleLogStandalone(opts);
-  });
+  .action(withInteractionContext({}, async (context, opts: LogStandaloneOptions) => {
+    await (await import("./handlers/log.js")).handleLogStandalone(opts, context);
+  }));
 
 // --- Merge ---
 

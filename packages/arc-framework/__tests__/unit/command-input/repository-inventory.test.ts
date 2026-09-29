@@ -243,6 +243,13 @@ describe("repository command-input inventory", () => {
     expect(locus?.action?.interactionContext).toBe(true);
   });
 
+  it("routes value-bearing human-output commands through the interaction adapter", () => {
+    for (const path of ["user close", "config validate", "release setup print-patterns", "log standalone"]) {
+      const command = snapshot.source.commands.find((entry) => entry.path === path);
+      expect(command?.action?.interactionContext, path).toBe(true);
+    }
+  });
+
   it("routes every terminal-prompt subprocess command through the interaction-context adapter", () => {
     const subprocessCommands = new Set(inventory.entries
       .filter((entry) => entry.subprocess === "terminal-prompts")

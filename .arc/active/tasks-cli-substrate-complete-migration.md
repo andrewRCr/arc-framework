@@ -314,15 +314,14 @@ path spawns Git through an unbound executor; the failure-text predicates and `re
 - _Outcome:_ The inventory now recognizes constant machine policies and pins all 17 always-JSON adapters to them;
   every surviving review and merge-lock Git path binds its executor to the invocation's subprocess policy.
 
-### `[ ]` **4.2 Wrap the value-bearing human-output commands — D8**
+### `[x]` **4.2 Wrap the value-bearing human-output commands — D8**
 
 - _Goal:_ `user close`, `config validate`, `release setup print-patterns`, and `log standalone` run under the
   command-input adapter and inherit its non-interactive behavior, and `log standalone` spawns Git under the context it
   receives.
 
-- _Approach:_ `log standalone`'s handler takes the context and builds its executor from `context.subprocess`.
-  `config validate` and `print-patterns` reach neither Git nor a prompt, so their handlers are unchanged. The
-  `user close` adapter wraps while its carved body keeps reaching Git through the executor Task 4.3.c passes.
+- _Outcome:_ All four adapters receive interaction context; `log standalone` requires it and builds its Git executor
+  from the invocation's subprocess policy. The three other handler bodies retain their existing behavior.
 
 ### `[ ]` **4.3 Require an executor in the shared handler helpers — D8, D1**
 
