@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "view-pager-scroll",
+  "claimId": "57889e5a52e7415102e65ea82abfffb4",
+  "createdAt": "2026-09-29T16:26:05.338Z",
+  "updatedAt": "2026-09-29T16:26:05.338Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Stop arc view forcing less -X, so the pager uses the alternate screen and the mouse wheel scrolls the document",
+  "branch": "chore/view-pager-scroll",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
