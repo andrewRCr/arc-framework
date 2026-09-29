@@ -502,10 +502,12 @@ kind.
 
 - _Note:_ Record each batch's rewrite recipe in notes § Sweep recipes so it re-runs after base merges.
 
-    - `[ ]` **5.3.a Compose the `.arc/system/.internal/` framework bookkeeping onto `arc-root`**
-        - Manifest, pristine store, hook and script paths, and the worktree marker, each from its owner's suffix,
-          starting from `INTERNAL_DIR_SEGMENTS` in `lib/constants.ts`. Candidate, submission-boundary, and transition
-          records are carved and stay.
+    - `[x]` **5.3.a Compose the `.arc/system/.internal/` framework bookkeeping onto `arc-root`**
+        - Converted the worktree marker, hook-manager and native Git hook paths, and Markdown manifest read to the
+          resolved `arc-root` plus `INTERNAL_DIR_SEGMENTS` and their owner suffixes. Manifest and pristine paths in
+          init, join, update, reconfigure, diff, and health already followed that construction.
+        - Recorded the repeatable search and rewrite in notes § Sweep recipes. Candidate, submission-boundary, and
+          transition records remain carved to `R-CR`; declarative patterns and text await Task 5.4 dispositions.
 
     - `[ ]` **5.3.b Migrate the `.arc` root, procedure roots, and template outputs**
         - Other `.arc/system` descendants compose their owner's suffix onto `arc-root` the same way.

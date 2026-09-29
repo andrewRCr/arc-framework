@@ -873,6 +873,18 @@ no predicate importer through `user-sync`, no `resolveGitCommonDir` importer thr
 
 Each mechanical sweep's search-and-rewrite recipe, recorded before its first batch and re-run after each base merge.
 
+### Framework bookkeeping paths
+
+Search `src/` for `.arc/system/.internal`, `INTERNAL_DIR_SEGMENTS`, `MANIFEST_FILENAME`,
+`PRISTINE_FILENAME`, `worktree-marker.json`, and `core.hooksPath`. Where a surviving owner builds a filesystem path,
+materialize `resolveArcPath({ kind: "arc-root" })` and append `INTERNAL_DIR_SEGMENTS` and the owner's filename or
+directory suffix. For Git configuration and ignore patterns, compose the same suffix with `posix.join` so the value
+stays repository-relative. The first pass converted the marker path and ignore pattern, hook-manager and native Git
+hook paths, and Markdown authority's manifest read. The init, join, update, reconfigure, diff, and health paths already
+used the resolved root. Candidate, submission-boundary, and transition records stay with `R-CR`; declarative ignore
+rules and explanatory strings take Task 5.4 dispositions. Re-run the search after every base merge and convert any
+new framework bookkeeping path builder before reconciling the class hits.
+
 ### Raw Git type home
 
 At the merged base, the TypeScript import graph and an AST pass found 44 named imports of `RawGitExec` from

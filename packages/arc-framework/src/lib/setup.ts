@@ -8,7 +8,7 @@
 
 import { ensureDir, writeArcGitattributesBlock } from "./template/index.js";
 import { detectHookManager } from "./hook-manager.js";
-import { integrateHooks } from "./hook-integration.js";
+import { ARC_GIT_HOOKS_DIR, integrateHooks } from "./hook-integration.js";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import type { CoreIO } from "./types.js";
@@ -66,7 +66,7 @@ export async function configureGitIntegration(
   if (hookManager) {
     await integrateHooks(hookManager, readFile, writeFile);
   } else {
-    await exec("git", ["config", "core.hooksPath", ".arc/system/.internal/githooks"]);
+    await exec("git", ["config", "core.hooksPath", ARC_GIT_HOOKS_DIR]);
   }
 
   await configureRoadmapConflictRemedy(

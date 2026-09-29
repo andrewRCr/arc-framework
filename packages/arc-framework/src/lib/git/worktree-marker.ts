@@ -14,11 +14,13 @@
 
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, posix, resolve } from "node:path";
 
 import { atomicWriteJson, retryTransientFileSystemRefusal } from "../fs.js";
 import { isCanonicalDigest } from "../canonical/canonical-json.js";
+import { INTERNAL_DIR_SEGMENTS } from "../constants.js";
 import { SlugSchema } from "../kernel/index.js";
+import { materializeArcPath, resolveArcPath } from "../layout/index.js";
 import {
   LocusAbsolutePathSchema,
   LocusDigestSchema,
@@ -182,8 +184,12 @@ export type WorktreeHuskStampResult =
   | { kind: "stamped"; marker: WorktreeMarker }
   | Extract<WorktreeMarkerReadResult, { kind: "absent" | "malformed" }>;
 
-const MARKER_PATH_SEGMENTS = [".arc", "system", ".internal", "worktree-marker.json"] as const;
-const MARKER_IGNORE_PATTERN = ".arc/system/.internal/worktree-marker.json";
+const MARKER_FILENAME = "worktree-marker.json";
+const MARKER_IGNORE_PATTERN = posix.join(
+  resolveArcPath({ kind: "arc-root" }),
+  ...INTERNAL_DIR_SEGMENTS,
+  MARKER_FILENAME,
+);
 
 /** Filesystem seam for registering the marker's Git ignore rule. */
 export interface WorktreeMarkerIgnoreFs {
@@ -209,7 +215,11 @@ export const nodeWorktreeMarkerIgnoreFs: WorktreeMarkerIgnoreFs = {
  * @returns Absolute path to `worktree-marker.json`
  */
 export function resolveWorktreeMarkerPath(cwd: string): string {
-  return join(cwd, ...MARKER_PATH_SEGMENTS);
+  return join(
+    materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" })),
+    ...INTERNAL_DIR_SEGMENTS,
+    MARKER_FILENAME,
+  );
 }
 
 /**
