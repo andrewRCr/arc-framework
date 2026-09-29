@@ -35,11 +35,13 @@
   placement, with edit rights following lifecycle state (C6); the consumer map, with the state version and the
   multi-record write it surfaced (C1), the store under `.git/arc/store/` beside machine-local state (C3), durable review
   facts stored at project scope, with review working state machine-local (C2), and the shared seam pieces placed here
-  with file splits as Errands (§ The consumer map).
+  with file splits as Errands (§ The consumer map); the failure taxonomy, the per-write message as provenance, and
+  traceability as a store link (C1); advisory adversarial-pass evidence as its own kind (C2); no ARC footprint in code
+  commits by default, with an opt-in task trailer, and the surface boundary as an ARC-wide default (C8).
 - **Open:** every `Open` item in § Decision ledger.
-- **Next:** the remaining detail items — C1's failure taxonomy and per-write message, C2's tracked-versus-stored profile
-  and serialization, C3's rotation cadence, C5's Opens, and C10 — then the core-or-deferred tags (C14); register batch 3
-  as an Errand on `main`.
+- **Next:** the remaining detail items — C2's tracked-versus-stored profile and serialization, C3's rotation cadence,
+  C5's Opens, and C10 — then the core-or-deferred tags (C14); register batch 3 as an Errand on `main`, and minting the
+  ghost-mode follow-on stub with the scope C8 gives it.
 
 ---
 
@@ -153,11 +155,40 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
   carry a path today and at least ten callers read the meta through it. `list` returns parsed fields, which derived
   views (ROADMAP, `STATUS.USER`, the archive listing) render from; `lookup` also answers lineage by slug and in-flight
   work by checkout claim.
-- **Open:** the typed refusal and failure taxonomy — harmonize user sync's transient, push-failed, and divergent
-  classes with push refusals and typed conflicts. Store-write failures surface as orientation lines at session
-  boundaries; sessions never stall on the store.
-- **Open:** whether store history carries a per-write message, so evidence that today rides a ceremony commit body
-  (advisory adversarial-pass evidence, review evidence) keeps a home.
+- **Decided** (Owner, 2026-09-29): the failure taxonomy has two layers, and every failure meets the recovery-complete
+  refusal rule (`DEV-RULES.PROJECT`): it says whether it is terminal or recoverable, reports the observed condition, and
+  names a remedy that leaves the success path reachable.
+    - Local operations — read, list, write, batch, history, and lookup — take the closed vocabulary of delivery's store
+      ports (`lib/delivery/ports.ts`), the store's first client, plus `not-found`: `version-conflict`, naming each stale
+      record in a batch; `record-malformed`; `identity-mismatch`; `ambiguous-match`; and `namespace-corrupt`, the one
+      terminal class, which names a repair.
+    - A conflicted entry is not a failure (C4): the verb that depends on it refuses, naming the conflict record.
+    - Sync ends `pushed`, `noop`, or `reconciled`, or fails `retries-exhausted` (carrying the retry count and time
+      waited, C4's tripwire), `unreachable` (network, timeout, or authentication), or `refused` (any other host refusal,
+      with the server's message). No remote, as in ghost or local-only use, and being offline are states, not failures.
+    - Store and sync failures surface as orientation lines at session boundaries: sessions never stall on the store, and
+      a sync failure never blocks a local write. Notes push's nine outcomes and the Errand push's six give way to this
+      set; the notes-only variants (`no-local-notes`, `failed-nontty-conflict`, `ok-recovered`) retire with notes sync.
+- **Decided** (Owner, 2026-09-29): every store write carries a message the CLI composes, and it records provenance,
+  never evidence. The subject names the verb and the record (`archive storage-contract`); trailers carry the work unit's
+  or Errand's name and UID, the lifecycle action, and the code head when the write attests code. The commits of one
+  batch share a batch ID across refs, so `history` and handoff's restate show an archive as one change rather than one
+  per ref.
+    - Handoff's restate reads the commits since its anchor (`lib/handoff/restate-candidates.ts`). Once state leaves the
+      branch it reads `changes` since the store version, which is legible only because each write says what it was.
+    - No evidence needs the message as its home. Adversarial-pass evidence is its own kind (C2); review dispositions
+      ride code fix commits today, and their durable copy is the review gate's stored facts (C2), so that body leaves
+      under the surface boundary (C8).
+- **Decided** (Owner, 2026-09-29): traceability is a store link the CLI captures, not a message convention. A task
+  record captures its increment commits, and a work unit's integration and an Errand's close capture the landing commit.
+  Reverse lookup answers from a commit to its task, work unit, or Errand — in ghost mode alike, and across a rename,
+  since records key by UID. Delivery's task attribution (`lib/delivery/from-branch.ts`), which parses `Context:` footers
+  today, reads the link instead. What code commits carry is C8's footprint policy.
+    - The residual: a footer is text, so it survives a squash, a rebase on merge, and a cherry-pick, and a captured SHA
+      does not. The landing commit keeps the work-unit link under any merge strategy, and per-task links survive merge
+      commits and fast-forwards; a squash loses per-task granularity by its nature. A team that needs text links through
+      rewrites turns on the task trailer (C8).
+    - The capture needs the increment-close shape (C5), so it lands with that Open's answer.
 
 ### C2. Record model
 
@@ -201,9 +232,9 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
   conformance suite.
     - Project scope:
         - **work units**, across their whole lifecycle, `completed/` included — kinds: meta and task list (machine
-          records), draft, spec, notes, and companions (prose), and the inbound list (an entry list, C4), under C6's
-          writer rules. The layout resolver already
-          names the first five; companions follow ownership by folder;
+          records), draft, spec, notes, and companions (prose), the inbound list (an entry list, C4), and the
+          review-pass record (below), under C6's writer rules. The layout resolver already names the first five;
+          companions follow ownership by folder;
         - **cohorts** — cohort documents, three-way line merge;
         - **the project inbox** — `ATOMIC-INBOX`, entry merge;
         - **delivery and review records** — Candidate records (`candidates/*.json`), integration boundaries
@@ -233,6 +264,20 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
       Evidence, outcomes, and termini are the durable facts that move; operations, locks, materializations, and
       quarantine stay; `storage-seam`'s review member settles the rest. The import maps the review gate's repository ID
       onto the project ID (C7), so receipts keep their key.
+- **Decided** (Owner, 2026-09-29): advisory adversarial-pass evidence is its own kind in the work-unit family, never a
+  section of the artifact it reviewed. The artifact stays the latest complete version, and the evidence describes one
+  version of it; folded into the artifact, every fold edits both, and a reader cannot tell a refinement from the record
+  of why it was made.
+    - An entry list, one entry per pass, appended by the session that ran it: the artifact and the version reviewed,
+      `Pass N of M`, the rubric, the finding and disposition set, the stop reason, and any conditional next-pass
+      decision. Because each entry names the version it reviewed, the refinements are the artifact's history from that
+      version to the one after the folds — derived by `history`, never written.
+    - Not a review-gate record: advisory passes create no lane progress, Candidate, or receipt (`adversarial-review`).
+      It archives with its work unit, later passes read it as their prior findings, and the projection shows it as its
+      own file beside the artifact.
+    - Until the flip it is a tracked companion, `review-<slug>.md`, which moves with its work unit. The workflows that
+      say "the existing … review evidence" (`draft-design`, `create-spec`, `generate-tasks`) and the method's retention
+      clause name it, and `isPlanningArtifactPath` learns its prefix: an Errand on `main`.
 - **Decided** (Owner, 2026-09-29): everything under `.arc/user/<id>/` except the machine-local set is stored and synced;
   a subdirectory is a work unit's personal workspace only when it is named for one. Today's classifier
   (`lib/user-sync/classifier.ts`) reads any subdirectory as per-work-unit, so personal subdirectories (`archive/`,
@@ -260,8 +305,9 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
       than identity.
     - Display is the shortest unique prefix, as Git abbreviates. A durable name that carries one, such as an Errand
       branch, takes a fixed eight hex characters. A recurring generic name takes a UID suffix, never a date, which
-      orders but does not disambiguate. The Errand branch change runs ahead as a captured Errand; re-keying the
-      Errand ref tree is `storage-ref-backend`'s.
+      orders but does not disambiguate. The Errand branch's suffix lands with `storage-ref-backend`'s re-keying of the
+      Errand ref tree (Owner, 2026-09-29): a slug collision before then is rare, and recoverable by choosing another
+      slug.
     - Machine records reference each other by UID; prose keeps names and backticked filenames. UIDs never enter
       filenames or projected paths, which stay slug-keyed.
     - The meta gains an `Id` field, a schema change `storage-seam` makes; the import mints a UID for every existing
@@ -712,15 +758,48 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
     - a follow-on stub, minted now and tagged core, builds the rest — the install profile, the footer policy, and
       harness bootstrap without tracked files. Its only edge is the cutover, so it runs in the first post-cutover
       slot.
-- **Footprint inventory (to complete):** ARC core and project machinery under `.arc/system/`; constitutional
-  documents; harness files (`CLAUDE.md`, `AGENTS.md`, `.claude/`); the tracked root `.ignore`; the `.gitignore`
-  entry; `Context:` footers and the `Arc-Maintenance:` trailer; editor settings; commit and branch conventions; Git
-  hook installation; the state remote.
+- **Footprint inventory (to complete):** ARC core and project machinery under `.arc/system/`; constitutional documents;
+  harness files (`CLAUDE.md`, `AGENTS.md`, `.claude/`); the tracked root `.ignore`; the `.gitignore` entry; `Context:`
+  footers, the `Arc-Maintenance:` trailer, and the `Review disposition set` body; pull-request titles and bodies; review
+  comments, replies, and dismissals; check and status text; editor settings; commit and branch conventions; Git hook
+  installation; the state remote.
 - **Carried from the `arc-backend` design:** traceability inversion makes a zero-footprint arm viable — rather than a
-  code commit advertising its task, the task record captures the increment commit, and `arc` resolves the link in
-  both directions for anyone with store access. The footer validator resolves artifacts through the injected
-  resolver seam and degrades gracefully when state is absent. The default keeps footers, which most projects value;
-  zero footprint is a supported arm.
+  code commit advertising its task, the task record captures the increment commit, and `arc` resolves the link in both
+  directions for anyone with store access. The footer validator resolves artifacts through the injected resolver seam
+  and degrades gracefully when state is absent.
+- **Decided** (Owner, 2026-09-29): ARC leaves nothing in code commit messages by default, superseding the carried
+  default that kept footers. A project may opt in to one trailer that renders the task attribution the store already
+  holds (C1), on task commits only; the ghost profile never carries it. Every other `Context:` kind leaves code commits:
+  the lifecycle and planning kinds go with state, an Errand's identity is a store link, and `standalone` has nothing
+  left to say. Framework vocabulary on every commit is the outlier — the trailers teams accept are shared standards
+  (`Signed-off-by`, `Co-authored-by`, `Fixes`) or tracker keys the team chose — and it carries planning concerns into
+  the code history a team shares, as pull-request bodies must not.
+    - The default flips once the capture exists (C1, C5); until then footers stay as they are. The footer policy — the
+      trailer's form, `commit.context_footer`'s values and default, the commit hook, and `arc log` — belongs to the
+      ghost-mode follow-on, and the register's footer-grammar row folds into it.
+    - The same principle reaches the `Review disposition set` body that `review-triage` puts on review fix commits, once
+      review facts are stored (C2); it routes to `review-protocol-alignment` at planning close.
+- **Decided** (Owner, 2026-09-29): the surface boundary, ARC-wide by default. Anything ARC writes, or has an agent
+  write, to a surface people read without ARC — commit messages, pushed branch names, pull-request titles and bodies,
+  review comments, replies, and dismissals, check and status text, release notes, and issues — reads as the change or
+  event it describes. It carries no ARC vocabulary (work unit, Errand, Candidate, terminus, cohort, Owner acceptance,
+  task IDs, lifecycle actions), no reference to an ARC artifact, and no ARC process concern. Ghost mode fails if
+  anything crosses it, and ARC has no business crossing it by default either; a project opts in to ARC vocabulary on its
+  own surfaces. The footer decision above is one case of it, and the footprint inventory covers the host's surfaces as
+  well as the repository's.
+    - Leaks come from both sides. ARC's code composes some: delivery's pull-request body names the design by its
+      `draft-*` filename (`lib/delivery/materialization.ts`). Agents compose the rest, often in well-meant prose — a
+      stale hosted review dismissed with a note about Owner acceptance that no reader of the pull request can place.
+    - Subject matter is not a leak: a change to ARC's own Errand code says "Errand" in this repository, as any project
+      names its own domain. The boundary governs ARC's process, not a project's vocabulary. This repository, where ARC
+      is both the subject and the process, needs a self-hosting distinction, as it does elsewhere.
+    - `DEV-RULES.ARC` § Commit and PR surface language states half of it today; it still admits backticked ARC artifact
+      references and routes traceability to the footer.
+- **Decided** (Owner, 2026-09-29): the ghost-mode follow-on makes it true, and records it as an ADR, since it outlives
+  this program. It inventories every path where ARC's code writes to such a surface and fixes each at the source, with
+  tests over what it composes; rewrites the rule as the boundary; and checks agent-composed text where ARC mediates it —
+  the commit hook, and the verbs that post to a host — knowing a check over prose catches the common terms, never all of
+  them.
 - **Named cost:** with the user directory excluded rather than gitignored, packaging tools that read only
   `.gitignore` could pack it; a contributor rarely publishes, but the cost stays named.
 - **Leaning:** an install profile chosen at init, not a runtime configuration axis (`strategy-storage-evolution.md`
@@ -928,6 +1007,9 @@ by tracked or notes-backed state rather than for state by size.
       carries, mapping the review gate's repository ID onto the project ID (C2); `arc view`, which builds the
       `ATOMIC-INBOX` path by hand and returns a completed work unit with no path; and the session-init slots and
       compaction seed that carry literal meta paths (§ The consumer map).
+    - Decision amendments: the footer-grammar row's fate becomes C8's footprint policy — no footer by default, and task
+      attribution an opt-in trailer rendered from the store link (C1) — with the ghost-mode follow-on as owner once its
+      stub is minted; the Errand-ref row adds the branch's UID suffix (C2).
 - **Route at planning close,** as `USER-INBOX` captures under the coordination-seam rule, one per unit whose plan
   assumes tracked or notes-backed state but needs no register row — a note for its next planning:
     - `composable-workflows` — fixtures assume the notes channel (`arc user pull`, notes-only offers) and a grooming
