@@ -50,6 +50,16 @@ export type GitExec = (
   options?: GitExecOptions,
 ) => Promise<ExecResult>;
 
+/** Resolve Git's common directory as an absolute path for the current worktree. */
+export async function resolveGitCommonDir(exec: GitExec, cwd: string): Promise<string> {
+  const { stdout } = await exec("git", ["rev-parse", "--git-common-dir"], { cwd });
+  const commonDir = stdout.trim();
+  if (commonDir.length === 0) {
+    throw new Error("git rev-parse --git-common-dir returned an empty path");
+  }
+  return isAbsolute(commonDir) ? commonDir : resolve(cwd, commonDir);
+}
+
 /**
  * A git invocation that pipes `input` to the subprocess stdin and resolves with
  * its stdout. The stdin-fed counterpart to {@link GitExec}, for plumbing that

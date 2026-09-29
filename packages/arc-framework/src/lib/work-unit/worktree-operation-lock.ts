@@ -8,7 +8,7 @@ import {
   releaseAdvisoryLock,
   type AdvisoryLockOptions,
 } from "../advisory-lock.js";
-import { resolveGitCommonDir } from "../user-sync/repo-shared-paths.js";
+import { resolveGitCommonDir } from "../git/exec.js";
 
 /** Canonical lockfile shared by worktree rename and teardown. */
 export const WORKTREE_OPERATION_LOCK_FILENAME = "arc-worktree-operation.lock";

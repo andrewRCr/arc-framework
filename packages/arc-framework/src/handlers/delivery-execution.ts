@@ -265,7 +265,7 @@ import {
 import { parseIntegrationBoundaryLocus } from
   "../scripts/review-gate/policy/integration-boundary-locus.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
-import { resolveGitCommonDir } from "../lib/user-sync/repo-shared-paths.js";
+import { resolveGitCommonDir } from "../lib/git/exec.js";
 import type { GitExec } from "../lib/git/exec.js";
 import { analyzeRevisionOverlap } from "../lib/git/base-overlap.js";
 import { GhDeliveryHostPort } from "../scripts/delivery/hosts/github.js";

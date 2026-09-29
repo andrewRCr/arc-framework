@@ -23,7 +23,7 @@ import {
   type AdvisoryLockOptions,
   type AdvisoryLockRenewalResult,
 } from "./advisory-lock.js";
-import { resolveGitCommonDir } from "./user-sync/repo-shared-paths.js";
+import { resolveGitCommonDir } from "./git/exec.js";
 import { retryTransientFileSystemRefusal } from "./fs.js";
 
 /** Explicit opt-out used only for deliberate local contention experiments. */

@@ -6,9 +6,8 @@ import { join } from "node:path";
 import { z } from "zod";
 
 import { atomicWriteFile } from "./fs.js";
-import type { GitExec } from "./git/exec.js";
+import { resolveGitCommonDir, type GitExec } from "./git/exec.js";
 import { acquireAdvisoryLock, releaseAdvisoryLock } from "./advisory-lock.js";
-import { resolveGitCommonDir } from "./user-sync/repo-shared-paths.js";
 
 /** Closed review-state namespace vocabulary. */
 export type ReviewStateNamespace = "evidence" | "identity" | "operations" | "outcomes" | "sources";

@@ -766,6 +766,15 @@ Move their definitions unchanged to `lib/git/ref-tree.ts`, re-point each named i
 split mixed user-sync imports, and remove the barrel re-exports. Re-run the named-symbol search after the rewrite;
 only the definitions, direct `ref-tree.ts` imports, and behavioral tests should remain.
 
+### Git common-directory helper home
+
+Search named imports of `resolveGitCommonDir` from `lib/user-sync/repo-shared-paths.ts` in `src/` and
+`__tests__/`. Move the unchanged function into `lib/git/exec.ts`, then redirect the nine surviving named imports
+in delivery, review, local test admission, and the worktree lock to the executor contract. Split any mixed import;
+`getRepoSharedUserInternalDir` remains in the user-sync module and imports the helper from its new home as a
+compile-forced carved edge. Re-run the named-import search and typecheck; no surviving importer should reference the
+user-sync path for `resolveGitCommonDir`.
+
 ### Validation-surface old paths
 
 Search static imports, re-exports, dynamic `import()` types, and `vi.mock` specifiers in `src/` and `__tests__/` for

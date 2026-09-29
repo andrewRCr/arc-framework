@@ -26,7 +26,7 @@ import { createRawGitExec } from "../../../lib/io-context.js";
 import { SlugSchema, validateManagedPath } from "../../../lib/kernel/index.js";
 import { materializeArcPath, resolveArcPath } from "../../../lib/layout/index.js";
 import { resolveActiveWu } from "../../../lib/release/wu-resolution.js";
-import { resolveGitCommonDir } from "../../../lib/user-sync/repo-shared-paths.js";
+import { resolveGitCommonDir } from "../../../lib/git/exec.js";
 import {
   CandidateConvergenceProjectionSchema,
   candidateReviewResponses,

@@ -378,7 +378,7 @@ path spawns Git through an unbound executor; the failure-text predicates and `re
 - _Outcome:_ All surviving context-bearing command paths audited in this task bind Git execution to their invocation
   context. The retained unbound sites and carved paths have explicit matrix dispositions.
 
-### `[ ]` **4.5 Move the Git failure-text predicates and `resolveGitCommonDir` into `lib/git/` — D7, D1**
+### `[x]` **4.5 Move the Git failure-text predicates and `resolveGitCommonDir` into `lib/git/` — D7, D1**
 
 - _Goal:_ The three failure-text predicates live in `lib/git/ref-tree.ts` and `resolveGitCommonDir` in
   `lib/git/exec.ts`, and no importer reaches either through `lib/user-sync/`, so the notes deletion pass strands
@@ -392,11 +392,13 @@ path spawns Git through an unbound executor; the failure-text predicates and `re
           Errand and carved notes callers now import the owner directly; unit and real-Git CAS tests follow it.
           The repeatable named-import recipe is in notes § Sweep recipes.
 
-    - `[ ]` **4.5.b Move `resolveGitCommonDir` beside `isGitRepo`**
-        - From `lib/user-sync/repo-shared-paths.ts`; its nine surviving importers in delivery, the review gate, local
-          test admission, and the worktree operation lock follow, by a recipe recorded in notes § Sweep recipes.
-          `getRepoSharedUserInternalDir` stays behind for the notes machinery and the inbox mutations' lock path (Task
-          1.1.d).
+    - `[x]` **4.5.b Move `resolveGitCommonDir` beside `isGitRepo`**
+        - Moved the unchanged resolver to `lib/git/exec.ts` and re-pointed all nine surviving importers in delivery,
+          review, local test admission, and the worktree lock. The notes-specific shared path helper stays in
+          user-sync and imports the new owner; notes § Sweep recipes records the repeatable rewrite.
+
+- _Outcome:_ Both Git plumbing utilities now have lower-tier owners, and no surviving importer reaches them through
+  user-sync. The carved notes callers compile through their forced new imports.
 
 ### `[ ]` **4.6 Classify errand identity failures through `gitFailureText()` and rename the spawn factory — D7**
 
