@@ -649,14 +649,17 @@ async function readUserDir(dirPath: string): Promise<DirEntry[]> {
  */
 export const gitExecInput: GitExecInput = createExecaGitExecInput();
 
-/** Real UserIOContext for user sync operations. */
-export function createUserIOContext(interaction?: InteractionContext["subprocess"]): UserIOContext {
-  const exec: GitExec = interaction === undefined
-    ? gitExec
-    : (command, args, options) => candidateGitExec(command, args, { ...options, interaction });
-  const execInput = interaction === undefined
+/** Bind stdin-fed Git execution to one invocation's subprocess policy. */
+export function createGitExecInput(interaction?: InteractionContext["subprocess"]): GitExecInput {
+  return interaction === undefined
     ? gitExecInput
     : createExecaGitExecInput(MAX_GIT_OUTPUT_BYTES, interaction);
+}
+
+/** Real UserIOContext for user sync operations. */
+export function createUserIOContext(interaction?: InteractionContext["subprocess"]): UserIOContext {
+  const exec = createGitExec(interaction);
+  const execInput = createGitExecInput(interaction);
   return {
     exec,
     execInput,

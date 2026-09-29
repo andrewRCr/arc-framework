@@ -363,14 +363,11 @@ path spawns Git through an unbound executor; the failure-text predicates and `re
           Snapshot and retry location tests fail against reconstructed unbound behavior; delivery's snapshot boundary
           test likewise fails when it uses an unbound executor. Release commit E2E passed.
 
-    - `[ ]` **4.4.c Bind `GitExecInput` in the `active in-flight` adapter**
-        - Add `createGitExecInput(interaction?)` beside `createGitExec` in `lib/io-context.ts`, returning the
-          `gitExecInput` singleton when unbound; `createUserIOContext` builds through it, and the adapter binds its
-          `GitExecInput` from `context.subprocess` the way it already binds its `GitExec`. The in-flight body it calls
-          stays carved, and carved `writeGitNote` keeps calling the singleton under the notes-specific sync row.
-        - Build `test-first` (one behavior at a time):
-            - Unbound, the factory returns the `gitExecInput` singleton
-            - Bound, the executor it returns spawns Git under the given subprocess policy
+    - `[x]` **4.4.c Bind `GitExecInput` in the `active in-flight` adapter**
+        - Added `createGitExecInput` beside the captured-output factory. It returns the existing singleton without
+          an interaction, otherwise creates an executor with that subprocess policy. `createUserIOContext` and the
+          active in-flight adapter now use the factory; carved `writeGitNote` retains its singleton. Both factory
+          tests failed before the implementation and pass with the new binding.
 
     - `[ ]` **4.4.d Record the remaining unbound executors**
         - Matrix rows for the standalone scripts that keep `gitExec`, for each of the five fallback holders, for

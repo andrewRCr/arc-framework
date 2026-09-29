@@ -11,7 +11,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock("execa", () => ({ execa: mocks.execa }));
 
 import {
+  createGitExecInput,
   createUserIOContext,
+  gitExecInput,
   readGitBlobEntries,
   readGitBlobEntry,
   readGitBlobBytes,
@@ -19,6 +21,26 @@ import {
 } from "../../src/lib/io-context.js";
 
 const tempDirs: string[] = [];
+
+describe("createGitExecInput", () => {
+  it("reuses the singleton without an interaction policy", () => {
+    expect(createGitExecInput()).toBe(gitExecInput);
+  });
+
+  it("applies a bound subprocess policy to the stdin-fed Git process", async () => {
+    mocks.execa.mockImplementation(async (_command, _args, options: { env?: NodeJS.ProcessEnv }) => ({
+      stdout: options.env?.GIT_EDITOR ?? "missing editor policy",
+      stderr: "",
+    }));
+    const exec = createGitExecInput({
+      terminalPrompts: "forbidden",
+      presenters: "forbidden",
+      ambientStdin: "closed",
+    });
+
+    await expect(exec(["var", "GIT_EDITOR"], "")).resolves.toBe("true");
+  });
+});
 
 beforeEach(() => {
   vi.resetAllMocks();
