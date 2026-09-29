@@ -20,6 +20,8 @@ import {
   validateConfigFile,
 } from "../commands/config.js";
 import { ARC_CONFIG_SUFFIX } from "../lib/constants.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
+import { createGitExec } from "../lib/io-context.js";
 import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
 import { requireArcProjectRoot } from "./shared.js";
 
@@ -60,12 +62,15 @@ export async function handleConfigValidate(opts: ConfigValidateCliOptions): Prom
   process.exitCode = result.exitCode;
 }
 
-export async function handleConfigStatus(opts: ConfigStatusCliOptions): Promise<void> {
+export async function handleConfigStatus(
+  opts: ConfigStatusCliOptions,
+  context?: InteractionContext,
+): Promise<void> {
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
 
   if (opts.sessionInit) {
-    const result = await runConfigSessionInitStatus({ cwd });
+    const result = await runConfigSessionInitStatus({ cwd, exec: createGitExec(context?.subprocess) });
     if (opts.json) {
       process.stdout.write(`${JSON.stringify(result)}\n`);
       return;

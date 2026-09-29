@@ -1299,8 +1299,8 @@ configCmd
   .option("--json", "Emit the typed result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true || opts.sessionInit === true },
-    async (_context, opts: ConfigStatusCliOptions) => {
-      await (await import("./handlers/config.js")).handleConfigStatus(opts);
+    async (context, opts: ConfigStatusCliOptions) => {
+      await (await import("./handlers/config.js")).handleConfigStatus(opts, context);
     },
   ));
 

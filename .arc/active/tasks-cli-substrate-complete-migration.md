@@ -355,19 +355,13 @@ path spawns Git through an unbound executor; the failure-text predicates and `re
           both wraps. Earlier tasks bound review, log, and shared helpers. The five fallback holders remain for their
           bound callers to override; the locus body remains carved.
 
-    - `[ ]` **4.4.b Thread `config status` and the `release commit` module executors**
-        - The `config status` adapter stops discarding its context and threads its executor.
-        - `commit-cli.ts` spawns through the `gitExec` singleton and a module-level `createExecaGitExec()`,
-          `capturedGitExec`, which goes: every use takes the invocation's executor — the hooks-path check and the
-          prepare-commit-msg hook probe in `handleReleaseCommit`, and the snapshot, message-file read, retry-store, and
-          head-resolution helpers.
-        - The helpers delivery's review-fix release effects import (`createRealCommitMessageSnapshot`,
-          `readRealCommitMessageFileWithIdentity`, and the retry store's persist and cleanup) become factories over an
-          executor, as does the module-private `realResolveHead`; `handleReleaseCommit` passes the invocation's, and
-          delivery passes its bound one.
-        - Build `test-first` (one behavior at a time):
-            - `handleReleaseCommit`'s helpers spawn Git through the executor the invocation passes
-            - Delivery's review-fix snapshot and message-file read reach Git through the delivery command's executor
+    - `[x]` **4.4.b Thread `config status` and the `release commit` module executors**
+        - Config status now passes the adapter context into its session-init settings read. Release commit binds one
+          executor for identity, hooks, settings, branch, repository preflight, snapshot, retry store, and head reads;
+          its module-level executor is gone. The filesystem-only message-file reader ships as a member of the bound
+          retry store, which both release commit and delivery correction construct from their invocation executors.
+          Snapshot and retry location tests fail against reconstructed unbound behavior; delivery's snapshot boundary
+          test likewise fails when it uses an unbound executor. Release commit E2E passed.
 
     - `[ ]` **4.4.c Bind `GitExecInput` in the `active in-flight` adapter**
         - Add `createGitExecInput(interaction?)` beside `createGitExec` in `lib/io-context.ts`, returning the
