@@ -419,22 +419,18 @@ path spawns Git through an unbound executor; the failure-text predicates and `re
 - _Outcome:_ Errand identity classifies complete Git stderr for retry and stop decisions, and the raw spawn factory
   has a name distinct from the execa adapter without changing its standalone boundary.
 
-### `[ ]` **4.7 Verify every command path binds its executor** — validate exit criterion at segment scope
+### `[x]` **4.7 Verify every command path binds its executor** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds as one batch at the post-merge head.
 
-    - Confirm reach, not only imports: `gitExec`'s surviving importers are exactly the standalone scripts and the five
-      fallback holders, and no exported helper or module-level constant a surviving context-bearing caller reaches
-      spawns through a singleton or a policy-less executor. `gitExecInput`'s only surviving use is the unbound fallback
-      `createGitExecInput` returns, and the only surviving executors built without a subprocess policy are the
-      module-level ones in `lib/io-context.ts` and `local-test-admission.ts`'s.
-    - Confirm every always-JSON and value-bearing adapter and `release opt-in` and `opt-out` are wrapped, the inventory
-      case names all 17 always-JSON paths under a constant machine-mode policy, and the three declarations exist;
-      search for the predicates, `resolveGitCommonDir`, and the old spawn factory name; run `classify-change.sh`.
-    - Confirm the segment's matrix rows carry their dispositions, and that its edits to carved code are compile-forced.
-    - Evidence for the Success Criteria on the adapter wraps, handler bindings, and declarations, the shared-helper
-      executors, the remaining unbound executors, the spawn factory name, the predicate and `resolveGitCommonDir`
-      homes, and errand failure classification.
+- _Outcome:_ Merged the two newer base commits at `82e2a5312` and reran all three inventory scans. A named-import
+  audit found ten standalone and five overridden fallback `gitExec` importers, plus carved locus; no external
+  `gitExecInput` importer remains. The reach audit, wrapper and declaration checks, and utility-home searches are
+  recorded in notes § Phase 4 executor reach audit. The matrix covers all retained and carved executors.
+
+- _Verification:_ The post-merge build, Markdown, ARC, TypeScript, shell, and both typechecks passed; the full lane
+  passed 911 test files and 13,159 tests. `classify-change.sh tree-hash HEAD` and the Phase 4 diff whitespace check
+  passed. The segment's adapter, helper, raw-spawn, and errand behavior tests passed within that lane.
 
 ## **Phase 5:** Layout framework paths and dispositions
 

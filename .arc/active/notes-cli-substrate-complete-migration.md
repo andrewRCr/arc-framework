@@ -180,6 +180,12 @@ under 982 target modules. Its 1,521 unresolved specifiers were all `node:` built
 unresolved. The regex scan found zero `z.custom<BaseDriftResult>` sites. The coupling scan covered 2,231 corpus files
 and all 32 selected classes. The three JSON reports are in `/tmp/arc-cli-substrate-inventory/`.
 
+**Phase 4 post-merge run:** `82e2a5312` — after merging the storage-register-only base update, the import graph
+scanned 1,974 TypeScript files and grouped local imports under 982 modules. All 1,524 unresolved specifiers were
+`node:` built-ins. The regex scan found zero `z.custom<BaseDriftResult>` sites, and the coupling scan covered 2,232
+corpus files and all 32 selected classes. The current JSON reports are in `/tmp/arc-cli-substrate-inventory/`;
+the matrix's affected whole-module importer counts were refreshed from this run.
+
 ## Residual matrix
 
 One table per owning contract — kernel, validation surfaces, session envelope, layout, Git executor, command inputs,
@@ -268,8 +274,8 @@ Register citations below name the corresponding **Storage-coupling register** ro
 | re-exports in `src/lib/commit-check/config.ts`                                | commit-check owning schemas          | migrated         | Spec § 4                  |         M:3 | import graph; Task 3.1.a |
 | re-exports in `src/commands/config/types.ts`                                  | config owning schemas                | migrated         | Spec § 4                  |         M:7 | import graph; Task 3.1.a |
 | relay in `src/commands/config.ts`                                             | config owning schemas                | migrated         | Spec § 4                  |         M:6 | import graph; Task 3.1.a |
-| cross-WU entry re-exports in `src/lib/user-sync/index.ts`                     | `schema.ts` and `parser.ts`          | migrated         | Spec § 4; `R-NS` survivor |        M:33 | import graph; Task 3.1.b |
-| sync-state re-exports in `src/lib/user-sync/index.ts`                         | —                                    | carved           | `R-NS`                    |        M:33 | Task 3.1.b               |
+| cross-WU entry re-exports in `src/lib/user-sync/index.ts`                     | `schema.ts` and `parser.ts`          | migrated         | Spec § 4; `R-NS` survivor |        M:30 | import graph; Task 3.1.b |
+| sync-state re-exports in `src/lib/user-sync/index.ts`                         | —                                    | carved           | `R-NS`                    |        M:30 | Task 3.1.b               |
 | unused `src/lib/user-sync/types.ts` re-export names                           | —                                    | carved           | `R-NS`                    |     0 named | Task 3.1.b               |
 | `parseCrossWuEntries` and `matchInboxEntryTitle` through the user-sync barrel | direct `parser.ts` imports           | migrated         | Spec § 4; `R-NS` survivor |         M:9 | Task 3.1.c               |
 | `inbox-writer.ts` and `execution-offer.ts`                                    | direct owning modules                | retained by rule | `R-NS` survivor           |  M:12 / M:2 | Task 3.1.c; direct       |
@@ -315,7 +321,7 @@ Register citations below name the corresponding **Storage-coupling register** ro
 | procedure roots and template output construction                            | layout resolver        | migrated                 | Spec § 6              |         — | coupling scan; Task 5.3 |
 | `src/lib/work-unit/completed-index.ts`: `*FromRef` and archive reads        | store read             | carved                   | `R-BR`; `R-AR`        |      M:25 | import graph; Task 5.2  |
 | `src/lib/work-unit/completed-index.ts`: `branchToWorkUnitSlug`              | same module            | retained by rule         | `R-BR` survivor       |      M:25 | Task 5.2                |
-| `src/lib/git/remote-ref-reader.ts`: in-flight and meta ref reads            | store read             | carved                   | `R-BR`                |      M:25 | Task 5.2                |
+| `src/lib/git/remote-ref-reader.ts`: in-flight and meta ref reads            | store read             | carved                   | `R-BR`                |      M:23 | Task 5.2                |
 | `src/lib/git/remote-ref-reader.ts`: live branch tip and timeout             | same module            | retained by rule         | `R-BR` survivor       |      M:23 | Task 5.2                |
 | `src/lib/base-drift/current-adapters.ts`: completed-history read            | store read             | carved                   | `R-BR`                |      M:11 | Task 5.2                |
 | `src/lib/base-drift/current-adapters.ts`: current base-drift adapters       | same module            | retained by rule         | Spec § 1 symbol split |      M:11 | Task 5.2                |
@@ -332,15 +338,15 @@ Register citations below name the corresponding **Storage-coupling register** ro
 | ----------------------------------------------------------------------- | ------------------------- | ---------------- | ------------------------- | --------------: | -------------------------- |
 | `RawGitExec` and `RawGitResult` in `src/lib/change-facts.ts`            | `src/lib/git/exec.ts`     | migrated         | Spec § 2.2                | 0 old; 44 moved | AST import sweep; Task 1.4 |
 | `createRawGitExec` spawn factory in `change-facts.ts`                   | `createSpawnRawGitExec`   | migrated         | Spec § 7                  |  4 direct tests | Task 4.6.b                 |
-| `change-facts.ts`: CI weight, tree hash, portability, raw executor      | same module               | retained by rule | Spec § 1; `R-CI` survivor |            M:51 | Task 4.6.b                 |
-| `change-facts.ts`: planning-lane classifier                             | —                         | carved           | `R-CI`                    |            M:51 | Task 4.6.b                 |
-| Git failure-text predicates in `src/lib/user-sync/notes-merge.ts`       | `src/lib/git/ref-tree.ts` | migrated         | Spec § 7; `R-NS` survivor |             M:7 | Task 4.5.a                 |
-| `notes-merge.ts`: remaining notes merge functions                       | —                         | carved           | `R-NS`                    |             M:7 | Task 4.5.a                 |
+| `change-facts.ts`: CI weight, tree hash, portability, raw executor      | same module               | retained by rule | Spec § 1; `R-CI` survivor |             M:8 | Task 4.6.b                 |
+| `change-facts.ts`: planning-lane classifier                             | —                         | carved           | `R-CI`                    |             M:8 | Task 4.6.b                 |
+| Git failure-text predicates in `src/lib/user-sync/notes-merge.ts`       | `src/lib/git/ref-tree.ts` | migrated         | Spec § 7; `R-NS` survivor |             M:1 | Task 4.5.a                 |
+| `notes-merge.ts`: remaining notes merge functions                       | —                         | carved           | `R-NS`                    |             M:1 | Task 4.5.a                 |
 | `resolveGitCommonDir` in `src/lib/user-sync/repo-shared-paths.ts`       | `src/lib/git/exec.ts`     | migrated         | Spec § 7; `R-NS` survivor |     9 surviving | Task 4.5.b                 |
-| `getRepoSharedUserInternalDir` in `repo-shared-paths.ts`                | correction pending        | retained by rule | `R-LOCK`                  |            M:12 | existing inbox capture     |
-| `getNotesLockPath` in `src/lib/user-sync/notes-lock.ts`                 | correction pending        | retained by rule | `R-LOCK`                  |             M:4 | existing inbox capture     |
-| `src/lib/io-context.ts`: `createRawGitExec`, `createGitExec`            | bound executor factory    | migrated         | Spec § 8                  |            M:98 | Task 4.4                   |
-| `src/lib/io-context.ts`: notes `UserIOContext` and writer               | store-backed IO           | carved           | `R-NS`                    |            M:98 | Task 4.4                   |
+| `getRepoSharedUserInternalDir` in `repo-shared-paths.ts`                | correction pending        | retained by rule | `R-LOCK`                  |             M:3 | existing inbox capture     |
+| `getNotesLockPath` in `src/lib/user-sync/notes-lock.ts`                 | correction pending        | retained by rule | `R-LOCK`                  |             M:5 | existing inbox capture     |
+| `src/lib/io-context.ts`: `createRawGitExec`, `createGitExec`            | bound executor factory    | migrated         | Spec § 8                  |           M:100 | Task 4.4                   |
+| `src/lib/io-context.ts`: notes `UserIOContext` and writer               | store-backed IO           | carved           | `R-NS`                    |           M:100 | Task 4.4                   |
 | errand identity `.message` Git classification                           | `gitFailureText()`        | migrated         | Spec § 7                  |               — | Task 4.6.a                 |
 | raw Git in lifecycle hook scripts                                       | —                         | carved           | `R-HC`                    |               — | coupling scan; Task 4.7    |
 | raw `git()` arrangement runners                                         | same modules              | retained by rule | Spec § 9                  |               — | Task 4.7                   |
@@ -693,8 +699,8 @@ calls whose address carries a work-unit kind, outside `src/lib/layout/`.
 
 ## `gitExec` singleton importers
 
-**CLI-reachable** — 13, each threading the invocation's executor or holding the singleton only as a fallback that
-bound callers override:
+**CLI-reachable at the Phase 4 baseline** — 13, each subsequently threading the invocation's executor or holding the
+singleton only as a fallback that bound callers override:
 
 - `src/commands/active/status.ts` — fallback only (`options.exec ?? gitExec`)
 - `src/commands/config/status.ts` — fallback only (`options.exec ?? gitExec`); its adapter threads its own executor
@@ -740,6 +746,24 @@ singleton:
 - `src/lib/io-context.ts` — the module-level `candidateGitExec`, `gitExec`, and `gitExecInput` constructions, which
   stay as the singletons and their base; and `prepareGitRefVerification`, a direct `execa` spawn with no interaction
   environment, carved because only `park --land`'s planning landing, the lifecycle write path, calls it
+
+### Phase 4 executor reach audit
+
+At post-merge head `82e2a5312`, a TypeScript named-import scan found 16 `gitExec` importers from `io-context.ts`:
+the ten standalone scripts, the five fallback holders in the matrix, and storage-carved `handlers/locus.ts` (`R-LOC`).
+It found zero `gitExecInput` importers; the singleton remains inside `io-context.ts` as the unbound factory fallback
+and carved notes writer's executor. The only surviving policy-less `createGitExec()` call outside that module is the
+standalone default in `local-test-admission.ts`; calls in `handlers/user.ts`, `user-sync.ts`, and `sync.ts` are
+compile-forced carved edges. `prepareGitRefVerification` is the remaining direct unbound `execa` spawn, carved under
+`R-LW`. The release commit module no longer constructs a module-level executor, and delivery's calls of its exported
+message helpers pass the delivery executor. Delivery's merge-lock releases pass their executor into
+`defaultMergeLockPort`.
+
+The command-input inventory names all 17 always-JSON paths under constant machine mode, four value-bearing wraps,
+and release opt-in/out. It finds the attest, publish, and locus machine-mode declarations. Named-import searches found
+no predicate importer through `user-sync`, no `resolveGitCommonDir` importer through `repo-shared-paths.ts`, and no
+`createRawGitExec` import from `change-facts.ts`. The standalone `classify-change.sh tree-hash HEAD` returned
+`27d95795eec657c21839ecf0e1d27ab07da43b57` after the base merge.
 
 ## Sweep recipes
 
