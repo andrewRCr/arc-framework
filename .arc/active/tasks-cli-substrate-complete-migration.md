@@ -310,12 +310,9 @@ path spawns Git through an unbound executor; the failure-text predicates and `re
           now route under constant machine mode. The four Git-using handlers bind their executors to that context;
           merge-method and checks await retain the host runner's closed stdin behavior.
 
-    - `[ ]` **4.1.c Wrap and bind hosted request, await, and settle**
-        - Build `test-first` (one behavior at a time):
-            - Called without a supplied context, each handler resolves a machine-mode process context
-            - Each handler's default dependencies build their executors from that context's subprocess policy
-            - The inventory case requires the three command paths to route through the adapter under a constant
-              machine-mode policy
+    - `[x]` **4.1.c Wrap and bind hosted request, await, and settle**
+        - Hosted request, await, and settle now route through constant machine mode. Their stores, nested request
+          derivation and replay checks, and settlement lock use the command-bound Git executor.
 
     - `[ ]` **4.1.d Wrap and bind local prepare, attest, and resume, and review respond and reduce**
         - Build `test-first` (one behavior at a time):

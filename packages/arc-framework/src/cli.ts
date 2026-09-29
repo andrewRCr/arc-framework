@@ -1941,13 +1941,13 @@ hostedCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-hosted-request-request", input);
       return;
     }
-    await (await import("./handlers/review.js")).handleReviewHostedRequest(input ?? "");
-  });
+    await (await import("./handlers/review.js")).handleReviewHostedRequest(input ?? "", {}, context);
+  }));
 
 hostedCmd
   .command("await")
@@ -1961,13 +1961,13 @@ hostedCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-hosted-await-request", input);
       return;
     }
-    await (await import("./handlers/review.js")).handleReviewHostedAwait(input ?? "");
-  });
+    await (await import("./handlers/review.js")).handleReviewHostedAwait(input ?? "", {}, context);
+  }));
 
 hostedCmd
   .command("settle")
@@ -1977,13 +1977,13 @@ hostedCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-hosted-settle-request", input);
       return;
     }
-    await (await import("./handlers/review.js")).handleReviewHostedSettle(input ?? "");
-  });
+    await (await import("./handlers/review.js")).handleReviewHostedSettle(input ?? "", {}, context);
+  }));
 
 reviewCmd
   .command("changeset")

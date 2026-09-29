@@ -2060,6 +2060,7 @@ type HostedProgressVehicle = HostedRequestVehicle | HostedErrandProgressBinding;
 
 async function resolveHostedProgressContext(input: {
   root: string;
+  exec: GitExec;
   publisher: RepositoryGitCommonStatePublisher;
   target: HostedTarget;
   provider: HostedProviderId;
@@ -2070,7 +2071,7 @@ async function resolveHostedProgressContext(input: {
   const settings = input.settings ?? (await readConfigSettings(input.root)).settings;
   const baseRef = settings["branch.base"];
   const repositoryId = await resolveRepositoryIdentity(input.publisher);
-  const memberLookup = new RepositoryDeliveryMemberLookup({ exec: gitExec, cwd: input.root });
+  const memberLookup = new RepositoryDeliveryMemberLookup({ exec: input.exec, cwd: input.root });
   const memberResolution = input.vehicle?.kind === "delivery-member"
     ? await memberLookup.resolveMemberByVehicle(input.vehicle)
     : await memberLookup.resolveMemberByHead(input.target.headSha);
@@ -2091,13 +2092,13 @@ async function resolveHostedProgressContext(input: {
     : null;
   const reviewTarget = member === null
     ? await deriveLocalReviewTarget({
-        exec: gitExec,
+        exec: input.exec,
         cwd: input.root,
         baseRef,
         repositoryId,
       })
     : await composeDeliveryMemberTarget({
-        exec: gitExec,
+        exec: input.exec,
         cwd: input.root,
         baseRef,
         repositoryId,
@@ -2106,7 +2107,7 @@ async function resolveHostedProgressContext(input: {
   if (reviewTarget.headSha !== input.target.headSha) {
     throw new Error("Hosted review target does not match the current local review target.");
   }
-  const currentBranch = (await gitExec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+  const currentBranch = (await input.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
     cwd: input.root,
   })).stdout.trim();
   if (currentBranch === "" || currentBranch === "HEAD") {
@@ -2116,7 +2117,7 @@ async function resolveHostedProgressContext(input: {
   const acceptableBaseRefs = member?.baseRef === null || member === null ? [] : [member.baseRef];
   const changeRequest = await resolveChangeRequest(
     { headRef: branch, headSha: reviewTarget.headSha, baseRef, acceptableBaseRefs, requireRemote: true },
-    createGhChangeRequestResolutionPort(gitExec, input.root),
+    createGhChangeRequestResolutionPort(input.exec, input.root),
   );
   if (changeRequest.state !== "open"
     || changeRequest.targetRef.repository.toLowerCase() !== input.target.repository.toLowerCase()
@@ -2126,12 +2127,12 @@ async function resolveHostedProgressContext(input: {
   }
   const store = new LocalReviewOperationStateStore(input.publisher);
   if (input.vehicle?.kind === "errand") {
-    const identity = await resolveUserIdentity(gitExec);
+    const identity = await resolveUserIdentity(input.exec);
     const frame = await runDerivedLocusStateProbe({
       cwd: input.root,
       identity,
       baseBranch: baseRef,
-      exec: gitExec,
+      exec: input.exec,
     });
     const current = resolveActiveHostedReviewErrand(frame, branch);
     const lineage = LaneSubjectLineageSchema.parse({
@@ -2158,7 +2159,7 @@ async function resolveHostedProgressContext(input: {
           settings,
           preferences: createLocalFrontlineSourcePreferenceReader({
             cwd: input.root,
-            exec: gitExec,
+            exec: input.exec,
             readFile: (path) => readFile(path, "utf8"),
           }),
         })).sources
@@ -2227,7 +2228,7 @@ async function resolveHostedProgressContext(input: {
   const reservation = boundary.reservation;
   const candidate = await createPrePublicationCompositionDependencies({
     cwd: input.root,
-    exec: gitExec,
+    exec: input.exec,
   }).readCandidate(workUnitId);
   if (candidate.status !== "current") {
     throw new Error("Hosted review reservation requires a current Candidate.");
@@ -2299,13 +2300,13 @@ async function resolveHostedProgressContext(input: {
           : null;
         const currentTarget = currentMember === null
           ? await deriveLocalReviewTarget({
-              exec: gitExec,
+              exec: input.exec,
               cwd: input.root,
               baseRef,
               repositoryId,
             })
           : await composeDeliveryMemberTarget({
-              exec: gitExec,
+              exec: input.exec,
               cwd: input.root,
               baseRef,
               repositoryId,
@@ -3122,6 +3123,7 @@ export interface ReviewHostedRequestHandlerDependencies extends HostedReviewHand
 
 async function hostedCandidateSupersessionAncestors(input: {
   root: string;
+  exec: GitExec;
   lineage: LaneSubjectLineage;
   candidateRecord: CandidateManagedRecordV1 | null;
 }): Promise<readonly CandidateSupersessionAncestor[]> {
@@ -3134,18 +3136,18 @@ async function hostedCandidateSupersessionAncestors(input: {
     cwd: input.root,
     workUnit: input.candidateRecord.attestation.workUnit,
     record: input.candidateRecord,
-    exec: gitExec,
+    exec: input.exec,
   });
 }
 
-async function indexedErrandClaimIsCurrent(root: string, expectedClaimId: string): Promise<boolean> {
+async function indexedErrandClaimIsCurrent(root: string, expectedClaimId: string, exec: GitExec): Promise<boolean> {
   try {
-    const branch = (await gitExec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: root })).stdout.trim();
+    const branch = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: root })).stdout.trim();
     const frame = await runDerivedLocusStateProbe({
       cwd: root,
-      identity: await resolveUserIdentity(gitExec),
+      identity: await resolveUserIdentity(exec),
       baseBranch: (await readConfigSettings(root)).settings["branch.base"],
-      exec: gitExec,
+      exec,
     });
     return resolveActiveHostedReviewErrand(frame, branch).claimId === expectedClaimId;
   } catch {
@@ -3271,11 +3273,12 @@ async function readDurableHostedRequestReplay(input: {
   repositoryId: string;
   request: HostedRequestEnvelope;
   root: string;
+  exec: GitExec;
 }): Promise<HostedRequestAdmissionResolution | null> {
   const owner = await input.index.read(input.repositoryId, input.request);
   if (owner === null) return null;
   if (owner.lineage.kind === "head-bound" && owner.lineage.vehicleKind === "errand"
-    && !await indexedErrandClaimIsCurrent(input.root, owner.lineage.vehicleIdentity)) {
+    && !await indexedErrandClaimIsCurrent(input.root, owner.lineage.vehicleIdentity, input.exec)) {
     return { state: "ambiguous-delivery" };
   }
   const { state } = await input.store.readOperation(owner.operationId);
@@ -3292,6 +3295,7 @@ class HostedRequestOwnerCollision extends Error {}
 
 async function resumeReservedHostedRequest(input: {
   root: string;
+  exec: GitExec;
   publisher: RepositoryGitCommonStatePublisher;
   index: HostedRequestOwnerIndex;
   repositoryId: string;
@@ -3299,11 +3303,12 @@ async function resumeReservedHostedRequest(input: {
   replay: Extract<HostedRequestAdmissionResolution, { state: "admitted" }>;
   adapters: readonly HostedReviewAdapter[];
 }): Promise<unknown> {
-  const { root, publisher, index, repositoryId, request, replay, adapters } = input;
+  const { root, exec, publisher, index, repositoryId, request, replay, adapters } = input;
   let current;
   try {
     current = await resolveHostedProgressContext({
       root,
+      exec,
       publisher,
       target: request.target,
       provider: request.provider,
@@ -3321,7 +3326,7 @@ async function resumeReservedHostedRequest(input: {
   const store = new LocalReviewOperationStateStore(publisher);
   return requestHostedReview(request, {
     adapters,
-    deliveryMemberLookup: new RepositoryDeliveryMemberLookup({ exec: gitExec, cwd: root }),
+    deliveryMemberLookup: new RepositoryDeliveryMemberLookup({ exec, cwd: root }),
     ...(replay.admission.vehicle?.kind === "errand"
       ? { errandBinding: replay.admission.vehicle }
       : {}),
@@ -3351,6 +3356,7 @@ async function executeDefaultHostedRequest(
   input: unknown,
   root: string | null,
   publisher: RepositoryGitCommonStatePublisher | null,
+  exec: GitExec,
   adapters: readonly HostedReviewAdapter[],
   port: ReturnType<typeof createHostedAdapters>["port"],
 ): Promise<unknown> {
@@ -3359,7 +3365,7 @@ async function executeDefaultHostedRequest(
   const index = new HostedRequestOwnerIndex(publisher);
   const repositoryId = await resolveRepositoryIdentity(publisher);
   return withRepositoryReviewOperationLock(
-    gitExec,
+    exec,
     root,
     index.lockId(repositoryId, request),
     10_000,
@@ -3370,9 +3376,10 @@ async function executeDefaultHostedRequest(
         repositoryId,
         request,
         root,
+        exec,
       });
       if (replay?.state === "admitted") {
-        return resumeReservedHostedRequest({ root, publisher, index, repositoryId, request, replay, adapters });
+        return resumeReservedHostedRequest({ root, exec, publisher, index, repositoryId, request, replay, adapters });
       }
       if (replay !== null) {
         const result = projectHostedRequestAdmissionResolution(request, replay);
@@ -3380,10 +3387,11 @@ async function executeDefaultHostedRequest(
         return result;
       }
       const deliveryVehicle = request.vehicle?.kind === "delivery-member" ? request.vehicle : null;
-      const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec: gitExec, cwd: root });
+      const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec, cwd: root });
       const settings = (await readConfigSettings(root)).settings;
       const context = await resolveHostedProgressContext({
         root,
+        exec,
         publisher,
         target: request.target,
         provider: request.provider,
@@ -3393,6 +3401,7 @@ async function executeDefaultHostedRequest(
       });
       const supersessionAncestors = await hostedCandidateSupersessionAncestors({
         root,
+        exec,
         lineage: context.lineage,
         candidateRecord: context.candidateRecord,
       });
@@ -3408,7 +3417,7 @@ async function executeDefaultHostedRequest(
         settings,
         preferences: createLocalFrontlineSourcePreferenceReader({
           cwd: root,
-          exec: gitExec,
+          exec,
           readFile: (path) => readFile(path, "utf8"),
         }),
       });
@@ -3422,7 +3431,7 @@ async function executeDefaultHostedRequest(
           }
           const dischargeReader = createHostedReservationDischargeReader({
             cwd: root,
-            exec: gitExec,
+            exec,
             delivery: deliveryMemberLookup,
             host: new GhDeliveryHostPort(hostedGhRunner),
           });
@@ -3478,7 +3487,7 @@ async function executeDefaultHostedRequest(
           });
           const currentObligation = await readRoutedObligation(
             root,
-            gitExec,
+            exec,
             context.statusTarget,
             request.target.pullRequest,
             deliveryMemberLookup,
@@ -3513,7 +3522,7 @@ async function executeDefaultHostedRequest(
         if (context.candidateRecord !== null) {
           const dischargeReader = createHostedReservationDischargeReader({
             cwd: root,
-            exec: gitExec,
+            exec,
             host: new GhDeliveryHostPort(hostedGhRunner),
           });
           const dischargeInput = {
@@ -3615,7 +3624,7 @@ async function executeDefaultHostedRequest(
           const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
           try {
             const admitted = await withRepositoryReviewOperationLock(
-              gitExec,
+              exec,
               root,
               laneContinuationOperationId({
                 lane: "standard",
@@ -3691,21 +3700,28 @@ async function executeDefaultHostedRequest(
   );
 }
 
-function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependencies {
+function defaultHostedRequestDependencies(context: InteractionContext): ReviewHostedRequestHandlerDependencies {
   const { adapters, port } = createHostedAdapters();
   const root = resolveArcRoot(process.cwd());
-  const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(gitExec, root);
+  const exec = createGitExec(context.subprocess);
+  const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(exec, root);
   return {
     ...defaultHostedHandlerBoundary(),
-    request: (input) => executeDefaultHostedRequest(input, root, publisher, adapters, port),
+    request: (input) => executeDefaultHostedRequest(input, root, publisher, exec, adapters, port),
   };
 }
 
 export async function handleReviewHostedRequest(
   source: string,
   overrides: Partial<ReviewHostedRequestHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
-  const dependencies = { ...defaultHostedRequestDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultHostedRequestDependencies(context), ...overrides };
   await executeHostedReviewHandler({
     mode: "review-hosted-request",
     source,
@@ -3727,10 +3743,11 @@ export interface ReviewHostedAwaitHandlerDependencies extends HostedReviewHandle
   awaitResult(input: unknown): Promise<unknown>;
 }
 
-function defaultHostedAwaitDependencies(): ReviewHostedAwaitHandlerDependencies {
+function defaultHostedAwaitDependencies(context: InteractionContext): ReviewHostedAwaitHandlerDependencies {
   const { observers } = createHostedAdapters();
   const root = resolveArcRoot(process.cwd());
-  const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(gitExec, root);
+  const exec = createGitExec(context.subprocess);
+  const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(exec, root);
   return {
     ...defaultHostedHandlerBoundary(),
     awaitResult: async (input) => {
@@ -3781,8 +3798,14 @@ function defaultHostedAwaitDependencies(): ReviewHostedAwaitHandlerDependencies 
 export async function handleReviewHostedAwait(
   source: string,
   overrides: Partial<ReviewHostedAwaitHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
-  const dependencies = { ...defaultHostedAwaitDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultHostedAwaitDependencies(context), ...overrides };
   await executeHostedReviewHandler({
     mode: "review-hosted-await",
     source,
@@ -3830,10 +3853,11 @@ export function hostedFixSettlementPerformed(input: {
   return true;
 }
 
-function defaultHostedSettleDependencies(): ReviewHostedSettleHandlerDependencies {
+function defaultHostedSettleDependencies(context: InteractionContext): ReviewHostedSettleHandlerDependencies {
   const { port } = createHostedAdapters();
   const root = resolveArcRoot(process.cwd());
-  const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(gitExec, root);
+  const exec = createGitExec(context.subprocess);
+  const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(exec, root);
   return {
     ...defaultHostedHandlerBoundary(),
     settle: async (input) => {
@@ -3851,7 +3875,7 @@ function defaultHostedSettleDependencies(): ReviewHostedSettleHandlerDependencie
         throw new Error(`Hosted settlement attempt is unavailable: ${reference.durableRef}`);
       }
       return withRepositoryReviewOperationLock(
-        gitExec,
+        exec,
         root,
         laneContinuationOperationId({
           lane: "standard",
@@ -3930,8 +3954,14 @@ function defaultHostedSettleDependencies(): ReviewHostedSettleHandlerDependencie
 export async function handleReviewHostedSettle(
   source: string,
   overrides: Partial<ReviewHostedSettleHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
-  const dependencies = { ...defaultHostedSettleDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultHostedSettleDependencies(context), ...overrides };
   await executeHostedReviewHandler({
     mode: "review-hosted-settle",
     source,
