@@ -6,6 +6,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 import {
   cleanupOrdinaryErrandRefs,
   closeOrdinaryErrandAtRuntime,
@@ -21,8 +22,8 @@ import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 const EXPECTED = "a".repeat(40);
 const MOVED = "b".repeat(40);
 
-function gitError(message: string, exitCode: number): Error & { exitCode: number; stderr: string } {
-  return Object.assign(new Error(message), { exitCode, stderr: message });
+function gitError(command: string, args: readonly string[], message: string, exitCode: number) {
+  return makeGitProcessError({ command, args, exitCode, stderr: message });
 }
 
 function awaiting(): OrdinaryErrandRecord {
@@ -84,26 +85,28 @@ function fakeGit(options: {
   worktrees?: readonly { path: string; branch: string }[];
 }): { exec: GitExec; state: { local: string | null; remote: string | null } } {
   const state = { local: options.local, remote: options.remote };
-  const exec: GitExec = async (_command, args) => {
+  const exec: GitExec = async (command, args) => {
     if (args[0] === "fetch") {
       if (args[1] === "--prune") return { stdout: "", stderr: "" };
-      if (options.fetchFailure !== undefined) throw gitError(options.fetchFailure, 128);
-      if (state.remote === null) throw gitError("fatal: couldn't find remote ref refs/heads/chore/done", 128);
+      if (options.fetchFailure !== undefined) throw gitError(command, args, options.fetchFailure, 128);
+      if (state.remote === null) {
+        throw gitError(command, args, "fatal: couldn't find remote ref refs/heads/chore/done", 128);
+      }
       return { stdout: "", stderr: "" };
     }
     if (args[0] === "rev-parse") {
       const ref = args.at(-1) ?? "";
       const oid = ref.includes("refs/arc/tmp/") ? state.remote : state.local;
-      if (oid === null) throw gitError("reference is absent", 1);
+      if (oid === null) throw gitError(command, args, "reference is absent", 1);
       return { stdout: `${oid}\n`, stderr: "" };
     }
     if (args[0] === "push") {
-      if (state.remote !== EXPECTED) throw gitError("stale info", 1);
+      if (state.remote !== EXPECTED) throw gitError(command, args, "stale info", 1);
       state.remote = null;
       return { stdout: "", stderr: "" };
     }
     if (args[0] === "worktree") {
-      if (options.worktreeFailure !== undefined) throw gitError(options.worktreeFailure, 128);
+      if (options.worktreeFailure !== undefined) throw gitError(command, args, options.worktreeFailure, 128);
       const worktrees = options.worktrees ?? [{ path: "/repo", branch: "main" }];
       return {
         stdout: worktreePorcelainZ(worktrees.map((worktree) =>
@@ -113,7 +116,7 @@ function fakeGit(options: {
     }
     if (args[0] === "update-ref" && args[1] === "-d") {
       if ((args[2] ?? "").startsWith("refs/heads/")) {
-        if (state.local !== args[3]) throw gitError("cannot lock ref", 1);
+        if (state.local !== args[3]) throw gitError(command, args, "cannot lock ref", 1);
         state.local = null;
       }
       return { stdout: "", stderr: "" };
@@ -157,7 +160,7 @@ async function closeLockRuntime() {
         stderr: "",
       };
     }
-    throw gitError(`unsupported test operation: ${args.join(" ")}`, 1);
+    throw new Error(`unsupported test operation: ${args.join(" ")}`);
   };
   const acquired = await acquireErrandCloseHeadLock({
     exec,
@@ -208,7 +211,7 @@ function closeResolutionGit(options: {
       return { stdout: "", stderr: "" };
     }
     if (command === "git" && args[0] === "fetch") {
-      if (options.pinFailure !== undefined) throw gitError(options.pinFailure, 128);
+      if (options.pinFailure !== undefined) throw gitError(command, args, options.pinFailure, 128);
       return { stdout: "", stderr: "" };
     }
     if (command === "git" && args[0] === "rev-parse" && args.at(-1)?.startsWith("refs/arc/tmp/base-head/")) {

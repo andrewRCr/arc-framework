@@ -2,11 +2,12 @@
 
 import { describe, expect, it } from "vitest";
 
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import { reconcileIdentityObjects } from "../../src/lib/errand/identity-transaction.js";
 import { transactTransientIdentities } from "../../src/lib/errand/identity-transaction.js";
 import { TransientIdentityRecordV3Schema } from "../../src/lib/errand/identity-record.js";
 import type { ErrandRecordIO } from "../../src/lib/errand/ref-tree.js";
-import { GitProcessError } from "../../src/lib/git/process-error.js";
+import type { GitProcessError } from "../../src/lib/git/process-error.js";
 
 function objects(entries: Record<string, string>): Map<string, string> {
   return new Map(Object.entries(entries));
@@ -62,9 +63,7 @@ const oid = "a".repeat(40);
 const timestamp = "2026-07-18T00:00:00.000Z";
 
 function gitFailure(args: string[], stderr: string, stdout = ""): GitProcessError {
-  return new GitProcessError({
-    kind: "nonzero-exit", command: "git", args, exitCode: 1, stderr, stdout,
-  });
+  return makeGitProcessError({ command: "git", args, exitCode: 1, stderr, stdout });
 }
 
 function transactionIO(options: {
@@ -76,14 +75,13 @@ function transactionIO(options: {
   return {
     identity: "andrew",
     execInput: async () => oid,
-    exec: async (_command, args) => {
+    exec: async (command, args) => {
       if (args[0] === "fetch") {
-        throw new GitProcessError({
-          kind: "nonzero-exit", command: "git", args, exitCode: 128,
-          stderr: "couldn't find remote ref", expectedOutcome: "absent-remote-ref",
-        });
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "couldn't find remote ref" });
       }
-      if (args[0] === "rev-parse") throw new Error("Needed a single revision");
+      if (args[0] === "rev-parse") {
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "Needed a single revision" });
+      }
       if (args[0] === "commit-tree") return { stdout: oid };
       if (args[0] === "update-ref") {
         if (args[1] !== "-d") {

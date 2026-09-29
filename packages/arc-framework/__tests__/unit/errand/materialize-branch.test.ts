@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 import { prepareMaterializedBranch } from "../../../src/lib/errand/materialize-branch.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 
@@ -17,12 +18,12 @@ function execFor(remoteHead: string): {
   const localRef = `refs/heads/${branchName}`;
   let snapshotRef: string | null = null;
   let branch: { ref: string; head: string } | null = null;
-  const exec: GitExec = async (_command, args) => {
+  const exec: GitExec = async (command, args) => {
     if (args[0] === "show-ref") {
       if (args.join(" ") !== `show-ref --verify --quiet ${localRef}`) {
         throw new Error(`unexpected local branch probe: ${args.join(" ")}`);
       }
-      throw Object.assign(new Error("missing"), { code: 1 });
+      throw makeGitProcessError({ command, args, exitCode: 1, stderr: "missing" });
     }
     if (args[0] === "fetch") {
       const refspec = args[3];
@@ -92,11 +93,15 @@ describe("prepareMaterializedBranch", () => {
   });
 
   it("preserves a remote-head refusal when temporary-ref cleanup also fails", async () => {
-    const exec: GitExec = async (_command, args) => {
-      if (args[0] === "show-ref") throw Object.assign(new Error("missing"), { code: 1 });
+    const exec: GitExec = async (command, args) => {
+      if (args[0] === "show-ref") {
+        throw makeGitProcessError({ command, args, exitCode: 1, stderr: "missing" });
+      }
       if (args[0] === "fetch") return { stdout: "", stderr: "" };
       if (args[0] === "rev-parse") return { stdout: `${REMOTE_HEAD}\n`, stderr: "" };
-      if (args[0] === "update-ref" && args[1] === "-d") throw new Error("cleanup unavailable");
+      if (args[0] === "update-ref" && args[1] === "-d") {
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "cleanup unavailable" });
+      }
       throw new Error(`unexpected git args: ${args.join(" ")}`);
     };
 

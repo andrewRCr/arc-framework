@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 import {
   readExactBranchGeneration,
   resolveOptionalCommit,
@@ -32,8 +33,8 @@ interface Sides {
   staleLease?: boolean;
 }
 
-function gitFailure(exitCode: number, stderr: string): Error {
-  return Object.assign(new Error(stderr), { exitCode, stderr });
+function gitFailure(args: readonly string[], exitCode: number, stderr: string) {
+  return makeGitProcessError({ command: "git", args, exitCode, stderr });
 }
 
 /** A repository whose two sides of one branch are directly observable. */
@@ -45,24 +46,24 @@ function makeExec(sides: Sides): { exec: GitExec; calls: string[][] } {
     const [subcommand] = args;
     if (subcommand === "fetch") {
       if (args[1] === "--prune") {
-        if (sides.pruneFails === true) throw gitFailure(128, "fatal: prune unavailable");
+        if (sides.pruneFails === true) throw gitFailure(args, 128, "fatal: prune unavailable");
         return { stdout: "" };
       }
       const destination = (args.at(3) ?? "").split(":").at(1) ?? "";
       if (sides.remoteReachable === false) {
-        throw gitFailure(128, "fatal: unable to access 'origin': connection refused");
+        throw gitFailure(args, 128, "fatal: unable to access 'origin': connection refused");
       }
-      if (sides.remote === null) throw gitFailure(128, `fatal: couldn't find remote ref refs/heads/${BRANCH}`);
+      if (sides.remote === null) throw gitFailure(args, 128, `fatal: couldn't find remote ref refs/heads/${BRANCH}`);
       temporary.set(destination, sides.remote);
       return { stdout: "" };
     }
     if (subcommand === "rev-parse") {
       const ref = (args.at(3) ?? "").replace("^{commit}", "");
       if (ref === `refs/heads/${BRANCH}` && sides.localReadFails === true) {
-        throw gitFailure(128, "fatal: unable to read the local ref");
+        throw gitFailure(args, 128, "fatal: unable to read the local ref");
       }
       const oid = ref === `refs/heads/${BRANCH}` ? sides.local : temporary.get(ref) ?? null;
-      if (oid === null) throw gitFailure(1, "");
+      if (oid === null) throw gitFailure(args, 1, "");
       return { stdout: `${oid}\n` };
     }
     if (subcommand === "update-ref") {
@@ -72,7 +73,7 @@ function makeExec(sides: Sides): { exec: GitExec; calls: string[][] } {
       return { stdout: "" };
     }
     if (subcommand === "push") {
-      if (sides.staleLease === true) throw gitFailure(1, "! [rejected] (delete) -> chore (stale info)");
+      if (sides.staleLease === true) throw gitFailure(args, 1, "! [rejected] (delete) -> chore (stale info)");
       sides.remote = null;
       return { stdout: "" };
     }

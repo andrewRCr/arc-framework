@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import {
   analyzeUserReferenceAuthority,
   materializeUserReferenceAuthority,
@@ -12,7 +13,6 @@ import {
   resolveUserReferenceAuthority,
   runUserReferenceReconcile,
 } from "../../src/lib/user-reference-reconcile.js";
-import { GitProcessError } from "../../src/lib/git/process-error.js";
 
 const BASE_OID = "b".repeat(40);
 
@@ -307,12 +307,8 @@ describe("planUserReferenceReconcile", () => {
       exec: async (_command, args) => {
         calls.push(args);
         if (args[0] === "check-ref-format") return { stdout: "" };
-        throw new GitProcessError({
-          kind: "nonzero-exit",
-          command: "git",
-          args,
-          exitCode: 128,
-          expectedOutcome: "absent-remote-ref",
+        throw makeGitProcessError({
+          command: "git", args, exitCode: 128, stderr: "couldn't find remote ref",
         });
       },
       protection: "full",
