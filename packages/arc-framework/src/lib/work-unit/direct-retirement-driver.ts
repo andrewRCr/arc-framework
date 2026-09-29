@@ -17,7 +17,7 @@ import {
   type ArtifactSetEntry,
   type PatchOperation,
 } from "../canonical/content-digest.js";
-import { validateManagedPath, type ManagedPath } from "../canonical/managed-path.js";
+import { validateManagedPath, type ManagedPath } from "../kernel/canonical/managed-path.js";
 import { getCurrentBranch, type GitExec } from "../git/exec.js";
 import { resolveArcPath } from "../layout/index.js";
 import { acquireAdvisoryLock, releaseAdvisoryLock } from "../advisory-lock.js";

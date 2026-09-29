@@ -7,7 +7,7 @@ import {
   digestBytes,
   isCanonicalDigest,
 } from "../kernel/canonical/canonical-json.js";
-import { isManagedPath } from "../canonical/managed-path.js";
+import { isManagedPath } from "../kernel/canonical/managed-path.js";
 import { normalizeDecomposeHeadingSource } from "./decompose-heading.js";
 import {
   V3DecomposeLocatorSchema,

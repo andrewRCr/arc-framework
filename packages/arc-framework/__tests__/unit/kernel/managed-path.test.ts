@@ -5,20 +5,7 @@ import {
   isManagedPath,
   type ManagedPath,
   validateManagedPath,
-} from "../../../src/lib/canonical/managed-path.js";
-import {
-  isManagedPath as kernelIsManagedPath,
-  type ManagedPath as KernelManagedPath,
-  validateManagedPath as kernelValidateManagedPath,
-} from "../../../src/lib/kernel/index.js";
-
-describe("managed-path compatibility exports", () => {
-  it("exposes the exact kernel runtime functions and branded type through the old path", () => {
-    expect(validateManagedPath).toBe(kernelValidateManagedPath);
-    expect(isManagedPath).toBe(kernelIsManagedPath);
-    expectTypeOf<ManagedPath>().toEqualTypeOf<KernelManagedPath>();
-  });
-});
+} from "../../../src/lib/kernel/canonical/managed-path.js";
 
 describe("managed-path validation", () => {
   it.each([

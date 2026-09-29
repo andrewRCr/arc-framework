@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js";
-import type { ManagedPath } from "../../../src/lib/canonical/managed-path.js";
+import type { ManagedPath } from "../../../src/lib/kernel/canonical/managed-path.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import type { WorktreeHuskStamp } from "../../../src/lib/git/worktree-marker.js";
 import {

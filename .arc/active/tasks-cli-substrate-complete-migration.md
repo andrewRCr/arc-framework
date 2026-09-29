@@ -598,11 +598,9 @@ holds a fenced-owner matrix row.
   it; record the rewrite recipe in notes § Sweep recipes. Carved importers take the rewrite as a forced edge, among
   them `handlers/user.ts`'s `ArcErrorCode` import.
 
-    - `[ ]` **6.2.a Retire `lib/canonical/managed-path.ts` and `lib/work-unit/slug.ts`**
-        - Remove the "managed-path compatibility exports" case and move the rest of
-          `unit/canonical/managed-path.test.ts` to `unit/kernel/managed-path.test.ts`, importing the kernel module.
-          `unit/canonical/` keeps `content-digest.test.ts`, whose subject stays in `lib/canonical/`.
-        - Remove "preserves the work-unit import path by identity and type" from `unit/kernel/slug.test.ts`.
+    - `[x]` **6.2.a Retire `lib/canonical/managed-path.ts` and `lib/work-unit/slug.ts`**
+        - Redirected 37 resolved specifiers to the kernel owners and deleted both compatibility modules. Moved the
+          managed-path behavior suite beside the kernel and removed only the two old-path identity cases.
 
     - `[ ]` **6.2.b Retire the `ArcError` re-export and the active-vocabulary re-exports**
         - `lib/errors.ts` itself stays; only its re-export goes. `lib/canonical/content-digest.ts` is not a shim and

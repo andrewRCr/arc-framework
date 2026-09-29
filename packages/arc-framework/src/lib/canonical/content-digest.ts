@@ -9,7 +9,7 @@
  */
 
 import { canonicalDigest, type CanonicalDigest, digestBytes } from "../kernel/canonical/canonical-json.js";
-import type { ManagedPath } from "./managed-path.js";
+import type { ManagedPath } from "../kernel/canonical/managed-path.js";
 
 /**
  * Hash the exact canonical stored bytes of a file's content.

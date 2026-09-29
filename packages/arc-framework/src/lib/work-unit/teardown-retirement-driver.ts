@@ -6,7 +6,7 @@ import type {
   DecodedWorktreeHuskStamp,
   WorktreeHuskStamp,
 } from "../git/worktree-marker.js";
-import type { ManagedPath } from "../canonical/managed-path.js";
+import type { ManagedPath } from "../kernel/canonical/managed-path.js";
 import type { ParkProofTarget } from "./park-retirement-proof.js";
 import {
   createGitRetirementAuthorizationContext,

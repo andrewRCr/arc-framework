@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { renderMetaProjectionFile } from "../../src/lib/active/meta-reader.js";
 import { gitTransitionResultDigest } from "../../src/lib/work-unit/retirement-authority.js";
-import type { ManagedPath } from "../../src/lib/canonical/managed-path.js";
+import type { ManagedPath } from "../../src/lib/kernel/canonical/managed-path.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import {
   abandonTransitionLocationRefusal,

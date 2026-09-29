@@ -8,7 +8,7 @@ import {
   sortByCanonicalBytes,
   type CanonicalDigest,
 } from "../kernel/canonical/canonical-json.js";
-import { isManagedPath } from "../canonical/managed-path.js";
+import { isManagedPath } from "../kernel/canonical/managed-path.js";
 import { SlugSchema, WorkClassSchema } from "../kernel/index.js";
 import { isSafeCohortPath, validateCohortPath } from "../active/cohort-path.js";
 import { normalizeDecomposeHeadingSource } from "./decompose-heading.js";

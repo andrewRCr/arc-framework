@@ -7,7 +7,7 @@
  */
 
 import { canonicalDigest, type CanonicalDigest } from "../kernel/canonical/canonical-json.js";
-import type { ManagedPath } from "../canonical/managed-path.js";
+import type { ManagedPath } from "../kernel/canonical/managed-path.js";
 import type { WorktreeSubject } from "../git/worktree-marker.js";
 
 type DirectRetirementTransition = "abandon" | "park-planning" | "rename";

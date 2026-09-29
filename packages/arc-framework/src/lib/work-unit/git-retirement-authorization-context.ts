@@ -15,7 +15,7 @@ import {
   contentDigest,
   type ArtifactSetEntry,
 } from "../canonical/content-digest.js";
-import { validateManagedPath, type ManagedPath } from "../canonical/managed-path.js";
+import { validateManagedPath, type ManagedPath } from "../kernel/canonical/managed-path.js";
 import { isSlugSafe } from "../kernel/schema/slug.js";
 import { artifactGroupDigest } from "../canonical/content-digest.js";
 import { buildLifecycleIndexFromMetas, type LifecycleIndex } from "./lifecycle-index.js";

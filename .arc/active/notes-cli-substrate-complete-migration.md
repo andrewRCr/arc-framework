@@ -1386,6 +1386,23 @@ The first run rewrote 125 specifiers in source, tests, fixtures, and helpers. Th
 rewrote zero, including while the deleted test path remained in Git's unstaged index. The canonical behavior tests
 moved to `__tests__/unit/kernel/canonical-json.test.ts`; only the compatibility-export identity case was removed.
 
+### Managed-path and slug shims
+
+Run the exact resolved-specifier AST rewrite in § Canonical JSON shim twice over tracked `src/` and `__tests__/`:
+
+| Shim path                           | Owner path                                   |
+| ----------------------------------- | -------------------------------------------- |
+| `src/lib/canonical/managed-path.ts` | `src/lib/kernel/canonical/managed-path.ts`   |
+| `src/lib/work-unit/slug.ts`         | `src/lib/kernel/schema/slug.ts`              |
+
+For each run, change only its `shim` and `owner` constants, retaining the `.js` extension and named imports. The
+resolved-target comparison protects existing direct owner imports; the missing-file filter makes a rerun valid after
+deletion. Search the old paths in static, dynamic, and mock specifiers after every base merge. Move the managed-path
+behavior tests to `unit/kernel/managed-path.test.ts` and remove only the old-path identity cases there and in
+`unit/kernel/slug.test.ts`.
+The first runs redirected 28 managed-path and 9 slug specifiers; both reruns redirected zero. The managed-path
+behavior suite moved intact, while the two compatibility-identity cases and both shim modules were removed.
+
 ### Raw Git type home
 
 At the merged base, the TypeScript import graph and an AST pass found 44 named imports of `RawGitExec` from

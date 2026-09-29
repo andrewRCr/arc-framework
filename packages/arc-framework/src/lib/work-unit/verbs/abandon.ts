@@ -36,7 +36,7 @@ import { parseMetaRecord } from "../../active/meta-reader.js";
 import { type ParsedMetaRecord } from "../../active/meta-schema.js";
 import { canonicalDigest } from "../../kernel/canonical/canonical-json.js";
 import type { PatchOperation } from "../../canonical/content-digest.js";
-import { validateManagedPath, type ManagedPath } from "../../canonical/managed-path.js";
+import { validateManagedPath, type ManagedPath } from "../../kernel/canonical/managed-path.js";
 import { resolveArcPath } from "../../layout/index.js";
 import type { ComposedLifecycleIndexResult } from "../composed-lifecycle-index.js";
 import { buildLifecycleIndex } from "../lifecycle-index.js";

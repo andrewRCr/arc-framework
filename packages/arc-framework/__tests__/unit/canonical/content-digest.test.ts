@@ -11,7 +11,7 @@ import {
   resolveArtifactEntry,
   writeOperation,
 } from "../../../src/lib/canonical/content-digest.js";
-import { validateManagedPath } from "../../../src/lib/canonical/managed-path.js";
+import { validateManagedPath } from "../../../src/lib/kernel/canonical/managed-path.js";
 
 const encode = (text: string): Uint8Array => new TextEncoder().encode(text);
 const path = validateManagedPath("dir/file.txt");

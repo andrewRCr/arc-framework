@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { canonicalDigest } from "../../../src/lib/kernel/canonical/canonical-json.js";
-import { validateManagedPath } from "../../../src/lib/canonical/managed-path.js";
+import { validateManagedPath } from "../../../src/lib/kernel/canonical/managed-path.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import { createExecaGitExec } from "../../../src/lib/git/process-executor.js";
 import { readGitBlobBytes } from "../../../src/lib/io-context.js";

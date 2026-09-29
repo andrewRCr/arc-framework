@@ -9,7 +9,7 @@ import {
   sortByCanonicalBytes,
   type CanonicalDigest,
 } from "../kernel/canonical/canonical-json.js";
-import { validateManagedPath } from "../canonical/managed-path.js";
+import { validateManagedPath } from "../kernel/canonical/managed-path.js";
 import { normalizeGitRejection } from "../git/process-error.js";
 import { resolveArcPath } from "../layout/index.js";
 import type {

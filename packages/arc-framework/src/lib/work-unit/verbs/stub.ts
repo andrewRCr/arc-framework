@@ -35,7 +35,7 @@ import {
   type ExecuteTransitionContext,
   type TransitionOutcome,
 } from "../lifecycle-executor.js";
-import { isSlugSafe } from "../slug.js";
+import { isSlugSafe } from "../../kernel/schema/slug.js";
 
 /** The backlog tier a stub commits to — both live physically under `backlog/`. */
 export type StubCommitment = "provisional" | "planned";

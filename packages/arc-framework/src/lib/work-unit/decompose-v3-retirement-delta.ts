@@ -1,6 +1,6 @@
 /** Pure three-tree retirement-delta planning for v3 decomposition. */
 
-import { isManagedPath } from "../canonical/managed-path.js";
+import { isManagedPath } from "../kernel/canonical/managed-path.js";
 import {
   v3DecomposeAbsentEvidence,
   v3DecomposeByteEvidence,
