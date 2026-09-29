@@ -175,6 +175,11 @@ unresolved. The regular-expression scan covered the same 1,965 files and ten can
 covered 2,223 corpus files and all 32 selected manifest classes. Full JSON output is in the scratch directory named
 by the commands above; later segment runs regenerate it.
 
+**Phase 3 post-merge run:** `2c7d9d1cb` — the import graph scanned 1,973 TypeScript files and grouped local imports
+under 982 target modules. Its 1,521 unresolved specifiers were all `node:` built-ins; no relative specifier was
+unresolved. The regex scan found zero `z.custom<BaseDriftResult>` sites. The coupling scan covered 2,231 corpus files
+and all 32 selected classes. The three JSON reports are in `/tmp/arc-cli-substrate-inventory/`.
+
 ## Residual matrix
 
 One table per owning contract — kernel, validation surfaces, session envelope, layout, Git executor, command inputs,
@@ -204,8 +209,9 @@ Layout adds three fixed-column tables, which the reconciliation reads and nothin
 
 ### Matrix count and citation conventions
 
-Paths in the tables are relative to `packages/arc-framework`. Importer counts come from the static TypeScript graph
-at `6f1d01261`; `M:n` marks a whole-module count where a row names only some symbols in a mixed module. `—` means
+Paths in the tables are relative to `packages/arc-framework`. Completed-segment importer counts come from the latest
+static TypeScript graph (Phase 3: `2c7d9d1cb`); `M:n` marks a whole-module count where a row names only some symbols in
+a mixed module. `—` means
 that the surface is a command, local declaration, literal, or planned helper rather than a statically imported module.
 The regular-expression scan supplies candidates, not semantic counts. Later segment runs refresh these cells and
 remove rows whose surface has retired. The two-way layout tables below begin empty by design and are filled in Phase 5.
@@ -256,17 +262,17 @@ Register citations below name the corresponding **Storage-coupling register** ro
 
 | Surface                                                                       | Destination                          | Disposition      | Citation                  |   Importers | Evidence                 |
 | ----------------------------------------------------------------------------- | ------------------------------------ | ---------------- | ------------------------- | ----------: | ------------------------ |
-| re-exports in `src/lib/release/types.ts`                                      | release owning schemas               | migrated         | Spec § 4                  |        M:10 | import graph; Task 3.1.a |
-| re-exports in `src/lib/active/meta-reader.ts`                                 | active owning schemas                | migrated         | Spec § 4                  |       M:112 | import graph; Task 3.1.a |
+| re-exports in `src/lib/release/types.ts`                                      | release owning schemas               | migrated         | Spec § 4                  |         M:5 | import graph; Task 3.1.a |
+| re-exports in `src/lib/active/meta-reader.ts`                                 | active owning schemas                | migrated         | Spec § 4                  |       M:114 | import graph; Task 3.1.a |
 | re-exports in `src/lib/config/status-reader.ts`                               | config owning schemas                | migrated         | Spec § 4                  |        M:45 | import graph; Task 3.1.a |
 | re-exports in `src/lib/commit-check/config.ts`                                | commit-check owning schemas          | migrated         | Spec § 4                  |         M:3 | import graph; Task 3.1.a |
-| re-exports in `src/commands/config/types.ts`                                  | config owning schemas                | migrated         | Spec § 4                  |        M:17 | import graph; Task 3.1.a |
+| re-exports in `src/commands/config/types.ts`                                  | config owning schemas                | migrated         | Spec § 4                  |         M:7 | import graph; Task 3.1.a |
 | relay in `src/commands/config.ts`                                             | config owning schemas                | migrated         | Spec § 4                  |         M:6 | import graph; Task 3.1.a |
-| cross-WU entry re-exports in `src/lib/user-sync/index.ts`                     | `schema.ts` and `parser.ts`          | migrated         | Spec § 4; `R-NS` survivor |        M:40 | import graph; Task 3.1.b |
-| sync-state re-exports in `src/lib/user-sync/index.ts`                         | —                                    | carved           | `R-NS`                    |        M:40 | Task 3.1.b               |
+| cross-WU entry re-exports in `src/lib/user-sync/index.ts`                     | `schema.ts` and `parser.ts`          | migrated         | Spec § 4; `R-NS` survivor |        M:33 | import graph; Task 3.1.b |
+| sync-state re-exports in `src/lib/user-sync/index.ts`                         | —                                    | carved           | `R-NS`                    |        M:33 | Task 3.1.b               |
 | unused `src/lib/user-sync/types.ts` re-export names                           | —                                    | carved           | `R-NS`                    |     0 named | Task 3.1.b               |
-| `parseCrossWuEntries` and `matchInboxEntryTitle` through the user-sync barrel | direct `parser.ts` imports           | migrated         | Spec § 4; `R-NS` survivor |         M:7 | Task 3.1.c               |
-| `inbox-writer.ts` and `execution-offer.ts`                                    | direct owning modules                | retained by rule | `R-NS` survivor           |   M:7 / M:2 | Task 3.1.c; direct       |
+| `parseCrossWuEntries` and `matchInboxEntryTitle` through the user-sync barrel | direct `parser.ts` imports           | migrated         | Spec § 4; `R-NS` survivor |         M:9 | Task 3.1.c               |
+| `inbox-writer.ts` and `execution-offer.ts`                                    | direct owning modules                | retained by rule | `R-NS` survivor           |  M:12 / M:2 | Task 3.1.c; direct       |
 | `resolveCurrentWuName` in `current-wu.ts`                                     | barrel retained for carved importers | retained by rule | `R-NS` survivor           | 0 surviving | Task 1.1.c               |
 | remaining notes-sync machinery in `src/lib/user-sync/`                        | —                                    | carved           | `R-NS`                    |           — | Task 1.1.c               |
 
@@ -274,18 +280,18 @@ Register citations below name the corresponding **Storage-coupling register** ro
 
 | Surface                                                         | Destination                                   | Disposition      | Citation           | Importers | Evidence                 |
 | --------------------------------------------------------------- | --------------------------------------------- | ---------------- | ------------------ | --------: | ------------------------ |
-| `DirtyStateResult` in `src/lib/git/dirty-state.ts`              | full schema, `dirty-state` root               | migrated         | Spec § 5           |      M:12 | import graph; Task 3.2.a |
-| `CurrentHuskAdvisory`                                           | full schema, `current-husk-advisory` root     | migrated         | Spec § 5           |       M:3 | import graph; Task 3.2.a |
+| `DirtyStateResult` in `src/lib/git/dirty-state.ts`              | full schema, `dirty-state` root               | migrated         | Spec § 5           |      M:15 | import graph; Task 3.2.a |
+| `CurrentHuskAdvisory`                                           | full schema, `current-husk-advisory` root     | migrated         | Spec § 5           |       M:6 | import graph; Task 3.2.a |
 | `ExtensionsSessionInitResult`                                   | full schema, `extensions-session-init` root   | migrated         | Spec § 5           |       M:7 | import graph; Task 3.2.b |
 | `ActiveSessionInitResult`                                       | full schema, `active-session-init` root       | migrated         | Spec § 5           |      M:29 | import graph; Task 3.2.b |
 | `DomainRulesSessionInitResult`                                  | full schema, `domain-rules-session-init` root | migrated         | Spec § 5           |       M:5 | import graph; Task 3.2.b |
-| `ConfigSessionInitResult`                                       | full schema, `config-session-init` root       | migrated         | Spec § 5           |      M:17 | import graph; Task 3.2.c |
-| `ReleaseRoutingValue`                                           | full schema, `release-routing` root           | migrated         | Spec § 5           |         — | Task 3.2.d               |
-| `WorktreeSyncStatusResult`                                      | full component schema                         | migrated         | Spec § 5           |      M:26 | import graph; Task 3.3.a |
-| `WorktreeSnapshotAnalysisResult`                                | full schema, `worktree-sync` root             | migrated         | Spec § 5           |         — | Task 3.3.a               |
-| `WorktreeRosterResult`                                          | full schema, `worktree-roster` root           | migrated         | Spec § 5           |      M:63 | import graph; Task 3.3.b |
-| `BaseDriftResult` and `BaseDistanceStatusResult` alias          | full component schema                         | migrated         | Spec § 5           |      M:13 | import graph; Task 3.4.a |
-| base-distance snapshot union                                    | full schema, `base-distance` root             | migrated         | Spec § 5           |      M:14 | import graph; Task 3.4.b |
+| `ConfigSessionInitResult`                                       | full schema, `config-session-init` root       | migrated         | Spec § 5           |       M:7 | import graph; Task 3.2.c |
+| `ReleaseRoutingValue`                                           | full schema, `release-routing` root           | migrated         | Spec § 5           |      M:11 | Task 3.2.d               |
+| `WorktreeSyncStatusResult`                                      | full component schema                         | migrated         | Spec § 5           |      M:29 | import graph; Task 3.3.a |
+| `WorktreeSnapshotAnalysisResult`                                | full schema, `worktree-sync` root             | migrated         | Spec § 5           |      M:29 | Task 3.3.a               |
+| `WorktreeRosterResult`                                          | full schema, `worktree-roster` root           | migrated         | Spec § 5           |      M:66 | import graph; Task 3.3.b |
+| `BaseDriftResult` and `BaseDistanceStatusResult` alias          | full component schema                         | migrated         | Spec § 5           |      M:15 | import graph; Task 3.4.a |
+| base-distance snapshot union                                    | full schema, `base-distance` root             | migrated         | Spec § 5           |      M:18 | import graph; Task 3.4.b |
 | four `z.custom<BaseDriftResult>` checkpoint wraps               | full `BaseDriftResult` schema                 | migrated         | Spec § 2.3         |         — | regex scan; Task 3.4.c   |
 | thin `WorkUnitStateResult` slot                                 | store-backed result schema                    | carved           | `R-IF`             |         — | Task 3.5                 |
 | thin `ErrandStateResult` slot                                   | store-backed result schema                    | carved           | `R-IF`             |         — | Task 3.5                 |
@@ -510,6 +516,56 @@ literals inside the `baseDistance` probe in `handlers/status.ts`, extracted into
 `packages/arc-framework` source, extracted with `git archive` into a scratch directory that links the repository's
 `node_modules`, and against the head, then diff the two outputs. The first bundle check writes the script here; later
 checks rerun it.
+
+```ts schema-bundle-projection
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+
+const packageRoot = resolve(process.argv[2] ?? ".");
+const sourceUrl = pathToFileURL(resolve(packageRoot, "src/production-schema-registry.ts")).href;
+const { createProductionSchemaRegistry } = await import(sourceUrl);
+const bundle = createProductionSchemaRegistry().toJSONSchema();
+function sorted(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sorted);
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, sorted(entry)]));
+  }
+  return value;
+}
+process.stdout.write(`${JSON.stringify(sorted(bundle), null, 2)}\n`);
+```
+
+```sh
+ARC_SCAN_DIR=/tmp/arc-cli-substrate-inventory && awk '/^```ts schema-bundle-projection$/{copy=1;next} copy && /^```$/{exit} copy' ../../.arc/active/notes-cli-substrate-complete-migration.md > "$ARC_SCAN_DIR/schema-bundle-projection.mts" && node --import tsx "$ARC_SCAN_DIR/schema-bundle-projection.mts" . > "$ARC_SCAN_DIR/schema-bundle-head.json"
+```
+
+From the repository root, project the base with:
+
+```sh
+ARC_SCAN_DIR=/tmp/arc-cli-substrate-inventory && mkdir -p "$ARC_SCAN_DIR/bundle-base" && git archive main packages/arc-framework | tar -x -C "$ARC_SCAN_DIR/bundle-base" && ln -sfn "$PWD/node_modules" "$ARC_SCAN_DIR/bundle-base/node_modules" && ln -sfn "$PWD/packages/arc-framework/node_modules" "$ARC_SCAN_DIR/bundle-base/packages/arc-framework/node_modules" && (cd packages/arc-framework && node --import tsx "$ARC_SCAN_DIR/schema-bundle-projection.mts" "$ARC_SCAN_DIR/bundle-base/packages/arc-framework" > "$ARC_SCAN_DIR/schema-bundle-base.json")
+```
+
+**Phase 3 post-merge comparison:** `git archive main packages/arc-framework` supplied the base package under
+`/tmp/arc-cli-substrate-inventory/bundle-base/`; its package-local and repository `node_modules` were linked to the
+current checkout. The sorted base bundle has 129 entries; the head bundle has 139. Added IDs are
+`active-session-init`, `base-distance`, `config-session-init`, `current-husk-advisory`, `dirty-state`,
+`domain-rules-session-init`, `extensions-session-init`, `release-routing`, `worktree-roster`, and `worktree-sync`.
+Only `session-init-envelope` and `session-recover-envelope` differ among existing IDs. No ID was removed.
+
+The unchanged `session-envelope-compat.e2e.test.ts` goldens pass (11/11). The first verifier run exposed key
+reordering in the fallback builder's parsing copy; amend-design's entry gate returned its minor-deviation arm
+because the settled contract already required wire stability. Task 3.4.b's correction commit `675a399a6` preserves
+the literal result order; the repeated golden run passed unchanged. `benchmark:session-envelope` reported validation
+p50 0.2208 ms and p95 0.4239 ms, with p50 at 0.0381% of cold-command p50; all three benchmark limits passed.
+
+**Phase 3 sweep:** The post-merge import graph and an AST named-import check found zero imports of the retired
+validation-surface, raw-Git-type, and `lib/user-sync/` barrel symbols listed in § Sweep recipes. A dynamic import,
+import-type, and mock scan found 20 old-path references; they target owned config/meta-reader functions or carved
+notes-sync APIs, not the retired names. The remaining 33 static `user-sync/index.ts` imports use carved notes-sync
+APIs or retained inference and current-WU helpers. The regex scan found no checkpoint drift custom wrap, and source
+search found no retired roster or base-distance thin view. `npm run typecheck:all` and the full 13,139-test lane passed
+after the base merge; compile-forced test mocks retained the new runtime worktree-schema export.
 
 ## Layout reconciliation
 

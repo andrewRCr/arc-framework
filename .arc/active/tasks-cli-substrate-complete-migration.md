@@ -263,21 +263,14 @@ recorded sweep recipes; see `notes-cli-substrate-complete-migration.md` § Segme
           refusal naming the field and carrying the checkpoint rerun command. Sync test mocks retain the newly
           imported worktree schema fields.
 
-### `[ ]` **3.5 Verify the envelope schema bundle and goldens** — validate exit criterion at segment scope
+### `[x]` **3.5 Verify the envelope schema bundle and goldens** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds as one batch at the post-merge head.
 
-- **Additional Context:** `notes-cli-substrate-complete-migration.md` § Schema bundle diff
-
-    - Write the bundle projection under notes § Schema bundle diff and diff the merge base's bundle against the head's;
-      confirm the diff is confined to the ten new roots and the session-init and session-recover envelopes.
-    - Build, then run `__tests__/e2e/session-envelope-compat.e2e.test.ts` without expectation changes, and run
-      `benchmark:session-envelope`, recording its validation latency against the benchmark's limits.
-    - Search for every retired re-export and every barrel route this segment retires; confirm the segment's matrix
-      rows carry their dispositions and evidence, and that its edits to carved code are compile-forced.
-    - Evidence for the Success Criteria on validation-surface re-exports, the session-envelope schemas and their
-      registration, the checkpoint drift wraps, and this segment's share of the bundle diff, the goldens, and the
-      `lib/user-sync/` barrel routing.
+- _Outcome:_ Merged current `main`, reran all three inventories and the retired-path sweeps, and refreshed the
+  segment's matrix counts. The sorted bundle diff adds exactly ten roots and changes only the two envelopes;
+  compatibility goldens remain unchanged and validation latency meets all benchmark limits. Evidence and the
+  reproducible bundle projection are in notes § Schema bundle diff.
 
 ## **Phase 4:** Command inputs and Git residual
 
