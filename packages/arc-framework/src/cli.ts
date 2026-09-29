@@ -2015,13 +2015,13 @@ localReviewCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-local-prepare-request", input);
       return;
     }
-    await (await import("./handlers/review.js")).handleReviewLocalPrepare(input ?? "");
-  });
+    await (await import("./handlers/review.js")).handleReviewLocalPrepare(input ?? "", {}, context);
+  }));
 
 localReviewCmd
   .command("attest")
@@ -2031,13 +2031,13 @@ localReviewCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-local-attest-request", input);
       return;
     }
-    await (await import("./handlers/review.js")).handleReviewLocalAttest(input ?? "");
-  });
+    await (await import("./handlers/review.js")).handleReviewLocalAttest(input ?? "", {}, context);
+  }));
 
 localReviewCmd
   .command("resume")
@@ -2047,13 +2047,13 @@ localReviewCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-local-resume-request", input);
       return;
     }
-    await (await import("./handlers/review.js")).handleReviewLocalResume(input ?? "");
-  });
+    await (await import("./handlers/review.js")).handleReviewLocalResume(input ?? "", {}, context);
+  }));
 
 reviewCmd
   .command("respond")
@@ -2063,13 +2063,13 @@ reviewCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-respond-request", input);
       return;
     }
-    await (await import("./handlers/review.js")).handleReviewRespond(input ?? "");
-  });
+    await (await import("./handlers/review.js")).handleReviewRespond(input ?? "", {}, context);
+  }));
 
 reviewCmd
   .command("reduce")
@@ -2079,13 +2079,13 @@ reviewCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-reduce-request", input);
       return;
     }
-    await (await import("./handlers/review.js")).handleReviewReduce(input ?? "");
-  });
+    await (await import("./handlers/review.js")).handleReviewReduce(input ?? "", {}, context);
+  }));
 
 reviewCmd
   .command("pre-publication <name>")

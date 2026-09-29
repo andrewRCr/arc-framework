@@ -314,12 +314,9 @@ path spawns Git through an unbound executor; the failure-text predicates and `re
         - Hosted request, await, and settle now route through constant machine mode. Their stores, nested request
           derivation and replay checks, and settlement lock use the command-bound Git executor.
 
-    - `[ ]` **4.1.d Wrap and bind local prepare, attest, and resume, and review respond and reduce**
-        - Build `test-first` (one behavior at a time):
-            - Called without a supplied context, each handler resolves a machine-mode process context
-            - Each handler's default dependencies build their executors from that context's subprocess policy
-            - The inventory case requires the five command paths to route through the adapter under a constant
-              machine-mode policy
+    - `[x]` **4.1.d Wrap and bind local prepare, attest, and resume, and review respond and reduce**
+        - All five adapters now declare constant machine mode; each handler defaults to that mode and constructs
+          its review dependency executor from the invocation's subprocess policy.
 
     - `[ ]` **4.1.e Add the three missing machine-mode declarations**
         - The `attest` and `publish` policy declarations, and both the adapter wrap and the declaration for `locus`,

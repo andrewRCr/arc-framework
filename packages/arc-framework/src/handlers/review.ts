@@ -17,7 +17,6 @@ import type { CommandInputRegistration } from "../lib/command-input/registry.js"
 import {
   createGitExec,
   createRawGitExec,
-  gitExec,
 } from "../lib/io-context.js";
 import {
   classifyPlanningLane,
@@ -2879,12 +2878,13 @@ export interface ReviewLocalPrepareHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultLocalPrepareDependencies(): ReviewLocalPrepareHandlerDependencies {
+function defaultLocalPrepareDependencies(context: InteractionContext): ReviewLocalPrepareHandlerDependencies {
+  const exec = createGitExec(context.subprocess);
   return {
     ...defaultReviewHandlerBoundary(),
     prepare: (request, root) => prepareLocalReview(
       request,
-      createLocalPrepareDependencies({ exec: gitExec, cwd: root }),
+      createLocalPrepareDependencies({ exec, cwd: root }),
     ),
   };
 }
@@ -2950,8 +2950,14 @@ function reviewCommandError(
 export async function handleReviewLocalPrepare(
   source: string,
   overrides: Partial<ReviewLocalPrepareHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
-  const dependencies = { ...defaultLocalPrepareDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultLocalPrepareDependencies(context), ...overrides };
   await executeReviewHandler({
     mode: "review-local-prepare",
     source,
@@ -2970,12 +2976,13 @@ export interface ReviewLocalAttestHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultLocalAttestDependencies(): ReviewLocalAttestHandlerDependencies {
+function defaultLocalAttestDependencies(context: InteractionContext): ReviewLocalAttestHandlerDependencies {
+  const exec = createGitExec(context.subprocess);
   return {
     ...defaultReviewHandlerBoundary(),
     attest: (request, root) => attestLocalReviewCommand(
       request,
-      createLocalAttestDependencies({ exec: gitExec, cwd: root }),
+      createLocalAttestDependencies({ exec, cwd: root }),
     ),
   };
 }
@@ -2990,8 +2997,14 @@ function defaultLocalAttestDependencies(): ReviewLocalAttestHandlerDependencies 
 export async function handleReviewLocalAttest(
   source: string,
   overrides: Partial<ReviewLocalAttestHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
-  const dependencies = { ...defaultLocalAttestDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultLocalAttestDependencies(context), ...overrides };
   await executeReviewHandler({
     mode: "review-local-attest",
     source,
@@ -3010,12 +3023,13 @@ export interface ReviewLocalResumeHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultLocalResumeDependencies(): ReviewLocalResumeHandlerDependencies {
+function defaultLocalResumeDependencies(context: InteractionContext): ReviewLocalResumeHandlerDependencies {
+  const exec = createGitExec(context.subprocess);
   return {
     ...defaultReviewHandlerBoundary(),
     resume: (request, root) => resumeLocalReviewCommand(
       request,
-      createLocalResumeDependencies({ exec: gitExec, cwd: root }),
+      createLocalResumeDependencies({ exec, cwd: root }),
     ),
   };
 }
@@ -3030,8 +3044,14 @@ function defaultLocalResumeDependencies(): ReviewLocalResumeHandlerDependencies 
 export async function handleReviewLocalResume(
   source: string,
   overrides: Partial<ReviewLocalResumeHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
-  const dependencies = { ...defaultLocalResumeDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultLocalResumeDependencies(context), ...overrides };
   await executeReviewHandler({
     mode: "review-local-resume",
     source,
@@ -3050,12 +3070,13 @@ export interface ReviewRespondHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultRespondDependencies(): ReviewRespondHandlerDependencies {
+function defaultRespondDependencies(context: InteractionContext): ReviewRespondHandlerDependencies {
+  const exec = createGitExec(context.subprocess);
   return {
     ...defaultReviewHandlerBoundary(),
     respond: (request, root) => respondToReviewCommand(
       request,
-      createRespondDependencies({ exec: gitExec, cwd: root }),
+      createRespondDependencies({ exec, cwd: root }),
     ),
   };
 }
@@ -3064,8 +3085,14 @@ function defaultRespondDependencies(): ReviewRespondHandlerDependencies {
 export async function handleReviewRespond(
   source: string,
   overrides: Partial<ReviewRespondHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
-  const dependencies = { ...defaultRespondDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultRespondDependencies(context), ...overrides };
   await executeReviewHandler({
     mode: "review-respond",
     source,
@@ -3084,12 +3111,13 @@ export interface ReviewReduceHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultReduceDependencies(): ReviewReduceHandlerDependencies {
+function defaultReduceDependencies(context: InteractionContext): ReviewReduceHandlerDependencies {
+  const exec = createGitExec(context.subprocess);
   return {
     ...defaultReviewHandlerBoundary(),
     reduce: (request, root) => reduceReviewCommand(
       request,
-      createReduceDependencies({ exec: gitExec, cwd: root }),
+      createReduceDependencies({ exec, cwd: root }),
     ),
   };
 }
@@ -3098,8 +3126,14 @@ function defaultReduceDependencies(): ReviewReduceHandlerDependencies {
 export async function handleReviewReduce(
   source: string,
   overrides: Partial<ReviewReduceHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
-  const dependencies = { ...defaultReduceDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultReduceDependencies(context), ...overrides };
   await executeReviewHandler({
     mode: "review-reduce",
     source,

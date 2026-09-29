@@ -223,6 +223,17 @@ describe("repository command-input inventory", () => {
     }
   });
 
+  it("routes local review and response JSON commands under a constant machine-mode policy", () => {
+    for (const path of [
+      "review local prepare", "review local attest", "review local resume",
+      "review respond", "review reduce",
+    ]) {
+      const command = snapshot.source.commands.find((entry) => entry.path === path);
+      expect(command?.action?.interactionContext, path).toBe(true);
+      expect(command?.action?.constantMachineMode, path).toBe(true);
+    }
+  });
+
   it("routes every terminal-prompt subprocess command through the interaction-context adapter", () => {
     const subprocessCommands = new Set(inventory.entries
       .filter((entry) => entry.subprocess === "terminal-prompts")
