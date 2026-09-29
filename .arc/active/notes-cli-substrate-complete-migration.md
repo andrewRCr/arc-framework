@@ -447,8 +447,26 @@ Register citations below name the corresponding **Storage-coupling register** ro
 
 ### Layout per-file rows
 
-| File | Class | Kind | Owner | Hits | Lines |
-| ---- | ----- | ---- | ----- | ---: | ----- |
+| File                                  | Class             | Kind                                            | Owner                            | Hits | Lines                                                                                       |
+| ------------------------------------- | ----------------- | ----------------------------------------------- | -------------------------------- | ---: | ------------------------------------------------------------------------------------------- |
+| `src/commands/diff.ts`                | `arc-root`        | `independent-evidence`                          | installer diagnostics            |    5 |                                                                                             |
+| `src/commands/health.ts`              | `arc-root`        | `independent-evidence`                          | installer diagnostics            |    4 |                                                                                             |
+| `src/commands/init.ts`                | `arc-root`        | `independent-evidence`; `semantic-policy-owner` | installer output / ignore policy |   11 | independent-evidence: 4,77,177,225,237,318,334,337; semantic-policy-owner: 277,278,279      |
+| `src/commands/init.ts`                | `template-suffix` | `independent-evidence`                          | installer diagnostics            |    1 |                                                                                             |
+| `src/commands/init.ts`                | `workflow-root`   | `independent-evidence`                          | installer diagnostics            |    1 |                                                                                             |
+| `src/commands/join.ts`                | `arc-root`        | `independent-evidence`; `semantic-policy-owner` | installer output / ignore policy |   13 | independent-evidence: 4,6,70,82,172,186,276; semantic-policy-owner: 116,117,118,221,222,223 |
+| `src/commands/reconfigure.ts`         | `arc-root`        | `semantic-policy-owner`                         | file and ignore policy           |    3 |                                                                                             |
+| `src/commands/update.ts`              | `arc-root`        | `independent-evidence`; `semantic-policy-owner` | installer output / ignore policy |    6 | independent-evidence: 519,545,586; semantic-policy-owner: 433,434,435                       |
+| `src/handlers/init.ts`                | `arc-root`        | `independent-evidence`                          | installer diagnostics            |    7 |                                                                                             |
+| `src/lib/change-facts.ts`             | `arc-root`        | `semantic-policy-owner`; `external-owner`       | change classifier; `R-CI`        |    6 | semantic-policy-owner: 306,309; external-owner (`R-CI`): 392,393,394,396                    |
+| `src/lib/change-facts.ts`             | `template-suffix` | `semantic-policy-owner`                         | file and ignore policy           |    1 |                                                                                             |
+| `src/lib/classification.ts`           | `method-root`     | `semantic-policy-owner`                         | file and ignore policy           |   26 |                                                                                             |
+| `src/lib/classification.ts`           | `template-suffix` | `semantic-policy-owner`                         | file and ignore policy           |   11 |                                                                                             |
+| `src/lib/kernel/schema/vocabulary.ts` | `template-suffix` | `scanner-false-positive`                        | identifier syntax                |    1 |                                                                                             |
+| `src/lib/manifest/apply.ts`           | `arc-root`        | `independent-evidence`                          | source documentation             |    1 |                                                                                             |
+| `src/lib/manifest/apply.ts`           | `template-suffix` | `scanner-false-positive`                        | identifier syntax                |   10 |                                                                                             |
+| `src/lib/markdown/format-plan.ts`     | `template-suffix` | `scanner-false-positive`                        | identifier syntax                |    1 |                                                                                             |
+| `src/prompts/removal-prompts.ts`      | `arc-root`        | `independent-evidence`                          | installer diagnostics            |    3 |                                                                                             |
 
 ### Carved-module predicates
 
@@ -731,6 +749,15 @@ mismatches. Output: `/tmp/arc-cli-substrate-inventory/layout-reconcile.json`.
 Candidate-record hit and 133 template hits to unmatched reports. Set comparison against those two rules' baseline
 assignments found zero missing or unexpected hits. Restoring both rules returns them to zero unmatched; the other
 1,125 outstanding code hits do not change. Output: `/tmp/arc-cli-substrate-inventory/layout-reconcile-negative.json`.
+
+**Install and file-classification pass:** Eighteen per-file rows now assign 111 code hits. The counted rows separate
+installer diagnostics, Git ignore and classification policy, and the planning-lane classifier's `R-CI` symbols;
+source template names remain classification policy, while `templateFile` and `z.templateLiteral` matches are scanner
+false positives. The post-pass scan has 18,391 hits with 978 unmatched code hits, zero unmatched non-code hits, and
+zero overlaps, unused rules, or count mismatches. Its per-file negative control removes
+`file|src/commands/diff.ts|arc-root` together with the Candidate-record and template predicates above. They own
+5, 1, and 133 hits respectively; exactly those 139 identities became newly unmatched, with zero missing or
+unexpected identities. The restored table assigns them all again.
 
 ## Work-unit state-path recount
 

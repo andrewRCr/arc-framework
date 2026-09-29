@@ -488,7 +488,7 @@ kind.
           removed — each chosen with no less specific rule to fall back to — the reconciliation reports exactly their
           hits beyond the unremoved run's report; restored, it reports none of them.
 
-### `[ ]` **5.3 Move framework-path construction onto the resolver — D6**
+### `[x]` **5.3 Move framework-path construction onto the resolver — D6**
 
 - _Goal:_ Surviving TypeScript builds every framework path a resolver token covers through the resolver, and every
   owner of an `.arc/system` descendant the resolver does not select composes its own suffix onto the resolved
@@ -516,8 +516,12 @@ kind.
         - Recorded the rerunnable search and rewrite in notes § Sweep recipes. State-path construction remains
           carved for Task 5.4.b and residual framework literals take Task 5.4.c dispositions.
 
-    - `[ ]` **5.3.c Migrate or dispose the install and file-classification hits**
-        - Most may take a disposition kind instead; any that fit no kind migrate.
+    - `[x]` **5.3.c Migrate or dispose the install and file-classification hits**
+        - Disposed 111 counted hits in 18 per-file rows. Install diagnostics are independent evidence; Git ignore,
+          source-template, and file-classification literals are semantic policy; `templateFile` and
+          `z.templateLiteral` matches are scanner false positives. The planning-lane split cites `R-CI`.
+        - Reconciliation assigns all 111 with no overlap or count drift. The remaining code queue belongs to the
+          state-path and framework residual passes in Task 5.4.
 
 ### `[ ]` **5.4 Dispose the remaining code-surface layout hits — D6, D10**
 
