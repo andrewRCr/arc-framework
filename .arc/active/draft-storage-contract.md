@@ -22,17 +22,17 @@
 - **Resolved (2026-09-29):** stage entry (§ Stage entry); what lands here and what is handed off (§ What this work unit
   lands); the register's landing route (§ The storage-coupling register); inbox write serialization (C1); ghost mode as
   a core requirement with a middle-ground split (C8); record format skew (C2); the register sweep, landed on `main` (PR
-  #738); the Inbound Buffer, integrated into the ledger and the consumer map; reverse lookup and assurance-chain
-  carry-forward (C1); project identity (C7); the GitHub Enterprise Server host test, which held (C3); shared surfaces
-  projected into every worktree, the `active/` layout with ownership by folder and edit rights under `in-flight/`, the
-  projection's name, the firing points with `arc save`, and opt-in editor settings (C6); the two-level family model and
-  the family list, review evidence as stored, and machine-local state as a projection property (C2); identity as a
-  name plus a UID (C2), the ref surfaces keyed by UID (C3), and slug guards and entry IDs (C4); the local copy
-  following the remote — the code repository's refs by default, a separate Git directory otherwise (C3); conflicts
-  shown in the projected file with standard markers, and a removal racing an edit leaving the edit, with routing
-  receipts (C4); the inbound list as its own kind, which any session routes into directly (C4); the design envelope,
-  confirmed by arithmetic, with a push-contention tripwire (C4); the cohort document's home and parked placement,
-  with edit rights following lifecycle state (C6).
+  #738), and the first batch of decision amendments (PR #742); the Inbound Buffer, integrated into the ledger and the
+  consumer map; reverse lookup and assurance-chain carry-forward (C1); project identity (C7); the GitHub Enterprise
+  Server host test, which held (C3); shared surfaces projected into every worktree, the `active/` layout with ownership
+  by folder and edit rights under `in-flight/`, the projection's name, the firing points with `arc save`, and opt-in
+  editor settings (C6); the two-level family model and the family list, review evidence as stored, and machine-local
+  state as a projection property (C2); identity as a name plus a UID (C2), the ref surfaces keyed by UID (C3), and slug
+  guards and entry IDs (C4); the local copy following the remote — the code repository's refs by default, a separate Git
+  directory otherwise (C3); conflicts shown in the projected file with standard markers, and a removal racing an edit
+  leaving the edit, with routing receipts (C4); the inbound list as its own kind, which any session routes into directly
+  (C4); the design envelope, confirmed by arithmetic, with a push-contention tripwire (C4); the cohort document's home
+  and parked placement, with edit rights following lifecycle state (C6).
 - **Open:** every `Open` item in § Decision ledger; the consumer map.
 - **Next:** the consumer map, then the remaining detail items and the core-or-deferred tags (C14).
 
@@ -342,8 +342,8 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
   work-unit claims, with hot counters reserving a block per process.
     - **Refined** (Owner, 2026-09-29; C6): a work unit's meta and task list stay single-writer, written only from its
       own checkout; its prose may also be written from the owner's other checkouts, through compare-and-swap and
-      three-way line merge, so the work-unit ref gains a merge path and the conformance suite covers it. ADR-035 takes
-      a dated amendment.
+      three-way line merge, so the work-unit ref gains a merge path and the conformance suite covers it. ADR-035 carries
+      this as a dated amendment (PR #742).
     - **Refined** (Owner, 2026-09-29; C2): identity is a UID, so a slug is no longer claimed by compare-and-swap on
       ref creation; C2's two guards hold slug uniqueness, and the same ADR-035 amendment covers item 7's "exact
       claims" wording. Record numbers stay compare-and-swap claims.
@@ -806,23 +806,16 @@ across code, rules, strategies, workflows, drafts, `WORKING-MEMORY`, and `USER-I
 by tracked or notes-backed state rather than for state by size.
 
 - **Route** (Owner, 2026-09-29): candidates are verified against source here; settled amendments land on `main` in
-  batches through the planning-grooming lane, so siblings and `cli-substrate-complete-migration` read current rows.
+  batches through the planning-grooming lane, so siblings and `cli-substrate-complete-migration` read current rows. A
+  batch that amends an ADR is not plain planning and takes the reviewed lane.
 - **Row identity is preserved.** `cli-substrate-complete-migration`'s residual matrix cites rows by key (`R-NS`,
   `R-BR`, `R-LOCK`, and others): amend a row's fate text or add rows, never rename or remove one it cites.
 - **Grain.** The register names mechanisms; instances go to the consumer map.
 - **Status:** the sweep covered code, rules, strategies, workflows, backlog drafts, ADRs, `WORKING-MEMORY`, and
-  `USER-INBOX`; its verified results landed on `main` in PR #738 (2026-09-29), taking the register from 42 rows to
-  79. The consumer map may add rows.
-- **Pending amendments** for the next batch to `main` (C6): the primary-rooted user files row's fate becomes
-  "retire the rooting and the migration"; the per-worktree isolation row's invariant becomes "`active/current/`
-  holds only this checkout's work unit"; and the `active-layout-nesting` row retires that stub (Owner), since
-  `current/` and `in-flight/<slug>/` give `active/` the per-work-unit folders it asked for, at the flip rather than
-  as a tracked layout change. ADR-035 takes a dated amendment for the work-unit write rule (C4). From C2: the
-  per-work-unit workspace row's fate names review evidence as stored at project scope; the notes-sync row's
-  never-sync boundary is replaced by the projection's local-only path set; and a new `storage-ref-backend` row covers
-  personal subdirectories (`archive/`, `drafts/`), which notes sync reads as work-unit workspaces and never saves, so
-  the import classifies them as personal documents. From C3: the archival row's fate adds that the archive index
-  (`completed-index.ts`) gives way to each entry's order in its quarter's archive ref.
+  `USER-INBOX`; its verified results landed on `main` in PR #738 (2026-09-29), taking the register from 42 rows to 79.
+  The decisions settled since landed in PR #742 (2026-09-29): six fates amended from C2, C3, C4, and C6, two rows added
+  (personal subdirectories, and hold-and-route), ADR-035's dated amendment for the work-unit write rule and slug claims,
+  and the `active-layout-nesting` stub retired with its row closed — 81 rows. The consumer map may add rows.
 - **Route at planning close,** as `USER-INBOX` captures under the coordination-seam rule, one per unit whose plan
   assumes tracked or notes-backed state but needs no register row — a note for its next planning:
     - `composable-workflows` — fixtures assume the notes channel (`arc user pull`, notes-only offers) and a grooming
