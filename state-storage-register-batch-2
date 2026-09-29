@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "state-storage-register-batch-2",
+  "claimId": "dcf2ae7cad7205e4ae76a1bdc6f4a203",
+  "createdAt": "2026-09-29T20:19:06.167Z",
+  "updatedAt": "2026-09-29T20:19:06.167Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Land storage-contract's settled storage-coupling register amendments and the ADR-035 dated amendment on main",
+  "branch": "chore/state-storage-register-batch-2",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
