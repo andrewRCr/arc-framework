@@ -407,7 +407,12 @@ Register citations below name the corresponding **Storage-coupling register** ro
 | lifecycle-contribution and path-treatment tests                             | same tests                              | carved           | `R-LC`                        |         — | test paths; Task 7.5             |
 | planning-lane cases in `change-facts` tests                                 | same cases                              | carved           | `R-CI`                        |         — | test paths; Task 7.5             |
 | inbox-writer and execution-offer tests                                      | same tests                              | retained by rule | `R-NS` survivor               |         — | test paths; Task 7.5             |
-| `testing-standards` project override                                        | shared support guidance                 | migrated         | Spec § 9                      |         — | Task 2.5                         |
+| `testing-standards` project override                                        | shared support guidance                 | migrated         | Spec § 9                      |         — | Task 2.5; project-only           |
+
+#### Shipped-content register
+
+- `testing-standards` shared-support guidance lives in the project override at
+  `.arc/system/methods/testing-standards.md`; the package source has no override, so Task 2.5 has no package sync.
 
 ### Layout per-file rows
 

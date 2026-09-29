@@ -136,17 +136,14 @@ shared support and the doubles that stay local.
           subject; `base-advance.ts` retains its arrangement runner without runtime `src/` imports, and the
           `e2e/race-worker.ts` executors remain real-Git plumbing for the spawned worker.
 
-### `[ ]` **2.5 Name the shared test support in the `testing-standards` project override — D9**
+### `[x]` **2.5 Name the shared test support in the `testing-standards` project override — D9**
 
 - _Goal:_ A test author who loads `testing-standards` learns to script `GitExec` through the shared fake with
   `GitProcessError` failures, build meta fixtures with the builder, and assert schemas through the helper — and which
   doubles stay local.
 
-- _Note:_ The override exists only in `.arc/system/methods/testing-standards.md`; the package copy carries none, so
-  no package sync applies. Write the bullet in the shipped-content register.
-
-    - Add one bullet to the override: the shared fake, fixture, builder, and helper, and the doubles that stay local —
-      constant one-response stubs, real-Git doubles, fault-injecting hybrids, and scenario simulators.
+- _Outcome:_ The project override names the Git fake and typed failure fixture, meta builder, and schema assertion
+  helper, with the four categories of local doubles. The shipped-content register records why no package sync applies.
 
 ## **Phase 3:** Validation surfaces and session envelope
 
