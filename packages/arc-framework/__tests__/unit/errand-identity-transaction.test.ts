@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { makeGitProcessError } from "../helpers/git-exec-fake.js";
+import { makeGitProcessError, scriptGitExec } from "../helpers/git-exec-fake.js";
 import { reconcileIdentityObjects } from "../../src/lib/errand/identity-transaction.js";
 import { transactTransientIdentities } from "../../src/lib/errand/identity-transaction.js";
 import { TransientIdentityRecordV3Schema } from "../../src/lib/errand/identity-record.js";
@@ -70,33 +70,27 @@ function transactionIO(options: {
   writeFailures?: GitProcessError[];
   pushFailures?: GitProcessError[];
 } = {}): ErrandRecordIO {
-  const writes = [...(options.writeFailures ?? [])];
-  const pushes = [...(options.pushFailures ?? [])];
   return {
     identity: "andrew",
     execInput: async () => oid,
-    exec: async (command, args) => {
-      if (args[0] === "fetch") {
-        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "couldn't find remote ref" });
-      }
-      if (args[0] === "rev-parse") {
-        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "Needed a single revision" });
-      }
-      if (args[0] === "commit-tree") return { stdout: oid };
-      if (args[0] === "update-ref") {
-        if (args[1] !== "-d") {
-          const failure = writes.shift();
-          if (failure !== undefined) throw failure;
-        }
-        return { stdout: "" };
-      }
-      if (args[0] === "push") {
-        const failure = pushes.shift();
-        if (failure !== undefined) throw failure;
-        return { stdout: "" };
-      }
-      throw new Error(`unexpected Git operation: ${args.join(" ")}`);
-    },
+    exec: scriptGitExec([
+      { match: { prefix: ["fetch"] }, responses: [{ failure: {
+        exitCode: 128, stderr: "couldn't find remote ref",
+      } }] },
+      { match: { prefix: ["rev-parse"] }, responses: [{ failure: {
+        exitCode: 128, stderr: "Needed a single revision",
+      } }] },
+      { match: { prefix: ["commit-tree"] }, responses: [{ stdout: oid }] },
+      { match: { prefix: ["update-ref", "-d"] }, responses: [{ stdout: "" }] },
+      { match: { prefix: ["update-ref"] }, responses: [
+        ...(options.writeFailures ?? []).map((failure) => () => { throw failure; }),
+        { stdout: "" },
+      ] },
+      { match: { prefix: ["push"] }, responses: [
+        ...(options.pushFailures ?? []).map((failure) => () => { throw failure; }),
+        { stdout: "" },
+      ] },
+    ]).exec,
   };
 }
 

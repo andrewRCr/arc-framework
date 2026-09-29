@@ -18,7 +18,7 @@ import { tmpdir } from "node:os";
 
 import { runReleaseCommit } from "../../../../src/handlers/release/commit.js";
 import type { ReleaseCommitDeps } from "../../../../src/handlers/release/commit.js";
-import type { AuditEntry } from "../../../../src/lib/release/schema.js";
+import { AuditEntrySchema, type AuditEntry } from "../../../../src/lib/release/schema.js";
 import type {
   CommitInterlock,
   PushInterlock,
@@ -183,7 +183,7 @@ async function readAuditEntries(root: string): Promise<AuditEntry[]> {
   return raw
     .split("\n")
     .filter((line) => line.length > 0)
-    .map((line) => JSON.parse(line) as AuditEntry);
+    .map((line) => AuditEntrySchema.parse(JSON.parse(line)));
 }
 
 // --- Code 12: destructive flag (cheapest — argv only, no I/O) ---

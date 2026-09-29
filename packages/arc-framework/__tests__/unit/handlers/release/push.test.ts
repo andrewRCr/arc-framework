@@ -20,7 +20,7 @@ import { tmpdir } from "node:os";
 
 import { runReleasePush } from "../../../../src/handlers/release/push.js";
 import type { ReleasePushDeps } from "../../../../src/handlers/release/push.js";
-import type { AuditEntry } from "../../../../src/lib/release/schema.js";
+import { AuditEntrySchema, type AuditEntry } from "../../../../src/lib/release/schema.js";
 import type {
   PushabilityCondition,
   PushabilityResult,
@@ -181,7 +181,7 @@ async function readAuditEntries(root: string): Promise<AuditEntry[]> {
   return raw
     .split("\n")
     .filter((line) => line.length > 0)
-    .map((line) => JSON.parse(line) as AuditEntry);
+    .map((line) => AuditEntrySchema.parse(JSON.parse(line)));
 }
 
 // --- Code 12: destructive flag (cheapest — argv only, no I/O) ---

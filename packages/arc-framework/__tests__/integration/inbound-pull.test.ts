@@ -10,6 +10,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { executeInboundPull } from "../../src/lib/git/inbound-pull.js";
 import { makeGitExec, execFileAsync, writeFile, join } from "../helpers/integration.js";
 import { setupMultiClone, type MultiClone } from "../helpers/multi-clone.js";
+import { scriptGitExec } from "../helpers/git-exec-fake.js";
 
 const FETCH_TIMEOUT_MS = 10_000;
 
@@ -118,20 +119,18 @@ describe("executeInboundPull (integration)", () => {
   });
 
   it("surfaces malformed distance output before reading dirt or attempting a merge", async () => {
-    const calls: string[][] = [];
+    const { exec, calls } = scriptGitExec([
+      { match: { prefix: ["fetch"] }, responses: [{ stdout: "" }] },
+      { match: { prefix: ["rev-list"] }, responses: [{ stdout: "0 malformed\n" }] },
+    ]);
     const result = await executeInboundPull({
-      exec: async (_cmd, args) => {
-        calls.push(args);
-        if (args[0] === "fetch") return { stdout: "" };
-        if (args[0] === "rev-list") return { stdout: "0 malformed\n" };
-        throw new Error(`unexpected call: ${args.join(" ")}`);
-      },
+      exec,
       branch: "main",
       policy: "always",
       isTty: false,
       fetchTimeoutMs: FETCH_TIMEOUT_MS,
     });
     expect(result).toEqual({ decision: "surface", fastForwarded: false, ahead: 0, behind: 0 });
-    expect(calls.some((args) => args[0] === "status" || args[0] === "merge")).toBe(false);
+    expect(calls.some(({ args }) => args[0] === "status" || args[0] === "merge")).toBe(false);
   });
 });

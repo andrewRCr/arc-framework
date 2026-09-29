@@ -21,7 +21,7 @@ import {
   toAuditWorkUnit,
 } from "../../../src/lib/release/audit-log.js";
 import { REFUSAL_IDENTIFIERS } from "../../../src/lib/release/types.js";
-import type { AuditEntry } from "../../../src/lib/release/schema.js";
+import { AuditEntrySchema, type AuditEntry } from "../../../src/lib/release/schema.js";
 
 interface Fixture {
   root: string;
@@ -203,7 +203,7 @@ describe("toAuditWorkUnit — resolver-result mapping", () => {
 });
 
 function commitEntry(overrides: Record<string, unknown> = {}): AuditEntry {
-  return {
+  return AuditEntrySchema.parse({
     schemaVersion: 2,
     timestamp: "2026-05-08T12:00:00.000Z",
     command: "release-commit",
@@ -218,11 +218,11 @@ function commitEntry(overrides: Record<string, unknown> = {}): AuditEntry {
     refusalCode: null,
     outcome: { kind: "commit", hash: "abc1234" },
     ...overrides,
-  } as unknown as AuditEntry;
+  });
 }
 
 function pushEntry(overrides: Record<string, unknown> = {}): AuditEntry {
-  return {
+  return AuditEntrySchema.parse({
     schemaVersion: 2,
     timestamp: "2026-05-08T12:00:01.000Z",
     command: "release-push",
@@ -237,11 +237,11 @@ function pushEntry(overrides: Record<string, unknown> = {}): AuditEntry {
     refusalCode: null,
     outcome: { kind: "push", refStatus: "fast-forward" },
     ...overrides,
-  } as unknown as AuditEntry;
+  });
 }
 
 function syncEntry(overrides: Record<string, unknown> = {}): AuditEntry {
-  return {
+  return AuditEntrySchema.parse({
     schemaVersion: 2,
     timestamp: "2026-05-08T12:00:02.000Z",
     command: "sync",
@@ -257,7 +257,12 @@ function syncEntry(overrides: Record<string, unknown> = {}): AuditEntry {
     refusalCode: null,
     outcome: { kind: "sync", cell: "clean", worktree: "ran", notes: "ran", exitCode: 0 },
     ...overrides,
-  } as unknown as AuditEntry;
+  });
+}
+
+/** Deliberately bypass construction validation to exercise the writer's refusal boundary. */
+function invalidAuditEntry(base: AuditEntry, overrides: Record<string, unknown>): AuditEntry {
+  return { ...base, ...overrides } as AuditEntry;
 }
 
 describe("appendAuditEntry — append + round-trip", () => {
@@ -327,7 +332,7 @@ describe("appendAuditEntry — schema enforcement (throws on violation)", () => 
 
   it("reports stable boundary paths without echoing values before filesystem effects", async () => {
     const secret = "do-not-echo-this-message";
-    const entry = commitEntry({ args: [secret, 42] });
+    const entry = invalidAuditEntry(commitEntry(), { args: [secret, 42] });
 
     await expect(appendAuditEntry({ ...ctx(fixture.root), entry })).rejects.toThrow(
       /audit-log: invalid entry at .*args\.1/,
@@ -342,19 +347,19 @@ describe("appendAuditEntry — schema enforcement (throws on violation)", () => 
   });
 
   it.each([1, 99])("throws when schemaVersion is %i", async (schemaVersion) => {
-    const entry = commitEntry({ schemaVersion: schemaVersion as 2 });
+    const entry = invalidAuditEntry(commitEntry(), { schemaVersion });
     await expect(appendAuditEntry({ ...ctx(fixture.root), entry })).rejects.toThrow(/schemaVersion/);
   });
 
   it("throws on unknown command discriminator", async () => {
-    const entry = commitEntry({ command: "release-clone" as AuditEntry["command"] });
+    const entry = invalidAuditEntry(commitEntry(), { command: "release-clone" });
     await expect(
       appendAuditEntry({ ...ctx(fixture.root), entry }),
     ).rejects.toThrow(/command/);
   });
 
   it("throws when interlockState.command does not match top-level command", async () => {
-    const entry = commitEntry({
+    const entry = invalidAuditEntry(commitEntry(), {
       interlockState: {
         command: "release-push",
         pushInterlock: { value: "on-sync", source: "git-config" },
@@ -367,7 +372,7 @@ describe("appendAuditEntry — schema enforcement (throws on violation)", () => 
   });
 
   it("throws when outcome.kind is not allowed for the command (release-commit + push)", async () => {
-    const entry = commitEntry({
+    const entry = invalidAuditEntry(commitEntry(), {
       outcome: { kind: "push", refStatus: "fast-forward" },
     });
     await expect(
@@ -376,7 +381,7 @@ describe("appendAuditEntry — schema enforcement (throws on violation)", () => 
   });
 
   it("throws when outcome.kind is not allowed for the command (sync + commit)", async () => {
-    const entry = syncEntry({
+    const entry = invalidAuditEntry(syncEntry(), {
       outcome: { kind: "commit", hash: "abc" },
     });
     await expect(
@@ -403,7 +408,7 @@ describe("appendAuditEntry — schema enforcement (throws on violation)", () => 
   });
 
   it("rejects hook-failed outcome for sync (sync has no hook-failed arm)", async () => {
-    const entry = syncEntry({
+    const entry = invalidAuditEntry(syncEntry(), {
       outcome: { kind: "hook-failed", hook: "pre-push", exitCode: 1 },
     });
     await expect(
@@ -412,14 +417,14 @@ describe("appendAuditEntry — schema enforcement (throws on violation)", () => 
   });
 
   it("throws when decision is `proceeded` but refusalCode is non-null", async () => {
-    const entry = commitEntry({ decision: "proceeded", refusalCode: 10 });
+    const entry = invalidAuditEntry(commitEntry(), { decision: "proceeded", refusalCode: 10 });
     await expect(
       appendAuditEntry({ ...ctx(fixture.root), entry }),
     ).rejects.toThrow(/refusalCode/);
   });
 
   it("throws when decision is `refused` but refusalCode is null", async () => {
-    const entry = commitEntry({
+    const entry = invalidAuditEntry(commitEntry(), {
       decision: "refused",
       refusalCode: null,
       outcome: { kind: "refused" },
@@ -453,7 +458,7 @@ describe("appendAuditEntry — schema enforcement (throws on violation)", () => 
   );
 
   it("rejects preflight failure for non-commit commands", async () => {
-    const entry = pushEntry({
+    const entry = invalidAuditEntry(pushEntry(), {
       decision: "refused",
       refusalCode: 16,
       outcome: { kind: "preflight-failed", reason: "validation" },
@@ -465,7 +470,7 @@ describe("appendAuditEntry — schema enforcement (throws on violation)", () => 
     { decision: "proceeded" as const, refusalCode: null },
     { decision: "refused" as const, refusalCode: 15 as const },
   ])("rejects preflight outcome with an inconsistent decision/code", async (overrides) => {
-    const entry = commitEntry({
+    const entry = invalidAuditEntry(commitEntry(), {
       ...overrides,
       outcome: { kind: "preflight-failed", reason: "input" },
     });

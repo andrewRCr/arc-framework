@@ -5,6 +5,7 @@
 import { access, chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 import {
   cleanupTempDir,
@@ -15,6 +16,13 @@ import {
   runArcWithStdoutPipe,
   runArcWithStdin,
 } from "./helpers.js";
+
+/** Presentation cases use semantic setup; selection cases keep independent literal evidence. */
+async function writePresentationMeta(cwd: string): Promise<void> {
+  await writeFile(join(cwd, ".arc", "active", "meta-feature.md"), makeMetaFixture("feature", {
+    branch: "main", taskList: "tasks-feature.md", nextAction: "Continue implementation",
+  }));
+}
 
 describe("arc view", () => {
   let cwd: string;
@@ -46,6 +54,7 @@ describe("arc view", () => {
   afterEach(async () => cleanupTempDir(cwd));
 
   it("writes the plain artifact body with no ANSI decoration", async () => {
+    await writePresentationMeta(cwd);
     const result = await runArcNoTty(["view"], cwd);
 
     expect(result.exitCode).toBe(0);
@@ -130,6 +139,7 @@ describe("arc view", () => {
   });
 
   it("applies the user-scoped clock to non-TTY headers and surfaces invalid overrides", async () => {
+    await writePresentationMeta(cwd);
     await writeFile(join(cwd, ".arc", "active", "spec-feature.md"), "# Spec\n");
     await git(cwd, ["config", "arc.viewClock", "12h"]);
     const twelveHour = await runArcNoTty(["view", "spec"], cwd);
@@ -142,6 +152,7 @@ describe("arc view", () => {
   });
 
   it("does not hang when stdin is piped", async () => {
+    await writePresentationMeta(cwd);
     const result = await runArcWithStdin(["view", "tasks"], cwd, "ignored input\n", {
       timeout: 5_000,
     });
@@ -160,6 +171,7 @@ describe("arc view", () => {
   });
 
   it("emits the bare current-task region and explicit degrade states", async () => {
+    await writePresentationMeta(cwd);
     const current = await runArcNoTty(["view", "tasks", "--current"], cwd);
     expect(current).toEqual({
       stdout: "### `[ ]` **1.1 First task**\n\n- _Goal:_ Complete the first task.\n",
@@ -189,6 +201,7 @@ describe("arc view", () => {
   it.runIf(process.platform === "linux")(
     "composes a detected renderer through pager mode exactly once under a TTY",
     async () => {
+      await writePresentationMeta(cwd);
       const { binDir, logPath } = await installFakeGlow(cwd);
       const result = await runArc(["view", "tasks"], cwd, {
         env: {
@@ -210,6 +223,7 @@ describe("arc view", () => {
   it.runIf(process.platform === "linux")(
     "opens an anchor-capable pager at the shifted current-task line",
     async () => {
+      await writePresentationMeta(cwd);
       const { binDir, logPath } = await installFakeBat(cwd);
       await git(cwd, ["config", "arc.viewRenderer", "bat"]);
       const result = await runArc(["view", "tasks"], cwd, {
@@ -230,6 +244,7 @@ describe("arc view", () => {
   it.runIf(process.platform === "linux")(
     "prints the artifact path under --path without rendering, even under a TTY",
     async () => {
+      await writePresentationMeta(cwd);
       const { binDir, logPath } = await installFakeGlow(cwd);
       const result = await runArc(["view", "tasks", "--path"], cwd, {
         env: {
@@ -247,6 +262,7 @@ describe("arc view", () => {
   );
 
   it("fails --path for an absent artifact and refuses --path with --current", async () => {
+    await writePresentationMeta(cwd);
     const absent = await runArcNoTty(["view", "spec", "--path"], cwd);
     expect(absent.exitCode).toBe(1);
     expect(absent.stdout).toBe("");
@@ -259,6 +275,7 @@ describe("arc view", () => {
   });
 
   it("does not probe or spawn a renderer under non-TTY", async () => {
+    await writePresentationMeta(cwd);
     const { binDir, logPath } = await installFakeGlow(cwd);
     const result = await runArcNoTty(["view", "tasks"], cwd, {
       env: {
@@ -272,6 +289,7 @@ describe("arc view", () => {
   });
 
   it.runIf(process.platform === "linux")("uses plain output when only stdout is piped", async () => {
+    await writePresentationMeta(cwd);
     const { binDir, logPath } = await installFakeGlow(cwd);
     const result = await runArcWithStdoutPipe(["view", "tasks"], cwd, {
       env: {

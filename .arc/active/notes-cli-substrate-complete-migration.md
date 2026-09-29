@@ -5,6 +5,23 @@ how each segment closes, the session-envelope roots and the schema bundle check,
 state-path recount behind the storage register's row, the `gitExec` singleton importers and other unbound executors,
 the sweep recipes and test-cost baselines execution records, and the review-projection tooling.
 
+## Contents
+
+- [Inventory method](#inventory-method)
+- [Residual matrix](#residual-matrix)
+- [Segment boundaries](#segment-boundaries)
+- [Session-envelope roots](#session-envelope-roots)
+- [Schema bundle diff](#schema-bundle-diff)
+- [Layout reconciliation](#layout-reconciliation)
+- [Work-unit state-path recount](#work-unit-state-path-recount)
+- [Git executor importers](#gitexec-singleton-importers)
+- [Sweep recipes](#sweep-recipes)
+- [Test-cost baselines](#test-cost-baselines)
+- [Review projection](#review-projection)
+- [Verification corrections](#verification-corrections)
+- [Terminal verification evidence](#terminal-verification-evidence)
+- [Verification coverage plan](#verification-coverage-plan)
+
 ## Inventory method
 
 The spec's counts were taken at `7ddab4979` with three scans:
@@ -426,45 +443,50 @@ Register citations below name the corresponding **Storage-coupling register** ro
 
 ### Test-support contract
 
-| Surface                                                                     | Destination                             | Disposition      | Citation                      | Importers | Evidence                         |
-| --------------------------------------------------------------------------- | --------------------------------------- | ---------------- | ----------------------------- | --------: | -------------------------------- |
-| repeated scripted `GitExec` doubles                                         | `__tests__/helpers/git-exec-fake.ts`    | migrated         | Spec § 9                      |         — | test scan; Tasks 2.1, 7.1, 7.4   |
-| hand-built Git failure rejections                                           | shared `GitProcessError` fixture        | migrated         | Spec § 9                      |         — | regex candidates; Tasks 2.1, 7.1 |
-| scripted `GitExecInput` and `RawGitExec` doubles                            | shared fake variants                    | migrated         | Spec § 9                      |         — | test scan; Task 2.1.c            |
-| handwritten meta fixture blocks                                             | `__tests__/helpers/meta-fixture.ts`     | migrated         | Spec § 9                      |         — | regex candidates; Tasks 2.2, 7.2 |
-| inline `.safeParse(...).success` assertions                                 | `__tests__/helpers/schema-assertion.ts` | migrated         | Spec § 9                      |         — | regex candidates; Tasks 2.3, 7.3 |
-| registered output casts in tests                                            | schema parse                            | migrated         | Spec § 9                      |         — | Task 7.3                         |
-| `makeGitExecInput` in `__tests__/helpers/integration.ts`                    | execa input adapter                     | migrated         | Spec § 9                      |      M:74 | Task 2.4.a; 22 suites            |
-| `stubGitExec` in `__tests__/helpers/integration.ts`                         | `__tests__/integration/active.test.ts`  | migrated         | Spec § 9                      |         1 | Task 2.4.b; active suite         |
-| `makeGitNoteWriter` and `makeGitNoteReader`                                 | same helpers                            | carved           | `R-NS`                        |      M:74 | Task 2.4.c; notes seam           |
-| `base-advance.ts` raw `git()` runner                                        | same helper                             | retained by rule | Spec § 9 arrangement runner   |         — | Task 2.4.c; no src import        |
-| `e2e/race-worker.ts` private spawn executors                                | same worker                             | retained by rule | Spec § 9 real-Git plumbing    |         — | Task 2.4.c; spawned worker       |
-| constant one-response stubs                                                 | local test doubles                      | retained by rule | Spec § 9                      |         — | scripted-double scan; Task 7.5   |
-| real-Git doubles, fault-injecting hybrids, scenario simulators              | local test doubles                      | retained by rule | Spec § 9                      |         — | scripted-double scan; Task 7.5   |
-| non-exit Git unavailability and unscripted-call guards                      | local test doubles                      | retained by rule | Spec § 9                      |         — | Git-failure scan; Task 7.5       |
-| parser/layout literal meta fixtures                                         | local Markdown                          | retained by rule | Spec § 9 independent evidence |         — | meta block scan; Task 7.5        |
-| status table golden strings                                                 | local Markdown                          | retained by rule | Spec § 9 independent evidence |         — | meta scan false positive; render |
-| invalid and legacy-scan meta fixture blocks                                 | local Markdown                          | retained by rule | Spec § 9                      |         — | meta block scan; 5 invalid files |
-| legacy session-envelope meta projection                                     | builder-derived flat bullets            | retained by rule | Spec § 9 golden byte identity |         — | meta scan; 11 unchanged goldens  |
-| logic-driving `safeParse` calls                                             | same tests                              | retained by rule | Spec § 9                      |         — | AST verdict scan; Task 7.5       |
-| invalid/partial registered output values                                    | local test casts                        | retained by rule | Spec § 9                      |         — | cast scan; 9 partial hits        |
-| parsed subtype and result-narrowing casts                                   | same casts                              | retained by rule | Spec § 9                      |         — | cast scan; 4 narrowing hits      |
-| E2E canonicalizers and Result assertions                                    | same tests                              | retained by rule | Spec § 9                      |         — | Task 7.5                         |
-| notes-sync tests (`user-sync-notes-*`, `notes-*`, integration notes cases)  | same tests                              | carved           | `R-NS`                        |         — | test paths; Task 7.5             |
-| branch-tree tests (`project-view-ref`, `completed-index`, ref-reader cases) | same cases                              | carved           | `R-BR`; `R-AR`                |         — | test paths; Task 7.5             |
-| in-flight and session-init store-source tests                               | same cases                              | carved           | `R-IF`; `R-CW`; `R-NP`        |         — | test paths; Task 7.5             |
-| schema verdicts in carved in-flight cases                                   | same assertions                         | carved           | `R-IF`; `R-BR`                |         — | AST scan; 22 assertions          |
-| schema verdicts in carved session-init cases                                | same assertions                         | carved           | `R-CW`; `R-NS`; `R-BR`        |         — | AST scan; 25 assertions          |
-| schema verdicts in carved decomposition cases                               | same assertions                         | carved           | `R-DCP`                       |         — | AST scan; 23 assertions          |
-| schema verdicts in carved notes-sync cases                                  | same assertions                         | carved           | `R-NS`                        |         — | AST scan; 3 assertions           |
-| lifecycle-contribution and path-treatment tests                             | same tests                              | carved           | `R-LC`                        |         — | test paths; Task 7.5             |
-| lifecycle and placement test fixtures                                       | same fixtures                           | carved           | `R-LW`; `R-PL`                |         — | Git/meta scans; Task 7.5         |
-| hook and locus test fixtures                                                | same fixtures                           | carved           | `R-HC`; `R-LOC`               |         — | Git/meta scans; Task 7.5         |
-| roadmap, teardown, retirement, and branch-history tests                     | same fixtures                           | carved           | `R-RM`; `R-LW`; `R-AR`        |         — | Git/meta scans; Task 7.R2        |
-| decomposition and delivery-scoping test cases                               | same fixtures                           | carved           | `R-DCP`; `R-CI`               |         — | test paths; Task 7.R2            |
-| planning-lane cases in `change-facts` tests                                 | same cases                              | carved           | `R-CI`                        |         — | test paths; Task 7.5             |
-| inbox-writer and execution-offer tests                                      | same tests                              | retained by rule | `R-NS` survivor               |         — | test paths; Task 7.5             |
-| `testing-standards` project override                                        | shared support guidance                 | migrated         | Spec § 9                      |         — | Task 2.5; project-only           |
+| Surface                                                                              | Destination                             | Disposition      | Citation                      | Importers | Evidence                         |
+| ------------------------------------------------------------------------------------ | --------------------------------------- | ---------------- | ----------------------------- | --------: | -------------------------------- |
+| repeated scripted `GitExec` doubles                                                  | `__tests__/helpers/git-exec-fake.ts`    | migrated         | Spec § 9                      |         — | test scan; Tasks 2.1, 7.1, 7.4   |
+| hand-built Git failure rejections                                                    | shared `GitProcessError` fixture        | migrated         | Spec § 9                      |         — | regex candidates; Tasks 2.1, 7.1 |
+| scripted `GitExecInput` and `RawGitExec` doubles                                     | shared fake variants                    | migrated         | Spec § 9                      |         — | test scan; Task 2.1.c            |
+| handwritten meta fixture blocks                                                      | `__tests__/helpers/meta-fixture.ts`     | migrated         | Spec § 9                      |         — | regex candidates; Tasks 2.2, 7.2 |
+| inline `.safeParse(...).success` assertions                                          | `__tests__/helpers/schema-assertion.ts` | migrated         | Spec § 9                      |         — | regex candidates; Tasks 2.3, 7.3 |
+| registered output casts in tests                                                     | schema parse                            | migrated         | Spec § 9                      |         — | Task 7.3                         |
+| primary-safety, worktree sync, and Candidate collection scripts                      | shared fake for surviving uses          | migrated         | Spec § 9; Spec § 1 split      |         — | verification subject splits      |
+| Candidate artifact-treatment fixtures: `collectTarget`, `collect`, `collectUnstaged` | unchanged local doubles                 | carved           | `R-LC`; `R-SP`; `R-CR`        |         — | verification subject splits      |
+| sync notes orchestration and notes-outcome round trips: local default and overrides  | unchanged local doubles                 | carved           | `R-NS`                        |         — | verification subject splits      |
+| view presentation and history ambiguity meta setup                                   | semantic meta fixture builder           | migrated         | Spec § 9                      |         — | verification subject splits      |
+| view lookup/selection meta literals                                                  | independent literal evidence            | retained by rule | Spec § 9 meta parsing/layout  |         — | verification subject splits      |
+| `makeGitExecInput` in `__tests__/helpers/integration.ts`                             | execa input adapter                     | migrated         | Spec § 9                      |      M:74 | Task 2.4.a; 22 suites            |
+| `stubGitExec` in `__tests__/helpers/integration.ts`                                  | `__tests__/integration/active.test.ts`  | migrated         | Spec § 9                      |         1 | Task 2.4.b; active suite         |
+| `makeGitNoteWriter` and `makeGitNoteReader`                                          | same helpers                            | carved           | `R-NS`                        |      M:74 | Task 2.4.c; notes seam           |
+| `base-advance.ts` raw `git()` runner                                                 | same helper                             | retained by rule | Spec § 9 arrangement runner   |         — | Task 2.4.c; no src import        |
+| `e2e/race-worker.ts` private spawn executors                                         | same worker                             | retained by rule | Spec § 9 real-Git plumbing    |         — | Task 2.4.c; spawned worker       |
+| constant one-response stubs                                                          | local test doubles                      | retained by rule | Spec § 9                      |         — | scripted-double scan; Task 7.5   |
+| real-Git doubles, fault-injecting hybrids, scenario simulators                       | local test doubles                      | retained by rule | Spec § 9                      |         — | scripted-double scan; Task 7.5   |
+| non-exit Git unavailability and unscripted-call guards                               | local test doubles                      | retained by rule | Spec § 9                      |         — | Git-failure scan; Task 7.5       |
+| parser/layout literal meta fixtures                                                  | local Markdown                          | retained by rule | Spec § 9 independent evidence |         — | meta block scan; Task 7.5        |
+| status table golden strings                                                          | local Markdown                          | retained by rule | Spec § 9 independent evidence |         — | meta scan false positive; render |
+| invalid and legacy-scan meta fixture blocks                                          | local Markdown                          | retained by rule | Spec § 9                      |         — | meta block scan; 5 invalid files |
+| legacy session-envelope meta projection                                              | builder-derived flat bullets            | retained by rule | Spec § 9 golden byte identity |         — | meta scan; 11 unchanged goldens  |
+| logic-driving `safeParse` calls                                                      | same tests                              | retained by rule | Spec § 9                      |         — | AST verdict scan; Task 7.5       |
+| invalid/partial registered output values                                             | local test casts                        | retained by rule | Spec § 9                      |         — | cast scan; 9 partial hits        |
+| parsed subtype and result-narrowing casts                                            | same casts                              | retained by rule | Spec § 9                      |         — | cast scan; 4 narrowing hits      |
+| E2E canonicalizers and Result assertions                                             | same tests                              | retained by rule | Spec § 9                      |         — | Task 7.5                         |
+| notes-sync tests (`user-sync-notes-*`, `notes-*`, integration notes cases)           | same tests                              | carved           | `R-NS`                        |         — | test paths; Task 7.5             |
+| branch-tree tests (`project-view-ref`, `completed-index`, ref-reader cases)          | same cases                              | carved           | `R-BR`; `R-AR`                |         — | test paths; Task 7.5             |
+| in-flight and session-init store-source tests                                        | same cases                              | carved           | `R-IF`; `R-CW`; `R-NP`        |         — | test paths; Task 7.5             |
+| schema verdicts in carved in-flight cases                                            | same assertions                         | carved           | `R-IF`; `R-BR`                |         — | AST scan; 22 assertions          |
+| schema verdicts in carved session-init cases                                         | same assertions                         | carved           | `R-CW`; `R-NS`; `R-BR`        |         — | AST scan; 25 assertions          |
+| schema verdicts in carved decomposition cases                                        | same assertions                         | carved           | `R-DCP`                       |         — | AST scan; 23 assertions          |
+| schema verdicts in carved notes-sync cases                                           | same assertions                         | carved           | `R-NS`                        |         — | AST scan; 3 assertions           |
+| lifecycle-contribution and path-treatment tests                                      | same tests                              | carved           | `R-LC`                        |         — | test paths; Task 7.5             |
+| lifecycle and placement test fixtures                                                | same fixtures                           | carved           | `R-LW`; `R-PL`                |         — | Git/meta scans; Task 7.5         |
+| hook and locus test fixtures                                                         | same fixtures                           | carved           | `R-HC`; `R-LOC`               |         — | Git/meta scans; Task 7.5         |
+| roadmap, teardown, retirement, and branch-history tests                              | same fixtures                           | carved           | `R-RM`; `R-LW`; `R-AR`        |         — | Git/meta scans; Task 7.R2        |
+| decomposition and delivery-scoping test cases                                        | same fixtures                           | carved           | `R-DCP`; `R-CI`               |         — | test paths; Task 7.R2            |
+| planning-lane cases in `change-facts` tests                                          | same cases                              | carved           | `R-CI`                        |         — | test paths; Task 7.5             |
+| inbox-writer and execution-offer tests                                               | same tests                              | retained by rule | `R-NS` survivor               |         — | test paths; Task 7.5             |
+| `testing-standards` project override                                                 | shared support guidance                 | migrated         | Spec § 9                      |         — | Task 2.5; project-only           |
 
 #### Shipped-content register
 
@@ -812,39 +834,39 @@ Register citations below name the corresponding **Storage-coupling register** ro
 
 ### Carved-module predicates
 
-| Module path                                        | Register row |
-| -------------------------------------------------- | ------------ |
-| `src/lib/active/cohort-consistency.ts`             | `R-PL`       |
-| `src/lib/active/cohort-live-context.ts`            | `R-PL`       |
-| `src/lib/evidence-applicability/path-treatment.ts` | `R-LC`       |
-| `src/lib/locus/derived-evidence.ts`                | `R-LOC`      |
-| `src/lib/locus/derived-lifecycle-evidence.ts`      | `R-LOC`      |
-| `src/lib/locus/subject-meta.ts`                    | `R-LOC`      |
-| `src/lib/status/project-view-ref.ts`               | `R-BR`       |
-| `src/lib/status/roadmap-conflict-auto-remedy.ts`   | `R-HC`       |
-| `src/lib/status/roadmap-regeneration-assert.ts`    | `R-HC`       |
-| `src/lib/user-sync/compaction-retention.ts`        | `R-NS`       |
-| `src/lib/user-sync/retired-subdir.ts`              | `R-NS`       |
-| `src/lib/user-sync/sync-state.ts`                  | `R-NS`       |
-| `src/lib/user-sync/types.ts`                       | `R-NS`       |
-| `src/lib/work-unit/candidate-record-store.ts`      | `R-CR`       |
-| `src/lib/work-unit/lifecycle-executor.ts`          | `R-LW`       |
-| `src/lib/work-unit/lifecycle-guards.ts`            | `R-LC`       |
-| `src/lib/work-unit/lifecycle-index.ts`             | `R-PL`       |
-| `src/lib/work-unit/lifecycle-membership.ts`        | `R-PL`       |
-| `src/lib/work-unit/lifecycle-resolver.ts`          | `R-PL`       |
-| `src/lib/work-unit/lifecycle-state.ts`             | `R-PL`       |
-| `src/lib/work-unit/lifecycle-transitions.ts`       | `R-LW`       |
-| `src/lib/work-unit/mutators/relocate-artifacts.ts` | `R-LW`       |
-| `src/lib/work-unit/submission-boundary-store.ts`   | `R-CR`       |
-| `src/lib/work-unit/transition-record-store.ts`     | `R-CR`       |
-| `src/lib/work-unit/verbs/activate-deactivate.ts`   | `R-LW`       |
-| `src/lib/work-unit/verbs/archive.ts`               | `R-AR`       |
-| `src/lib/work-unit/verbs/park-resume.ts`           | `R-LW`       |
-| `src/lib/work-unit/verbs/stub.ts`                  | `R-LW`       |
-| `src/scripts/check-foreign-writes.ts`              | `R-HC`       |
-| `src/scripts/validate-cohort-consistency.ts`       | `R-HC`       |
-| `src/scripts/validate-meta-spec.ts`                | `R-HC`       |
+| Module path                                        | Register row            |
+| -------------------------------------------------- | ----------------------- |
+| `src/lib/active/cohort-consistency.ts`             | `R-PL`                  |
+| `src/lib/active/cohort-live-context.ts`            | `R-PL`                  |
+| `src/lib/evidence-applicability/path-treatment.ts` | `R-LC`                  |
+| `src/lib/locus/derived-evidence.ts`                | `R-LOC`                 |
+| `src/lib/locus/derived-lifecycle-evidence.ts`      | `R-LOC`                 |
+| `src/lib/locus/subject-meta.ts`                    | `R-LOC`; `R-SP`; `R-CR` |
+| `src/lib/status/project-view-ref.ts`               | `R-BR`                  |
+| `src/lib/status/roadmap-conflict-auto-remedy.ts`   | `R-HC`                  |
+| `src/lib/status/roadmap-regeneration-assert.ts`    | `R-HC`                  |
+| `src/lib/user-sync/compaction-retention.ts`        | `R-NS`                  |
+| `src/lib/user-sync/retired-subdir.ts`              | `R-NS`                  |
+| `src/lib/user-sync/sync-state.ts`                  | `R-NS`                  |
+| `src/lib/user-sync/types.ts`                       | `R-NS`                  |
+| `src/lib/work-unit/candidate-record-store.ts`      | `R-CR`                  |
+| `src/lib/work-unit/lifecycle-executor.ts`          | `R-LW`                  |
+| `src/lib/work-unit/lifecycle-guards.ts`            | `R-LC`                  |
+| `src/lib/work-unit/lifecycle-index.ts`             | `R-PL`                  |
+| `src/lib/work-unit/lifecycle-membership.ts`        | `R-PL`                  |
+| `src/lib/work-unit/lifecycle-resolver.ts`          | `R-PL`                  |
+| `src/lib/work-unit/lifecycle-state.ts`             | `R-PL`                  |
+| `src/lib/work-unit/lifecycle-transitions.ts`       | `R-LW`                  |
+| `src/lib/work-unit/mutators/relocate-artifacts.ts` | `R-LW`                  |
+| `src/lib/work-unit/submission-boundary-store.ts`   | `R-CR`                  |
+| `src/lib/work-unit/transition-record-store.ts`     | `R-CR`                  |
+| `src/lib/work-unit/verbs/activate-deactivate.ts`   | `R-LW`                  |
+| `src/lib/work-unit/verbs/archive.ts`               | `R-AR`                  |
+| `src/lib/work-unit/verbs/park-resume.ts`           | `R-LW`                  |
+| `src/lib/work-unit/verbs/stub.ts`                  | `R-LW`                  |
+| `src/scripts/check-foreign-writes.ts`              | `R-HC`                  |
+| `src/scripts/validate-cohort-consistency.ts`       | `R-HC`                  |
+| `src/scripts/validate-meta-spec.ts`                | `R-HC`                  |
 
 ### Non-code predicates
 
@@ -1710,9 +1732,14 @@ logic is not an assertion. Search registered-schema output casts with
 rg -n 'as (OrdinaryErrandRecord|CandidateManagedRecordV1|IntegrationCheckpointCompositionRecord|[A-Za-z]+V1)' __tests__ -g '*.ts'
 ```
 
-Classify each candidate against its registered schema; valid fixtures parse through that schema, while
-deliberately invalid and partial values keep their casts. The converting test keeps its existing acceptance or
-refusal verdict and any issue-path assertion.
+This name-based search seeds the inventory. Also enumerate every TypeScript `AsExpression` and
+`TypeAssertionExpression`, resolve imported output aliases through their owning modules to the registry, and
+inspect structural casts for a complete registered output shape. In particular, include session-init result
+aliases and `AuditEntry`; a type's name need not end in `V1`. Classify each candidate against its registered
+schema; valid fixtures and producer JSON parse through that schema, while deliberately invalid and partial
+values keep their casts. The converting test keeps its existing acceptance or refusal verdict and any
+issue-path assertion. A helper used for both valid and invalid inputs separates parsed construction from an
+explicit invalid-value constructor, so the tested refusal still occurs at the production boundary.
 
 The scan source lives at `/tmp/arc-cli-substrate-inventory/schema-assertion-scan.cjs` for this execution;
 recreate it from this algorithm after a session boundary: enumerate tracked test TypeScript files with
@@ -1809,3 +1836,181 @@ await the required CI report on the unpublished branch head.
 `.arc/reference/strategies/project/strategy-review-projection.md` is its runbook. The chunk file assigns every changed
 path to exactly one chunk, and chunks stack in file order, so chunk boundaries follow files in dependency order. The
 top projection commit's tree equals the work-unit head outside `.arc/active/`, which is never projected.
+
+## Verification corrections
+
+Task 8.1 checks the aggregate diff from `2603c21084a693da942dc2949a6806fdc7c4aa2d` to
+`68f0285e6d4d144a2c3f7a8fe9ac44199f0790af`, plus the approved verification edits. Read-only scouts supply
+source evidence; the primary author owns the judgments. This is implementer verification, not independent
+review evidence. The earlier segment sweep is a historical result, not terminal closure.
+
+The owner approved these six dispositions:
+
+- **F1 — scripted doubles:** `unit/git/base-distance.test.ts`, `integration/inbound-pull.test.ts`,
+  `unit/errand-identity-snapshot.test.ts`, and `unit/errand-identity-transaction.test.ts` use the shared
+  scripted fake for thirteen bounded response/sequence functions. Recorder assertions, local-only object
+  access, pinned-tip reads, oversize guards, and transaction retry behavior remain observable. The snapshot's
+  blob-map repository model stays local, as do constant stubs and deliberate non-exit failures.
+- **F2 — registered-output casts:** Active, config, and extensions session-init JSON round trips parse through
+  their owning schemas. Release commit/push audit readers parse persisted lines through `AuditEntrySchema`.
+  The audit-log helpers parse valid entries; `invalidAuditEntry` explicitly bypasses construction validation
+  for the existing writer-refusal tests. Unregistered components, partial/narrowed values, and carved
+  notes-sync cases retain their exemptions. The schema sweep recipe now includes imported output aliases.
+- **F3 — producer-test placement:** Seven of the ten new roots have unit producer coverage. Config,
+  extensions, and domain-rules have integration producer coverage at `integration/config.test.ts`,
+  `integration/extensions.test.ts`, and `integration/constitution.test.ts`. Those tests exercise filesystem
+  and parser composition plus strict refusals. The owner accepted the placement deviation; the criterion's
+  original text is preserved with its annotation.
+- **F4 — mixed-subject scripts:** Primary-checkout safety and surviving Candidate collection use the shared
+  fake. Worktree/output/audit-I/O sync consumers install a shared script explicitly; the local default still
+  serves carved notes cases. The matrix names the split, and the subject-meta predicate also cites its
+  operational meta acquisition and Candidate record ownership under `R-SP` and `R-CR`.
+- **F5 — consumer meta setup:** History ambiguity setup uses the builder with its original semantic fields.
+  View presentation consumers install builder output before reading the artifact; the lookup/selection
+  cases keep their literal Markdown, and task-body expectations remain unchanged.
+- **F6 — carved notes factory:** `createUserIOContext` keeps its original inline bindings. The exported
+  `createGitExecInput` factory remains for surviving invocation-bound callers.
+
+The affected ten test files pass all 236 tests. `typecheck:all`, TypeScript lint, and whitespace checks pass
+after the recorder assertion correction. These focused witnesses cover F1/F2; the full terminal gates and
+criteria walk must close against the final corrected subject before Candidate attestation. Verification
+remains open until the final gates, criteria walk, and optional companion disposition close.
+
+### Test fixture subject splits
+
+The Candidate subject suite keeps `collectTarget`, `collect`, and `collectUnstaged` for lifecycle-artifact
+treatment and relocated-artifact cases (`R-LC`, `R-SP`, `R-CR`). The surviving bulk entry, exact revision,
+merge-base ambiguity, ordinary sibling content, and worktree/untracked content cases use `stagedSubjectGit`,
+`collectReviewable`, `collectReviewableUnstaged`, or a direct shared script. Their old assertions remain;
+recorded argument assertions read the shared recorder.
+
+The sync suite's local `resetMockDefaults` Git function serves the notes orchestration and notes-outcome
+round trips, including its detached-head and rebase overrides. The ten baseline consumers that exercise
+worktree push, Errand reconcile output, configured interlock projection, stdout/Clack routing, audit-I/O
+failure tolerance, or automatic inbound pull explicitly install `installWorktreeGitScript`. The manual-notes
+inbound path-report case has its own shared script. Fifteen early-return or dry-run callbacks consume no
+Git responses. Notes-outcome schema round trips retain their earlier carve disposition; their imported
+schema and persisted JSON assertions do not convert the orchestrated notes subject into a surviving one.
+
+View's raw shared setup supplies the two lookup/selection cases. Its ten presentation consumers overwrite
+that setup with `writePresentationMeta` before the command reads an artifact. Argument-refusal cases do
+not consume meta content. The raw selection literals and task-body goldens remain independent evidence.
+History's `metaDocument` helper has only surviving attestation/checkpoint ambiguity consumers and uses the
+builder throughout.
+
+Retained non-exit Git unavailability includes `integration/git/git.test.ts`'s missing-Git `ENOENT` case.
+`unit/commands/rename.test.ts`'s roster has one constant response and an unmatched-call guard. Repository
+graph/blob models, stateful provisioning/rename/teardown scenarios, real-Git fault hybrids, malformed
+fixtures, and checkpoint meta parsing/placement evidence retain their named rules. The source audit
+covered 213 executor carve candidates, 117 meta and six cast carve candidates, and 311 broader casts;
+the primary reconciled the mixed-subject candidates against these exact consumer boundaries.
+
+## Terminal verification evidence
+
+The complete flat-criteria walk uses diff base `2603c21084a693da942dc2949a6806fdc7c4aa2d`, HEAD
+`68f0285e6d4d144a2c3f7a8fe9ac44199f0790af`, and the eighteen pending verification files. The package inputs
+for the final measurement series are bound by
+`sha256:2f2e1735f3d0cff65eebc2388400fcf5f677bb6bb4978d787578ffaa5bc73641` in
+`/tmp/arc-wu-verification/test-cost-final-subject.json`. These are author verification witnesses; no independent
+review receipt or Candidate authority is asserted.
+
+### Local gates and source witnesses
+
+The F4–F6 focused run passes 109 tests in the four affected suites; its witness is
+`/tmp/task81-f456-focused.log`.
+
+The corrected package passes the complete local gate selection: Markdown lint, all three ARC contract checks,
+shell and TypeScript lint, both source and test type checks, the routine test lane, and the full ESM/declaration
+build. The routine lane passes 907 files and 13,140 tests, with one file and two tests skipped. Gate logs are
+`/tmp/task81-final-{markdown,triggers,domain-rules,section-refs,shell,typescript,types,tests,build}.log`.
+Subsequent notes-only edits use targeted Markdown lint and the contract checks; package checks remain valid
+over unchanged inputs.
+
+The final import graph covers 1,965 TypeScript files and 977 local target modules; no relative import is
+unresolved. Regex and coupling scans cover the same source inventory and 2,223 corpus files respectively.
+The 15-class layout reconciliation assigns 18,405 hits through 370 rules with all five mismatch sets empty.
+Its negative control exposes exactly 139 hit identities: six code and 133 non-code, with none missing or
+unexpected. Reports are `/tmp/arc-wu-verification/final-{import-graph,regex,coupling-classes,layout}.json`
+and `final-layout-negative{,-summary}.json` in the same directory.
+
+The schema projection has 139 entries against the base's 129, counting the shared-definition container.
+Exactly ten roots are added, none removed, and existing changes are confined to the two session envelopes and
+the two review-readiness schemas. The readiness projection has nine slug references. The schema witness is
+`final-schema-diff-summary.json`; session-envelope fixture expectations have no diff against the base.
+Resolved source imports, dynamic/mock/fixture searches, and built metafile input paths contain no retired
+target. Relative `canonical/` imports inside the live kernel resolve to that kernel's own modules.
+
+The retained-source comparison checks 56 functions and callbacks: Candidate's three local helpers and eight
+carved cases; sync's local setup and forty notes cases; view's raw setup and two selection cases; and the
+original `createUserIOContext` function against the base. Every comparison is unchanged. Witness:
+`/tmp/arc-wu-verification/retained-source-witness.json`. The refreshed contextual scans classify 343 cast,
+876 executor, 174 meta, and 73 schema-verdict candidates; broad counts are discovery inventories, not
+unresolved residuals. All 73 direct verdict assertions retain carved subjects.
+
+### Remaining closure boundary
+
+Required public CI has not run for this corrected subject. Its E2E, portability, and six `ci-job` cost rows
+remain required before merge under `.github/workflows/ci.yml`. The local witnesses do not report those
+checks as green. Criterion 31's CI witness timing and criterion 32's final readiness remain unresolved;
+Task 8.1 and all success-criterion markers remain open until their dispositions and the authorized
+fresh-context companion close. No content is staged or attested.
+
+### Final test-cost comparison
+
+All twelve final retained runs pass on the package digest above, which the end-of-series check confirms
+unchanged. The runs use the baseline's `tier-isolated` condition and 12 workers. Paths under
+`packages/arc-framework/.test-cost-runs/` are `cli-substrate-verification-{set}-{1,2,3}.json` and
+`cli-substrate-verification-comparison-{set}.json`. The baseline series finished before the first shared
+test file was committed at `1575444d89a787a9223c8fe32ec1dafd26061991`; its twelve capture times and the
+package identity at `882f50431` retain the temporal evidence.
+
+| Project set   | Baseline median (ms) | Final median (ms) |  Delta | Files / tests | Wall-time verdict |
+| ------------- | -------------------: | ----------------: | -----: | ------------- | ----------------- |
+| `unit`        |               12,837 |            12,927 | +0.70% | 735 / 11,334  | unestablished     |
+| `integration` |               87,879 |            86,010 | −2.13% | 173 / 1,806   | unestablished     |
+| `lane`        |               95,021 |            92,971 | −2.16% | 908 / 13,140  | unestablished     |
+| `e2e`         |              234,140 |           240,343 | +2.65% | 62 / 619      | unestablished     |
+
+The lane file count includes its skipped module; 907 files execute successfully. Summed-file-time movement
+is also within the comparison's 10% noise band for all four rows. The earlier Phase 7 integration movement
+did not reproduce in this final series; its historical comparison and attribution remain above. Each E2E
+run covers the complete project, including the eleven session-envelope golden cases, with no fixture
+expectation changes. Local measurement summaries also report the separate repository budget comparison;
+that older budget is not this work unit's retained baseline. The six `ci-job` rows still await CI's report.
+
+## Verification coverage plan
+
+The fresh-context companion uses the task list's 32 immutable success criteria as its rubric. Each scope
+answers whether its criteria are established by source and executable witnesses, identifies missing proof,
+and reports explicit limits. Generic maintainability findings and standard-review lane conclusions are
+outside this verification activity. The primary report and criterion markings are withheld from the
+companion; a scoped report alone closes no whole-work-unit claim.
+
+The existing contract segments seed these criterion groups:
+
+| Scope | Criteria                                  | Verification responsibility                              |
+| ----- | ----------------------------------------- | -------------------------------------------------------- |
+| V1    | 4–12, 17–19                               | Kernel, validation, envelope, and Git contract ownership |
+| V2    | 1–3, 13–16, 29–30                         | Layout, storage carve, and residual reconciliation       |
+| V3    | 20–28                                     | Invocation binding and test-support convergence          |
+| VA    | 31–32 plus cross-scope contract coherence | Aggregate verification and terminal witnesses            |
+
+V3 divides into three criterion contexts: invocation/helper contracts (20–23, 25, 27), executor-conversion
+exhaustiveness (24), and meta/schema conversion with cost evidence (26, 28). A fresh local aggregate
+consumes those three reports; the top aggregate consumes V1, V2, and that V3 report. These calls constitute
+one logical companion pass. Every criterion has exactly one primary scope, while cross-scope dependencies
+have explicit consumers. A report lacking coverage or sufficient proof leaves that criterion unresolved.
+
+The complete file/hunk map is `/tmp/arc-wu-verification/coverage-plan.json`, built by
+`node /tmp/task81-coverage-plan.cjs`. It records the exact base and HEAD, the pending patch digest,
+per-file and per-hunk digests, owner groups, and changed imports crossing scope boundaries. The working
+aggregate has 616 paths with rename detection; the explicit removal/addition map has 618 file entries and
+1,935 hunks. No file, hunk, or criterion lacks an assignment. Assignment is a coverage plan, not a
+verification verdict. The 178 import-only entries are lexical classifications; equivalence of their
+imported authority still needs source inspection. Dynamic imports, mocks, injection, and semantic
+dependencies remain explicit inspection obligations beyond the static graph.
+
+For later standard review, reuse the contract boundaries and change map, bind them to that review's actual
+committed target, and apply the complete selected standard-review rubric to every bounded scope and seam.
+Verification reports supply implementation evidence only; they do not satisfy either code-review lane.
+The large groups remain seeds for further contract-respecting splits in that later review.

@@ -658,8 +658,12 @@ export function createGitExecInput(interaction?: InteractionContext["subprocess"
 
 /** Real UserIOContext for user sync operations. */
 export function createUserIOContext(interaction?: InteractionContext["subprocess"]): UserIOContext {
-  const exec = createGitExec(interaction);
-  const execInput = createGitExecInput(interaction);
+  const exec: GitExec = interaction === undefined
+    ? gitExec
+    : (command, args, options) => candidateGitExec(command, args, { ...options, interaction });
+  const execInput = interaction === undefined
+    ? gitExecInput
+    : createExecaGitExecInput(MAX_GIT_OUTPUT_BYTES, interaction);
   return {
     exec,
     execInput,

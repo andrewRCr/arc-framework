@@ -798,6 +798,9 @@ assertion, or a value typed by a cast to a registered schema's output.
 
 - `[ ]` The ten roots are registered at version 1 `strict-current`, each with a unit test over representative producer
   output
+    - _Deviation:_ Producer coverage runs in the unit lane for seven roots and the integration lane for config,
+      extensions, and domain-rules. Those three tests exercise their actual filesystem/parser command producers and
+      strict refusals; the owner accepted this placement during Task 8.1 verification.
 
 - `[ ]` The four checkpoint drift wraps use the full `BaseDriftResult` schema
 

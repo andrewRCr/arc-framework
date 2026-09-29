@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { ActiveSessionInitResultSchema } from "../../src/commands/active/schema.js";
 
 import {
   buildActiveSessionInitSummary,
@@ -258,7 +259,7 @@ describe("JSON round-trip — typed result shape is stable", () => {
       resolution: "single",
       path: ".arc/active/technical/meta-foo.md",
     });
-    const roundTripped = JSON.parse(JSON.stringify(result)) as ActiveSessionInitResult;
+    const roundTripped = ActiveSessionInitResultSchema.parse(JSON.parse(JSON.stringify(result)));
     expect(roundTripped.mode).toBe("session-init");
     expect(roundTripped.resolution).toBe("single");
     expect(roundTripped.path).toBe(".arc/active/technical/meta-foo.md");
@@ -270,7 +271,7 @@ describe("JSON round-trip — typed result shape is stable", () => {
       resolution: "multiple",
       candidates: [candidate({ filename: "meta-a.md" }), candidate({ filename: "meta-b.md" })],
     });
-    const roundTripped = JSON.parse(JSON.stringify(result)) as ActiveSessionInitResult;
+    const roundTripped = ActiveSessionInitResultSchema.parse(JSON.parse(JSON.stringify(result)));
     expect(roundTripped.resolution).toBe("multiple");
     expect(roundTripped.path).toBeNull();
     expect(roundTripped.candidates).toHaveLength(2);
