@@ -6,6 +6,7 @@ import {
 } from "../../../src/lib/git/base-distance.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import { GitProcessError } from "../../../src/lib/git/process-error.js";
+import { BaseDriftResultSchema } from "../../../src/lib/git/base-drift-types.js";
 
 const BASE_OID = "b".repeat(40);
 const HEAD_OID = "f".repeat(40);
@@ -18,6 +19,7 @@ interface MockOptions {
   fetchFails?: boolean;
   /** Raw `merge-base --all` output, or "none" for the exit-1 no-common-ancestor rejection. */
   mergeBases?: string;
+  historyScanFails?: boolean;
 }
 
 function gitMock(options: MockOptions = {}): { exec: GitExec; calls: string[][] } {
@@ -43,6 +45,7 @@ function gitMock(options: MockOptions = {}): { exec: GitExec; calls: string[][] 
     }
     if (args[0] === "diff") return { stdout: "shared.ts\0" };
     if (args[0] === "log") {
+      if (options.historyScanFails) throw new Error("history unavailable");
       return { stdout: `${MERGE_OID}\0${PARENT_A} ${PARENT_B}\0Merge pull request #12 from x/y\0` };
     }
     throw new Error(`Unexpected Git invocation: ${args.join(" ")}`);
@@ -250,6 +253,25 @@ describe("snapshot-driven base distance", () => {
 });
 
 describe("base drift raw-distance boundary", () => {
+  it("parses producer verdicts and evidence arms and refuses an undeclared key", async () => {
+    for (const options of [
+      {},
+      { distance: "0\t1\n" },
+      { distance: "1\t1\n" },
+      { distance: "1\t1\n", mergeBases: `${PARENT_A}\n${PARENT_B}\n` },
+      { distance: "1\t1\n", mergeBases: "none" },
+      { distance: "0\t1\n", historyScanFails: true },
+      { fetchFails: true },
+    ]) {
+      const { exec } = gitMock(options);
+      const result = await runBaseDrift({ exec, baseBranch: "main", mode: "authoritative" });
+      expect(BaseDriftResultSchema.safeParse(result).success).toBe(true);
+      const rejected = BaseDriftResultSchema.safeParse({ ...result, extraEvidence: true });
+      expect(rejected.success).toBe(false);
+      if (!rejected.success) expect(rejected.error.message).toContain("extraEvidence");
+    }
+  });
+
   it("authoritative mode materializes regardless of automatic session policy", async () => {
     const { exec, calls } = gitMock();
     const result = await runBaseDrift({

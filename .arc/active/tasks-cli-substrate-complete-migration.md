@@ -243,14 +243,11 @@ recorded sweep recipes; see `notes-cli-substrate-complete-migration.md` § Segme
 
 - **Additional Context:** `notes-cli-substrate-complete-migration.md` § Session-envelope roots
 
-    - `[ ]` **3.4.a Complete `BaseDriftResult`**
-        - With its `BaseDistanceStatusResult` alias and nested types, as an unregistered component. Data produced by
-          carved code keeps its plain shape (`OverlapEvidence.regenerablePaths: string[]`); carved inputs such as
-          `PathTreatmentClassifier` never enter the schema, and no `z.custom` enters a registered closure.
-        - Build `test-first` (one behavior at a time):
-            - The schema parses drift output for each verdict
-            - The schema parses each integration-evidence and overlap arm an authoritative reading produces
-            - The schema refuses an undeclared key, naming it
+    - `[x]` **3.4.a Complete `BaseDriftResult`**
+        - Added an unregistered strict component schema for drift verdicts and nested integration, overlap,
+          coordinate, continuation, and register evidence. Result types derive from the schemas; authoritative
+          producer tests parse healthy and degraded readings and reject undeclared keys. The session-init skipped
+          producer arm is exercised with the not-applicable builder in Task 3.4.b.
 
     - `[ ]` **3.4.b Register the base-distance snapshot root**
         - `BaseDistanceSnapshotAnalysisResult | BaseDistanceNotApplicableResult`, registered as `base-distance`:
