@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
+import { assertSchemaAccepts } from "../helpers/schema-assertion.js";
 
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { canonicalDigest, CanonicalDigestSchema } from "../../src/lib/kernel/index.js";
@@ -351,7 +352,7 @@ describe("local review operation state authority", () => {
           hosted: terminal.hosted,
         }],
       };
-      expect(LaneProgressStateSchema.safeParse(rewrite).success).toBe(true);
+      assertSchemaAccepts(LaneProgressStateSchema, rewrite);
 
       await expect(records.store.publishOperation(rewrite, current.version))
         .rejects.toThrow(/immutable-hosted-transition/u);
@@ -376,7 +377,7 @@ describe("local review operation state authority", () => {
     });
     const current = await records.store.readOperation(concluded.operationId);
     const rewrite = { ...concluded, updatedAt: "2026-08-15T12:01:00Z", attempts: records.progress.attempts };
-    expect(LaneProgressStateSchema.safeParse(rewrite).success).toBe(true);
+    assertSchemaAccepts(LaneProgressStateSchema, rewrite);
 
     await expect(records.store.publishOperation(rewrite, current.version))
       .rejects.toThrow(/immutable-hosted-transition/u);

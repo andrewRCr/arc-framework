@@ -8,6 +8,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../helpers/schema-assertion.js";
 import { mkdir, mkdtemp, readFile as nodeReadFile, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -188,7 +189,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     expect(result.settings["session.init_load.notes"]).toBe("manual");
     // user.notes_push reflects yaml when no git-config override is set.
     expect(result.settings["user.notes_push"]).toBe("prompt");
-    expect(ConfigSessionInitResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(ConfigSessionInitResultSchema, result);
   });
 
   it("git-config override wins over yaml for the dual-scope notesPush key", async () => {
@@ -210,7 +211,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     expect(result.settings["user.notes_push"]).toBe("prompt");
     // Non-release-mode keys remain yaml-only — no git-config probe.
     expect(result.settings["pm.mode"]).toBe("arc-in-git");
-    expect(ConfigSessionInitResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(ConfigSessionInitResultSchema, result);
   });
 
   it("falls back to documented defaults when arc-config.yml is missing", async () => {
@@ -232,7 +233,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     expect(result.defaultsApplied).toContain("session.init_load.notes");
     expect(result.defaultsApplied).toContain("user.notes_push");
     expect(result.warnings).toHaveLength(1);
-    expect(ConfigSessionInitResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(ConfigSessionInitResultSchema, result);
   });
 
   it("reports only scoped keys in defaultsApplied when others are missing", async () => {
@@ -334,9 +335,9 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     const result = await runConfigSessionInitStatus({
       cwd: fixture.root, exec: noGitConfigExec, readFile: realReadFile,
     });
-    expect(ConfigSessionInitResultSchema.safeParse({
+    assertSchemaRefuses(ConfigSessionInitResultSchema, {
       ...result, settings: { ...result.settings, [key]: value },
-    }).success).toBe(false);
+    });
   });
 
 });

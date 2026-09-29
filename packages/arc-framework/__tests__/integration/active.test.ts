@@ -9,6 +9,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { assertSchemaAccepts } from "../helpers/schema-assertion.js";
 import { mkdir, mkdtemp, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -234,7 +235,7 @@ describe("runActiveSessionInitStatus — resolution states", () => {
     expect(result.resolution).toBe("none");
     expect(result.path).toBeNull();
     expect(result.candidates).toEqual([]);
-    expect(ActiveSessionInitResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(ActiveSessionInitResultSchema, result);
   });
 
   it("returns resolution=single with the resolved path for exactly one candidate", async () => {
@@ -247,7 +248,7 @@ describe("runActiveSessionInitStatus — resolution states", () => {
     expect(result.resolution).toBe("single");
     expect(result.path).toBe(".arc/active/meta-foo.md");
     expect(result.candidates).toEqual([]);
-    expect(ActiveSessionInitResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(ActiveSessionInitResultSchema, result);
   });
 
   it("retains semantic project placement without changing the serialized envelope", async () => {
@@ -290,7 +291,7 @@ describe("runActiveSessionInitStatus — resolution states", () => {
     const beta = result.candidates.find((c) => c.filename === "meta-beta.md");
     expect(beta?.branch).toBe("technical/beta");
     expect(beta?.state).toBe("Integrating");
-    expect(ActiveSessionInitResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(ActiveSessionInitResultSchema, result);
   });
 
   it("warns per malformed Candidate without hiding a valid sibling", async () => {
@@ -340,7 +341,7 @@ describe("runActiveSessionInitStatus — resolution states", () => {
       integrationBoundary: null,
     });
     expect(session.warnings).toContainEqual(expect.stringContaining(".arc/active/meta-beta.md"));
-    expect(ActiveSessionInitResultSchema.safeParse(session).success).toBe(true);
+    assertSchemaAccepts(ActiveSessionInitResultSchema, session);
     expect(() => ActiveSessionInitResultSchema.parse({ ...session, unexpected: true })).toThrow(/unexpected/u);
   });
 
@@ -362,7 +363,7 @@ describe("runActiveSessionInitStatus — resolution states", () => {
       expect(result.resolution).toBe("none");
       expect(result.warnings.length).toBe(1);
       expect(result.warnings[0]).toContain(".arc/active/");
-      expect(ActiveSessionInitResultSchema.safeParse(result).success).toBe(true);
+      assertSchemaAccepts(ActiveSessionInitResultSchema, result);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

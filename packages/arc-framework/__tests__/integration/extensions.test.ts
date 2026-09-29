@@ -9,6 +9,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { assertSchemaAccepts } from "../helpers/schema-assertion.js";
 import { mkdir, mkdtemp, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -195,14 +196,14 @@ describe("runExtensionsSessionInitStatus — session-init mode", () => {
     const result = await runExtensionsSessionInitStatus({ cwd: fixture.root });
 
     expect(result.mode).toBe("session-init");
-    expect(ExtensionsSessionInitResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(ExtensionsSessionInitResultSchema, result);
     expect(result.active.sort()).toEqual(["post-context-load", "pre-merge"]);
   });
 
   it("returns an empty list when no extensions are active", async () => {
     await writeExtension(fixture.extDir, "post-task-quality", false);
     const result = await runExtensionsSessionInitStatus({ cwd: fixture.root });
-    expect(ExtensionsSessionInitResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(ExtensionsSessionInitResultSchema, result);
     expect(result.active).toEqual([]);
   });
 
@@ -218,7 +219,7 @@ describe("runExtensionsSessionInitStatus — session-init mode", () => {
     await writeFile(join(fixture.extDir, "broken.md"), "---\nname: broken\n---\n");
     const result = await runExtensionsSessionInitStatus({ cwd: fixture.root });
     expect(result.warnings.length).toBeGreaterThan(0);
-    expect(ExtensionsSessionInitResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(ExtensionsSessionInitResultSchema, result);
     expect(() => ExtensionsSessionInitResultSchema.parse({ ...result, unexpected: true })).toThrow(/unexpected/u);
   });
 });

@@ -8,6 +8,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { assertSchemaAccepts } from "../helpers/schema-assertion.js";
 import { mkdir, mkdtemp, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -57,7 +58,7 @@ describe("runDomainRulesSessionInitStatus", () => {
   it("returns empty rules and warnings for an empty constitution directory", async () => {
     const result = await runDomainRulesSessionInitStatus({ cwd: fixture.root });
     expect(result.mode).toBe("session-init");
-    expect(DomainRulesSessionInitResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(DomainRulesSessionInitResultSchema, result);
     expect(result.rules).toEqual([]);
     expect(result.warnings).toEqual([]);
   });
@@ -80,7 +81,7 @@ describe("runDomainRulesSessionInitStatus", () => {
         purpose: "UI component standards",
       },
     ]);
-    expect(DomainRulesSessionInitResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(DomainRulesSessionInitResultSchema, result);
     expect(result.warnings).toEqual([]);
   });
 
@@ -103,7 +104,7 @@ describe("runDomainRulesSessionInitStatus", () => {
     expect(result.warnings.length).toBe(1);
     expect(result.warnings[0]).toContain("DEV-RULES.BACKEND.md");
     expect(result.warnings[0]).toContain("`purpose`");
-    expect(DomainRulesSessionInitResultSchema.safeParse(result).success).toBe(true);
+    assertSchemaAccepts(DomainRulesSessionInitResultSchema, result);
     expect(() => DomainRulesSessionInitResultSchema.parse({ ...result, unexpected: true })).toThrow(/unexpected/u);
   });
 
