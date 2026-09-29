@@ -56,6 +56,7 @@ import { createRawGitExec } from "../../src/lib/io-context.js";
 import { CanonicalDigestSchema, canonicalDigest } from "../../src/lib/kernel/index.js";
 import {
   candidateReviewApplicabilitySelections,
+  CandidateManagedRecordV1Schema,
   createCandidateAttestation,
   createCandidateVerificationResponseEvidence,
   reduceCandidateDurableBaseline,
@@ -3490,7 +3491,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       resolveCandidateRecordRelativePath(fixture.plan.workUnitId),
     );
     const pendingCandidateBytes = await readFile(candidatePath, "utf8");
-    const pendingCandidate = JSON.parse(pendingCandidateBytes) as CandidateManagedRecordV1;
+    const pendingCandidate = CandidateManagedRecordV1Schema.parse(JSON.parse(pendingCandidateBytes));
     const pendingBaseline = reduceCandidateDurableBaseline(pendingCandidate);
     const pendingCurrentTarget = await collectCandidateSubjectTarget({
       cwd: fixture.repository,
@@ -3614,7 +3615,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     ]);
 
     const acknowledgedCandidateBytes = await readFile(candidatePath, "utf8");
-    const wrongAuthorityCandidate = JSON.parse(acknowledgedCandidateBytes) as CandidateManagedRecordV1;
+    const wrongAuthorityCandidate = CandidateManagedRecordV1Schema.parse(JSON.parse(acknowledgedCandidateBytes));
     const appendedVerification = wrongAuthorityCandidate.transitions.at(-1);
     if (appendedVerification?.transitionKind !== "verification-response") {
       throw new Error("expected appended verification response");
@@ -3669,9 +3670,9 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       reason: "candidate-verification-replay-unproven",
     });
 
-    const trailingWrongAuthorityCandidate = JSON.parse(
-      acknowledgedCandidateBytes,
-    ) as CandidateManagedRecordV1;
+    const trailingWrongAuthorityCandidate = CandidateManagedRecordV1Schema.parse(
+      JSON.parse(acknowledgedCandidateBytes),
+    );
     const retainedVerification = trailingWrongAuthorityCandidate.transitions.at(-1);
     if (retainedVerification?.transitionKind !== "verification-response") {
       throw new Error("expected retained verification response");
