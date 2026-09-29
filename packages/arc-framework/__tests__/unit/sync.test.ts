@@ -67,7 +67,8 @@ vi.mock("../../src/lib/config/status-reader.js", () => ({
 
 const mockRunWorktreeSyncStatus = vi.fn();
 const mockRunMaterializingWorktreeInspection = vi.fn();
-vi.mock("../../src/lib/git/worktree-sync.js", () => ({
+vi.mock("../../src/lib/git/worktree-sync.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../src/lib/git/worktree-sync.js")>(),
   runMaterializingWorktreeInspection: (opts: unknown) => mockRunMaterializingWorktreeInspection(opts),
   runWorktreeSyncStatus: (opts: unknown) => mockRunWorktreeSyncStatus(opts),
 }));

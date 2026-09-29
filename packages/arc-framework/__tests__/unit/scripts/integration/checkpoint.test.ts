@@ -175,6 +175,22 @@ function dependencies(): IntegrationCheckpointDependencies {
 }
 
 describe("integration checkpoint", () => {
+  it("refuses a malformed drift through the operation result with a rerun remedy", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => ({
+      ...CLEAN_DRIFT,
+      overlap: { status: "available", substantivePaths: "invalid", regenerablePaths: [] },
+    }) as unknown as Awaited<ReturnType<IntegrationCheckpointDependencies["readDrift"]>>;
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        state: "blocked",
+        reason: "composition-unavailable",
+        detail: expect.stringContaining("overlap.substantivePaths"),
+        remedy: { argv: ["arc", "integrate", "checkpoint", "example"] },
+      });
+  });
+
   it("returns the exact bounded Candidate applicability decision for authority selection", async () => {
     const deps = dependencies();
     deps.readDrift = async () => CLEAN_DRIFT;

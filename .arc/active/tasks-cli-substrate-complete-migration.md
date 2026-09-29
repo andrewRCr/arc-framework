@@ -235,13 +235,15 @@ recorded sweep recipes; see `notes-cli-substrate-complete-migration.md` § Segme
           session-init roster slot. Producer tests parse empty, resolved, degraded, and warning-bearing results;
           root and envelope tests reject undeclared keys by name.
 
-### `[ ]` **3.4 Complete `BaseDriftResult`, the base-distance snapshot root, and the checkpoint wraps — D5, D2**
+### `[x]` **3.4 Complete `BaseDriftResult`, the base-distance snapshot root, and the checkpoint wraps — D5, D2**
 
 - _Goal:_ `BaseDriftResult`'s full schema is its type's authority and validates the drift inside the integration
   checkpoint's emitted result without refusing any drift a reading produces, and the base-distance slot composes a
   registered strict snapshot root no wider than today's type.
 
-- **Additional Context:** `notes-cli-substrate-complete-migration.md` § Session-envelope roots
+- _Outcome:_ Drift and base-distance types derive from strict schemas, the snapshot root is registered in the
+  session-init slot, and the checkpoint validates every emitted drift arm. Producer and refusal tests cover
+  evidence states and named malformed fields.
 
     - `[x]` **3.4.a Complete `BaseDriftResult`**
         - Added an unregistered strict component schema for drift verdicts and nested integration, overlap,
@@ -255,14 +257,11 @@ recorded sweep recipes; see `notes-cli-substrate-complete-migration.md` § Segme
           exact, pending, unreachable, and all fallback readings; the strict session-init slot keeps its
           recommendation refinements and names undeclared keys.
 
-    - `[ ]` **3.4.c Validate the checkpoint drift against the full schema**
-        - Replace the four `z.custom<BaseDriftResult>()` wraps in `scripts/integration/checkpoint.ts`; the result's
-          shape does not change. A mismatch is a producer defect and refuses through the command's existing
-          operation refusal, whose remedy re-runs the checkpoint once the reported failure is resolved.
-        - Build `test-first` (one behavior at a time):
-            - Each checkpoint result arm that carries a drift parses the drift an authoritative reading produces
-            - A malformed drift refuses through the operation refusal, whose detail names the drift field and whose
-              remedy carries the re-run command
+    - `[x]` **3.4.c Validate the checkpoint drift against the full schema**
+        - Replaced all four custom drift wraps with the strict component schema. Checkpoint arm tests exercise
+          unavailable, unsafe, unrelated, and reconcile results. Malformed drift now yields a typed operation
+          refusal naming the field and carrying the checkpoint rerun command. Sync test mocks retain the newly
+          imported worktree schema fields.
 
 ### `[ ]` **3.5 Verify the envelope schema bundle and goldens** — validate exit criterion at segment scope
 
