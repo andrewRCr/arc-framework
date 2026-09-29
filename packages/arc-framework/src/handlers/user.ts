@@ -27,7 +27,7 @@ import {
 } from "../commands/user.js";
 import { isRefusalCondition } from "../lib/git/index.js";
 import { normalizeCommandIdentity } from "../lib/command-input/identity.js";
-import { SlugSchema } from "../lib/kernel/index.js";
+import { CanonicalDigestSchema, SlugSchema } from "../lib/kernel/index.js";
 import {
   declareCliOperandSite,
   declareCliOptionSite,
@@ -490,7 +490,7 @@ export const UserInboxMarkExecuteBoundResultSchema = z.discriminatedUnion("state
       changed: z.boolean(),
       orderedTitles: z.array(z.string().min(1)).min(1),
       outcomes: z.array(InboxMutationOutcomeSchema).min(1),
-      postImageDigest: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+      postImageDigest: CanonicalDigestSchema,
     }),
   }),
   z.strictObject({

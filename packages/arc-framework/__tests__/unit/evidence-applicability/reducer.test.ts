@@ -15,7 +15,7 @@ import {
 } from "../../../src/lib/evidence-applicability/schema.js";
 
 const oid = (character: string): string => character.repeat(40);
-const digest = (character: string): string => `sha256:${character.repeat(64)}`;
+const digest = (character: string): `sha256:${string}` => `sha256:${character.repeat(64)}`;
 const coordinates = () => ({
   repository: "owner/repo",
   changeRequest: 42,

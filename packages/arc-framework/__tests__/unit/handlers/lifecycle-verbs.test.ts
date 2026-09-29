@@ -1056,6 +1056,18 @@ describe("handleDecompose", () => {
     expect(process.exitCode).toBe(1);
   });
 
+  it("refuses a malformed apply digest with the kernel schema message", async () => {
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+
+    await handleDecompose("mono", { finish: "cut-map.json", apply: "sha256:BAD" });
+
+    expect(stderrWrite.mock.calls.flat().join("")).toContain(
+      "Expected sha256: followed by 64 lowercase hex characters",
+    );
+    expect(mockFinishGitV3Extraction).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
   it("keeps a missing-project finish refusal outside the mode envelope", async () => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);

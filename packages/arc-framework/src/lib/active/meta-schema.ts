@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import {
   PrioritySchema,
+  CanonicalDigestSchema,
   WorkClassSchema,
   WorkUnitStateSchema,
 } from "../kernel/index.js";
@@ -26,7 +27,7 @@ export const MetaPromotionReceiptSchema = z.string()
   .regex(/^errand-v1\/[a-z0-9]+(?:-[a-z0-9]+)*\/[a-f0-9]{32}$/u);
 
 /** Candidate attestation identity projected into the managed work-unit record. */
-export const MetaCandidateIdSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+export const MetaCandidateIdSchema = CanonicalDigestSchema;
 
 /** Exact Markdown-label to semantic-key mapping for managed meta fields. */
 export const META_FIELD_KEYS = [

@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { isCanonicalDigest } from "../kernel/canonical/canonical-json.js";
+import { CanonicalDigestSchema } from "../kernel/schema/vocabulary.js";
 import { isManagedPath } from "../kernel/canonical/managed-path.js";
 import { V3DecomposeCoreRefusalSchema } from "./decompose-v3-refusal.js";
 import { V3DecomposeLocatorSchema } from "./decompose-v3-schema.js";
@@ -13,7 +13,7 @@ const ManagedPathSchema = z.string().refine(
   "must be a managed repository-relative path",
 );
 const ModeSchema = z.enum(["100644", "100755"]);
-const DigestSchema = z.string().refine(isCanonicalDigest, "must be a canonical digest");
+const DigestSchema = CanonicalDigestSchema;
 const Base64Schema = z.string().refine(
   (value) => Buffer.from(value, "base64").toString("base64") === value,
   "must be canonical base64",

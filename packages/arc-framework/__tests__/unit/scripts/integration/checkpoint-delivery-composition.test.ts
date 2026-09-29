@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { deliveryThreeMemberStackPlanFixture } from "../../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../../fixtures/delivery-state.js";
-import { canonicalDigest } from "../../../../src/lib/kernel/index.js";
+import { canonicalDigest, CanonicalDigestSchema } from "../../../../src/lib/kernel/index.js";
 import { GitProcessError } from "../../../../src/lib/git/process-error.js";
 import {
   createCandidateAttestation,
@@ -223,8 +223,8 @@ describe("delivery checkpoint composition", () => {
   it("classifies disjoint delivery drift before effective currentness and path intersections", async () => {
     const plan = deliveryThreeMemberStackPlanFixture();
     const state = deliveryStateFixture(plan);
-    const candidateId = `sha256:${"a".repeat(64)}`;
-    const subjectDigest = `sha256:${"b".repeat(64)}`;
+    const candidateId = CanonicalDigestSchema.parse(`sha256:${"a".repeat(64)}`);
+    const subjectDigest = CanonicalDigestSchema.parse(`sha256:${"b".repeat(64)}`);
     const candidateHead = oid("c");
     const currentness = {
       status: "current" as const,
@@ -989,8 +989,8 @@ describe("delivery checkpoint composition", () => {
     for (const [index, member] of state.members.entries()) {
       member.changeRequest = { providerId: "github", changeRequestId: String(41 + index) };
     }
-    const candidateId = `sha256:${"a".repeat(64)}`;
-    const subjectDigest = `sha256:${"b".repeat(64)}`;
+    const candidateId = CanonicalDigestSchema.parse(`sha256:${"a".repeat(64)}`);
+    const subjectDigest = CanonicalDigestSchema.parse(`sha256:${"b".repeat(64)}`);
     const candidateHead = state.members.at(-1)!.coordinates!.head;
     const baseHead = oid("d");
     const reservation = createStandardReviewReservation({
@@ -1269,8 +1269,8 @@ describe("delivery checkpoint composition", () => {
     const state = deliveryStateFixture(plan);
     const terminal = state.members.at(-1)!;
     terminal.changeRequest = { providerId: "github", changeRequestId: "43" };
-    const candidateId = `sha256:${"a".repeat(64)}`;
-    const subjectDigest = `sha256:${"b".repeat(64)}`;
+    const candidateId = CanonicalDigestSchema.parse(`sha256:${"a".repeat(64)}`);
+    const subjectDigest = CanonicalDigestSchema.parse(`sha256:${"b".repeat(64)}`);
     const candidateHead = oid("f");
     const currentness = {
       status: "current" as const,

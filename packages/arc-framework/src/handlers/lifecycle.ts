@@ -49,6 +49,7 @@ import {
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { boundedFetch, getCurrentBranch, type GitExec } from "../lib/git/exec.js";
 import { canonicalize } from "../lib/kernel/canonical/canonical-json.js";
+import { CanonicalDigestSchema } from "../lib/kernel/schema/vocabulary.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import { LocalReviewOperationStateStore } from "../scripts/review-gate/hosts/local/operation-state-store.js";
 import {
@@ -572,7 +573,7 @@ export const DecomposeCommandInputSchema = z.object({
   execute: z.string().trim().min(1).optional(),
   extract: z.string().trim().min(1).optional(),
   finish: z.string().trim().min(1).optional(),
-  apply: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
+  apply: CanonicalDigestSchema.optional(),
   advanceBase: z.string().trim().min(1).optional(),
 }).strict().superRefine((value, refinement) => {
   const modes = DECOMPOSE_MODE_KEYS.filter((key) => decomposeOptionSelected(value, key)).length;
@@ -701,8 +702,8 @@ export const AttestCommandInputSchema = z.object({
   newRoot: z.boolean().optional(),
   scope: z.enum(["focused", "full"]).default("full"),
   verificationEvidenceRef: CandidateVerificationEvidenceRefSchema.optional(),
-  expectedCandidate: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
-  expectedSubject: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
+  expectedCandidate: CanonicalDigestSchema.optional(),
+  expectedSubject: CanonicalDigestSchema.optional(),
 }).strict().superRefine((value, refinement) => {
   if ((value.expectedCandidate === undefined) !== (value.expectedSubject === undefined)) {
     refinement.addIssue({
@@ -1113,7 +1114,7 @@ export async function handleDecompose(
     };
     const protection = settings["branch.protection"] === "full" ? "full" : "partial";
     if (parsed.data.finish !== undefined) {
-      const applyAuthority = (parsed.data.apply ?? null) as `sha256:${string}` | null;
+      const applyAuthority = parsed.data.apply ?? null;
       const result = V3ExtractionFinishResultSchema.parse(await finishGitV3Extraction(repository, {
         cwd,
         baseBranch: settings["branch.base"],

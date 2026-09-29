@@ -12,7 +12,7 @@ import {
 } from "../../../src/lib/evidence-applicability/index.js";
 
 const oid = (character: string): string => character.repeat(40);
-const digest = (character: string): string => `sha256:${character.repeat(64)}`;
+const digest = (character: string): `sha256:${string}` => `sha256:${character.repeat(64)}`;
 const coordinates = (base = oid("a"), head = oid("b")) => ({
   repository: "owner/repo",
   changeRequest: 42,

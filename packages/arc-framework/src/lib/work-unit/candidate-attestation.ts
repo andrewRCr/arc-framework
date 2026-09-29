@@ -6,6 +6,7 @@ import {
   canonicalize,
   canonicalDigest,
   sortByCanonicalBytes,
+  type CanonicalDigest,
 } from "../kernel/canonical/canonical-json.js";
 import { composeEvidenceDelta, reduceEvidenceApplicability } from "../evidence-applicability/index.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
@@ -733,13 +734,13 @@ function requiredConvergenceScopeAtResponse(
 export type CandidateCurrentnessProjection =
   | ({
       status: "current";
-      candidateId: string;
+      candidateId: CanonicalDigest;
       recognizedRevision: string;
       implementationChanged: boolean;
     } & CandidateConvergenceProjection)
   | {
       status: "blocked";
-      candidateId: string;
+      candidateId: CanonicalDigest;
       recognizedRevision: string;
       currentRevision: string;
       delta: { added: string[]; removed: string[]; changed: string[] };
@@ -747,7 +748,7 @@ export type CandidateCurrentnessProjection =
     };
 
 export type CandidateDurableBaselineProjection = {
-  candidateId: string;
+  candidateId: CanonicalDigest;
   target: CandidateLineageTarget;
   implementationChanged: boolean;
   selectedChange: CandidateApplicabilitySelectionV1 | null;
@@ -881,7 +882,7 @@ export function projectCandidateCurrentness(input: {
 }
 
 function blockedProjection(
-  candidateId: string,
+  candidateId: CanonicalDigest,
   recognizedRevision: string,
   current: z.infer<typeof CandidateLineageTargetSchema>,
   recognized: CandidateSubjectSnapshot,

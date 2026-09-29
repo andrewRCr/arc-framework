@@ -3,8 +3,9 @@
 import { z } from "zod";
 
 import { PathTreatmentSchema } from "../evidence-applicability/path-treatment.js";
+import { CanonicalDigestSchema } from "../kernel/schema/vocabulary.js";
 
-export const CandidateCanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+export const CandidateCanonicalDigestSchema = CanonicalDigestSchema;
 export const CandidateGitObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
 export const CandidatePathSchema = z.string().min(1)
   .refine(

@@ -96,7 +96,7 @@ export function selectPendingCandidateReviewFixRecord(input: {
   readonly records: readonly ApprovedDispositionRecord[];
 }): PendingCandidateReviewFixRecord {
   const workUnitId = SlugSchema.parse(input.workUnitId);
-  const consumedDispositionIds = new Set(
+  const consumedDispositionIds = new Set<string>(
     candidateReviewResponses(input.candidate).map(({ dispositionId }) => dispositionId),
   );
   const pending = input.records.filter((record) => {

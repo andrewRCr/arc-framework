@@ -1,6 +1,7 @@
 /** Candidate proposal orchestration over storage-neutral repository boundaries. */
 
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../kernel/schema/vocabulary.js";
 
 import {
   CandidateManagedRecordV1Schema,
@@ -42,7 +43,7 @@ const ATTESTED_ORIENTATION = {
   },
 } as const;
 
-const CandidateDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+const CandidateDigestSchema = CanonicalDigestSchema;
 
 const AttestExpectedBlockedSchema = z.strictObject({
   candidateId: CandidateDigestSchema,
