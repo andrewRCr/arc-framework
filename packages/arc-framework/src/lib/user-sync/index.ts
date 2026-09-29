@@ -19,15 +19,6 @@ export { classifyUserSyncPath, wuNameOfPath, type UserSyncClass } from "./classi
 
 export { resolveCurrentWuName, type ExecForBranch } from "./current-wu.js";
 
-export { matchInboxEntryTitle, parseCrossWuEntries, shapeForFile } from "./parser.js";
-
-export {
-  CrossWuEntryParseSchema,
-  CrossWuEntrySchema,
-  type CrossWuEntry,
-  type EntryParse,
-} from "./schema.js";
-
 export {
   InboxMutationConflictError,
   hasExecuteBoundDisposition,

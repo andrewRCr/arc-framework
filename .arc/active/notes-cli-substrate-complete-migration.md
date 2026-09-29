@@ -705,6 +705,8 @@ execute-bound inbox writes to `user-sync/inbox-writer.ts`, and execution offers 
 `user-sync/notes-lock.ts` only for surviving callers. Keep barrel imports for carved notes-sync consumers and
 `resolveCurrentWuName`'s carved callers. Re-run the named-symbol search after each base merge; remove only exports
 whose surviving callers have moved, retaining carved exports until the notes deletion pass.
+The first cross-WU pass re-pointed three imports (including the carved merge test's forced edge) and removed the
+parser/schema re-export blocks; no remaining barrel importer names a cross-WU entry symbol.
 
 ## Test-cost baselines
 

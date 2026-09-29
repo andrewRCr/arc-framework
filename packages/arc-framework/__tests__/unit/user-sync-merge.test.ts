@@ -11,9 +11,9 @@ import {
   appendRemovalTombstones,
   mergeEntries,
   mergeCrossWuFile,
-  parseCrossWuEntries,
-  type CrossWuEntry,
 } from "../../src/lib/user-sync/index.js";
+import { parseCrossWuEntries } from "../../src/lib/user-sync/parser.js";
+import type { CrossWuEntry } from "../../src/lib/user-sync/schema.js";
 
 const wmEntry = (key: string, raw: string): CrossWuEntry => ({ section: "Memories", key, raw });
 

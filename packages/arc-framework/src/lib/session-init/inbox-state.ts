@@ -19,11 +19,9 @@
 
 import { z } from "zod";
 
-import {
-  hasExecuteBoundDisposition,
-  parseCrossWuEntries,
-  type EntryParse,
-} from "../user-sync/index.js";
+import { hasExecuteBoundDisposition } from "../user-sync/index.js";
+import { parseCrossWuEntries } from "../user-sync/parser.js";
+import type { EntryParse } from "../user-sync/schema.js";
 import { managedFlagIsTrue } from "./managed-field.js";
 
 /** Runtime authority for the inbox-state advisory result. */

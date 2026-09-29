@@ -21,7 +21,8 @@
  * @module
  */
 
-import { parseCrossWuEntries, type EntryParse } from "../user-sync/index.js";
+import { parseCrossWuEntries } from "../user-sync/parser.js";
+import type { EntryParse } from "../user-sync/schema.js";
 import { managedFieldValue, managedFlagIsTrue } from "./managed-field.js";
 
 /** A flagged Errand capture surfaced for the reminder nudge. */

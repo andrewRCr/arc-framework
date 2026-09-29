@@ -174,10 +174,9 @@ recorded sweep recipes; see `notes-cli-substrate-complete-migration.md` § Segme
           two relays, and corrected `release/types.ts`'s header. The search-and-rewrite recipe is in notes § Sweep
           recipes; dynamic imports and mocks still target owned functions.
 
-    - `[ ]` **3.1.b Retire the cross-WU entry re-exports in `lib/user-sync/index.ts`**
-        - Inbox state and reminders take the entry types from `lib/user-sync/schema.ts` and the parser from
-          `lib/user-sync/parser.ts`; `user-sync-merge.test.ts`, a test of carved merge code, takes the import rewrite
-          as a forced edge.
+    - `[x]` **3.1.b Retire the cross-WU entry re-exports in `lib/user-sync/index.ts`**
+        - Removed the parser/schema re-export blocks and routed three imports to their owners. Inbox state and
+          reminders use direct parser and schema imports; the carved merge test took only its forced import rewrite.
 
     - `[ ]` **3.1.c Route the remaining survivors through their owning modules**
         - `inbox-writer.ts` and `execution-offer.ts` for the surviving barrel importers `handlers/errand.ts`,
