@@ -2,6 +2,7 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 import { z } from "zod";
 
 import {
+  CanonicalDigestSchema,
   PrioritySchema,
   RemoteEvidenceSchema,
   RemoteFailureReasonSchema,
@@ -12,6 +13,8 @@ import {
   validatePriority,
   validateState,
   withRemoteEvidence,
+  isCanonicalDigest,
+  type CanonicalDigest,
   type Priority,
   type RemoteEvidence,
   type RemoteFailureReason,
@@ -32,6 +35,44 @@ import {
 } from "../../../src/commands/active/types.js";
 
 describe("kernel work-unit vocabulary", () => {
+  it("parses and types a canonical digest", () => {
+    const digest = `sha256:${"a".repeat(64)}`;
+
+    expect(CanonicalDigestSchema.parse(digest)).toBe(digest);
+    expectTypeOf(CanonicalDigestSchema.parse(digest)).toEqualTypeOf<CanonicalDigest>();
+  });
+
+  it.each([
+    ["uppercase hex", `sha256:${"A".repeat(64)}`],
+    ["wrong length", `sha256:${"a".repeat(63)}`],
+    ["missing prefix", "a".repeat(64)],
+  ])("refuses a digest with %s using an actionable message", (_case, candidate) => {
+    const result = CanonicalDigestSchema.safeParse(candidate);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe("Expected sha256: followed by 64 lowercase hex characters");
+    }
+  });
+
+  it("projects the canonical digest wire pattern into JSON Schema", () => {
+    const schema = z.toJSONSchema(CanonicalDigestSchema);
+
+    expect(schema.type).toBe("string");
+    expect(schema.pattern).toBe("^sha256:[0-9a-f]{64}$");
+  });
+
+  it("agrees with the canonical digest guard on accepted and rejected values", () => {
+    for (const value of [
+      `sha256:${"a".repeat(64)}`,
+      `sha256:${"A".repeat(64)}`,
+      `sha256:${"a".repeat(63)}`,
+      "a".repeat(64),
+    ]) {
+      expect(CanonicalDigestSchema.safeParse(value).success).toBe(isCanonicalDigest(value));
+    }
+  });
+
   it("parses only the codified remote evidence and failure values", () => {
     for (const value of ["exact", "pending-fetch", "unreachable", "not-applicable"] as const) {
       expect(RemoteEvidenceSchema.parse(value)).toBe(value);

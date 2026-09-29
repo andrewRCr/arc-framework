@@ -45,30 +45,15 @@ replication segment builds on.
   any tests. `notes-cli-substrate-complete-migration.md` § Test-cost baselines records all paths, medians, and the
   measured head for Task 7.5's comparison; CI owns the six `ci-job` rows.
 
-### `[ ]` **1.3 Add `CanonicalDigestSchema` over exported digest constants — D2**
+### `[x]` **1.3 Add `CanonicalDigestSchema` over exported digest constants — D2**
 
 - _Goal:_ One digest definition serves both the kernel's type guard and a shared schema that infers `CanonicalDigest`,
   projects the JSON Schema pattern the inline regexes emit today, and refuses with a message naming the expected form.
 
-    - The canonical core (`lib/kernel/canonical/canonical-json.ts`) exports the `sha256:` prefix and the hex pattern as
-      plain constants and derives `isCanonicalDigest` from them; the core stays free of Zod.
-    - The core holds the pattern today as one private regex (`CANONICAL_DIGEST_PATTERN`), which splits into the two
-      exported parts.
-    - `kernel/schema/vocabulary.ts` exports `CanonicalDigestSchema` as `z.templateLiteral` over those constants, with
-      an explicit error message — Zod's default template-literal refusal reads "Invalid input" — and leaves it
-      unregistered. The kernel index re-exports it. Existing sites adopt it in Task 6.4; a schema written before then
-      for a kernel digest uses it from the start.
-    - Tests extend `__tests__/unit/kernel/vocabulary.test.ts`, and the kernel export list in
-      `__tests__/unit/kernel/import-boundary.test.ts` gains the schema. That test approves Zod for every kernel module
-      today, so it gains a case holding the canonical core to no Zod import.
-      `__tests__/unit/canonical/canonical-json.test.ts` keeps its shim pin case until Phase 6 removes it and moves the
-      file's behavior tests to `__tests__/unit/kernel/`.
-    - Build `test-first` (one behavior at a time):
-        - A `sha256:` value with 64 lowercase hex characters parses and infers `CanonicalDigest`
-        - Uppercase hex, a wrong length, and a missing prefix refuse with the explicit message
-        - `z.toJSONSchema` projects `{ type: "string", pattern: "^sha256:[0-9a-f]{64}$" }`
-        - `isCanonicalDigest` and the schema agree over the same accept and refuse cases
-        - The import-boundary test refuses a Zod import in the canonical core
+- _Outcome:_ The canonical core exports the digest prefix and hex pattern and derives both digest construction and
+  the guard from them without importing Zod. `CanonicalDigestSchema` composes those constants as an unregistered
+  template literal and is exported through the kernel index. Kernel tests cover inference, refusals, JSON Schema
+  projection, guard agreement, and the core's Zod-free import boundary.
 
 ### `[ ]` **1.4 Declare `RawGitExec` and `RawGitResult` in the executor contract — D2, D7**
 
