@@ -285,21 +285,10 @@ path spawns Git through an unbound executor; the failure-text predicates and `re
 `lib/git/` with no importer reaching them through `lib/user-sync/`; errand identity classifies failures through
 `gitFailureText()`; and `classify-change.sh` still runs.
 
-### `[ ]` **4.1 Wrap and bind the always-JSON commands and add the missing machine-mode declarations — D8**
+### `[x]` **4.1 Wrap and bind the always-JSON commands and add the missing machine-mode declarations — D8**
 
 - _Goal:_ Every always-JSON command runs in machine mode and spawns Git under that mode's subprocess policy, and
   `attest`, `publish`, and `locus` declare theirs, so none of them can stop on a terminal prompt.
-
-- _Approach:_ Each batch wraps its adapters with `machineReadable: () => true` and binds their handlers the way
-  `handleReviewFrontlineRun` is bound: an optional supplied context that defaults to a machine-mode process context,
-  and default dependencies that build every executor the handler reaches from `context.subprocess` — its `gitExec`
-  uses, the `review.ts` helpers it calls, and the policy-less `createGitExec()` in the frontline and changeset resolve
-  dependencies. A wrap alone leaves Git's terminal prompts enabled. `review planning-lane` prints text and is carved.
-
-- _Note:_ The inventory's machine-mode routing rule sees only `--json` options, and its source scanner records only
-  whether an action receives an interaction context. Task 4.1.a extends the scanner to record a constant machine-mode
-  policy, and each batch adds its command paths to a `repository-inventory.test.ts` case requiring every always-JSON
-  command to route through the adapter under one.
 
     - `[x]` **4.1.a Extend the scanner, and wrap and bind merge lock resolve, hold, and release**
         - Scanner distinguishes constant machine policies from predicates; all three merge-lock routes use the adapter
@@ -318,10 +307,12 @@ path spawns Git through an unbound executor; the failure-text predicates and `re
         - All five adapters now declare constant machine mode; each handler defaults to that mode and constructs
           its review dependency executor from the invocation's subprocess policy.
 
-    - `[ ]` **4.1.e Add the three missing machine-mode declarations**
-        - The `attest` and `publish` policy declarations, and both the adapter wrap and the declaration for `locus`,
-          whose command surface survives although its derivation body is carved. Declared, their `--json` options fall
-          under the inventory's machine-mode routing rule.
+    - `[x]` **4.1.e Add the three missing machine-mode declarations**
+        - `attest`, `publish`, and `locus` declare JSON machine mode; `locus` also routes through the interaction
+          adapter while its storage-carved derivation remains in its existing handler.
+
+- _Outcome:_ The inventory now recognizes constant machine policies and pins all 17 always-JSON adapters to them;
+  every surviving review and merge-lock Git path binds its executor to the invocation's subprocess policy.
 
 ### `[ ]` **4.2 Wrap the value-bearing human-output commands — D8**
 

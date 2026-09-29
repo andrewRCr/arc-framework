@@ -234,6 +234,15 @@ describe("repository command-input inventory", () => {
     }
   });
 
+  it("declares JSON mode on attest, publish, and locus", () => {
+    for (const path of ["attest", "publish", "locus"]) {
+      expect(inventory.entries.find((entry) => entry.identity === `${path}:option.json`)?.acquisition, path)
+        .toBe("machine-mode");
+    }
+    const locus = snapshot.source.commands.find((entry) => entry.path === "locus");
+    expect(locus?.action?.interactionContext).toBe(true);
+  });
+
   it("routes every terminal-prompt subprocess command through the interaction-context adapter", () => {
     const subprocessCommands = new Set(inventory.entries
       .filter((entry) => entry.subprocess === "terminal-prompts")

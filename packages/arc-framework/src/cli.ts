@@ -1441,9 +1441,10 @@ program
   .command("locus")
   .description("Inspect the local checkout and session locus roster")
   .option("--json", "Emit one typed session locus envelope as JSON")
-  .action(async (opts: LocusCliOptions) => {
+  .action(withInteractionContext({ machineReadable: (opts) => opts.json === true }, async (context, opts: LocusCliOptions) => {
+    void context;
     await (await import("./handlers/locus.js")).handleLocus(opts);
-  });
+  }));
 
 // --- Recover ---
 
