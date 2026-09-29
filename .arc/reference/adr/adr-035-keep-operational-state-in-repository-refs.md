@@ -218,6 +218,12 @@ decisions above.
 <!-- Reserved for post-implementation learnings per the three-tier amendment model
      (strategy-adr-methodology.md). Append dated annotations as `**Amendment (YYYY-MM-DD):** …`. -->
 
+**Amendment (2026-09-29):** GitHub Enterprise Server held. A 3.22.1 trial instance repeated the host spike and matched
+GitHub.com on every check ([storage substrate analysis][storage-analysis] § 11.3), so the test deferred in § Status is
+met and the first risk's reopening clause does not fire. On that host an ordinary member with write access can
+rewrite or delete any state ref, as the second risk states, and one with read access can only fetch. Bitbucket remains
+untested.
+
 ---
 
 [storage-analysis]: ../supplemental/analysis/analysis-storage-substrate-direction.md

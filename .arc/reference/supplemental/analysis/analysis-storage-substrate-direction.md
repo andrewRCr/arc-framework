@@ -81,9 +81,9 @@ proposal (§ 11).
 
 9. **The counter-case is real but bounded.** Same-repo refs are invisible in forge UI, get no branch protection, are
    not copied to forks on most hosts, and do not give privacy; planning edits leave PR review. Each has a backend or
-   export answer. The spikes confirmed the default (§ 11): GitHub.com, GitLab hosted and self-managed, Azure DevOps,
-   Gitea, and Forgejo push, fetch, and delete `refs/arc/*` with no write lost. GitHub Enterprise Server and Bitbucket
-   were not tested.
+   export answer. The spikes confirmed the default (§ 11): GitHub.com and GitHub Enterprise Server, GitLab hosted and
+   self-managed, Azure DevOps, Gitea, and Forgejo push, fetch, and delete `refs/arc/*` with no write lost. Bitbucket
+   was not tested.
 
 10. **Concurrency is a requirement, not a risk.** Concurrent sessions are the normal case. Most state is single-writer
     by construction — each work unit belongs to one exclusive checkout — and the shared surfaces merge entry by entry,
@@ -677,14 +677,15 @@ light against the coupled surface; user-sync is the nearest in-house comparison 
 
 ## 11. Spikes
 
-Research on the § 6.9 problems ran first, on 2026-09-24; the spikes followed on 2026-09-24 and 2026-09-25, in scratch
-repositories outside ARC and on the hosts named below. Scripts and raw results stayed outside this repository; this
-section records what they found, each against the bar set for it before it ran.
+Research on the § 6.9 problems ran first, on 2026-09-24; the spikes followed on 2026-09-24 and 2026-09-25, and the
+GitHub Enterprise Server host test on 2026-09-29, in scratch repositories outside ARC and on the hosts named below.
+Scripts and raw results stayed outside this repository; this section records what they found, each against the bar set
+for it before it ran.
 
 | Spike                                           | Result                                                                                                                                           |
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Editor ergonomics of a gitignored projection    | Passed with the ignore strategy in § 6.5 and one user-level Zed setting per machine (§ 11.2)                                                     |
-| Push, fetch, and delete `refs/arc/*` per host   | Held on GitHub.com, GitLab hosted and self-managed, Azure DevOps, Gitea, and Forgejo; GitHub Enterprise Server and Bitbucket not tested (§ 11.3) |
+| Push, fetch, and delete `refs/arc/*` per host   | Held on GitHub.com and GitHub Enterprise Server, GitLab hosted and self-managed, Azure DevOps, Gitea, and Forgejo; Bitbucket not tested (§ 11.3) |
 | Fork behavior for custom refs                   | Forks copy none, except an Azure DevOps fork of every branch (§ 11.3)                                                                            |
 | `git push --atomic` of a branch plus state refs | A stale state ref held the code branch back on every tested host (§ 11.3)                                                                        |
 | Clone and fetch-refspec installation            | A default clone fetches none; ARC's refspec fetches into a remote-tracking namespace (§ 11.3)                                                    |
@@ -751,12 +752,12 @@ user directory in `.gitignore`.
 **Bar**, set before the spike: the default must hold on GitHub and GitLab, hosted and self-managed, or the direction
 reopens. Bitbucket and Azure DevOps should hold, and fall back to the backing-repository backend at a documented cost
 where they do not. Gitea and Forgejo are best effort. AWS CodeCommit and Google Cloud Source Repositories are not
-targeted. Against that bar, every tested host held; GitHub Enterprise Server, on the must-hold floor, and Bitbucket
-were not tested.
+targeted. Against that bar, every tested host held, GitHub Enterprise Server among them; Bitbucket was not tested.
 
 Private scratch repositories: GitHub on 2026-09-24; Gitea 1.27.3 and Forgejo 16.0.5 on local servers the same day;
-gitlab.com, self-managed GitLab CE 19.4.1, and Azure DevOps on 2026-09-25. Self-managed GitLab repeated the basics
-only, since it runs the same code as gitlab.com.
+gitlab.com, self-managed GitLab CE 19.4.1, and Azure DevOps on 2026-09-25; GitHub Enterprise Server 3.22.1, a trial
+instance on a four-vCPU Google Cloud VM, on 2026-09-29. Self-managed GitLab repeated the basics only, since it runs the
+same code as gitlab.com. GitHub Enterprise Server repeated the GitHub checks and added ordinary-member permissions.
 
 | Check                                                      | GitHub                              | GitLab                                           | Azure DevOps                                                                                    | Gitea and Forgejo                                              |
 | ---------------------------------------------------------- | ----------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
@@ -772,6 +773,12 @@ only, since it runs the same code as gitlab.com.
 | One push of 1,000 refs                                     | 3.4 s                               | 23.5 s                                           | 11.1 s                                                                                          | not run                                                        |
 | No-change ARC fetch at 1,000 refs                          | 0.70 s                              | 0.83 s                                           | 0.39 s                                                                                          | not run                                                        |
 
+- **GitHub Enterprise Server matched GitHub** on every behavior the table records, and lost no write at six or twenty
+  concurrent clones. Its push medians were 1.7–3.4 s on the small instance; the 1,000-ref and fetch-cost rows were
+  not run.
+- **GitHub Enterprise Server gives ordinary members no ref-level restriction.** A member with write access created,
+  rewrote, and deleted state refs, another identity's included; with read access the member could fetch them, and
+  every push was refused with HTTP 403.
 - **Distinct refs did not contend** in the one run that tried: twenty clones pushing twenty refs at once to GitHub saw
   no rejection; each push just took longer. GitHub does not document its replica locking, so this is a sample.
 - **No throttling.** Short bursts reached about 280 pushes a minute on GitHub, 540 on GitLab, and 460 on Azure DevOps.
@@ -787,11 +794,13 @@ only, since it runs the same code as gitlab.com.
   project rule or a custom hook refused, and Azure DevOps's `VS403702` and `TF402455` are final too.
 - **A branch prefix can be protected on GitHub.** A ruleset on `refs/heads/arc-state/**` accepted fast-forwards and
   refused rewrites and deletes with `GH013`, which ends the push loop; a new branch under the prefix could still be
-  created (§ 7 row 16).
+  created (§ 7 row 16). On GitHub Enterprise Server the same ruleset bound an ordinary member as it bound the admin.
 - **A fast-forward-only pre-receive hook on self-managed GitLab** refused rewrites and deletes under `refs/arc/` and
   left ARC's own writes, leased races included, working. It also forbids ARC ever rewriting state itself.
-- **Forks accept pushes of their own `refs/arc/*`** on GitHub and GitLab, so a contributor can keep state in a fork,
-  but state crossing from a fork to the upstream needs its own path (§ 7 row 17).
+- **Forks accept pushes of their own `refs/arc/*`** on GitHub, GitHub Enterprise Server, and GitLab, so a contributor
+  can keep state in a fork, but state crossing from a fork to the upstream needs its own path (§ 7 row 17). GitHub
+  Enterprise Server's default policy refuses a private repository's fork into a user account, so its test fork went to
+  an organization.
 
 ### 11.4 Concurrency
 
@@ -900,7 +909,8 @@ commits.
 
 ### 11.7 Still open
 
-- Bitbucket, GitHub Enterprise Server, and Azure DevOps ref-level permissions for ordinary members.
+- Bitbucket, and ordinary members' ref-level permissions on Azure DevOps; GitHub's were tested on GitHub Enterprise
+  Server only.
 - A pushed year's first fetch over the network from GitHub, and whether GitHub's maintenance keeps the deltas pushes
   arrive with.
 - One push was refused after the receiving side had packed twice, in one of two history replays, and its message was
@@ -956,9 +966,8 @@ commits.
   ran over WSL remotes, not natively or over SSH.
 - **From one inventory pass, not re-verified:** line and file counts in § 2.2 and § 2.3, notes health figures, the
   #656 tail count, and the prerequisite verdicts' churn estimates.
-- **Not tested:** Bitbucket, GitHub Enterprise Server, and Azure DevOps ref-level permissions for ordinary members
-  (§ 11.7). AWS CodeCommit and Google Cloud Source Repositories were reported closed to new customers in 2024; that
-  was not confirmed.
+- **Not tested:** Bitbucket, and ordinary members' ref-level permissions on Azure DevOps (§ 11.7). AWS CodeCommit and
+  Google Cloud Source Repositories were reported closed to new customers in 2024; that was not confirmed.
 - **`archive.cadence: manual`** now has four self-hosted landings behind it (§ 9.1).
 
 ---
