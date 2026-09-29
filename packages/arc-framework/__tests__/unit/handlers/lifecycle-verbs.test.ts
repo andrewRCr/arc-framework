@@ -8,6 +8,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 import {
   createStandardReviewReservation,
@@ -1916,7 +1917,13 @@ describe("handleAttest", () => {
       postAttestContinuation: fixture.postAttestContinuation,
     });
 
-    mockIoExec.mockRejectedValueOnce(new Error("index write interrupted"));
+    mockIoExec.mockRejectedValueOnce(makeGitProcessError({
+      command: "git",
+      args: ["add", "--", ".arc/system/.internal/candidates/foo.json", ".arc/active/meta-foo.md",
+        ".arc/system/.internal/candidates/foo.boundary.json"],
+      exitCode: 128,
+      stderr: "index write interrupted",
+    }));
     await expect(handleAttest("foo", { json: true })).rejects.toThrow("index write interrupted");
     expect(currentBoundary).toMatchObject({
       locus: "candidate-review-pending",
@@ -2525,7 +2532,13 @@ describe("handleAttest", () => {
     });
 
     stateRevision = 8;
-    mockIoExec.mockRejectedValueOnce(new Error("index write interrupted"));
+    mockIoExec.mockRejectedValueOnce(makeGitProcessError({
+      command: "git",
+      args: ["add", "--", ".arc/system/.internal/candidates/foo.json", ".arc/active/meta-foo.md",
+        ".arc/system/.internal/candidates/foo.boundary.json"],
+      exitCode: 128,
+      stderr: "index write interrupted",
+    }));
     await expect(handleAttest("foo", { json: true, newRoot: true }))
       .rejects.toThrow("index write interrupted");
     expect(currentBoundary).toMatchObject({

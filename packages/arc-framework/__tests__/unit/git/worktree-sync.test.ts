@@ -1126,10 +1126,10 @@ describe("runWorktreeSyncStatus", () => {
     const { exec } = buildExec({
       [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
       [REV_PARSE_UPSTREAM]: { stdout: "origin/main", stderr: "" },
-      [FETCH_BRANCH]: (_args, options) =>
+      [FETCH_BRANCH]: (args, options) =>
         new Promise((_resolve, reject) => {
           options?.signal?.addEventListener("abort", () => {
-            reject(Object.assign(new Error("canceled"), { isCanceled: true }));
+            reject(makeGitProcessError({ command: "git", args, isCanceled: true, stderr: "canceled" }));
           });
         }),
     });
