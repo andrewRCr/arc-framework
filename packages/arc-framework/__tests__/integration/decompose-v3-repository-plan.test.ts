@@ -12,7 +12,7 @@ import {
   digestBytes,
   sortByCanonicalBytes,
 } from "../../src/lib/canonical/canonical-json.js";
-import { createRawGitExec } from "../../src/lib/change-facts.js";
+import { createSpawnRawGitExec } from "../../src/lib/change-facts.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { createGitV3DecomposePreflight } from "../../src/lib/work-unit/git-decompose-v3-preflight.js";
 import {
@@ -2401,7 +2401,7 @@ describe("Git v3 repository plan", () => {
     await write(repo, sentinelPath, sentinel);
     const expectedObjectId = (await git(repo, ["hash-object", sentinelPath])).trim();
 
-    const result = await createRawGitExec(repo)(["hash-object", "--stdin"], {
+    const result = await createSpawnRawGitExec(repo)(["hash-object", "--stdin"], {
       input: new TextEncoder().encode(sentinel),
     });
 

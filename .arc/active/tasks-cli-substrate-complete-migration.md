@@ -400,7 +400,7 @@ path spawns Git through an unbound executor; the failure-text predicates and `re
 - _Outcome:_ Both Git plumbing utilities now have lower-tier owners, and no surviving importer reaches them through
   user-sync. The carved notes callers compile through their forced new imports.
 
-### `[ ]` **4.6 Classify errand identity failures through `gitFailureText()` and rename the spawn factory — D7**
+### `[x]` **4.6 Classify errand identity failures through `gitFailureText()` and rename the spawn factory — D7**
 
 - _Goal:_ Errand identity code reads Git failures through `gitFailureText()`, so its retry-or-stop decision rests on
   Git's complete stderr rather than a bounded message, and the `createRawGitExec` name belongs only to the execa
@@ -411,11 +411,13 @@ path spawns Git through an unbound executor; the failure-text predicates and `re
           the existing message in returned errors. Four transaction-level tests cover long stderr, stdout-only text,
           and unrelated failure; the three distinguishing cases failed before the change.
 
-    - `[ ]` **4.6.b Rename the `change-facts.ts` spawn factory to `createSpawnRawGitExec`**
-        - It stays exported for the four integration tests that import it; `object-availability.test.ts` drops its
-          alias. The execa adapter in `lib/io-context.ts` keeps `createRawGitExec`.
-        - The spawn executor's matrix row is retained-raw: `change-facts.ts` must not import `lib/io-context.ts` or
-          execa, since `classify-change.sh` runs it standalone.
+    - `[x]` **4.6.b Rename the `change-facts.ts` spawn factory to `createSpawnRawGitExec`**
+        - Renamed the export, its own invocation, and four integration-test imports; the object-availability alias is
+          gone. The execa adapter keeps `createRawGitExec`. The spawn factory remains independent of io-context and
+          execa; `classify-change.sh tree-hash HEAD` passed under plain Node.
+
+- _Outcome:_ Errand identity classifies complete Git stderr for retry and stop decisions, and the raw spawn factory
+  has a name distinct from the execa adapter without changing its standalone boundary.
 
 ### `[ ]` **4.7 Verify every command path binds its executor** — validate exit criterion at segment scope
 

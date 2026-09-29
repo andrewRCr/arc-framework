@@ -246,7 +246,7 @@ export async function resolveChangeSet(
  * @param cwd - Default repository working directory
  * @returns A raw Git executor
  */
-export function createRawGitExec(cwd = process.cwd()): RawGitExec {
+export function createSpawnRawGitExec(cwd = process.cwd()): RawGitExec {
   return (args, options) =>
     new Promise<RawGitResult>((resolveResult, reject) => {
       const effectiveArgs = options?.objectAccess === "local-only"
@@ -573,7 +573,7 @@ async function optionalTreeFixture(ref: string): Promise<Uint8Array | undefined>
 
 async function runExecutable(args: string[]): Promise<void> {
   const [command, ...operands] = args;
-  const exec = createRawGitExec();
+  const exec = createSpawnRawGitExec();
 
   if (command === "classification") {
     const [base, head, ...rest] = operands;
