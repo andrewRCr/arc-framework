@@ -456,7 +456,7 @@ kind.
       surviving executable or package/CI dependency; design and archival references remain as records.
     - Closed the script's `gitExec` matrix row with the deletion and adjusted the standalone-script count.
 
-### `[ ]` **5.2 Record the code-surface reconciliation and the non-code predicates — D6, D10**
+### `[x]` **5.2 Record the code-surface reconciliation and the non-code predicates — D6, D10**
 
 - _Goal:_ One recorded command reconciles the matrix's layout rows and predicates against the coupling-audit class scan
   in both directions and is shown to report what it should, and every non-code surface falls under a recorded
@@ -474,19 +474,15 @@ kind.
         - The initial run covered 18,427 hits and exposed 1,125 code hits for Task 5.3/5.4. The script is outside
           the tracked tree; its source and current report location are recorded in the notes.
 
-    - `[ ]` **5.2.b Record the non-code and carved-module predicates**
-        - Class-level predicates over surface kind and path for test, prose, workflow, config, and template surfaces,
-          in the matrix's non-code predicate table; one predicate per wholly carved module, `external-owner`, citing
-          its register row.
-        - The layout contract's two routed items take rows in the layout table, outside the reconciliation's tables.
-          The draft-retirement residual — the guarded retirement mechanic in `activate-work-unit.md` and its
-          description in `strategy-work-planning.md` — is a Git-operation residual, not path construction, so it is
-          owned outside the cohort by `composable-workflows`. The layout-class hits in both documents, whose package
-          copies are what the audit corpus holds, fall under the ordinary non-code predicates. The
-          `provisional-placement` callers take a carved row citing their register rows; that class is outside the 15.
-        - Run the negative control and record its report: with one carved-module predicate and one non-code predicate
-          removed — each chosen with no less specific rule to fall back to — the reconciliation reports exactly their
-          hits beyond the unremoved run's report; restored, it reports none of them.
+    - `[x]` **5.2.b Record the non-code and carved-module predicates**
+        - Five class-level non-code predicates cover every test, template, prose, workflow, and config hit. Thirty
+          exact-path carved predicates cite their storage register owners. The layout contract names the two routed
+          items and the `provisional-placement` owners outside the reconciliation tables.
+        - The complete three-rule negative control exposed exactly 139 removed-rule hits and no other hit; the
+          restored report has no uncovered hit, overlap, unused rule, or count mismatch.
+
+- _Outcome:_ The recorded one-off command reconciles the complete selected corpus in both directions; its negative
+  control proves that each rule type contributes coverage. Results and commands are in notes § Layout reconciliation.
 
 ### `[x]` **5.3 Move framework-path construction onto the resolver — D6**
 
@@ -524,7 +520,7 @@ kind.
         - Reconciliation assigns all 111 with no overlap or count drift. The remaining code queue belongs to the
           state-path and framework residual passes in Task 5.4.
 
-### `[ ]` **5.4 Dispose the remaining code-surface layout hits — D6, D10**
+### `[x]` **5.4 Dispose the remaining code-surface layout hits — D6, D10**
 
 - _Goal:_ Every remaining layout-class code hit has a row — carved modules by predicate, mixed modules along their
   split, and surviving modules per file and class with a disposition kind and an owner — and the work-unit state-path
@@ -532,25 +528,21 @@ kind.
 
 - **Additional Context:** `notes-cli-substrate-complete-migration.md` § Work-unit state-path recount
 
-    - `[ ]` 5.4.a Dispose the mixed modules along their symbol-range splits
+    - `[x]` 5.4.a Dispose the mixed modules along their symbol-range splits
+        - Per-file rows separate surviving import syntax, source evidence, path classification, and carved branch,
+          placement, archive, and lifecycle symbols by exact line and register owner.
 
-    - `[ ]` **5.4.b Dispose the work-unit state-path hits and the other state-class hits in surviving modules**
-        - A hit of any layout class that constructs or recognizes a work-unit state path is `external-owner`, citing
-          the `storage-seam` row for work-unit state-path access — a state-class hit, or an `arc-root` hit where a
-          placement directory or the user workspace is built without the trailing slash. These rows list their lines,
-          since they are the evidence behind the register row's count.
-        - The register row's count was taken over state classes only; a count that does not match goes to the
-          register's owner as a correction by the Task 1.1.d route.
-        - Other state-class hits cite their own register row or take `layout-definition`, `scanner-false-positive`,
-          or `independent-evidence`.
+    - `[x]` **5.4.b Dispose the work-unit state-path hits and the other state-class hits in surviving modules**
+        - Recorded exact state-path hit lines under `R-SP` and other storage rows, including `arc-root` path builds.
+          The historical recount's five `from-branch.ts` basename lines belong to `R-LC`; a correction to the
+          register's historical count and file set is routed to `storage-seam` through `USER-INBOX`.
 
-    - `[ ]` **5.4.c Dispose the remaining framework-class hits in surviving modules**
-        - Each takes a kind and an owner; a row whose hits take different kinds lists the hit lines under each. A hit
-          in surviving TypeScript that fits no kind is missed construction and migrates under Task 5.3.
-        - Non-TypeScript code — Git hooks, harness hooks, shell and `.mjs` scripts — takes a kind, most often
-          `root-only-owner`, unless a carved-module predicate applies. The retired ledger's entries at the merge base,
-          read with `git show`, are the precedent: join them to the current scan on class and evidence digest, and
-          judge each hit left unmatched under the spec's residual rule.
+    - `[x]` **5.4.c Dispose the remaining framework-class hits in surviving modules**
+        - Assigned all remaining framework hits to per-file kinds or carved predicates. Non-TypeScript hooks and
+          scripts retain their own root discovery; framework diagnostics and source text remain independent evidence.
+
+- _Outcome:_ The complete 15-class reconciliation assigns 1,089 code hits and 17,301 non-code hits, with zero
+  uncovered hits, overlaps, unused rules, or count drift; notes § Layout reconciliation records the report.
 
 ### `[ ]` **5.5 Reconcile the layout rows both ways** — validate exit criterion at segment scope
 
