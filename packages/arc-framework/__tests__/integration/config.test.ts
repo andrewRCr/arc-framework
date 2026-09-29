@@ -16,6 +16,8 @@ import {
   runConfigSessionInitStatus,
   runConfigStatus,
 } from "../../src/commands/config.js";
+import { ConfigSessionInitResultSchema } from "../../src/commands/config/status.js";
+import { resolveAllSettings } from "../../src/lib/config/resolved-settings.js";
 import type { ConfigSessionInitSettings } from "../../src/commands/config.js";
 
 /**
@@ -186,6 +188,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     expect(result.settings["session.init_load.notes"]).toBe("manual");
     // user.notes_push reflects yaml when no git-config override is set.
     expect(result.settings["user.notes_push"]).toBe("prompt");
+    expect(ConfigSessionInitResultSchema.safeParse(result).success).toBe(true);
   });
 
   it("git-config override wins over yaml for the dual-scope notesPush key", async () => {
@@ -207,6 +210,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     expect(result.settings["user.notes_push"]).toBe("prompt");
     // Non-release-mode keys remain yaml-only — no git-config probe.
     expect(result.settings["pm.mode"]).toBe("arc-in-git");
+    expect(ConfigSessionInitResultSchema.safeParse(result).success).toBe(true);
   });
 
   it("falls back to documented defaults when arc-config.yml is missing", async () => {
@@ -228,6 +232,7 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     expect(result.defaultsApplied).toContain("session.init_load.notes");
     expect(result.defaultsApplied).toContain("user.notes_push");
     expect(result.warnings).toHaveLength(1);
+    expect(ConfigSessionInitResultSchema.safeParse(result).success).toBe(true);
   });
 
   it("reports only scoped keys in defaultsApplied when others are missing", async () => {
@@ -274,6 +279,64 @@ describe("runConfigSessionInitStatus — init-gating subset", () => {
     expect(result.settings["session.init_pull.worktree"]).toBe("prompt");
     expect(result.warnings.length).toBeGreaterThan(0);
     expect(result.warnings.some((e) => e.includes("session.init_pull.worktree"))).toBe(true);
+  });
+
+  it("refuses the catalog's empty-string arm at the session-init root", async () => {
+    const result = await runConfigSessionInitStatus({
+      cwd: fixture.root, exec: noGitConfigExec, readFile: realReadFile,
+    });
+    expect(() => ConfigSessionInitResultSchema.parse({
+      ...result,
+      settings: { ...result.settings, "session.remote_sync": "" },
+    })).toThrow(/session.remote_sync/u);
+  });
+
+  it("surfaces a misconfigured pass-through value at its setting key", async () => {
+    const resolvedSettings = await resolveAllSettings({
+      cwd: fixture.root, exec: noGitConfigExec, readFile: realReadFile,
+    });
+    const result = await runConfigSessionInitStatus({
+      cwd: fixture.root,
+      resolvedSettings: {
+        ...resolvedSettings,
+        settings: { ...resolvedSettings.settings, "session.remote_sync": "sometimes" },
+      },
+    });
+    expect(result.settings["session.remote_sync"]).toBe("sometimes");
+    expect(() => ConfigSessionInitResultSchema.parse(result)).toThrow(/session.remote_sync/u);
+  });
+
+  it("names undeclared config fields at both strict object levels", async () => {
+    const result = await runConfigSessionInitStatus({
+      cwd: fixture.root, exec: noGitConfigExec, readFile: realReadFile,
+    });
+    expect(() => ConfigSessionInitResultSchema.parse({ ...result, unexpected: true })).toThrow(/unexpected/u);
+    expect(() => ConfigSessionInitResultSchema.parse({
+      ...result,
+      settings: { ...result.settings, unexpected: true },
+    })).toThrow(/unexpected/u);
+  });
+
+  it.each([
+    ["session.remote_sync", "sometimes"],
+    ["session.init_pull.worktree", "always"],
+    ["session.init_pull.notes", "invalid"],
+    ["session.init_pull.base", "invalid"],
+    ["session.init_load.notes", "invalid"],
+    ["user.notes_push", "always"],
+    ["branch.protection", "none"],
+    ["pm.mode", "builtin"],
+    ["commit.format", "unknown"],
+    ["commit.context_footer", "optional"],
+    ["commit.interlock", "on-commit"],
+    ["push.interlock", "on-handoff"],
+  ])("rejects an invalid value for %s", async (key, value) => {
+    const result = await runConfigSessionInitStatus({
+      cwd: fixture.root, exec: noGitConfigExec, readFile: realReadFile,
+    });
+    expect(ConfigSessionInitResultSchema.safeParse({
+      ...result, settings: { ...result.settings, [key]: value },
+    }).success).toBe(false);
   });
 
 });

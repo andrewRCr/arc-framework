@@ -923,6 +923,18 @@ describe("session-init envelope schema", () => {
     },
   );
 
+  it("rejects undeclared config fields", () => {
+    const extra = fixture("orient");
+    setPath(extra, ["config", "value", "unexpected"], true);
+    expectContractFailure(extra, "config.value");
+  });
+
+  it("names a misconfigured config setting at its envelope slot", () => {
+    const misconfigured = fixture("orient");
+    setPath(misconfigured, ["config", "value", "settings", "session.remote_sync"], "sometimes");
+    expectContractFailure(misconfigured, "config.value.settings.session.remote_sync");
+  });
+
   it("enforces roster, recovery, and primary sweep gates", () => {
     const branchGone = fixture("branch-gone");
     delete branchGone.roster;

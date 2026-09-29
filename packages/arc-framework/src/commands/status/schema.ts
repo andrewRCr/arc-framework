@@ -10,6 +10,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import { z } from "zod";
 import { ActiveSessionInitResultSchema } from "../active/schema.js";
+import { ConfigSessionInitResultSchema } from "../config/status.js";
 import { DomainRulesSessionInitResultSchema } from "../constitution/status.js";
 import { ExtensionsSessionInitResultSchema } from "../extensions/status.js";
 
@@ -471,29 +472,6 @@ export const ErrandStateValueViewSchema = z
     }
   });
 
-/** Thin routing view of the twelve session-init policy settings. */
-export const ConfigSessionInitValueViewSchema = z
-  .object({
-    mode: z.literal("session-init"),
-    settings: z
-      .object({
-        "session.remote_sync": z.enum(["enabled", "disabled"]),
-        "session.init_pull.worktree": z.enum(["manual", "prompt"]),
-        "session.init_pull.notes": z.enum(["manual", "prompt", "always"]),
-        "session.init_pull.base": z.enum(["manual", "prompt", "always"]),
-        "session.init_load.notes": z.enum(["manual", "prompt", "always"]),
-        "user.notes_push": z.enum(["manual", "prompt", "on-sync"]),
-        "branch.protection": z.enum(["partial", "full"]),
-        "pm.mode": z.enum(["none", "arc-in-git", "external"]),
-        "commit.format": z.enum(["conventional", "custom", "any"]),
-        "commit.context_footer": z.enum(["required", "recommended", "custom", "disabled"]),
-        "commit.interlock": z.enum(["manual", "on-task-approval", "on-workflow"]),
-        "push.interlock": z.enum(["manual", "on-sync", "on-workflow"]),
-      })
-      .loose(),
-  })
-  .loose();
-
 const USER_REF_STATE = z.enum(["same", "local-ahead", "remote-ahead", "diverged", "remote-unavailable"]);
 const USER_CONTENT_RELATION = z.enum([
   "remote-subset",
@@ -792,7 +770,7 @@ const SessionInitEnvelopeObjectSchema = z.strictObject({
   baseBranchSync: probe(SessionInitBaseBranchSyncValueViewSchema),
   dirty: probe(DirtyStateResultSchema),
   extensions: probe(ExtensionsSessionInitResultSchema),
-  config: probe(ConfigSessionInitValueViewSchema),
+  config: probe(ConfigSessionInitResultSchema),
   active: probe(ActiveSessionInitResultSchema),
   domainRules: probe(DomainRulesSessionInitResultSchema),
   releaseRouting: probe(ReleaseRoutingValueViewSchema),
@@ -1131,7 +1109,7 @@ const SessionRecoverEnvelopeObjectSchema = z.strictObject({
   worktree: probe(SessionRecoverWorktreeValueViewSchema),
   dirty: probe(DirtyStateResultSchema),
   extensions: probe(ExtensionsSessionInitResultSchema),
-  config: probe(ConfigSessionInitValueViewSchema),
+  config: probe(ConfigSessionInitResultSchema),
   releaseRouting: probe(ReleaseRoutingValueViewSchema),
   loadSet: probe(LoadSetManifestSchema),
   taskCursor: probe(TaskListCursorFileResultSchema).optional(),
@@ -1176,15 +1154,9 @@ type DeclaredInput<Value> = Value extends readonly (infer Item)[]
     ? { [Key in keyof Value as string extends Key ? never : Key]: DeclaredInput<Value[Key]> }
     : Value;
 
-type SessionInitDeclaredInput = Omit<
-  DeclaredInput<z.input<typeof SessionInitProbeResultRuntimeSchema>>,
-  "config"
-> & Pick<SessionInitProbeResult, "config">;
+type SessionInitDeclaredInput = DeclaredInput<z.input<typeof SessionInitProbeResultRuntimeSchema>>;
 
-type SessionRecoverDeclaredInput = Omit<
-  DeclaredInput<z.input<typeof SessionRecoverProbeResultRuntimeSchema>>,
-  "config"
-> & Pick<SessionRecoverProbeResult, "config">;
+type SessionRecoverDeclaredInput = DeclaredInput<z.input<typeof SessionRecoverProbeResultRuntimeSchema>>;
 
 /** Compile-only proof that the producer satisfies every declared schema input field. */
 export type SessionInitProbeResultSchemaInputCompatibility<

@@ -7,6 +7,7 @@
 
 import { createKernelRegistry, type KernelRegistry } from "../kernel/index.js";
 import { ActiveSessionInitResultSchema } from "../../commands/active/schema.js";
+import { ConfigSessionInitResultSchema } from "../../commands/config/status.js";
 import { DomainRulesSessionInitResultSchema } from "../../commands/constitution/status.js";
 import { ExtensionsSessionInitResultSchema } from "../../commands/extensions/status.js";
 import {
@@ -40,6 +41,7 @@ export const SESSION_ENVELOPE_SCHEMA_IDS = {
   cascadeResolution: "cascade-resolution",
   classComposition: "class-composition",
   compactionSeed: "compaction-seed",
+  configSessionInit: "config-session-init",
   currentHuskAdvisory: "current-husk-advisory",
   dirtyState: "dirty-state",
   domainRulesSessionInit: "domain-rules-session-init",
@@ -66,6 +68,34 @@ const STRICT_CURRENT_V1 = {
   migrationPosture: "strict-current",
 } as const;
 
+const SESSION_ENVELOPE_SCHEMAS = [
+  [SESSION_ENVELOPE_SCHEMA_IDS.activeSessionInit, ActiveSessionInitResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.baseBranchSync, BaseBranchSnapshotAnalysisResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.cascadeResolution, CascadeResolutionSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.classComposition, ClassCompositionSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.compactionSeed, CompactionSeedSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.configSessionInit, ConfigSessionInitResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.currentHuskAdvisory, CurrentHuskAdvisorySchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.dirtyState, DirtyStateResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.domainRulesSessionInit, DomainRulesSessionInitResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.errandStalenessSweep, ErrandStalenessSweepResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.extensionsSessionInit, ExtensionsSessionInitResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.inboxState, InboxStateResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.loadSetAuditVerdict, LoadSetAuditVerdictSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.loadSetManifest, LoadSetManifestSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.materializableWorkUnits, MaterializableWorkUnitDiscoveryResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.notesCompactionSessionAdvisory, NotesCompactionSessionAdvisoryResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.orphanBranchSweep, OrphanBranchSweepResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.partialPushMarkerSurface, PartialPushMarkerSurfaceResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.taskListCursor, TaskListCursorSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.taskListCursorFileResult, TaskListCursorFileResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.recoveryAuditVerdict, RecoveryAuditVerdictSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.recoveryAuditReport, RecoverAuditReportSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.retiredSubdirDetection, RetiredSubdirDetectionResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.sessionInitEnvelope, SessionInitProbeResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.sessionRecoverEnvelope, SessionRecoverProbeResultSchema],
+] as const;
+
 /**
  * Register the session-envelope family roots in an existing kernel registry.
  *
@@ -73,102 +103,9 @@ const STRICT_CURRENT_V1 = {
  * @returns The same registry after registration
  */
 export function registerSessionEnvelopeSchemas(registry: KernelRegistry): KernelRegistry {
-  registry.register(ActiveSessionInitResultSchema, {
-    id: SESSION_ENVELOPE_SCHEMA_IDS.activeSessionInit,
-    ...STRICT_CURRENT_V1,
-  });
-  registry.register(BaseBranchSnapshotAnalysisResultSchema, {
-    id: SESSION_ENVELOPE_SCHEMA_IDS.baseBranchSync,
-    ...STRICT_CURRENT_V1,
-  });
-  registry.register(CascadeResolutionSchema, {
-    id: SESSION_ENVELOPE_SCHEMA_IDS.cascadeResolution,
-    ...STRICT_CURRENT_V1,
-  });
-  registry.register(ClassCompositionSchema, {
-    id: SESSION_ENVELOPE_SCHEMA_IDS.classComposition,
-    ...STRICT_CURRENT_V1,
-  });
-  registry.register(CompactionSeedSchema, {
-    id: SESSION_ENVELOPE_SCHEMA_IDS.compactionSeed,
-    ...STRICT_CURRENT_V1,
-  });
-  registry.register(CurrentHuskAdvisorySchema, {
-    id: SESSION_ENVELOPE_SCHEMA_IDS.currentHuskAdvisory,
-    ...STRICT_CURRENT_V1,
-  });
-  registry.register(DirtyStateResultSchema, {
-    id: SESSION_ENVELOPE_SCHEMA_IDS.dirtyState,
-    ...STRICT_CURRENT_V1,
-  });
-  registry.register(DomainRulesSessionInitResultSchema, {
-    id: SESSION_ENVELOPE_SCHEMA_IDS.domainRulesSessionInit,
-    ...STRICT_CURRENT_V1,
-  });
-  registry.register(ErrandStalenessSweepResultSchema, {
-    id: SESSION_ENVELOPE_SCHEMA_IDS.errandStalenessSweep,
-    ...STRICT_CURRENT_V1,
-  });
-  registry.register(ExtensionsSessionInitResultSchema, {
-    id: SESSION_ENVELOPE_SCHEMA_IDS.extensionsSessionInit,
-    ...STRICT_CURRENT_V1,
-  });
-  registry.register(InboxStateResultSchema, {
-    id: SESSION_ENVELOPE_SCHEMA_IDS.inboxState,
-    ...STRICT_CURRENT_V1,
-  });
-  registry.register(LoadSetAuditVerdictSchema, {
-    id: SESSION_ENVELOPE_SCHEMA_IDS.loadSetAuditVerdict,
-    ...STRICT_CURRENT_V1,
-  });
-  registry.register(LoadSetManifestSchema, {
-    id: SESSION_ENVELOPE_SCHEMA_IDS.loadSetManifest,
-    ...STRICT_CURRENT_V1,
-  });
-  registry.register(MaterializableWorkUnitDiscoveryResultSchema, {
-    id: SESSION_ENVELOPE_SCHEMA_IDS.materializableWorkUnits,
-    ...STRICT_CURRENT_V1,
-  });
-  registry.register(NotesCompactionSessionAdvisoryResultSchema, {
-    id: SESSION_ENVELOPE_SCHEMA_IDS.notesCompactionSessionAdvisory,
-    ...STRICT_CURRENT_V1,
-  });
-  registry.register(OrphanBranchSweepResultSchema, {
-    id: SESSION_ENVELOPE_SCHEMA_IDS.orphanBranchSweep,
-    ...STRICT_CURRENT_V1,
-  });
-  registry.register(PartialPushMarkerSurfaceResultSchema, {
-    id: SESSION_ENVELOPE_SCHEMA_IDS.partialPushMarkerSurface,
-    ...STRICT_CURRENT_V1,
-  });
-  registry.register(TaskListCursorSchema, {
-    id: SESSION_ENVELOPE_SCHEMA_IDS.taskListCursor,
-    ...STRICT_CURRENT_V1,
-  });
-  registry.register(TaskListCursorFileResultSchema, {
-    id: SESSION_ENVELOPE_SCHEMA_IDS.taskListCursorFileResult,
-    ...STRICT_CURRENT_V1,
-  });
-  registry.register(RecoveryAuditVerdictSchema, {
-    id: SESSION_ENVELOPE_SCHEMA_IDS.recoveryAuditVerdict,
-    ...STRICT_CURRENT_V1,
-  });
-  registry.register(RecoverAuditReportSchema, {
-    id: SESSION_ENVELOPE_SCHEMA_IDS.recoveryAuditReport,
-    ...STRICT_CURRENT_V1,
-  });
-  registry.register(RetiredSubdirDetectionResultSchema, {
-    id: SESSION_ENVELOPE_SCHEMA_IDS.retiredSubdirDetection,
-    ...STRICT_CURRENT_V1,
-  });
-  registry.register(SessionInitProbeResultSchema, {
-    id: SESSION_ENVELOPE_SCHEMA_IDS.sessionInitEnvelope,
-    ...STRICT_CURRENT_V1,
-  });
-  registry.register(SessionRecoverProbeResultSchema, {
-    id: SESSION_ENVELOPE_SCHEMA_IDS.sessionRecoverEnvelope,
-    ...STRICT_CURRENT_V1,
-  });
+  for (const [id, schema] of SESSION_ENVELOPE_SCHEMAS) {
+    registry.register(schema, { id, ...STRICT_CURRENT_V1 });
+  }
   return registry;
 }
 

@@ -209,17 +209,11 @@ recorded sweep recipes; see `notes-cli-substrate-complete-migration.md` § Segme
           exported derived-active projection is tested for `none` and `single`. The active schema remains beside its
           type with a type-only producer import, preserving lazy integration-boundary loading.
 
-    - `[ ]` **3.2.c Complete `ConfigSessionInitResult`**
-        - ID `config-session-init`. Compose the ten catalog keys from each catalog field's `policy.values`, which is
-          the leaf enum without the catalog's empty-string arm, and `commit.interlock` and `push.interlock` from
-          `lib/release/schema.ts`'s interlock enums, exported for it.
-        - With the type derived from its schema, the `config` exemption in the envelope's compile-time compatibility
-          proofs retires. The producer passes some settings through verbatim and keeps its cast over them, so a
-          misconfigured value still fails envelope validation at the config slot, naming its key.
-        - Build `test-first` (one behavior at a time):
-            - The root parses its producer's output for defaulted and overridden settings
-            - The root refuses a catalog key's empty-string arm
-            - The root refuses an undeclared key, naming it
+    - `[x]` **3.2.c Complete `ConfigSessionInitResult`**
+        - Registered the strict root, composed it into both envelope slots, and derived its settings/result types.
+          Ten settings read their catalog enum values without the empty arm; release interlocks use the exported
+          release schemas. Producer tests cover defaults, overrides, pass-through misconfiguration, and strict
+          refusals; the envelope now names invalid setting keys without the former config type-proof exemption.
 
     - `[ ]` **3.2.d Complete `ReleaseRoutingValue`**
         - ID `release-routing`. The rationale's interlock fields stay strings, as its type declares, since routing

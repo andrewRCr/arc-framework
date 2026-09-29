@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   BaseDistanceValueViewSchema,
-  ConfigSessionInitValueViewSchema,
   ErrandStateValueViewSchema,
   ReleaseRoutingValueViewSchema,
   SessionInitBaseBranchSyncValueViewSchema,
@@ -99,54 +98,6 @@ describe("shared git routing views", () => {
     expect(WorktreeRosterValueViewSchema.parse(value)).toEqual(value);
     expect(WorktreeRosterValueViewSchema.safeParse([]).success).toBe(false);
   });
-});
-
-describe("command-owned routing views", () => {
-  const config = {
-    mode: "session-init",
-    settings: {
-      "session.remote_sync": "enabled",
-      "session.init_pull.worktree": "prompt",
-      "session.init_pull.notes": "always",
-      "session.init_pull.base": "manual",
-      "session.init_load.notes": "prompt",
-      "user.notes_push": "on-sync",
-      "branch.protection": "full",
-      "pm.mode": "arc-in-git",
-      "commit.format": "conventional",
-      "commit.context_footer": "required",
-      "commit.interlock": "on-workflow",
-      "push.interlock": "on-sync",
-    },
-    warnings: ["kept"],
-  };
-
-  it.each([
-    ["session.remote_sync", "sometimes"],
-    ["session.init_pull.worktree", "always"],
-    ["session.init_pull.notes", "invalid"],
-    ["session.init_pull.base", "invalid"],
-    ["session.init_load.notes", "invalid"],
-    ["user.notes_push", "always"],
-    ["branch.protection", "none"],
-    ["pm.mode", "builtin"],
-    ["commit.format", "unknown"],
-    ["commit.context_footer", "optional"],
-    ["commit.interlock", "on-commit"],
-    ["push.interlock", "on-handoff"],
-  ])("rejects invalid config policy %s", (key, value) => {
-    expect(
-      ConfigSessionInitValueViewSchema.safeParse({
-        ...config,
-        settings: { ...config.settings, [key]: value },
-      }).success,
-    ).toBe(false);
-  });
-
-  it("preserves unowned config fields", () => {
-    expect(ConfigSessionInitValueViewSchema.parse(config)).toEqual(config);
-  });
-
 });
 
 describe("user and recommendation routing views", () => {
@@ -251,23 +202,6 @@ describe("identity and release-routing views", () => {
 });
 
 describe("deep advisory routing views", () => {
-  const passthroughConfig = {
-    mode: "session-init",
-    settings: {
-      "session.remote_sync": "enabled",
-      "session.init_pull.worktree": "prompt",
-      "session.init_pull.notes": "always",
-      "session.init_pull.base": "manual",
-      "session.init_load.notes": "prompt",
-      "user.notes_push": "on-sync",
-      "branch.protection": "full",
-      "pm.mode": "arc-in-git",
-      "commit.format": "conventional",
-      "commit.context_footer": "required",
-      "commit.interlock": "on-workflow",
-      "push.interlock": "on-sync",
-    },
-  };
   const passthroughUser = {
     state: "clean",
     refState: "same",
@@ -506,17 +440,6 @@ describe("deep advisory routing views", () => {
           evidence: { retained: true },
         },
         nudge: { shouldNudge: false, evidence: { retained: true } },
-        evidence: { deep: { retained: true } },
-      },
-    ],
-    [
-      ConfigSessionInitValueViewSchema,
-      {
-        ...passthroughConfig,
-        settings: {
-          ...passthroughConfig.settings,
-          evidence: { deep: { retained: true } },
-        },
         evidence: { deep: { retained: true } },
       },
     ],

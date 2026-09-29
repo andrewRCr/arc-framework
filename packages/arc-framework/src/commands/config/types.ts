@@ -2,14 +2,16 @@
  * Type contracts for `arc config status`.
  *
  * The discriminated union on `mode` separates the full settings view from
- * the session-init-scoped subset. Settings values are raw strings —
- * consumers interpret against the enum semantics documented in
- * arc-config.yml. `hooks.*` keys are intentionally excluded from both
+ * the session-init-scoped subset. The full view carries raw settings;
+ * the session-init view validates its selected policy values at the envelope
+ * boundary. `hooks.*` keys are intentionally excluded from both
  * shapes: they are shell-consumed by git hooks, never by the agent.
  *
  */
 
 import type { ConfigSettings } from "../../lib/config/schema.js";
+import type { z } from "zod";
+import type { ConfigSessionInitResultSchema, ConfigSessionInitSettingsSchema } from "./status.js";
 
 /**
  * Init-gating subset — fields that affect session-init decisions before a
@@ -23,20 +25,7 @@ import type { ConfigSettings } from "../../lib/config/schema.js";
  * defaults when unset); other keys carry raw yaml values per
  * `readConfigSettings`.
  */
-export interface ConfigSessionInitSettings {
-  "session.remote_sync": string;
-  "session.init_pull.worktree": string;
-  "session.init_pull.notes": string;
-  "session.init_pull.base": string;
-  "session.init_load.notes": string;
-  "user.notes_push": string;
-  "branch.protection": string;
-  "pm.mode": string;
-  "commit.format": string;
-  "commit.context_footer": string;
-  "commit.interlock": string;
-  "push.interlock": string;
-}
+export type ConfigSessionInitSettings = z.infer<typeof ConfigSessionInitSettingsSchema>;
 
 /** Full settings view — default rendering. */
 export interface ConfigStatusResult {
@@ -49,12 +38,7 @@ export interface ConfigStatusResult {
 }
 
 /** Session-init-scoped result — the init-gating subset. */
-export interface ConfigSessionInitResult {
-  mode: "session-init";
-  settings: ConfigSessionInitSettings;
-  defaultsApplied: string[];
-  warnings: string[];
-}
+export type ConfigSessionInitResult = z.infer<typeof ConfigSessionInitResultSchema>;
 
 export type ConfigResult = ConfigStatusResult | ConfigSessionInitResult;
 

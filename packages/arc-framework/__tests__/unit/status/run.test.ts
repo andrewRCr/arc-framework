@@ -1730,7 +1730,9 @@ describe("runSessionInitStatus — base-distance slot", () => {
 });
 
 describe("runSessionInitStatus — base-branch-sync slot", () => {
-  function configWithBasePolicy(policy: string): ConfigSessionInitResult {
+  function configWithBasePolicy(
+    policy: ConfigSessionInitResult["settings"]["session.init_pull.base"],
+  ): ConfigSessionInitResult {
     const base = configSessionInit();
     return { ...base, settings: { ...base.settings, "session.init_pull.base": policy } };
   }
@@ -1846,7 +1848,9 @@ describe("runSessionInitStatus — base-branch-sync slot", () => {
 });
 
 describe("runSessionInitStatus — retired-subdir reconcile slot", () => {
-  function configWithLoadPolicy(policy: string): ConfigSessionInitResult {
+  function configWithLoadPolicy(
+    policy: ConfigSessionInitResult["settings"]["session.init_load.notes"],
+  ): ConfigSessionInitResult {
     const base = configSessionInit();
     return { ...base, settings: { ...base.settings, "session.init_load.notes": policy } };
   }

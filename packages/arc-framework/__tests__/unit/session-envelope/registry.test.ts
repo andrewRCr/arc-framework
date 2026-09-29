@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { ActiveSessionInitResultSchema } from "../../../src/commands/active/schema.js";
+import { ConfigSessionInitResultSchema } from "../../../src/commands/config/status.js";
 import { DomainRulesSessionInitResultSchema } from "../../../src/commands/constitution/status.js";
 import { ExtensionsSessionInitResultSchema } from "../../../src/commands/extensions/status.js";
 
@@ -46,6 +47,7 @@ describe("session-envelope schema registry", () => {
       "cascade-resolution",
       "class-composition",
       "compaction-seed",
+      "config-session-init",
       "current-husk-advisory",
       "dirty-state",
       "domain-rules-session-init",
@@ -96,6 +98,7 @@ describe("session-envelope schema registry", () => {
       [SESSION_ENVELOPE_SCHEMA_IDS.currentHuskAdvisory, CurrentHuskAdvisorySchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.dirtyState, DirtyStateResultSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.activeSessionInit, ActiveSessionInitResultSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.configSessionInit, ConfigSessionInitResultSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.domainRulesSessionInit, DomainRulesSessionInitResultSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.extensionsSessionInit, ExtensionsSessionInitResultSchema],
     ] as const;

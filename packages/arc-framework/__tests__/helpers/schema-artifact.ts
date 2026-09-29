@@ -12,6 +12,7 @@ export const PRODUCTION_SCHEMA_IDS = [
   "change-path-set",
   "class-composition",
   "compaction-seed",
+  "config-session-init",
   "current-husk-advisory",
   "delivery-deliverable-id-preimage",
   "delivery-design-inventory-input",
