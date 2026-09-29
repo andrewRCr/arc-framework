@@ -2,6 +2,9 @@
 
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+import { ActiveSessionInitResultSchema } from "../../../src/commands/active/schema.js";
+import { DomainRulesSessionInitResultSchema } from "../../../src/commands/constitution/status.js";
+import { ExtensionsSessionInitResultSchema } from "../../../src/commands/extensions/status.js";
 
 import { SchemaError } from "../../../src/lib/kernel/index.js";
 import {
@@ -38,13 +41,16 @@ describe("session-envelope schema registry", () => {
     const second = createSessionEnvelopeRegistry();
 
     expect(first.ids()).toEqual([
+      "active-session-init",
       "base-branch-sync",
       "cascade-resolution",
       "class-composition",
       "compaction-seed",
       "current-husk-advisory",
       "dirty-state",
+      "domain-rules-session-init",
       "errand-staleness-sweep",
+      "extensions-session-init",
       "inbox-state",
       "load-set-audit-verdict",
       "load-set-manifest",
@@ -89,6 +95,9 @@ describe("session-envelope schema registry", () => {
       [SESSION_ENVELOPE_SCHEMA_IDS.baseBranchSync, BaseBranchSnapshotAnalysisResultSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.currentHuskAdvisory, CurrentHuskAdvisorySchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.dirtyState, DirtyStateResultSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.activeSessionInit, ActiveSessionInitResultSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.domainRulesSessionInit, DomainRulesSessionInitResultSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.extensionsSessionInit, ExtensionsSessionInitResultSchema],
     ] as const;
     for (const [id, schema] of advisorySchemas) {
       expect(first.get(id)).toBe(schema);

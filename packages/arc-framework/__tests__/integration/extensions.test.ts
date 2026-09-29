@@ -17,6 +17,7 @@ import {
   runExtensionsSessionInitStatus,
   runExtensionsStatus,
 } from "../../src/commands/extensions.js";
+import { ExtensionsSessionInitResultSchema } from "../../src/commands/extensions/status.js";
 
 interface Fixture {
   root: string;
@@ -194,12 +195,14 @@ describe("runExtensionsSessionInitStatus — session-init mode", () => {
     const result = await runExtensionsSessionInitStatus({ cwd: fixture.root });
 
     expect(result.mode).toBe("session-init");
+    expect(ExtensionsSessionInitResultSchema.safeParse(result).success).toBe(true);
     expect(result.active.sort()).toEqual(["post-context-load", "pre-merge"]);
   });
 
   it("returns an empty list when no extensions are active", async () => {
     await writeExtension(fixture.extDir, "post-task-quality", false);
     const result = await runExtensionsSessionInitStatus({ cwd: fixture.root });
+    expect(ExtensionsSessionInitResultSchema.safeParse(result).success).toBe(true);
     expect(result.active).toEqual([]);
   });
 
@@ -209,5 +212,13 @@ describe("runExtensionsSessionInitStatus — session-init mode", () => {
     await writeExtension(fixture.extDir, "pre-merge", true);
     const result = await runExtensionsSessionInitStatus({ cwd: fixture.root });
     expect(result.active).toEqual(["pre-merge"]);
+  });
+
+  it("parses producer warnings and refuses undeclared fields", async () => {
+    await writeFile(join(fixture.extDir, "broken.md"), "---\nname: broken\n---\n");
+    const result = await runExtensionsSessionInitStatus({ cwd: fixture.root });
+    expect(result.warnings.length).toBeGreaterThan(0);
+    expect(ExtensionsSessionInitResultSchema.safeParse(result).success).toBe(true);
+    expect(() => ExtensionsSessionInitResultSchema.parse({ ...result, unexpected: true })).toThrow(/unexpected/u);
   });
 });

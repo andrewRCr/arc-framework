@@ -3,12 +3,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  ActiveSessionInitValueViewSchema,
   BaseDistanceValueViewSchema,
   ConfigSessionInitValueViewSchema,
-  DomainRulesSessionInitValueViewSchema,
   ErrandStateValueViewSchema,
-  ExtensionsSessionInitValueViewSchema,
   ReleaseRoutingValueViewSchema,
   SessionInitBaseBranchSyncValueViewSchema,
   SessionInitBaseDistanceValueViewSchema,
@@ -124,32 +121,6 @@ describe("command-owned routing views", () => {
     warnings: ["kept"],
   };
 
-  it("pins session modes and active routing values while retaining unowned fields", () => {
-    expect(
-      ExtensionsSessionInitValueViewSchema.parse({
-        mode: "session-init",
-        active: ["kept"],
-      }),
-    ).toEqual({ mode: "session-init", active: ["kept"] });
-    expect(
-      DomainRulesSessionInitValueViewSchema.parse({
-        mode: "session-init",
-        rules: [{ kept: true }],
-      }),
-    ).toEqual({ mode: "session-init", rules: [{ kept: true }] });
-    const active = {
-      mode: "session-init",
-      layout: "full",
-      resolution: "single",
-      sessionType: "planning",
-      currentWorkflow: "draft-design",
-      planningStage: "draft-design",
-      integrationBoundary: null,
-      retained: true,
-    };
-    expect(ActiveSessionInitValueViewSchema.parse(active)).toEqual(active);
-  });
-
   it.each([
     ["session.remote_sync", "sometimes"],
     ["session.init_pull.worktree", "always"],
@@ -176,45 +147,6 @@ describe("command-owned routing views", () => {
     expect(ConfigSessionInitValueViewSchema.parse(config)).toEqual(config);
   });
 
-  it.each([
-    {
-      mode: "full",
-      layout: "full",
-      resolution: "single",
-      sessionType: "execution",
-      planningStage: null,
-    },
-    {
-      mode: "session-init",
-      layout: "nested",
-      resolution: "single",
-      sessionType: "execution",
-      planningStage: null,
-    },
-    {
-      mode: "session-init",
-      layout: "full",
-      resolution: "ambiguous",
-      sessionType: "execution",
-      planningStage: null,
-    },
-    {
-      mode: "session-init",
-      layout: "full",
-      resolution: "single",
-      sessionType: "unknown",
-      planningStage: null,
-    },
-    {
-      mode: "session-init",
-      layout: "full",
-      resolution: "single",
-      sessionType: "planning",
-      planningStage: "review",
-    },
-  ])("rejects an invalid active routing value", (value) => {
-    expect(ActiveSessionInitValueViewSchema.safeParse(value).success).toBe(false);
-  });
 });
 
 describe("user and recommendation routing views", () => {
@@ -578,13 +510,6 @@ describe("deep advisory routing views", () => {
       },
     ],
     [
-      ExtensionsSessionInitValueViewSchema,
-      {
-        mode: "session-init",
-        evidence: { deep: { retained: true } },
-      },
-    ],
-    [
       ConfigSessionInitValueViewSchema,
       {
         ...passthroughConfig,
@@ -593,26 +518,6 @@ describe("deep advisory routing views", () => {
           evidence: { deep: { retained: true } },
         },
         evidence: { deep: { retained: true } },
-      },
-    ],
-    [
-      ActiveSessionInitValueViewSchema,
-      {
-        mode: "session-init",
-        layout: "full",
-        resolution: "single",
-        sessionType: "execution",
-        currentWorkflow: "process-task-loop",
-        planningStage: null,
-        integrationBoundary: null,
-        evidence: { deep: { retained: true } },
-      },
-    ],
-    [
-      DomainRulesSessionInitValueViewSchema,
-      {
-        mode: "session-init",
-        rules: [{ evidence: { retained: true } }],
       },
     ],
     [

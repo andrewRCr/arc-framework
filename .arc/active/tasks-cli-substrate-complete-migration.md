@@ -203,18 +203,11 @@ recorded sweep recipes; see `notes-cli-substrate-complete-migration.md` § Segme
           dirty states plus every decoded husk stamp arm; both evidence arms validate canonical digests. Root and
           envelope tests name undeclared fields, and the thin view cases retired.
 
-    - `[ ]` **3.2.b Complete the extensions, active, and domain-rules session-init results**
-        - `ExtensionsSessionInitResult`, `ActiveSessionInitResult`, and `DomainRulesSessionInitResult`, with IDs
-          `extensions-session-init`, `active-session-init`, and `domain-rules-session-init`.
-        - Session-init fills its `active` slot through `projectDerivedActiveSession` in `commands/status/run.ts`,
-          exported for its test, which yields `none` and `single`; the standalone resolver in
-          `commands/active/status.ts` yields `multiple` and warnings. `ActiveSessionInitResult`'s schema sits in a
-          schema module beside its type in `commands/active/`, which `status.ts` imports type-only, since
-          `cli-loading-boundary.test.ts` pins its integration-boundary import as lazy.
-        - Build `test-first` (one behavior at a time):
-            - Each root parses its producer's output for every resolution and warning state the producer reaches —
-              for the active root, both producers
-            - Each root refuses an undeclared key, naming it
+    - `[x]` **3.2.b Complete the extensions, active, and domain-rules session-init results**
+        - Registered all three strict roots and composed them into their envelope slots. Real producer tests cover
+          active resolution and warning states, extension warnings, domain-rule enumeration and warnings; the
+          exported derived-active projection is tested for `none` and `single`. The active schema remains beside its
+          type with a type-only producer import, preserving lazy integration-boundary loading.
 
     - `[ ]` **3.2.c Complete `ConfigSessionInitResult`**
         - ID `config-session-init`. Compose the ten catalog keys from each catalog field's `policy.values`, which is

@@ -54,6 +54,9 @@ const SCHEMA_OWNED_TYPES: readonly TypeLocus[] = [
     { file: "lib/git/base-branch-sync.ts", type: "BaseBranchSnapshotAnalysisResult" },
     { file: "lib/git/dirty-state.ts", type: "DirtyStateResult" },
     { file: "lib/session-init/current-husk-advisory.ts", type: "CurrentHuskAdvisory" },
+    { file: "commands/extensions/types.ts", type: "ExtensionsSessionInitResult" },
+    { file: "commands/active/types.ts", type: "ActiveSessionInitResult" },
+    { file: "commands/constitution/types.ts", type: "DomainRulesSessionInitResult" },
     { file: "commands/status/types.ts", type: "StatusIdentity" },
     { file: "commands/status/types.ts", type: "CompactionSeedWriteStatus" },
 ];
@@ -71,16 +74,7 @@ const HANDWRITTEN_TAIL_TYPES: readonly TypeLocus[] = [
         type: "WorkUnitStateResult",
     },
     { file: "lib/session-init/errand-state.ts", type: "ErrandStateResult" },
-    {
-        file: "commands/extensions/types.ts",
-        type: "ExtensionsSessionInitResult",
-    },
     { file: "commands/config/types.ts", type: "ConfigSessionInitResult" },
-    { file: "commands/active/types.ts", type: "ActiveSessionInitResult" },
-    {
-        file: "commands/constitution/types.ts",
-        type: "DomainRulesSessionInitResult",
-    },
     { file: "commands/user/types.ts", type: "UserSessionInitStatusResult" },
     { file: "lib/release/routing.ts", type: "ReleaseRoutingValue" },
     { file: "commands/status/types.ts", type: "SessionInitProbeResult" },

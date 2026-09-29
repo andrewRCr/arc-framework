@@ -7,6 +7,8 @@
  */
 
 import type { ExtensionPointRef } from "../../lib/extensions/point-scanner.js";
+import type { z } from "zod";
+import type { ExtensionsSessionInitResultSchema } from "./status.js";
 
 /** One extension as it appears in the extensions directory. */
 export interface ExtensionSummary {
@@ -33,12 +35,7 @@ export interface ExtensionsStatusResult {
 }
 
 /** Session-init-scoped result — the active-extensions list only. */
-export interface ExtensionsSessionInitResult {
-  mode: "session-init";
-  active: string[];
-  /** Diagnostics from malformed extension frontmatter, keyed by filename. */
-  warnings: string[];
-}
+export type ExtensionsSessionInitResult = z.infer<typeof ExtensionsSessionInitResultSchema>;
 
 export type ExtensionsResult = ExtensionsStatusResult | ExtensionsSessionInitResult;
 

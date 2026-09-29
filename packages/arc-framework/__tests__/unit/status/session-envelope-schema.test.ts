@@ -914,6 +914,15 @@ describe("session-init envelope schema", () => {
     expectContractFailure(husk, "currentHusk.value");
   });
 
+  it.each(["extensions", "active", "domainRules"])(
+    "rejects an undeclared %s field at its envelope slot",
+    (slot) => {
+      const value = fixture("orient");
+      setPath(value, [slot, "value", "unexpected"], true);
+      expectContractFailure(value, `${slot}.value`);
+    },
+  );
+
   it("enforces roster, recovery, and primary sweep gates", () => {
     const branchGone = fixture("branch-gone");
     delete branchGone.roster;

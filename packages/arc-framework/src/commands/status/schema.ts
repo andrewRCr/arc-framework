@@ -1,14 +1,17 @@
 /**
  * Runtime contracts for session-init and recovery status envelopes.
  *
- * Shared and deep value views in this module deliberately validate only the
- * fields that drive workflow routing. Every view is pass-through so unowned
- * payload fields remain under their handwritten home-module authorities.
+ * Migrated value slots compose their owning strict schemas. Remaining views
+ * validate workflow routing fields while their home-module types are still
+ * handwritten, preserving payload fields outside those views.
  */
 
 import { isDeepStrictEqual } from "node:util";
 
 import { z } from "zod";
+import { ActiveSessionInitResultSchema } from "../active/schema.js";
+import { DomainRulesSessionInitResultSchema } from "../constitution/status.js";
+import { ExtensionsSessionInitResultSchema } from "../extensions/status.js";
 
 import type { SessionInitProbeResult, SessionRecoverProbeResult } from "./types.js";
 import { probe } from "./types.js";
@@ -468,11 +471,6 @@ export const ErrandStateValueViewSchema = z
     }
   });
 
-/** Thin routing view of the extension session-init result. */
-export const ExtensionsSessionInitValueViewSchema = z
-  .object({ mode: z.literal("session-init") })
-  .loose();
-
 /** Thin routing view of the twelve session-init policy settings. */
 export const ConfigSessionInitValueViewSchema = z
   .object({
@@ -494,24 +492,6 @@ export const ConfigSessionInitValueViewSchema = z
       })
       .loose(),
   })
-  .loose();
-
-/** Thin routing view of active work-unit resolution for a session. */
-export const ActiveSessionInitValueViewSchema = z
-  .object({
-    mode: z.literal("session-init"),
-    layout: z.enum(["full", "lite"]),
-    resolution: z.enum(["none", "single", "multiple"]),
-    sessionType: z.enum(["planning", "execution", "prepublication", "integration"]).nullable(),
-    currentWorkflow: z.string().nullable(),
-    planningStage: z.enum(["draft-design", "create-spec", "generate-tasks"]).nullable(),
-    integrationBoundary: IntegrationBoundaryLocusSchema.nullable(),
-  })
-  .loose();
-
-/** Thin routing view of the domain-rule session-init result. */
-export const DomainRulesSessionInitValueViewSchema = z
-  .object({ mode: z.literal("session-init") })
   .loose();
 
 const USER_REF_STATE = z.enum(["same", "local-ahead", "remote-ahead", "diverged", "remote-unavailable"]);
@@ -811,10 +791,10 @@ const SessionInitEnvelopeObjectSchema = z.strictObject({
   baseDistance: probe(SessionInitBaseDistanceValueViewSchema),
   baseBranchSync: probe(SessionInitBaseBranchSyncValueViewSchema),
   dirty: probe(DirtyStateResultSchema),
-  extensions: probe(ExtensionsSessionInitValueViewSchema),
+  extensions: probe(ExtensionsSessionInitResultSchema),
   config: probe(ConfigSessionInitValueViewSchema),
-  active: probe(ActiveSessionInitValueViewSchema),
-  domainRules: probe(DomainRulesSessionInitValueViewSchema),
+  active: probe(ActiveSessionInitResultSchema),
+  domainRules: probe(DomainRulesSessionInitResultSchema),
   releaseRouting: probe(ReleaseRoutingValueViewSchema),
   currentWuReconcile: probe(CurrentWuReconcileSessionValueViewSchema).optional(),
   deliveryPosition: probe(DeliveryPositionViewSchema.nullable()).optional(),
@@ -1150,7 +1130,7 @@ const SessionRecoverEnvelopeObjectSchema = z.strictObject({
   recoveryFrame: probe(RecoveryLocusFrameSchema),
   worktree: probe(SessionRecoverWorktreeValueViewSchema),
   dirty: probe(DirtyStateResultSchema),
-  extensions: probe(ExtensionsSessionInitValueViewSchema),
+  extensions: probe(ExtensionsSessionInitResultSchema),
   config: probe(ConfigSessionInitValueViewSchema),
   releaseRouting: probe(ReleaseRoutingValueViewSchema),
   loadSet: probe(LoadSetManifestSchema),

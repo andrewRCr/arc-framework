@@ -1,6 +1,7 @@
 /** Expected stable identities in the generated production schema artifact. */
 
 export const PRODUCTION_SCHEMA_IDS = [
+  "active-session-init",
   "approved-disposition-record",
   "approved-disposition-set",
   "base-branch-sync",
@@ -25,7 +26,9 @@ export const PRODUCTION_SCHEMA_IDS = [
   "disposition-set",
   "disposition-set-preimage",
   "disposition-set-state",
+  "domain-rules-session-init",
   "errand-staleness-sweep",
+  "extensions-session-init",
   "finding-classification",
   "finding-disposition",
   "fix-authorization",

@@ -72,6 +72,12 @@ describe("lean recovery envelope schema", () => {
     expect(() => assertSessionRecoverProbeResult(value)).toThrow(/dirty\.value:.*unexpected/u);
   });
 
+  it("rejects undeclared extension fields at the recovery slot", () => {
+    const value = recovery();
+    (value.extensions as { value: Record<string, unknown> }).value.unexpected = true;
+    expect(() => assertSessionRecoverProbeResult(value)).toThrow(/extensions\.value:.*unexpected/u);
+  });
+
   it("requires typed failure evidence exactly for an unreachable worktree read", () => {
     const unreachableWithoutReason = recovery();
     const unreachableWorktree = unreachableWithoutReason.worktree as {

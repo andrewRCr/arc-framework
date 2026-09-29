@@ -7,8 +7,10 @@
  * harness to populate session-init.md Step 2 Item 8.
  */
 
+import type { z } from "zod";
+import type { ActiveSessionInitResultSchema } from "./schema.js";
+
 import type { GitExec } from "../../lib/git/index.js";
-import type { PlanningWorkflow } from "../../lib/active/current-workflow-consistency.js";
 import type { Slug } from "../../lib/kernel/index.js";
 import type { WorkUnitPlacement } from "../../lib/layout/index.js";
 import type { IntegrationBoundaryLocus } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
@@ -107,65 +109,7 @@ export interface ActiveStatusResult {
  * - `resolution === "multiple"`: agent applies SESSION-NOTES / branch / state
  *   precedence over `candidates` before prompting.
  */
-export interface ActiveSessionInitResult {
-  mode: "session-init";
-  layout: ActiveLayout;
-  resolution: ActiveSessionInitResolution;
-  /** Resolved candidate path when `resolution === "single"`; otherwise `null`. */
-  path: string | null;
-  /** Candidate list when `resolution === "multiple"`; empty otherwise. */
-  candidates: MetaFileCandidate[];
-  /**
-   * Resolved companion-file paths for the active task list, derived only when
-   * `resolution === "single"` and the parsed `**Task List:**` filename matches
-   * the Full-layout `tasks-{stem}.md` pattern. Field is omitted (not `null`)
-   * when those preconditions don't hold (e.g., no active WU, multi-WU
-   * disambiguation, or Lite-shape `tasks.md`); inner values are `null` when
-   * the file is absent. Paths are relative to cwd (forward-slash normalized
-   * to match `path`).
-   */
-  companions?: {
-    notes: string | null;
-    atomic: string | null;
-  };
-  /**
-   * Resolved active task-list path relative to cwd, derived from the parsed
-   * `**Task List:**` field when a single meta resolves. Bare filenames and
-   * `./`-prefixed values resolve beside the meta file; other path-form values
-   * pass through normalized relative to cwd. `null` when the single resolved
-   * meta has no task list (`[none]`, missing, or equivalent) or the value is
-   * unsafe (absolute, drive-prefixed, or parent-traversing); omitted outside
-   * the single-meta arm.
-   */
-  taskListPath?: string | null;
-  /**
-   * Resolved session type for per-type loadset selection. Computed from
-   * `resolution` plus the resolved candidate's lifecycle `State` and
-   * `**Task List:**` field. `null` when `resolution === "multiple"`
-   * and the caller must disambiguate before computing type.
-   */
-  sessionType: SessionType | null;
-  /**
-   * Normalized `**Current Workflow:**` value from the single resolved meta, or
-   * `null` when absent, `[none]`, or outside the single-meta arm. Recovery keeps
-   * this as soft orientation only; workflow authority comes from `sessionType`
-   * and the projected load set.
-   */
-  currentWorkflow: string | null;
-  /**
-   * Resolved planning sub-stage workflow basename (`draft-design` / `create-spec`
-   * / `generate-tasks`) — what session-init's planning arm loads as `<stage>.md`,
-   * replacing the old `Next Action` prose-parse. Read from the meta's
-   * `Current Workflow` field; a meta missing it (a fresh in-place scaffold, or a
-   * legacy meta) resolves to the `draft-design` entry stage. Populated only when
-   * `sessionType === "planning"` and `resolution === "single"`; `null` everywhere
-   * else (non-planning sessions, multi-WU disambiguation, orphan no-meta branch).
-   */
-  planningStage: PlanningWorkflow | null;
-  /** Exact Candidate/review/publication resume point for the resolved work unit. */
-  integrationBoundary: IntegrationBoundaryLocus | null;
-  warnings: string[];
-}
+export type ActiveSessionInitResult = z.infer<typeof ActiveSessionInitResultSchema>;
 
 /** Internal semantic companion retained for conventional artifact projection. */
 export interface ActiveCandidateSemantics {

@@ -6,6 +6,9 @@
  */
 
 import { createKernelRegistry, type KernelRegistry } from "../kernel/index.js";
+import { ActiveSessionInitResultSchema } from "../../commands/active/schema.js";
+import { DomainRulesSessionInitResultSchema } from "../../commands/constitution/status.js";
+import { ExtensionsSessionInitResultSchema } from "../../commands/extensions/status.js";
 import {
   SessionInitProbeResultSchema,
   SessionRecoverProbeResultSchema,
@@ -32,13 +35,16 @@ import { TaskListCursorFileResultSchema } from "../task-list/file-cursor.js";
 
 /** Stable identities for the currently registered session-envelope roots. */
 export const SESSION_ENVELOPE_SCHEMA_IDS = {
+  activeSessionInit: "active-session-init",
   baseBranchSync: "base-branch-sync",
   cascadeResolution: "cascade-resolution",
   classComposition: "class-composition",
   compactionSeed: "compaction-seed",
   currentHuskAdvisory: "current-husk-advisory",
   dirtyState: "dirty-state",
+  domainRulesSessionInit: "domain-rules-session-init",
   errandStalenessSweep: "errand-staleness-sweep",
+  extensionsSessionInit: "extensions-session-init",
   inboxState: "inbox-state",
   loadSetAuditVerdict: "load-set-audit-verdict",
   loadSetManifest: "load-set-manifest",
@@ -67,6 +73,10 @@ const STRICT_CURRENT_V1 = {
  * @returns The same registry after registration
  */
 export function registerSessionEnvelopeSchemas(registry: KernelRegistry): KernelRegistry {
+  registry.register(ActiveSessionInitResultSchema, {
+    id: SESSION_ENVELOPE_SCHEMA_IDS.activeSessionInit,
+    ...STRICT_CURRENT_V1,
+  });
   registry.register(BaseBranchSnapshotAnalysisResultSchema, {
     id: SESSION_ENVELOPE_SCHEMA_IDS.baseBranchSync,
     ...STRICT_CURRENT_V1,
@@ -91,8 +101,16 @@ export function registerSessionEnvelopeSchemas(registry: KernelRegistry): Kernel
     id: SESSION_ENVELOPE_SCHEMA_IDS.dirtyState,
     ...STRICT_CURRENT_V1,
   });
+  registry.register(DomainRulesSessionInitResultSchema, {
+    id: SESSION_ENVELOPE_SCHEMA_IDS.domainRulesSessionInit,
+    ...STRICT_CURRENT_V1,
+  });
   registry.register(ErrandStalenessSweepResultSchema, {
     id: SESSION_ENVELOPE_SCHEMA_IDS.errandStalenessSweep,
+    ...STRICT_CURRENT_V1,
+  });
+  registry.register(ExtensionsSessionInitResultSchema, {
+    id: SESSION_ENVELOPE_SCHEMA_IDS.extensionsSessionInit,
     ...STRICT_CURRENT_V1,
   });
   registry.register(InboxStateResultSchema, {

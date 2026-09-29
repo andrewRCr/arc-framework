@@ -18,6 +18,8 @@ import {
   runSessionInitStatus,
   runStatus,
 } from "../../../src/commands/status.js";
+import { projectDerivedActiveSession } from "../../../src/commands/status/run.js";
+import { ActiveSessionInitResultSchema } from "../../../src/commands/active/schema.js";
 import type {
   HandoffSyncInterlock,
   SessionHandoffProbes,
@@ -482,6 +484,22 @@ function derivedFrameFromActive(
     active: { checkoutPath: "/repo", subject, context },
   };
 }
+
+describe("projectDerivedActiveSession schema", () => {
+  it.each([
+    activeSessionInit({ resolution: "none", path: null }),
+    activeSessionInit({
+      resolution: "single",
+      path: ".arc/active/meta-foo.md",
+      taskListPath: ".arc/active/tasks-foo.md",
+      sessionType: "execution",
+    }),
+  ])("parses the derived session result for $resolution", (active) => {
+    const frame = derivedFrameFromActive(active, "andrew", [], null, null);
+    const result = projectDerivedActiveSession(frame);
+    expect(ActiveSessionInitResultSchema.safeParse(result).success).toBe(true);
+  });
+});
 
 function domainRulesSessionInit(
   overrides: Partial<DomainRulesSessionInitResult> = {},

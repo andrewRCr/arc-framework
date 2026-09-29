@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import { runDomainRulesSessionInitStatus } from "../../src/commands/constitution.js";
+import { DomainRulesSessionInitResultSchema } from "../../src/commands/constitution/status.js";
 
 interface Fixture {
   root: string;
@@ -56,6 +57,7 @@ describe("runDomainRulesSessionInitStatus", () => {
   it("returns empty rules and warnings for an empty constitution directory", async () => {
     const result = await runDomainRulesSessionInitStatus({ cwd: fixture.root });
     expect(result.mode).toBe("session-init");
+    expect(DomainRulesSessionInitResultSchema.safeParse(result).success).toBe(true);
     expect(result.rules).toEqual([]);
     expect(result.warnings).toEqual([]);
   });
@@ -78,6 +80,7 @@ describe("runDomainRulesSessionInitStatus", () => {
         purpose: "UI component standards",
       },
     ]);
+    expect(DomainRulesSessionInitResultSchema.safeParse(result).success).toBe(true);
     expect(result.warnings).toEqual([]);
   });
 
@@ -100,6 +103,8 @@ describe("runDomainRulesSessionInitStatus", () => {
     expect(result.warnings.length).toBe(1);
     expect(result.warnings[0]).toContain("DEV-RULES.BACKEND.md");
     expect(result.warnings[0]).toContain("`purpose`");
+    expect(DomainRulesSessionInitResultSchema.safeParse(result).success).toBe(true);
+    expect(() => DomainRulesSessionInitResultSchema.parse({ ...result, unexpected: true })).toThrow(/unexpected/u);
   });
 
   it("handles mixed directories — ARC/PROJECT silently skipped, valid enumerated, malformed warned", async () => {
