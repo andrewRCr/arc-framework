@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "coderabbit-missing-instructions",
+  "claimId": "0231bc06bbda21c868e1b86bd2008cac",
+  "createdAt": "2026-09-29T01:18:26.482Z",
+  "updatedAt": "2026-09-29T01:18:26.482Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Accept CodeRabbit CLI findings that arrive without fix instructions instead of failing the whole frontline pass",
+  "branch": "chore/coderabbit-missing-instructions",
+  "origin": "inbox",
+  "originEntry": "Accept CodeRabbit CLI findings that arrive without fix instructions instead of failing the whole pass",
+  "originEntrySourceDigest": "sha256:89e94e70a8f372dcf7e192a7d43ac7a285f52c6af51d0a074afd97ae218eef8f",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
