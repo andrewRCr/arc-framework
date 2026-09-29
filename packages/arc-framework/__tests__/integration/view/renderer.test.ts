@@ -73,10 +73,20 @@ describe("resolveViewRenderer", () => {
 
 describe("renderViewWithPager", () => {
   it.each([
-    ["glow", "glow", ["--pager", "--width", "0", "-"]],
-    ["bat", "bat", ["--paging=always", "--style=plain", "--language=md", "--file-name", "tasks.md", "-"]],
-    ["plain", "less", ["-R", "-F", "-X"]],
-  ] as const)("composes %s through its pager mode", async (renderer, command, args) => {
+    ["glow", "glow", ["--pager", "--width", "0", "-"], { LESS: "FRK" }],
+    [
+      "bat",
+      "bat",
+      ["--paging=always", "--style=plain", "--language=md", "--file-name", "tasks.md", "-"],
+      { BAT_PAGER: "less -RFK" },
+    ],
+    ["plain", "less", ["-R", "-F", "-K"], { LESS: "FRK" }],
+  ] as const)("composes %s through its pager mode on the alternate screen", async (
+    renderer,
+    command,
+    args,
+    pagerEnvironment,
+  ) => {
     const run = vi.fn<PagerProcessRunner>().mockResolvedValue(undefined);
 
     await renderViewWithPager({
@@ -89,7 +99,7 @@ describe("renderViewWithPager", () => {
       command,
       args,
       input: "# Tasks\n",
-      env: expect.objectContaining({ ARC_VIEW_TEST: "true" }),
+      env: expect.objectContaining({ ARC_VIEW_TEST: "true", ...pagerEnvironment }),
     }));
   });
 
@@ -438,7 +448,7 @@ describe("renderViewWithPager", () => {
       displayPath: "tasks.md",
       anchor: { line: 42, id: "3.R" },
     }, pagerDependencies(run));
-    expect(run.mock.calls[0]?.[0].env.LESS).toBe("FRX +/###.*3\\.R");
+    expect(run.mock.calls[0]?.[0].env.LESS).toBe("FRK +/###.*3\\.R");
 
     await renderViewWithPager({
       renderer: "bat",
@@ -446,7 +456,7 @@ describe("renderViewWithPager", () => {
       displayPath: "tasks.md",
       anchor: { line: 42, id: "3.1" },
     }, pagerDependencies(run));
-    expect(run.mock.calls[1]?.[0].env.BAT_PAGER).toBe("less -RFX +42");
+    expect(run.mock.calls[1]?.[0].env.BAT_PAGER).toBe("less -RFK +42");
 
     await renderViewWithPager({
       renderer: "plain",
