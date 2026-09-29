@@ -33,6 +33,7 @@ export async function handleJoin(opts: JoinOptions, suppliedContext?: Interactio
     machineReadable: false,
     yes: opts.yes === true ? "compatibility" : "absent",
   });
+  const io = createIOContext(context.subprocess);
 
   if (opts.reconfigure) {
     await handleJoinReconfigure(opts, context);
@@ -41,11 +42,10 @@ export async function handleJoin(opts: JoinOptions, suppliedContext?: Interactio
 
   p.intro(`ARC Framework v${getFrameworkVersion()} \u2502 Join Project`);
 
-  if (!(await requireGitRepo())) return;
+  if (!(await requireGitRepo(io.exec))) return;
 
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
-  const io = createIOContext(context.subprocess);
   const input = await resolveJoinCommandInput({
     options: opts,
     context,
@@ -53,7 +53,7 @@ export async function handleJoin(opts: JoinOptions, suppliedContext?: Interactio
       suppliedRole: supplied.role,
       suppliedTools: supplied.tools,
     }),
-    resolveIdentity: resolveIdentityWithPrompt,
+    resolveIdentity: (interactive) => resolveIdentityWithPrompt(interactive, io.exec),
   });
   if (input.kind !== "resolved") {
     reportJoinInputFailure(input);
@@ -106,12 +106,12 @@ function reportJoinInputFailure(input: Exclude<InputResolution<unknown>, { kind:
 
 async function handleJoinReconfigure(opts: JoinOptions, context: InteractionContext): Promise<void> {
   p.intro(`ARC Framework v${getFrameworkVersion()} \u2502 Reconfigure Workspace`);
+  const io = createIOContext(context.subprocess);
 
-  if (!(await requireGitRepo())) return;
+  if (!(await requireGitRepo(io.exec))) return;
 
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
-  const io = createIOContext(context.subprocess);
 
   // Read current role from git config
   let currentRole: "maintainer" | "contributor" = "maintainer";
@@ -145,7 +145,7 @@ async function handleJoinReconfigure(opts: JoinOptions, context: InteractionCont
       currentRole,
       currentTools,
     }),
-    resolveIdentity: resolveIdentityWithPrompt,
+    resolveIdentity: (interactive) => resolveIdentityWithPrompt(interactive, io.exec),
   });
   if (input.kind !== "resolved") {
     reportJoinInputFailure(input);

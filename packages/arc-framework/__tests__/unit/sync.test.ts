@@ -109,7 +109,9 @@ vi.mock("../../src/handlers/shared.js", () => ({
   },
 }));
 
+const mockGitExec = vi.fn();
 vi.mock("../../src/lib/io-context.js", () => ({
+  createGitExec: () => mockGitExec,
   createUserIOContext: () => ({ exec: vi.fn(), readFile: vi.fn() }),
 }));
 

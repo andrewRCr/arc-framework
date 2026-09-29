@@ -358,7 +358,7 @@ async function resolveVerbBase(context?: InteractionContext, json = false): Prom
   }
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(io.exec);
   } catch (err) {
     if (isHandledError(err)) return null;
     throw err;
@@ -1131,7 +1131,7 @@ export async function handleDecompose(
     if (parsed.data.execute !== undefined) {
       const result = await executeGitV3DecomposeCommand({
         ...repository,
-        spawningIdentity: await resolveUserIdentity(),
+        spawningIdentity: await resolveUserIdentity(io.exec),
       }, {
         protection,
         baseBranch: settings["branch.base"],
@@ -1148,7 +1148,7 @@ export async function handleDecompose(
     if (parsed.data.extract !== undefined) {
       const result = await executeGitV3ExtractionCommand({
         ...repository,
-        spawningIdentity: await resolveUserIdentity(),
+        spawningIdentity: await resolveUserIdentity(io.exec),
       }, {
         protection,
         baseBranch: settings["branch.base"],

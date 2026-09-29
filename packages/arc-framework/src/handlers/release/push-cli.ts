@@ -64,9 +64,10 @@ export async function handleReleasePush(
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false, machineReadable: false, yes: "absent",
   });
+  const exec = createGitExec(context.subprocess);
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(exec);
   } catch (err) {
     if (err instanceof UserFacingError) {
       process.stderr.write(`${formatError(err)}\n`);
@@ -83,7 +84,6 @@ export async function handleReleasePush(
     return;
   }
 
-  const exec = createGitExec(context.subprocess);
   const settings = await resolveAllSettings({
     cwd,
     exec,

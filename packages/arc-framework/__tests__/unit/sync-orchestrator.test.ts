@@ -144,6 +144,7 @@ const mockGitExec = vi.fn();
 const mockGitExecInput = vi.fn();
 let includeExecInput = false;
 vi.mock("../../src/lib/io-context.js", () => ({
+  createGitExec: () => mockGitExec,
   createUserIOContext: () => ({
     exec: mockGitExec,
     readFile: vi.fn(),

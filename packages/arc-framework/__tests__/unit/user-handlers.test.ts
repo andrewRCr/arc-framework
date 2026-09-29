@@ -161,7 +161,9 @@ vi.mock("../../src/lib/config/status-reader.js", () => ({
   readConfigSettings: (...args: unknown[]) => mockReadConfigSettings(...args),
 }));
 
+const mockGitExec = vi.fn();
 vi.mock("../../src/lib/io-context.js", () => ({
+  createGitExec: () => mockGitExec,
   createUserIOContext: () => ({}),
 }));
 

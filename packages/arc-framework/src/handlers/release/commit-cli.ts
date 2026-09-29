@@ -19,7 +19,7 @@ import { execa } from "execa";
 import { resolveAllSettings } from "../../lib/config/resolved-settings.js";
 import { formatError, UserFacingError } from "../../lib/errors.js";
 import { hasEffectiveHook } from "../../lib/hook-manager.js";
-import { gitExec } from "../../lib/io-context.js";
+import { createGitExec, gitExec } from "../../lib/io-context.js";
 import {
   formatMissingHooksPathMessage,
   resolveHooksPathVerdict,
@@ -116,7 +116,7 @@ export async function handleReleaseCommit(
   });
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(createGitExec(context.subprocess));
   } catch (err) {
     if (err instanceof UserFacingError) {
       process.stderr.write(`${formatError(err)}\n`);

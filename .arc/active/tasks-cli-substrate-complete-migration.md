@@ -323,21 +323,23 @@ path spawns Git through an unbound executor; the failure-text predicates and `re
 - _Outcome:_ All four adapters receive interaction context; `log standalone` requires it and builds its Git executor
   from the invocation's subprocess policy. The three other handler bodies retain their existing behavior.
 
-### `[ ]` **4.3 Require an executor in the shared handler helpers — D8, D1**
+### `[x]` **4.3 Require an executor in the shared handler helpers — D8, D1**
 
 - _Goal:_ `resolveUserIdentity`, `resolveIdentityWithPrompt`, and `requireGitRepo` require an executor, so no caller
   reaches Git through the unbound singleton by default.
 
-    - `[ ]` 4.3.a Make the executor a required parameter in `handlers/shared.ts`
+    - `[x]` 4.3.a Made the executor required in all three `handlers/shared.ts` Git helpers.
 
-    - `[ ]` **4.3.b Thread the invocation's executor from every surviving caller**
-        - Errand, lifecycle, start, init, join, release push and commit, active, and the user commands the Task 1.1.c
-          split leaves surviving in `handlers/user.ts`.
+    - `[x]` **4.3.b Thread the invocation's executor from every surviving caller**
+        - Bound the caller's executor across Errand, lifecycle, start, init, join, release push and commit, active,
+          and the two surviving user inbox commands.
 
-    - `[ ]` **4.3.c Pass `createGitExec()` at the carved call sites**
-        - The carved commands in `handlers/user.ts`, `handlers/user-sync.ts`, and `handlers/sync.ts`, along the Task
-          1.1.c split; a forced edge that builds exactly the executor the `gitExec` singleton holds, so their behavior
-          does not change.
+    - `[x]` **4.3.c Pass `createGitExec()` at the carved call sites**
+        - Carved user and notes commands construct the old unbound executor explicitly, preserving their behavior
+          while removing the shared helpers' implicit singleton fallback.
+
+- _Outcome:_ All three helpers now require a Git executor, and a boundary test proves supplied executors control
+  identity and repository checks; no surviving caller relies on the implicit singleton.
 
 ### `[ ]` **4.4 Thread bound executors through the remaining unbound Git spawns — D8**
 

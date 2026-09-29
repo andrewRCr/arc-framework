@@ -56,7 +56,7 @@ export async function handleInit(
   // --- Fresh init path ---
   p.intro(`ARC Framework v${getFrameworkVersion()} \u2502 Initialization`);
 
-  if (!(await requireGitRepo())) return;
+  if (!(await requireGitRepo(io.exec))) return;
 
   p.log.message("Setting up ARC for your project...");
 
@@ -78,7 +78,7 @@ export async function handleInit(
         teamMode: result.team_mode,
       };
     },
-    resolveIdentity: resolveIdentityWithPrompt,
+    resolveIdentity: (interactive) => resolveIdentityWithPrompt(interactive, io.exec),
   });
   if (input.kind !== "resolved") {
     reportInputFailure(input);
@@ -169,7 +169,7 @@ async function handleReconfigure(
 ): Promise<void> {
   p.intro(`ARC Framework v${getFrameworkVersion()} \u2502 Reconfigure${opts.dryRun ? " (dry run)" : ""}`);
 
-  if (!(await requireGitRepo())) return;
+  if (!(await requireGitRepo(io.exec))) return;
   const cwd = requireArcProjectRoot(startDir);
   if (!cwd) return;
 

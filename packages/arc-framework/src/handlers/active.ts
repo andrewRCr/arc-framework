@@ -110,7 +110,7 @@ export async function handleActiveRoster(
   if (!cwd) return;
   const exec = createGitExec(interaction?.subprocess);
 
-  const identity = await resolveIdentityWithPrompt(false);
+  const identity = await resolveIdentityWithPrompt(false, exec);
   const { settings } = await readConfigSettings(cwd);
   const teamMode = settings["team.mode"] === "true";
 
@@ -149,7 +149,7 @@ export async function handleActiveInFlight(
   if (!cwd) return;
   const exec = createGitExec(interaction?.subprocess);
 
-  const identity = await resolveIdentityWithPrompt(false);
+  const identity = await resolveIdentityWithPrompt(false, exec);
   const { settings } = await readConfigSettings(cwd);
   const teamMode = settings["team.mode"] === "true";
   const localOnly = Boolean(opts.local) || opts.fetch === false;

@@ -191,16 +191,16 @@ export async function handleStart(
     return;
   }
   const input = parsed.data;
+  const io = createUserIOContext(context.subprocess);
 
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(io.exec);
   } catch (err) {
     if (isHandledError(err)) return;
     throw err;
   }
 
-  const io = createUserIOContext(context.subprocess);
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
 

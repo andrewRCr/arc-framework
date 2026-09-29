@@ -86,7 +86,7 @@ import {
   type WorktreeSyncState,
 } from "../lib/git/worktree-sync.js";
 import { inferRecommendedSummaryLine } from "../lib/handoff/recommended-summary-line.js";
-import { createUserIOContext } from "../lib/io-context.js";
+import { createGitExec, createUserIOContext } from "../lib/io-context.js";
 import {
   resolveProcessInteractionContext,
   type InteractionContext,
@@ -448,7 +448,7 @@ export async function handleSync(
 
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(createGitExec());
   } catch (err) {
     if (err instanceof UserFacingError) {
       output.log.error(formatError(err));
