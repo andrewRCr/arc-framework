@@ -15,9 +15,10 @@
 
 ## Continuity
 
-- **Readiness:** rough. The scope, what this work unit lands, and the working rules are settled. Of the decisions the
-  siblings wait on, the ref layout and the concurrency mechanisms are settled, and one remains: where a cohort
-  document and parked work units appear (C6).
+- **Readiness:** maturing. The scope, what this work unit lands, and the working rules are settled, and so are the
+  three decisions the siblings share — the ref layout (C3), each surface's concurrency mechanism (C4), and the
+  projection's caller-visible behavior (C6) — so `storage-ref-backend` and `storage-projection` may begin designing
+  (2026-09-29). The open items that remain are detail design, and the consumer map.
 - **Resolved (2026-09-29):** stage entry (§ Stage entry); what lands here and what is handed off (§ What this work unit
   lands); the register's landing route (§ The storage-coupling register); inbox write serialization (C1); ghost mode as
   a core requirement with a middle-ground split (C8); record format skew (C2); the register sweep, landed on `main` (PR
@@ -30,9 +31,10 @@
   following the remote — the code repository's refs by default, a separate Git directory otherwise (C3); conflicts
   shown in the projected file with standard markers, and a removal racing an edit leaving the edit, with routing
   receipts (C4); the inbound list as its own kind, which any session routes into directly (C4); the design envelope,
-  confirmed by arithmetic, with a push-contention tripwire (C4).
+  confirmed by arithmetic, with a push-contention tripwire (C4); the cohort document's home and parked placement,
+  with edit rights following lifecycle state (C6).
 - **Open:** every `Open` item in § Decision ledger; the consumer map.
-- **Next:** where a cohort document lives while its members are in flight, and where parked work units appear (C6).
+- **Next:** the consumer map, then the remaining detail items and the core-or-deferred tags (C14).
 
 ---
 
@@ -167,10 +169,10 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
   placement (which may be a subtree of another family's ref), retention, sync, tracked-versus-stored profile, and
   lifecycle. A **kind** within it carries the parser, format version, writer rule, and projected path. The split is
   forced: each work unit is one ref with one lifecycle, yet its meta and task list take a different writer rule from its
-  prose (C6), and a backlog stub is groomed by anyone while an in-flight one is not. C3 decides how each family shards
-  into refs; C4's "surface" names one ref's share of a family. This work unit owns the list and each family's storage
-  properties; each family's field schema stays with `storage-seam` or the follow-on that owns it, so the list commits no
-  schema.
+  prose (C6), and a backlog stub is groomed by anyone while an in-flight or parked one is not (C6). C3 decides how each
+  family shards into refs; C4's "surface" names one ref's share of a family. This work unit owns the list and each
+  family's storage properties; each family's field schema stays with `storage-seam` or the follow-on that owns it, so
+  the list commits no schema.
 - **Decided** (Owner, 2026-09-29): the families. The list drives the ref layout (C3), migrate's coverage (C1), and the
   conformance suite.
     - Project scope:
@@ -537,14 +539,24 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
 - **Requirement** (Owner, 2026-09-29): a protected file says so where it is read, not only when a save fails.
 - **Decided** (Owner, 2026-09-29): three layers, each an existing idiom.
     - A notice line beside the base stamp in the generated-file idiom (`Code generated … DO NOT EDIT.`), naming where
-      to edit: the owning checkout's path on this machine, or that the work unit is in flight on another. It is
+      to edit: the owning checkout's path on this machine, that the work unit is in flight on another, or, for a
+      parked work unit, `arc resume`. It is
       invisible in rendered markdown and visible in the raw file, where editors and agents write; persist strips it
       with the stamp. Writable files carry no notice.
     - The read-only file mode (the read-only attribute on Windows): JetBrains IDEs show a lock and offer to clear it,
       Vim warns on the first change, and an agent's write fails; refresh lifts the mode to rewrite. VS Code honors it
       only with `files.readonlyFromPermissions`, which belongs to the editor-settings item below.
     - The typed refusal at persist, as the backstop: it keeps the edit, never drops it, and names where to apply it.
-- **Open:** where a cohort document lives while its members are in flight, and where parked work units appear.
+- **Decided** (Owner, 2026-09-29): an open cohort's document keeps one home, `backlog/planned/<cohort>/`, from
+  creation until the cohort closes and joins its quarter's archive ref (C3), whatever state its members are in. A
+  cohort is a grouping with its own lifecycle, and its members see the document through the `current/` companion. A
+  dedicated root would add a fifth projected root and ignore entry for a grouping the backlog already holds.
+- **Decided** (Owner, 2026-09-29): a parked work unit keeps its backlog placement — `backlog/planned/`, under its
+  cohort when it has one — since parking sets it down on the ready list. Edit rights follow lifecycle state, not the
+  projected folder: provisional and planned stubs are groomed by anyone; planning, active, integrating, and parked
+  work units keep the owner's rules — the owner edits the prose, the meta and task list reach the store only through
+  their verbs, and others insert into the inbound list. Execution has begun against a parked work unit's spec, so
+  grooming it is not open to anyone. Its protected notice names `arc resume`, since no checkout owns it.
 - **For `storage-projection`:** push-refresh now also carries work-unit files into sibling worktrees' `in-flight/`
   views. A write still touches one or two paths per worktree on the machine, the bound measured above, but more
   writes fan out.
