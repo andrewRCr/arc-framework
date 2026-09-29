@@ -667,7 +667,21 @@ Each mechanical sweep's search-and-rewrite recipe, recorded before its first bat
 
 ## Test-cost baselines
 
-Each affected tier-isolated row's retained-run paths in `.test-cost-runs/`, its median, and the base SHA measured.
+Measured at `882f50431` after the merged-base inventory commits; the package source and tests are identical to
+merged-base commit `6f1d01261`. The CLI was built with `npm run build:fast` before the first run. Every retained
+measurement used `--condition tier-isolated --workers 12` and the named `--project-set`; all runs in each row have
+the same file and test counts. Paths below are relative to `packages/arc-framework` and form the `before` group of a
+`benchmark:test-cost:compare` lever request for that row. They remain in this checkout's gitignored
+`.test-cost-runs/` until Task 7.5.
+
+| Project set   | `before` retained-run paths                                                                                                                                               | Wall-clock runs (ms)      | Median (ms) | Measured head |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ----------: | ------------- |
+| `unit`        | `.test-cost-runs/cli-substrate-base-unit-1.json`, `.test-cost-runs/cli-substrate-base-unit-2.json`, `.test-cost-runs/cli-substrate-base-unit-3.json`                      | 13,904; 12,629; 12,837    |      12,837 | `882f50431`   |
+| `integration` | `.test-cost-runs/cli-substrate-base-integration-1.json`, `.test-cost-runs/cli-substrate-base-integration-2.json`, `.test-cost-runs/cli-substrate-base-integration-3.json` | 90,013; 87,578; 87,879    |      87,879 | `882f50431`   |
+| `lane`        | `.test-cost-runs/cli-substrate-base-lane-1.json`, `.test-cost-runs/cli-substrate-base-lane-2.json`, `.test-cost-runs/cli-substrate-base-lane-3.json`                      | 95,117; 95,021; 91,142    |      95,021 | `882f50431`   |
+| `e2e`         | `.test-cost-runs/cli-substrate-base-e2e-1.json`, `.test-cost-runs/cli-substrate-base-e2e-2.json`, `.test-cost-runs/cli-substrate-base-e2e-3.json`                         | 275,113; 233,851; 234,140 |     234,140 | `882f50431`   |
+
+The six `ci-job` rows are measured by CI's budget report, not this local tier-isolated series.
 
 ## Review projection
 

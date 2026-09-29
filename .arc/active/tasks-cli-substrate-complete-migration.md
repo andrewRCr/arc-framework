@@ -36,22 +36,14 @@ replication segment builds on.
         - Confirmed the existing inbox-lock correction and captured the rowless identity-wide `user add` bootstrap
           for the storage owner in `USER-INBOX`. Both corrections have matrix citations; the register was not edited.
 
-### `[ ]` **1.2 Take every affected test-cost baseline**
+### `[x]` **1.2 Take every affected test-cost baseline**
 
 - _Goal:_ Every test-cost row that new or converted tests can move has a retained baseline measured on the merged base
   before the first new test file lands, so the closing comparison can be made at all.
 
-- _Note:_ The benchmark measures only the working tree, its axes never default, and a missed baseline cannot be
-  recovered once a test lands — this task precedes Task 1.3's test.
-
-    - Build the CLI first: the E2E tier spawns `node dist/cli.js` and would otherwise measure a stale binary.
-    - Take three retained runs of each tier-isolated row in `test-cost-budgets.json` — `benchmark:test-cost` in
-      `packages/arc-framework` with `--condition tier-isolated --workers 12`, and `--project-set` as `unit`,
-      `integration`, `lane`, and `e2e` — since the repository normalizes test cost by the median of three.
-    - Record each row's retained-run paths, its median, and the measured base SHA in notes § Test-cost baselines, as
-      the `before` group of a `benchmark:test-cost:compare` lever request. The run files stay in this checkout's
-      gitignored `.test-cost-runs/` until Task 7.5 compares against them.
-    - The six `ci-job` rows are measured in CI, whose budget report covers them.
+- _Outcome:_ Built the CLI and retained three runs for each of `unit`, `integration`, `lane`, and `e2e` before adding
+  any tests. `notes-cli-substrate-complete-migration.md` § Test-cost baselines records all paths, medians, and the
+  measured head for Task 7.5's comparison; CI owns the six `ci-job` rows.
 
 ### `[ ]` **1.3 Add `CanonicalDigestSchema` over exported digest constants — D2**
 
