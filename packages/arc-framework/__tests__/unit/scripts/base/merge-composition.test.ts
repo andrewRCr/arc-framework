@@ -101,12 +101,12 @@ describe("base merge composition", () => {
   });
 
   it("turns a bounded fetch timeout into a typed operational refusal", async () => {
-    const exec: GitExec = async (_command, args, options) => {
+    const exec: GitExec = async (command, args, options) => {
       if (args[0] === "check-ref-format") return { stdout: "" };
       if (args[0] !== "fetch") throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
       await new Promise<void>((_resolve, reject) => {
         options?.signal?.addEventListener("abort", () => {
-          reject(Object.assign(new Error("aborted"), { name: "AbortError", isCanceled: true }));
+          reject(makeGitProcessError({ command, args, isCanceled: true, stderr: "aborted" }));
         }, { once: true });
       });
       return { stdout: "" };
