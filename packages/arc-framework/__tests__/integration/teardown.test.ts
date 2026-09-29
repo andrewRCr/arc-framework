@@ -30,8 +30,6 @@ import { join } from "node:path";
 import { setupMultiClone, type MultiClone } from "../helpers/multi-clone.js";
 import { removeGitBackedDir } from "../helpers/temp-repo.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
-import { makeGitProcessError } from "../helpers/git-exec-fake.js";
-import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { readGitBlobBytes } from "../../src/lib/io-context.js";
 import type { LifecycleIndexFs } from "../../src/lib/work-unit/lifecycle-index.js";
 import { createGitRetirementAuthorizationContext } from
@@ -98,9 +96,10 @@ async function writeShippedMeta(cloneA: string, name: string): Promise<void> {
   await mkdir(dir, { recursive: true });
   await writeFile(
     join(dir, `meta-${name}.md`),
-    makeMetaFixture(name, {
-      state: "Shipped", owner: "clone-a", branch: null, workClass: "Novel", priority: "P1",
-    }),
+    `# Metadata: ${name}\n\n` +
+      `| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n` +
+      `|-----------|-----------|------------|-----------|--------------|\n` +
+      `| \`Shipped\` | \`clone-a\` | \`[none]\` | \`Novel\` | \`P1\` |\n\n---\n`,
   );
 }
 
@@ -711,7 +710,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       const failingExec: GitExec = async (cmd, args, opts) => {
         if (refuseDelete && args[0] === "update-ref" && args[1] === "-d") {
           refuseDelete = false;
-          throw makeGitProcessError({ command: cmd, args, exitCode: 128, stderr: "simulated ref lock" });
+          throw new Error("simulated ref lock");
         }
         return realExec(cmd, args, opts);
       };

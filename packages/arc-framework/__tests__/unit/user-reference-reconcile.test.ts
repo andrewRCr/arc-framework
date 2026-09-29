@@ -4,7 +4,6 @@
 
 import { describe, expect, it } from "vitest";
 
-import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import {
   analyzeUserReferenceAuthority,
   materializeUserReferenceAuthority,
@@ -13,6 +12,7 @@ import {
   resolveUserReferenceAuthority,
   runUserReferenceReconcile,
 } from "../../src/lib/user-reference-reconcile.js";
+import { GitProcessError } from "../../src/lib/git/process-error.js";
 
 const BASE_OID = "b".repeat(40);
 
@@ -307,8 +307,12 @@ describe("planUserReferenceReconcile", () => {
       exec: async (_command, args) => {
         calls.push(args);
         if (args[0] === "check-ref-format") return { stdout: "" };
-        throw makeGitProcessError({
-          command: "git", args, exitCode: 128, stderr: "couldn't find remote ref",
+        throw new GitProcessError({
+          kind: "nonzero-exit",
+          command: "git",
+          args,
+          exitCode: 128,
+          expectedOutcome: "absent-remote-ref",
         });
       },
       protection: "full",
@@ -343,20 +347,18 @@ describe("planUserReferenceReconcile", () => {
   });
 
   it.each([
-    ["timeout", (args: string[], signal?: AbortSignal) => new Promise<never>((_resolve, reject) => {
-      signal?.addEventListener("abort", () => reject(makeGitProcessError({
-        command: "git", args, isCanceled: true, stderr: "canceled",
-      })));
+    ["timeout", (_args: string[], signal?: AbortSignal) => new Promise<never>((_resolve, reject) => {
+      signal?.addEventListener("abort", () => reject(Object.assign(new Error("canceled"), { isCanceled: true })));
     }), "timeout"],
-    ["network", (args: string[]) => Promise.reject(makeGitProcessError({
-      command: "git", args, exitCode: 128, stderr: "fatal: Could not resolve host remote.example",
+    ["network", () => Promise.reject(Object.assign(new Error("fetch failed"), {
+      exitCode: 128,
+      stderr: "fatal: Could not resolve host remote.example",
     })), "network"],
-    ["authentication", (args: string[]) => Promise.reject(makeGitProcessError({
-      command: "git", args, exitCode: 128, stderr: "fatal: Authentication failed",
+    ["authentication", () => Promise.reject(Object.assign(new Error("fetch failed"), {
+      exitCode: 128,
+      stderr: "fatal: Authentication failed",
     })), "auth"],
-    ["local metadata denial", (args: string[]) => Promise.reject(makeGitProcessError({
-      command: "git", args, exitCode: 128, stderr: "cannot lock ref: operation not permitted",
-    })), "error"],
+    ["local metadata denial", () => Promise.reject(new Error("cannot lock ref: operation not permitted")), "error"],
   ] as const)("returns typed unavailable authority on %s", async (_label, fail, failureReason) => {
     let enumerated = false;
     const result = await materializeUserReferenceAuthority({

@@ -10,7 +10,6 @@ import type {
 import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
 import type { UserSurfaceMigrationFs } from "../../../src/lib/user-surface-migration.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
-import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 const PRESENT_MARKER: WorktreeMarkerReadResult = {
   kind: "present",
@@ -323,7 +322,7 @@ describe("runBranchGoneRecovery", () => {
 
   it("propagates an unexpected local graph failure from exact recovery evidence", async () => {
     const baseOid = "b".repeat(40);
-    const exec: GitExec = async (command, args) => {
+    const exec: GitExec = async (_command, args) => {
       if (args[0] === "worktree") {
         return {
           stdout: worktreePorcelainZ(
@@ -333,9 +332,7 @@ describe("runBranchGoneRecovery", () => {
         };
       }
       if (args[0] === "status") return { stdout: "", stderr: "" };
-      if (args[0] === "cherry") {
-        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "graph failed" });
-      }
+      if (args[0] === "cherry") throw new Error("graph failed");
       throw new Error(`unexpected git invocation: ${args.join(" ")}`);
     };
 

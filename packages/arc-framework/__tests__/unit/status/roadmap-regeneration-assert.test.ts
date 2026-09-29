@@ -16,17 +16,37 @@ import {
 } from "../../../src/lib/work-unit/transition-record-store.js";
 import type { TransitionRecord } from "../../../src/lib/work-unit/transition-record.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
-import { makeMetaFixture } from "../../helpers/meta-fixture.js";
-import type { MetaRenderOverrides } from "../../../src/lib/active/meta-reader.js";
 
-function meta(slug: string, fields: { priority?: MetaRenderOverrides["priority"] } = {}): string {
-  return makeMetaFixture(slug, {
-    state: "Planning", owner: "andrew", workClass: "Heavy", priority: fields.priority ?? "P3",
-  });
+function meta(slug: string, fields: { priority?: string } = {}): string {
+  return [
+    `# Metadata: ${slug}`,
+    "",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    `| \`Planning\` | \`andrew\` | [none] | \`Heavy\` | \`${fields.priority ?? "P3"}\` |`,
+    "",
+    "- **Cohort:** [none]",
+    "- **Depends On:** [none]",
+    "",
+    "---",
+    "",
+  ].join("\n");
 }
 
-function transitionMeta(slug: string, state: MetaRenderOverrides["state"], branch: string): string {
-  return makeMetaFixture(slug, { state, owner: "andrew", branch, priority: "P1" });
+function transitionMeta(slug: string, state: string, branch: string): string {
+  return [
+    `# Metadata: ${slug}`,
+    "",
+    `- **State:** ${state}`,
+    "- **Owner:** andrew",
+    `- **Branch:** ${branch}`,
+    "- **Priority:** P1",
+    "- **Cohort:** [none]",
+    "- **Depends On:** [none]",
+    "",
+    "---",
+    "",
+  ].join("\n");
 }
 
 function isStagedTransitionList(args: readonly string[]): boolean {
@@ -101,7 +121,7 @@ function makeIndexExec(files: Record<string, string>): GitExec {
 
 function makeTransitionExec(
   files: Record<string, string>,
-  input: { branch: string; slug: string; atRefState: MetaRenderOverrides["state"] },
+  input: { branch: string; slug: string; atRefState: string },
 ): GitExec {
   const metaPath = `.arc/active/meta-${input.slug}.md`;
   return vi.fn(async (_cmd, args): Promise<ExecResult> => {

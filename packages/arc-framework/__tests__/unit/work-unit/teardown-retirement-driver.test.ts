@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js";
 import type { ManagedPath } from "../../../src/lib/kernel/canonical/managed-path.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
@@ -29,9 +28,9 @@ const blobs = new Map<string, Uint8Array>([
 function execWithCompletedProjection(options: { ancestry?: boolean; includeProjection?: boolean } = {}): GitExec {
   const ancestry = options.ancestry ?? true;
   const includeProjection = options.includeProjection ?? true;
-  return async (command, args) => {
+  return async (_cmd, args) => {
     if (args[0] === "merge-base") {
-      if (!ancestry) throw makeGitProcessError({ command, args, exitCode: 1, stderr: "not ancestor" });
+      if (!ancestry) throw new Error("not ancestor");
       return { stdout: "" };
     }
     if (args[0] === "ls-tree") {
@@ -40,9 +39,7 @@ function execWithCompletedProjection(options: { ancestry?: boolean; includeProje
     if (args[0] === "show" && (args[1] === `main:${metaPath}` || args[1] === `${baseOid}:${metaPath}`)) {
       return { stdout: meta };
     }
-    if (args[0] === "rev-parse" && args.includes("origin/feat/sample")) {
-      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "no upstream" });
-    }
+    if (args[0] === "rev-parse" && args.includes("origin/feat/sample")) throw new Error("no upstream");
     if (args[0] === "rev-parse") return { stdout: `${baseOid}\n` };
     if (args[0] === "cherry") return { stdout: "" };
     throw new Error(`unexpected git command: ${args.join(" ")}`);
@@ -76,10 +73,8 @@ function proof(resultDigest: `sha256:${string}`): Extract<TeardownAuthorizationD
 describe("shipped teardown retirement evidence", () => {
   it("pins the base commit before deriving shipped evidence", async () => {
     const observedBaseRefs: string[] = [];
-    const exec: GitExec = async (command, args) => {
-      if (args[0] === "rev-parse" && args.includes("origin/feat/sample")) {
-        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "no upstream" });
-      }
+    const exec: GitExec = async (_cmd, args) => {
+      if (args[0] === "rev-parse" && args.includes("origin/feat/sample")) throw new Error("no upstream");
       if (args[0] === "rev-parse") return { stdout: `${baseOid}\n` };
       if (args[0] === "cherry") {
         observedBaseRefs.push(args[1] ?? "");
@@ -194,9 +189,9 @@ describe("shipped teardown retirement evidence", () => {
       },
       refs: { localOid: stamp.sha, remote: null },
     };
-    const unreadableGraph: GitExec = async (command, args, options) => {
+    const unreadableGraph: GitExec = async (_command, _args, options) => {
       if (options?.objectAccess !== "local-only") throw new Error("graph access was not local-only");
-      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "transition graph unavailable" });
+      throw new Error("transition graph unavailable");
     };
     await expect(revalidateHuskRetirementEvidenceStrict(
       unreadableGraph,

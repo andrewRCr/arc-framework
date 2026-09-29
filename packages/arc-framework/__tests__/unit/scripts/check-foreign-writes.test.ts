@@ -23,7 +23,6 @@ import {
 import type { OverlapRoster } from "../../../src/lib/git/foreign-artifact-detection.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/index.js";
 import { resolveOriginatingMetaPath } from "../../../src/lib/release/wu-resolution.js";
-import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 type ResponseFn = (args: string[]) => ExecResult | Promise<ExecResult>;
 
@@ -339,11 +338,11 @@ describe("detectStagedForeignWrites", () => {
 
   it("marks the committed probe indeterminate when the base ref cannot be resolved", async () => {
     const exec = buildExec({
-      "rev-parse --verify origin/main": (args) => {
-        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "fatal: bad revision" });
+      "rev-parse --verify origin/main": () => {
+        throw new Error("fatal: bad revision");
       },
-      "rev-parse --verify main": (args) => {
-        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "fatal: bad revision" });
+      "rev-parse --verify main": () => {
+        throw new Error("fatal: bad revision");
       },
       "rev-parse --verify feat/wu-a": { stdout: `${"b".repeat(40)}\n`, stderr: "" },
     });
@@ -383,8 +382,8 @@ describe("detectStagedForeignWrites", () => {
   it("marks the committed probe indeterminate when a candidate ref cannot be resolved", async () => {
     const exec = buildExec({
       "rev-parse --verify main": { stdout: `${"a".repeat(40)}\n`, stderr: "" },
-      "rev-parse --verify feat/wu-a": (args) => {
-        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "fatal: bad revision" });
+      "rev-parse --verify feat/wu-a": () => {
+        throw new Error("fatal: bad revision");
       },
     });
 

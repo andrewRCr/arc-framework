@@ -17,7 +17,6 @@ import {
   unwrapPresentationOutput,
 } from "./helpers.js";
 import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
-import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import {
   resolveSubmissionBoundaryPath,
   writeSubmissionBoundary,
@@ -92,10 +91,34 @@ async function seedTrackedSweep(repo: string, artifactDir: string, slug: string)
   await writeFile(join(cohortDir, `cohort-${COHORT}.md`), cohortDoc(slug), "utf8");
   const observerDir = join(repo, ".arc", "backlog", "planned", "rename-observer");
   await mkdir(observerDir, { recursive: true });
-  await writeFile(join(observerDir, "meta-rename-observer.md"), makeMetaFixture("rename-observer", {
-    state: "Planning", owner: "tester", branch: null, workClass: "Light", priority: "P3",
-    dependsOn: [slug], design: [`spec-${slug}.md`], taskList: `tasks-${slug}.md`,
-  }), "utf8");
+  await writeFile(join(observerDir, "meta-rename-observer.md"), [
+    "# Metadata: rename-observer",
+    "",
+    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| --------- | --------- | ---------- | --------- | ------------ |",
+    "| `Planning` | `tester`  | [none]     | `Light`   | `P3`         |",
+    "",
+    "- **Cohort:** [none]",
+    `- **Depends On:** \`${slug}\``,
+    "",
+    "- **Origin:** [internal]",
+    `- **Design:** \`spec-${slug}.md\``,
+    `- **Task List:** \`tasks-${slug}.md\``,
+    "- **Review Rubric:** [none]",
+    "",
+    "- **Current Workflow:** [none]",
+    "- **Last Completed:** [none]",
+    "- **Next Task:** [none]",
+    "- **Blockers:** [none]",
+    "",
+    "- **Next Action:** —",
+    "",
+    "- **PR URL:** [none]",
+    "- **Completed:** [none]",
+    "",
+    "---",
+    "",
+  ].join("\n"), "utf8");
 }
 
 async function expectTrackedSweep(

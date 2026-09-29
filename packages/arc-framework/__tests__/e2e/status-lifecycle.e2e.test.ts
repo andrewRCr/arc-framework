@@ -11,7 +11,6 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, it, expect, afterEach } from "vitest";
-import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
@@ -46,7 +45,13 @@ describe("status <slug>", () => {
     );
     await writeFile(
       join(tmpDir, ".arc", "completed", "2026-q2", "01_shipped-dep", "meta-shipped-dep.md"),
-      makeMetaFixture("shipped-dep", { state: "Shipped" }),
+      [
+        "# Metadata: shipped-dep",
+        "",
+        "- **State:** Shipped",
+        "- **Depends On:** [none]",
+        "",
+      ].join("\n"),
     );
   }
 
@@ -97,7 +102,7 @@ describe("status <slug>", () => {
     await writeFile(join(tmpDir, ".arc", "system", "arc-config.yml"), "branch.base: main\n");
     await writeFile(
       join(tmpDir, ".arc", "backlog", "planned", `meta-${slug}.md`),
-      makeMetaFixture(slug, { state: "Planning", branch: null }),
+      [`# Metadata: ${slug}`, "", "- **State:** Planning", "- **Branch:** [none]", ""].join("\n"),
     );
     await execFileAsync("git", ["add", ".arc"], { cwd: tmpDir });
     await execFileAsync("git", ["commit", "-m", "scaffold status query"], { cwd: tmpDir });
@@ -107,7 +112,7 @@ describe("status <slug>", () => {
     await mkdir(join(tmpDir, ".arc", "active"), { recursive: true });
     await writeFile(
       join(tmpDir, ".arc", "active", `meta-${slug}.md`),
-      makeMetaFixture(slug, { branch }),
+      [`# Metadata: ${slug}`, "", "- **State:** Active", `- **Branch:** ${branch}`, ""].join("\n"),
     );
     await execFileAsync("git", ["add", ".arc"], { cwd: tmpDir });
     await execFileAsync("git", ["commit", "-m", "activate status query"], { cwd: tmpDir });
@@ -147,12 +152,19 @@ describe("status <slug>", () => {
     await mkdir(join(tmpDir, ".arc", "active"), { recursive: true });
     await writeFile(
       join(tmpDir, ".arc", "active", `meta-${slug}.md`),
-      makeMetaFixture(slug, {
-        branch,
-        taskList: `tasks-${slug}.md`,
-        currentWorkflow: "prepare-work-unit",
-        nextAction: "prepare publication",
-      }),
+      [
+        `# Metadata: ${slug}`,
+        "",
+        "- **State:** Active",
+        `- **Branch:** ${branch}`,
+        `- **Task List:** \`tasks-${slug}.md\``,
+        "- **Candidate:** [none]",
+        "- **Current Workflow:** prepare-work-unit",
+        "- **Last Completed:** [none]",
+        "- **Next Task:** [none]",
+        "- **Next Action:** prepare publication",
+        "",
+      ].join("\n"),
     );
     await writeFile(
       join(tmpDir, ".arc", "active", `tasks-${slug}.md`),

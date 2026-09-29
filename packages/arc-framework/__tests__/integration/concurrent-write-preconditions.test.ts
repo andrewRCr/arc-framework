@@ -16,7 +16,6 @@ import { handleRecoverAudit } from "../../src/handlers/recover.js";
 import { handleStatus } from "../../src/handlers/status.js";
 import { resolveProcessInteractionContext } from "../../src/lib/command-input/interaction-context.js";
 import { runHandlerAt } from "../helpers/handler.js";
-import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import {
   cleanupTempDir,
   DEFAULT_PROMPTS,
@@ -48,11 +47,34 @@ async function mergeAllowingConflict(cwd: string, ref: string): Promise<void> {
 }
 
 function metaDocument(): string {
-  return makeMetaFixture(WORK_UNIT, {
-    owner: "test-user", branch: HEAD_REF, workClass: "Light", priority: "P2",
-    taskList: `tasks-${WORK_UNIT}.md`, lastCompleted: "none", nextTask: "Task 1.1",
-    nextAction: "continue",
-  });
+  return [
+    `# Metadata: ${WORK_UNIT}`,
+    "",
+    "| **State** | **Owner**   | **Branch**     | **Class** | **Priority** |",
+    "| --------- | ----------- | -------------- | --------- | ------------ |",
+    `| \`Active\`  | \`test-user\` | \`${HEAD_REF}\` | \`Light\`   | \`P2\`         |`,
+    "",
+    "- **Cohort:** [none]",
+    "- **Depends On:** [none]",
+    "",
+    "- **Origin:** [internal]",
+    "- **Design:** [none]",
+    `- **Task List:** \`tasks-${WORK_UNIT}.md\``,
+    "- **Review Rubric:** [none]",
+    "",
+    "- **Current Workflow:** [none]",
+    "- **Last Completed:** none",
+    "- **Next Task:** Task 1.1",
+    "- **Blockers:** [none]",
+    "",
+    "- **Next Action:** continue",
+    "",
+    "- **PR URL:** [none]",
+    "- **Completed:** [none]",
+    "",
+    "---",
+    "",
+  ].join("\n");
 }
 
 /** An ARC project whose work unit is committed on its own branch, with the base ready to receive it. */

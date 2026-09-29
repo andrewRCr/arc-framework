@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import { digestBytes } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import {
@@ -234,13 +233,14 @@ describe("executeV3DecomposeOperation", () => {
 
     for (const recovery of recoveries) {
       expect(V3DecomposeOperationRecoverySchema.parse(recovery)).toEqual(recovery);
-      assertSchemaRefuses(V3DecomposeOperationRecoverySchema, { ...recovery, extra: true });
+      expect(V3DecomposeOperationRecoverySchema.safeParse({ ...recovery, extra: true }).success)
+        .toBe(false);
     }
-    assertSchemaRefuses(V3DecomposeOperationRecoverySchema, {
+    expect(V3DecomposeOperationRecoverySchema.safeParse({
       kind: "partial-restoration",
       status: "restored",
       affectedPaths: ["wrong-arm.md"],
-    });
+    }).success).toBe(false);
   });
 
   it("stages an additive result without creating retirement history", async () => {

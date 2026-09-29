@@ -28,7 +28,6 @@ import { resolveCandidateRecordRelativePath } from "../../src/lib/work-unit/cand
 import { runHandlerAt } from "../helpers/handler.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { setupWorktreeSiblings, type WorktreeSiblings } from "../helpers/multi-clone.js";
-import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -182,13 +181,16 @@ describe("a sibling under this checkout's own reconcile ceremony", () => {
     await mkdir(join(harness.primary, ".arc", "active"), { recursive: true });
     await mkdir(planned, { recursive: true });
     await mkdir(transitions, { recursive: true });
-    await writeFile(join(harness.primary, ".arc", "active", "meta-dependent.md"),
-      makeMetaFixture("dependent", {
-        owner: IDENTITY, branch: "main", dependsOn: ["origin"],
-      }));
-    await writeFile(join(planned, "meta-successor.md"), makeMetaFixture("successor", {
-      state: "Planning", owner: IDENTITY, branch: null,
-    }));
+    await writeFile(
+      join(harness.primary, ".arc", "active", "meta-dependent.md"),
+      "# Metadata: dependent\n\n- **State:** Active\n- **Owner:** test-user\n"
+        + "- **Branch:** `main`\n- **Depends On:** `origin`\n",
+    );
+    await writeFile(
+      join(planned, "meta-successor.md"),
+      "# Metadata: successor\n\n- **State:** Planning\n- **Owner:** test-user\n"
+        + "- **Branch:** [none]\n- **Depends On:** [none]\n",
+    );
     await writeFile(join(transitions, "origin.json"), `${JSON.stringify({
       schemaVersion: 1,
       origin: "origin",

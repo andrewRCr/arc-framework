@@ -8,7 +8,6 @@
 
 import { describe, expect, it } from "vitest";
 
-import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 import type {
   ExecuteTransitionContext,
   SideEffectHandler,
@@ -118,7 +117,7 @@ describe("runMaterialize", () => {
       readFile: async (path) => {
         lifecycleReads += 1;
         if (path.endsWith("/.arc/backlog/planned/meta-foo.md")) {
-          return makeMetaFixture("foo", { state: "Planning" });
+          return "# Metadata: foo\n\n- **State:** Planning\n";
         }
         throw new Error(`ENOENT: ${path}`);
       },

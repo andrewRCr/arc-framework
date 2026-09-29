@@ -361,7 +361,9 @@ describe("fetchRefBounded", () => {
   });
 
   it("degrades to false when the candidate-ref fetch is unreachable", async () => {
-    const exec = execFailing("timed out");
+    const exec: GitExec = vi.fn(async () => {
+      throw new Error("timed out");
+    });
 
     const result = await fetchRefBounded({ exec, branch: "feat/x", timeoutMs: 2000 });
 
@@ -389,9 +391,7 @@ describe("fetchRefsBounded", () => {
 
   it("returns only the branches whose fetch succeeded", async () => {
     const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
-      if (args[3] === "feat/unreachable") {
-        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "timed out" });
-      }
+      if (args[3] === "feat/unreachable") throw new Error("timed out");
       return { stdout: "", stderr: "" };
     });
 
@@ -434,9 +434,9 @@ describe("fetchRefsBounded", () => {
   it("stops claiming branches once the request deadline passes", async () => {
     // Every fetch consumes its full per-fetch bound, as an unreachable remote would.
     let clock = 0;
-    const exec: GitExec = vi.fn(async (command, args): Promise<ExecResult> => {
+    const exec: GitExec = vi.fn(async (): Promise<ExecResult> => {
       clock += 1000;
-      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "timed out" });
+      throw new Error("timed out");
     });
 
     const fetched = await fetchRefsBounded({
@@ -472,9 +472,9 @@ describe("fetchRefsBounded", () => {
     // default it would stop after the first round and leave the rest pending.
     let started = 0;
     const branches = Array.from({ length: 10 }, (_value, index) => `feat/${index}`);
-    const exec: GitExec = vi.fn(async (command, args): Promise<ExecResult> => {
+    const exec: GitExec = vi.fn(async (): Promise<ExecResult> => {
       started += 1;
-      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "timed out" });
+      throw new Error("timed out");
     });
     const now = (): number => Math.floor(started / CANDIDATE_FETCH_CONCURRENCY) * 1000;
 
@@ -496,9 +496,9 @@ describe("fetchRefsBounded", () => {
     // correct for a passive probe, which owes one bounded read — and is precisely
     // what the explicit acquisition path must not inherit.
     let started = 0;
-    const exec: GitExec = vi.fn(async (command, args): Promise<ExecResult> => {
+    const exec: GitExec = vi.fn(async (): Promise<ExecResult> => {
       started += 1;
-      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "timed out" });
+      throw new Error("timed out");
     });
 
     await fetchRefsBounded({

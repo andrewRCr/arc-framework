@@ -768,3 +768,5 @@ cohort from `main`. Whether surviving callers later ask the contract for a docum
 
 - **A1** — 2026-09-29 — task: Populate Candidate metadata after rendering the delivery-position fixture.
   _Supersedes:_ none. _Trigger:_ 7.5 segment. _Work:_ 7.R. _Revalidated:_ pending → 7.5.
+- **A2** — 2026-09-29 — task: Preserve storage-owned tests at their pre-conversion boundary.
+  _Supersedes:_ none. _Trigger:_ 7.5 segment. _Work:_ 7.R2. _Revalidated:_ pending → 7.5.

@@ -24,7 +24,6 @@ import type { RetirementAuthorityPort } from "../../../../src/lib/work-unit/reti
 import type { TeardownSelection } from "../../../../src/lib/work-unit/teardown-selection.js";
 import type { RetireWorktreeOptions } from "../../../../src/lib/work-unit/teardown-worktree-transaction.js";
 import { worktreePorcelainZ } from "../../../helpers/worktree-porcelain.js";
-import { makeGitProcessError } from "../../../helpers/git-exec-fake.js";
 
 const CWD = "/repo";
 
@@ -157,9 +156,7 @@ function buildExec(opts: ExecOptions = {}, metas: readonly MetaSpec[] = []): { e
     }
     if (sub === "rev-parse") {
       const ref = args[args.length - 1];
-      if (ref !== undefined && opts.unresolvableRefs?.includes(ref)) {
-        throw makeGitProcessError({ command: cmd, args, exitCode: 128, stderr: "unknown revision" });
-      }
+      if (ref !== undefined && opts.unresolvableRefs?.includes(ref)) throw new Error("unknown revision");
       return { stdout: "deadbeef\n" };
     }
     if (sub === "rev-list") return { stdout: opts.revListOutput ?? "" }; // empty → contained
@@ -171,20 +168,16 @@ function buildExec(opts: ExecOptions = {}, metas: readonly MetaSpec[] = []): { e
         const content = committedFiles.get(path);
         if (content !== undefined) return { stdout: content };
       }
-      throw makeGitProcessError({ command: cmd, args, exitCode: 128, stderr: "not found" });
+      throw new Error("not found");
     }
     if (sub === "branch" && args[1] === "-D") {
-      if (opts.branchDeleteThrows) {
-        throw makeGitProcessError({ command: cmd, args, exitCode: 1, stderr: "git branch -D failed" });
-      }
+      if (opts.branchDeleteThrows) throw new Error("git branch -D failed");
       const deleted = args[2];
       if (deleted !== undefined) deletedBranches.add(deleted);
       return { stdout: "" };
     }
     if (sub === "update-ref" && args[1] === "-d") {
-      if (opts.updateRefThrows) {
-        throw makeGitProcessError({ command: cmd, args, exitCode: 128, stderr: "git update-ref failed" });
-      }
+      if (opts.updateRefThrows) throw new Error("git update-ref failed");
       const ref = args[2];
       if (ref?.startsWith("refs/heads/")) deletedBranches.add(ref.slice("refs/heads/".length));
       return { stdout: "" };
@@ -196,12 +189,10 @@ function buildExec(opts: ExecOptions = {}, metas: readonly MetaSpec[] = []): { e
       if (branch !== undefined && branches.includes(branch) && !deletedBranches.has(branch)) {
         return { stdout: "" };
       }
-      throw makeGitProcessError({ command: cmd, args, exitCode: 1, stderr: "not found" }); // ref gone → deleted
+      throw new Error("not found"); // ref gone → deleted
     }
     if (sub === "fetch") {
-      if (opts.fetchThrows) {
-        throw makeGitProcessError({ command: cmd, args, exitCode: 128, stderr: "fetch failed" });
-      }
+      if (opts.fetchThrows) throw new Error("fetch failed");
       return { stdout: "" };
     }
     if (sub === "status") return { stdout: "" }; // clean worktree
@@ -262,13 +253,14 @@ function installStatefulPrimaryProjection(
   ctx.exec = async (cmd, args, opts) => {
     if (args[0] === "push" && args.some((arg) => arg.startsWith("--force-with-lease=")) && remoteFailures > 0) {
       remoteFailures -= 1;
-      throw makeGitProcessError({
-        command: cmd, args, exitCode: 1, stderr: "simulated remote transport failure",
+      throw Object.assign(new Error("git push failed"), {
+        code: 1,
+        stderr: "simulated remote transport failure",
       });
     }
     if (args[0] === "update-ref" && args[1] === "-d" && localFailures > 0) {
       localFailures -= 1;
-      throw makeGitProcessError({ command: cmd, args, exitCode: 128, stderr: "simulated local ref lock" });
+      throw new Error("simulated local ref lock");
     }
     const result = await baseExec(cmd, args, opts);
     if (args[0] === "switch" && args[1] !== undefined && args[1] !== "--detach") primaryBranch = args[1];
@@ -481,7 +473,7 @@ describe("runTeardown — arc-state authority gate", () => {
     let completedReadUnavailable = true;
     ctx.exec = async (command, args, options) => {
       if (completedReadUnavailable && args[0] === "ls-tree" && args.includes(".arc/completed/")) {
-        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "completed tree unavailable" });
+        throw new Error("completed tree unavailable");
       }
       return await baseExec(command, args, options);
     };
@@ -1348,7 +1340,10 @@ describe("runTeardown — remote-head cleanup (shipped)", () => {
     const baseExec = ctx.exec;
     ctx.exec = async (cmd, args) => {
       if (args[0] === "push" && args.includes("--delete")) {
-        throw makeGitProcessError({ command: cmd, args, exitCode: 1, stderr: "remote ref does not exist" });
+        throw Object.assign(new Error("git push failed"), {
+          code: 1,
+          stderr: "remote ref does not exist",
+        });
       }
       return baseExec(cmd, args);
     };
@@ -1366,9 +1361,7 @@ describe("runTeardown — remote-head cleanup (shipped)", () => {
     const { ctx } = buildCtx([SHIPPED_META], { branches: ["feat/demo"] });
     const baseExec = ctx.exec;
     ctx.exec = async (cmd, args) => {
-      if (args[0] === "push" && args.includes("--delete")) {
-        throw makeGitProcessError({ command: cmd, args, exitCode: 128, stderr: "connection refused" });
-      }
+      if (args[0] === "push" && args.includes("--delete")) throw new Error("connection refused");
       return baseExec(cmd, args);
     };
 

@@ -5,7 +5,6 @@
 import { access, chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 import {
   cleanupTempDir,
@@ -23,11 +22,15 @@ describe("arc view", () => {
   beforeEach(async () => {
     cwd = await createTempRepo("arc-view-e2e-");
     await mkdir(join(cwd, ".arc", "active"), { recursive: true });
-    await writeFile(join(cwd, ".arc", "active", "meta-feature.md"), makeMetaFixture("feature", {
-      branch: "main",
-      taskList: "tasks-feature.md",
-      nextAction: "Continue implementation",
-    }));
+    await writeFile(join(cwd, ".arc", "active", "meta-feature.md"), [
+      "# Metadata: feature",
+      "",
+      "- **State:** Active",
+      "- **Branch:** main",
+      "- **Task List:** tasks-feature.md",
+      "- **Next Action:** Continue implementation",
+      "",
+    ].join("\n"));
     await writeFile(join(cwd, ".arc", "active", "tasks-feature.md"), [
       "# Task List: feature",
       "",
@@ -53,8 +56,9 @@ describe("arc view", () => {
   });
 
   it("uses conventional task fallback and bare lifecycle selection", async () => {
-    await writeFile(join(cwd, ".arc", "active", "meta-feature.md"),
-      makeMetaFixture("feature", { branch: "main" }));
+    await writeFile(join(cwd, ".arc", "active", "meta-feature.md"), [
+      "# Metadata: feature", "", "- **State:** Active", "- **Branch:** main", "- **Task List:** [none]", "",
+    ].join("\n"));
     const forming = await runArcNoTty(["view"], cwd);
     expect(forming.stdout).toContain("# Task List: feature");
 
@@ -73,13 +77,16 @@ describe("arc view", () => {
     await mkdir(provisional, { recursive: true });
     await mkdir(completed, { recursive: true });
     await mkdir(join(planned, "planned"), { recursive: true });
-    await writeFile(join(planned, "planned", "meta-planned.md"),
-      makeMetaFixture("planned", { state: "Planning", branch: null }));
+    await writeFile(join(planned, "planned", "meta-planned.md"), [
+      "# Metadata: planned", "", "- **State:** Planning", "- **Branch:** [none]", "- **Task List:** [none]", "",
+    ].join("\n"));
     await writeFile(join(planned, "planned", "spec-planned.md"), "# Planned spec\n");
-    await writeFile(join(provisional, "meta-provisional.md"),
-      makeMetaFixture("provisional", { state: "Planning", branch: null }));
-    await writeFile(join(completed, "meta-completed.md"),
-      makeMetaFixture("completed", { state: "Shipped", branch: "feat/completed" }));
+    await writeFile(join(provisional, "meta-provisional.md"), [
+      "# Metadata: provisional", "", "- **State:** Planning", "- **Branch:** [none]", "- **Task List:** [none]", "",
+    ].join("\n"));
+    await writeFile(join(completed, "meta-completed.md"), [
+      "# Metadata: completed", "", "- **State:** Shipped", "- **Branch:** feat/completed", "- **Task List:** [none]", "",
+    ].join("\n"));
 
     const active = await runArcNoTty(["view", "meta", "--for", "feature"], cwd);
     expect(active.exitCode).toBe(0);

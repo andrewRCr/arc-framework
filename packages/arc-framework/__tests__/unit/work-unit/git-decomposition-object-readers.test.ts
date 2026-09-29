@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import { digestBytes } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import {
@@ -13,18 +12,18 @@ const ANCESTOR = "a".repeat(40);
 const DESCENDANT = "b".repeat(40);
 
 function ancestryExec(outcome: "ancestor" | "not-ancestor" | "unresolvable"): GitExec {
-  return scriptGitExec([
-    { match: ["rev-parse", "--verify", `${ANCESTOR}^{commit}`],
-      responses: [{ stdout: `${ANCESTOR}\n` }] },
-    { match: ["rev-parse", "--verify", `${DESCENDANT}^{commit}`],
-      responses: [outcome === "unresolvable"
-        ? { failure: { exitCode: 128, stderr: "missing" } }
-        : { stdout: `${DESCENDANT}\n` }] },
-    { match: ["merge-base", "--is-ancestor", ANCESTOR, DESCENDANT],
-      responses: [outcome === "ancestor"
-        ? { stdout: "" }
-        : { failure: { exitCode: 1, stderr: "not an ancestor" } }] },
-  ]).exec;
+  return async (_command, args) => {
+    if (args[0] === "rev-parse") {
+      const ref = args[2]?.replace(/\^\{commit\}$/u, "");
+      if (outcome === "unresolvable" && ref === DESCENDANT) throw new Error("missing");
+      return { stdout: `${ref}\n` };
+    }
+    if (args[0] === "merge-base") {
+      if (outcome === "ancestor") return { stdout: "" };
+      throw Object.assign(new Error("not an ancestor"), { exitCode: 1 });
+    }
+    throw new Error(`unexpected git call: ${args.join(" ")}`);
+  };
 }
 
 describe("git decomposition object readers", () => {
@@ -86,10 +85,9 @@ describe("git decomposition object readers", () => {
 
   it("distinguishes an unreadable path state from a proven mismatch", async () => {
     const path = ".arc/example.md";
-    const { exec: unreadable } = scriptGitExec([
-      { match: ["ls-tree", "-z", ANCESTOR, "--", `:(literal)${path}`],
-        responses: [{ failure: { exitCode: 128, stderr: "tree unavailable" } }] },
-    ]);
+    const unreadable: GitExec = async () => {
+      throw new Error("tree unavailable");
+    };
 
     await expect(stateMatches(
       {

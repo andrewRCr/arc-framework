@@ -20,7 +20,6 @@ import {
 import { resolveWorktreeLocation } from "../../../../src/lib/git/worktree-location.js";
 import { readWorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
 import type { GitExec } from "../../../../src/lib/git/exec.js";
-import { makeGitProcessError } from "../../../helpers/git-exec-fake.js";
 
 /** One recorded event — a git invocation (`git ...`) or a locus hop (`chdir`). */
 type Event = string[];
@@ -52,8 +51,8 @@ function buildCtx(opts: MockOptions = {}): { ctx: ReconcileWorkUnitWorktreeConte
     events.push([cmd, ...args]);
     if (cmd !== "git" && opts.failPostCreate === true) throw new Error("exit 42");
     if (args[0] === "worktree" && args[1] === "move" && opts.failOccupiedMove === true) {
-      throw makeGitProcessError({
-        command: cmd, args, exitCode: 1,
+      throw Object.assign(new Error("worktree move failed"), {
+        code: 1,
         stderr: "fatal: failed to move worktree: Permission denied",
       });
     }
@@ -709,9 +708,10 @@ describe("reconcileWorkUnitWorktree — rename move", () => {
 
   it("propagates a self-move failure unrelated to directory occupancy", async () => {
     const { ctx } = buildCtx();
-    ctx.exec = async (command, args) => {
-      throw makeGitProcessError({
-        command, args, exitCode: 1, stderr: "fatal: destination exists",
+    ctx.exec = async () => {
+      throw Object.assign(new Error("destination exists"), {
+        code: 1,
+        stderr: "fatal: destination path already exists",
       });
     };
 

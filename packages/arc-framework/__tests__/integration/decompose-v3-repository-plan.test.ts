@@ -6,7 +6,6 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
 import {
   canonicalize,
@@ -1668,8 +1667,9 @@ describe("Git v3 repository plan", () => {
       ...fixture.dependencies,
       exec: async (...args: Parameters<typeof fixture.dependencies.exec>) => {
         if (args[1][0] === "merge-base" && args[1][1] === "--is-ancestor") {
-          throw makeGitProcessError({
-            command: args[0], args: args[1], exitCode: 128, stderr: "ancestry probe unavailable",
+          throw Object.assign(new Error("ancestry probe unavailable"), {
+            exitCode: 128,
+            stderr: "ancestry probe unavailable",
           });
         }
         return await fixture.dependencies.exec(...args);
@@ -1708,7 +1708,7 @@ describe("Git v3 repository plan", () => {
       ...fixture.dependencies,
       exec: async (...args: Parameters<typeof fixture.dependencies.exec>) => {
         if (args[1][0] === "merge-base" && args[1][1] === "--is-ancestor") {
-          throw makeGitProcessError({ command: args[0], args: args[1], exitCode: 1, stderr: "not an ancestor" });
+          throw Object.assign(new Error("not an ancestor"), { exitCode: 1 });
         }
         return await fixture.dependencies.exec(...args);
       },
@@ -3524,8 +3524,9 @@ describe("Git v3 repository plan", () => {
           && args[1][2] === failedAncestor
           && args[1][3] === failedDescendant
         ) {
-          throw makeGitProcessError({
-            command: args[0], args: args[1], exitCode: 128, stderr: "ancestry probe unavailable",
+          throw Object.assign(new Error("ancestry probe unavailable"), {
+            exitCode: 128,
+            stderr: "ancestry probe unavailable",
           });
         }
         return await fixture.dependencies.exec(...args);

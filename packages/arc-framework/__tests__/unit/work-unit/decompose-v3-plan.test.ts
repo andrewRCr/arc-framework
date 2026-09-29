@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import { canonicalDigest, sortByCanonicalBytes } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import {
@@ -77,15 +76,15 @@ describe("validated v3 decomposition plan path registry", () => {
 
     expect(V3PlanContributorSchema.parse(contributor)).toEqual(contributor);
     expect(V3ValidatedPathMutationSchema.parse(mutation)).toEqual(mutation);
-    assertSchemaRefuses(V3ValidatedPathMutationSchema, { ...mutation, extra: true });
-    assertSchemaRefuses(V3ValidatedPathMutationSchema, {
+    expect(V3ValidatedPathMutationSchema.safeParse({ ...mutation, extra: true }).success).toBe(false);
+    expect(V3ValidatedPathMutationSchema.safeParse({
       ...mutation,
       contributors: [{ ...contributor, extra: true }],
-    });
-    assertSchemaRefuses(V3PlanContributorSchema, {
+    }).success).toBe(false);
+    expect(V3PlanContributorSchema.safeParse({
       ...contributor,
       sourceProjection: [{ sourceId: digest("source"), targetLocator: new Uint8Array([1]) }],
-    });
+    }).success).toBe(false);
   });
 
   it("builds one UTF-8-sorted mutation per path in canonical contributor order", () => {

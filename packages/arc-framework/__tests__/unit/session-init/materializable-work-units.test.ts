@@ -5,7 +5,6 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import type {
   InFlightErrand,
@@ -46,11 +45,11 @@ describe("MaterializableWorkUnitsResultSchema", () => {
     { name: "valid-slug", branch: "" },
     { name: "valid-slug", branch: "feat/valid-slug", leaked: true },
   ])("rejects a malformed candidate", (candidate) => {
-    assertSchemaRefuses(MaterializableWorkUnitSchema, candidate);
+    expect(MaterializableWorkUnitSchema.safeParse(candidate).success).toBe(false);
   });
 
   it("rejects malformed warning entries", () => {
-    assertSchemaRefuses(MaterializableWorkUnitsResultSchema, { candidates: [], warnings: [42] });
+    expect(MaterializableWorkUnitsResultSchema.safeParse({ candidates: [], warnings: [42] }).success).toBe(false);
   });
 });
 
@@ -62,33 +61,33 @@ describe("MaterializableWorkUnitDiscoveryResultSchema", () => {
   };
 
   it("enforces exact, pending, unreachable, and disabled evidence combinations", () => {
-    assertSchemaAccepts(MaterializableWorkUnitDiscoveryResultSchema, {
+    expect(MaterializableWorkUnitDiscoveryResultSchema.safeParse({
       candidates: [candidate], remoteEvidence: "exact", pendingBranchCount: 0, refreshRemedy: null,
-    });
-    assertSchemaAccepts(MaterializableWorkUnitDiscoveryResultSchema, {
+    }).success).toBe(true);
+    expect(MaterializableWorkUnitDiscoveryResultSchema.safeParse({
       candidates: [candidate], remoteEvidence: "pending-fetch", pendingBranchCount: 2, refreshRemedy: remedy,
-    });
-    assertSchemaAccepts(MaterializableWorkUnitDiscoveryResultSchema, {
+    }).success).toBe(true);
+    expect(MaterializableWorkUnitDiscoveryResultSchema.safeParse({
       candidates: [], remoteEvidence: "unreachable", pendingBranchCount: 0, refreshRemedy: null,
       failureReason: "network",
-    });
-    assertSchemaAccepts(MaterializableWorkUnitDiscoveryResultSchema, {
+    }).success).toBe(true);
+    expect(MaterializableWorkUnitDiscoveryResultSchema.safeParse({
       candidates: [], remoteEvidence: "not-applicable", pendingBranchCount: 0, refreshRemedy: null,
-    });
+    }).success).toBe(true);
 
-    assertSchemaRefuses(MaterializableWorkUnitDiscoveryResultSchema, {
+    expect(MaterializableWorkUnitDiscoveryResultSchema.safeParse({
       candidates: [], remoteEvidence: "exact", pendingBranchCount: 1, refreshRemedy: null,
-    });
-    assertSchemaRefuses(MaterializableWorkUnitDiscoveryResultSchema, {
+    }).success).toBe(false);
+    expect(MaterializableWorkUnitDiscoveryResultSchema.safeParse({
       candidates: [], remoteEvidence: "pending-fetch", pendingBranchCount: 0, refreshRemedy: remedy,
-    });
-    assertSchemaRefuses(MaterializableWorkUnitDiscoveryResultSchema, {
+    }).success).toBe(false);
+    expect(MaterializableWorkUnitDiscoveryResultSchema.safeParse({
       candidates: [], remoteEvidence: "unreachable", pendingBranchCount: 0, refreshRemedy: null,
-    });
-    assertSchemaRefuses(MaterializableWorkUnitDiscoveryResultSchema, {
+    }).success).toBe(false);
+    expect(MaterializableWorkUnitDiscoveryResultSchema.safeParse({
       candidates: [], remoteEvidence: "not-applicable", pendingBranchCount: 0, refreshRemedy: null,
       failureReason: "network",
-    });
+    }).success).toBe(false);
   });
 
   it("distinguishes exact empty discovery from incomplete and unavailable discovery", () => {
@@ -107,15 +106,15 @@ describe("MaterializableWorkUnitDiscoveryResultSchema", () => {
   it("provides the exact live refresh remedy only for pending discovery", () => {
     const composed = composeMaterializableDiscoveryRefreshRemedy();
     expect(composed).toEqual(remedy);
-    assertSchemaAccepts(MaterializableWorkUnitDiscoveryResultSchema, {
+    expect(MaterializableWorkUnitDiscoveryResultSchema.safeParse({
       candidates: [], remoteEvidence: "pending-fetch", pendingBranchCount: 1, refreshRemedy: composed,
-    });
-    assertSchemaRefuses(MaterializableWorkUnitDiscoveryResultSchema, {
+    }).success).toBe(true);
+    expect(MaterializableWorkUnitDiscoveryResultSchema.safeParse({
       candidates: [], remoteEvidence: "exact", pendingBranchCount: 0, refreshRemedy: composed,
-    });
-    assertSchemaRefuses(MaterializableWorkUnitDiscoveryResultSchema, {
+    }).success).toBe(false);
+    expect(MaterializableWorkUnitDiscoveryResultSchema.safeParse({
       candidates: [], remoteEvidence: "pending-fetch", pendingBranchCount: 1, refreshRemedy: null,
-    });
+    }).success).toBe(false);
   });
 });
 

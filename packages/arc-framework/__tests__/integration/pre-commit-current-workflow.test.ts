@@ -9,7 +9,6 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { cleanupTempDir, createTempRepo } from "../helpers/integration.js";
-import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 const execFileAsync = promisify(execFile);
 const tsxLoader = import.meta.resolve("tsx");
@@ -20,11 +19,17 @@ const validatorPath = resolve(
 const metaPath = ".arc/active/meta-example.md";
 
 function meta(currentWorkflow: string): string {
-  return makeMetaFixture("Example", {
-    design: ["spec-example.md"],
-    taskList: "tasks-example.md",
-    currentWorkflow: currentWorkflow === "[none]" ? null : currentWorkflow.replaceAll("`", ""),
-  });
+  return [
+    "# Metadata: Example",
+    "",
+    "- **State:** Active",
+    "- **Design:** `spec-example.md`",
+    "- **Task List:** `tasks-example.md`",
+    `- **Current Workflow:** ${currentWorkflow}`,
+    "",
+    "---",
+    "",
+  ].join("\n");
 }
 
 async function git(cwd: string, args: string[]): Promise<void> {

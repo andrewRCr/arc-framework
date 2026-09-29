@@ -5,7 +5,6 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   InboxStateResultSchema,
@@ -238,17 +237,19 @@ describe("InboxStateResultSchema", () => {
   });
 
   it.each([-1, 1.5])("rejects an invalid routable count: %s", (routableCount) => {
-    assertSchemaRefuses(InboxStateResultSchema, { routableCount, executeBoundCount: 0, housekeepNeeded: false });
+    expect(InboxStateResultSchema.safeParse({ routableCount, executeBoundCount: 0, housekeepNeeded: false }).success)
+      .toBe(false);
   });
 
   it.each([-1, 1.5])("rejects an invalid execute-bound count: %s", (executeBoundCount) => {
-    assertSchemaRefuses(InboxStateResultSchema, { routableCount: 0, executeBoundCount, housekeepNeeded: false });
+    expect(InboxStateResultSchema.safeParse({ routableCount: 0, executeBoundCount, housekeepNeeded: false }).success)
+      .toBe(false);
   });
 
   it.each([
     { routableCount: 0, executeBoundCount: 1, housekeepNeeded: true },
     { routableCount: 1, executeBoundCount: 0, housekeepNeeded: false },
   ])("rejects an inconsistent count and flag pair", (value) => {
-    assertSchemaRefuses(InboxStateResultSchema, value);
+    expect(InboxStateResultSchema.safeParse(value).success).toBe(false);
   });
 });

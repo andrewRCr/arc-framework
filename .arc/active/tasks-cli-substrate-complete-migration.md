@@ -699,6 +699,8 @@ assertion, or a value typed by a cast to a registered schema's output.
 - _Goal:_ Surviving tests that script Git failures exercise the typed failure the production executor emits — through
   the shared fake, or through the fixture in doubles that stay local.
 
+    - _Amended in:_ 7.R2 (A2)
+
 - _Outcome:_ Modeled Git process exits in surviving test doubles use the shared typed failure fixture. The post-merge
   rejection scan finds no eligible residue; carved, non-exit, normalization, application, and guard cases remain local.
 
@@ -707,7 +709,9 @@ assertion, or a value typed by a cast to a registered schema's output.
 - _Goal:_ Fixture setup in surviving tests builds metas through the builder, while tests of meta parsing or layout keep
   literal Markdown as independent evidence.
 
-- _Amended in:_ 7.R (A1)
+    - _Amended in:_ 7.R (A1)
+
+    - _Amended in:_ 7.R2 (A2)
 
 - _Outcome:_ Valid META fixtures in surviving suites use the builder. The legacy envelope projection derives from
   validated fields and preserves all 11 goldens; the post-merge block scan finds no valid convertible residue.
@@ -717,15 +721,19 @@ assertion, or a value typed by a cast to a registered schema's output.
 - _Goal:_ No surviving test asserts `safeParse(...).success`; failures report schema issues through the helper, and
   registered-schema fixtures validate through their schemas.
 
+    - _Amended in:_ 7.R2 (A2)
+
 - _Outcome:_ Surviving schema verdicts use diagnostic helpers, and valid registered output fixtures parse through their
-  schemas. The post-merge AST scan leaves 16 carved assertions; remaining casts are partial, invalid, or already parsed
+  schemas. The post-correction AST scan leaves only carved assertions; remaining casts are partial, invalid, or parsed
   before narrowing.
 
 ### `[x]` **7.4 Convert the remaining in-file scripted doubles to the shared fake — D9**
 
 - _Goal:_ Every remaining in-file scripted double in a surviving test runs on the shared fake.
 
-- _Outcome:_ Converted deterministic in-file scripts in 42 surviving test files to the shared Git fakes and recorder.
+    - _Amended in:_ 7.R2 (A2)
+
+- _Outcome:_ Converted deterministic in-file scripts in surviving test files to the shared Git fakes and recorder.
   The remaining doubles are constant stubs, real-Git runners, hybrids, stateful simulators, or carved tests; no Errand
   cut was needed.
 
@@ -735,6 +743,13 @@ assertion, or a value typed by a cast to a registered schema's output.
 
 - _Outcome:_ The fixture applies `setMetaCandidate` to the rendered meta, including when the renderer omits an unset
   Candidate field. Both review-fix scenarios now recover their delivery-correction context.
+
+### `[x]` **7.R2 Restore storage-carved test boundaries — D9**
+
+- _Goal:_ Tests of storage-owned code retain their baseline behavior; mixed suites convert only surviving ranges.
+
+- _Outcome:_ Restored Phase 7-only edits in 42 carved test files and the carved ranges of two mixed suites. The
+  surviving `view --path` cases merged from `main` remain intact.
 
 ### `[ ]` **7.5 Sweep surviving tests for convertible residue** — validate exit criterion at segment scope
 
