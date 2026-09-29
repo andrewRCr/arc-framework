@@ -154,6 +154,14 @@ function integrationBoundaryFixture(workUnit = "active-widget"): Record<string, 
 }
 
 describe("session-init envelope schema", () => {
+  it("refuses undeclared fields inside the emitted roster and names the field", () => {
+    const value = fixture("orient");
+    expectValid(value);
+    setPath(value, ["roster", "value", "entries", 0, "extraEvidence"], true);
+    expect(() => assertSessionInitProbeResult(value))
+      .toThrow('session-init-envelope: roster.value.entries.0: Unrecognized key: "extraEvidence"');
+  });
+
   it("accepts completed-work-unit integration recovery without a live publication boundary", () => {
     const value = owningWorkUnitFixture();
     setPath(value, ["active", "value", "sessionType"], "integration");

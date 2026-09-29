@@ -21,6 +21,7 @@ import { BaseBranchSnapshotAnalysisResultSchema } from "../../lib/git/base-branc
 import { DirtyStateResultSchema } from "../../lib/git/dirty-state.js";
 import { WorktreeSyncStatusFields } from "../../lib/git/worktree-sync.js";
 import { WorktreeIdentitySchema } from "../../lib/git/worktree-identity.js";
+import { WorktreeRosterResultSchema } from "../../lib/git/worktree-roster.js";
 import {
   SupersessionResultSchema,
   SupersessionSnapshotAnalysisResultSchema,
@@ -230,9 +231,6 @@ export const UserReferenceReconcileSessionValueViewSchema = z.object({
 export const BaseDistanceValueViewSchema = z
   .object({ verdict: z.enum(["clean", "reconcile", "unavailable", "skipped"]) })
   .loose();
-
-/** Object-only view of the worktree roster, whose nested fields do not route workflows. */
-export const WorktreeRosterValueViewSchema = z.object({}).loose();
 
 const WorktreeSubjectViewSchema = z
   .object({ kind: z.enum(["work-unit", "errand", "branch"]) })
@@ -753,7 +751,7 @@ const SessionInitEnvelopeObjectSchema = z.strictObject({
   currentWuReconcile: probe(CurrentWuReconcileSessionValueViewSchema).optional(),
   deliveryPosition: probe(DeliveryPositionViewSchema.nullable()).optional(),
   userReferenceReconcile: probe(UserReferenceReconcileSessionValueViewSchema).optional(),
-  roster: probe(WorktreeRosterValueViewSchema).optional(),
+  roster: probe(WorktreeRosterResultSchema).optional(),
   recovery: probe(SessionInitRecoveryValueSchema).optional(),
   sweep: probe(StaleWorktreeSweepValueViewSchema).optional(),
   currentHusk: probe(CurrentHuskAdvisorySchema.nullable()).optional(),

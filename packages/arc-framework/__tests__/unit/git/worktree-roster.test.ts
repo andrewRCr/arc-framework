@@ -7,6 +7,7 @@ import {
   resolveWorktreePathsByBranchResult,
   runIdentityScopedWorktreeRoster,
   runWorktreeRoster,
+  WorktreeRosterResultSchema,
 } from "../../../src/lib/git/worktree-roster.js";
 import type {
   WorktreeRosterEntry,
@@ -169,6 +170,11 @@ describe("runWorktreeRoster", () => {
 
     expect(result.entries).toEqual([]);
     expect(result.warnings).toEqual([]);
+    expect(WorktreeRosterResultSchema.safeParse(result).success).toBe(true);
+    const undeclared = { ...result, extraEvidence: true };
+    const rejected = WorktreeRosterResultSchema.safeParse(undeclared);
+    expect(rejected.success).toBe(false);
+    if (!rejected.success) expect(rejected.error.message).toContain("extraEvidence");
   });
 
   it("returns a single tuple with state and cohort populated when one worktree has a meta file", async () => {
@@ -205,6 +211,7 @@ describe("runWorktreeRoster", () => {
       dependsOn: ["alpha", "bravo"],
     });
     expect(result.warnings).toEqual([]);
+    expect(WorktreeRosterResultSchema.safeParse(result).success).toBe(true);
   });
 
   it("carries a path-valued (nested) cohort through without regression", async () => {
@@ -252,6 +259,7 @@ describe("runWorktreeRoster", () => {
     const aEntry = result.entries.find((e) => e.branch === "feature/a");
     const bEntry = result.entries.find((e) => e.branch === "feature/b");
     expect(aEntry?.state).toBe("Active");
+    expect(WorktreeRosterResultSchema.safeParse(result).success).toBe(true);
     expect(bEntry?.state).toBe("Integrating");
     expect(result.warnings).toEqual([]);
   });
@@ -374,6 +382,7 @@ describe("runWorktreeRoster", () => {
     });
     expect(result.warnings).toHaveLength(1);
     expect(result.warnings[0]).toMatch(/meta-b\.md/);
+    expect(WorktreeRosterResultSchema.safeParse(result).success).toBe(true);
   });
 
   it("skips detached-HEAD worktrees and does not attempt meta-file resolution for them", async () => {

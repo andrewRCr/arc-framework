@@ -215,12 +215,14 @@ recorded sweep recipes; see `notes-cli-substrate-complete-migration.md` § Segme
 - _Outcome:_ All seven leaf types now derive from registered version-1 strict roots, and both envelopes compose the
   owning schemas in place of the retired thin views. Producer and slot tests cover emitted states and unknown fields.
 
-### `[ ]` **3.3 Complete the worktree schemas and the worktree snapshot root — D5**
+### `[x]` **3.3 Complete the worktree schemas and the worktree snapshot root — D5**
 
 - _Goal:_ `WorktreeSyncStatusResult` and `WorktreeRosterResult` have full schemas as their types' authority, and the
   worktree slot in both envelopes composes a registered strict snapshot root whose refusals name the offending key.
 
-- **Additional Context:** `notes-cli-substrate-complete-migration.md` § Session-envelope roots
+- _Outcome:_ Both worktree result types derive from strict schemas. Registered snapshot and roster roots are
+  composed into their envelope slots; producer and slot tests cover emitted states, degraded roster entries,
+  and undeclared-key refusals.
 
     - `[x]` **3.3.a Complete `WorktreeSyncStatusResult` and the worktree snapshot root**
         - Registered the strict `worktree-sync` snapshot root and derived the status, snapshot, identity, and
@@ -228,12 +230,10 @@ recorded sweep recipes; see `notes-cli-substrate-complete-migration.md` § Segme
           its state, evidence, count, branch, supersession, and recommendation refinements. Producer tests cover every
           worktree state and supersession evidence arm, including the handler's neutral not-needed result.
 
-    - `[ ]` **3.3.b Complete `WorktreeRosterResult`**
-        - ID `worktree-roster`. The emitted shape keeps its full schema under the type-edge rule, although the roster's
-          placement read later moves behind the storage contract.
-        - Build `test-first` (one behavior at a time):
-            - The root parses the roster's output for worktrees with and without a resolved meta
-            - The root refuses an undeclared key, naming it
+    - `[x]` **3.3.b Complete `WorktreeRosterResult`**
+        - Registered the strict `worktree-roster` root, derived its result and entry types, and composed the
+          session-init roster slot. Producer tests parse empty, resolved, degraded, and warning-bearing results;
+          root and envelope tests reject undeclared keys by name.
 
 ### `[ ]` **3.4 Complete `BaseDriftResult`, the base-distance snapshot root, and the checkpoint wraps — D5, D2**
 

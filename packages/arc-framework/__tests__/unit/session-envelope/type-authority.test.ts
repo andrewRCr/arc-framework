@@ -55,6 +55,7 @@ const SCHEMA_OWNED_TYPES: readonly TypeLocus[] = [
     { file: "lib/git/dirty-state.ts", type: "DirtyStateResult" },
     { file: "lib/git/worktree-sync.ts", type: "WorktreeSyncStatusResult" },
     { file: "lib/git/worktree-sync.ts", type: "WorktreeSnapshotAnalysisResult" },
+    { file: "lib/git/worktree-roster.ts", type: "WorktreeRosterResult" },
     { file: "lib/git/worktree-identity.ts", type: "WorktreeIdentity" },
     { file: "lib/git/supersession.ts", type: "SupersessionResult" },
     { file: "lib/git/supersession.ts", type: "SupersessionSnapshotAnalysisResult" },
@@ -70,7 +71,6 @@ const SCHEMA_OWNED_TYPES: readonly TypeLocus[] = [
 
 const HANDWRITTEN_TAIL_TYPES: readonly TypeLocus[] = [
     { file: "lib/git/base-distance.ts", type: "BaseDistanceStatusResult" },
-    { file: "lib/git/worktree-roster.ts", type: "WorktreeRosterResult" },
     {
         file: "lib/session-init/stale-worktree-sweep.ts",
         type: "StaleWorktreeSweepResult",

@@ -12,7 +12,6 @@ import {
   StaleWorktreeSweepValueViewSchema,
   UserSessionInitValueViewSchema,
   WorkUnitStateValueViewSchema,
-  WorktreeRosterValueViewSchema,
 } from "../../../src/commands/status/schema.js";
 
 describe("shared git routing views", () => {
@@ -67,14 +66,6 @@ describe("shared git routing views", () => {
     expect(schema.safeParse(value).success).toBe(false);
   });
 
-  it("treats the roster as an object-only pass-through view", () => {
-    const value = {
-      entries: [{ arbitrary: "payload" }],
-      warnings: ["kept"],
-    };
-    expect(WorktreeRosterValueViewSchema.parse(value)).toEqual(value);
-    expect(WorktreeRosterValueViewSchema.safeParse([]).success).toBe(false);
-  });
 });
 
 describe("user and recommendation routing views", () => {
@@ -327,7 +318,6 @@ describe("deep advisory routing views", () => {
 
   it.each([
     [BaseDistanceValueViewSchema, { verdict: "clean", evidence: { deep: { retained: true } } }],
-    [WorktreeRosterValueViewSchema, { entries: [{ evidence: { retained: true } }] }],
     [
       StaleWorktreeSweepValueViewSchema,
       {
