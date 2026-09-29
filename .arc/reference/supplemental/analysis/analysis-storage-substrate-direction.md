@@ -965,8 +965,8 @@ commits.
 
 ## Sources
 
-**Movable work-unit artifacts** (cited by filename): `draft-arc-backend.md`, `research-storage-landscape-2026-07.md`,
-`draft-local-mode.md`, `draft-operational-state-docs.md`, `draft-wu-lifecycle-state-model.md`,
+**Movable work-unit artifacts** (cited by filename): `draft-arc-backend.md`, `draft-local-mode.md`,
+`draft-operational-state-docs.md`, `draft-wu-lifecycle-state-model.md`,
 `draft-roadmap-tooling.md`, `draft-cli-substrate-complete-migration.md`, `draft-shared-inbox-model.md`,
 `draft-meta-file-tracking-model.md`, `draft-config-storage-architecture.md`, `draft-naming-conventions.md`,
 `draft-singleton-integration-continuity.md`, `draft-delivery-correction-convergence.md`,
@@ -976,7 +976,7 @@ commits.
 **Stable internal documents:** [ADR-012][adr-012], [ADR-022][adr-022], [ADR-027][adr-027], [ADR-033][adr-033],
 [ADR-035][adr-035], [DEV-RULES.ARC][dev-rules-arc], [DEV-RULES.PROJECT][dev-rules-project],
 [Storage evolution][storage-evolution], [Concurrent work][concurrent-work], [Work organization][work-org],
-[Stacked delivery build versus compose][delivery-analysis].
+[Stacked delivery build versus compose][delivery-analysis], [Storage landscape research, 2026-07][storage-landscape].
 
 **Code:** `packages/arc-framework/src/lib/user-sync/`, `src/lib/git/ref-tree.ts`, `src/lib/errand/`,
 `src/lib/locus/`, `src/lib/git/in-flight-derivation.ts`, `src/scripts/integration/checkpoint-composition.ts`,
@@ -1016,6 +1016,7 @@ commits.
 [concurrent-work]: ../../strategies/arc/strategy-concurrent-work.md
 [work-org]: ../../strategies/arc/strategy-work-organization.md
 [delivery-analysis]: analysis-stacked-delivery-build-vs-compose.md
+[storage-landscape]: ../research/research-storage-landscape-2026-07.md
 [pe-rfcs]: https://blog.pragmaticengineer.com/rfcs-and-design-docs/
 [rust-rfcs]: https://github.com/rust-lang/rfcs/blob/master/text/0002-rfc-process.md
 [keps]: https://github.com/kubernetes/enhancements/blob/master/keps/README.md
