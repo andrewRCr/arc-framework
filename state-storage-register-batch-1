@@ -3,14 +3,20 @@
   "slug": "state-storage-register-batch-1",
   "claimId": "d8a69d11c56af28c758a89c1316860cc",
   "createdAt": "2026-09-29T13:36:30.864Z",
-  "updatedAt": "2026-09-29T13:36:30.864Z",
+  "updatedAt": "2026-09-29T13:43:45.310Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Land storage-contract's verified storage-coupling register batch 1 in cohort-state-storage.md",
   "branch": "chore/state-storage-register-batch-1",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/state-storage-register-batch-1",
+    "headSha": "891c911c6474e85ed042a9ec38a0effe0f87ae76"
+  }
 }
