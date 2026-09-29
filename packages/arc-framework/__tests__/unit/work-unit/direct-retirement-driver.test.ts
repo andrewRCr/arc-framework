@@ -7,7 +7,6 @@ import {
   DirectTransitionConservationError,
 } from "../../../src/lib/work-unit/direct-retirement-driver.js";
 import { renameArtifactBasename } from "../../../src/lib/work-unit/mutators/relocate-artifacts.js";
-import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 const HEAD = "a".repeat(40);
 const META_PATH = ".arc/active/meta-sample.md";
@@ -380,9 +379,7 @@ describe("rename result derivation", () => {
       if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") return { stdout: "feat/sample\n" };
       if (args[0] === "rev-parse" && args[1] === "--verify") return { stdout: `${HEAD}\n` };
       if (args[0] === "ls-tree") return { stdout: `${META_PATH}\0` };
-      if (args[0] === "restore") {
-        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "injected restore refusal" });
-      }
+      if (args[0] === "restore") throw new Error("injected restore refusal");
       throw new Error(`unexpected Git command: ${args.join(" ")}`);
     };
     const context = createInRepoRenameRetirementContext({
@@ -401,7 +398,7 @@ describe("rename result derivation", () => {
 
     expect(result).toMatchObject({ status: "refused", reason: "authority-unavailable" });
     if (result.status !== "refused") throw new Error("expected refusal");
-    expect(result.diagnostic).toMatch(/tree restore failed: .*injected restore refusal/u);
+    expect(result.diagnostic).toContain("tree restore failed: injected restore refusal");
     expect(result.diagnostic).not.toContain("record");
   });
 });
