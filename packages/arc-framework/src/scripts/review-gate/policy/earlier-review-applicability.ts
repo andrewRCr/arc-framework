@@ -1,6 +1,6 @@
 /** Compose earlier-attempt discovery, D4 projection, and canonical Candidate authority. */
 
-import type { RawGitExec } from "../../../lib/change-facts.js";
+import type { RawGitExec } from "../../../lib/git/exec.js";
 import {
   candidateReviewApplicabilitySelections,
   type CandidateManagedRecordV1,

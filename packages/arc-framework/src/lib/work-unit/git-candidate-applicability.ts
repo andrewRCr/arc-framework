@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import type { RawGitExec } from "../change-facts.js";
+import type { RawGitExec } from "../git/exec.js";
 import {
   DeliveryContributionCoordinateSchema,
   DeliveryContributionEndpointsSchema,

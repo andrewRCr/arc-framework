@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import type { RawGitExec } from "../../../../../src/lib/change-facts.js";
+import type { RawGitExec } from "../../../../../src/lib/git/exec.js";
 import { projectGitReviewContributionApplicability } from
   "../../../../../src/scripts/review-gate/policy/git-review-contribution-applicability.js";
 

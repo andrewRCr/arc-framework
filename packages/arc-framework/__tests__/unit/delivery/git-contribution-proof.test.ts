@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { RawGitExec } from "../../../src/lib/change-facts.js";
+import type { RawGitExec } from "../../../src/lib/git/exec.js";
 import {
   proveGitDeliveryContribution,
   proveGitDeliveryProviderRefreshContribution,

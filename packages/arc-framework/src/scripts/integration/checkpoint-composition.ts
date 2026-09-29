@@ -8,7 +8,7 @@ import {
   createCurrentBaseDriftAdapters,
   workUnitPathTreatmentContext,
 } from "../../lib/base-drift/current-adapters.js";
-import type { RawGitExec } from "../../lib/change-facts.js";
+import type { RawGitExec } from "../../lib/git/exec.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { runBaseDrift } from "../../lib/git/base-distance.js";
 import {

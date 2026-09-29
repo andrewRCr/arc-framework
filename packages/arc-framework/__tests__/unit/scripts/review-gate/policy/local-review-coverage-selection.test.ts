@@ -3,7 +3,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
-import type { RawGitExec } from "../../../../../src/lib/change-facts.js";
+import type { RawGitExec } from "../../../../../src/lib/git/exec.js";
 import type {
   CandidateManagedRecordV1,
 } from "../../../../../src/lib/work-unit/candidate-attestation.js";

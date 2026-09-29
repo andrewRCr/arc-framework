@@ -126,7 +126,7 @@ import { readConfigSettings } from "../lib/config/status-reader.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { GitExec, GitExecInput } from "../lib/git/index.js";
 import { createGitExec, createRawGitExec, createUserIOContext, readGitBlobBytes } from "../lib/io-context.js";
-import type { RawGitExec } from "../lib/change-facts.js";
+import type { RawGitExec } from "../lib/git/exec.js";
 import {
   projectTransientInFlightRead,
   readFetchedTransientInFlightIndexes,

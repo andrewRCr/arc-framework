@@ -15,7 +15,7 @@ import { execa } from "execa";
 
 import type { IOContext } from "../commands/init.js";
 import type { UserIOContext } from "../commands/user.js";
-import type { RawGitExec } from "./change-facts.js";
+import type { RawGitExec } from "./git/exec.js";
 import type { GitExec, GitExecInput, DirEntry } from "../lib/git/index.js";
 import {
   createExecaGitExec,

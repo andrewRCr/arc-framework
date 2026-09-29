@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { handleDeliveryExecution } from "../../src/handlers/delivery-execution.js";
-import type { RawGitExec } from "../../src/lib/change-facts.js";
+import type { RawGitExec } from "../../src/lib/git/exec.js";
 import {
   absorbGitDeliveryChain,
   preflightGitDeliveryChainAbsorption,

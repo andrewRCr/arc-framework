@@ -55,22 +55,22 @@ replication segment builds on.
   template literal and is exported through the kernel index. Kernel tests cover inference, refusals, JSON Schema
   projection, guard agreement, and the core's Zod-free import boundary.
 
-### `[ ]` **1.4 Declare `RawGitExec` and `RawGitResult` in the executor contract — D2, D7**
+### `[x]` **1.4 Declare `RawGitExec` and `RawGitResult` in the executor contract — D2, D7**
 
 - _Goal:_ The executor contract declares `RawGitExec` and `RawGitResult` beside `GitExec`, every user imports them
   from there, and `classify-change.sh` still runs `change-facts.ts` under plain `node`.
 
-    - `[ ]` **1.4.a Move the declarations into `lib/git/exec.ts`**
-        - Take both from `change-facts.ts`, which imports them back type-only: the CI entry point runs the module
-          directly under `node`, so it may import only Node built-ins and types.
+    - `[x]` **1.4.a Move the declarations into `lib/git/exec.ts`**
+        - Moved both shapes unchanged beside `GitExec`; `change-facts.ts` imports both type-only and uses
+          `RawGitResult` to type its byte-preserving Promise.
 
-    - `[ ]` **1.4.b Re-point every importer**
-        - About 24 source files and 20 test files, `lib/io-context.ts` and `lib/git/process-executor.ts` among them;
-          the types move without a shape change. Record the rewrite recipe in notes § Sweep recipes.
+    - `[x]` **1.4.b Re-point every importer**
+        - Re-pointed 44 type imports, splitting the one mixed value/type declaration in `from-branch.ts`; no type
+          import remains on `change-facts.ts`. The re-runnable recipe is in notes § Sweep recipes.
 
-    - `[ ]` **1.4.c Confirm the CI entry point still runs**
-        - Run the `classify-change.test.ts` integration test, which spawns the script under plain `node`, and
-          `classify-change.sh tree-hash HEAD`.
+    - `[x]` **1.4.c Confirm the CI entry point still runs**
+        - The `classify-change.test.ts` integration suite exercised the plain-Node entry point, and
+          `bash scripts/classify-change.sh tree-hash HEAD` returned the code-tree hash.
 
 ## **Phase 2:** Shared test support
 

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { RawGitExec } from "../../../../../src/lib/change-facts.js";
+import type { RawGitExec } from "../../../../../src/lib/git/exec.js";
 import type { ReaderResult } from "../../../../../src/lib/config/status-reader.js";
 import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import {

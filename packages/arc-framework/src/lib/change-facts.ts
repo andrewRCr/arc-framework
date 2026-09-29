@@ -12,6 +12,7 @@ import type {
   ChangePathSet,
   ChangeSet,
 } from "./change-facts.schema.js";
+import type { RawGitExec, RawGitResult } from "./git/exec.js";
 
 export type { CanonicalChange, ChangePathFact, ChangePathSet, ChangeSet };
 export type ChangeStatus = ChangePathFact["status"];
@@ -51,18 +52,6 @@ export function affectedPaths(
   }
   return [...paths];
 }
-
-/** Result from a byte-preserving Git invocation. */
-export interface RawGitResult {
-  stdout: Uint8Array;
-  stderr?: Uint8Array;
-}
-
-/** Narrow Git boundary for commands whose NUL-framed output must remain bytes. */
-export type RawGitExec = (
-  args: string[],
-  options?: { cwd?: string; input?: Uint8Array; objectAccess?: "local-only" },
-) => Promise<RawGitResult>;
 
 const UNKNOWN: ChangeSet = { changeSet: "unknown", changes: [] };
 const decoder = new TextDecoder("utf-8", { fatal: true });
@@ -259,7 +248,7 @@ export async function resolveChangeSet(
  */
 export function createRawGitExec(cwd = process.cwd()): RawGitExec {
   return (args, options) =>
-    new Promise((resolveResult, reject) => {
+    new Promise<RawGitResult>((resolveResult, reject) => {
       const effectiveArgs = options?.objectAccess === "local-only"
         ? ["--no-lazy-fetch", ...args]
         : args;

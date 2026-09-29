@@ -1,6 +1,6 @@
 /** Git composition for the shared effective Candidate target projection. */
 
-import type { RawGitExec } from "../change-facts.js";
+import type { RawGitExec } from "../git/exec.js";
 import { resolveSoleMergeBase } from "../git/base-overlap.js";
 import type { GitExec } from "../git/exec.js";
 import { isGitObjectId } from "../git/object-id.js";

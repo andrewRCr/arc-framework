@@ -1,6 +1,6 @@
 /** Resolve a current work unit's stored delivery plan through authenticated rename history. */
 
-import type { RawGitExec } from "../change-facts.js";
+import type { RawGitExec } from "../git/exec.js";
 import {
   enumerateGitTransitionRecords,
 } from "../work-unit/git-transition-record-enumeration.js";

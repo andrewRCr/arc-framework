@@ -7,7 +7,7 @@ import { responsePolicyRequestFixture } from "../../../../fixtures/review-respon
 
 import { DeliveryReviewMemberVehicleSchema } from "../../../../../src/lib/delivery/review-vehicle.js";
 import { canonicalDigest } from "../../../../../src/lib/canonical/canonical-json.js";
-import type { RawGitExec } from "../../../../../src/lib/change-facts.js";
+import type { RawGitExec } from "../../../../../src/lib/git/exec.js";
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,

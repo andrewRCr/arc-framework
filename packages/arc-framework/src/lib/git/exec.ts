@@ -64,6 +64,18 @@ export type GitExecInput = (
   options?: Pick<GitExecOptions, "cwd" | "objectAccess">,
 ) => Promise<string>;
 
+/** Result from a byte-preserving Git invocation. */
+export interface RawGitResult {
+  stdout: Uint8Array;
+  stderr?: Uint8Array;
+}
+
+/** Narrow Git boundary for commands whose NUL-framed output must remain bytes. */
+export type RawGitExec = (
+  args: string[],
+  options?: { cwd?: string; input?: Uint8Array; objectAccess?: "local-only" },
+) => Promise<RawGitResult>;
+
 /** One Git index transaction staged through the repository's index lock. */
 export interface GitIndexTransaction {
   /** Alternate index path that staging commands must use. */

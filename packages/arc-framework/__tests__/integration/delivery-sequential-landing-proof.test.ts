@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { RawGitExec } from "../../src/lib/change-facts.js";
+import type { RawGitExec } from "../../src/lib/git/exec.js";
 import { projectDeliveryContributionEndpoints } from "../../src/lib/delivery/contribution-proof.js";
 import { proveGitDeliveryContribution } from "../../src/lib/delivery/git-contribution-proof.js";
 import { observeDeliveryEligibilityRef } from "../../src/lib/delivery/git-eligibility.js";

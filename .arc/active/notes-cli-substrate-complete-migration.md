@@ -322,24 +322,24 @@ Register citations below name the corresponding **Storage-coupling register** ro
 
 ### Git-executor contract
 
-| Surface                                                                 | Destination                   | Disposition      | Citation                  |      Importers | Evidence                |
-| ----------------------------------------------------------------------- | ----------------------------- | ---------------- | ------------------------- | -------------: | ----------------------- |
-| `RawGitExec` and `RawGitResult` in `src/lib/change-facts.ts`            | `src/lib/git/exec.ts`         | migrated         | Spec § 2.2                |           M:51 | import graph; Task 1.4  |
-| `createRawGitExec` spawn factory in `change-facts.ts`                   | `createSpawnRawGitExec`       | migrated         | Spec § 7                  | 4 direct tests | Task 4.6.b              |
-| `change-facts.ts`: CI weight, tree hash, portability, raw executor      | same module                   | retained by rule | Spec § 1; `R-CI` survivor |           M:51 | Task 4.6.b              |
-| `change-facts.ts`: planning-lane classifier                             | —                             | carved           | `R-CI`                    |           M:51 | Task 4.6.b              |
-| Git failure-text predicates in `src/lib/user-sync/notes-merge.ts`       | `src/lib/git/ref-tree.ts`     | migrated         | Spec § 7; `R-NS` survivor |            M:7 | Task 4.5.a              |
-| `notes-merge.ts`: remaining notes merge functions                       | —                             | carved           | `R-NS`                    |            M:7 | Task 4.5.a              |
-| `resolveGitCommonDir` in `src/lib/user-sync/repo-shared-paths.ts`       | `src/lib/git/exec.ts`         | migrated         | Spec § 7; `R-NS` survivor |    9 surviving | Task 4.5.b              |
-| `getRepoSharedUserInternalDir` in `repo-shared-paths.ts`                | correction pending            | retained by rule | `R-LOCK`                  |           M:12 | existing inbox capture  |
-| `getNotesLockPath` in `src/lib/user-sync/notes-lock.ts`                 | correction pending            | retained by rule | `R-LOCK`                  |            M:4 | existing inbox capture  |
-| `src/lib/io-context.ts`: `createRawGitExec`, `createGitExec`, `gitExec` | bound executor factory        | migrated         | Spec § 8                  |           M:98 | Task 4.4                |
-| `src/lib/io-context.ts`: notes `UserIOContext` and writer               | store-backed IO               | carved           | `R-NS`                    |           M:98 | Task 4.4                |
-| errand identity `.message` Git classification                           | `gitFailureText()`            | migrated         | Spec § 7                  |              — | Task 4.6.a              |
-| raw Git in lifecycle hook scripts                                       | —                             | carved           | `R-HC`                    |              — | coupling scan; Task 4.7 |
-| raw `git()` arrangement runners                                         | same modules                  | retained by rule | Spec § 9                  |              — | Task 4.7                |
-| `gitExec` in standalone scripts and fallback holders                    | same singleton                | retained by rule | Spec § 8                  |     10 scripts | Task 4.4.d              |
-| `gitExecInput` unbound fallback                                         | `createGitExecInput` fallback | retained by rule | Spec § 8                  |              — | Task 4.4.c              |
+| Surface                                                                 | Destination                   | Disposition      | Citation                  |       Importers | Evidence                   |
+| ----------------------------------------------------------------------- | ----------------------------- | ---------------- | ------------------------- | --------------: | -------------------------- |
+| `RawGitExec` and `RawGitResult` in `src/lib/change-facts.ts`            | `src/lib/git/exec.ts`         | migrated         | Spec § 2.2                | 0 old; 44 moved | AST import sweep; Task 1.4 |
+| `createRawGitExec` spawn factory in `change-facts.ts`                   | `createSpawnRawGitExec`       | migrated         | Spec § 7                  |  4 direct tests | Task 4.6.b                 |
+| `change-facts.ts`: CI weight, tree hash, portability, raw executor      | same module                   | retained by rule | Spec § 1; `R-CI` survivor |            M:51 | Task 4.6.b                 |
+| `change-facts.ts`: planning-lane classifier                             | —                             | carved           | `R-CI`                    |            M:51 | Task 4.6.b                 |
+| Git failure-text predicates in `src/lib/user-sync/notes-merge.ts`       | `src/lib/git/ref-tree.ts`     | migrated         | Spec § 7; `R-NS` survivor |             M:7 | Task 4.5.a                 |
+| `notes-merge.ts`: remaining notes merge functions                       | —                             | carved           | `R-NS`                    |             M:7 | Task 4.5.a                 |
+| `resolveGitCommonDir` in `src/lib/user-sync/repo-shared-paths.ts`       | `src/lib/git/exec.ts`         | migrated         | Spec § 7; `R-NS` survivor |     9 surviving | Task 4.5.b                 |
+| `getRepoSharedUserInternalDir` in `repo-shared-paths.ts`                | correction pending            | retained by rule | `R-LOCK`                  |            M:12 | existing inbox capture     |
+| `getNotesLockPath` in `src/lib/user-sync/notes-lock.ts`                 | correction pending            | retained by rule | `R-LOCK`                  |             M:4 | existing inbox capture     |
+| `src/lib/io-context.ts`: `createRawGitExec`, `createGitExec`, `gitExec` | bound executor factory        | migrated         | Spec § 8                  |            M:98 | Task 4.4                   |
+| `src/lib/io-context.ts`: notes `UserIOContext` and writer               | store-backed IO               | carved           | `R-NS`                    |            M:98 | Task 4.4                   |
+| errand identity `.message` Git classification                           | `gitFailureText()`            | migrated         | Spec § 7                  |               — | Task 4.6.a                 |
+| raw Git in lifecycle hook scripts                                       | —                             | carved           | `R-HC`                    |               — | coupling scan; Task 4.7    |
+| raw `git()` arrangement runners                                         | same modules                  | retained by rule | Spec § 9                  |               — | Task 4.7                   |
+| `gitExec` in standalone scripts and fallback holders                    | same singleton                | retained by rule | Spec § 8                  |      10 scripts | Task 4.4.d                 |
+| `gitExecInput` unbound fallback                                         | `createGitExecInput` fallback | retained by rule | Spec § 8                  |               — | Task 4.4.c                 |
 
 ### Command-inputs contract
 
@@ -664,6 +664,19 @@ singleton:
 ## Sweep recipes
 
 Each mechanical sweep's search-and-rewrite recipe, recorded before its first batch and re-run after each base merge.
+
+### Raw Git type home
+
+At the merged base, the TypeScript import graph and an AST pass found 44 named imports of `RawGitExec` from
+`src/lib/change-facts.ts`: 43 standalone `import type` declarations and one mixed value/type declaration in
+`src/lib/delivery/from-branch.ts`. `RawGitResult` had no importer. Move both declarations unchanged to
+`src/lib/git/exec.ts`, import them type-only in `change-facts.ts`, and redirect each standalone type import to the
+relative `lib/git/exec.js` specifier. Split the mixed declaration so its values and `ChangeSet` still come from
+`change-facts.js` while `RawGitExec` comes from the executor contract. Re-run the import graph and
+`rg -n 'RawGit(Exec|Result)' src __tests__` after a base merge; any new type importer of `change-facts.js` takes the
+same rewrite. Leave `createRawGitExec` value imports for Task 4.6's distinct factory rename.
+The first pass re-pointed 44 type imports; the post-pass AST search found none still importing either type from
+`change-facts.js`.
 
 ## Test-cost baselines
 
