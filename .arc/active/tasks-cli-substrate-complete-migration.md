@@ -751,10 +751,25 @@ assertion, or a value typed by a cast to a registered schema's output.
 - _Outcome:_ Restored Phase 7-only edits in 42 carved test files and the carved ranges of two mixed suites. The
   surviving `view --path` cases merged from `main` remain intact.
 
+### `[ ]` **7.R3 Bind verification evidence to its producing boundary**
+
+- _Goal:_ Under A3, local gates and final affected test-cost comparisons bind the corrected verification subject,
+  while required public CI and all six `ci-job` reports have an explicit owner and exact publication trigger before
+  integration authorization; original criteria remain unchanged.
+
+    - `[ ]` **7.R3.a Record final local test-cost comparisons against the corrected inputs**
+        - Retain original baselines; measure every affected row after the final test conversion with matching axes.
+
+    - `[ ]` **7.R3.b Record local gates and the required public evidence continuation**
+        - Close local checks at the corrected subject; name andrew, the exact authorized publication head, and all
+          required CI and budget reports. Leave unavailable public evidence pending.
+
 ### `[x]` **7.5 Sweep surviving tests for convertible residue** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds as one batch at the post-merge head, and the work unit's test-cost effect
   is measured once no further test changes.
+
+    - _Amended in:_ 7.R3 (A3)
 
 - _Outcome:_ The final sweep reconciles surviving test support, all six member scopes, and the storage carve; no
   convertible residue remains. Session-envelope goldens match the merge base, and the layout reconciliation and
@@ -868,3 +883,10 @@ assertion, or a value typed by a cast to a registered schema's output.
   suite with E2E and portability in required CI, and the build)
 
 - `[ ]` Ready for integration
+
+- `[ ]` Every project-designated local quality gate passes against the final verified inputs
+    - _A3:_ Required public CI, including E2E and Linux portability, remains mandatory before integration
+      authorization; local E2E still runs wherever changed-path rules require it.
+
+- `[ ]` Implementation verification is complete and ready for Candidate preparation, with required public CI
+  and all six `ci-job` cost reports retained against the exact published head before integration authorization

@@ -2055,3 +2055,45 @@ For later standard review, reuse the contract boundaries and change map, bind th
 committed target, and apply the complete selected standard-review rubric to every bounded scope and seam.
 Verification reports supply implementation evidence only; they do not satisfy either code-review lane.
 The large groups remain seeds for further contract-respecting splits in that later review.
+
+## A3 — Evidence timing at its producing boundary
+
+Owner approval: `Approve A3 and A4` at the Task 8.1 terminal stop. The amendment takes the design arm at low depth.
+The integration strategy's private Candidate/review stage precedes authorized public publication; public required
+CI cannot be witnessed at that private boundary. The Owner selected final local evidence before Candidate and
+retained public obligations at integration. No publication or CI dispatch was authorized.
+
+Superseded original performance statement:
+
+> **Performance and test cost.** New shared helpers and converted tests move `test-cost-budgets.json` rows. Every
+> affected baseline, the `lane` row included, is taken before the first new test file lands, because a missed baseline
+> cannot be recovered once the change lands. A comparison against those baselines after the last test conversion
+> records every tier-isolated row the change moves, and CI's budget report covers the `ci-job` rows. Base merges land
+> other work's tests in between, so a row that moved is attributed by measuring the final merge base in a scratch
+> checkout.
+
+Frozen Gates criterion (retained verbatim with a forward A3 annotation):
+
+> - **Gates.** Repository-wide searches for every retired symbol and path — static and dynamic imports, `vi.mock`
+>   specifiers, fixtures, and generated outputs — come back empty, and the full Tier 3 gates pass: Markdown lint, the ARC
+>   contract checks, `typecheck:all`, TypeScript lint, the full test suite with E2E and portability in required CI, and
+>   the build.
+
+Original task criteria 31 and 32 (unchanged; disposition `[~]` at the final walk with A3):
+
+> - `[ ]` All quality gates pass (Markdown lint, ARC contract checks, `typecheck:all`, TypeScript lint, the full test
+>   suite with E2E and portability in required CI, and the build)
+>
+> - `[ ]` Ready for integration
+
+The final local gates and affected tier-isolated cost comparisons must bind the ultimately corrected inputs.
+Required public E2E, Linux portability, all required CI checks, and six `ci-job` cost reports remain obligations of
+this same work unit before integration authorization/merge. Owner: andrew. Forcing event: authorized publication's
+exact PR head and its required CI run. Match the comparison axes; unavailable or incompatible evidence stays pending.
+
+Grounding-only task audit: 7.R3 follows 7.R2 and precedes 7.5; the budget artifacts, tier isolation commands, gate
+commands, and required CI workflow exist. Previous package hashes predate pending supplemental edits and therefore
+need fresh final measurements. The two new criteria join the terminal's existing group. The capture precedes
+corrective execution. Propagation: performance body and frozen Gates annotation fold into this capture; 7.5's
+original Goal/Outcome remain and point to 7.R3; 8.1 will consider original criteria plus appended criteria. Earlier
+A1/A2 corrections and production contracts are unaffected. No delivery plan or lifecycle pointer changes.

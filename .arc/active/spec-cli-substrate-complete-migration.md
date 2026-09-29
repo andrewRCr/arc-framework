@@ -639,10 +639,13 @@ the worktree and base-distance roots it is the snapshot analyzers' output, which
 
 **Performance and test cost.** New shared helpers and converted tests move `test-cost-budgets.json` rows. Every
 affected baseline, the `lane` row included, is taken before the first new test file lands, because a missed baseline
-cannot be recovered once the change lands. A comparison against those baselines after the last test conversion
-records every tier-isolated row the change moves, and CI's budget report covers the `ci-job` rows. Base merges land
-other work's tests in between, so a row that moved is attributed by measuring the final merge base in a scratch
-checkout.
+cannot be recovered once the change lands. Final local quality gates and every affected tier-isolated comparison
+bind the corrected inputs before Candidate attestation. Required public CI, including E2E and Linux portability,
+and all six `ci-job` cost reports remain mandatory for this work unit before integration authorization/merge.
+Owner: andrew; forcing event: the exact authorized publication's PR head and its required CI run. Comparisons match
+the recorded axes; absent, incompatible, failed, or incomplete reports remain unavailable. Base merges land other
+work's tests in between, so a row that moved is attributed by measuring the final merge base in a scratch checkout.
+This timing creates no publication, push, dispatch, or CI bypass authorization. (A3)
 
 **Delivery.**
 
@@ -751,6 +754,15 @@ Validated at work-unit completion:
   specifiers, fixtures, and generated outputs — come back empty, and the full Tier 3 gates pass: Markdown lint, the ARC
   contract checks, `typecheck:all`, TypeScript lint, the full test suite with E2E and portability in required CI, and
   the build.
+    - _A3:_ Final local evidence precedes Candidate attestation; required public CI and all six `ci-job` cost
+      reports remain mandatory against the exact published head before integration authorization/merge.
+
+- `[ ]` Every project-designated local quality gate passes against the final verified inputs
+    - _A3:_ Required public CI, including E2E and Linux portability, remains mandatory before integration
+      authorization; local E2E still runs wherever changed-path rules require it.
+
+- `[ ]` Implementation verification is complete and ready for Candidate preparation, with required public CI
+  and all six `ci-job` cost reports retained against the exact published head before integration authorization
 
 ## Open Questions
 
@@ -770,3 +782,7 @@ cohort from `main`. Whether surviving callers later ask the contract for a docum
   _Supersedes:_ none. _Trigger:_ 7.5 segment. _Work:_ 7.R. _Revalidated:_ 7.5.
 - **A2** — 2026-09-29 — task: Preserve storage-owned tests at their pre-conversion boundary.
   _Supersedes:_ none. _Trigger:_ 7.5 segment. _Work:_ 7.R2. _Revalidated:_ 7.5.
+<!-- markdownlint-disable MD013 -->
+- **A3** — 2026-09-29 — design: Bind local verification and public CI evidence to their producing boundaries.
+  _Supersedes:_ § Cross-cutting Considerations, Performance and test cost ¶1; § Success Criteria, Gates ¶1; task criteria 31–32. _Trigger:_ 8.1 terminal. _Work:_ 7.R3. _Revalidated:_ pending → verify-work-unit.
+<!-- markdownlint-enable MD013 -->
