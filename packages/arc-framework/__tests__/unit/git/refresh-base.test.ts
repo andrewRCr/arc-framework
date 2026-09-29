@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 
 import { refreshBase } from "../../../src/lib/git/refresh-base.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/index.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 const OK: ExecResult = { stdout: "", stderr: "" };
 
@@ -12,10 +13,10 @@ const OK: ExecResult = { stdout: "", stderr: "" };
  */
 function execWith(fail: string[][] = []): { exec: GitExec; calls: string[][] } {
   const calls: string[][] = [];
-  const exec: GitExec = async (_cmd, args) => {
+  const exec: GitExec = async (command, args) => {
     calls.push(args);
     if (fail.some((f) => f[0] === args[0] && f[1] === args[1])) {
-      throw new Error(`git ${args.join(" ")} failed`);
+      throw makeGitProcessError({ command, args, exitCode: 128, stderr: `git ${args.join(" ")} failed` });
     }
     return OK;
   };

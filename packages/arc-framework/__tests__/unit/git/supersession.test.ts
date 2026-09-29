@@ -12,6 +12,7 @@ import type {
   GitExec,
   GitExecOptions,
 } from "../../../src/lib/git/index.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 type ResponseFn = (
   args: string[],
@@ -120,8 +121,9 @@ describe("detectSupersession", () => {
 
   it("propagates a cherry execution failure", async () => {
     const { exec } = buildExec({
-      cherry: () => {
-        throw new Error("fatal: bad revision 'origin/feat/x'");
+      cherry: (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128,
+          stderr: "fatal: bad revision 'origin/feat/x'" });
       },
     });
 
@@ -303,8 +305,9 @@ describe("analyzeSupersessionSnapshot", () => {
   it("propagates a local cherry execution failure", async () => {
     const advertisedOid = "1111111111111111111111111111111111111111";
     const { exec } = buildExec({
-      cherry: () => {
-        throw new Error("local graph read failed");
+      cherry: (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128,
+          stderr: "local graph read failed" });
       },
     });
 

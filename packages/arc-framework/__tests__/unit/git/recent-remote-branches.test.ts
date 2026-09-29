@@ -5,6 +5,7 @@ import {
   runRecentRemoteBranches,
 } from "../../../src/lib/git/recent-remote-branches.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 const NOW = Date.UTC(2026, 4, 25); // 2026-05-25
 const DAY = 86_400;
@@ -51,8 +52,8 @@ describe("runRecentRemoteBranches", () => {
   });
 
   it("returns an empty list when the read fails (recency is a soft signal)", async () => {
-    const exec: GitExec = vi.fn(async () => {
-      throw new Error("for-each-ref failed");
+    const exec: GitExec = vi.fn(async (command, args) => {
+      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "for-each-ref failed" });
     });
 
     const result = await runRecentRemoteBranches({ exec, withinDays: 30, now: NOW });
@@ -139,7 +140,9 @@ describe("analyzeRecentRemoteBranchesSnapshot", () => {
     },
     {
       name: "local execution failure",
-      exec: vi.fn(async (): Promise<ExecResult> => { throw new Error("date read failed"); }) as GitExec,
+      exec: vi.fn(async (command, args): Promise<ExecResult> => {
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "date read failed" });
+      }) as GitExec,
       message: "date read failed",
     },
   ])("propagates $name", async ({ exec, message }) => {

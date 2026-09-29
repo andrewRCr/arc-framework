@@ -9,6 +9,7 @@ import { describe, it, expect, vi } from "vitest";
 import { UserFacingError } from "../../../src/lib/errors.js";
 import { readConfiguredIdentity, slugifyIdentity, resolveIdentity } from "../../../src/lib/git/identity.js";
 import type { GitExec } from "../../../src/lib/git/index.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 // --- slugifyIdentity ---
 
@@ -53,18 +54,18 @@ describe("slugifyIdentity", () => {
 
 /** Creates a mock GitExec that returns predefined values for config keys. */
 function mockExec(configValues: Record<string, string>): GitExec {
-  return vi.fn(async (_cmd: string, args: string[]) => {
+  return vi.fn(async (command: string, args: string[]) => {
     if (args[0] === "config" && args[1] === "--null" && args[2] === "--get") {
       const key = args[3];
       if (key && key in configValues) return { stdout: `${configValues[key]!}\0` };
-      throw { exitCode: 1 };
+      throw makeGitProcessError({ command, args, exitCode: 1 });
     }
     if (args[0] === "config" && args[1] === "--get") {
       const key = args[2];
       if (key && key in configValues) {
         return { stdout: configValues[key]! + "\n" };
       }
-      throw { exitCode: 1 };
+      throw makeGitProcessError({ command, args, exitCode: 1 });
     }
     throw new Error(`Unexpected command: ${args.join(" ")}`);
   });
@@ -96,11 +97,11 @@ describe("resolveIdentity", () => {
 
   it("passes slugified user.name as prompt default", async () => {
     // user.name exists but arc.identity doesn't — prompt should get the suggestion
-    const exec = vi.fn(async (_cmd: string, args: string[]) => {
-      if (args[0] === "config" && args[1] === "--null") throw { exitCode: 1 };
+    const exec = vi.fn(async (command: string, args: string[]) => {
+      if (args[0] === "config" && args[1] === "--null") throw makeGitProcessError({ command, args, exitCode: 1 });
       if (args[0] === "config" && args[1] === "--get") {
         if (args[2] === "user.name") return { stdout: "Jane Doe\n" };
-        throw new Error("not found");
+        throw makeGitProcessError({ command, args, exitCode: 1, stderr: "not found" });
       }
       throw new Error("unexpected");
     });

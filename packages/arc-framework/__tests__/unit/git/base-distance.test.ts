@@ -7,7 +7,7 @@ import {
   runBaseDrift,
 } from "../../../src/lib/git/base-distance.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
-import { GitProcessError } from "../../../src/lib/git/process-error.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 import { BaseDriftResultSchema } from "../../../src/lib/git/base-drift-types.js";
 
 const BASE_OID = "b".repeat(40);
@@ -41,13 +41,15 @@ function gitMock(options: MockOptions = {}): { exec: GitExec; calls: string[][] 
     if (args[0] === "rev-list") return { stdout: options.distance ?? "0\t0\n" };
     if (args[0] === "merge-base") {
       if (options.mergeBases === "none") {
-        throw new GitProcessError({ kind: "nonzero-exit", command: "git", args, exitCode: 1 });
+        throw makeGitProcessError({ command: "git", args, exitCode: 1 });
       }
       return { stdout: options.mergeBases ?? `${PARENT_A}\n` };
     }
     if (args[0] === "diff") return { stdout: "shared.ts\0" };
     if (args[0] === "log") {
-      if (options.historyScanFails) throw new Error("history unavailable");
+      if (options.historyScanFails) {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "history unavailable" });
+      }
       return { stdout: `${MERGE_OID}\0${PARENT_A} ${PARENT_B}\0Merge pull request #12 from x/y\0` };
     }
     throw new Error(`Unexpected Git invocation: ${args.join(" ")}`);
@@ -268,13 +270,15 @@ describe("snapshot-driven base distance", () => {
   });
 
   it.each([
-    ["execution failure", () => { throw new Error("distance failed"); }, /distance failed/u],
+    ["execution failure", (args: string[]) => {
+      throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "distance failed" });
+    }, /distance failed/u],
     ["malformed output", { stdout: "not counts" }, /Malformed git rev-list/u],
   ] as const)("propagates local distance %s", async (_label, distanceResponse, expected) => {
     const exec: GitExec = async (_command, args) => {
       if (args.join(" ") === "rev-parse --verify HEAD^{commit}") return { stdout: `${HEAD_OID}\n` };
       if (args[0] !== "rev-list") throw new Error(`Unexpected Git invocation: ${args.join(" ")}`);
-      return typeof distanceResponse === "function" ? distanceResponse() : distanceResponse;
+      return typeof distanceResponse === "function" ? distanceResponse(args) : distanceResponse;
     };
 
     await expect(analyzeBaseDistanceSnapshot({
@@ -352,13 +356,7 @@ describe("base drift raw-distance boundary", () => {
       if (args[0] === "check-ref-format") return { stdout: "" };
       if (args.join(" ") === "rev-parse --abbrev-ref HEAD") return { stdout: "feat/example" };
       if (args.join(" ") === "remote get-url origin") return { stdout: "remote" };
-      throw new GitProcessError({
-        kind: "nonzero-exit",
-        command: "git",
-        args,
-        exitCode: 128,
-        expectedOutcome: "absent-remote-ref",
-      });
+      throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "fatal: couldn't find remote ref refs/heads/main" });
     };
 
     await expect(runBaseDrift({ exec, baseBranch: "main", mode: "authoritative" }))

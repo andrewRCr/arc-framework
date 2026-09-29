@@ -17,6 +17,7 @@ import type {
   GitExecOptions,
 } from "../../../src/lib/git/index.js";
 import { GitProcessError } from "../../../src/lib/git/process-error.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 type ResponseFn = (
   args: string[],
@@ -511,7 +512,9 @@ describe("analyzeWorktreeSnapshot", () => {
   });
 
   it.each([
-    ["execution failure", () => { throw new Error("graph failed"); }, /graph failed/u],
+    ["execution failure", (args: string[]) => {
+      throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "graph failed" });
+    }, /graph failed/u],
     ["malformed output", { stdout: "not counts", stderr: "" }, /Malformed git rev-list/u],
   ] as const)("propagates local graph %s", async (_label, graphResponse, expected) => {
     const localOid = "3".repeat(40);
@@ -714,22 +717,28 @@ describe("runPassiveWorktreeInspection", () => {
     "propagates a local %s failure",
     async (failureStage) => {
       const advertisedOid = "9".repeat(40);
-      const exec: GitExec = async (_command, args) => {
-        if (failureStage === "branch" && args[0] === "rev-parse") throw new Error("branch failed");
+      const exec: GitExec = async (command, args) => {
+        if (failureStage === "branch" && args[0] === "rev-parse") {
+          throw makeGitProcessError({ command, args, exitCode: 128, stderr: "branch failed" });
+        }
         if (args[0] === "rev-parse") return { stdout: "main\n" };
         if (failureStage === "remote configuration" && args[0] === "remote") {
-          throw new Error("remote configuration failed");
+          throw makeGitProcessError({ command, args, exitCode: 128, stderr: "remote configuration failed" });
         }
         if (args[0] === "remote") return { stdout: "origin\n" };
-        if (failureStage === "upstream" && args[0] === "for-each-ref") throw new Error("upstream failed");
+        if (failureStage === "upstream" && args[0] === "for-each-ref") {
+          throw makeGitProcessError({ command, args, exitCode: 128, stderr: "upstream failed" });
+        }
         if (args[0] === "for-each-ref") return { stdout: "origin/main\n" };
         if (args[0] === "ls-remote") {
           return { stdout: `${advertisedOid}\trefs/heads/main\n` };
         }
         throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
       };
-      const execInput: GitExecInput = async () => {
-        if (failureStage === "object inspection") throw new Error("object inspection failed");
+      const execInput: GitExecInput = async (args) => {
+        if (failureStage === "object inspection") {
+          throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "object inspection failed" });
+        }
         return `${advertisedOid} missing\n`;
       };
 
@@ -857,9 +866,9 @@ describe("runMaterializingWorktreeInspection", () => {
     const { exec } = buildExec({
       [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
       "for-each-ref *": { stdout: "origin/main", stderr: "" },
-      [FETCH_BRANCH]: (_args, options) => new Promise((_resolve, reject) => {
+      [FETCH_BRANCH]: (args, options) => new Promise((_resolve, reject) => {
         options?.signal?.addEventListener("abort", () => {
-          reject(Object.assign(new Error("canceled"), { isCanceled: true }));
+          reject(makeGitProcessError({ command: "git", args, isCanceled: true, stderr: "canceled" }));
         });
       }),
     });
@@ -899,7 +908,9 @@ describe("runMaterializingWorktreeInspection", () => {
       "for-each-ref *": { stdout: "origin/main", stderr: "" },
       [FETCH_BRANCH]: { stdout: "", stderr: "" },
       "rev-parse origin/main": { stdout: oid, stderr: "" },
-      "rev-parse --verify *": () => { throw new Error("missing commit object"); },
+      "rev-parse --verify *": (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "missing commit object" });
+      },
     });
 
     await expect(runMaterializingWorktreeInspection({ exec }))
@@ -910,15 +921,9 @@ describe("runMaterializingWorktreeInspection", () => {
     const { exec } = buildExec({
       [REV_PARSE_HEAD]: { stdout: "feat/x", stderr: "" },
       "for-each-ref *": { stdout: "origin/feat/x", stderr: "" },
-      [FETCH_BRANCH]: () => {
-        throw new GitProcessError({
-          kind: "nonzero-exit",
-          command: "git",
-          args: ["fetch", "origin", "feat/x"],
-          exitCode: 128,
-          stderr: "fatal: couldn't find remote ref refs/heads/feat/x",
-          expectedOutcome: "absent-remote-ref",
-        });
+      [FETCH_BRANCH]: (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128,
+          stderr: "fatal: couldn't find remote ref refs/heads/feat/x" });
       },
     });
 
@@ -945,7 +950,9 @@ describe("runMaterializingWorktreeInspection", () => {
 
   it.each([
     ["no-upstream", { stdout: "git@example.test:repo.git", stderr: "" }],
-    ["no-remote", () => { throw new Error("origin is not configured"); }],
+    ["no-remote", (args: string[]) => {
+      throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "origin is not configured" });
+    }],
   ] as const)("preserves %s without attempting materialization", async (state, originResponse) => {
     const { exec, calls } = buildExec({
       [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
@@ -1017,8 +1024,8 @@ describe("runWorktreeSyncStatus", () => {
       [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
       [REV_PARSE_UPSTREAM]: { stdout: "origin/main", stderr: "" },
       [FETCH_BRANCH]: { stdout: "", stderr: "" },
-      [REV_LIST_COUNT]: () => {
-        throw new Error("fatal: bad revision");
+      [REV_LIST_COUNT]: (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "fatal: bad revision" });
       },
     });
 
@@ -1064,8 +1071,9 @@ describe("runWorktreeSyncStatus", () => {
   it("returns no-upstream without fetching when @{upstream} resolution fails", async () => {
     const { exec, calls } = buildExec({
       [REV_PARSE_HEAD]: { stdout: "feature/x", stderr: "" },
-      [REV_PARSE_UPSTREAM]: () => {
-        throw new Error("fatal: no upstream configured for branch 'feature/x'");
+      [REV_PARSE_UPSTREAM]: (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128,
+          stderr: "fatal: no upstream configured for branch 'feature/x'" });
       },
       "remote get-url origin": { stdout: "git@github.com:owner/repo.git", stderr: "" },
     });
@@ -1096,11 +1104,12 @@ describe("runWorktreeSyncStatus", () => {
   it("returns no-remote without fetching when origin is not configured", async () => {
     const { exec, calls } = buildExec({
       [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
-      [REV_PARSE_UPSTREAM]: () => {
-        throw new Error("fatal: no upstream configured for branch 'main'");
+      [REV_PARSE_UPSTREAM]: (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128,
+          stderr: "fatal: no upstream configured for branch 'main'" });
       },
-      "remote get-url origin": () => {
-        throw new Error("fatal: No such remote 'origin'");
+      "remote get-url origin": (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "fatal: No such remote 'origin'" });
       },
     });
 
@@ -1140,10 +1149,9 @@ describe("runWorktreeSyncStatus", () => {
     const { exec } = buildExec({
       [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
       [REV_PARSE_UPSTREAM]: { stdout: "origin/main", stderr: "" },
-      [FETCH_BRANCH]: () => {
-        throw new Error(
-          "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
-        );
+      [FETCH_BRANCH]: (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128,
+          stderr: "fatal: could not read Username for 'https://github.com': terminal prompts disabled" });
       },
     });
 
@@ -1159,9 +1167,9 @@ describe("runWorktreeSyncStatus", () => {
     const { exec } = buildExec({
       [REV_PARSE_HEAD]: { stdout: "feat/x", stderr: "" },
       [REV_PARSE_UPSTREAM]: { stdout: "origin/feat/x", stderr: "" },
-      [FETCH_BRANCH]: () => {
-        throw Object.assign(new Error("fetch failed"), {
-          code: 128,
+      [FETCH_BRANCH]: (args) => {
+        throw makeGitProcessError({ command: "git", args,
+          exitCode: 128,
           stderr: "fatal: couldn't find remote ref refs/heads/feat/x",
         });
       },
@@ -1181,9 +1189,9 @@ describe("runWorktreeSyncStatus", () => {
     const { exec } = buildExec({
       [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
       [REV_PARSE_UPSTREAM]: { stdout: "origin/main", stderr: "" },
-      [FETCH_BRANCH]: () => {
-        throw Object.assign(new Error("fetch failed"), {
-          code: 128,
+      [FETCH_BRANCH]: (args) => {
+        throw makeGitProcessError({ command: "git", args,
+          exitCode: 128,
           stderr: "fatal: unable to access 'https://...': Could not resolve host: github.com",
         });
       },

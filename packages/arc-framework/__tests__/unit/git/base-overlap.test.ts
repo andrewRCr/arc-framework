@@ -7,6 +7,7 @@ import {
 } from "../../../src/lib/git/base-overlap.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import { GitProcessError } from "../../../src/lib/git/process-error.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 const BASE = "b".repeat(40);
 const MERGE_BASE = "a".repeat(40);
@@ -217,7 +218,7 @@ describe("base overlap evidence", () => {
     const exec: GitExec = async (_cmd, args) => {
       if (args[0] === "merge-base") return { stdout: `${MERGE_BASE}\n` };
       if (args.at(-1) === `${MERGE_BASE}..${"c".repeat(40)}`) return { stdout: "a.ts\0" };
-      throw new Error("base diff failed");
+      throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "base diff failed" });
     };
     await expect(analyzeBaseOverlap({
       exec, baseOid: BASE, headOid: "c".repeat(40), ahead: 1, behind: 1, classify: () => "reviewable",

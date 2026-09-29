@@ -6,6 +6,7 @@ import {
 } from "../../../src/lib/git/push-worktree.js";
 import type { GitExec } from "../../../src/lib/git/index.js";
 import { GitProcessError } from "../../../src/lib/git/process-error.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 describe("pushWorktreeBranch — capture mode (default)", () => {
   it("pushes to an explicitly selected remote", async () => {
@@ -53,7 +54,8 @@ describe("pushWorktreeBranch — capture mode (default)", () => {
   });
 
   it("captures executor errors and reports failed with the original Error preserved", async () => {
-    const cause = new Error("error: failed to push some refs to 'origin'");
+    const cause = makeGitProcessError({ command: "git", args: ["push", "origin", "main"],
+      exitCode: 1, stderr: "error: failed to push some refs to 'origin'" });
     const exec: GitExec = vi.fn().mockRejectedValue(cause);
 
     const result = await pushWorktreeBranch({ exec, branch: "main" });
@@ -77,7 +79,8 @@ describe("pushWorktreeBranch — capture mode (default)", () => {
   });
 
   it("surfaces stdout/stderr fields off rejected exec errors when present", async () => {
-    const cause = Object.assign(new Error("git push exited 1"), {
+    const cause = makeGitProcessError({ command: "git", args: ["push", "origin", "feature/x"],
+      exitCode: 1,
       stdout: "out\n",
       stderr: " ! [rejected] feature/x -> feature/x (fetch first)\n",
     });

@@ -7,6 +7,7 @@ import type {
   GitExecOptions,
   PushabilityCondition,
 } from "../../../src/lib/git/index.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 type ResponseFn = (
   args: string[],
@@ -130,8 +131,9 @@ describe("runPushabilityStatus", () => {
   it("worktree branch with no upstream surfaces caller-resolvable condition with -u guidance", async () => {
     const responses = cleanRepoResponses();
     responses[REV_PARSE_HEAD] = { stdout: "feature/x", stderr: "" };
-    responses[REV_PARSE_UPSTREAM] = () => {
-      throw new Error("fatal: no upstream configured for branch 'feature/x'");
+    responses[REV_PARSE_UPSTREAM] = (args) => {
+      throw makeGitProcessError({ command: "git", args, exitCode: 128,
+        stderr: "fatal: no upstream configured for branch 'feature/x'" });
     };
     const { exec } = buildExec(responses);
     const access = buildAccess([]);
@@ -148,8 +150,9 @@ describe("runPushabilityStatus", () => {
   it("worktree branch with no upstream does NOT block target 'notes'", async () => {
     const responses = cleanRepoResponses();
     responses[REV_PARSE_HEAD] = { stdout: "feature/x", stderr: "" };
-    responses[REV_PARSE_UPSTREAM] = () => {
-      throw new Error("fatal: no upstream configured for branch 'feature/x'");
+    responses[REV_PARSE_UPSTREAM] = (args) => {
+      throw makeGitProcessError({ command: "git", args, exitCode: 128,
+        stderr: "fatal: no upstream configured for branch 'feature/x'" });
     };
     const { exec } = buildExec(responses);
     const access = buildAccess([]);
@@ -362,8 +365,9 @@ describe("runPushabilityStatus", () => {
 
     it("probe failure (rev-list throws) → no condition; allow with no regression", async () => {
       const responses = notesResponses();
-      responses[`${REV_LIST_LEFT_RIGHT_PREFIX} HEAD...origin/feature/x`] = () => {
-        throw new Error("fatal: ambiguous argument 'origin/feature/x': unknown revision");
+      responses[`${REV_LIST_LEFT_RIGHT_PREFIX} HEAD...origin/feature/x`] = (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128,
+          stderr: "fatal: ambiguous argument 'origin/feature/x': unknown revision" });
       };
       const { exec } = buildExec(responses);
       const access = buildAccess([]);
@@ -500,8 +504,9 @@ describe("runPushabilityStatus", () => {
 
     it("probe failure (rev-list throws) → no condition; allow with no regression", async () => {
       const responses = worktreeResponses();
-      responses[`${REV_LIST_LEFT_RIGHT_PREFIX} HEAD...origin/feature/x`] = () => {
-        throw new Error("fatal: ambiguous argument 'origin/feature/x': unknown revision");
+      responses[`${REV_LIST_LEFT_RIGHT_PREFIX} HEAD...origin/feature/x`] = (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128,
+          stderr: "fatal: ambiguous argument 'origin/feature/x': unknown revision" });
       };
       const { exec } = buildExec(responses);
       const access = buildAccess([]);
@@ -521,8 +526,9 @@ describe("runPushabilityStatus", () => {
 
     it("worktree branch with no upstream blocks before alignment probe runs", async () => {
       const responses = worktreeResponses();
-      responses[REV_PARSE_UPSTREAM] = () => {
-        throw new Error("fatal: no upstream configured for branch 'feature/x'");
+      responses[REV_PARSE_UPSTREAM] = (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128,
+          stderr: "fatal: no upstream configured for branch 'feature/x'" });
       };
       responses[`${REV_LIST_LEFT_RIGHT_PREFIX} HEAD...origin/feature/x`] = () => {
         throw new Error("rev-list should not run when no-upstream blocks");

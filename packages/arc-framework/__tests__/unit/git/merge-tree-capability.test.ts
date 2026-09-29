@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { RawGitExec } from "../../../src/lib/git/exec.js";
 import { supportsMergeTreeWriteTree } from "../../../src/lib/git/merge-tree-capability.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 const oid = "1".repeat(40);
 const bytes = (value: string): Uint8Array => new TextEncoder().encode(value);
@@ -23,7 +24,9 @@ describe("merge-tree capability", () => {
   it("reports no support when explicit merge-base is unrecognized", async () => {
     const exec: RawGitExec = async (args) => {
       if (args[0] === "rev-parse") return result(`${oid}\n`);
-      if (args.includes("--merge-base")) throw new Error("unknown option: --merge-base");
+      if (args.includes("--merge-base")) {
+        throw makeGitProcessError({ command: "git", args, exitCode: 129, stderr: "unknown option: --merge-base" });
+      }
       if (args[0] === "merge-tree" && args.includes("--write-tree")) return result(`${oid}\n`);
       throw new Error(`unexpected Git call: ${args.join(" ")}`);
     };
@@ -48,7 +51,9 @@ describe("merge-tree capability", () => {
     let canaryAvailable = false;
     const base = supportingExec();
     const exec: RawGitExec = async (args, options) => {
-      if (args[0] === "rev-parse" && !canaryAvailable) throw new Error("unborn HEAD");
+      if (args[0] === "rev-parse" && !canaryAvailable) {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "unborn HEAD" });
+      }
       return base(args, options);
     };
 
@@ -60,7 +65,9 @@ describe("merge-tree capability", () => {
   it("uses a verified fallback commit when HEAD is unusable", async () => {
     const fallback = "2".repeat(40);
     const exec: RawGitExec = async (args) => {
-      if (args[0] === "rev-parse" && args[2] === "HEAD^{commit}") throw new Error("unborn HEAD");
+      if (args[0] === "rev-parse" && args[2] === "HEAD^{commit}") {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "unborn HEAD" });
+      }
       if (args[0] === "rev-parse" && args[2] === `${fallback}^{commit}`) return result(`${fallback}\n`);
       if (args[0] === "merge-tree" && args.includes("--write-tree")) return result(`${oid}\n`);
       throw new Error(`unexpected Git call: ${args.join(" ")}`);

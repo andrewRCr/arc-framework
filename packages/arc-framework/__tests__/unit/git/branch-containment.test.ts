@@ -6,6 +6,7 @@ import {
   isLandedInBase,
 } from "../../../src/lib/git/branch-containment.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 /**
  * Build a recording {@link GitExec}. `stdoutFor` maps an invocation's args to its
@@ -20,7 +21,9 @@ function makeExec(opts?: {
   const calls: string[][] = [];
   const exec: GitExec = async (cmd, args) => {
     calls.push([cmd, ...args]);
-    if (opts?.failOn?.(args) === true) throw new Error(`git ${args.join(" ")} failed`);
+    if (opts?.failOn?.(args) === true) {
+      throw makeGitProcessError({ command: cmd, args, exitCode: 128, stderr: `git ${args.join(" ")} failed` });
+    }
     return { stdout: opts?.stdoutFor?.(args) ?? "" };
   };
   return { exec, calls };

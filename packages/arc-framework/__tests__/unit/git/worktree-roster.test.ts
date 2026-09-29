@@ -21,6 +21,7 @@ import type {
 } from "../../../src/lib/git/index.js";
 import { GitProcessError } from "../../../src/lib/git/process-error.js";
 import { renderMetaProjectionFile } from "../../../src/lib/active/meta-reader.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 type ResponseFn = (
   args: string[],
@@ -601,8 +602,8 @@ describe("resolveWorktreePathsByBranchResult", () => {
 
   it("returns ok=false with an empty map when worktree listing fails", async () => {
     const { exec } = buildExec({
-      [WORKTREE_LIST]: () => {
-        throw new Error("fatal: cannot list worktrees");
+      [WORKTREE_LIST]: (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "fatal: cannot list worktrees" });
       },
     });
 
@@ -678,14 +679,14 @@ describe("scanRegisteredWorktrees", () => {
 
   it("returns an explicit failure instead of fabricating an empty candidate set", async () => {
     const { exec } = buildExec({
-      [WORKTREE_LIST]: () => {
-        throw new Error("fatal: cannot list worktrees");
+      [WORKTREE_LIST]: (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "fatal: cannot list worktrees" });
       },
     });
 
     expect(await scanRegisteredWorktrees(exec)).toEqual({
       ok: false,
-      message: "fatal: cannot list worktrees",
+      message: "git worktree: nonzero-exit (exit 128): fatal: cannot list worktrees",
     });
   });
 

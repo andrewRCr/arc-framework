@@ -11,6 +11,7 @@ import {
   resolveHooksPathVerdict,
   type HooksPathGitExec,
 } from "../../../src/lib/git/hooks-path.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 describe("isDisabledHooksPath", () => {
   it("recognizes intentional no-op paths", () => {
@@ -143,7 +144,9 @@ describe("resolveHooksPathVerdict", () => {
   it("treats config --get rejection as unset and resolves relative hooks paths", async () => {
     const exec: HooksPathGitExec = async (_command, args) => {
       if (args[0] === "rev-parse") return { stdout: "relative-hooks\n" };
-      if (args[0] === "config") throw new Error("exit 1: key unset");
+      if (args[0] === "config") {
+        throw makeGitProcessError({ command: "git", args, exitCode: 1, stderr: "exit 1: key unset" });
+      }
       throw new Error(`unexpected git args: ${args.join(" ")}`);
     };
 

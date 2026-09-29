@@ -13,7 +13,7 @@ import type {
   GitExecOptions,
 } from "../../../src/lib/git/index.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
-import { GitProcessError } from "../../../src/lib/git/process-error.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 type ResponseFn = (
   args: string[],
@@ -65,8 +65,8 @@ const BASE_OID = "b".repeat(40);
 
 describe("readLocalBaseOid", () => {
   it("propagates a local base inspection failure", async () => {
-    const exec: GitExec = async () => {
-      throw new Error("object database unavailable");
+    const exec: GitExec = async (command, args) => {
+      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "object database unavailable" });
     };
 
     await expect(readLocalBaseOid(exec, "main")).rejects.toThrow("object database unavailable");
@@ -79,13 +79,8 @@ describe("readLocalBaseOid", () => {
   });
 
   it("returns null only for a missing local base ref", async () => {
-    const exec: GitExec = async () => {
-      throw new GitProcessError({
-        kind: "nonzero-exit",
-        command: "git",
-        args: ["rev-parse", "--verify", "--quiet", "refs/heads/main^{commit}"],
-        exitCode: 1,
-      });
+    const exec: GitExec = async (command, args) => {
+      throw makeGitProcessError({ command, args, exitCode: 1 });
     };
 
     await expect(readLocalBaseOid(exec, "main")).resolves.toBeNull();
@@ -300,7 +295,9 @@ describe("snapshot-driven base-branch sync", () => {
   });
 
   it.each([
-    ["execution failure", () => { throw new Error("distance failed"); }, /distance failed/u],
+    ["execution failure", (args: string[]) => {
+      throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "distance failed" });
+    }, /distance failed/u],
     ["malformed output", { stdout: "not counts", stderr: "" }, /Malformed git rev-list/u],
   ] as const)("propagates local distance %s", async (_label, response, expected) => {
     const { exec } = buildExec({ [REV_LIST_COUNT]: response });
@@ -508,8 +505,8 @@ describe("runBaseBranchSyncStatus", () => {
   it("degrades to no-remote without fetching when origin is not configured", async () => {
     const { exec, calls } = buildExec({
       ...NOT_CHECKED_OUT,
-      [GET_ORIGIN]: () => {
-        throw new Error("fatal: No such remote 'origin'");
+      [GET_ORIGIN]: (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "fatal: No such remote 'origin'" });
       },
     });
 
@@ -529,10 +526,10 @@ describe("runBaseBranchSyncStatus", () => {
     const { exec } = buildExec({
       ...NOT_CHECKED_OUT,
       [GET_ORIGIN]: { stdout: "git@github.com:owner/repo.git", stderr: "" },
-      [FETCH_BASE]: (_args, options) =>
+      [FETCH_BASE]: (args, options) =>
         new Promise((_resolve, reject) => {
           options?.signal?.addEventListener("abort", () => {
-            reject(Object.assign(new Error("canceled"), { isCanceled: true }));
+            reject(makeGitProcessError({ command: "git", args, isCanceled: true, stderr: "canceled" }));
           });
         }),
     });
@@ -552,9 +549,9 @@ describe("runBaseBranchSyncStatus", () => {
     const { exec } = buildExec({
       ...NOT_CHECKED_OUT,
       [GET_ORIGIN]: { stdout: "git@github.com:owner/repo.git", stderr: "" },
-      [FETCH_BASE]: () => {
-        throw Object.assign(new Error("fetch failed"), {
-          code: 128,
+      [FETCH_BASE]: (args) => {
+        throw makeGitProcessError({ command: "git", args,
+          exitCode: 128,
           stderr: "fatal: couldn't find remote ref refs/heads/main",
         });
       },
@@ -577,8 +574,8 @@ describe("runBaseBranchSyncStatus", () => {
       ...NOT_CHECKED_OUT,
       [GET_ORIGIN]: { stdout: "git@github.com:owner/repo.git", stderr: "" },
       [FETCH_BASE]: { stdout: "", stderr: "" },
-      [REV_LIST_COUNT]: () => {
-        throw new Error("fatal: bad revision 'main...origin/main'");
+      [REV_LIST_COUNT]: (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "fatal: bad revision 'main...origin/main'" });
       },
     });
 
@@ -612,8 +609,8 @@ describe("runBaseBranchSyncStatus", () => {
 
   it("reports checkout unknown when worktree list fails", async () => {
     const { exec } = buildExec({
-      [WORKTREE_LIST]: () => {
-        throw new Error("fatal: not a git repository");
+      [WORKTREE_LIST]: (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "fatal: not a git repository" });
       },
       [GET_ORIGIN]: { stdout: "git@github.com:owner/repo.git", stderr: "" },
       [FETCH_BASE]: { stdout: "", stderr: "" },
