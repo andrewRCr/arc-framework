@@ -4,11 +4,28 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import { loadReadyMineSlice } from "../../../src/lib/status/ready-mine-source.js";
+import { makeMetaFixture } from "../../helpers/meta-fixture.js";
+import type { MetaRenderOverrides } from "../../../src/lib/active/meta-reader.js";
 
 /** A minimal meta-file body with the readiness fields the source parses. */
 function meta(
-  fields: { state?: string; owner?: string; dependsOn?: string; cohort?: string; class?: string } = {},
+  fields: {
+    state?: MetaRenderOverrides["state"];
+    owner?: string;
+    dependsOn?: string;
+    cohort?: string;
+    class?: string;
+  } = {},
 ): string {
+  if (fields.class === undefined) {
+    return makeMetaFixture("x", {
+      state: fields.state ?? "Planning",
+      owner: fields.owner ?? "andrew",
+      dependsOn: fields.dependsOn === undefined ? [] : [fields.dependsOn],
+      cohort: fields.cohort ?? null,
+    });
+  }
+  // Lowercase Class exercises this consumer's legacy normalization, outside the builder vocabulary.
   return [
     "# Metadata: x",
     "",

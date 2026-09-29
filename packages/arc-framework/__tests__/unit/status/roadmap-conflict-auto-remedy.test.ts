@@ -9,6 +9,7 @@ import {
 import { ROADMAP_PATH } from "../../../src/lib/status/roadmap-regeneration-assert.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
+import { makeMetaFixture } from "../../helpers/meta-fixture.js";
 
 function isStagedTransitionList(args: readonly string[]): boolean {
   return args.join("\0") === [
@@ -86,22 +87,12 @@ describe("applyRoadmapConflictAutoRemedy", () => {
   it("regenerates from the staged index without a separate merge-authority adapter", async () => {
     const metaPath = ".arc/active/meta-origin.md";
     const siblingPath = ".arc/active/meta-sibling.md";
-    const meta = [
-      "# Metadata: origin",
-      "",
-      "- **State:** Active",
-      "- **Owner:** andrew",
-      "- **Branch:** plan/origin",
-      "- **Priority:** P1",
-      "- **Cohort:** [none]",
-      "- **Depends On:** [none]",
-      "",
-      "---",
-      "",
-    ].join("\n");
-    const siblingMeta = meta
-      .replace("# Metadata: origin", "# Metadata: sibling")
-      .replace("plan/origin", "feat/sibling");
+    const meta = makeMetaFixture("origin", {
+      owner: "andrew", branch: "plan/origin", priority: "P1",
+    });
+    const siblingMeta = makeMetaFixture("sibling", {
+      owner: "andrew", branch: "feat/sibling", priority: "P1",
+    });
     let written = "";
     const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
       if (isStagedTransitionList(args)) return { stdout: "", stderr: "" };

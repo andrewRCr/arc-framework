@@ -6,11 +6,14 @@ import { describe, expect, it } from "vitest";
 
 import { runCurrentWuReconcileSessionProbe } from "../../../src/lib/session-init/current-wu-reconcile.js";
 import { buildLifecycleIndexFromMetas } from "../../../src/lib/work-unit/lifecycle-index.js";
+import { makeMetaFixture } from "../../helpers/meta-fixture.js";
 
 const META_PATH = ".arc/active/meta-dependent.md";
 
 function meta(dependsOn: string): string {
-  return `# Metadata: dependent\n\n- **State:** Active\n- **Depends On:** ${dependsOn}\n`;
+  return makeMetaFixture("dependent", {
+    dependsOn: dependsOn === "[none]" ? [] : [dependsOn.replaceAll("`", "")],
+  });
 }
 
 describe("runCurrentWuReconcileSessionProbe", () => {
@@ -19,7 +22,7 @@ describe("runCurrentWuReconcileSessionProbe", () => {
     const result = await runCurrentWuReconcileSessionProbe({
       index: buildLifecycleIndexFromMetas([
         { path: META_PATH, content: meta("`retired`") },
-        { path: ".arc/active/meta-successor.md", content: "# Metadata: successor\n\n- **State:** Active\n" },
+        { path: ".arc/active/meta-successor.md", content: makeMetaFixture("successor") },
       ]),
       queryDisposition: () => Promise.resolve({
         status: "unique",

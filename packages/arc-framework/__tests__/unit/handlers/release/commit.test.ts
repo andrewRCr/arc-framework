@@ -25,6 +25,7 @@ import type {
   ResolvedSettingsResult,
 } from "../../../../src/lib/config/resolved-settings.js";
 import type { ConfigSettings } from "../../../../src/lib/config/schema.js";
+import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 
 // --- Fixture helpers ---
 
@@ -40,15 +41,11 @@ async function createFixture(): Promise<Fixture> {
   return { root };
 }
 
-function statusBody(state = "Active"): string {
-  return [
-    "# Metadata: Sample",
-    "",
-    `- **State:** ${state}`,
-    "- **Branch:** technical/sample",
-    "- **Task List:** `tasks-sample.md`",
-    "",
-  ].join("\n");
+function statusBody(): string {
+  return makeMetaFixture("Sample", {
+    branch: "technical/sample",
+    taskList: "tasks-sample.md",
+  });
 }
 
 async function writeStatus(

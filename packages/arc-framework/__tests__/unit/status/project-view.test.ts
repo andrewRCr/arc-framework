@@ -23,6 +23,8 @@ import {
   transitionOverlayCompositionInput,
 } from "../../../src/lib/work-unit/transition-overlay.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
+import { makeMetaFixture } from "../../helpers/meta-fixture.js";
+import type { MetaRenderOverrides } from "../../../src/lib/active/meta-reader.js";
 
 let root: string | undefined;
 
@@ -31,36 +33,42 @@ async function writeMeta(path: string, content: string): Promise<void> {
   await writeFile(path, content);
 }
 
-function meta(slug: string, state: string, fields: { owner?: string; priority?: string; cohort?: string; dependsOn?: string } = {}): string {
-  const owner = fields.owner ?? "andrew";
-  const priority = fields.priority ?? "P3";
-  const cohort = fields.cohort ?? "[none]";
-  const dependsOn = fields.dependsOn ?? "[none]";
-  return [
-    `# Metadata: ${slug}`,
-    "",
-    "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
-    "| --------- | --------- | ---------- | --------- | ------------ |",
-    `| \`${state}\` | \`${owner}\` | [none] | \`Heavy\` | \`${priority}\` |`,
-    "",
-    `- **Cohort:** ${cohort}`,
-    `- **Depends On:** ${dependsOn}`,
-    "",
-    "---",
-    "",
-  ].join("\n");
+function meta(
+  slug: string,
+  state: MetaRenderOverrides["state"],
+  fields: { owner?: string; priority?: MetaRenderOverrides["priority"]; cohort?: string; dependsOn?: string } = {},
+): string {
+  return makeMetaFixture(slug, {
+    state,
+    owner: fields.owner ?? "andrew",
+    workClass: "Heavy",
+    priority: fields.priority ?? "P3",
+    cohort: fields.cohort ?? null,
+    dependsOn: fields.dependsOn === undefined ? [] : [fields.dependsOn.replaceAll("`", "")],
+  });
 }
 
 function oracleMeta(
   fields: {
-    state?: string;
+    state?: MetaRenderOverrides["state"] | "Paused";
     owner?: string;
     branch: string;
-    priority?: string;
+    priority?: MetaRenderOverrides["priority"];
     cohort?: string;
     dependsOn?: string;
   },
 ): string {
+  if (fields.priority !== undefined && fields.state !== "Paused") {
+    return makeMetaFixture("oracle", {
+      state: fields.state ?? "Active",
+      owner: fields.owner ?? "andrew",
+      branch: fields.branch,
+      priority: fields.priority,
+      cohort: fields.cohort ?? null,
+      dependsOn: fields.dependsOn === undefined ? [] : [fields.dependsOn.replaceAll("`", "")],
+    });
+  }
+  // Priority [none] and Paused are intentionally outside the semantic meta vocabulary.
   return [
     "# Metadata: oracle",
     "",
@@ -222,12 +230,16 @@ describe("composeProjectReadinessView", () => {
     const unsupportedPath = join(plannedDir, "paused", "meta-paused.md");
     await writeMeta(
       malformedPath,
-      meta("malformed", "Planning").replace(
-        "| `Planning` | `andrew` | [none] | `Heavy` | `P3` |",
+      [
+        "# Metadata: malformed",
+        "",
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "| --------- | --------- | ---------- | --------- | ------------ |",
         "| `Planning` | `andrew` |",
-      ),
+        "",
+      ].join("\n"),
     );
-    await writeMeta(unsupportedPath, meta("paused", "Paused"));
+    await writeMeta(unsupportedPath, "# Metadata: paused\n\n- **State:** Paused\n");
 
     const composition = await resolveProjectReadinessComposition({ cwd: root });
 
@@ -371,7 +383,7 @@ describe("composeProjectReadinessView", () => {
   it.each([
     ["Active", "Planning"],
     ["Integrating", "Active"],
-  ])("lets a prospective %s record replace the own branch's pre-commit %s state", async (staged, atRef) => {
+  ] as const)("lets a prospective %s record replace the own branch's pre-commit %s state", async (staged, atRef) => {
     root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
     const slug = `transition-${staged.toLowerCase()}`;
     const branch = `feat/${slug}`;
