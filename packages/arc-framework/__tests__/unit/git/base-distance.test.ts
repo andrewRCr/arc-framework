@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   analyzeBaseDistanceSnapshot,
+  BaseDistanceSnapshotResultSchema,
+  buildBaseDistanceNotApplicable,
   runBaseDrift,
 } from "../../../src/lib/git/base-distance.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
@@ -54,6 +56,39 @@ function gitMock(options: MockOptions = {}): { exec: GitExec; calls: string[][] 
 }
 
 describe("snapshot-driven base distance", () => {
+  it("parses producer snapshot verdicts and remote-evidence arms", async () => {
+    for (const [distance, snapshot, objectAvailability] of [
+      ["0\t0\n", { kind: "available", scope: "exact", tips: { main: BASE_OID } }, { kind: "complete", commits: { [BASE_OID]: true } }],
+      ["0\t1\n", { kind: "available", scope: "exact", tips: { main: BASE_OID } }, { kind: "complete", commits: { [BASE_OID]: true } }],
+      ["0\t0\n", { kind: "available", scope: "exact", tips: { main: BASE_OID } }, { kind: "complete", commits: { [BASE_OID]: false } }],
+      ["0\t0\n", { kind: "available", scope: "exact", tips: {} }, { kind: "complete", commits: {} }],
+      ["0\t0\n", { kind: "unreachable", failureReason: "network" }, { kind: "complete", commits: {} }],
+    ] as const) {
+      const result = await analyzeBaseDistanceSnapshot({
+        exec: gitMock({ distance }).exec,
+        baseBranch: "main",
+        snapshot,
+        objectAvailability,
+        history: { kind: "complete" },
+      });
+      expect(BaseDistanceSnapshotResultSchema.safeParse(result).success).toBe(true);
+      const rejected = BaseDistanceSnapshotResultSchema.safeParse({ ...result, extraEvidence: true });
+      expect(rejected.success).toBe(false);
+      if (!rejected.success) expect(rejected.error.message).toContain("extraEvidence");
+    }
+  });
+
+  it.each(["skipped", "no-remote", "detached-head"] as const)(
+    "parses the %s not-applicable producer arm and refuses a crossed state",
+    (state) => {
+      const result = buildBaseDistanceNotApplicable(state, "main");
+      expect(BaseDistanceSnapshotResultSchema.safeParse(result).success).toBe(true);
+      expect(BaseDistanceSnapshotResultSchema.safeParse({
+        ...result, state: "remote-unavailable",
+      }).success).toBe(false);
+    },
+  );
+
   it("preserves exact distance values against a locally available advertised base", async () => {
     const exec: GitExec = async (_command, args, options) => {
       if (["fetch", "update-ref"].includes(args[0] ?? "")) {

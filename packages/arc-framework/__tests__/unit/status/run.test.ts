@@ -20,6 +20,7 @@ import {
 } from "../../../src/commands/status.js";
 import { projectDerivedActiveSession } from "../../../src/commands/status/run.js";
 import { ActiveSessionInitResultSchema } from "../../../src/commands/active/schema.js";
+import { buildBaseDistanceNotApplicable } from "../../../src/lib/git/base-distance.js";
 import type {
   HandoffSyncInterlock,
   SessionHandoffProbes,
@@ -287,24 +288,7 @@ function baseDistance(
 function unavailableBaseDistance(
   state: "no-remote" | "detached-head",
 ): Awaited<ReturnType<SessionInitProbes["baseDistance"]>> {
-  const base = state === "detached-head" ? null : "main";
-  return {
-    mode: "advisory", verdict: "unavailable", state, ahead: 0, behind: 0,
-    base, baseOid: null, headOid: null,
-    integrationEvidence: null, overlap: null, register: null,
-    unavailableReason: state,
-    detail: state === "no-remote"
-      ? "No remote is configured for base-distance evidence."
-      : "Base-distance evidence is unavailable from a detached HEAD.",
-    coordinates: { base, baseOid: null, headOid: null },
-    continuation: {
-      kind: "terminal-explanation",
-      terminalExplanation: state === "no-remote"
-        ? "Configure a remote before requesting base-distance evidence."
-        : "Check out a branch before requesting base-distance evidence.",
-    },
-    remoteEvidence: "not-applicable",
-  };
+  return buildBaseDistanceNotApplicable(state, "main");
 }
 
 function baseBranchSync(

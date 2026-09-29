@@ -1,12 +1,12 @@
 /** Unit coverage for deliberately thin session-envelope routing schemas. */
 
 import { describe, expect, it } from "vitest";
+import { buildBaseDistanceNotApplicable } from "../../../src/lib/git/base-distance.js";
 
 import {
-  BaseDistanceValueViewSchema,
   ErrandStateValueViewSchema,
   SessionInitBaseBranchSyncValueViewSchema,
-  SessionInitBaseDistanceValueViewSchema,
+  SessionInitBaseDistanceValueSchema,
   SessionInitRetiredSubdirsValueViewSchema,
   SessionInitUserValueViewSchema,
   StaleWorktreeSweepValueViewSchema,
@@ -60,12 +60,6 @@ describe("shared git routing views", () => {
     }).success).toBe(false);
   });
 
-  it.each([
-    [BaseDistanceValueViewSchema, { verdict: "broken" }],
-  ] as const)("rejects a malformed routing field", (schema, value) => {
-    expect(schema.safeParse(value).success).toBe(false);
-  });
-
 });
 
 describe("user and recommendation routing views", () => {
@@ -100,7 +94,7 @@ describe("user and recommendation routing views", () => {
 
   it.each([
     [SessionInitUserValueViewSchema, user],
-    [SessionInitBaseDistanceValueViewSchema, { verdict: "clean" }],
+    [SessionInitBaseDistanceValueSchema, { verdict: "clean" }],
     [
       SessionInitBaseBranchSyncValueViewSchema,
       {
@@ -307,7 +301,6 @@ describe("deep advisory routing views", () => {
   });
 
   it("accepts mapped-only payloads because the views are not full mirrors", () => {
-    expect(BaseDistanceValueViewSchema.safeParse({ verdict: "skipped" }).success).toBe(true);
     expect(
       WorkUnitStateValueViewSchema.safeParse({
         inFlight: { workUnits: [] },
@@ -317,7 +310,6 @@ describe("deep advisory routing views", () => {
   });
 
   it.each([
-    [BaseDistanceValueViewSchema, { verdict: "clean", evidence: { deep: { retained: true } } }],
     [
       StaleWorktreeSweepValueViewSchema,
       {
@@ -394,58 +386,43 @@ describe("deep advisory routing views", () => {
         evidence: { deep: { retained: true } },
       },
     ],
-    [
-      SessionInitBaseDistanceValueViewSchema,
-      {
-        verdict: "clean",
-        movement: "disjoint",
-        state: "clean",
-        ahead: 0,
-        behind: 0,
-        baseOid: "a".repeat(40),
-        remoteEvidence: "exact",
-        recommendedAction: "skip",
-        recommendedPromptText: "",
-        evidence: { deep: { retained: true } },
-      },
-    ],
   ] as const)("preserves legitimate unowned fields through thin schema %#", (schema, value) => {
     expect(schema.parse(value)).toEqual(value);
   });
 
   it("requires movement only on healthy base-distance readings", () => {
     const healthy = {
+      ...buildBaseDistanceNotApplicable("skipped", "main"),
       verdict: "clean",
       movement: "disjoint",
       state: "clean",
       ahead: 0,
       behind: 0,
       baseOid: "a".repeat(40),
+      headOid: "b".repeat(40),
       remoteEvidence: "exact",
       recommendedAction: "skip",
       recommendedPromptText: "",
     };
-    expect(SessionInitBaseDistanceValueViewSchema.safeParse(healthy).success).toBe(true);
+    expect(SessionInitBaseDistanceValueSchema.safeParse(healthy).success).toBe(true);
     const { movement: _movement, ...missingMovement } = healthy;
     void _movement;
-    expect(SessionInitBaseDistanceValueViewSchema.safeParse(missingMovement).success).toBe(false);
-    expect(SessionInitBaseDistanceValueViewSchema.safeParse({
+    expect(SessionInitBaseDistanceValueSchema.safeParse(missingMovement).success).toBe(false);
+    expect(SessionInitBaseDistanceValueSchema.safeParse({
       ...healthy,
       verdict: "skipped",
       state: "skipped",
       baseOid: null,
       remoteEvidence: "not-applicable",
     }).success).toBe(false);
-    expect(SessionInitBaseDistanceValueViewSchema.safeParse({
-      ...healthy,
-      verdict: "unavailable",
+    expect(SessionInitBaseDistanceValueSchema.safeParse({
+      ...buildBaseDistanceNotApplicable("no-remote", "main"),
       state: "remote-unavailable",
-      baseOid: null,
-      headOid: null,
-      movement: undefined,
       unavailableReason: "remote-evidence-unreachable",
       remoteEvidence: "unreachable",
       failureReason: "network",
+      recommendedAction: "skip",
+      recommendedPromptText: "",
     }).success).toBe(true);
   });
 });

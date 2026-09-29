@@ -57,6 +57,8 @@ const SCHEMA_OWNED_TYPES: readonly TypeLocus[] = [
     { file: "lib/git/worktree-sync.ts", type: "WorktreeSnapshotAnalysisResult" },
     { file: "lib/git/worktree-roster.ts", type: "WorktreeRosterResult" },
     { file: "lib/git/base-drift-types.ts", type: "BaseDriftResult" },
+    { file: "lib/git/base-distance.ts", type: "BaseDistanceSnapshotAnalysisResult" },
+    { file: "lib/git/base-distance.ts", type: "BaseDistanceNotApplicableResult" },
     { file: "lib/git/worktree-identity.ts", type: "WorktreeIdentity" },
     { file: "lib/git/supersession.ts", type: "SupersessionResult" },
     { file: "lib/git/supersession.ts", type: "SupersessionSnapshotAnalysisResult" },

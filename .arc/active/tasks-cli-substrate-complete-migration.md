@@ -249,20 +249,11 @@ recorded sweep recipes; see `notes-cli-substrate-complete-migration.md` § Segme
           producer tests parse healthy and degraded readings and reject undeclared keys. The session-init skipped
           producer arm is exercised with the not-applicable builder in Task 3.4.b.
 
-    - `[ ]` **3.4.b Register the base-distance snapshot root**
-        - `BaseDistanceSnapshotAnalysisResult | BaseDistanceNotApplicableResult`, registered as `base-distance`:
-          explicit strict arms per verdict, the snapshot arms on `exact`, `pending-fetch`, and `unreachable`, and the
-          not-applicable arm bounded to its three states. The session-init slot builds its arms from the root's fields
-          plus the recommendation fields and keeps its refinements.
-        - The not-applicable results are object literals inside the `baseDistance` probe in `handlers/status.ts`;
-          extract them into a named builder beside `analyzeBaseDistanceSnapshot`, which the probe calls and the root's
-          test drives.
-        - Build `test-first` (one behavior at a time):
-            - The root parses the snapshot analyzer's output for each verdict and remote-evidence arm
-            - The root parses the not-applicable result for each of its three states
-            - The root refuses a not-applicable reading in any other state
-            - The session-init slot accepts its composed value, keeps its refinements, and names an undeclared key in
-              its refusal
+    - `[x]` **3.4.b Register the base-distance snapshot root**
+        - Registered strict `base-distance` snapshot and not-applicable arms and derived both result types from
+          their schemas. A named builder supplies the three not-applicable handler states. Producer tests cover
+          exact, pending, unreachable, and all fallback readings; the strict session-init slot keeps its
+          recommendation refinements and names undeclared keys.
 
     - `[ ]` **3.4.c Validate the checkpoint drift against the full schema**
         - Replace the four `z.custom<BaseDriftResult>()` wraps in `scripts/integration/checkpoint.ts`; the result's

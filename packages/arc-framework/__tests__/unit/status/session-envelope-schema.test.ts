@@ -154,6 +154,14 @@ function integrationBoundaryFixture(workUnit = "active-widget"): Record<string, 
 }
 
 describe("session-init envelope schema", () => {
+  it("refuses undeclared base-distance fields while retaining a valid composed value", () => {
+    const value = fixture("orient");
+    expectValid(value);
+    setPath(value, ["baseDistance", "value", "extraEvidence"], true);
+    expect(() => assertSessionInitProbeResult(value))
+      .toThrow('session-init-envelope: baseDistance.value: Unrecognized key: "extraEvidence"');
+  });
+
   it("refuses undeclared fields inside the emitted roster and names the field", () => {
     const value = fixture("orient");
     expectValid(value);

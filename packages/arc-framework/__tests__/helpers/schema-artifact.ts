@@ -5,6 +5,7 @@ export const PRODUCTION_SCHEMA_IDS = [
   "approved-disposition-record",
   "approved-disposition-set",
   "base-branch-sync",
+  "base-distance",
   "canonical-change",
   "canonical-change-set",
   "cascade-resolution",

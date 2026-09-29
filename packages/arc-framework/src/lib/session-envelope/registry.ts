@@ -21,6 +21,7 @@ import { RecoveryAuditVerdictSchema } from "../recover/audit.js";
 import { ReleaseRoutingValueSchema } from "../release/routing.js";
 import { RecoverAuditReportSchema } from "../recover/report.js";
 import { BaseBranchSnapshotAnalysisResultSchema } from "../git/base-branch-sync.js";
+import { BaseDistanceSnapshotResultSchema } from "../git/base-distance.js";
 import { DirtyStateResultSchema } from "../git/dirty-state.js";
 import { WorktreeSnapshotAnalysisResultSchema } from "../git/worktree-sync.js";
 import { WorktreeRosterResultSchema } from "../git/worktree-roster.js";
@@ -41,6 +42,7 @@ import { TaskListCursorFileResultSchema } from "../task-list/file-cursor.js";
 export const SESSION_ENVELOPE_SCHEMA_IDS = {
   activeSessionInit: "active-session-init",
   baseBranchSync: "base-branch-sync",
+  baseDistance: "base-distance",
   cascadeResolution: "cascade-resolution",
   classComposition: "class-composition",
   compactionSeed: "compaction-seed",
@@ -77,6 +79,7 @@ const STRICT_CURRENT_V1 = {
 const SESSION_ENVELOPE_SCHEMAS = [
   [SESSION_ENVELOPE_SCHEMA_IDS.activeSessionInit, ActiveSessionInitResultSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.baseBranchSync, BaseBranchSnapshotAnalysisResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.baseDistance, BaseDistanceSnapshotResultSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.cascadeResolution, CascadeResolutionSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.classComposition, ClassCompositionSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.compactionSeed, CompactionSeedSchema],

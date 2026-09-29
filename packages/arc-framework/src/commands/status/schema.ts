@@ -15,10 +15,22 @@ import { ConfigSessionInitResultSchema } from "../config/status.js";
 import { DomainRulesSessionInitResultSchema } from "../constitution/status.js";
 import { ExtensionsSessionInitResultSchema } from "../extensions/status.js";
 
-import type { SessionInitProbeResult, SessionRecoverProbeResult } from "./types.js";
+import type { SessionInitBaseDistanceValue, SessionInitProbeResult, SessionRecoverProbeResult } from "./types.js";
 import { probe } from "./types.js";
 import { BaseBranchSnapshotAnalysisResultSchema } from "../../lib/git/base-branch-sync.js";
 import { DirtyStateResultSchema } from "../../lib/git/dirty-state.js";
+import {
+  BaseDistanceNotApplicableResultSchema,
+  BaseDistanceSnapshotAnalysisResultSchema,
+} from "../../lib/git/base-distance.js";
+import {
+  BaseDriftCoordinatesSchema,
+  BaseDriftResultCommonFields,
+  BaseDriftTerminalContinuationSchema,
+  BaseDriftUnavailableReasonSchema,
+  BaseDriftVerdictSchema,
+  BaseMovementSchema,
+} from "../../lib/git/base-drift-types.js";
 import { WorktreeSyncStatusFields } from "../../lib/git/worktree-sync.js";
 import { WorktreeIdentitySchema } from "../../lib/git/worktree-identity.js";
 import { WorktreeRosterResultSchema } from "../../lib/git/worktree-roster.js";
@@ -226,11 +238,6 @@ export const UserReferenceReconcileSessionValueViewSchema = z.object({
     context.addIssue({ code: "custom", path: ["status"], message: "must match the ready-authority reconcile plan" });
   }
 });
-
-/** Thin routing view of a base-distance advisory. */
-export const BaseDistanceValueViewSchema = z
-  .object({ verdict: z.enum(["clean", "reconcile", "unavailable", "skipped"]) })
-  .loose();
 
 const WorktreeSubjectViewSchema = z
   .object({ kind: z.enum(["work-unit", "errand", "branch"]) })
@@ -560,40 +567,42 @@ export const SessionInitUserValueViewSchema = UserSessionInitValueViewSchema.ext
     .optional(),
 }).loose();
 
-/** Recommendation-enriched base-distance view. */
-export const SessionInitBaseDistanceValueViewSchema = BaseDistanceValueViewSchema.extend(
-  {
-    ...CleanupRemoteEvidenceViewFields,
-    ...RECOMMENDATION_SHAPE,
-    state: z.enum([
-      "skipped",
-      "clean",
-      "remote-ahead",
-      "local-ahead",
-      "diverged",
-      "no-upstream",
-      "detached-head",
-      "no-remote",
-      "branch-gone",
-      "remote-unavailable",
-    ]),
-    ahead: z.number().int().nonnegative(),
-    behind: z.number().int().nonnegative(),
-    baseOid: z.string().nullable(),
-    movement: z.enum(["disjoint", "overlapping", "unknown"]).optional(),
-    unavailableReason: z.string().optional(),
-  },
-).loose().superRefine((value, context) => {
+const BaseDistanceSlotArms = [
+  ...BaseDistanceSnapshotAnalysisResultSchema.options,
+  ...BaseDistanceNotApplicableResultSchema.options,
+];
+const baseDistanceSlotSchemas = BaseDistanceSlotArms.map(
+  (arm) => z.strictObject({ ...arm.shape, ...RECOMMENDATION_SHAPE }),
+);
+const firstBaseDistanceSlotSchema = baseDistanceSlotSchemas[0];
+if (firstBaseDistanceSlotSchema === undefined) throw new Error("base-distance requires a slot arm");
+const BaseDistanceSlotUnionSchema = z.union(
+  [firstBaseDistanceSlotSchema, ...baseDistanceSlotSchemas.slice(1)],
+);
+
+/** Full base-distance slot with recommendation fields and existing routing refinements. */
+export const SessionInitBaseDistanceValueSchema = z.strictObject({
+  ...BaseDriftResultCommonFields,
+  verdict: BaseDriftVerdictSchema,
+  movement: BaseMovementSchema.optional(),
+  unavailableReason: BaseDriftUnavailableReasonSchema.optional(),
+  detail: z.string().optional(),
+  coordinates: BaseDriftCoordinatesSchema.optional(),
+  continuation: BaseDriftTerminalContinuationSchema.optional(),
+  ...CleanupRemoteEvidenceViewFields,
+  ...RECOMMENDATION_SHAPE,
+}).pipe(BaseDistanceSlotUnionSchema).superRefine((parsed, context) => {
+  const value = parsed as SessionInitBaseDistanceValue;
   requireRemoteFailureReason(value, context);
   const healthy = ["clean", "remote-ahead", "local-ahead", "diverged"].includes(value.state);
   const evidenceMatches = healthy
     ? value.remoteEvidence === "exact" && ["clean", "reconcile"].includes(value.verdict)
     : value.state === "skipped"
-      ? value.remoteEvidence === "not-applicable" && value.verdict === "skipped"
+      ? value.remoteEvidence === "not-applicable"
       // Detachment and an absent remote both resolve before any snapshot evidence is
       // consulted, so each reports the not-applicable qualifier rather than omitting it.
       : value.state === "no-remote" || value.state === "detached-head"
-        ? value.remoteEvidence === "not-applicable" && value.verdict === "unavailable"
+        ? value.remoteEvidence === "not-applicable"
         : value.state === "remote-unavailable"
           && value.verdict === "unavailable"
           && ["exact", "pending-fetch", "unreachable"].includes(value.remoteEvidence);
@@ -740,7 +749,7 @@ const SessionInitEnvelopeObjectSchema = z.strictObject({
   locusGuidance: LocusSessionGuidanceSchema,
   user: probe(SessionInitUserValueViewSchema),
   worktree: probe(SessionInitWorktreeValueSchema),
-  baseDistance: probe(SessionInitBaseDistanceValueViewSchema),
+  baseDistance: probe(SessionInitBaseDistanceValueSchema),
   baseBranchSync: probe(SessionInitBaseBranchSyncValueViewSchema),
   dirty: probe(DirtyStateResultSchema),
   extensions: probe(ExtensionsSessionInitResultSchema),

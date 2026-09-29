@@ -102,7 +102,7 @@ import {
   readConfiguredUpstreamBranch,
   runPassiveWorktreeInspection,
 } from "../lib/git/worktree-sync.js";
-import { analyzeBaseDistanceSnapshot } from "../lib/git/base-distance.js";
+import { analyzeBaseDistanceSnapshot, buildBaseDistanceNotApplicable } from "../lib/git/base-distance.js";
 import {
   createCurrentBaseDriftAdapters,
   workUnitPathTreatmentContext,
@@ -935,67 +935,12 @@ export async function handleStatus(
         // returning early on a disabled or absent remote would drop the detached-HEAD
         // reason whenever both conditions hold.
         if (await readSessionBranch(exec, cwd) === null) {
-          return {
-            mode: "advisory" as const,
-            verdict: "unavailable" as const,
-            state: "detached-head" as const,
-            ahead: 0,
-            behind: 0,
-            base: null,
-            baseOid: null,
-            headOid: null,
-            unavailableReason: "detached-head" as const,
-            integrationEvidence: null,
-            overlap: null,
-            register: null,
-            detail: "Base drift requires a checked-out branch, but HEAD is detached.",
-            coordinates: { base: null, baseOid: null, headOid: null },
-            continuation: {
-              kind: "terminal-explanation" as const,
-              terminalExplanation: "Check out the intended work branch, then repeat session initialization.",
-            },
-            // Detachment resolves before any snapshot evidence is consulted, so this
-            // arm carries the explicit not-applicable qualifier rather than omitting it.
-            remoteEvidence: "not-applicable" as const,
-          };
+          return buildBaseDistanceNotApplicable("detached-head", baseBranch);
         }
         if (prerequisites.kind === "not-needed") {
           return prerequisites.reason === "remote-sync-disabled"
-            ? {
-                mode: "advisory" as const,
-                verdict: "skipped" as const,
-                state: "skipped" as const,
-                ahead: 0,
-                behind: 0,
-                base: baseBranch,
-                baseOid: null,
-                headOid: null,
-                integrationEvidence: null,
-                overlap: null,
-                register: null,
-                remoteEvidence: "not-applicable" as const,
-              }
-            : {
-                mode: "advisory" as const,
-                verdict: "unavailable" as const,
-                state: "no-remote" as const,
-                ahead: 0,
-                behind: 0,
-                base: baseBranch,
-                baseOid: null,
-                headOid: null,
-                unavailableReason: "no-remote" as const,
-                integrationEvidence: null,
-                overlap: null,
-                register: null,
-                detail: "The repository has no origin remote from which to observe the base.",
-                coordinates: { base: baseBranch, baseOid: null, headOid: null },
-                continuation: {
-                  kind: "terminal-explanation" as const,
-                  terminalExplanation: "Configure the origin remote, then repeat session initialization.",
-                },
-                remoteEvidence: "not-applicable" as const,
-              };
+            ? buildBaseDistanceNotApplicable("skipped", baseBranch)
+            : buildBaseDistanceNotApplicable("no-remote", baseBranch);
         }
         const localOnlyExec: GitExec = (command, args, options) => exec(command, args, {
           ...options,

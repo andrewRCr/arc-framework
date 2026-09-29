@@ -19,6 +19,7 @@ import { RecoveryAuditVerdictSchema } from "../../../src/lib/recover/audit.js";
 import { ReleaseRoutingValueSchema } from "../../../src/lib/release/routing.js";
 import { RecoverAuditReportSchema } from "../../../src/lib/recover/report.js";
 import { BaseBranchSnapshotAnalysisResultSchema } from "../../../src/lib/git/base-branch-sync.js";
+import { BaseDistanceSnapshotResultSchema } from "../../../src/lib/git/base-distance.js";
 import { DirtyStateResultSchema } from "../../../src/lib/git/dirty-state.js";
 import { WorktreeSnapshotAnalysisResultSchema } from "../../../src/lib/git/worktree-sync.js";
 import { WorktreeRosterResultSchema } from "../../../src/lib/git/worktree-roster.js";
@@ -47,6 +48,7 @@ describe("session-envelope schema registry", () => {
     expect(first.ids()).toEqual([
       "active-session-init",
       "base-branch-sync",
+      "base-distance",
       "cascade-resolution",
       "class-composition",
       "compaction-seed",
@@ -101,6 +103,7 @@ describe("session-envelope schema registry", () => {
       [SESSION_ENVELOPE_SCHEMA_IDS.classComposition, ClassCompositionSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.cascadeResolution, CascadeResolutionSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.baseBranchSync, BaseBranchSnapshotAnalysisResultSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.baseDistance, BaseDistanceSnapshotResultSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.currentHuskAdvisory, CurrentHuskAdvisorySchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.dirtyState, DirtyStateResultSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.activeSessionInit, ActiveSessionInitResultSchema],
