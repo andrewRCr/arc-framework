@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "view-path",
+  "claimId": "8341d965bdca2a82c2ef2d1b13eb2ac7",
+  "createdAt": "2026-09-29T17:14:04.299Z",
+  "updatedAt": "2026-09-29T17:14:04.299Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Add arc view <kind> --path, printing the resolved artifact path without rendering",
+  "branch": "chore/view-path",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
