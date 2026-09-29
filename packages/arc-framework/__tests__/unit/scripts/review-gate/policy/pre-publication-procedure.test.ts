@@ -269,10 +269,10 @@ describe("integration boundary locus", () => {
       semanticsVersion: "delivery-public-review-continuation/v1" as const,
       planId: "11111111-1111-4111-8111-111111111111",
       planRevision: 1,
-      planDigest: `sha256:${"1".repeat(64)}`,
+      planDigest: CanonicalDigestSchema.parse(`sha256:${"1".repeat(64)}`),
       stateRevision: 7,
-      stateDigest: `sha256:${"2".repeat(64)}`,
-      memberEvidenceDigest: `sha256:${"3".repeat(64)}`,
+      stateDigest: CanonicalDigestSchema.parse(`sha256:${"2".repeat(64)}`),
+      memberEvidenceDigest: CanonicalDigestSchema.parse(`sha256:${"3".repeat(64)}`),
     };
 
     expect(projectCorrectiveDeliveryStatusBoundary({
@@ -318,10 +318,10 @@ describe("integration boundary locus", () => {
       semanticsVersion: "delivery-public-review-continuation/v1" as const,
       planId: "11111111-1111-4111-8111-111111111111",
       planRevision: 1,
-      planDigest: `sha256:${"1".repeat(64)}`,
+      planDigest: CanonicalDigestSchema.parse(`sha256:${"1".repeat(64)}`),
       stateRevision: 7,
-      stateDigest: `sha256:${"2".repeat(64)}`,
-      memberEvidenceDigest: `sha256:${"3".repeat(64)}`,
+      stateDigest: CanonicalDigestSchema.parse(`sha256:${"2".repeat(64)}`),
+      memberEvidenceDigest: CanonicalDigestSchema.parse(`sha256:${"3".repeat(64)}`),
     };
     const carried = projectCorrectiveDeliveryStatusBoundary({
       workUnit: "example",
@@ -334,8 +334,8 @@ describe("integration boundary locus", () => {
     const refreshedContinuation = {
       ...firstContinuation,
       stateRevision: 8,
-      stateDigest: `sha256:${"4".repeat(64)}`,
-      memberEvidenceDigest: `sha256:${"5".repeat(64)}`,
+      stateDigest: CanonicalDigestSchema.parse(`sha256:${"4".repeat(64)}`),
+      memberEvidenceDigest: CanonicalDigestSchema.parse(`sha256:${"5".repeat(64)}`),
     };
 
     expect(projectCorrectiveDeliveryStatusBoundary({

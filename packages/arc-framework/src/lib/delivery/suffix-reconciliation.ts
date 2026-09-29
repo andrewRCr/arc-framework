@@ -218,7 +218,7 @@ export function selectDeliveryProviderRefreshProofMovements(
     ({ deliverableId }) => deliverableId === selectedDeliverableId,
   );
   if (selectedIndex < 0) return null;
-  const dependentIds = new Set(snapshot.members
+  const dependentIds = new Set<string>(snapshot.members
     .slice(selectedIndex + 1)
     .map(({ deliverableId }) => deliverableId));
   return movements.filter(({ deliverableId }) => dependentIds.has(deliverableId));

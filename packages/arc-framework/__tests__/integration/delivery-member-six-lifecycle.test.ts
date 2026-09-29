@@ -39,6 +39,7 @@ import {
 } from "../../src/lib/delivery/provider-refresh-execution.js";
 import { deriveDeliveryPosition, type DeliveryPositionFactsV1 } from "../../src/lib/delivery/position.js";
 import {
+  DeliveryCanonicalDigestSchema,
   DeliveryStateV1Schema,
   type DeliveryStateV1,
 } from "../../src/lib/delivery/schema.js";
@@ -631,7 +632,7 @@ describe("member-six semantic native fallback lifecycle", () => {
       stackPosition: "intermediate" as const,
       method: "merge" as const,
       allowedMethods: ["merge"] as Array<"merge" | "rebase" | "squash">,
-      policyFingerprint: `sha256:${"a".repeat(64)}`,
+      policyFingerprint: DeliveryCanonicalDigestSchema.parse(`sha256:${"a".repeat(64)}`),
     };
     const exactRequest = async () => ({
       status: "observed" as const,

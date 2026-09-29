@@ -56,7 +56,7 @@ function matchingStateMembers(
     .filter((member) => stateMemberMatches(state, member, selector))
     .map((member) => ({
       planId: state.planId,
-      deliverableId: member.deliverableId as CanonicalDigest,
+      deliverableId: member.deliverableId,
       workUnitId: state.workUnitId,
       state,
     }));

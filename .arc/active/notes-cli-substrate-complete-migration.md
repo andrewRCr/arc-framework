@@ -1558,6 +1558,19 @@ from `hashContent` over the legacy serializer as unprefixed hex; the v2 review-g
 come from the kernel. Prefix slicing in local record filenames and `sha256-` branch tokens derives
 domain locators from validated kernel digests rather than validating a second digest format.
 
+The delivery plan batch composes `DeliveryCanonicalDigestSchema` from the kernel schema. Its
+deliverable IDs are minted by `lib/delivery/identity.ts` `deriveDeliverableId`; semantic
+fingerprints by `lib/delivery/fingerprint.ts`; task inventory digests by
+`lib/delivery/task-inventory.ts`; and plan digests by `lib/delivery/plan.ts`. Those producers
+call `canonicalDigest`. `entry-inspection.ts` carries a disposition ID from
+`review-gate/core/dispositions.ts` `canonicalDigest` and a verification continuation from
+`lib/delivery/review-fix-verification.ts` `canonicalDigest`. Delivery residue, native suffix,
+and session-init projections carry IDs from the validated plan without re-hashing them. Raw
+reviewer presentation selectors remain strings at lookup boundaries and compare against the
+plan's canonical IDs. The review-fix record-effect digest stays on its direct byte-hash owner.
+The delivery batch passed both typechecks, TypeScript lint, and 1,758 focused tests across 103 files;
+its parsed fixtures retain their existing assertions.
+
 ### Raw Git type home
 
 At the merged base, the TypeScript import graph and an AST pass found 44 named imports of `RawGitExec` from

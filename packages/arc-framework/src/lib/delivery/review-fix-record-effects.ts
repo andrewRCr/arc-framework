@@ -75,13 +75,12 @@ export function reconstructDeliveryReviewFixExpectedRecords(input: {
     if (!isDeliveryReviewFixVerificationResponseAppend(beforeCandidate, currentCandidate)) return null;
   }
   if (canonicalize(input.beforeBoundary) === canonicalize(input.currentBoundary)) return null;
-  if (input.beforeBoundary.candidateSubjectDigest === null) return null;
   const carried = carryDeliveryReviewFixPublicBoundary({
     plan: input.plan,
     state: input.state,
     boundary: input.beforeBoundary,
     candidateId: currentCandidate.attestation.candidateId,
-    sourceCandidateSubjectDigest: input.beforeBoundary.candidateSubjectDigest,
+    sourceCandidateSubjectDigest: input.beforeBoundary.candidateSubjectDigest ?? "",
     candidateSubjectDigest: input.candidateSubjectDigest,
   });
   if (carried.status === "refused"

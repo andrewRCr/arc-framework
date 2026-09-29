@@ -1,6 +1,6 @@
 /** Bounded Git and host observations for session-init delivery orientation. */
 
-import { canonicalize } from "../kernel/index.js";
+import { canonicalize, type CanonicalDigest } from "../kernel/index.js";
 import type { GitExec } from "../git/exec.js";
 import { observeDeliveryEligibilityRef } from "../delivery/git-eligibility.js";
 import type { DeliveryHostChangeRequest, DeliveryHostPort } from "../delivery/host.js";
@@ -440,7 +440,7 @@ async function observeFacts(
   if (members.some((member) => !member.exact)) return null;
   const terminalAuthoringMovement = members[terminalIndex]?.terminalAuthoringMovement;
 
-  const landedDeliverableIds: string[] = [];
+  const landedDeliverableIds: CanonicalDigest[] = [];
   let unlandedSeen = false;
   const nonTerminalCleared = state.members.slice(0, -1).every((member) => (
     member.ref === null && member.changeRequest === null && member.coordinates === null

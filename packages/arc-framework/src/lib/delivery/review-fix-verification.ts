@@ -1,6 +1,6 @@
 /** Shared installation and projection of one recoverable delivery review-fix verification continuation. */
 
-import { canonicalDigest, canonicalize } from "../kernel/index.js";
+import { canonicalDigest, canonicalize, type CanonicalDigest } from "../kernel/index.js";
 import type { DeliveryRevisionedRecord } from "./ports.js";
 import { DeliveryStateV1Schema, type DeliveryStateV1 } from "./schema.js";
 
@@ -10,7 +10,7 @@ export interface DeliveryReviewFixVerificationAcknowledgementInput {
   readonly selectedDeliverableId: string;
   readonly memberDeliverableIds: readonly string[];
   readonly expectedStateRevision: number;
-  readonly continuationDigest: string;
+  readonly continuationDigest: CanonicalDigest;
 }
 
 /** Provider-neutral verification work projected after a review-fix mutation settles. */

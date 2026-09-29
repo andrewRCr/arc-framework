@@ -11,7 +11,7 @@ import { proveGitDeliveryContribution } from "../../src/lib/delivery/git-contrib
 import { observeDeliveryEligibilityRef } from "../../src/lib/delivery/git-eligibility.js";
 import { observeGitDeliveryLandingResult } from "../../src/lib/delivery/git-landing-result.js";
 import { applyDeliveryLanding, prepareDeliveryLanding } from "../../src/lib/delivery/landing.js";
-import { DeliveryStateV1Schema } from "../../src/lib/delivery/schema.js";
+import { DeliveryCanonicalDigestSchema, DeliveryStateV1Schema } from "../../src/lib/delivery/schema.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { observeRepositoryDeliveryPosition } from "../../src/lib/session-init/delivery-position-facts.js";
 import { deliveryThreeMemberStackPlanFixture } from "../fixtures/delivery-plan.js";
@@ -93,7 +93,7 @@ describe("sequential delivery landing proof", () => {
       stackPosition: "intermediate" as const,
       method: "merge" as const,
       allowedMethods: ["merge"] as Array<"merge" | "rebase" | "squash">,
-      policyFingerprint: `sha256:${"a".repeat(64)}`,
+      policyFingerprint: DeliveryCanonicalDigestSchema.parse(`sha256:${"a".repeat(64)}`),
     };
     let current = { revision: 7, value: state };
     const stateStore = {

@@ -625,7 +625,7 @@ holds a fenced-owner matrix row.
 - _Outcome:_ Request and lifecycle schemas now use the kernel and layout authorities. The published readiness
   request references `slug`; notes § Local slug schemas records the red-green evidence and rerunnable search.
 
-### `[ ]` **6.4 Adopt `CanonicalDigestSchema` at kernel canonical digest sites — D3, D2**
+### `[x]` **6.4 Adopt `CanonicalDigestSchema` at kernel canonical digest sites — D3, D2**
 
 - _Goal:_ Every value in surviving code that is a kernel canonical digest validates through `CanonicalDigestSchema`,
   and every local `sha256:` pattern left there names its fenced semantic owner in the matrix.
@@ -637,7 +637,7 @@ holds a fenced-owner matrix row.
         - `decompose-v3-schema.ts` and `decompose-v3-result-report.ts` now compose the kernel schema. The
           `decompose-v3-plan.ts` copy stays with its carved base-tree plan under `R-DCP`; the matrix records the split.
 
-    - `[ ]` **6.4.b Adopt the schema at the remaining kernel digest sites**
+    - `[x]` **6.4.b Adopt the schema at the remaining kernel digest sites**
         - Site by site under the rule that a value adopts it when it is a kernel canonical digest, in batches by
           subsystem; each decision's matrix evidence names the producer that computes the value.
         - Enumerate sites from a search recorded in notes § Sweep recipes covering `sha256:` literals,
@@ -657,9 +657,9 @@ holds a fenced-owner matrix row.
         - The composite `checkpoint-v1:` handle patterns and review-gate's frozen version-1 identities keep their
           domain owners, each with a matrix row.
 
-- _Progress:_ The malformed lifecycle option failed first on the inline-regex message and passed on the kernel
-  message. Candidate, integration, and review-gate digest batches are verified; delivery's canonical plan schema
-  remains in 6.4.b. Notes § Canonical digest sites records producer edges and the fenced rows.
+- _Outcome:_ The malformed lifecycle option failed first on the inline-regex message and passed on the kernel
+  message. Candidate, integration, review-gate, and delivery digest batches are verified. Notes § Canonical digest
+  sites records producer edges and the fenced rows.
 
 ### `[ ]` **6.5 Sweep for retired kernel paths** — validate exit criterion at segment scope
 

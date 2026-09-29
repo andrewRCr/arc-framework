@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { responsePolicyRequestFixture } from "../../../../fixtures/review-response-policy.js";
 
-import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import { canonicalDigest, CanonicalDigestSchema } from "../../../../../src/lib/kernel/index.js";
 import { SlugSchema } from "../../../../../src/lib/kernel/schema/slug.js";
 import { ApprovedDispositionRecordSchema } from
   "../../../../../src/scripts/review-gate/core/advisory-records.js";
@@ -140,7 +140,7 @@ function deliveryMemberTarget(input: {
     vehicle: {
       kind: "delivery-member" as const,
       planId: DELIVERY_PLAN_ID,
-      deliverableId: `sha256:${input.deliverableCharacter.repeat(64)}`,
+      deliverableId: CanonicalDigestSchema.parse(`sha256:${input.deliverableCharacter.repeat(64)}`),
       workUnitId: WORK_UNIT_ID,
       head,
     },

@@ -10,9 +10,10 @@ import {
   recordDeliveryReviewFixCandidateVerification,
   type DeliveryReviewFixPublicationDependencies,
 } from "../../../src/lib/delivery/review-fix.js";
-import { canonicalDigest } from "../../../src/lib/kernel/index.js";
+import { canonicalDigest, CanonicalDigestSchema } from "../../../src/lib/kernel/index.js";
 import { compareDeliveryLifecycleContribution } from "../../../src/lib/delivery/lifecycle-contribution.js";
 import type { DeliveryNativeStackObservation } from "../../../src/lib/delivery/native-stack.js";
+import type { DeliveryPositionFactsV1 } from "../../../src/lib/delivery/position.js";
 import type { DeliveryRevisionedRecord } from "../../../src/lib/delivery/ports.js";
 import type { DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
 import { deliveryFourMemberStackPlanFixture } from "../../fixtures/delivery-plan.js";
@@ -42,7 +43,10 @@ import { createFixAuthorization } from
 import { createReviewTarget } from
   "../../../src/scripts/review-gate/core/gate-contract-v2.js";
 
-function positionFacts(state: DeliveryStateV1, landedDeliverableIds: string[] = []) {
+function positionFacts(
+  state: DeliveryStateV1,
+  landedDeliverableIds: DeliveryPositionFactsV1["landedDeliverableIds"] = [],
+): DeliveryPositionFactsV1 {
   return { target: state.target, members: state.members, landedDeliverableIds };
 }
 
@@ -351,14 +355,14 @@ describe("delivery review-fix routing", () => {
     const { plan, state } = fixture();
     const before = projectDeliveryPublicReviewContinuation({ plan, state, stateRevision: 9 });
     if (before.status !== "projected") throw new Error("fixture continuation must project");
-    const candidateId = `sha256:${"a".repeat(64)}` as const;
-    const candidateSubjectDigest = `sha256:${"b".repeat(64)}` as const;
-    const previousCandidateSubjectDigest = `sha256:${"9".repeat(64)}` as const;
-    const sourceCandidateId = `sha256:${"c".repeat(64)}` as const;
+    const candidateId = CanonicalDigestSchema.parse(`sha256:${"a".repeat(64)}`);
+    const candidateSubjectDigest = CanonicalDigestSchema.parse(`sha256:${"b".repeat(64)}`);
+    const previousCandidateSubjectDigest = CanonicalDigestSchema.parse(`sha256:${"9".repeat(64)}`);
+    const sourceCandidateId = CanonicalDigestSchema.parse(`sha256:${"c".repeat(64)}`);
     const reservation = {
       schemaVersion: 1 as const,
       semanticsVersion: "standard-review-reservation/v1" as const,
-      reservationId: `sha256:${"d".repeat(64)}`,
+      reservationId: CanonicalDigestSchema.parse(`sha256:${"d".repeat(64)}`),
       sources: ["codex-pr"],
       target: {
         kind: "delivery" as const,
@@ -370,7 +374,7 @@ describe("delivery review-fix routing", () => {
         obligation: "required" as const,
         reasons: ["sensitive-change-set"],
         rubricVersion: "standard-review/v1",
-        rubricDigest: `sha256:${"e".repeat(64)}`,
+        rubricDigest: CanonicalDigestSchema.parse(`sha256:${"e".repeat(64)}`),
         retrigger: "full-final" as const,
         count: 1,
       },
@@ -379,7 +383,7 @@ describe("delivery review-fix routing", () => {
       workUnit: plan.workUnitId,
       branch: "feat/example",
       candidateId: sourceCandidateId,
-      candidateSubjectDigest: `sha256:${"f".repeat(64)}`,
+      candidateSubjectDigest: CanonicalDigestSchema.parse(`sha256:${"f".repeat(64)}`),
       reservation,
       changeRequest: null,
     });
@@ -594,7 +598,7 @@ describe("delivery review-fix routing", () => {
         candidateId: result.transition.candidateId,
         oldTarget: result.transition.oldTarget,
         newTarget: result.transition.newTarget,
-        authorityRef: `sha256:${"0".repeat(64)}`,
+        authorityRef: CanonicalDigestSchema.parse(`sha256:${"0".repeat(64)}`),
         verifiedBy: result.transition.verifiedBy,
         verifiedAt: result.transition.verifiedAt,
         applicability: result.transition.applicability,
@@ -651,7 +655,7 @@ describe("delivery review-fix routing", () => {
           candidateId: result.transition.candidateId,
           oldTarget: result.transition.newTarget,
           newTarget: result.transition.newTarget,
-          authorityRef: `sha256:${"0".repeat(64)}`,
+          authorityRef: CanonicalDigestSchema.parse(`sha256:${"0".repeat(64)}`),
           verifiedBy: result.transition.verifiedBy,
           verifiedAt: "2026-08-31T14:05:00.000Z",
           applicability: result.transition.applicability,
@@ -738,7 +742,7 @@ describe("delivery review-fix routing", () => {
       selectedDeliverableId,
       memberDeliverableIds,
       expectedStateRevision: 9,
-      continuationDigest: `sha256:${"0".repeat(64)}`,
+      continuationDigest: CanonicalDigestSchema.parse(`sha256:${"0".repeat(64)}`),
       stateStore,
     })).resolves.toEqual({ status: "refused", reason: "continuation-mismatch" });
     await expect(acknowledgeDeliveryReviewFixVerification({

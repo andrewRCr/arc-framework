@@ -9,10 +9,11 @@ import {
   type DeliveryOperationReservationRequestV1,
 } from "../../../src/lib/delivery/operation.js";
 import {
+  DeliveryCanonicalDigestSchema,
   type DeliveryOperationSnapshotV1,
   type DeliveryStateV1,
 } from "../../../src/lib/delivery/schema.js";
-import { canonicalDigest } from "../../../src/lib/kernel/index.js";
+import { canonicalDigest, type CanonicalDigest } from "../../../src/lib/kernel/index.js";
 import {
   deliveryPlanFixture,
   deliveryThreeMemberStackPlanFixture,
@@ -28,24 +29,24 @@ type SnapshotOperationOverrides = {
   readonly operationId?: string;
   readonly kind?: SnapshotOperationRequest["kind"];
   readonly mode?: "review-fix" | "selected-change" | "provider-adoption" | "provider-refresh" | "member" | "closeout-residue";
-  readonly affectedDeliverableIds?: string[];
+  readonly affectedDeliverableIds?: CanonicalDigest[];
   readonly expectedStateRevision?: number;
   readonly before?: DeliveryOperationSnapshotV1;
   readonly requested?: DeliveryOperationSnapshotV1;
-  readonly reviewFixSelectedDeliverableId?: string;
-  readonly reviewFixVerificationDeliverableIds?: string[];
+  readonly reviewFixSelectedDeliverableId?: CanonicalDigest;
+  readonly reviewFixVerificationDeliverableIds?: CanonicalDigest[];
 };
 
 function stateSnapshot(
   state: DeliveryStateV1,
-  deliverableIds: readonly string[],
+  deliverableIds: readonly CanonicalDigest[],
 ): DeliveryOperationSnapshotV1 {
   return {
     target: state.target,
     members: deliverableIds.map((deliverableId) => {
       const member = state.members.find((candidate) => candidate.deliverableId === deliverableId);
       return {
-        deliverableId: deliverableId as DeliveryStateV1["members"][number]["deliverableId"],
+        deliverableId,
         ref: member?.ref ?? null,
         changeRequest: member?.changeRequest ?? null,
         coordinates: member?.coordinates ?? null,
@@ -136,7 +137,7 @@ function landEffect() {
       stackPosition: "intermediate",
       method: "merge",
       allowedMethods: ["merge"] as Array<"merge" | "rebase" | "squash">,
-      policyFingerprint: `sha256:${"a".repeat(64)}`,
+      policyFingerprint: DeliveryCanonicalDigestSchema.parse(`sha256:${"a".repeat(64)}`),
     },
   } as const;
 }

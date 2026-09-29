@@ -89,8 +89,8 @@ interface Stack {
   predecessorSha: string;
   memberSha: string;
   successorSha: string;
-  deliverableId: string;
-  terminalDeliverableId: string;
+  deliverableId: `sha256:${string}`;
+  terminalDeliverableId: `sha256:${string}`;
 }
 
 function state(

@@ -2838,7 +2838,7 @@ async function executeDeliveryCommand(
     };
     const project = async () => {
       let approvedDispositionSet: {
-        readonly dispositionSetId: string;
+        readonly dispositionSetId: CanonicalDigest;
         readonly authorizedFindingIds: readonly string[];
         readonly authorizedFindingLoci: readonly string[];
       } | undefined;
@@ -3760,15 +3760,12 @@ async function executeDeliveryCommand(
           || effectiveCandidate.recognizedTarget.subject.subjectDigest !== candidateSubjectDigest) {
           return { status: "refused" as const, reason: "boundary-carry-position-moved" };
         }
-        if (boundary.boundary.candidateSubjectDigest === null) {
-          return { status: "refused" as const, reason: "boundary-carry-position-moved" };
-        }
         const carried = carryDeliveryReviewFixPublicBoundary({
           plan: planRead.value,
           state: stateRead.value,
           boundary: boundary.boundary,
           candidateId: candidate.record.attestation.candidateId,
-          sourceCandidateSubjectDigest: boundary.boundary.candidateSubjectDigest,
+          sourceCandidateSubjectDigest: boundary.boundary.candidateSubjectDigest ?? "",
           candidateSubjectDigest,
         });
         if (carried.status === "refused") return carried;

@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { RawGitExec } from "../../src/lib/git/exec.js";
 import { canonicalDigest } from "../../src/lib/kernel/canonical/canonical-json.js";
+import { CanonicalDigestSchema } from "../../src/lib/kernel/schema/vocabulary.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 import { createReviewRequest, createReviewRequirement } from
   "../../src/scripts/review-gate/core/gate-contract-v2.js";
@@ -158,7 +159,7 @@ describe("review contribution applicability against Git", () => {
     const currentLineage = {
       kind: "delivery-member" as const,
       planId: "123e4567-e89b-12d3-a456-426614174000",
-      deliverableId: `sha256:${"9".repeat(64)}`,
+      deliverableId: CanonicalDigestSchema.parse(`sha256:${"9".repeat(64)}`),
       workUnitId: SlugSchema.parse("member-a"),
     };
     const requirement = createReviewRequirement({

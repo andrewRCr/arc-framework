@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { canonicalDigest } from "../kernel/index.js";
+import { canonicalDigest, type CanonicalDigest } from "../kernel/index.js";
 import type { DeliveryHostPort } from "./host.js";
 import {
   acceptDeliveryOperationResult,
@@ -479,7 +479,7 @@ export type DeliveryRecoveryObservationRefusal =
   | {
       readonly status: "refused";
       readonly reason: "native-effect-partial";
-      readonly affectedDeliverableIds: readonly string[];
+      readonly affectedDeliverableIds: readonly CanonicalDigest[];
     };
 
 export interface DeliveryRecoveryObservationPort {

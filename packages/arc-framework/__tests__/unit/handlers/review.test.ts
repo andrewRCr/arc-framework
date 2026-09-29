@@ -33,7 +33,7 @@ import {
   stageDeliveryReviewTerminusBoundary,
 } from "../../../src/handlers/review.js";
 
-import { canonicalDigest } from "../../../src/lib/kernel/index.js";
+import { canonicalDigest, CanonicalDigestSchema } from "../../../src/lib/kernel/index.js";
 import { SlugSchema } from "../../../src/lib/kernel/schema/slug.js";
 import { resolveProcessInteractionContext } from
   "../../../src/lib/command-input/interaction-context.js";
@@ -1351,7 +1351,7 @@ describe("handleReviewTerminusAccept", () => {
       vehicle: {
         kind: "delivery-member" as const,
         planId: "123e4567-e89b-42d3-a456-426614174000",
-        deliverableId: `sha256:${"e".repeat(64)}`,
+        deliverableId: CanonicalDigestSchema.parse(`sha256:${"e".repeat(64)}`),
         workUnitId: SlugSchema.parse("example"),
         head: "a".repeat(40),
       },

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { canonicalDigest } from
   "../../../../../src/lib/kernel/canonical/canonical-json.js";
+import { CanonicalDigestSchema } from "../../../../../src/lib/kernel/index.js";
 import { DeliveryReviewMemberVehicleSchema } from
   "../../../../../src/lib/delivery/review-vehicle.js";
 import {
@@ -220,7 +221,7 @@ function memberProgressSnapshot(): ReviewOperationStateSnapshot {
   const priorVehicle = { ...deliveryVehicle, head: "d".repeat(40) };
   const unrelatedVehicle = {
     ...priorVehicle,
-    deliverableId: `sha256:${"1".repeat(64)}`,
+    deliverableId: CanonicalDigestSchema.parse(`sha256:${"1".repeat(64)}`),
   };
   return {
     status: "complete",
@@ -1258,7 +1259,7 @@ describe("hosted reservation admission", () => {
   it("keeps safe-unavailability progress independent for each exact delivery member", () => {
     const otherVehicle = {
       ...deliveryVehicle,
-      deliverableId: `sha256:${"1".repeat(64)}`,
+      deliverableId: CanonicalDigestSchema.parse(`sha256:${"1".repeat(64)}`),
     };
     const attempts = [{
       sourceId: "coderabbit-pr",

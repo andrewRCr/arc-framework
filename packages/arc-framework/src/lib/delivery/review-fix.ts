@@ -183,7 +183,7 @@ export function carryDeliveryReviewFixPublicBoundary(input: {
   readonly state: DeliveryRevisionedRecord<DeliveryStateV1>;
   readonly boundary: IntegrationBoundaryLocus;
   readonly candidateId: CanonicalDigest;
-  readonly sourceCandidateSubjectDigest: CanonicalDigest;
+  readonly sourceCandidateSubjectDigest: string;
   readonly candidateSubjectDigest: CanonicalDigest;
 }): DeliveryReviewFixBoundaryCarryResult {
   const boundary = input.boundary;
