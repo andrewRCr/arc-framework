@@ -14,7 +14,7 @@ import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/
 import { projectLocalReviewGuidance } from
   "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
 
-const digest = (value: string): string => canonicalDigest({ value });
+const digest = (value: string) => canonicalDigest({ value });
 const objectId = (character: string): string => character.repeat(40);
 
 function fixture() {

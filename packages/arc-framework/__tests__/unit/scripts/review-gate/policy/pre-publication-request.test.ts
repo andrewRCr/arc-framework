@@ -69,7 +69,7 @@ import {
 
 const HEAD = "a".repeat(40);
 const PREPUBLICATION_HEAD = "b".repeat(40);
-const CANDIDATE_ID = `sha256:${"c".repeat(64)}`;
+const CANDIDATE_ID: `sha256:${string}` = `sha256:${"c".repeat(64)}`;
 const DELIVERY_PLAN_ID = "123e4567-e89b-12d3-a456-426614174000";
 const WORK_UNIT_ID = SlugSchema.parse("example");
 const OWNER_TERMINUS = {
@@ -80,7 +80,7 @@ const OWNER_TERMINUS = {
   acceptedBy: "andrew",
   completedPasses: 5,
 };
-const digest = (value: string): string => canonicalDigest({ value });
+const digest = (value: string) => canonicalDigest({ value });
 
 const currentCandidate: CandidateRead = {
   status: "current",

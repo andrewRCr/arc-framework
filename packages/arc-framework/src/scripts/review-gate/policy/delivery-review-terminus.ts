@@ -1,6 +1,7 @@
 /** Exact member-scoped transport for an explicit Work Unit Owner review terminus. */
 
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
 import {
@@ -18,7 +19,7 @@ import {
   OwnerAcceptedReviewTerminusJudgmentSchema,
 } from "./review-terminus.js";
 
-const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+const DigestSchema = CanonicalDigestSchema;
 
 /** Submit-ready Owner-terminus offer for one exact first-outstanding delivery member. */
 export const DeliveryReviewTerminusOfferSchema = z.strictObject({

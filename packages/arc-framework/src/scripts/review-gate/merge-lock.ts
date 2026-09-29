@@ -62,6 +62,14 @@ export const MergeLockTransitionRequestSchema = z.strictObject({
   vehicle: ReviewVehicleSchema,
 }).readonly();
 export type MergeLockTransitionRequest = z.infer<typeof MergeLockTransitionRequestSchema>;
+type MergeLockTransitionInput = Omit<z.input<typeof MergeLockTransitionRequestSchema>, "vehicle"> & {
+  vehicle: z.input<typeof ReviewVehicleSchema> | {
+    kind: "delivery-member";
+    planId: string;
+    deliverableId: string;
+    workUnitSlug: string;
+  };
+};
 
 /**
  * What the configured `merge.lock` key was found to be. The shared settings
@@ -178,7 +186,7 @@ const TRANSITIONS = {
 
 async function transitionMergeLock(
   kind: keyof typeof TRANSITIONS,
-  input: z.input<typeof MergeLockTransitionRequestSchema>,
+  input: MergeLockTransitionInput,
   port: MergeLockPort,
 ): Promise<unknown> {
   const request = MergeLockTransitionRequestSchema.parse(input);
@@ -444,7 +452,7 @@ async function gateCandidateReadiness(
  * @returns A strict held, no-lock, or blocked envelope.
  */
 export async function holdMergeLock(
-  input: z.input<typeof MergeLockTransitionRequestSchema>,
+  input: MergeLockTransitionInput,
   port: MergeLockPort,
 ): Promise<MergeLockHoldEnvelope> {
   return MergeLockHoldEnvelopeSchema.parse(await transitionMergeLock("hold", input, port));
@@ -459,7 +467,7 @@ export async function holdMergeLock(
  * @returns A strict released, no-lock, or blocked envelope.
  */
 export async function releaseMergeLock(
-  input: z.input<typeof MergeLockTransitionRequestSchema>,
+  input: MergeLockTransitionInput,
   port: MergeLockPort,
 ): Promise<MergeLockReleaseEnvelope> {
   return MergeLockReleaseEnvelopeSchema.parse(await transitionMergeLock("release", input, port));

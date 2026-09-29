@@ -1,6 +1,7 @@
 /** Bounded passive wait contract for hosted pull-request reviews. */
 
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 import {
   boundedWait,
   type BoundedWaitAttempt,
@@ -258,7 +259,7 @@ export const HostedAwaitResultSchema = z.union([
     reviewUrl: z.url(),
     ...HostedTerminalCoverageShape,
     responseSourceRef: z.string().trim().min(1).optional(),
-    hostedResultId: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
+    hostedResultId: CanonicalDigestSchema.optional(),
   }),
   z.strictObject({
     ...HostedAwaitResultBaseShape,
@@ -268,7 +269,7 @@ export const HostedAwaitResultSchema = z.union([
     findings: NonEmptyHostedFindingsSchema,
     ...HostedTerminalCoverageShape,
     responseSourceRef: z.string().trim().min(1).optional(),
-    hostedResultId: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
+    hostedResultId: CanonicalDigestSchema.optional(),
   }),
   z.strictObject({
     ...HostedAwaitResultBaseShape,

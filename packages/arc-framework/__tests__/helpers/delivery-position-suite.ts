@@ -46,7 +46,7 @@ import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import { writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { createRawGitExec } from "../../src/lib/io-context.js";
-import { canonicalDigest } from "../../src/lib/kernel/index.js";
+import { CanonicalDigestSchema, canonicalDigest } from "../../src/lib/kernel/index.js";
 import {
   candidateReviewApplicabilitySelections,
   createCandidateAttestation,
@@ -1438,7 +1438,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
             operationId: "lane-progress/response-loss",
             durableRef: hostedTerminal1.attemptId,
           }),
-          hostedResultId: hostedTerminal1.hosted.sealedResult?.hostedResultId ?? "",
+          hostedResultId: CanonicalDigestSchema.parse(hostedTerminal1.hosted.sealedResult?.hostedResultId),
         },
         approvedDisposition,
         fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
@@ -1456,7 +1456,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
             operationId: "lane-progress/historical",
             durableRef: hostedTerminal1.attemptId,
           }),
-          hostedResultId: hostedTerminal1.hosted.sealedResult?.hostedResultId ?? "",
+          hostedResultId: CanonicalDigestSchema.parse(hostedTerminal1.hosted.sealedResult?.hostedResultId),
         },
       },
       oldTarget,
@@ -2041,7 +2041,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         obligation: "required",
         reasons: ["sensitive-change-set"],
         rubricVersion: "standard-review/v1",
-        rubricDigest: reservation.obligation.rubricDigest,
+        rubricDigest: CanonicalDigestSchema.parse(reservation.obligation.rubricDigest),
         retrigger: "full-final",
         count: 1,
       },
@@ -2116,12 +2116,12 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         statusTarget: { repository: "owner/repo", headRef: "member-3", headSha: oldTarget.headSha },
       },
       policyVersion: requirement.policyVersion,
-      policyBindingDigest: admission.policyBindingDigest,
+      policyBindingDigest: CanonicalDigestSchema.parse(admission.policyBindingDigest),
       attestationRuntimeKind: authority.attestationRuntimeKind,
       sourceRef: "source.json",
       sourceDigest: source.sourceDigest,
       guidance: guidance.projection,
-      guidanceDigest: guidance.guidanceDigest,
+      guidanceDigest: CanonicalDigestSchema.parse(guidance.guidanceDigest),
       reviewerInstructions: guidance.reviewerInstructions,
       target: oldTarget,
       requirement,
@@ -3826,7 +3826,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       headSha: oldTarget.headSha,
       headTree: oldTarget.headTree,
     });
-    const replayRubricDigest = `sha256:${"f".repeat(64)}`;
+    const replayRubricDigest = `sha256:${"f".repeat(64)}` as const;
     const replayRequirement = createReviewRequirement({
       target: replayOldTarget,
       projection: {

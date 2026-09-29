@@ -4,7 +4,7 @@ import { Ajv2020, type AnySchema } from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/canonical/canonical-json.js";
-import { createKernelRegistry } from "../../../../../src/lib/kernel/index.js";
+import { CanonicalDigestSchema, createKernelRegistry } from "../../../../../src/lib/kernel/index.js";
 import {
   registerReviewDomainSchemas,
 } from "../../../../../src/scripts/review-gate/core/register-review-schemas.js";
@@ -70,7 +70,7 @@ const standardReview = {
   obligation: "required" as const,
   reasons: ["sensitive-change-set"] as const,
   rubricVersion: "standard-review/v1",
-  rubricDigest: `sha256:${"b".repeat(64)}`,
+  rubricDigest: CanonicalDigestSchema.parse(`sha256:${"b".repeat(64)}`),
   retrigger: "full-final" as const,
   count: 1 as const,
 };

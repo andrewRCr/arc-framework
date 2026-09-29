@@ -34,7 +34,7 @@ import { resolveEvidenceBoundReviewPolicy } from
   "../../../../../src/scripts/review-gate/policy/review-policy-evidence.js";
 
 const objectId = (character: string): string => character.repeat(40);
-const digest = (value: string): string => canonicalDigest({ value });
+const digest = (value: string) => canonicalDigest({ value });
 const lineage = { kind: "candidate" as const, candidateId: digest("candidate") };
 const standardReview = {
   obligation: "required" as const,

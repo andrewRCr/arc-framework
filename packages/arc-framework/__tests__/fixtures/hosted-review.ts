@@ -4,6 +4,7 @@ import {
   createReviewRequirement,
   createReviewTarget,
 } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
+import { CanonicalDigestSchema } from "../../src/lib/kernel/index.js";
 import {
   createHostedSealedResult,
   LaneProgressStateSchema,
@@ -199,7 +200,8 @@ export function createHostedTerminalAttemptFixture(input: {
   };
   const attemptId = hostedLaneAttemptId(handle);
   const findings = [...input.findings ?? []];
-  const dispositionSetId = input.dispositionSetId ?? null;
+  const dispositionSetId = input.dispositionSetId === undefined || input.dispositionSetId === null
+    ? null : CanonicalDigestSchema.parse(input.dispositionSetId);
   const hosted = {
     admission: input.admission,
     handle,

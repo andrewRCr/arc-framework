@@ -1,13 +1,13 @@
 /** Zod authority for single-use review-fix authorization records. */
 
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import { sortByCanonicalBytes, type KernelRegistry } from "../../../lib/kernel/index.js";
 import { CandidateVerificationApplicabilitySchema } from
   "../../../lib/work-unit/candidate-attestation.js";
 import { ReviewFindingIdentitySchema } from "./finding-records.js";
 
-const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const GitObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
 const EvidenceReferenceSchema = z.string().trim().min(1);

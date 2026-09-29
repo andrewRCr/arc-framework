@@ -158,6 +158,7 @@ describe("review gate v2 contract", () => {
       semanticsVersion: "review-gate/v2",
       repositoryId: target.repositoryId,
       targetId: target.targetId,
+      // @ts-expect-error Exercise runtime rejection of a Git OID in a semantic ID slot.
       requirementId: objectId("e"),
       carrier: { kind: "local-change-set", adapterId: "local", changeRequestId: null },
       authorIdentity: "andrew",

@@ -351,10 +351,10 @@ describe("delivery review-fix routing", () => {
     const { plan, state } = fixture();
     const before = projectDeliveryPublicReviewContinuation({ plan, state, stateRevision: 9 });
     if (before.status !== "projected") throw new Error("fixture continuation must project");
-    const candidateId = `sha256:${"a".repeat(64)}`;
-    const candidateSubjectDigest = `sha256:${"b".repeat(64)}`;
-    const previousCandidateSubjectDigest = `sha256:${"9".repeat(64)}`;
-    const sourceCandidateId = `sha256:${"c".repeat(64)}`;
+    const candidateId = `sha256:${"a".repeat(64)}` as const;
+    const candidateSubjectDigest = `sha256:${"b".repeat(64)}` as const;
+    const previousCandidateSubjectDigest = `sha256:${"9".repeat(64)}` as const;
+    const sourceCandidateId = `sha256:${"c".repeat(64)}` as const;
     const reservation = {
       schemaVersion: 1 as const,
       semanticsVersion: "standard-review-reservation/v1" as const,

@@ -11,7 +11,7 @@ import { ProposedDispositionSetSchema } from
 import type { NormalizedReviewFinding } from
   "../../../../../src/scripts/review-gate/core/finding-records.js";
 
-const digest = (value: string): string => canonicalDigest({ value });
+const digest = (value: string) => canonicalDigest({ value });
 
 function fixture() {
   const clippedLabel = "x".repeat(512);

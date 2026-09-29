@@ -28,7 +28,7 @@ import { sameDeliveryReviewMemberVehicle } from "../lib/delivery/review-vehicle.
 import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import type { GitExec } from "../lib/git/exec.js";
-import { canonicalDigest, canonicalize, createKernelRegistry } from "../lib/kernel/index.js";
+import { canonicalDigest, canonicalize, CanonicalDigestSchema, createKernelRegistry, type CanonicalDigest } from "../lib/kernel/index.js";
 import { projectKernelSchemaClosure } from "../lib/kernel/schema/generate.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import {
@@ -4023,15 +4023,15 @@ export interface ReviewPrePublicationJudgment {
 }
 
 const AttestationOrderingRecoverySchema = z.strictObject({
-  candidateId: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
-  candidateSubjectDigest: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+  candidateId: CanonicalDigestSchema,
+  candidateSubjectDigest: CanonicalDigestSchema,
   reviewedHead: GitObjectIdSchema,
   currentHead: GitObjectIdSchema,
-  expectedBoundaryVersion: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+  expectedBoundaryVersion: CanonicalDigestSchema,
 });
 const PrePublicationReplayInputSchema = z.strictObject({
-  candidateId: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
-  candidateSubjectDigest: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
+  candidateId: CanonicalDigestSchema.optional(),
+  candidateSubjectDigest: CanonicalDigestSchema.optional(),
   selfReview: z.literal("settled").optional(),
   changeSet: z.json().optional(),
   lanes: z.json().optional(),
@@ -4067,9 +4067,9 @@ export interface ReviewPrePublicationHandlerDependencies {
   readRootGitHead(root: string): Promise<string>;
   readCandidate(root: string, workUnit: string): Promise<CandidateRead>;
   readBoundary(root: string, workUnit: string): Promise<VersionedSubmissionBoundary>;
-  readStandardLaneOwnerVersion(root: string, candidateId: string, headSha: string): Promise<number>;
+  readStandardLaneOwnerVersion(root: string, candidateId: CanonicalDigest, headSha: string): Promise<number>;
   withStandardLaneLock<T>(
-    root: string, candidateId: string, headSha: string, action: () => Promise<T>,
+    root: string, candidateId: CanonicalDigest, headSha: string, action: () => Promise<T>,
   ): Promise<T>;
   compose(
     root: string,
@@ -4079,7 +4079,7 @@ export interface ReviewPrePublicationHandlerDependencies {
   persistBoundary(root: string, boundary: IntegrationBoundaryLocus): Promise<void>;
   persistAcceptedFrontlineSkip(root: string, input: {
     workUnit: string;
-    candidateId: string;
+    candidateId: CanonicalDigest;
     repositoryId: string;
     headSha: string;
   }): Promise<void>;
@@ -4111,7 +4111,7 @@ async function recoverProjectedPublicationBoundary(
 async function persistAcceptedFrontlineSkip(input: {
   root: string;
   workUnit: string;
-  candidateId: string;
+  candidateId: CanonicalDigest;
   repositoryId: string;
   headSha: string;
   exec: GitExec;
@@ -4164,8 +4164,8 @@ function acceptedSingletonFrontlineSkip(
 
 function buildPrePublicationResumeCommand(input: {
   workUnit: string;
-  candidateId: string;
-  candidateSubjectDigest: string;
+  candidateId: CanonicalDigest;
+  candidateSubjectDigest: CanonicalDigest;
   judgment: ReviewPrePublicationJudgment;
   replaySelfReview: "settled" | undefined;
   replayLanes: unknown;

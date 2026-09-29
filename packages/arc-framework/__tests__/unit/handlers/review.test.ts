@@ -78,7 +78,7 @@ describe("hosted fix settlement pre-effect guard", () => {
   const evidence = {
     schemaVersion: 1 as const,
     producerId: "attempt-1",
-    dispositionSetId: `sha256:${"d".repeat(64)}`,
+    dispositionSetId: `sha256:${"d".repeat(64)}` as const,
     originatingHeadSha: "a".repeat(40),
     producedHeadSha: "b".repeat(40),
     performedAt: "2026-09-26T12:00:00Z",
@@ -130,7 +130,7 @@ const target = {
   diffBaseTree: "b".repeat(40),
   headSha: "c".repeat(40),
   headTree: "d".repeat(40),
-  targetId: `sha256:${"e".repeat(64)}`,
+  targetId: `sha256:${"e".repeat(64)}` as const,
 };
 const targetCoordinates = {
   kind: target.kind,
@@ -924,7 +924,7 @@ describe("handleReviewResolve", () => {
       obligation: "required",
       reasons: ["sensitive-change-set"],
       rubricVersion: "standard-review/v1",
-      rubricDigest: `sha256:${"b".repeat(64)}`,
+      rubricDigest: `sha256:${"b".repeat(64)}` as const,
       retrigger: "full-final",
       count: 1,
     },
@@ -2334,7 +2334,7 @@ describe("handleReviewPrePublication", () => {
     obligation: "required" as const,
     reasons: ["unknown-change-set" as const],
     rubricVersion: "standard-review/v1",
-    rubricDigest: `sha256:${"b".repeat(64)}`,
+    rubricDigest: `sha256:${"b".repeat(64)}` as const,
     retrigger: "full-final" as const,
     count: 1 as const,
   };
@@ -2352,7 +2352,7 @@ describe("handleReviewPrePublication", () => {
   const request = {
     schemaVersion: 1 as const,
     workUnit: "example",
-    candidateId: `sha256:${"c".repeat(64)}`,
+    candidateId: `sha256:${"c".repeat(64)}` as const,
     target: createReviewTarget({
       schemaVersion: 2,
       semanticsVersion: "review-gate/v2",
@@ -2385,7 +2385,7 @@ describe("handleReviewPrePublication", () => {
     standard: lane("standard", ["codex-pr"]),
     pendingResponse: { frontline: null, standard: null },
     candidate: {
-      subjectDigest: `sha256:${"e".repeat(64)}`,
+      subjectDigest: `sha256:${"e".repeat(64)}` as const,
       implementationChanged: false,
       convergenceVerification: "satisfied" as const,
       convergenceScope: null,

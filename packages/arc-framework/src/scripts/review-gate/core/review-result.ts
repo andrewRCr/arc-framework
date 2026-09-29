@@ -1,6 +1,7 @@
 /** Immutable producer results normalized across local, frontline, and hosted review sources. */
 
 import type { DeliveryReviewMemberVehicle } from "../../../lib/delivery/review-vehicle.js";
+import type { CanonicalDigest } from "../../../lib/kernel/index.js";
 import type { FrontlineExecutableIdentity } from "./advisory-records.js";
 import type { BoundFrontlineResponseBinding } from "./frontline-response-binding.js";
 import type { NormalizedReviewFinding } from "./finding-records.js";
@@ -27,7 +28,7 @@ export interface ReviewResultAdmissionContext {
   requestedCoverage: HostedReviewCoverage;
   effectiveCoverage: HostedReviewCoverage | null;
   scopeMode: ReviewScopeMode;
-  policyVersion: string;
+  policyVersion: CanonicalDigest;
   correctionScope?: IncrementalReviewScope;
 }
 
@@ -38,7 +39,7 @@ interface ReviewResultBase {
   sourceIdentity: string;
   originalOutcome: "clean" | "findings";
   findings: readonly NormalizedReviewFinding[];
-  resultDigest: string;
+  resultDigest: CanonicalDigest;
   admission: ReviewResultAdmissionContext;
 }
 
@@ -57,7 +58,7 @@ export interface LocalReviewResult extends ReviewResultBase {
 export interface FrontlineReviewResult extends ReviewResultBase {
   kind: "frontline";
   outcomeRef: string;
-  sourceBindingId: string;
+  sourceBindingId: CanonicalDigest;
   executableIdentity: FrontlineExecutableIdentity | null;
   outcome: FrontlineExecutionOutcome;
   responseBinding?: BoundFrontlineResponseBinding;

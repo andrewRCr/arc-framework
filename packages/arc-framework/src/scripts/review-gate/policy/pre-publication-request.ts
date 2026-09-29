@@ -1,7 +1,7 @@
 /** Lane policy-request composition for the typed pre-publication review procedure. */
 
 import { z } from "zod";
-import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
+import { canonicalize, type CanonicalDigest } from "../../../lib/kernel/canonical/canonical-json.js";
 
 import { currentApprovedDispositionNode } from "../core/advisory-records.js";
 import { validateApprovedDispositionRecordForResult } from
@@ -133,9 +133,9 @@ export type CandidateRead =
   | { status: "blocked"; reason: string }
   | ({
     status: "current";
-    candidateId: string;
+    candidateId: CanonicalDigest;
     headSha: string;
-    subjectDigest: string;
+    subjectDigest: CanonicalDigest;
     implementationChanged: boolean;
     lineageHeadShas: readonly string[];
     supersessionAncestors?: readonly CandidateSupersessionAncestor[];
@@ -194,7 +194,7 @@ export interface PrePublicationCompositionDependencies {
     supersessionAncestors?: readonly CandidateSupersessionAncestor[],
   ): Promise<LaneProgressProjection>;
   readSingletonFrontlinePhaseClosed?(
-    candidateId: string,
+    candidateId: CanonicalDigest,
     ancestors: readonly CandidateSupersessionAncestor[],
   ): Promise<boolean>;
   readLanePolicy(lane: ReviewLane): Promise<LanePolicyConfig>;
@@ -271,7 +271,7 @@ export type PrePublicationComposition =
 export function applyCarriedStandardReviewReservation(
   composition: PrePublicationComposition,
   input: {
-    candidateId: string;
+    candidateId: CanonicalDigest;
     candidateSubjectDigest: string | null;
     reservation: StandardReviewReservationV1;
   },
@@ -1026,7 +1026,7 @@ export async function composePrePublicationReviewRequest(
 export function applyCarriedOwnerAcceptedTerminus(
   composition: PrePublicationComposition,
   input: {
-    candidateId: string;
+    candidateId: CanonicalDigest;
     candidateSubjectDigest: string | null;
     terminus: OwnerAcceptedReviewTerminus;
   },

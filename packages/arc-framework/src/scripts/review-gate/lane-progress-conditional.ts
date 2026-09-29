@@ -1,6 +1,6 @@
 /** Conditional next-pass authorization transitions for durable lane owners. */
 
-import { canonicalize } from "../../lib/kernel/index.js";
+import { canonicalize, type CanonicalDigest } from "../../lib/kernel/index.js";
 import { computeConditionalPassAuthorizationId, LaneProgressStateSchema, type LaneProgressState,
   type ReviewOperationState } from "./core/operation-state-schema.js";
 import { laneSubjectOwnerMatches, type LaneSubjectLineage } from "./core/lane-admission.js";
@@ -12,7 +12,7 @@ type LaneAttempt = LaneProgressState["attempts"][number];
 type ConditionalPassAuthorization = NonNullable<LaneAttempt["conditionalPassAuthorizations"]>["authorizations"][number];
 
 export interface ConditionalPendingAdmission {
-  authorizationId: string;
+  authorizationId: CanonicalDigest;
   repositoryId: string;
   lane: LaneProgressState["lane"];
   lineage: LaneSubjectLineage;
@@ -20,7 +20,7 @@ export interface ConditionalPendingAdmission {
   nextPass: number;
   admissionId: string;
   now: string;
-  confirmDispositionSetCurrent(producerId: string, dispositionSetId: string): Promise<boolean>;
+  confirmDispositionSetCurrent(producerId: string, dispositionSetId: CanonicalDigest): Promise<boolean>;
 }
 
 function requireConditionalLaneOwner(
@@ -90,7 +90,7 @@ export function currentConditionalPassAuthorization(
 
 function findConditionalPassAuthorization(
   attempt: LaneAttempt,
-  authorizationId: string,
+  authorizationId: CanonicalDigest,
 ): ConditionalPassAuthorization | undefined {
   return attempt.conditionalPassAuthorizations?.authorizations.find((authorization) =>
     authorization.authorizationId === authorizationId);
@@ -123,7 +123,7 @@ function conditionalContinuationLineageMatches(
 
 export function bindCompletedConditionalPassAuthorization(
   attempt: LaneAttempt,
-  input: { dispositionSetId: string; producedHeadSha: string; now: string },
+  input: { dispositionSetId: CanonicalDigest; producedHeadSha: string; now: string },
 ): LaneAttempt {
   const authorization = currentConditionalPassAuthorization(attempt);
   if (authorization === undefined) return attempt;
@@ -168,13 +168,13 @@ export async function captureConditionalNextPassAuthorization(
     headSha: string;
     lineage: LaneSubjectLineage;
     producerId: string;
-    dispositionSetId: string;
+    dispositionSetId: CanonicalDigest;
     authorizedBy: string;
     exhaustedPassCount: number;
     nextPass: number;
     now: string;
   },
-): Promise<{ progress: LaneProgressState; authorizationId: string }> {
+): Promise<{ progress: LaneProgressState; authorizationId: CanonicalDigest }> {
   const operationId = laneProgressOperationId(input);
   const authorizationId = computeConditionalPassAuthorizationId({
     authorizedBy: input.authorizedBy,
@@ -245,8 +245,8 @@ export type ConditionalPassWithdrawalResult =
   | {
       state: "withdrawn" | "already-withdrawn";
       progress: LaneProgressState;
-      authorizationId: string;
-      dispositionSetId: string;
+      authorizationId: CanonicalDigest;
+      dispositionSetId: CanonicalDigest;
     }
   | {
       state: "refused";
@@ -310,19 +310,19 @@ function withdrawnAuthorization(
 export async function withdrawConditionalNextPassAuthorization(
   store: ReviewOperationStateStore,
   input: {
-    authorizationId: string;
+    authorizationId: CanonicalDigest;
     lane: LaneProgressState["lane"];
     repositoryId: string;
     headSha: string;
     lineage: LaneSubjectLineage;
     producerId: string;
-    dispositionSetId: string;
+    dispositionSetId: CanonicalDigest;
     withdrawnBy: string;
     now: string;
   },
   confirmDispositionSetCurrent: (
     producerId: string,
-    dispositionSetId: string,
+    dispositionSetId: CanonicalDigest,
   ) => Promise<boolean>,
 ): Promise<ConditionalPassWithdrawalResult> {
   const operationId = laneProgressOperationId(input);
@@ -396,8 +396,8 @@ export async function invalidateConditionalNextPassAuthorization(
     headSha: string;
     lineage: LaneSubjectLineage;
     producerId: string;
-    dispositionSetId: string;
-    successorDispositionSetId: string;
+    dispositionSetId: CanonicalDigest;
+    successorDispositionSetId: CanonicalDigest;
     now: string;
   },
 ): Promise<LaneProgressState | null> {
@@ -469,8 +469,8 @@ export async function inspectConditionalNextPassInvalidation(
     headSha: string;
     lineage: LaneSubjectLineage;
     producerId: string;
-    dispositionSetId: string;
-    successorDispositionSetId: string;
+    dispositionSetId: CanonicalDigest;
+    successorDispositionSetId: CanonicalDigest;
   },
 ): Promise<
   | { state: "ready" }
@@ -511,7 +511,7 @@ type CompleteOperationSnapshot = Extract<
 
 function uniqueAuthorizationSnapshotMatch(
   snapshot: CompleteOperationSnapshot,
-  authorizationId: string,
+  authorizationId: CanonicalDigest,
 ): { version: number; progress: LaneProgressState; attempt: LaneAttempt;
   authorization: ConditionalPassAuthorization } {
   const matches = snapshot.records.flatMap((record) => {

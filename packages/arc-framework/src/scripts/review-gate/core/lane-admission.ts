@@ -3,7 +3,7 @@
 import { z } from "zod";
 
 import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
-import { canonicalDigest } from "../../../lib/kernel/index.js";
+import { canonicalDigest, type CanonicalDigest } from "../../../lib/kernel/index.js";
 import { GitObjectIdSchema, ReviewCanonicalDigestSchema, ReviewIdentifierSchema } from
   "./gate-contract-v2-schema.js";
 
@@ -61,7 +61,7 @@ export function laneSubjectOwnerMatches(
 }
 
 /** Derive the canonical identity of one exact lane lineage. */
-export function laneSubjectLineageId(input: LaneSubjectLineage): string {
+export function laneSubjectLineageId(input: LaneSubjectLineage): CanonicalDigest {
   const lineage = LaneSubjectLineageSchema.parse(input);
   return canonicalDigest({
     domain: "arc.review.lane-subject-lineage/v1",

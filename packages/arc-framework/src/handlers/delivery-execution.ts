@@ -228,6 +228,7 @@ import {
   SlugSchema,
   sortByCanonicalBytes,
   validateManagedPath,
+  type CanonicalDigest,
 } from "../lib/kernel/index.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { resolveTaskListCursor } from "../lib/task-list/cursor.js";
@@ -2785,7 +2786,7 @@ async function executeDeliveryCommand(
         }
         return { status: "defer-acknowledgement" };
       }
-      let candidateSubjectDigest: string;
+      let candidateSubjectDigest: CanonicalDigest;
       if (recordClass === "boundary-projection") {
         const locus = await resolveReviewFixLocus();
         if (locus === null || locus.name !== workUnitId) {
@@ -3759,12 +3760,15 @@ async function executeDeliveryCommand(
           || effectiveCandidate.recognizedTarget.subject.subjectDigest !== candidateSubjectDigest) {
           return { status: "refused" as const, reason: "boundary-carry-position-moved" };
         }
+        if (boundary.boundary.candidateSubjectDigest === null) {
+          return { status: "refused" as const, reason: "boundary-carry-position-moved" };
+        }
         const carried = carryDeliveryReviewFixPublicBoundary({
           plan: planRead.value,
           state: stateRead.value,
           boundary: boundary.boundary,
           candidateId: candidate.record.attestation.candidateId,
-          sourceCandidateSubjectDigest: boundary.boundary.candidateSubjectDigest ?? "",
+          sourceCandidateSubjectDigest: boundary.boundary.candidateSubjectDigest,
           candidateSubjectDigest,
         });
         if (carried.status === "refused") return carried;
@@ -3886,8 +3890,8 @@ async function executeDeliveryCommand(
         readonly headSha: string;
         readonly lineage: LaneSubjectLineage;
         readonly attemptId: string;
-        readonly dispositionSetId: string;
-        readonly predecessorDispositionSetId?: string;
+        readonly dispositionSetId: CanonicalDigest;
+        readonly predecessorDispositionSetId?: CanonicalDigest;
       } | null = null;
       let verification = parsed.verification;
       const selectedIndex = stateRead.value.value.members.findIndex(

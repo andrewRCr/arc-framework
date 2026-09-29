@@ -29,7 +29,8 @@ import {
   handleReviewTerminusAccept,
 } from "../../src/handlers/review.js";
 import { runDerivedLocusStateProbe } from "../../src/handlers/derived-locus-state-probe.js";
-import { canonicalDigest, canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
+import { canonicalDigest, canonicalize, type CanonicalDigest } from "../../src/lib/kernel/canonical/canonical-json.js";
+import { CanonicalDigestSchema } from "../../src/lib/kernel/index.js";
 import {
   serializeTransientIdentityRecord,
   TransientIdentityRecordV3Schema,
@@ -264,7 +265,7 @@ async function bindApprovedHostedFinding(
     channelAction: "record-only" | "reply-and-resolve";
     now: string;
   },
-): Promise<string> {
+): Promise<CanonicalDigest> {
   const attemptId = hostedLaneAttemptId(input.handle);
   const hostedResultId = input.progress.attempts.find((attempt) => attempt.attemptId === attemptId)
     ?.hosted?.sealedResult?.hostedResultId;
@@ -275,7 +276,7 @@ async function bindApprovedHostedFinding(
       semanticsVersion: "review-gate/v2",
       targetId: input.handle.admission.reviewTarget.targetId,
       producerId: attemptId,
-      resultDigest: hostedResultId,
+      resultDigest: CanonicalDigestSchema.parse(hostedResultId),
       policyVersion: input.handle.admission.requirement.policyVersion,
       rubricVersion: input.handle.admission.requirement.rubricVersion,
       rubricDigest: input.handle.admission.requirement.rubricDigest,
@@ -299,7 +300,7 @@ async function bindApprovedHostedFinding(
     approvedBy: "andrew",
     approvedAt: input.now,
   });
-  const dispositionSetId = approvedDisposition.dispositionSet.dispositionSetId;
+  const dispositionSetId = CanonicalDigestSchema.parse(approvedDisposition.dispositionSet.dispositionSetId);
   const attemptRef = bindReviewSourceReference({
     kind: "hosted",
     operationId: input.operationId,

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import { canonicalDigest, CanonicalDigestSchema } from "../../../../../src/lib/kernel/index.js";
 import { createFrontlineAdmission } from
   "../../../../../src/scripts/review-gate/core/frontline-admission.js";
 import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
@@ -191,7 +191,7 @@ describe("frontline run command", () => {
     const stores = memoryStores();
     const admittedLineage = {
       kind: "candidate" as const,
-      candidateId: `sha256:${"1".repeat(64)}`,
+      candidateId: CanonicalDigestSchema.parse(`sha256:${"1".repeat(64)}`),
     };
     const admitted = createFrontlineAdmission({
       lineage: admittedLineage,

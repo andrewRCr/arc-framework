@@ -41,7 +41,7 @@ import { DeliveryStateV1Schema } from "../../src/lib/delivery/schema.js";
 import { renderDeliveryPlanSection } from "../../src/lib/delivery/task-list-render.js";
 import { gitExec } from "../../src/lib/io-context.js";
 import { runActiveStatus } from "../../src/commands/active.js";
-import { canonicalDigest, SlugSchema } from "../../src/lib/kernel/index.js";
+import { CanonicalDigestSchema, canonicalDigest, SlugSchema } from "../../src/lib/kernel/index.js";
 import {
   readCandidateRecord,
   readCandidateRecordVersioned,
@@ -2240,7 +2240,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     await settleHostedAttemptFinding(operationStore, {
       operationId: operation.operationId,
       attemptId,
-      dispositionSetId: dispositions.dispositionSet.dispositionSetId,
+      dispositionSetId: CanonicalDigestSchema.parse(dispositions.dispositionSet.dispositionSetId),
       findingId: finding.findingId,
       disposition: "fix",
       actorIdentity: "test-user",

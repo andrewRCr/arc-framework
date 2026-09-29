@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { CanonicalDigestSchema } from "../../../../../src/lib/kernel/index.js";
+
 import {
   projectReviewPolicyAttempt,
   ReviewPolicyCommandRequestSchema,
@@ -19,7 +21,7 @@ const standardReview = {
   obligation: "required" as const,
   reasons: ["sensitive-change-set"] as const,
   rubricVersion: "standard-review/v1",
-  rubricDigest: `sha256:${"b".repeat(64)}`,
+  rubricDigest: CanonicalDigestSchema.parse(`sha256:${"b".repeat(64)}`),
   retrigger: "full-final" as const,
   count: 1 as const,
 };

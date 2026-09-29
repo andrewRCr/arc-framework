@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { CanonicalDigestSchema } from "../../../../src/lib/kernel/index.js";
+
 
 
 import { type ReviewOperationState } from "../../../../src/scripts/review-gate/core/operation-state-schema.js";
@@ -9,6 +11,7 @@ import { frontlineLaneOutcome, recordFrontlineAttempt, readCandidateInheritedLan
 
 import { reduceReviewRouting } from "../../../../src/scripts/review-gate/policy/routing.js";
 
+const digest = (value: string) => CanonicalDigestSchema.parse(value);
 const objectId = (character: string): string => character.repeat(40);
 function createStore() {
   const records = new Map<string, { version: number; state: ReviewOperationState }>();
@@ -60,7 +63,7 @@ const frontlineTarget = createReviewTarget({
 });
 const frontlineLineage = {
   kind: "candidate" as const,
-  candidateId: `sha256:${"1".repeat(64)}`,
+  candidateId: digest(`sha256:${"1".repeat(64)}`),
 };
 const frontlineSource = {
   sourceId: "coderabbit",
@@ -147,7 +150,7 @@ describe("frontline lane recording", () => {
     await recordFrontlineAttempt(store, {
       admission, outcome: frontlineOutcome("findings", null), now: "2026-08-15T12:00:00Z",
     });
-    const dispositionSetId = `sha256:${"9".repeat(64)}`;
+    const dispositionSetId = digest(`sha256:${"9".repeat(64)}`);
     await settleLaneAttempt(store, {
       lane: "frontline", repositoryId: frontlineTarget.repositoryId,
       headSha: frontlineTarget.headSha, lineage: frontlineLineage,
@@ -379,7 +382,7 @@ describe("lane progress reader", () => {
     const store = createStore();
     const lineage = {
       kind: "candidate" as const,
-      candidateId: `sha256:${"6".repeat(64)}`,
+      candidateId: digest(`sha256:${"6".repeat(64)}`),
     };
     await recordLaneAttempt(store, {
       ...attempt,

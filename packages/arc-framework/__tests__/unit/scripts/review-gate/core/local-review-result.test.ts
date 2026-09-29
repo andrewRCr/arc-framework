@@ -8,7 +8,7 @@ import {
   type LocalReviewResultBindings,
 } from "../../../../../src/scripts/review-gate/core/local-review-result.js";
 
-const digest = (value: string): string => canonicalDigest({ value });
+const digest = (value: string) => canonicalDigest({ value });
 const objectId = (character: string): string => character.repeat(40);
 
 const bindings: LocalReviewResultBindings = {

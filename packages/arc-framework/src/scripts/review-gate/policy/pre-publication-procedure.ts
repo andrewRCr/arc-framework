@@ -1,6 +1,7 @@
 /** Typed pre-publication review, delta verification, and Candidate convergence procedure. */
 
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
 import {
@@ -43,8 +44,8 @@ import {
   type StandardReviewReservationV1,
 } from "./integration-boundary-locus.js";
 
-const CandidateIdSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
-const CandidateSubjectDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+const CandidateIdSchema = CanonicalDigestSchema;
+const CandidateSubjectDigestSchema = CanonicalDigestSchema;
 const ReviewEvidenceReferenceSchema = z.string().trim().min(1);
 const FrontlinePolicyRequestSchema = ReviewPolicyRequestSchema.refine(
   ({ lane }) => lane === "frontline",

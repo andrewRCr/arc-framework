@@ -4,6 +4,7 @@ import {
   canonicalDigest,
   canonicalize,
   sortByCanonicalBytes,
+  type CanonicalDigest,
 } from "../../../lib/kernel/index.js";
 
 import {
@@ -67,11 +68,11 @@ function requirementPreimage(requirement: Omit<ReviewRequirementV2, "requirement
 function policyVersionFor(requirement: {
   obligation: "recommended" | "required";
   rubricVersion: string;
-  rubricDigest: string;
+  rubricDigest: CanonicalDigest;
   retrigger: ReviewRequirementV2["retrigger"];
   acceptableSources: ReviewRequirementV2["acceptableSources"];
   initialAdmission: ReviewRequirementV2["initialAdmission"];
-}): string {
+}): CanonicalDigest {
   return computeReviewPolicyVersion({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",

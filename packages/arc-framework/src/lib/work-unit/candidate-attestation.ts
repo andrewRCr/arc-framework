@@ -165,13 +165,13 @@ export function candidateReviewResponses(
 
 /** A validated older root whose review budget survives an explicit Candidate re-root. */
 export interface CandidateSupersessionAncestor {
-  candidateId: string;
+  candidateId: CanonicalDigest;
   baseRevision: string;
   /** Exact commit carrying this predecessor record, when resolved from repository history. */
   recordRevision?: string;
   reviewResponseCount: number;
   /** Disposition identities let lane owners distinguish frontline from standard responses. */
-  reviewDispositionIds?: readonly string[];
+  reviewDispositionIds?: readonly CanonicalDigest[];
 }
 
 /** Refuse a missing, cyclic, or out-of-order Candidate supersession chain. */

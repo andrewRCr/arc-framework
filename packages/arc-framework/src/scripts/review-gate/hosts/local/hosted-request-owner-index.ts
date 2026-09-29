@@ -1,6 +1,7 @@
 /** Keyed owner lookup for a hosted request before current checkout context is consulted. */
 
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../../../lib/kernel/schema/vocabulary.js";
 
 import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 import { canonicalDigest, canonicalize } from "../../../../lib/kernel/index.js";
@@ -11,7 +12,7 @@ import { laneProgressOperationId } from "../../lane-progress.js";
 const IndexRecordSchema = z.strictObject({
   schemaVersion: z.literal(1),
   semanticsVersion: z.literal("hosted-request-owner-index/v1"),
-  fingerprint: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+  fingerprint: CanonicalDigestSchema,
   repositoryId: z.string().min(1),
   lineage: LaneSubjectLineageSchema,
   operationId: z.string().min(1),

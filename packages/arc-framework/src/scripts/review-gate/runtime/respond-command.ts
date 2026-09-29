@@ -1,8 +1,9 @@
 /** Source-authoritative orchestration for `arc review respond`. */
 
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
-import { canonicalize } from "../../../lib/kernel/index.js";
+import { canonicalize, type CanonicalDigest } from "../../../lib/kernel/index.js";
 import {
   CandidateManagedRecordV1Schema,
   CandidateVerificationApplicabilitySchema,
@@ -131,7 +132,7 @@ const ExpectedFixPathSchema = z.string().trim().min(1).refine((path) => (
   && path.split("/").every((segment) => segment !== "" && segment !== "." && segment !== "..")
 ), { message: "expected fix path must be repository-relative and normalized" });
 const RespondSupersessionSchema = z.strictObject({
-  predecessorDispositionSetId: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+  predecessorDispositionSetId: CanonicalDigestSchema,
   expectedFixPaths: z.array(ExpectedFixPathSchema).refine((paths) => (
     paths.length === new Set(paths).size
   ), { message: "expected fix paths must be unique" }),
@@ -181,8 +182,8 @@ const RespondConditionalNextPassWithdrawalRequestSchema = z.strictObject({
   schemaVersion: z.literal(1),
   source: ReviewResponseSettlementSourceSchema,
   conditionalNextPassWithdrawal: z.strictObject({
-    conditionalPassAuthorizationId: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
-    dispositionSetId: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+    conditionalPassAuthorizationId: CanonicalDigestSchema,
+    dispositionSetId: CanonicalDigestSchema,
     withdrawnBy: z.string().trim().min(1),
   }),
 });
@@ -326,8 +327,8 @@ export interface RespondCommandDependencies {
     headSha: string;
     lineage?: LaneSubjectLineage;
     attemptId: string;
-    dispositionSetId: string;
-    predecessorDispositionSetId?: string;
+    dispositionSetId: CanonicalDigest;
+    predecessorDispositionSetId?: CanonicalDigest;
     producedHeadSha: string;
   }): Promise<void>;
   recordResponsePerformance(input: {
@@ -336,15 +337,15 @@ export interface RespondCommandDependencies {
     headSha: string;
     lineage: LaneSubjectLineage;
     attemptId: string;
-    dispositionSetId: string;
-    predecessorDispositionSetId?: string;
+    dispositionSetId: CanonicalDigest;
+    predecessorDispositionSetId?: CanonicalDigest;
     producedHeadSha: string;
   }): Promise<void>;
   readResponsePerformance(result: ReviewResult): Promise<LaneResponsePerformance | null>;
   bindHostedDisposition(input: {
     operationId: string;
     attemptId: string;
-    dispositionSetId: string;
+    dispositionSetId: CanonicalDigest;
     findingDispositions: readonly HostedDispositionFindingBinding[];
   }): Promise<void>;
   resolvePolicy(
@@ -359,25 +360,25 @@ export interface RespondCommandDependencies {
     headSha: string;
     lineage: LaneSubjectLineage;
     producerId: string;
-    dispositionSetId: string;
+    dispositionSetId: CanonicalDigest;
     authorizedBy: string;
     exhaustedPassCount: number;
     nextPass: number;
-  }): Promise<{ authorizationId: string }>;
+  }): Promise<{ authorizationId: CanonicalDigest }>;
   withdrawConditionalNextPass(input: {
-    authorizationId: string;
+    authorizationId: CanonicalDigest;
     lane: "frontline" | "standard";
     repositoryId: string;
     headSha: string;
     lineage: LaneSubjectLineage;
     producerId: string;
-    dispositionSetId: string;
+    dispositionSetId: CanonicalDigest;
     withdrawnBy: string;
   }): Promise<
     | {
         state: "withdrawn" | "already-withdrawn";
-        authorizationId: string;
-        dispositionSetId: string;
+        authorizationId: CanonicalDigest;
+        dispositionSetId: CanonicalDigest;
       }
     | {
         state: "refused";
@@ -391,8 +392,8 @@ export interface RespondCommandDependencies {
     headSha: string;
     lineage: LaneSubjectLineage;
     producerId: string;
-    dispositionSetId: string;
-    successorDispositionSetId: string;
+    dispositionSetId: CanonicalDigest;
+    successorDispositionSetId: CanonicalDigest;
   }): Promise<void>;
   preflightConditionalNextPassInvalidation(input: {
     lane: "frontline" | "standard";
@@ -400,8 +401,8 @@ export interface RespondCommandDependencies {
     headSha: string;
     lineage: LaneSubjectLineage;
     producerId: string;
-    dispositionSetId: string;
-    successorDispositionSetId: string;
+    dispositionSetId: CanonicalDigest;
+    successorDispositionSetId: CanonicalDigest;
   }): Promise<
     | { state: "ready" }
     | { state: "refused"; reason: "fix-consumed"; detail: string }
@@ -409,8 +410,8 @@ export interface RespondCommandDependencies {
   preflightHostedDisposition(input: {
     operationId: string;
     attemptId: string;
-    predecessorDispositionSetId: string;
-    successorDispositionSetId: string;
+    predecessorDispositionSetId: CanonicalDigest;
+    successorDispositionSetId: CanonicalDigest;
     findingDispositions: readonly HostedDispositionFindingBinding[];
   }): Promise<
     | { state: "ready" }
@@ -419,8 +420,8 @@ export interface RespondCommandDependencies {
   supersedeHostedDisposition(input: {
     operationId: string;
     attemptId: string;
-    predecessorDispositionSetId: string;
-    successorDispositionSetId: string;
+    predecessorDispositionSetId: CanonicalDigest;
+    successorDispositionSetId: CanonicalDigest;
     findingDispositions: readonly HostedDispositionFindingBinding[];
   }): Promise<
     | {
@@ -521,7 +522,7 @@ function validateApprovedResponsePolicyBinding(
 
 interface PerformedResponseContinuation {
   policyRequest: ReviewPolicyCommandRequest;
-  conditionalPassAuthorizationId?: string;
+  conditionalPassAuthorizationId?: CanonicalDigest;
 }
 
 type RespondSource = z.infer<typeof ReviewResponseSettlementSourceSchema>;
@@ -819,7 +820,7 @@ async function recordPerformedResponse(
   source: ResolvedResponseSource,
   dispositions: ApprovedDispositionSet,
   producedHeadSha: string,
-  predecessorDispositionSetId: string | null,
+  predecessorDispositionSetId: CanonicalDigest | null,
   dependencies: RespondCommandDependencies,
 ): Promise<void> {
   await dependencies.recordResponsePerformance({
@@ -1413,7 +1414,7 @@ function staleTargetEnvelope(
 
 function supersessionRefusalEnvelope(input: {
   operationId: string;
-  predecessorDispositionSetId: string;
+  predecessorDispositionSetId: CanonicalDigest;
   reason:
     | "head-moved"
     | "unexpected-dirty-paths"
@@ -1590,8 +1591,8 @@ export async function respondToReviewCommand(
 async function withdrawConditionalResponseAuthority(
   withdrawal: {
     withdrawnBy: string;
-    conditionalPassAuthorizationId: string;
-    dispositionSetId: string;
+    conditionalPassAuthorizationId: CanonicalDigest;
+    dispositionSetId: CanonicalDigest;
   },
   source: ResolvedResponseSource,
   dependencies: RespondCommandDependencies,

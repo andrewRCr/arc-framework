@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { CanonicalDigestSchema } from "../../../../src/lib/kernel/index.js";
+
 
 import { DeliveryReviewMemberVehicleSchema } from "../../../../src/lib/delivery/review-vehicle.js";
 import { LaneProgressStateSchema, type LaneProgressState, type ReviewOperationState } from "../../../../src/scripts/review-gate/core/operation-state-schema.js";
@@ -9,6 +11,7 @@ import { captureConditionalNextPassAuthorization, hostedAwaitLaneOutcome, invali
 
 
 
+const digest = (value: string) => CanonicalDigestSchema.parse(value);
 const objectId = (character: string): string => character.repeat(40);
 type LaneAttempt = LaneProgressState["attempts"][number];
 
@@ -61,9 +64,9 @@ async function seedConditionalAuthorization(
 ) {
   const lineage = {
     kind: "candidate" as const,
-    candidateId: `sha256:${"5".repeat(64)}`,
+    candidateId: digest(`sha256:${"5".repeat(64)}`),
   };
-  const dispositionSetId = `sha256:${"6".repeat(64)}`;
+  const dispositionSetId = digest(`sha256:${"6".repeat(64)}`);
   await recordLaneAttempt(store, {
     ...attempt,
     lineage,
@@ -122,7 +125,12 @@ async function admitConditionalPending(
     outcome: "pending",
     consumedPass: false,
     now: input.now,
-    conditionalPendingAdmission: { ...input, lineage: input.lineage, confirmDispositionSetCurrent },
+    conditionalPendingAdmission: {
+      ...input,
+      authorizationId: digest(input.authorizationId),
+      lineage: input.lineage,
+      confirmDispositionSetCurrent,
+    },
   });
 }
 
@@ -216,8 +224,8 @@ describe("lane progress", () => {
 
   it("sums nested Candidate ancestor pass budgets without importing old attempts", async () => {
     const store = createStore();
-    const oldest = `sha256:${"1".repeat(64)}`;
-    const middle = `sha256:${"2".repeat(64)}`;
+    const oldest = digest(`sha256:${"1".repeat(64)}`);
+    const middle = digest(`sha256:${"2".repeat(64)}`);
     for (const [index, candidateId] of [oldest, middle].entries()) {
       const lineage = { kind: "candidate" as const, candidateId };
       await recordLaneAttempt(store, {
@@ -248,7 +256,7 @@ describe("lane progress", () => {
   it("distinguishes a zero-attempt ancestor from a missing owner with a recorded response", async () => {
     const store = createStore();
     const ancestor = {
-      candidateId: `sha256:${"3".repeat(64)}`, baseRevision: objectId("a"), reviewResponseCount: 0,
+      candidateId: digest(`sha256:${"3".repeat(64)}`), baseRevision: objectId("a"), reviewResponseCount: 0,
     };
     expect((await readCandidateInheritedLaneProgress(store, {
       lane: "standard", repositoryId: attempt.repositoryId,
@@ -261,7 +269,7 @@ describe("lane progress", () => {
   });
   it("refuses a predecessor pending pass or unsettled findings until they are resolved", async () => {
     const pendingStore = createStore();
-    const candidateId = `sha256:${"4".repeat(64)}`;
+    const candidateId = digest(`sha256:${"4".repeat(64)}`);
     const lineage = { kind: "candidate" as const, candidateId };
     const input = {
       lane: "standard" as const, repositoryId: attempt.repositoryId,
@@ -290,7 +298,7 @@ describe("lane progress", () => {
     const outcomes = ["rate-limited", "transient-unavailable", "timed-out", "terminal-failure"] as const;
     for (const [index, outcome] of outcomes.entries()) {
       const store = createStore();
-      const candidateId = `sha256:${String(index + 5).repeat(64)}`;
+      const candidateId = digest(`sha256:${String(index + 5).repeat(64)}`);
       await recordLaneAttempt(store, {
         ...attempt, lineage: { kind: "candidate", candidateId },
         outcome, consumedPass: false,
@@ -304,7 +312,7 @@ describe("lane progress", () => {
   });
   it("retains the latest original-head producer for Candidate applicability", async () => {
     const store = createStore();
-    const lineage = { kind: "candidate" as const, candidateId: `sha256:${"5".repeat(64)}` };
+    const lineage = { kind: "candidate" as const, candidateId: digest(`sha256:${"5".repeat(64)}`) };
     await recordLaneAttempt(store, {
       ...attempt,
       lineage,
@@ -408,7 +416,7 @@ describe("lane progress", () => {
       kind: "delivery-member" as const,
       planId: "123e4567-e89b-12d3-a456-426614174000",
       workUnitId: "review-signal-convergence",
-      deliverableId: "sha256:" + "2".repeat(64),
+      deliverableId: digest("sha256:" + "2".repeat(64)),
     });
     const firstHead = laneProgressOperationId({
       lane: "standard",
@@ -425,7 +433,7 @@ describe("lane progress", () => {
     const siblingAtSameHead = laneProgressOperationId({
       lane: "standard",
       repositoryId: "repo-1",
-      lineage: { ...member, deliverableId: "sha256:" + "3".repeat(64) },
+      lineage: { ...member, deliverableId: digest("sha256:" + "3".repeat(64)) },
       headSha: objectId("c"),
     });
 
@@ -562,7 +570,7 @@ describe("lane progress", () => {
       outcome: "findings",
       consumedPass: true,
     });
-    const dispositionSetId = `sha256:${"6".repeat(64)}`;
+    const dispositionSetId = digest(`sha256:${"6".repeat(64)}`);
     const captured = await captureConditionalNextPassAuthorization(store, {
       lane: attempt.lane,
       repositoryId: attempt.repositoryId,
@@ -623,7 +631,7 @@ describe("lane progress", () => {
     const store = createStore();
     const lineage = {
       kind: "candidate" as const,
-      candidateId: "sha256:" + "4".repeat(64),
+      candidateId: digest("sha256:" + "4".repeat(64)),
     };
     await recordLaneAttempt(store, {
       ...attempt,
@@ -745,7 +753,7 @@ describe("lane progress", () => {
     const store = createStore();
     const lineage = {
       kind: "candidate" as const,
-      candidateId: "sha256:" + "5".repeat(64),
+      candidateId: digest("sha256:" + "5".repeat(64)),
     };
     await recordLaneAttempt(store, {
       ...attempt,
@@ -799,7 +807,7 @@ describe("lane progress", () => {
     const store = createStore();
     const lineage = {
       kind: "candidate" as const,
-      candidateId: `sha256:${"5".repeat(64)}`,
+      candidateId: digest(`sha256:${"5".repeat(64)}`),
     };
     await recordLaneAttempt(store, {
       ...attempt,
@@ -813,7 +821,7 @@ describe("lane progress", () => {
       headSha: attempt.headSha,
       lineage,
       producerId: attempt.attemptId,
-      dispositionSetId: `sha256:${"6".repeat(64)}`,
+      dispositionSetId: digest(`sha256:${"6".repeat(64)}`),
       authorizedBy: "author-1",
       exhaustedPassCount: 1,
       nextPass: 2,
@@ -836,7 +844,7 @@ describe("lane progress", () => {
     })).resolves.toEqual(captured);
     await expect(captureConditionalNextPassAuthorization(store, {
       ...input,
-      dispositionSetId: `sha256:${"7".repeat(64)}`,
+      dispositionSetId: digest(`sha256:${"7".repeat(64)}`),
     })).rejects.toThrow("replay conflicts");
   });
 
@@ -844,10 +852,10 @@ describe("lane progress", () => {
     const store = createStore();
     const lineage = {
       kind: "candidate" as const,
-      candidateId: `sha256:${"5".repeat(64)}`,
+      candidateId: digest(`sha256:${"5".repeat(64)}`),
     };
-    const predecessorDispositionSetId = `sha256:${"6".repeat(64)}`;
-    const successorDispositionSetId = `sha256:${"7".repeat(64)}`;
+    const predecessorDispositionSetId = digest(`sha256:${"6".repeat(64)}`);
+    const successorDispositionSetId = digest(`sha256:${"7".repeat(64)}`);
     await recordLaneAttempt(store, {
       ...attempt,
       lineage,
@@ -917,7 +925,7 @@ describe("lane progress", () => {
     });
     await expect(captureConditionalNextPassAuthorization(store, {
       ...successorInput,
-      dispositionSetId: `sha256:${"8".repeat(64)}`,
+      dispositionSetId: digest(`sha256:${"8".repeat(64)}`),
     })).rejects.toThrow("replay conflicts");
     await expect(admitConditionalPending(store, {
       authorizationId: predecessor.authorizationId,
@@ -935,9 +943,9 @@ describe("lane progress", () => {
     const store = createStore();
     const lineage = {
       kind: "candidate" as const,
-      candidateId: `sha256:${"5".repeat(64)}`,
+      candidateId: digest(`sha256:${"5".repeat(64)}`),
     };
-    const dispositionSetId = `sha256:${"6".repeat(64)}`;
+    const dispositionSetId = digest(`sha256:${"6".repeat(64)}`);
     await recordLaneAttempt(store, {
       ...attempt,
       lineage,
@@ -1031,7 +1039,7 @@ describe("lane progress", () => {
       lineage,
       producerId: attempt.attemptId,
       dispositionSetId,
-      successorDispositionSetId: `sha256:${"7".repeat(64)}`,
+      successorDispositionSetId: digest(`sha256:${"7".repeat(64)}`),
     })).resolves.toMatchObject({
       state: "refused",
       reason: "fix-consumed",
@@ -1091,7 +1099,7 @@ describe("lane progress", () => {
         lineage: seeded.lineage,
         producerId: attempt.attemptId,
         dispositionSetId: seeded.dispositionSetId,
-        successorDispositionSetId: `sha256:${"7".repeat(64)}`,
+        successorDispositionSetId: digest(`sha256:${"7".repeat(64)}`),
       };
       await expect(inspectConditionalNextPassInvalidation(store, supersession))
         .resolves.toEqual({ state: "ready" });
@@ -1139,7 +1147,7 @@ describe("lane progress", () => {
     await expect(settleLaneAttempt(store, {
       ...attempt,
       lineage: seeded.lineage,
-      dispositionSetId: `sha256:${"7".repeat(64)}`,
+      dispositionSetId: digest(`sha256:${"7".repeat(64)}`),
       producedHeadSha: objectId("d"),
       now: "2026-08-15T12:04:00Z",
     })).rejects.toThrow(/response performance replay conflicts/u);
@@ -1198,7 +1206,7 @@ describe("lane progress", () => {
       lineage: superseded.lineage,
       producerId: attempt.attemptId,
       dispositionSetId: superseded.dispositionSetId,
-      successorDispositionSetId: `sha256:${"7".repeat(64)}`,
+      successorDispositionSetId: digest(`sha256:${"7".repeat(64)}`),
       now: "2026-08-15T12:03:00Z",
     });
     await expect(withdrawConditionalNextPassAuthorization(supersededStore, {
@@ -1223,7 +1231,7 @@ describe("lane progress", () => {
     )).resolves.toMatchObject({ state: "refused", reason: "stale-current-set" });
     await expect(withdrawConditionalNextPassAuthorization(pendingStore, {
       ...pendingInput,
-      authorizationId: `sha256:${"9".repeat(64)}`,
+      authorizationId: digest(`sha256:${"9".repeat(64)}`),
     }, async () => true)).resolves.toMatchObject({ state: "refused", reason: "foreign-authority" });
     expect((pendingStore.state?.kind === "lane-progress"
       ? currentAuthorization(pendingStore.state.attempts[0])
@@ -1234,9 +1242,9 @@ describe("lane progress", () => {
     const store = createStore();
     const lineage = {
       kind: "candidate" as const,
-      candidateId: `sha256:${"5".repeat(64)}`,
+      candidateId: digest(`sha256:${"5".repeat(64)}`),
     };
-    const dispositionSetId = `sha256:${"6".repeat(64)}`;
+    const dispositionSetId = digest(`sha256:${"6".repeat(64)}`);
     await recordLaneAttempt(store, {
       ...attempt,
       lineage,
@@ -1266,7 +1274,7 @@ describe("lane progress", () => {
       ...attempt,
       lineage: {
         kind: "candidate" as const,
-        candidateId: `sha256:${"8".repeat(64)}`,
+        candidateId: digest(`sha256:${"8".repeat(64)}`),
       },
       attemptId: "other-lineage-pass-2",
       outcome: "clean",
@@ -1318,9 +1326,9 @@ describe("lane progress", () => {
     const store = createStore();
     const lineage = {
       kind: "candidate" as const,
-      candidateId: `sha256:${"5".repeat(64)}`,
+      candidateId: digest(`sha256:${"5".repeat(64)}`),
     };
-    const dispositionSetId = `sha256:${"6".repeat(64)}`;
+    const dispositionSetId = digest(`sha256:${"6".repeat(64)}`);
     await recordLaneAttempt(store, {
       ...attempt,
       lineage,
@@ -1363,7 +1371,7 @@ describe("lane progress", () => {
     const store = createStore();
     const lineage = {
       kind: "candidate" as const,
-      candidateId: `sha256:${"5".repeat(64)}`,
+      candidateId: digest(`sha256:${"5".repeat(64)}`),
     };
     await recordLaneAttempt(store, {
       ...attempt,
@@ -1371,7 +1379,7 @@ describe("lane progress", () => {
       outcome: "findings",
       consumedPass: true,
     });
-    const dispositionSetId = `sha256:${"6".repeat(64)}`;
+    const dispositionSetId = digest(`sha256:${"6".repeat(64)}`);
     await captureConditionalNextPassAuthorization(store, {
       lane: attempt.lane,
       repositoryId: attempt.repositoryId,
@@ -1384,7 +1392,7 @@ describe("lane progress", () => {
       nextPass: 2,
       now: "2026-08-15T12:01:00Z",
     });
-    const successorDispositionSetId = `sha256:${"7".repeat(64)}`;
+    const successorDispositionSetId = digest(`sha256:${"7".repeat(64)}`);
 
     const invalidated = await invalidateConditionalNextPassAuthorization(store, {
       lane: attempt.lane,

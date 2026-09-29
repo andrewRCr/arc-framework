@@ -29,10 +29,10 @@ import { projectStandardReviewObligation } from
   "../../../../../src/scripts/review-gate/policy/standard-review-projection.js";
 
 const HEAD = "a".repeat(40);
-const CANDIDATE_ID = `sha256:${"c".repeat(64)}`;
+const CANDIDATE_ID: `sha256:${string}` = `sha256:${"c".repeat(64)}`;
 const DELIVERY_PLAN_ID = "123e4567-e89b-12d3-a456-426614174000";
 const WORK_UNIT_ID = SlugSchema.parse("example");
-const digest = (value: string): string => canonicalDigest({ value });
+const digest = (value: string) => canonicalDigest({ value });
 
 const currentCandidate: CandidateRead = {
   status: "current",
@@ -228,7 +228,7 @@ describe("pre-publication current contribution applicability", () => {
       deliverableId: currentMember.vehicle.deliverableId,
       workUnitId: currentMember.vehicle.workUnitId,
     };
-    const request = (target: ReviewResult["target"], requirementId: string, logicalPass: number) =>
+    const request = (target: ReviewResult["target"], requirementId: `sha256:${string}`, logicalPass: number) =>
       createReviewRequest(target, {
         schemaVersion: 2,
         semanticsVersion: "review-gate/v2",

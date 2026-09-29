@@ -1,6 +1,7 @@
 /** Direct reply and review-thread settlement contract for hosted findings. */
 
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import { FIX_NOT_PERFORMED_INTERACTION_TEXT } from "../core/fix-not-performed-envelope.js";
 import { ReviewFindingIdentitySchema } from "../core/finding-records.js";
@@ -12,7 +13,7 @@ export const HostedSettleEnvelopeSchema = z.strictObject({
   schemaVersion: z.literal(1),
   response: z.strictObject({
     attemptRef: z.string().trim().min(1),
-    dispositionSetId: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+    dispositionSetId: CanonicalDigestSchema,
     findingId: ReviewFindingIdentitySchema,
   }),
   target: HostedTargetSchema,

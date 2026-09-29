@@ -1,6 +1,7 @@
 /** Typed operational loci at the Candidate-to-publication boundary. */
 
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import { canonicalDigest, canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
 import {
@@ -27,8 +28,8 @@ import {
   type OwnerAcceptedReviewTerminus,
 } from "./review-terminus.js";
 
-const CandidateIdSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
-const CandidateSubjectDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+const CandidateIdSchema = CanonicalDigestSchema;
+const CandidateSubjectDigestSchema = CanonicalDigestSchema;
 
 const ActionFields = {
   command: z.string().trim().min(1),

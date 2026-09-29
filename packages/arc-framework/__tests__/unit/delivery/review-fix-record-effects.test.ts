@@ -72,11 +72,11 @@ describe("delivery review-fix record effects", () => {
       transitions: [],
       lineageAttestations: [],
     };
-    const effectiveSubjectDigest = `sha256:${"9".repeat(64)}`;
+    const effectiveSubjectDigest = `sha256:${"9".repeat(64)}` as const;
     const reservation = {
       schemaVersion: 1 as const,
       semanticsVersion: "standard-review-reservation/v1" as const,
-      reservationId: `sha256:${"b".repeat(64)}`,
+      reservationId: `sha256:${"b".repeat(64)}` as const,
       sources: ["codex-pr"],
       target: {
         kind: "delivery" as const,
@@ -88,7 +88,7 @@ describe("delivery review-fix record effects", () => {
         obligation: "required" as const,
         reasons: ["sensitive-change-set"],
         rubricVersion: "standard-review/v1",
-        rubricDigest: `sha256:${"c".repeat(64)}`,
+        rubricDigest: `sha256:${"c".repeat(64)}` as const,
         retrigger: "full-final" as const,
         count: 1,
       },

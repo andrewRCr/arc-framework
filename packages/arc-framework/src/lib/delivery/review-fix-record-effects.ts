@@ -2,7 +2,7 @@
 
 import { createHash } from "node:crypto";
 
-import { canonicalDigest, canonicalize, isCanonicalDigest, sortByCanonicalBytes } from "../kernel/index.js";
+import { canonicalDigest, canonicalize, isCanonicalDigest, sortByCanonicalBytes, type CanonicalDigest } from "../kernel/index.js";
 import type { DeliveryRevisionedRecord } from "./ports.js";
 import { carryDeliveryReviewFixPublicBoundary } from "./review-fix.js";
 import type { DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
@@ -58,7 +58,7 @@ export function reconstructDeliveryReviewFixExpectedRecords(input: {
   readonly currentCandidate: CandidateManagedRecordV1;
   readonly beforeBoundary: IntegrationBoundaryLocus;
   readonly currentBoundary: IntegrationBoundaryLocus;
-  readonly candidateSubjectDigest: string;
+  readonly candidateSubjectDigest: CanonicalDigest;
   readonly candidateRecord: {
     readonly path: string;
     readonly content: string;
@@ -75,12 +75,13 @@ export function reconstructDeliveryReviewFixExpectedRecords(input: {
     if (!isDeliveryReviewFixVerificationResponseAppend(beforeCandidate, currentCandidate)) return null;
   }
   if (canonicalize(input.beforeBoundary) === canonicalize(input.currentBoundary)) return null;
+  if (input.beforeBoundary.candidateSubjectDigest === null) return null;
   const carried = carryDeliveryReviewFixPublicBoundary({
     plan: input.plan,
     state: input.state,
     boundary: input.beforeBoundary,
     candidateId: currentCandidate.attestation.candidateId,
-    sourceCandidateSubjectDigest: input.beforeBoundary.candidateSubjectDigest ?? "",
+    sourceCandidateSubjectDigest: input.beforeBoundary.candidateSubjectDigest,
     candidateSubjectDigest: input.candidateSubjectDigest,
   });
   if (carried.status === "refused"

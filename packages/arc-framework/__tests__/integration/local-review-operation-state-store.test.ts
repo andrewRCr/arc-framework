@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { GitExec } from "../../src/lib/git/exec.js";
-import { canonicalDigest } from "../../src/lib/kernel/index.js";
+import { canonicalDigest, CanonicalDigestSchema } from "../../src/lib/kernel/index.js";
 import {
   ReviewReceiptV2Schema,
 } from "../../src/scripts/review-gate/core/gate-contract-v2-schema.js";
@@ -38,7 +38,7 @@ import {
 } from "../fixtures/hosted-review.js";
 
 const roots: string[] = [];
-const digest = (value: string): string => canonicalDigest({ value });
+const digest = (value: string) => CanonicalDigestSchema.parse(canonicalDigest({ value }));
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map(async (root) => rm(root, { recursive: true, force: true })));

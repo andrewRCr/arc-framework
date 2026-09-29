@@ -653,9 +653,13 @@ holds a fenced-owner matrix row.
         - Build `test-first` (one behavior at a time):
             - A malformed digest passed to a lifecycle digest option is refused with the schema's message
 
-    - `[ ]` **6.4.c Record the fenced digest owners**
+    - `[x]` **6.4.c Record the fenced digest owners**
         - The composite `checkpoint-v1:` handle patterns and review-gate's frozen version-1 identities keep their
           domain owners, each with a matrix row.
+
+- _Progress:_ The malformed lifecycle option failed first on the inline-regex message and passed on the kernel
+  message. Candidate, integration, and review-gate digest batches are verified; delivery's canonical plan schema
+  remains in 6.4.b. Notes § Canonical digest sites records producer edges and the fenced rows.
 
 ### `[ ]` **6.5 Sweep for retired kernel paths** — validate exit criterion at segment scope
 

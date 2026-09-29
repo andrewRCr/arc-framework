@@ -26,7 +26,7 @@ describe("pre-publication pending response source", () => {
         performedAt: "2026-09-25T12:00:00.000Z",
       },
     };
-    const successorId = `sha256:${"2".repeat(64)}`;
+    const successorId: `sha256:${string}` = `sha256:${"2".repeat(64)}`;
     const priorSettlement = currentDispositionSettled(result, attempt, successorId, false);
     expect(priorSettlement).toBe(false);
     expect(projectPendingResponseSource(result, "performed", priorSettlement)).toMatchObject({

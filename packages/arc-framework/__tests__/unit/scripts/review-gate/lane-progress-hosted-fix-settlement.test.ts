@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { CanonicalDigestSchema } from "../../../../src/lib/kernel/index.js";
+
 import { type LaneProgressState, type ReviewOperationState } from "../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { createReviewRequirement, createReviewTarget } from "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 
@@ -7,6 +9,7 @@ import { bindHostedAttemptDisposition, captureConditionalNextPassAuthorization, 
 import { createHostedAdmission, type HostedRequestEnvelope, type HostedRequestHandle } from "../../../../src/scripts/review-gate/hosted/request.js";
 
 
+const digest = (value: string) => CanonicalDigestSchema.parse(value);
 const objectId = (character: string): string => character.repeat(40);
 type LaneAttempt = LaneProgressState["attempts"][number];
 
@@ -74,7 +77,7 @@ const hostedRequirement = createReviewRequirement({
     obligation: "required",
     reasons: ["sensitive-change-set"],
     rubricVersion: "standard-review/v1",
-    rubricDigest: `sha256:${"e".repeat(64)}`,
+    rubricDigest: digest(`sha256:${"e".repeat(64)}`),
     retrigger: "full-final",
     count: 1,
   },
@@ -91,7 +94,7 @@ const hostedContext = {
 const hostedAdmission = createHostedAdmission({
   schemaVersion: 1,
   repositoryId: "repo-1",
-  lineage: { kind: "candidate", candidateId: `sha256:${"8".repeat(64)}` },
+  lineage: { kind: "candidate", candidateId: digest(`sha256:${"8".repeat(64)}`) },
   logicalPass: 1,
   sourceId: handleBase.provider,
   target: handleBase.target,
@@ -178,7 +181,7 @@ describe("hosted await lane recording", () => {
       now: "2026-08-15T12:00:00Z",
     });
     const attemptId = hostedLaneAttemptId(handle);
-    const dispositionSetId = `sha256:${"f".repeat(64)}`;
+    const dispositionSetId = digest(`sha256:${"f".repeat(64)}`);
     const captured = await captureConditionalNextPassAuthorization(store, {
       lane: "standard",
       repositoryId: "repo-1",
@@ -234,7 +237,7 @@ describe("hosted await lane recording", () => {
       fixTarget: null,
       commentId: "comment-1",
       threadId: "thread-1",
-      replyDigest: `sha256:${"1".repeat(64)}`,
+      replyDigest: digest(`sha256:${"1".repeat(64)}`),
       replyId: "reply-1",
       now: "2026-08-15T12:02:00Z",
     });
@@ -292,7 +295,7 @@ describe("hosted await lane recording", () => {
         });
         if (progress === null) throw new Error("expected hosted lane progress");
         const attemptId = hostedLaneAttemptId(handle);
-        const dispositionSetId = `sha256:${"f".repeat(64)}`;
+        const dispositionSetId = digest(`sha256:${"f".repeat(64)}`);
         if (withAuthorization) {
           await captureConditionalNextPassAuthorization(store, {
             lane: "standard",
@@ -343,7 +346,7 @@ describe("hosted await lane recording", () => {
           fixTarget: null,
           commentId: "comment-1",
           threadId: "thread-1",
-          replyDigest: `sha256:${"1".repeat(64)}`,
+          replyDigest: digest(`sha256:${"1".repeat(64)}`),
           replyId: "reply-1",
           now: "2026-08-15T12:02:00Z",
         });
@@ -361,7 +364,7 @@ describe("hosted await lane recording", () => {
         });
         expect(currentAuthorization(completed.attempts[0])?.status)
           .toBe(withAuthorization ? "bound" : undefined);
-        const successorSetId = `sha256:${"2".repeat(64)}`;
+        const successorSetId = digest(`sha256:${"2".repeat(64)}`);
         if (withAuthorization) {
           await invalidateConditionalNextPassAuthorization(store, {
             lane: "standard",
@@ -438,7 +441,7 @@ describe("hosted await lane recording", () => {
     });
     if (progress === null) throw new Error("expected hosted lane progress");
     const attemptId = hostedLaneAttemptId(handle);
-    const dispositionSetId = `sha256:${"f".repeat(64)}`;
+    const dispositionSetId = digest(`sha256:${"f".repeat(64)}`);
     await bindHostedAttemptDisposition(store, {
       operationId: progress.operationId,
       attemptId,
@@ -472,7 +475,7 @@ describe("hosted await lane recording", () => {
       fixTarget: { ...handle.target, headSha: objectId("e") },
       commentId: "comment-1",
       threadId: "thread-1",
-      replyDigest: `sha256:${"1".repeat(64)}`,
+      replyDigest: digest(`sha256:${"1".repeat(64)}`),
       replyId: "reply-1",
       now: "2026-08-15T12:02:00Z",
     })).rejects.toThrow("does not match durable response-head evidence");
@@ -502,8 +505,8 @@ describe("hosted await lane recording", () => {
     });
     if (progress === null) throw new Error("expected hosted lane progress");
     const attemptId = hostedLaneAttemptId(handle);
-    const predecessorDispositionSetId = `sha256:${"f".repeat(64)}`;
-    const successorDispositionSetId = `sha256:${"2".repeat(64)}`;
+    const predecessorDispositionSetId = digest(`sha256:${"f".repeat(64)}`);
+    const successorDispositionSetId = digest(`sha256:${"2".repeat(64)}`);
     const findingDispositions = [{
       findingId: "thread-1", disposition: "fix" as const,
       channelAction: "reply-and-resolve" as const,
@@ -522,7 +525,7 @@ describe("hosted await lane recording", () => {
       findingId: "thread-1", disposition: "fix", actorIdentity: hostedContext.actorIdentity,
       target: handle.target, fixTarget: { ...handle.target, headSha: objectId("d") },
       commentId: "comment-1", threadId: "thread-1",
-      replyDigest: `sha256:${"1".repeat(64)}`, replyId: "reply-1",
+      replyDigest: digest(`sha256:${"1".repeat(64)}`), replyId: "reply-1",
       now: "2026-08-15T12:02:00Z",
     });
     const successor = await supersedeHostedAttemptDisposition(store, {
@@ -550,7 +553,7 @@ describe("hosted await lane recording", () => {
       findingId: "thread-1", disposition: "fix", actorIdentity: hostedContext.actorIdentity,
       target: handle.target, fixTarget: { ...handle.target, headSha: objectId("e") },
       commentId: "comment-1", threadId: "thread-1",
-      replyDigest: `sha256:${"2".repeat(64)}`, replyId: "reply-2",
+      replyDigest: digest(`sha256:${"2".repeat(64)}`), replyId: "reply-2",
       now: "2026-08-15T12:05:00Z",
     });
     expect(settled.attempts[0]?.outcome).toBe("settled-findings");

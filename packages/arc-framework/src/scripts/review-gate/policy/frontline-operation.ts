@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { canonicalDigest, canonicalize } from "../../../lib/kernel/index.js";
+import { canonicalDigest, canonicalize, type CanonicalDigest } from "../../../lib/kernel/index.js";
 import {
   createFrontlineOutcomeRecord,
   FrontlineOutcomeRecordSchema,
@@ -63,7 +63,7 @@ interface FrontlineRunBinding {
 export function computeFrontlineSourceBindingId(
   sourceInput: FrontlineSourceDescriptor,
   responseBinding?: BoundFrontlineResponseBinding,
-): string {
+): CanonicalDigest {
   const source = FrontlineSourceDescriptorSchema.parse(sourceInput);
   return canonicalDigest(responseBinding === undefined
     ? {

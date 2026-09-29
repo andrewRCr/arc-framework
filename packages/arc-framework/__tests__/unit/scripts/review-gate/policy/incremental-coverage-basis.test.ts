@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { canonicalDigest } from
+import { CanonicalDigestSchema, canonicalDigest } from
   "../../../../../src/lib/kernel/index.js";
 import type { ReviewResultReader } from
   "../../../../../src/scripts/review-gate/core/ports.js";
@@ -18,7 +18,7 @@ import {
   "../../../../../src/scripts/review-gate/policy/incremental-coverage-basis.js";
 
 const oid = (character: string): string => character.repeat(40);
-const digest = (value: string): string => canonicalDigest({ value });
+const digest = (value: string) => canonicalDigest({ value });
 const instruction = (producerId: string, findingId: string) => ({
   producerId,
   findingId,
@@ -58,7 +58,9 @@ function result(input: {
       obligation: "required",
       reasons: ["sensitive-change-set"],
       rubricVersion: "standard-review/v1",
-      rubricDigest: input.rubricDigest ?? digest("r"),
+      rubricDigest: input.rubricDigest === undefined
+        ? digest("r")
+        : CanonicalDigestSchema.parse(input.rubricDigest),
       retrigger: "full-final",
       count: 1,
     },

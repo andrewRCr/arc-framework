@@ -7,6 +7,7 @@ import { responsePolicyRequestFixture } from "../../../../fixtures/review-respon
 
 import { DeliveryReviewMemberVehicleSchema } from "../../../../../src/lib/delivery/review-vehicle.js";
 import { canonicalDigest } from "../../../../../src/lib/kernel/canonical/canonical-json.js";
+import { CanonicalDigestSchema } from "../../../../../src/lib/kernel/index.js";
 import type { RawGitExec } from "../../../../../src/lib/git/exec.js";
 import {
   createCandidateAttestation,
@@ -102,7 +103,7 @@ function laneState(options: {
   const lineage = vehicle === undefined
     ? {
         kind: "candidate" as const,
-        candidateId: options.candidateId ?? `sha256:${"8".repeat(64)}`,
+        candidateId: CanonicalDigestSchema.parse(options.candidateId ?? `sha256:${"8".repeat(64)}`),
       }
     : {
         kind: "delivery-member" as const,
@@ -250,7 +251,7 @@ function selector(currentVehicle?: ReturnType<typeof deliveryVehicle>) {
     lane: "standard" as const,
     sourceId: "codex-pr",
     lineage: currentVehicle === undefined
-      ? { kind: "candidate" as const, candidateId: `sha256:${"8".repeat(64)}` }
+      ? { kind: "candidate" as const, candidateId: CanonicalDigestSchema.parse(`sha256:${"8".repeat(64)}`) }
       : {
           kind: "delivery-member" as const,
           planId: currentVehicle.planId,

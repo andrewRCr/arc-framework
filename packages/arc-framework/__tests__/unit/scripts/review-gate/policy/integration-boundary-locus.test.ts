@@ -12,10 +12,10 @@ import {
   recoverAttestedOwnerTerminusBoundary,
 } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
-const SOURCE_CANDIDATE = `sha256:${"a".repeat(64)}`;
-const NEW_CANDIDATE = `sha256:${"b".repeat(64)}`;
-const SOURCE_SUBJECT = `sha256:${"c".repeat(64)}`;
-const MOVED_SUBJECT = `sha256:${"d".repeat(64)}`;
+const SOURCE_CANDIDATE: `sha256:${string}` = `sha256:${"a".repeat(64)}`;
+const NEW_CANDIDATE: `sha256:${string}` = `sha256:${"b".repeat(64)}`;
+const SOURCE_SUBJECT: `sha256:${string}` = `sha256:${"c".repeat(64)}`;
+const MOVED_SUBJECT: `sha256:${string}` = `sha256:${"d".repeat(64)}`;
 const TERMINUS = {
   schemaVersion: 1 as const,
   semanticsVersion: "review-terminus/v1" as const,
