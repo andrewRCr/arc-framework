@@ -32,6 +32,7 @@ import { ClassCompositionSchema } from "../../lib/status/class-composition.js";
 import { TaskListCursorFileResultSchema } from "../../lib/task-list/file-cursor.js";
 import { LocusSessionGuidanceSchema } from "../../lib/locus/session-guidance.js";
 import { RecoveryLocusFrameSchema } from "../../lib/recover/locus-context.js";
+import { ReleaseRoutingValueSchema } from "../../lib/release/routing.js";
 import { assertSessionEnvelopeContract } from "../../lib/session-envelope/validation.js";
 import { DeliveryPositionViewSchema } from "../../lib/session-init/delivery-position.js";
 import { IntegrationBoundaryLocusSchema } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
@@ -678,15 +679,6 @@ export const SessionInitRetiredSubdirsValueViewSchema = RecommendationValueViewS
   return RetiredSubdirDetectionResultSchema.safeParse(withoutRecommendation(value)).success;
 }, "invalid retired-subdirectory value");
 
-/** Thin routing view of release-wrapper class decisions. */
-export const ReleaseRoutingValueViewSchema = z
-  .object({
-    taskCommit: z.enum(["wrapper", "raw"]),
-    workflowCommit: z.enum(["wrapper", "raw"]),
-    workflowPush: z.enum(["wrapper", "raw"]),
-  })
-  .loose();
-
 /** Complete identity record shared by session envelope roots. */
 export const StatusIdentitySchema = z.strictObject({
   identity: NON_EMPTY_TEXT.nullable(),
@@ -773,7 +765,7 @@ const SessionInitEnvelopeObjectSchema = z.strictObject({
   config: probe(ConfigSessionInitResultSchema),
   active: probe(ActiveSessionInitResultSchema),
   domainRules: probe(DomainRulesSessionInitResultSchema),
-  releaseRouting: probe(ReleaseRoutingValueViewSchema),
+  releaseRouting: probe(ReleaseRoutingValueSchema),
   currentWuReconcile: probe(CurrentWuReconcileSessionValueViewSchema).optional(),
   deliveryPosition: probe(DeliveryPositionViewSchema.nullable()).optional(),
   userReferenceReconcile: probe(UserReferenceReconcileSessionValueViewSchema).optional(),
@@ -1110,7 +1102,7 @@ const SessionRecoverEnvelopeObjectSchema = z.strictObject({
   dirty: probe(DirtyStateResultSchema),
   extensions: probe(ExtensionsSessionInitResultSchema),
   config: probe(ConfigSessionInitResultSchema),
-  releaseRouting: probe(ReleaseRoutingValueViewSchema),
+  releaseRouting: probe(ReleaseRoutingValueSchema),
   loadSet: probe(LoadSetManifestSchema),
   taskCursor: probe(TaskListCursorFileResultSchema).optional(),
 });

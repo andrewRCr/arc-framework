@@ -184,19 +184,11 @@ recorded sweep recipes; see `notes-cli-substrate-complete-migration.md` § Segme
           callers retain their barrel routes, including `resolveCurrentWuName`; notes § Sweep recipes records the
           static, dynamic, and mock search.
 
-### `[ ]` **3.2 Complete the leaf session-init slot schemas — D5**
+### `[x]` **3.2 Complete the leaf session-init slot schemas — D5**
 
 - _Goal:_ Seven leaf roots have full strict schemas that are their types' `z.infer` authority, are registered at
   version 1 `strict-current`, and parse the output their producers return — so a key a producer emits that its root
   does not declare fails a unit test before it fails session-init.
-
-- _Approach:_ Per root, co-locate the schema with its producer module — or beside its type where a load-time boundary
-  keeps the producer from importing it — derive the type from it and retire the handwritten declaration, register it
-  in `lib/session-envelope/registry.ts` under the ID its subtask names, and compose it into every envelope that carries
-  its slot in place of the thin view in `commands/status/schema.ts`.
-
-- **Additional Context:** `notes-cli-substrate-complete-migration.md` § Session-envelope roots — the IDs, the
-  composition rule, the producer-output rule, and the tests that change with the roots
 
     - `[x]` **3.2.a Complete `DirtyStateResult` and `CurrentHuskAdvisory`**
         - Registered both strict roots and composed them into their envelope slots. Producer tests cover clean and
@@ -215,13 +207,13 @@ recorded sweep recipes; see `notes-cli-substrate-complete-migration.md` § Segme
           release schemas. Producer tests cover defaults, overrides, pass-through misconfiguration, and strict
           refusals; the envelope now names invalid setting keys without the former config type-proof exemption.
 
-    - `[ ]` **3.2.d Complete `ReleaseRoutingValue`**
-        - ID `release-routing`. The rationale's interlock fields stay strings, as its type declares, since routing
-          safe-defaults an unknown interlock value to raw; a malformed rationale is a wrong type, a missing key, or an
-          undeclared key.
-        - Build `test-first` (one behavior at a time):
-            - The root parses its producer's output, with its `rationale`, for each opt-in and interlock combination
-            - The root refuses a rationale with a wrong-typed field, a missing key, or an undeclared key
+    - `[x]` **3.2.d Complete `ReleaseRoutingValue`**
+        - Registered the strict routing root and composed it into both envelopes. Producer tests cover all opt-in and
+          interlock combinations, including safe-default unknown values; malformed and undeclared rationale fields
+          refuse with their key named.
+
+- _Outcome:_ All seven leaf types now derive from registered version-1 strict roots, and both envelopes compose the
+  owning schemas in place of the retired thin views. Producer and slot tests cover emitted states and unknown fields.
 
 ### `[ ]` **3.3 Complete the worktree schemas and the worktree snapshot root — D5**
 

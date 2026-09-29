@@ -16,6 +16,7 @@ import { LoadSetManifestSchema } from "../../../src/lib/load-set/types.js";
 import { LoadSetAuditVerdictSchema } from "../../../src/lib/load-set/audit.js";
 import { CompactionSeedSchema } from "../../../src/lib/compaction-seed/schema.js";
 import { RecoveryAuditVerdictSchema } from "../../../src/lib/recover/audit.js";
+import { ReleaseRoutingValueSchema } from "../../../src/lib/release/routing.js";
 import { RecoverAuditReportSchema } from "../../../src/lib/recover/report.js";
 import { BaseBranchSnapshotAnalysisResultSchema } from "../../../src/lib/git/base-branch-sync.js";
 import { DirtyStateResultSchema } from "../../../src/lib/git/dirty-state.js";
@@ -63,6 +64,7 @@ describe("session-envelope schema registry", () => {
       "priority",
       "recovery-audit-report",
       "recovery-audit-verdict",
+      "release-routing",
       "remote-evidence",
       "remote-failure-reason",
       "retired-subdir-detection",
@@ -101,6 +103,7 @@ describe("session-envelope schema registry", () => {
       [SESSION_ENVELOPE_SCHEMA_IDS.configSessionInit, ConfigSessionInitResultSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.domainRulesSessionInit, DomainRulesSessionInitResultSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.extensionsSessionInit, ExtensionsSessionInitResultSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.releaseRouting, ReleaseRoutingValueSchema],
     ] as const;
     for (const [id, schema] of advisorySchemas) {
       expect(first.get(id)).toBe(schema);

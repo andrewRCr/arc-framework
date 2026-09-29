@@ -63,6 +63,7 @@ export const PRODUCTION_SCHEMA_IDS = [
   "proposed-disposition-set",
   "recovery-audit-report",
   "recovery-audit-verdict",
+  "release-routing",
   "remote-evidence",
   "remote-failure-reason",
   "retired-subdir-detection",

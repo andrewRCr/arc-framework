@@ -18,6 +18,7 @@ import { CompactionSeedSchema } from "../compaction-seed/schema.js";
 import { LoadSetManifestSchema } from "../load-set/types.js";
 import { LoadSetAuditVerdictSchema } from "../load-set/audit.js";
 import { RecoveryAuditVerdictSchema } from "../recover/audit.js";
+import { ReleaseRoutingValueSchema } from "../release/routing.js";
 import { RecoverAuditReportSchema } from "../recover/report.js";
 import { BaseBranchSnapshotAnalysisResultSchema } from "../git/base-branch-sync.js";
 import { DirtyStateResultSchema } from "../git/dirty-state.js";
@@ -56,6 +57,7 @@ export const SESSION_ENVELOPE_SCHEMA_IDS = {
   partialPushMarkerSurface: "partial-push-marker-surface",
   recoveryAuditVerdict: "recovery-audit-verdict",
   recoveryAuditReport: "recovery-audit-report",
+  releaseRouting: "release-routing",
   retiredSubdirDetection: "retired-subdir-detection",
   sessionInitEnvelope: "session-init-envelope",
   sessionRecoverEnvelope: "session-recover-envelope",
@@ -91,6 +93,7 @@ const SESSION_ENVELOPE_SCHEMAS = [
   [SESSION_ENVELOPE_SCHEMA_IDS.taskListCursorFileResult, TaskListCursorFileResultSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.recoveryAuditVerdict, RecoveryAuditVerdictSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.recoveryAuditReport, RecoverAuditReportSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.releaseRouting, ReleaseRoutingValueSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.retiredSubdirDetection, RetiredSubdirDetectionResultSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.sessionInitEnvelope, SessionInitProbeResultSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.sessionRecoverEnvelope, SessionRecoverProbeResultSchema],

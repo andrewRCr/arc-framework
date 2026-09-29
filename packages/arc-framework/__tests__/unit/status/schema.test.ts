@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 import {
   BaseDistanceValueViewSchema,
   ErrandStateValueViewSchema,
-  ReleaseRoutingValueViewSchema,
   SessionInitBaseBranchSyncValueViewSchema,
   SessionInitBaseDistanceValueViewSchema,
   SessionInitRetiredSubdirsValueViewSchema,
@@ -179,26 +178,6 @@ describe("identity and release-routing views", () => {
     expect(WorktreeIdentityViewSchema.safeParse(value).success).toBe(false);
   });
 
-  it("pins all release routes while retaining rationale", () => {
-    const value = {
-      taskCommit: "wrapper",
-      workflowCommit: "raw",
-      workflowPush: "wrapper",
-      rationale: { releaseOptedIn: true, retained: true },
-    };
-    expect(ReleaseRoutingValueViewSchema.parse(value)).toEqual(value);
-  });
-
-  it.each(["taskCommit", "workflowCommit", "workflowPush"])("rejects an invalid %s route", (key) => {
-    expect(
-      ReleaseRoutingValueViewSchema.safeParse({
-        taskCommit: "raw",
-        workflowCommit: "raw",
-        workflowPush: "raw",
-        [key]: "maybe",
-      }).success,
-    ).toBe(false);
-  });
 });
 
 describe("deep advisory routing views", () => {
@@ -499,15 +478,6 @@ describe("deep advisory routing views", () => {
         recommendedAction: "skip",
         recommendedPromptText: "",
         evidence: { deep: { retained: true } },
-      },
-    ],
-    [
-      ReleaseRoutingValueViewSchema,
-      {
-        taskCommit: "raw",
-        workflowCommit: "raw",
-        workflowPush: "raw",
-        rationale: { evidence: { retained: true } },
       },
     ],
     [

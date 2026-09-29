@@ -935,6 +935,12 @@ describe("session-init envelope schema", () => {
     expectContractFailure(misconfigured, "config.value.settings.session.remote_sync");
   });
 
+  it("rejects undeclared release-routing fields at its envelope slot", () => {
+    const value = fixture("orient");
+    setPath(value, ["releaseRouting", "value", "rationale", "unexpected"], true);
+    expectContractFailure(value, "releaseRouting.value.rationale");
+  });
+
   it("enforces roster, recovery, and primary sweep gates", () => {
     const branchGone = fixture("branch-gone");
     delete branchGone.roster;

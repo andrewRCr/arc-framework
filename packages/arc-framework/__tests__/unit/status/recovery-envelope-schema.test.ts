@@ -84,6 +84,13 @@ describe("lean recovery envelope schema", () => {
     expect(() => assertSessionRecoverProbeResult(value)).toThrow(/config\.value:.*unexpected/u);
   });
 
+  it("rejects undeclared release-routing fields at the recovery slot", () => {
+    const value = recovery();
+    const routing = (value.releaseRouting as { value: { rationale: Record<string, unknown> } }).value;
+    routing.rationale.unexpected = true;
+    expect(() => assertSessionRecoverProbeResult(value)).toThrow(/releaseRouting\.value\.rationale:.*unexpected/u);
+  });
+
   it("requires typed failure evidence exactly for an unreachable worktree read", () => {
     const unreachableWithoutReason = recovery();
     const unreachableWorktree = unreachableWithoutReason.worktree as {
