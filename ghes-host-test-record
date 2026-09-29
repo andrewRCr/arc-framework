@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "ghes-host-test-record",
+  "claimId": "86521f49f8e91c6dbc84d026f3ef4212",
+  "createdAt": "2026-09-29T16:51:58.316Z",
+  "updatedAt": "2026-09-29T16:51:58.316Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Record the GitHub Enterprise Server host test (2026-09-29) in ADR-035 and the storage substrate analysis",
+  "branch": "chore/ghes-host-test-record",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
