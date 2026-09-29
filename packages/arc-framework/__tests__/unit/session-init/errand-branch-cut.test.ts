@@ -10,6 +10,7 @@ import { describe, it, expect } from "vitest";
 
 import { cutErrandBranch } from "../../../src/lib/session-init/errand-branch-cut.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 interface Call {
   cmd: string;
@@ -29,7 +30,7 @@ function fakeExec(existing: Set<string>): { exec: GitExec; calls: Call[] } {
       const ref = args[args.length - 1] ?? "";
       const branch = ref.replace(/^refs\/heads\//, "");
       if (existing.has(branch)) return { stdout: "" };
-      throw new Error("show-ref: ref not found");
+      throw makeGitProcessError({ command: cmd, args, exitCode: 1, stderr: "show-ref: ref not found" });
     }
     return { stdout: "" };
   };

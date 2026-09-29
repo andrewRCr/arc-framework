@@ -5,6 +5,7 @@ import {
   sessionRemotePrerequisites,
 } from "../../../src/handlers/status-remote-context.js";
 import type { GitExec, GitExecInput } from "../../../src/lib/git/exec.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 const oid = "a".repeat(40);
 
@@ -170,8 +171,8 @@ describe("createSessionRemoteContextReader", () => {
   it("retains remote-configuration inspection failure as an internal prerequisite failure", async () => {
     const read = createSessionRemoteContextReader({
       cwd: "/repo",
-      exec: async () => {
-        throw new Error("cannot inspect local config");
+      exec: async (command, args) => {
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "cannot inspect local config" });
       },
       execInput: async () => {
         throw new Error("Object inspection must not run.");
@@ -187,10 +188,10 @@ describe("createSessionRemoteContextReader", () => {
 
   it("retains one failed all-heads read as typed unreachable evidence", async () => {
     let localPrerequisiteRead = false;
-    const exec: GitExec = async (_command, args) => {
+    const exec: GitExec = async (command, args) => {
       if (args[0] === "remote") return { stdout: "origin\n", stderr: "" };
       if (args[0] === "ls-remote") {
-        throw Object.assign(new Error("network is unreachable"), { stderr: "network is unreachable" });
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "network is unreachable" });
       }
       localPrerequisiteRead = true;
       throw new Error("Local prerequisites must not run.");
@@ -224,8 +225,8 @@ describe("createSessionRemoteContextReader", () => {
     const read = createSessionRemoteContextReader({
       cwd: "/repo",
       exec,
-      execInput: async () => {
-        throw new Error("local object inspection denied");
+      execInput: async (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "local object inspection denied" });
       },
       remoteSyncEnabled: async () => true,
     });

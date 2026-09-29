@@ -18,6 +18,16 @@ import {
 import type { ResolvedSettingsResult } from "../../../../src/lib/config/resolved-settings.js";
 import type { HarnessEntry, MarkerReadResult } from "../../../../src/lib/release/setup-marker.js";
 import type { ConfigSettings } from "../../../../src/lib/config/schema.js";
+import { makeGitProcessError } from "../../../helpers/git-exec-fake.js";
+
+const absentReleaseConfig = () => makeGitProcessError({
+  command: "git", args: ["config", "--get", "arc.releaseOptedIn"], exitCode: 1,
+});
+
+const deniedReleaseConfigWrite = (value: "true" | "false") => makeGitProcessError({
+  command: "git", args: ["config", "--local", "arc.releaseOptedIn", value],
+  exitCode: 128, stderr: "permission denied",
+});
 
 function buildSettings(overrides: {
   releaseOptedIn?: { value: "true" | "false"; source: "git-config" | "yaml" | "default" };
@@ -53,7 +63,7 @@ describe("runReleaseOptIn", () => {
   it("writes arc.releaseOptedIn = true to local config on first invocation", async () => {
     const exec = vi
       .fn()
-      .mockRejectedValueOnce(new Error("exit code 1")) // --get returns undefined (absent)
+      .mockRejectedValueOnce(absentReleaseConfig()) // --get returns undefined (absent)
       .mockResolvedValueOnce({ stdout: "" }); // --local set succeeds
 
     const result = await runReleaseOptIn({ exec });
@@ -102,8 +112,8 @@ describe("runReleaseOptIn", () => {
   it("surfaces git-config write failure with key name and underlying error", async () => {
     const exec = vi
       .fn()
-      .mockRejectedValueOnce(new Error("exit code 1")) // --get (absent)
-      .mockRejectedValueOnce(new Error("permission denied")); // --local set fails
+      .mockRejectedValueOnce(absentReleaseConfig()) // --get (absent)
+      .mockRejectedValueOnce(deniedReleaseConfigWrite("true")); // --local set fails
 
     const stderr: string[] = [];
     const result = await runReleaseOptIn({
@@ -123,7 +133,7 @@ describe("runReleaseOptOut", () => {
   it("writes arc.releaseOptedIn = false to local config when key is absent", async () => {
     const exec = vi
       .fn()
-      .mockRejectedValueOnce(new Error("exit code 1")) // --get returns undefined (absent)
+      .mockRejectedValueOnce(absentReleaseConfig()) // --get returns undefined (absent)
       .mockResolvedValueOnce({ stdout: "" }); // --local set succeeds
 
     const result = await runReleaseOptOut({ exec });
@@ -173,7 +183,7 @@ describe("runReleaseOptOut", () => {
     const exec = vi
       .fn()
       .mockResolvedValueOnce({ stdout: "true\n" }) // --get returns "true"
-      .mockRejectedValueOnce(new Error("permission denied")); // --local set fails
+      .mockRejectedValueOnce(deniedReleaseConfigWrite("false")); // --local set fails
 
     const stderr: string[] = [];
     const result = await runReleaseOptOut({
