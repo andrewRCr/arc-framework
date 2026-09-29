@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 import type { RawGitExec } from "../../../src/lib/git/exec.js";
 import { canonicalDigest } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import { createCandidateSubjectSnapshot } from "../../../src/lib/work-unit/candidate-attestation.js";
@@ -35,8 +36,8 @@ function request(currentSubject = subject("current")) {
  * Every fixture here pins a merge base distinct from both revisions, which is exactly that pair — so a stub
  * answering the containment question any other way would place these cases on a topology they do not have.
  */
-const notAncestor = (): never => {
-  throw { exitCode: 1, stdout: bytes(""), stderr: bytes("") };
+const notAncestor = (args: readonly string[]): never => {
+  throw makeGitProcessError({ command: "git", args, exitCode: 1, stdout: bytes(""), stderr: "" });
 };
 
 function mechanicalReapplyExec(): RawGitExec {
@@ -48,7 +49,7 @@ function mechanicalReapplyExec(): RawGitExec {
   ]);
   return async (args) => {
     if (args.join(" ") === `merge-base --all ${oid("a")} ${oid("b")}`) return result(`${oid("1")}\n`);
-    if (args[0] === "merge-base" && args[1] === "--is-ancestor") notAncestor();
+    if (args[0] === "merge-base" && args[1] === "--is-ancestor") notAncestor(args);
     if (args[0] === "rev-parse" && args[1] === "--verify") {
       const expression = args[2] ?? "";
       if (expression === "HEAD^{commit}") return result(`${oid("c")}\n`);
@@ -97,7 +98,7 @@ describe("Git Candidate applicability", () => {
   it("stops as unavailable when no baseline-to-current merge base exists", async () => {
     const exec: RawGitExec = async (args) => {
       if (args[0] === "merge-base") {
-        throw { exitCode: 1, stdout: bytes(""), stderr: bytes("") };
+        throw makeGitProcessError({ command: "git", args, exitCode: 1, stdout: bytes(""), stderr: "" });
       }
       throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
     };
@@ -115,7 +116,7 @@ describe("Git Candidate applicability", () => {
 
   it("stops as unavailable when the baseline-to-current merge base is ambiguous", async () => {
     const exec: RawGitExec = async (args) => {
-      if (args[0] === "merge-base" && args[1] === "--is-ancestor") notAncestor();
+      if (args[0] === "merge-base" && args[1] === "--is-ancestor") notAncestor(args);
       if (args[0] === "merge-base") return result(`${oid("1")}\n${oid("2")}\n`);
       throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
     };
@@ -138,7 +139,9 @@ describe("Git Candidate applicability", () => {
   it("stops when the containment question cannot be answered at all", async () => {
     const exec: RawGitExec = async (args) => {
       if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
-        throw { exitCode: 128, stdout: bytes(""), stderr: bytes("fatal: bad object\n") };
+        throw makeGitProcessError({
+          command: "git", args, exitCode: 128, stdout: bytes(""), stderr: "fatal: bad object\n",
+        });
       }
       if (args[0] === "merge-base") return result(`${oid("1")}\n`);
       throw new Error(`unexpected Git invocation: ${args.join(" ")}`);

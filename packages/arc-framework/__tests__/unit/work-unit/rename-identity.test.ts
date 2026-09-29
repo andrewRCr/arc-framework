@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import {
   readRemoteBranchOid,
@@ -114,10 +115,10 @@ describe("rename remote branch leg", () => {
   });
 
   it("treats an already-absent old remote head as complete", async () => {
-    const exec: GitExec = async (_command, args) => {
+    const exec: GitExec = async (command, args) => {
       if (args[0] === "push" && args.includes(`:refs/heads/${OLD_BRANCH}`)) {
-        throw Object.assign(new Error("remote ref does not exist"), {
-          code: 1,
+        throw makeGitProcessError({
+          command, args, exitCode: 1,
           stderr: `error: unable to delete '${OLD_BRANCH}': remote ref does not exist`,
         });
       }
@@ -133,10 +134,10 @@ describe("rename remote branch leg", () => {
   });
 
   it("surfaces both OIDs when the old remote head moves after preflight", async () => {
-    const exec: GitExec = async (_command, args) => {
+    const exec: GitExec = async (command, args) => {
       if (args[0] === "push" && args.includes(`:refs/heads/${OLD_BRANCH}`)) {
-        throw Object.assign(new Error("stale info"), {
-          code: 1,
+        throw makeGitProcessError({
+          command, args, exitCode: 1,
           stderr: " ! [rejected] (stale info)",
         });
       }
