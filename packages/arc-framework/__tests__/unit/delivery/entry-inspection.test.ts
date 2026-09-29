@@ -26,6 +26,7 @@ import {
   deliveryThreeMemberStackPlanFixture,
 } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
+import { DeliveryStateV1Schema } from "../../../src/lib/delivery/schema.js";
 
 const plan = deliveryStackPlanFixture();
 const prefix = "# Task List\n\n";
@@ -752,10 +753,10 @@ describe("delivery entry inspection", () => {
     const memberDeliverableIds = [selectedDeliverableId, multiPlan.members[1]!.deliverableId];
     const initialState = deliveryStateFixture(multiPlan);
     const terminal = initialState.members.at(-1)!.coordinates!;
-    const state = {
+    const state = DeliveryStateV1Schema.parse({
       ...initialState,
       pendingReviewFixVerification: { selectedDeliverableId, memberDeliverableIds },
-    } as unknown as ReturnType<typeof deliveryStateFixture>;
+    });
     const taskList = `${prefix}${renderDeliveryPlanSection(multiPlan)}`
       + "## **Phase 1:** Build\n\n### `[ ]` **1.1 Work**\n";
 

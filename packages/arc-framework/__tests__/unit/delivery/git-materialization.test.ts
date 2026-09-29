@@ -17,7 +17,7 @@ import {
   rewriteDeliveryRemoteRef,
 } from "../../../src/lib/delivery/git-materialization.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
-import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
+import { makeGitProcessError, scriptGitExec } from "../../helpers/git-exec-fake.js";
 
 const ref = "refs/heads/delivery/example/first";
 const head = "a".repeat(40);
@@ -152,14 +152,21 @@ describe("delivery remote-ref leases", () => {
   });
 
   it("classifies publication failure from the exact reobserved remote state", async () => {
-    const afterFailure = (observed: string | null | "unavailable"): GitExec => {
+    const afterFailure = (observed: string | null): GitExec => scriptGitExec([
+      { match: { prefix: ["ls-remote"] }, responses: [
+        { stdout: "" },
+        { stdout: observed === null ? "" : `${observed}\t${ref}\n` },
+      ] },
+      { match: { predicate: (args) => args[0] !== "ls-remote" },
+        responses: [{ failure: { exitCode: 1, stderr: "push failed" } }] },
+    ]).exec;
+    const unavailableAfterFailure = (): GitExec => {
       let reads = 0;
       return async (_command, args) => {
         if (args[0] === "ls-remote") {
           reads += 1;
           if (reads === 1) return { stdout: "" };
-          if (observed === "unavailable") throw new Error("offline");
-          return { stdout: observed === null ? "" : `${observed}\t${ref}\n` };
+          throw new Error("offline");
         }
         throw makeGitProcessError({ command: "git", args, exitCode: 1, stderr: "push failed" });
       };
@@ -170,7 +177,8 @@ describe("delivery remote-ref leases", () => {
       exec: afterFailure("b".repeat(40)), remote: "origin", ref, head,
     })).resolves.toEqual({ status: "refused", reason: "stale-lease" });
     for (const observed of [null, "unavailable"] as const) {
-      await expect(publishDeliveryRemoteRef({ exec: afterFailure(observed), remote: "origin", ref, head }))
+      const exec = observed === "unavailable" ? unavailableAfterFailure() : afterFailure(observed);
+      await expect(publishDeliveryRemoteRef({ exec, remote: "origin", ref, head }))
         .resolves.toEqual({ status: "refused", reason: "unavailable" });
     }
   });
@@ -183,12 +191,12 @@ describe("delivery remote-ref leases", () => {
 
   it("reports a stale lease when a successful push leaves a foreign head", async () => {
     const foreignHead = "b".repeat(40);
-    let reads = 0;
-    const exec: GitExec = async (_command, args) => {
-      if (args[0] !== "ls-remote") return { stdout: "" };
-      reads += 1;
-      return { stdout: reads === 1 ? "" : `${foreignHead}\t${ref}\n` };
-    };
+    const { exec } = scriptGitExec([
+      { match: { prefix: ["ls-remote"] }, responses: [
+        { stdout: "" }, { stdout: `${foreignHead}\t${ref}\n` },
+      ] },
+      { match: { predicate: (args) => args[0] !== "ls-remote" }, responses: [{ stdout: "" }] },
+    ]);
     await expect(publishDeliveryRemoteRef({ exec, remote: "origin", ref, head }))
       .resolves.toEqual({ status: "refused", reason: "stale-lease" });
   });

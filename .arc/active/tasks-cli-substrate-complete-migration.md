@@ -775,84 +775,84 @@ assertion, or a value typed by a cast to a registered schema's output.
 
 - `[ ]` Carved code and tests of carved code differ from base only by compile-forced, behavior-preserving edits
 
-- `[ ]` No surviving module imports a `lib/user-sync/` survivor through `lib/user-sync/index.ts`
+- `[x]` No surviving module imports a `lib/user-sync/` survivor through `lib/user-sync/index.ts`
 
-- `[ ]` `lib/canonical/canonical-json.ts`, `lib/canonical/managed-path.ts`, `lib/work-unit/slug.ts`, the `ArcError`
+- `[x]` `lib/canonical/canonical-json.ts`, `lib/canonical/managed-path.ts`, `lib/work-unit/slug.ts`, the `ArcError`
   re-export in `lib/errors.ts`, and the vocabulary re-exports in `commands/active/types.ts` are gone with their
   shim-pinning test cases, and the canonical core's behavior tests run against the kernel in `unit/kernel/`
 
-- `[ ]` The local `SlugSchema` copies and the re-minted state and placement-tier enums are replaced by the kernel and
+- `[x]` The local `SlugSchema` copies and the re-minted state and placement-tier enums are replaced by the kernel and
   layout schemas
 
-- `[ ]` `CanonicalDigestSchema` is exported unregistered from `kernel/schema/vocabulary.ts` in the `z.templateLiteral`
+- `[x]` `CanonicalDigestSchema` is exported unregistered from `kernel/schema/vocabulary.ts` in the `z.templateLiteral`
   form with an explicit message, composed from constants the canonical core also derives `isCanonicalDigest` from
 
-- `[ ]` No `z.custom<CanonicalDigest>` copy remains in surviving code, and every remaining local `sha256:` pattern
+- `[x]` No `z.custom<CanonicalDigest>` copy remains in surviving code, and every remaining local `sha256:` pattern
   there holds a fenced-owner matrix row
 
-- `[ ]` The five validation-surface re-export sites, the `commands/config.ts` relay, and the cross-WU entry re-exports
+- `[x]` The five validation-surface re-export sites, the `commands/config.ts` relay, and the cross-WU entry re-exports
   in `lib/user-sync/index.ts` are gone, and their importers use the owning modules
 
-- `[ ]` The nine surviving routed types, the two snapshot types, and `ReleaseRoutingValue` have full schemas that are
+- `[x]` The nine surviving routed types, the two snapshot types, and `ReleaseRoutingValue` have full schemas that are
   their types' `z.infer` authority, with the handwritten declarations gone
 
-- `[ ]` The ten roots are registered at version 1 `strict-current`, each with a unit test over representative producer
+- `[x]` The ten roots are registered at version 1 `strict-current`, each with a unit test over representative producer
   output
     - _Deviation:_ Producer coverage runs in the unit lane for seven roots and the integration lane for config,
       extensions, and domain-rules. Those three tests exercise their actual filesystem/parser command producers and
       strict refusals; the owner accepted this placement during Task 8.1 verification.
 
-- `[ ]` The four checkpoint drift wraps use the full `BaseDriftResult` schema
+- `[x]` The four checkpoint drift wraps use the full `BaseDriftResult` schema
 
-- `[ ]` The regenerated schema bundle's diff is confined to the ten new roots, the session-init and session-recover
+- `[x]` The regenerated schema bundle's diff is confined to the ten new roots, the session-init and session-recover
   envelopes, and the review-readiness `$ref: slug`, and the session-envelope goldens pass without expectation changes
 
-- `[ ]` The layout migration ledger, its schema module, `assert-layout-migration.ts`, the `audit:layout-migration`
+- `[x]` The layout migration ledger, its schema module, `assert-layout-migration.ts`, the `audit:layout-migration`
   script, their tests, the entrypoint-test entry, and the manifest exclusion are gone
 
-- `[ ]` No framework-class code hit in a surviving module lacks a disposition kind, and none that fits no kind remains
+- `[x]` No framework-class code hit in a surviving module lacks a disposition kind, and none that fits no kind remains
 
-- `[ ]` The final code-surface reconciliation over the 15 layout classes reports no hit without a row or predicate, no
+- `[x]` The final code-surface reconciliation over the 15 layout classes reports no hit without a row or predicate, no
   overlap the precedence does not settle, no row or predicate without a hit, and no row whose hit count moved; every
   non-code surface falls under a recorded predicate, and its negative control reports exactly the removed hits beyond
   the unremoved run's report
 
-- `[ ]` Every matrix row carries one of the four dispositions with its citation
+- `[x]` Every matrix row carries one of the four dispositions with its citation
 
-- `[ ]` `RawGitExec` and `RawGitResult` are declared in `lib/git/exec.ts` and imported type-only by `change-facts.ts`,
+- `[x]` `RawGitExec` and `RawGitResult` are declared in `lib/git/exec.ts` and imported type-only by `change-facts.ts`,
   and `classify-change.sh` still runs
 
-- `[ ]` The spawn factory is `createSpawnRawGitExec`, and `createRawGitExec` names only the execa adapter
+- `[x]` The spawn factory is `createSpawnRawGitExec`, and `createRawGitExec` names only the execa adapter
 
-- `[ ]` The failure-text predicates live in `lib/git/ref-tree.ts` and `resolveGitCommonDir` in `lib/git/exec.ts`, with
+- `[x]` The failure-text predicates live in `lib/git/ref-tree.ts` and `resolveGitCommonDir` in `lib/git/exec.ts`, with
   no importer reaching either through `lib/user-sync/`, and errand identity classifies through `gitFailureText()`
 
-- `[ ]` The 17 always-JSON adapters, the 4 value-bearing commands, and `release opt-in` and `opt-out` are wrapped,
+- `[x]` The 17 always-JSON adapters, the 4 value-bearing commands, and `release opt-in` and `opt-out` are wrapped,
   carved handlers' command surfaces included; the always-JSON handlers and `log standalone` build their executors from
   the context they receive, and the 3 missing declarations exist
 
-- `[ ]` The shared helpers in `handlers/shared.ts` require an executor, and their carved callers pass `createGitExec()`
+- `[x]` The shared helpers in `handlers/shared.ts` require an executor, and their carved callers pass `createGitExec()`
 
-- `[ ]` No surviving context-bearing command path spawns Git through an unbound executor, exported helpers' callers
+- `[x]` No surviving context-bearing command path spawns Git through an unbound executor, exported helpers' callers
   included: `gitExec`'s remaining surviving importers are the standalone scripts and the five fallback holders their
   callers override, `gitExecInput`'s remaining surviving use is the unbound fallback `createGitExecInput` returns,
   and the only surviving executors built without a subprocess policy are the module-level ones in `lib/io-context.ts`
   and `local-test-admission.ts`'s
 
-- `[ ]` The scripted fake with every designed capability, the `GitProcessError` fixture, the meta builder, and the
+- `[x]` The scripted fake with every designed capability, the `GitProcessError` fixture, the meta builder, and the
   schema-assertion helper exist under `__tests__/helpers/` with their own tests
 
 - `[ ]` Apart from hits a retained-by-rule matrix row covers, no surviving test keeps a hand-built Git-failure
   rejection or a convertible local double, other than doubles the cut line hands to a named Errand, each listed in the
   matrix
 
-- `[ ]` `makeGitExecInput` builds on `createExecaGitExecInput`, and `stubGitExec` is local to `active.test.ts`
+- `[x]` `makeGitExecInput` builds on `createExecaGitExecInput`, and `stubGitExec` is local to `active.test.ts`
 
 - `[ ]` Apart from hits a retained-by-rule matrix row covers, every hand-written meta block left in a surviving test
   belongs to a test of meta parsing or layout, and no surviving test keeps an inline `safeParse(...).success` assertion
   or types a value by a cast to a registered schema's output
 
-- `[ ]` The `testing-standards` project override names the shared fake, fixture, builder, and helper, and the doubles
+- `[x]` The `testing-standards` project override names the shared fake, fixture, builder, and helper, and the doubles
   that stay local
 
 - `[ ]` Every affected test-cost baseline, `lane` included, predates the first new test file, and the final comparison
@@ -861,7 +861,7 @@ assertion, or a value typed by a cast to a registered schema's output.
 - `[ ]` The cohort closeout criterion carries the storage-carve exclusion, and the residual matrix reconciles against
   all six member scopes and the amended criterion
 
-- `[ ]` Repository-wide searches for every retired symbol and path across static and dynamic imports, `vi.mock`
+- `[x]` Repository-wide searches for every retired symbol and path across static and dynamic imports, `vi.mock`
   specifiers, fixtures, and generated outputs come back empty
 
 - `[ ]` All quality gates pass (Markdown lint, ARC contract checks, `typecheck:all`, TypeScript lint, the full test

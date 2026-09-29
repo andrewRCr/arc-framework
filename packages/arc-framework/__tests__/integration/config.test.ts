@@ -7,8 +7,9 @@
  * defaults fallback on missing keys, and hooks.* exclusion.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { assertSchemaAccepts, assertSchemaRefuses } from "../helpers/schema-assertion.js";
+import { scriptGitExec } from "../helpers/git-exec-fake.js";
 import { mkdir, mkdtemp, readFile as nodeReadFile, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -27,15 +28,14 @@ import type { ConfigSessionInitSettings } from "../../src/commands/config.js";
  * session-init tests can exercise tier-1 overrides without a real repo.
  */
 function buildExec(overrides: Record<string, string | undefined>) {
-  return vi.fn().mockImplementation((cmd: string, args: string[]) => {
-    if (cmd === "git" && args[0] === "config" && args[1] === "--get") {
+  return scriptGitExec([{
+    match: { prefix: ["config", "--get"] },
+    responses: [({ args }) => {
       const key = args[2];
       const value = key === undefined ? undefined : overrides[key];
-      if (value === undefined) return Promise.reject(new Error("exit 1"));
-      return Promise.resolve({ stdout: `${value}\n` });
-    }
-    return Promise.reject(new Error(`unexpected call: ${cmd} ${(args ?? []).join(" ")}`));
-  });
+      return value === undefined ? { failure: { exitCode: 1 } } : { stdout: `${value}\n` };
+    }],
+  }]).exec;
 }
 
 const realReadFile = (path: string): Promise<string> => nodeReadFile(path, "utf-8");

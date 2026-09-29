@@ -2,6 +2,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { join } from "node:path";
+import { scriptGitExec } from "../helpers/git-exec-fake.js";
 
 import {
   isLocalHeavyTestTier,
@@ -10,17 +11,12 @@ import {
   withLocalHeavyTestAdmission,
 } from "../../src/lib/local-test-admission.js";
 
-function gitResult(args: string[]): { stdout: string; stderr: string } {
-  if (args[0] === "rev-parse" && args[1] === "--show-toplevel") {
-    return { stdout: "/repo/worktree-a\n", stderr: "" };
-  }
-  if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
-    return { stdout: "/repo/.git\n", stderr: "" };
-  }
-  if (args[0] === "branch" && args[1] === "--show-current") {
-    return { stdout: "feat/widget\n", stderr: "" };
-  }
-  throw new Error(`Unexpected git invocation: ${args.join(" ")}`);
+function admissionGit() {
+  return scriptGitExec([
+    { match: ["rev-parse", "--show-toplevel"], responses: [{ stdout: "/repo/worktree-a\n", stderr: "" }] },
+    { match: ["rev-parse", "--git-common-dir"], responses: [{ stdout: "/repo/.git\n", stderr: "" }] },
+    { match: ["branch", "--show-current"], responses: [{ stdout: "feat/widget\n", stderr: "" }] },
+  ]).exec;
 }
 
 describe("resolveProcessVisibilityScope", () => {
@@ -66,7 +62,7 @@ describe("withLocalHeavyTestAdmission", () => {
       async () => "complete",
       {
         acquireLock: vi.fn(async () => ({ path: "/repo/.git/arc/test-suite/.local-heavy-tests.lock", pid: 42, token: "ours" })),
-        git: vi.fn(async (_command, args) => gitResult(args)),
+        git: admissionGit(),
         mkdir: async () => {
           mkdirAttempts += 1;
           if (mkdirAttempts < 3) throw Object.assign(new Error("delete pending"), { code: "EPERM" });
@@ -122,7 +118,7 @@ describe("withLocalHeavyTestAdmission", () => {
       action,
       {
         acquireLock,
-        git: vi.fn(async (_command, args) => gitResult(args)),
+        git: admissionGit(),
         mkdir: vi.fn(async () => undefined),
         now: () => clock,
         pid: 42,
@@ -185,7 +181,7 @@ describe("withLocalHeavyTestAdmission", () => {
       },
       {
         acquireLock: vi.fn(async () => handle),
-        git: vi.fn(async (_command, args) => gitResult(args)),
+        git: admissionGit(),
         mkdir: vi.fn(async () => undefined),
         pid: 42,
         registerExitCleanup,
@@ -222,7 +218,7 @@ describe("withLocalHeavyTestAdmission", () => {
       },
       {
         acquireLock: vi.fn(async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours" })),
-        git: vi.fn(async (_command, args) => gitResult(args)),
+        git: admissionGit(),
         mkdir: vi.fn(async () => undefined),
         pid: 42,
         releaseLock: vi.fn(async () => {}),
@@ -280,7 +276,7 @@ describe("withLocalHeavyTestAdmission", () => {
       },
       {
         acquireLock: vi.fn(async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours" })),
-        git: vi.fn(async (_command, args) => gitResult(args)),
+        git: admissionGit(),
         mkdir: vi.fn(async () => undefined),
         now: () => clock,
         pid: 42,
@@ -314,7 +310,7 @@ describe("withLocalHeavyTestAdmission", () => {
       },
       {
         acquireLock: vi.fn(async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours" })),
-        git: vi.fn(async (_command, args) => gitResult(args)),
+        git: admissionGit(),
         mkdir: vi.fn(async () => undefined),
         now: () => clock,
         pid: 42,
@@ -366,7 +362,7 @@ describe("withLocalHeavyTestAdmission", () => {
             leaseUntil: 300_000,
           };
         }),
-        git: vi.fn(async (_command, args) => gitResult(args)),
+        git: admissionGit(),
         mkdir: vi.fn(async () => undefined),
         now: () => clock,
         pid: 42,
@@ -409,7 +405,7 @@ describe("withLocalHeavyTestAdmission", () => {
           token: "ours",
           leaseUntil: 120_000,
         })),
-        git: vi.fn(async (_command, args) => gitResult(args)),
+        git: admissionGit(),
         mkdir: vi.fn(async () => undefined),
         now: () => clock,
         pid: 42,
@@ -458,7 +454,7 @@ describe("withLocalHeavyTestAdmission", () => {
       async () => "complete",
       {
         acquireLock: vi.fn(async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours" })),
-        git: vi.fn(async (_command, args) => gitResult(args)),
+        git: admissionGit(),
         mkdir: vi.fn(async () => undefined),
         pid: 42,
         releaseLock: vi.fn(async () => {}),
@@ -476,7 +472,7 @@ describe("withLocalHeavyTestAdmission", () => {
       async () => Promise.reject(failure),
       {
         acquireLock: vi.fn(async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours" })),
-        git: vi.fn(async (_command, args) => gitResult(args)),
+        git: admissionGit(),
         mkdir: vi.fn(async () => undefined),
         pid: 42,
         releaseLock,
@@ -498,7 +494,7 @@ describe("withLocalHeavyTestAdmission", () => {
       async () => {},
       {
         acquireLock: vi.fn(async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours" })),
-        git: vi.fn(async (_command, args) => gitResult(args)),
+        git: admissionGit(),
         mkdir: vi.fn(async () => undefined),
         pid: 42,
         registerExitCleanup: vi.fn(() => unregisterExitCleanup),

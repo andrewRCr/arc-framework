@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   ErrandStalenessSweepResultSchema,
@@ -95,9 +96,7 @@ describe("ErrandStalenessSweepResultSchema", () => {
   });
 
   it("rejects an impossible calendar date", () => {
-    expect(
-      StaleErrandReportSchema.safeParse({ slug: "legacy title", created: "2026-02-30", ageDays: 84 }).success,
-    ).toBe(false);
+    assertSchemaRefuses(StaleErrandReportSchema, { slug: "legacy title", created: "2026-02-30", ageDays: 84 });
   });
 
   it.each([
@@ -107,6 +106,6 @@ describe("ErrandStalenessSweepResultSchema", () => {
     { slug: "title", created: "2026-05-18", ageDays: 1.5 },
     { slug: "title", created: "2026-05-18", ageDays: 7, leaked: true },
   ])("rejects a malformed stale report", (report) => {
-    expect(StaleErrandReportSchema.safeParse(report).success).toBe(false);
+    assertSchemaRefuses(StaleErrandReportSchema, report);
   });
 });

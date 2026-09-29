@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   CascadeCandidateSchema,
@@ -281,37 +282,36 @@ describe("CascadeResolutionSchema", () => {
     { kind: "main-fallback", remoteEvidence: "exact", baseBranch: "main" },
     pendingResolution,
   ])("accepts each resolution kind", (resolution) => {
-    expect(CascadeResolutionSchema.safeParse(resolution).success).toBe(true);
+    assertSchemaAccepts(CascadeResolutionSchema, resolution);
   });
 
   it("requires a base branch on the fallback outcome", () => {
-    expect(CascadeResolutionSchema.safeParse({ kind: "main-fallback", remoteEvidence: "exact" }).success)
-      .toBe(false);
+    assertSchemaRefuses(CascadeResolutionSchema, { kind: "main-fallback", remoteEvidence: "exact" });
   });
 
   it("allows switch candidates with or without a worktree path", () => {
-    expect(CascadeCandidateSchema.safeParse(switchCandidate).success).toBe(true);
-    expect(CascadeCandidateSchema.safeParse({ ...switchCandidate, worktreePath: "/wt/live" }).success).toBe(true);
+    assertSchemaAccepts(CascadeCandidateSchema, switchCandidate);
+    assertSchemaAccepts(CascadeCandidateSchema, { ...switchCandidate, worktreePath: "/wt/live" });
   });
 
   it.each(["removable", "external"] as const)("requires a worktree path for %s candidates", (proposedAction) => {
-    expect(CascadeCandidateSchema.safeParse({ branch: "feat/work", proposedAction }).success).toBe(false);
+    assertSchemaRefuses(CascadeCandidateSchema, { branch: "feat/work", proposedAction });
   });
 
   it("requires at least two candidates for a surfaced choice", () => {
-    expect(CascadeResolutionSchema.safeParse({
+    assertSchemaRefuses(CascadeResolutionSchema, {
       kind: "surface",
       remoteEvidence: "exact",
       candidates: [switchCandidate],
-    }).success).toBe(false);
+    });
   });
 
   it("requires a positive pending count and the exact live-refresh remedy", () => {
-    expect(CascadeResolutionSchema.safeParse({ ...pendingResolution, pendingBranchCount: 0 }).success).toBe(false);
-    expect(CascadeResolutionSchema.safeParse({
+    assertSchemaRefuses(CascadeResolutionSchema, { ...pendingResolution, pendingBranchCount: 0 });
+    assertSchemaRefuses(CascadeResolutionSchema, {
       ...pendingResolution,
       refreshRemedy: { ...pendingResolution.refreshRemedy, argv: ["git", "fetch"] },
-    }).success).toBe(false);
+    });
   });
 
   it.each([
@@ -324,7 +324,7 @@ describe("CascadeResolutionSchema", () => {
     },
     { kind: "main-fallback", remoteEvidence: "exact", candidate: switchCandidate },
   ])("rejects fields from another resolution kind", (resolution) => {
-    expect(CascadeResolutionSchema.safeParse(resolution).success).toBe(false);
+    assertSchemaRefuses(CascadeResolutionSchema, resolution);
   });
 });
 
@@ -343,15 +343,15 @@ describe("SessionInitRecoveryValueSchema", () => {
       recommendedPromptText: "Refresh live evidence, or recover manually.",
     } as const;
 
-    expect(SessionInitRecoveryValueSchema.safeParse(pending).success).toBe(true);
-    expect(SessionInitRecoveryValueSchema.safeParse({
+    assertSchemaAccepts(SessionInitRecoveryValueSchema, pending);
+    assertSchemaRefuses(SessionInitRecoveryValueSchema, {
       ...pending,
       recommendedAction: "switch",
-    }).success).toBe(false);
-    expect(SessionInitRecoveryValueSchema.safeParse({
+    });
+    assertSchemaRefuses(SessionInitRecoveryValueSchema, {
       ...pending,
       recommendedPromptText: "",
-    }).success).toBe(false);
+    });
   });
 
   it("limits an exact switch candidate to automatic switch or a composed prompt", () => {
@@ -363,6 +363,6 @@ describe("SessionInitRecoveryValueSchema", () => {
       recommendedPromptText: "Recover manually.",
     } as const;
 
-    expect(SessionInitRecoveryValueSchema.safeParse(resolved).success).toBe(false);
+    assertSchemaRefuses(SessionInitRecoveryValueSchema, resolved);
   });
 });

@@ -18,7 +18,6 @@ import {
 } from "../../../src/lib/git/remote-ref-reader.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
 import { GitProcessError } from "../../../src/lib/git/process-error.js";
-import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 const oid = (seed: string): string => seed.padEnd(40, "0");
 const oid256 = (seed: string): string => seed.padEnd(64, "0");
@@ -46,12 +45,6 @@ function pathAbsentError(): Error {
   const err = new Error("fatal: path '.arc/active/meta-x.md' does not exist in 'ref'");
   Object.assign(err, { code: 128 });
   return err;
-}
-
-function execFailing(stderr: string): GitExec {
-  return vi.fn(async (command, args) => {
-    throw makeGitProcessError({ command, args, exitCode: 128, stderr });
-  });
 }
 
 describe("readRemoteHeadSnapshot", () => {
@@ -181,7 +174,9 @@ describe("readRemoteHeadSnapshot", () => {
   });
 
   it("bounds unclassified failures to the public error value", async () => {
-    const exec = execFailing("credential-bearing diagnostic that must not escape");
+    const exec: GitExec = vi.fn(async () => {
+      throw new Error("credential-bearing diagnostic that must not escape");
+    });
 
     await expect(readRemoteHeadSnapshot({
       exec,
@@ -239,7 +234,9 @@ describe("listLiveRemoteBranches", () => {
   });
 
   it("degrades to an empty membership list when ls-remote is unreachable", async () => {
-    const exec = execFailing("fatal: could not read from remote repository");
+    const exec: GitExec = vi.fn(async () => {
+      throw new Error("fatal: could not read from remote repository");
+    });
 
     const result = await listLiveRemoteBranches({ exec });
 
@@ -265,7 +262,9 @@ describe("readLiveRemoteHeads", () => {
 
   it("distinguishes an empty reachable remote from an unavailable query", async () => {
     const empty = execReturning("");
-    const unavailable = execFailing("timed out");
+    const unavailable: GitExec = vi.fn(async () => {
+      throw new Error("timed out");
+    });
 
     await expect(readLiveRemoteHeads({ exec: empty })).resolves.toEqual({
       reachable: true,
@@ -327,7 +326,9 @@ describe("readLiveRemoteBranchTip", () => {
   });
 
   it("distinguishes an unreadable remote", async () => {
-    const exec = execFailing("timed out");
+    const exec: GitExec = vi.fn(async () => {
+      throw new Error("timed out");
+    });
 
     await expect(readLiveRemoteBranchTip({ exec, branch: "plan/origin" })).resolves.toEqual({
       reachable: false,

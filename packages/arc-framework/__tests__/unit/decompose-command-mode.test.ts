@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../helpers/schema-assertion.js";
 
 import {
   DECOMPOSE_MACHINE_READABLE_KEYS,
@@ -11,7 +12,7 @@ const origin = "origin";
 const authority = `sha256:${"a".repeat(64)}`;
 describe("DecomposeCommandInputSchema", () => {
   it("accepts the complete read-only preflight mode", () => {
-    expect(DecomposeCommandInputSchema.safeParse({ origin, preflight: true }).success).toBe(true);
+    assertSchemaAccepts(DecomposeCommandInputSchema, { origin, preflight: true });
   });
 
   it.each([
@@ -21,7 +22,7 @@ describe("DecomposeCommandInputSchema", () => {
     { origin, finish: "map.json", apply: authority },
     { origin, advanceBase: "map.json" },
   ])("accepts a complete repository command mode: %o", (input) => {
-    expect(DecomposeCommandInputSchema.safeParse(input).success).toBe(true);
+    assertSchemaAccepts(DecomposeCommandInputSchema, input);
   });
 
   it.each([
@@ -47,7 +48,7 @@ describe("DecomposeCommandInputSchema", () => {
     { origin, preflight: false },
     { origin, cutMap: "" },
   ])("refuses partial, conflicting, empty, or false mode evidence: %o", (input) => {
-    expect(DecomposeCommandInputSchema.safeParse(input).success).toBe(false);
+    assertSchemaRefuses(DecomposeCommandInputSchema, input);
   });
 
   it("derives exclusivity and machine-readable routing from one mode declaration", () => {
