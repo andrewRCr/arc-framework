@@ -406,17 +406,10 @@ path spawns Git through an unbound executor; the failure-text predicates and `re
   Git's complete stderr rather than a bounded message, and the `createRawGitExec` name belongs only to the execa
   adapter.
 
-    - `[ ]` **4.6.a Replace the `.message` classification in errand identity code**
-        - The compare-and-swap check on the write and the remote-unavailable check on the push in
-          `lib/errand/identity-transaction.ts`; `record.ts` and `merge.ts` already read `gitFailureText()`.
-        - A typed failure's message already carries its stderr on one line, capped at 1,024 characters and falling back
-          to stdout, so only a condition past that window or on stdout alone tells the two readings apart.
-        - Build `test-first` (one behavior at a time), in `__tests__/unit/errand-identity-transaction.test.ts` with the
-          `GitProcessError` fixture:
-            - A compare-and-swap rejection whose stderr carries the condition past the message window retries the write
-            - A push failure whose stderr names an unreachable remote past the window stops instead of retrying
-            - A condition named only on stdout does not classify
-            - An unrelated write failure stays an error carrying its message
+    - `[x]` **4.6.a Replace the `.message` classification in errand identity code**
+        - Both the write CAS and push remote-unavailable branches now classify `gitFailureText(error)` while preserving
+          the existing message in returned errors. Four transaction-level tests cover long stderr, stdout-only text,
+          and unrelated failure; the three distinguishing cases failed before the change.
 
     - `[ ]` **4.6.b Rename the `change-facts.ts` spawn factory to `createSpawnRawGitExec`**
         - It stays exported for the four integration tests that import it; `object-availability.test.ts` drops its
