@@ -26,6 +26,26 @@ function severityOnMetadataLine(body: string, start: number): ReturnType<typeof 
   return severity(body.slice(start).split(/\r?\n/u, 1)[0] ?? "");
 }
 
+/** A metadata line made only of italic badges, one of them the severity this parser reads. */
+function isBadgeLine(line: string): boolean {
+  return severity(line) !== null && line.replace(/_[^_\r\n]+_/gu, "").replace(/\|/gu, "").trim().length === 0;
+}
+
+/**
+ * Select the prose that labels an inline thread comment.
+ *
+ * Collapsed `<details>` content is supporting material, and a leading badge line is metadata, so the label comes
+ * from the first top-level prose after them; a comment that opens with anything else keeps its first top-level line.
+ */
+function threadLabelSource(body: string): string {
+  const blocks = detailsBlocks(body);
+  const topLevel = blocks === null ? body : maskDetailsRanges(body, 0, body.length, blocks);
+  const lines = topLevel.split(/\r?\n/u);
+  const first = lines.findIndex((line) => line.trim().length > 0);
+  const firstLine = lines[first];
+  return firstLine !== undefined && isBadgeLine(firstLine) ? lines.slice(first + 1).join("\n") : topLevel;
+}
+
 type UnorderedThreadFinding = Omit<Extract<HostedFinding, { origin: "review-thread" }>, "sourceOrdinal">;
 
 export function finding(
@@ -46,7 +66,7 @@ export function finding(
       : {}),
     locus: `${comment.path}:${comment.line}`,
     url: comment.url,
-    ...captureReviewFindingSourceLabel({ body: comment.body }),
+    ...captureReviewFindingSourceLabel({ body: threadLabelSource(comment.body) }),
   };
 }
 
