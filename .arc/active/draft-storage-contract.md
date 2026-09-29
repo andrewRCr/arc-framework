@@ -17,16 +17,18 @@
 
 - **Readiness:** rough. The scope, what this work unit lands, and the working rules are settled; the decisions the
   siblings wait on are still open.
-- **Resolved (2026-09-29):** stage entry (§ Stage entry); what lands here and what is handed off (§ What this work
-  unit lands); the register's landing route (§ The storage-coupling register); inbox write serialization (C1);
-  ghost mode as a core requirement with a middle-ground split (C8); record format skew (C2); the register sweep,
-  landed on `main` (PR #738); the Inbound Buffer, integrated into the ledger and the consumer map; reverse lookup and
-  assurance-chain carry-forward (C1); project identity (C7); the GitHub Enterprise Server host test, which held (C3);
-  shared surfaces projected into every worktree, the `active/` layout with ownership by folder and edit rights under
-  `in-flight/`, the projection's name, and the firing points with `arc save` (C6).
+- **Resolved (2026-09-29):** stage entry (§ Stage entry); what lands here and what is handed off (§ What this work unit
+  lands); the register's landing route (§ The storage-coupling register); inbox write serialization (C1); ghost mode as
+  a core requirement with a middle-ground split (C8); record format skew (C2); the register sweep, landed on `main` (PR
+  #738); the Inbound Buffer, integrated into the ledger and the consumer map; reverse lookup and assurance-chain
+  carry-forward (C1); project identity (C7); the GitHub Enterprise Server host test, which held (C3); shared surfaces
+  projected into every worktree, the `active/` layout with ownership by folder and edit rights under `in-flight/`, the
+  projection's name, the firing points with `arc save`, and opt-in editor settings (C6); the two-level family model and
+  the family list, review evidence as stored, and machine-local state as a projection property (C2); identity as a
+  name plus a UID (C2), the ref surfaces keyed by UID (C3), and slug guards and entry IDs (C4); the local copy
+  following the remote — the code repository's refs by default, a separate Git directory otherwise (C3).
 - **Open:** every `Open` item in § Decision ledger; the consumer map.
-- **Next:** the rest of C6 — editor settings — then ref layout (C3), the remaining concurrency details (C4), and the
-  family list (C2) that all of them read.
+- **Next:** the remaining concurrency details (C4).
 
 ---
 
@@ -157,20 +159,78 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
   alone; design artifacts reach review only through the export setting (C10). `storage-seam`'s review and evidence
   work redefines the subject, and the evidence-neutral path treatment goes with the register's lifecycle
   classification row.
-- **Open:** the family list. It drives the ref layout (C3), migrate's coverage (C1), and the conformance suite.
-- **Open:** which families are tracked versus stored, as layout data with a standard and a ghost profile (C8).
-- **Open:** whether review evidence is a stored family — the review records in the per-work-unit user workspace,
-  which today are swept at archive (register row on the per-work-unit workspace), and review receipts.
-  `review-protocol-alignment` designs the Owner-accepted terminus's durable store against the answer.
-- **Open:** a machine-local class that is never persisted or synced. Today the only boundary is notes code — the
-  dot-prefix rule in `lib/user-sync/classifier.ts` and the serialize-walk prefilter — over the compaction seed, nudge
-  markers, sync state, the release audit log, the setup marker, and load backups under `.arc/user/<id>/.internal/`,
-  and `.notes.lock` and `.machine-id` in the common Git directory. Personal subdirectories (`archive/`, `drafts/`) fall
-  to the per-work-unit class and are never saved, so the import must classify them. Session locus records under
+- **Decided** (Owner, 2026-09-29): two levels. A **family** is the storage grouping — scope (project or identity), ref
+  placement (which may be a subtree of another family's ref), retention, sync, tracked-versus-stored profile, and
+  lifecycle. A **kind** within it carries the parser, format version, writer rule, and projected path. The split is
+  forced: each work unit is one ref with one lifecycle, yet its meta and task list take a different writer rule from its
+  prose (C6), and a backlog stub is groomed by anyone while an in-flight one is not. C3 decides how each family shards
+  into refs; C4's "surface" names one ref's share of a family. This work unit owns the list and each family's storage
+  properties; each family's field schema stays with `storage-seam` or the follow-on that owns it, so the list commits no
+  schema.
+- **Decided** (Owner, 2026-09-29): the families. The list drives the ref layout (C3), migrate's coverage (C1), and the
+  conformance suite.
+    - Project scope:
+        - **work units**, across their whole lifecycle, `completed/` included — kinds: meta and task list (machine
+          records), and draft, spec, notes, and companions (prose), under C6's writer rules. The layout resolver already
+          names the first five; companions follow ownership by folder;
+        - **cohorts** — cohort documents, three-way line merge;
+        - **the project inbox** — `ATOMIC-INBOX`, entry merge;
+        - **delivery and review records** — Candidate records (`candidates/*.json`), integration boundaries
+          (`*.boundary.json`), and review evidence: machine records written only by verbs. One family for now;
+          `storage-seam`'s review and evidence work and `delivery-observe-attest` split its kinds, and part of the
+          delivery machinery may go with the substrate;
+        - **project identity and counters** — the project ID (C7) and record-number counters, by compare-and-swap;
+        - **lineage** — terminal transition records (decomposition, `transitions/*.json`) and retirement receipts,
+          keyed by the UID of an origin that no longer exists. A rename is not terminal: the work unit keeps its UID
+          and records its former slugs, so an old name still resolves;
+        - reserved: `VECTOR.PROJECT` (`goal-aware-direction`).
+    - Identity scope, one person across their machines:
+        - **personal surfaces** — `USER-INBOX` and `WORKING-MEMORY` (entry merge) and personal documents; reserved:
+          `VECTOR.USER`, and `config.user.yml` for `config-storage-architecture`;
+        - **the per-work-unit personal workspace** — `SESSION-NOTES` and companions such as `capture-notes.md`;
+        - **Errand identities**, already live under `refs/arc/user/<id>/errands*`.
+    - Not families: the machine-local set (below); derived views, never stored — ROADMAP, `STATUS.USER`, the archive
+      index, and the query cache; and the tracked machinery and constitutional documents.
+      `strategy-file-classification.md`'s taxonomy governs update behavior, a separate axis.
+- **Decided** (Owner, 2026-09-29): review evidence is stored, at project scope. It must survive archive and a change of
+  machine, and the integration boundary files are today the Owner-accepted terminus's only store. The review records
+  now in the per-work-unit personal workspace, swept at archive (register row on that workspace), move there, beside
+  review receipts. `review-protocol-alignment` designs the terminus's durable form against this.
+- **Decided** (Owner, 2026-09-29): everything under `.arc/user/<id>/` except the machine-local set is stored and synced;
+  a subdirectory is a work unit's personal workspace only when it is named for one. Today's classifier
+  (`lib/user-sync/classifier.ts`) reads any subdirectory as per-work-unit, so personal subdirectories (`archive/`,
+  `drafts/`) are never saved; the import classifies them as personal documents.
+- **Decided** (Owner, 2026-09-29): machine-local state is not a family but a projection property — a local-only path
+  set the projection enforces (`strategy-storage-evolution.md` Principles 8 and 9). Invariant: machine-scoped state
+  never round-trips through a store shared across machines. Today the only boundary is notes code — the dot-prefix
+  rule in `lib/user-sync/classifier.ts` and the serialize-walk prefilter — over the compaction seed, nudge markers,
+  sync state, the release audit log, the setup marker, and load backups under `.arc/user/<id>/.internal/`, and
+  `.notes.lock` and `.machine-id` in the common Git directory. Session locus records under
   `.arc/user/<id>/.internal/loci/` are the sharpest case: synced to another machine, one machine's leases and process
-  anchors would read as live foreign occupancy. Invariant: machine-scoped state never round-trips through a store
-  shared across machines. Likely a projection property (a local-only overlay path set) rather than a new storage
-  class (`strategy-storage-evolution.md` Principles 8 and 9). Name the class here; the projection enforces it.
+  anchors would read as live foreign occupancy.
+- **Decided** (Owner, 2026-09-29): identity is a name plus a UID, the Kubernetes model. The slug is the name: the
+  human handle, unique among live records of its kind and reusable once its record completes. The UID is minted at
+  creation with `crypto.randomUUID()`, never reused, and never changes, so it tells a recreated record from an earlier
+  one of the same name. Work units, cohorts, and Errands carry one; the project ID (C7) and Candidate records already
+  do.
+    - Random, neither time-ordered nor sequential. UUIDv7 and ULID prefixes are timestamps, so short prefixes of IDs
+      minted close together collide; sequential numbers collide across offline machines, which is why beads moved to
+      hash IDs (v0.20.1). Counters people read — ADR numbers, the archive sequence — stay counters, as labels rather
+      than identity.
+    - Display is the shortest unique prefix, as Git abbreviates. A durable name that carries one, such as an Errand
+      branch, takes a fixed eight hex characters. A recurring generic name takes a UID suffix, never a date, which
+      orders but does not disambiguate. The Errand branch change runs ahead as a captured Errand; re-keying the
+      Errand ref tree is `storage-ref-backend`'s.
+    - Machine records reference each other by UID; prose keeps names and backticked filenames. UIDs never enter
+      filenames or projected paths, which stay slug-keyed.
+    - The meta gains an `Id` field, a schema change `storage-seam` makes; the import mints a UID for every existing
+      record.
+    - Two guards hold slug uniqueness, since two live records with one slug would project to one path. Work-unit
+      slugs and cohort names share `backlog/planned/`'s children, so each guard checks both kinds. At creation, the
+      slug is checked against live records in the local store, fetched first when online, and a clash refuses with a
+      rename remedy. A clash between machines resolves by write-then-gate (C4): both records exist, the projection
+      refuses to place the second on the taken path, status lists the conflict, and a rename resolves it.
+- **Open:** which families are tracked versus stored, as layout data with a standard and a ghost profile (C8).
 - **Open:** whether notes sync's serialization rules — the text-only allowlist, the 256 KB size cap, and the secret
   exclusions in `lib/git/user-sync.ts` — carry over to the stored user surface.
 
@@ -189,13 +249,61 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
   the fresh ref takes a new name. Reads take only the tip, so depth never enters the read path (flat to 20,197
   commits). A rotated year fetched 8–19 MB at ten people; an unrotated year is 90–290 MB with good deltas. **Open:**
   cadence, and a wider delta window where ARC repacks its own store.
-- **Open (siblings wait):** the exact surface list, and how the shared surfaces shard — backlog order, cohorts, the
-  project inbox, transition records.
-- **Open:** where the local store lives — the code repository's ref list, or a separate Git directory inside `.git`
-  against the same remote, as submodules keep theirs under `.git/modules/`. The second keeps `git log --all` and
-  graph views clean (ARC's refs already more than double what `--all` walks here: 23,530 commits against 10,291 from
-  branches, remotes, and tags) and can set its own packing, at the cost of `--atomic` code-plus-state pushes and of
-  widening the mirror-push risk to every code clone.
+- **Decided** (Owner, 2026-09-29): the surfaces, one ref each, all under `refs/arc/*`, the only prefix the host tests
+  covered. Refs are keyed by UID (C2), as git-bug keys `refs/bugs/<id>`: a rename is a field write rather than a ref
+  move, so no machine is left unable to tell a deleted ref from one not yet pushed; a slug can be reused once its
+  record completes; and a nested cohort never meets Git's refusal of a ref beneath another ref's name.
+    - `refs/arc/wu/<uid>` — one work unit from stub to archive: its artifacts, rank and placement fields, and its
+      delivery and review records, which verbs write from the work unit's own checkout; if the seam's review work finds
+      a writer elsewhere, those records take their own ref. Creating the ref with an empty old value cannot contend
+      under a random UID; C2's guards hold the slug.
+    - `refs/arc/cohort/<uid>` — one cohort's document; the flat `cohort-<name>.md` filename already assumes cohort
+      names are unique.
+    - `refs/arc/project/inbox` — the project inbox.
+    - `refs/arc/project/registry` — the project ID, record-number counters, and lineage, keyed by origin UID.
+    - `refs/arc/archive/<quarter>` — completed work units and closed cohorts, current state only, grouped by quarter
+      as `completed/` already is. An entry's sequence is its order in that ref, assigned under its compare-and-swap,
+      which replaces the archive index. At archive a work unit's current files join it and its own ref moves to
+      `refs/arc/history/`, pushed but outside the default fetch; reopen moves it back. So `completed/` stays browsable
+      on a fresh machine while a completed work unit's ref still leaves the fetched namespace, and a quarter's ref
+      stops growing when the quarter ends.
+    - `refs/arc/user/<id>/personal` — the inbox, working memory, and personal documents, under a per-person stored path;
+      `refs/arc/user/<id>/wu/<uid>` — the per-work-unit personal workspace, keyed by its work unit's UID and moving to
+      history with it; `refs/arc/user/<id>/errands` stays. `sync-state` retires with notes, and `errands-remote`, which
+      no code references (last written 2026-07-28), is residue.
+    - No shared surface shards at the design envelope: the spikes sustained 55–70 writes a second against a busiest
+      real rate of about eleven an hour (analysis § 6.9), backlog order is a rank on each stub (C4), and cohorts, the
+      project inbox, and the registry are one ref each.
+    - The fetch refspec lists these namespaces and the person's own identity rather than `refs/arc/*` wholesale, so no
+      one fetches teammates' personal refs or history by default. In the shared layout (below), its remote-tracking
+      namespace stays out of `refs/remotes/`, where it would show as remote branches.
+- **Decided** (Owner, 2026-09-29): the local copy follows the remote. When the state remote is the code remote — the
+  default backend (C7) — the store is the code repository's own refs. When state goes to another remote or to none —
+  the backing repository and local-only, where ghost mode lives — it is a separate Git directory inside `.git`
+  (`.git/arc/`). ADR-035 item 2 left this to the contract and covers both shapes without amendment.
+    - Precedent draws the same line. State synced to the code's own remote lives in the code repository — git-bug's
+      `refs/bugs/*`, git-annex's `git-annex` branch, Gerrit's change metadata — while data with its own destination
+      keeps its own store inside `.git`, as submodules do under `.git/modules/` and Git LFS under `.git/lfs/`.
+    - Separation costs nothing extra where it applies: across two remotes no push is atomic, two fetches are needed
+      anyway, and the code remote's fetch cannot bring state kept elsewhere. It buys privacy by construction exactly
+      where privacy is the promise — a mirror push, an all-refs tool, or a history rewrite in the code repository has
+      no state to carry — and it holds in repositories whose hook directory belongs to a team's hook manager (husky,
+      lefthook), where a pre-push guard could not be installed without touching tracked files (C8). A repository that
+      goes public moves its state to a backing repository, and its state refs leave the code repository with it.
+    - The default mode keeps one atomic task-close push (C5), one fetch, and state that plain Git can inspect, and
+      accepts what that costs. `git log --all`, gitk, and tig show one line per live state ref plus history that
+      rotation bounds: `--all` walks 23,830 commits here against 10,504 from branches, remotes, and tags, and about
+      11,500 of the difference is notes history, which retires at cutover, leaving 1,838. Whole-repository rewrite
+      tools such as `git filter-repo` reach state unless told to skip it. A code clone's mirror push deletes the
+      remote's state refs, recoverable from any machine's copy.
+    - No new setting: the layout derives from the backend selection (`strategy-storage-evolution.md` Principles 8 and
+      9). Moving between layouts rides the migrate verb (C7), since changing the state remote already moves refs;
+      between two local directories it is a local fetch and delete.
+    - The marginal cost over one layout: bootstrapping `.git/arc/`; an explicit `--git-dir` on every store
+      invocation, since the executor pins repositories by `cwd` and `safe.bareRepository=explicit` refuses implicit
+      discovery of a bare directory; a second refspec target; and the conformance suite run over both layouts. The
+      separate layout sees less field use, so the suite is what exercises it, including the ordered path's "code
+      pushed, state push failed" case.
 - **Requirement:** reserve the families `refs/arc/*` already holds. The Errand identity ref
   (`refs/arc/user/<id>/errands`, pushed straight to origin with no remote-tracking namespace) becomes an
   identity-scoped store surface; notes sync's `refs/arc/user/<id>/sync-state` retires with notes; delivery candidates,
@@ -229,6 +337,14 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
       own checkout; its prose may also be written from the owner's other checkouts, through compare-and-swap and
       three-way line merge, so the work-unit ref gains a merge path and the conformance suite covers it. ADR-035 takes
       a dated amendment.
+    - **Refined** (Owner, 2026-09-29; C2): identity is a UID, so a slug is no longer claimed by compare-and-swap on
+      ref creation; C2's two guards hold slug uniqueness, and the same ADR-035 amendment covers item 7's "exact
+      claims" wording. Record numbers stay compare-and-swap claims.
+    - **Refined** (Owner, 2026-09-29): inbox and working-memory entries are keyed on a parsed `_Id:_` field, stamped
+      at capture in the grammar `_Created:_` uses — eight hex characters, re-drawn on the rare clash within the file —
+      and the bold title stays the human handle. Keyed on the title, a retitle read as a delete plus an insert, which
+      a concurrent edit elsewhere turned into a conflict or a resurrected entry. An entry without one, such as one
+      typed by hand, gets one at its first persist, and the import stamps existing entries.
 - **Decided:** write, then gate. A same-entry clash lands as a typed conflict record keeping both sides as data; the
   next verb that depends on that entry refuses, status lists it, and a resolution names it. Recency never decides,
   conflict markers are never the record, deciding verbs re-read the store, and each checkout refuses a state head
@@ -267,7 +383,9 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
 - **Open:** the successor to `user.notes_push` — push on every sync or on request (ADR-035 item 8) — and retiring the
   key, which has about 14 consumers and a migrator in `commands/update.ts`.
 - **Open:** cross-machine freshness. Another machine sees a write only after it fetches, and a no-change fetch costs
-  0.7–0.9 s on GitHub, so fetches run at coarse points or in the background.
+  0.7–0.9 s on GitHub, so fetches run at coarse points or in the background. In the shared layout (C3), a refspec on the
+  code remote would bring state with every ordinary fetch, an IDE's included, at the cost of fetch output listing
+  state-ref updates; ARC can instead fetch explicitly.
 
 ### C6. The projection's caller-visible behavior
 
@@ -386,23 +504,23 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
     - **Name:** `arc save`. `arc user save` retires with notes at the flip, so the two coexist only while the seam
       is in flight.
     - The task list riding the code commit stays with C5's increment-close item.
-- **Open** (recommended): no configuration for automatic write-back. It moves a file the editor already saved into the
-  store, as a sync tool moves a saved file, rather than being a save a person chooses, which is why editors make their
-  autosave configurable and sync tools do not. Turning it off would only leave edits out of other worktrees' views
-  longer, exposed to `git clean -x`, and open to conflict for longer, which the owner-edit split relies on keeping
+- **Decided** (Owner, 2026-09-29): no configuration for automatic write-back. It moves a file the editor already saved
+  into the store, as a sync tool moves a saved file, rather than being a save a person chooses, which is why editors
+  make their autosave configurable and sync tools do not. Turning it off would only leave edits out of other worktrees'
+  views longer, exposed to `git clean -x`, and open to conflict for longer, which the owner-edit split relies on keeping
   short. Nothing leaves the machine before a coarse push (C5), so it exposes no draft to anyone else. Its one real cost,
   many small store commits, is the history policy's to fold (C12). A key added later is additive; one removed after
   release is a break (Principle 9).
-- **Open** (recommended): editor settings are opt-in, never written by default. `arc init` prints the user-level
-  settings that help, once per machine: Zed's `file_scan_inclusions` globs (decided above) and, as optional polish, VS
-  Code's `files.readonlyFromPermissions`. For people who keep settings per project, an explicit per-editor command in
-  the idiom of Yarn's editor SDKs (`yarn dlx @yarnpkg/sdks vscode`) merges only ARC's keys into that checkout's settings
-  file, keeping its comments and other keys, and removes them on request; it is an action, not a configuration key.
-  Carrying such gitignored files into spawned worktrees is a general spawn concern, answered by the `.worktreeinclude`
-  convention (Claude Code, Conductor), and routed outside this work unit. Tracked settings add footprint that ghost mode
-  cannot carry. Nothing depends on any of them: `.ignore` gives the ripgrep family visibility, the notice line, file
-  mode, and persist refusal protect files, and the base stamp makes Zed's silent save over a refresh a merge rather than
-  a loss (editor spike). JetBrains IDEs and Vim honor the file mode unconfigured.
+- **Decided** (Owner, 2026-09-29): editor settings are opt-in, never written by default. `arc init` prints the
+  user-level settings that help, once per machine: Zed's `file_scan_inclusions` globs (decided above) and, as optional
+  polish, VS Code's `files.readonlyFromPermissions`. For people who keep settings per project, an explicit per-editor
+  command in the idiom of Yarn's editor SDKs (`yarn dlx @yarnpkg/sdks vscode`) merges only ARC's keys into that
+  checkout's settings file, keeping its comments and other keys, and removes them on request; it is an action, not a
+  configuration key. Carrying such gitignored files into spawned worktrees is a general spawn concern, answered by the
+  `.worktreeinclude` convention (Claude Code, Conductor), and routed outside this work unit. Tracked settings add
+  footprint that ghost mode cannot carry. Nothing depends on any of them: `.ignore` gives the ripgrep family visibility,
+  the notice line, file mode, and persist refusal protect files, and the base stamp makes Zed's silent save over a
+  refresh a merge rather than a loss (editor spike). JetBrains IDEs and Vim honor the file mode unconfigured.
 - **Requirement:** a guard that every projected path stays ignored, above all `.arc/user/*/` in `.gitignore` —
   packaging tools that read only `.gitignore` shipped the inbox once it left `.gitignore`.
 - **Requirement** (analysis § 6.10): Windows — renames retried over held files, a re-check that sees a same-size save
@@ -462,9 +580,9 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
       repository, each with its ghost-mode answer or an owner;
     - the contract makes the tracked-versus-stored assignment per family layout data, with standard and ghost
       profiles (C2), and the design is checked by walking ghost mode through it;
-    - the siblings build the storage half at near-zero extra cost: local-only or a designated state remote (C7),
-      and an exclude-only ignore variant with an untracked `.ignore`, which ripgrep reads whether or not it is
-      tracked;
+    - the siblings build the storage half at near-zero extra cost: local-only or a designated state remote (C7), each in
+      a separate Git directory (C3), and an exclude-only ignore variant with an untracked `.ignore`, which ripgrep reads
+      whether or not it is tracked;
     - a follow-on stub, minted now and tagged core, builds the rest — the install profile, the footer policy, and
       harness bootstrap without tracked files. Its only edge is the cutover, so it runs in the first post-cutover
       slot.
@@ -598,7 +716,12 @@ by tracked or notes-backed state rather than for state by size.
   "retire the rooting and the migration"; the per-worktree isolation row's invariant becomes "`active/current/`
   holds only this checkout's work unit"; and the `active-layout-nesting` row retires that stub (Owner), since
   `current/` and `in-flight/<slug>/` give `active/` the per-work-unit folders it asked for, at the flip rather than
-  as a tracked layout change. ADR-035 takes a dated amendment for the work-unit write rule (C4).
+  as a tracked layout change. ADR-035 takes a dated amendment for the work-unit write rule (C4). From C2: the
+  per-work-unit workspace row's fate names review evidence as stored at project scope; the notes-sync row's
+  never-sync boundary is replaced by the projection's local-only path set; and a new `storage-ref-backend` row covers
+  personal subdirectories (`archive/`, `drafts/`), which notes sync reads as work-unit workspaces and never saves, so
+  the import classifies them as personal documents. From C3: the archival row's fate adds that the archive index
+  (`completed-index.ts`) gives way to each entry's order in its quarter's archive ref.
 - **Route at planning close,** as `USER-INBOX` captures under the coordination-seam rule, one per unit whose plan
   assumes tracked or notes-backed state but needs no register row — a note for its next planning:
     - `composable-workflows` — fixtures assume the notes channel (`arc user pull`, notes-only offers) and a grooming
