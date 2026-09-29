@@ -10,12 +10,7 @@ import {
   V3ValidatedPathMutationSchema,
   type ValidatedDecomposePlan,
 } from "./decompose-v3-plan.js";
-import { isCanonicalDigest, type CanonicalDigest } from "../kernel/canonical/canonical-json.js";
-
-const CanonicalDigestSchema = z.custom<CanonicalDigest>(
-  isCanonicalDigest,
-  "must be a canonical digest",
-);
+import { CanonicalDigestSchema } from "../kernel/schema/vocabulary.js";
 const NonEmptyStringSchema = z.string().min(1);
 
 /** Authored extraction facts carried from the immutable repository projection. */

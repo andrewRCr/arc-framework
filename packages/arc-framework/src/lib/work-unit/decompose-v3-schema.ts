@@ -4,16 +4,15 @@ import { z } from "zod";
 
 import {
   canonicalDigest,
-  isCanonicalDigest,
   sortByCanonicalBytes,
   type CanonicalDigest,
 } from "../kernel/canonical/canonical-json.js";
+import { CanonicalDigestSchema } from "../kernel/schema/vocabulary.js";
 import { isManagedPath } from "../kernel/canonical/managed-path.js";
 import { SlugSchema, WorkClassSchema } from "../kernel/index.js";
 import { isSafeCohortPath, validateCohortPath } from "../active/cohort-path.js";
 import { normalizeDecomposeHeadingSource } from "./decompose-heading.js";
 
-const DigestSchema = z.custom<CanonicalDigest>(isCanonicalDigest, "must be a canonical digest");
 const DecomposeSlugSchema = SlugSchema.transform((value): string => value);
 const NonEmptyStringSchema = z.string().refine((value) => value.trim() !== "", "must be non-empty");
 const BasenameSchema = z.string().min(1).refine(
@@ -99,26 +98,26 @@ const PlanningProfileSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("paired-spec"), sourceDesign: z.tuple([BasenameSchema, BasenameSchema]) }),
 ]);
 const SourceUnitSchema = z.strictObject({
-  sourceId: DigestSchema,
+  sourceId: CanonicalDigestSchema,
   sourcePath: ManagedPathSchema,
   sourceLocator: V3DecomposeLocatorSchema,
-  contentDigest: DigestSchema,
+  contentDigest: CanonicalDigestSchema,
 });
 const IncomingEdgeSchema = z.strictObject({
-  edgeId: DigestSchema,
+  edgeId: CanonicalDigestSchema,
   dependent: DecomposeSlugSchema,
   currentTargets: z.array(DecomposeSlugSchema),
 });
-const OutgoingEdgeSchema = z.strictObject({ edgeId: DigestSchema, prerequisite: DecomposeSlugSchema });
+const OutgoingEdgeSchema = z.strictObject({ edgeId: CanonicalDigestSchema, prerequisite: DecomposeSlugSchema });
 const SourceArtifactEntrySchema = z.strictObject({
   path: ManagedPathSchema,
   objectKind: z.literal("blob"),
   mode: z.enum(["100644", "100755"]),
-  contentDigest: DigestSchema,
+  contentDigest: CanonicalDigestSchema,
 });
 
 const MachineSchema = z.strictObject({
-  preflightId: DigestSchema,
+  preflightId: CanonicalDigestSchema,
   source: SourceSchema,
   resultBase: ResultBaseSchema,
   planningProfile: PlanningProfileSchema,
@@ -184,12 +183,12 @@ const StarterAuthoringSchema = z.strictObject({
   internalEdges: AuthorSlotSchema,
   externalEdges: AuthorSlotSchema,
   sourceAllocations: z.array(z.strictObject({
-    sourceId: DigestSchema,
+    sourceId: CanonicalDigestSchema,
     ownership: AuthorSlotSchema,
     disposition: AuthorSlotSchema,
   })),
-  incomingDispositions: z.array(z.strictObject({ edgeId: DigestSchema, disposition: AuthorSlotSchema })),
-  outgoingDispositions: z.array(z.strictObject({ edgeId: DigestSchema, disposition: AuthorSlotSchema })),
+  incomingDispositions: z.array(z.strictObject({ edgeId: CanonicalDigestSchema, disposition: AuthorSlotSchema })),
+  outgoingDispositions: z.array(z.strictObject({ edgeId: CanonicalDigestSchema, disposition: AuthorSlotSchema })),
 });
 const CompletedAuthoringSchema = z.strictObject({
   shape: z.enum(["symmetric", "heterogeneous", "extraction"]),
@@ -198,16 +197,16 @@ const CompletedAuthoringSchema = z.strictObject({
   internalEdges: z.array(InternalEdgeSchema),
   externalEdges: z.array(ExternalEdgeSchema),
   sourceAllocations: z.array(z.strictObject({
-    sourceId: DigestSchema,
+    sourceId: CanonicalDigestSchema,
     ownership: z.enum(["destination-owned", "cohort-shared"]),
     disposition: SourceDispositionSchema,
   })),
   incomingDispositions: z.array(z.strictObject({
-    edgeId: DigestSchema,
+    edgeId: CanonicalDigestSchema,
     disposition: IncomingDispositionSchema,
   })),
   outgoingDispositions: z.array(z.strictObject({
-    edgeId: DigestSchema,
+    edgeId: CanonicalDigestSchema,
     disposition: OutgoingDispositionSchema,
   })),
 });

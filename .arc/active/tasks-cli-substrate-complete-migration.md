@@ -633,9 +633,9 @@ holds a fenced-owner matrix row.
 - _Note:_ The schema projects to the same JSON Schema pattern as the inline regexes, so adoption leaves the published
   bundle unchanged. Carved files keep their patterns under their carve rows; adopting there is not a forced edge.
 
-    - `[ ]` **6.4.a Replace the surviving `z.custom<CanonicalDigest>(isCanonicalDigest)` copies**
-        - The three local copies follow the matrix split: surviving copies adopt the schema, and a copy in carved code
-          keeps its pattern.
+    - `[x]` **6.4.a Replace the surviving `z.custom<CanonicalDigest>(isCanonicalDigest)` copies**
+        - `decompose-v3-schema.ts` and `decompose-v3-result-report.ts` now compose the kernel schema. The
+          `decompose-v3-plan.ts` copy stays with its carved base-tree plan under `R-DCP`; the matrix records the split.
 
     - `[ ]` **6.4.b Adopt the schema at the remaining kernel digest sites**
         - Site by site under the rule that a value adopts it when it is a kernel canonical digest, in batches by

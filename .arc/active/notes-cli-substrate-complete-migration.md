@@ -249,26 +249,28 @@ Register citations below name the corresponding **Storage-coupling register** ro
 | `R-RM`   | `ROADMAP.md` carried on every branch                                                       |
 | `R-CR`   | Candidate and transition records tracked under `.arc/system/.internal/`                    |
 | `R-CI`   | The auto-merge lane's planning classification by tracked artifact prefix                   |
+| `R-DCP`  | Decomposition's base-tree plan, child staging, and append-only advancement                 |
 | `R-LOCK` | `USER-INBOX`: Name what the surviving inbox writer locks on in the notes-sync register row |
 | `R-ADD`  | `USER-INBOX`: Cover identity-wide user workspace bootstrap in the storage register         |
 
 ### Kernel contract
 
-| Surface                                                                    | Destination                                  | Disposition      | Citation                |   Importers | Evidence                         |
-| -------------------------------------------------------------------------- | -------------------------------------------- | ---------------- | ----------------------- | ----------: | -------------------------------- |
-| `src/lib/canonical/canonical-json.ts` shim                                 | `src/lib/kernel/canonical/canonical-json.ts` | migrated         | Spec § 3                |         127 | import graph; Task 6.1           |
-| `src/lib/canonical/managed-path.ts` shim                                   | `src/lib/kernel/canonical/managed-path.ts`   | migrated         | Spec § 3                |          28 | import graph; Task 6.2           |
-| `src/lib/work-unit/slug.ts` shim                                           | `src/lib/kernel/schema/slug.ts`              | migrated         | Spec § 3                |           9 | import graph; Task 6.2           |
-| `ArcError` re-export in `src/lib/errors.ts`                                | kernel error module                          | migrated         | Spec § 3                |  4 (`M:38`) | named-import search; Task 6.2    |
-| vocabulary re-exports in `src/commands/active/types.ts`                    | kernel vocabulary                            | migrated         | Spec § 3                | 15 (`M:29`) | named-import search; Task 6.2    |
-| local `SlugSchema` in `src/scripts/integration/merge.ts`                   | kernel `SlugSchema`                          | migrated         | Spec § 3                |           — | Task 6.3                         |
-| local `SlugSchema` in `src/scripts/integration/checkpoint.ts`              | kernel `SlugSchema`                          | migrated         | Spec § 3                |           — | Task 6.3                         |
-| local `SlugSchema` in `src/scripts/review-gate/readiness.ts`               | kernel `SlugSchema`                          | migrated         | Spec § 3                |           — | Task 6.3                         |
-| local state and placement enums in `src/scripts/integration/checkpoint.ts` | kernel and layout schemas                    | migrated         | Spec § 3                |           — | Task 6.3                         |
-| kernel digest patterns and three `z.custom<CanonicalDigest>` copies        | `CanonicalDigestSchema`                      | migrated         | Spec § 2.1              |           — | regex candidates; Tasks 1.3, 6.4 |
-| composite `checkpoint-v1:` digest handles                                  | domain schema                                | retained by rule | Spec § 2.1 fenced owner |           — | regex candidates; Task 6.4.c     |
-| review-gate version-1 identities                                           | review-gate schema                           | retained by rule | Spec § 2.1 fenced owner |           — | regex candidates; Task 6.4.c     |
-| `src/lib/canonical/content-digest.ts`                                      | same module                                  | retained by rule | Spec § 3 non-shim       |        M:14 | import graph; Task 6.5           |
+| Surface                                                                     | Destination                                  | Disposition      | Citation                |   Importers | Evidence                         |
+| --------------------------------------------------------------------------- | -------------------------------------------- | ---------------- | ----------------------- | ----------: | -------------------------------- |
+| `src/lib/canonical/canonical-json.ts` shim                                  | `src/lib/kernel/canonical/canonical-json.ts` | migrated         | Spec § 3                |         127 | import graph; Task 6.1           |
+| `src/lib/canonical/managed-path.ts` shim                                    | `src/lib/kernel/canonical/managed-path.ts`   | migrated         | Spec § 3                |          28 | import graph; Task 6.2           |
+| `src/lib/work-unit/slug.ts` shim                                            | `src/lib/kernel/schema/slug.ts`              | migrated         | Spec § 3                |           9 | import graph; Task 6.2           |
+| `ArcError` re-export in `src/lib/errors.ts`                                 | kernel error module                          | migrated         | Spec § 3                |  4 (`M:38`) | named-import search; Task 6.2    |
+| vocabulary re-exports in `src/commands/active/types.ts`                     | kernel vocabulary                            | migrated         | Spec § 3                | 15 (`M:29`) | named-import search; Task 6.2    |
+| local `SlugSchema` in `src/scripts/integration/merge.ts`                    | kernel `SlugSchema`                          | migrated         | Spec § 3                |           — | Task 6.3                         |
+| local `SlugSchema` in `src/scripts/integration/checkpoint.ts`               | kernel `SlugSchema`                          | migrated         | Spec § 3                |           — | Task 6.3                         |
+| local `SlugSchema` in `src/scripts/review-gate/readiness.ts`                | kernel `SlugSchema`                          | migrated         | Spec § 3                |           — | Task 6.3                         |
+| local state and placement enums in `src/scripts/integration/checkpoint.ts`  | kernel and layout schemas                    | migrated         | Spec § 3                |           — | Task 6.3                         |
+| kernel digest patterns and two surviving `z.custom<CanonicalDigest>` copies | `CanonicalDigestSchema`                      | migrated         | Spec § 2.1              |           — | regex candidates; Tasks 1.3, 6.4 |
+| `decompose-v3-plan.ts`'s `z.custom<CanonicalDigest>` copy                   | store transition plan                        | carved           | `R-DCP`                 |           — | source split; Task 6.4.a         |
+| composite `checkpoint-v1:` digest handles                                   | domain schema                                | retained by rule | Spec § 2.1 fenced owner |           — | regex candidates; Task 6.4.c     |
+| review-gate version-1 identities                                            | review-gate schema                           | retained by rule | Spec § 2.1 fenced owner |           — | regex candidates; Task 6.4.c     |
+| `src/lib/canonical/content-digest.ts`                                       | same module                                  | retained by rule | Spec § 3 non-shim       |        M:14 | import graph; Task 6.5           |
 
 ### Validation-surfaces contract
 
@@ -1497,6 +1499,21 @@ files passed 248 tests. One parsed fixture exposed a non-hex `oid("g")`; using a
 distinct-head scenario while satisfying the Git object-ID schema.
 The checkpoint lifecycle summary now composes `WorkUnitStateSchema` for `position.phase` and
 `ArcPlacementTierSchema` for `position.location`; its top-level lifecycle `state` remains checkpoint-owned.
+
+### Canonical digest sites
+
+Search surviving `src/` with
+`rg -n 'z\.custom<CanonicalDigest>|sha256:|refine\(isCanonicalDigest\)|isCanonicalDigest' src` and inspect each
+matching field's producer. A value computed through `canonicalDigest` or `digestBytes` belongs to the unregistered
+`lib/kernel/schema/vocabulary.ts` `CanonicalDigestSchema`; direct SHA-256 byte hashing, composite
+`checkpoint-v1:` handles, and frozen review-gate version-1 identity schemas retain their domain owner and take
+fenced matrix rows. Carved storage code keeps its local pattern under its storage register row. Re-run this search
+after base merges and reconcile each surviving match with the owner table below.
+
+The three `z.custom<CanonicalDigest>` copies split by owner: `decompose-v3-schema.ts` and
+`decompose-v3-result-report.ts` now compose the kernel schema, retaining their canonical producer types;
+`decompose-v3-plan.ts`'s base-tree mutation plan remains carved under `R-DCP`. The two surviving modules pass
+their behavior suites and both typechecks.
 
 ### Raw Git type home
 
