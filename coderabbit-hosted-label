@@ -3,7 +3,7 @@
   "slug": "coderabbit-hosted-label",
   "claimId": "6e6d05cb07863dc04435288f996ca81e",
   "createdAt": "2026-09-29T00:08:55.697Z",
-  "updatedAt": "2026-09-29T00:08:55.697Z",
+  "updatedAt": "2026-09-29T00:31:30.155Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Label hosted CodeRabbit inline findings from their bold title rather than the badge line",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Label hosted CodeRabbit inline findings from their bold title, not the badge line",
   "originEntrySourceDigest": "sha256:ea387978124b3e55448d144662733cf6abc2b64bf801357079babb25706a6ae2",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/coderabbit-hosted-label",
+    "headSha": "2753252d6486a4054e3ce2c13d5e8a85f68df801"
+  }
 }
