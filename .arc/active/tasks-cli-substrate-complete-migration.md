@@ -301,19 +301,9 @@ path spawns Git through an unbound executor; the failure-text predicates and `re
   policy, and each batch adds its command paths to a `repository-inventory.test.ts` case requiring every always-JSON
   command to route through the adapter under one.
 
-    - `[ ]` **4.1.a Extend the scanner, and wrap and bind merge lock resolve, hold, and release**
-        - The source scanner records `machineReadable: () => true` and the literal `machineReadable: true` as a constant
-          machine-mode policy, and a predicate or an absent policy as not.
-        - `readinessBoundTo` and the exported `defaultMergeLockPort` take the executor, and delivery execution's two
-          merge-lock releases pass the executor they already hold, so delivery's readiness read runs under the delivery
-          command's policy.
-        - Build `test-first` (one behavior at a time):
-            - The scanner records both constant forms as machine mode, and records a predicate or absent policy as not
-            - Called without a supplied context, each handler resolves a machine-mode process context
-            - Each handler's default dependencies build their executors from that context's subprocess policy
-            - Delivery's merge-lock release reads readiness through the delivery command's executor
-            - The inventory case requires the three command paths to route through the adapter under a constant
-              machine-mode policy
+    - `[x]` **4.1.a Extend the scanner, and wrap and bind merge lock resolve, hold, and release**
+        - Scanner distinguishes constant machine policies from predicates; all three merge-lock routes use the adapter
+          and invocation-bound Git executor. Readiness and both delivery release paths use the supplied executor.
 
     - `[ ]` **4.1.b Wrap and bind the six review resolve-family commands**
         - Review resolve, merge-method resolve, checks await, readiness, frontline resolve, and changeset resolve.

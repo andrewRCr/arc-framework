@@ -5431,7 +5431,7 @@ async function executeDeliveryCommand(
             schemaVersion: 1, treeRoot: submit.treeRoot,
             target: { repository: submit.request.repository, pullRequest: changeRequestId, headSha: member?.coordinates?.head ?? "" },
             vehicle: { kind: "delivery-member", planId: plan.planId, deliverableId, workUnitSlug: plan.workUnitId },
-          }, defaultMergeLockPort(cwd));
+          }, defaultMergeLockPort(cwd, exec));
           return { status: released.state === "blocked" ? "refused" as const : released.state === "released" ? "released" as const : "not-configured" as const };
         },
         revalidateMergePolicy: (binding) => revalidateIntermediateDeliveryMergePolicy(cwd, binding),
@@ -5819,7 +5819,7 @@ async function executeDeliveryCommand(
             deliverableId: apply.approved.deliverableId,
             workUnitSlug: plan.workUnitId,
           },
-        }, defaultMergeLockPort(cwd));
+        }, defaultMergeLockPort(cwd, exec));
         return released.state === "blocked"
           ? { status: "refused" as const, reason: released.payload.reason }
           : { status: released.state === "released" ? "released" as const : "not-configured" as const };

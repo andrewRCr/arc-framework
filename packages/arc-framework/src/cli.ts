@@ -1664,9 +1664,9 @@ mergeLockCmd
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .addHelpText("after", `\nRequest JSON:\n  ${mergeLockResolveHelp}\n`)
-  .action(async (input: string) => {
-    await (await import("./handlers/review.js")).handleMergeLockResolve(input);
-  });
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string) => {
+    await (await import("./handlers/review.js")).handleMergeLockResolve(input, {}, context);
+  }));
 
 mergeLockCmd
   .command("hold")
@@ -1674,9 +1674,9 @@ mergeLockCmd
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .addHelpText("after", `\nErrand request JSON:\n  ${mergeLockTransitionHelp}\n`)
-  .action(async (input: string) => {
-    await (await import("./handlers/review.js")).handleMergeLockHold(input);
-  });
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string) => {
+    await (await import("./handlers/review.js")).handleMergeLockHold(input, {}, context);
+  }));
 
 mergeLockCmd
   .command("release")
@@ -1684,9 +1684,9 @@ mergeLockCmd
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .addHelpText("after", `\nErrand request JSON:\n  ${mergeLockTransitionHelp}\n`)
-  .action(async (input: string) => {
-    await (await import("./handlers/review.js")).handleMergeLockRelease(input);
-  });
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string) => {
+    await (await import("./handlers/review.js")).handleMergeLockRelease(input, {}, context);
+  }));
 
 // --- Review ---
 

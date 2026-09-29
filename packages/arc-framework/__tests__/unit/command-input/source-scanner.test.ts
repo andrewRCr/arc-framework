@@ -8,6 +8,23 @@ import {
 import { importedModuleSpecifiers } from "../../../src/lib/command-input/source-scanner.js";
 
 describe("command-input source scanner", () => {
+  it("records only constant machine-mode policies on wrapped actions", () => {
+    const result = scanCommanderSource({
+      file: "src/cli.ts",
+      sourceText: `
+        const program = new Command();
+        program.command("arrow").action(withInteractionContext({ machineReadable: () => true }, async () => {}));
+        program.command("literal").action(withInteractionContext({ machineReadable: true }, async () => {}));
+        program.command("predicate").action(withInteractionContext({ machineReadable: (opts) => opts.json === true }, async () => {}));
+        program.command("absent").action(withInteractionContext({}, async () => {}));
+        program.command("bare").action(async () => {});
+      `,
+    });
+    expect(result.commands.map(({ path, action }) => [path, action?.constantMachineMode])).toEqual([
+      ["arrow", true], ["literal", true], ["predicate", false], ["absent", false], ["bare", false],
+    ]);
+  });
+
   it("discovers literal static and dynamic relative imports", () => {
     expect(importedModuleSpecifiers(`
       import "./static.js";

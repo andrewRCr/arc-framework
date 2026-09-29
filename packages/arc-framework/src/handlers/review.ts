@@ -1630,16 +1630,18 @@ export interface ReviewReadinessHandlerDependencies {
  * from any path inside the repository, so binding from it is correct.
  *
  * @param root - Resolved root of the repository whose delivery state answers.
+ * @param exec - Invocation-bound Git executor for delivery state and ancestry reads.
  * @returns A readiness evaluation whose member arm reads that repository.
  */
 function readinessBoundTo(
   root: string,
+  exec: GitExec,
 ): (request: ReviewReadinessRequest) => Promise<ReviewReadinessEnvelope> {
-  const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec: gitExec, cwd: root });
+  const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec, cwd: root });
   // Pinned to the resolved root for the same reason the lookup is: the ancestry
   // answer must come from the repository this composition root bound, never from
   // whatever directory the process happens to be running in.
-  const rootExec: GitExec = (command, args, options) => gitExec(command, args, { ...options, cwd: root });
+  const rootExec: GitExec = (command, args, options) => exec(command, args, { ...options, cwd: root });
   return (request) => evaluateReviewReadiness(request, {
     deliveryMemberLookup,
     readDeliveryAncestry: (ancestor, descendant) => readAncestry(rootExec, ancestor, descendant),
@@ -1649,7 +1651,7 @@ function readinessBoundTo(
 function defaultReviewReadinessDependencies(): ReviewReadinessHandlerDependencies {
   return {
     ...defaultReviewHandlerBoundary(),
-    check: (request, root) => readinessBoundTo(root)(request),
+    check: (request, root) => readinessBoundTo(root, gitExec)(request),
   };
 }
 
@@ -1701,14 +1703,16 @@ export interface MergeLockTransitionHandlerDependencies {
  * Construct the merge-lock port shared by resolve, hold, and release.
  *
  * @param root - Resolved root the port's readiness gate authenticates against.
+ * @param exec - Invocation-bound Git executor used by readiness.
  * @param runner - Hosted process boundary; defaults to the `gh` runner.
  * @returns A merge-lock port bound to that repository.
  */
 export function defaultMergeLockPort(
   root: string,
+  exec: GitExec,
   runner: HostedProcessRunner = hostedGhRunner,
 ): MergeLockPort {
-  return new GhMergeLockPort(runner, readinessBoundTo(root), readMergeLockSetting);
+  return new GhMergeLockPort(runner, readinessBoundTo(root, exec), readMergeLockSetting);
 }
 
 /**
@@ -1716,15 +1720,23 @@ export function defaultMergeLockPort(
  *
  * @param source - JSON request file, or `-` for standard input.
  * @param overrides - Test-only handler boundary overrides.
+ * @param suppliedContext - Adapter-resolved interaction and subprocess policy.
  * @returns Resolves after stdout and exit status are assigned.
  */
 export async function handleMergeLockResolve(
   source: string,
   overrides: Partial<MergeLockResolveHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const exec = createGitExec(context.subprocess);
   const dependencies: MergeLockResolveHandlerDependencies = {
     ...defaultReviewHandlerBoundary(),
-    resolve: (request, root) => resolveMergeLock(request, defaultMergeLockPort(root)),
+    resolve: (request, root) => resolveMergeLock(request, defaultMergeLockPort(root, exec)),
     ...overrides,
   };
   await executeReviewHandler({
@@ -1747,10 +1759,12 @@ async function handleMergeLockTransition(
   verb: (request: MergeLockTransitionRequest, port: MergeLockPort) => Promise<unknown>,
   source: string,
   overrides: Partial<MergeLockTransitionHandlerDependencies>,
+  context: InteractionContext,
 ): Promise<void> {
+  const exec = createGitExec(context.subprocess);
   const dependencies: MergeLockTransitionHandlerDependencies = {
     ...defaultReviewHandlerBoundary(),
-    transition: (request, root) => verb(request, defaultMergeLockPort(root)),
+    transition: (request, root) => verb(request, defaultMergeLockPort(root, exec)),
     ...overrides,
   };
   await executeReviewHandler({
@@ -1772,18 +1786,26 @@ async function handleMergeLockTransition(
  *
  * @param source - JSON request file, or `-` for standard input.
  * @param overrides - Test-only handler boundary overrides.
+ * @param suppliedContext - Adapter-resolved interaction and subprocess policy.
  * @returns Resolves after stdout and exit status are assigned.
  */
 export async function handleMergeLockHold(
   source: string,
   overrides: Partial<MergeLockTransitionHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
   await handleMergeLockTransition(
     "merge-lock-hold",
     MergeLockHoldEnvelopeSchema,
     holdMergeLock,
     source,
     overrides,
+    context,
   );
 }
 
@@ -1792,18 +1814,26 @@ export async function handleMergeLockHold(
  *
  * @param source - JSON request file, or `-` for standard input.
  * @param overrides - Test-only handler boundary overrides.
+ * @param suppliedContext - Adapter-resolved interaction and subprocess policy.
  * @returns Resolves after stdout and exit status are assigned.
  */
 export async function handleMergeLockRelease(
   source: string,
   overrides: Partial<MergeLockTransitionHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
   await handleMergeLockTransition(
     "merge-lock-release",
     MergeLockReleaseEnvelopeSchema,
     releaseMergeLock,
     source,
     overrides,
+    context,
   );
 }
 
