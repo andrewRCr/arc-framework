@@ -100,19 +100,14 @@ shared support and the doubles that stay local.
         - The stdin and byte variants share the matcher and failure behavior while recording their distinct inputs;
           four tests cover both contracts and unmatched calls.
 
-### `[ ]` **2.2 Add the meta fixture builder — D9**
+### `[x]` **2.2 Add the meta fixture builder — D9**
 
 - _Goal:_ Fixture setup builds meta files through the production renderer, so a meta fixture cannot drift from the
   shape `renderMetaFile` emits.
 
-    - `__tests__/helpers/meta-fixture.ts`, over `renderMetaFile` in `lib/active/meta-reader.ts`. The renderer parses
-      its input through `MetaRecordSchema`, where `state` and `owner` have no default, so the builder supplies both;
-      every other field takes a per-field override.
-    - It returns the Markdown string; a test that needs narrative sections appends them.
-    - Build `test-first` (one behavior at a time):
-        - The default build parses back through `parseMetaRecord` and `toMetaRecord` to its inputs
-        - An override changes only its field
-        - An invalid semantic value refuses through the renderer's schema
+- _Outcome:_ `makeMetaFixture` supplies valid `state` and `owner` defaults, forwards per-field overrides to
+  `renderMetaFile`, and returns canonical Markdown. Tests round-trip the default and an override through the strict
+  record, then verify the renderer rejects an invalid semantic value.
 
 ### `[ ]` **2.3 Add the schema-assertion helper — D9**
 
