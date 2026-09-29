@@ -36,12 +36,12 @@
   multi-record write it surfaced (C1), the store under `.git/arc/store/` beside machine-local state (C3), durable review
   facts stored at project scope, with review working state machine-local (C2), and the shared seam pieces placed here
   with file splits as Errands (§ The consumer map); the failure taxonomy, the per-write message as provenance, and
-  traceability as a store link (C1); advisory adversarial-pass evidence as its own kind (C2); no ARC footprint in code
-  commits by default, with an opt-in task trailer, and the surface boundary as an ARC-wide default (C8).
+  traceability as a store link (C1); advisory adversarial-pass evidence as its own kind, the standard and ghost
+  profiles, and the serialization rules (C2); no ARC footprint in code commits by default, with an opt-in task trailer,
+  and the surface boundary as an ARC-wide default (C8).
 - **Open:** every `Open` item in § Decision ledger.
-- **Next:** the remaining detail items — C2's tracked-versus-stored profile and serialization, C3's rotation cadence,
-  C5's Opens, and C10 — then the core-or-deferred tags (C14); register batch 3 as an Errand on `main`, and minting the
-  ghost-mode follow-on stub with the scope C8 gives it.
+- **Next:** the remaining detail items — C3's rotation cadence, C5's Opens, and C10 — then the core-or-deferred tags
+  (C14); register batch 3 as an Errand on `main`, and minting the ghost-mode follow-on stub with the scope C8 gives it.
 
 ---
 
@@ -253,8 +253,8 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
         - **the per-work-unit personal workspace** — `SESSION-NOTES` and companions such as `capture-notes.md`;
         - **Errand identities**, already live under `refs/arc/user/<id>/errands*`.
     - Not families: the machine-local set (below); derived views, never stored — ROADMAP, `STATUS.USER`, the archive
-      index, and the query cache; and the tracked machinery and constitutional documents.
-      `strategy-file-classification.md`'s taxonomy governs update behavior, a separate axis.
+      index, and the query cache; and, under the standard profile, the tracked machinery and constitutional documents
+      (the profiles, below). `strategy-file-classification.md`'s taxonomy governs update behavior, a separate axis.
 - **Decided** (Owner, 2026-09-29): durable review facts are stored, at project scope, and review working state stays
   machine-local. Review evidence must survive a change of machine, and the integration boundary files are today the
   Owner-accepted terminus's only store. `review-protocol-alignment` designs the terminus's durable form against this.
@@ -317,9 +317,42 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
       slug is checked against live records in the local store, fetched first when online, and a clash refuses with a
       rename remedy. A clash between machines resolves by write-then-gate (C4): both records exist, the projection
       refuses to place the second on the taken path, status lists the conflict, and a rename resolves it.
-- **Open:** which families are tracked versus stored, as layout data with a standard and a ghost profile (C8).
-- **Open:** whether notes sync's serialization rules — the text-only allowlist, the 256 KB size cap, and the secret
-  exclusions in `lib/git/user-sync.ts` — carry over to the stored user surface.
+- **Decided** (Owner, 2026-09-29): the profiles. The standard profile is the line `strategy-storage-evolution.md` draws:
+  every state family stored, authored design reaching tracked files only through the export knob (C10), and project
+  machinery, ARC core, and the constitutional documents tracked. State families are the same in the ghost profile, which
+  differs only where standard tracks, since ghost tracks nothing.
+    - Project machinery and the constitutional documents become two project-scope families, projected at their familiar
+      paths behind the exclude-only ignore (C8). They are families only under ghost; readers load them by `.arc/` path
+      under both profiles, so nothing above the contract and the projection asks which profile is active.
+    - ARC core projects read-only from the installed package — C11's multi-source projection — so the ghost-mode
+      follow-on depends on `framework-core-from-package` or builds that projection itself.
+    - The export knob is pinned to `none`.
+    - A profile is chosen at init (C8): two named profiles, not per-family switches, within Principle 8's one knob.
+        - The named cost: under ghost, ARC's configuration for the repository — `arc-config.yml`, `DEV-RULES.PROJECT`
+          and the gate commands it names, method overrides, extensions, and project strategies — is one copy, the same
+          on every branch and checkout. Under standard it is tracked and behaves like code: a branch can change a rule
+          or a gate command, the pull request reviews it, and an old commit carries the rules of its time. Under ghost a
+          change applies everywhere at once, and nothing reviews it, which fits one person's configuration of a
+          repository they do not own. What can bite is configuration that describes the code's tooling rather than ARC's
+          behavior — chiefly the quality-gate commands, which a long-lived branch with different tooling would
+          contradict; most settings, such as interlocks and commit format, do not vary by branch at all. No per-branch
+          override is built unless that is hit.
+        - The profile choice at init says this in plain terms — ARC's settings for the repository are the person's alone
+          and the same on every branch — which is the ghost-mode follow-on's to write.
+- **Decided** (Owner, 2026-09-29): the serialization rules. Notes sync's (`lib/git/user-sync.ts`, from its first
+  implementation) are partly notes artifacts: a note holds one JSON manifest carrying every file as a string, which
+  excludes binary content and piles size into one blob, while the store keeps each file as its own blob.
+    - Text only, checked by content rather than an extension list. Every personal file today is Markdown, the largest
+      `USER-INBOX` at 93 KB, and every merge mechanism in C4 works on text; it widens only on demand. The `.ipynb` and
+      `.svg` exclusions go.
+    - One size cap for every kind, about 1 MB, as an accident guard. Tracked records already pass 256 KB (a task list at
+      436 KB, a Candidate record at 411 KB). C3 leans toward bounding history by rotation, never rewrite, so an
+      accidental large file stays in synced history, fetched by every machine, until its ref rotates.
+    - Secrets: the `.env` exclusion stays and private-key files join it. Identity scope is not private — anyone who can
+      read the state host, the code repository by default, can read it — so a file that must never leave its machine
+      belongs in the local-only path set.
+    - Each rule is a typed refusal at persist, never a skip: under the projection, a skipped file is silent loss on
+      every other machine.
 
 ### C3. Ref layout and where the store lives
 
@@ -831,6 +864,9 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
   — the store now, the package later — and supports read-only copies; the ignore strategy works from a path list that
   `.arc/system/` paths can join; readers load core by its `.arc/` path, never by whether it is tracked; the tracked
   line sits at project-owned machinery, not all of `system/`.
+- **Requirement** (C2's profiles): the ghost profile projects ARC core read-only from the installed package, so the
+  ghost-mode follow-on needs this projection — landed first by `framework-core-from-package`, or built by the follow-on
+  itself.
 
 ### C12. History policy and planning branches
 
