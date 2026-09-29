@@ -96,13 +96,17 @@ carved item's owner and fate.
       `isNonFastForwardError`), used by errand refs, which move to the state-ref plumbing (§ 7);
     - `resolveGitCommonDir` in `repo-shared-paths.ts`, with 9 surviving importers in delivery, the review gate, local
       test admission, and the worktree operation lock. It is plain Git plumbing and moves to `lib/git/exec.ts` beside
-      `isGitRepo` (§ 7); `getRepoSharedUserInternalDir` beside it serves only notes machinery and is carved;
+      `isGitRepo` (§ 7); `getRepoSharedUserInternalDir` beside it stays where it is, since notes machinery and the
+      inbox mutations' lock path below both use it;
     - the cross-WU entry parser (`parseCrossWuEntries`, `matchInboxEntryTitle`), used by inbox state, reminders, and
       inbox-entry operands;
     - the inbox writer (`inbox-writer.ts`) and execution offers (`execution-offer.ts`), used by the errand commands,
-      inbox state, and the `user inbox` mutation commands. They stay where they are: the seam moves them with the
-      inbox itself, and the notes-lock path their mutations lock through falls under the register's notes-lock row;
-    - `resolveCurrentWuName`.
+      inbox state, and the `user inbox` mutation commands. They stay where they are, and the seam moves them with the
+      inbox itself. The lock path those mutations take — `getNotesLockPath`, resolving through
+      `getRepoSharedUserInternalDir` — survives by that dependence, but no register row names it, so it goes to the
+      register's owner as a correction under the mirror-case rule below;
+    - `resolveCurrentWuName`, which survives by the register row although every module importing it today is carved,
+      so this unit routes none of its importers.
 
   Surviving importers reach each survivor through its owning module rather than `lib/user-sync/index.ts`, so the
   deletion pass can remove the barrel's notes exports without stranding them.
@@ -164,7 +168,7 @@ are.
   planning-lane classifier is carved, while its CI weight classifier, tree hash, portability paths, and raw executor
   survive. A command's surface survives even where its handler body is carved: the adapter wrap in `cli.ts`, the
   command-input declaration, and executor threading at the adapter stay in scope for `locus`, `attest`, `publish`,
-  `start`, and the errand commands.
+  `start`, `user close`, and the errand commands.
 - **Type edges.** A surviving result that carries data produced by carved code gets its full schema, with that data at
   its plain shape (for example, `OverlapEvidence.regenerablePaths: string[]`). Carved code a surviving module takes
   only as an input — `PathTreatmentClassifier` as a dependency, `RemoteHeadSnapshotResult` on an options interface —
@@ -200,10 +204,17 @@ consumers. The `sha256:` digest pattern is re-created at about 55 sites in 39 fi
   template literal's default issue message is a bare "Invalid input" and command-input refusals print it.
 - **Home:** `kernel/schema/vocabulary.ts`, beside the other shared schemas.
 - **Unregistered,** so the published bundle keeps inline patterns rather than gaining a `$ref` target.
-- **Adoption:** a site adopts it when its value is a kernel canonical digest, the three local copies included. The
-  composite `checkpoint-v1:` handle patterns (5 sites) and review-gate's frozen version-1 identities keep their domain
-  owners, each with a matrix row: the kernel's rule that shared use does not override a fenced-off semantic owner
-  applies. The kernel segment settles the site-by-site split under this rule.
+- **Adoption:** a site in surviving code adopts it when its value is a kernel canonical digest, the three local copies
+  included where they survive; carved sites keep their patterns under their carve rows. The composite
+  `checkpoint-v1:` handle patterns (5 sites) and review-gate's frozen version-1 identities keep their domain owners,
+  each with a matrix row: the kernel's rule that shared use does not override a fenced-off semantic owner applies. The
+  kernel segment settles the site-by-site split under this rule; a schema this unit writes before then for a kernel
+  digest uses it from the start.
+- **Narrowing, not checking.** Adoption narrows types and adds no runtime check. A producer that derives its value
+  through the canonical core, whose `canonicalDigest` and `digestBytes` return `CanonicalDigest`, narrows any
+  handwritten type that widens it to `string`; a value not derived there is not a kernel canonical digest and takes a
+  fenced row. No `as` cast or new `assertCanonicalDigest` call enters production code, a test value that is not a
+  digest-form literal parses through the schema, and a boolean guard over a kernel digest calls `isCanonicalDigest`.
 
 **2.2 A contract home for `RawGitExec`.** About 25 files use the type, and the executor contract never declares it.
 It moves to `lib/git/exec.ts` beside `GitExec` and `GitExecInput`, with the `RawGitResult` shape it returns.
@@ -232,18 +243,24 @@ rejections, which the kept real-Git test doubles produce, and surviving code dep
 
 - Retire the kernel shims and re-exports: `lib/canonical/canonical-json.ts` (127 importing files),
   `lib/canonical/managed-path.ts` (28), `lib/work-unit/slug.ts` (9), the `ArcError` re-export in `lib/errors.ts` (4),
-  and the vocabulary re-exports in `commands/active/types.ts` (15) — about 183 import edits — with the 5 tests that
-  only pin the shims. `lib/errors.ts` itself stays; only its re-export goes. `lib/canonical/content-digest.ts` is not a
-  shim and stays.
+  and the vocabulary re-exports in `commands/active/types.ts` (15) — about 183 import edits — with the 5 test cases
+  that only pin the shims. `lib/errors.ts` itself stays; only its re-export goes. `lib/canonical/content-digest.ts` is
+  not a shim and stays. The canonical-JSON and managed-path test files hold the kernel canonical core's only behavior
+  tests besides their pins, so they move to `__tests__/unit/kernel/` beside the kernel's other tests and import the
+  kernel modules.
 - Replace the local `SlugSchema` copies in `scripts/integration/merge.ts`, `scripts/integration/checkpoint.ts`, and
   `scripts/review-gate/readiness.ts`, and the re-minted state and placement-tier enums in
   `scripts/integration/checkpoint.ts`, with the kernel's `SlugSchema` and `WorkUnitStateSchema` and the layout's
   `ArcPlacementTierSchema`. The kernel's `SlugSchema` is branded and registered as `slug`. The review-readiness
   request and envelope schemas therefore publish `$ref: slug` in place of their inline pattern, with unchanged
-  validation, and type references to the parsed values take the branded slug where the compiler flags them (about 12
-  references to `ReviewReadinessRequest` and `ReviewVehicle` outside `readiness.ts`). The command-path pattern in
+  validation. The brand reaches every position typed from those schemas, `MergeLockTransitionRequestSchema` among
+  them through `ReviewVehicleSchema`, where about 190 test sites in 12 files and 3 production call sites pass plain
+  strings today. `evaluateReviewReadiness`, `checkpointIntegration`, and `mergeIntegration` already parse their input,
+  so their parameters take the request schema's input type (`z.input`); any other plain value reaching a branded
+  position parses through `SlugSchema`, and no `as` cast brands a slug. The command-path pattern in
   `lib/command-input/registry.ts` matches the slug pattern but names a command, not a work unit, so it stays local.
-- Move each local digest pattern whose value is a kernel canonical digest onto `CanonicalDigestSchema` (§ 2.1).
+- Move each local digest pattern in surviving code whose value is a kernel canonical digest onto
+  `CanonicalDigestSchema` (§ 2.1). Carved files keep theirs under their carve rows.
 
 ### 4. Validation surfaces
 
@@ -251,8 +268,8 @@ Retire the old-path re-exports at 5 sites outside `lib/user-sync/` with 31 impor
 `lib/active/meta-reader.ts`, `lib/config/status-reader.ts`, `lib/commit-check/config.ts`, and
 `commands/config/types.ts` with its relay in `commands/config.ts`. Retire the cross-WU entry re-exports in
 `lib/user-sync/index.ts` too; their surviving importers (inbox state and reminders) take the entry types from
-`lib/user-sync/schema.ts` and the parser from `lib/user-sync/parser.ts` (§ 1).
-The sync-state re-exports are notes sync and carved, and the names `user-sync/types.ts` re-exports have no importers.
+`lib/user-sync/schema.ts` and the parser from `lib/user-sync/parser.ts` (§ 1). The sync-state re-exports are notes
+sync and carved, and the names `user-sync/types.ts` re-exports have no importers.
 
 ### 5. Session envelope
 
@@ -276,36 +293,54 @@ archived `notes-cli-session-envelope.md`.
 `ReleaseRoutingValue` completes too; its thin view leaves `rationale` unvalidated. `ConfigSessionInitResult`'s schema
 composes from the config catalog's leaf schemas for its ten catalog keys, without the catalog's empty-string arm, and
 from the release module's interlock enums for `commit.interlock` and `push.interlock`, which are Git-config keys
-outside the catalog.
+outside the catalog. Its producer passes some settings through verbatim and keeps its cast over them, so a
+misconfigured value still fails envelope validation at the config slot, naming its key, as it does today.
+
+`ActiveSessionInitResult` reaches session-init through the session-init runner's projection of the derived locus
+frame, not through the standalone `active` resolver, and the resolver's module keeps the integration-boundary schema
+out of its eager imports. The schema therefore sits beside the type in `commands/active/`, and the resolver imports
+it type-only.
 
 **Emitted slot types.** Two of the nine reach the envelopes through derived snapshot types rather than as themselves.
 The worktree slot, in both envelopes, carries `WorktreeSnapshotAnalysisResult`; the base-distance slot carries
 `BaseDistanceSnapshotAnalysisResult | BaseDistanceNotApplicableResult`. Each replaces its root's `failureReason` with
 remote-evidence arms, where only the unreachable arm carries a failure reason. `WorktreeSyncStatusResult` and
 `BaseDriftResult` get full schemas as their types' authority — `BaseDriftResult`'s also serves the checkpoint wraps —
-and stay unregistered components. The snapshot schemas compose them without `failureReason` through the kernel's
-`withRemoteEvidence`, per verdict arm for base drift. Those snapshot schemas are their derived types' authority and
-the registered roots for the two slots.
+and stay unregistered components. The worktree snapshot schema composes its root without `failureReason` through the
+kernel's `withRemoteEvidence`. The base-distance snapshot schema composes explicit strict arms per verdict, as
+`base-branch-sync`'s root does: snapshot arms on `exact`, `pending-fetch`, and `unreachable`, and a not-applicable arm
+bounded to `skipped`, `no-remote`, and `detached-head`. `withRemoteEvidence` adds a not-applicable arm to every state,
+which would widen that type past the bound it carries today. Those snapshot schemas are their derived types' authority
+and the registered roots for the two slots.
 
 **Type authority and registration.** Each completed schema becomes its type's authority: the type is the schema's
 `z.infer`, and the handwritten declaration retires; every one is handwritten today. Ten roots are registered: seven
 of the nine types, the worktree and base-distance snapshot types in place of the other two, and
 `ReleaseRoutingValue`. Each is strict (strict objects, or unions of them) and registered in the session-envelope
-registry under a stable ID at version 1, `strict-current`, as `inbox-state` is. The envelope composes each root,
-directly or extended with session-init's recommendation fields; nested types stay unregistered components of their
-root. The envelope's own wrapper types (`SessionInit*Value`, `SessionRecover*Value`) stay handwritten, as the
-session-envelope member left them, under its compile-time compatibility proof. Session-init validates its envelope at
-runtime and fails on a mismatch, so a key a producer emits that its strict root does not declare now fails
-session-init. Each new root is therefore tested against representative producer output (§ Cross-cutting
-Considerations).
+registry under a stable ID at version 1, `strict-current`, as `inbox-state` is. The envelope composes each leaf root
+directly. The worktree and base-distance slots carry fields their roots do not — `identity`, and in session-init
+`supersession` and the recommendation fields — so each builds its strict arms from its root's exported fields plus its
+own, keeping its cross-field refinements, and a refusal names the offending key. Those own fields take full schemas
+too: `WorktreeIdentity`, and `supersession` as its probe emits it — a `SupersessionResult` when no remote read is
+needed, otherwise `SupersessionSnapshotAnalysisResult`'s remote-evidence arms — which is wider than the
+`SupersessionResult | null` the slot declares today. Nested types stay unregistered components of their root. The
+envelope's own wrapper types (`SessionInit*Value`, `SessionRecover*Value`) stay handwritten, as the session-envelope
+member left them, under its compile-time compatibility proof. Session-init validates its envelope at runtime and fails
+on a mismatch, so a key a producer emits that its strict root does not declare now fails session-init. Each new root is
+therefore tested against output its producer returns (§ Cross-cutting Considerations).
 
 ### 6. Layout
 
-**Framework paths.** Framework-path construction moves onto the resolver where a token covers it: the `.arc` root,
-procedure roots, `.arc/system` descendants, and template outputs. Under `.arc/system/.internal/` that means the
-framework bookkeeping — manifest, pristine store, hook and script paths, and the worktree marker; its state-record
-families are carved (§ 1). Framework-class hits in surviving `src/` modules come to about 140 lines in about 40
-files, most of them install and file-classification code that may take a disposition kind instead.
+**Framework paths.** Framework-path construction in surviving TypeScript moves onto the resolver where a token covers
+it, except where it builds a work-unit state path, which is carved (§ 1): the `.arc` root
+through `arc-root`, the method and workflow roots through `procedure-root`, and template outputs through
+`resolveTemplateOutputPath`. The resolver selects no other `.arc/system` descendant, and the layout contract exports
+no generic join, so an owner of one resolves `arc-root` and composes its own suffix, as the config reader already does.
+Under `.arc/system/.internal/` those owners hold the framework bookkeeping — manifest, pristine store, hook and script
+paths, and the worktree marker; its state-record families are carved (§ 1). A composed suffix no longer matches the
+`arc-root` class, and a hit that remains takes a disposition kind. Framework-class hits in surviving `src/` modules
+come to about 140 lines in about 40 files, most of them install and file-classification code that may take a
+disposition kind instead.
 
 **Ledger retirement.** `layout-migration-ledger.json` is the layout member's digest-bound migration receipt, checked
 by `npm run audit:layout-migration`. It no longer holds against the tree and is retired with its schema module
@@ -323,13 +358,19 @@ layout spec and the residual matrix's vocabulary. The coupling-audit class scan 
 - **Code-surface hits** (about 1,100 in about 200 files) are disposed three ways:
     - In a wholly carved module, by a predicate over module path: `external-owner`, citing the module's register row.
     - In a mixed module, per file along its symbol-range split (§ 1).
-    - In a surviving module, per file and class, each with a kind and an owner. A state-class hit that constructs or
-      recognizes a work-unit state path is `external-owner`, citing the `storage-seam` row for work-unit state-path
-      access. That residual stays complete and file-exact: the closeout exclusion rests on it, and it is the
-      evidence behind that row. Other state-class hits cite their own register row (placement, ROADMAP, Candidate
-      and transition records) or take their fitting kind: `layout-definition` for the resolver's own definitions,
-      and `scanner-false-positive` or `independent-evidence` for message text and conventions.
-- **A framework-class code hit that fits no kind** is missed construction, and it migrates.
+    - In a surviving module, per file and class, each with a kind and an owner. A hit of any layout class that
+      constructs or recognizes a work-unit state path is `external-owner`, citing the `storage-seam` row for
+      work-unit state-path access — a state-class hit, or an `arc-root` hit where a placement directory or the user
+      workspace is built without the trailing slash a placement class needs. That residual stays complete and
+      file-exact: the closeout exclusion rests on it, and it is the evidence behind that row. The row's count was
+      taken over the state classes alone, so a count the residual no longer matches goes to the register's owner as
+      a correction. Other state-class hits cite their own register row (placement, ROADMAP, Candidate and transition
+      records) or take their fitting kind: `layout-definition` for the resolver's own definitions, and
+      `scanner-false-positive` or `independent-evidence` for message text and conventions.
+- **A framework-class code hit that fits no kind** is missed construction, and it migrates. Code outside TypeScript —
+  Git hooks, harness hooks, and shell and `.mjs` scripts — cannot import the resolver, so its hits take a kind, most
+  often `root-only-owner` for its own root discovery, unless a carved-module predicate covers them. The retired
+  ledger's exact entries, read from the merge base, are the precedent for those kinds.
 
 **Routed items.** The layout contract routed two items here. The `provisional-placement` callers all sit in carved
 code: the lifecycle write path, the placement readers, a hook check, and a branch-tree reader (§ 1). The
@@ -362,31 +403,46 @@ code and tests start from them. The capabilities themselves belong to `storage-r
 ### 8. Command inputs
 
 - Wrap the 17 always-JSON adapters — merge lock resolve, hold, and release, and 14 review subcommands — with
-  `machineReadable: () => true`. `review planning-lane` prints text and is carved.
+  `machineReadable: () => true`, and bind each handler to the context the wrap hands it: the handler builds every
+  executor it reaches from the context's subprocess policy, including the policy-less `createGitExec()` in the
+  frontline and changeset resolve dependencies, since a wrap alone leaves Git's terminal prompts enabled. A
+  repository-inventory case pins the 17 to the adapter under a constant machine-mode policy, because the inventory's
+  machine-mode rule sees only `--json` options; the inventory's source scanner records whether a wrap declares that
+  policy. `review planning-lane` prints text and is carved.
 - Add the 3 missing machine-mode declarations: the `attest` and `publish` policy declarations, and both the wrap and
   the declaration for `locus`, whose handler body is carved locus derivation.
 - Wrap 4 value-bearing human-output commands: `user close`, `config validate`, `release setup print-patterns`, and
-  `log`.
-- Thread subprocess policy wherever a context-bearing command reaches Git through an unbound executor:
+  `log`. `log` builds its executor from the context; `config validate` and `print-patterns` reach neither Git nor a
+  prompt.
+- Thread subprocess policy wherever a context-bearing command reaches Git through an unbound executor — the `gitExec`
+  singleton or one built without a subprocess policy:
     - The shared helpers in `handlers/shared.ts` (`resolveUserIdentity`, `resolveIdentityWithPrompt`,
       `requireGitRepo`) default to the unbound `gitExec` singleton. They take a required executor, and their
-      surviving callers thread one: errand, lifecycle, start, release push and commit, active, and the surviving user
-      commands. Carved callers in the user, user-sync, and sync handlers pass `createGitExec()` under the forced-edge
-      rule (§ 1), which keeps their behavior exactly as it is.
-    - The 13 CLI-reachable importers of the singleton thread theirs; three hold it only as a fallback that bound
-      callers override. `config status`, whose adapter discards its context, and the module-level executor in
-      `release commit` thread theirs as well.
+      surviving callers thread one: errand, lifecycle, start, init, join, release push and commit, active, and the
+      surviving user commands. Carved callers in the user, user-sync, and sync handlers pass `createGitExec()` under
+      the forced-edge rule (§ 1), which keeps their behavior exactly as it is.
+    - The 13 CLI-reachable importers of the singleton thread theirs, and five hold it only as a fallback that bound
+      callers override. `release opt-in` and `opt-out` have no context to thread, so their adapters wrap with an
+      empty policy, as `release push`'s does. `config status`, whose adapter discards its context, threads its own.
+    - Exported helpers reach the singleton for callers the import graph does not show. `review.ts`'s
+      `defaultMergeLockPort` builds its readiness gate over it, and delivery's merge-lock releases call it; the
+      module-level executor in `release commit` serves helpers the delivery review-fix effects import. Both take the
+      invocation's executor, and delivery passes the one its command binds.
     - The second unbound singleton, `gitExecInput`, has one context-bearing use: the `active in-flight` adapter,
       which already binds its `GitExec`, binds its `GitExecInput` the same way; the in-flight body it calls stays
-      carved. `createUserIOContext` keeps the singleton as a fallback that bound callers override.
+      carved. A `createGitExecInput(interaction?)` factory beside `createGitExec` returns the singleton when unbound,
+      and `createUserIOContext` builds through it, so in surviving code the singleton survives only as the fallback
+      bound callers override. The carved notes writer, `writeGitNote`, keeps calling it under the notes-specific
+      sync row.
     - The `gitExec` singleton stays for the standalone scripts, which have no invocation context: 10 today, 9 once
-      the ledger assertion retires.
+      the ledger assertion retires. `local-test-admission.ts` builds a policy-less executor for the standalone test
+      runners, with a matrix row.
 
 ### 9. Test-support convergence
 
 **Inventory.** 172 test files type a `GitExec` value: about 110 script responses by argument or in sequence, about 33
-run real Git, and about 27 are constant or pass-through stubs. About 100 hand-write meta blocks, and 61 carry inline
-schema assertions. All counts are before the carve removes tests of carved code.
+run real Git, and about 27 are constant or pass-through stubs. About 90 hand-write meta-shaped blocks, and about 75
+carry inline schema assertions. All counts are before the carve removes tests of carved code.
 
 **Placement.** One module per contract under `__tests__/helpers/`, matching the existing per-concern modules; nothing
 is appended to `integration.ts`.
@@ -399,7 +455,8 @@ is appended to `integration.ts`.
   succeed;
 - computed responses, where an entry's response is a function of the call's arguments and options;
 - a call recorder;
-- failures as typed `GitProcessError` values built by a shared fixture;
+- failures as typed `GitProcessError` values built by a shared fixture, which the production classifier types from
+  an exit code or signal with stderr and stdout (bytes for the raw variant), or a cancellation or timeout;
 - a throw on any unmatched call;
 - variants for `GitExecInput` and `RawGitExec`.
 
@@ -415,27 +472,46 @@ local:
 
 Handler tests that `vi.mock` the IO context keep the mock, and the Git doubles inside it follow the same rule.
 
-**Rejection shapes.** Scripted doubles that reject with hand-built `Object.assign(new Error(...), {...})` shapes (about
-51 files) convert to the `GitProcessError` fixture, so those tests exercise the typed failure the production executor
-emits rather than the fallback normalization.
+**Rejection shapes.** Git doubles — functions typed `GitExec`, `RawGitExec`, or `GitExecInput` — that reject with a
+hand-built `Object.assign(new Error(...), {...})` Git-failure shape, carrying stderr, stdout, an exit code or signal,
+or a cancel or timeout flag (about 31 files), or with a plain `Error` whose message is Git's failure text (about 62
+sites in 21 files), convert to the `GitProcessError` fixture, so those tests exercise the typed failure the production
+executor emits rather than the fallback normalization. A plain `Error`'s message becomes the fixture's stderr, with
+exit code 128, Git's status for a fatal error, unless the consumer branches on another status Git uses for that
+condition. A double that stays local builds any Git failure it throws through the same fixture. Converted tests keep
+what they assert, and their call assertions read the fake's recorder.
+
+A failure that is not a process exit, such as Git being unavailable, keeps its plain `Error`, which the normalization
+types as `unexpected` as production does, and its double stays local. So do `base-advance.ts`'s fault-injecting
+hybrids: the module takes no runtime import from `src/`, and one of them models a non-exit failure deliberately.
+Filesystem errno errors, application errors built with the same idiom, and a guard thrown for an unscripted call are
+not Git failures and stay, and so do the raw shapes in tests whose subject is that normalization — the executor
+adapter's and `normalizeGitRejection`'s own tests. Doubles that already throw a constructed `GitProcessError` throw
+the typed failure and stay, except where they assign `expectedOutcome` by hand, which the fixture derives instead.
 
 **Raw test executors.** The shared `makeGitExecInput` helper (raw `spawn`, untyped rejections) moves onto
 `createExecaGitExecInput`, beside `makeGitExec`, which already uses the execa adapter. `base-advance.ts` keeps its raw
 `git()` runner: it is an arrangement runner, and the module avoids runtime imports from `src/` so the spawned test
-lane can reach it.
+lane can reach it. `integration.ts`'s raw notes helpers, `makeGitNoteWriter` and `makeGitNoteReader`, stand in for
+the carved note writer and reader inside `makeUserIO`, whose consumers test carved notes machinery, so they follow
+their subject and stay, carved under the notes-specific sync row.
 
 **Meta fixtures.** A meta fixture builder over `renderMetaFile` serves fixture setup. Tests about meta parsing or
-layout keep literal Markdown as independent evidence.
+layout keep literal Markdown as independent evidence, and so do fixtures with values outside the meta vocabulary,
+which the builder refuses by design. Consumer fixtures in the legacy flat-bullet form convert to the builder's form,
+and a text edit keyed on a flat-bullet field becomes a builder override or a meta-state setter call.
 
 **Schema assertions.** A helper that reports issues on failure replaces inline `safeParse(...).success` assertions in
-surviving tests. Registered-schema fixtures (configuration, audit entries) validate through their schemas.
+surviving tests. A test value typed as a registered schema's output by a cast — configuration objects, audit
+entries — parses through that schema instead; a deliberately invalid value built for a refusal test, and a partial
+value cast for a function that reads only some fields, keep their casts.
 
 **Order and cut line.** Conversions with a fidelity or forward-compatibility payoff come first: the reusable helpers,
-the rejection shapes, and the meta blocks. The inline assertion conversion (about 250 sites) is near-mechanical and
-always in scope. The remaining in-file scripted doubles — those whose only change is moving onto the fake, about 65
-files — convert last. They are the first cut if task-generation sizing or a later segment boundary shows the window
-at risk: they then go to a named Errand, the matrix lists each one against it, and nothing else in this design
-depends on them.
+the rejection shapes, and the meta blocks. The inline assertion conversion (about 430 sites, four in ten spanning
+several lines) is near-mechanical and always in scope. The remaining in-file scripted doubles — those whose only change
+is moving onto the fake, about 65 files — convert last. They are the first cut if task-generation sizing or a later
+segment boundary shows the window at risk: they then go to a named Errand, the matrix lists each one against it, and
+nothing else in this design depends on them.
 
 **Discoverability.** The project override of the `testing-standards` method, which fires whenever a task writes or
 modifies tests, gains one bullet: script `GitExec` through the shared fake with `GitProcessError` failures, build meta
@@ -454,19 +530,26 @@ The residual matrix lives as tables in `notes-cli-substrate-complete-migration.m
 re-export site, or migrated surface, with its importer count, rather than one importer. It records the owning
 contract, the old path or helper, the destination, the disposition, and the verification evidence. A disposition is
 one of four: migrated; retained by rule, citing the rule; owned by a named owner outside the cohort; or carved, citing
-its register row. Every mixed module is named with its symbol-range split. The `makeGitExecInput` row (migrated) and
-the `base-advance.ts` runner row (retained under § 9's arrangement-runner rule) together close the executor member's
-routed item for reusable raw-Git test executors.
+its register row. Every mixed module is named with its symbol-range split. The `makeGitExecInput` row (migrated), the
+`base-advance.ts` runner row (retained under § 9's arrangement-runner rule), and the notes helpers' row (carved)
+together close the executor member's routed item for reusable raw-Git test executors.
 
 Layout rows follow § 6. A carved-module predicate names its module path and register row. A per-file row is keyed by
-file and class and carries a disposition kind and an owner; one whose hits take different kinds lists the hit lines
-under each kind.
+file and class and carries a disposition kind, an owner, and its hit count; one whose hits take different kinds lists
+the hit lines under each kind. Reconciliation matches on file and class, and the listed lines record the split: they
+are re-derived whenever the matrix counts refresh, since every commit that moves a line would otherwise stale them.
 
-Code-surface reconciliation is mechanical and runs both ways over the scan result `npm run audit:coupling` emits,
-filtered to the 15 layout classes: every hit has a per-file row or falls under a carved-module predicate, and every
-row and predicate still has a hit. The comparison is a one-off script whose command the notes record; it runs at the
-layout segment, after each base merge, and at verification. A tracked gate would rebuild the ledger this unit
-retires. Non-code surfaces reconcile by predicate.
+Code-surface reconciliation is mechanical and runs both ways over the coupling-audit class scan, filtered to the 15
+layout classes: every hit has a per-file row or falls under a carved-module predicate, and every row and predicate
+still has a hit. Non-code surfaces reconcile the same way against their class-level predicates. Each hit is assigned
+to exactly one rule: a non-code predicate matches by surface kind and path prefix, and the longest matching prefix
+wins. A rule's hits are the hits assigned to it, so a fully shadowed predicate reports as hitless; a hit that two rules
+match without that precedence settling it is reported, and so is a per-file row whose assigned hit count differs from
+its recorded count. The comparison is a one-off script that calls the coupling-audit library and declares the 15
+class IDs itself, since the ledger module that held them retires; the notes record its source and command. It runs at
+the layout segment, after each base merge, and at verification, each time with a negative control: with a row and a
+predicate removed, each with no less specific rule to fall back to, it reports exactly their hits beyond the unremoved
+run's report. A tracked gate would rebuild the ledger this unit retires.
 
 ### 11. Cohort closeout amendment
 
@@ -489,7 +572,7 @@ register as the authority for each item's owner and fate. The amendment is appen
 - **Leave local test doubles in place, converging only reusable helpers:** rejected. The closeout criterion itself
   requires only reusable helpers, and the fixture and fake would serve the rejection shapes and new ref-backend tests
   without converting anything else. But the rest of the conversion is mechanical, with no design of its own: about
-  250 inline assertions and about 65 files of scripted doubles, which otherwise stay as drifting copies of one pattern.
+  430 inline assertions and about 65 files of scripted doubles, which otherwise stay as drifting copies of one pattern.
   Its real cost is window pressure, which § 9's cut line bounds.
 - **Convert every local double, constant stubs included:** rejected. A one-line stub has nothing to drift, and a
   response table would couple it to exact argument lists.
@@ -545,12 +628,16 @@ against terminal prompts to every Git spawn a context-bearing command makes. No 
 unit tests before any conversion uses them. Converted tests keep their assertions; only the double, fixture, or
 assertion mechanics change. Session-envelope goldens guard the emitted envelope across the schema moves. Their five
 E2E arms cannot reach every producer state, so each newly registered root also gets a unit test that parses
-representative producer output, since a strict root now fails session-init on an undeclared key. For the worktree and
-base-distance roots that output is the snapshot analyzers', which is what the envelopes carry.
+representative producer output, since a strict root now fails session-init on an undeclared key. That output is what
+the producer itself returns across the states it can reach, never a hand-typed object, which proves only itself. For
+the worktree and base-distance roots it is the snapshot analyzers' output, which is what the envelopes carry.
 
 **Performance and test cost.** New shared helpers and converted tests move `test-cost-budgets.json` rows. Every
 affected baseline, the `lane` row included, is taken before the first new test file lands, because a missed baseline
-cannot be recovered once the change lands.
+cannot be recovered once the change lands. A comparison against those baselines after the last test conversion
+records every tier-isolated row the change moves, and CI's budget report covers the `ci-job` rows. Base merges land
+other work's tests in between, so a row that moved is attributed by measuring the final merge base in a scratch
+checkout.
 
 **Delivery.**
 
@@ -605,12 +692,13 @@ Validated at work-unit completion:
   `lib/user-sync/index.ts`.
 - **Kernel.** `lib/canonical/canonical-json.ts`, `lib/canonical/managed-path.ts`, `lib/work-unit/slug.ts`, the
   `ArcError` re-export in `lib/errors.ts`, and the vocabulary re-exports in `commands/active/types.ts` are gone, with
-  their shim-pinning tests. The local `SlugSchema` copies and re-minted state and placement-tier enums are replaced by
-  the kernel and layout schemas.
+  their shim-pinning test cases, and the canonical core's behavior tests run against the kernel beside its other
+  tests. The local `SlugSchema` copies and re-minted state and placement-tier enums are replaced by the kernel and
+  layout schemas.
 - **Digest schema.** `CanonicalDigestSchema` is exported unregistered from `kernel/schema/vocabulary.ts` in the
   `z.templateLiteral` form with an explicit error message, composed from the digest prefix and hex pattern the
-  canonical core exports and derives `isCanonicalDigest` from. The three `z.custom<CanonicalDigest>` copies are gone,
-  and every remaining local `sha256:` digest pattern holds a fenced-owner matrix row.
+  canonical core exports and derives `isCanonicalDigest` from. No `z.custom<CanonicalDigest>` copy remains in
+  surviving code, and every remaining local `sha256:` digest pattern there holds a fenced-owner matrix row.
 - **Validation surfaces.** The five old-path re-export sites, the `commands/config.ts` relay, and the cross-WU entry
   re-exports in `lib/user-sync/index.ts` are gone, and their importers use the owning modules.
 - **Session envelope.** The nine surviving routed types, the worktree and base-distance snapshot types, and
@@ -625,25 +713,30 @@ Validated at work-unit completion:
   tests, the entrypoint-test entry, and the manifest exclusion are gone.
 - **Reconciliation.** Every matrix row carries one of § 10's four dispositions with its citation. The final
   code-surface reconciliation over the 15 layout classes reports no hit without a per-file row or carved-module
-  predicate, and no row or predicate without a hit; every non-code surface falls under a recorded predicate.
+  predicate, no overlap the precedence does not settle, no row or predicate without a hit, and no row whose hit count
+  moved; every non-code surface falls under a recorded predicate; and its negative control reports exactly the removed
+  hits beyond the unremoved run's report.
 - **Git executor.** `RawGitExec` and `RawGitResult` are declared in `lib/git/exec.ts` and imported type-only by
   `change-facts.ts`, and `classify-change.sh` still runs. The spawn factory is `createSpawnRawGitExec`, and
   `createRawGitExec` names only the execa adapter. The three failure-text predicates live in `lib/git/ref-tree.ts` and
   `resolveGitCommonDir` in `lib/git/exec.ts`, with no importer reaching either through `lib/user-sync/`. Errand
   identity code classifies failures through `gitFailureText()`.
-- **Command inputs.** The 17 always-JSON adapters and the 4 value-bearing commands are wrapped, and the 3 missing
-  declarations exist, carved handlers' command surfaces included. The shared helpers in `handlers/shared.ts` require
-  an executor, and their carved callers pass `createGitExec()`. No surviving context-bearing command path spawns Git
-  through an unbound executor: `gitExec`'s remaining importers are the standalone scripts and fallback holders their
-  callers override, and `gitExecInput`'s remaining use is `createUserIOContext`'s fallback.
+- **Command inputs.** The 17 always-JSON adapters, the 4 value-bearing commands, and `release opt-in` and `opt-out`
+  are wrapped, carved handlers' command surfaces included; the always-JSON handlers and `log` build their executors
+  from the context they receive, and the 3 missing declarations exist. The shared helpers in `handlers/shared.ts`
+  require an executor, and their carved callers pass `createGitExec()`. No surviving context-bearing command path
+  spawns Git through an unbound executor, exported helpers' callers included: `gitExec`'s remaining surviving
+  importers are the standalone scripts and the fallback holders their callers override, `gitExecInput`'s remaining
+  surviving use is the unbound fallback `createGitExecInput` returns, and the only surviving executors built without a
+  subprocess policy are the module-level ones in `lib/io-context.ts` and `local-test-admission.ts`'s.
 - **Test support.** The scripted fake with every capability in § 9, the `GitProcessError` fixture, the meta builder,
-  and the schema-assertion helper exist under `__tests__/helpers/` with their own tests. No surviving test keeps a
-  hand-built `Object.assign(new Error(...))` scripted rejection or a local double that § 9 converts, apart from any
-  doubles § 9's cut line hands to its named Errand, each listed in the matrix. `makeGitExecInput` builds on
-  `createExecaGitExecInput`, and `stubGitExec` is local to `active.test.ts`. Every hand-written meta block left in a
-  surviving test belongs to a test of meta parsing or layout, and no surviving test keeps an inline
-  `safeParse(...).success` assertion. The `testing-standards` project override names the shared fake, fixture,
-  builder, and helper, and the doubles that stay local.
+  and the schema-assertion helper exist under `__tests__/helpers/` with their own tests. Apart from hits a
+  retained-by-rule matrix row covers, no surviving test keeps a hand-built Git-failure rejection, a local double that
+  § 9 converts (other than any § 9's cut line hands to its named Errand, each listed in the matrix), a hand-written
+  meta block outside a test of meta parsing or layout, an inline `safeParse(...).success` assertion, or a value typed
+  by a cast to a registered schema's output. `makeGitExecInput` builds on `createExecaGitExecInput`, and `stubGitExec`
+  is local to `active.test.ts`. The `testing-standards` project override names the shared fake, fixture, builder, and
+  helper, and the doubles that stay local.
 - **Test cost.** Every affected test-cost baseline, `lane` included, was taken before the first new test file landed,
   and the final comparison is recorded.
 - **Cohort.** `cohort-cli-substrate-adoption.md`'s closeout criterion carries the storage-carve exclusion, and the
