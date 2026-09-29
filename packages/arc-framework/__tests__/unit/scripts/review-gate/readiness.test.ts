@@ -235,6 +235,16 @@ describe("review repository schema", () => {
   });
 });
 
+describe("review vehicle schema", () => {
+  it("refuses a work-unit identity that is not a slug", () => {
+    expect(ReviewVehicleSchema.safeParse({
+      kind: "work-unit",
+      slug: "Demo_Unit",
+      archiveCadence: "manual",
+    }).success).toBe(false);
+  });
+});
+
 describe("evaluateReviewReadiness", () => {
   it("accepts a manual-cadence work unit without inventing Release Notes applicability", async () => {
     const result = await evaluateReviewReadiness(

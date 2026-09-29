@@ -178,7 +178,7 @@ const TRANSITIONS = {
 
 async function transitionMergeLock(
   kind: keyof typeof TRANSITIONS,
-  input: MergeLockTransitionRequest,
+  input: z.input<typeof MergeLockTransitionRequestSchema>,
   port: MergeLockPort,
 ): Promise<unknown> {
   const request = MergeLockTransitionRequestSchema.parse(input);
@@ -444,7 +444,7 @@ async function gateCandidateReadiness(
  * @returns A strict held, no-lock, or blocked envelope.
  */
 export async function holdMergeLock(
-  input: MergeLockTransitionRequest,
+  input: z.input<typeof MergeLockTransitionRequestSchema>,
   port: MergeLockPort,
 ): Promise<MergeLockHoldEnvelope> {
   return MergeLockHoldEnvelopeSchema.parse(await transitionMergeLock("hold", input, port));
@@ -459,7 +459,7 @@ export async function holdMergeLock(
  * @returns A strict released, no-lock, or blocked envelope.
  */
 export async function releaseMergeLock(
-  input: MergeLockTransitionRequest,
+  input: z.input<typeof MergeLockTransitionRequestSchema>,
   port: MergeLockPort,
 ): Promise<MergeLockReleaseEnvelope> {
   return MergeLockReleaseEnvelopeSchema.parse(await transitionMergeLock("release", input, port));

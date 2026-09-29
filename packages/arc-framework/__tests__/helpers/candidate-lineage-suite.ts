@@ -41,7 +41,7 @@ import { DeliveryStateV1Schema } from "../../src/lib/delivery/schema.js";
 import { renderDeliveryPlanSection } from "../../src/lib/delivery/task-list-render.js";
 import { gitExec } from "../../src/lib/io-context.js";
 import { runActiveStatus } from "../../src/commands/active.js";
-import { canonicalDigest } from "../../src/lib/kernel/index.js";
+import { canonicalDigest, SlugSchema } from "../../src/lib/kernel/index.js";
 import {
   readCandidateRecord,
   readCandidateRecordVersioned,
@@ -836,7 +836,7 @@ async function checkpointOver(root: string, cadence: "manual" | "with-integratio
       };
     },
     readLifecycle: async (workUnit) => ({
-      workUnit,
+      workUnit: SlugSchema.parse(workUnit),
       storageVersion: await git(root, ["rev-parse", "HEAD"]),
       archiveCadence: cadence,
       state: shipped ? "shipped" : "integrating",
@@ -2598,7 +2598,7 @@ async function persistComposition(root: string, approvedHead: string): Promise<s
       },
       statusSummary: {
         lifecycle: {
-          workUnit: "example",
+          workUnit: SlugSchema.parse("example"),
           storageVersion: approvedHead,
           archiveCadence: "manual",
           state: "integrating",
@@ -2674,7 +2674,7 @@ function registerReviewBearingIntegration(it: typeof vitestIt): void {
           pullRequest: (lockTarget ?? target).pullRequest,
           headSha: (lockTarget ?? target).headSha,
         },
-        vehicle: { kind: "work-unit", slug: "example", archiveCadence: "with-integration" },
+        vehicle: { kind: "work-unit", slug: SlugSchema.parse("example"), archiveCadence: "with-integration" },
       }),
       observeChecks: async () => ({
         schemaVersion: 1,
@@ -2738,7 +2738,7 @@ function registerReviewBearingIntegration(it: typeof vitestIt): void {
           schemaVersion: 1,
           treeRoot: root,
           target: { repository: "owner/repo", pullRequest: 42, headSha: approvedHead },
-          vehicle: { kind: "work-unit", slug: "example", archiveCadence: "with-integration" },
+          vehicle: { kind: "work-unit", slug: SlugSchema.parse("example"), archiveCadence: "with-integration" },
         }),
         observeChecks: () => Promise.reject(new Error("unexpected checks observation")),
         resolveMergeMethod: () => Promise.reject(new Error("unexpected method resolve")),

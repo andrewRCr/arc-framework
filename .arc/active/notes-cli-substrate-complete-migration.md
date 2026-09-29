@@ -1476,6 +1476,28 @@ active result/vocabulary imports. The second run changed zero. `lib/errors.ts` k
 `commands/active/types.ts` kept its result types, and the compatibility re-exports and their identity tests went.
 The active validator cases absent from the kernel suite moved into `unit/kernel/vocabulary.test.ts`.
 
+### Local slug schemas
+
+Search `scripts/integration/{checkpoint,merge}.ts` and `scripts/review-gate/readiness.ts` for the three local
+`SlugSchema = z.string().regex(...)` declarations. Replace each with `lib/kernel/schema/slug.ts`'s schema. Keep
+schema-output aliases as `z.infer`; make `checkpointIntegration`, `mergeIntegration`, and `evaluateReviewReadiness`
+take `z.input<typeof RequestSchema>`, since all three parse at entry. Merge-lock hold/release and their internal
+transition take `z.input<typeof MergeLockTransitionRequestSchema>` for the same reason. Other producers of
+branded request, vehicle, lifecycle, and result values parse through their registered schema, including test
+fixtures. Re-run the local-declaration search and `typecheck:all` after base merges; no cast brands a slug.
+The command-path pattern in `lib/command-input/registry.ts` names a command, not a work-unit identity, and stays
+local.
+
+The readiness public-schema closure test first failed because `slug` was missing and passed after the kernel schema
+was adopted. The invalid work-unit slug test passed under the existing local regex; a narrow reconstruction with
+`z.string()` made it fail, and it passed after restoration and adoption. The three local copies were removed. The
+brand initially surfaced 51 test type errors; parsing the affected fixture values and accepting schema input at
+the three entry functions and merge-lock entry functions resolved them. Eight focused review and integration test
+files passed 248 tests. One parsed fixture exposed a non-hex `oid("g")`; using another valid hex character kept its
+distinct-head scenario while satisfying the Git object-ID schema.
+The checkpoint lifecycle summary now composes `WorkUnitStateSchema` for `position.phase` and
+`ArcPlacementTierSchema` for `position.location`; its top-level lifecycle `state` remains checkpoint-owned.
+
 ### Raw Git type home
 
 At the merged base, the TypeScript import graph and an AST pass found 44 named imports of `RawGitExec` from

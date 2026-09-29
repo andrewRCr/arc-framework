@@ -9,6 +9,7 @@ import {
   type IntegrationCheckpointDependencies,
 } from "../../../../src/scripts/integration/checkpoint.js";
 import { canonicalDigest } from "../../../../src/lib/kernel/canonical/canonical-json.js";
+import { SlugSchema } from "../../../../src/lib/kernel/schema/slug.js";
 import { classifyCandidateApplicability } from "../../../../src/lib/work-unit/candidate-applicability.js";
 import { CandidateSubjectUncollectableError } from "../../../../src/lib/work-unit/git-candidate-subject.js";
 import { createCandidateSubjectSnapshot } from "../../../../src/lib/work-unit/candidate-attestation.js";
@@ -111,7 +112,7 @@ function dependencies(): IntegrationCheckpointDependencies {
     }),
     classifyDeliveryDrift: async () => ({ status: "not-applicable" }),
     readLifecycle: async () => ({
-      workUnit: "example",
+      workUnit: SlugSchema.parse("example"),
       storageVersion: oid("c"),
       archiveCadence: "manual",
       state: "integrating",
@@ -812,7 +813,7 @@ describe("integration checkpoint", () => {
     const deps = dependencies();
     deps.readDrift = async () => CLEAN_DRIFT;
     deps.readLifecycle = async () => ({
-      workUnit: "example",
+      workUnit: SlugSchema.parse("example"),
       storageVersion: oid("c"),
       archiveCadence: "manual",
       state: "integrating",
@@ -843,7 +844,7 @@ describe("integration checkpoint", () => {
     const deps = dependencies();
     deps.readDrift = async () => CLEAN_DRIFT;
     deps.readLifecycle = async () => ({
-      workUnit: "example",
+      workUnit: SlugSchema.parse("example"),
       storageVersion: oid("c"),
       archiveCadence: "manual",
       state: "integrating",
@@ -1186,7 +1187,7 @@ describe("integration checkpoint", () => {
     const deps = dependencies();
     deps.readDrift = async () => CLEAN_DRIFT;
     deps.readLifecycle = async () => ({
-      workUnit: "example",
+      workUnit: SlugSchema.parse("example"),
       storageVersion: oid("c"),
       archiveCadence: "with-integration",
       state: "shipped",
@@ -1213,7 +1214,7 @@ describe("integration checkpoint", () => {
     const deps = dependencies();
     deps.readDrift = async () => CLEAN_DRIFT;
     deps.readLifecycle = async () => ({
-      workUnit: "example",
+      workUnit: SlugSchema.parse("example"),
       storageVersion: oid("c"),
       archiveCadence: "with-integration",
       state: "shipped",
@@ -1240,7 +1241,7 @@ describe("integration checkpoint", () => {
     const deps = dependencies();
     deps.readDrift = async () => CLEAN_DRIFT;
     deps.readLifecycle = async () => ({
-      workUnit: "example",
+      workUnit: SlugSchema.parse("example"),
       storageVersion: oid("c"),
       archiveCadence: "with-integration",
       state: "shipped",
@@ -1275,7 +1276,7 @@ describe("integration checkpoint", () => {
     const deps = dependencies();
     deps.readDrift = async () => CLEAN_DRIFT;
     deps.readLifecycle = async () => ({
-      workUnit: "example",
+      workUnit: SlugSchema.parse("example"),
       storageVersion: oid("c"),
       archiveCadence: "with-integration",
       state: "shipped",
@@ -1300,7 +1301,7 @@ describe("integration checkpoint", () => {
     const deps = dependencies();
     deps.readDrift = async () => CLEAN_DRIFT;
     deps.readLifecycle = async () => ({
-      workUnit: "example",
+      workUnit: SlugSchema.parse("example"),
       storageVersion: oid("c"),
       archiveCadence: "with-integration",
       state: "shipped",

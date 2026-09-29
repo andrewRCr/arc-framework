@@ -606,32 +606,24 @@ holds a fenced-owner matrix row.
 - _Outcome:_ Both file shims and both named re-export sites are gone. The recorded recipes re-run without changes,
   and the preserved kernel and presentation behavior suites pass.
 
-### `[ ]` **6.3 Replace the local slug schemas and re-minted state and placement-tier enums — D3**
+### `[x]` **6.3 Replace the local slug schemas and re-minted state and placement-tier enums — D3**
 
 - _Goal:_ The integration and review-readiness schemas validate slugs, work-unit states, and placement tiers through
   the kernel and layout schemas, and review readiness publishes `$ref: slug` with unchanged validation.
 
-- _Note:_ The command-path pattern in `lib/command-input/registry.ts` matches the slug pattern but names a command, not
-  a work unit, and stays local.
+    - `[x]` **6.3.a Replace the local `SlugSchema` copies**
+        - Replaced the three local schemas with the kernel owner. Entry functions that parse their request, including
+          merge-lock transitions, accept schema input; other branded fixture values parse through their schemas.
+          The readiness public schema now includes `slug`, and invalid work-unit identities still refuse.
+        - The published-schema test failed before adoption; the existing refusal was shown to fail against a narrow
+          permissive reconstruction and pass after restoration. Notes § Local slug schemas records the recipe.
 
-    - `[ ]` **6.3.a Replace the local `SlugSchema` copies**
-        - In `scripts/integration/merge.ts`, `scripts/integration/checkpoint.ts`, and
-          `scripts/review-gate/readiness.ts`. The kernel schema brands its output, and before any other change about
-          190 test sites in 12 files and 3 production call sites pass plain strings into the branded positions.
-        - `evaluateReviewReadiness`, `checkpointIntegration`, and `mergeIntegration` already parse their input, so their
-          parameters take the request schema's input type (`z.input`), and callers passing plain strings stay as they
-          are. Any other plain value reaching a branded position parses through `SlugSchema`, as Task 7.3's cast rule
-          does; no `as` cast brands a slug. The brand also reaches `MergeLockTransitionRequestSchema` through
-          `ReviewVehicleSchema`, so the merge-lock code in `scripts/review-gate/merge-lock.ts`, `handlers/review.ts`,
-          and `hosts/github/merge-lock.ts` follows the same rule.
-        - The readiness request's schema closure in `review-cli-surfaces.e2e.test.ts` gains `slug`.
-        - Build `test-first` (one behavior at a time):
-            - The review-readiness request schema publishes `$ref: slug`
-            - Review readiness still refuses a work-unit value that is not a slug
+    - `[x]` **6.3.b Replace the re-minted state and placement-tier enums in the checkpoint**
+        - `position.phase` now composes `WorkUnitStateSchema`, and `position.location` composes
+          `ArcPlacementTierSchema`. The checkpoint's top-level lifecycle `state` stays local.
 
-    - `[ ]` **6.3.b Replace the re-minted state and placement-tier enums in the checkpoint**
-        - `position.phase` takes `WorkUnitStateSchema` and `position.location` takes `ArcPlacementTierSchema`; the
-          top-level lifecycle `state` enum is the checkpoint's own and stays local.
+- _Outcome:_ Request and lifecycle schemas now use the kernel and layout authorities. The published readiness
+  request references `slug`; notes § Local slug schemas records the red-green evidence and rerunnable search.
 
 ### `[ ]` **6.4 Adopt `CanonicalDigestSchema` at kernel canonical digest sites — D3, D2**
 

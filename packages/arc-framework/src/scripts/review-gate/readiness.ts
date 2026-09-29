@@ -42,6 +42,7 @@ import { z } from "zod";
 
 import { parseMetaRecord } from "../../lib/active/meta-reader.js";
 import { isErrandBranchType } from "../../lib/errand/branch-type.js";
+import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { branchToWorkUnitSlug } from "../../lib/work-unit/completed-index.js";
 import {
   classifyPredecessorRelation,
@@ -54,7 +55,6 @@ import type {
 } from "./core/delivery-member-lookup.js";
 import { GitObjectIdSchema } from "./core/gate-contract-v2-schema.js";
 
-const SlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
 const RepositorySchema = z
   .string()
   .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u)
@@ -1035,7 +1035,7 @@ async function evaluateArchivedWorkUnit(
  * @returns A ready or structured-invalid review envelope.
  */
 export async function evaluateReviewReadiness(
-  input: ReviewReadinessRequest,
+  input: z.input<typeof ReviewReadinessRequestSchema>,
   overrides: Partial<ReviewReadinessDependencies> = {},
 ): Promise<ReviewReadinessEnvelope> {
   const request = ReviewReadinessRequestSchema.parse(input);

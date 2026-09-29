@@ -2,6 +2,9 @@
 
 import { z } from "zod";
 
+import { SlugSchema } from "../../lib/kernel/schema/slug.js";
+import { WorkUnitStateSchema } from "../../lib/kernel/schema/vocabulary.js";
+import { ArcPlacementTierSchema } from "../../lib/layout/schema.js";
 import { BaseDriftResultSchema, type BaseDriftResult, type BaseMovement } from "../../lib/git/base-drift-types.js";
 import {
   GitMergeFeasibilitySchema,
@@ -59,7 +62,6 @@ import {
 
 const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
-const SlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
 const DetailSchema = z.string().trim().min(1).max(4_096);
 
 export const IntegrationCheckpointRequestSchema = z.strictObject({
@@ -76,8 +78,8 @@ export const IntegrationLifecycleSummarySchema = z.strictObject({
     "nonexistent", "provisional", "planned", "planning", "active", "integrating", "parked", "shipped",
   ]),
   position: z.strictObject({
-    phase: z.enum(["Planning", "Active", "Integrating", "Shipped"]),
-    location: z.enum(["provisional", "planned", "active", "completed"]),
+    phase: WorkUnitStateSchema,
+    location: ArcPlacementTierSchema,
   }).nullable(),
   artifactFacts: z.array(z.strictObject({
     code: z.string().min(1),
@@ -1107,7 +1109,7 @@ function checkpointPostAttestContinuation(workUnit: string, reviewedHead: string
 }
 
 export async function checkpointIntegration(
-  input: IntegrationCheckpointRequest,
+  input: z.input<typeof IntegrationCheckpointRequestSchema>,
   dependencies: IntegrationCheckpointDependencies,
 ): Promise<IntegrationCheckpointResult> {
   const request = IntegrationCheckpointRequestSchema.parse(input);

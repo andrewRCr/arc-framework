@@ -1,6 +1,7 @@
 /** Integration procedure CLI adapter behavior. */
 
 import { describe, expect, it, vi } from "vitest";
+import { SlugSchema } from "../../../src/lib/kernel/schema/slug.js";
 import {
   checkpointRemedy,
   IntegrationCheckpointResultSchema,
@@ -22,21 +23,21 @@ describe("integration checkpoint handler", () => {
       checkpoint: async () => ({
         schemaVersion: 1,
         mode: "integrate-checkpoint",
-        workUnit: "example",
+        workUnit: SlugSchema.parse("example"),
         state: "blocked",
         nextAction: "stop",
         reason: "candidate-missing",
         detail: "A managed Candidate attestation is required before checkpoint composition.",
         coordinates: { observedBaseOid: null, observedHeadOid: null },
         remedy: checkpointRemedy("candidate-missing", "example"),
-        payload: { workUnit: "example" },
+        payload: { workUnit: SlugSchema.parse("example") },
       }),
       write,
     });
 
     expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
       mode: "integrate-checkpoint",
-      workUnit: "example",
+      workUnit: SlugSchema.parse("example"),
       state: "blocked",
       reason: "candidate-missing",
     });
@@ -72,7 +73,7 @@ describe("integration checkpoint handler", () => {
     const result = JSON.parse(String(write.mock.calls[0]?.[0]));
     expect(IntegrationCheckpointResultSchema.safeParse(result).success).toBe(true);
     expect(result).toMatchObject({
-      workUnit: "example",
+      workUnit: SlugSchema.parse("example"),
       state: "blocked",
       reason: "composition-unavailable",
       remedy: { argv: ["arc", "integrate", "checkpoint", "example"] },
@@ -133,7 +134,7 @@ describe("integration merge handler", () => {
       merge: async () => ({
         schemaVersion: 1,
         mode: "integrate-merge",
-        workUnit: "example",
+        workUnit: SlugSchema.parse("example"),
         state: "merged",
         nextAction: "complete",
         payload: {
@@ -154,7 +155,7 @@ describe("integration merge handler", () => {
 
     expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
       mode: "integrate-merge",
-      workUnit: "example",
+      workUnit: SlugSchema.parse("example"),
       state: "merged",
       payload: { approvedHead: oid("a"), pullRequest: 42, providerMergeId: oid("d") },
     });
@@ -194,7 +195,7 @@ describe("integration merge handler", () => {
     const result = JSON.parse(String(write.mock.calls[0]?.[0]));
     expect(IntegrationMergeResultSchema.safeParse(result).success).toBe(true);
     expect(result).toMatchObject({
-      workUnit: "example",
+      workUnit: SlugSchema.parse("example"),
       state: "blocked",
       reason: "operation-failed",
       remedy: { argv: ["arc", "integrate", "checkpoint", "example"] },

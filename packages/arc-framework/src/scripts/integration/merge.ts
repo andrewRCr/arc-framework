@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 
+import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import type {
   CheckpointMovementObservation,
   CheckpointMovementPlan,
@@ -31,7 +32,6 @@ import {
 } from "./spine-refusal.js";
 import type { SettlementExecutionResult } from "./settlement-execution.js";
 
-const SlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
 const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
 const CheckpointHandleSchema = z.string().regex(
   /^checkpoint-v1:(?:[0-9a-f]{40}|[0-9a-f]{64}):sha256:[0-9a-f]{64}$/u,
@@ -601,7 +601,7 @@ async function invalidated(
 
 /** Execute the exact persisted post-approval span and merge only its approved head. */
 export async function mergeIntegration(
-  input: IntegrationMergeRequest,
+  input: z.input<typeof IntegrationMergeRequestSchema>,
   dependencies: IntegrationMergeDependencies,
 ): Promise<IntegrationMergeResult> {
   const request = IntegrationMergeRequestSchema.parse(input);
