@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — Re-derive the residual inventory and seed the residual matrix
+- **Last Completed:** Task 7.5 — Sweep surviving tests for convertible residue
+- **Next Task:** Task 8.1 — Complete verification (line ~766)
 - **Blockers:** [none]
 
-- **Next Action:** Run Task 1.1 via process-task-loop from 1.1.a (the three inventory scans at the merged base)
+- **Next Action:** Run Task 8.1 via verify-work-unit.md after session init
 
 - **PR URL:** [none]
 - **Completed:** [none]
