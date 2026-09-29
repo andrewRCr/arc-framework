@@ -15,8 +15,9 @@
 
 ## Continuity
 
-- **Readiness:** rough. The scope, what this work unit lands, and the working rules are settled; the decisions the
-  siblings wait on are still open.
+- **Readiness:** rough. The scope, what this work unit lands, and the working rules are settled. Of the decisions the
+  siblings wait on, the ref layout and the concurrency mechanisms are settled, and one remains: where a cohort
+  document and parked work units appear (C6).
 - **Resolved (2026-09-29):** stage entry (§ Stage entry); what lands here and what is handed off (§ What this work unit
   lands); the register's landing route (§ The storage-coupling register); inbox write serialization (C1); ghost mode as
   a core requirement with a middle-ground split (C8); record format skew (C2); the register sweep, landed on `main` (PR
@@ -26,9 +27,12 @@
   projection's name, the firing points with `arc save`, and opt-in editor settings (C6); the two-level family model and
   the family list, review evidence as stored, and machine-local state as a projection property (C2); identity as a
   name plus a UID (C2), the ref surfaces keyed by UID (C3), and slug guards and entry IDs (C4); the local copy
-  following the remote — the code repository's refs by default, a separate Git directory otherwise (C3).
+  following the remote — the code repository's refs by default, a separate Git directory otherwise (C3); conflicts
+  shown in the projected file with standard markers, and a removal racing an edit leaving the edit, with routing
+  receipts (C4); the inbound list as its own kind, which any session routes into directly (C4); the design envelope,
+  confirmed by arithmetic, with a push-contention tripwire (C4).
 - **Open:** every `Open` item in § Decision ledger; the consumer map.
-- **Next:** the remaining concurrency details (C4).
+- **Next:** where a cohort document lives while its members are in flight, and where parked work units appear (C6).
 
 ---
 
@@ -171,7 +175,8 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
   conformance suite.
     - Project scope:
         - **work units**, across their whole lifecycle, `completed/` included — kinds: meta and task list (machine
-          records), and draft, spec, notes, and companions (prose), under C6's writer rules. The layout resolver already
+          records), draft, spec, notes, and companions (prose), and the inbound list (an entry list, C4), under C6's
+          writer rules. The layout resolver already
           names the first five; companions follow ownership by folder;
         - **cohorts** — cohort documents, three-way line merge;
         - **the project inbox** — `ATOMIC-INBOX`, entry merge;
@@ -350,17 +355,90 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
   conflict markers are never the record, deciding verbs re-read the store, and each checkout refuses a state head
   that does not descend from the last one it saw. This replaces user sync's recency resolution
   (`lib/user-sync/merge.ts`), which drops the older edit silently.
+    - **Refined** (Owner, 2026-09-29): a removal racing an edit to the same entry is not a clash; the edit survives.
+      A removal takes out only the version it observed, as in an observed-remove set (add wins), so an edit it never
+      saw was concurrent, not later, and recency still decides nothing. A same-entry clash is two differing edits.
+      The spike found almost every conflict left under entry merge was a drain racing a note, so a conflict record
+      there would make ordinary housekeeping a hand-resolved conflict. On one machine the drain's per-entry version
+      check catches the edit before it removes the entry; an edit persisted after the removal meets the same rule.
+    - Routing keeps the entry's `_Id:_` at its destination — an inbound entry's `routed from <origin>, <date>`
+      provenance line gains it, a new stub's Origin cites it, and an `ATOMIC-INBOX` entry keeps its own — so the next
+      drain recognizes a surviving entry as already routed and carries only its new content there, never a
+      duplicate; in another person's work unit, where only the owner edits entries, that content goes as a new entry
+      citing the original's ID. A note woven into a draft's prose keeps no ID, so its survivor routes again as a
+      follow-up inbound entry. Two drains routing one entry to one destination write the same ID once; to two
+      destinations they leave two homes, findable by ID.
+    - Each routing writes a receipt — the entry's ID, its destination, and the date — into the inbox ref's tree,
+      never projected, which gives the batch-mutation requirement below its home. A surviving entry with a receipt
+      gains a ``_Routed:_ `<destination>` `` line, so the person sees why it came back and that its new content has
+      not reached its home, rather than deleting it as a leftover and losing that content. Receipts go with the
+      ref's rotation.
 - **Decided** (Owner, 2026-09-29): the concurrency library lives in this work unit (§ What this work unit lands).
-- **Open (siblings wait; settle before the library is built):** how a conflict shows in a single-file list — a
-  marker beside the entry, or only in `arc status`.
-- **Open:** whether a drain racing an edit to the same entry needs a record at all, since the edited entry stays in
-  the file.
-- **Open:** how another person's session reaches an in-flight work unit's Inbound Buffer — an entry-merge surface it
-  may append to, or a capture routed through the owner. The owner's own sessions write it directly, since it is part
-  of the draft (C6). The answer decides whether the hold-and-route ceremony (`_Hold` and `WU_Target` captures, the
-  coordination-seam rule in `WORKING-MEMORY`) survives the cutover for anyone.
-- **Open:** team-scale push contention, and confirming the design envelope — about ten people running about six
-  sessions each — from the workload model.
+- **Decided** (Owner, 2026-09-29): an open conflict shows in the projected file itself, as standard Git conflict
+  markers (`<<<<<<<`, `=======`, `>>>>>>>`) around both whole versions of the entry, each side labelled with its
+  machine or session and time; status and the refusing verbs stay as decided. `WORKING-MEMORY` loads into every
+  session, so a conflict shown only in `arc status` would have every session read one side as settled. Nothing is held
+  back: the conflict is in the store from the moment of the clash, the rest of the file keeps refreshing, and the
+  projection's hold-back guard, with teardown's export into the conflict record (analysis § 6.5), retires for merge
+  surfaces. In the spike, holding back the whole file stopped 43 of 60 worktrees syncing the inbox. Jujutsu does the
+  same: a conflict is stored as a logical representation, materialized with markers in the working copy, and parsed
+  back on the next scan.
+    - One idiom for lists and prose: line-merged drafts, specs, and cohort documents mark the conflicting lines the
+      same way. Lists conflict per whole entry, with no line merge inside an entry, which the spike found silently
+      wrong in 0.2–2.2% of pairs.
+    - Parse-back at persist: markers left as they were keep the conflict open; markers replaced by text record that
+      text as the resolution, naming the conflict; a duplicated `_Id:_` left by an editor's "accept both" gives the
+      second entry a fresh ID; malformed markers refuse that entry's persist with a typed remedy while the rest of the
+      file persists.
+    - The surface's owner decides a resolution; a session proposes one and applies it on the owner's approval, never
+      picking a side on its own. A drain skips a conflicted entry and reports it, while insertions elsewhere still
+      merge.
+    - Editors, checked by hand on a gitignored probe (2026-09-29): VS Code offers its accept actions though Git never
+      reports the file as conflicted, and "accept both" kept both entries but dropped the blank line between them, so
+      the entry parser tolerates that and the merged write restores standard spacing. Zed shows nothing, so there a
+      conflict is resolved by editing the markers directly or through a session. In prose files, `=======` under a
+      paragraph renders as a heading in preview, as in any Markdown merge.
+    - A lint glob that still reaches projected paths flags open markers: markdownlint read the probe's prose conflict
+      as a heading and failed it. The register row on checks that read state already moves them to where state is
+      written, so the code gates stop globbing projected state.
+- **Decided** (Owner, 2026-09-29): any session routes straight into a work unit's inbound list; nothing routes
+  through the owner. A capture waiting for the owner would rest in a capture surface with its home known, which
+  `DEV-RULES.ARC` § Discovered Work Routing forbids, and nothing could carry it: a personal inbox is private and the
+  project inbox takes Errands only. Hold-and-route exists because tracked branch files made the direct write
+  impossible.
+    - The Inbound Buffer leaves the draft to become its own kind, the inbound list (`inbound-<slug>.md` beside the
+      draft), merged by entry. Integration removes entries while appends arrive, and insert-beside-delete is where
+      line merge was silently wrong in the spike. The solo case alone needs this — a drain in one worktree appends
+      while the owning session integrates — so another person's append is one writer rule on top.
+    - Writer rule: anyone with project write access inserts, through the routing verb, since others' work units are
+      read-only in the projection; only the owner's sessions edit or remove entries, and integration is one write to
+      the work-unit ref. The host cannot enforce owner-only, as with every ARC writer rule (C7).
+    - One surface from stub to archive; a backlog stub still takes a note woven straight into its draft (C2).
+      Entries ride the work unit's own ref, so they contend only with that work unit's other writes.
+    - Teams will mostly talk out of band. The entry is the durable carrier a message points at, so the routing verb
+      reports the entry's ID and its destination.
+    - Survives the cutover: `WU_Target` as the capture hint, `_Hold` as the retain escape hatch only, and the timing
+      of `WORKING-MEMORY`'s coordination-seam rule (route at planning close, not in task lists). Retires: in-flight
+      owner adoption, and that rule's mechanism (never editing sibling work units' tracked buffers).
+    - Left to `storage-seam`: where an executing work unit integrates inbound entries — handoff or verify — since it
+      has no next planning iteration.
+- **Decided** (Owner, 2026-09-29): the design envelope — about ten people running about six sessions each — holds
+  with margin, confirmed by arithmetic from the workload model and this repository's history rather than by a
+  team-scale spike.
+    - State pushes alone only at handoff, lifecycle steps, and explicit sync, and otherwise rides a code push (C5).
+      This repository averaged about six such firing points a day in August (2.9 handoffs, 3.3 lifecycle ceremonies)
+      and 31 on its busiest day, across three to seven sessions; its busiest September week reached 14. Ten people at
+      the busiest day's rate push state alone about 30–40 times an hour, well under GitHub's guidance of six pushes a
+      minute per repository, shared with code pushes; no tested host throttled bursts of 280–540 a minute.
+    - Few refs are shared across people — the quarter's archive ref, the project inbox, the registry, and cohort
+      documents; work-unit and personal refs have one owner each. At one or two archives a person a day, two pushes
+      meet on one ref within a push time (1–3 s) for a fraction of a percent of pushes, and one retry settles it; the
+      measured worst case, twenty machines pushing one ref at once, settled in 25–60 s.
+    - No spike: compressed time only recreates that simultaneous case, and real time needs a team's sessions over
+      days. The residual stays named — nothing ran at team scale.
+    - Tripwire: the push loop's result carries its retry count and time waited, and handoff's report shows them past
+      a bound, so a team outgrowing the envelope sees contention — the evidence for sharding a shared ref or for the
+      deferred service backend — rather than unexplained slowness. The fields join C1's failure taxonomy.
 - **Requirement:** the notes import never resolves differing entries with `ours` or `theirs`.
 - **Requirement:** a batch mutation — a drain, a sweep — version-checks each entry and records each decision as it
   is made, never writing the whole batch at the end over a stale read (`strategy-storage-evolution.md` Principle 3).
@@ -447,14 +525,15 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
       `backlog/`. Both stay writable: the base stamp handles an edit to each as it does across worktrees, and the
       refresh after a persist updates the other path. It appears in `current/` only, not in each `in-flight/<slug>/`.
 - **Decided** (Owner, 2026-09-29): who may edit under `in-flight/`, split by kind of file.
-    - The owner edits their own work units' prose — the draft with its Inbound Buffer, the spec, notes, and other
+    - The owner edits their own work units' prose — the draft, the inbound list, the spec, notes, and other
       companions — from any checkout, through compare-and-swap and three-way line merge (C4). The view exists so that
       reading or adding to another work unit needs no worktree switch, and blocking would not protect the owning
       session anyway: its projected copy is a file on disk anyone can open by path, and a stale whole-file write
       carries its old base stamp, so persist merges rather than overwrites.
     - The meta and the task list stay with the owning checkout. They are machine-parsed records whose changes pass
       ceremony and task gates, and changing them changes what that checkout's session does next.
-    - Another person's work units are read-only.
+    - Another person's work units are read-only, except that anyone may insert into the inbound list through the
+      routing verb (C4).
 - **Requirement** (Owner, 2026-09-29): a protected file says so where it is read, not only when a save fails.
 - **Decided** (Owner, 2026-09-29): three layers, each an existing idiom.
     - A notice line beside the base stamp in the generated-file idiom (`Code generated … DO NOT EDIT.`), naming where
@@ -697,6 +776,16 @@ Inputs from `coupling-blast-radius-audit` (2026-07-18), each ranked abstract and
   `provisional-placement` reach 55 code reader and parser files; the extract's `reportInputs.placementReaders`
   enumerates them for the lifecycle and in-flight partition. Packet `packet-188c5fab90090e83fdbc4591`, content digest
   `528515469ff26c720e1d7a0643eaebbebf81d4c99b7c9b640b75479d0da38ae5`.
+
+Known entries so far:
+
+- **User sync — `arc user inbox-remove`** matches its entry on the title; it keys by the entry's `_Id:_` (C4), since
+  a title repeats exactly as a slug does.
+- **Session-init envelope** — orientation carries the current work unit's pending inbound count, so another
+  session's append is not silent until the next planning iteration (C4).
+- **The drain (`drain-inbox`)** — routes into an in-flight work unit's inbound list directly, so in-flight owner
+  adoption and its `_Hold` re-stamp retire; the draft template's `## Inbound Buffer — Pending Integration` section
+  and create-spec's integration hook move to the inbound kind (C4).
 
 ## The storage-coupling register
 
