@@ -23,6 +23,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
 import { access } from "node:fs/promises";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 import { runReleasePush } from "../../src/handlers/release/push.js";
 import type { ReleasePushDeps } from "../../src/handlers/release/push.js";
@@ -52,14 +53,7 @@ async function createRepoOnFreshBranch(branch: string): Promise<string> {
   await mkdir(join(root, ".arc", "active"), { recursive: true });
   await writeFile(
     join(root, ".arc", "active", "meta-sample.md"),
-    [
-      "# Metadata: Sample",
-      "",
-      "- **State:** Active",
-      `- **Branch:** ${branch}`,
-      "- **Task List:** `tasks-sample.md`",
-      "",
-    ].join("\n"),
+    makeMetaFixture("Sample", { branch, taskList: "tasks-sample.md" }),
   );
   return root;
 }

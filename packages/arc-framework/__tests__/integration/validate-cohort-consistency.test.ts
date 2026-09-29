@@ -20,6 +20,8 @@ import { join, resolve, dirname } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import type { MetaRenderOverrides } from "../../src/lib/active/meta-reader.js";
 
 const execFileAsync = promisify(execFile);
 const tsxLoader = import.meta.resolve("tsx");
@@ -57,16 +59,8 @@ async function writeFixture(base: string, relPath: string, content: string): Pro
   return full;
 }
 
-function metaFixture(cohort: string, state = "Planning"): string {
-  return [
-    `# Metadata: widget`,
-    "",
-    `- **State:** ${state}`,
-    `- **Cohort:** ${cohort}`,
-    "",
-    "---",
-    "",
-  ].join("\n");
+function metaFixture(cohort: string, state: MetaRenderOverrides["state"] = "Planning"): string {
+  return makeMetaFixture("widget", { state, cohort: cohort.replaceAll("`", "") });
 }
 
 function cohortDocFixture(
