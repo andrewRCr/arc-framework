@@ -734,8 +734,8 @@ async function writeTimestampedBackup(
   io: UserIOContext,
   manifest: SyncManifest,
 ): Promise<string> {
-  const backupFilename = createTimestampedBackupFilename();
   await ensureDir(internalDir, io.mkdir);
+  const backupFilename = await nextTimestampedBackupFilename(internalDir, io.readDir);
   await io.writeFile(join(internalDir, backupFilename), JSON.stringify(manifest));
   await pruneTimestampedBackups(internalDir, io.readDir);
   return backupFilename;
@@ -1190,7 +1190,8 @@ export async function reconcileRetiredSubdirsStandalone(params: {
   // reconcile recoverable, so a no-op open writes nothing.
   const internalDir = getUserInternalDir(cwd, identity);
   await ensureDir(internalDir, io.mkdir);
-  await io.writeFile(join(internalDir, createTimestampedBackupFilename()), JSON.stringify(localManifest));
+  const backupFilename = await nextTimestampedBackupFilename(internalDir, io.readDir);
+  await io.writeFile(join(internalDir, backupFilename), JSON.stringify(localManifest));
   await pruneTimestampedBackups(internalDir, io.readDir);
 
   return removeReconciledSubdirs({ cwd, identity, reconcile });
@@ -1274,9 +1275,30 @@ function uniquePaths(paths: readonly string[]): string[] {
   return [...new Set(paths)];
 }
 
-function createTimestampedBackupFilename(): string {
-  const timestamp = new Date().toISOString().replaceAll(":", "-");
+function createTimestampedBackupFilename(at: Date = new Date()): string {
+  const timestamp = at.toISOString().replaceAll(":", "-");
   return `${BACKUP_TIMESTAMPED_PREFIX}${timestamp}${BACKUP_TIMESTAMPED_SUFFIX}`;
+}
+
+function timestampedBackupMs(name: string): number | null {
+  const stamp = name.slice(BACKUP_TIMESTAMPED_PREFIX.length, -BACKUP_TIMESTAMPED_SUFFIX.length)
+    .replace(/T(\d{2})-(\d{2})-(\d{2})/u, "T$1:$2:$3");
+  const ms = Date.parse(stamp);
+  return Number.isNaN(ms) ? null : ms;
+}
+
+/**
+ * Name a new backup strictly after every timestamped backup already in `dir`.
+ *
+ * Two writes within one millisecond would otherwise share a name, so the later silently replaces the earlier and
+ * pruning keeps an older snapshot; a name one millisecond past the newest keeps each write distinct and in order.
+ */
+async function nextTimestampedBackupFilename(dir: string, readDir: UserIOContext["readDir"]): Promise<string> {
+  const newest = (await readBackupNames(dir, readDir))
+    .filter(isTimestampedBackupFile)
+    .map(timestampedBackupMs)
+    .reduce<number>((latest, ms) => ms === null ? latest : Math.max(latest, ms), Number.NEGATIVE_INFINITY);
+  return createTimestampedBackupFilename(new Date(Math.max(Date.now(), newest + 1)));
 }
 
 function isTimestampedBackupFile(name: string): boolean {
