@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CurrentHuskAdvisorySchema,
   deriveCurrentHuskAdvisory,
   resolveCurrentHuskAdvisory,
 } from "../../../src/lib/session-init/current-husk-advisory.js";
@@ -36,6 +37,68 @@ function derive(overrides: {
 }
 
 describe("deriveCurrentHuskAdvisory", () => {
+  it("parses the legacy advisory emitted by the producer", () => {
+    const result = derive();
+    expect(result).not.toBeNull();
+    expect(CurrentHuskAdvisorySchema.safeParse(result).success).toBe(true);
+  });
+
+  it("parses a current Git-transition advisory emitted by the producer", () => {
+    const result = derive({ marker: {
+      kind: "present",
+      marker: {
+        ...stampedMarker.marker,
+        husk: {
+          ...stampedMarker.marker.husk!, authorization: "discard-confirmed", remoteRef: null,
+          evidence: { kind: "git-transition", transition: "abandon", resultDigest: `sha256:${"a".repeat(64)}` },
+        },
+      },
+    } });
+    expect(result?.stamp.kind).toBe("current");
+    expect(CurrentHuskAdvisorySchema.safeParse(result).success).toBe(true);
+    if (result?.stamp.kind !== "current") throw new Error("expected current stamp");
+    expect(CurrentHuskAdvisorySchema.safeParse({
+      ...result,
+      stamp: { ...result.stamp, evidence: { ...result.stamp.evidence, resultDigest: "invalid" } },
+    }).success).toBe(false);
+  });
+
+  it("parses a current shipped advisory emitted by the producer", () => {
+    const result = derive({ marker: {
+      kind: "present",
+      marker: {
+        ...stampedMarker.marker,
+        husk: {
+          ...stampedMarker.marker.husk!, authorization: "merged-preserved", remoteRef: null,
+          evidence: {
+            kind: "shipped", expectedLifecycle: "completed", resultDigest: `sha256:${"b".repeat(64)}`,
+            baseProofOid: "abc123",
+          },
+        },
+      },
+    } });
+    expect(result?.stamp.kind).toBe("current");
+    expect(CurrentHuskAdvisorySchema.safeParse(result).success).toBe(true);
+    if (result?.stamp.kind !== "current") throw new Error("expected current stamp");
+    expect(CurrentHuskAdvisorySchema.safeParse({
+      ...result,
+      stamp: { ...result.stamp, evidence: { ...result.stamp.evidence, resultDigest: "invalid" } },
+    }).success).toBe(false);
+  });
+
+  it("parses a manual-only advisory emitted by the producer", () => {
+    const result = derive({ marker: {
+      kind: "present",
+      marker: { ...stampedMarker.marker, husk: { ...stampedMarker.marker.husk!, authorization: "future-policy" } },
+    } });
+    expect(result?.stamp.kind).toBe("manual-only");
+    expect(CurrentHuskAdvisorySchema.safeParse(result).success).toBe(true);
+  });
+
+  it("names an undeclared current-husk field", () => {
+    expect(() => CurrentHuskAdvisorySchema.parse({ ...derive(), unexpected: true })).toThrow(/unexpected/);
+  });
+
   it("identifies a matching stamped completed work unit", () => {
     expect(derive()).toEqual({
       worktreePath: "/wt/shipped-widget",

@@ -52,19 +52,16 @@ const SCHEMA_OWNED_TYPES: readonly TypeLocus[] = [
         type: "CascadeResolution",
     },
     { file: "lib/git/base-branch-sync.ts", type: "BaseBranchSnapshotAnalysisResult" },
+    { file: "lib/git/dirty-state.ts", type: "DirtyStateResult" },
+    { file: "lib/session-init/current-husk-advisory.ts", type: "CurrentHuskAdvisory" },
     { file: "commands/status/types.ts", type: "StatusIdentity" },
     { file: "commands/status/types.ts", type: "CompactionSeedWriteStatus" },
 ];
 
 const HANDWRITTEN_TAIL_TYPES: readonly TypeLocus[] = [
-    { file: "lib/git/dirty-state.ts", type: "DirtyStateResult" },
     { file: "lib/git/worktree-sync.ts", type: "WorktreeSyncStatusResult" },
     { file: "lib/git/base-distance.ts", type: "BaseDistanceStatusResult" },
     { file: "lib/git/worktree-roster.ts", type: "WorktreeRosterResult" },
-    {
-        file: "lib/session-init/current-husk-advisory.ts",
-        type: "CurrentHuskAdvisory",
-    },
     {
         file: "lib/session-init/stale-worktree-sweep.ts",
         type: "StaleWorktreeSweepResult",

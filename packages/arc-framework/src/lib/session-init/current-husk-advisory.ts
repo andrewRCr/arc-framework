@@ -9,20 +9,56 @@
  * @module
  */
 
+import { z } from "zod";
+
 import type {
   DecodedWorktreeHuskStamp,
   WorktreeMarkerReadResult,
-  WorktreeSubject,
 } from "../git/worktree-marker.js";
 import { decodeWorktreeHuskStamp } from "../git/worktree-marker.js";
+import { CanonicalDigestSchema } from "../kernel/index.js";
+
+const RetirementEvidenceRefSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("shipped"),
+    expectedLifecycle: z.literal("completed"),
+    resultDigest: CanonicalDigestSchema,
+    baseProofOid: z.string(),
+  }),
+  z.strictObject({
+    kind: z.literal("git-transition"),
+    transition: z.enum(["abandon", "park-planning"]),
+    resultDigest: CanonicalDigestSchema,
+  }),
+]);
+
+const DecodedWorktreeHuskStampSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("legacy"), authorization: z.literal("merged-preserved") }),
+  z.strictObject({
+    kind: z.literal("current"),
+    authorization: z.enum(["merged-preserved", "discard-confirmed", "planning-relocated"]),
+    remoteRef: z.strictObject({
+      remote: z.string(),
+      oid: z.string(),
+      disposition: z.enum(["delete", "retain"]),
+    }).nullable(),
+    evidence: RetirementEvidenceRefSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("manual-only"),
+    reason: z.enum(["mixed-presence", "unknown-authorization", "unknown-evidence", "evidence-mismatch"]),
+  }),
+]);
 
 /** Terminal orientation for a WU husk at the current worktree. */
-export interface CurrentHuskAdvisory {
-  worktreePath: string;
-  subject: Extract<WorktreeSubject, { kind: "work-unit" }>;
-  branch: string;
-  stamp: DecodedWorktreeHuskStamp;
-}
+export const CurrentHuskAdvisorySchema = z.strictObject({
+  worktreePath: z.string(),
+  subject: z.strictObject({ kind: z.literal("work-unit"), name: z.string() }),
+  branch: z.string(),
+  stamp: DecodedWorktreeHuskStampSchema,
+});
+
+export type CurrentHuskAdvisory = z.infer<typeof CurrentHuskAdvisorySchema>;
 
 export interface DeriveCurrentHuskAdvisoryOptions {
   worktreePath: string;

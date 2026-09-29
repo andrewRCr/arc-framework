@@ -198,12 +198,10 @@ recorded sweep recipes; see `notes-cli-substrate-complete-migration.md` § Segme
 - **Additional Context:** `notes-cli-substrate-complete-migration.md` § Session-envelope roots — the IDs, the
   composition rule, the producer-output rule, and the tests that change with the roots
 
-    - `[ ]` **3.2.a Complete `DirtyStateResult` and `CurrentHuskAdvisory`**
-        - IDs `dirty-state` and `current-husk-advisory`. Both arms of the husk stamp's evidence, `shipped` and
-          `git-transition`, carry a kernel digest, which validates through `CanonicalDigestSchema`.
-        - Build `test-first` (one behavior at a time):
-            - Each root parses its producer's output for every state the producer reaches
-            - Each root refuses an undeclared key, naming it
+    - `[x]` **3.2.a Complete `DirtyStateResult` and `CurrentHuskAdvisory`**
+        - Registered both strict roots and composed them into their envelope slots. Producer tests cover clean and
+          dirty states plus every decoded husk stamp arm; both evidence arms validate canonical digests. Root and
+          envelope tests name undeclared fields, and the thin view cases retired.
 
     - `[ ]` **3.2.b Complete the extensions, active, and domain-rules session-init results**
         - `ExtensionsSessionInitResult`, `ActiveSessionInitResult`, and `DomainRulesSessionInitResult`, with IDs

@@ -904,6 +904,16 @@ describe("session-init envelope schema", () => {
     });
   });
 
+  it("rejects undeclared dirty-state and current-husk fields at their envelope slots", () => {
+    const dirty = fixture("orient");
+    setPath(dirty, ["dirty", "value", "unexpected"], true);
+    expectContractFailure(dirty, "dirty.value");
+
+    const husk = fixture("current-husk");
+    setPath(husk, ["currentHusk", "value", "unexpected"], true);
+    expectContractFailure(husk, "currentHusk.value");
+  });
+
   it("enforces roster, recovery, and primary sweep gates", () => {
     const branchGone = fixture("branch-gone");
     delete branchGone.roster;

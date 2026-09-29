@@ -16,6 +16,8 @@ import { LoadSetAuditVerdictSchema } from "../load-set/audit.js";
 import { RecoveryAuditVerdictSchema } from "../recover/audit.js";
 import { RecoverAuditReportSchema } from "../recover/report.js";
 import { BaseBranchSnapshotAnalysisResultSchema } from "../git/base-branch-sync.js";
+import { DirtyStateResultSchema } from "../git/dirty-state.js";
+import { CurrentHuskAdvisorySchema } from "../session-init/current-husk-advisory.js";
 import { CascadeResolutionSchema } from "../session-init/branch-gone-cascade.js";
 import { ErrandStalenessSweepResultSchema } from "../session-init/errand-staleness-sweep.js";
 import { InboxStateResultSchema } from "../session-init/inbox-state.js";
@@ -34,6 +36,8 @@ export const SESSION_ENVELOPE_SCHEMA_IDS = {
   cascadeResolution: "cascade-resolution",
   classComposition: "class-composition",
   compactionSeed: "compaction-seed",
+  currentHuskAdvisory: "current-husk-advisory",
+  dirtyState: "dirty-state",
   errandStalenessSweep: "errand-staleness-sweep",
   inboxState: "inbox-state",
   loadSetAuditVerdict: "load-set-audit-verdict",
@@ -77,6 +81,14 @@ export function registerSessionEnvelopeSchemas(registry: KernelRegistry): Kernel
   });
   registry.register(CompactionSeedSchema, {
     id: SESSION_ENVELOPE_SCHEMA_IDS.compactionSeed,
+    ...STRICT_CURRENT_V1,
+  });
+  registry.register(CurrentHuskAdvisorySchema, {
+    id: SESSION_ENVELOPE_SCHEMA_IDS.currentHuskAdvisory,
+    ...STRICT_CURRENT_V1,
+  });
+  registry.register(DirtyStateResultSchema, {
+    id: SESSION_ENVELOPE_SCHEMA_IDS.dirtyState,
     ...STRICT_CURRENT_V1,
   });
   registry.register(ErrandStalenessSweepResultSchema, {

@@ -6,8 +6,6 @@ import {
   ActiveSessionInitValueViewSchema,
   BaseDistanceValueViewSchema,
   ConfigSessionInitValueViewSchema,
-  CurrentHuskAdvisoryViewSchema,
-  DirtyStateValueViewSchema,
   DomainRulesSessionInitValueViewSchema,
   ErrandStateValueViewSchema,
   ExtensionsSessionInitValueViewSchema,
@@ -73,7 +71,6 @@ describe("shared git routing views", () => {
   });
 
   it.each([
-    [DirtyStateValueViewSchema, { state: "broken" }],
     [WorktreeSyncValueViewSchema, { state: "broken" }],
     [WorktreeSyncValueViewSchema, { state: "clean", branch: 42 }],
     [BaseDistanceValueViewSchema, { verdict: "broken" }],
@@ -350,21 +347,6 @@ describe("deep advisory routing views", () => {
     loadNeeded: false,
   };
 
-  it("pins current-husk subject and stamp kinds while retaining evidence", () => {
-    const value = {
-      subject: { kind: "work-unit", name: "alpha", retained: true },
-      stamp: { kind: "current", evidence: { ref: "kept" } },
-      worktreePath: "/wt/alpha",
-    };
-    expect(CurrentHuskAdvisoryViewSchema.parse(value)).toEqual(value);
-    expect(
-      CurrentHuskAdvisoryViewSchema.safeParse({
-        ...value,
-        stamp: { kind: "future" },
-      }).success,
-    ).toBe(false);
-  });
-
   it("pins stale-worktree report and cleanup decision discriminants", () => {
     const value = {
       remoteEvidence: "exact",
@@ -523,7 +505,6 @@ describe("deep advisory routing views", () => {
   });
 
   it("accepts mapped-only payloads because the views are not full mirrors", () => {
-    expect(DirtyStateValueViewSchema.safeParse({ state: "clean" }).success).toBe(true);
     expect(BaseDistanceValueViewSchema.safeParse({ verdict: "skipped" }).success).toBe(true);
     expect(
       WorkUnitStateValueViewSchema.safeParse({
@@ -534,7 +515,6 @@ describe("deep advisory routing views", () => {
   });
 
   it.each([
-    [DirtyStateValueViewSchema, { state: "clean", evidence: { deep: { retained: true } } }],
     [
       WorktreeSyncValueViewSchema,
       {
@@ -546,14 +526,6 @@ describe("deep advisory routing views", () => {
     ],
     [BaseDistanceValueViewSchema, { verdict: "clean", evidence: { deep: { retained: true } } }],
     [WorktreeRosterValueViewSchema, { entries: [{ evidence: { retained: true } }] }],
-    [
-      CurrentHuskAdvisoryViewSchema,
-      {
-        subject: { kind: "work-unit", evidence: { retained: true } },
-        stamp: { kind: "legacy", evidence: { retained: true } },
-        evidence: { deep: { retained: true } },
-      },
-    ],
     [
       StaleWorktreeSweepValueViewSchema,
       {

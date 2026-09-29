@@ -14,6 +14,8 @@ import { CompactionSeedSchema } from "../../../src/lib/compaction-seed/schema.js
 import { RecoveryAuditVerdictSchema } from "../../../src/lib/recover/audit.js";
 import { RecoverAuditReportSchema } from "../../../src/lib/recover/report.js";
 import { BaseBranchSnapshotAnalysisResultSchema } from "../../../src/lib/git/base-branch-sync.js";
+import { DirtyStateResultSchema } from "../../../src/lib/git/dirty-state.js";
+import { CurrentHuskAdvisorySchema } from "../../../src/lib/session-init/current-husk-advisory.js";
 import { CascadeResolutionSchema } from "../../../src/lib/session-init/branch-gone-cascade.js";
 import { ErrandStalenessSweepResultSchema } from "../../../src/lib/session-init/errand-staleness-sweep.js";
 import { InboxStateResultSchema } from "../../../src/lib/session-init/inbox-state.js";
@@ -40,6 +42,8 @@ describe("session-envelope schema registry", () => {
       "cascade-resolution",
       "class-composition",
       "compaction-seed",
+      "current-husk-advisory",
+      "dirty-state",
       "errand-staleness-sweep",
       "inbox-state",
       "load-set-audit-verdict",
@@ -83,6 +87,8 @@ describe("session-envelope schema registry", () => {
       [SESSION_ENVELOPE_SCHEMA_IDS.classComposition, ClassCompositionSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.cascadeResolution, CascadeResolutionSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.baseBranchSync, BaseBranchSnapshotAnalysisResultSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.currentHuskAdvisory, CurrentHuskAdvisorySchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.dirtyState, DirtyStateResultSchema],
     ] as const;
     for (const [id, schema] of advisorySchemas) {
       expect(first.get(id)).toBe(schema);

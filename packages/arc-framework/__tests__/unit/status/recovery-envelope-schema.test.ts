@@ -66,6 +66,12 @@ describe("lean recovery envelope schema", () => {
     expect(SessionRecoverProbeResultSchema.safeParse(invalidWorktree).success).toBe(false);
   });
 
+  it("rejects undeclared dirty-state fields at the recovery slot", () => {
+    const value = recovery();
+    (value.dirty as { value: Record<string, unknown> }).value.unexpected = true;
+    expect(() => assertSessionRecoverProbeResult(value)).toThrow(/dirty\.value:.*unexpected/u);
+  });
+
   it("requires typed failure evidence exactly for an unreachable worktree read", () => {
     const unreachableWithoutReason = recovery();
     const unreachableWorktree = unreachableWithoutReason.worktree as {

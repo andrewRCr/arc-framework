@@ -13,12 +13,14 @@ import { z } from "zod";
 import type { SessionInitProbeResult, SessionRecoverProbeResult } from "./types.js";
 import { probe } from "./types.js";
 import { BaseBranchSnapshotAnalysisResultSchema } from "../../lib/git/base-branch-sync.js";
+import { DirtyStateResultSchema } from "../../lib/git/dirty-state.js";
 import { LoadSetManifestSchema, LoadSetPathSchema } from "../../lib/load-set/types.js";
 import { SessionInitRecoveryValueSchema } from "../../lib/session-init/branch-gone-cascade.js";
 import { ErrandStalenessSweepResultSchema } from "../../lib/session-init/errand-staleness-sweep.js";
 import { InboxStateResultSchema } from "../../lib/session-init/inbox-state.js";
 import { MaterializableWorkUnitDiscoveryResultSchema } from "../../lib/session-init/materializable-work-units.js";
 import { NotesCompactionSessionAdvisoryResultSchema } from "../../lib/session-init/notes-compaction-advisory.js";
+import { CurrentHuskAdvisorySchema } from "../../lib/session-init/current-husk-advisory.js";
 import { OrphanBranchSweepResultSchema } from "../../lib/session-init/orphan-branch-sweep.js";
 import { PartialPushMarkerSurfaceResultSchema } from "../../lib/session-init/partial-push-marker-surface.js";
 import { RetiredSubdirDetectionResultSchema } from "../../lib/session-init/retired-subdir-detection.js";
@@ -47,9 +49,6 @@ function requireRemoteFailureReason(
     context.addIssue({ code: "custom", path: ["failureReason"], message: "only unreachable evidence carries a reason" });
   }
 }
-
-/** Thin routing view of a working-tree dirty-state result. */
-export const DirtyStateValueViewSchema = z.object({ state: z.enum(["clean", "dirty"]) }).loose();
 
 /** Routing view of the read-only current-WU reconcile session fact. */
 export const CurrentWuReconcileSessionValueViewSchema = z
@@ -248,14 +247,6 @@ const WorktreeSubjectViewSchema = z
   .loose();
 const HuskStampViewSchema = z
   .object({ kind: z.enum(["legacy", "current", "manual-only"]) })
-  .loose();
-
-/** Thin routing view of the current-worktree husk advisory. */
-export const CurrentHuskAdvisoryViewSchema = z
-  .object({
-    subject: z.object({ kind: z.literal("work-unit") }).loose(),
-    stamp: HuskStampViewSchema,
-  })
   .loose();
 
 const BranchedCleanupDecisionViewSchema = z.discriminatedUnion("action", [
@@ -819,7 +810,7 @@ const SessionInitEnvelopeObjectSchema = z.strictObject({
   worktree: probe(SessionInitWorktreeValueViewSchema),
   baseDistance: probe(SessionInitBaseDistanceValueViewSchema),
   baseBranchSync: probe(SessionInitBaseBranchSyncValueViewSchema),
-  dirty: probe(DirtyStateValueViewSchema),
+  dirty: probe(DirtyStateResultSchema),
   extensions: probe(ExtensionsSessionInitValueViewSchema),
   config: probe(ConfigSessionInitValueViewSchema),
   active: probe(ActiveSessionInitValueViewSchema),
@@ -831,7 +822,7 @@ const SessionInitEnvelopeObjectSchema = z.strictObject({
   roster: probe(WorktreeRosterValueViewSchema).optional(),
   recovery: probe(SessionInitRecoveryValueSchema).optional(),
   sweep: probe(StaleWorktreeSweepValueViewSchema).optional(),
-  currentHusk: probe(CurrentHuskAdvisoryViewSchema.nullable()).optional(),
+  currentHusk: probe(CurrentHuskAdvisorySchema.nullable()).optional(),
   orphanBranchSweep: probe(OrphanBranchSweepResultSchema).optional(),
   retiredSubdirs: probe(SessionInitRetiredSubdirsValueViewSchema).optional(),
   errandSweep: probe(ErrandStalenessSweepResultSchema).optional(),
@@ -1158,7 +1149,7 @@ const SessionRecoverEnvelopeObjectSchema = z.strictObject({
   locusGuidance: LocusSessionGuidanceSchema,
   recoveryFrame: probe(RecoveryLocusFrameSchema),
   worktree: probe(SessionRecoverWorktreeValueViewSchema),
-  dirty: probe(DirtyStateValueViewSchema),
+  dirty: probe(DirtyStateResultSchema),
   extensions: probe(ExtensionsSessionInitValueViewSchema),
   config: probe(ConfigSessionInitValueViewSchema),
   releaseRouting: probe(ReleaseRoutingValueViewSchema),
