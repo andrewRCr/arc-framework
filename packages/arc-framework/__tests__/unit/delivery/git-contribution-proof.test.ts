@@ -5,6 +5,7 @@ import {
   proveGitDeliveryContribution,
   proveGitDeliveryProviderRefreshContribution,
 } from "../../../src/lib/delivery/git-contribution-proof.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 const oid = (digit: string): string => digit.repeat(40);
 const bytes = (value: string): Uint8Array => new TextEncoder().encode(value);
@@ -44,9 +45,10 @@ describe("Git delivery contribution proof", () => {
       }
       if (args[0] === "merge-tree" && !args.includes("--name-only")) return result(`${oid("a")}\n`);
       if (args[0] === "merge-tree") {
-        throw Object.assign(new Error("conflict"), {
+        throw makeGitProcessError({ command: "git", args,
           exitCode: 1,
           stdout: `${oid("b")}\0${conflictedPath}\0`,
+          stderr: "conflict",
         });
       }
       throw new Error(`unexpected Git call: ${args.join(" ")}`);
@@ -68,7 +70,8 @@ describe("Git delivery contribution proof", () => {
       }
       if (args[0] === "merge-tree" && !args.includes("--name-only")) return result(`${oid("a")}\n`);
       if (args[0] === "merge-tree") {
-        throw Object.assign(new Error("conflict"), { exitCode: 1, stdout: "not-nul-framed" });
+        throw makeGitProcessError({ command: "git", args, exitCode: 1,
+          stdout: "not-nul-framed", stderr: "conflict" });
       }
       throw new Error(`unexpected Git call: ${args.join(" ")}`);
     };
@@ -88,7 +91,7 @@ describe("Git delivery contribution proof", () => {
       }
       if (args[0] === "merge-tree" && !args.includes("--name-only")) return result(`${oid("a")}\n`);
       if (args[0] === "merge-tree") {
-        throw Object.assign(new Error("merge-tree crashed"), { exitCode: 2, stderr: "fatal error" });
+        throw makeGitProcessError({ command: "git", args, exitCode: 2, stderr: "fatal error" });
       }
       throw new Error(`unexpected Git call: ${args.join(" ")}`);
     };
@@ -107,7 +110,8 @@ describe("Git delivery contribution proof", () => {
         if (value !== null) return result(`${value}\n`);
       }
       if (args[0] === "merge-tree" && args.includes("--merge-base")) {
-        throw new Error("unknown option: --merge-base");
+        throw makeGitProcessError({ command: "git", args, exitCode: 129,
+          stderr: "unknown option: --merge-base" });
       }
       if (args[0] === "merge-tree") return result(`${oid("a")}\n`);
       throw new Error(`unexpected Git call: ${args.join(" ")}`);
@@ -121,7 +125,9 @@ describe("Git delivery contribution proof", () => {
 
   it("reapplies verified endpoints when the checkout HEAD is unusable", async () => {
     const exec: RawGitExec = async (args) => {
-      if (args[0] === "rev-parse" && args[2] === "HEAD^{commit}") throw new Error("unborn HEAD");
+      if (args[0] === "rev-parse" && args[2] === "HEAD^{commit}") {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "unborn HEAD" });
+      }
       if (args[0] === "rev-parse") {
         const value = verifiedCoordinateOutput(args);
         if (value !== null) return result(`${value}\n`);
@@ -208,11 +214,11 @@ describe("Git delivery contribution proof", () => {
         if (value !== null) return result(`${value}\n`);
       }
       if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
-        throw Object.assign(new Error("not ancestor"), { exitCode: 1 });
+        throw makeGitProcessError({ command: "git", args, exitCode: 1, stderr: "not ancestor" });
       }
       if (args[0] === "merge-base" && args[1] === "--all") {
         if (boundaryOutput !== null) return result(boundaryOutput);
-        throw Object.assign(new Error("no merge base"), { exitCode: 1 });
+        throw makeGitProcessError({ command: "git", args, exitCode: 1, stderr: "no merge base" });
       }
       throw new Error(`unexpected Git call: ${args.join(" ")}`);
     };

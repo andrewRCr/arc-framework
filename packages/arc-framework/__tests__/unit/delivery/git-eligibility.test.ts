@@ -8,6 +8,7 @@ import {
   inspectDeliveryCandidateCheckout,
   readDeliveryEligibilityTree,
 } from "../../../src/lib/delivery/git-eligibility.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 describe("delivery eligibility Git facts", () => {
   it("preserves exact mode, type, and object identity for every tree leaf", async () => {
@@ -38,8 +39,8 @@ describe("delivery eligibility Git facts", () => {
   });
 
   it("fails closed when the tree read throws", async () => {
-    const exec: GitExec = async () => {
-      throw new Error("tree unavailable");
+    const exec: GitExec = async (command, args) => {
+      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "tree unavailable" });
     };
     await expect(readDeliveryEligibilityTree(exec, "tree")).resolves.toBeNull();
   });

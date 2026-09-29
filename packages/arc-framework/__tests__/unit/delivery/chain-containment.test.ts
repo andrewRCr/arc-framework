@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { RawGitExec } from "../../../src/lib/git/exec.js";
 import { classifyGitDeliveryChainContainment } from "../../../src/lib/delivery/chain-containment.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 const oid = (character: string): string => character.repeat(40);
 const bytes = (value: string): Uint8Array => new TextEncoder().encode(value);
@@ -24,7 +25,7 @@ function exactExec(input: {
     }
     if (args[0] === "merge-base") {
       if (input.ancestral !== false) return { stdout: bytes("") };
-      throw Object.assign(new Error("not ancestor"), { exitCode: 1 });
+      throw makeGitProcessError({ command: "git", args, exitCode: 1, stderr: "not ancestor" });
     }
     if (args[0] === "ls-tree") {
       const observed = input.trees.get(args.at(-1) ?? "");
@@ -112,7 +113,9 @@ describe("delivery chain containment", () => {
   });
 
   it("returns a typed containment refusal when exact coordinate evidence is unavailable", async () => {
-    const unavailable: RawGitExec = async () => { throw new Error("missing object"); };
+    const unavailable: RawGitExec = async (args) => {
+      throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "missing object" });
+    };
     const commonBase = { head: oid("1"), tree: oid("2") };
     const member = { head: oid("3"), tree: oid("4") };
     const finalCandidate = { head: oid("5"), tree: oid("6") };
