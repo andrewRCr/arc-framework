@@ -136,6 +136,8 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | delivery-review-cardinality     | P2       | andrew | review-request-contracts | chunked-delivery |
 | naming-conventions              | P2       | andrew | storage-cutover          | doc-conventions  |
 | framework-core-from-package     | P2       | andrew | storage-cutover          | —                |
+| ghost-mode                      | P2       | andrew | storage-cutover          | —                |
+| history-policy                  | P2       | andrew | storage-cutover          | —                |
 | operational-state-docs          | P2       | andrew | storage-cutover          | —                |
 | shared-inbox-model              | P3       | andrew | storage-cutover          | —                |
 
