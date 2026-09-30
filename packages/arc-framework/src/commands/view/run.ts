@@ -2,6 +2,8 @@
  * Read-once `arc view` orchestration.
  */
 
+import { resolve as resolvePath } from "node:path";
+
 import type {
   RunViewOptions,
   ViewArtifactResolver,
@@ -32,22 +34,8 @@ export async function runView(
   dependencies: ViewDependencies,
 ): Promise<ViewOutput> {
   const kind = options.current === true && options.kind === undefined ? "tasks" : options.kind;
-  if (options.forSlug !== undefined) {
-    if (!isSlugSafe(options.forSlug)) {
-      return {
-        stdout: "",
-        stderr: `Invalid work-unit slug "${options.forSlug}".\n`,
-        exitCode: 1,
-      };
-    }
-    if (kind === "working-memory" || kind === "inbox") {
-      return {
-        stdout: "",
-        stderr: `--for is not valid with the identity-global ${kind} kind.\n`,
-        exitCode: 1,
-      };
-    }
-  }
+  const rejection = rejectInvalidOptions(options, kind);
+  if (rejection !== null) return rejection;
   const artifact = await dependencies.resolveArtifact({
     cwd: options.cwd,
     ...(kind === undefined ? {} : { kind }),
@@ -65,6 +53,12 @@ export async function runView(
       stderr: "--current is only valid with the tasks kind.\n",
       exitCode: 1,
     };
+  }
+  if (options.path === true) {
+    // A path consumer such as `$(arc view <kind> --path)` must never receive the absence message as a path.
+    return artifact.status === "absent"
+      ? { stdout: "", stderr: `${artifact.kind} is not present.\n`, exitCode: 1 }
+      : { stdout: `${resolvePath(options.cwd, artifact.path)}\n`, stderr: "", exitCode: 0 };
   }
   if (artifact.status === "absent") {
     return {
@@ -126,6 +120,30 @@ export async function runView(
       exitCode: 1,
     };
   }
+}
+
+/** Refuse option combinations that are invalid before any artifact is resolved. */
+function rejectInvalidOptions(options: RunViewOptions, kind: string | undefined): ViewOutput | null {
+  if (options.path === true && options.current === true) {
+    return { stdout: "", stderr: "--path cannot be combined with --current.\n", exitCode: 1 };
+  }
+  if (options.forSlug !== undefined) {
+    if (!isSlugSafe(options.forSlug)) {
+      return {
+        stdout: "",
+        stderr: `Invalid work-unit slug "${options.forSlug}".\n`,
+        exitCode: 1,
+      };
+    }
+    if (kind === "working-memory" || kind === "inbox") {
+      return {
+        stdout: "",
+        stderr: `--for is not valid with the identity-global ${kind} kind.\n`,
+        exitCode: 1,
+      };
+    }
+  }
+  return null;
 }
 
 function formatWarnings(warnings: readonly string[]): string {

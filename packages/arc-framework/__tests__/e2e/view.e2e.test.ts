@@ -203,7 +203,7 @@ describe("arc view", () => {
       expect(result.stdout).toContain("# Task List: feature");
       expect(result.stderr).toBe("");
       expect(await readFile(logPath, "utf8"))
-        .toBe("--version\nLESS=FRX +/###.*1\\.1\n--pager --width 0 -\n");
+        .toBe("--version\nLESS=FRK +/###.*1\\.1\n--pager --width 0 -\n");
     },
   );
 
@@ -222,10 +222,41 @@ describe("arc view", () => {
 
       expect(result.exitCode).toBe(0);
       const log = await readFile(logPath, "utf8");
-      expect(log).toContain("BAT_PAGER=less -RFX +4");
+      expect(log).toContain("BAT_PAGER=less -RFK +4");
       expect(log).toContain("--paging=always --style=plain --language=md");
     },
   );
+
+  it.runIf(process.platform === "linux")(
+    "prints the artifact path under --path without rendering, even under a TTY",
+    async () => {
+      const { binDir, logPath } = await installFakeGlow(cwd);
+      const result = await runArc(["view", "tasks", "--path"], cwd, {
+        env: {
+          CI: "false",
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+          ARC_VIEW_RENDER_LOG: logPath,
+        },
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe("");
+      expect(result.stdout).toMatch(/^\/.*\/\.arc\/active\/tasks-feature\.md\r?\n$/u);
+      await expect(access(logPath)).rejects.toThrow();
+    },
+  );
+
+  it("fails --path for an absent artifact and refuses --path with --current", async () => {
+    const absent = await runArcNoTty(["view", "spec", "--path"], cwd);
+    expect(absent.exitCode).toBe(1);
+    expect(absent.stdout).toBe("");
+    expect(absent.stderr).toContain("spec is not present.");
+
+    const current = await runArcNoTty(["view", "tasks", "--current", "--path"], cwd);
+    expect(current.exitCode).toBe(1);
+    expect(current.stdout).toBe("");
+    expect(current.stderr).toContain("--path cannot be combined with --current");
+  });
 
   it("does not probe or spawn a renderer under non-TTY", async () => {
     const { binDir, logPath } = await installFakeGlow(cwd);

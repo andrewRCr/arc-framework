@@ -2,9 +2,10 @@
 
 ## Status
 
-Proposed. **Flip trigger:** flips to _Accepted_ at the kickoff of the `operational-state-docs` work unit
-(Decision §9) — "just before implementation," per the ADR lifecycle. That work unit carries the flip as an
-explicit first action; until then the model is decided-in-principle, not yet in build.
+Proposed. **Flip trigger:** flips to _Accepted_ at the kickoff of the `storage-seam` work unit, which builds
+the family parsers (2026-09-29 amendment) — "just before implementation," per the ADR lifecycle. That work
+unit carries the flip as an explicit first action; until then the model is decided-in-principle, not yet in
+build.
 
 Builds on [ADR-019][adr-019] (Work Organization Reform — always-present `meta-*`, meta files as the state
 source of truth) and [ADR-020][adr-020] (the derived-vs-mutated split, the invariant floor). It does not
@@ -275,6 +276,15 @@ units. The alignment edits below are the propagation set.
 
 <!-- Three-tier amendment model (strategy-adr-methodology.md): corrections fixed directly; amendments
 appended as dated annotations below; supersession via a new ADR + a Status update here. -->
+
+**Amendment (2026-09-29):** File-as-record replaces the rendered projection for every member except the derived ones.
+Under ADR-035's storage contract the markdown file is itself the record: each family's parser reads its fields from the
+file, and the contract validates them when the file is written back, refusing a malformed field rather than rendering
+drift away. Rendering stays for derived members only (§4's first arm). This redirects §2; §4's agent-maintained members
+merge entry by entry over entries parsed from the file (ADR-035's item 7 amendment); and §5's reconciled editable region
+is no longer needed, since nothing renders over prose. §8's interim storage assignment gives way to ADR-035. Of §9, the
+parsers are built by the storage program as it routes each family through the contract, and `operational-state-docs`
+keeps the conformance gate and its user-surface verbs.
 
 ---
 

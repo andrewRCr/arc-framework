@@ -218,6 +218,40 @@ decisions above.
 <!-- Reserved for post-implementation learnings per the three-tier amendment model
      (strategy-adr-methodology.md). Append dated annotations as `**Amendment (YYYY-MM-DD):** …`. -->
 
+**Amendment (2026-09-29):** GitHub Enterprise Server held. A 3.22.1 trial instance repeated the host spike and matched
+GitHub.com on every check ([storage substrate analysis][storage-analysis] § 11.3), so the test deferred in § Status is
+met and the first risk's reopening clause does not fire. On that host an ordinary member with write access can
+rewrite or delete any state ref, as the second risk states, and one with read access can only fetch. Bitbucket remains
+untested.
+
+**Amendment (2026-09-29):** The contract design refines item 7 for work-unit state and exact claims. A work unit's meta
+and task list stay single-writer, written only from its own checkout; its prose may also be written from the owner's
+other checkouts, through compare-and-swap and three-way line merge. Entries routed to a work unit land in its inbound
+list, merged entry by entry: anyone with write access to the project inserts, and only the owner's sessions edit or
+remove. Every record's identity is now a generated UID, so a slug is no longer claimed by compare-and-swap. Slug
+uniqueness holds by a check against live records at creation, and a clash between machines resolves by write-then-gate:
+both records exist, the projection refuses to place the second on the taken path, and a rename resolves it. Record
+numbers and work-unit claims stay compare-and-swap writes.
+
+**Amendment (2026-09-29):** The contract design refines item 2's fetch and push mechanics. ARC fetches state explicitly
+into a remote-tracking namespace — at session start, at every firing point, and on `arc sync` — and adds no refspec to
+the code remote's configuration, so ordinary and editor background fetches never pull state or print state-ref updates;
+a separate Git directory for the store is ARC's own and may carry one. Where `--atomic` is unavailable — a backing
+repository's second remote, or a host without it — the code leg pushes first and the state leg second, each independent,
+with no typed repair: the local store keeps an unpushed write, a status line reports it, and the next firing point or
+`arc sync` retries it.
+
+**Amendment (2026-09-29):** The contract design settles item 4. `storage.track_design_docs` takes `none | specs`, with
+`specs` the default where ARC's configuration is tracked and `none` fixed where ARC leaves no tracked files. The copy
+exists for review only: prepublication adds the spec to the work unit's branch, a finding that changes the spec
+re-exports it, and the cleanup before merge deletes it, so it never reaches the base branch and the store remains the
+spec's only lasting home. The merge gate fails while the copy is present. No integration-time record is tracked; the
+stored meta and its history are the record.
+
+**Amendment (2026-09-29):** Item 10's separate change is folded forward. Planning branches retire with the rewrite that
+moves in-flight derivation onto the store: a work unit in planning keeps its own worktree, detached at the base branch's
+tip, and activation creates its work branch there.
+
 ---
 
 [storage-analysis]: ../supplemental/analysis/analysis-storage-substrate-direction.md

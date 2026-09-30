@@ -164,6 +164,73 @@ describe("runView", () => {
     });
   });
 
+  it("prints the resolved path under --path without reading or rendering", async () => {
+    const readFile = vi.fn();
+    const resolveRenderer = vi.fn();
+    const renderWithPager = vi.fn();
+
+    await expect(runView({
+      cwd: "/repo",
+      kind: "tasks",
+      project: false,
+      identity: "andrew",
+      path: true,
+      nonInteractive: false,
+    }, {
+      resolveArtifact: vi.fn().mockResolvedValue({
+        status: "resolved",
+        kind: "tasks",
+        path: "/repo/.arc/active/tasks-feature.md",
+        workUnit: "feature",
+      }),
+      readFile,
+      resolveRenderer,
+      renderWithPager,
+    })).resolves.toEqual({
+      stdout: "/repo/.arc/active/tasks-feature.md\n",
+      stderr: "",
+      exitCode: 0,
+    });
+    expect(readFile).not.toHaveBeenCalled();
+    expect(resolveRenderer).not.toHaveBeenCalled();
+    expect(renderWithPager).not.toHaveBeenCalled();
+  });
+
+  it("fails an absent artifact under --path so no stray text reaches a consumer", async () => {
+    await expect(runView({
+      cwd: "/repo",
+      kind: "notes",
+      project: false,
+      identity: "andrew",
+      path: true,
+    }, {
+      resolveArtifact: vi.fn().mockResolvedValue({ status: "absent", kind: "notes" }),
+      readFile: vi.fn(),
+    })).resolves.toEqual({
+      stdout: "",
+      stderr: "notes is not present.\n",
+      exitCode: 1,
+    });
+  });
+
+  it("rejects --path with --current before resolution", async () => {
+    const resolveArtifact = vi.fn<ViewArtifactResolver>();
+
+    await expect(runView({
+      cwd: "/repo",
+      kind: "tasks",
+      project: false,
+      identity: "andrew",
+      current: true,
+      path: true,
+    }, { resolveArtifact, readFile: vi.fn() })).resolves.toEqual({
+      stdout: "",
+      stderr: "--path cannot be combined with --current.\n",
+      exitCode: 1,
+    });
+    expect(resolveArtifact).not.toHaveBeenCalled();
+  });
+
   it("routes TTY content through the selected renderer and carries warnings on stderr", async () => {
     const renderWithPager = vi.fn().mockResolvedValue(undefined);
     const result = await runView({
