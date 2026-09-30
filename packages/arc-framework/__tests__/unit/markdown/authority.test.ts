@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { join } from "node:path";
 
 import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import {
@@ -163,6 +164,32 @@ describe("Markdown authority", () => {
       readFile: vi.fn().mockRejectedValue(missing),
       lstat: vi.fn(),
     })).rejects.toMatchObject({ code: "markdown.manifest-missing" });
+  });
+
+  it("loads Markdown authority from the original decomposed native root", async () => {
+    const root = "/repo/cafe\u0301";
+    const output = ".arc/system/rules/DEV-RULES.ARC.md";
+    const contents = new Map([
+      [join(root, ".arc", "system", ".internal", "manifest.json"), JSON.stringify(manifest)],
+      [join(root, "packages", "arc-framework", "init-recipe.json"), JSON.stringify(recipe)],
+    ]);
+    const authority = await loadMarkdownAuthority({
+      root,
+      readFile: async (path) => {
+        const content = contents.get(path);
+        if (content === undefined) throw new Error(`missing ${path}`);
+        return content;
+      },
+      lstat: async (path) => ({
+        isFile: () => path === join(root, output),
+        isDirectory: () => false,
+        isSymbolicLink: () => false,
+      }),
+    });
+
+    expect(authority.classify(output)).toMatchObject({
+      kind: "rendered-framework", counterpart: "packages/arc-framework/arc/system/rules/DEV-RULES.ARC.md",
+    });
   });
 
   it("enumerates a NUL-safe selected scope for worktree and index views", async () => {

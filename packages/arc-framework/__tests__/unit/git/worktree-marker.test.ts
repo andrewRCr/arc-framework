@@ -73,6 +73,27 @@ describe("worktree-marker", () => {
     expect(await readWorktreeMarker(cwd)).toEqual({ kind: "absent" });
   });
 
+  it("reads an absent marker under a decomposed native root", async () => {
+    const nativeRoot = join(cwd, "cafe\u0301");
+    await mkdir(nativeRoot);
+
+    expect(await readWorktreeMarker(nativeRoot)).toEqual({ kind: "absent" });
+    expect(await readWorktreeMarkerGeneration(nativeRoot)).toEqual({ kind: "absent" });
+  });
+
+  it("writes and reads a marker at the original decomposed native root", async () => {
+    const nativeRoot = join(cwd, "cafe\u0301");
+    await mkdir(nativeRoot);
+    await writeWorktreeMarker(nativeRoot, sampleMarker);
+
+    const raw = await readFile(join(nativeRoot, ".arc", "system", ".internal", "worktree-marker.json"), "utf8");
+    expect(JSON.parse(raw)).toEqual(sampleMarker);
+    expect(await readWorktreeMarker(nativeRoot)).toEqual({ kind: "present", marker: sampleMarker });
+    expect(await readWorktreeMarkerGeneration(nativeRoot)).toEqual({
+      kind: "present", marker: sampleMarker, bytes: Buffer.from(raw),
+    });
+  });
+
   it("reports invalid marker JSON as malformed", async () => {
     const path = resolveWorktreeMarkerPath(cwd);
     await mkdir(dirname(path), { recursive: true });

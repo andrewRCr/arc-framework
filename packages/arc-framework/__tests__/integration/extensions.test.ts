@@ -207,6 +207,16 @@ describe("runExtensionsSessionInitStatus — session-init mode", () => {
     expect(result.active).toEqual([]);
   });
 
+  it("loads active extensions from a decomposed native project root", async () => {
+    const root = join(fixture.root, "cafe\u0301");
+    const extDir = join(root, ".arc", "system", "extensions");
+    await mkdir(extDir, { recursive: true });
+    await writeExtension(extDir, "pre-merge", true);
+
+    await expect(runExtensionsSessionInitStatus({ cwd: root }))
+      .resolves.toEqual({ mode: "session-init", active: ["pre-merge"], warnings: [] });
+  });
+
   it("does not walk the workflows directory (fast path)", async () => {
     // The session-init probe should succeed even when the workflows
     // directory is empty — it only reads the extensions directory.

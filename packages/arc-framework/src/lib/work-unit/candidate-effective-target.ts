@@ -75,8 +75,8 @@ export type CandidateEffectiveCurrentProjection = {
     | {
         readonly kind: "machine";
         readonly proof: "subject-equality" | "tree-equality" | "mechanical-reapply";
-        readonly projectionDigest: string;
-        readonly residualDigest: string;
+        readonly projectionDigest: CanonicalDigest;
+        readonly residualDigest: CanonicalDigest;
       };
   readonly implementationChanged: boolean;
 } & CandidateConvergenceProjection;
@@ -89,8 +89,8 @@ export interface CandidateEffectiveChangedProjection {
   readonly candidateId: CanonicalDigest;
   readonly durableBaselineTarget: CandidateLineageTarget;
   readonly currentTarget: CandidateLineageTarget;
-  readonly projectionDigest: string;
-  readonly residualDigest: string;
+  readonly projectionDigest: CanonicalDigest;
+  readonly residualDigest: CanonicalDigest;
   readonly selectedBy: string;
 }
 

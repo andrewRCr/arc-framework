@@ -4,7 +4,7 @@ import { z } from "zod";
 import { CanonicalDigestSchema } from "../../../../lib/kernel/schema/vocabulary.js";
 
 import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
-import { canonicalDigest, canonicalize } from "../../../../lib/kernel/index.js";
+import { canonicalDigest, canonicalize, type CanonicalDigest } from "../../../../lib/kernel/index.js";
 import { LaneSubjectLineageSchema, type LaneSubjectLineage } from "../../core/lane-admission.js";
 import { HostedRequestEnvelopeSchema, type HostedRequestEnvelope } from "../../hosted/request.js";
 import { laneProgressOperationId } from "../../lane-progress.js";
@@ -23,7 +23,7 @@ const IndexRecordSchema = z.strictObject({
 
 export type HostedRequestOwnerIndexRecord = z.infer<typeof IndexRecordSchema>;
 
-function fingerprint(repositoryId: string, request: HostedRequestEnvelope): string {
+function fingerprint(repositoryId: string, request: HostedRequestEnvelope): CanonicalDigest {
   const parsed = HostedRequestEnvelopeSchema.parse(request);
   return canonicalDigest({
     domain: "arc.review.hosted-request-owner/v1",

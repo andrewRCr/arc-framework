@@ -114,6 +114,20 @@ describe("stdin and raw Git scripts", () => {
     });
   });
 
+  it("classifies raw byte stderr and preserves every diagnostic byte", async () => {
+    const diagnostic = "fatal: couldn't find remote ref missing";
+    const stderr = Uint8Array.from([...new TextEncoder().encode(diagnostic), 0, 128, 255]);
+    const raw = scriptRawGitExec([{
+      match: ["fetch", "origin", "missing"],
+      responses: [{ failure: { exitCode: 128, stderr } }],
+    }]);
+
+    await expect(raw.exec(["fetch", "origin", "missing"])).rejects.toMatchObject({
+      kind: "nonzero-exit", expectedOutcome: "absent-remote-ref",
+      stderr: diagnostic + "\0\u0080\u00ff", command: "git", args: ["fetch", "origin", "missing"],
+    });
+  });
+
   it("rejects unmatched calls from both variants with their arguments", async () => {
     await expect(scriptGitExecInput([]).exec(["mktree"], "payload"))
       .rejects.toThrow(/git.*mktree/);

@@ -9,7 +9,7 @@ import type {
 export type GitFailureEvidence = ({ exitCode: number } | { signal: string } |
   { isCanceled: true } | { timedOut: true }) & {
   stdout?: string | Uint8Array;
-  stderr?: string;
+  stderr?: string | Uint8Array;
 };
 
 /**

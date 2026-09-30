@@ -1083,6 +1083,7 @@ This reconciles actual owners and introduces no production changes or additional
 | `src/scripts/render-framework.ts`                                                  | `arc-root`            | `independent-evidence`                                             | owner documentation or diagnostics                    |    1 |                                                                                                                                                                     |
 | `src/scripts/review-gate/hosts/local/live-context.ts`                              | `active-placement`    | `scanner-false-positive`                                           | import syntax / documentation                         |    1 |                                                                                                                                                                     |
 | `src/scripts/review-gate/policy/assurance.ts`                                      | `active-placement`    | `scanner-false-positive`                                           | import syntax / documentation                         |    1 |                                                                                                                                                                     |
+| `src/scripts/review-gate/hosts/local/method-files.ts`                              | `method-root`         | `scanner-false-positive`                                           | resolver address inside native join                   |    2 | scanner-false-positive (resolver address): 19,33                                                                                                                    |
 | `src/scripts/review-gate/policy/pre-publication-composition.ts`                    | `active-placement`    | `scanner-false-positive`                                           | import syntax / documentation                         |    1 |                                                                                                                                                                     |
 | `src/scripts/review-gate/readiness.ts`                                             | `active-placement`    | `external-owner`; `scanner-false-positive`                         | R-SP; comments/imports                                |    2 | external-owner (R-SP): 668; scanner-false-positive (import syntax): 43                                                                                              |
 | `src/scripts/review-gate/readiness.ts`                                             | `arc-root`            | `external-owner`; `independent-evidence`                           | R-SP; comments/imports                                |   16 | external-owner (R-SP): 668,703,707,715,810,811,812,813,844,845,846,903,928,975; independent-evidence (review diagnostic): 683,999                                   |
@@ -2641,3 +2642,78 @@ and applying that review's complete rubric to every scope and seam.
 
 Primary effective report: `/tmp/arc-wu-verification/criteria-report-primary-effective-final.json`.
 Scoped findings and evidence: `/tmp/arc-wu-verification/scoped-followup/reports/`.
+
+## Standard-review correction increment
+
+The complete local standard-review pass at `ce3fc9c473075425b9c670f2f3962e95c55c655b` reported three canonical
+findings: one major and two minor. Its whole-target result remains findings, with no convergence claim. The complete
+source-verified disposition set was approved for correction with full verification; exactly one incremental
+standard-review Pass 2 was separately authorized after correction, verification and its concrete commit gate.
+
+- **AGGREGATE-F1 (major):** Seven new path constructors in six files preserve native root spelling with `node:path`
+  joins over resolver-owned suffixes. The shared materializer contract remains the landed contract. Ten new
+  behavior cases cover decomposed native roots, absent/present marker and inbox behavior,
+  actual extension discovery, Markdown authority classification and both local method-directory consumers.
+- **AGGREGATE-F2 (minor):** Canonical digest result annotations retain `CanonicalDigest`: Candidate applicability,
+  effective-target recognition/projection and the hosted request fingerprint. Runtime preimages and serialization
+  remain unchanged; both complete TypeScript programs validate the branded flow.
+- **AGGREGATE-F3 (minor):** The shared raw failure fixture accepts `string | Uint8Array` stderr. Its regression test
+  checks missing-ref classification and lossless Latin-1 diagnostics, including NUL and high bytes. Test types first
+  rejected the byte input; a narrowly reconstructed fixture boundary discarded bytes and failed the behavior
+  assertion, then the exact original runtime implementation was restored before widening the input type.
+
+All native-root regression cases failed against the preceding implementation before passing with the correction.
+The whole source/test type gate, TypeScript lint, shell lint, declaration build and routine lane passed against the
+corrected package. The routine run reports 907 passed files, one skipped file, 13,153 passed tests and two skipped tests.
+
+The current matrix adds two `method-root` scanner false positives at `method-files.ts:19,33`: each joins an already
+resolved procedure address rather than spelling its suffix. The current 15-class reconciliation covers 18,407 hits
+in 2,223 corpus files with no unmatched hits, overlaps, unused rules or count mismatches. New literal expectations
+remain independent test evidence. The historical state-path recount above is superseded for current offsets by
+`markdown/authority.ts:91,99,167` and the work-unit resolver calls at `view-artifact.ts:168,214`; their owners and
+counts are unchanged.
+
+The fresh executor inventory contains 2,808 bindings, 1,377 mock setups, 158 shared script calls and 450 helper edges.
+The single new binding/script is the byte-stderr regression's shared raw fixture. All preceding inventory text
+identities remain present; 978 of the original 1,042 callable bodies are conserved, and all 64 previously accounted
+changed bodies retain identical file bytes and their explicit completed fates. This source account supplies no fresh
+independent review conclusion.
+
+Producing records and fresh source projections are under `/tmp/arc-wu-preparation/ce3fc9c47/fix-evidence/`.
+The original test-cost baselines and historical final-input samples remain preserved. Corrected-input cost
+comparisons are recorded below; final Markdown/ARC gates cover these appended evidence bytes. A3's
+required exact-head public CI, portability and six `ci-job` reports remain due before integration.
+
+The layout negative control removes the same three recorded rules and exposes exactly their 5, 1 and 133 assigned
+identities: six unmatched code hits and 133 unmatched non-code hits, with zero missing or unexpected identities.
+The first invocation supplied an unrecognized removal ID and ran no control; the corrected invocation and explicit
+differential comparison produce this result. The fresh neutral inventory resolves every current node and preserves
+all preceding text/digest identities; its sole added binding/script is the approved byte-stderr test.
+
+The exact approved disposition set is
+`sha256:32b989005a928a08aa53ea7dd1f3933a0dea0cfe1209c2073742135c856e22fa`, bound to local operation
+`local-1f72f8f5c34748f380da82dcda826dfd180248b20d856303d771b531a381e97f` and its actual aggregate evidence.
+Its runtime response authorizes only AGGREGATE-F1–F3 with full verification. The corrections are applied; durable
+changed-target response completion follows their approved commit rather than being inferred from this record.
+
+### Corrected standard-review input cost comparison
+
+All twelve serial final samples passed over the same 2,188 tracked package inputs:
+`sha256:315689f78ab7f3d148125f7ce3f29981b0a9b950f73e4f20bff839b264346020`.
+The identity matched before every sample and after the complete series. Each three-sample median retains the original
+baseline and matching `tier-isolated` condition, project set and 12-worker sizing. The new reports are
+`cli-substrate-standard-fixes-{set}-{1,2,3}.json` and `cli-substrate-standard-fixes-comparison-{set}.json` in the
+package's ignored `.test-cost-runs/` directory; the original baselines and all historical final reports remain intact.
+
+| Project set   | Baseline median (ms) | Corrected median (ms) |  Delta | Files / tests | Wall-time verdict     |
+| ------------- | -------------------: | --------------------: | -----: | ------------- | --------------------- |
+| `unit`        |               12,837 |                12,929 | +0.72% | 735 / 11346   | within 10% noise band |
+| `integration` |               87,879 |                86,299 | -1.80% | 173 / 1807    | within 10% noise band |
+| `lane`        |               95,021 |                90,515 | -4.74% | 908 / 13153   | within 10% noise band |
+| `e2e`         |              234,140 |               233,749 | -0.17% | 62 / 619      | within 10% noise band |
+
+The comparisons establish no causal speedup or regression inside this noise band. Summed-file time and Git process
+counts remain separate metrics in the producing reports. A3's public CI, E2E/portability enforcement and six `ci-job`
+reports remain mandatory at the exact authorized published head before integration; these local samples do not
+supply that public evidence. The source/test type, TypeScript lint, shell lint, build and routine results remain
+valid over the unchanged package digest; the final document gates cover the appended correction record separately.

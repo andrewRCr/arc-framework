@@ -20,7 +20,7 @@ import { atomicWriteJson, retryTransientFileSystemRefusal } from "../fs.js";
 import { isCanonicalDigest } from "../kernel/canonical/canonical-json.js";
 import { INTERNAL_DIR_SEGMENTS } from "../constants.js";
 import { SlugSchema } from "../kernel/index.js";
-import { materializeArcPath, resolveArcPath } from "../layout/index.js";
+import { resolveArcPath } from "../layout/index.js";
 import {
   LocusAbsolutePathSchema,
   LocusDigestSchema,
@@ -216,7 +216,8 @@ export const nodeWorktreeMarkerIgnoreFs: WorktreeMarkerIgnoreFs = {
  */
 export function resolveWorktreeMarkerPath(cwd: string): string {
   return join(
-    materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" })),
+    cwd,
+    resolveArcPath({ kind: "arc-root" }),
     ...INTERNAL_DIR_SEGMENTS,
     MARKER_FILENAME,
   );

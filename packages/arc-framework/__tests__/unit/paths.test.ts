@@ -63,6 +63,21 @@ describe("resolveArcRoot", () => {
     expect(resolveArcRoot(child)).toBe(tempDir);
   });
 
+  it("finds an ARC root with a decomposed native directory name", async () => {
+    const root = join(tempDir, "cafe\u0301");
+    await mkdir(join(root, ".arc"), { recursive: true });
+
+    expect(resolveArcRoot(root)).toBe(root);
+  });
+
+  it("walks up from a decomposed native child directory", async () => {
+    const child = join(tempDir, "cafe\u0301");
+    await mkdir(join(tempDir, ".arc"));
+    await mkdir(child);
+
+    expect(resolveArcRoot(child)).toBe(tempDir);
+  });
+
   it("finds an ARC root two levels up", async () => {
     const nested = join(tempDir, "child", "grandchild");
     await mkdir(join(tempDir, ".arc"));

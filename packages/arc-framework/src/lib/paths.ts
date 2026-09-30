@@ -13,9 +13,9 @@
  */
 
 import { fileURLToPath } from "node:url";
-import { resolve, dirname } from "node:path";
+import { resolve, dirname, join } from "node:path";
 import { existsSync } from "node:fs";
-import { materializeArcPath, resolveArcPath } from "./layout/index.js";
+import { resolveArcPath } from "./layout/index.js";
 
 /**
  * Finds the package root by walking up from the current file until
@@ -84,7 +84,7 @@ export function getChangelogPath(): string {
 export function resolveArcRoot(startDir = process.cwd()): string | null {
   let dir = resolve(startDir);
   for (;;) {
-    if (existsSync(materializeArcPath(dir, resolveArcPath({ kind: "arc-root" })))) {
+    if (existsSync(join(dir, resolveArcPath({ kind: "arc-root" })))) {
       return dir;
     }
     const parent = dirname(dir);

@@ -42,7 +42,7 @@ export const ExtensionsSessionInitResultSchema = z.strictObject({
 
 /** Locate the extensions directory inside an ARC install. */
 function extensionsDir(cwd: string): string {
-  return join(materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" })), "system", "extensions");
+  return join(cwd, resolveArcPath({ kind: "arc-root" }), "system", "extensions");
 }
 
 /** Locate the workflows directory inside an ARC install. */
