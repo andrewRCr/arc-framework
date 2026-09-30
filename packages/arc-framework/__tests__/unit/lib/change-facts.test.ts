@@ -232,6 +232,7 @@ describe("classifyPlanningLane", () => {
       ".arc/active/research-example.md",
       ".arc/backlog/planned/nested/analysis-example.md",
       ".arc/backlog/planned/nested/spec-example.md",
+      ".arc/backlog/planned/cohort/subcohort/member/draft-member.md",
       ".arc/backlog/ROADMAP.md",
       ".arc/system/.internal/transitions/example.json",
     ];
@@ -246,7 +247,8 @@ describe("classifyPlanningLane", () => {
     ".arc/active/nested/spec-example.md",
     ".arc/backlog/spec-example.md",
     ".arc/backlog/planned/spec-example.md",
-    ".arc/backlog/planned/one/two/three/spec-example.md",
+    ".arc/backlog/planned/one/two/three/four/spec-example.md",
+    ".arc/backlog/provisional/one/two/three/spec-example.md",
     ".arc/backlog/planned/example/spec-example",
     ".arc/backlog/planned/example/spec-.md",
   ])("rejects planning-like path outside the complete artifact grammar: %s", (path) => {

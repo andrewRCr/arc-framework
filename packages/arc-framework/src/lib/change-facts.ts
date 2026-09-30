@@ -403,10 +403,9 @@ export function isPlanningArtifactPath(path: string): boolean {
   return path === ".arc/backlog/ROADMAP.md"
     || new RegExp(`^\\.arc/system/\\.internal/transitions/${workUnitDirectory}\\.json$`, "u").test(path)
     || new RegExp(`^\\.arc/active/${artifactName}$`, "u").test(path)
-    || new RegExp(
-      `^\\.arc/backlog/(?:planned|provisional)/(?:${workUnitDirectory}/){1,2}${artifactName}$`,
-      "u",
-    ).test(path);
+    // A planned work unit may sit under a cohort and one subcohort; provisional stubs never nest that deep.
+    || new RegExp(`^\\.arc/backlog/planned/(?:${workUnitDirectory}/){1,3}${artifactName}$`, "u").test(path)
+    || new RegExp(`^\\.arc/backlog/provisional/(?:${workUnitDirectory}/){1,2}${artifactName}$`, "u").test(path);
 }
 
 function isPlainPlanningContentChange(change: CanonicalChange): boolean {
