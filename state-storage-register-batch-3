@@ -3,14 +3,20 @@
   "slug": "state-storage-register-batch-3",
   "claimId": "2d1163f04aa721740c26b3b1cd3cbe53",
   "createdAt": "2026-09-30T02:35:04.434Z",
-  "updatedAt": "2026-09-30T02:35:04.434Z",
+  "updatedAt": "2026-09-30T02:50:52.020Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Land storage-contract's register amendments batch 3 and the ADR-035 and ADR-022 amendments on main",
   "branch": "chore/state-storage-register-batch-3",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/state-storage-register-batch-3",
+    "headSha": "238090aaf235b8394b38cc1e022bd756768565b0"
+  }
 }
