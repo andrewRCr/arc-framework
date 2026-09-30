@@ -46,10 +46,11 @@
   and home (C14); lifecycle workflows anchored to the work unit's locus, with spawning the default and anchoring in
   place the explicit choice (C6); no ARC footprint in code commits by default, with an opt-in task trailer, and the
   surface boundary as an ARC-wide default (C8); fork contributors, with the state remote designated per clone (C7), and
-  the merge gate guarding the review copy's removal (C10).
+  the merge gate guarding the review copy's removal (C10); the install profile, read from the install and switched by
+  re-running init (C8).
 - **Open:** every `Open` item in § Decision ledger.
-- **Next:** the remaining Leaning, C8's install profile; register batch 3 as an Errand on `main`; then draft close —
-  minting the ghost-mode, `history-policy`, `query-cache`, and `protected-state` stubs, and the routes.
+- **Next:** register batch 3 as an Errand on `main`; then draft close — minting the ghost-mode, `history-policy`,
+  `query-cache`, and `protected-state` stubs, and the routes.
 
 ---
 
@@ -958,6 +959,25 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
   `.gitignore` could pack it; a contributor rarely publishes, but the cost stays named.
 - **Leaning:** an install profile chosen at init, not a runtime configuration axis (`strategy-storage-evolution.md`
   Principle 9).
+    - **Decided** (Owner, 2026-09-29): as leaned; C2 already names the two profiles and keeps every reader above the
+      contract and the projection blind to them. The profile is a fact of the install, not a setting: standard when
+      ARC's configuration is tracked in the repository, ghost when it lives in the store behind the per-machine pointer
+      (C14). ARC reads which by looking, so no `storage.profile` key can disagree with the repository. Only the
+      contract, the projection, init, and the commit policy consult it.
+    - **Decided** (Owner, 2026-09-29): switching re-runs init with the other profile; no verb of its own. State does not
+      move, since the families are the same under both (C2). Ghost to standard is the trial becoming adoption: one
+      reviewed change commits ARC's machinery and configuration, the per-machine pointer retires, and the export default
+      becomes `specs`. Standard to ghost is the reverse, one change removing the tracked files.
+    - **Decided** (Owner, 2026-09-29): it passes Principle 9 as one axis with two values. It is not a backend's property
+      — ghost runs local-only or with a designated state remote, standard on any backend, and the migrate verb moves
+      state between backends under either (C3, C7) — and ghost pins the settings it touches (the export at `none`, no
+      task trailer) rather than multiplying combinations.
+    - **Decided** (Owner, 2026-09-29): tracked configuration wins when a ghost install meets it — the upstream adopts
+      ARC, or the person clones an ARC project where they ran ghost. Git treats excluded files as expendable, so the
+      pull replaces the projected files on disk. ARC says so, the person's work-unit records stay in the store, and they
+      continue as a contributor (C7) or a team member; their stored configuration retires after ARC reports where it
+      differs from the upstream's, so no local override is lost silently.
+    - Core, built by the ghost-mode follow-on, which already owns the install profile.
 
 ### C9. Unsynced work outside ARC
 
