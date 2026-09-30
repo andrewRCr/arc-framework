@@ -51,6 +51,8 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | decompose-scaling                   | P2       | andrew | —          | decompose-core-hardening   |
 | method-conventions                  | P2       | andrew | —          | doc-conventions            |
 | pull-request-surface-policy         | P2       | andrew | —          | doc-conventions            |
+| spec-reader-standard                | P2       | andrew | —          | doc-conventions            |
+| cli-output-contract                 | P2       | andrew | —          | —                          |
 | cross-wu-coordination               | P2       | andrew | —          | —                          |
 | execution-delegation-doctrine       | P2       | andrew | —          | —                          |
 | frictionless-capture                | P2       | andrew | —          | —                          |
@@ -81,7 +83,9 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | adopter-content-aware-ci            | P3       | andrew | —          | —                          |
 | adr-accept-timing                   | P3       | andrew | —          | —                          |
 | arc-reinforce                       | P3       | andrew | —          | —                          |
+| artifact-editor-handoff             | P3       | andrew | —          | —                          |
 | chunk-scope-binding                 | P3       | andrew | —          | —                          |
+| cli-help-discovery                  | P3       | andrew | —          | —                          |
 | cohort-cut-coherence                | P3       | andrew | —          | —                          |
 | cold-start-init-polish              | P3       | andrew | —          | —                          |
 | contributor-path                    | P3       | andrew | —          | —                          |
