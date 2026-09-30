@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { RawGitExec } from "../../../src/lib/git/exec.js";
 import { supportsMergeTreeWriteTree } from "../../../src/lib/git/merge-tree-capability.js";
-import { makeGitProcessError, scriptRawGitExec } from "../../helpers/git-exec-fake.js";
+import { scriptRawGitExec } from "../../helpers/git-exec-fake.js";
 
 const oid = "1".repeat(40);
 const bytes = (value: string): Uint8Array => new TextEncoder().encode(value);
@@ -45,17 +45,15 @@ describe("merge-tree capability", () => {
   });
 
   it("does not cache a negative produced by an unusable canary", async () => {
-    let canaryAvailable = false;
-    const base = supportingExec();
-    const exec: RawGitExec = async (args, options) => {
-      if (args[0] === "rev-parse" && !canaryAvailable) {
-        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "unborn HEAD" });
-      }
-      return base(args, options);
-    };
+    const { exec } = scriptRawGitExec([
+      { match: { prefix: ["rev-parse"] }, responses: [
+        { failure: { exitCode: 128, stderr: "unborn HEAD" } },
+        result(`${oid}\n`),
+      ] },
+      { match: { prefix: ["merge-tree", "--write-tree"] }, responses: [result(`${oid}\n`)] },
+    ]);
 
     await expect(supportsMergeTreeWriteTree(exec)).resolves.toBe(false);
-    canaryAvailable = true;
     await expect(supportsMergeTreeWriteTree(exec)).resolves.toBe(true);
   });
 

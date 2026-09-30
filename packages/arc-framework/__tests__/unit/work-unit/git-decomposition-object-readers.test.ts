@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { digestBytes } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import {
   readAncestry,
   readTreeEntry,
@@ -12,18 +13,25 @@ const ANCESTOR = "a".repeat(40);
 const DESCENDANT = "b".repeat(40);
 
 function ancestryExec(outcome: "ancestor" | "not-ancestor" | "unresolvable"): GitExec {
-  return async (_command, args) => {
-    if (args[0] === "rev-parse") {
-      const ref = args[2]?.replace(/\^\{commit\}$/u, "");
-      if (outcome === "unresolvable" && ref === DESCENDANT) throw new Error("missing");
-      return { stdout: `${ref}\n` };
-    }
-    if (args[0] === "merge-base") {
-      if (outcome === "ancestor") return { stdout: "" };
-      throw Object.assign(new Error("not an ancestor"), { exitCode: 1 });
-    }
-    throw new Error(`unexpected git call: ${args.join(" ")}`);
-  };
+  return scriptGitExec([
+    {
+      match: ["rev-parse", "--verify", `${ANCESTOR}^{commit}`],
+      responses: [{ stdout: `${ANCESTOR}\n` }],
+    },
+    {
+      match: ["rev-parse", "--verify", `${DESCENDANT}^{commit}`],
+      responses: [() => {
+        if (outcome === "unresolvable") throw new Error("missing");
+        return { stdout: `${DESCENDANT}\n` };
+      }],
+    },
+    {
+      match: ["merge-base", "--is-ancestor", ANCESTOR, DESCENDANT],
+      responses: [outcome === "ancestor"
+        ? { stdout: "" }
+        : { failure: { exitCode: 1, stderr: "not an ancestor" } }],
+    },
+  ]).exec;
 }
 
 describe("git decomposition object readers", () => {

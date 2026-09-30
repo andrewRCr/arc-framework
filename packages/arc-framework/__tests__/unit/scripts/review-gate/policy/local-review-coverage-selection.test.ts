@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import type { RawGitExec } from "../../../../../src/lib/git/exec.js";
-import { makeGitProcessError } from "../../../../helpers/git-exec-fake.js";
+import { makeGitProcessError, scriptRawGitExec } from "../../../../helpers/git-exec-fake.js";
 import type {
   CandidateManagedRecordV1,
 } from "../../../../../src/lib/work-unit/candidate-attestation.js";
@@ -56,38 +56,48 @@ function carriedProofExec(mechanical = true): RawGitExec {
     [objectId("c"), objectId("9")],
   ]);
   const bytes = (value: string) => ({ stdout: new TextEncoder().encode(value) });
-  return async (args) => {
-    if (args[0] === "rev-parse") {
-      const expression = args.at(-1) ?? "";
-      if (expression === "HEAD^{commit}") return bytes(`${objectId("a")}\n`);
-      const match = /^([0-9a-f]+)\^\{(commit|tree)\}$/u.exec(expression);
-      if (match?.[1] !== undefined && trees.has(match[1])) {
-        return bytes(`${match[2] === "commit" ? match[1] : trees.get(match[1])}\n`);
-      }
-    }
-    if (args[0] === "merge-base" && args[1] === "--all") {
-      const left = args[2];
-      const right = args[3];
-      if (left === objectId("a") && (right === objectId("2") || right === objectId("3"))) {
-        return bytes(`${objectId("1")}\n`);
-      }
-      if (left === objectId("b") && right === objectId("3")) return bytes(`${objectId("2")}\n`);
-    }
-    if (args[0] === "merge-tree") {
-      if (!args.includes("--name-only")) return bytes(`${objectId("4")}\n`);
-      const left = args.at(-2);
-      const right = args.at(-1);
-      if (left === objectId("2") && right === objectId("a")) return bytes(`${objectId("d")}\n`);
-      if (left === objectId("3") && right === objectId("a")) return bytes(`${objectId("e")}\n`);
-      if (left === objectId("3") && right === objectId("b")) {
-        return bytes(`${objectId(mechanical ? "9" : "f")}\n`);
-      }
-    }
-    if (args[0] === "diff" && args.includes("--name-only")) {
-      return bytes("src/example.ts\0");
-    }
-    throw new Error(`Unexpected Git proof invocation: ${args.join(" ")}`);
-  };
+  const mergeBases = new Map([
+    [`${objectId("a")} ${objectId("2")}`, objectId("1")],
+    [`${objectId("a")} ${objectId("3")}`, objectId("1")],
+    [`${objectId("b")} ${objectId("3")}`, objectId("2")],
+  ]);
+  const mergedTrees = new Map([
+    [`${objectId("2")} ${objectId("a")}`, objectId("d")],
+    [`${objectId("3")} ${objectId("a")}`, objectId("e")],
+    [`${objectId("3")} ${objectId("b")}`, objectId(mechanical ? "9" : "f")],
+  ]);
+  return scriptRawGitExec([
+    {
+      match: { predicate: (args) => args[0] === "rev-parse" && args.at(-1) === "HEAD^{commit}" },
+      responses: [bytes(`${objectId("a")}\n`)],
+    },
+    {
+      match: { predicate: (args) => args[0] === "rev-parse" &&
+        trees.has(/^([0-9a-f]+)\^\{(commit|tree)\}$/u.exec(args.at(-1) ?? "")?.[1] ?? "") },
+      responses: [({ args }) => {
+        const match = /^([0-9a-f]+)\^\{(commit|tree)\}$/u.exec(args.at(-1) ?? "")!;
+        return bytes(`${match[2] === "commit" ? match[1] : trees.get(match[1]!)}\n`);
+      }],
+    },
+    {
+      match: { predicate: (args) => args[0] === "merge-base" && args[1] === "--all" &&
+        mergeBases.has(`${args[2]} ${args[3]}`) },
+      responses: [({ args }) => bytes(`${mergeBases.get(`${args[2]} ${args[3]}`)}\n`)],
+    },
+    {
+      match: { predicate: (args) => args[0] === "merge-tree" && !args.includes("--name-only") },
+      responses: [bytes(`${objectId("4")}\n`)],
+    },
+    {
+      match: { predicate: (args) => args[0] === "merge-tree" && args.includes("--name-only") &&
+        mergedTrees.has(`${args.at(-2)} ${args.at(-1)}`) },
+      responses: [({ args }) => bytes(`${mergedTrees.get(`${args.at(-2)} ${args.at(-1)}`)}\n`)],
+    },
+    {
+      match: { predicate: (args) => args[0] === "diff" && args.includes("--name-only") },
+      responses: [bytes("src/example.ts\0")],
+    },
+  ]).exec;
 }
 
 function target(headSha: string) {

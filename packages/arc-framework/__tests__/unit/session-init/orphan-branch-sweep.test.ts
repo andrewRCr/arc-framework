@@ -31,20 +31,34 @@ function buildExec(
   branches: Record<string, BranchFixture>,
   shippedWorkUnits: string[] = [],
 ): GitExec {
-  return (async (_cmd: string, args: string[]) => {
-    if (args[0] === "for-each-ref") {
-      const stdout = Object.entries(branches)
-        .map(
-          ([name, fixture]) => `${name}${NUL}${fixture.track}${NUL}${fixture.worktreePath ?? ""}`,
-        )
-        .join("\n");
-      return { stdout, stderr: "" };
-    }
-    if (args[0] === "cherry") {
-      const branch = args[2];
-      const fixture = branch !== undefined ? branches[branch] : undefined;
-      return { stdout: fixture?.merged ? "" : "+ deadbeef\n", stderr: "" };
-    }
+  const surviving = scriptGitExec([
+    {
+      match: { prefix: ["for-each-ref"] },
+      responses: [() => ({
+        stdout: Object.entries(branches)
+          .map(
+            ([name, fixture]) => `${name}${NUL}${fixture.track}${NUL}${fixture.worktreePath ?? ""}`,
+          )
+          .join("\n"),
+        stderr: "",
+      })],
+    },
+    {
+      match: { prefix: ["cherry"] },
+      responses: [({ args }) => {
+        const branch = args[2];
+        const fixture = branch !== undefined ? branches[branch] : undefined;
+        return { stdout: fixture?.merged ? "" : "+ deadbeef\n", stderr: "" };
+      }],
+    },
+    {
+      match: { predicate: () => true },
+      responses: [({ args }) => {
+        throw new Error(`unexpected git invocation: ${args.join(" ")}`);
+      }],
+    },
+  ]);
+  return (async (_cmd: string, args: string[], options) => {
     if (args[0] === "ls-tree") {
       const stdout = shippedWorkUnits
         .map(
@@ -54,7 +68,7 @@ function buildExec(
         .join("\n");
       return { stdout, stderr: "" };
     }
-    throw new Error(`unexpected git invocation: ${args.join(" ")}`);
+    return surviving.exec("git", args, options);
   }) as GitExec;
 }
 
