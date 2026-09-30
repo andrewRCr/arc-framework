@@ -45,11 +45,11 @@
   planning (C12); the record-aware seam, with `operational-state-docs` re-scoped (C2); every item's core-or-deferred tag
   and home (C14); lifecycle workflows anchored to the work unit's locus, with spawning the default and anchoring in
   place the explicit choice (C6); no ARC footprint in code commits by default, with an opt-in task trailer, and the
-  surface boundary as an ARC-wide default (C8).
+  surface boundary as an ARC-wide default (C8); fork contributors, with the state remote designated per clone (C7), and
+  the merge gate guarding the review copy's removal (C10).
 - **Open:** every `Open` item in § Decision ledger.
-- **Next:** the remaining Leanings — C7's fork contributors and C8's install profile; register batch 3 as an Errand on
-  `main`; then draft close — minting the ghost-mode, `history-policy`, `query-cache`, and `protected-state` stubs, and
-  the routes.
+- **Next:** the remaining Leaning, C8's install profile; register batch 3 as an Errand on `main`; then draft close —
+  minting the ghost-mode, `history-policy`, `query-cache`, and `protected-state` stubs, and the routes.
 
 ---
 
@@ -831,9 +831,39 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
 - **Requirement** (ghost mode): the state remote is a parameter, and ARC never pushes `refs/arc/*` to a remote the
   person has not designated. A fork or a private repository can be the state remote; a public fork exposes whatever
   is pushed to it.
+    - **Requirement** (Owner, 2026-09-29): the state remote is designated per clone, as Git's `remote.pushDefault` is.
+      It is designated without asking only when the remote that holds this project's state is the one the clone pushes
+      code to, and `arc init` designates it at creation. A fork whose upstream holds the project's state asks once
+      whether the person pushes state there or only reads it, and the answer sets the role too — push for a team member,
+      read for a contributor. A run that cannot ask, CI included, stays read-only until a remote is designated. A lone
+      remote is never designated by default, since a fork contributor's lone remote is usually their public fork. Where
+      the setting lives is `config-storage-architecture`'s call.
 - **Leaning** (Owner, 2026-09-25): contributors from forks need no upstream state — they run ARC on local-only and
   read public upstream state by fetching it. A team member who works from a fork points the state remote at the
   upstream.
+    - **Decided** (Owner, 2026-09-29): as leaned, for a fork of a project that uses ARC; contributing to a project that
+      does not is ghost mode (C8). The upstream's tracked configuration applies to the contributor, and its state stays
+      the maintainers'. As on a host, where outside contributors open pull requests and leave labels, milestones, and
+      boards to the maintainers, the pull request is the whole contribution. It carries the spec through the export
+      (C10), which the upstream's own configuration chose, so the copy crosses no surface boundary (C8). Push rights
+      make a contributor a team member.
+    - **Decided** (Owner, 2026-09-29): a contributor reads upstream state by fetching it into a read-only namespace, as
+      Git keeps remote-tracking refs, and never merges it into their own store. It is one more read-only source (C11),
+      read through `arc` rather than projected into the contributor's `.arc/backlog/`, so their working copy stays their
+      own and holds no file that can never be saved. The clone takes the upstream's project ID (below), and private or
+      absent upstream state degrades as the CI Requirement below says.
+    - **Decided** (Owner, 2026-09-29): a team member on a fork pushes code to the fork and state to the upstream.
+      `--atomic` cannot span two remotes, so C5's order applies — code first, state second.
+    - **Decided** (Owner, 2026-09-29): the contributor role's separate layout retires. Its user-scoped active root
+      exists because the tracked `active/` was one shared, protected folder. After the cutover a contributor's work unit
+      is an ordinary record in their own store, local-only unless they designate a remote — a private backing repository
+      carries it across machines — and the protected-path hook check goes with its row. The layout takes a register row
+      (batch 3), and `contributor-path`'s open question of who creates a contributor's meta falls away.
+    - **Gap, routed to `contributor-path` at draft close:** the owner's candidate-tail cleanup deletes the export's copy
+      before merge (C10), but a maintainer merges a fork's pull request. The merge gate refuses a merge that outruns the
+      cleanup (C10), so the copy never reaches the base branch where the gate is installed. `contributor-path` owns the
+      contribution's ceremony — fork, pull request, merge — and designs the handshake, the contributor's cleanup
+      following the maintainer's approval without a round trip.
 - **Leaning** (Owner, 2026-09-25; must be seriously considered): protected state is an opt-in mode, not the default.
   No tested host's branch rules reach `refs/arc/*`, and GitHub rulesets refuse the pattern outright
   (`Invalid target patterns: 'refs/arc/**'`). The default stays `refs/arc/*` with tamper evidence. Options:
@@ -981,6 +1011,15 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
   again (the singleton publication-boundary row).
 - **Requirement** (Owner, 2026-09-29): the copy is one-way: the next export overwrites a hand-edited copy and reports
   that it did, and nothing reads the copy back.
+- **Requirement** (Owner, 2026-09-29): ARC's merge gate guards the removal. While a pull request's tree holds
+  `.arc/specs/`, the required `merge-ok` check fails, saying that the spec's review copy leaves before merge and how to
+  remove it; the classification's narrow export arm already reads the path. It stops any merge that outruns the
+  candidate-tail cleanup — a teammate merging in the host's interface, or a maintainer merging a fork's pull request
+  (C7) — and it ships with the export, as core.
+    - **Named cost:** `merge-ok` reads red through review until the cleanup runs. A pending status would read better,
+      but posting one takes a token that can write, and CI on a fork's pull request runs with a read-only one; under
+      `merge.lock: draft` the pull request is a draft through review anyway. Where no merge gate is installed, an early
+      merge leaves the copy on the base branch, and removing it is an ordinary change.
 - **Decided** (Owner, 2026-09-29): the export is core (C14). At 1.0 it is the only way a team that reviews in pull
   requests sees the design; the backing-repository backend is an unstubbed follow-on.
 - **Decided** (Owner, 2026-09-29): the default is `specs` under the standard profile; the ghost profile pins `none`
@@ -1102,6 +1141,10 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
       `arc-coordination-service`;
     - the OKF projection (C13) — home `idiomatic-alignment`;
     - a shipped import — nothing needs importing before public release, so `storage-ref-backend` may build a one-off.
+- **Decided** (Owner, 2026-09-29): fork contributors (C7). Core: the state remote's designation rule, the upstream as a
+  read-only source, and the two-remote push order — pieces `storage-ref-backend` already builds. One designation answer
+  sets a contributor's role, so no contributor verb is needed. Deferred, home `contributor-path`: the contribution's
+  ceremony and tooling, and the export's removal handshake.
 - **Requirement:** ghost mode's configuration pointer (C7) needs a per-machine configuration tier;
   `config-storage-architecture`'s `.local/` tier is the natural provider, and the ghost-mode follow-on records the
   dependency.
@@ -1250,7 +1293,10 @@ by tracked or notes-backed state rather than for state by size.
       `ATOMIC-INBOX` path by hand and returns a completed work unit with no path; the session-init slots and compaction
       seed that carry literal meta paths (§ The consumer map); and `archive-work-unit`'s errata convention, where "git
       history is the lock" on a shipped Release Notes Entry, which the cutover's documentation pass rewrites onto the
-      store's `history` (C10).
+      store's `history` (C10); and the contributor role's user-scoped active root — the layout's contributor scope
+      (`lib/layout/schema.ts`), the contributor scan in `commands/active/status.ts`, and locus derivation's contributor
+      evidence (`lib/locus/derived-lifecycle-evidence.ts`) — owned by `storage-seam` and retired, since a contributor's
+      work unit becomes an ordinary record in their own store (C7).
     - Decision amendments: the footer-grammar row's fate becomes C8's footprint policy — no footer by default, and task
       attribution an opt-in trailer rendered from the store link (C1) — with the ghost-mode follow-on as owner once its
       stub is minted; the Errand-ref row adds the branch's UID suffix (C2); the lifecycle-classification row keeps one
@@ -1281,6 +1327,8 @@ by tracked or notes-backed state rather than for state by size.
       `adopter-content-aware-ci` (planning-markdown PR volume as premise), `arc-coordination-service` (`arc-backend`
       vocabulary), `docs-content-sweep` and `wu5-public-release` (no edge on the cutover, `refs/arc` history
       ignored), `operational-state-docs` (its buffer still wires a `git mv` and audits notes);
+    - `contributor-path` — the contribution's ceremony and tooling, the export's removal handshake when a maintainer
+      merges, and its contributor-meta question falling away (C7);
     - `scalable-core` — the coupling audit's team-mode key finding (37 files; `packet-dbd2103ffa3c4df953f89138`,
       content digest `19fc5ffc96617197821f46c35951b913f47505460d875747925d9896bbc2d042`, `team-mode-key`): team mode
       is not a storage axis (Principle 7), so the rename's access and compatibility seam is that unit's.
