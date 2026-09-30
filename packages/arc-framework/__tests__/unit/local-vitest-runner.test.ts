@@ -21,6 +21,7 @@ describe("runLocalVitestTier", () => {
       "--project",
       "integration",
       "framework-sync",
+      "live-transition-records",
       "pr-open-extensions",
       "review-gate-workflows",
     ]],
