@@ -14,7 +14,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** draft decisions settled through C8's install profile; register batches 2–3 landed (#742, #743)
+- **Last Completed:** draft captured formalization-ready after six adversarial passes; stage advanced to create-spec
 - **Next Task:** [none]
 - **Blockers:** [none]
 
