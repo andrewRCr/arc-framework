@@ -315,6 +315,13 @@ eligibility, target, and lane, while attempt history decides which eligible memb
 Remove an advertisement nothing backs, and make its absence legible rather than fatal. Two code edits — `D2.1` and
 `D2.2` — plus a recorded hand-off; `D2.2` is what lets the removal stand alone.
 
+**Both code edits are on `main` ahead of this unit (2026-09-30).** `D2.1` landed alone with `review-signal-convergence`
+(`db6010814`), which left the halt below live: `cli-substrate-complete-migration`'s chunked pre-publication review
+stopped on it. `D2.2` then landed as the Errand `frontline-scope-skip`, exactly as specified here, including the
+trigger precision. Both edit the capability table and resolver in their current home,
+`src/scripts/review-gate/policy/review-policy-driver.ts`; `D8` carries them over when it relocates the declarations.
+`D2.3`'s hand-off to `chunk-scope-binding` remains this unit's to record.
+
 **D2.1 — The table edit** (in the relocated declarations from `D8`): `coderabbit-cli`'s `scopes` becomes
 `["whole-target"]`.
 

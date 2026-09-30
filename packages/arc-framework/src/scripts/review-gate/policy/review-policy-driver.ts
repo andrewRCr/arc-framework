@@ -392,7 +392,7 @@ export const ReviewResolveEnvelopeSchema = z.discriminatedUnion("state", [
       scope: ReviewScopeModeSchema,
       consumedPass: z.literal(false),
       attemptedSources: z.array(ReviewAttemptSchema).readonly(),
-      reason: z.enum(["inactive", "no-source", "invocation-skip", "phase-closed"]),
+      reason: z.enum(["inactive", "no-source", "invocation-skip", "phase-closed", "source-scope-ineligible"]),
     }),
   }),
   z.strictObject({
@@ -621,6 +621,30 @@ function sourceDiagnostic(
     return { code: "source-awaits-change-request", message: `Review source '${sourceId}' requires a pull request.` };
   }
   return null;
+}
+
+/** Skip advisory frontline when all-ineligible sources include a scope decline; an unregistered one keeps the stop. */
+function frontlineScopeDecline(
+  request: ReviewPolicyRequest,
+  scope: z.infer<typeof ReviewScopeModeSchema>,
+  diagnostics: readonly ReviewDiagnostic[],
+): ReviewResolveEnvelope | null {
+  if (request.lane !== "frontline"
+    || !diagnostics.some((diagnostic) => diagnostic.code === "source-scope-ineligible")
+    || diagnostics.some((diagnostic) => diagnostic.code === "unknown-source")) {
+    return null;
+  }
+  return resolveEnvelope({
+    state: "skipped",
+    nextAction: "none",
+    payload: {
+      lane: "frontline",
+      scope,
+      consumedPass: false,
+      attemptedSources: request.attempts,
+      reason: "source-scope-ineligible",
+    },
+  }, diagnostics);
 }
 
 /**
@@ -936,7 +960,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
     }, diagnostics);
   }
   if (ineligibleSources.length === effectiveSources.length) {
-    return resolveEnvelope({
+    return frontlineScopeDecline(request, scope, diagnostics) ?? resolveEnvelope({
       state: "unavailable",
       nextAction: "stop",
       payload: {
