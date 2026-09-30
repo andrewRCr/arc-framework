@@ -8,6 +8,21 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration at this work unit's next planning iteration._
+
+### `[ ]` **Re-check adopter-content-aware-ci's premise of planning-markdown PR volume**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: adopter-content-aware-ci`), housekeep drain (2026-09-30);
+  captured during `storage-contract` draft close, 2026-09-30.
+- _Observation:_ The plan's premise is the volume of planning Markdown in pull requests. After the cutover, planning
+  artifacts leave pull requests; only the spec's review-only export copy remains, added at prepublication and deleted
+  before merge (`storage-contract` C10).
+- _Approach:_ Re-measure the premise against post-cutover pull requests before planning.
+
+---
+
 ## Problem / Motivation
 
 ARC-adopting repos carry heavy in-repo markdown commit/PR volume (planning artifacts, strategies, docs), so the

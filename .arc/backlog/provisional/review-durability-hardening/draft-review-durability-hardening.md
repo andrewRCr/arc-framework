@@ -29,6 +29,15 @@
   contract, interacting, or uncertain changes. Treat the incident as evidence for the provisional WU's
   re-review-cost trigger, not as a mandate for the larger durable-ledger design.
 
+### `[ ]` **Bind Completion and Release Notes reads to the store version, not the head**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-durability-hardening`), housekeep drain (2026-09-30);
+  captured during `storage-contract` draft close, 2026-09-30.
+- _Observation:_ The plan binds its Completion Notes and Release Notes Entry reads to the head commit. After the
+  cutover the meta lives in the store, and the readiness facts and integration checkpoint read both from the stored
+  meta (`storage-contract` C10), so a head binding no longer names what was read.
+- _Approach:_ Bind those reads to the store's version of the record (C1's state version) when this work unit plans.
+
 ---
 
 ## Provenance

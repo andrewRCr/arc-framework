@@ -9,6 +9,25 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration at this work unit's next planning iteration._
+
+### `[ ]` **Remap task commit captures in the lease-guarded catch-up with base**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: history-policy`), housekeep drain (2026-09-30); captured during
+  `storage-contract` draft-design, adversarial pass 4 (2026-09-30).
+- _Observation:_ `storage-contract`'s close verb (C5) records each task's commits as captures holding the SHA and its
+  patch-id. ARC's own rewrites remap them from the rewrite's old-to-new mapping, and the catch-up with base is one of
+  those rewrites. This draft owns the lease-guarded catch-up, but neither its Settled inputs nor its Open list names
+  the remap. A catch-up rebase that resolves conflicts changes patch-ids, so lookup's patch-id fallback misses it and
+  the capture dangles.
+- _Approach:_ Add to Settled inputs that the catch-up remaps captures from its old-to-new mapping (C5), and to Open how
+  it obtains that mapping for a conflict-resolving rebase. Captures start at the flip, so the remap is needed only
+  from then.
+
+---
+
 ## Problem / Motivation
 
 ARC forbids rewriting a pushed branch to absorb base changes (`DEV-RULES.ARC` § Commit Discipline, ADR-025), because

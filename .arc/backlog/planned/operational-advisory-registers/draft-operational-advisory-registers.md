@@ -110,6 +110,14 @@
 
 - _Captured during:_ `delivery-post-landing-conflict-recovery` integration, 2026-09-19.
 
+### `[ ]` **Stop treating append-only as an invariant in operational-advisory-registers**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-advisory-registers`), housekeep drain (2026-09-30);
+  captured during `storage-contract` draft close, 2026-09-30.
+- _Observation:_ The plan treats append-only history as an invariant. Once notes retire, `history.policy` defaults to
+  `rewrite-with-lease` with `append-only` opt-in (ADR-035 items 9 and 10), built by `history-policy`.
+- _Approach:_ Re-derive whatever rests on append-only against the policy at next planning.
+
 ## Problem / Motivation
 
 Session-init and adjacent lifecycle surfaces emit an increasing number of conditional advisories. Under ordinary

@@ -6,6 +6,21 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration at this work unit's next planning iteration._
+
+### `[ ]` **Re-plan promotion's meta creation and commit as a store write**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: errand-promotion-concurrency`), housekeep drain (2026-09-30);
+  captured during `storage-contract` draft close, 2026-09-30.
+- _Observation:_ The plan's concurrency concern is meta creation and its commit during Errand promotion. After the
+  cutover, promotion writes a work-unit record through the storage contract — no tracked meta and no commit — and the
+  contract's concurrency mechanism for that family (C4) governs the race.
+- _Approach:_ Re-derive the concern against the contract's write semantics at next planning; much of it may dissolve.
+
+---
+
 ## Problem / Motivation
 
 `arc errand promote` converts the current Errand checkout in place. That is coherent when the Errand already occupies

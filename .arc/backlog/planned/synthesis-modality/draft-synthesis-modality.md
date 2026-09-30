@@ -40,6 +40,24 @@
   integration seam, run a bounded spike before declaring the design settled. This complements, rather than
   replaces, `planning-iteration-mechanics`' open-question and writable-task checks.
 
+### `[ ]` **Settle what a spike that hardens into an executable model keeps, and for how long**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: synthesis-modality`), housekeep drain (2026-09-30); captured
+  during `delivery-rebuild-continuity` create-spec Gate 1, 2026-09-23.
+- _Observation:_ `delivery-rebuild-continuity`'s create-spec Gate 1 grew its scratch spikes into an executable model
+  of the design's git algebra (about 45 bash scripts) with about forty topology cases and recorded outcomes, and it
+  settled design questions the documents alone could not. The draft's disposition lifecycle has no clear place for
+  it: Throwaway discards a working oracle the implementation could be checked against, and Reference ("archived on
+  a non-merging branch or tag; main implementation rewritten fresh") covers the archive but not that use.
+- _Approach:_ the established idiom is a reference model, or test oracle — a golden model in hardware verification,
+  model-based and differential testing, TLA+ specs kept beside the code — whose cases become acceptance tests.
+  Decide whether the Reference disposition names that use and its limits (a lifetime bounded by the implementation
+  it checks; the spec stays the authority; a disagreement between model and implementation is a finding, not a win
+  for the model), and whether create-spec or generate-tasks routes a spike's case catalogue into the spec's Testing
+  section so the cases reach test-first tasks.
+- _Worked example:_ `delivery-rebuild-continuity` carries its cases into its spec's Testing section and keeps the
+  model on a non-merging branch through implementation, retired at archive.
+
 ---
 
 ## Concept

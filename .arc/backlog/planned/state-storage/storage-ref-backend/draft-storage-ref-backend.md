@@ -67,4 +67,20 @@
 
 - _Captured during:_ `cli-substrate-complete-migration` draft-design, 2026-09-28.
 
+### `[ ]` **Derive task captures for pre-flip commits from their footers in the import**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-ref-backend`), housekeep drain (2026-09-30); captured
+  during `storage-contract` draft-design, adversarial pass 6 (2026-09-30).
+- _Observation:_ `storage-contract` decided (Owner, 2026-09-30, C5) that commits from before the flip get their task
+  captures from the import. It derives each closed task's captures from the `Context:` footers of the commits that
+  carry the task's ID — the derivation reverse lookup and delivery's attribution use today
+  (`lib/handoff/restate-candidates.ts`, `lib/delivery/from-branch.ts`) — so from the flip every task's attribution is
+  its capture, and no ARC reader parses task state out of commit messages. This draft scopes the import to "current
+  state, not history"; the derivation reads commit messages once, at import, and stores only the captures, each a
+  SHA with its patch-id.
+- _Observation:_ the same import stamps an `_Id:_` on every existing `USER-INBOX` entry (`storage-contract` C4). The
+  inbox digest leaves that line out, a seam change before the flip, so open Errands keep their origin bindings.
+- _Approach:_ Add both to the import's scope at this work unit's first planning iteration. Where a squash dropped the
+  footers, those tasks keep no capture — a residual to name, not a blocker.
+
 ---

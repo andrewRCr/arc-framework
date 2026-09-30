@@ -315,6 +315,17 @@
 - _Captured during:_ `delivery-post-landing-conflict-recovery` Phase 7, where every task's inspection returns
   `not-applicable` because the work unit carries no Delivery Plan, 2026-09-18.
 
+### `[ ]` **Re-plan composable-workflows' fixtures against the storage contract**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain (2026-09-30); captured
+  during `storage-contract` draft close, 2026-09-30.
+- _Observation:_ The plan's fixtures assume the notes channel — `arc user pull` and notes-only pull offers — and a
+  grooming relocate for `--plan`. Under ADR-035 and `storage-contract`, notes retire at the cutover and user sync moves
+  onto the store with explicit fetching (C5), and grooming writes the store rather than a committable grooming branch,
+  since the planning-grooming lane is removed at the cutover.
+- _Approach:_ At next planning, re-derive the fixtures from the post-cutover session-init envelope (the slots
+  `storage-seam` rebuilds) rather than today's notes and relocate shapes.
+
 ## Problem / Motivation
 
 ARC's workflows scale across modes, tiers, and session states via **carry-and-skip**: inline conditionals

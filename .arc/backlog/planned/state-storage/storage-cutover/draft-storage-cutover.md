@@ -78,4 +78,22 @@
 
 - _Captured during:_ `cli-substrate-complete-migration` draft-design, 2026-09-28.
 
+### `[ ]` **Rehearse the flip's workflow rewrite end to end, and quiesce every session holding today's workflow text**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-09-30); captured during
+  `storage-contract` draft-design, adversarial pass 6 and a review of the reframe (2026-09-30).
+- _Observation:_ `storage-contract` decided (Owner, 2026-09-30) that ARC's process changes once, at the flip. The
+  flip rewrites each affected workflow step from the consumer map's end states (`notes-storage-contract.md`), each
+  rewrite checked against `strategy-procedure-evolution.md`, and the register's workflow-steps row moves to this work
+  unit. `arc save`, the projection's write-back, the close verb closing tasks and capturing their commits, and the
+  import's footer-derived captures all first run for real there. This draft's rehearsal covers quiesce, import, flip,
+  and notes retirement, but not a work unit driven end to end through the rewritten workflows.
+- _Observation:_ nothing may break across the flip (`storage-contract` C13). A session still holding pre-flip
+  workflow text in context would follow steps the rewrite removed, so quiesce has to reach live sessions, not only
+  in-flight work units.
+- _Approach:_ Add to the rehearsal a work unit run through the rewritten workflows on the scratch repository — draft
+  capture, create-spec with an ADR companion, a task closed through the close verb, handoff, prepublication with the
+  review copy, and integration's candidate tail — and add to quiesce that every session hands off before the flip, so
+  each resumes on the rewritten text.
+
 ---
