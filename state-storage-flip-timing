@@ -3,7 +3,7 @@
   "slug": "state-storage-flip-timing",
   "claimId": "4e95c5e5379b7935be421e7042d69a30",
   "createdAt": "2026-09-30T20:53:57.380Z",
-  "updatedAt": "2026-09-30T20:53:57.380Z",
+  "updatedAt": "2026-09-30T21:00:00.197Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "state-storage-flip-timing",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Say the storage contract ships over today's substrates in the state-storage cohort document",
   "originEntrySourceDigest": "sha256:6150df39c0505c77176039da1a313a11b14fa61093e2279fa262a4a6a399c458",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/state-storage-flip-timing",
+    "headSha": "776f5d8f6be18bc650c950e6f60796f70f09802e"
+  }
 }
