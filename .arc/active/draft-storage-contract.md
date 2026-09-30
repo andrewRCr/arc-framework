@@ -41,12 +41,15 @@
   link, and no wider delta window (C3); ordered pushes without `--atomic`, one close verb whose capture survives
   rewrites, `user.notes_push` retired, and explicit fetching (C5); the export as a review-only copy at
   `.arc/specs/<slug>/`, deleted before merge, with options `none | specs`, `specs` its default under the standard
-  profile, no tracked integration record, a deferred keep option, and the reader standard specs meet (C10); no ARC
-  footprint in code commits by default, with an opt-in task trailer, and the surface boundary as an ARC-wide default
-  (C8).
+  profile, no tracked integration record, a deferred keep option, and the reader standard specs meet (C10); branchless
+  planning (C12); the record-aware seam, with `operational-state-docs` re-scoped (C2); every item's core-or-deferred tag
+  and home (C14); lifecycle workflows anchored to the work unit's locus, with spawning the default and anchoring in
+  place the explicit choice (C6); no ARC footprint in code commits by default, with an opt-in task trailer, and the
+  surface boundary as an ARC-wide default (C8).
 - **Open:** every `Open` item in § Decision ledger.
-- **Next:** the core-or-deferred tags (C14); register batch 3 as an Errand on `main`, and minting the ghost-mode
-  follow-on stub with the scope C8 gives it.
+- **Next:** the remaining Leanings — C7's fork contributors and C8's install profile; register batch 3 as an Errand on
+  `main`; then draft close — minting the ghost-mode, `history-policy`, `query-cache`, and `protected-state` stubs, and
+  the routes.
 
 ---
 
@@ -218,12 +221,23 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
   not change at cutover, the query cache indexes the parsed fields, and the records engine later changes what sits
   behind each parser without moving storage. The Owner's instinct is to design for records from the start rather than
   do the work twice. Counter-risk: tying the cutover to every family's schema design.
+- **Decided** (Owner, 2026-09-29): the record-aware seam, from day one. Each `storage-seam` member builds the parser for
+  the families it reroutes, so under file-as-record the seam builds the records engine as it goes; left for later,
+  `operational-state-docs` would rewrite the same consumers — the regex readers in `session-init/managed-field.ts` among
+  them — a second time. The counter-risk is small: the meta parser and the kernel schemas exist, the transition record
+  validates against a strict schema, configuration has one, the inbox entry grammar is defined, and prose kinds need no
+  field schema.
+    - `operational-state-docs` stops being the records engine. Its conformance gate is an independent slice that can run
+      ahead; its user-surface verbs and fields — `arc inbox add`, a `WORKING-MEMORY` mutation verb, tombstones,
+      `_Awaiting:_` — stay in it, re-scoped and deferred (C14); its inbound buffer redistributes at this work unit's
+      draft close. ADR-022's file-as-record amendment, which it was to carry, joins register batch 3.
 - **Leaning:** a query cache built from the store, targeted early if viable, never the authority — a local SQLite
   index of record fields keyed by ref tips and checked on read, so it cannot serve stale state (git-bug #235).
   Node's built-in `node:sqlite` may avoid a native dependency; verify against the supported Node range. Raw reads
   need none (every work unit's meta at its tip, 601 of them, in one 17 ms batch), so its case is queries across
   fields and live views, including typed reads for `arc view` and the status HUD. A binary store is never the
   authority: it does not diff or merge in Git and makes conflicts opaque.
+    - **Decided** (Owner, 2026-09-29): deferred (C14), with its tripwire and a provisional `query-cache` stub.
 - **Decided** (follows from ADR-035 item 3): after cutover a Candidate's review subject is the code in the Git index
   alone; design artifacts reach review only through the export setting (C10). `storage-seam`'s review and evidence
   work redefines the subject, and the evidence-neutral path treatment goes with the register's lifecycle
@@ -561,9 +575,9 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
       Entries ride the work unit's own ref, so they contend only with that work unit's other writes.
     - Teams will mostly talk out of band. The entry is the durable carrier a message points at, so the routing verb
       reports the entry's ID and its destination.
-    - Survives the cutover: `WU_Target` as the capture hint, `_Hold` as the retain escape hatch only, and the timing
-      of `WORKING-MEMORY`'s coordination-seam rule (route at planning close, not in task lists). Retires: in-flight
-      owner adoption, and that rule's mechanism (never editing sibling work units' tracked buffers).
+    - Survives the cutover: `WU_Target` as the capture hint, `_Hold` as the retain escape hatch only, and the timing of
+      `WORKING-MEMORY`'s coordination-seam rule (route before the spec — at draft close — not in task lists). Retires:
+      in-flight owner adoption, and that rule's mechanism (never editing sibling work units' tracked buffers).
     - Left to `storage-seam`: where an executing work unit integrates inbound entries — handoff or verify — since it
       has no next planning iteration.
 - **Decided** (Owner, 2026-09-29): the design envelope — about ten people running about six sessions each — holds
@@ -729,6 +743,21 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
   work units keep the owner's rules — the owner edits the prose, the meta and task list reach the store only through
   their verbs, and others insert into the inbound list. Execution has begun against a parked work unit's spec, so
   grooming it is not open to anyone. Its protected notice names `arc resume`, since no checkout owns it.
+- **Decided** (Owner, 2026-09-29): lifecycle work anchors; edits do not. Every lifecycle workflow for a started work
+  unit — draft-design after start, create-spec, generate-tasks, the task loop, verify, and integrate — checks at entry
+  that it runs in the work unit's own locus and, from anywhere else, offers the remedy rather than letting a session
+  drift into lifecycle work. Captures, inbound entries, and the owner's prose touch-ups stay open from any checkout. The
+  write rule already places the hard wall: the meta and task list write only from the owning checkout, so create-spec's
+  meta write and generate-tasks refuse elsewhere, while the spec, being prose, stays writable by its owner from other
+  checkouts.
+    - Spawning a dedicated worktree stays `arc start`'s default: a workspace named for its work unit tells a session
+      what it is doing. Branchless planning (C12) makes anchoring in place the cheap explicit choice — `arc start
+      --here` writes only the marker, where it once cut and switched to a planning branch — so a session that groomed a
+      stub can continue in place, and a session that cannot move into a spawned worktree has a remedy. A primary
+      checkout anchored this way is not the launchpad while its work unit plans, so Errands spawn their own worktrees,
+      as they already do whenever the primary is taken. Activation, where code work begins, is the natural point to move
+      into a dedicated worktree.
+    - `storage-seam`'s locus member builds both, since it rewrites locus derivation and `start`.
 - **For `storage-projection`:** push-refresh now also carries work-unit files into sibling worktrees' `in-flight/`
   views. A write still touches one or two paths per worktree on the machine, the bound measured above, but more
   writes fan out.
@@ -823,6 +852,8 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
     - signed state commits checked against an allowed-signers file on a protected branch, with clients that never
       follow a rewind and every clone as a backup;
     - the backing repository's own permissions.
+    - **Decided** (Owner, 2026-09-29): opt-in and deferred (C14), with its tripwire and a provisional `protected-state`
+      stub carrying these options.
 - **Requirement:** CI and contributor clones degrade gracefully when state is absent or private. A default clone
   fetches no `refs/arc/*`, so a check that needs state fetches it or reports its absence, never fails on it.
 - **Decided** (Owner, 2026-09-29): project identity is an ID minted at `arc init` and kept as a record in the store.
@@ -869,7 +900,7 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
       trailer's form, `commit.context_footer`'s values and default, the commit hook, and `arc log` — belongs to the
       ghost-mode follow-on, and the register's footer-grammar row folds into it.
     - The same principle reaches the `Review disposition set` body that `review-triage` puts on review fix commits, once
-      review facts are stored (C2); it routes to `review-protocol-alignment` at planning close.
+      review facts are stored (C2); it routes to `review-protocol-alignment` at draft close.
 - **Decided** (Owner, 2026-09-29): the surface boundary, ARC-wide by default. Anything ARC writes, or has an agent
   write, to a surface people read without ARC — commit messages, pushed branch names, pull-request titles and bodies,
   review comments, replies, and dismissals, check and status text, release notes, and issues — reads as the change or
@@ -998,6 +1029,27 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
   zero-commit local anchors for locus topology until in-flight derivation reads the store, and branchless planning is
   a separate change. Supersession detection (`lib/git/supersession.ts`) stays as the safety net once rewrites are
   allowed, alongside `chunked-delivery`'s rebase freedom for stateless review refs.
+- **Decided** (Owner, 2026-09-29): branchless planning, designed here and built by `storage-seam` as it rewrites the
+  lifecycle and locus consumers: 29 source files carry `plan/`, nearly all of them files the seam rewrites, so a later
+  separate change would rewrite them twice. Planning branches existed to carry tracked planning commits, to isolate each
+  work unit's files, to defer the work type to activation, and — ADR-035's leftover reason — to anchor locus topology
+  until in-flight derivation reads the store. The store, the projection's `current/` folder, and in-flight derivation
+  over the store remove all four, which leaves a branch that never takes a commit: a label. Conventional Branch names
+  carry the work type for a branch's whole life, and mainstream practice keeps status in the tracker. It amends ADR-035
+  item 10 (register batch 3) and closes the register's planning-branch reaping gap.
+    - A work unit in planning keeps its own worktree, since its meta and task list write only from the owning checkout
+      (C6), detached at the base branch's tip. The marker names the work unit, and locus derivation reads the marker and
+      the store.
+    - Catching up with base re-detaches at the new tip. It refuses while the worktree holds commits not on base, so a
+      stray commit is never dropped silently.
+    - Activation creates the work branch at base's tip in the same worktree.
+    - The `plan/` prefix, the orphan sweep's planning arm, and branch reaping at abandon, retire, and teardown retire. A
+      planning spike that needs commits takes its own branch.
+    - **Named cost:** branch names stop showing which work units are in planning. Worktree lists still show every work
+      unit by its `<repo>.<slug>` path, planning ones detached; branch pickers lose them; `status-hud` is the idiomatic
+      replacement. Git's refusal to check out one branch in two worktrees no longer guards a work unit's locus; the
+      marker's exclusivity, which already decides it, does.
+    - Not included: planning with no worktree of its own. Nothing here precludes it.
 
 ### C13. Posture and non-goals
 
@@ -1027,7 +1079,32 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
   core.
 - **Decided** (Owner, 2026-09-29): the review-only design-doc export is core; keeping shipped specs in the repository is
   deferred behind its tripwire (C10).
-- **Open:** every other item's tag.
+- **Decided** (Owner, 2026-09-29): core, beyond ghost mode and the export — the five members; history policy on (ADR-035
+  items 9 and 10), since deferring it keeps an append-only rule nothing justifies once notes retire, in a
+  `history-policy` stub minted planned at draft close, because the cutover flips the rule (the append-only row) but the
+  lease-guarded catch-up with base has no owner; the backing-repository backend, built by `storage-ref-backend`, which
+  already takes the state remote as a parameter (C7) and has C5's ordered two-remote push — without it a solo developer
+  with a public repository and two machines chooses between public personal state and no sync; the migrate verb;
+  branchless planning (C12); the record-aware seam (C2); and `framework-core-from-package`'s read-only package
+  projection, which ghost mode needs (C2, C11).
+- **Decided** (Owner, 2026-09-29): deferred, each never precluded and each with a home:
+    - the rest of `framework-core-from-package` — the standard profile keeps ARC core tracked (C2);
+    - `operational-state-docs`'s user-surface residue (C2);
+    - `delivery-observe-attest` — the seam reroutes delivery's records, so shipped stacked delivery keeps working; the
+      delivery stabilization cut may still pull it in on delivery's own grounds;
+    - `status-hud` — the storage program does not need it;
+    - the query cache (C2) — raw reads are fast (601 metas in 17 ms), and it is derived, never the authority. Tripwire:
+      a read path exceeds its latency budget, or a live view needs queries across fields. Home: a `query-cache` stub
+      minted provisional at draft close;
+    - protected state (C7) — tamper evidence and every clone as a backup are core. Tripwire: a team requires
+      host-enforced protection of shared state. Home: a `protected-state` stub minted provisional at draft close;
+    - the service backend, per-record authorization, and very high write parallelism (C13) — home
+      `arc-coordination-service`;
+    - the OKF projection (C13) — home `idiomatic-alignment`;
+    - a shipped import — nothing needs importing before public release, so `storage-ref-backend` may build a one-off.
+- **Requirement:** ghost mode's configuration pointer (C7) needs a per-machine configuration tier;
+  `config-storage-architecture`'s `.local/` tier is the natural provider, and the ghost-mode follow-on records the
+  dependency.
 
 ### C15. Risks carried into the design
 
@@ -1177,14 +1254,19 @@ by tracked or notes-backed state rather than for state by size.
     - Decision amendments: the footer-grammar row's fate becomes C8's footprint policy — no footer by default, and task
       attribution an opt-in trailer rendered from the store link (C1) — with the ghost-mode follow-on as owner once its
       stub is minted; the Errand-ref row adds the branch's UID suffix (C2); the lifecycle-classification row keeps one
-      narrow arm past the cutover, so deleting the review copy of a spec never reopens review (C10).
-    - ADR-035 takes two dated amendments: item 2, ARC fetches with its own refspec and adds none to the code remote's
+      narrow arm past the cutover, so deleting the review copy of a spec never reopens review (C10); the branch-refs
+      row's fate for `plan/<slug>` becomes retirement, not a local-only anchor (C12); the cohort's follow-on list and
+      `storage-ref-backend`'s _Exposes:_ line take C14's tags and homes — the backing-repository backend to
+      `storage-ref-backend`, branchless planning to `storage-seam`, history policy to `history-policy`, and the records
+      engine into the seam's parsers (C2).
+    - ADR-035 takes three dated amendments: item 2, ARC fetches with its own refspec and adds none to the code remote's
       configuration (C5); item 4, the export's options become `none | specs`, and its copy exists for review only,
-      deleted before merge (C10). The cohort's Coordination block and `storage-ref-backend`'s _Exposes:_ line trade
-      "fetch-refspec install" for the explicit state fetch. Carrying an ADR amendment puts the batch in the reviewed
-      lane (Route).
-- **Route at planning close,** as `USER-INBOX` captures under the coordination-seam rule, one per unit whose plan
-  assumes tracked or notes-backed state but needs no register row — a note for its next planning:
+      deleted before merge (C10); item 10, planning branches retire with the seam's rewrite of in-flight derivation
+      rather than as a later change (C12). ADR-022 takes its file-as-record amendment (C2). The cohort's Coordination
+      block and `storage-ref-backend`'s _Exposes:_ line trade "fetch-refspec install" for the explicit state fetch.
+      Carrying an ADR amendment puts the batch in the reviewed lane (Route).
+- **Route at draft close,** as `USER-INBOX` captures under the coordination-seam rule, one per unit whose plan assumes
+  tracked or notes-backed state but needs no register row — a note for its next planning:
     - `composable-workflows` — fixtures assume the notes channel (`arc user pull`, notes-only offers) and a grooming
       relocate for `--plan`;
     - `review-durability-hardening` — Completion and Release Notes reads bind to the head, not the store version;
