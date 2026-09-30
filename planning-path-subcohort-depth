@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "planning-path-subcohort-depth",
+  "claimId": "a4399d830275b0419924cb393e3a3d83",
+  "createdAt": "2026-09-30T21:36:37.618Z",
+  "updatedAt": "2026-09-30T21:36:37.618Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Admit subcohort-nested backlog work-unit artifacts in the planning-artifact path classifier",
+  "branch": "chore/planning-path-subcohort-depth",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
