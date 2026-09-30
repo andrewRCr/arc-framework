@@ -448,7 +448,7 @@ export async function handleSync(
 
   let identity: string;
   try {
-    identity = await resolveUserIdentity(createGitExec());
+    identity = await resolveUserIdentity(createGitExec(context.subprocess));
   } catch (err) {
     if (err instanceof UserFacingError) {
       output.log.error(formatError(err));

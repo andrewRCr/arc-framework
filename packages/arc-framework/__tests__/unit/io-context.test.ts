@@ -19,6 +19,10 @@ import {
   readGitBlobBytes,
   readGitObjectBytes,
 } from "../../src/lib/io-context.js";
+import { resolveInteractionContext } from "../../src/lib/command-input/interaction-context.js";
+import { handleSync } from "../../src/handlers/sync.js";
+import { scriptGitExec } from "../helpers/git-exec-fake.js";
+import { makeCapturingSyncOutput } from "../helpers/sync-output.js";
 
 const tempDirs: string[] = [];
 
@@ -49,6 +53,49 @@ beforeEach(() => {
 afterEach(async () => {
   vi.unstubAllEnvs();
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+});
+
+describe("sync identity subprocess policy", () => {
+  it.each(["forbidden", "allowed"] as const)(
+    "applies the supplied %s interaction policy to both identity lookups",
+    async (interaction) => {
+      vi.stubEnv("GIT_SSH_COMMAND", "ssh");
+      const identity = scriptGitExec([
+        { match: ["config", "--null", "--get", "arc.identity"],
+          responses: [{ failure: { exitCode: 1, stderr: "" } }] },
+        { match: ["config", "--get", "user.name"], responses: [{ stdout: "" }] },
+      ]);
+      mocks.execa.mockImplementation(identity.exec);
+      const context = resolveInteractionContext({
+        noInput: interaction === "forbidden",
+        machineReadable: false,
+        yes: "absent",
+        ci: false,
+        promptInputIsTTY: true,
+        promptOutputIsTTY: true,
+      });
+      const captured = makeCapturingSyncOutput();
+
+      await handleSync({}, captured.output, context);
+
+      expect(identity.calls.map((call) => call.args)).toEqual([
+        ["config", "--null", "--get", "arc.identity"],
+        ["config", "--get", "user.name"],
+      ]);
+      expect(captured.stderr.some((line) => line.includes("No identity configured"))).toBe(true);
+      for (const [, , options] of mocks.execa.mock.calls) {
+        if (interaction === "forbidden") {
+          expect(options).toMatchObject({
+            stdin: "ignore",
+            env: { GIT_TERMINAL_PROMPT: "0", GIT_EDITOR: "true" },
+          });
+        } else {
+          expect(options.stdin).toBeUndefined();
+          expect(options.env?.GIT_TERMINAL_PROMPT).not.toBe("0");
+        }
+      }
+    },
+  );
 });
 
 describe("createUserIOContext readDir", () => {
