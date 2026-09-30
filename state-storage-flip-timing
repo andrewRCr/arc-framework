@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "state-storage-flip-timing",
+  "claimId": "4e95c5e5379b7935be421e7042d69a30",
+  "createdAt": "2026-09-30T20:53:57.380Z",
+  "updatedAt": "2026-09-30T20:53:57.380Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "state-storage-flip-timing",
+  "branch": "chore/state-storage-flip-timing",
+  "origin": "inbox",
+  "originEntry": "Say the storage contract ships over today's substrates in the state-storage cohort document",
+  "originEntrySourceDigest": "sha256:6150df39c0505c77176039da1a313a11b14fa61093e2279fa262a4a6a399c458",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
