@@ -545,6 +545,58 @@
 
 - _Captured during:_ the `publish-errand-merge-skeleton` errand, PR #655, 2026-09-19.
 
+### `[ ]` **Carry private correction coverage across a Candidate re-root**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-activity-contracts`), housekeep drain (2026-09-30);
+  captured during `review-signal-convergence` prepublication Pass 13, 2026-09-26.
+- _Observation:_ During `review-signal-convergence` Pass 13, a verified Pass 12 response and
+  complete local review supported an exact incremental correction scope on the same Candidate root.
+  An additional source correction required `arc attest --new-root`. ARC preserved 12 spent passes,
+  but the new Candidate id had no response transition and the local coverage selector required an
+  exact Candidate-id match to the Pass 12 producer, so it could no longer offer incremental review.
+  The existing `review-activity-contracts` draft names re-root lineage and incremental settlement
+  generally, but does not explicitly own this private, origin-linked no-PR admission case or its
+  cross-root evidence proof. `candidate-reroot-recovery-frame` excludes this authority design.
+- _Approach:_ Decide what exact, validated supersession and performed-response evidence may carry a
+  prior complete-review basis into a new Candidate root. Preserve exact-head invalidation and
+  Owner pass authority; offer incremental as a scoped choice only when the complete chain and live
+  Git/Candidate contribution prove it. Cover the origin-linked no-PR route and an out-of-band
+  re-root in a real CLI test, including a refusal when the proof does not hold.
+
+### `[ ]` **Put the verified-fix response before after-fix hosted settlement in the shipped workflow prose**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-activity-contracts`), housekeep drain (2026-09-30);
+  captured during Errand `verified-fix-reentry`, 2026-09-28.
+- _Observation:_ Layer 6's field confirmation specifies the order approve → apply and verify → commit →
+  `verifiedFix` response → push and after-fix hosted settlement. The shipped prose still states the older order in
+  two places, and omits the response in a third:
+    - `run-errand.md` § Integrate Step 4, the `findings / triage` arm, and `integrate-work-unit.md`'s matching hosted
+      arm both say to apply, verify, commit, and push the fixes, "then settle every `afterFixFindingIds` entry", and
+      only afterwards "the verified-fix response continuation". Hosted settlement of a `fix` finding needs the
+      recorded response, so the prose order fails at the first after-fix settle. The delivery-member arm of
+      `integrate-work-unit.md` is already correct: it requires `delivery-member-advanced` first.
+    - `run-errand.md` Step 2's frontline and local `findings / respond` arm ends at "Approved fixes run Tier 1 gates,
+      commit atomically, push, and create a new target" and never names the `verifiedFix` response. `arc review
+      resolve` needs that recorded response to see the fix for incremental applicability.
+- _Already landed, so the prose is no longer a dead end:_ PR #729 (`034d338a9`) makes a `ready-to-fix` response name
+  `reentryCommand: "respond-verified-fix"` for every source. It also makes `arc review hosted settle` return a
+  typed `fix-not-performed / complete-verified-fix` refusal, with that response as the remedy, instead of a generic
+  error. Following the current prose now ends at a recoverable refusal; what remains is stating the right order.
+- _Approach:_ fold into Layer 6's typed sequence. Have the three arms follow `payload.reentryCommand` after the fix
+  commit and only then run after-fix settlement. Edit the package source and sync `.arc/`.
+
+### `[ ]` **Bind the review disposition set to the stored review fact, not the fix commit's body**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-activity-contracts`), housekeep drain (2026-09-30);
+  captured during `storage-contract` draft close, 2026-09-30.
+- _Observation:_ `review-triage` puts a `Review disposition set` body on review fix commits, and this draft names the
+  disposition-set identity recorded in the fix commit as a candidate binding for frontline pass durability.
+  `storage-contract` takes ARC's process vocabulary out of code commits by default (C8's surface boundary), and once
+  durable review facts are stored at project scope (C2), the disposition set belongs there rather than in commit
+  bodies.
+- _Approach:_ Design the binding against the stored review fact, and drop the commit body once review facts are
+  stored.
+
 ## Hosted Guidance Contract
 
 Established against source: the hosted adapters inject **no** guidance — `CodeRabbitHostedAdapter.request` posts exactly

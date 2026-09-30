@@ -11,6 +11,21 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration at this work unit's next planning iteration._
+
+### `[ ]` **Re-measure decompose-scaling's costs after the storage seam**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: decompose-scaling`), housekeep drain (2026-09-30); captured
+  during `storage-contract` draft close, 2026-09-30.
+- _Observation:_ The measured costs this plan rests on are branch-tree meta reads. After `storage-seam`, readers go
+  through the storage contract — every work unit's meta at its tip, 601 of them, read in one 17 ms batch in the
+  storage spikes — so the premise may no longer hold.
+- _Approach:_ Re-measure against the store before designing around today's read costs.
+
+---
+
 ## Measurement first — the recorded numbers are stale
 
 The execute-half evidence (19 source units, 5 destinations, 16 allowed paths, 2,504-file repository:

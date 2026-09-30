@@ -215,6 +215,23 @@
 - _Captured during:_ `delivery-post-landing-conflict-recovery` pre-publication review, 2026-09-18, after the
   Owner rejected both offered frontline scopes.
 
+### `[ ]` **Derive what settled the standard lane for the integration interlock's review line**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-30), design half of "Stop the integration interlock
+  from claiming a local review landed when none ran"; captured during the `local-ci-capacity-qualification` bridge
+  landing, recorded from the `archive-cadence-manual` session, 2026-09-24. The evidence-neutral wording fix stays in
+  `USER-INBOX § Errand` as a pull-forward candidate.
+- _Observation:_ the checkpoint's interlock evidence prints "Review landed: Local carrier `local-attestation`." for any
+  work unit without a hosted-review reservation. `projectHostedReservationDischarge` returns that detail whenever the
+  reservation is null (`scripts/review-gate/policy/hosted-reservation-discharge.ts:115`), and
+  `scripts/integration/checkpoint.ts:1629` falls back to the same string. The `local-ci-capacity-qualification` landing
+  (PR #708) closed its standard lane by Owner acceptance at zero passes, and the interlock still reported a local
+  carrier — evidence the Owner reads at the merge decision.
+- _Fold-in:_ derive the review line from what actually settled the lane, distinguishing a completed local attestation,
+  an Owner-accepted terminus with its pass count, and unknown evidence. A null hosted reservation alone proves none of
+  these. This shares the unit's terminus-kind discriminant and authority boundary: the terminus reader must inspect
+  `terminus.kind` before this line can name one.
+
 ## Operator Selection Override
 
 Mirror the existing ceiling override rather than inventing a shape. `src/scripts/review-gate/policy/review-policy-driver.ts`
@@ -314,6 +331,13 @@ eligibility, target, and lane, while attempt history decides which eligible memb
 
 Remove an advertisement nothing backs, and make its absence legible rather than fatal. Two code edits — `D2.1` and
 `D2.2` — plus a recorded hand-off; `D2.2` is what lets the removal stand alone.
+
+**Both code edits are on `main` ahead of this unit (2026-09-30).** `D2.1` landed alone with `review-signal-convergence`
+(`db6010814`), which left the halt below live: `cli-substrate-complete-migration`'s chunked pre-publication review
+stopped on it. `D2.2` then landed as the Errand `frontline-scope-skip`, exactly as specified here, including the
+trigger precision. Both edit the capability table and resolver in their current home,
+`src/scripts/review-gate/policy/review-policy-driver.ts`; `D8` carries them over when it relocates the declarations.
+`D2.3`'s hand-off to `chunk-scope-binding` remains this unit's to record.
 
 **D2.1 — The table edit** (in the relocated declarations from `D8`): `coderabbit-cli`'s `scopes` becomes
 `["whole-target"]`.

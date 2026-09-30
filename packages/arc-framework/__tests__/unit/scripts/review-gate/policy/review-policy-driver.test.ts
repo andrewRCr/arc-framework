@@ -261,27 +261,69 @@ describe("resolveReviewPolicy", () => {
     });
   });
 
-  it("keeps the frontline carrier whole-target-only", () => {
-    expect(resolveReviewPolicy({
+  describe("frontline scope declines", () => {
+    const chunkedFrontline = (sources: readonly string[]): unknown => ({
       schemaVersion: 1,
       target: prePrTarget,
       lane: "frontline",
       frontlineActive: true,
       standardReview,
-      sources: ["coderabbit-cli"],
+      sources,
       completedPasses: 0,
       maxPasses: 2,
       attempts: [],
       scopeSelection: { mode: "chunked", target: prePrTarget },
-    })).toMatchObject({
-      state: "unavailable",
-      nextAction: "stop",
-      diagnostics: expect.arrayContaining([
-        expect.objectContaining({
+    });
+
+    it("skips the advisory lane when its whole-target-only carrier cannot review the selected scope", () => {
+      expect(resolveReviewPolicy(chunkedFrontline(["coderabbit-cli"]))).toMatchObject({
+        state: "skipped",
+        nextAction: "none",
+        diagnostics: [expect.objectContaining({
           code: "source-scope-ineligible",
           message: expect.stringContaining("coderabbit-cli"),
-        }),
-      ]),
+        })],
+        payload: {
+          lane: "frontline",
+          scope: "chunked",
+          consumedPass: false,
+          attemptedSources: [],
+          reason: "source-scope-ineligible",
+        },
+      });
+    });
+
+    it("skips when scope and lane ineligibility together leave no source", () => {
+      expect(resolveReviewPolicy(chunkedFrontline(["coderabbit-cli", "codex-pr"]))).toMatchObject({
+        state: "skipped",
+        payload: { reason: "source-scope-ineligible" },
+        diagnostics: expect.arrayContaining([
+          expect.objectContaining({ code: "source-scope-ineligible" }),
+          expect.objectContaining({ code: "source-lane-ineligible" }),
+        ]),
+      });
+    });
+
+    it("stops rather than masking an unregistered source behind a scope decline", () => {
+      expect(resolveReviewPolicy(chunkedFrontline(["coderabbit-cli", "custom-reviewer"]))).toMatchObject({
+        state: "unavailable",
+        nextAction: "stop",
+        diagnostics: expect.arrayContaining([
+          expect.objectContaining({ code: "unknown-source" }),
+          expect.objectContaining({ code: "no-eligible-source" }),
+        ]),
+      });
+    });
+
+    it("stops when no source is scope-ineligible", () => {
+      expect(resolveReviewPolicy(chunkedFrontline(["codex-pr"]))).toMatchObject({
+        state: "unavailable",
+        nextAction: "stop",
+      });
+      expect(resolveReviewPolicy(chunkedFrontline(["custom-reviewer"]))).toMatchObject({
+        state: "unavailable",
+        nextAction: "stop",
+      });
     });
   });
 

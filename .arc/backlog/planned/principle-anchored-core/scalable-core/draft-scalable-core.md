@@ -110,6 +110,15 @@
   `8f89da49e293c5d845f22a324a7d17613df6de823bcd9aa625c0de5f89024107`.
 - _Evidence:_ `pm-mode-key`; `scan-result.json#class-pm-mode-key`.
 
+### `[ ]` **Own the team-mode rename's access and compatibility seam**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: scalable-core`), housekeep drain (2026-09-30); captured during
+  `storage-contract` draft close, 2026-09-30.
+- _Observation:_ The coupling audit's team-mode key finding spans 37 files (`packet-dbd2103ffa3c4df953f89138`,
+  content digest `19fc5ffc96617197821f46c35951b913f47505460d875747925d9896bbc2d042`, `team-mode-key`). Team mode is
+  not a storage axis (`strategy-storage-evolution.md` Principle 7), so the storage program does not take it.
+- _Approach:_ Plan the rename's access and compatibility seam here.
+
 ---
 
 ## Problem / Motivation

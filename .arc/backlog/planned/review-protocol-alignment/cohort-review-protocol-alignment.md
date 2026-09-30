@@ -241,7 +241,8 @@ and on no design unit's critical path.
 **Sequencing and rollout.** `D6.1` rewrites the unpublished baseline and clears or regenerates development-only old
 records. It sequences first so no later diff carries the rename. `D8` precedes `D2` so the capability table is edited
 once, in its relocated home, and `D7.3` follows `D8` because it queries those declarations. `D2.1` and `D2.2` land
-together — the removal without the skip arm turns a chunked frontline request into a halt. `D4.1`, `D4.2`, and `D4.4`
+together — the removal without the skip arm turns a chunked frontline request into a halt. (Both are now on `main`
+ahead of the unit; `draft-review-source-authority.md` § Capability Re-cut records how.) `D4.1`, `D4.2`, and `D4.4`
 ship together, and **`D4` sequences last**: it is the unit most exposed if the review gate's request contracts are later
 reduced, nothing else depends on it, so ordering it last costs nothing and preserves the option. `D4.5` may follow
 separately. `D3` and `D5` are independent and may land at any point, and `D5` retains an independent-ship escape hatch

@@ -396,6 +396,15 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
 
 - _Captured during:_ the `register-review-request-schemas` errand, 2026-09-18.
 
+### `[ ]` **Rename against derived views and the store's sync verbs**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: naming-conventions`), housekeep drain (2026-09-30); captured
+  during `storage-contract` draft close, 2026-09-30.
+- _Observation:_ The plan treats `STATUS.PROJECT` as a stored `backlog/` file and names `arc user save` / `load`.
+  Under `storage-contract`, derived views are never stored (C2), and user sync moves onto the store, with `arc save`
+  as the firing point (C6) and the notes verbs retired at the cutover.
+- _Approach:_ Name against the post-cutover surfaces; this work unit already follows the cutover.
+
 ## Problem / Motivation
 
 ARC already uses `{TYPE}.{QUALIFIER}` for two paired doc families — `DEV-RULES.{ARC,PROJECT}` and

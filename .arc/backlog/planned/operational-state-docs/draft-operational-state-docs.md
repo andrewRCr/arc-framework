@@ -610,6 +610,18 @@
 
 - _Captured during:_ the execute-bound Errand sequence after `keep-approved-errand-merges-waiting`, 2026-09-22.
 
+### `[ ]` **Take operational-state-docs' re-scope from storage-contract**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain (2026-09-30); captured
+  during `storage-contract` draft close, 2026-09-30.
+- _Observation:_ `storage-contract` decided the record-aware seam (C2): each `storage-seam` member builds the parser
+  for the families it reroutes, so this work unit stops being the records engine. Its conformance gate stays an
+  independent slice that can run ahead; its user-surface verbs and fields — `arc inbox add`, a `WORKING-MEMORY`
+  mutation verb, tombstones, `_Awaiting:_` — stay here, re-scoped and deferred (C14). The draft's § Re-scope still
+  names it the records engine, and its buffer still wires a `git mv` and audits notes.
+- _Approach:_ Rewrite § Re-scope to the decided shape at next grooming. The inbound buffer's redistribution is a
+  separate capture.
+
 ---
 
 ## Re-scope — the records engine
