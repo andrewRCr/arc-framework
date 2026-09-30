@@ -3,14 +3,14 @@
   "slug": "frontline-scope-skip",
   "claimId": "7851a6de0337475b8740b1401ab376a9",
   "createdAt": "2026-09-30T12:15:27.675Z",
-  "updatedAt": "2026-09-30T12:28:27.145Z",
+  "updatedAt": "2026-09-30T13:00:54.263Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Skip the advisory frontline lane with a typed source-scope-ineligible reason when no configured source can review the selected scope, instead of stopping",
   "branch": "chore/frontline-scope-skip",
   "origin": "description",
   "originEntry": null,
-  "state": "paused",
-  "savedHead": "7b8b0f60d129545f56fe8e57f437531285f1bf44",
+  "state": "open",
+  "savedHead": null,
   "changeRequest": null
 }
