@@ -38,11 +38,12 @@
   with file splits as Errands (§ The consumer map); the failure taxonomy, the per-write message as provenance, and
   traceability as a store link (C1); advisory adversarial-pass evidence as its own kind, the standard and ghost
   profiles, and the serialization rules (C2); rotation deferred behind a growth tripwire and a reserved continuation
-  link, and no wider delta window (C3); no ARC footprint in code commits by default, with an opt-in task trailer, and
-  the surface boundary as an ARC-wide default (C8).
+  link, and no wider delta window (C3); ordered pushes without `--atomic`, one close verb whose capture survives
+  rewrites, `user.notes_push` retired, and explicit fetching (C5); no ARC footprint in code commits by default, with an
+  opt-in task trailer, and the surface boundary as an ARC-wide default (C8).
 - **Open:** every `Open` item in § Decision ledger.
-- **Next:** the remaining detail items — C5's Opens and C10 — then the core-or-deferred tags (C14); register batch 3 as
-  an Errand on `main`, and minting the ghost-mode follow-on stub with the scope C8 gives it.
+- **Next:** C10's integration-time record, then the core-or-deferred tags (C14); register batch 3 as an Errand on
+  `main`, and minting the ghost-mode follow-on stub with the scope C8 gives it.
 
 ---
 
@@ -189,7 +190,10 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
       does not. The landing commit keeps the work-unit link under any merge strategy, and per-task links survive merge
       commits and fast-forwards; a squash loses per-task granularity by its nature. A team that needs text links through
       rewrites turns on the task trailer (C8).
-    - The capture needs the increment-close shape (C5), so it lands with that Open's answer.
+        - **Refined** (Owner, 2026-09-29; C5): the default history policy rebases pushed branches routinely, so a
+          capture holds each commit's patch-id beside its SHA and ARC's own rewrites remap it; only a rewrite outside
+          ARC that changes a commit's diff — a conflict-resolving rebase, squashed fixups — loses the per-task link.
+    - The capture is made by C5's close verb.
 
 ### C2. Record model
 
@@ -361,7 +365,7 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
 - **Requirement** (analysis § 6.10): every stored path is unique across refs — slug-named for work-unit artifacts,
   per person for personal files — since identical paths defeat Git's delta search and cost two to three times the
   pack size.
-- **Requirement:** ARC fetches into a remote-tracking namespace, installed on first run, never straight into
+- **Requirement:** ARC fetches with its own refspec into a remote-tracking namespace (C5), never straight into
   `refs/arc/*`, where a forced fetch would overwrite unpushed local writes.
 - **Requirement:** ARC runs `git maintenance run --auto` at a firing point, because plumbing writes never start gc.
   A completed work unit's ref leaves the fetched namespace at archive.
@@ -591,16 +595,46 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
   state host.
 - **Requirement:** the state leg pushes alone when the code leg cannot — a detached verification checkout, or a
   branch that cannot be pushed.
-- **Open:** closing a task alongside its code commit where `--atomic` is unavailable — ordered writes with a typed
-  repair.
-- **Open:** the increment-close shape — one fused verb that fires the task-record write and captures the increment
-  commit into the record, or two explicit steps. Seamed to `commit-increments`.
-- **Open:** the successor to `user.notes_push` — push on every sync or on request (ADR-035 item 8) — and retiring the
-  key, which has about 14 consumers and a migrator in `commands/update.ts`.
-- **Open:** cross-machine freshness. Another machine sees a write only after it fetches, and a no-change fetch costs
-  0.7–0.9 s on GitHub, so fetches run at coarse points or in the background. In the shared layout (C3), a refspec on the
-  code remote would bring state with every ordinary fetch, an IDE's included, at the cost of fetch output listing
-  state-ref updates; ARC can instead fetch explicitly.
+- **Decided** (Owner, 2026-09-29): where `--atomic` is unavailable — the backing repository's two remotes, or a host
+  without it — the code leg pushes first and the state leg second, each independent, with no repair verb. Code pushed
+  and state not leaves nothing lost: the local store holds the write, an orientation line reports the pending push (C1),
+  and the next firing point or `arc sync` retries it. Where the code leg cannot push, the state leg still does, and a
+  captured commit the code remote lacks reads as not yet published, never as an error. Code first means the remote
+  ordinarily never holds a record naming a commit it lacks. Local-only has nothing to order.
+- **Decided** (Owner, 2026-09-29): one close verb. It persists the task list, which reaches the store only through a
+  verb (C6), and captures the increment's commit: it makes the commit itself when handed the message, so one approval
+  covers both, and captures `HEAD` or a named commit when the commit was made outside ARC, in an editor or ghost mode's
+  own tooling. A task's record holds a list of commits. The verb's name and placement are `storage-seam`'s.
+    - The capture survives rewrites. Under `rewrite-with-lease`, the default (C12), pushed branches rebase routinely, so
+      a bare SHA dangles after most rebases. A capture holds the SHA and its patch-id, which a rebase that leaves the
+      diff alone preserves; ARC's own rewrites — an amend through the close verb, the history policy's catch-up with
+      base — remap captures from the rewrite's old-to-new mapping; and lookup resolves by SHA, then by patch-id among
+      the branch's commits.
+    - Forward-compatible with the increment ratchet `commit-increments` and `unit-scoped-review` shape — per-task by
+      default, a floor raised by project and then user configuration, and overridden conversationally in any scope: the
+      verb closes any set of tasks — one, a parent, a phase, several phases — against the commits of that increment, and
+      nothing in the capture assumes one task per commit or per increment.
+- **Decided** (Owner, 2026-09-29): `user.notes_push` retires with no successor. Its three modes chose when personal
+  files publish; where they publish is now the backend's (C7), and identity scope is not private (C2), so a held push
+  only delays the same exposure while leaving the person's other machines stale. A state push follows `push.interlock`,
+  the axis that already gates pushes, and state refs ride a code push wherever one runs. The key's 14 consumers and its
+  migrator in `commands/update.ts` retire with notes sync at the cutover, with no migration under the pre-public-release
+  posture, and so do `session.init_pull.notes` and `session.init_load.notes`: the projection makes loading automatic
+  (C6), and fetching is below.
+- **Decided** (Owner, 2026-09-29): freshness. Another machine sees a write only after it fetches, and a no-change fetch
+  costs 0.7–0.9 s on GitHub, so ARC fetches explicitly at coarse points: session start, in session-init's remote step
+  under `session.remote_sync`; every firing point, whose push loop fetches first anyway; and `arc sync`. A deciding verb
+  that is itself a firing point fetches before it decides — the fetch its push needs, moved ahead of the decision, at no
+  extra cost. No background fetch runs.
+    - Correctness never rests on freshness: write-then-gate and compare-and-swap at push catch a decision made on a
+      stale read (C4). Freshness decides only what a reader sees meanwhile, so readers that show others' work state
+      their fetch's age.
+    - No refspec joins the code remote's configuration. Every ordinary and editor background `git fetch` would then pull
+      state and print state-ref updates in the person's Git output, and ARC would write configuration into the code
+      remote, while the fetch points above already cover every decision. The separate layout's Git directory is ARC's
+      own, so its configuration may carry one. ADR-035 item 2's "ARC installs a fetch refspec" keeps its substance —
+      plain clones omit the refs, and state lands in a remote-tracking namespace — and takes a dated amendment for the
+      mechanism.
 
 ### C6. The projection's caller-visible behavior
 
@@ -1070,6 +1104,10 @@ by tracked or notes-backed state rather than for state by size.
     - Decision amendments: the footer-grammar row's fate becomes C8's footprint policy — no footer by default, and task
       attribution an opt-in trailer rendered from the store link (C1) — with the ghost-mode follow-on as owner once its
       stub is minted; the Errand-ref row adds the branch's UID suffix (C2).
+    - ADR-035 item 2 takes a dated amendment: ARC fetches with its own refspec and adds none to the code remote's
+      configuration (C5). The cohort's Coordination block and `storage-ref-backend`'s _Exposes:_ line trade
+      "fetch-refspec install" for the explicit state fetch. Carrying an ADR amendment puts the batch in the reviewed
+      lane (Route).
 - **Route at planning close,** as `USER-INBOX` captures under the coordination-seam rule, one per unit whose plan
   assumes tracked or notes-backed state but needs no register row — a note for its next planning:
     - `composable-workflows` — fixtures assume the notes channel (`arc user pull`, notes-only offers) and a grooming
