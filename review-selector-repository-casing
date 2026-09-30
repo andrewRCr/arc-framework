@@ -3,7 +3,7 @@
   "slug": "review-selector-repository-casing",
   "claimId": "6d11c2831f331b8ebdff94f1a0e377f2",
   "createdAt": "2026-09-30T23:08:12.973Z",
-  "updatedAt": "2026-09-30T23:08:12.973Z",
+  "updatedAt": "2026-09-30T23:28:29.200Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Accept mixed-case GitHub repository coordinates in the review applicability selector",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Accept GitHub repository casing at review applicability boundaries",
   "originEntrySourceDigest": "sha256:fb8411cd973224327ba018800f2bf4a36e8b19132ae35835baa8a94857f64dcb",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/review-selector-repository-casing",
+    "headSha": "5daf39c17af8a6f767b0cf0fa26961e589154fe0"
+  }
 }
