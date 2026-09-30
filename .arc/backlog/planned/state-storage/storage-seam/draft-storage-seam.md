@@ -640,6 +640,91 @@ checks — move off Git-history and pull-request-diff reads of state as well (§
 
 - _Captured during:_ `cli-substrate-complete-migration` draft-design, 2026-09-28.
 
+### `[ ]` **Let `arc rename` rename a backlog stub inside an Errand instead of on its own branch**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-30); captured during Errand `state-storage-recut`,
+  renaming `arc-backend` to `storage-contract`, 2026-09-28.
+- _Observation:_ `arc rename <slug> <new-slug>` on a backlog stub runs on a fixed short-lived branch,
+  `chore/rename-<old>-to-<new>`, cut from base (`withRenameStubBranch`, `lib/work-unit/rename-identity.ts:160`). It
+  switches the primary checkout to that branch, commits there, and switches back to base. Inside an open Errand
+  the verb therefore cannot contribute to the Errand's branch: it moves the checkout off the Errand and leaves a
+  second branch that needs its own pull request. Grooming that renames a stub alongside other backlog edits has to
+  reproduce the verb by hand — directory move, meta rewrite, artifact-filename code spans, and `Depends On` edges
+  (`rename-reference-sweep.ts`) — which is the error-prone path the verb exists to remove.
+- _Approach:_ when the invoking checkout already holds a transient role on a non-base branch, apply the stub rename
+  and its reference sweep there and leave the commit to the enclosing ceremony, or refuse with a typed remedy that
+  names that route. Keep today's short-lived branch for a bare invocation from base.
+- _Fold-in:_ the register's `arc rename` stub-branch row already rewrites a rename as a store write, so no interim fix
+  is taken. Carry this as that row's acceptance case: a rename invoked from a checkout holding a transient role
+  contributes to that transient, with no branch switch and no second change request.
+
+### `[ ]` **Record an Errand's frontline skip so a head move before standard review cannot reopen the phase**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-seam`), housekeep drain (2026-09-30); captured during
+  Errand `frontline-pre-pr-only`, 2026-09-28.
+- _Observation:_ frontline is an opening phase, closed by a recorded skip, a terminal frontline result, or any
+  standard-review attempt, and never re-entered once the change request opens. Errands now share that closure
+  (`frontlinePhaseClosed` in `frontline-phase.ts`), read from their claim-keyed lane-progress records. The recorded
+  skip is the exception: its marker (`frontline-phase` operation state, `recordSingletonFrontlineInitialSkip`) is keyed
+  by Candidate ID, so an Errand skip leaves no durable trace. If an Errand skips frontline and its head then moves
+  before any standard-review attempt and before the PR opens, `frontline resolve` offers the phase again.
+- _Approach:_ give the phase marker a subject keyed by vehicle lineage rather than Candidate ID, so an Errand claim
+  can carry it, and record it on an Errand's accepted skip. That is a new stored record shape, which the pull-forward
+  filter keeps out of Errands; design it with the seam's review-and-evidence partition.
+- _Naming:_ rename the concept from "phase" to "window" in the same redesign. "Phase" overloads task-plan phases, and
+  "stage" would collide with work-unit lifecycle stages; the Owner agreed "window" fits the one-time pre-change-request
+  opportunity. Rename it everywhere at once: `frontline-phase.ts` and `frontlinePhaseClosed`, the `frontline-phase`
+  record kind and its operation-id domain, the `frontline-phase-closed` diagnostic, and the driver's `phase-closed`
+  skip reason.
+
+### `[ ]` **Reconcile the storage state-path register count with file-exact layout evidence**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-seam`), housekeep drain (2026-09-30); captured during
+  `cli-substrate-complete-migration` Task 5.4, Phase 5 layout reconciliation.
+- _Observation:_ The storage-coupling register's state-path row records 36 hand-built state-class lines in 19 files
+  at `7ddab4979` and explicitly excludes `src/lib/delivery/from-branch.ts:555–559` as basename classification.
+  The migration work unit's earlier recount placed those five lines in the 36, while the Phase 5 reconciliation
+  classifies them under lifecycle classification. The current 15-class layout scan has file-exact rows for
+  surviving state-path access, including `arc-root` hits outside the historical state-class count.
+- _Approach:_ Re-derive the register's counted state-class line and file set from the current Phase 5 rows, keep
+  basename classification under its lifecycle row, and update the historical count or its evidence citation so
+  the storage-seam implementation has an exact migration target.
+
+### `[ ]` **Retire the live transition-record test when lineage moves to the store**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-seam`), housekeep drain (2026-09-30); captured during
+  Errand `transition-record-checks`, 2026-09-30.
+- _Observation:_ An integration test reads the tracked transition records in `.arc/system/.internal/transitions/`
+  directly and checks them for structural integrity: each parses, round-trips to canonical bytes, is the one record
+  for its origin under `<origin>.json`, and projects to a valid reference set. The ARC contract test tier runs it,
+  so docs-only pull requests that add or change a record are checked. The storage register row for Candidate and
+  transition records names the records but not this reader. Once lineage is a store family written only by verbs,
+  the folder is gone and the store's own record validation carries the integrity check.
+- _Approach:_ When the seam moves transition records into the store, delete `live-transition-records.test.ts` and
+  its entry in the ARC contract tier selection (`src/lib/local-vitest-runner.ts` and that module's unit test). If
+  missed, the test fails loudly at the seam on the missing directory rather than passing vacuously.
+
+### `[ ]` **Flip ADR-022 to Accepted as storage-seam's first action**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-seam`), housekeep drain (2026-09-30); captured during
+  `storage-contract` draft close, 2026-09-30.
+- _Observation:_ ADR-022's file-as-record amendment (register batch 3) moved its flip trigger to `storage-seam`'s
+  kickoff, since the seam builds the family parsers (`storage-contract` C2).
+- _Approach:_ Make flipping ADR-022 to Accepted the kickoff's first action.
+
+### `[ ]` **Close the user workspace after the lifecycle executor's record writes, not before**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-seam`), housekeep drain (2026-09-30); captured during
+  `storage-contract` draft-design, readiness gap on the in-repo implementation (2026-09-30).
+- _Observation:_ The lifecycle executor fires its declared side effects at step 6, the user-workspace close among
+  them (`runUserClose`, which removes the work unit's user directory recursively, `SESSION-NOTES` included —
+  `commands/user/close.ts:25`), and only then runs the step 7–8.5 meta writes (`lib/work-unit/lifecycle-executor.ts`).
+  A throw in those writes returns `finalize-failed`, which is forward-recoverable for the transition, but the
+  workspace is already gone, with only a notes snapshot behind it.
+- _Approach:_ In the executor write-path rewrite (its register row), close the workspace after the transition's
+  records are written. The storage contract's in-repo implementation refuses a batch spanning substrates, so the close
+  stays a sequenced step until the flip — ordered after the records, with an idempotent rerun.
+
 ---
 
 ## Prior Design — `singleton-integration-continuity` (pre-ADR-035 reading input)

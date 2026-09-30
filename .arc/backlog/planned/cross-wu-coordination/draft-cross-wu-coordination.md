@@ -27,6 +27,15 @@
   contract comparison rather than treating base drift as proof. Coordinate the decomposition-specific amplifier
   with `decomposition-doctrine`, whose owner-adoption capture remains held.
 
+### `[ ]` **Key coordination commitment by record field, not directory**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: cross-wu-coordination`), housekeep drain (2026-09-30); captured
+  during `storage-contract` draft close, 2026-09-30.
+- _Observation:_ The plan keys commitment by directory and moves artifacts with `git mv`. Under `storage-contract`,
+  placement is a record field and directory layout a projection of it (C2), and moves between lifecycle states
+  become store operations.
+- _Approach:_ Re-plan against lifecycle as a record field once `storage-seam` lands.
+
 ## Structural decision (settle first at planning)
 
 This stub deliberately holds the thinking as a **single WU** for now. The proposed end-state is a **cohort**, and

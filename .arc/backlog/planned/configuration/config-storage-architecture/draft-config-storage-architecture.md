@@ -52,6 +52,21 @@
   (`config.user.yml`); default to derived initials, user-overridable.
 - _Note:_ storage home is this WU; the render consumption is roadmap-tooling's (coordinate at PRD).
 
+### `[ ]` **Decide where the state remote's per-clone designation lives**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: config-storage-architecture`), housekeep drain (2026-09-30);
+  captured during `storage-contract` draft-design, adversarial pass 1 (2026-09-30).
+- _Observation:_ `storage-contract` requires the state remote to be designated per clone, as Git's
+  `remote.pushDefault` is. It is designated without asking only when the remote holding the project's state is the one
+  the clone pushes code to, and `arc init` designates it at creation. A fork asks once, a run that cannot ask stays
+  read-only, and a lone remote is never designated by default. The requirement leaves where the setting lives to this
+  work unit (C7), and marks the designation core and `storage-ref-backend`'s to build (C14). This draft's § Coordination
+  — `state-storage` holds only the per-machine `.local/` tier, so a parallel member waits on a decision its owner's
+  draft does not hold.
+- _Approach:_ Add the designation to § Coordination — `state-storage`, beside the `.local/` tier: which configuration
+  tier holds it (per clone, so likely `.local/`), and how `arc init` and the fork prompt write it. Settle it before
+  `storage-ref-backend` builds the designation.
+
 ## Problem / Motivation
 
 Per-developer settings (`arc.identity`, `arc.role`, `arc.commitInterlock`, `arc.pushInterlock`, `arc.syncInterlock`,

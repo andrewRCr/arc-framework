@@ -86,6 +86,23 @@
 
 - _Captured during:_ the `function-size-ratchet` errand, PR #647, 2026-09-18.
 
+### `[ ]` **Treat a replacement exact-head CI run as pending before its required context exists**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: ci-defer-heavy-reconciliation`), housekeep drain (2026-09-30);
+  captured during `validate-active-meta-current-workflow-consistency-before-commit` Errand integration, PR #677,
+  2026-09-22.
+- _Observation:_ After `ci-defer-heavy` was removed from PR #677, the exact-head replacement full CI run was
+  active with `defer=false`, but GitHub continued to expose only the older failed `merge-ok` required context
+  until the new downstream `merge-ok` job was created. `arc review checks await` therefore returned
+  `failed / stop` twice instead of pending, despite the valid replacement run being underway.
+- _Approach:_ Extend effective deferral reconciliation so required-check observation recognizes a newer
+  exact-head non-deferred CI run that is scheduled to produce the required aggregate context, represents the
+  interval as typed pending, and reverts to ordinary green/failed semantics once the replacement context appears.
+  Keep exact-head binding and fail closed when workflow identity, `defer=false`, or the producer relationship is
+  uncertain.
+- _Boundary:_ This is evidence for the existing effective-state model, not a waiter-only heuristic or a second CI
+  authority. Preserve the old failure and aggregate gate as red until the replacement run actually qualifies them.
+
 ## Problem / Motivation
 
 A delivery PR retained `ci-defer-heavy` after the hosted provider submitted an approving review at the exact head.

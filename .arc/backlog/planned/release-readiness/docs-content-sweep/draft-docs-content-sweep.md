@@ -15,6 +15,20 @@ WU activation.
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration at this work unit's next planning iteration._
+
+### `[ ]` **Consider an edge on storage-cutover for docs-content-sweep**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: docs-content-sweep`), housekeep drain (2026-09-30); captured
+  during `storage-contract` draft close, 2026-09-30.
+- _Observation:_ The plan carries no edge on `storage-cutover` and ignores `refs/arc/*` history, though the cutover
+  rewrites the state doctrine the public documentation describes, and its documentation pass lands after the flip.
+- _Approach:_ Decide at next planning whether the sweep follows the cutover's documentation pass.
+
+---
+
 ## Why a Dedicated Plan
 
 The two adjacent docs-touching WUs don't absorb this work cleanly:

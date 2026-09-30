@@ -341,6 +341,35 @@
 - _Fold-in:_ define the proof and terminal collection boundary for safe supersession without converting temporal
   sequence into an ungrounded assumption of coverage.
 
+### `[ ]` **Let project policy set the review floor for documentation, and let an Owner waive a recommended pass**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-orchestration-right-sizing`), housekeep drain
+  (2026-09-30); captured during `land-storage-direction-record` Errand, 2026-09-24.
+- _Observation:_ ADR-035 and its two analyses landed as an Errand (PR #706, 2026-09-24) with no review, by Owner
+  decision. The planning-grooming exemption refused them (`non-planning-change`): ADRs and analyses are not plain
+  planning artifacts. Self-owned routine documentation then routes to `standardReview: recommended`, and a
+  `design-authority` judgment would promote it to `required` with a `full-final` retrigger. Project routing policy
+  can only promote (`applyProjectPromotion` in `routing.ts`, deliberately promote-only), so no project can relax
+  that floor. On a solo repository there is no second reviewer, and `run-errand` had no route for the Owner's
+  decision: its Owner-directed review stop presumes at least one completed standard pass. The merge proceeded on
+  explicit Owner acceptance at the integration interlock, disclosed as crossing that guard. `arc review status`
+  read `review-required` ("No standard review is recorded for this Errand head") with no obligation level.
+- _Approach:_ make review of ADRs, analyses, research, and planning artifacts project policy. ARC's default should
+  not force it; a team that wants it opts in. Engage the recorded rationale for promote-only routing before
+  relaxing it. Extend the Errand Owner terminus (sibling entry "Give exact Errand targets an Owner-accepted review
+  terminus") to a zero-pass waiver of a `recommended` obligation, recorded as accepted residual risk and kept
+  distinct from a provider-clean result. Have `arc review status` report the routed obligation rather than
+  `review-required` for every unrecorded head.
+- _Boundary:_ ADR-035 takes planning state off code branches, which removes most planning artifacts from PR review
+  on the default backend. ADRs, analyses, and research stay tracked (its item 3), so this survives the storage
+  program.
+- _Recurred:_ `state-storage-register-batch-2` Errand (PR #742, 2026-09-29) — register rows plus an ADR-035
+  amendment, refused as `non-planning-change`, merged on Owner acceptance at zero passes composed by hand at the
+  integration interlock; `arc review status` again read `review-required` with no obligation level.
+- _Recurred:_ `state-storage-register-batch-3` Errand (PR #743, 2026-09-29) — register rows plus ADR-035 and
+  ADR-022 amendments, the same refusal, merged on Owner acceptance at zero passes; `arc review status` read
+  `review-required` with no obligation level.
+
 ---
 
 ## Problem / Motivation
