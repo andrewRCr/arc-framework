@@ -7,6 +7,7 @@ the sweep recipes and test-cost baselines execution records, and the review-proj
 
 ## Contents
 
+- [Final implementation verification](#final-implementation-verification)
 - [Inventory method](#inventory-method)
 - [Residual matrix](#residual-matrix)
 - [Segment boundaries](#segment-boundaries)
@@ -409,6 +410,10 @@ this migration's register cutoff remains unchanged.
 | `src/lib/io-context.ts`: module-level `gitExecInput`                | unbound factory fallback  | retained by rule | Spec § 8                  |               — | Task 4.4.c                 |
 | `src/lib/io-context.ts`: `prepareGitRefVerification` direct `execa` | lifecycle landing rewrite | carved           | `R-LW`                    |               — | park --land; Task 4.4.d    |
 | `src/handlers/locus.ts`: `gitExec`                                  | storage locus rewrite     | carved           | `R-LOC`                   |               — | Task 4.1.e                 |
+
+The stdin property `createUserIOContext.execInput` composes the generic `createGitExecInput` invocation factory.
+The notes-specific `writeNote`/`readNote` properties and their physical notes implementation retain the `R-NS` carve;
+this property-level split preserves the command binding contract beside the storage-owned behavior.
 
 ### Command-inputs contract
 
@@ -2606,6 +2611,33 @@ unestablished improvement/regression; a lower median does not establish a causal
 public CI and all six `ci-job` reports remain due at the exact authorized published head before integration,
 owned by andrew. These local rows neither supply that public evidence nor authorize publication or integration.
 
-The Owner selected a scoped fresh follow-up over this corrective delta and its affected contracts and seams.
-Its authorization becomes usable after response performance, final local evidence and the corrective commit.
-It will not claim fresh coverage of all 35 criteria or replace Pass 2's whole-target result. Task 8.1 remains open.
+The selected scoped fresh follow-up completed at `0fdc05843b64293b2b38f08507fd3640ca7f874e`, after the four
+approved corrective commits and final local evidence. It reported no findings in the complete fourteen-path
+corrective code delta and examined affected seams. The primary checked all 76 supplied input/source hashes and
+the two whole-suite base restorations. Its source-bound in-memory checks exercise mocked execa, with the expected
+identity refusal preserved as an exit1; they supply no full-suite, live-terminal, public-CI or test-cost credit.
+The bounded result supplies no fresh whole-WU absence verdict, all-35 fresh coverage or standard-review credit.
+
+## Final implementation verification
+
+The effective primary walk at `0fdc05843b64293b2b38f08507fd3640ca7f874e` resolves all 35 immutable criteria:
+33 met and two intentionally superseded by A3. The earlier complete walk's unchanged witnesses, approved
+corrections, complete stated executor source account, final local evidence and the bounded fresh follow-up compose
+this result. Pass 2 of 2 remains historically non-converged at cap exhaustion; its completed responses and this
+scoped result do not rewrite that signal. Implementation verification supplies no code-review lane credit.
+
+The ref retry test's subject is an arbitrary-ref, key-agnostic injected Git mechanism. Its only current production
+importer is the physical notes sync-state writer; no surviving Errand caller is inferred from stale module prose.
+Physical notes operations retain their carve. Generic ancestry is independently consumed by surviving delivery and
+review composition. The status and orphan splits, two exact-base restorations and R-ID reader correction preserve
+their separate public-contract and physical-acquisition boundaries.
+
+The current final package identity and twelve local cost samples remain as recorded above. Final closeout changes
+are documentation and Candidate projections, whose Markdown/ARC checks are recorded against their exact bytes.
+Required public E2E, Linux portability, all required CI and six `ci-job` reports remain owned by andrew under A3;
+the exact authorized publication is their forcing event before integration authorization. A3 and A4 are revalidated
+by Task 8.1. The contract coverage plan remains reusable for later standard review after rebinding its exact target
+and applying that review's complete rubric to every scope and seam.
+
+Primary effective report: `/tmp/arc-wu-verification/criteria-report-primary-effective-final.json`.
+Scoped findings and evidence: `/tmp/arc-wu-verification/scoped-followup/reports/`.

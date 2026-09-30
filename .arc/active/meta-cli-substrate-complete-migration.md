@@ -11,13 +11,14 @@
 - **Design:** `spec-cli-substrate-complete-migration.md`
 - **Task List:** `tasks-cli-substrate-complete-migration.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:0a5873096bc47f76115e5d48d0d139c7e9e19313f3772ca08811c5969dcd93d9`
 
-- **Current Workflow:** [none]
-- **Last Completed:** Task 7.5 — Sweep surviving tests for convertible residue
-- **Next Task:** Task 8.1 — Complete verification (line ~766)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 8.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run Task 8.1 via verify-work-unit.md after session init
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]

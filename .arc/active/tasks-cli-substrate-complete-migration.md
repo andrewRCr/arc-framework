@@ -794,17 +794,25 @@ assertion, or a value typed by a cast to a registered schema's output.
 
 ## **Phase 8:** Verification
 
-### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Both type checks, full TypeScript/shell/Markdown lint, ARC contract checks, the build and 13,142
+  routine tests pass; each of three final complete E2E cost samples passes 619 tests. Final documentation checks
+  bind the completion edits; unchanged package gates retain their producing evidence.
+- _Success criteria:_ 35 criteria: 33 met and two superseded by A3, with original text preserved. The full primary
+  walk, source account and corrective reconciliation close verification; the selected fresh check covers the
+  corrective delta and affected seams, with no findings. Earlier whole-target advisory history is retained in
+  `notes-cli-substrate-complete-migration.md`; required public CI and six cost reports remain due before integration.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Every carved item in the residual matrix cites a storage-coupling register row or the correction captured for
+- `[x]` Every carved item in the residual matrix cites a storage-coupling register row or the correction captured for
   it, every surviving symbol a carved row omits cites the correction captured for it, and every mixed module carries
   its symbol-range split
 
-- `[ ]` Carved code and tests of carved code differ from base only by compile-forced, behavior-preserving edits
+- `[x]` Carved code and tests of carved code differ from base only by compile-forced, behavior-preserving edits
 
 - `[x]` No surviving module imports a `lib/user-sync/` survivor through `lib/user-sync/index.ts`
 
@@ -873,39 +881,43 @@ assertion, or a value typed by a cast to a registered schema's output.
 - `[x]` The scripted fake with every designed capability, the `GitProcessError` fixture, the meta builder, and the
   schema-assertion helper exist under `__tests__/helpers/` with their own tests
 
-- `[ ]` Apart from hits a retained-by-rule matrix row covers, no surviving test keeps a hand-built Git-failure
+- `[x]` Apart from hits a retained-by-rule matrix row covers, no surviving test keeps a hand-built Git-failure
   rejection or a convertible local double, other than doubles the cut line hands to a named Errand, each listed in the
   matrix
 
 - `[x]` `makeGitExecInput` builds on `createExecaGitExecInput`, and `stubGitExec` is local to `active.test.ts`
 
-- `[ ]` Apart from hits a retained-by-rule matrix row covers, every hand-written meta block left in a surviving test
+- `[x]` Apart from hits a retained-by-rule matrix row covers, every hand-written meta block left in a surviving test
   belongs to a test of meta parsing or layout, and no surviving test keeps an inline `safeParse(...).success` assertion
   or types a value by a cast to a registered schema's output
 
 - `[x]` The `testing-standards` project override names the shared fake, fixture, builder, and helper, and the doubles
   that stay local
 
-- `[ ]` Every affected test-cost baseline, `lane` included, predates the first new test file, and the final comparison
+- `[x]` Every affected test-cost baseline, `lane` included, predates the first new test file, and the final comparison
   is recorded
 
-- `[ ]` The cohort closeout criterion carries the storage-carve exclusion, and the residual matrix reconciles against
+- `[x]` The cohort closeout criterion carries the storage-carve exclusion, and the residual matrix reconciles against
   all six member scopes and the amended criterion
 
 - `[x]` Repository-wide searches for every retired symbol and path across static and dynamic imports, `vi.mock`
   specifiers, fixtures, and generated outputs come back empty
 
-- `[ ]` All quality gates pass (Markdown lint, ARC contract checks, `typecheck:all`, TypeScript lint, the full test
+- `[~]` All quality gates pass (Markdown lint, ARC contract checks, `typecheck:all`, TypeScript lint, the full test
   suite with E2E and portability in required CI, and the build)
+    - _Superseded:_ A3 replaces this pre-Candidate all-gates criterion with criterion 33; required public CI
+      remains mandatory before integration authorization.
 
-- `[ ]` Ready for integration
+- `[~]` Ready for integration
+    - _Superseded:_ A3 replaces integration readiness here with criterion 34, readiness for Candidate preparation;
+      integration authority follows exact-publication evidence and its own interlock.
 
-- `[ ]` Every project-designated local quality gate passes against the final verified inputs
+- `[x]` Every project-designated local quality gate passes against the final verified inputs
     - _A3:_ Required public CI, including E2E and Linux portability, remains mandatory before integration
       authorization; local E2E still runs wherever changed-path rules require it.
 
-- `[ ]` Implementation verification is complete and ready for Candidate preparation, with required public CI
+- `[x]` Implementation verification is complete and ready for Candidate preparation, with required public CI
   and all six `ci-job` cost reports retained against the exact published head before integration authorization
 
-- `[ ]` The two storage-register corrections adopted by A4 are bound to their exact `891c911c` rows, with
+- `[x]` The two storage-register corrections adopted by A4 are bound to their exact `891c911c` rows, with
   decomposition and continuity subjects named and all mixed-module survivor ranges preserved

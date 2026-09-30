@@ -791,7 +791,7 @@ is `storage-seam`'s decision and does not change the carve. (A4)
   _Supersedes:_ none. _Trigger:_ 7.5 segment. _Work:_ 7.R2. _Revalidated:_ 7.5.
 <!-- markdownlint-disable MD013 -->
 - **A3** — 2026-09-29 — design: Bind local verification and public CI evidence to their producing boundaries.
-  _Supersedes:_ § Cross-cutting Considerations, Performance and test cost ¶1; § Success Criteria, Gates ¶1; task criteria 31–32. _Trigger:_ 8.1 terminal. _Work:_ 7.R3. _Revalidated:_ pending → verify-work-unit.
+  _Supersedes:_ § Cross-cutting Considerations, Performance and test cost ¶1; § Success Criteria, Gates ¶1; task criteria 31–32. _Trigger:_ 8.1 terminal. _Work:_ 7.R3. _Revalidated:_ 8.1.
 - **A4** — 2026-09-29 — design: Apply the accepted decomposition and continuity register corrections explicitly.
-  _Supersedes:_ §1 Register ¶1 and final register-relationship ¶1, only these two rows. _Trigger:_ 8.1 terminal. _Work:_ 7.R4. _Revalidated:_ pending → verify-work-unit.
+  _Supersedes:_ §1 Register ¶1 and final register-relationship ¶1, only these two rows. _Trigger:_ 8.1 terminal. _Work:_ 7.R4. _Revalidated:_ 8.1.
 <!-- markdownlint-enable MD013 -->
