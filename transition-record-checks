@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "transition-record-checks",
+  "claimId": "000eea685affc0b5932cc8472a7ddad7",
+  "createdAt": "2026-09-30T12:35:49.616Z",
+  "updatedAt": "2026-09-30T12:35:49.616Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Replace the hand-kept transition-record oracle with list-free checks over the live records, and run them on docs-only pull requests",
+  "branch": "chore/transition-record-checks",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
