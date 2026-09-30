@@ -247,7 +247,10 @@ remove rows whose surface has retired. The two-way layout tables below begin emp
 
 Register citations below name the corresponding **Storage-coupling register** row in
 `cohort-state-storage.md`. All rows retain the `840d348c` cutoff except the two exact `891c911c` rows
-Owner-approved in A4 (`R-DCP` and `R-CONT`). Correction citations name the existing `USER-INBOX` captures.
+Owner-approved in A4 (`R-DCP` and `R-CONT`). Correction citations name the existing `USER-INBOX` captures,
+except `R-ID`, relayed directly to `storage-contract`'s active planning session under Q6 and recorded at
+`7c52f65fd8953ce122702755e4a96460ed713a17`. Its register reader coverage lands at that draft's batch 4;
+this migration's register cutoff remains unchanged.
 
 | Key       | Register row                                                                                          |
 | --------- | ----------------------------------------------------------------------------------------------------- |
@@ -272,6 +275,7 @@ Owner-approved in A4 (`R-DCP` and `R-CONT`). Correction citations name the exist
 | `R-LOCK`  | `USER-INBOX`: Name what the surviving inbox writer locks on in the notes-sync register row            |
 | `R-ADD`   | `USER-INBOX`: Cover identity-wide user workspace bootstrap in the storage register                    |
 | `R-PARSE` | `USER-INBOX`: Name the entry parser’s supporting type and schema survivors in the notes-sync register |
+| `R-ID`    | Q6 planning correction: explicitly cover physical Errand identity acquisition and its consumers       |
 
 ### Kernel contract
 
@@ -443,6 +447,7 @@ Owner-approved in A4 (`R-DCP` and `R-CONT`). Correction citations name the exist
 | `commands/user/add.ts`: identity-wide bootstrap         | store-backed user workspace         | carved           | `R-ADD`                |        M:1 | Task 1.1.c |
 | `handlers/user-sync.ts` and `handlers/push-recovery.ts` | —                                   | carved           | `R-NS`                 |        M:4 | Task 1.1.c |
 | `handlers/sync.ts`: notes pull/push                     | store-backed sync                   | carved           | `R-NS`                 |        M:3 | Task 1.1.c |
+| `handlers/sync.ts`: common identity prelude             | invocation-bound Git executor       | migrated         | Spec § 1; § 8          |          — | Pass 2 P4  |
 | `handlers/sync.ts`: worktree sync and adapter           | same handler                        | retained by rule | Spec § 1 symbol split  |        M:3 | Task 1.1.c |
 | `review planning-lane` command                          | —                                   | carved           | `R-CI`                 |          — | Task 4.1   |
 | `locus` command adapter                                 | machine-mode wrap                   | migrated         | Spec § 8; `R-LOC` body |          — | Task 4.1.e |
@@ -470,6 +475,7 @@ Owner-approved in A4 (`R-DCP` and `R-CONT`). Correction citations name the exist
 | constant one-response stubs                                                                                          | local test doubles                      | retained by rule | Spec § 9                              |         — | scripted-double scan; Task 7.5                                                                                                               |
 | real-Git doubles, fault-injecting hybrids, scenario simulators                                                       | local test doubles                      | retained by rule | Spec § 9                              |         — | scripted-double scan; Task 7.5                                                                                                               |
 | non-exit Git unavailability and unscripted-call guards                                                               | local test doubles                      | retained by rule | Spec § 9                              |         — | Git-failure scan; Task 7.5                                                                                                                   |
+| `unit/errand-identity-snapshot.test.ts`: identity acquisition and in-flight producers                                | original test representation            | carved           | Spec § 1; `R-IF`, `R-LOC`, `R-ID`     |         — | Q6 exact-base restoration; correction relayed to `storage-contract` planning                                                                 |
 | parser/layout literal meta fixtures                                                                                  | local Markdown                          | retained by rule | Spec § 9 independent evidence         |         — | meta block scan; Task 7.5                                                                                                                    |
 | status table golden strings                                                                                          | local Markdown                          | retained by rule | Spec § 9 independent evidence         |         — | meta scan false positive; render                                                                                                             |
 | invalid and legacy-scan meta fixture blocks                                                                          | local Markdown                          | retained by rule | Spec § 9                              |         — | meta block scan; 5 invalid files                                                                                                             |
@@ -2538,3 +2544,68 @@ obligation and records 7.R3.b's public continuation; it does not authorize publi
 A server restart interrupted the last E2E sample before it wrote a result. Its log is retained without an inferred
 test verdict; only that sample was rerun. The other eleven completed samples and all package hashes remained intact.
 `supplemental-fixes/cost-restart-record.json` records the interruption and replacement log separately.
+
+## Pass 2 corrective response — P1–P5 and Q1–Q6
+
+The whole-target criteria companion at `f87e414755c884fae86d2ce82ad425770777388b` reported 29 established,
+four contradicted and two superseded criteria. The primary confirmed four major findings and one minor finding,
+including the narrowed rejection in P2. Pass 2 of 2 ended non-converged at cap exhaustion; applying its responses
+does not change that historical signal or supply standard-review coverage. Earlier source-account closure claims
+and measurements above remain historical at their named subjects.
+
+The approved responses restore committed-progress exactly to base and the four carved status-view assertion
+representations. `createUserIOContext` composes its stdin executor through the explicit factory, and sync's common
+identity prelude receives the supplied subprocess policy. Both policy cases have behavioral reconstruction failures
+and passing restored checks. Three finite D4 scripts use the shared raw fake with their original observations.
+
+The remaining source account adds shared scripts for immutable delivery-containment replies, the canary retry
+sequence, generic ancestry, the non-CAS failure scenario, and the orphan sweep's surviving branch replies.
+The orphan archive arm remains byte-identical. Errand identity acquisition tests are restored exactly to base;
+their optional conversions had no compile-forcing edge. Constant stubs, real-Git drivers, mutable repository models,
+lower execa-adapter mocks and deliberate non-exit failures retain their respective boundaries.
+
+The refreshed compiler inventory contains 2,807 bindings, 1,377 mock setups, 157 shared-script calls and 450 helper
+edges. Of the 1,042 prior callable records, 978 retain exact current bodies; all 64 changed bodies have explicit
+current response, restoration or replacement fates in `p-responses/current-source-account-bridge.json`.
+These counts establish source conservation within the stated discovery forms, not universal runtime dataflow
+coverage. Earlier scout snapshots remain historical; current source identities and actual consumer contracts
+govern the primary account.
+
+Q6's correction is recorded in `storage-contract` planning at `7c52f65fd8953ce122702755e4a96460ed713a17`.
+The plan assigns physical identity tip/tree/blob acquisition and fetched reads to `storage-ref-backend`; index
+projections and consumer protocols stay with `storage-seam`'s members. The consumer map includes
+`lib/errand/record.ts` and the Errand family for active in-flight, user-view and response composition. Its C1 requires
+distinct absent, unreadable and complete listings, per-entry diagnostics, one version as the mutation basis, and
+refusal to authorize review from incomplete evidence. The register reader coverage is scheduled for draft-close
+batch 4; `R-ID` cites the routed correction, without adopting another later register row.
+
+The current focused responses pass 170 tests across twelve suites. The full routine lane passes 907 files and
+13,142 tests, with one file/two tests skipped; both type checks, TypeScript and shell lint, and the full build pass.
+All twelve final cost samples pass over the same corrected package inputs. Final documentation checks are
+reported against these final note bytes. Raw source accounts, preservation witnesses and producing gate
+records are under `/tmp/arc-wu-verification/pass2/`.
+
+### Final corrective-input test-cost comparison (A3)
+
+Twelve passing serial samples bind all 2,188 tracked package files at
+`sha256:55c8130b89c1e0c9b15d783385b8150fc15a8d8da460b1e97afebb7faa0550a8`.
+The package identity is checked before every sample and after the series. Each comparison retains the original
+three-sample baseline, matching `tier-isolated` condition, project set and 12-worker sizing. All original baselines
+and historical samples are preserved. Final samples are `cli-substrate-pass2-{set}-{1,2,3}.json`, and comparisons
+are `cli-substrate-pass2-comparison-{set}.json`, in the package's ignored `.test-cost-runs/` directory.
+
+| Project set   | Baseline median (ms) | Final median (ms) |  Delta | Files / tests | Wall-time verdict     |
+| ------------- | -------------------: | ----------------: | -----: | ------------- | --------------------- |
+| `unit`        |               12,837 |            12,869 | +0.25% | 735 / 11336   | within 10% noise band |
+| `integration` |               87,879 |            84,356 | -4.01% | 173 / 1806    | within 10% noise band |
+| `lane`        |               95,021 |            87,814 | -7.58% | 908 / 13142   | within 10% noise band |
+| `e2e`         |              234,140 |           230,701 | -1.47% | 62 / 619      | within 10% noise band |
+
+Summed-file-time comparisons remain separate from wall time. A movement inside the configured noise band has
+unestablished improvement/regression; a lower median does not establish a causal performance change. A3's required
+public CI and all six `ci-job` reports remain due at the exact authorized published head before integration,
+owned by andrew. These local rows neither supply that public evidence nor authorize publication or integration.
+
+The Owner selected a scoped fresh follow-up over this corrective delta and its affected contracts and seams.
+Its authorization becomes usable after response performance, final local evidence and the corrective commit.
+It will not claim fresh coverage of all 35 criteria or replace Pass 2's whole-target result. Task 8.1 remains open.
