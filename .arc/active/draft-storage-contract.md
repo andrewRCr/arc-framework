@@ -37,11 +37,12 @@
   facts stored at project scope, with review working state machine-local (C2), and the shared seam pieces placed here
   with file splits as Errands (§ The consumer map); the failure taxonomy, the per-write message as provenance, and
   traceability as a store link (C1); advisory adversarial-pass evidence as its own kind, the standard and ghost
-  profiles, and the serialization rules (C2); no ARC footprint in code commits by default, with an opt-in task trailer,
-  and the surface boundary as an ARC-wide default (C8).
+  profiles, and the serialization rules (C2); rotation deferred behind a growth tripwire and a reserved continuation
+  link, and no wider delta window (C3); no ARC footprint in code commits by default, with an opt-in task trailer, and
+  the surface boundary as an ARC-wide default (C8).
 - **Open:** every `Open` item in § Decision ledger.
-- **Next:** the remaining detail items — C3's rotation cadence, C5's Opens, and C10 — then the core-or-deferred tags
-  (C14); register batch 3 as an Errand on `main`, and minting the ghost-mode follow-on stub with the scope C8 gives it.
+- **Next:** the remaining detail items — C5's Opens and C10 — then the core-or-deferred tags (C14); register batch 3 as
+  an Errand on `main`, and minting the ghost-mode follow-on stub with the scope C8 gives it.
 
 ---
 
@@ -346,8 +347,8 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
       `USER-INBOX` at 93 KB, and every merge mechanism in C4 works on text; it widens only on demand. The `.ipynb` and
       `.svg` exclusions go.
     - One size cap for every kind, about 1 MB, as an accident guard. Tracked records already pass 256 KB (a task list at
-      436 KB, a Candidate record at 411 KB). C3 leans toward bounding history by rotation, never rewrite, so an
-      accidental large file stays in synced history, fetched by every machine, until its ref rotates.
+      436 KB, a Candidate record at 411 KB). History is never rewritten and rotation is deferred (C3), so an accidental
+      large file stays in synced history for good, fetched by every machine that takes its ref.
     - Secrets: the `.env` exclusion stays and private-key files join it. Identity scope is not private — anyone who can
       read the state host, the code repository by default, can read it — so a file that must never leave its machine
       belongs in the local-only path set.
@@ -364,11 +365,31 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
   `refs/arc/*`, where a forced fetch would overwrite unpushed local writes.
 - **Requirement:** ARC runs `git maintenance run --auto` at a firing point, because plumbing writes never start gc.
   A completed work unit's ref leaves the fetched namespace at archive.
-- **Leaning:** bound history by rotation — a fresh ref holding the current state, the old chain left in place out of
-  the default fetch — never by rewrite, which tamper evidence and a fast-forward-only hook forbid; under such a hook
-  the fresh ref takes a new name. Reads take only the tip, so depth never enters the read path (flat to 20,197
-  commits). A rotated year fetched 8–19 MB at ten people; an unrotated year is 90–290 MB with good deltas. **Open:**
-  cadence, and a wider delta window where ARC repacks its own store.
+- **Leaning:** bound history by rotation — a fresh ref holding the current state, the old chain left in place out of the
+  default fetch — never by rewrite, which tamper evidence and a fast-forward-only hook forbid; under such a hook the
+  fresh ref takes a new name. Reads take only the tip, so depth never enters the read path (flat to 20,197 commits). A
+  rotated year fetched 8–19 MB at ten people; an unrotated year is 90–290 MB with good deltas.
+- **Decided** (Owner, 2026-09-29): no scheduled rotation at 1.0 — rotation is deferred (C14) and never precluded. Only
+  four refs never retire — each person's `personal` and `errands`, `project/inbox`, and `project/registry` — since a
+  work unit's ref leaves the fetch at archive, a cohort's closes into the archive, and a quarter's archive ref stops
+  growing. The refspec takes only the person's own identity, so a fresh machine pulls its own inbox history — 5.5–5.7 MB
+  a person-year pushed commit by commit, 26.6 MB where a host repacks at the default window — not everyone's; the
+  spike's 90–290 MB year fetched every ref at worst-case packing. The shared project inbox at team scale is unmeasured,
+  which the tripwire answers.
+    - Rotation's design cost is why it waits. Under a fast-forward-only hook it needs a new ref name, and rotating a
+      shared ref needs the old ref marked retired, so a machine that has not fetched and still writes to it refuses and
+      replays; nobody has designed that piece.
+    - The deferral's cost: when the tripwire fires, building rotation is the only remedy.
+- **Requirement** (Owner, 2026-09-29): nothing precludes rotation. Every ref name in this layout is fixed at 1.0.
+  Rotation, when built, takes a new ref name with a generation suffix and puts a field in the rotated ref's root commit
+  naming the old tip, which `history`, `at`, and `changes` (C1) follow across the boundary, so no caller changes; the
+  fetch refspec changes with it.
+- **Requirement** (Owner, 2026-09-29): a growth tripwire, in C4's shape. The maintenance run's result carries each
+  never-retiring ref's commit count and disk usage (`git rev-list --disk-usage`), and handoff's report shows them past a
+  bound, which `storage-ref-backend` sets from the spike's figures.
+- **Decided** (Owner, 2026-09-29): no wider delta window. The host's packing sets what a fetch costs, so a wider local
+  window saves only local disk; in the shared layout it slows gc for the whole repository, code included; and unique
+  stored paths already capture the gain ARC controls, 2.1 to 2.8 times at the default window.
 - **Decided** (Owner, 2026-09-29): the surfaces, one ref each, all under `refs/arc/*`, the only prefix the host tests
   covered. Refs are keyed by UID (C2), as git-bug keys `refs/bugs/<id>`: a rename is a field write rather than a ref
   move, so no machine is left unable to tell a deleted ref from one not yet pushed; a slug can be reused once its
@@ -889,6 +910,7 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
 - **Decided:** `strategy-storage-evolution.md` is a starting position, not a constraint; revise it where the design
   challenges it. Candidate principle for that revision: Git may be the storage engine, never the schema — the Git
   notes lesson, where SHA-keyed attachment became the semantic model.
+    - The revision also closes § Contract Design Touchpoints' "rotation cadence and a wider delta window are open" (C3).
 - **Carried:** an Open Knowledge Format (OKF) projection stays an optional target off the record layer — the
   knowledge layer, never operational churn; owned with `idiomatic-alignment`.
 
@@ -898,6 +920,8 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
   through mid-size teams; larger scale — hundreds of writers, per-record authorization — follows through the service
   backend and is never precluded.
 - **Decided** (Owner, 2026-09-29): ghost mode is core.
+- **Decided** (Owner, 2026-09-29): rotation is deferred (C3); its growth tripwire and the reserved continuation link are
+  core.
 - **Open:** every other item's tag.
 
 ### C15. Risks carried into the design
