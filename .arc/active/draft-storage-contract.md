@@ -22,14 +22,14 @@
 - **Resolved (2026-09-29):** stage entry (§ Stage entry); what lands here and what is handed off (§ What this work unit
   lands); the register's landing route (§ The storage-coupling register); inbox write serialization (C1); ghost mode as
   a core requirement with a middle-ground split (C8); record format skew (C2); the register sweep, landed on `main` (PR
-  #738), and the first batch of decision amendments (PR #742); the Inbound Buffer, integrated into the ledger and the
-  consumer map; reverse lookup and assurance-chain carry-forward (C1); project identity (C7); the GitHub Enterprise
-  Server host test, which held (C3); shared surfaces projected into every worktree, the `active/` layout with ownership
-  by folder and edit rights under `in-flight/`, the projection's name, the firing points with `arc save`, and opt-in
-  editor settings (C6); the two-level family model and the family list, and machine-local state as a projection property
-  (C2); identity as a name plus a UID (C2), the ref surfaces keyed by UID (C3), and slug guards and entry IDs (C4); the
-  local copy following the remote — the code repository's refs by default, a separate Git directory otherwise (C3);
-  conflicts shown in the projected file with standard markers, and a removal racing an edit leaving the edit, with
+  #738), and the decision amendments, batches 2 and 3 (PRs #742 and #743); the Inbound Buffer, integrated into the
+  ledger and the consumer map; reverse lookup and assurance-chain carry-forward (C1); project identity (C7); the GitHub
+  Enterprise Server host test, which held (C3); shared surfaces projected into every worktree, the `active/` layout with
+  ownership by folder and edit rights under `in-flight/`, the projection's name, the firing points with `arc save`, and
+  opt-in editor settings (C6); the two-level family model and the family list, and machine-local state as a projection
+  property (C2); identity as a name plus a UID (C2), the ref surfaces keyed by UID (C3), and slug guards and entry IDs
+  (C4); the local copy following the remote — the code repository's refs by default, a separate Git directory otherwise
+  (C3); conflicts shown in the projected file with standard markers, and a removal racing an edit leaving the edit, with
   routing receipts (C4); the inbound list as its own kind, which any session routes into directly (C4); the design
   envelope, confirmed by arithmetic, with a push-contention tripwire (C4); the cohort document's home and parked
   placement, with edit rights following lifecycle state (C6); the consumer map, with the state version and the
@@ -47,10 +47,10 @@
   place the explicit choice (C6); no ARC footprint in code commits by default, with an opt-in task trailer, and the
   surface boundary as an ARC-wide default (C8); fork contributors, with the state remote designated per clone (C7), and
   the merge gate guarding the review copy's removal (C10); the install profile, read from the install and switched by
-  re-running init (C8).
+  re-running init (C8); the Errand identity reader's coverage, and the listing outcomes every family keeps (C1).
 - **Open:** every `Open` item in § Decision ledger.
-- **Next:** register batch 3 as an Errand on `main`; then draft close — minting the ghost-mode, `history-policy`,
-  `query-cache`, and `protected-state` stubs, and the routes.
+- **Next:** draft close — register batch 4, minting the ghost-mode, `history-policy`, `query-cache`, and
+  `protected-state` stubs, and the routes.
 
 ---
 
@@ -178,6 +178,18 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
     - Store and sync failures surface as orientation lines at session boundaries: sessions never stall on the store, and
       a sync failure never blocks a local write. Notes push's nine outcomes and the Errand push's six give way to this
       set; the notes-only variants (`no-local-notes`, `failed-nontty-conflict`, `ok-recovered`) retire with notes sync.
+- **Requirement** (Owner, 2026-09-29; `cli-substrate-complete-migration`'s verification): every family's `list` keeps
+  what the Errand identity reader (`lib/errand/identity-snapshot.ts`) keeps today. Absent, unreadable, and complete are
+  distinct outcomes, so a missing family never reads as a broken one or the reverse. A complete listing carries every
+  readable record, a diagnostic for each entry it could not read — malformed, oversized, unreadable, an unknown version,
+  or a key that disagrees with its record — and whether it missed any. It is taken as of one state version, and a write
+  built on it compare-and-swaps against that version: the mutation basis. A deciding consumer refuses on incomplete
+  evidence — review-vehicle selection never authorizes review from it — while a browsing one shows what it has with the
+  diagnostics, as C2's skew rule already keeps an unrelated bad record from blocking session-init.
+    - The acquisition — the identity reader's tip, tree, and blob reads, and `lib/errand/record.ts`'s fetched variant —
+      moves behind `list`, `read`, and `sync`, owned by `storage-ref-backend`. `record.ts`'s index projection and each
+      consumer's protocol stay with `storage-seam`'s locus, review, and status members, which preserve the four
+      requirements (§ The consumer map; register batch 4).
 - **Decided** (Owner, 2026-09-29): every store write carries a message the CLI composes, and it records provenance,
   never evidence. The subject names the verb and the record (`archive storage-contract`); trailers carry the work unit's
   or Errand's name and UID, the lifecycle action, and the code head when the write attests code. The commits of one
@@ -858,8 +870,9 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
     - **Decided** (Owner, 2026-09-29): the contributor role's separate layout retires. Its user-scoped active root
       exists because the tracked `active/` was one shared, protected folder. After the cutover a contributor's work unit
       is an ordinary record in their own store, local-only unless they designate a remote — a private backing repository
-      carries it across machines — and the protected-path hook check goes with its row. The layout takes a register row
-      (batch 3), and `contributor-path`'s open question of who creates a contributor's meta falls away.
+      carries it across machines — and the protected-path hook check goes with its row. The layout's retirement amends
+      the `contributor-path` register row (batch 3), and `contributor-path`'s open question of who creates a
+      contributor's meta falls away.
     - **Gap, routed to `contributor-path` at draft close:** the owner's candidate-tail cleanup deletes the export's copy
       before merge (C10), but a maintainer merges a fork's pull request. The merge gate refuses a merge that outruns the
       cleanup (C10), so the copy never reaches the base branch where the gate is installed. `contributor-path` owns the
@@ -1226,14 +1239,16 @@ Inputs from `coupling-blast-radius-audit` (2026-07-18), each ranked abstract and
   enumerates them for the lifecycle and in-flight partition. Packet `packet-188c5fab90090e83fdbc4591`, content digest
   `528515469ff26c720e1d7a0643eaebbebf81d4c99b7c9b640b75479d0da38ae5`.
 
-- **Result** (2026-09-29): 301 consumers, inventoried in `notes-storage-contract.md` with how they were swept and
-  verified — lifecycle and in-flight 122, locus and session-init 53, user sync 44, delivery 32, review and evidence 29,
-  status and roadmap 21. `storage-seam` owns 194 of them, `storage-cutover` removes 75, and the rest belong to the ref
-  backend, the projection, and the delivery follow-ons. 202 decide something and so read the store — 12 of them also
+- **Result** (2026-09-29): 302 consumers, inventoried in `notes-storage-contract.md` with how they were swept and
+  verified — lifecycle and in-flight 122, locus and session-init 54, user sync 44, delivery 32, review and evidence 29,
+  status and roadmap 21. `storage-seam` owns 195 of them, `storage-cutover` removes 75, and the rest belong to the ref
+  backend, the projection, and the delivery follow-ons. 203 decide something and so read the store — 12 of them also
   browse — which is the reader list C5's freshness Open needs. Every operation the map needs is in C1's set, once the
   state version and the batch write it surfaced were added there. Verification fell short of the Method's bar: every
   row's evidence was checked against source, but its classifications — owner, operations, and store or projection — were
   spot-checked rather than re-derived, so each seam member re-verifies its rows before building on them.
+  `lib/errand/record.ts` joined after the sweep, from `cli-substrate-complete-migration`'s verification, with three of
+  its consumers gaining the Errand identity family.
 - **Decided** (Owner, 2026-09-29): no foundation member. Shared work splits by kind.
     - Here, in the in-repo implementation: the current-work-unit resolver and the lifecycle index keyed by identity —
       `resolveActiveWu` has 23 call sites in 14 files across at least four partitions — and the store behind delivery's
@@ -1295,42 +1310,19 @@ by tracked or notes-backed state rather than for state by size.
   `USER-INBOX`; its verified results landed on `main` in PR #738 (2026-09-29), taking the register from 42 rows to 79.
   The decisions settled since landed in PR #742 (2026-09-29): six fates amended from C2, C3, C4, and C6, two rows added
   (personal subdirectories, and hold-and-route), ADR-035's dated amendment for the work-unit write rule and slug claims,
-  and the `active-layout-nesting` stub retired with its row closed — 81 rows. The consumer map may add rows.
-- **Pending amendments, batch 3** (2026-09-29), from the consumer map's verification, landing by the Route above. New
-  rows go at the table's end, so the notes' register keys still name the same rows.
-    - Corrections: retirement's receipt is the transition record under `.arc/system/.internal/transitions/`, not a
-      `retirement-receipts/` path; ceremony commits are 23 subject lines in 14 workflow files; the checkout-removal
-      guard row adds two more `git status`-only readers, `lib/errand/terminal-occupancy.ts` and
-      `lib/locus/primary-safety.ts`; the hand-built path row adds the harness hooks' JavaScript path building
-      (`pre-compact-seed.mjs`, `codex-recovery-marker.mjs`); the Errand-ref and `sync-state` row adds the plumbing both
-      refs share, `lib/git/ref-tree.ts` and `lib/user-sync/cas-retry.ts`.
-    - The row for record writes that complete only through a code commit adds the write-then-`git add` class (§ The
-      consumer map). The per-work-unit workspace row drops review records, which it never held: its fate becomes user
-      sync moving onto the store, and the spawn seed becoming a store write. The hold-and-route row's "the draft
-      template's Inbound Buffer section" becomes "the Inbound Buffer section the drain adds to a draft".
-    - New rows: machine-local state under `.git/arc/`, which stays local except the durable review facts the import
-      carries, mapping the review gate's repository ID onto the project ID (C2); `arc view`, which builds the
-      `ATOMIC-INBOX` path by hand and returns a completed work unit with no path; the session-init slots and compaction
-      seed that carry literal meta paths (§ The consumer map); and `archive-work-unit`'s errata convention, where "git
-      history is the lock" on a shipped Release Notes Entry, which the cutover's documentation pass rewrites onto the
-      store's `history` (C10); and the contributor role's user-scoped active root — the layout's contributor scope
-      (`lib/layout/schema.ts`), the contributor scan in `commands/active/status.ts`, and locus derivation's contributor
-      evidence (`lib/locus/derived-lifecycle-evidence.ts`) — owned by `storage-seam` and retired, since a contributor's
-      work unit becomes an ordinary record in their own store (C7).
-    - Decision amendments: the footer-grammar row's fate becomes C8's footprint policy — no footer by default, and task
-      attribution an opt-in trailer rendered from the store link (C1) — with the ghost-mode follow-on as owner once its
-      stub is minted; the Errand-ref row adds the branch's UID suffix (C2); the lifecycle-classification row keeps one
-      narrow arm past the cutover, so deleting the review copy of a spec never reopens review (C10); the branch-refs
-      row's fate for `plan/<slug>` becomes retirement, not a local-only anchor (C12); the cohort's follow-on list and
-      `storage-ref-backend`'s _Exposes:_ line take C14's tags and homes — the backing-repository backend to
-      `storage-ref-backend`, branchless planning to `storage-seam`, history policy to `history-policy`, and the records
-      engine into the seam's parsers (C2).
-    - ADR-035 takes three dated amendments: item 2, ARC fetches with its own refspec and adds none to the code remote's
-      configuration (C5); item 4, the export's options become `none | specs`, and its copy exists for review only,
-      deleted before merge (C10); item 10, planning branches retire with the seam's rewrite of in-flight derivation
-      rather than as a later change (C12). ADR-022 takes its file-as-record amendment (C2). The cohort's Coordination
-      block and `storage-ref-backend`'s _Exposes:_ line trade "fetch-refspec install" for the explicit state fetch.
-      Carrying an ADR amendment puts the batch in the reviewed lane (Route).
+  and the `active-layout-nesting` stub retired with its row closed — 81 rows. Batch 3 landed in PR #743 (2026-09-29):
+  corrections from the consumer map's verification, four rows added (machine-local state under `.git/arc/`, `arc view`,
+  literal meta paths, and the errata convention), fates amended for the footer policy, the Errand branch's UID suffix,
+  the review copy's classification arm, planning-branch retirement, the contributor scope (on the existing
+  `contributor-path` row), and draft-close routing; the follow-ons tagged core or deferred with homes; ADR-035's dated
+  amendments for items 2 (including the push order without a typed repair), 4, and 10; and ADR-022's file-as-record
+  amendment, with its flip moved to `storage-seam`'s kickoff — 85 rows. The consumer map may add rows.
+- **Pending amendments, batch 4** (2026-09-29), landing with draft close's Errand on `main`: the Errand-ref row names
+  its reader — `lib/errand/identity-snapshot.ts`'s tip, tree, and blob acquisition, and `lib/errand/record.ts`'s
+  in-flight indexes with their fetched variant — and its fate adds that the acquisition moves behind the contract's
+  `list`, `read`, and `sync`, while consumers keep the absent, unreadable, and complete distinction, per-entry
+  diagnostics, one version as the mutation basis, and refusal to authorize review from incomplete evidence (C1). From
+  `cli-substrate-complete-migration`'s verification; it does not widen that work unit's register cutoff.
 - **Route at draft close,** as `USER-INBOX` captures under the coordination-seam rule, one per unit whose plan assumes
   tracked or notes-backed state but needs no register row — a note for its next planning:
     - `composable-workflows` — fixtures assume the notes channel (`arc user pull`, notes-only offers) and a grooming
@@ -1347,6 +1339,8 @@ by tracked or notes-backed state rather than for state by size.
       `adopter-content-aware-ci` (planning-markdown PR volume as premise), `arc-coordination-service` (`arc-backend`
       vocabulary), `docs-content-sweep` and `wu5-public-release` (no edge on the cutover, `refs/arc` history
       ignored), `operational-state-docs` (its buffer still wires a `git mv` and audits notes);
+    - `storage-seam` — flip ADR-022 to Accepted as its first action; the ADR's flip trigger now names its kickoff, since
+      it builds the family parsers (C2);
     - `contributor-path` — the contribution's ceremony and tooling, the export's removal handshake when a maintainer
       merges, and its contributor-meta question falling away (C7);
     - `scalable-core` — the coupling audit's team-mode key finding (37 files; `packet-dbd2103ffa3c4df953f89138`,
