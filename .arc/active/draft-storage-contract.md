@@ -39,11 +39,14 @@
   traceability as a store link (C1); advisory adversarial-pass evidence as its own kind, the standard and ghost
   profiles, and the serialization rules (C2); rotation deferred behind a growth tripwire and a reserved continuation
   link, and no wider delta window (C3); ordered pushes without `--atomic`, one close verb whose capture survives
-  rewrites, `user.notes_push` retired, and explicit fetching (C5); no ARC footprint in code commits by default, with an
-  opt-in task trailer, and the surface boundary as an ARC-wide default (C8).
+  rewrites, `user.notes_push` retired, and explicit fetching (C5); the export as a review-only copy at
+  `.arc/specs/<slug>/`, deleted before merge, with options `none | specs`, `specs` its default under the standard
+  profile, no tracked integration record, a deferred keep option, and the reader standard specs meet (C10); no ARC
+  footprint in code commits by default, with an opt-in task trailer, and the surface boundary as an ARC-wide default
+  (C8).
 - **Open:** every `Open` item in § Decision ledger.
-- **Next:** C10's integration-time record, then the core-or-deferred tags (C14); register batch 3 as an Errand on
-  `main`, and minting the ghost-mode follow-on stub with the scope C8 gives it.
+- **Next:** the core-or-deferred tags (C14); register batch 3 as an Errand on `main`, and minting the ghost-mode
+  follow-on stub with the scope C8 gives it.
 
 ---
 
@@ -888,6 +891,8 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
   tests over what it composes; rewrites the rule as the boundary; and checks agent-composed text where ARC mediates it —
   the commit hook, and the verbs that post to a host — knowing a check over prose catches the common terms, never all of
   them.
+    - The pull-request body fix has an input ready: the Release Notes Entry, which `integrate-work-unit` already writes
+      free of ARC vocabulary by rule (C10).
 - **Named cost:** with the user directory excluded rather than gitignored, packaging tools that read only
   `.gitignore` could pack it; a contributor rarely publishes, but the cost stays named.
 - **Leaning:** an install profile chosen at init, not a runtime configuration axis (`strategy-storage-evolution.md`
@@ -907,11 +912,72 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
 - **Decided** (ADR-035 item 4): `storage.track_design_docs: none | specs | all`, default `none`, exports authored
   design into the code repository as a one-way copy. The `specs` arm is the costliest — a work unit's artifacts then
   live in two places — so consider `none | all` unless the middle earns its cost.
-- **Open:** whether an integration-time record rides the knob. The retired `meta-file-tracking-model` draft's option
-  β composed a tracked archive document at integration — the meta's governance fields plus its Release Notes Entry
-  and Completion Notes — as the durable audit anchor a reviewer sees in the pull request. ADR-035 item 4 leaves open
-  whether it rides the knob or does not exist. The readiness gate's Completion and Release Notes checks wait on the
-  answer.
+    - **Refined** (Owner, 2026-09-29): the options become `none | specs`, against the strategy's lean. `specs` is the
+      stated purpose — teams that review specs alongside code — and a one-way copy leaves the store complete under every
+      option, so publishing the spec while the working documents stay stored splits nothing a reader needs; design-doc
+      cultures publish the document, not its scratch. `all` has no purpose of its own: pull-request-reviewed planning is
+      a backend's (`strategy-storage-evolution.md`), and it would put drafts, notes, and review evidence — working
+      documents — in the code repository, against C8. It amends ADR-035 item 4 (register batch 3) and the strategy's
+      knob line (C13).
+- **Decided** (Owner, 2026-09-29): the export is a copy for review only. It adds the spec to the work unit's branch at
+  prepublication, so the spec sits in the pull request's diff where reviewers comment on it line by line; a finding that
+  amends the spec edits the stored spec and re-exports it as an ordinary reviewed fix; and integration's candidate-tail
+  cleanup deletes it before merge. The store and its projection stay the spec's only lasting home, so a shipped spec
+  lives in `completed/` and nowhere else. The review is the one audience the export serves: teammates who use ARC read
+  shipped specs through the projection and reach one from a commit through `lookup` (C1); teammates who do not either
+  keep no specs or keep their own, which the person composes with outside this setting; and contributors and readers of
+  a merged pull request see no other ARC state either.
+    - **Named cost:** the merged record loses the spec. A squash merge keeps no trace of it, a merge commit keeps it in
+      the branch's history, and a rebase merge lands both the add and the delete on the base branch; the merged pull
+      request shows the spec's review comments as outdated.
+- **Decided** (Owner, 2026-09-29): the integration-time record is never tracked. The retired `meta-file-tracking-model`
+  draft's option β composed one — the meta's governance fields, its Release Notes Entry, and its Completion Notes — as
+  the audit anchor in tracked history. After the cutover the stored meta in its quarter's archive ref, with its
+  `history`, is the durable record, C1's landing-commit link is the anchor, no tracked archive reader survives (the
+  archive-index and branch-tree-reader rows), and C8 rules out a tracked ARC record by default. ADR-035 item 4 left this
+  to the contract, so it takes no amendment.
+- **Decided** (Owner, 2026-09-29): the readiness facts (`scripts/review-gate/readiness.ts`) and the integration
+  checkpoint read Completion Notes and the Release Notes Entry from the stored meta under every option. They decide, so
+  they never read the export, and nothing in them waits on this item.
+- **Decided** (Owner, 2026-09-29): the copy lives at `.arc/specs/<slug>/`, disjoint from every projected path. The
+  folder exists only on a work unit's branch, from prepublication to the candidate-tail, and never in the base branch's
+  tree; each work unit in review carries its own.
+- **Requirement** (Owner, 2026-09-29): the export writes only at commits the lifecycle already makes: the add at
+  prepublication, before the review subject is fixed, since export is design's one route into it (C2); a re-export as a
+  reviewed fix; and the delete in the candidate-tail, which the provisional-candidate exception already names as
+  cleanup. The delete must not reopen review, so the lifecycle-classification row keeps one narrow arm, for the export
+  path, past the cutover. Nothing exports at a firing point, which would let a work unit's own writes move its head
+  again (the singleton publication-boundary row).
+- **Requirement** (Owner, 2026-09-29): the copy is one-way: the next export overwrites a hand-edited copy and reports
+  that it did, and nothing reads the copy back.
+- **Decided** (Owner, 2026-09-29): the export is core (C14). At 1.0 it is the only way a team that reviews in pull
+  requests sees the design; the backing-repository backend is an unstubbed follow-on.
+- **Decided** (Owner, 2026-09-29): the default is `specs` under the standard profile; the ghost profile pins `none`
+  (C2). The spec is the contract the pull request fulfills, so every reviewer, hosted ones included, needs it beside the
+  code, and today it is there, in the diff; a `none` default would quietly take it out of review. It holds the line the
+  store draws: drafts, notes, and task lists are working state that churns, while a spec settles before the code starts
+  and rarely moves after. C8 governs text on surfaces read without ARC; the standard profile already tracks ARC's
+  machinery, and an exported spec meets the reader standard below, so the spec in the diff is content rather than
+  process vocabulary — unlike a footer, which would stamp every commit.
+    - **Named cost:** every standard-profile pull request carries the spec during review and ends with the delete, which
+      moves the head after review — on a host set to dismiss approvals on new commits, reviewers approve again. Guided
+      init says plainly what turning it off does.
+- **Decided** (Owner, 2026-09-29): a spec meets a reader standard — written for whoever checks the change against it.
+  Process metadata stays in its header. The body uses the project's own vocabulary and cites no other work unit,
+  register row, or planning artifact, its own work unit's draft and notes included; a scope boundary says what the
+  change does not do, not who does it; and a concept it relies on is defined in the spec or cited from shipped code or
+  documentation. Context that needs the planning record — coordination, provenance, internal rationale — lives in the
+  draft or the work unit's `notes-*`, which the draft and the task list may cite. ARC vocabulary in the body is subject
+  matter only, as in this repository.
+    - It pays off without the export: a spec outlives its planning context, and the session that executes it reads it
+      cold. So it belongs to spec authoring, not storage, and is captured to land on its own, ahead of the program. In
+      the latest archive quarter, 11 of 12 sampled specs name other work units in the body, up to 32 times, and 11 of 40
+      cite a draft or notes file.
+- **Decided** (Owner, 2026-09-29): an option that keeps shipped specs in the repository is deferred (C14). Nobody needs
+  it: teammates who use ARC already have the spec, teammates who do not keep no specs or keep their own, and outsiders
+  are owed no ARC state. Tripwire: a team asks to read shipped specs in the repository. If it is built, the spec moves
+  into the repository at publication rather than being copied, since a lasting copy duplicates the store and drifts from
+  it, and it lives at `.arc/reference/specs/<slug>/`, beside the ADRs.
 
 ### C11. Framework core from the package
 
@@ -945,6 +1011,9 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
   challenges it. Candidate principle for that revision: Git may be the storage engine, never the schema — the Git
   notes lesson, where SHA-keyed attachment became the semantic model.
     - The revision also closes § Contract Design Touchpoints' "rotation cadence and a wider delta window are open" (C3).
+    - It also takes C10's export options, `none | specs`, in place of the knob line's "consider `none | all`", C10's
+      default, `specs` under the standard profile, in place of "Default `none`", and the one-way copy as a copy for
+      review only, deleted before merge.
 - **Carried:** an Open Knowledge Format (OKF) projection stays an optional target off the record layer — the
   knowledge layer, never operational churn; owned with `idiomatic-alignment`.
 
@@ -956,6 +1025,8 @@ Status words: **Decided** (recorded; cite the source), **Requirement** (a constr
 - **Decided** (Owner, 2026-09-29): ghost mode is core.
 - **Decided** (Owner, 2026-09-29): rotation is deferred (C3); its growth tripwire and the reserved continuation link are
   core.
+- **Decided** (Owner, 2026-09-29): the review-only design-doc export is core; keeping shipped specs in the repository is
+  deferred behind its tripwire (C10).
 - **Open:** every other item's tag.
 
 ### C15. Risks carried into the design
@@ -1099,13 +1170,17 @@ by tracked or notes-backed state rather than for state by size.
       template's Inbound Buffer section" becomes "the Inbound Buffer section the drain adds to a draft".
     - New rows: machine-local state under `.git/arc/`, which stays local except the durable review facts the import
       carries, mapping the review gate's repository ID onto the project ID (C2); `arc view`, which builds the
-      `ATOMIC-INBOX` path by hand and returns a completed work unit with no path; and the session-init slots and
-      compaction seed that carry literal meta paths (§ The consumer map).
+      `ATOMIC-INBOX` path by hand and returns a completed work unit with no path; the session-init slots and compaction
+      seed that carry literal meta paths (§ The consumer map); and `archive-work-unit`'s errata convention, where "git
+      history is the lock" on a shipped Release Notes Entry, which the cutover's documentation pass rewrites onto the
+      store's `history` (C10).
     - Decision amendments: the footer-grammar row's fate becomes C8's footprint policy — no footer by default, and task
       attribution an opt-in trailer rendered from the store link (C1) — with the ghost-mode follow-on as owner once its
-      stub is minted; the Errand-ref row adds the branch's UID suffix (C2).
-    - ADR-035 item 2 takes a dated amendment: ARC fetches with its own refspec and adds none to the code remote's
-      configuration (C5). The cohort's Coordination block and `storage-ref-backend`'s _Exposes:_ line trade
+      stub is minted; the Errand-ref row adds the branch's UID suffix (C2); the lifecycle-classification row keeps one
+      narrow arm past the cutover, so deleting the review copy of a spec never reopens review (C10).
+    - ADR-035 takes two dated amendments: item 2, ARC fetches with its own refspec and adds none to the code remote's
+      configuration (C5); item 4, the export's options become `none | specs`, and its copy exists for review only,
+      deleted before merge (C10). The cohort's Coordination block and `storage-ref-backend`'s _Exposes:_ line trade
       "fetch-refspec install" for the explicit state fetch. Carrying an ADR amendment puts the batch in the reviewed
       lane (Route).
 - **Route at planning close,** as `USER-INBOX` captures under the coordination-seam rule, one per unit whose plan
