@@ -232,11 +232,12 @@ describe("delivery terminal recovery", () => {
   async function reserveInterruptedTopRemedy(fixture: {
     readonly statePath: string;
   }): Promise<void> {
-    const envelope = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+    const rawEnvelope = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
       planId: string;
       revision: number;
-      value: DeliveryStateV1;
+      value: unknown;
     };
+    const envelope = { ...rawEnvelope, value: DeliveryStateV1Schema.parse(rawEnvelope.value) };
     const trigger = envelope.value.members.at(-2)!;
     const terminal = envelope.value.members.at(-1)!;
     const before = { target: envelope.value.target, members: [terminal] };
@@ -277,11 +278,12 @@ describe("delivery terminal recovery", () => {
     fixture: { readonly statePath: string },
     phase: "prepared" | "submitting" | "identified",
   ): Promise<void> {
-    const envelope = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+    const rawEnvelope = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
       planId: string;
       revision: number;
-      value: DeliveryStateV1;
+      value: unknown;
     };
+    const envelope = { ...rawEnvelope, value: DeliveryStateV1Schema.parse(rawEnvelope.value) };
     const plan = deliveryStackPlanFixture();
     const members = envelope.value.members.slice(0, -1);
     const top = members.at(-1);
@@ -368,11 +370,12 @@ describe("delivery terminal recovery", () => {
   }> {
     const fixture = await installFixture({ triggerPresent: false, teardownReserved: false });
     const plan = deliveryStackPlanFixture();
-    const envelope = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+    const rawEnvelope = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
       planId: string;
       revision: number;
-      value: DeliveryStateV1;
+      value: unknown;
     };
+    const envelope = { ...rawEnvelope, value: DeliveryStateV1Schema.parse(rawEnvelope.value) };
     const terminal = envelope.value.members.at(-1)!;
     const candidateHead = await git(repository, ["rev-parse", "HEAD"]);
     const subject = createCandidateSubjectSnapshot([]);
@@ -529,9 +532,10 @@ describe("delivery terminal recovery", () => {
 
   it("settles a reopened top whose host view refreshes without adopting the new head", async () => {
     const fixture = await installFixture({ triggerPresent: true, teardownReserved: false });
-    const before = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
-      value: DeliveryStateV1;
+    const rawBefore = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: unknown;
     };
+    const before = { ...rawBefore, value: DeliveryStateV1Schema.parse(rawBefore.value) };
     const retainedHead = before.value.members.at(-1)!.coordinates!.head;
     await git(repository, ["commit", "--allow-empty", "-m", "advance terminal authoring"]);
     const advancedHead = await git(repository, ["rev-parse", "HEAD"]);
@@ -559,9 +563,10 @@ describe("delivery terminal recovery", () => {
       state: { value: { activeOperation: null } },
     });
     expect(JSON.parse(result.stdout)).not.toHaveProperty("top");
-    const after = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
-      value: DeliveryStateV1;
+    const rawAfter = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: unknown;
     };
+    const after = { ...rawAfter, value: DeliveryStateV1Schema.parse(rawAfter.value) };
     expect(after.value.members.at(-1)!.coordinates!.head).toBe(retainedHead);
     expect(after.value.members.at(-1)!.coordinates!.head).not.toBe(refreshedHead);
   });
@@ -595,9 +600,10 @@ describe("delivery terminal recovery", () => {
       state: { value: { activeOperation: null } },
     });
 
-    const restored = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
-      value: DeliveryStateV1;
+    const rawRestored = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: unknown;
     };
+    const restored = { ...rawRestored, value: DeliveryStateV1Schema.parse(rawRestored.value) };
     expect(restored.value.members[0]).toMatchObject({
       ref: "refs/heads/delivery/member-1",
       coordinates: { head: fixture.triggerHead },
@@ -654,9 +660,10 @@ describe("delivery terminal recovery", () => {
       recommendedActionText:
         "Rerun `arc delivery teardown` for the exact teardown reservation subject.",
     });
-    const restored = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
-      value: DeliveryStateV1;
+    const rawRestored = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: unknown;
     };
+    const restored = { ...rawRestored, value: DeliveryStateV1Schema.parse(rawRestored.value) };
     expect(restored.value.activeOperation).toMatchObject({
       operationId: "teardown-recovery",
       kind: "teardown",
@@ -928,10 +935,11 @@ describe("delivery terminal recovery", () => {
       fakeGhPath,
       (await readFile(fakeGhPath, "utf8")).replaceAll(fixture.terminalHead, recordHead),
     );
-    const stateEnvelope = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+    const rawStateEnvelope = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
       revision: number;
-      value: DeliveryStateV1;
+      value: unknown;
     };
+    const stateEnvelope = { ...rawStateEnvelope, value: DeliveryStateV1Schema.parse(rawStateEnvelope.value) };
     await writeFile(fixture.statePath, `${JSON.stringify({
       ...stateEnvelope,
       value: {
@@ -1136,10 +1144,11 @@ describe("delivery terminal recovery", () => {
       recommendedActionText:
         "Rerun `arc delivery top-remedy` for the exact top-remedy reservation subject.",
     });
-    const cleared = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+    const rawCleared = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
       revision: number;
-      value: DeliveryStateV1;
+      value: unknown;
     };
+    const cleared = { ...rawCleared, value: DeliveryStateV1Schema.parse(rawCleared.value) };
     expect(cleared.value.activeOperation).toBeNull();
 
     const replay = await runArcWithStdin(
@@ -1154,10 +1163,11 @@ describe("delivery terminal recovery", () => {
     });
     expect(replayResult).not.toHaveProperty("action");
     expect(replayResult).not.toHaveProperty("selector");
-    const replayedState = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+    const rawReplayedState = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
       revision: number;
-      value: DeliveryStateV1;
+      value: unknown;
     };
+    const replayedState = { ...rawReplayedState, value: DeliveryStateV1Schema.parse(rawReplayedState.value) };
     expect(replayedState).toEqual(cleared);
 
     const remedy = await runArcWithStdin(
@@ -1196,9 +1206,10 @@ describe("delivery terminal recovery", () => {
       status: "blocked",
       reason: "submission-before-persist-unresolved",
     });
-    const retained = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
-      value: DeliveryStateV1;
+    const rawRetained = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: unknown;
     };
+    const retained = { ...rawRetained, value: DeliveryStateV1Schema.parse(rawRetained.value) };
     expect(retained.value.activeOperation).toMatchObject({
       operationId: "native-landing-recovery",
       kind: "land",
@@ -1230,9 +1241,10 @@ describe("delivery terminal recovery", () => {
         mode: "native",
       },
     });
-    const cleared = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
-      value: DeliveryStateV1;
+    const rawCleared = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: unknown;
     };
+    const cleared = { ...rawCleared, value: DeliveryStateV1Schema.parse(rawCleared.value) };
     expect(cleared.value.activeOperation).toBeNull();
   });
 
@@ -1252,9 +1264,10 @@ describe("delivery terminal recovery", () => {
       status: "blocked",
       reason: "ambiguous-result",
     });
-    const retained = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
-      value: DeliveryStateV1;
+    const rawRetained = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: unknown;
     };
+    const retained = { ...rawRetained, value: DeliveryStateV1Schema.parse(rawRetained.value) };
     expect(retained.value.activeOperation).toMatchObject({
       operationId: "native-landing-recovery",
       effectIdentity: { providerId: "github", effectId: "native-effect-1" },
@@ -1276,9 +1289,10 @@ describe("delivery terminal recovery", () => {
     );
 
     expect(result.exitCode, result.stderr).toBe(0);
-    const settled = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
-      value: DeliveryStateV1;
+    const rawSettled = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: unknown;
     };
+    const settled = { ...rawSettled, value: DeliveryStateV1Schema.parse(rawSettled.value) };
     expect(settled.value.target?.coordinates?.head).toBe(fixture.nativeMergeHead);
     expect(settled.value.target?.coordinates?.head).not.toBe(fixture.externalTargetHead);
   });
@@ -1301,9 +1315,10 @@ describe("delivery terminal recovery", () => {
     expect(recovery).not.toHaveProperty("action");
     expect(recovery).not.toHaveProperty("selector");
     expect(recovery).toHaveProperty("recommendedActionText");
-    const retained = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
-      value: DeliveryStateV1;
+    const rawRetained = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: unknown;
     };
+    const retained = { ...rawRetained, value: DeliveryStateV1Schema.parse(rawRetained.value) };
     expect(retained.value.activeOperation).toMatchObject({ kind: "teardown" });
   });
 
@@ -1324,9 +1339,10 @@ describe("delivery terminal recovery", () => {
       transition: "cleared",
       action: "delivery-top-remedy",
     });
-    const cleared = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
-      value: DeliveryStateV1;
+    const rawCleared = JSON.parse(await readFile(fixture.statePath, "utf8")) as {
+      value: unknown;
     };
+    const cleared = { ...rawCleared, value: DeliveryStateV1Schema.parse(rawCleared.value) };
     expect(cleared.value.activeOperation).toBeNull();
   });
 
@@ -1345,7 +1361,8 @@ describe("delivery terminal recovery", () => {
       command: "delivery reconcile",
       status: "blocked",
     });
-    const retained = JSON.parse(await readFile(fixture.statePath, "utf8")) as { value: DeliveryStateV1 };
+    const rawRetained = JSON.parse(await readFile(fixture.statePath, "utf8")) as { value: unknown };
+    const retained = { ...rawRetained, value: DeliveryStateV1Schema.parse(rawRetained.value) };
     expect(retained.value.activeOperation).toMatchObject({ kind: "top-remedy" });
   });
 });

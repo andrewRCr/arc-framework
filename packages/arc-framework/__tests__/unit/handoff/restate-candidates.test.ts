@@ -1,18 +1,50 @@
 import { describe, it, expect } from "vitest";
 
 import { deriveRestateCandidates } from "../../../src/lib/handoff/restate-candidates.js";
-import type { ExecResult } from "../../../src/lib/git/index.js";
-import { scriptGitExec } from "../../helpers/git-exec-fake.js";
+import type {
+  ExecResult,
+  GitExec,
+  GitExecOptions,
+} from "../../../src/lib/git/index.js";
+
+type ResponseFn = (
+  args: string[],
+  options?: GitExecOptions,
+) => ExecResult | Promise<ExecResult>;
 
 function buildExec(
-  responses: Record<string, ExecResult | { failure: { exitCode: number; stderr: string } }>,
-): ReturnType<typeof scriptGitExec> {
-  return scriptGitExec(Object.entries(responses).map(([key, response]) => ({
-    match: {
-      predicate: (args: readonly string[]) => key.split(" ").every((token, i) => token === "*" || args[i] === token),
-    },
-    responses: [response],
-  })));
+  responses: Record<string, ExecResult | ResponseFn | { reject: Error }>,
+): { exec: GitExec; calls: Array<{ cmd: string; args: string[] }> } {
+  const calls: Array<{ cmd: string; args: string[] }> = [];
+  const exec: GitExec = async (cmd, args) => {
+    calls.push({ cmd, args });
+    const key = matchKey(args, responses);
+    if (key === null) {
+      throw new Error(`unmatched git invocation: ${cmd} ${args.join(" ")}`);
+    }
+    const entry = responses[key];
+    if (entry === undefined) {
+      throw new Error(`matched key '${key}' has no response`);
+    }
+    if (typeof entry === "object" && "reject" in entry) {
+      throw entry.reject;
+    }
+    return typeof entry === "function" ? entry(args) : entry;
+  };
+  return { exec, calls };
+}
+
+function matchKey(
+  args: string[],
+  responses: Record<string, unknown>,
+): string | null {
+  for (const key of Object.keys(responses)) {
+    const tokens = key.split(" ");
+    if (tokens.every((token, i) => token === "*" || args[i] === token)) {
+      return key;
+    }
+  }
+  return null;
 }
 
 const BASELINE = "372b654e";
@@ -181,7 +213,7 @@ describe("deriveRestateCandidates", () => {
   it("returns empty arrays + baseline-unknown when the baseline commit is unreachable from HEAD", async () => {
     const sessionNotes = notes("**Commit at Handoff:** `372b654e`");
     const { exec } = buildExec({
-      [LOG_KEY]: { failure: { exitCode: 128, stderr: "fatal: bad revision '372b654e..HEAD'" } },
+      [LOG_KEY]: { reject: new Error("fatal: bad revision '372b654e..HEAD'") },
       [DIFF_KEY]: { stdout: "", stderr: "" },
     });
 

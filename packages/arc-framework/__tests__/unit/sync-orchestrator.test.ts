@@ -7,6 +7,7 @@
  * and `--dry-run`.
  */
 
+import { AuditEntrySchema } from "../../src/lib/release/schema.js";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -1461,6 +1462,7 @@ describe("audit-log integration", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     resetMockDefaults();
+    installWorktreeGitScript();
     resetResolvedState();
     mockResolveUserIdentity.mockResolvedValue("andrew");
     process.exitCode = undefined;
@@ -1530,12 +1532,10 @@ describe("audit-log integration", () => {
         warnings: [],
       });
       if (branch === null) {
-        mockGitExec.mockImplementation(async (_cmd: unknown, args: unknown) => {
-          if (Array.isArray(args) && args[0] === "rev-parse" && args[1] === "--abbrev-ref") {
-            return { stdout: "HEAD", stderr: "" };
-          }
-          return { stdout: "", stderr: "" };
-        });
+        mockGitExec.mockImplementation(scriptGitExec([
+          { match: { prefix: ["rev-parse", "--abbrev-ref"] }, responses: [{ stdout: "HEAD", stderr: "" }] },
+          { match: { prefix: [] }, responses: [{ stdout: "", stderr: "" }] },
+        ]).exec);
       }
 
       await handleSync();
@@ -1714,6 +1714,7 @@ describe("audit-log integration > schema round-trip", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     resetMockDefaults();
+    installWorktreeGitScript();
     resetResolvedState();
     mockResolveUserIdentity.mockResolvedValue("andrew");
     process.exitCode = undefined;
@@ -1722,7 +1723,7 @@ describe("audit-log integration > schema round-trip", () => {
   async function captureEntry(): Promise<AuditEntry> {
     await handleSync();
     expect(mockAppendAuditEntry).toHaveBeenCalledTimes(1);
-    return mockAppendAuditEntry.mock.calls[0]?.[0].entry as AuditEntry;
+    return AuditEntrySchema.parse(mockAppendAuditEntry.mock.calls[0]?.[0].entry);
   }
 
   async function roundTrip(entry: AuditEntry): Promise<AuditEntry> {
@@ -1734,7 +1735,7 @@ describe("audit-log integration > schema round-trip", () => {
       const content = await readFile(path, "utf-8");
       const lines = content.split("\n").filter((line) => line.length > 0);
       expect(lines).toHaveLength(1);
-      return JSON.parse(lines[0] ?? "") as AuditEntry;
+      return AuditEntrySchema.parse(JSON.parse(lines[0] ?? ""));
     } finally {
       await rm(tmp, { recursive: true, force: true });
     }
@@ -1799,6 +1800,7 @@ describe("audit-log integration > success cells", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     resetMockDefaults();
+    installWorktreeGitScript();
     resetResolvedState();
     mockResolveUserIdentity.mockResolvedValue("andrew");
     process.exitCode = undefined;
@@ -2029,6 +2031,7 @@ describe("handleSync inbound fast-forward leg", () => {
   });
 
   it("TTY + remote-ahead + clean + on-sync notes → notes push the same run after the ff-pull", async () => {
+    installWorktreeGitScript();
     setConfig("on-sync");
     setNotesPolicy("on-sync");
     setWorktree("remote-ahead", 0, 2, "main");

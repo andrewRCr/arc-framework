@@ -4685,8 +4685,11 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     );
 
     expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
-    const adopted = JSON.parse(result.stdout) as {
-      readonly state: { readonly value: DeliveryStateV1 };
+    const rawAdopted = JSON.parse(result.stdout) as {
+      readonly state: { readonly value: unknown };
+    };
+    const adopted = {
+      ...rawAdopted, state: { ...rawAdopted.state, value: DeliveryStateV1Schema.parse(rawAdopted.state.value) },
     };
     expect(adopted).toMatchObject({
       command: "delivery refresh adopt",

@@ -91,12 +91,11 @@ describe("delivery remote-ref leases", () => {
   it("refuses a divergent local member ref before publishing remotely", async () => {
     const foreignHead = "b".repeat(40);
     let remoteMutation = false;
-    const exec: GitExec = async (_command, args) => {
-      if (args[0] === "rev-parse") return { stdout: `${foreignHead}\n` };
-      if (args[0] === "ls-remote") return { stdout: "" };
-      remoteMutation = true;
-      return { stdout: "" };
-    };
+    const { exec } = scriptGitExec([
+      { match: { prefix: ["rev-parse"] }, responses: [{ stdout: `${foreignHead}\n` }] },
+      { match: { prefix: ["ls-remote"] }, responses: [{ stdout: "" }] },
+      { match: { prefix: [] }, responses: [() => { remoteMutation = true; return { stdout: "" }; }] },
+    ]);
 
     await expect(publishDeliveryMemberRef({ exec, remote: "origin", ref, head }))
       .resolves.toEqual({ status: "refused", reason: "collision" });

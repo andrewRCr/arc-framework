@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeGitProcessError } from "../../../../helpers/git-exec-fake.js";
+import { makeGitProcessError, scriptGitExec } from "../../../../helpers/git-exec-fake.js";
 
 import { deriveDeliveryProviderRefreshSubject } from
   "../../../../../src/lib/delivery/provider-refresh-observation.js";
@@ -45,11 +45,10 @@ describe("GitHub provider refresh adapter", () => {
   it("refuses before native observation when the official extension is unavailable", async () => {
     let nativeObserved = false;
     const port = new GhDeliveryProviderRefreshPort({
-      git: async (_command, args) => {
-        if (args[0] === "for-each-ref") return { stdout: "" };
-        if (args[0] === "rev-parse" && args[1] === "--git-common-dir") return { stdout: "/repo/.git\n" };
-        throw new Error(`unexpected git invocation: ${args.join(" ")}`);
-      },
+      git: scriptGitExec([
+        { match: { prefix: ["for-each-ref"] }, responses: [{ stdout: "" }] },
+        { match: { prefix: ["rev-parse", "--git-common-dir"] }, responses: [{ stdout: "/repo/.git\n" }] },
+      ]).exec,
       gh: { run: async () => { throw new Error("extension unavailable"); } },
       nativeStack: { observe: async () => {
         nativeObserved = true;

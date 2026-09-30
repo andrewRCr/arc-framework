@@ -189,9 +189,11 @@ describe("Markdown authority", () => {
       ...sharedPaths,
       ...excludedNoise,
     ].join("\0");
-    const exec = vi.fn()
-      .mockResolvedValueOnce({ stdout: worktreeStdout })
-      .mockResolvedValueOnce({ stdout: indexStdout });
+    const exec = vi.fn(scriptGitExec([
+      { match: ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+        responses: [{ stdout: worktreeStdout }] },
+      { match: ["ls-files", "--cached", "-z"], responses: [{ stdout: indexStdout }] },
+    ]).exec);
 
     await expect(enumerateTrackedMarkdownPaths({ root: "/repo", exec, source: "worktree" }))
       .resolves.toEqual([...sharedPaths, "docs/new-untracked.md"]);
@@ -337,9 +339,10 @@ describe("Markdown authority", () => {
   });
 
   it("classifies the same repository-relative path in primary and linked roots", async () => {
-    const exec = vi.fn()
-      .mockResolvedValueOnce({ stdout: "/primary\n" })
-      .mockResolvedValueOnce({ stdout: "/linked\n" });
+    const exec = vi.fn(scriptGitExec([{
+      match: ["rev-parse", "--show-toplevel"],
+      responses: [{ stdout: "/primary\n" }, { stdout: "/linked\n" }],
+    }]).exec);
     const realpath = vi.fn().mockImplementation(async (path: string) => path);
     const [primary, linked] = await Promise.all([
       resolveMarkdownRepositoryRoot({ cwd: "/primary", exec, realpath }),

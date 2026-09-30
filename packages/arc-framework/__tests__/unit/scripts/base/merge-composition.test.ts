@@ -1,7 +1,7 @@
 /** Production base-merge cleanup behavior at the Git boundary. */
 
 import { describe, expect, it } from "vitest";
-import { makeGitProcessError } from "../../../helpers/git-exec-fake.js";
+import { makeGitProcessError, scriptGitExec } from "../../../helpers/git-exec-fake.js";
 
 import type { ExecResult, GitExec } from "../../../../src/lib/git/exec.js";
 import { createBaseMergePort } from "../../../../src/scripts/base/merge-composition.js";
@@ -101,16 +101,15 @@ describe("base merge composition", () => {
   });
 
   it("turns a bounded fetch timeout into a typed operational refusal", async () => {
-    const exec: GitExec = async (command, args, options) => {
-      if (args[0] === "check-ref-format") return { stdout: "" };
-      if (args[0] !== "fetch") throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
-      await new Promise<void>((_resolve, reject) => {
-        options?.signal?.addEventListener("abort", () => {
-          reject(makeGitProcessError({ command, args, isCanceled: true, stderr: "aborted" }));
-        }, { once: true });
-      });
-      return { stdout: "" };
-    };
+    const { exec } = scriptGitExec([
+      { match: { prefix: ["check-ref-format"] }, responses: [{ stdout: "" }] },
+      { match: { prefix: ["fetch"] }, responses: [async ({ options }) => {
+        await new Promise<void>((resolve) => {
+          options?.signal?.addEventListener("abort", () => { resolve(); }, { once: true });
+        });
+        return { failure: { isCanceled: true, stderr: "aborted" } };
+      }] },
+    ]);
 
     await expect(mergeExpectedBase(
       { expectedBase: oid("a"), expectedHead: oid("c") },

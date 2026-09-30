@@ -39,7 +39,8 @@ describe("Git-tree filesystem", () => {
   });
 
   it("maps an absent or malformed root tree to ENOENT", async () => {
-    const absent: GitExec = async () => { throw new Error("bad object"); };
+    const absent: GitExec = async () => { throw makeGitProcessError({ command: "git", args: ["rev-parse", "--verify", `${revision}^{tree}`],
+      exitCode: 128, stderr: "bad object" }); };
     const malformed: GitExec = async () => ({ stdout: "HEAD\n" });
 
     await expect(createGitTreeReadFs({ cwd: "/repo", revision, exec: absent }).stat("/repo"))

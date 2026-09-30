@@ -246,7 +246,8 @@ The regular-expression scan supplies candidates, not semantic counts. Later segm
 remove rows whose surface has retired. The two-way layout tables below begin empty by design and are filled in Phase 5.
 
 Register citations below name the corresponding **Storage-coupling register** row in
-`cohort-state-storage.md`. The correction citation names the existing `USER-INBOX` capture.
+`cohort-state-storage.md`. All rows retain the `840d348c` cutoff except the two exact `891c911c` rows
+Owner-approved in A4 (`R-DCP` and `R-CONT`). Correction citations name the existing `USER-INBOX` captures.
 
 | Key       | Register row                                                                                          |
 | --------- | ----------------------------------------------------------------------------------------------------- |
@@ -266,7 +267,8 @@ Register citations below name the corresponding **Storage-coupling register** ro
 | `R-RM`    | `ROADMAP.md` carried on every branch                                                                  |
 | `R-CR`    | Candidate and transition records tracked under `.arc/system/.internal/`                               |
 | `R-CI`    | The auto-merge lane's planning classification by tracked artifact prefix                              |
-| `R-DCP`   | Decomposition's base-tree plan, child staging, and append-only advancement                            |
+| `R-DCP`   | A4: exact `891c911c` decomposition plan/staging/advancement row                                       |
+| `R-CONT`  | A4: exact `891c911c` continuity anchored to code commits row                                          |
 | `R-LOCK`  | `USER-INBOX`: Name what the surviving inbox writer locks on in the notes-sync register row            |
 | `R-ADD`   | `USER-INBOX`: Cover identity-wide user workspace bootstrap in the storage register                    |
 | `R-PARSE` | `USER-INBOX`: Name the entry parser’s supporting type and schema survivors in the notes-sync register |
@@ -447,57 +449,379 @@ Register citations below name the corresponding **Storage-coupling register** ro
 
 ### Test-support contract
 
-| Surface                                                                                          | Destination                             | Disposition      | Citation                         | Importers | Evidence                                                                                             |
-| ------------------------------------------------------------------------------------------------ | --------------------------------------- | ---------------- | -------------------------------- | --------: | ---------------------------------------------------------------------------------------------------- |
-| repeated scripted `GitExec` doubles                                                              | `__tests__/helpers/git-exec-fake.ts`    | migrated         | Spec § 9                         |         — | test scan; Tasks 2.1, 7.1, 7.4                                                                       |
-| hand-built Git failure rejections                                                                | shared `GitProcessError` fixture        | migrated         | Spec § 9                         |         — | regex candidates; Tasks 2.1, 7.1                                                                     |
-| scripted `GitExecInput` and `RawGitExec` doubles                                                 | shared fake variants                    | migrated         | Spec § 9                         |         — | test scan; Task 2.1.c                                                                                |
-| handwritten meta fixture blocks                                                                  | `__tests__/helpers/meta-fixture.ts`     | migrated         | Spec § 9                         |         — | regex candidates; Tasks 2.2, 7.2                                                                     |
-| inline `.safeParse(...).success` assertions                                                      | `__tests__/helpers/schema-assertion.ts` | migrated         | Spec § 9                         |         — | regex candidates; Tasks 2.3, 7.3                                                                     |
-| registered output casts in tests                                                                 | schema parse                            | migrated         | Spec § 9                         |         — | Task 7.3                                                                                             |
-| primary-safety, worktree sync, and Candidate collection scripts                                  | shared fake for surviving uses          | migrated         | Spec § 9; Spec § 1 split         |         — | verification subject splits                                                                          |
-| Candidate artifact-treatment fixtures: `collectTarget`, `collect`, `collectUnstaged`             | unchanged local doubles                 | carved           | `R-LC`; `R-SP`; `R-CR`           |         — | verification subject splits                                                                          |
-| sync notes orchestration and notes-outcome round trips: local default and overrides              | unchanged local doubles                 | carved           | `R-NS`                           |         — | verification subject splits                                                                          |
-| view presentation and history ambiguity meta setup                                               | semantic meta fixture builder           | migrated         | Spec § 9                         |         — | verification subject splits                                                                          |
-| view lookup/selection meta literals                                                              | independent literal evidence            | retained by rule | Spec § 9 meta parsing/layout     |         — | verification subject splits                                                                          |
-| `makeGitExecInput` in `__tests__/helpers/integration.ts`                                         | execa input adapter                     | migrated         | Spec § 9                         |      M:74 | Task 2.4.a; 22 suites                                                                                |
-| `stubGitExec` in `__tests__/helpers/integration.ts`                                              | `__tests__/integration/active.test.ts`  | migrated         | Spec § 9                         |         1 | Task 2.4.b; active suite                                                                             |
-| `makeGitNoteWriter` and `makeGitNoteReader`                                                      | same helpers                            | carved           | `R-NS`                           |      M:74 | Task 2.4.c; notes seam                                                                               |
-| `base-advance.ts` raw `git()` runner                                                             | same helper                             | retained by rule | Spec § 9 arrangement runner      |         — | Task 2.4.c; no src import                                                                            |
-| `e2e/race-worker.ts` private spawn executors                                                     | same worker                             | retained by rule | Spec § 9 real-Git plumbing       |         — | Task 2.4.c; spawned worker                                                                           |
-| constant one-response stubs                                                                      | local test doubles                      | retained by rule | Spec § 9                         |         — | scripted-double scan; Task 7.5                                                                       |
-| real-Git doubles, fault-injecting hybrids, scenario simulators                                   | local test doubles                      | retained by rule | Spec § 9                         |         — | scripted-double scan; Task 7.5                                                                       |
-| non-exit Git unavailability and unscripted-call guards                                           | local test doubles                      | retained by rule | Spec § 9                         |         — | Git-failure scan; Task 7.5                                                                           |
-| parser/layout literal meta fixtures                                                              | local Markdown                          | retained by rule | Spec § 9 independent evidence    |         — | meta block scan; Task 7.5                                                                            |
-| status table golden strings                                                                      | local Markdown                          | retained by rule | Spec § 9 independent evidence    |         — | meta scan false positive; render                                                                     |
-| invalid and legacy-scan meta fixture blocks                                                      | local Markdown                          | retained by rule | Spec § 9                         |         — | meta block scan; 5 invalid files                                                                     |
-| legacy session-envelope meta projection                                                          | builder-derived flat bullets            | retained by rule | Spec § 9 golden byte identity    |         — | meta scan; 11 unchanged goldens                                                                      |
-| logic-driving `safeParse` calls                                                                  | same tests                              | retained by rule | Spec § 9                         |         — | AST verdict scan; Task 7.5                                                                           |
-| invalid/partial registered output values                                                         | local test casts                        | retained by rule | Spec § 9                         |         — | cast scan; 9 partial hits                                                                            |
-| `lane-progress-frontline.test.ts`: complete unavailable/timed-out outputs                        | `FrontlineExecutionOutcomeSchema.parse` | migrated         | Spec § 9                         |         — | `frontlineOutcome`; unchanged recording observations                                                 |
-| `lane-progress-frontline.test.ts`: `partialFindingsOutcome`                                      | local partial-consumer fixture          | retained by rule | Spec § 9 partial values          |         — | empty findings intentionally invalid; `recordFrontlineAttempt` reads only verdict/admission metadata |
-| `delivery/entry-inspection.test.ts`: pending review-fix verification state                       | `DeliveryStateV1Schema.parse`           | migrated         | Spec § 9                         |         — | complete state from four-member producer fixture                                                     |
-| config multi-key scripts, Markdown audits, local test admission, delivery remote reply sequences | shared scripted Git fake                | migrated         | Spec § 9                         |         — | argument/result sequences preserved; admission 11 consumers; drift recorder retains count            |
-| delivery remote failure: unavailable reobserve                                                   | local `unavailableAfterFailure`         | retained by rule | Spec § 9 non-exit unavailability |         — | original `Error("offline")` retained separately from three process-result cases                      |
-| missing config key and CAS/unsupported-option fault injections                                   | shared typed failure fixture            | migrated         | Spec § 9                         |         — | missing key exit 1; CAS fatal exit 128; unsupported option usage exit 129; real-Git hybrids retained |
-| inbox-state, staleness sweep, branch-gone cascade, decomposition input schema verdicts           | shared schema assertion helpers         | migrated         | Spec § 9                         |         — | 21 unchanged schema/input/verdict triples                                                            |
-| parsed subtype and result-narrowing casts                                                        | same casts                              | retained by rule | Spec § 9                         |         — | cast scan; 4 narrowing hits                                                                          |
-| E2E canonicalizers and Result assertions                                                         | same tests                              | retained by rule | Spec § 9                         |         — | Task 7.5                                                                                             |
-| notes-sync tests (`user-sync-notes-*`, `notes-*`, integration notes cases)                       | same tests                              | carved           | `R-NS`                           |         — | test paths; Task 7.5                                                                                 |
-| branch-tree tests (`project-view-ref`, `completed-index`, ref-reader cases)                      | same cases                              | carved           | `R-BR`; `R-AR`                   |         — | test paths; Task 7.5                                                                                 |
-| in-flight and session-init store-source tests                                                    | same cases                              | carved           | `R-IF`; `R-CW`; `R-NP`           |         — | test paths; Task 7.5                                                                                 |
-| schema verdicts in carved in-flight cases                                                        | same assertions                         | carved           | `R-IF`; `R-BR`                   |         — | AST scan; 22 assertions                                                                              |
-| schema verdicts in carved session-init cases                                                     | same assertions                         | carved           | `R-CW`; `R-NS`; `R-BR`           |         — | AST scan; 25 assertions                                                                              |
-| schema verdicts in carved decomposition cases                                                    | same assertions                         | carved           | `R-DCP`                          |         — | AST scan; 23 assertions                                                                              |
-| schema verdicts in carved notes-sync cases                                                       | same assertions                         | carved           | `R-NS`                           |         — | AST scan; 3 assertions                                                                               |
-| lifecycle-contribution and path-treatment tests                                                  | same tests                              | carved           | `R-LC`                           |         — | test paths; Task 7.5                                                                                 |
-| lifecycle and placement test fixtures                                                            | same fixtures                           | carved           | `R-LW`; `R-PL`                   |         — | Git/meta scans; Task 7.5                                                                             |
-| hook and locus test fixtures                                                                     | same fixtures                           | carved           | `R-HC`; `R-LOC`                  |         — | Git/meta scans; Task 7.5                                                                             |
-| roadmap, teardown, retirement, and branch-history tests                                          | same fixtures                           | carved           | `R-RM`; `R-LW`; `R-AR`           |         — | Git/meta scans; Task 7.R2                                                                            |
-| decomposition and delivery-scoping test cases                                                    | same fixtures                           | carved           | `R-DCP`; `R-CI`                  |         — | test paths; Task 7.R2                                                                                |
-| planning-lane cases in `change-facts` tests                                                      | same cases                              | carved           | `R-CI`                           |         — | test paths; Task 7.5                                                                                 |
-| inbox-writer and execution-offer tests                                                           | same tests                              | retained by rule | `R-NS` survivor                  |         — | test paths; Task 7.5                                                                                 |
-| `testing-standards` project override                                                             | shared support guidance                 | migrated         | Spec § 9                         |         — | Task 2.5; project-only                                                                               |
+| Surface                                                                                                              | Destination                             | Disposition      | Citation                              | Importers | Evidence                                                                                                                                     |
+| -------------------------------------------------------------------------------------------------------------------- | --------------------------------------- | ---------------- | ------------------------------------- | --------: | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| repeated scripted `GitExec` doubles                                                                                  | `__tests__/helpers/git-exec-fake.ts`    | migrated         | Spec § 9                              |         — | test scan; Tasks 2.1, 7.1, 7.4                                                                                                               |
+| hand-built Git failure rejections                                                                                    | shared `GitProcessError` fixture        | migrated         | Spec § 9                              |         — | regex candidates; Tasks 2.1, 7.1                                                                                                             |
+| scripted `GitExecInput` and `RawGitExec` doubles                                                                     | shared fake variants                    | migrated         | Spec § 9                              |         — | test scan; Task 2.1.c                                                                                                                        |
+| handwritten meta fixture blocks                                                                                      | `__tests__/helpers/meta-fixture.ts`     | migrated         | Spec § 9                              |         — | regex candidates; Tasks 2.2, 7.2                                                                                                             |
+| inline `.safeParse(...).success` assertions                                                                          | `__tests__/helpers/schema-assertion.ts` | migrated         | Spec § 9                              |         — | regex candidates; Tasks 2.3, 7.3                                                                                                             |
+| registered output casts in tests                                                                                     | schema parse                            | migrated         | Spec § 9                              |         — | Task 7.3                                                                                                                                     |
+| primary-safety, worktree sync, and Candidate collection scripts                                                      | shared fake for surviving uses          | migrated         | Spec § 9; Spec § 1 split              |         — | verification subject splits                                                                                                                  |
+| Candidate artifact-treatment fixtures: `collectTarget`, `collect`, `collectUnstaged`                                 | unchanged local doubles                 | carved           | `R-LC`; `R-SP`; `R-CR`                |         — | verification subject splits                                                                                                                  |
+| sync notes orchestration and notes-outcome round trips: local default and overrides                                  | unchanged local doubles                 | carved           | `R-NS`                                |         — | verification subject splits                                                                                                                  |
+| view presentation and history ambiguity meta setup                                                                   | semantic meta fixture builder           | migrated         | Spec § 9                              |         — | verification subject splits                                                                                                                  |
+| view lookup/selection meta literals                                                                                  | independent literal evidence            | retained by rule | Spec § 9 meta parsing/layout          |         — | verification subject splits                                                                                                                  |
+| `makeGitExecInput` in `__tests__/helpers/integration.ts`                                                             | execa input adapter                     | migrated         | Spec § 9                              |      M:74 | Task 2.4.a; 22 suites                                                                                                                        |
+| `stubGitExec` in `__tests__/helpers/integration.ts`                                                                  | `__tests__/integration/active.test.ts`  | migrated         | Spec § 9                              |         1 | Task 2.4.b; active suite                                                                                                                     |
+| `makeGitNoteWriter` and `makeGitNoteReader`                                                                          | same helpers                            | carved           | `R-NS`                                |      M:74 | Task 2.4.c; notes seam                                                                                                                       |
+| `base-advance.ts` raw `git()` runner                                                                                 | same helper                             | retained by rule | Spec § 9 arrangement runner           |         — | Task 2.4.c; no src import                                                                                                                    |
+| `e2e/race-worker.ts` private spawn executors                                                                         | same worker                             | retained by rule | Spec § 9 real-Git plumbing            |         — | Task 2.4.c; spawned worker                                                                                                                   |
+| constant one-response stubs                                                                                          | local test doubles                      | retained by rule | Spec § 9                              |         — | scripted-double scan; Task 7.5                                                                                                               |
+| real-Git doubles, fault-injecting hybrids, scenario simulators                                                       | local test doubles                      | retained by rule | Spec § 9                              |         — | scripted-double scan; Task 7.5                                                                                                               |
+| non-exit Git unavailability and unscripted-call guards                                                               | local test doubles                      | retained by rule | Spec § 9                              |         — | Git-failure scan; Task 7.5                                                                                                                   |
+| parser/layout literal meta fixtures                                                                                  | local Markdown                          | retained by rule | Spec § 9 independent evidence         |         — | meta block scan; Task 7.5                                                                                                                    |
+| status table golden strings                                                                                          | local Markdown                          | retained by rule | Spec § 9 independent evidence         |         — | meta scan false positive; render                                                                                                             |
+| invalid and legacy-scan meta fixture blocks                                                                          | local Markdown                          | retained by rule | Spec § 9                              |         — | meta block scan; 5 invalid files                                                                                                             |
+| legacy session-envelope meta projection                                                                              | builder-derived flat bullets            | retained by rule | Spec § 9 golden byte identity         |         — | meta scan; 11 unchanged goldens                                                                                                              |
+| logic-driving `safeParse` calls                                                                                      | same tests                              | retained by rule | Spec § 9                              |         — | AST verdict scan; Task 7.5                                                                                                                   |
+| invalid/partial registered output values                                                                             | local test casts                        | retained by rule | Spec § 9                              |         — | cast scan; 9 partial hits                                                                                                                    |
+| `lane-progress-frontline.test.ts`: complete unavailable/timed-out outputs                                            | `FrontlineExecutionOutcomeSchema.parse` | migrated         | Spec § 9                              |         — | `frontlineOutcome`; unchanged recording observations                                                                                         |
+| `lane-progress-frontline.test.ts`: `partialFindingsOutcome`                                                          | local partial-consumer fixture          | retained by rule | Spec § 9 partial values               |         — | empty findings intentionally invalid; `recordFrontlineAttempt` reads only verdict/admission metadata                                         |
+| `delivery/entry-inspection.test.ts`: pending review-fix verification state                                           | `DeliveryStateV1Schema.parse`           | migrated         | Spec § 9                              |         — | complete state from four-member producer fixture                                                                                             |
+| config multi-key scripts, Markdown audits, local test admission, delivery remote reply sequences                     | shared scripted Git fake                | migrated         | Spec § 9                              |         — | argument/result sequences preserved; admission 11 consumers; drift recorder retains count                                                    |
+| Git executor carriers in active, errand check, lifecycle, recover, start and release-push tests; sync stdin carriers | same local recorders                    | retained by rule | Spec § 9: no argument/result sequence |         — | 25 binding traces: shared-script consumers classified separately; forwarded recorders, release guards and constants retain their local forms |
+| delivery remote failure: unavailable reobserve                                                                       | local `unavailableAfterFailure`         | retained by rule | Spec § 9 non-exit unavailability      |         — | original `Error("offline")` retained separately from three process-result cases                                                              |
+| missing config key and CAS/unsupported-option fault injections                                                       | shared typed failure fixture            | migrated         | Spec § 9                              |         — | missing key exit 1; CAS fatal exit 128; unsupported option usage exit 129; real-Git hybrids retained                                         |
+| inbox-state, staleness sweep, branch-gone cascade, decomposition input schema verdicts                               | shared schema assertion helpers         | migrated         | Spec § 9                              |         — | 21 unchanged schema/input/verdict triples                                                                                                    |
+| parsed subtype and result-narrowing casts                                                                            | same casts                              | retained by rule | Spec § 9                              |         — | cast scan; 4 narrowing hits                                                                                                                  |
+| E2E canonicalizers and Result assertions                                                                             | same tests                              | retained by rule | Spec § 9                              |         — | Task 7.5                                                                                                                                     |
+| notes-sync tests (`user-sync-notes-*`, `notes-*`, integration notes cases)                                           | same tests                              | carved           | `R-NS`                                |         — | test paths; Task 7.5                                                                                                                         |
+| branch-tree tests (`project-view-ref`, `completed-index`, ref-reader cases)                                          | same cases                              | carved           | `R-BR`; `R-AR`                        |         — | test paths; Task 7.5                                                                                                                         |
+| in-flight and session-init store-source tests                                                                        | same cases                              | carved           | `R-IF`; `R-CW`; `R-NP`                |         — | test paths; Task 7.5                                                                                                                         |
+| schema verdicts in carved in-flight cases                                                                            | same assertions                         | carved           | `R-IF`; `R-BR`                        |         — | AST scan; 22 assertions                                                                                                                      |
+| schema verdicts in carved session-init cases                                                                         | same assertions                         | carved           | `R-CW`; `R-NS`; `R-BR`                |         — | actual store-source assertions only; materializable/public cleanup schema verdicts migrated                                                  |
+| schema verdicts in carved decomposition cases                                                                        | same assertions                         | carved           | `R-DCP`                               |         — | 8 physical plan/operation/report assertions; public refusal/finish assertions migrated                                                       |
+| schema verdicts in carved notes-sync cases                                                                           | same assertions                         | carved           | `R-NS`                                |         — | AST scan; 3 assertions                                                                                                                       |
+| lifecycle-contribution and path-treatment tests                                                                      | same tests                              | carved           | `R-LC`                                |         — | test paths; Task 7.5                                                                                                                         |
+| lifecycle and placement test fixtures                                                                                | same fixtures                           | carved           | `R-LW`; `R-PL`                        |         — | Git/meta scans; Task 7.5                                                                                                                     |
+| hook and locus test fixtures                                                                                         | same fixtures                           | carved           | `R-HC`; `R-LOC`                       |         — | Git/meta scans; Task 7.5                                                                                                                     |
+| roadmap, teardown, retirement, and branch-history tests                                                              | same fixtures                           | carved           | `R-RM`; `R-LW`; `R-AR`                |         — | Git/meta scans; Task 7.R2                                                                                                                    |
+| decomposition and delivery-scoping test cases                                                                        | same fixtures                           | carved           | `R-DCP`; `R-CI`                       |         — | test paths; Task 7.R2                                                                                                                        |
+| planning-lane cases in `change-facts` tests                                                                          | same cases                              | carved           | `R-CI`                                |         — | test paths; Task 7.5                                                                                                                         |
+| inbox-writer and execution-offer tests                                                                               | same tests                              | retained by rule | `R-NS` survivor                       |         — | test paths; Task 7.5                                                                                                                         |
+| `testing-standards` project override                                                                                 | shared support guidance                 | migrated         | Spec § 9                              |         — | Task 2.5; project-only                                                                                                                       |
+
+### Decomposition and continuity owning-module splits (A4, S6)
+
+The ranges below bind unchanged production source at the verification subject. A producer's physical acquisition
+or mutation is separately carved; it does not carve pure authored content or a public carried-result contract.
+R-DCP and R-CONT cite only the two accepted register corrections under A4. No whole-directory carve applies.
+
+| Surface                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Destination                    | Disposition      | Citation                                                   | Importers | Evidence                                                                          |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | ---------------- | ---------------------------------------------------------- | --------: | --------------------------------------------------------------------------------- |
+| `src/lib/work-unit/decompose-content.ts`: SourceReferenceSchema/type303-310; ContentLocator/Unit/ScanResult/Resolution280-301; scanV3DecomposeContent322-390; resolveV3DecomposeContentLocator393-435; resolveV3DecomposeSourceUnit438-end and their byte/Markdown parser helpers                                                                                                                                                                                                                                                                                                                               | owning contract                | retained by rule | Spec §1 pure contract/type edge; §2.1 for migrated digests |         — | source symbols; S6                                                                |
+| `src/lib/work-unit/decompose-v3-schema.ts`: LocatorSchema56-82; Source/Machine/sourceUnits/edge/authoring schemas85-227; source/edge/preflight/cutMap/inventory identity helpers280-341; map parse/decode/create/validation443-end                                                                                                                                                                                                                                                                                                                                                                              | owning contract                | retained by rule | Spec §1 pure contract/type edge; §2.1 for migrated digests |         — | source symbols; S6                                                                |
+| `src/lib/work-unit/decompose-v3-finish.ts`: V3ExtractionFinishEvidenceSchema/type23-58; PreviewSchema/type53-61; ResultSchema/type64-75; DigestSchema16                                                                                                                                                                                                                                                                                                                                                                                                                                                         | owning contract                | retained by rule | Spec §1 pure contract/type edge; §2.1 for migrated digests |         — | source symbols; S6                                                                |
+| `src/lib/work-unit/decompose-v3-result-report.ts`: V3ExtractionReportFactsSchema and V3ExtractionReportFacts17-37                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | owning contract                | retained by rule | Spec §1 pure contract/type edge; §2.1 for migrated digests |         — | source symbols; S6                                                                |
+| `src/lib/work-unit/decompose-v3-result-report.ts`: V3ReportedPathDisposition schema/type40-45; TopologyOutcome schema/type48-67; DestinationOutcome schema/type70-82; PathOutcome schema/type85-90; DecomposeResultReport schema/type93-100; materializedPathMap102-104; pathDisposition106-118; reportV3DecomposeResult126-end                                                                                                                                                                                                                                                                                 | store operation                | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where named                    |         — | physical plan/acquisition/mutation; S6                                            |
+| `src/lib/work-unit/decompose-v3-plan.ts`: All physical-path state/contributor/mutation/ValidatedDecomposePlan schemas/types/registry/builders, including local DigestSchema18                                                                                                                                                                                                                                                                                                                                                                                                                                   | store operation                | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where named                    |         — | physical plan/acquisition/mutation; S6                                            |
+| `src/lib/work-unit/git-decompose-v3-operation.ts`: GitV3DecomposeCommandInput67-72; V3StageRefusalFields90-98 / UnexpectedRefusal100-107; GitV3DecomposeCommandRefusalSchema/type109-127; GitV3DecomposeCommandResult129-131; GitV3ExtractionCommandRefusalSchema/type150-167; GitV3ExtractionCommandResult169-171; composeDecomposeCommandRefusal574-607 / composeExtractionCommandRefusal609-642 as pure output composition                                                                                                                                                                                   | owning contract                | retained by rule | Spec §1 pure contract/type edge; §2.1 for migrated digests |         — | source symbols; S6                                                                |
+| `src/lib/work-unit/git-decompose-v3-operation.ts`: Git repository-plan/occupation/materializer/provenance/input APIs57-65,74-88,133-148; repositoryRefusal173-201; exactPlan/exactInventory/exactExtractionFacts/repositoryPlanIdentity203-233; materializerProxy235-262; revalidateOperationPlan264-324; decodeRetirementOperationMap326-346; executeGitV3DecomposeOperation348-449; executeGitV3ExtractionOperation451-545; revalidateCommandMap547-572; sourcePublicationRefusal644-680; executeGitV3DecomposeCommand682-725 / executeGitV3ExtractionCommand727-end physical revalidate/publish/stage bodies | store operation                | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where named                    |         — | physical plan/acquisition/mutation; S6                                            |
+| `src/lib/work-unit/decompose-v3-finish-operation.ts`: `executeV3ExtractionSourceFinish`173–end; `git-decompose-v3-finish.ts` physical finish acquisition                                                                                                                                                                                                                                                                                                                                                                                                                                                        | store operation                | carved           | `R-DCP` (A4)                                               |         — | actual source thinning/restoration; public finish schemas above survive           |
+| `src/lib/work-unit/decompose-v3-refusal.ts`: evidence/core/public refusal schemas33–102                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | public carried-result contract | retained by rule | Spec §1 type edge/command surface                          |         — | JSON evidence and refusal declarations; physical producers separately carved      |
+| `src/lib/work-unit/decompose-v3-refusal.ts`: remedy dictionaries and dispatch                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | per-key owning subject         | retained by rule | Spec §1 symbol-range rule                                  |         — | exact 229-key and 11-dispatch split below; no blanket dictionary disposition      |
+| `src/lib/work-unit/decompose-v3-remedy-definitions.ts`: preflight/Git-preflight/operation remedy declarations                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | per-key owning subject         | retained by rule | Spec §1 symbol-range rule                                  |         — | preflight, Git-preflight and operation dictionaries below                         |
+| `src/lib/work-unit/decompose-v3-finish-remedies.ts`: finish dictionary                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | per-key owning subject         | retained by rule | Spec §1 symbol-range rule                                  |         — | authored operand keys survive; physical finish keys below carved                  |
+| `src/lib/handoff/restate-candidates.ts`: entire `deriveRestateCandidates` and commit/notes-history helper subject                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | store version/contract history | carved           | `R-CONT` (A4)                                              |         — | exact base test restored; production signature unchanged                          |
+| `src/handlers/recover.ts`: `resolveRecoveryTaskListEvidence`241–267; `recoveryTaskListPath`269–282                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | store task history             | carved           | `R-CONT` (A4); `R-SP`                                      |         — | seed/fresh task-list acquisition; canonical imports only where forced             |
+| `src/handlers/recover.ts`: `bindGitExec`288–293, `bindGitExecInput`295–300; command executor threading                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | bound command surface          | retained by rule | Spec §1 command surface; §8                                |         — | generic adapter binding survives history acquisition                              |
+| `src/lib/recover/committed-progress.ts`: `resolveCommittedProgress`, `revParseCommit`, history-backed default; `CommittedProgress`/resolver/options declarations                                                                                                                                                                                                                                                                                                                                                                                                                                                | store state-version history    | carved           | `R-CONT` (A4)                                              |         — | Git ancestry/range evidence subject; exact-base recover-envelope fixture retained |
+
+#### Refusal dictionary keys and ranges
+
+This source-bound inventory contains all 229 keys: 42 pure authored-input/provenance keys survive, and 187 physical
+plan, staging, advancement or recovery keys are carved. The owning module and dictionary are named in each group.
+Shared declaration/lookup syntax does not change the individual subject's fate.
+
+##### `decompose-v3-refusal.ts` — `V3_REPOSITORY_PLAN_REMEDIES`
+
+| Key                                  | Range   | Disposition      | Citation                                              |
+| ------------------------------------ | ------- | ---------------- | ----------------------------------------------------- |
+| `unknown-destination`                | 186–190 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `incompatible-content-role`          | 191–195 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `incomplete-profile-artifacts`       | 196–200 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `allocation-projection-mismatch`     | 201–205 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `dependency-projection-mismatch`     | 206–210 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `profile-meta-mismatch`              | 211–215 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `managed-path-set-mismatch`          | 216–220 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `invalid-structure`                  | 221–225 | retained by rule | Spec §1 authored input/content/provenance             |
+| `incomplete-authoring`               | 226–230 | retained by rule | Spec §1 authored input/content/provenance             |
+| `machine-order`                      | 231–235 | retained by rule | Spec §1 authored input/content/provenance             |
+| `machine-identity`                   | 236–240 | retained by rule | Spec §1 authored input/content/provenance             |
+| `authoring-identity`                 | 241–245 | retained by rule | Spec §1 authored input/content/provenance             |
+| `authoring-order`                    | 246–250 | retained by rule | Spec §1 authored input/content/provenance             |
+| `source-shape`                       | 251–255 | retained by rule | Spec §1 authored input/content/provenance             |
+| `companion-disposition`              | 256–261 | retained by rule | Spec §1 authored input/content/provenance             |
+| `destination-coverage`               | 262–266 | retained by rule | Spec §1 authored input/content/provenance             |
+| `placement-cardinality`              | 267–271 | retained by rule | Spec §1 authored input/content/provenance             |
+| `shape-cardinality`                  | 272–276 | retained by rule | Spec §1 authored input/content/provenance             |
+| `invalid-meta`                       | 277–281 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-meta-mismatch`               | 282–286 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-artifact-mismatch`           | 287–291 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `duplicate-live-work-unit`           | 292–296 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `incoming-edge-set-changed`          | 297–301 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `outgoing-edge-set-changed`          | 302–306 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `duplicate-destination-identity`     | 307–311 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `retiring-origin-destination`        | 312–316 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `unknown-allocation-destination`     | 317–321 | retained by rule | Spec §1 authored input/content/provenance             |
+| `incompatible-allocation-locator`    | 322–326 | retained by rule | Spec §1 authored input/content/provenance             |
+| `incompatible-source-ownership`      | 327–331 | retained by rule | Spec §1 authored input/content/provenance             |
+| `occupied-new-member`                | 332–336 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `missing-dependent`                  | 337–341 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `unwritable-dependent`               | 342–346 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `stale-dependent`                    | 347–351 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `missing-origin-slot`                | 352–356 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `missing-incoming-disposition`       | 357–361 | retained by rule | Spec §1 authored input/content/provenance             |
+| `missing-outgoing-disposition`       | 362–366 | retained by rule | Spec §1 authored input/content/provenance             |
+| `origin-reference-remains`           | 367–371 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `unknown-dependency-recipient`       | 372–376 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `unknown-internal-dependent`         | 377–381 | retained by rule | Spec §1 authored input/content/provenance             |
+| `unknown-internal-prerequisite`      | 382–386 | retained by rule | Spec §1 authored input/content/provenance             |
+| `self-dependency`                    | 387–391 | retained by rule | Spec §1 authored input/content/provenance             |
+| `unknown-external-target`            | 392–396 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `redundant-external-edge`            | 397–401 | retained by rule | Spec §1 authored input/content/provenance             |
+| `retiring-origin-target`             | 402–406 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `unchanged-dependency-slot`          | 407–411 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-kind`                        | 412–416 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `missing-merge-base`                 | 417–421 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `ambiguous-merge-base`               | 422–426 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `invalid-tree-path`                  | 427–431 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `ambiguous-predecessor`              | 432–436 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `predecessor-missing`                | 437–441 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `predecessor-changed`                | 442–446 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `predecessor-absent-from-source`     | 447–451 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `backlog-predecessor-changed`        | 452–456 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `origin-artifact-missing`            | 457–461 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `unexpected-object-kind`             | 462–466 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `unexpected-mode`                    | 467–471 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `git-read-failed`                    | 472–476 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-private-added`               | 477–481 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-private-modified`            | 482–486 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-private-deleted`             | 487–491 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-rider`                       | 492–496 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `no-new-member`                      | 497–501 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `multi-member-cohortless`            | 502–506 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `placement-member-count`             | 507–511 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `unexpected-coordination-location`   | 512–516 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `missing-parent`                     | 517–521 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `nonregular-topology-path`           | 522–526 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `invalid-topology-utf8`              | 527–531 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `wrong-structural-identity`          | 532–536 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `invalid-cohort-template`            | 537–541 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `conflicting-at-cap-provenance`      | 542–546 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `dependency-projection-failed`       | 547–551 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `roadmap-missing`                    | 552–556 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `roadmap-render-failed`              | 557–561 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `roadmap-plan-identity-mismatch`     | 562–566 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `invalid-plan-operand`               | 567–571 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `invalid-managed-path`               | 572–576 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `unsupported-path-state`             | 577–581 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `incompatible-base-prestate`         | 582–586 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `exclusive-role-collision`           | 587–591 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `duplicate-role-owner`               | 592–596 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `duplicate-whole-file-owner`         | 597–601 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `incompatible-mode-transition`       | 602–606 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `contributor-prestate-discontinuity` | 607–611 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `tree-read-failed`                   | 612–616 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `repository-plan-failed`             | 617–621 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+
+##### `decompose-v3-refusal.ts` — `V3_ADVANCEMENT_REMEDIES`
+
+| Key                                    | Range   | Disposition | Citation                                              |
+| -------------------------------------- | ------- | ----------- | ----------------------------------------------------- |
+| `full-protection-required`             | 625–629 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `invalid`                              | 630–634 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `base-not-descendant`                  | 635–639 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `base-ancestry-unavailable`            | 640–644 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `candidate-topology-unavailable`       | 645–649 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `binding-unavailable`                  | 650–654 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `candidate-dirty`                      | 655–659 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `base-dependency-snapshot-unavailable` | 660–664 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `base-acquired-incoming-dependency`    | 665–669 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `dependency-recipient-drift`           | 670–674 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `binding-raced`                        | 675–679 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `merge-refused`                        | 680–684 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `changed-paths-unavailable`            | 685–689 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `changed-paths`                        | 690–694 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `path-state`                           | 695–699 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `transition-record`                    | 700–704 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `blob-unavailable`                     | 705–709 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `write-failed`                         | 710–714 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+
+##### `decompose-v3-remedy-definitions.ts` — `V3_PREFLIGHT_REMEDIES`
+
+| Key                          | Range   | Disposition      | Citation                                              |
+| ---------------------------- | ------- | ---------------- | ----------------------------------------------------- |
+| `source-base-ref`            | 10–13   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `result-base-ref`            | 14–17   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-candidate-ref`       | 18–21   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-candidate-duplicate` | 22–25   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-origin-duplicate`    | 26–29   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-self-identity`       | 30–33   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-ambiguous`           | 34–37   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-predecessor`         | 38–41   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-artifact-duplicate`  | 42–45   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-artifact-mode`       | 46–49   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `planning-profile`           | 50–53   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-unit-duplicate`      | 54–57   | retained by rule | Spec §1 authored input/content/provenance             |
+| `incoming-edge`              | 58–61   | retained by rule | Spec §1 authored input/content/provenance             |
+| `incoming-edge-duplicate`    | 62–65   | retained by rule | Spec §1 authored input/content/provenance             |
+| `outgoing-edge-duplicate`    | 66–69   | retained by rule | Spec §1 authored input/content/provenance             |
+| `machine-envelope`           | 70–73   | retained by rule | Spec §1 authored input/content/provenance             |
+| `starter-map`                | 74–77   | retained by rule | Spec §1 authored input/content/provenance             |
+| `source-logical-branch`      | 78–81   | retained by rule | Spec §1 authored input/content/provenance             |
+| `source-ref`                 | 82–85   | retained by rule | Spec §1 authored input/content/provenance             |
+| `source-head`                | 86–89   | retained by rule | Spec §1 authored input/content/provenance             |
+| `result-ref`                 | 90–93   | retained by rule | Spec §1 authored input/content/provenance             |
+| `result-head`                | 94–97   | retained by rule | Spec §1 authored input/content/provenance             |
+| `source-artifact-inventory`  | 98–101  | retained by rule | Spec §1 authored input/content/provenance             |
+| `source-units`               | 102–105 | retained by rule | Spec §1 authored input/content/provenance             |
+| `incoming-edges`             | 106–109 | retained by rule | Spec §1 authored input/content/provenance             |
+| `outgoing-edges`             | 110–113 | retained by rule | Spec §1 authored input/content/provenance             |
+| `preflight-id`               | 114–117 | retained by rule | Spec §1 authored input/content/provenance             |
+| `completed-map`              | 118–121 | retained by rule | Spec §1 authored input/content/provenance             |
+| `source-identity`            | 122–125 | retained by rule | Spec §1 authored input/content/provenance             |
+| `result-base`                | 126–129 | retained by rule | Spec §1 authored input/content/provenance             |
+| `source-unit-ambiguous`      | 130–133 | retained by rule | Spec §1 authored input/content/provenance             |
+
+##### `decompose-v3-remedy-definitions.ts` — `V3_GIT_PREFLIGHT_REMEDIES`
+
+| Key                     | Range   | Disposition | Citation                                              |
+| ----------------------- | ------- | ----------- | ----------------------------------------------------- |
+| `missing-base`          | 137–140 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `malformed-ref-list`    | 141–144 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `malformed-tree-entry`  | 145–148 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `missing-blob`          | 149–152 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `invalid-meta-encoding` | 153–156 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `invalid-origin-meta`   | 157–160 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `unsupported-artifact`  | 161–164 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+
+##### `decompose-v3-remedy-definitions.ts` — `V3_OPERATION_RETRY_REMEDIES`
+
+| Key                                    | Range   | Disposition | Citation                                              |
+| -------------------------------------- | ------- | ----------- | ----------------------------------------------------- |
+| `base-moved`                           | 168–171 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `partial-projection-dirty`             | 172–175 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `branch-exists-unregistered`           | 176–179 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `registered-at-wrong-path`             | 180–183 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `occupied-path`                        | 184–187 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `duplicate-registration`               | 188–191 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `candidate-head-mismatch`              | 192–195 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `marker-mismatch`                      | 196–199 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `concurrent-creation`                  | 200–203 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `recovery-required`                    | 204–207 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `occupation-failed`                    | 208–211 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `repository-plan-drift`                | 212–215 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `partial-projection-drift`             | 216–219 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `result-locus-unavailable`             | 220–223 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `post-occupation-revalidation-failed`  | 224–227 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `partial-recovery-unavailable`         | 228–231 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `partial-preimage-capture-failed`      | 232–235 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `partial-preimage-set-mismatch`        | 236–239 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `post-stage-revalidation-failed`       | 240–243 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `partial-restoration-failed`           | 244–247 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `transition-record-projection-invalid` | 248–251 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `transition-record-origin-occupied`    | 252–255 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `transition-record-write-failed`       | 256–259 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `transition-record-rollback-failed`    | 260–263 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `path-conflict`                        | 264–267 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `missing-final-blob`                   | 268–271 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `final-blob-mismatch`                  | 272–275 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `invalid-member-projection`            | 276–279 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `observe-failed`                       | 280–283 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `blob-read-failed`                     | 284–287 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `apply-failed`                         | 288–291 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `extraction-facts-missing`             | 292–295 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-ref-moved`                     | 296–299 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `result-ref-moved`                     | 300–303 | carved      | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+
+##### `decompose-v3-finish-remedies.ts` — `V3_FINISH_REMEDIES`
+
+| Key                              | Range   | Disposition      | Citation                                              |
+| -------------------------------- | ------- | ---------------- | ----------------------------------------------------- |
+| `invalid`                        | 6–9     | retained by rule | Spec §1 authored input/content/provenance             |
+| `destination-plan-state`         | 10–13   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `destination-missing`            | 14–17   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `destination-object-kind`        | 18–21   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `destination-mode`               | 22–25   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `destination-bytes`              | 26–29   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `destination-scan`               | 30–33   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `destination-locator`            | 34–37   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `destination-meta`               | 38–41   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `dependency-claim`               | 42–45   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `topology-claim`                 | 46–49   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `roadmap-current-render`         | 50–53   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `destination-plan-empty`         | 54–57   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `origin`                         | 58–61   | retained by rule | Spec §1 authored input/content/provenance             |
+| `base-ref-mismatch`              | 62–65   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-detached`                | 66–69   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-branch`                  | 70–73   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `base-missing`                   | 74–77   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `base-not-descendant`            | 78–81   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `base-ancestry-unavailable`      | 82–85   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-tree-unreadable`         | 86–89   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `result-base-tree-unreadable`    | 90–93   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `base-tree-unreadable`           | 94–97   | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `result-base-roadmap-unreadable` | 98–101  | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `destination-proof-failed`       | 102–105 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-dirt-read`               | 106–109 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-index-dirty`             | 110–113 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-worktree-dirty`          | 114–117 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-untracked`               | 118–121 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `apply-authority`                | 122–125 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-plan-empty`              | 126–129 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-plan-paths`              | 130–133 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-preimage-capture`        | 134–137 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-preimage-set`            | 138–141 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-index-preimage`          | 142–145 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-worktree-preimage`       | 146–149 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-preimage-raced`          | 150–153 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-before-apply`            | 154–157 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-raced`                   | 158–161 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `base-raced`                     | 162–165 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-apply-failed`            | 166–169 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-restoration-failed`      | 170–173 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-final-capture`           | 174–177 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-final-state`             | 178–181 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-inventory`               | 182–185 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-missing`                 | 186–189 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-object`                  | 190–193 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-mode`                    | 194–197 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-bytes`                   | 198–201 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-range`                   | 202–205 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-allocation`              | 206–209 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+| `source-unit`                    | 210–213 | carved           | `R-DCP` (A4); `R-PL`/`R-CR` where topology/occupation |
+
+#### Refusal dispatch symbol ranges
+
+| Symbol                                                           | Range   | Disposition      | Citation and split                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------------------------------------------------------- | ------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `invocationArgv`                                                 | 104-123 | retained by rule | Spec §1 symbol-range rule; dictionary keys above; renders public selected command argv                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `innermostReason / gitPreflightCode / preflightRemedyDefinition` | 125-138 | retained by rule | Spec §1 symbol-range rule; dictionary keys above; reason parsing/table lookup is common public refusal adapter; table entries retain individual fate                                                                                                                                                                                                                                                                                                                                                |
+| `advancementNeedsCandidateCleanup`                               | 140-152 | carved           | `R-DCP`/`R-CR` (A4);                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `V3_DIRECT_MAPPED_REASONS / isV3DecomposeMappedReason`           | 154-180 | retained by rule | Spec §1 symbol-range rule; dictionary keys above; Surviving authoring-shape, unexpected-error, source-scan, scaffold-source-invalid-encoding, scaffold-title-missing, target-locator-unresolved; carved scaffold-source-meta-incomplete, scaffold-source-missing, existing-home-unresolvable, target-artifact-absent, uncovered-retirement-content, source-unpublished. Dictionary lookups follow per-key entries; advancementNeedsCandidateCleanup and advancement/operation registry arms carved. |
+| `recoveryRemedy`                                                 | 717-740 | carved           | `R-DCP`/`R-CR` (A4); full-candidate teardown branch and partial-restoration affected/restored-path cleanup both physical recovery                                                                                                                                                                                                                                                                                                                                                                   |
+| `advancementCleanupRemedy`                                       | 742-764 | carved           | `R-DCP`/`R-CR` (A4); advance-base cleanup predicate, candidate-restore-failed invariant, dependency-recipient-drift preflight/recreate, deterministic branch teardown                                                                                                                                                                                                                                                                                                                               |
+| `sourceRouteRemedy`                                              | 766-792 | retained by rule | Spec §1 symbol-range rule; dictionary keys above; 770-779 source-unpublished Git push refs/heads carved; 780-791 authoring-shape command-mode correction surviving                                                                                                                                                                                                                                                                                                                                  |
+| `scaffoldRemedy`                                                 | 794-843 | retained by rule | Spec §1 symbol-range rule; dictionary keys above; scaffold-source-meta-incomplete 800-807, scaffold-source-missing 808-815, existing-home-unresolvable 832-839 carved; scaffold-source-invalid-encoding 816-823 and scaffold-title-missing 824-831 surviving content grammar. Default null 840-842 pure composition.                                                                                                                                                                                |
+| `targetAndContentRemedy`                                         | 845-885 | retained by rule | Spec §1 symbol-range rule; dictionary keys above; target-artifact-absent 851-856 carved projected-tree existence; target-locator-unresolved 857-861 surviving locator resolution; unexpected-error 863-869 surviving public failure; source-scan 870-877 surviving content decoding; uncovered-retirement-content 878-885 carved physical retirement conservation/deletion.                                                                                                                         |
+| `registeredRemedy`                                               | 887-932 | retained by rule | Spec §1 symbol-range rule; dictionary keys above; advancement dispatch 888-900 carved; operation dispatch 901-913 carved; repository dispatch 914-925 follows exact key records; finish dispatch 926-933 follows exact key records; unregistered-code throw surviving registry-totality contract.                                                                                                                                                                                                   |
+| `v3DecomposeRemedy`                                              | 935-958 | retained by rule | Spec §1 symbol-range rule; dictionary keys above; reason parsing and public composition surviving; recovery call 937-938 and cleanup call 939-940 carved; preflight lookup/render 941-949 follows exact key records; source/scaffold/target routing 950-955 follows direct splits above; final registered dispatch 956 follows exact key records.                                                                                                                                                   |
+
+Mixed dispatch rows retain common public composition; every carved arm and surviving arm is named above.
+This reconciles actual owners and introduces no production changes or additional supporting-schema mirror capture.
+
+#### Supplemental test-support dispositions
+
+| Surface                                                                                                                  | Destination                          | Disposition | Citation                                | Importers | Evidence                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------ | ----------- | --------------------------------------- | --------: | -------------------------------------------------------------------------------------------------- |
+| Additional modeled config/object/member/worktree Git failures                                                            | shared typed fixture; config scripts | migrated    | Spec §9; S2                             |         — | exit1 missing config; fatal128 process failures; result/error identity preserved                   |
+| Bounded coordinate/diff/fetch/remote/orphan/audit scripts and three setup sequences                                      | shared scripted fake                 | migrated    | Spec §9; S3/S7                          |         — | byte payloads, guards, AbortSignal, order, observation counters and carved archive arms preserved  |
+| 26 public materializable/refusal/finish/cleanup verdicts                                                                 | shared schema assertions             | migrated    | Spec §1 pure output; §9; S4             |         — | unchanged schema/input/verdict triples                                                             |
+| 20 nested delivery states, base merge input, two complete audit entries                                                  | owning schema parse                  | migrated    | Spec §9; S4                             |         — | outer wrapper metadata/absence preserved; full owning values parsed                                |
+| Four semantic meta helpers: remote boundary, concurrent seed, status envelope and rename topology                        | meta fixture builder                 | migrated    | Spec §9; S5                             |         — | supplied semantic fields preserved; carved Candidate/acquisition cases keep original status helper |
+| `unit/errand/promote.test.ts`, handoff restate suite, lifecycle index interruptions, session-init user-reference fixture | exact base representations           | carved      | `R-LW`/`R-CR`/`R-NP`; `R-CONT` (A4); S1 |         — | no forcing producer/signature change; surviving fixture consumers separate                         |
 
 #### Shipped-content register
 
@@ -1948,6 +2272,9 @@ that condition has not been met, so the pass has not launched.
 
 ## Terminal verification evidence
 
+Historical witness series at the subject below. Later corrective responses and A3/A4 govern the current inputs
+and evidence timing; these older measurements and open-gap descriptions are not current clearance.
+
 The complete flat-criteria walk uses diff base `2603c21084a693da942dc2949a6806fdc7c4aa2d`, HEAD
 `68f0285e6d4d144a2c3f7a8fe9ac44199f0790af`, and the eighteen pending verification files. The package inputs
 for the final measurement series are bound by
@@ -2132,3 +2459,82 @@ the concrete corrective boundaries; recover's history fixture already equals bas
 before corrective execution. Propagation: §1 and final relationship fold into this capture; 7.5 points forward with
 its original Goal/Outcome preserved; 8.1 gains the appended A4 criterion. A1/A2 and unrelated register rows are
 unaffected. Final criterion1 will carry the explicit provenance deviation; criterion2 must pass the adopted carve.
+
+## Supplemental criteria response — S1–S7
+
+The Owner approved S1–S6 plus A3/A4, then separately approved the three setup-seam conversions in S7. F1–F7
+committed at `fcfbb976b`; A3 and A4 captured before corrections at `3c6eb59a2` and `d75236bfe`. These are continued
+source classifications and approved responses to Pass 1, not another adversarial pass or standard code review.
+
+The corrective delta changes 29 test/helper files. Four carved boundaries are restored: Errand promotion and
+handoff restatement equal base; lifecycle index interruptions keep their original plain errors; the session-init
+user-reference authority case uses the original literal constructor while four surviving consumers use the builder.
+The remote-ref reader and recover-envelope history fixtures remain exact base. Notes name both adopted register
+rows, the mixed owning-module ranges, 229 remedy keys and 11 dispatch splits. No production behavior changes.
+
+Surviving tests use seven typed Git process-failure conversions, thirteen callable-script conversions and three
+finite setup-sequence conversions, 26 unchanged schema-verdict triples, 23 complete owning-schema parses, and four
+semantic meta helpers. Archive acquisition, notes-specific save/push gating, deliberate offline unavailability,
+invalid/partial/schema-parser specimens and pre-existing typed setup errors retain their named local boundaries.
+The observation witness checks 1,909 expressions: only the authorized schema-verdict and base-merge-input parser
+mechanics differ; existing result, failure, guard, sequencing and transport observations are preserved.
+
+The complete local gate commands pass: 617 focused tests in 24 files; routine lane 907 passing files/13,140 tests
+with one file/two tests skipped; both type checks; targeted/full TypeScript, Markdown and shell lint; ARC contract
+checks; and the ESM/declaration build. Five affected E2E suites pass 63 tests in a serial run. The earlier overlapping
+E2E attempt failed nine times because routine unit-mocks removed `dist/cli.js`; it remains recorded as failed,
+not passing evidence. The serial rerun followed routine completion with no source correction.
+
+Layout reconciliation covers 18,396 hits in 15 classes over 2,223 corpus files, with five empty mismatch sets.
+Removing the three controls exposes exactly 139 hits, with no unexpected or missing hit. Raw source hashes, normalized
+observation expressions, actual gate logs and the collision/serial-run record are under
+`/tmp/arc-wu-verification/supplemental-fixes/`.
+
+The source-classification response is complete. Frozen discoveries remain intact: 1,042 callable rows,
+2,813 original binding edges, 1,388 setup edges, 423 helper imports and 126 shared-fake calls. Current source closure
+records 2,808 bindings, 1,376 setups, 447 resolved helper edges and 155 shared-fake calls, with no unresolved origin or
+consumer classification. Each old residual maps to an approved replacement origin or an explicit mixed-subject
+installation; all 29 current source hashes match the tested inputs. Counts control discovery coverage, while the
+named producer/consumer source proofs establish semantic fate. The root verified the exact 20 original corrective
+origins and three S7 sites; no additional material finding remains. Original duplicate-body pointers remain historical;
+the final exact replacement origins disambiguate current loci. The final manifest and root acceptance are at
+`classification-git/final-source-proof-manifest.json` and
+`supplemental-fixes/root-source-classification-acceptance.json` beneath the scratch evidence root.
+
+The current primary walk covers all 35 immutable criteria (the original 32 plus A3/A4's three appended criteria):
+33 met and two superseded under A3. Original 31/32 remain verbatim; public obligations have moved to their producing
+boundary. Task 8.1 and the task-list criterion markings await the combined fresh-context result. This primary walk
+does not establish adversarial convergence or standard-review coverage. Pass 1 of 2 remains non-converged, with its
+approved source response applied and verified. Pass 2 is separately authorized and remains unlaunched/unconsumed
+until this corrective commit's concrete gate is released.
+
+Required public E2E, Linux portability, every required CI check and all six `ci-job` cost reports are unavailable
+here and mandatory against the exact authorized published head before integration authorization/merge, owned by
+andrew under A3. Publication of that authorized head is the forcing event. Local `tier-isolated` results do not
+establish `ci-job` elapsed cost; reports with missing, failed, incompatible or incomplete evidence cannot pass.
+
+### Corrected-input test-cost comparison (A3)
+
+Twelve passing serial samples bind all 2,188 tracked package files at
+`sha256:ed709c7bf74203e8fbbf8a9eef146c3c928530965cd191d33649c1af0397b216`.
+The source package remained unchanged throughout measurement. Each comparison uses the original three-sample
+baseline and three final samples with matching project set, `tier-isolated` condition and 12-worker sizing. Original
+baseline files and all earlier measurements are preserved; baseline chronology and raw historical limits remain
+as recorded above. The final runs are `cli-substrate-supplemental-{set}-{1,2,3}.json`, with
+`cli-substrate-supplemental-comparison-{set}.json`, under the package's ignored `.test-cost-runs/` directory.
+
+| Project set   | Baseline median (ms) | Final median (ms) |  Delta | Files / tests | Wall-time verdict     |
+| ------------- | -------------------: | ----------------: | -----: | ------------- | --------------------- |
+| `unit`        |               12,837 |            12,770 | -0.52% | 735 / 11334   | within 10% noise band |
+| `integration` |               87,879 |            84,629 | -3.70% | 173 / 1806    | within 10% noise band |
+| `lane`        |               95,021 |            89,086 | -6.25% | 908 / 13140   | within 10% noise band |
+| `e2e`         |              234,140 |           235,764 | +0.69% | 62 / 619      | within 10% noise band |
+
+Summed-file-time comparisons are retained separately from wall time. Values inside the configured noise band have
+unestablished improvement/regression; a lower median is not a causal performance claim. The six CI-job rows keep
+their own mode and worker-sizing axes and remain due at public CI. This closes Task 7.R3.a's local measurement
+obligation and records 7.R3.b's public continuation; it does not authorize publication or integration.
+
+A server restart interrupted the last E2E sample before it wrote a result. Its log is retained without an inferred
+test verdict; only that sample was rerun. The other eleven completed samples and all package hashes remained intact.
+`supplemental-fixes/cost-restart-record.json` records the interruption and replacement log separately.

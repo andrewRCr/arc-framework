@@ -751,29 +751,32 @@ assertion, or a value typed by a cast to a registered schema's output.
 - _Outcome:_ Restored Phase 7-only edits in 42 carved test files and the carved ranges of two mixed suites. The
   surviving `view --path` cases merged from `main` remain intact.
 
-### `[ ]` **7.R3 Bind verification evidence to its producing boundary**
+### `[x]` **7.R3 Bind verification evidence to its producing boundary**
 
 - _Goal:_ Under A3, local gates and final affected test-cost comparisons bind the corrected verification subject,
   while required public CI and all six `ci-job` reports have an explicit owner and exact publication trigger before
   integration authorization; original criteria remain unchanged.
 
-    - `[ ]` **7.R3.a Record final local test-cost comparisons against the corrected inputs**
-        - Retain original baselines; measure every affected row after the final test conversion with matching axes.
+    - `[x]` **7.R3.a Record final local test-cost comparisons against the corrected inputs**
+        - Retained all original baselines and twelve corrected-input samples with matching axes; notes
+          § Corrected-input test-cost comparison records the final local rows.
 
-    - `[ ]` **7.R3.b Record local gates and the required public evidence continuation**
-        - Close local checks at the corrected subject; name andrew, the exact authorized publication head, and all
-          required CI and budget reports. Leave unavailable public evidence pending.
+    - `[x]` **7.R3.b Record local gates and the required public evidence continuation**
+        - Bound the complete local gates to corrected package inputs. Under A3, andrew owns required public CI
+          and six cost reports at the exact authorized published head before integration authorization.
 
-### `[ ]` **7.R4 Reconcile the two accepted storage-register corrections**
+### `[x]` **7.R4 Reconcile the two accepted storage-register corrections**
 
 - _Goal:_ Under A4, the decomposition and continuity carve traces to the two accepted `891c911c` rows;
   mixed-module survivors are explicit, and carved tests retain their original representations beyond forced edges.
 
-    - `[ ]` **7.R4.a Record the exact row provenance and symbol splits**
-        - Name both accepted rows, retain the historical cutoff for all others, and record S6's owning-symbol splits.
+    - `[x]` **7.R4.a Record the exact row provenance and symbol splits**
+        - Bound only the two accepted rows to `891c911c`; all other citations keep `840d348c`. Notes § A4 and
+          the 229-key/11-dispatch tables preserve the exact owning-symbol splits.
 
-    - `[ ]` **7.R4.b Restore the carved handoff test representation and verify the boundary**
-        - Restore its exact base representation and verify affected tests, types, and the complete carve diff.
+    - `[x]` **7.R4.b Restore the carved handoff test representation and verify the boundary**
+        - Restored handoff restatement exactly to base and closed the affected boundary against the full carve
+          classification. The generic command-binding and public-contract ranges remain surviving.
 
 ### `[x]` **7.5 Sweep surviving tests for convertible residue** — validate exit criterion at segment scope
 

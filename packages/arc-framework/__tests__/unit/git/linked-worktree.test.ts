@@ -1,5 +1,6 @@
 /** Target-agnostic linked-worktree creation and setup. */
 
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 import { access, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -130,7 +131,9 @@ describe("createLinkedWorktree", () => {
   });
 
   it("contains a worktree-add failure in a typed error", async () => {
-    const failure = new Error("git rejected add");
+    const failure = makeGitProcessError({ command: "git",
+      args: ["worktree", "add", "-b", "feat/target", "/work/target", "main"],
+      exitCode: 128, stderr: "git rejected add" });
     await expect(createLinkedWorktree({
       exec: async () => { throw failure; },
       pathExists: async () => false,

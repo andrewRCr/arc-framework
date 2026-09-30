@@ -541,9 +541,16 @@ describe("member-six refresh adoption lifecycle", () => {
         write: (text) => { output = text; },
         setExitCode: () => { throw new Error("successful recovery must not set a failure exit code"); },
       });
-      const result = JSON.parse(output) as {
+      const rawResult = JSON.parse(output) as {
         readonly status: string;
-        readonly state?: { readonly revision: number; readonly value: DeliveryStateV1 };
+        readonly state?: { readonly revision: number; readonly value: unknown };
+      };
+      const { state: rawResultState, ...rawResultFields } = rawResult;
+      const result = {
+        ...rawResultFields,
+        ...(rawResultState === undefined ? {} : { state: {
+          ...rawResultState, value: DeliveryStateV1Schema.parse(rawResultState.value),
+        } }),
       };
       expect(result.status).toBe("applied");
       expect(result.state).toEqual(records.current());

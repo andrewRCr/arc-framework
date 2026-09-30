@@ -2,6 +2,7 @@
  * End-to-end composition of a work-unit rename with marker and Git topology authority.
  */
 
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -26,13 +27,7 @@ import {
 const IDENTITY = "andrew";
 
 function metaBody(slug: string): string {
-  return `# Metadata: ${slug}\n\n`
-    + `| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n`
-    + `|-----------|-----------|------------|-----------|--------------|\n`
-    + `| \`Active\` | \`${IDENTITY}\` | \`feat/${slug}\` | \`Light\` | \`P2\` |\n\n`
-    + `- **Cohort:** [none]\n- **Depends On:** [none]\n\n`
-    + `- **Last Completed:** [none]\n- **Next Task:** [none]\n- **Blockers:** [none]\n\n`
-    + `- **Current Workflow:** [none]\n- **Next Action:** [none]\n\n---\n`;
+  return makeMetaFixture(slug, { owner: IDENTITY, branch: `feat/${slug}`, workClass: "Light", priority: "P2" });
 }
 
 describe("rename composition with marker and topology authority", () => {

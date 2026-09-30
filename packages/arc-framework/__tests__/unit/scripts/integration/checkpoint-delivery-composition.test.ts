@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { deliveryThreeMemberStackPlanFixture } from "../../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../../fixtures/delivery-state.js";
 import { canonicalDigest, CanonicalDigestSchema } from "../../../../src/lib/kernel/index.js";
-import { makeGitProcessError, scriptGitExec } from "../../../helpers/git-exec-fake.js";
+import { makeGitProcessError, scriptGitExec, scriptRawGitExec } from "../../../helpers/git-exec-fake.js";
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
@@ -347,13 +347,14 @@ describe("delivery checkpoint composition", () => {
       convergenceScope: null,
     });
     const { exec, calls } = mergeBaseAndDiff(mergeBase, `${sharedPath}\0`);
-    const rawExec = vi.fn(async (args: string[]) => ({
-      stdout: new TextEncoder().encode(
-        args[4] === firstCoordinate.base && args[5] === highestCoordinate.head
-          ? `${sharedPath}\0`
-          : "",
-      ),
-    }));
+    const rawExec = vi.fn(scriptRawGitExec([{
+      match: { prefix: [] },
+      responses: [({ args }) => ({
+        stdout: new TextEncoder().encode(
+          args[4] === firstCoordinate.base && args[5] === highestCoordinate.head ? `${sharedPath}\0` : "",
+        ),
+      })],
+    }]).exec);
     const dependencies = createIntegrationCheckpointDependencies({
       cwd: "/repository",
       exec,
@@ -440,11 +441,14 @@ describe("delivery checkpoint composition", () => {
       [`${firstCoordinate.base}..${highestCoordinate.head}`, [predecessorPath]],
       [`${firstCoordinate.base}..${baselineRevision}`, [predecessorPath, resolvedPath]],
     ]);
-    const rawExec = vi.fn(async (args: string[]) => {
-      const paths = diffs.get(`${args[4]}..${args[5]}`);
-      if (paths === undefined) throw new Error(`unexpected diff span: ${args.join(" ")}`);
-      return { stdout: new TextEncoder().encode(paths.map((path) => `${path}\0`).join("")) };
-    });
+    const rawExec = vi.fn(scriptRawGitExec([{
+      match: { prefix: [] },
+      responses: [({ args }) => {
+        const paths = diffs.get(`${args[4]}..${args[5]}`);
+        if (paths === undefined) throw new Error(`unexpected diff span: ${args.join(" ")}`);
+        return { stdout: new TextEncoder().encode(paths.map((path) => `${path}\0`).join("")) };
+      }],
+    }]).exec);
     const dependencies = createIntegrationCheckpointDependencies({
       cwd: "/repository",
       exec,
@@ -851,13 +855,15 @@ describe("delivery checkpoint composition", () => {
       });
       const { exec, calls } = mergeBaseAndDiff(mergeBase, `${sharedPath}\0`);
       let diffReads = 0;
-      const rawExec = vi.fn(async (args) => {
-        diffReads += 1;
-        if (diffReads === failureIndex) {
-          throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "private git diagnostic" });
-        }
-        return { stdout: new Uint8Array() };
-      });
+      const rawExec = vi.fn(scriptRawGitExec([{
+        match: { prefix: [] },
+        responses: [() => {
+          diffReads += 1;
+          return diffReads === failureIndex
+            ? { failure: { exitCode: 128, stderr: "private git diagnostic" } }
+            : { stdout: new Uint8Array() };
+        }],
+      }]).exec);
       const dependencies = createIntegrationCheckpointDependencies({ cwd: "/repository", exec, rawExec });
 
       await expect(dependencies.classifyDeliveryDrift(plan.workUnitId, {
@@ -1211,17 +1217,17 @@ describe("delivery checkpoint composition", () => {
       status: "ready",
       review: input.review,
     }));
-    const exec = vi.fn(async (_command: string, args: readonly string[]) => {
-      if (args[0] === "merge-base") return { stdout: `${baseHead}\n`, stderr: "" };
-      if (args[0] === "rev-list") return { stdout: `${args[1]!.split("..").at(-1)!}\n`, stderr: "" };
-      if (args[0] === "rev-parse" && args[1] === "--verify") {
-        return { stdout: `${args[2]!.replace(/\^\{commit\}$/u, "")}\n`, stderr: "" };
-      }
-      if (args[0] === "rev-parse" && args[1]?.endsWith("^{tree}")) {
-        return { stdout: `${oid("f")}\n`, stderr: "" };
-      }
-      throw new Error(`unexpected git args: ${args.join(" ")}`);
-    });
+    const exec = vi.fn(scriptGitExec([
+      { match: { prefix: ["merge-base"] }, responses: [{ stdout: `${baseHead}\n`, stderr: "" }] },
+      { match: { prefix: ["rev-list"] }, responses: [({ args }) => ({
+        stdout: `${args[1]!.split("..").at(-1)!}\n`, stderr: "",
+      })] },
+      { match: { prefix: ["rev-parse", "--verify"] }, responses: [({ args }) => ({
+        stdout: `${args[2]!.replace(/\^\{commit\}$/u, "")}\n`, stderr: "",
+      })] },
+      { match: { predicate: (args) => args[0] === "rev-parse" && args[1]?.endsWith("^{tree}") === true },
+        responses: [{ stdout: `${oid("f")}\n`, stderr: "" }] },
+    ]).exec);
 
     const dependencies = createIntegrationCheckpointDependencies({ cwd: "/repository", exec });
     return { plan, state, currentness, baseHead, dependencies };

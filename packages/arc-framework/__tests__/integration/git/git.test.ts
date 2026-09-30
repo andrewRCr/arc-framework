@@ -13,7 +13,7 @@ import {
   gitConfigUnset,
   gitMergeFile,
 } from "../../../src/lib/git/exec.js";
-import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
+import { makeGitProcessError, scriptGitExec } from "../../helpers/git-exec-fake.js";
 
 describe("captureGitIndexState", () => {
   const roots: string[] = [];
@@ -217,10 +217,10 @@ describe("gitConfigSet", () => {
 
 describe("gitConfigUnset", () => {
   it("unsets a config value via --unset when key is present", async () => {
-    const mockExec = vi
-      .fn()
-      .mockResolvedValueOnce({ stdout: "true\n" }) // --get returns existing value
-      .mockResolvedValueOnce({ stdout: "" }); // --unset succeeds
+    const mockExec = vi.fn(scriptGitExec([
+      { match: ["config", "--get", "arc.releaseOptedIn"], responses: [{ stdout: "true\n" }] },
+      { match: ["config", "--unset", "arc.releaseOptedIn"], responses: [{ stdout: "" }] },
+    ]).exec);
     await gitConfigUnset(mockExec, "arc.releaseOptedIn");
     expect(mockExec).toHaveBeenCalledWith("git", [
       "config",

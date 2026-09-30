@@ -1,5 +1,6 @@
 /** Unit coverage for hosted-review reservation discharge. */
 
+import { makeGitProcessError } from "../../../../helpers/git-exec-fake.js";
 import { describe, expect, it, vi } from "vitest";
 
 import { createHostedTerminalAttemptFixture } from "../../../../fixtures/hosted-review.js";
@@ -930,8 +931,8 @@ describe("hosted reservation discharge", () => {
   });
 
   it("keeps an unreadable delivery-member span undischarged", async () => {
-    const exec: GitExec = async () => {
-      throw new Error("unknown member commit");
+    const exec: GitExec = async (command, args) => {
+      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "unknown member commit" });
     };
     const reader = createHostedReservationDischargeReader({
       cwd: "/tmp/repository",

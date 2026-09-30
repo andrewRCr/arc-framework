@@ -293,6 +293,34 @@ async function writeStatusFixture(
   }));
 }
 
+async function writeUserReferenceStatusFixture(
+  arcRoot: string,
+  category: string,
+  stem: string,
+  fields: { taskList?: string; nextAction: string; candidateId?: string },
+): Promise<void> {
+  await git(arcRoot, ["add", "-A"]);
+  await git(arcRoot, ["commit", "--allow-empty", "-m", "initialize fixture"]);
+  await git(arcRoot, ["switch", "-c", `${category}/${stem}`]);
+  const dir = join(arcRoot, ".arc", "active");
+  await mkdir(dir, { recursive: true });
+  const lines: string[] = [
+    `# Metadata: ${stem}`,
+    "",
+    "- **State:** Active",
+    "- **Owner:** test-user",
+    `- **Branch:** ${category}/${stem}`,
+  ];
+  if (fields.taskList !== undefined) {
+    lines.push(`- **Task List:** ${fields.taskList}`);
+  }
+  lines.push(`- **Candidate:** ${fields.candidateId ?? "[none]"}`);
+  lines.push("- **Current Workflow:** [none]");
+  lines.push("- **Last Completed:** [none]");
+  lines.push(`- **Next Action:** ${fields.nextAction}`);
+  await writeFile(join(dir, `meta-${stem}.md`), lines.join("\n"));
+}
+
 function parseJsonEnvelope(stdout: string): SessionInitEnvelope {
   // The CLI may emit a trailing newline; JSON.parse tolerates it after trim.
   return JSON.parse(stdout.trim()) as SessionInitEnvelope;
@@ -1311,7 +1339,7 @@ describe("session-init E2E — request-scoped remote acquisition", () => {
       await git(repo, ["push", "origin", "HEAD:feat/remote-generation"]);
       await git(repo, ["push", "origin", "HEAD:feat/remote-generation-alias"]);
       await git(repo, ["switch", "main"]);
-      await writeStatusFixture(repo, "feat", "remote-boundary", { nextAction: "Continue execution" });
+      await writeUserReferenceStatusFixture(repo, "feat", "remote-boundary", { nextAction: "Continue execution" });
 
       await expect(execFileAsync("git", ["fetch", "origin", "main"], {
         cwd: repo,
