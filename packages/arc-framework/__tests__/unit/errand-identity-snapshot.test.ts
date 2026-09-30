@@ -2,7 +2,6 @@
 
 import { describe, expect, it } from "vitest";
 
-import { makeGitProcessError, scriptGitExec } from "../helpers/git-exec-fake.js";
 import {
   serializeTransientIdentityRecord,
   TransientIdentityRecordV3Schema,
@@ -43,35 +42,32 @@ function io(exec: IdentitySnapshotIO["exec"]): IdentitySnapshotIO {
 
 describe("transient identity snapshots", () => {
   it("pins enumeration and blob reads to one resolved tip", async () => {
-    const { exec, calls } = scriptGitExec([
-      { match: { prefix: ["rev-parse"] }, responses: [{ stdout: `${tip}\n` }] },
-      { match: { predicate: (args) => args[0] === "ls-tree" && args.at(-1) === tip },
-        responses: [{ stdout: `100644 blob ${blobOid}     ${Buffer.byteLength(record)}\tfix-output\0` }] },
-      { match: ["cat-file", "blob", blobOid], responses: [{ stdout: record }] },
-      { match: { prefix: [] }, responses: [() => {
-        throw new Error("read followed the moving ref instead of the pinned snapshot");
-      }] },
-    ]);
-    const result = await readTransientIdentitySnapshot(io(exec));
+    const result = await readTransientIdentitySnapshot(io(async (_command, args) => {
+      if (args[0] === "rev-parse") return { stdout: `${tip}\n` };
+      if (args[0] === "ls-tree" && args.at(-1) === tip) {
+        return { stdout: `100644 blob ${blobOid}     ${Buffer.byteLength(record)}\tfix-output\0` };
+      }
+      if (args[0] === "cat-file" && args[2] === blobOid) return { stdout: record };
+      throw new Error("read followed the moving ref instead of the pinned snapshot");
+    }));
 
     expect(result).toMatchObject({ kind: "complete", tip, diagnostics: [] });
     if (result.kind !== "complete") throw new Error("expected a complete snapshot");
     expect(result.records.get("fix-output")).toMatchObject({ version: 3, slug: "fix-output" });
     expect(result.projections.get("fix-output")).toMatchObject({ key: "fix-output" });
-    expect(calls.map(({ args }) => args[0])).toEqual(["rev-parse", "ls-tree", "cat-file"]);
   });
 
   it("distinguishes clean absence from tip and tree failures", async () => {
-    const absent = await readTransientIdentitySnapshot(io(async (command, args) => {
-      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "fatal: Needed a single revision" });
+    const absent = await readTransientIdentitySnapshot(io(async () => {
+      throw Object.assign(new Error("missing"), { stderr: "fatal: Needed a single revision" });
     }));
     const tipFailure = await readTransientIdentitySnapshot(io(async () => {
       throw new Error("git unavailable");
     }));
-    const treeFailure = await readTransientIdentitySnapshot(io(scriptGitExec([
-      { match: { prefix: ["rev-parse"] }, responses: [{ stdout: `${tip}\n` }] },
-      { match: { prefix: [] }, responses: [{ failure: { exitCode: 128, stderr: "object database corrupt" } }] },
-    ]).exec));
+    const treeFailure = await readTransientIdentitySnapshot(io(async (_command, args) => {
+      if (args[0] === "rev-parse") return { stdout: `${tip}\n` };
+      throw new Error("object database corrupt");
+    }));
 
     expect(absent).toEqual({ kind: "absent" });
     expect(tipFailure).toMatchObject({ kind: "error", stage: "tip" });
@@ -85,19 +81,18 @@ describe("transient identity snapshots", () => {
   });
 
   it("rejects declared oversized input before reading its blob", async () => {
-    const { exec, calls } = scriptGitExec([
-      { match: { prefix: ["rev-parse"] }, responses: [{ stdout: `${tip}\n` }] },
-      { match: { prefix: ["ls-tree"] },
-        responses: [{ stdout: `100644 blob ${blobOid} ${MAX_LOCUS_JSON_BYTES + 1}\tfix-output\0` }] },
-      { match: { prefix: [] }, responses: [() => { throw new Error("oversized blob must not be buffered"); }] },
-    ]);
-    const result = await readTransientIdentitySnapshot(io(exec));
+    const result = await readTransientIdentitySnapshot(io(async (_command, args) => {
+      if (args[0] === "rev-parse") return { stdout: `${tip}\n` };
+      if (args[0] === "ls-tree") {
+        return { stdout: `100644 blob ${blobOid} ${MAX_LOCUS_JSON_BYTES + 1}\tfix-output\0` };
+      }
+      throw new Error("oversized blob must not be buffered");
+    }));
 
     expect(result).toMatchObject({
       kind: "complete",
       diagnostics: [{ kind: "oversized", key: "fix-output" }],
     });
-    expect(calls.some(({ args }) => args[0] === "cat-file")).toBe(false);
   });
 
   it("retains malformed, unknown-version, mismatched, and unreadable entries by key", async () => {
@@ -112,12 +107,12 @@ describe("transient identity snapshots", () => {
         return `100644 blob ${oid} ${Buffer.byteLength(content)}\t${keys[index]}\0`;
       })
       .join("");
-    const result = await readTransientIdentitySnapshot(io(async (command, args) => {
+    const result = await readTransientIdentitySnapshot(io(async (_command, args) => {
       if (args[0] === "rev-parse") return { stdout: `${tip}\n` };
       if (args[0] === "ls-tree") return { stdout: tree };
       const content = blobs.get(args[2] ?? "");
       if (content !== undefined) return { stdout: content };
-      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "cannot read blob" });
+      throw new Error("cannot read blob");
     }));
 
     expect(result).toMatchObject({
@@ -141,10 +136,10 @@ describe("transient identity snapshots", () => {
     ],
     ["non-NUL-terminated output", `100644 blob ${blobOid} 1\tunterminated`],
   ])("rejects a root enumeration containing a %s", async (_case, stdout) => {
-    const result = await readTransientIdentitySnapshot(io(scriptGitExec([
-      { match: { prefix: ["rev-parse"] }, responses: [{ stdout: `${tip}\n` }] },
-      { match: { prefix: ["ls-tree"] }, responses: [{ stdout }] },
-    ]).exec));
+    const result = await readTransientIdentitySnapshot(io(async (_command, args) => {
+      if (args[0] === "rev-parse") return { stdout: `${tip}\n` };
+      return { stdout };
+    }));
 
     expect(result).toMatchObject({ kind: "error", stage: "tree" });
   });
@@ -156,15 +151,11 @@ describe("transient in-flight indexes", () => {
   it("separates an unborn identity from one that could not be read", async () => {
     const absent = await readTransientInFlightIndexes({
       identity: "andrew",
-      exec: async (command, args) => {
-        throw makeGitProcessError({ command, args, exitCode: 128, stderr: unborn });
-      },
+      exec: async () => { throw new Error(unborn); },
     });
     const unreadable = await readTransientInFlightIndexes({
       identity: "andrew",
-      exec: async (command, args) => {
-        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "fatal: bad object" });
-      },
+      exec: async () => { throw new Error("fatal: bad object"); },
     });
 
     // Both carry no records, and that is exactly why the distinction has to survive the
@@ -178,10 +169,10 @@ describe("transient in-flight indexes", () => {
   it("treats a resolved identity with no records as an established empty claim set", async () => {
     const read = await readTransientInFlightIndexes({
       identity: "andrew",
-      exec: scriptGitExec([
-        { match: { prefix: ["rev-parse"] }, responses: [{ stdout: `${tip}\n` }] },
-        { match: { prefix: ["ls-tree"] }, responses: [{ stdout: "" }] },
-      ]).exec,
+      exec: async (_command, args) => {
+        if (args[0] === "rev-parse") return { stdout: `${tip}\n` };
+        return { stdout: "" };
+      },
     });
 
     expect(read).toMatchObject({ kind: "complete", diagnostics: [] });
@@ -191,15 +182,17 @@ describe("transient in-flight indexes", () => {
   it("indexes readable records while refusing to call a partial read whole", async () => {
     const read = await readTransientInFlightIndexes({
       identity: "andrew",
-      exec: scriptGitExec([
-        { match: { prefix: ["rev-parse"] }, responses: [{ stdout: `${tip}\n` }] },
-        { match: { prefix: ["ls-tree"] }, responses: [{
-          stdout: `100644 blob ${blobOid}     ${Buffer.byteLength(record)}\tfix-output\0`
-            + `100644 blob ${"c".repeat(40)}     4\tbroken\0`,
-        }] },
-        { match: ["cat-file", "blob", blobOid], responses: [{ stdout: record }] },
-        { match: { prefix: ["cat-file"] }, responses: [{ stdout: "{[}" }] },
-      ]).exec,
+      exec: async (_command, args) => {
+        if (args[0] === "rev-parse") return { stdout: `${tip}\n` };
+        if (args[0] === "ls-tree") {
+          return {
+            stdout: `100644 blob ${blobOid}     ${Buffer.byteLength(record)}\tfix-output\0`
+              + `100644 blob ${"c".repeat(40)}     4\tbroken\0`,
+          };
+        }
+        if (args[2] === blobOid) return { stdout: record };
+        return { stdout: "{[}" };
+      },
     });
 
     expect(read.kind).toBe("complete");

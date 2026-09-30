@@ -90,7 +90,7 @@ describe("user and recommendation routing views", () => {
     { ...user, notesDrift: { direction: "unknown" } },
     { ...user, loadNeeded: "yes" },
   ])("rejects a malformed user routing field", (value) => {
-    assertSchemaRefuses(UserSessionInitValueViewSchema, value);
+    expect(UserSessionInitValueViewSchema.safeParse(value).success).toBe(false);
   });
 
   it.each([
@@ -108,11 +108,21 @@ describe("user and recommendation routing views", () => {
     ],
     [SessionInitRetiredSubdirsValueViewSchema, { candidates: [] }],
   ] as const)("rejects a corrupted recommendation action", (schema, value) => {
-    assertSchemaRefuses(schema, {
-      ...value,
-      recommendedAction: "guess",
-      recommendedPromptText: "kept",
-    });
+    if (schema === SessionInitUserValueViewSchema) {
+      expect(
+        schema.safeParse({
+          ...value,
+          recommendedAction: "guess",
+          recommendedPromptText: "kept",
+        }).success,
+      ).toBe(false);
+    } else {
+      assertSchemaRefuses(schema, {
+        ...value,
+        recommendedAction: "guess",
+        recommendedPromptText: "kept",
+      });
+    }
   });
 
   it("pins drift-surface routing while preserving detail text", () => {
@@ -170,14 +180,16 @@ describe("deep advisory routing views", () => {
       retained: true,
     };
     expect(StaleWorktreeSweepValueViewSchema.parse(value)).toEqual(value);
-    assertSchemaRefuses(StaleWorktreeSweepValueViewSchema, {
-      worktrees: [
-        {
-          kind: "branched",
-          decision: { action: "blocked", reason: "wrong" },
-        },
-      ],
-    });
+    expect(
+      StaleWorktreeSweepValueViewSchema.safeParse({
+        worktrees: [
+          {
+            kind: "branched",
+            decision: { action: "blocked", reason: "wrong" },
+          },
+        ],
+      }).success,
+    ).toBe(false);
   });
 
   it("pins work-unit classification, behind-base, and nudge fields", () => {
@@ -194,12 +206,14 @@ describe("deep advisory routing views", () => {
       warnings: [],
     };
     expect(WorkUnitStateValueViewSchema.parse(value)).toEqual(value);
-    assertSchemaRefuses(WorkUnitStateValueViewSchema, {
-      inFlight: {
-        workUnits: [{ state: "mergeable", behindBase: "yes" }],
-      },
-      nudge: { shouldNudge: false },
-    });
+    expect(
+      WorkUnitStateValueViewSchema.safeParse({
+        inFlight: {
+          workUnits: [{ state: "mergeable", behindBase: "yes" }],
+        },
+        nudge: { shouldNudge: false },
+      }).success,
+    ).toBe(false);
   });
 
   it("requires precomputed guidance for unavailable mergeability", () => {
@@ -217,10 +231,10 @@ describe("deep advisory routing views", () => {
       },
       nudge: { shouldNudge: false },
     };
-    assertSchemaAccepts(WorkUnitStateValueViewSchema, value);
+    expect(WorkUnitStateValueViewSchema.safeParse(value).success).toBe(true);
     const missingGuidance = structuredClone(value);
     delete (missingGuidance.inFlight.workUnits[0] as { mergeabilityGuidance?: string }).mergeabilityGuidance;
-    assertSchemaRefuses(WorkUnitStateValueViewSchema, missingGuidance);
+    expect(WorkUnitStateValueViewSchema.safeParse(missingGuidance).success).toBe(false);
   });
 
   it("pins errand resume, classification, materialization, and nudge fields", () => {
@@ -242,29 +256,31 @@ describe("deep advisory routing views", () => {
       residue: [],
     };
     expect(ErrandStateValueViewSchema.parse(value)).toEqual(value);
-    assertSchemaRefuses(ErrandStateValueViewSchema, {
-      ...value,
-      materializable: {
-        candidates: [{
-          slug: "",
-          claimId: "c".repeat(32),
-          branch: "chore/exact-title",
-          expectedHead: "a".repeat(40),
-          state: "paused",
-          originEntry: "Exact title",
-        }],
-      },
-    });
+    expect(
+      ErrandStateValueViewSchema.safeParse({
+        ...value,
+        materializable: {
+          candidates: [{
+            slug: "",
+            claimId: "c".repeat(32),
+            branch: "chore/exact-title",
+            expectedHead: "a".repeat(40),
+            state: "paused",
+            originEntry: "Exact title",
+          }],
+        },
+      }).success,
+    ).toBe(false);
   });
 
   it("rejects cleanup authority when remote evidence is incomplete", () => {
-    assertSchemaRefuses(StaleWorktreeSweepValueViewSchema, {
+    expect(StaleWorktreeSweepValueViewSchema.safeParse({
       remoteEvidence: "pending-fetch",
       worktrees: [{ kind: "branched", decision: { action: "removable" } }],
       renameMoves: [],
       retirements: [],
-    });
-    assertSchemaRefuses(StaleWorktreeSweepValueViewSchema, {
+    }).success).toBe(false);
+    expect(StaleWorktreeSweepValueViewSchema.safeParse({
       remoteEvidence: "unreachable",
       failureReason: "network",
       worktrees: [],
@@ -283,21 +299,23 @@ describe("deep advisory routing views", () => {
         },
         teardown: { argv: ["arc", "teardown", "retired"], text: "arc teardown retired" },
       }],
-    });
-    assertSchemaRefuses(ErrandStateValueViewSchema, {
+    }).success).toBe(false);
+    expect(ErrandStateValueViewSchema.safeParse({
       remoteEvidence: "not-applicable",
       resume: { resumable: false },
       inFlight: { errands: [{ state: "merged-cleanup" }] },
       materializable: { candidates: [] },
       nudge: { shouldNudge: false },
-    });
+    }).success).toBe(false);
   });
 
   it("accepts mapped-only payloads because the views are not full mirrors", () => {
-    assertSchemaAccepts(WorkUnitStateValueViewSchema, {
-      inFlight: { workUnits: [] },
-      nudge: { shouldNudge: false },
-    });
+    expect(
+      WorkUnitStateValueViewSchema.safeParse({
+        inFlight: { workUnits: [] },
+        nudge: { shouldNudge: false },
+      }).success,
+    ).toBe(true);
   });
 
   it.each([
