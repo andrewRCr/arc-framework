@@ -147,7 +147,8 @@ export async function confirmNonDeliveryIncrementalApplicability(input: {
   const selector = {
     schemaVersion: 1 as const,
     repositoryId: currentTarget.repositoryId,
-    repository: input.repository,
+    // Origin preserves the host's owner casing; selectors carry the canonical lowercase form.
+    repository: input.repository.toLowerCase(),
     pullRequest: input.pullRequest,
     lane: "standard" as const,
     sourceId: predecessor.sourceIdentity,

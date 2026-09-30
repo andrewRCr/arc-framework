@@ -327,7 +327,47 @@ describe("local review coverage selection", () => {
     await expect(confirmNonDeliveryIncrementalApplicability({
       ...common, candidate: candidate("covered"), exec: carriedProofExec(false),
     })).resolves.toBe("unavailable");
+    await expect(confirmNonDeliveryIncrementalApplicability({
+      ...common, repository: "Local/Repo-1", candidate: candidate("covered"),
+    })).resolves.toBe("applicable");
   });
+
+  it("proves contribution for a mixed-case origin repository without a Candidate", async () => {
+    const earlierLineage = {
+      kind: "head-bound" as const,
+      vehicleKind: "errand" as const,
+      vehicleIdentity: "repair-review-state",
+      headSha: objectId("a"),
+    };
+    const { targetId: _priorId, ...priorInput } = target(objectId("a"));
+    const { targetId: _currentId, ...currentInput } = target(objectId("b"));
+    void _priorId;
+    void _currentId;
+    const predecessor = {
+      ...completeLocalResult(earlierLineage),
+      target: createReviewTarget({
+        ...priorInput,
+        diffBaseSha: objectId("1"), diffBaseTree: objectId("4"),
+        headSha: objectId("a"), headTree: objectId("5"),
+      }),
+    };
+    const currentTarget = createReviewTarget({
+      ...currentInput,
+      diffBaseSha: objectId("2"), diffBaseTree: objectId("6"),
+      headSha: objectId("b"), headTree: objectId("7"),
+    });
+    await expect(confirmNonDeliveryIncrementalApplicability({
+      predecessor,
+      currentTarget,
+      currentLineage: { ...earlierLineage, headSha: objectId("b") },
+      repository: "Local/Repo-1",
+      pullRequest: 42,
+      candidate: null,
+      exec: carriedProofExec(false),
+      observeTarget: async () => currentTarget,
+    })).resolves.toBe("review-required");
+  });
+
   it("does not equate same Errand lineage with changed-base contribution proof", async () => {
     const earlierLineage = {
       kind: "head-bound" as const,
