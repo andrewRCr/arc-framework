@@ -3,14 +3,20 @@
   "slug": "planning-path-subcohort-depth",
   "claimId": "a4399d830275b0419924cb393e3a3d83",
   "createdAt": "2026-09-30T21:36:37.618Z",
-  "updatedAt": "2026-09-30T21:36:37.618Z",
+  "updatedAt": "2026-09-30T21:59:43.545Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Admit subcohort-nested backlog work-unit artifacts in the planning-artifact path classifier",
   "branch": "chore/planning-path-subcohort-depth",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/planning-path-subcohort-depth",
+    "headSha": "c9cac1657dcfe720e7756cb524b74ce04213f89b"
+  }
 }
