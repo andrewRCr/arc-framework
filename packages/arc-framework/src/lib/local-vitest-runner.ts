@@ -16,6 +16,17 @@ interface LocalVitestRunnerDependencies {
   start(mode: "test", filters: string[], options: ParsedVitestOptions): Promise<VitestController>;
 }
 
+/**
+ * Integration suites that read this repository's own tracked content rather than temporary fixtures, so a
+ * docs-only change can break them; the docs-only tier runs them. Each entry is a Vitest filename filter.
+ */
+export const ARC_CONTRACT_SUITES = [
+  "framework-sync",
+  "live-transition-records",
+  "pr-open-extensions",
+  "review-gate-workflows",
+] as const;
+
 const DEFAULT_DEPENDENCIES: LocalVitestRunnerDependencies = {
   parseCli: parseCLI,
   start: async (mode, filters, options) => await startVitest(mode, filters, options),
@@ -68,13 +79,7 @@ function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
     case "integration":
       return ["--project", "integration"];
     case "arc-contracts":
-      return [
-        "--project",
-        "integration",
-        "framework-sync",
-        "pr-open-extensions",
-        "review-gate-workflows",
-      ];
+      return ["--project", "integration", ...ARC_CONTRACT_SUITES];
     case "e2e":
     case "e2e-focused":
       return ["--project", "e2e"];

@@ -12,6 +12,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { chmod, symlink } from "node:fs/promises";
 
+import { ARC_CONTRACT_SUITES } from "../../src/lib/local-vitest-runner.js";
 import { CLASSIFY_SCRIPT, runScript } from "../helpers/run-script.js";
 import {
   createTempRepo,
@@ -394,10 +395,9 @@ describe("classify-change.sh classify", () => {
       await readFile(join(root, "packages/arc-framework/package.json"), "utf8"),
     ) as { scripts: Record<string, string> };
     const command = manifest.scripts["test:arc-contracts"];
-    const suites = ["framework-sync", "pr-open-extensions", "review-gate-workflows"];
 
     expect(command).toBe("node --import tsx src/scripts/run-local-test-tier.ts arc-contracts");
-    for (const suite of suites) {
+    for (const suite of ARC_CONTRACT_SUITES) {
       const path = `packages/arc-framework/__tests__/integration/${suite}.test.ts`;
       expect(await readFile(join(root, path), "utf8")).not.toBe("");
       expect(await classify([path])).toBe("heavy");
