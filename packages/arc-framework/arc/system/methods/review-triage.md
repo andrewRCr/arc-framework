@@ -109,10 +109,15 @@ For a findings proposal, present the CLI's `provisionalPassAssessment.summaryTex
 report in the same turn. It is the pass line — the lane, admitted pass, configured ceiling, and confirmed-finding
 signal — and states where review stands; it is provisional until verified response and coverage resolve the next
 action. Follow it with the agent's recommendation to stop or to request a named next pass, from the expected signal
-and cost. Every decision the approver is asked to make carries that recommendation. Keep disposition approval
-separate from next-pass authorization. A disposition approval alone never grants a pass above the ceiling; follow the
-typed policy continuation and obtain explicit approval for the named activity and pass if it returns
-`approval-required / obtain-ceiling-override`.
+and cost. Every decision the approver is asked to make carries that recommendation. When the set includes a fix, the
+recommendation also covers the pass the fix will trigger: the fix moves the head, and the routed standard obligation
+then runs another pass there unless this one reached the ceiling. Name that pass — its number and the coverage
+expected for it, complete or incremental — as spend the approver may decline. A decline leaves the
+disposition approval unchanged; the governing caller honors it at the new head through its Owner review stop (an
+Errand's Owner-directed review stop, a work unit's Owner-accepted terminus), confirmed there once before any pass is
+dispatched. Keep disposition approval separate from next-pass authorization. A disposition approval alone never grants
+a pass above the ceiling; follow the typed policy continuation and obtain explicit approval for the named activity and
+pass if it returns `approval-required / obtain-ceiling-override`.
 
 Obtain complete-set approval over the report and canonical identity before the caller's second `arc review respond -`
 invocation. Approval records the exact target, producer result, policy/rubric context, proposing actor, verification

@@ -833,6 +833,23 @@ describe("trusted review-gate workflows", () => {
     expect(compactReview).toContain("obtain it again");
     expect(compactReview).toContain("the exact Owner-directed review stop above is approved");
     expect(compactReview).toContain("An Owner-directed review stop always selects the reviewed-lane");
+    expect(compactReview).toContain("declines at a disposition turn the pass a fix triggers");
+    expect(compactReview).toContain(
+      "from `ready / hosted-request`, present the Owner-directed review stop offer below instead of requesting the pass",
+    );
+    const preRequest = sectionBetween(packaged, "Compose the immutable policy target", "3. **Resolve the Errand PR**")
+      .replace(/\s+/gu, " ");
+    expect(preRequest).toContain(
+      "`ready / local-prepare` — if the Owner declined the pass a fix triggers, prepare nothing; continue to Step 3 "
+        + "and offer the Owner-directed review stop at the open PR. Otherwise invoke `arc review local prepare -`",
+    );
+
+    const triage = (await readRepositoryFile("packages/arc-framework/arc/system/methods/review-triage.md"))
+      .replace(/\s+/gu, " ");
+    expect(triage).toContain("When the set includes a fix, the recommendation also covers the pass the fix will trigger");
+    expect(triage).toContain("its number and the coverage expected for it, complete or incremental");
+    expect(triage).toContain("as spend the approver may decline");
+    expect(triage).toContain("confirmed there once before any pass is dispatched");
 
     const landing = sectionBetween(packaged, "5. **Settle the final head.**", "7. **Leave");
     const compactLanding = landing.replace(/\s+/gu, " ");
