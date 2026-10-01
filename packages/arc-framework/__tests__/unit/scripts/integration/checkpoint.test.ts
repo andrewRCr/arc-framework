@@ -13,7 +13,10 @@ import { SlugSchema } from "../../../../src/lib/kernel/schema/slug.js";
 import { classifyCandidateApplicability } from "../../../../src/lib/work-unit/candidate-applicability.js";
 import { CandidateSubjectUncollectableError } from "../../../../src/lib/work-unit/git-candidate-subject.js";
 import { createCandidateSubjectSnapshot } from "../../../../src/lib/work-unit/candidate-attestation.js";
-import { composeCanonicalSettlementPlan } from "../../../../src/scripts/integration/settlement-plan.js";
+import {
+  composeCanonicalSettlementPlan,
+  composeHostedSettlementAction,
+} from "../../../../src/scripts/integration/settlement-plan.js";
 import { BaseMergeInputSchema } from "../../../../src/scripts/base/merge.js";
 
 const oid = (character: string): string => character.repeat(40);
@@ -919,6 +922,38 @@ describe("integration checkpoint", () => {
               text: expect.stringContaining("Machine evidence: 9 checks clean."),
             },
             extensionReport: { label: "Extension report", content: null },
+          },
+        },
+      });
+  });
+
+  it("names each disposition set the approved merge will settle", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+    deps.composeSettlementPlan = async () => composeCanonicalSettlementPlan([composeHostedSettlementAction({
+      dispositionId: digest("e"),
+      request: {
+        schemaVersion: 1,
+        response: { attemptRef: "hosted-attempt", dispositionSetId: digest("e"), findingId: "finding-1" },
+        target: { repository: "owner/repo", pullRequest: 42, headSha: oid("c") },
+        fixTarget: null,
+        actorIdentity: "andrew",
+        finding: { commentId: "comment-1", threadId: "thread-1" },
+        disposition: "defer",
+        reply: "Deferred to a follow-up.",
+      },
+    })]);
+
+    await expect(checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps))
+      .resolves.toMatchObject({
+        payload: {
+          interlockSurface: {
+            machineEvidence: {
+              state: "exceptions",
+              text: expect.stringContaining(
+                `- Settlement: 1 approved disposition set(s) require settlement: ${digest("e")} (1 hosted action).`,
+              ),
+            },
           },
         },
       });

@@ -509,7 +509,8 @@ describe("PR-open lifecycle extensions", () => {
       expect(normalized).toContain("authorizes exactly one additional pass");
       expect(normalized).toContain("disposition approval alone authorizes no additional pass");
 
-      expect(normalized).toContain("existing advisory evidence");
+      expect(normalized).toContain("the caller's advisory evidence");
+      expect(normalized).toContain("`adversarial-passes.md` in the work unit's personal workspace");
       expect(normalized).toContain("pending and unusable while any approved response remains incomplete");
       expect(normalized).toContain("withdrawal or supersession invalidates it");
       expect(normalized).toContain("consumes that permission");
@@ -525,9 +526,9 @@ describe("PR-open lifecycle extensions", () => {
 
   it("keeps the advisory settlement protocol reachable at every direct planning and criteria caller", async () => {
     const callers = [
-      ["system/workflows/arc/draft-design.md", "draft review evidence"],
-      ["system/workflows/arc/create-spec.md", "spec review evidence"],
-      ["system/workflows/arc/generate-tasks.template.md", "task-list review evidence"],
+      ["system/workflows/arc/draft-design.md", "`adversarial-passes.md` in the work unit's personal workspace"],
+      ["system/workflows/arc/create-spec.md", "`adversarial-passes.md` in the work unit's personal workspace"],
+      ["system/workflows/arc/generate-tasks.template.md", "`adversarial-passes.md` in the work unit's personal workspace"],
       ["system/methods/validate-criteria.md", "ordinary closing-task evidence"],
     ] as const;
 
@@ -543,8 +544,20 @@ describe("PR-open lifecycle extensions", () => {
         expect(content).toContain("adversarial-review:");
         expect(normalized).toContain("apply the method's complete-disposition and bounded-continuation protocol");
         expect(normalized).toContain(evidenceLocus);
+        if (!packagedPath.endsWith("validate-criteria.md")) {
+          expect(normalized).toContain("later passes take their `prior-findings` from it");
+          expect(normalized).toContain("a stub groomed before it starts has no workspace yet");
+        }
         expect(normalized).toContain("creates no lane-progress record");
       }
+    }
+
+    // An amendment's pass reads the planning passes as its prior findings.
+    for (const base of [packageArc, projectArc]) {
+      const amendment = await readFile(resolve(base, "system/workflows/arc/supplemental/amend-design.md"), "utf8");
+      expect(amendment.toLowerCase().replace(/\s+/gu, " ")).toContain(
+        "pass any prior findings recorded in the work unit's `adversarial-passes.md`",
+      );
     }
 
     const recipe = JSON.parse(

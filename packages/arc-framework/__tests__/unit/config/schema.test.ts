@@ -82,9 +82,12 @@ describe("ARC config field catalog", () => {
     }
   });
 
-  it("bounds hosted await call timing to the runtime timer contract", () => {
-    const timeout = field("review.hosted_await_timeout_seconds").schema;
-    const poll = field("review.hosted_await_initial_poll_interval_seconds").schema;
+  it.each([
+    ["hosted", "review.hosted_await_timeout_seconds", "review.hosted_await_initial_poll_interval_seconds"],
+    ["required-check", "review.checks_await_timeout_seconds", "review.checks_await_initial_poll_interval_seconds"],
+  ] as const)("bounds %s await call timing to the runtime timer contract", (_wait, timeoutKey, pollKey) => {
+    const timeout = field(timeoutKey).schema;
+    const poll = field(pollKey).schema;
     assertSchemaAccepts(timeout, "1");
     assertSchemaAccepts(timeout, "1800");
     assertSchemaRefuses(timeout, "1801");
@@ -207,6 +210,8 @@ describe("ARC config field catalog", () => {
       "review.hosted_await_timeout_seconds",
       "review.hosted_await_initial_poll_interval_seconds",
       "review.hosted_await_attention_after_minutes",
+      "review.checks_await_timeout_seconds",
+      "review.checks_await_initial_poll_interval_seconds",
       "review.standard_sources",
       "changeset.advisory_threshold_lines",
       "changeset.advisory_threshold_files",
@@ -263,6 +268,8 @@ describe("ARC config field catalog", () => {
       ["review.hosted_await_timeout_seconds", "120"],
       ["review.hosted_await_initial_poll_interval_seconds", "15"],
       ["review.hosted_await_attention_after_minutes", "15"],
+      ["review.checks_await_timeout_seconds", "300"],
+      ["review.checks_await_initial_poll_interval_seconds", "5"],
       ["changeset.advisory_threshold_lines", "0"],
       ["changeset.advisory_threshold_files", "0"],
       ["pm.mode", "none"],

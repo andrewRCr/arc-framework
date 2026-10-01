@@ -1,7 +1,7 @@
 /** Project timing composition for bounded hosted-review awaits. */
 
 import type { ConfigSettings } from "../../../lib/config/schema.js";
-import { getArcConfigField } from "../../../lib/config/schema.js";
+import { AwaitTimingError, configuredTiming, resolveAwaitTiming } from "../await-timing.js";
 import {
   HostedAwaitEnvelopeSchema,
   HostedAwaitExecutionEnvelopeSchema,
@@ -21,17 +21,7 @@ export interface HostedAwaitTiming {
   readonly attentionAfterMs: number;
 }
 
-/** Typed invalid-input failure for request/config timing composition. */
-export class HostedAwaitTimingError extends Error {
-  readonly code = "invalid-input";
-}
-
-function configuredNumber(settings: HostedAwaitConfigSettings, key: HostedAwaitConfigKey): number {
-  const value = settings[key];
-  const parsed = getArcConfigField(key).schema.safeParse(value);
-  if (!parsed.success) throw new HostedAwaitTimingError(`Invalid hosted await timing setting: ${key}`);
-  return Number(value);
-}
+const toMs = (seconds: number | undefined): number | undefined => seconds === undefined ? undefined : seconds * 1_000;
 
 /**
  * Compose optional per-call overrides with project-owned hosted-await timing.
@@ -45,27 +35,19 @@ export function resolveHostedAwaitTiming(
   settings: HostedAwaitConfigSettings,
 ): HostedAwaitTiming {
   const request = HostedAwaitEnvelopeSchema.parse(input);
-  const configuredTimeoutSeconds = configuredNumber(settings, "review.hosted_await_timeout_seconds");
-  const configuredPollIntervalSeconds = configuredNumber(
+  const { timeoutMs, pollIntervalMs } = resolveAwaitTiming({
+    wait: "hosted await",
+    keys: {
+      timeoutSeconds: "review.hosted_await_timeout_seconds",
+      initialPollIntervalSeconds: "review.hosted_await_initial_poll_interval_seconds",
+    },
     settings,
-    "review.hosted_await_initial_poll_interval_seconds",
-  );
-  if (configuredPollIntervalSeconds > configuredTimeoutSeconds) {
-    throw new HostedAwaitTimingError(
-      "Configured hosted await poll interval must not exceed its call timeout.",
-    );
-  }
-  const timeoutSeconds = request.timeoutSeconds ?? configuredTimeoutSeconds;
-  if (request.initialPollIntervalSeconds !== undefined
-    && request.initialPollIntervalSeconds > timeoutSeconds) {
-    throw new HostedAwaitTimingError(
-      "initialPollIntervalSeconds must not exceed timeoutSeconds",
-    );
-  }
-  const timeoutMs = timeoutSeconds * 1_000;
-  const pollIntervalMs = request.initialPollIntervalSeconds === undefined
-    ? Math.min(configuredPollIntervalSeconds * 1_000, timeoutMs)
-    : request.initialPollIntervalSeconds * 1_000;
+    overrides: {
+      timeoutMs: toMs(request.timeoutSeconds),
+      pollIntervalMs: toMs(request.initialPollIntervalSeconds),
+      labels: { timeout: "timeoutSeconds", pollInterval: "initialPollIntervalSeconds" },
+    },
+  });
   const execution = HostedAwaitExecutionEnvelopeSchema.safeParse({
     schemaVersion: request.schemaVersion,
     handle: request.handle,
@@ -74,13 +56,13 @@ export function resolveHostedAwaitTiming(
     ...(request.continueAfterAttention === true ? { continueAfterAttention: true as const } : {}),
   });
   if (!execution.success) {
-    throw new HostedAwaitTimingError(execution.error.message);
+    throw new AwaitTimingError(execution.error.message);
   }
   return {
     request: execution.data,
     attentionAfterMs: Math.min(
       Number.MAX_SAFE_INTEGER,
-      configuredNumber(settings, "review.hosted_await_attention_after_minutes") * 60 * 1_000,
+      configuredTiming(settings, "review.hosted_await_attention_after_minutes", "hosted await") * 60 * 1_000,
     ),
   };
 }

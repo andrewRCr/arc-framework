@@ -15,6 +15,7 @@ import {
   composeCanonicalSettlementPlan,
   composeCandidateResponseConfirmationAction,
   composeHostedSettlementAction,
+  describeSettlementPlan,
 } from "../../../../src/scripts/integration/settlement-plan.js";
 
 const oid = (character: string): string => character.repeat(40);
@@ -162,6 +163,51 @@ describe("canonical integration settlement plan", () => {
       fixTarget: originTarget,
       request,
     })).toMatchObject({ fixTarget: { targetId: originTarget.targetId } });
+  });
+
+  it("names each disposition set it settles with its actions per channel", () => {
+    const hosted = (findingId: string) => composeHostedSettlementAction({
+      dispositionId: digest("c"),
+      request: {
+        schemaVersion: 1,
+        response: { attemptRef: "hosted-attempt", dispositionSetId: digest("c"), findingId },
+        target: { repository: "owner/repo", pullRequest: 42, headSha: oid("a") },
+        fixTarget: null,
+        actorIdentity: "andrew",
+        finding: { commentId: `comment-${findingId}`, threadId: `thread-${findingId}` },
+        disposition: "defer",
+        reply: "Deferred to a follow-up.",
+      },
+    });
+    const confirmation = composeCandidateResponseConfirmationAction({
+      dispositionId: digest("1"),
+      operationId: "frontline-example",
+      workUnit: "example",
+      candidateId: digest("3"),
+      responseId: digest("4"),
+      memberTargetId: digest("5"),
+      candidateOriginTargetId: digest("6"),
+      deliveryMember: {
+        kind: "delivery-member",
+        planId: "573a0507-31a0-478d-b2cb-bd2a849e787b",
+        deliverableId: digest("7"),
+        workUnitId: "example",
+        head: oid("8"),
+      },
+      approvedBase: oid("a"),
+    });
+
+    expect(describeSettlementPlan(composeCanonicalSettlementPlan([]))).toBe(
+      "No approved dispositions require settlement.",
+    );
+    expect(describeSettlementPlan(composeCanonicalSettlementPlan([
+      hosted("finding-1"),
+      confirmation,
+      hosted("finding-2"),
+    ]))).toBe(
+      `2 approved disposition set(s) require settlement: ${digest("1")} (1 candidate-response-confirmation action); `
+        + `${digest("c")} (2 hosted actions).`,
+    );
   });
 
   it("refuses a fix-bearing set that settles at its unchanged origin target", () => {

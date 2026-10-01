@@ -57,6 +57,8 @@ describe("validateConfigFile", () => {
       "PASS  review.hosted_await_timeout_seconds: 120",
       "PASS  review.hosted_await_initial_poll_interval_seconds: 15",
       "PASS  review.hosted_await_attention_after_minutes: 15",
+      "PASS  review.checks_await_timeout_seconds: 300",
+      "PASS  review.checks_await_initial_poll_interval_seconds: 5",
       "PASS  changeset.advisory_threshold_lines: 0",
       "PASS  changeset.advisory_threshold_files: 0",
       "PASS  pm.mode: [absent, default: none]",
@@ -70,9 +72,9 @@ describe("validateConfigFile", () => {
       "PASS  sync.auto_pull: [absent, default: false]",
       "PASS  archive.cadence: [absent, default: with-integration]",
       "",
-      "Summary: 32 passed, 0 warnings, 0 errors (32 checks)",
+      "Summary: 34 passed, 0 warnings, 0 errors (34 checks)",
     ]);
-    expect(result).toMatchObject({ passes: 32, warnings: 0, errors: 0, exitCode: 0 });
+    expect(result).toMatchObject({ passes: 34, warnings: 0, errors: 0, exitCode: 0 });
   });
 
   it("reports catalog-domain failures without exposing unrelated values", async () => {
@@ -97,7 +99,7 @@ describe("validateConfigFile", () => {
     expect(result.lines).toContain(
       "ERROR worktree.location_template: '' is not valid (expected: non-empty value)",
     );
-    expect(result).toMatchObject({ passes: 30, warnings: 0, errors: 3, exitCode: 2 });
+    expect(result).toMatchObject({ passes: 32, warnings: 0, errors: 3, exitCode: 2 });
   });
 
   it("warns for every validatable unknown occurrence in source order", async () => {
@@ -125,7 +127,7 @@ describe("validateConfigFile", () => {
       "WARN  Unknown key: 'hooks.subject_warn_length' (possible typo?)",
       "WARN  Unknown key: 'unknown.two' (possible typo?)",
     ]);
-    expect(result).toMatchObject({ passes: 32, warnings: 5, errors: 0, exitCode: 1 });
+    expect(result).toMatchObject({ passes: 34, warnings: 5, errors: 0, exitCode: 1 });
   });
 
   it("treats the former review-owned thresholds as unknown rather than aliases", async () => {
@@ -168,7 +170,7 @@ describe("validateConfigFile", () => {
     expect(result.lines).toContain(
       "ERROR inbox.remind_after_days must be a positive integer (got '')",
     );
-    expect(result).toMatchObject({ passes: 31, warnings: 0, errors: 2, exitCode: 2 });
+    expect(result).toMatchObject({ passes: 33, warnings: 0, errors: 2, exitCode: 2 });
   });
 
   it("applies custom-pattern dependencies without compiling or echoing pattern bodies", async () => {
@@ -254,8 +256,8 @@ describe("validateConfigFile", () => {
       "WARN  Unknown key: 'unknown.key' (possible typo?)",
       "WARN  Unknown key: 'unknown.key' (possible typo?)",
     ]);
-    expect(result.lines.at(-1)).toBe("Summary: 31 passed, 3 warnings, 1 errors (35 checks)");
-    expect(result).toMatchObject({ passes: 31, warnings: 3, errors: 1, exitCode: 2 });
+    expect(result.lines.at(-1)).toBe("Summary: 33 passed, 3 warnings, 1 errors (37 checks)");
+    expect(result).toMatchObject({ passes: 33, warnings: 3, errors: 1, exitCode: 2 });
   });
 
   it("enforces positive-safe-integer minima and accepts normalized boundaries", async () => {
@@ -411,6 +413,47 @@ describe("validateConfigFile", () => {
     });
     expect(misordered.lines).toContain(
       "ERROR review.hosted_await_initial_poll_interval_seconds must not exceed review.hosted_await_timeout_seconds",
+    );
+    expect(misordered.exitCode).toBe(2);
+  });
+
+  it("validates required-check await timing bounds and ordering", async () => {
+    const accepted = await validateConfigFile({
+      readPath: "/resolved/config.yml",
+      displayPath: "selected.yml",
+      readFile: vi.fn().mockResolvedValue([
+        "review.checks_await_timeout_seconds: 1800",
+        "review.checks_await_initial_poll_interval_seconds: 60",
+      ].join("\n")),
+    });
+    expect(accepted.exitCode).toBe(0);
+
+    const rejected = await validateConfigFile({
+      readPath: "/resolved/config.yml",
+      displayPath: "selected.yml",
+      readFile: vi.fn().mockResolvedValue([
+        "review.checks_await_timeout_seconds: 1801",
+        "review.checks_await_initial_poll_interval_seconds: 0",
+      ].join("\n")),
+    });
+    expect(rejected.lines).toContain(
+      "ERROR review.checks_await_timeout_seconds: '1801' must be an unsigned base-10 safe integer >= 1 and <= 1800",
+    );
+    expect(rejected.lines).toContain(
+      "ERROR review.checks_await_initial_poll_interval_seconds: '0' must be an unsigned base-10 safe integer >= 1 and <= 60",
+    );
+    expect(rejected.exitCode).toBe(2);
+
+    const misordered = await validateConfigFile({
+      readPath: "/resolved/config.yml",
+      displayPath: "selected.yml",
+      readFile: vi.fn().mockResolvedValue([
+        "review.checks_await_timeout_seconds: 10",
+        "review.checks_await_initial_poll_interval_seconds: 15",
+      ].join("\n")),
+    });
+    expect(misordered.lines).toContain(
+      "ERROR review.checks_await_initial_poll_interval_seconds must not exceed review.checks_await_timeout_seconds",
     );
     expect(misordered.exitCode).toBe(2);
   });

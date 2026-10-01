@@ -39,7 +39,7 @@ async function writeMinimalArcInstall(root: string): Promise<void> {
     "system/arc-config.yml",
     "reference/strategies/STRATEGY-INDEX.md",
     "system/workflows/arc/session-lifecycle/session-init.md",
-    "system/workflows/arc/3_process-task-loop.md",
+    "system/workflows/arc/process-task-loop.md",
   ];
   for (const file of coreFiles) await write(join(arc, file), "# Test\n");
 
@@ -95,6 +95,19 @@ describe("verify-integrity.sh", () => {
       code: 2,
       stdout: expect.stringContaining("closing `---`"),
     });
+  });
+
+  it("finds every core file it requires in a real installed ARC tree", async () => {
+    // The repository's own .arc/ is a rendered installation, so it carries the installed file names;
+    // other sections may report unrelated findings there, so only the file-structure section is asserted.
+    const stdout = await execFileAsync("bash", [verifyIntegrityScript], { cwd: repoRoot }).then(
+      (result) => result.stdout,
+      (error: { stdout?: string }) => error.stdout ?? "",
+    );
+    const fileStructure = stdout.split("--- File Structure ---")[1]?.split("\n\n")[0] ?? "";
+
+    expect(fileStructure).toContain("PASS  Process task loop: .arc/system/workflows/arc/process-task-loop.md");
+    expect(fileStructure).not.toContain("ERROR");
   });
 
   it("reports an unexpected config-validator exit as an error", async () => {

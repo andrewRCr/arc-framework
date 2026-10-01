@@ -123,6 +123,16 @@ expectation, observe fresh external state, refuse mismatches, and disclose any r
 capability merely because the platform cannot enforce a guarantee ARC does not require at comparable seams. This does
 not relax distrust of agent self-attestation or exactness over ARC-owned single-writer records.
 
+**Stop routing:** ARC follows the tools it sits beside — git, the stacked-change CLIs, CI — in when to stop, what to
+record, and how a continue resumes. Where they send every stop to a person, ARC routes each to the lowest layer that
+can resolve it safely. The CLI takes what recorded state determines, with no stop. The agent takes what the CLI cannot
+decide but one reasonable, checkable answer settles; there a typed stop carrying the facts and the continuation is the
+right result, not friction. The Owner takes only what changes something a person approved or owns, or has more than
+one defensible outcome with product consequences. A CLI that guesses what its continue should carry, or makes a
+judgment that belongs to the agent, is a layer error; so is escalating to the Owner what the agent can settle. The aim
+is to spare the agent's attention by having the CLI determine all it can, and the Owner's by having the agent take
+what is reasonably safe — never to take control from an Owner who wants more of it.
+
 **Recovery-complete refusals:** An operational refusal is incomplete unless it distinguishes terminal failure from a
 recoverable stop. A recoverable refusal must preserve a safe retry or restart route, report the observed condition,
 name an actionable remedy, and keep the normal success path reachable after repair. At material boundaries,

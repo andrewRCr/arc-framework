@@ -262,7 +262,7 @@ authorizes no additional pass, and unused capacity under the cap is not permissi
 explicit approval naming that activity and pass.
 
 Explicit approval that names the activity and the next pass authorizes exactly one additional pass. When granted in
-the disposition-report turn, retain that separate conditional decision in the caller's existing advisory evidence.
+the disposition-report turn, retain that separate conditional decision in the caller's advisory evidence.
 It is pending and unusable while any approved response remains incomplete. Complete response performance permits the
 named pass; withdrawal or supersession invalidates it, as does an incompatible artifact, activity, or pass binding.
 Launching the named fresh pass consumes that permission, and replay cannot authorize another pass. Any further
@@ -273,8 +273,9 @@ authorize any number of later passes one at a time; a later material result chan
 non-converged and re-enters the normal response loop. Neither a minor observation nor unused capacity starts a
 pass without that decision.
 
-Advisory planning and criteria callers keep the finding/account/action set, conditional decision, response-performance
-check, and consumption fact in their existing evidence. This creates no lane-progress record, code-review operation,
+Advisory planning callers keep the finding/account/action set, conditional decision, response-performance check, and
+consumption fact in `ADVERSARIAL-PASSES.md` in the work unit's personal workspace; criteria callers keep them with
+the criteria report. This creates no lane-progress record, code-review operation,
 Candidate, policy binding, or receipt.
 
 **Uniform materiality threshold.** The convergence threshold does not vary by `Class`. `Class` scales the

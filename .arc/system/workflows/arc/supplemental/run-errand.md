@@ -520,8 +520,8 @@ This separate operation authorizes no merge. Otherwise, continue to the selected
    never satisfies a required check; if review-cycle CI deferral keeps one red, restore the full check through the
    project's authorized mechanism before continuing.
 
-   For both routes, invoke the existing bounded waiter against the approved target. Omit timing options so command
-   defaults own the bounded call:
+   For both routes, invoke the existing bounded waiter against the approved target. Omit timing options so the
+   project's configured bounded-call defaults apply:
 
    ```bash
    arc review checks await \
