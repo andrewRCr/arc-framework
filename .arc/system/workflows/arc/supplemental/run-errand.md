@@ -235,7 +235,9 @@ remote base all name the same exact head. Any tracked change continues through t
      its `ready / run-frontline`, invoke `arc review frontline run -` with the ready resolution and the target's
      `{ kind, baseRef, diffBaseSha, headSha }` projection.
    - `ready / local-prepare` — invoke `arc review local prepare -`; submit evaluator-owned result content through
-     `arc review local attest -`, with runtime-owned bindings injected from the immutable operation.
+     `arc review local attest -`, with runtime-owned bindings injected from the immutable operation. If the Owner
+     declined the pass a fix triggers, prepare nothing; continue to Step 3 and offer the Owner-directed review stop
+     at the open PR.
    - `findings / respond` — run [`review-triage`][review-triage], include the effective policy as
      `proposal.severityGatingPolicy`, submit the proposal through the first `arc review respond -` call, emit
      `payload.dispositionReportText`, obtain complete-set approval, submit the exact
@@ -387,15 +389,18 @@ remote base all name the same exact head. Any tracked change continues through t
      only after the verb verifies the exact approved reply, actor, comment, and resolved thread with no host
      mutation; every stop state remains a stop. After the required phases complete, follow the approved response
      continuation and, after a fix, the verified-fix response continuation through the owning status or resolve
-     action. Do not feed the same findings to the driver again.
+     action. Do not feed the same findings to the driver again. If the Owner declined the pass the fix triggers,
+     resolve the lane at the new head as usual and, from `ready / hosted-request`, present the Owner-directed review
+     stop offer below instead of requesting the pass.
    - `rate-limited | transient-unavailable / try-next-source` — feed that safe outcome to the same driver call; it
      may select the next configured source without consuming the pass.
    - Any ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops. Never replay
      an uncertain request.
 
    **Owner-directed review stop (open PR only).** When the Owner explicitly asks to end further standard-review
-   spending, or redirects an `approval-required / obtain-ceiling-override` decision, present one exact offer before
-   treating that direction as approval. Re-read `arc review status --target <targetRef>` to validate the
+   spending, declines at a disposition turn the pass a fix triggers, or redirects an
+   `approval-required / obtain-ceiling-override` decision, present one exact offer before treating that direction as
+   approval. Re-read `arc review status --target <targetRef>` to validate the
    current Errand binding; `review-required` is expected, but a refusal or pending/response action stops. Name the
    current Errand key and claim, repository and PR, base ref and OID, head SHA, at least one completed same-claim
    standard-review pass and its disposition/settlement state, the complete current PR diff, and the change since
