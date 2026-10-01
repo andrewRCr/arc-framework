@@ -5,6 +5,7 @@
 import type { GitExec } from "./git/index.js";
 import { resolveGitConfigOverride } from "./config/resolve-override.js";
 import { displayWidth } from "./markdown/display-width.js";
+import { assertNever } from "./kernel/index.js";
 
 const FENCE_START_RE = /^\s{0,3}(?<marker>`{3,}|~{3,})/u;
 const HEADING_RE = /^\s{0,3}#{1,6}(?:\s|$)/u;
@@ -152,10 +153,8 @@ function pagerProcessInput(input: {
         input: input.content,
         env: baseEnvironment,
       };
-    default: {
-      const _exhaustive: never = input.renderer;
-      return _exhaustive;
-    }
+    default:
+      return assertNever(input.renderer);
   }
 }
 

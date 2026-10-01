@@ -17,6 +17,7 @@ function severity(body: string): "critical" | "major" | "minor" | null {
     case "minor":
     case "trivial":
       return "minor";
+    case undefined:
     default:
       return null;
   }

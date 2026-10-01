@@ -72,6 +72,7 @@ import {
   type SyncInterlock,
 } from "../lib/config/resolved-settings.js";
 import { formatError, UserFacingError } from "../lib/errors.js";
+import { assertNever } from "../lib/kernel/index.js";
 import {
   isRefusalCondition,
   runPushabilityStatus,
@@ -616,10 +617,8 @@ async function reconcileErrandLeg(
           detail: errandPartialPushDetail(outcome, markerRecorded),
         };
       }
-      default: {
-        const _exhaustive: never = outcome;
-        throw new Error(`unhandled reconcile outcome: ${JSON.stringify(_exhaustive)}`);
-      }
+      default:
+        return assertNever(outcome);
     }
   } catch {
     const markerRecorded = await recordErrandPartialPushMarkerSafely(cwd, io, identity);
@@ -1530,7 +1529,9 @@ function worktreeBlockGuidance(
     case "branch-gone":
       return `Worktree push blocked: upstream branch deleted on origin. `
         + `Recreate the branch or remove the stale worktree before pushing.`;
-    default:
+    case "clean":
+    case "skipped":
+    case "local-ahead":
       return `Worktree push blocked: worktree state is ${action.reason}.`;
   }
 }

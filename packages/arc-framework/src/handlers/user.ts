@@ -27,7 +27,7 @@ import {
 } from "../commands/user.js";
 import { isRefusalCondition } from "../lib/git/index.js";
 import { normalizeCommandIdentity } from "../lib/command-input/identity.js";
-import { CanonicalDigestSchema, SlugSchema } from "../lib/kernel/index.js";
+import { assertNever, CanonicalDigestSchema, SlugSchema } from "../lib/kernel/index.js";
 import {
   declareCliOperandSite,
   declareCliOptionSite,
@@ -1179,10 +1179,8 @@ function toJsonSafeCompactResult(result: UserCompactResult): object {
     case "nothing-to-prune":
     case "conflict":
       return result;
-    default: {
-      const _exhaustive: never = result;
-      return _exhaustive;
-    }
+    default:
+      return assertNever(result);
   }
 }
 

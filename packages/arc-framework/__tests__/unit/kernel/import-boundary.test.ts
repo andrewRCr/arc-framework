@@ -52,7 +52,7 @@ describe("kernel import boundary", () => {
     expect(values.sort()).toEqual([
       "ArcError", "CanonicalDigestSchema", "PrioritySchema", "RemoteEvidenceSchema", "RemoteFailureReasonSchema", "ResultAsync",
       "SLUG_PATTERN", "SchemaError", "SlugSchema",
-      "WORK_UNIT_STATE_ORDER", "WorkClassSchema", "WorkUnitStateSchema", "assertCanonicalDigest",
+      "WORK_UNIT_STATE_ORDER", "WorkClassSchema", "WorkUnitStateSchema", "assertCanonicalDigest", "assertNever",
       "canonicalDigest", "canonicalize", "createKernelRegistry", "createRegistry", "digestBytes", "err",
       "errAsync", "fromAsyncThrowable", "fromThrowable", "isCanonicalDigest", "isManagedPath", "isSlugSafe", "ok",
       "okAsync",

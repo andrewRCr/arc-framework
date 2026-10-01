@@ -29,6 +29,12 @@ export default tseslint.config(
       complexity: ["error", { max: 15 }],
       "max-depth": ["error", { max: 4 }],
       "max-nested-callbacks": ["error", { max: 4 }],
+      // A `default` never stands in for an unlisted union member, so adding a member fails every switch that
+      // ignores it. Switches over open types such as `string` need no `default`.
+      "@typescript-eslint/switch-exhaustiveness-check": [
+        "error",
+        { considerDefaultExhaustiveForUnions: false, requireDefaultForNonUnion: false },
+      ],
     },
   },
   {
