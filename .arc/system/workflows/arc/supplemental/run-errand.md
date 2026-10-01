@@ -234,10 +234,10 @@ remote base all name the same exact head. Any tracked change continues through t
    - `ready / run-frontline` — invoke `arc review frontline resolve -`. Its `skipped / none` completes the lane; from
      its `ready / run-frontline`, invoke `arc review frontline run -` with the ready resolution and the target's
      `{ kind, baseRef, diffBaseSha, headSha }` projection.
-   - `ready / local-prepare` — invoke `arc review local prepare -`; submit evaluator-owned result content through
-     `arc review local attest -`, with runtime-owned bindings injected from the immutable operation. If the Owner
-     declined the pass a fix triggers, prepare nothing; continue to Step 3 and offer the Owner-directed review stop
-     at the open PR.
+   - `ready / local-prepare` — if the Owner declined the pass a fix triggers, prepare nothing; continue to Step 3 and
+     offer the Owner-directed review stop at the open PR. Otherwise invoke `arc review local prepare -`; submit
+     evaluator-owned result content through `arc review local attest -`, with runtime-owned bindings injected from the
+     immutable operation.
    - `findings / respond` — run [`review-triage`][review-triage], include the effective policy as
      `proposal.severityGatingPolicy`, submit the proposal through the first `arc review respond -` call, emit
      `payload.dispositionReportText`, obtain complete-set approval, submit the exact

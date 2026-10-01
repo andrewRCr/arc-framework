@@ -111,8 +111,8 @@ signal — and states where review stands; it is provisional until verified resp
 action. Follow it with the agent's recommendation to stop or to request a named next pass, from the expected signal
 and cost. Every decision the approver is asked to make carries that recommendation. When the set includes a fix, the
 recommendation also covers the pass the fix will trigger: the fix moves the head, and the routed standard obligation
-then runs another pass there unless this one reached the ceiling. Name that pass — its number, and complete or
-incremental coverage per the obligation's `retrigger` — as spend the approver may decline. A decline leaves the
+then runs another pass there unless this one reached the ceiling. Name that pass — its number and the coverage
+expected for it, complete or incremental — as spend the approver may decline. A decline leaves the
 disposition approval unchanged; the governing caller honors it at the new head through its Owner review stop (an
 Errand's Owner-directed review stop, a work unit's Owner-accepted terminus), confirmed there once before any pass is
 dispatched. Keep disposition approval separate from next-pass authorization. A disposition approval alone never grants
