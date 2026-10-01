@@ -11,7 +11,7 @@
  */
 
 import { readdir, readFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename } from "node:path";
 
 import { validatePriority, validateState, type Priority, type WorkUnitState } from "../kernel/schema/vocabulary.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
@@ -26,23 +26,24 @@ import {
 import { SlugSchema } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
 import { branchToWorkUnitSlug } from "../work-unit/completed-index.js";
-import { buildLifecycleIndexFromRecords, type LifecycleIndex } from "../work-unit/lifecycle-index.js";
+import {
+  buildLifecycleIndexFromRecords,
+  collectLifecycleMetaFiles,
+  compareLifecycleSources,
+  type DirEntry,
+  type LifecycleIndex,
+  type LifecycleIndexFs,
+} from "../work-unit/lifecycle-index.js";
 import { resolveSlugQuery } from "../work-unit/lifecycle-query.js";
 import type { TransitionOverlayCompositionInput } from "../work-unit/transition-overlay.js";
 
 import { renderStatusTable, type StatusColumn, type StatusViewRow } from "./render.js";
 
-/** Minimal directory-entry shape needed by the recursive meta scan. */
-export interface ProjectViewDirEntry {
-  name: string;
-  isDirectory(): boolean;
-}
+/** Directory-entry shape the shared lifecycle tier walk needs. */
+export type ProjectViewDirEntry = DirEntry;
 
-/** Filesystem seams for composing the project readiness view. */
-export interface ProjectViewFs {
-  readdir: (path: string) => Promise<ProjectViewDirEntry[]>;
-  readFile: (path: string) => Promise<string>;
-}
+/** Filesystem seams for composing the project readiness view — the lifecycle index's seam. */
+export type ProjectViewFs = LifecycleIndexFs;
 
 /** Lifecycle tier represented by a project-readiness record. */
 export type ProjectReadinessLocation = "active" | "planned" | "provisional" | "completed";
@@ -317,27 +318,6 @@ export async function resolveProjectReadinessRenderStamp(
   };
 }
 
-/** Collect `meta-*.md` files recursively under `dir`; a missing directory yields none. */
-async function collectMetaFiles(dir: string, fs: ProjectViewFs): Promise<string[]> {
-  let entries: ProjectViewDirEntry[];
-  try {
-    entries = await fs.readdir(dir);
-  } catch {
-    return [];
-  }
-
-  const out: string[] = [];
-  for (const entry of entries) {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      out.push(...(await collectMetaFiles(full, fs)));
-    } else if (META_FILE_RE.test(entry.name)) {
-      out.push(full);
-    }
-  }
-  return out;
-}
-
 /** Resolve the canonical slug from a meta filename. */
 function slugOf(path: string): string {
   return META_FILE_RE.exec(basename(path))?.[1] ?? basename(path);
@@ -427,39 +407,24 @@ async function loadProjectRecords(
   candidates: ProjectReadinessRecordCandidate[];
   rejectedRecords: ProjectReadinessRejectedRecord[];
 }> {
-  const roots = [
-    { location: "active" as const, dir: join(cwd, ".arc", "active") },
-    { location: "planned" as const, dir: join(cwd, ".arc", "backlog", "planned") },
-    { location: "provisional" as const, dir: join(cwd, ".arc", "backlog", "provisional") },
-    { location: "completed" as const, dir: join(cwd, ".arc", "completed") },
-  ];
-
   const metas: ProjectReadinessRecordCandidate[] = [];
   const rejectedRecords: ProjectReadinessRejectedRecord[] = [];
-  for (const root of roots) {
-    for (const path of (await collectMetaFiles(root.dir, fs)).sort()) {
-      const meta = await readProjectMeta(fs, root.location, path);
-      if (meta.kind === "accepted") metas.push(meta.record);
-      else rejectedRecords.push(meta.record);
-    }
+  for (const { location, path } of await collectLifecycleMetaFiles(cwd, fs)) {
+    const meta = await readProjectMeta(fs, location, path);
+    if (meta.kind === "accepted") metas.push(meta.record);
+    else rejectedRecords.push(meta.record);
   }
   return { candidates: metas, rejectedRecords };
 }
-
-const SOURCE_PRECEDENCE: Record<ProjectReadinessLocation, number> = {
-  active: 3,
-  planned: 2,
-  provisional: 1,
-  completed: 0,
-};
 
 function compareCandidates(
   left: ProjectReadinessRecordCandidate,
   right: ProjectReadinessRecordCandidate,
 ): number {
-  const precedence = SOURCE_PRECEDENCE[right.location] - SOURCE_PRECEDENCE[left.location];
-  if (precedence !== 0) return precedence;
-  return sourcePathOf(left).localeCompare(sourcePathOf(right));
+  return compareLifecycleSources(
+    { location: left.location, path: sourcePathOf(left) },
+    { location: right.location, path: sourcePathOf(right) },
+  );
 }
 
 function sourcePathOf(candidate: ProjectReadinessRecordCandidate): string {

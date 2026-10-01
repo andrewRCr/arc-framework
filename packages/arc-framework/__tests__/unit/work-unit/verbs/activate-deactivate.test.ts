@@ -44,7 +44,7 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
 
   for (const meta of metas) {
     const filename = `meta-${meta.slug}.md`;
-    entries.push({ name: filename, isDirectory: () => false });
+    entries.push({ name: filename, isDirectory: () => false, isFile: () => true });
     files.set(
       `${activeDir}/${filename}`,
       `# Metadata: ${meta.slug}\n\n` +
