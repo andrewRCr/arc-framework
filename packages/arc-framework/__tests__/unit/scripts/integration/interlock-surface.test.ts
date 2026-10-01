@@ -6,6 +6,8 @@ import {
   composeCheckpointInterlockSurface,
   type CheckpointMachineSignal,
 } from "../../../../src/scripts/integration/interlock-surface.js";
+import { NO_HOSTED_REVIEW_RESERVATION_DETAIL } from
+  "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
 const oid = (character: string): string => character.repeat(40);
 
@@ -33,7 +35,7 @@ describe("checkpoint interlock surface", () => {
       observedBase: oid("b"),
       method: "merge",
       candidateTailReference: `${oid("b")}..${oid("a")}`,
-      reviewLanding: "Local carrier `local-attestation`.",
+      reviewLanding: NO_HOSTED_REVIEW_RESERVATION_DETAIL,
       signals: signals(),
     });
 
@@ -57,7 +59,7 @@ describe("checkpoint interlock surface", () => {
       observedBase: oid("b"),
       method: "merge",
       candidateTailReference: `${oid("b")}..${oid("a")}`,
-      reviewLanding: "Local carrier `local-attestation`.",
+      reviewLanding: NO_HOSTED_REVIEW_RESERVATION_DETAIL,
       signals: signals(),
     });
     const evidence = signals();
@@ -70,7 +72,7 @@ describe("checkpoint interlock surface", () => {
       observedBase: oid("b"),
       method: "merge",
       candidateTailReference: `${oid("b")}..${oid("a")}`,
-      reviewLanding: "Local carrier `local-attestation`.",
+      reviewLanding: NO_HOSTED_REVIEW_RESERVATION_DETAIL,
       signals: evidence,
     });
 
@@ -79,9 +81,9 @@ describe("checkpoint interlock surface", () => {
     }
   });
 
-  it("names only the carrier or hosted source where review landed", () => {
+  it("names only the hosted source, or that none was reserved, where review landed", () => {
     for (const reviewLanding of [
-      "Local carrier `local-attestation`.",
+      NO_HOSTED_REVIEW_RESERVATION_DETAIL,
       "Hosted source `coderabbit-pr`.",
     ]) {
       const result = composeCheckpointInterlockSurface({
@@ -118,7 +120,7 @@ describe("checkpoint interlock surface", () => {
       observedBase: oid("b"),
       method: "merge",
       candidateTailReference: `${oid("b")}..${oid("a")}`,
-      reviewLanding: "Local carrier `local-attestation`.",
+      reviewLanding: NO_HOSTED_REVIEW_RESERVATION_DETAIL,
       signals: evidence,
     });
 
