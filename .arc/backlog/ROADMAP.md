@@ -13,15 +13,14 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State         | Work unit                        | Priority | Owner  | Depends on | Cohort                 |
-| ------------- | -------------------------------- | -------- | ------ | ---------- | ---------------------- |
-| `Planning`    | storage-contract                 | P1       | andrew | —          | state-storage          |
-| `Planning`    | candidate-reroot-recovery-frame  | P1       | andrew | —          | —                      |
-| `Planning`    | decomposition-doctrine           | P1       | andrew | —          | —                      |
-| `Planning`    | delivery-rebuild-continuity      | P1       | andrew | —          | —                      |
-| `Planning`    | review-checkout-lifecycle        | P1       | andrew | —          | —                      |
-| `Planning`    | stub-mint-to-launch              | P1       | andrew | —          | —                      |
-| `Integrating` | cli-substrate-complete-migration | P2       | andrew | —          | cli-substrate-adoption |
+| State      | Work unit                       | Priority | Owner  | Depends on | Cohort        |
+| ---------- | ------------------------------- | -------- | ------ | ---------- | ------------- |
+| `Planning` | storage-contract                | P1       | andrew | —          | state-storage |
+| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —          | —             |
+| `Planning` | decomposition-doctrine          | P1       | andrew | —          | —             |
+| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —          | —             |
+| `Planning` | review-checkout-lifecycle       | P1       | andrew | —          | —             |
+| `Planning` | stub-mint-to-launch             | P1       | andrew | —          | —             |
 
 ## Ready
 
@@ -109,17 +108,17 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 1
 
-| Work unit                     | Priority | Owner  | Depends on                                         | Cohort                     |
-| ----------------------------- | -------- | ------ | -------------------------------------------------- | -------------------------- |
-| review-activity-contracts     | P1       | andrew | review-source-authority                            | review-protocol-alignment  |
-| storage-seam                  | P1       | andrew | storage-contract, cli-substrate-complete-migration | state-storage              |
-| unit-scoped-review            | P2       | andrew | commit-increments                                  | approval-flow-refinement   |
-| documentation-surface-routing | P3       | andrew | handoff-optimization                               | agent-context-optimization |
-| instruction-optimization      | P3       | andrew | composable-workflows                               | agent-context-optimization |
-| config-storage-architecture   | P3       | andrew | storage-contract                                   | configuration              |
-| workflow-template-loads       | P3       | andrew | composable-workflows                               | principle-anchored-core    |
-| docs-content-sweep            | P3       | andrew | docs-site-refresh                                  | release-readiness          |
-| comprehension-preservation    | P3       | andrew | execution-delegation-doctrine                      | —                          |
+| Work unit                     | Priority | Owner  | Depends on                    | Cohort                     |
+| ----------------------------- | -------- | ------ | ----------------------------- | -------------------------- |
+| review-activity-contracts     | P1       | andrew | review-source-authority       | review-protocol-alignment  |
+| storage-seam                  | P1       | andrew | storage-contract              | state-storage              |
+| unit-scoped-review            | P2       | andrew | commit-increments             | approval-flow-refinement   |
+| documentation-surface-routing | P3       | andrew | handoff-optimization          | agent-context-optimization |
+| instruction-optimization      | P3       | andrew | composable-workflows          | agent-context-optimization |
+| config-storage-architecture   | P3       | andrew | storage-contract              | configuration              |
+| workflow-template-loads       | P3       | andrew | composable-workflows          | principle-anchored-core    |
+| docs-content-sweep            | P3       | andrew | docs-site-refresh             | release-readiness          |
+| comprehension-preservation    | P3       | andrew | execution-delegation-doctrine | —                          |
 
 ### Depth 2
 

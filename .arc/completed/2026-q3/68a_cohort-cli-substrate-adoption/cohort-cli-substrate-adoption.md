@@ -129,3 +129,18 @@ _Consumes:_ all six landed member contracts. Managed operational-document conver
 `operational-state-docs`.
 
 ---
+
+## Closeout
+
+- **Closed:** 2026-09-30
+- **Final member:** `cli-substrate-complete-migration`
+- **Member archives:** `23_cli-schema-kernel`, `26_cli-git-executor`, `27_cli-session-envelope`,
+  `29_cli-layout-resolver`, `35_cli-command-inputs`, `37_cli-validation-surfaces`,
+  `68_cli-substrate-complete-migration`
+- **Outcome:** All seven members shipped; surviving CLI consumers sit on the kernel, session-envelope, layout,
+  validation, Git-executor, and command-input contracts, with transitional shims retired and reusable test support
+  converged.
+- **Follow-up:** code carved out of the final migration as storage-coupled is owned by the `state-storage`
+  storage-coupling register in `cohort-state-storage.md` — removed by `storage-cutover`, rewritten by `storage-seam`.
+
+---
