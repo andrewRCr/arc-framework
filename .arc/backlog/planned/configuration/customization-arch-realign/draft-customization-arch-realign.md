@@ -124,6 +124,20 @@ mechanism for which concern" in `strategy-configurability-architecture.md`.
   `storage-contract` C12), `archive.cadence` (removed at the cutover), and `user.notes_push` (retired, C5).
 - _Approach:_ At next planning, drop or re-scope each against the post-cutover design rather than realigning it.
 
+### `[ ]` **Audit whether the `session-state` method still earns its place or should be deprecated**
+
+- _Redistributed:_ moved from `operational-state-docs` under `storage-contract` C2, the record-aware seam (2026-09-30);
+  the method is already in this work unit's storage route.
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain (2026-06-30);
+  captured during `compaction-recovery` generate-tasks grounding audit.
+- _Concern:_ `system/methods/session-state.md` is a thin read/write contract over `meta-*`, `SESSION-NOTES`, and
+  git notes, carrying `[No override configured]`. Its override seam may be illusory because ARC hard-assumes those
+  managed-record shapes across `session-init` and `session-handoff`, so an override that changes the shape is not
+  actually viable.
+- _Approach:_ while formalizing managed records, decide whether `session-state` remains useful as a stable method
+  contract, gets narrowed to non-shape guidance, or is deprecated entirely in favor of this WU's managed-record
+  documentation.
+
 ---
 
 ## Problem / Motivation
