@@ -115,10 +115,9 @@ then runs another pass there unless this one reached the ceiling. Name that pass
 incremental coverage per the obligation's `retrigger` — as spend the approver may decline. A decline leaves the
 disposition approval unchanged; the governing caller honors it at the new head through its Owner review stop (an
 Errand's Owner-directed review stop, a work unit's Owner-accepted terminus), confirmed there once before any pass is
-dispatched. Keep disposition approval
-separate from next-pass authorization. A disposition approval alone never grants a pass above the ceiling; follow the
-typed policy continuation and obtain explicit approval for the named activity and pass if it returns
-`approval-required / obtain-ceiling-override`.
+dispatched. Keep disposition approval separate from next-pass authorization. A disposition approval alone never grants
+a pass above the ceiling; follow the typed policy continuation and obtain explicit approval for the named activity and
+pass if it returns `approval-required / obtain-ceiling-override`.
 
 Obtain complete-set approval over the report and canonical identity before the caller's second `arc review respond -`
 invocation. Approval records the exact target, producer result, policy/rubric context, proposing actor, verification
