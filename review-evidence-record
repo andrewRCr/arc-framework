@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "review-evidence-record",
+  "claimId": "7fd7e20c3c9528396fe29a101064b388",
+  "createdAt": "2026-10-01T03:17:22.212Z",
+  "updatedAt": "2026-10-01T03:17:22.212Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Name the per-work-unit review companion as where advisory adversarial-pass evidence is retained",
+  "branch": "chore/review-evidence-record",
+  "origin": "inbox",
+  "originEntry": "Name where advisory adversarial-pass evidence is retained, instead of \"the existing review evidence\"",
+  "originEntrySourceDigest": "sha256:64c202be4d2dfd4417f0c1b9f632a095b01e2fc3383f96177f08a17bade07c02",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
