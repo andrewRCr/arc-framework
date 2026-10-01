@@ -69,7 +69,16 @@ Base reconciliation appended current main at `80e169b3f` as `650cf4d26`. Only ge
 approved guarded remedy regenerated it, while both code/test overlaps retained the substrate conversions.
 Post-merge Markdown, ARC contracts, code and shell lint, both type programs and 839 affected tests passed. The
 checkpoint's host-admission-before-repair dead end is separately captured; that workaround supplies no merge
-clearance. Public CI, E2E, Linux portability and all six compatible ci-job cost reports remain due under A3 at the
-integration gate. Archival follows separately after merge under the manual cadence.
+clearance. PR #751 then entered through the second guarded base merge at `3e6f29883`, resolving mixed-case repository
+validation without an origin override. Both type programs, targeted lint and 71 focused tests passed. The Owner
+accepted the review terminus after two completed Standard passes and ended further review; this decision does not
+rebind earlier clean evidence to the new head.
+
+Public CI run `36792325107` passed at published code head `3e6f29883`, including the build, E2E and Linux portability.
+All six ci-job cost reports matched their job-elapsed metric, project set and one-worker budget axes. E2E shard 2
+stayed within its advisory budget; unit, integration and the other three E2E shards exceeded theirs. These single-run
+observations establish no causal regression. Subsequent lifecycle commits retain that tested code tree and require
+their own exact-head public checks before integration. Archival follows separately after merge under the manual
+cadence.
 
 ---
