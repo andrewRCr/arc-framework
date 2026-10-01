@@ -552,7 +552,7 @@ describe("PR-open lifecycle extensions", () => {
     for (const base of [packageArc, projectArc]) {
       const amendment = await readFile(resolve(base, "system/workflows/arc/supplemental/amend-design.md"), "utf8");
       expect(amendment.toLowerCase().replace(/\s+/gu, " ")).toContain(
-        "pass prior findings from the work unit's `adversarial-passes.md`",
+        "pass any prior findings recorded in the work unit's `adversarial-passes.md`",
       );
     }
 
