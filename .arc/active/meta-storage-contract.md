@@ -14,7 +14,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** draft captured formalization-ready after six adversarial passes; stage advanced to create-spec
+- **Last Completed:** spec finalized after five spec adversarial passes; stage advanced to generate-tasks
 - **Next Task:** [none]
 - **Blockers:** [none]
 
