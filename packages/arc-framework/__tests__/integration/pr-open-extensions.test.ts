@@ -544,6 +544,9 @@ describe("PR-open lifecycle extensions", () => {
         expect(content).toContain("adversarial-review:");
         expect(normalized).toContain("apply the method's complete-disposition and bounded-continuation protocol");
         expect(normalized).toContain(evidenceLocus);
+        if (!packagedPath.endsWith("validate-criteria.md")) {
+          expect(normalized).toContain("later passes take their `prior-findings` from it");
+        }
         expect(normalized).toContain("creates no lane-progress record");
       }
     }
