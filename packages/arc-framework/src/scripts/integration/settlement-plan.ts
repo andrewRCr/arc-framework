@@ -115,3 +115,26 @@ export function settlementDispositionIds(plan: CanonicalSettlementPlan): string[
   return [...new Set(CanonicalSettlementPlanSchema.parse(plan).actions.map(({ dispositionId }) => dispositionId))]
     .sort();
 }
+
+/**
+ * Name what a plan settles: every approved disposition set by identity, with its action count per channel.
+ *
+ * @param plan - The canonical settlement plan an integration checkpoint persists.
+ * @returns Approval evidence an owner can check against the stored plan.
+ */
+export function describeSettlementPlan(plan: CanonicalSettlementPlan): string {
+  const channelsById = new Map<string, Map<SettlementAction["channel"], number>>();
+  for (const { dispositionId, channel } of CanonicalSettlementPlanSchema.parse(plan).actions) {
+    const channels = channelsById.get(dispositionId) ?? new Map<SettlementAction["channel"], number>();
+    channels.set(channel, (channels.get(channel) ?? 0) + 1);
+    channelsById.set(dispositionId, channels);
+  }
+  if (channelsById.size === 0) return "No approved dispositions require settlement.";
+  const byKey = <T>([left]: [string, T], [right]: [string, T]): number => left < right ? -1 : left > right ? 1 : 0;
+  const sets = [...channelsById.entries()].sort(byKey).map(([dispositionId, channels]) => {
+    const counts = [...channels.entries()].sort(byKey)
+      .map(([channel, count]) => `${count} ${channel} action${count === 1 ? "" : "s"}`);
+    return `${dispositionId} (${counts.join(", ")})`;
+  });
+  return `${sets.length} approved disposition set(s) require settlement: ${sets.join("; ")}.`;
+}
