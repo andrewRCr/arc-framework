@@ -3780,7 +3780,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const reviewStatusHostCalls = (await readFile(reviewStatusHostLog, "utf8")).split("\n");
     expect(reviewStatusHostCalls).not.toContain("repo view --json nameWithOwner");
     expect(reviewStatusHostCalls).toContainEqual(expect.stringMatching(
-      /^pr checks \d+ --repo owner\/repo --required --json name,state,bucket$/u,
+      /^pr checks \d+ --repo owner\/repo --required --json name,state,bucket,link$/u,
     ));
 
     const repositoryId = await resolveRepositoryIdentity(publisher);
