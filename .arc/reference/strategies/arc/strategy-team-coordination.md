@@ -239,9 +239,8 @@ Mechanisms:
   (b) bring the coupling to the team for explicit sequencing decision (one WU advances to
   execution before the other begins planning).
 
-For most teams, out-of-band coordination is sufficient. Codified inter-WU sync primitives are a
-future-ARC concern — see `draft-arc-backend.md` for the architectural answer to coordination needs
-that exceed Git's affordances.
+For most teams, out-of-band coordination is sufficient. ARC codifies no inter-WU sync primitive;
+coordination needs that exceed Git's affordances are the team's to meet with the tooling it chooses.
 
 ### Configuration Notes
 
