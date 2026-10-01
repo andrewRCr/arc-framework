@@ -674,6 +674,6 @@ describe("PR-open lifecycle extensions", () => {
     const packaged = await readFile(resolve(packageArc, "system/extensions/pre-pr-open.md"), "utf8");
 
     expect(project).toBe(packaged);
-    expect(project).not.toMatch(/CodeRabbit|review-triage|ci-defer-heavy|classify-change/iu);
+    expect(project).not.toMatch(/CodeRabbit|review-triage|classify-change/iu);
   });
 });

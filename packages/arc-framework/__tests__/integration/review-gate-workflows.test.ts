@@ -299,7 +299,7 @@ describe("trusted review-gate workflows", () => {
     expect(jobValue(workflow, "unit").if).toBe(unitCondition);
 
     const broadSuiteCondition = "${{ !cancelled() && needs.setup.result == 'success' && " +
-      "needs.classify.outputs.defer != 'true' && ((github.event_name == 'pull_request' && " +
+      "((github.event_name == 'pull_request' && " +
       "needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || " +
       "github.event_name == 'workflow_dispatch') }}";
     for (const jobName of ["integration", "e2e", "portability"]) {
@@ -857,7 +857,6 @@ describe("trusted review-gate workflows", () => {
     expect(compactLanding).toContain("A changed coordinate (including base OID or Errand claim)");
     expect(compactLanding).toContain("Inspect the PR's native review and unresolved conversations separately");
     expect(compactLanding).toContain("Owner acceptance never satisfies a required check");
-    expect(compactLanding).toContain("review-cycle CI deferral");
     expect(compactLanding).toContain("obtain separate Owner direction for any dismissal or thread action");
     expect(compactLanding).toContain("pass `errandMergeRequest` unchanged exactly once");
     expect(compactLanding).toContain("arc errand merge <slug> - --json");
