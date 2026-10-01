@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "stop-routing-model",
+  "claimId": "f85c9184037742e6498be3c6a2471479",
+  "createdAt": "2026-10-01T01:39:48.376Z",
+  "updatedAt": "2026-10-01T01:39:48.376Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "State the CLI to agent to Owner stop-routing model in DEV-RULES.PROJECT",
+  "branch": "chore/stop-routing-model",
+  "origin": "inbox",
+  "originEntry": "State the CLI → agent → Owner stop-routing model where every ARC design session loads it",
+  "originEntrySourceDigest": "sha256:48152eba932e8d4b50ecfc34be42f29104e03ddeca512f2931519601cf272474",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
