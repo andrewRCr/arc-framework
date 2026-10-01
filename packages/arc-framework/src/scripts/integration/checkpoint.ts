@@ -41,6 +41,7 @@ import {
 } from "../review-gate/policy/integration-boundary-locus.js";
 import {
   CanonicalSettlementPlanSchema,
+  describeSettlementPlan,
   settlementDispositionIds,
   type CanonicalSettlementPlan,
 } from "./settlement-plan.js";
@@ -1688,9 +1689,7 @@ export async function checkpointIntegration(
           kind: "settlement",
           label: "Settlement",
           clean: settledDispositions.length === 0,
-          evidence: settledDispositions.length === 0
-            ? "No approved dispositions require settlement."
-            : `${settledDispositions.length} approved disposition set(s) require settlement.`,
+          evidence: describeSettlementPlan(settlementPlan),
         },
         {
           kind: "checkpoint",
