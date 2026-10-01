@@ -50,6 +50,10 @@ class SnapshotDirEntry implements ProjectViewDirEntry {
   isDirectory(): boolean {
     return this.directory;
   }
+
+  isFile(): boolean {
+    return !this.directory;
+  }
 }
 
 /**

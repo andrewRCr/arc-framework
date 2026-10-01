@@ -20,10 +20,14 @@
  */
 
 import { readdir, readFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename } from "node:path";
 
 import { parseMetaRecord } from "../active/meta-reader.js";
-import { buildLifecycleIndex } from "../work-unit/lifecycle-index.js";
+import {
+  buildLifecycleIndex,
+  collectLifecycleMetaFiles,
+  type LifecycleIndexFs,
+} from "../work-unit/lifecycle-index.js";
 
 import { buildReadyMineSlice, type PlannedWorkUnit } from "./ready-mine.js";
 import type { StatusViewRow } from "./render.js";
@@ -31,8 +35,10 @@ import type { StatusViewRow } from "./render.js";
 /** `meta-<name>.md` filename shape; capture group 1 is the canonical WU-name. */
 const META_FILE_RE = /^meta-(.+)\.md$/;
 
-/** Planned-work root, relative to the repo. */
-const PLANNED_SEGMENTS = [".arc", "backlog", "planned"] as const;
+const NODE_FS: LifecycleIndexFs = {
+  readdir: (p) => readdir(p, { withFileTypes: true }),
+  readFile: (p) => readFile(p, "utf8"),
+};
 
 /** Options for {@link loadReadyMineSlice}. */
 export interface LoadReadyMineSliceOptions {
@@ -40,26 +46,6 @@ export interface LoadReadyMineSliceOptions {
   cwd: string;
   /** Owner to filter to; `null` keeps every planned WU. */
   identity: string | null;
-}
-
-/** Recursively collect `meta-*.md` paths under `dir`; a missing dir yields none. */
-async function collectMetaFiles(dir: string): Promise<string[]> {
-  let entries;
-  try {
-    entries = await readdir(dir, { withFileTypes: true });
-  } catch {
-    return []; // Missing directory — no metas to scan.
-  }
-  const out: string[] = [];
-  for (const entry of entries) {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      out.push(...(await collectMetaFiles(full)));
-    } else if (META_FILE_RE.test(entry.name)) {
-      out.push(full);
-    }
-  }
-  return out;
 }
 
 /** The canonical WU-name from a `meta-<name>.md` path. */
@@ -105,17 +91,13 @@ export async function loadReadyMineSlice(
 ): Promise<StatusViewRow[]> {
   const { cwd, identity } = options;
 
-  const plannedFiles = await collectMetaFiles(join(cwd, ...PLANNED_SEGMENTS));
+  const plannedFiles = (await collectLifecycleMetaFiles(cwd, NODE_FS))
+    .filter(({ location }) => location === "planned")
+    .map(({ path }) => path);
   const planned = (await Promise.all(plannedFiles.map(parsePlanned))).filter(
     (workUnit): workUnit is PlannedWorkUnit => workUnit !== null,
   );
-  const lifecycleIndex = await buildLifecycleIndex({
-    cwd,
-    fs: {
-      readdir: (p) => readdir(p, { withFileTypes: true }),
-      readFile: (p) => readFile(p, "utf8"),
-    },
-  });
+  const lifecycleIndex = await buildLifecycleIndex({ cwd, fs: NODE_FS });
 
   return buildReadyMineSlice(planned, lifecycleIndex, identity);
 }

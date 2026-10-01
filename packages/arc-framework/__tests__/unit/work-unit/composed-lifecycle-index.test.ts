@@ -2,6 +2,7 @@
  * Unit tests for the shared tree + in-flight lifecycle composition layer.
  */
 
+import { execFileSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
@@ -151,6 +152,26 @@ describe("resolveComposedLifecycleIndex", () => {
       writablePath: ".arc/active/meta-active.md",
     });
   });
+
+  it.skipIf(process.platform === "win32")(
+    "agrees with the tree-only index on duplicated slugs, nested active metas, and non-regular files",
+    async () => {
+      root = await mkdtemp(join(tmpdir(), "arc-composed-index-"));
+      await writeMeta(join(root, ".arc", "completed", "meta-resumed.md"), meta("resumed", "Shipped"));
+      await writeMeta(join(root, ".arc", "active", "meta-resumed.md"), meta("resumed", "Active"));
+      await writeMeta(join(root, ".arc", "active", "sub", "meta-nested.md"), meta("nested", "Active"));
+      execFileSync("mkfifo", [join(root, ".arc", "active", "meta-pipe.md")]);
+
+      const [tree, composed] = await Promise.all([
+        buildLifecycleIndex({ cwd: root, fs }),
+        resolveComposedLifecycleIndex({ cwd: root, fs }),
+      ]);
+
+      expect([...composed.index.entries()]).toEqual([...tree.entries()]);
+      expect([...tree.keys()]).toEqual(["resumed"]);
+      expect(tree.get("resumed")).toMatchObject({ phase: "Active", location: "active" });
+    },
+  );
 
   it("overlays a sibling activation from local refs without reading the network", async () => {
     root = await mkdtemp(join(tmpdir(), "arc-composed-index-"));

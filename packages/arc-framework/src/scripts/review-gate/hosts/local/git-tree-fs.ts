@@ -3,7 +3,7 @@
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
 import type { GitExec } from "../../../../lib/git/exec.js";
-import type { ProjectViewFs } from "../../../../lib/status/project-view.js";
+import type { ProjectViewDirEntry, ProjectViewFs } from "../../../../lib/status/project-view.js";
 import type {
   ReviewReadinessDirEntry,
   ReviewReadinessFs,
@@ -85,7 +85,8 @@ export function createGitTreeReadFs(input: {
         return {
           name: match[2],
           isDirectory: () => type === "tree",
-        } satisfies ReviewReadinessDirEntry;
+          isFile: () => type === "blob",
+        } satisfies ReviewReadinessDirEntry & ProjectViewDirEntry;
       });
     },
   };

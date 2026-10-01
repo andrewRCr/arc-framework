@@ -44,7 +44,7 @@ const WORKTREE = "/repo/../wt-foo";
 function buildIndexFs(slug: string, state: string, branch: string): LifecycleIndexFs {
   const dir = `${CWD}/.arc/active`;
   const filename = `meta-${slug}.md`;
-  const entries: DirEntry[] = [{ name: filename, isDirectory: () => false }];
+  const entries: DirEntry[] = [{ name: filename, isDirectory: () => false, isFile: () => true }];
   const content =
     `# Metadata: ${slug}\n\n` +
     `| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n` +

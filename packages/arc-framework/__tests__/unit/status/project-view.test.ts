@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -14,6 +14,7 @@ import {
   resolveProjectReadinessViewInput,
   type ProjectReadinessProvider,
   type ProjectReadinessRecordCandidate,
+  type ProjectViewFs,
 } from "../../../src/lib/status/project-view.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
 import { canonicalDigest } from "../../../src/lib/kernel/canonical/canonical-json.js";
@@ -25,6 +26,17 @@ import {
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
 let root: string | undefined;
+
+/** The real filesystem, except that `vanished` is listed but gone by the time it is read. */
+function vanishingFs(vanished: string): ProjectViewFs {
+  return {
+    readdir: (path) => readdir(path, { withFileTypes: true }),
+    readFile: async (path) => {
+      if (path === vanished) throw Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
+      return await readFile(path, "utf8");
+    },
+  };
+}
 
 async function writeMeta(path: string, content: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
@@ -170,9 +182,13 @@ describe("composeProjectReadinessView", () => {
     root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
     const activeDir = join(root, ".arc", "active");
     await writeMeta(join(activeDir, "meta-kept.md"), meta("kept", "Active"));
-    await symlink(join(activeDir, "already-gone.md"), join(activeDir, "meta-vanished.md"), "file");
+    await writeMeta(join(activeDir, "meta-vanished.md"), meta("vanished", "Active"));
 
-    const input = await resolveProjectReadinessViewInput({ cwd: root, title: "Roadmap" });
+    const input = await resolveProjectReadinessViewInput({
+      cwd: root,
+      title: "Roadmap",
+      fs: vanishingFs(join(activeDir, "meta-vanished.md")),
+    });
     const view = composeProjectReadinessView({ ...input, renderedRef: "abc1234" });
 
     expect(view).toContain("kept");
@@ -183,9 +199,12 @@ describe("composeProjectReadinessView", () => {
     root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
     const activeDir = join(root, ".arc", "active");
     await writeMeta(join(activeDir, "meta-kept.md"), meta("kept", "Active"));
-    await symlink(join(activeDir, "already-gone.md"), join(activeDir, "meta-vanished.md"), "file");
+    await writeMeta(join(activeDir, "meta-vanished.md"), meta("vanished", "Active"));
 
-    const composition = await resolveProjectReadinessComposition({ cwd: root });
+    const composition = await resolveProjectReadinessComposition({
+      cwd: root,
+      fs: vanishingFs(join(activeDir, "meta-vanished.md")),
+    });
 
     expect(composition.rejectedRecords).toEqual([{
       slugHint: "vanished",

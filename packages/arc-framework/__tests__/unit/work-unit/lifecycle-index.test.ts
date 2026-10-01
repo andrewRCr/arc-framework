@@ -52,6 +52,7 @@ function buildMemFs(
       const entries: DirEntry[] = [...children].map(([name, isDir]) => ({
         name,
         isDirectory: () => isDir,
+        isFile: () => !isDir,
       }));
       return entries;
     },
@@ -119,6 +120,59 @@ describe("buildLifecycleIndex — per-tier walk", () => {
     expect(index.get("delta")?.location).toBe("completed");
     expect(index.has("some-cohort")).toBe(false);
     expect(index.size).toBe(1);
+  });
+});
+
+describe("buildLifecycleIndex — one source per slug", () => {
+  it("keeps the active copy of a slug that the backlog and archive also hold", async () => {
+    const fs = buildMemFs({
+      [A("completed/2026-q2/01_resumed/meta-resumed.md")]: meta("Shipped"),
+      [A("backlog/planned/meta-resumed.md")]: meta("Planning"),
+      [A("active/meta-resumed.md")]: meta("Active"),
+    });
+
+    const index = await buildLifecycleIndex({ cwd, fs });
+
+    expect(index.get("resumed")).toMatchObject({
+      phase: "Active",
+      location: "active",
+      path: ".arc/active/meta-resumed.md",
+    });
+    expect(index.size).toBe(1);
+  });
+
+  it("keeps the lexically first path when one tier holds a slug twice", async () => {
+    const fs = buildMemFs({
+      [A("backlog/planned/alpha/meta-twin.md")]: meta("Planning", "alpha"),
+      [A("backlog/planned/zeta/meta-twin.md")]: meta("Planning", "zeta"),
+    });
+
+    const index = await buildLifecycleIndex({ cwd, fs });
+
+    expect(index.get("twin")).toMatchObject({ cohort: "alpha", path: ".arc/backlog/planned/alpha/meta-twin.md" });
+  });
+
+  it("reads only regular files, so a named pipe called meta-*.md never blocks the walk", async () => {
+    const reads: string[] = [];
+    const fs: LifecycleIndexFs = {
+      readdir: async (dir) => {
+        if (dir !== A("active")) throw new Error(`ENOENT: ${dir}`);
+        return [
+          { name: "meta-pipe.md", isDirectory: () => false, isFile: () => false },
+          { name: "meta-good.md", isDirectory: () => false, isFile: () => true },
+        ];
+      },
+      readFile: async (path) => {
+        reads.push(path);
+        if (path === A("active/meta-pipe.md")) return new Promise<string>(() => {});
+        return meta("Active");
+      },
+    };
+
+    const index = await buildLifecycleIndex({ cwd, fs });
+
+    expect([...index.keys()]).toEqual(["good"]);
+    expect(reads).toEqual([A("active/meta-good.md")]);
   });
 });
 
@@ -264,6 +318,24 @@ describe("buildLifecycleIndexFromMetas — files-in (sync, fs-free)", () => {
     ]);
 
     expect([...index.keys()]).toEqual(["good"]);
+  });
+
+  it("keeps the active copy of a duplicated slug whatever order the metas arrive in", () => {
+    const index = buildLifecycleIndexFromMetas([
+      { path: ".arc/active/meta-resumed.md", content: meta("Active") },
+      { path: ".arc/completed/2026-q2/01_resumed/meta-resumed.md", content: meta("Shipped") },
+    ]);
+
+    expect(index.get("resumed")).toMatchObject({ phase: "Active", location: "active" });
+  });
+
+  it("skips an active meta below a subdirectory of active/", () => {
+    const index = buildLifecycleIndexFromMetas([
+      { path: ".arc/active/meta-flat.md", content: meta("Active") },
+      { path: ".arc/active/sub/meta-nested.md", content: meta("Active") },
+    ]);
+
+    expect([...index.keys()]).toEqual(["flat"]);
   });
 });
 
