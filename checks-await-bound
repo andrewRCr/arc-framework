@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "checks-await-bound",
+  "claimId": "7fa44a03627243314f68d4dcd73c2f07",
+  "createdAt": "2026-10-01T02:25:07.979Z",
+  "updatedAt": "2026-10-01T02:25:07.979Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Fix the checks waiter's misreported deadline and make its bound a project setting",
+  "branch": "chore/checks-await-bound",
+  "origin": "inbox",
+  "originEntry": "Make the required-check waiter's bounded wait a project setting",
+  "originEntrySourceDigest": "sha256:e643bae76ca9ca63de69d61905e7b2126063f46db2cd01883552f1ba61859cd6",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
