@@ -269,9 +269,12 @@ adversarial-review:
   prior-findings:  # pass two onward; omitted on pass one
 ```
 
-After each returned pass, apply the method's complete-disposition and bounded-continuation protocol. Retain the
-complete source-verified finding/account/action set, `Pass N of M`, stop reason, and any conditional next-pass
-decision in the existing spec review evidence. This advisory evidence creates no lane-progress record.
+After each returned pass, apply the method's complete-disposition and bounded-continuation protocol, then append the
+pass to `ADVERSARIAL-PASSES.md` in the work unit's personal workspace (`.arc/user/{identity}/{name}/`, beside
+SESSION-NOTES): the artifact and version reviewed, `Pass N of M`, the rubric, the complete source-verified
+finding/account/action set, the stop reason, and any conditional next-pass decision. Later passes take their
+`prior-findings` from it, and the commit below summarizes each pass in one body line. This advisory evidence creates
+no lane-progress record.
 
 > [!IMPORTANT]
 > `workflow-interlock` — Gate 1 (review / iterate): Stop after the spec is saved and self-reviewed. Surface the
