@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { CanonicalDigestSchema } from "../../../../src/lib/kernel/index.js";
+
 import { createHostedHandleFixture } from "../../../fixtures/hosted-review.js";
 import { DeliveryReviewMemberVehicleSchema } from "../../../../src/lib/delivery/review-vehicle.js";
 import { type LaneProgressState, type ReviewOperationState } from "../../../../src/scripts/review-gate/core/operation-state-schema.js";
@@ -9,6 +11,7 @@ import { bindHostedAttemptDisposition, captureConditionalNextPassAuthorization, 
 import { createHostedAdmission, type HostedRequestEnvelope, type HostedRequestHandle } from "../../../../src/scripts/review-gate/hosted/request.js";
 
 
+const digest = (value: string) => CanonicalDigestSchema.parse(value);
 const objectId = (character: string): string => character.repeat(40);
 const correctionScope = (headSha: string) => ({
   schemaVersion: 1 as const,
@@ -107,7 +110,7 @@ const handleBase = {
 const deliveryVehicle = DeliveryReviewMemberVehicleSchema.parse({
   kind: "delivery-member",
   planId: "123e4567-e89b-12d3-a456-426614174000",
-  deliverableId: `sha256:${"9".repeat(64)}`,
+  deliverableId: digest(`sha256:${"9".repeat(64)}`),
   workUnitId: "example",
   head: objectId("c"),
 });
@@ -128,7 +131,7 @@ const hostedRequirement = createReviewRequirement({
     obligation: "required",
     reasons: ["sensitive-change-set"],
     rubricVersion: "standard-review/v1",
-    rubricDigest: `sha256:${"e".repeat(64)}`,
+    rubricDigest: digest(`sha256:${"e".repeat(64)}`),
     retrigger: "full-final",
     count: 1,
   },
@@ -145,7 +148,7 @@ const hostedContext = {
 const hostedAdmission = createHostedAdmission({
   schemaVersion: 1,
   repositoryId: "repo-1",
-  lineage: { kind: "candidate", candidateId: `sha256:${"8".repeat(64)}` },
+  lineage: { kind: "candidate", candidateId: digest(`sha256:${"8".repeat(64)}`) },
   logicalPass: 1,
   sourceId: handleBase.provider,
   target: handleBase.target,
@@ -172,7 +175,7 @@ const deliveryHostedRequirement = createReviewRequirement({
     obligation: "required",
     reasons: ["sensitive-change-set"],
     rubricVersion: "standard-review/v1",
-    rubricDigest: `sha256:${"e".repeat(64)}`,
+    rubricDigest: digest(`sha256:${"e".repeat(64)}`),
     retrigger: "full-final",
     count: 1,
   },
@@ -246,7 +249,7 @@ async function seedAcknowledgedRequest(
 describe("hosted await lane recording", () => {
   it("allocates and replays a hosted pass after a validated superseded Candidate", async () => {
     const store = createStore();
-    const ancestorLineage = { kind: "candidate" as const, candidateId: `sha256:${"7".repeat(64)}` };
+    const ancestorLineage = { kind: "candidate" as const, candidateId: digest(`sha256:${"7".repeat(64)}`) };
     await recordLaneAttempt(store, {
       lane: "standard",
       repositoryId: "repo-1",
@@ -321,7 +324,7 @@ describe("hosted await lane recording", () => {
     });
     expect(await readHostedRequestAdmissionReplay({ readOperation }, {
       ...current,
-      lineage: { kind: "candidate", candidateId: `sha256:${"7".repeat(64)}` },
+      lineage: { kind: "candidate", candidateId: digest(`sha256:${"7".repeat(64)}`) },
     })).toBeNull();
     expect(await readHostedRequestAdmissionReplay({ readOperation }, {
       ...current,
@@ -342,7 +345,7 @@ describe("hosted await lane recording", () => {
         obligation: "required" as const,
         reasons: ["sensitive-change-set" as const],
         rubricVersion: "standard-review/v1",
-        rubricDigest: `sha256:${"e".repeat(64)}`,
+        rubricDigest: digest(`sha256:${"e".repeat(64)}`),
         retrigger: "full-final" as const,
         count: 1 as const,
       },
@@ -388,7 +391,7 @@ describe("hosted await lane recording", () => {
   it("consumes a bound authorization before returning its named hosted admission", async () => {
     const store = createStore();
     const lineage = hostedAdmission.lineage;
-    const dispositionSetId = `sha256:${"6".repeat(64)}`;
+    const dispositionSetId = digest(`sha256:${"6".repeat(64)}`);
     await recordLaneAttempt(store, {
       ...attempt,
       lineage,
@@ -626,7 +629,7 @@ describe("hosted await lane recording", () => {
         obligation: "required",
         reasons: ["sensitive-change-set"],
         rubricVersion: "standard-review/v2",
-        rubricDigest: `sha256:${"7".repeat(64)}`,
+        rubricDigest: digest(`sha256:${"7".repeat(64)}`),
         retrigger: "full-final",
         count: 1,
       },
@@ -695,7 +698,7 @@ describe("hosted await lane recording", () => {
         obligation: "required",
         reasons: ["sensitive-change-set"],
         rubricVersion: "standard-review/v1",
-        rubricDigest: `sha256:${"e".repeat(64)}`,
+        rubricDigest: digest(`sha256:${"e".repeat(64)}`),
         retrigger: "full-final",
         count: 1,
       },
@@ -1200,7 +1203,7 @@ describe("hosted await lane recording", () => {
       headSha: handle.target.headSha,
       lineage: hostedAdmission.lineage,
       producerId: attemptId,
-      dispositionSetId: `sha256:${"f".repeat(64)}`,
+      dispositionSetId: digest(`sha256:${"f".repeat(64)}`),
       authorizedBy: hostedContext.actorIdentity,
       exhaustedPassCount: 1,
       nextPass: 2,
@@ -1209,7 +1212,7 @@ describe("hosted await lane recording", () => {
     const bound = await bindHostedAttemptDisposition(store, {
       operationId: progress.operationId,
       attemptId,
-      dispositionSetId: `sha256:${"f".repeat(64)}`,
+      dispositionSetId: digest(`sha256:${"f".repeat(64)}`),
       findingDispositions: [{
         findingId: "thread-1",
         disposition: "fix",
@@ -1229,14 +1232,14 @@ describe("hosted await lane recording", () => {
       hosted: {
         sealedResult,
         dispositionSetLineage: [{
-          dispositionSetId: `sha256:${"f".repeat(64)}`,
+          dispositionSetId: digest(`sha256:${"f".repeat(64)}`),
           predecessorDispositionSetId: null,
           successorDispositionSetId: null,
         }],
         settledFindingIds: ["body-1"],
         settlementEvidence: [{
           findingId: "body-1",
-          dispositionSetId: `sha256:${"f".repeat(64)}`,
+          dispositionSetId: digest(`sha256:${"f".repeat(64)}`),
           disposition: "reject",
           channelAction: "record-only",
           performedAt: "2026-08-15T12:01:00Z",
@@ -1264,8 +1267,8 @@ describe("hosted await lane recording", () => {
     await expect(supersedeHostedAttemptDisposition(ambiguousStore, {
       operationId: progress.operationId,
       attemptId,
-      predecessorDispositionSetId: `sha256:${"f".repeat(64)}`,
-      successorDispositionSetId: `sha256:${"2".repeat(64)}`,
+      predecessorDispositionSetId: digest(`sha256:${"f".repeat(64)}`),
+      successorDispositionSetId: digest(`sha256:${"2".repeat(64)}`),
       findingDispositions: [{
         findingId: "thread-1",
         disposition: "reject",
@@ -1283,7 +1286,7 @@ describe("hosted await lane recording", () => {
     await expect(bindHostedAttemptDisposition(store, {
       operationId: progress.operationId,
       attemptId,
-      dispositionSetId: `sha256:${"f".repeat(64)}`,
+      dispositionSetId: digest(`sha256:${"f".repeat(64)}`),
       findingDispositions: [{
         findingId: "thread-1",
         disposition: "reject",
@@ -1301,7 +1304,7 @@ describe("hosted await lane recording", () => {
       headSha: handle.target.headSha,
       lineage: hostedAdmission.lineage,
       attemptId,
-      dispositionSetId: `sha256:${"f".repeat(64)}`,
+      dispositionSetId: digest(`sha256:${"f".repeat(64)}`),
       producedHeadSha: objectId("d"),
       now: "2026-08-15T12:01:30Z",
     });
@@ -1314,7 +1317,7 @@ describe("hosted await lane recording", () => {
       },
       responsePerformance: {
         producerId: attemptId,
-        dispositionSetId: `sha256:${"f".repeat(64)}`,
+        dispositionSetId: digest(`sha256:${"f".repeat(64)}`),
         originatingHeadSha: handle.target.headSha,
         producedHeadSha: objectId("d"),
         performedAt: "2026-08-15T12:01:30Z",
@@ -1323,7 +1326,7 @@ describe("hosted await lane recording", () => {
     const settled = await settleHostedAttemptFinding(store, {
       operationId: progress.operationId,
       attemptId,
-      dispositionSetId: `sha256:${"f".repeat(64)}`,
+      dispositionSetId: digest(`sha256:${"f".repeat(64)}`),
       findingId: "thread-1",
       disposition: "fix",
       actorIdentity: hostedContext.actorIdentity,
@@ -1331,7 +1334,7 @@ describe("hosted await lane recording", () => {
       fixTarget: { ...handle.target, headSha: objectId("d") },
       commentId: "comment-1",
       threadId: "thread-1",
-      replyDigest: `sha256:${"1".repeat(64)}`,
+      replyDigest: digest(`sha256:${"1".repeat(64)}`),
       replyId: "reply-1",
       now: "2026-08-15T12:02:00Z",
     });
@@ -1348,7 +1351,7 @@ describe("hosted await lane recording", () => {
         settledFindingIds: ["body-1", "thread-1"],
         settlementEvidence: expect.arrayContaining([expect.objectContaining({
           findingId: "thread-1",
-          dispositionSetId: `sha256:${"f".repeat(64)}`,
+          dispositionSetId: digest(`sha256:${"f".repeat(64)}`),
           disposition: "fix",
           channelAction: "reply-and-resolve",
           actorIdentity: hostedContext.actorIdentity,
@@ -1356,7 +1359,7 @@ describe("hosted await lane recording", () => {
           fixTarget: { ...handle.target, headSha: objectId("d") },
           commentId: "comment-1",
           threadId: "thread-1",
-          replyDigest: `sha256:${"1".repeat(64)}`,
+          replyDigest: digest(`sha256:${"1".repeat(64)}`),
           replyId: "reply-1",
           performedAt: "2026-08-15T12:02:00Z",
           carriedFromDispositionSetId: null,
@@ -1366,7 +1369,7 @@ describe("hosted await lane recording", () => {
     await expect(settleHostedAttemptFinding(store, {
       operationId: progress.operationId,
       attemptId,
-      dispositionSetId: `sha256:${"f".repeat(64)}`,
+      dispositionSetId: digest(`sha256:${"f".repeat(64)}`),
       findingId: "thread-1",
       disposition: "fix",
       actorIdentity: hostedContext.actorIdentity,
@@ -1374,26 +1377,26 @@ describe("hosted await lane recording", () => {
       fixTarget: { ...handle.target, headSha: objectId("d") },
       commentId: "comment-1",
       threadId: "thread-1",
-      replyDigest: `sha256:${"1".repeat(64)}`,
+      replyDigest: digest(`sha256:${"1".repeat(64)}`),
       replyId: "reply-1",
       now: "2026-08-15T12:03:00Z",
     })).resolves.toEqual(settled);
 
-    const successorSetId = `sha256:${"2".repeat(64)}`;
+    const successorSetId = digest(`sha256:${"2".repeat(64)}`);
     await invalidateConditionalNextPassAuthorization(store, {
       lane: "standard",
       repositoryId: "repo-1",
       headSha: handle.target.headSha,
       lineage: hostedAdmission.lineage,
       producerId: attemptId,
-      dispositionSetId: `sha256:${"f".repeat(64)}`,
+      dispositionSetId: digest(`sha256:${"f".repeat(64)}`),
       successorDispositionSetId: successorSetId,
       now: "2026-08-15T12:03:30Z",
     });
     const superseded = await supersedeHostedAttemptDisposition(store, {
       operationId: progress.operationId,
       attemptId,
-      predecessorDispositionSetId: `sha256:${"f".repeat(64)}`,
+      predecessorDispositionSetId: digest(`sha256:${"f".repeat(64)}`),
       successorDispositionSetId: successorSetId,
       findingDispositions: [{
         findingId: "thread-1",
@@ -1412,12 +1415,12 @@ describe("hosted await lane recording", () => {
     expect(successorAttempt?.outcome).toBe("findings");
     expect(successorAttempt?.hosted?.dispositionSetId).toBe(successorSetId);
     expect(successorAttempt?.hosted?.dispositionSetLineage).toMatchObject([{
-      dispositionSetId: `sha256:${"f".repeat(64)}`,
+      dispositionSetId: digest(`sha256:${"f".repeat(64)}`),
       predecessorDispositionSetId: null,
       successorDispositionSetId: successorSetId,
     }, {
       dispositionSetId: successorSetId,
-      predecessorDispositionSetId: `sha256:${"f".repeat(64)}`,
+      predecessorDispositionSetId: digest(`sha256:${"f".repeat(64)}`),
       successorDispositionSetId: null,
     }]);
     expect(successorAttempt?.hosted?.settledFindingIds).toEqual(["body-1"]);
@@ -1428,13 +1431,13 @@ describe("hosted await lane recording", () => {
         disposition: "reject",
         channelAction: "record-only",
         performedAt: "2026-08-15T12:01:00Z",
-        carriedFromDispositionSetId: `sha256:${"f".repeat(64)}`,
+        carriedFromDispositionSetId: digest(`sha256:${"f".repeat(64)}`),
       }),
     ]));
     await expect(supersedeHostedAttemptDisposition(store, {
       operationId: progress.operationId,
       attemptId,
-      predecessorDispositionSetId: `sha256:${"f".repeat(64)}`,
+      predecessorDispositionSetId: digest(`sha256:${"f".repeat(64)}`),
       successorDispositionSetId: successorSetId,
       findingDispositions: [{
         findingId: "thread-1",
@@ -1458,14 +1461,14 @@ describe("hosted await lane recording", () => {
       fixTarget: null,
       commentId: "comment-1",
       threadId: "thread-1",
-      replyDigest: `sha256:${"4".repeat(64)}`,
+      replyDigest: digest(`sha256:${"4".repeat(64)}`),
       replyId: "reply-2",
       now: "2026-08-15T12:05:30Z",
     });
     await expect(supersedeHostedAttemptDisposition(store, {
       operationId: progress.operationId,
       attemptId,
-      predecessorDispositionSetId: `sha256:${"f".repeat(64)}`,
+      predecessorDispositionSetId: digest(`sha256:${"f".repeat(64)}`),
       successorDispositionSetId: successorSetId,
       findingDispositions: [{
         findingId: "thread-1",
@@ -1485,8 +1488,8 @@ describe("hosted await lane recording", () => {
     await expect(supersedeHostedAttemptDisposition(store, {
       operationId: progress.operationId,
       attemptId,
-      predecessorDispositionSetId: `sha256:${"f".repeat(64)}`,
-      successorDispositionSetId: `sha256:${"3".repeat(64)}`,
+      predecessorDispositionSetId: digest(`sha256:${"f".repeat(64)}`),
+      successorDispositionSetId: digest(`sha256:${"3".repeat(64)}`),
       findingDispositions: [{
         findingId: "thread-1",
         disposition: "reject",

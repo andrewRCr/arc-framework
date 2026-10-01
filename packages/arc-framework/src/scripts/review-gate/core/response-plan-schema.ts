@@ -1,6 +1,7 @@
 /** Runtime schemas for local and frontline review-response planning. */
 
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
 import {
@@ -34,7 +35,7 @@ export const ReviewResponseInputSchema = z.strictObject({
   routing: ReviewRoutingDecisionSchema,
   dispositionState: DispositionSetStateSchema.nullable(),
   candidateTarget: ReviewTargetSchema.nullable(),
-  persistedTargetId: z.string().regex(/^sha256:[0-9a-f]{64}$/u).nullable(),
+  persistedTargetId: CanonicalDigestSchema.nullable(),
   verificationPassed: z.boolean(),
   verificationRefs: z.array(z.string().trim().min(1)),
   capabilities: ReviewResponseCapabilitiesSchema,
@@ -91,7 +92,7 @@ export type ReviewResponseSettlementRequest = z.infer<typeof ReviewResponseSettl
 
 export const ReviewResponseSettlementActionSchema = z.strictObject({
   channel: z.literal("review-response"),
-  dispositionId: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+  dispositionId: CanonicalDigestSchema,
   originTarget: ReviewTargetSchema,
   fixTarget: ReviewTargetSchema.nullable(),
   actors: z.strictObject({

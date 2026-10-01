@@ -8,6 +8,7 @@ import {
   type EvidenceApplicabilityResult,
 } from "../../lib/evidence-applicability/index.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
+import { CanonicalDigestSchema } from "../../lib/kernel/schema/vocabulary.js";
 import { LocusTokenSchema } from "../../lib/locus/schema/index.js";
 import {
   RequiredCheckSchema,
@@ -27,7 +28,7 @@ import {
 } from "./merge.js";
 import { SpineRemedySchema, spineRemedy } from "./spine-refusal.js";
 
-const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+const DigestSchema = CanonicalDigestSchema;
 const ErrandMergeIdentitySchema = z.strictObject({
   slug: SlugSchema,
   claimId: LocusTokenSchema,

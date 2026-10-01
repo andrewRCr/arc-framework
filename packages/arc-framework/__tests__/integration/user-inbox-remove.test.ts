@@ -7,7 +7,7 @@
  * missing inbox).
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { readFile, writeFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -21,8 +21,9 @@ import {
   type UserIOContext,
 } from "../../src/commands/user.js";
 import { contentDigest } from "../../src/lib/canonical/content-digest.js";
-import { inboxEntrySourceDigest } from "../../src/lib/user-sync/index.js";
-import type { ExecResult, GitExec } from "../../src/lib/git/exec.js";
+import { inboxEntrySourceDigest } from "../../src/lib/user-sync/inbox-writer.js";
+import type { GitExec } from "../../src/lib/git/exec.js";
+import { scriptGitExec } from "../helpers/git-exec-fake.js";
 
 const IDENTITY = "tester";
 
@@ -44,12 +45,10 @@ const INBOX = `# User Inbox
 let cwd: string;
 let inboxPath: string;
 
-function io(exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
-  if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
-    return { stdout: join(cwd, ".git") + "\n", stderr: "" };
-  }
-  throw new Error(`unexpected git command: ${args.join(" ")}`);
-})): UserIOContext {
+function io(exec: GitExec = scriptGitExec([
+  { match: ["rev-parse", "--git-common-dir"],
+    responses: [{ stdout: join(cwd, ".git") + "\n", stderr: "" }] },
+]).exec): UserIOContext {
   return {
     exec,
     readFile: (path) => readFile(path, "utf-8"),
@@ -62,17 +61,16 @@ function io(exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
 }
 
 function execReturningWorktrees(primary: string, linked: string): GitExec {
-  return vi.fn(async (_cmd, args): Promise<ExecResult> => {
-    if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
-      return { stdout: join(primary, ".git") + "\n", stderr: "" };
-    }
-    expect(args).toEqual(["worktree", "list", "--porcelain", "-z"]);
-    return {
-      stderr: "",
-      stdout: `worktree ${primary}\0HEAD ${"1".repeat(40)}\0branch refs/heads/main\0\0`
-        + `worktree ${linked}\0HEAD ${"2".repeat(40)}\0branch refs/heads/feat/demo\0\0`,
-    };
-  });
+  return scriptGitExec([
+    { match: ["rev-parse", "--git-common-dir"],
+      responses: [{ stdout: join(primary, ".git") + "\n", stderr: "" }] },
+    { match: ["worktree", "list", "--porcelain", "-z"],
+      responses: [{
+        stderr: "",
+        stdout: `worktree ${primary}\0HEAD ${"1".repeat(40)}\0branch refs/heads/main\0\0`
+          + `worktree ${linked}\0HEAD ${"2".repeat(40)}\0branch refs/heads/feat/demo\0\0`,
+      }] },
+  ]).exec;
 }
 
 beforeEach(async () => {

@@ -10,6 +10,7 @@ import {
 } from "../../../../src/scripts/integration/merge.js";
 import { BaseMergeInputSchema } from "../../../../src/scripts/base/merge.js";
 import { IntegrationCheckpointCompositionRecordSchema } from "../../../../src/scripts/integration/checkpoint-store.js";
+import { MergeLockTransitionRequestSchema } from "../../../../src/scripts/review-gate/merge-lock.js";
 import { composeCanonicalSettlementPlan } from "../../../../src/scripts/integration/settlement-plan.js";
 
 const oid = (character: string): string => character.repeat(40);
@@ -96,7 +97,7 @@ function dependencies() {
       state.held = true;
       return { state: "held" };
     },
-    createLockRequest: async (target) => ({
+    createLockRequest: async (target) => MergeLockTransitionRequestSchema.parse({
       schemaVersion: 1,
       treeRoot: "/candidate",
       target: {
@@ -236,7 +237,7 @@ describe("integration merge", () => {
       headRef: "feat/example",
       headSha: oid("f"),
     };
-    const refreshedTarget = { ...liveTarget, headSha: oid("g") };
+    const refreshedTarget = { ...liveTarget, headSha: oid("e") };
     let heldTarget: typeof refreshedTarget | undefined;
     value.readStatus = async () => ({
       actualHead: liveTarget.headSha,

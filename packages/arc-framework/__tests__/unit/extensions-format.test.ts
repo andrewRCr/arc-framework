@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { ExtensionsSessionInitResultSchema } from "../../src/commands/extensions/status.js";
 
 import {
   buildExtensionsStatusSummary,
@@ -157,7 +158,7 @@ describe("JSON wire contract", () => {
       active: ["pre-merge"],
       warnings: [],
     };
-    const parsed = JSON.parse(JSON.stringify(result)) as ExtensionsSessionInitResult;
+    const parsed = ExtensionsSessionInitResultSchema.parse(JSON.parse(JSON.stringify(result)));
     expect(parsed).toEqual(result);
     expect(parsed.mode).toBe("session-init");
   });

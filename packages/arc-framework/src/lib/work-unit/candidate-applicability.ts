@@ -2,7 +2,8 @@
 
 import { z } from "zod";
 
-import { canonicalDigest } from "../canonical/canonical-json.js";
+import { canonicalDigest, type CanonicalDigest } from "../kernel/canonical/canonical-json.js";
+import { CanonicalDigestSchema } from "../kernel/schema/vocabulary.js";
 import {
   MAX_EVIDENCE_APPLICABILITY_PATH_BYTES,
   MAX_EVIDENCE_APPLICABILITY_PATHS,
@@ -20,7 +21,7 @@ import { isManagedPath } from "../kernel/canonical/managed-path.js";
 import { CandidateLineageTargetSchema } from "./candidate-attestation.js";
 
 const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
-const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+const DigestSchema = CanonicalDigestSchema;
 const ApplicabilityPathSchema = z.string().min(1).refine(isManagedPath, "must be a managed repository path");
 
 export const MAX_CANDIDATE_APPLICABILITY_PATHS = MAX_EVIDENCE_APPLICABILITY_PATHS;
@@ -399,7 +400,7 @@ export function candidateApplicabilityDigests(input: {
   projection: z.infer<typeof DeliveryContributionEndpointsSchema> | null;
   verdict: string;
   paths: readonly string[];
-}): { projectionDigest: string; residualDigest: string } {
+}): { projectionDigest: CanonicalDigest; residualDigest: CanonicalDigest } {
   const projectionDigest = canonicalDigest({
     domain: "arc.candidate.applicability.projection/v1",
     candidateId: input.request.candidateId,

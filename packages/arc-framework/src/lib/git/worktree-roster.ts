@@ -10,11 +10,11 @@
  * @module
  */
 
-import { validateState, type WorkUnitState } from "../../commands/active/types.js";
-import {
-  parseMetaRecord,
-  type ParsedMetaRecord,
-} from "../active/meta-reader.js";
+import { validateState } from "../kernel/schema/vocabulary.js";
+import { z } from "zod";
+import { WorkUnitStateSchema } from "../kernel/index.js";
+import { parseMetaRecord } from "../active/meta-reader.js";
+import { type ParsedMetaRecord } from "../active/meta-schema.js";
 
 import type { GitExec } from "./exec.js";
 import {
@@ -29,7 +29,8 @@ import {
  * (the roster surfaces every branched worktree, including ones with
  * malformed or unrecognized State).
  */
-export type WorktreeRosterState = WorkUnitState | "unknown";
+export const WorktreeRosterStateSchema = z.union([WorkUnitStateSchema, z.literal("unknown")]);
+export type WorktreeRosterState = z.infer<typeof WorktreeRosterStateSchema>;
 
 /**
  * One worktree-roster entry. `branch` is always populated — detached-HEAD
@@ -37,17 +38,18 @@ export type WorktreeRosterState = WorkUnitState | "unknown";
  * (`identity`, `metaFilePath`, `state`, `cohort`, `class`, `priority`,
  * `dependsOn`) are absent when no meta file resolves for the worktree.
  */
-export interface WorktreeRosterEntry {
-  worktreePath: string;
-  branch: string;
-  identity?: string;
-  metaFilePath?: string;
-  state?: WorktreeRosterState;
-  cohort?: string;
-  class?: string;
-  priority?: string;
-  dependsOn?: readonly string[];
-}
+export const WorktreeRosterEntrySchema = z.strictObject({
+  worktreePath: z.string(),
+  branch: z.string(),
+  identity: z.string().optional(),
+  metaFilePath: z.string().optional(),
+  state: WorktreeRosterStateSchema.optional(),
+  cohort: z.string().optional(),
+  class: z.string().optional(),
+  priority: z.string().optional(),
+  dependsOn: z.array(z.string()).readonly().optional(),
+});
+export type WorktreeRosterEntry = z.infer<typeof WorktreeRosterEntrySchema>;
 
 /**
  * Filesystem adapter — injected for unit testability. Production callers
@@ -58,10 +60,12 @@ export interface WorktreeRosterFs {
   readFile(path: string): Promise<string>;
 }
 
-export interface WorktreeRosterResult {
-  entries: WorktreeRosterEntry[];
-  warnings: string[];
-}
+/** Full emitted roster, including degraded entries and read warnings. */
+export const WorktreeRosterResultSchema = z.strictObject({
+  entries: z.array(WorktreeRosterEntrySchema),
+  warnings: z.array(z.string()),
+});
+export type WorktreeRosterResult = z.infer<typeof WorktreeRosterResultSchema>;
 
 /** Registered worktree topology without meta or lifecycle resolution. */
 export interface RegisteredWorktree {

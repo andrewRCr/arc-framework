@@ -4,7 +4,7 @@ import {
   canonicalDigest,
   digestBytes,
   sortByCanonicalBytes,
-} from "../../../src/lib/canonical/canonical-json.js";
+} from "../../../src/lib/kernel/canonical/canonical-json.js";
 import {
   composeV3DecomposePlan,
   renderV3NewLeafMeta,

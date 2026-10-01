@@ -7,6 +7,7 @@
  * and `--dry-run`.
  */
 
+import { AuditEntrySchema } from "../../src/lib/release/schema.js";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -19,8 +20,9 @@ import type {
   WorktreeMaterializingInspectionResult,
   WorktreeSyncState,
 } from "../../src/lib/git/worktree-sync.js";
-import type { AuditEntry } from "../../src/lib/release/types.js";
+import type { AuditEntry } from "../../src/lib/release/schema.js";
 import { makeCapturingSyncOutput } from "../helpers/sync-output.js";
+import { scriptGitExec } from "../helpers/git-exec-fake.js";
 
 const mockIntro = vi.fn();
 const mockOutro = vi.fn();
@@ -83,7 +85,8 @@ vi.mock("../../src/lib/config/resolved-settings.js", () => ({
 
 const mockRunWorktreeSyncStatus = vi.fn();
 const mockRunMaterializingWorktreeInspection = vi.fn();
-vi.mock("../../src/lib/git/worktree-sync.js", () => ({
+vi.mock("../../src/lib/git/worktree-sync.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../src/lib/git/worktree-sync.js")>(),
   runMaterializingWorktreeInspection: (opts: unknown) => mockRunMaterializingWorktreeInspection(opts),
   runWorktreeSyncStatus: (opts: unknown) => mockRunWorktreeSyncStatus(opts),
   DEFAULT_FETCH_TIMEOUT_MS: 3000,
@@ -143,6 +146,7 @@ const mockGitExec = vi.fn();
 const mockGitExecInput = vi.fn();
 let includeExecInput = false;
 vi.mock("../../src/lib/io-context.js", () => ({
+  createGitExec: () => mockGitExec,
   createUserIOContext: () => ({
     exec: mockGitExec,
     readFile: vi.fn(),
@@ -288,6 +292,18 @@ function pushedBranchInvocations(): string[][] {
   return calls
     .map((call) => call[1] as unknown)
     .filter((args): args is string[] => Array.isArray(args) && args[0] === "push");
+}
+
+/** Use the shared Git script for worktree, output, and audit-I/O consumers. */
+function installWorktreeGitScript() {
+  const scripted = scriptGitExec([
+    { match: ["rev-parse", "--abbrev-ref", "HEAD"], responses: [{ stdout: "main", stderr: "" }] },
+    { match: { prefix: ["rev-parse"] }, responses: [{ stdout: "", stderr: "" }] },
+    { match: { prefix: ["push"] }, responses: [{ stdout: "", stderr: "" }] },
+    { match: { prefix: ["diff"] }, responses: [{ stdout: "", stderr: "" }] },
+  ]);
+  mockGitExec.mockImplementation(scripted.exec);
+  return scripted;
 }
 
 /**
@@ -600,6 +616,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
   });
 
   it("push_interlock: on-sync + notes_push: manual + clean worktree → worktree push fires; notes save only", async () => {
+    const { calls } = installWorktreeGitScript();
     setConfig("on-sync");
     setNotesPolicy("manual");
     setWorktree("clean");
@@ -607,7 +624,8 @@ describe("handleSync orchestrator matrix dispatch", () => {
 
     await handleSync();
 
-    expect(pushedBranchInvocations()).toEqual([["push", "origin", "main"]]);
+    expect(calls.filter(({ args }) => args[0] === "push").map(({ args }) => args))
+      .toEqual([["push", "origin", "main"]]);
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockRunPairedPush).not.toHaveBeenCalled();
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
@@ -635,6 +653,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
   });
 
   it("keeps errand reconcile successful when marker cleanup fails", async () => {
+    installWorktreeGitScript();
     includeExecInput = true;
     setConfig("manual");
     setNotesPolicy("manual");
@@ -655,6 +674,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
   });
 
   it("names errand collisions and their real recovery when no marker can be recorded", async () => {
+    installWorktreeGitScript();
     includeExecInput = true;
     setConfig("manual");
     setNotesPolicy("manual");
@@ -967,6 +987,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
   });
 
   it("interlockState envelope reports configured sync_interlock verbatim", async () => {
+    installWorktreeGitScript();
     setConfig("on-sync", "manual");
     setNotesPolicy("on-sync");
     setWorktree("clean");
@@ -1144,6 +1165,7 @@ describe("--json stdout-purity contract", () => {
   });
 
   it("emits exactly one JSON object on stdout — no Clack call leaks through", async () => {
+    installWorktreeGitScript();
     setConfig("manual");
     setNotesPolicy("manual");
     setWorktree("clean");
@@ -1199,6 +1221,7 @@ describe("--json stdout-purity contract", () => {
   });
 
   it("non-JSON path keeps Clack output as-is (regression guard for routing flag)", async () => {
+    installWorktreeGitScript();
     setConfig("on-sync");
     setNotesPolicy("on-sync");
     setWorktree("clean");
@@ -1439,6 +1462,7 @@ describe("audit-log integration", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     resetMockDefaults();
+    installWorktreeGitScript();
     resetResolvedState();
     mockResolveUserIdentity.mockResolvedValue("andrew");
     process.exitCode = undefined;
@@ -1508,12 +1532,10 @@ describe("audit-log integration", () => {
         warnings: [],
       });
       if (branch === null) {
-        mockGitExec.mockImplementation(async (_cmd: unknown, args: unknown) => {
-          if (Array.isArray(args) && args[0] === "rev-parse" && args[1] === "--abbrev-ref") {
-            return { stdout: "HEAD", stderr: "" };
-          }
-          return { stdout: "", stderr: "" };
-        });
+        mockGitExec.mockImplementation(scriptGitExec([
+          { match: { prefix: ["rev-parse", "--abbrev-ref"] }, responses: [{ stdout: "HEAD", stderr: "" }] },
+          { match: { prefix: [] }, responses: [{ stdout: "", stderr: "" }] },
+        ]).exec);
       }
 
       await handleSync();
@@ -1625,6 +1647,7 @@ describe("audit-log integration", () => {
   // mask the wrapped sync's outcome.
 
   it("audit-write I/O failure does not change exitCode (success cell)", async () => {
+    installWorktreeGitScript();
     setConfig("manual");
     setNotesPolicy("manual");
     setWorktree("clean");
@@ -1646,6 +1669,7 @@ describe("audit-log integration", () => {
   });
 
   it("audit-write I/O failure does not change exitCode (refused cell)", async () => {
+    installWorktreeGitScript();
     setConfig("on-sync");
     setNotesPolicy("on-sync");
     setWorktree("diverged", 1, 2);
@@ -1690,6 +1714,7 @@ describe("audit-log integration > schema round-trip", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     resetMockDefaults();
+    installWorktreeGitScript();
     resetResolvedState();
     mockResolveUserIdentity.mockResolvedValue("andrew");
     process.exitCode = undefined;
@@ -1698,7 +1723,7 @@ describe("audit-log integration > schema round-trip", () => {
   async function captureEntry(): Promise<AuditEntry> {
     await handleSync();
     expect(mockAppendAuditEntry).toHaveBeenCalledTimes(1);
-    return mockAppendAuditEntry.mock.calls[0]?.[0].entry as AuditEntry;
+    return AuditEntrySchema.parse(mockAppendAuditEntry.mock.calls[0]?.[0].entry);
   }
 
   async function roundTrip(entry: AuditEntry): Promise<AuditEntry> {
@@ -1710,7 +1735,7 @@ describe("audit-log integration > schema round-trip", () => {
       const content = await readFile(path, "utf-8");
       const lines = content.split("\n").filter((line) => line.length > 0);
       expect(lines).toHaveLength(1);
-      return JSON.parse(lines[0] ?? "") as AuditEntry;
+      return AuditEntrySchema.parse(JSON.parse(lines[0] ?? ""));
     } finally {
       await rm(tmp, { recursive: true, force: true });
     }
@@ -1775,6 +1800,7 @@ describe("audit-log integration > success cells", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     resetMockDefaults();
+    installWorktreeGitScript();
     resetResolvedState();
     mockResolveUserIdentity.mockResolvedValue("andrew");
     process.exitCode = undefined;
@@ -1844,6 +1870,7 @@ describe("audit-log integration > success cells", () => {
   });
 
   it("worktree-only success entry: worktree=push:success, notes=save:success", async () => {
+    installWorktreeGitScript();
     setConfig("on-sync");
     setNotesPolicy("manual");
     setWorktree("clean");
@@ -1981,16 +2008,12 @@ describe("handleSync inbound fast-forward leg", () => {
       behind: 3,
     });
     mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
-    mockGitExec.mockImplementation(async (_cmd: unknown, args: unknown) => {
-      if (Array.isArray(args)) {
-        if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") return { stdout: "main", stderr: "" };
-        if (args[0] === "rev-parse" && args[1] === "HEAD") return { stdout: "oldsha", stderr: "" };
-        if (args[0] === "diff" && args[1] === "--name-only") {
-          return { stdout: "src/a.ts\nsrc/b.ts\n", stderr: "" };
-        }
-      }
-      return { stdout: "", stderr: "" };
-    });
+    mockGitExec.mockImplementation(scriptGitExec([
+      { match: ["rev-parse", "--abbrev-ref", "HEAD"], responses: [{ stdout: "main", stderr: "" }] },
+      { match: ["rev-parse", "HEAD"], responses: [{ stdout: "oldsha", stderr: "" }] },
+      { match: { prefix: ["diff", "--name-only"] }, responses: [{ stdout: "src/a.ts\nsrc/b.ts\n", stderr: "" }] },
+      { match: { prefix: ["rev-parse"] }, responses: [{ stdout: "", stderr: "" }] },
+    ]).exec);
 
     await handleSync();
 
@@ -2008,6 +2031,7 @@ describe("handleSync inbound fast-forward leg", () => {
   });
 
   it("TTY + remote-ahead + clean + on-sync notes → notes push the same run after the ff-pull", async () => {
+    installWorktreeGitScript();
     setConfig("on-sync");
     setNotesPolicy("on-sync");
     setWorktree("remote-ahead", 0, 2, "main");
@@ -2054,6 +2078,7 @@ describe("handleSync inbound fast-forward leg", () => {
   });
 
   it("non-TTY + remote-ahead + sync.auto_pull true → inbound-ff-pull fires", async () => {
+    installWorktreeGitScript();
     setConfig("on-sync");
     setNotesPolicy("manual");
     setAutoPull(true);

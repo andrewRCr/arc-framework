@@ -18,6 +18,7 @@
 
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
+import { z } from "zod";
 
 import { walkMarkdown } from "../../lib/fs/walk-markdown.js";
 import { parseExtensionFrontmatter } from "../../lib/frontmatter/index.js";
@@ -32,9 +33,16 @@ import type {
   ExtensionSummary,
 } from "./types.js";
 
+/** Strict session-init extension probe contract. */
+export const ExtensionsSessionInitResultSchema = z.strictObject({
+  mode: z.literal("session-init"),
+  active: z.array(z.string()),
+  warnings: z.array(z.string()),
+});
+
 /** Locate the extensions directory inside an ARC install. */
 function extensionsDir(cwd: string): string {
-  return join(cwd, ".arc", "system", "extensions");
+  return join(cwd, resolveArcPath({ kind: "arc-root" }), "system", "extensions");
 }
 
 /** Locate the workflows directory inside an ARC install. */

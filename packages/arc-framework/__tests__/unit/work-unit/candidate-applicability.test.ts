@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import {
   MAX_CANDIDATE_APPLICABILITY_PATH_BYTES,
   MAX_CANDIDATE_APPLICABILITY_PATHS,

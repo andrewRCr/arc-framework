@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { parseMetaRecord, renderMetaFile } from "../../../src/lib/active/meta-reader.js";
-import { digestBytes } from "../../../src/lib/canonical/canonical-json.js";
+import { digestBytes } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import {
   prepareValidatedGraduationTransaction,
   type GraduationStoredArtifact,

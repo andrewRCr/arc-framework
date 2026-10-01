@@ -87,7 +87,7 @@ import {
   isSelfTeardown,
   type ReconcileWorkUnitWorktreeFs,
 } from "../mutators/reconcile-work-unit-worktree.js";
-import { isSlugSafe } from "../slug.js";
+import { isSlugSafe } from "../../kernel/schema/slug.js";
 import { isAbsolute, join } from "node:path";
 import { parseMetaRecord } from "../../active/meta-reader.js";
 import { readRemoteBranchOid } from "../rename-identity.js";

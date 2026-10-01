@@ -5,7 +5,7 @@ import { z } from "zod";
 import {
   digestBytes,
   sortByCanonicalBytes,
-} from "../canonical/canonical-json.js";
+} from "../kernel/canonical/canonical-json.js";
 import {
   spineRemedy,
   SpineRemedySchema,

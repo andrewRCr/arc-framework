@@ -31,8 +31,6 @@ import {
   type ConfigSettings,
 } from "./schema.js";
 
-export { AGENT_CONSUMABLE_CONFIG_FIELDS } from "./schema.js";
-
 /**
  * Per-key allowed value sets for keys validated at parse time. Keys absent
  * from this map are passed through verbatim — shell-side `validate-config.sh`

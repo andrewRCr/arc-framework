@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   TaskListCursorReaderSchema,
@@ -51,7 +52,7 @@ describe("task-list cursor schemas", () => {
     { ...cursor, leaf: { ...cursor.leaf, lineHint: 1.5 } },
     { ...cursor, leaked: true },
   ])("rejects malformed cursors and strict field leakage", (value) => {
-    expect(TaskListCursorSchema.safeParse(value).success).toBe(false);
+    assertSchemaRefuses(TaskListCursorSchema, value);
   });
 
   it("strips persisted cursor unknown keys recursively", () => {
@@ -64,15 +65,15 @@ describe("task-list cursor schemas", () => {
   });
 
   it("rejects cross-branch leakage on result records", () => {
-    expect(TaskListCursorResultSchema.safeParse({
+    assertSchemaRefuses(TaskListCursorResultSchema, {
       status: "no-open-task",
       cursor,
-    }).success).toBe(false);
-    expect(TaskListCursorFileResultSchema.safeParse({
+    });
+    assertSchemaRefuses(TaskListCursorFileResultSchema, {
       status: "missing",
       path: ".arc/active/tasks-fixture.md",
       error: { line: 1, message: "leak" },
-    }).success).toBe(false);
+    });
   });
 });
 

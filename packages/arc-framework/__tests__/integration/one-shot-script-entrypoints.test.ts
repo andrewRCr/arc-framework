@@ -65,7 +65,6 @@ describe("one-shot TypeScript package scripts", () => {
       "lint:arc:domain-rules": "node --import tsx packages/arc-framework/src/scripts/audit-domain-rules.ts",
       "lint:arc:section-refs": "node --import tsx packages/arc-framework/src/scripts/audit-section-refs.ts",
       "audit:coupling": "node --import tsx packages/arc-framework/src/scripts/audit-coupling-blast-radius.ts",
-      "audit:layout-migration": "node --import tsx packages/arc-framework/src/scripts/assert-layout-migration.ts",
     });
     expect(packageManifest.scripts).toMatchObject({
       "benchmark:session-envelope": "npm run build && node --import tsx __tests__/benchmarks/session-envelope-validation.ts",

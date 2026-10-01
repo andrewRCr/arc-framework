@@ -14,7 +14,9 @@
 
 import { describe, it, expect } from "vitest";
 
+import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 import { parseMetaProjectionRecord } from "../../../../src/lib/active/meta-reader.js";
+import type { MetaRenderOverrides } from "../../../../src/lib/active/meta-reader.js";
 import { buildLifecycleIndexFromMetas } from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type {
   TransitionRecordEnumerationResult,
@@ -27,8 +29,13 @@ import {
   type DischargeDepEdgesContext,
 } from "../../../../src/lib/work-unit/side-effects/discharge-dep-edges.js";
 
-/** Minimal valid meta — H1 plus the flat-bullet `State` and an optional `Depends On` edge list. */
-function meta(state: string, dependsOn?: string[]): string {
+/** Valid metadata for the surviving dependency verdict and planning cases. */
+function meta(state: NonNullable<MetaRenderOverrides["state"]>, dependsOn: string[] = []): string {
+  return makeMetaFixture("x", { state, dependsOn });
+}
+
+/** Retain the legacy projection independently for the carved current-WU apply cases. */
+function legacyMeta(state: string, dependsOn?: string[]): string {
   const lines = ["# Metadata: x", "", `- **State:** ${state}`];
   if (dependsOn !== undefined) {
     const value = dependsOn.length === 0 ? "[none]" : dependsOn.map((s) => `\`${s}\``).join(", ");
@@ -522,10 +529,10 @@ describe("current-WU dependency reconcile apply", () => {
     commit: () => Promise.resolve(),
     rollback: () => Promise.resolve(),
   });
-  const original = meta("Active", ["origin"]);
+  const original = legacyMeta("Active", ["origin"]);
   const index = buildLifecycleIndexFromMetas([
     { path: DEPENDENT_PATH, content: original },
-    { path: ".arc/active/meta-successor.md", content: meta("Active") },
+    { path: ".arc/active/meta-successor.md", content: legacyMeta("Active") },
   ]);
   const queryDisposition = queryResults({
     origin: {
@@ -583,7 +590,7 @@ describe("current-WU dependency reconcile apply", () => {
     const result = await runCurrentWuReconcile({
       index,
       queryDisposition,
-      readFile: async () => reads++ === 0 ? original : meta("Active", ["changed"]),
+      readFile: async () => reads++ === 0 ? original : legacyMeta("Active", ["changed"]),
       writeFile: async (_path, content) => { writes.push(content); },
       stagePaths: async (paths) => { stages.push(paths); },
       captureIndexState: captureCleanIndex,
@@ -595,7 +602,7 @@ describe("current-WU dependency reconcile apply", () => {
   });
 
   it("discovers a structured reference transition without a Depends On edge", async () => {
-    const metaContent = meta("Active", []);
+    const metaContent = legacyMeta("Active", []);
     const specPath = ".arc/active/spec-dependent.md";
     const specContent = "See `spec-origin.md`.\n";
     const files = new Map([[DEPENDENT_PATH, metaContent], [specPath, specContent]]);
@@ -628,7 +635,7 @@ describe("current-WU dependency reconcile apply", () => {
   });
 
   it("guards every scanned artifact before writing or staging the bounded batch", async () => {
-    const metaContent = meta("Active", []);
+    const metaContent = legacyMeta("Active", []);
     const specPath = ".arc/active/spec-dependent.md";
     const specContent = "See `spec-origin.md`.\n";
     const reads = new Map<string, number>();
@@ -660,7 +667,7 @@ describe("current-WU dependency reconcile apply", () => {
   it.each(["write", "stage"] as const)(
     "rolls back a partial multi-file %s failure so the exact plan can retry",
     async (failurePoint) => {
-      const metaContent = meta("Active", ["origin"]);
+      const metaContent = legacyMeta("Active", ["origin"]);
       const specPath = ".arc/active/spec-dependent.md";
       const specContent = "See `spec-origin.md`.\n";
       const files = new Map([[DEPENDENT_PATH, metaContent], [specPath, specContent]]);
@@ -736,7 +743,7 @@ describe("current-WU dependency reconcile apply", () => {
   );
 
   it("preserves an advisory-only plan when apply has no mechanical edits", async () => {
-    const metaContent = meta("Active", []);
+    const metaContent = legacyMeta("Active", []);
     const notesPath = ".arc/active/notes-dependent.md";
     const notesContent = "The origin remains relevant context.\n";
     const files = new Map([[DEPENDENT_PATH, metaContent], [notesPath, notesContent]]);

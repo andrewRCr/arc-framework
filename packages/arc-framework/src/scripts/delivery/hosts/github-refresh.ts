@@ -32,7 +32,7 @@ import {
   type DeliveryNativeStackPort,
 } from "../../../lib/delivery/native-stack.js";
 import type { DeliveryOperationSnapshotV1, DeliveryPlanV1 } from "../../../lib/delivery/schema.js";
-import { resolveGitCommonDir } from "../../../lib/user-sync/repo-shared-paths.js";
+import { resolveGitCommonDir } from "../../../lib/git/exec.js";
 import type { DeliveryTerminalConflictPreparation } from
   "../../../lib/delivery/suffix-reconciliation.js";
 import {

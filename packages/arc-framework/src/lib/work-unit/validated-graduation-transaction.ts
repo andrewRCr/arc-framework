@@ -12,7 +12,7 @@ import {
   validateMetaFieldBlockShape,
   type MetaFieldName,
 } from "../active/meta-reader.js";
-import { digestBytes } from "../canonical/canonical-json.js";
+import { digestBytes } from "../kernel/canonical/canonical-json.js";
 import { WorkClassSchema, type WorkClass } from "../kernel/index.js";
 import type { V3PlanCanonicalPathState, V3PlanObservedPathState } from "./decompose-v3-plan.js";
 import type { V3DecomposeMachine } from "./decompose-v3-schema.js";

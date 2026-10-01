@@ -1,7 +1,7 @@
 /** Typed local coverage recovery derived from immutable predecessor evidence. */
 
 import { canonicalize } from "../../../lib/kernel/index.js";
-import type { RawGitExec } from "../../../lib/change-facts.js";
+import type { RawGitExec } from "../../../lib/git/exec.js";
 import { proveGitDeliveryContribution } from "../../../lib/delivery/git-contribution-proof.js";
 import {
   candidateReviewApplicabilitySelections,

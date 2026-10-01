@@ -9,7 +9,7 @@
  * @module
  */
 
-import { isAbsolute } from "node:path";
+import { isAbsolute, posix } from "node:path";
 
 import { SlugSchema } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
@@ -79,14 +79,15 @@ function cloneEntry(entry: LoadSetEntry): LoadSetEntry {
   };
 }
 
+const ARC_ROOT = resolveArcPath({ kind: "arc-root" });
 const ARC_CONTEXT_ENTRIES: readonly LoadSetEntry[] = [
-  full(".arc/reference/briefs/AGENT-BRIEF.ARC.md"),
-  full(".arc/reference/briefs/AGENT-BRIEF.PROJECT.md"),
-  full(".arc/system/rules/DEV-RULES.ARC.md"),
-  full(".arc/system/rules/DEV-RULES.PROJECT.md"),
-  full(".arc/reference/strategies/STRATEGY-INDEX.md"),
+  full(posix.join(ARC_ROOT, "reference/briefs/AGENT-BRIEF.ARC.md")),
+  full(posix.join(ARC_ROOT, "reference/briefs/AGENT-BRIEF.PROJECT.md")),
+  full(posix.join(ARC_ROOT, "system/rules/DEV-RULES.ARC.md")),
+  full(posix.join(ARC_ROOT, "system/rules/DEV-RULES.PROJECT.md")),
+  full(posix.join(ARC_ROOT, "reference/strategies/STRATEGY-INDEX.md")),
   {
-    path: ".arc/reference/QUICK-REFERENCE.md",
+    path: posix.join(ARC_ROOT, "reference/QUICK-REFERENCE.md"),
     readMode: {
       kind: "partial-section",
       heading: "Environment & Path Context",

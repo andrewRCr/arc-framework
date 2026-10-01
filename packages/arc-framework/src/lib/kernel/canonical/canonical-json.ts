@@ -18,7 +18,11 @@ import { isWellFormedUnicode } from "./unicode.js";
 /** A content-address digest: `sha256:` followed by exactly 64 lowercase hex characters. */
 export type CanonicalDigest = `sha256:${string}`;
 
-const CANONICAL_DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/u;
+/** Prefix of a canonical SHA-256 digest. */
+export const CANONICAL_DIGEST_PREFIX = "sha256:";
+
+/** Hex portion of a canonical SHA-256 digest. */
+export const CANONICAL_DIGEST_HEX_PATTERN = /^[0-9a-f]{64}$/u;
 
 type CanonicalJson =
   | null
@@ -138,7 +142,7 @@ export function canonicalize(value: unknown): string {
  */
 export function digestBytes(bytes: Uint8Array): CanonicalDigest {
   const hex = createHash("sha256").update(bytes).digest("hex");
-  return `sha256:${hex}`;
+  return `${CANONICAL_DIGEST_PREFIX}${hex}`;
 }
 
 /**
@@ -153,7 +157,8 @@ export function canonicalDigest(value: unknown): CanonicalDigest {
 
 /** Narrow an unknown value to a well-formed {@link CanonicalDigest}. */
 export function isCanonicalDigest(value: unknown): value is CanonicalDigest {
-  return typeof value === "string" && CANONICAL_DIGEST_PATTERN.test(value);
+  return typeof value === "string" && value.startsWith(CANONICAL_DIGEST_PREFIX)
+    && CANONICAL_DIGEST_HEX_PATTERN.test(value.slice(CANONICAL_DIGEST_PREFIX.length));
 }
 
 /**

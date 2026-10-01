@@ -43,13 +43,10 @@
 import { join } from "node:path";
 
 import { isSafeCohortPath, validateCohortPath } from "../../active/cohort-path.js";
-import {
-  parseMetaRecord,
-  type MetaRenderOverrides,
-  type ParsedMetaRecord,
-} from "../../active/meta-reader.js";
+import { parseMetaRecord, type MetaRenderOverrides } from "../../active/meta-reader.js";
+import { type ParsedMetaRecord } from "../../active/meta-schema.js";
 import { MetaPrioritySchema, MetaWorkClassSchema } from "../../active/meta-schema.js";
-import type { ManagedPath } from "../../canonical/managed-path.js";
+import type { ManagedPath } from "../../kernel/canonical/managed-path.js";
 import { SlugSchema, type Slug } from "../../kernel/index.js";
 import { resolveArcPath } from "../../layout/index.js";
 import type { WriteFileFn } from "../../template/files.js";
@@ -70,7 +67,7 @@ import {
   type RetirementAuthorityPort,
   type RetirementAuthorityScope,
 } from "../retirement-authority.js";
-import { isSlugSafe } from "../slug.js";
+import { isSlugSafe } from "../../kernel/schema/slug.js";
 
 /** The flat `active/` tier — where a started WU's artifacts live. */
 const ACTIVE_DIR = resolveArcPath({ kind: "placement-root", tier: "active" });

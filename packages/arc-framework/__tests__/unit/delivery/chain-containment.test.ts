@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import type { RawGitExec } from "../../../src/lib/change-facts.js";
+import type { RawGitExec } from "../../../src/lib/git/exec.js";
 import { classifyGitDeliveryChainContainment } from "../../../src/lib/delivery/chain-containment.js";
+import { makeGitProcessError, scriptRawGitExec } from "../../helpers/git-exec-fake.js";
 
 const oid = (character: string): string => character.repeat(40);
 const bytes = (value: string): Uint8Array => new TextEncoder().encode(value);
@@ -14,24 +15,23 @@ function exactExec(input: {
   readonly trees: ReadonlyMap<string, Uint8Array>;
   readonly ancestral?: boolean;
 }): RawGitExec {
-  return async (args) => {
-    if (args[0] === "rev-parse" && args[1] === "--verify") {
-      return { stdout: bytes(`${args[2]?.replace(/\^\{commit\}$/u, "")}\n`) };
-    }
-    if (args[0] === "rev-parse") {
+  return scriptRawGitExec([
+    { match: { prefix: ["rev-parse", "--verify"] }, responses: [({ args }) => (
+      { stdout: bytes(`${args[2]?.replace(/\^\{commit\}$/u, "")}\n`) }
+    )] },
+    { match: { prefix: ["rev-parse"] }, responses: [({ args }) => {
       const head = args[1]?.replace(/\^\{tree\}$/u, "") ?? "";
       return { stdout: bytes(`${input.coordinates.get(head) ?? ""}\n`) };
-    }
-    if (args[0] === "merge-base") {
-      if (input.ancestral !== false) return { stdout: bytes("") };
-      throw Object.assign(new Error("not ancestor"), { exitCode: 1 });
-    }
-    if (args[0] === "ls-tree") {
+    }] },
+    { match: { prefix: ["merge-base"] }, responses: [() => input.ancestral !== false
+      ? { stdout: bytes("") }
+      : { failure: { exitCode: 1, stderr: "not ancestor" } }] },
+    { match: { prefix: ["ls-tree"] }, responses: [({ args }) => {
       const observed = input.trees.get(args.at(-1) ?? "");
       if (observed !== undefined) return { stdout: observed };
-    }
-    throw new Error(`unexpected Git call: ${args.join(" ")}`);
-  };
+      throw new Error(`unexpected Git call: ${args.join(" ")}`);
+    }] },
+  ]).exec;
 }
 
 describe("delivery chain containment", () => {
@@ -112,7 +112,9 @@ describe("delivery chain containment", () => {
   });
 
   it("returns a typed containment refusal when exact coordinate evidence is unavailable", async () => {
-    const unavailable: RawGitExec = async () => { throw new Error("missing object"); };
+    const unavailable: RawGitExec = async (args) => {
+      throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "missing object" });
+    };
     const commonBase = { head: oid("1"), tree: oid("2") };
     const member = { head: oid("3"), tree: oid("4") };
     const finalCandidate = { head: oid("5"), tree: oid("6") };

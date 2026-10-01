@@ -1,6 +1,7 @@
 /** Unit coverage for the release audit-entry schema family. */
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 import { z } from "zod";
 
 import {
@@ -74,33 +75,33 @@ describe("AuditEntrySchema", () => {
     { outcome: { kind: "commit", hash: "abc1234" } },
     { outcome: { kind: "hook-failed", hook: "pre-commit", exitCode: 1 } },
   ])("accepts proceeded release-commit outcome $outcome.kind", ({ outcome }) => {
-    expect(AuditEntrySchema.safeParse({
+    assertSchemaAccepts(AuditEntrySchema, {
       ...common("release-commit"),
       interlockState: commitInterlocks,
       decision: "proceeded",
       refusalCode: null,
       outcome,
-    }).success).toBe(true);
+    });
   });
 
   it.each([10, 11, 12, 13])("accepts release-commit refusal code %i", (refusalCode) => {
-    expect(AuditEntrySchema.safeParse({
+    assertSchemaAccepts(AuditEntrySchema, {
       ...common("release-commit"),
       interlockState: commitInterlocks,
       decision: "refused",
       refusalCode,
       outcome: { kind: "refused" },
-    }).success).toBe(true);
+    });
   });
 
   it.each(["validation", "input"])("accepts release-commit preflight reason %s", (reason) => {
-    expect(AuditEntrySchema.safeParse({
+    assertSchemaAccepts(AuditEntrySchema, {
       ...common("release-commit"),
       interlockState: commitInterlocks,
       decision: "refused",
       refusalCode: 16,
       outcome: { kind: "preflight-failed", reason },
-    }).success).toBe(true);
+    });
   });
 
   it.each([
@@ -112,23 +113,23 @@ describe("AuditEntrySchema", () => {
       outcome: { kind: "refused" },
     })),
   ])("accepts release-push cell $decision/$refusalCode/$outcome.kind", (cell) => {
-    expect(AuditEntrySchema.safeParse({
+    assertSchemaAccepts(AuditEntrySchema, {
       ...common("release-push"),
       interlockState: pushInterlocks,
       ...cell,
-    }).success).toBe(true);
+    });
   });
 
   it.each([
     { decision: "proceeded", refusalCode: null },
     { decision: "refused", refusalCode: 14 },
   ])("accepts sync cell $decision/$refusalCode", (cell) => {
-    expect(AuditEntrySchema.safeParse({
+    assertSchemaAccepts(AuditEntrySchema, {
       ...common("sync"),
       interlockState: syncInterlocks,
       ...cell,
       outcome: syncOutcome,
-    }).success).toBe(true);
+    });
   });
 
   it.each([
@@ -138,7 +139,7 @@ describe("AuditEntrySchema", () => {
     { label: "command/outcome", entry: { ...common("release-push"), interlockState: pushInterlocks, decision: "proceeded", refusalCode: null, outcome: { kind: "commit", hash: "abc" } } },
     { label: "refused sync shape", entry: { ...common("sync"), interlockState: syncInterlocks, decision: "refused", refusalCode: 14, outcome: { kind: "refused" } } },
   ])("rejects a $label mismatch", ({ entry }) => {
-    expect(AuditEntrySchema.safeParse(entry).success).toBe(false);
+    assertSchemaRefuses(AuditEntrySchema, entry);
   });
 
   it.each([
@@ -146,7 +147,7 @@ describe("AuditEntrySchema", () => {
     { ...common("release-commit"), interlockState: { ...commitInterlocks, extra: true }, decision: "proceeded", refusalCode: null, outcome: { kind: "commit", hash: "abc" } },
     { ...common("release-commit"), interlockState: commitInterlocks, decision: "proceeded", refusalCode: null, outcome: { kind: "commit", hash: "abc", extra: true } },
   ])("rejects unknown keys at every record level", (entry) => {
-    expect(AuditEntrySchema.safeParse(entry).success).toBe(false);
+    assertSchemaRefuses(AuditEntrySchema, entry);
   });
 
   it("projects the complete schema to JSON Schema", () => {
@@ -168,9 +169,9 @@ describe("audit schema primitives", () => {
       value: "manual",
       source: "default",
     });
-    expect(schema.safeParse({ value: "invalid", source: "default" }).success).toBe(false);
-    expect(schema.safeParse({ value: "manual", source: "unknown" }).success).toBe(false);
-    expect(schema.safeParse({ value: "manual", source: "default", extra: true }).success).toBe(false);
+    assertSchemaRefuses(schema, { value: "invalid", source: "default" });
+    assertSchemaRefuses(schema, { value: "manual", source: "unknown" });
+    assertSchemaRefuses(schema, { value: "manual", source: "default", extra: true });
     expect(ConfigOverrideSourceSchema.options).toEqual(["git-config", "yaml", "default"]);
   });
 });

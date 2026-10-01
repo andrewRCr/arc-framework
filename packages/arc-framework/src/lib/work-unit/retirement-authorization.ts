@@ -6,7 +6,7 @@
  * performs no detach, delete, or other directional mutation.
  */
 
-import { canonicalDigest } from "../canonical/canonical-json.js";
+import { canonicalDigest } from "../kernel/canonical/canonical-json.js";
 import {
   gitTransitionResultDigest,
   retirementSubjectRefusal,

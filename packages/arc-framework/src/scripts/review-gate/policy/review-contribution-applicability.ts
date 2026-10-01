@@ -16,7 +16,7 @@ import {
   EvidenceApplicabilityResultSchema,
   reduceEvidenceApplicability,
 } from "../../../lib/evidence-applicability/index.js";
-import { canonicalDigest } from "../../../lib/kernel/index.js";
+import { canonicalDigest, CanonicalDigestSchema, type CanonicalDigest } from "../../../lib/kernel/index.js";
 import { isManagedPath } from "../../../lib/kernel/canonical/managed-path.js";
 import {
   ReviewContributionApplicabilitySelectorSchema,
@@ -29,7 +29,7 @@ export {
 } from "../../../lib/work-unit/review-applicability-selector.js";
 
 const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
-const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+const DigestSchema = CanonicalDigestSchema;
 const ApplicabilityPathSchema = z.string().min(1)
   .refine(isManagedPath, "must be a managed repository path");
 
@@ -145,7 +145,7 @@ export function reviewContributionApplicabilityDigests(input: {
   projection: DeliveryContributionEndpoints | null;
   verdict: string;
   paths: readonly string[];
-}): { projectionDigest: string; residualDigest: string } {
+}): { projectionDigest: CanonicalDigest; residualDigest: CanonicalDigest } {
   const selector = ReviewContributionApplicabilitySelectorSchema.parse(input.selector);
   const projectionDigest = canonicalDigest({
     domain: "arc.review-gate.contribution-applicability.projection/v1",

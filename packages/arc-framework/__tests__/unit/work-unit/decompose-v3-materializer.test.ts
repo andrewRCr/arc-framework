@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canonicalDigest, digestBytes } from "../../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest, digestBytes } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import {
   materializeV3DecomposePlan,
   type V3MaterializerIO,

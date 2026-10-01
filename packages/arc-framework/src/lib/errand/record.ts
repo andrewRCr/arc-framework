@@ -9,9 +9,8 @@ import {
 } from "./identity-snapshot.js";
 
 import type { GitExec } from "../git/exec.js";
-import { uniqueRefToken } from "../git/ref-tree.js";
+import { isRemoteUnavailableError, uniqueRefToken } from "../git/ref-tree.js";
 import { gitFailureText, isGitProcessError } from "../git/process-error.js";
-import { isRemoteUnavailableError } from "../user-sync/index.js";
 import type { TransientWorktreeSubject } from "../git/worktree-marker.js";
 
 /** Exact branch indexes for transient in-flight classification and marker-generation joins. */

@@ -1,6 +1,6 @@
 /** Exact-target changed-line and logical-file statistics from byte-framed Git output. */
 
-import type { RawGitExec } from "./change-facts.js";
+import type { RawGitExec } from "./git/exec.js";
 
 export interface ChangeStats {
   lines: number;

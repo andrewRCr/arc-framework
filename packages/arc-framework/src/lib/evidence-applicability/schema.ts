@@ -5,6 +5,7 @@ import { z } from "zod";
 import { DeliveryContributionEndpointsSchema, DeliveryContributionProofResultSchema } from
   "../delivery/contribution-proof.js";
 import { isManagedPath } from "../kernel/canonical/managed-path.js";
+import { CanonicalDigestSchema } from "../kernel/schema/vocabulary.js";
 import {
   CandidateLineageTargetSchema,
   CandidateSubjectDeltaSchema,
@@ -15,7 +16,7 @@ export const MAX_EVIDENCE_APPLICABILITY_PATHS = 200;
 export const MAX_EVIDENCE_APPLICABILITY_PATH_BYTES = 16_384;
 
 const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
-const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+const DigestSchema = CanonicalDigestSchema;
 const EvidencePathSchema = z.string().min(1)
   .refine((value): boolean => isManagedPath(value), "must be a managed repository path");
 

@@ -98,11 +98,13 @@ import type { CommandInputRegistration } from "../lib/command-input/registry.js"
 import {
   InboxMutationConflictError,
   inspectInboxEntry,
+} from "../lib/user-sync/inbox-writer.js";
+import {
   resolveExecutionNextOffer,
   resolveExecutionStartupOffer,
   type ExecutionOfferResolution,
   type ExecutionStartupOfferResolution,
-} from "../lib/user-sync/index.js";
+} from "../lib/user-sync/execution-offer.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
@@ -113,6 +115,10 @@ type ErrandHandlerOperation = "errand-leave" | "errand-close" | "errand-abandon"
 type ErrandResultEmitter = (result: ErrandTerminalResult, json: boolean) => void;
 type TerminalProjection = Omit<CompleteErrandTerminalResultOptions, "result">;
 type OrdinaryTerminalIdentity = Extract<LocusIdentityV1, { kind: "errand"; purpose: "errand" }>;
+
+function errandGitExec(context?: InteractionContext): GitExec {
+  return createGitExec(context?.subprocess);
+}
 
 /** Options for the read-only `arc errand next` queue-head resolver. */
 export interface ErrandNextOptions {
@@ -216,7 +222,7 @@ export async function handleErrandNext(
   }
   try {
     const cwd = requireArcProjectRoot();
-    const identity = cwd === null ? null : await resolveIdentityWithPrompt(false);
+    const identity = cwd === null ? null : await resolveIdentityWithPrompt(false, errandGitExec(context));
     if (cwd === null || identity === null) {
       emitErrandNextResult(buildErrandNextResult({
         kind: "refused",
@@ -429,7 +435,7 @@ export async function handleErrandCheck(
     return;
   }
 
-  const identity = await resolveIdentityWithPrompt(false);
+  const identity = await resolveIdentityWithPrompt(false, exec);
   const { settings } = await readConfigSettings(cwd);
   const teamMode = settings["team.mode"] === "true";
   const baseBranch = settings["branch.base"];
@@ -614,7 +620,7 @@ async function runErrandOpenHandler(
     return;
   }
 
-  const identity = await resolveIdentityWithPrompt(false);
+  const identity = await resolveIdentityWithPrompt(false, errandGitExec(context));
   if (!identity) {
     emitErrandOpenFailure(
       "locus.errand-open.identity",
@@ -812,7 +818,7 @@ export async function handleErrandLink(
     return;
   }
 
-  const identity = await resolveIdentityWithPrompt(false);
+  const identity = await resolveIdentityWithPrompt(false, errandGitExec(context));
   if (!identity) {
     emitErrandLinkFailure(
       "locus.errand-link.identity",
@@ -963,7 +969,7 @@ export async function handleErrandMaterialize(
         emitMaterializeRefusal("full-protection-required", "Errand materialization requires full branch protection.", opts.json === true);
         return;
       }
-      const identity = await resolveIdentityWithPrompt(false);
+      const identity = await resolveIdentityWithPrompt(false, errandGitExec(context));
       if (!identity) {
         emitMaterializeError("identity", "No identity resolved — set arc.identity before materializing.", opts.json === true);
         return;
@@ -1164,7 +1170,7 @@ export async function handleErrandLeave(
         );
         return;
       }
-      const identity = await resolveIdentityWithPrompt(false);
+      const identity = await resolveIdentityWithPrompt(false, errandGitExec(context));
       if (!identity) {
         emitErrandLeaveFailure("locus.errand-leave.identity", "No identity resolved — set arc.identity before leaving an Errand.", opts.json === true);
         return;
@@ -1326,7 +1332,7 @@ async function runErrandCloseHandler(
     return;
   }
 
-  const identity = await resolveIdentityWithPrompt(false);
+  const identity = await resolveIdentityWithPrompt(false, errandGitExec(context));
   if (!identity) {
     emitErrandCloseFailure("locus.errand-close.identity", "No identity resolved.", opts.json === true);
     return;
@@ -1584,7 +1590,7 @@ async function runErrandAbandonHandler(
     emitErrandAbandonFailure("locus.errand-abandon.base", "No branch.base is configured.", opts.json === true);
     return;
   }
-  const identity = await resolveIdentityWithPrompt(false);
+  const identity = await resolveIdentityWithPrompt(false, errandGitExec(context));
   if (!identity) {
     emitErrandAbandonFailure("locus.errand-abandon.identity", "No identity resolved.", opts.json === true);
     return;
@@ -2063,7 +2069,7 @@ async function runErrandPromoteHandler(
 
   const floor = input.floor;
 
-  const identity = await resolveIdentityWithPrompt(false);
+  const identity = await resolveIdentityWithPrompt(false, errandGitExec(context));
   if (!identity) {
     emitErrandPromoteFailure("locus.errand-promote.identity", "No identity resolved.", opts.json === true);
     return;

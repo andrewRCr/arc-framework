@@ -17,7 +17,6 @@ import type { CommandInputRegistration } from "../lib/command-input/registry.js"
 import {
   createGitExec,
   createRawGitExec,
-  gitExec,
 } from "../lib/io-context.js";
 import {
   classifyPlanningLane,
@@ -29,7 +28,7 @@ import { sameDeliveryReviewMemberVehicle } from "../lib/delivery/review-vehicle.
 import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import type { GitExec } from "../lib/git/exec.js";
-import { canonicalDigest, canonicalize, createKernelRegistry } from "../lib/kernel/index.js";
+import { canonicalDigest, canonicalize, CanonicalDigestSchema, createKernelRegistry, type CanonicalDigest } from "../lib/kernel/index.js";
 import { projectKernelSchemaClosure } from "../lib/kernel/schema/generate.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import {
@@ -719,7 +718,10 @@ export interface ReviewMergeMethodResolveHandlerDependencies {
 export async function handleReviewMergeMethodResolve(
   options: ReviewMergeMethodResolveOptions,
   overrides: Partial<ReviewMergeMethodResolveHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
+  // The host runner closes stdin and this handler does not spawn Git.
+  void suppliedContext;
   const port = createGhMergeMethodPolicyPort(hostedGhRunner);
   const dependencies: ReviewMergeMethodResolveHandlerDependencies = {
     resolveRoot: (cwd) => resolveArcRoot(cwd),
@@ -1174,7 +1176,10 @@ export interface ReviewChecksAwaitHandlerDependencies {
 export async function handleReviewChecksAwait(
   options: ReviewChecksAwaitOptions,
   overrides: Partial<ReviewChecksAwaitHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
+  // The host runner closes stdin and this handler does not spawn Git.
+  void suppliedContext;
   const port = createGhRequiredChecksPort(hostedGhRunner);
   const failedCheckLogsPort = createGhFailedCheckLogsPort(hostedGhRunner);
   const failedCheckLogStore = createLocalFailedCheckLogStore();
@@ -1522,16 +1527,17 @@ export interface ReviewResolveHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultReviewResolveDependencies(): ReviewResolveHandlerDependencies {
+function defaultReviewResolveDependencies(exec: GitExec): ReviewResolveHandlerDependencies {
   return {
     ...defaultReviewHandlerBoundary(),
-    resolve: resolveConfiguredReviewPolicy,
+    resolve: (request, root) => resolveConfiguredReviewPolicy(request, root, exec),
   };
 }
 
 async function resolveConfiguredReviewPolicy(
   request: ReviewPolicyCommandRequest,
   root: string,
+  exec: GitExec,
 ): Promise<unknown> {
   const { settings } = await readConfigSettings(root);
   const { sources, maxPasses } = await resolveConfiguredLanePolicy({
@@ -1539,11 +1545,11 @@ async function resolveConfiguredReviewPolicy(
     settings,
     preferences: createLocalFrontlineSourcePreferenceReader({
       cwd: root,
-      exec: gitExec,
+      exec,
       readFile: (path) => readFile(path, "utf8"),
     }),
   });
-  const publisher = new RepositoryGitCommonStatePublisher(gitExec, root);
+  const publisher = new RepositoryGitCommonStatePublisher(exec, root);
   const operationStore = new LocalReviewOperationStateStore(publisher);
   const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
   const readResponsePerformance = (predecessor: ReviewResult) =>
@@ -1562,7 +1568,7 @@ async function resolveConfiguredReviewPolicy(
         : null;
       const observeTarget = async () => {
           const confirmation = await confirmLocalReviewTarget({
-            exec: gitExec,
+            exec,
             cwd: root,
             attemptedTarget: current.target,
           });
@@ -1574,7 +1580,7 @@ async function resolveConfiguredReviewPolicy(
       if (request.target.pullRequest === null
         && current.admission.lineage.kind === "head-bound"
         && current.admission.lineage.vehicleKind === "errand") {
-        const live = await readLocalReviewLiveContext({ exec: gitExec, cwd: root }).catch(() => null);
+        const live = await readLocalReviewLiveContext({ exec, cwd: root }).catch(() => null);
         return confirmErrandFixResponseApplicability({
           predecessor,
           currentTarget: current.target,
@@ -1600,7 +1606,7 @@ async function resolveConfiguredReviewPolicy(
     },
     confirmTarget: async (attemptedTarget) => {
       const confirmation = await confirmLocalReviewTarget({
-        exec: gitExec,
+        exec,
         cwd: root,
         attemptedTarget,
       });
@@ -1630,26 +1636,28 @@ export interface ReviewReadinessHandlerDependencies {
  * from any path inside the repository, so binding from it is correct.
  *
  * @param root - Resolved root of the repository whose delivery state answers.
+ * @param exec - Invocation-bound Git executor for delivery state and ancestry reads.
  * @returns A readiness evaluation whose member arm reads that repository.
  */
 function readinessBoundTo(
   root: string,
+  exec: GitExec,
 ): (request: ReviewReadinessRequest) => Promise<ReviewReadinessEnvelope> {
-  const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec: gitExec, cwd: root });
+  const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec, cwd: root });
   // Pinned to the resolved root for the same reason the lookup is: the ancestry
   // answer must come from the repository this composition root bound, never from
   // whatever directory the process happens to be running in.
-  const rootExec: GitExec = (command, args, options) => gitExec(command, args, { ...options, cwd: root });
+  const rootExec: GitExec = (command, args, options) => exec(command, args, { ...options, cwd: root });
   return (request) => evaluateReviewReadiness(request, {
     deliveryMemberLookup,
     readDeliveryAncestry: (ancestor, descendant) => readAncestry(rootExec, ancestor, descendant),
   });
 }
 
-function defaultReviewReadinessDependencies(): ReviewReadinessHandlerDependencies {
+function defaultReviewReadinessDependencies(exec: GitExec): ReviewReadinessHandlerDependencies {
   return {
     ...defaultReviewHandlerBoundary(),
-    check: (request, root) => readinessBoundTo(root)(request),
+    check: (request, root) => readinessBoundTo(root, exec)(request),
   };
 }
 
@@ -1663,8 +1671,14 @@ function defaultReviewReadinessDependencies(): ReviewReadinessHandlerDependencie
 export async function handleReviewReadiness(
   source: string,
   overrides: Partial<ReviewReadinessHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
-  const dependencies = { ...defaultReviewReadinessDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultReviewReadinessDependencies(createGitExec(context.subprocess)), ...overrides };
   await executeReviewHandler({
     mode: "review-readiness",
     source,
@@ -1701,14 +1715,16 @@ export interface MergeLockTransitionHandlerDependencies {
  * Construct the merge-lock port shared by resolve, hold, and release.
  *
  * @param root - Resolved root the port's readiness gate authenticates against.
+ * @param exec - Invocation-bound Git executor used by readiness.
  * @param runner - Hosted process boundary; defaults to the `gh` runner.
  * @returns A merge-lock port bound to that repository.
  */
 export function defaultMergeLockPort(
   root: string,
+  exec: GitExec,
   runner: HostedProcessRunner = hostedGhRunner,
 ): MergeLockPort {
-  return new GhMergeLockPort(runner, readinessBoundTo(root), readMergeLockSetting);
+  return new GhMergeLockPort(runner, readinessBoundTo(root, exec), readMergeLockSetting);
 }
 
 /**
@@ -1716,15 +1732,23 @@ export function defaultMergeLockPort(
  *
  * @param source - JSON request file, or `-` for standard input.
  * @param overrides - Test-only handler boundary overrides.
+ * @param suppliedContext - Adapter-resolved interaction and subprocess policy.
  * @returns Resolves after stdout and exit status are assigned.
  */
 export async function handleMergeLockResolve(
   source: string,
   overrides: Partial<MergeLockResolveHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const exec = createGitExec(context.subprocess);
   const dependencies: MergeLockResolveHandlerDependencies = {
     ...defaultReviewHandlerBoundary(),
-    resolve: (request, root) => resolveMergeLock(request, defaultMergeLockPort(root)),
+    resolve: (request, root) => resolveMergeLock(request, defaultMergeLockPort(root, exec)),
     ...overrides,
   };
   await executeReviewHandler({
@@ -1747,10 +1771,12 @@ async function handleMergeLockTransition(
   verb: (request: MergeLockTransitionRequest, port: MergeLockPort) => Promise<unknown>,
   source: string,
   overrides: Partial<MergeLockTransitionHandlerDependencies>,
+  context: InteractionContext,
 ): Promise<void> {
+  const exec = createGitExec(context.subprocess);
   const dependencies: MergeLockTransitionHandlerDependencies = {
     ...defaultReviewHandlerBoundary(),
-    transition: (request, root) => verb(request, defaultMergeLockPort(root)),
+    transition: (request, root) => verb(request, defaultMergeLockPort(root, exec)),
     ...overrides,
   };
   await executeReviewHandler({
@@ -1772,18 +1798,26 @@ async function handleMergeLockTransition(
  *
  * @param source - JSON request file, or `-` for standard input.
  * @param overrides - Test-only handler boundary overrides.
+ * @param suppliedContext - Adapter-resolved interaction and subprocess policy.
  * @returns Resolves after stdout and exit status are assigned.
  */
 export async function handleMergeLockHold(
   source: string,
   overrides: Partial<MergeLockTransitionHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
   await handleMergeLockTransition(
     "merge-lock-hold",
     MergeLockHoldEnvelopeSchema,
     holdMergeLock,
     source,
     overrides,
+    context,
   );
 }
 
@@ -1792,18 +1826,26 @@ export async function handleMergeLockHold(
  *
  * @param source - JSON request file, or `-` for standard input.
  * @param overrides - Test-only handler boundary overrides.
+ * @param suppliedContext - Adapter-resolved interaction and subprocess policy.
  * @returns Resolves after stdout and exit status are assigned.
  */
 export async function handleMergeLockRelease(
   source: string,
   overrides: Partial<MergeLockTransitionHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
   await handleMergeLockTransition(
     "merge-lock-release",
     MergeLockReleaseEnvelopeSchema,
     releaseMergeLock,
     source,
     overrides,
+    context,
   );
 }
 
@@ -1817,8 +1859,14 @@ export async function handleMergeLockRelease(
 export async function handleReviewResolve(
   source: string,
   overrides: Partial<ReviewResolveHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
-  const dependencies = { ...defaultReviewResolveDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultReviewResolveDependencies(createGitExec(context.subprocess)), ...overrides };
   await executeReviewHandler({
     mode: "review-resolve",
     source,
@@ -2011,6 +2059,7 @@ type HostedProgressVehicle = HostedRequestVehicle | HostedErrandProgressBinding;
 
 async function resolveHostedProgressContext(input: {
   root: string;
+  exec: GitExec;
   publisher: RepositoryGitCommonStatePublisher;
   target: HostedTarget;
   provider: HostedProviderId;
@@ -2021,7 +2070,7 @@ async function resolveHostedProgressContext(input: {
   const settings = input.settings ?? (await readConfigSettings(input.root)).settings;
   const baseRef = settings["branch.base"];
   const repositoryId = await resolveRepositoryIdentity(input.publisher);
-  const memberLookup = new RepositoryDeliveryMemberLookup({ exec: gitExec, cwd: input.root });
+  const memberLookup = new RepositoryDeliveryMemberLookup({ exec: input.exec, cwd: input.root });
   const memberResolution = input.vehicle?.kind === "delivery-member"
     ? await memberLookup.resolveMemberByVehicle(input.vehicle)
     : await memberLookup.resolveMemberByHead(input.target.headSha);
@@ -2042,13 +2091,13 @@ async function resolveHostedProgressContext(input: {
     : null;
   const reviewTarget = member === null
     ? await deriveLocalReviewTarget({
-        exec: gitExec,
+        exec: input.exec,
         cwd: input.root,
         baseRef,
         repositoryId,
       })
     : await composeDeliveryMemberTarget({
-        exec: gitExec,
+        exec: input.exec,
         cwd: input.root,
         baseRef,
         repositoryId,
@@ -2057,7 +2106,7 @@ async function resolveHostedProgressContext(input: {
   if (reviewTarget.headSha !== input.target.headSha) {
     throw new Error("Hosted review target does not match the current local review target.");
   }
-  const currentBranch = (await gitExec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+  const currentBranch = (await input.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
     cwd: input.root,
   })).stdout.trim();
   if (currentBranch === "" || currentBranch === "HEAD") {
@@ -2067,7 +2116,7 @@ async function resolveHostedProgressContext(input: {
   const acceptableBaseRefs = member?.baseRef === null || member === null ? [] : [member.baseRef];
   const changeRequest = await resolveChangeRequest(
     { headRef: branch, headSha: reviewTarget.headSha, baseRef, acceptableBaseRefs, requireRemote: true },
-    createGhChangeRequestResolutionPort(gitExec, input.root),
+    createGhChangeRequestResolutionPort(input.exec, input.root),
   );
   if (changeRequest.state !== "open"
     || changeRequest.targetRef.repository.toLowerCase() !== input.target.repository.toLowerCase()
@@ -2077,12 +2126,12 @@ async function resolveHostedProgressContext(input: {
   }
   const store = new LocalReviewOperationStateStore(input.publisher);
   if (input.vehicle?.kind === "errand") {
-    const identity = await resolveUserIdentity(gitExec);
+    const identity = await resolveUserIdentity(input.exec);
     const frame = await runDerivedLocusStateProbe({
       cwd: input.root,
       identity,
       baseBranch: baseRef,
-      exec: gitExec,
+      exec: input.exec,
     });
     const current = resolveActiveHostedReviewErrand(frame, branch);
     const lineage = LaneSubjectLineageSchema.parse({
@@ -2109,7 +2158,7 @@ async function resolveHostedProgressContext(input: {
           settings,
           preferences: createLocalFrontlineSourcePreferenceReader({
             cwd: input.root,
-            exec: gitExec,
+            exec: input.exec,
             readFile: (path) => readFile(path, "utf8"),
           }),
         })).sources
@@ -2178,7 +2227,7 @@ async function resolveHostedProgressContext(input: {
   const reservation = boundary.reservation;
   const candidate = await createPrePublicationCompositionDependencies({
     cwd: input.root,
-    exec: gitExec,
+    exec: input.exec,
   }).readCandidate(workUnitId);
   if (candidate.status !== "current") {
     throw new Error("Hosted review reservation requires a current Candidate.");
@@ -2250,13 +2299,13 @@ async function resolveHostedProgressContext(input: {
           : null;
         const currentTarget = currentMember === null
           ? await deriveLocalReviewTarget({
-              exec: gitExec,
+              exec: input.exec,
               cwd: input.root,
               baseRef,
               repositoryId,
             })
           : await composeDeliveryMemberTarget({
-              exec: gitExec,
+              exec: input.exec,
               cwd: input.root,
               baseRef,
               repositoryId,
@@ -2462,8 +2511,8 @@ async function resolveCandidateFrontlineLineage(input: {
   return lineage;
 }
 
-function defaultFrontlineResolveDependencies(): ReviewFrontlineResolveHandlerDependencies {
-  const exec = createGitExec();
+function defaultFrontlineResolveDependencies(context: InteractionContext): ReviewFrontlineResolveHandlerDependencies {
+  const exec = createGitExec(context.subprocess);
   return {
     ...defaultReviewHandlerBoundary(),
     deriveRequest: (request, root) => deriveFrontlineCommandRequest(request, root, exec),
@@ -2565,8 +2614,14 @@ function defaultFrontlineResolveDependencies(): ReviewFrontlineResolveHandlerDep
 export async function handleReviewFrontlineResolve(
   source: string,
   overrides: Partial<ReviewFrontlineResolveHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
-  const dependencies = { ...defaultFrontlineResolveDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultFrontlineResolveDependencies(context), ...overrides };
   await executeReviewHandler({
     mode: "review-frontline-resolve",
     source,
@@ -2592,8 +2647,8 @@ export interface ReviewChunkingResolveHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultReviewChunkingResolveDependencies(): ReviewChunkingResolveHandlerDependencies {
-  const exec = createGitExec();
+function defaultReviewChunkingResolveDependencies(context: InteractionContext): ReviewChunkingResolveHandlerDependencies {
+  const exec = createGitExec(context.subprocess);
   return {
     ...defaultReviewHandlerBoundary(),
     deriveRequest: async (request, root) => {
@@ -2650,8 +2705,14 @@ function defaultReviewChunkingResolveDependencies(): ReviewChunkingResolveHandle
 export async function handleReviewChunkingResolve(
   source: string,
   overrides: Partial<ReviewChunkingResolveHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
-  const dependencies = { ...defaultReviewChunkingResolveDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultReviewChunkingResolveDependencies(context), ...overrides };
   await executeReviewHandler({
     mode: "review-chunking-resolve",
     source,
@@ -2817,12 +2878,13 @@ export interface ReviewLocalPrepareHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultLocalPrepareDependencies(): ReviewLocalPrepareHandlerDependencies {
+function defaultLocalPrepareDependencies(context: InteractionContext): ReviewLocalPrepareHandlerDependencies {
+  const exec = createGitExec(context.subprocess);
   return {
     ...defaultReviewHandlerBoundary(),
     prepare: (request, root) => prepareLocalReview(
       request,
-      createLocalPrepareDependencies({ exec: gitExec, cwd: root }),
+      createLocalPrepareDependencies({ exec, cwd: root }),
     ),
   };
 }
@@ -2888,8 +2950,14 @@ function reviewCommandError(
 export async function handleReviewLocalPrepare(
   source: string,
   overrides: Partial<ReviewLocalPrepareHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
-  const dependencies = { ...defaultLocalPrepareDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultLocalPrepareDependencies(context), ...overrides };
   await executeReviewHandler({
     mode: "review-local-prepare",
     source,
@@ -2908,12 +2976,13 @@ export interface ReviewLocalAttestHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultLocalAttestDependencies(): ReviewLocalAttestHandlerDependencies {
+function defaultLocalAttestDependencies(context: InteractionContext): ReviewLocalAttestHandlerDependencies {
+  const exec = createGitExec(context.subprocess);
   return {
     ...defaultReviewHandlerBoundary(),
     attest: (request, root) => attestLocalReviewCommand(
       request,
-      createLocalAttestDependencies({ exec: gitExec, cwd: root }),
+      createLocalAttestDependencies({ exec, cwd: root }),
     ),
   };
 }
@@ -2928,8 +2997,14 @@ function defaultLocalAttestDependencies(): ReviewLocalAttestHandlerDependencies 
 export async function handleReviewLocalAttest(
   source: string,
   overrides: Partial<ReviewLocalAttestHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
-  const dependencies = { ...defaultLocalAttestDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultLocalAttestDependencies(context), ...overrides };
   await executeReviewHandler({
     mode: "review-local-attest",
     source,
@@ -2948,12 +3023,13 @@ export interface ReviewLocalResumeHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultLocalResumeDependencies(): ReviewLocalResumeHandlerDependencies {
+function defaultLocalResumeDependencies(context: InteractionContext): ReviewLocalResumeHandlerDependencies {
+  const exec = createGitExec(context.subprocess);
   return {
     ...defaultReviewHandlerBoundary(),
     resume: (request, root) => resumeLocalReviewCommand(
       request,
-      createLocalResumeDependencies({ exec: gitExec, cwd: root }),
+      createLocalResumeDependencies({ exec, cwd: root }),
     ),
   };
 }
@@ -2968,8 +3044,14 @@ function defaultLocalResumeDependencies(): ReviewLocalResumeHandlerDependencies 
 export async function handleReviewLocalResume(
   source: string,
   overrides: Partial<ReviewLocalResumeHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
-  const dependencies = { ...defaultLocalResumeDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultLocalResumeDependencies(context), ...overrides };
   await executeReviewHandler({
     mode: "review-local-resume",
     source,
@@ -2988,12 +3070,13 @@ export interface ReviewRespondHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultRespondDependencies(): ReviewRespondHandlerDependencies {
+function defaultRespondDependencies(context: InteractionContext): ReviewRespondHandlerDependencies {
+  const exec = createGitExec(context.subprocess);
   return {
     ...defaultReviewHandlerBoundary(),
     respond: (request, root) => respondToReviewCommand(
       request,
-      createRespondDependencies({ exec: gitExec, cwd: root }),
+      createRespondDependencies({ exec, cwd: root }),
     ),
   };
 }
@@ -3002,8 +3085,14 @@ function defaultRespondDependencies(): ReviewRespondHandlerDependencies {
 export async function handleReviewRespond(
   source: string,
   overrides: Partial<ReviewRespondHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
-  const dependencies = { ...defaultRespondDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultRespondDependencies(context), ...overrides };
   await executeReviewHandler({
     mode: "review-respond",
     source,
@@ -3022,12 +3111,13 @@ export interface ReviewReduceHandlerDependencies {
   setExitCode(code: number): void;
 }
 
-function defaultReduceDependencies(): ReviewReduceHandlerDependencies {
+function defaultReduceDependencies(context: InteractionContext): ReviewReduceHandlerDependencies {
+  const exec = createGitExec(context.subprocess);
   return {
     ...defaultReviewHandlerBoundary(),
     reduce: (request, root) => reduceReviewCommand(
       request,
-      createReduceDependencies({ exec: gitExec, cwd: root }),
+      createReduceDependencies({ exec, cwd: root }),
     ),
   };
 }
@@ -3036,8 +3126,14 @@ function defaultReduceDependencies(): ReviewReduceHandlerDependencies {
 export async function handleReviewReduce(
   source: string,
   overrides: Partial<ReviewReduceHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
-  const dependencies = { ...defaultReduceDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultReduceDependencies(context), ...overrides };
   await executeReviewHandler({
     mode: "review-reduce",
     source,
@@ -3061,6 +3157,7 @@ export interface ReviewHostedRequestHandlerDependencies extends HostedReviewHand
 
 async function hostedCandidateSupersessionAncestors(input: {
   root: string;
+  exec: GitExec;
   lineage: LaneSubjectLineage;
   candidateRecord: CandidateManagedRecordV1 | null;
 }): Promise<readonly CandidateSupersessionAncestor[]> {
@@ -3073,18 +3170,18 @@ async function hostedCandidateSupersessionAncestors(input: {
     cwd: input.root,
     workUnit: input.candidateRecord.attestation.workUnit,
     record: input.candidateRecord,
-    exec: gitExec,
+    exec: input.exec,
   });
 }
 
-async function indexedErrandClaimIsCurrent(root: string, expectedClaimId: string): Promise<boolean> {
+async function indexedErrandClaimIsCurrent(root: string, expectedClaimId: string, exec: GitExec): Promise<boolean> {
   try {
-    const branch = (await gitExec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: root })).stdout.trim();
+    const branch = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: root })).stdout.trim();
     const frame = await runDerivedLocusStateProbe({
       cwd: root,
-      identity: await resolveUserIdentity(gitExec),
+      identity: await resolveUserIdentity(exec),
       baseBranch: (await readConfigSettings(root)).settings["branch.base"],
-      exec: gitExec,
+      exec,
     });
     return resolveActiveHostedReviewErrand(frame, branch).claimId === expectedClaimId;
   } catch {
@@ -3210,11 +3307,12 @@ async function readDurableHostedRequestReplay(input: {
   repositoryId: string;
   request: HostedRequestEnvelope;
   root: string;
+  exec: GitExec;
 }): Promise<HostedRequestAdmissionResolution | null> {
   const owner = await input.index.read(input.repositoryId, input.request);
   if (owner === null) return null;
   if (owner.lineage.kind === "head-bound" && owner.lineage.vehicleKind === "errand"
-    && !await indexedErrandClaimIsCurrent(input.root, owner.lineage.vehicleIdentity)) {
+    && !await indexedErrandClaimIsCurrent(input.root, owner.lineage.vehicleIdentity, input.exec)) {
     return { state: "ambiguous-delivery" };
   }
   const { state } = await input.store.readOperation(owner.operationId);
@@ -3231,6 +3329,7 @@ class HostedRequestOwnerCollision extends Error {}
 
 async function resumeReservedHostedRequest(input: {
   root: string;
+  exec: GitExec;
   publisher: RepositoryGitCommonStatePublisher;
   index: HostedRequestOwnerIndex;
   repositoryId: string;
@@ -3238,11 +3337,12 @@ async function resumeReservedHostedRequest(input: {
   replay: Extract<HostedRequestAdmissionResolution, { state: "admitted" }>;
   adapters: readonly HostedReviewAdapter[];
 }): Promise<unknown> {
-  const { root, publisher, index, repositoryId, request, replay, adapters } = input;
+  const { root, exec, publisher, index, repositoryId, request, replay, adapters } = input;
   let current;
   try {
     current = await resolveHostedProgressContext({
       root,
+      exec,
       publisher,
       target: request.target,
       provider: request.provider,
@@ -3260,7 +3360,7 @@ async function resumeReservedHostedRequest(input: {
   const store = new LocalReviewOperationStateStore(publisher);
   return requestHostedReview(request, {
     adapters,
-    deliveryMemberLookup: new RepositoryDeliveryMemberLookup({ exec: gitExec, cwd: root }),
+    deliveryMemberLookup: new RepositoryDeliveryMemberLookup({ exec, cwd: root }),
     ...(replay.admission.vehicle?.kind === "errand"
       ? { errandBinding: replay.admission.vehicle }
       : {}),
@@ -3290,6 +3390,7 @@ async function executeDefaultHostedRequest(
   input: unknown,
   root: string | null,
   publisher: RepositoryGitCommonStatePublisher | null,
+  exec: GitExec,
   adapters: readonly HostedReviewAdapter[],
   port: ReturnType<typeof createHostedAdapters>["port"],
 ): Promise<unknown> {
@@ -3298,7 +3399,7 @@ async function executeDefaultHostedRequest(
   const index = new HostedRequestOwnerIndex(publisher);
   const repositoryId = await resolveRepositoryIdentity(publisher);
   return withRepositoryReviewOperationLock(
-    gitExec,
+    exec,
     root,
     index.lockId(repositoryId, request),
     10_000,
@@ -3309,9 +3410,10 @@ async function executeDefaultHostedRequest(
         repositoryId,
         request,
         root,
+        exec,
       });
       if (replay?.state === "admitted") {
-        return resumeReservedHostedRequest({ root, publisher, index, repositoryId, request, replay, adapters });
+        return resumeReservedHostedRequest({ root, exec, publisher, index, repositoryId, request, replay, adapters });
       }
       if (replay !== null) {
         const result = projectHostedRequestAdmissionResolution(request, replay);
@@ -3319,10 +3421,11 @@ async function executeDefaultHostedRequest(
         return result;
       }
       const deliveryVehicle = request.vehicle?.kind === "delivery-member" ? request.vehicle : null;
-      const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec: gitExec, cwd: root });
+      const deliveryMemberLookup = new RepositoryDeliveryMemberLookup({ exec, cwd: root });
       const settings = (await readConfigSettings(root)).settings;
       const context = await resolveHostedProgressContext({
         root,
+        exec,
         publisher,
         target: request.target,
         provider: request.provider,
@@ -3332,6 +3435,7 @@ async function executeDefaultHostedRequest(
       });
       const supersessionAncestors = await hostedCandidateSupersessionAncestors({
         root,
+        exec,
         lineage: context.lineage,
         candidateRecord: context.candidateRecord,
       });
@@ -3347,7 +3451,7 @@ async function executeDefaultHostedRequest(
         settings,
         preferences: createLocalFrontlineSourcePreferenceReader({
           cwd: root,
-          exec: gitExec,
+          exec,
           readFile: (path) => readFile(path, "utf8"),
         }),
       });
@@ -3361,7 +3465,7 @@ async function executeDefaultHostedRequest(
           }
           const dischargeReader = createHostedReservationDischargeReader({
             cwd: root,
-            exec: gitExec,
+            exec,
             delivery: deliveryMemberLookup,
             host: new GhDeliveryHostPort(hostedGhRunner),
           });
@@ -3417,7 +3521,7 @@ async function executeDefaultHostedRequest(
           });
           const currentObligation = await readRoutedObligation(
             root,
-            gitExec,
+            exec,
             context.statusTarget,
             request.target.pullRequest,
             deliveryMemberLookup,
@@ -3452,7 +3556,7 @@ async function executeDefaultHostedRequest(
         if (context.candidateRecord !== null) {
           const dischargeReader = createHostedReservationDischargeReader({
             cwd: root,
-            exec: gitExec,
+            exec,
             host: new GhDeliveryHostPort(hostedGhRunner),
           });
           const dischargeInput = {
@@ -3554,7 +3658,7 @@ async function executeDefaultHostedRequest(
           const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
           try {
             const admitted = await withRepositoryReviewOperationLock(
-              gitExec,
+              exec,
               root,
               laneContinuationOperationId({
                 lane: "standard",
@@ -3630,21 +3734,28 @@ async function executeDefaultHostedRequest(
   );
 }
 
-function defaultHostedRequestDependencies(): ReviewHostedRequestHandlerDependencies {
+function defaultHostedRequestDependencies(context: InteractionContext): ReviewHostedRequestHandlerDependencies {
   const { adapters, port } = createHostedAdapters();
   const root = resolveArcRoot(process.cwd());
-  const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(gitExec, root);
+  const exec = createGitExec(context.subprocess);
+  const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(exec, root);
   return {
     ...defaultHostedHandlerBoundary(),
-    request: (input) => executeDefaultHostedRequest(input, root, publisher, adapters, port),
+    request: (input) => executeDefaultHostedRequest(input, root, publisher, exec, adapters, port),
   };
 }
 
 export async function handleReviewHostedRequest(
   source: string,
   overrides: Partial<ReviewHostedRequestHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
-  const dependencies = { ...defaultHostedRequestDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultHostedRequestDependencies(context), ...overrides };
   await executeHostedReviewHandler({
     mode: "review-hosted-request",
     source,
@@ -3666,10 +3777,11 @@ export interface ReviewHostedAwaitHandlerDependencies extends HostedReviewHandle
   awaitResult(input: unknown): Promise<unknown>;
 }
 
-function defaultHostedAwaitDependencies(): ReviewHostedAwaitHandlerDependencies {
+function defaultHostedAwaitDependencies(context: InteractionContext): ReviewHostedAwaitHandlerDependencies {
   const { observers } = createHostedAdapters();
   const root = resolveArcRoot(process.cwd());
-  const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(gitExec, root);
+  const exec = createGitExec(context.subprocess);
+  const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(exec, root);
   return {
     ...defaultHostedHandlerBoundary(),
     awaitResult: async (input) => {
@@ -3720,8 +3832,14 @@ function defaultHostedAwaitDependencies(): ReviewHostedAwaitHandlerDependencies 
 export async function handleReviewHostedAwait(
   source: string,
   overrides: Partial<ReviewHostedAwaitHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
-  const dependencies = { ...defaultHostedAwaitDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultHostedAwaitDependencies(context), ...overrides };
   await executeHostedReviewHandler({
     mode: "review-hosted-await",
     source,
@@ -3769,10 +3887,11 @@ export function hostedFixSettlementPerformed(input: {
   return true;
 }
 
-function defaultHostedSettleDependencies(): ReviewHostedSettleHandlerDependencies {
+function defaultHostedSettleDependencies(context: InteractionContext): ReviewHostedSettleHandlerDependencies {
   const { port } = createHostedAdapters();
   const root = resolveArcRoot(process.cwd());
-  const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(gitExec, root);
+  const exec = createGitExec(context.subprocess);
+  const publisher = root === null ? null : new RepositoryGitCommonStatePublisher(exec, root);
   return {
     ...defaultHostedHandlerBoundary(),
     settle: async (input) => {
@@ -3790,7 +3909,7 @@ function defaultHostedSettleDependencies(): ReviewHostedSettleHandlerDependencie
         throw new Error(`Hosted settlement attempt is unavailable: ${reference.durableRef}`);
       }
       return withRepositoryReviewOperationLock(
-        gitExec,
+        exec,
         root,
         laneContinuationOperationId({
           lane: "standard",
@@ -3869,8 +3988,14 @@ function defaultHostedSettleDependencies(): ReviewHostedSettleHandlerDependencie
 export async function handleReviewHostedSettle(
   source: string,
   overrides: Partial<ReviewHostedSettleHandlerDependencies> = {},
+  suppliedContext?: InteractionContext,
 ): Promise<void> {
-  const dependencies = { ...defaultHostedSettleDependencies(), ...overrides };
+  const context = suppliedContext ?? resolveProcessInteractionContext({
+    noInput: false,
+    machineReadable: true,
+    yes: "absent",
+  });
+  const dependencies = { ...defaultHostedSettleDependencies(context), ...overrides };
   await executeHostedReviewHandler({
     mode: "review-hosted-settle",
     source,
@@ -3898,15 +4023,15 @@ export interface ReviewPrePublicationJudgment {
 }
 
 const AttestationOrderingRecoverySchema = z.strictObject({
-  candidateId: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
-  candidateSubjectDigest: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+  candidateId: CanonicalDigestSchema,
+  candidateSubjectDigest: CanonicalDigestSchema,
   reviewedHead: GitObjectIdSchema,
   currentHead: GitObjectIdSchema,
-  expectedBoundaryVersion: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+  expectedBoundaryVersion: CanonicalDigestSchema,
 });
 const PrePublicationReplayInputSchema = z.strictObject({
-  candidateId: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
-  candidateSubjectDigest: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
+  candidateId: CanonicalDigestSchema.optional(),
+  candidateSubjectDigest: CanonicalDigestSchema.optional(),
   selfReview: z.literal("settled").optional(),
   changeSet: z.json().optional(),
   lanes: z.json().optional(),
@@ -3942,9 +4067,9 @@ export interface ReviewPrePublicationHandlerDependencies {
   readRootGitHead(root: string): Promise<string>;
   readCandidate(root: string, workUnit: string): Promise<CandidateRead>;
   readBoundary(root: string, workUnit: string): Promise<VersionedSubmissionBoundary>;
-  readStandardLaneOwnerVersion(root: string, candidateId: string, headSha: string): Promise<number>;
+  readStandardLaneOwnerVersion(root: string, candidateId: CanonicalDigest, headSha: string): Promise<number>;
   withStandardLaneLock<T>(
-    root: string, candidateId: string, headSha: string, action: () => Promise<T>,
+    root: string, candidateId: CanonicalDigest, headSha: string, action: () => Promise<T>,
   ): Promise<T>;
   compose(
     root: string,
@@ -3954,7 +4079,7 @@ export interface ReviewPrePublicationHandlerDependencies {
   persistBoundary(root: string, boundary: IntegrationBoundaryLocus): Promise<void>;
   persistAcceptedFrontlineSkip(root: string, input: {
     workUnit: string;
-    candidateId: string;
+    candidateId: CanonicalDigest;
     repositoryId: string;
     headSha: string;
   }): Promise<void>;
@@ -3986,7 +4111,7 @@ async function recoverProjectedPublicationBoundary(
 async function persistAcceptedFrontlineSkip(input: {
   root: string;
   workUnit: string;
-  candidateId: string;
+  candidateId: CanonicalDigest;
   repositoryId: string;
   headSha: string;
   exec: GitExec;
@@ -4039,8 +4164,8 @@ function acceptedSingletonFrontlineSkip(
 
 function buildPrePublicationResumeCommand(input: {
   workUnit: string;
-  candidateId: string;
-  candidateSubjectDigest: string;
+  candidateId: CanonicalDigest;
+  candidateSubjectDigest: CanonicalDigest;
   judgment: ReviewPrePublicationJudgment;
   replaySelfReview: "settled" | undefined;
   replayLanes: unknown;

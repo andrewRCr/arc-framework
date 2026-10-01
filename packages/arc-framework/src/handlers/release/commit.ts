@@ -42,14 +42,14 @@ import {
   rewriteCommitMessagesToFile,
 } from "../../lib/release/commit-message-source.js";
 import { renderCommitMessageRetryCommand } from "../../lib/release/commit-message-retry.js";
+import type { AuthorizationDecision } from "../../lib/release/types.js";
 import type {
   AuditEntry,
   AuditInterlockState,
   AuditOutcome,
   AuditWorkUnit,
-  AuthorizationDecision,
   RefusalCode,
-} from "../../lib/release/types.js";
+} from "../../lib/release/schema.js";
 import { AuditEntrySchema } from "../../lib/release/schema.js";
 import type { ResolvedSettingsResult } from "../../lib/config/resolved-settings.js";
 

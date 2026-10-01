@@ -27,7 +27,7 @@ import {
   reduceReviewRouting,
 } from "../../../../../src/scripts/review-gate/policy/routing.js";
 
-const digest = `sha256:${"a".repeat(64)}`;
+const digest: `sha256:${string}` = `sha256:${"a".repeat(64)}`;
 const target = {
   schemaVersion: 2,
   semanticsVersion: "review-gate/v2",

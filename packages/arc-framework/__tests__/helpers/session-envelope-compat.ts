@@ -1,9 +1,7 @@
 /**
  * Deterministic repositories and normalization for session-envelope goldens.
  *
- * This helper is deliberately framework-free: it uses only Node builtins and
- * the public E2E helpers, so benchmarks can reuse the unnormalized fixture
- * without importing Vitest or production modules.
+ * Benchmarks reuse the unnormalized fixture without importing Vitest.
  */
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -16,6 +14,9 @@ import {
   removeGitBackedDir,
   runArcNoTty,
 } from "../e2e/helpers.js";
+import { makeMetaFixture } from "./meta-fixture.js";
+import { parseMetaRecord, setMetaBulletFields, setMetaCurrentWorkflow } from
+  "../../src/lib/active/meta-reader.js";
 
 // Placeholders are path-shaped rather than angle-bracket tokens because normalized
 // envelopes are replayed through schema validation, and several normalized values land
@@ -59,36 +60,50 @@ interface MutableFixture {
 }
 
 const META = (name: string, fields: {
-  state?: string;
+  state?: "Active" | "Integrating";
   branch: string;
   taskList?: string;
   cohort?: string;
   owner?: string;
-  workClass?: string;
-}): string => [
+  workClass?: "Light" | "Heavy" | "Novel";
+}): string => {
+  const canonical = makeMetaFixture(name, {
+    state: fields.state ?? "Active",
+    owner: fields.owner ?? "test-user",
+    branch: fields.branch,
+    workClass: fields.workClass ?? "Heavy",
+    cohort: fields.cohort ?? null,
+    taskList: fields.taskList ?? null,
+    currentWorkflow: fields.state === "Integrating" ? "integrate-work-unit" : null,
+    nextTask: fields.taskList === undefined ? null : "Task 1.1 — Exercise the envelope (line ~7)",
+    nextAction: fields.taskList === undefined
+      ? "Continue integration" : "Begin Task 1.1 — Exercise the envelope",
+  });
+  const record = parseMetaRecord(canonical);
+  return [
   `# Metadata: ${name}`,
   "",
-  `- **State:** ${fields.state ?? "Active"}`,
-  `- **Owner:** ${fields.owner ?? "test-user"}`,
-  `- **Branch:** ${fields.branch}`,
-  `- **Class:** ${fields.workClass ?? "Heavy"}`,
-  `- **Cohort:** ${fields.cohort ?? "[none]"}`,
+  `- **State:** ${record.state}`,
+  `- **Owner:** ${record.owner}`,
+  `- **Branch:** ${record.branch}`,
+  `- **Class:** ${record.workClass}`,
+  `- **Cohort:** ${record.cohort ?? "[none]"}`,
   "- **Depends On:** [none]",
-  `- **Task List:** ${fields.taskList ?? "[none]"}`,
+  `- **Task List:** ${record.taskList ?? "[none]"}`,
   "- **Candidate:** [none]",
-  fields.state === "Integrating"
+  record.currentWorkflow === "integrate-work-unit"
     ? "- **Current Workflow:** `integrate-work-unit`"
     : "- **Current Workflow:** [none]",
   "- **Last Completed:** [none]",
-  fields.taskList === undefined
-    ? "- **Next Task:** [none]"
-    : "- **Next Task:** Task 1.1 — Exercise the envelope (line ~7)",
+  `- **Next Task:** ${record.nextTask ?? "[none]"}`,
   "- **Blockers:** [none]",
-  fields.taskList === undefined
-    ? "- **Next Action:** Continue integration"
-    : "- **Next Action:** Begin Task 1.1 — Exercise the envelope",
+  `- **Next Action:** ${record.nextAction}`,
   "",
-].join("\n");
+  ].join("\n");
+};
+
+// The captured envelope predates the core table. Project the builder's validated fields
+// into its legacy flat layout so the compatibility golden keeps the same wire evidence.
 
 const TASKS = [
   "# Task List: Envelope Fixture",
@@ -229,9 +244,10 @@ async function setupOrientFixture(state: MutableFixture): Promise<void> {
   const attestedMeta = await readFile(metaPath, "utf8");
   await writeFile(
     metaPath,
-    attestedMeta
-      .replace("- **State:** Active", "- **State:** Integrating")
-      .replace("- **Current Workflow:** `prepare-work-unit`", "- **Current Workflow:** `integrate-work-unit`"),
+    setMetaCurrentWorkflow(
+      setMetaBulletFields(attestedMeta, { State: "Integrating" }),
+      "integrate-work-unit",
+    ),
   );
   await writeFile(boundaryPath, `${JSON.stringify({
     schemaVersion: 1,

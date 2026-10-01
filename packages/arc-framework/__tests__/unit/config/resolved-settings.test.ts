@@ -20,6 +20,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdir, mkdtemp, readFile as nodeReadFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 
 import {
   resolveAllSettings,
@@ -52,15 +53,14 @@ const realReadFile = (path: string): Promise<string> => nodeReadFile(path, "utf8
 
 /** Build a mock exec that returns the given map of git-config values. */
 function buildExec(overrides: Record<string, string | undefined>) {
-  return vi.fn().mockImplementation((cmd: string, args: string[]) => {
-    if (cmd === "git" && args[0] === "config" && args[1] === "--get") {
+  return scriptGitExec([{
+    match: { prefix: ["config", "--get"] },
+    responses: [({ args }) => {
       const key = args[2];
       const value = key === undefined ? undefined : overrides[key];
-      if (value === undefined) return Promise.reject(new Error("exit 1"));
-      return Promise.resolve({ stdout: `${value}\n` });
-    }
-    return Promise.reject(new Error(`unexpected call: ${cmd} ${(args ?? []).join(" ")}`));
-  });
+      return value === undefined ? { failure: { exitCode: 1 } } : { stdout: `${value}\n` };
+    }],
+  }]).exec;
 }
 
 type PerDevKeyName = "commitInterlock" | "pushInterlock" | "syncInterlock" | "releaseOptedIn";

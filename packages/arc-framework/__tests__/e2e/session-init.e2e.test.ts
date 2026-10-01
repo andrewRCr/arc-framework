@@ -21,7 +21,11 @@ import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { COMPACTION_SEED_SCHEMA_VERSION } from "../../src/lib/compaction-seed/schema.js";
 import { LOAD_SET_MANIFEST_VERSION } from "../../src/lib/load-set/types.js";
-import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
+import {
+  renderMetaFile,
+  setMetaCurrentWorkflow,
+  setMetaState,
+} from "../../src/lib/active/meta-reader.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from
   "../../src/lib/delivery/local-stores.js";
@@ -30,6 +34,7 @@ import { renderDeliveryPlanSection } from "../../src/lib/delivery/task-list-rend
 import { gitExec } from "../../src/lib/io-context.js";
 import { deliveryThreeMemberStackPlanForWorkUnitFixture } from "../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../fixtures/delivery-state.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { runArc, createTempRepo, cleanupTempDir, removeGitBackedDir, git } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
@@ -273,6 +278,25 @@ async function writeStatusFixture(
   arcRoot: string,
   category: string,
   stem: string,
+  fields: { taskList?: string; nextAction: string },
+): Promise<void> {
+  await git(arcRoot, ["add", "-A"]);
+  await git(arcRoot, ["commit", "--allow-empty", "-m", "initialize fixture"]);
+  await git(arcRoot, ["switch", "-c", `${category}/${stem}`]);
+  const dir = join(arcRoot, ".arc", "active");
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, `meta-${stem}.md`), makeMetaFixture(stem, {
+    owner: "test-user",
+    branch: `${category}/${stem}`,
+    taskList: fields.taskList?.replaceAll("`", "") ?? null,
+    nextAction: fields.nextAction,
+  }));
+}
+
+async function writeUserReferenceStatusFixture(
+  arcRoot: string,
+  category: string,
+  stem: string,
   fields: { taskList?: string; nextAction: string; candidateId?: string },
 ): Promise<void> {
   await git(arcRoot, ["add", "-A"]);
@@ -447,19 +471,13 @@ describe("session-init E2E — sessionType across type variants", () => {
     await mkdir(activeDir, { recursive: true });
     await writeFile(
       join(activeDir, "meta-foo.md"),
-      [
-        "# Metadata: Foo",
-        "",
-        "- **State:** Active",
-        "- **Owner:** test-user",
-        "- **Branch:** feat/foo",
-        "- **Task List:** tasks-foo.md",
-        "- **Candidate:** [none]",
-        "- **Current Workflow:** [none]",
-        "- **Next Task:** Task 1.1 — Do seed (line ~12)",
-        "- **Next Action:** Start Task 1.1",
-        "",
-      ].join("\n"),
+      makeMetaFixture("Foo", {
+        owner: "test-user",
+        branch: "feat/foo",
+        taskList: "tasks-foo.md",
+        nextTask: "Task 1.1 — Do seed (line ~12)",
+        nextAction: "Start Task 1.1",
+      }),
     );
     await writeFile(join(activeDir, "tasks-foo.md"), taskListFixture("Do seed"));
     await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
@@ -510,18 +528,13 @@ describe("session-init E2E — sessionType across type variants", () => {
     await mkdir(activeDir, { recursive: true });
     await writeFile(
       join(activeDir, "meta-foo.md"),
-      [
-        "# Metadata: Foo",
-        "",
-        "- **State:** Active",
-        "- **Owner:** test-user",
-        "- **Branch:** feat/foo",
-        "- **Task List:** tasks-foo.md",
-        "- **Current Workflow:** [none]",
-        "- **Next Task:** Task 1.1 — Do recover (line ~12)",
-        "- **Next Action:** Start Task 1.1",
-        "",
-      ].join("\n"),
+      makeMetaFixture("Foo", {
+        owner: "test-user",
+        branch: "feat/foo",
+        taskList: "tasks-foo.md",
+        nextTask: "Task 1.1 — Do recover (line ~12)",
+        nextAction: "Start Task 1.1",
+      }),
     );
     await writeFile(join(activeDir, "tasks-foo.md"), taskListFixture("Do recover"));
     await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
@@ -801,21 +814,12 @@ describe("session-init E2E — sessionType across type variants", () => {
     await mkdir(activeDir, { recursive: true });
     await writeFile(
       join(activeDir, "meta-foo.md"),
-      [
-        "# Metadata: Foo",
-        "",
-        "- **State:** Active",
-        "- **Owner:** test-user",
-        "- **Branch:** feat/foo",
-        "- **Depends On:** [none]",
-        "- **Task List:** tasks-foo.md",
-        "- **Candidate:** [none]",
-        "- **Current Workflow:** [none]",
-        "- **Last Completed:** [none]",
-        "- **Next Task:** [none]",
-        "- **Next Action:** Complete integration",
-        "",
-      ].join("\n"),
+      makeMetaFixture("Foo", {
+        owner: "test-user",
+        branch: "feat/foo",
+        taskList: "tasks-foo.md",
+        nextAction: "Complete integration",
+      }),
     );
     const closedTasks = [
       "# Task List: Foo",
@@ -836,9 +840,7 @@ describe("session-init E2E — sessionType across type variants", () => {
     const attestedMeta = await readFile(metaPath, "utf8");
     await writeFile(
       metaPath,
-      attestedMeta
-        .replace("- **State:** Active", "- **State:** Integrating")
-        .replace("- **Current Workflow:** `prepare-work-unit`", "- **Current Workflow:** `integrate-work-unit`"),
+      setMetaCurrentWorkflow(setMetaState(attestedMeta, "Integrating"), "integrate-work-unit"),
     );
     await git(tmpDir, ["add", "-A"]);
     await git(tmpDir, ["commit", "--no-verify", "-m", "public integration fixture"]);
@@ -919,21 +921,12 @@ describe("session-init E2E — sessionType across type variants", () => {
     await mkdir(activeDir, { recursive: true });
     await writeFile(
       join(activeDir, "meta-foo.md"),
-      [
-        "# Metadata: Foo",
-        "",
-        "- **State:** Active",
-        "- **Owner:** test-user",
-        "- **Branch:** feat/foo",
-        "- **Depends On:** [none]",
-        "- **Task List:** tasks-foo.md",
-        "- **Candidate:** [none]",
-        "- **Current Workflow:** [none]",
-        "- **Last Completed:** [none]",
-        "- **Next Task:** [none]",
-        "- **Next Action:** Complete integration",
-        "",
-      ].join("\n"),
+      makeMetaFixture("Foo", {
+        owner: "test-user",
+        branch: "feat/foo",
+        taskList: "tasks-foo.md",
+        nextAction: "Complete integration",
+      }),
     );
     await writeFile(
       join(activeDir, "tasks-foo.md"),
@@ -968,9 +961,7 @@ describe("session-init E2E — sessionType across type variants", () => {
     const attestedMeta = await readFile(attestedMetaPath, "utf8");
     await writeFile(
       attestedMetaPath,
-      attestedMeta
-        .replace("- **State:** Active", "- **State:** Integrating")
-        .replace("- **Current Workflow:** `prepare-work-unit`", "- **Current Workflow:** `integrate-work-unit`"),
+      setMetaCurrentWorkflow(setMetaState(attestedMeta, "Integrating"), "integrate-work-unit"),
     );
     await writeFile(candidateBoundaryPath, `${JSON.stringify({
       schemaVersion: 1,
@@ -1050,18 +1041,13 @@ describe("session-init E2E — sessionType across type variants", () => {
     await mkdir(activeDir, { recursive: true });
     await writeFile(
       join(activeDir, "meta-foo.md"),
-      [
-        "# Metadata: Foo",
-        "",
-        "- **State:** Active",
-        "- **Owner:** test-user",
-        "- **Branch:** feat/foo",
-        "- **Task List:** tasks-foo.md",
-        "- **Current Workflow:** [none]",
-        "- **Next Task:** stale meta pointer ignored by recovery",
-        "- **Next Action:** Start Task 1.1",
-        "",
-      ].join("\n"),
+      makeMetaFixture("Foo", {
+        owner: "test-user",
+        branch: "feat/foo",
+        taskList: "tasks-foo.md",
+        nextTask: "stale meta pointer ignored by recovery",
+        nextAction: "Start Task 1.1",
+      }),
     );
     await writeFile(join(activeDir, "tasks-foo.md"), taskListFixture("Do audit"));
     await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
@@ -1266,9 +1252,10 @@ describe("session-init E2E — sessionType across type variants", () => {
       const metaPath = join(tmpDir, ".arc", "active", "meta-large-candidate.md");
       await writeFile(
         metaPath,
-        (await readFile(metaPath, "utf8"))
-          .replace("- **State:** Active", "- **State:** Integrating")
-          .replace("- **Current Workflow:** `prepare-work-unit`", "- **Current Workflow:** `integrate-work-unit`"),
+        setMetaCurrentWorkflow(
+          setMetaState(await readFile(metaPath, "utf8"), "Integrating"),
+          "integrate-work-unit",
+        ),
       );
       await writeFile(candidateBoundaryPath, `${JSON.stringify({
         schemaVersion: 1,
@@ -1352,7 +1339,7 @@ describe("session-init E2E — request-scoped remote acquisition", () => {
       await git(repo, ["push", "origin", "HEAD:feat/remote-generation"]);
       await git(repo, ["push", "origin", "HEAD:feat/remote-generation-alias"]);
       await git(repo, ["switch", "main"]);
-      await writeStatusFixture(repo, "feat", "remote-boundary", { nextAction: "Continue execution" });
+      await writeUserReferenceStatusFixture(repo, "feat", "remote-boundary", { nextAction: "Continue execution" });
 
       await expect(execFileAsync("git", ["fetch", "origin", "main"], {
         cwd: repo,

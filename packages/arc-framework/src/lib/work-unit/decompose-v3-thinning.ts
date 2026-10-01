@@ -2,7 +2,7 @@
 
 import { posix } from "node:path";
 
-import { digestBytes, type CanonicalDigest } from "../canonical/canonical-json.js";
+import { digestBytes, type CanonicalDigest } from "../kernel/canonical/canonical-json.js";
 import {
   scanV3DecomposeContent,
   type V3DecomposeContentLocator,

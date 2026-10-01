@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { CanonicalDigestSchema } from "../../../../../src/lib/kernel/index.js";
 
 import {
   explainHostedSettlementBindingMismatch,
@@ -14,7 +15,7 @@ const request = {
   schemaVersion: 1 as const,
   response: {
     attemptRef: "arc-review-source:v1:hosted:lane-progress%2F1:hosted%2F1",
-    dispositionSetId: `sha256:${"b".repeat(64)}`,
+    dispositionSetId: CanonicalDigestSchema.parse(`sha256:${"b".repeat(64)}`),
     findingId: "finding-1",
   },
   target,

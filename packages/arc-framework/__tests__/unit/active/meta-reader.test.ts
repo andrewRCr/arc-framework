@@ -12,6 +12,7 @@ import { lint } from "markdownlint/promise";
 import { mkdir, mkdtemp, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { MetaCandidateIdSchema } from "../../../src/lib/active/meta-schema.js";
 
 import {
   parseIdentifierList,
@@ -217,7 +218,7 @@ describe("renderMetaFile — semantic record", () => {
       taskList: "tasks-foo.md",
       reviewRubric: null,
       promotionReceipt: `errand-v1/repair/${"a".repeat(32)}`,
-      candidateId: `sha256:${"b".repeat(64)}`,
+      candidateId: MetaCandidateIdSchema.parse(`sha256:${"b".repeat(64)}`),
       currentWorkflow: "integrate-work-unit",
       lastCompleted: "Task 7.1",
       nextTask: "Task 7.2",

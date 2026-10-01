@@ -1,6 +1,6 @@
 /** Deterministic Git identity for a decomposition candidate. */
 
-import { canonicalDigest } from "../canonical/canonical-json.js";
+import { canonicalDigest } from "../kernel/canonical/canonical-json.js";
 
 /** Return the single local branch reserved for an origin's decomposition candidate. */
 export function decomposeCandidateBranch(origin: string): string {

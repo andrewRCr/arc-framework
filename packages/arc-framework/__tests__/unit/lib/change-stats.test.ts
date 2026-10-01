@@ -4,6 +4,7 @@ import {
   parseNumstat,
   resolveChangeStats,
 } from "../../../src/lib/change-stats.js";
+import { scriptRawGitExec } from "../../helpers/git-exec-fake.js";
 
 const bytes = (...parts: Array<string | number[]>): Uint8Array => {
   const encoder = new TextEncoder();
@@ -78,9 +79,10 @@ describe("resolveChangeStats", () => {
   });
 
   it("returns explicit failure for invalid coordinates or Git rejection", async () => {
-    const exec = vi.fn(async () => {
-      throw new Error("missing object");
-    });
+    const { exec } = scriptRawGitExec([{
+      match: { prefix: ["diff", "--numstat"] },
+      responses: [{ failure: { exitCode: 128, stderr: "missing object" } }],
+    }]);
     await expect(resolveChangeStats(exec, "a".repeat(40), "b".repeat(40))).resolves.toEqual({
       kind: "unknown",
       reason: "git-failure",

@@ -24,7 +24,7 @@ import {
   serializeCandidateManagedRecord,
 } from "../../src/lib/work-unit/candidate-attestation.js";
 import { collectCandidateSubjectTarget } from "../helpers/candidate-subject.js";
-import { canonicalDigest } from "../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { gitExec } from "../../src/lib/io-context.js";
 import { LocalReviewOperationStateStore } from
@@ -34,6 +34,7 @@ import {
   recordCandidateVerifiedResponse,
 } from "../../src/scripts/review-gate/policy/pre-publication-procedure.js";
 import { responsePolicyRequest } from "../fixtures/review-response-policy.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -47,35 +48,10 @@ const execFileAsync = promisify(execFile);
 const OFFLINE_ORIGIN = "https://arc-fixture.invalid/arc-framework/example.git";
 const OFFLINE_ENV = { GIT_TERMINAL_PROMPT: "0" };
 
-const META = [
-  "# Metadata: example",
-  "",
-  "| **State** | **Owner**   | **Branch**     | **Class** | **Priority** |",
-  "| --------- | ----------- | -------------- | --------- | ------------ |",
-  "| `Active`  | `test-user` | `feat/example` | `Light`   | `P2`         |",
-  "",
-  "- **Cohort:** [none]",
-  "- **Depends On:** [none]",
-  "",
-  "- **Origin:** [internal]",
-  "- **Design:** [none]",
-  "- **Task List:** `tasks-example.md`",
-  "- **Review Rubric:** [none]",
-  "- **Promotion Receipt:** [none]",
-  "",
-  "- **Current Workflow:** [none]",
-  "- **Last Completed:** verification",
-  "- **Next Task:** [none]",
-  "- **Blockers:** [none]",
-  "",
-  "- **Next Action:** verification complete",
-  "",
-  "- **PR URL:** [none]",
-  "- **Completed:** [none]",
-  "",
-  "---",
-  "",
-].join("\n");
+const META = makeMetaFixture("example", {
+  owner: "test-user", branch: "feat/example", workClass: "Light", priority: "P2",
+  taskList: "tasks-example.md", lastCompleted: "verification", nextAction: "verification complete",
+});
 
 /** Stage one verified Active work unit on its own branch, ready to propose. */
 async function createAttestableRepo(): Promise<string> {

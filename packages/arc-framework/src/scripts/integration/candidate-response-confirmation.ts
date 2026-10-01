@@ -1,6 +1,6 @@
 /** Proof that a private-member frontline fix was already settled into its bound Candidate. */
 
-import { canonicalize } from "../../lib/canonical/canonical-json.js";
+import { canonicalize } from "../../lib/kernel/canonical/canonical-json.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
 import type { GitExec } from "../../lib/git/index.js";

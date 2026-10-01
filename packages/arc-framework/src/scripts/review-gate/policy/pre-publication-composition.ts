@@ -19,14 +19,14 @@ import { CurrentDeliveryLifecycleContributionPathSource } from "../../../lib/del
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../../../lib/delivery/local-stores.js";
 import { DeliveryPlanV1Codec } from "../../../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
-import type { RawGitExec } from "../../../lib/change-facts.js";
+import type { RawGitExec } from "../../../lib/git/exec.js";
 import { resolveSoleMergeBase } from "../../../lib/git/base-overlap.js";
 import { analyzeRevisionOverlap, getCurrentBranch, type GitExec } from "../../../lib/git/index.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
-import { SlugSchema, validateManagedPath } from "../../../lib/kernel/index.js";
+import { SlugSchema, validateManagedPath, type CanonicalDigest } from "../../../lib/kernel/index.js";
 import { materializeArcPath, resolveArcPath } from "../../../lib/layout/index.js";
 import { resolveActiveWu } from "../../../lib/release/wu-resolution.js";
-import { resolveGitCommonDir } from "../../../lib/user-sync/repo-shared-paths.js";
+import { resolveGitCommonDir } from "../../../lib/git/exec.js";
 import {
   CandidateConvergenceProjectionSchema,
   candidateReviewResponses,
@@ -106,7 +106,7 @@ interface NoPullRequestCandidateApplicabilityInput {
   predecessor: ReviewResult;
   currentTarget: ReviewTarget;
   currentLineage: Parameters<PrePublicationCompositionDependencies["confirmPriorProducerApplicability"]>[3];
-  candidateId: string;
+  candidateId: CanonicalDigest;
   prior: CandidateEffectiveTargetProjection;
   current: CandidateEffectiveTargetProjection;
   observedCurrentTarget: ReviewTarget;

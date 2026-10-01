@@ -449,7 +449,7 @@ describe("Errand review status", () => {
       state: "settled",
     });
 
-    const staleStandardReview = { ...standardReview, rubricDigest: `sha256:${"0".repeat(64)}` };
+    const staleStandardReview = { ...standardReview, rubricDigest: `sha256:${"0".repeat(64)}` as const };
     const staleRequirement = createReviewRequirement({
       target: reviewTarget,
       projection: staleStandardReview,

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { join } from "node:path";
 
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import {
   MARKDOWN_SELECTION,
   createMarkdownAuthority,
@@ -164,6 +166,32 @@ describe("Markdown authority", () => {
     })).rejects.toMatchObject({ code: "markdown.manifest-missing" });
   });
 
+  it("loads Markdown authority from the original decomposed native root", async () => {
+    const root = "/repo/cafe\u0301";
+    const output = ".arc/system/rules/DEV-RULES.ARC.md";
+    const contents = new Map([
+      [join(root, ".arc", "system", ".internal", "manifest.json"), JSON.stringify(manifest)],
+      [join(root, "packages", "arc-framework", "init-recipe.json"), JSON.stringify(recipe)],
+    ]);
+    const authority = await loadMarkdownAuthority({
+      root,
+      readFile: async (path) => {
+        const content = contents.get(path);
+        if (content === undefined) throw new Error(`missing ${path}`);
+        return content;
+      },
+      lstat: async (path) => ({
+        isFile: () => path === join(root, output),
+        isDirectory: () => false,
+        isSymbolicLink: () => false,
+      }),
+    });
+
+    expect(authority.classify(output)).toMatchObject({
+      kind: "rendered-framework", counterpart: "packages/arc-framework/arc/system/rules/DEV-RULES.ARC.md",
+    });
+  });
+
   it("enumerates a NUL-safe selected scope for worktree and index views", async () => {
     const sharedPaths = [
       "packages/arc-framework/arc/system/rules/DEV-RULES.ARC.md",
@@ -188,9 +216,11 @@ describe("Markdown authority", () => {
       ...sharedPaths,
       ...excludedNoise,
     ].join("\0");
-    const exec = vi.fn()
-      .mockResolvedValueOnce({ stdout: worktreeStdout })
-      .mockResolvedValueOnce({ stdout: indexStdout });
+    const exec = vi.fn(scriptGitExec([
+      { match: ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+        responses: [{ stdout: worktreeStdout }] },
+      { match: ["ls-files", "--cached", "-z"], responses: [{ stdout: indexStdout }] },
+    ]).exec);
 
     await expect(enumerateTrackedMarkdownPaths({ root: "/repo", exec, source: "worktree" }))
       .resolves.toEqual([...sharedPaths, "docs/new-untracked.md"]);
@@ -278,7 +308,10 @@ describe("Markdown authority", () => {
     const boundaries = {
       root: "/repo",
       operation: "worktree-read" as const,
-      exec: vi.fn().mockRejectedValue(new Error("untracked")),
+      exec: scriptGitExec([{
+        match: ["ls-files", "--error-unmatch", "--", "README.md"],
+        responses: [{ failure: { exitCode: 1, stderr: "untracked" } }],
+      }]).exec,
       lstat: vi.fn(),
       realpath: vi.fn(),
     };
@@ -333,9 +366,10 @@ describe("Markdown authority", () => {
   });
 
   it("classifies the same repository-relative path in primary and linked roots", async () => {
-    const exec = vi.fn()
-      .mockResolvedValueOnce({ stdout: "/primary\n" })
-      .mockResolvedValueOnce({ stdout: "/linked\n" });
+    const exec = vi.fn(scriptGitExec([{
+      match: ["rev-parse", "--show-toplevel"],
+      responses: [{ stdout: "/primary\n" }, { stdout: "/linked\n" }],
+    }]).exec);
     const realpath = vi.fn().mockImplementation(async (path: string) => path);
     const [primary, linked] = await Promise.all([
       resolveMarkdownRepositoryRoot({ cwd: "/primary", exec, realpath }),

@@ -6,8 +6,9 @@ import { createHostedTerminalAttemptFixture } from "../../../../fixtures/hosted-
 import { responsePolicyRequestFixture } from "../../../../fixtures/review-response-policy.js";
 
 import { DeliveryReviewMemberVehicleSchema } from "../../../../../src/lib/delivery/review-vehicle.js";
-import { canonicalDigest } from "../../../../../src/lib/canonical/canonical-json.js";
-import type { RawGitExec } from "../../../../../src/lib/change-facts.js";
+import { canonicalDigest } from "../../../../../src/lib/kernel/canonical/canonical-json.js";
+import { CanonicalDigestSchema } from "../../../../../src/lib/kernel/index.js";
+import { scriptRawGitExec } from "../../../../helpers/git-exec-fake.js";
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
@@ -102,7 +103,7 @@ function laneState(options: {
   const lineage = vehicle === undefined
     ? {
         kind: "candidate" as const,
-        candidateId: options.candidateId ?? `sha256:${"8".repeat(64)}`,
+        candidateId: CanonicalDigestSchema.parse(options.candidateId ?? `sha256:${"8".repeat(64)}`),
       }
     : {
         kind: "delivery-member" as const,
@@ -250,7 +251,7 @@ function selector(currentVehicle?: ReturnType<typeof deliveryVehicle>) {
     lane: "standard" as const,
     sourceId: "codex-pr",
     lineage: currentVehicle === undefined
-      ? { kind: "candidate" as const, candidateId: `sha256:${"8".repeat(64)}` }
+      ? { kind: "candidate" as const, candidateId: CanonicalDigestSchema.parse(`sha256:${"8".repeat(64)}`) }
       : {
           kind: "delivery-member" as const,
           planId: currentVehicle.planId,
@@ -1030,32 +1031,48 @@ describe("earlier review attempt query", () => {
       [oid("7"), oid("8")], [oid("c"), oid("9")],
     ]);
     const bytes = (value: string) => ({ stdout: new TextEncoder().encode(value) });
-    const exec: RawGitExec = async (args) => {
-      if (args[0] === "rev-parse") {
-        const expression = args.at(-1) ?? "";
-        if (expression === "HEAD^{commit}") return bytes(`${oid("a")}\n`);
-        const match = /^([0-9a-f]+)\^\{(commit|tree)\}$/u.exec(expression);
-        if (match?.[1] !== undefined && trees.has(match[1])) {
-          return bytes(`${match[2] === "commit" ? match[1] : trees.get(match[1])}\n`);
-        }
-      }
-      if (args[0] === "merge-base" && args[1] === "--all") {
-        if (args[2] === oid("a") && (args[3] === oid("2") || args[3] === oid("7"))) {
-          return bytes(`${oid("1")}\n`);
-        }
-        if (args[2] === oid("b") && args[3] === oid("7")) return bytes(`${oid("2")}\n`);
-      }
-      if (args[0] === "merge-tree") {
-        if (!args.includes("--name-only")) return bytes(`${oid("3")}\n`);
-        const left = args.at(-2);
-        const right = args.at(-1);
-        if (left === oid("2") && right === oid("a")) return bytes(`${oid("d")}\n`);
-        if (left === oid("7") && right === oid("a")) return bytes(`${oid("e")}\n`);
-        if (left === oid("7") && right === oid("b")) return bytes(`${oid("9")}\n`);
-      }
-      if (args[0] === "diff" && args.includes("--name-only")) return bytes("src/example.ts\0");
-      throw new Error(`Unexpected Git proof invocation: ${args.join(" ")}`);
-    };
+    const mergeBases = new Map([
+      [`${oid("a")} ${oid("2")}`, oid("1")],
+      [`${oid("a")} ${oid("7")}`, oid("1")],
+      [`${oid("b")} ${oid("7")}`, oid("2")],
+    ]);
+    const mergedTrees = new Map([
+      [`${oid("2")} ${oid("a")}`, oid("d")],
+      [`${oid("7")} ${oid("a")}`, oid("e")],
+      [`${oid("7")} ${oid("b")}`, oid("9")],
+    ]);
+    const { exec } = scriptRawGitExec([
+      {
+        match: { predicate: (args) => args[0] === "rev-parse" && args.at(-1) === "HEAD^{commit}" },
+        responses: [bytes(`${oid("a")}\n`)],
+      },
+      {
+        match: { predicate: (args) => args[0] === "rev-parse" &&
+          trees.has(/^([0-9a-f]+)\^\{(commit|tree)\}$/u.exec(args.at(-1) ?? "")?.[1] ?? "") },
+        responses: [({ args }) => {
+          const match = /^([0-9a-f]+)\^\{(commit|tree)\}$/u.exec(args.at(-1) ?? "")!;
+          return bytes(`${match[2] === "commit" ? match[1] : trees.get(match[1]!)}\n`);
+        }],
+      },
+      {
+        match: { predicate: (args) => args[0] === "merge-base" && args[1] === "--all" &&
+          mergeBases.has(`${args[2]} ${args[3]}`) },
+        responses: [({ args }) => bytes(`${mergeBases.get(`${args[2]} ${args[3]}`)}\n`)],
+      },
+      {
+        match: { predicate: (args) => args[0] === "merge-tree" && !args.includes("--name-only") },
+        responses: [bytes(`${oid("3")}\n`)],
+      },
+      {
+        match: { predicate: (args) => args[0] === "merge-tree" && args.includes("--name-only") &&
+          mergedTrees.has(`${args.at(-2)} ${args.at(-1)}`) },
+        responses: [({ args }) => bytes(`${mergedTrees.get(`${args.at(-2)} ${args.at(-1)}`)}\n`)],
+      },
+      {
+        match: { predicate: (args) => args[0] === "diff" && args.includes("--name-only") },
+        responses: [bytes("src/example.ts\0")],
+      },
+    ]);
     let observations = 0;
     const result = await projectEarlierReviewApplicability({
       query: selector(),

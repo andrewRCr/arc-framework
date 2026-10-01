@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  BaseMergeInputSchema,
   mergeExpectedBase,
   type BaseMergePort,
 } from "../../../../src/scripts/base/merge.js";
@@ -35,10 +36,10 @@ describe("base merge", () => {
     const { port, state } = repository();
     const before = [...state.history];
 
-    await expect(mergeExpectedBase({
+    await expect(mergeExpectedBase(BaseMergeInputSchema.parse({
       expectedBase: oid("a"),
       expectedHead: oid("b"),
-    } as Parameters<typeof mergeExpectedBase>[0], port)).resolves.toMatchObject({
+    }), port)).resolves.toMatchObject({
       state: "head-moved",
       reason: "head-moved",
       nextAction: "rerun-checkpoint",

@@ -10,20 +10,20 @@ import { posix, join, resolve } from "node:path";
 
 import { isSafeCohortPath, validateCohortPath } from "../active/cohort-path.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
-import { canonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
+import { canonicalDigest, type CanonicalDigest } from "../kernel/canonical/canonical-json.js";
 import {
   deleteOperation,
   writeOperation,
   type PatchOperation,
 } from "../canonical/content-digest.js";
-import { validateManagedPath, type ManagedPath } from "../canonical/managed-path.js";
+import { validateManagedPath, type ManagedPath } from "../kernel/canonical/managed-path.js";
 import type { GitExec } from "../git/exec.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
 import { SlugSchema } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
 import { retryTransientFileSystemRefusal } from "../fs.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
-import { isSlugSafe } from "./slug.js";
+import { isSlugSafe } from "../kernel/schema/slug.js";
 
 const ROADMAP_PATH = resolveArcPath({ kind: "project-document", document: "roadmap" });
 const LIFECYCLE_ROOTS = [

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { canonicalize } from "../../src/lib/canonical/canonical-json.js";
+import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { v3DecomposeRemedy } from "../../src/lib/work-unit/decompose-v3-refusal.js";
 
 const mockIntro = vi.fn();

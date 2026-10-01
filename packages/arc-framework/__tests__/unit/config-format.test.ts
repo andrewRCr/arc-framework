@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { ConfigSessionInitResultSchema } from "../../src/commands/config/status.js";
 
 import {
   buildConfigSessionInitSummary,
@@ -15,9 +16,9 @@ import {
 import type {
   ConfigSessionInitResult,
   ConfigSessionInitSettings,
-  ConfigSettings,
   ConfigStatusResult,
 } from "../../src/commands/config/types.js";
+import type { ConfigSettings } from "../../src/lib/config/schema.js";
 
 const FULL_SETTINGS: ConfigSettings = {
   "inbox.remind_after_days": "1",
@@ -193,7 +194,7 @@ describe("JSON round-trip — typed result shape is stable", () => {
 
   it("session-init result preserves fields through JSON.stringify/parse", () => {
     const result = sessionInitResult({ defaultsApplied: ["pm.mode"] });
-    const roundTripped = JSON.parse(JSON.stringify(result)) as ConfigSessionInitResult;
+    const roundTripped = ConfigSessionInitResultSchema.parse(JSON.parse(JSON.stringify(result)));
     expect(roundTripped.mode).toBe("session-init");
     expect(roundTripped.settings["pm.mode"]).toBe("arc-in-git");
     expect(roundTripped.settings["session.remote_sync"]).toBe("enabled");

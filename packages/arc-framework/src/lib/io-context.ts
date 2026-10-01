@@ -15,7 +15,7 @@ import { execa } from "execa";
 
 import type { IOContext } from "../commands/init.js";
 import type { UserIOContext } from "../commands/user.js";
-import type { RawGitExec } from "./change-facts.js";
+import type { RawGitExec } from "./git/exec.js";
 import type { GitExec, GitExecInput, DirEntry } from "../lib/git/index.js";
 import {
   createExecaGitExec,
@@ -649,14 +649,19 @@ async function readUserDir(dirPath: string): Promise<DirEntry[]> {
  */
 export const gitExecInput: GitExecInput = createExecaGitExecInput();
 
+/** Bind stdin-fed Git execution to one invocation's subprocess policy. */
+export function createGitExecInput(interaction?: InteractionContext["subprocess"]): GitExecInput {
+  return interaction === undefined
+    ? gitExecInput
+    : createExecaGitExecInput(MAX_GIT_OUTPUT_BYTES, interaction);
+}
+
 /** Real UserIOContext for user sync operations. */
 export function createUserIOContext(interaction?: InteractionContext["subprocess"]): UserIOContext {
   const exec: GitExec = interaction === undefined
     ? gitExec
     : (command, args, options) => candidateGitExec(command, args, { ...options, interaction });
-  const execInput = interaction === undefined
-    ? gitExecInput
-    : createExecaGitExecInput(MAX_GIT_OUTPUT_BYTES, interaction);
+  const execInput = createGitExecInput(interaction);
   return {
     exec,
     execInput,

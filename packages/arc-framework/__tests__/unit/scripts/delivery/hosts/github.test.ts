@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { GhDeliveryHostPort } from "../../../../../src/scripts/delivery/hosts/github.js";
+import { CanonicalDigestSchema } from "../../../../../src/lib/kernel/index.js";
 import type { DeliveryNativeStackInput } from "../../../../../src/lib/delivery/native-stack.js";
 import { HostedProcessError } from "../../../../../src/scripts/review-gate/hosted/gh-process.js";
 import type { HostedProcessRunner } from "../../../../../src/scripts/review-gate/hosted/gh-process.js";
@@ -12,7 +13,7 @@ const mergePolicy = {
   stackPosition: "intermediate" as const,
   method: "merge" as const,
   allowedMethods: ["merge"] as Array<"merge" | "rebase" | "squash">,
-  policyFingerprint: `sha256:${"a".repeat(64)}`,
+  policyFingerprint: CanonicalDigestSchema.parse(`sha256:${"a".repeat(64)}`),
 };
 
 function pull(overrides: Record<string, unknown> = {}) {
@@ -46,8 +47,8 @@ describe("GhDeliveryHostPort", () => {
   const nativeInput: DeliveryNativeStackInput = {
     repository,
     members: [
-      { deliverableId: `sha256:${"1".repeat(64)}`, changeRequestId: "401", headRef: "delivery/example/first", headSha, baseRef: "main" },
-      { deliverableId: `sha256:${"2".repeat(64)}`, changeRequestId: "402", headRef: "delivery/example/second", headSha: "b".repeat(40), baseRef: "delivery/example/first" },
+      { deliverableId: CanonicalDigestSchema.parse(`sha256:${"1".repeat(64)}`), changeRequestId: "401", headRef: "delivery/example/first", headSha, baseRef: "main" },
+      { deliverableId: CanonicalDigestSchema.parse(`sha256:${"2".repeat(64)}`), changeRequestId: "402", headRef: "delivery/example/second", headSha: "b".repeat(40), baseRef: "delivery/example/first" },
     ],
   };
 

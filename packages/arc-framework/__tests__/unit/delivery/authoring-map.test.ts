@@ -9,7 +9,7 @@ import {
   createDeliveryAuthoringSnapshot,
   type DeliveryAuthoringSnapshotV1,
 } from "../../../src/lib/delivery/authoring-schema.js";
-import { canonicalDigest } from "../../../src/lib/kernel/index.js";
+import { canonicalDigest, SlugSchema } from "../../../src/lib/kernel/index.js";
 
 function snapshot(): DeliveryAuthoringSnapshotV1 {
   const firstTask = canonicalDigest({ goal: "First" });
@@ -163,7 +163,7 @@ describe("delivery authoring map", () => {
     const proposed = snapshot();
     const editedSnapshot = {
       ...proposed,
-      originalWorkUnitId: "renamed-unit" as typeof proposed.originalWorkUnitId,
+      originalWorkUnitId: SlugSchema.parse("renamed-unit"),
     };
     expect(validateDeliveryAuthoringMap(
       renderDeliveryAuthoringMap(proposed, filledSlots),

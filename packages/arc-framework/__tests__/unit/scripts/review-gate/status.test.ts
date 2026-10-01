@@ -1,11 +1,13 @@
 /** Exact-target review status reduction. */
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../../helpers/schema-assertion.js";
 import { createHostedHandleFixture } from "../../../fixtures/hosted-review.js";
 
 import { DeliveryReviewMemberVehicleSchema } from
   "../../../../src/lib/delivery/review-vehicle.js";
-import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest } from "../../../../src/lib/kernel/canonical/canonical-json.js";
+import { CanonicalDigestSchema } from "../../../../src/lib/kernel/index.js";
 import { createReviewTarget } from
   "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { classifyReviewContributionApplicability } from
@@ -233,11 +235,11 @@ function port(overrides: Partial<ReviewStatusObservation> = {}): ReviewStatusPor
 
 describe("review status", () => {
   it("accepts the delegated carrier named by a coverage-selection action", () => {
-    expect(ReviewStatusWorkUnitInputSchema.safeParse({
+    assertSchemaAccepts(ReviewStatusWorkUnitInputSchema, {
       workUnitId: "example",
       coverage: "incremental",
       sourceId: "delegated-agent",
-    }).success).toBe(true);
+    });
   });
 
   it("rejects a stale target reference", async () => {
@@ -549,7 +551,7 @@ describe("review status", () => {
       selectionAction: obligation.selectionAction,
     };
 
-    expect(RoutedReviewObligationSchema.safeParse(withoutConjunction).success).toBe(false);
+    assertSchemaRefuses(RoutedReviewObligationSchema, withoutConjunction);
   });
 
   it.each([
@@ -1873,7 +1875,7 @@ describe("review status", () => {
       ...memberVehicle,
       head: oid("d"),
     });
-    const result = DeliveryLocalReviewSelectionSchema.safeParse({
+    assertSchemaRefuses(DeliveryLocalReviewSelectionSchema, {
       schemaVersion: 1,
       sourceId: "delegated-agent",
       target: { ...hostedAction.target, headSha: movedVehicle.head },
@@ -1885,12 +1887,10 @@ describe("review status", () => {
         target: hostedAction.target,
       },
     });
-
-    expect(result.success).toBe(false);
   });
 
   it("refuses a local correction scope that does not end at the selected member", () => {
-    expect(DeliveryLocalReviewSelectionSchema.safeParse({
+    assertSchemaRefuses(DeliveryLocalReviewSelectionSchema, {
       schemaVersion: 1,
       sourceId: "delegated-agent",
       target: hostedAction.target,
@@ -1905,7 +1905,7 @@ describe("review status", () => {
         headSha: oid("d"),
         requiredFindings: [],
       },
-    }).success).toBe(false);
+    });
   });
 
   it("requires local coverage to agree with correction-scope presence", () => {
@@ -1925,25 +1925,25 @@ describe("review status", () => {
       requiredFindings: [],
     };
 
-    expect(DeliveryLocalReviewSelectionSchema.safeParse(selection).success).toBe(false);
-    expect(DeliveryLocalReviewSelectionSchema.safeParse({
+    assertSchemaRefuses(DeliveryLocalReviewSelectionSchema, selection);
+    assertSchemaAccepts(DeliveryLocalReviewSelectionSchema, {
       ...selection,
       requestedCoverage: "complete",
-    }).success).toBe(true);
-    expect(DeliveryLocalReviewSelectionSchema.safeParse({
+    });
+    assertSchemaRefuses(DeliveryLocalReviewSelectionSchema, {
       ...selection,
       requestedCoverage: "complete",
       correctionScope,
-    }).success).toBe(false);
-    expect(DeliveryLocalReviewSelectionSchema.safeParse({
+    });
+    assertSchemaRefuses(DeliveryLocalReviewSelectionSchema, {
       ...selection,
       requestedCoverage: "incremental",
-    }).success).toBe(false);
-    expect(DeliveryLocalReviewSelectionSchema.safeParse({
+    });
+    assertSchemaAccepts(DeliveryLocalReviewSelectionSchema, {
       ...selection,
       requestedCoverage: "incremental",
       correctionScope,
-    }).success).toBe(true);
+    });
   });
 
   it("returns the exact delegated findings operation for local review resumption", async () => {
@@ -2237,7 +2237,7 @@ describe("review status", () => {
   it("selects the first outstanding retained delivery member in plan order", () => {
     const secondVehicle = {
       ...memberVehicle,
-      deliverableId: `sha256:${"d".repeat(64)}`,
+      deliverableId: CanonicalDigestSchema.parse(`sha256:${"d".repeat(64)}`),
       head: oid("d"),
     };
     const obligation = composeDeliveryReviewObligation({
@@ -2280,7 +2280,7 @@ describe("review status", () => {
   it("advances to the next retained member after the first member settles", () => {
     const secondVehicle = {
       ...memberVehicle,
-      deliverableId: `sha256:${"d".repeat(64)}`,
+      deliverableId: CanonicalDigestSchema.parse(`sha256:${"d".repeat(64)}`),
       head: oid("d"),
     };
     const obligation = composeDeliveryReviewObligation({
@@ -2324,7 +2324,7 @@ describe("review status", () => {
   it("routes a discharged selected member to landing while later review remains outstanding", async () => {
     const secondVehicle = {
       ...memberVehicle,
-      deliverableId: `sha256:${"d".repeat(64)}`,
+      deliverableId: CanonicalDigestSchema.parse(`sha256:${"d".repeat(64)}`),
       head: oid("d"),
     };
     const secondHostedTarget = { repository: "owner/repo", pullRequest: 42, headSha: secondVehicle.head };
@@ -2424,12 +2424,12 @@ describe("review status", () => {
   it("continues exact pre-terminal member review while protected-base movement overlaps", async () => {
     const secondVehicle = {
       ...memberVehicle,
-      deliverableId: `sha256:${"d".repeat(64)}`,
+      deliverableId: CanonicalDigestSchema.parse(`sha256:${"d".repeat(64)}`),
       head: oid("d"),
     };
     const thirdVehicle = {
       ...memberVehicle,
-      deliverableId: `sha256:${"e".repeat(64)}`,
+      deliverableId: CanonicalDigestSchema.parse(`sha256:${"e".repeat(64)}`),
       head: oid("e"),
     };
     const secondHostedTarget = { repository: "owner/repo", pullRequest: 42, headSha: secondVehicle.head };
@@ -2560,7 +2560,7 @@ describe("review status", () => {
   it("reports a discharged typed conjunction only after every retained member settles", () => {
     const secondVehicle = {
       ...memberVehicle,
-      deliverableId: `sha256:${"d".repeat(64)}`,
+      deliverableId: CanonicalDigestSchema.parse(`sha256:${"d".repeat(64)}`),
       head: oid("d"),
     };
     const obligation = composeDeliveryReviewObligation({
@@ -2681,7 +2681,7 @@ describe("review status over a pre-terminal delivery member whose base will not 
           chunkKey: "member-2",
           title: "Member 2",
           target: { repository: target.repository, pullRequest: 42, headSha: oid("e") },
-          vehicle: { ...memberVehicle, deliverableId: `sha256:${"e".repeat(64)}`, head: oid("e") },
+          vehicle: { ...memberVehicle, deliverableId: CanonicalDigestSchema.parse(`sha256:${"e".repeat(64)}`), head: oid("e") },
           state: "outstanding" as const,
           detail: "The member review is pending.",
           progress: conjunctionMemberProgress,
@@ -2690,7 +2690,7 @@ describe("review status over a pre-terminal delivery member whose base will not 
     };
   }
 
-  const secondVehicle = { ...memberVehicle, deliverableId: `sha256:${"e".repeat(64)}`, head: oid("e") };
+  const secondVehicle = { ...memberVehicle, deliverableId: CanonicalDigestSchema.parse(`sha256:${"e".repeat(64)}`), head: oid("e") };
   const secondTarget = { repository: target.repository, pullRequest: 42, headSha: oid("e") };
   const pendingSecondMember = {
     state: "review-required" as const,

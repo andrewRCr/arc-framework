@@ -32,7 +32,7 @@
 
 import { basename, join, relative, sep } from "node:path";
 
-import { validateState } from "../../commands/active/types.js";
+import { validateState } from "../kernel/schema/vocabulary.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
 import {
   resolveLifecyclePosition,

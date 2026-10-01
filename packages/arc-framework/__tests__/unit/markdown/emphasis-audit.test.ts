@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 
 import { auditEmphasisMigrationFile, prepareEmphasisMigrationAudit } from "../../../src/lib/markdown/index.js";
 
@@ -60,9 +61,10 @@ describe("emphasis migration audit", () => {
     const result = await prepareEmphasisMigrationAudit({
       root: "/repo",
       paths: ["docs/emphasis.md"],
-      exec: vi.fn(async (_command: string, args: string[]) => ({
-        stdout: args[0] === "rev-parse" ? "a".repeat(40) : "docs/emphasis.md",
-      })),
+      exec: scriptGitExec([
+        { match: { prefix: ["rev-parse"] }, responses: [{ stdout: "a".repeat(40) }] },
+        { match: { prefix: ["ls-files"] }, responses: [{ stdout: "docs/emphasis.md" }] },
+      ]).exec,
       lstat: vi.fn(async () => ({
         isFile: () => true,
         isDirectory: () => false,

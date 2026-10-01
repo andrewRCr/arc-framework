@@ -33,7 +33,7 @@ import { DeliveryLocalReviewAdmissionSchema } from
   "../../../../../src/scripts/review-gate/policy/delivery-local-review-admission.js";
 
 const objectId = (character: string): string => character.repeat(40);
-const digest = (value: string): string => canonicalDigest({ value });
+const digest = (value: string) => canonicalDigest({ value });
 
 const policyTarget = {
   repository: "arc-framework/example",

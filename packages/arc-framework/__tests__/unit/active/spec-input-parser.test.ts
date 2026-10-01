@@ -9,6 +9,7 @@
  */
 
 import { describe, it, expect, expectTypeOf } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 import { z } from "zod";
 
 import {
@@ -34,7 +35,7 @@ describe("ParsedSpecInputSchema", () => {
     { kind: "arc-spec", design: "value", extra: true },
     { kind: "unknown", description: "value" },
   ])("rejects an invalid success payload %#", (value) => {
-    expect(ParsedSpecInputSchema.safeParse(value).success).toBe(false);
+    assertSchemaRefuses(ParsedSpecInputSchema, value);
   });
 
   it("derives the successful classification type", () => {

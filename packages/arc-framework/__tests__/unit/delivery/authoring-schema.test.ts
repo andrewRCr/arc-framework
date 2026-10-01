@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   createDeliveryAuthoringSnapshot,
@@ -64,9 +65,9 @@ describe("delivery authoring snapshot", () => {
       taskIds: ["1.1", "1.2", "2.1"],
       sourceIds: ["phase:1", "task:1.1", "task:1.2"],
     });
-    expect(DeliveryAuthoringSnapshotV1Schema.safeParse({
+    assertSchemaRefuses(DeliveryAuthoringSnapshotV1Schema, {
       ...snapshot,
       candidatePlanDigest: canonicalDigest({ plan: "partial-receipt" }),
-    }).success).toBe(false);
+    });
   });
 });

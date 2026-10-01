@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../../../helpers/schema-assertion.js";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import {
@@ -136,12 +137,12 @@ function approvedRegradeFromReviewerNit() {
 
 describe("frontline follow-up policy", () => {
   it("rejects advice whose next pass exceeds its bound ceiling", () => {
-    expect(FrontlineFollowUpAdviceSchema.safeParse({
+    assertSchemaRefuses(FrontlineFollowUpAdviceSchema, {
       action: "follow-up-after-fix",
       pass: 3,
       maxPasses: 2,
       nextCommand: "frontline-resolve",
-    }).success).toBe(false);
+    });
   });
 
   it("projects a non-durable fresh-head instruction before the approved fix exists", () => {

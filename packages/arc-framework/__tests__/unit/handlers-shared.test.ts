@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { UserFetchResult } from "../../src/commands/user.js";
 import type { SyncOutput } from "../../src/lib/sync-output.js";
+import type { GitExec } from "../../src/lib/git/exec.js";
 
 const mockLog = {
   error: vi.fn(),
@@ -17,8 +18,25 @@ const {
   isMissingRemoteError,
   isRemoteError,
   reportUserFetchOutcome,
+  requireGitRepo,
+  resolveIdentityWithPrompt,
+  resolveUserIdentity,
   runWithSpinner,
 } = await import("../../src/handlers/shared.js");
+
+describe("shared handler Git boundaries", () => {
+  const identityExec: GitExec = async () => ({ stdout: "bound-identity\0" });
+  const outsideRepoExec: GitExec = async () => ({ stdout: "false\n" });
+
+  it("resolves user identity through the supplied executor", async () => {
+    expect(await resolveUserIdentity(identityExec)).toBe("bound-identity");
+    expect(await resolveIdentityWithPrompt(false, identityExec)).toBe("bound-identity");
+  });
+
+  it("refuses a repository when the supplied executor reports none", async () => {
+    expect(await requireGitRepo(outsideRepoExec)).toBe(false);
+  });
+});
 
 describe("runWithSpinner", () => {
   it("stops with the failure label and rethrows the operation error", async () => {

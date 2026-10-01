@@ -5,9 +5,9 @@ import { z } from "zod";
 import {
   canonicalize,
   digestBytes,
-  isCanonicalDigest,
-} from "../canonical/canonical-json.js";
-import { isManagedPath } from "../canonical/managed-path.js";
+} from "../kernel/canonical/canonical-json.js";
+import { CanonicalDigestSchema } from "../kernel/schema/vocabulary.js";
+import { isManagedPath } from "../kernel/canonical/managed-path.js";
 import { normalizeDecomposeHeadingSource } from "./decompose-heading.js";
 import {
   V3DecomposeLocatorSchema,
@@ -301,10 +301,10 @@ export type V3DecomposeContentResolution =
     };
 
 const V3DecomposeSourceReferenceSchema = z.strictObject({
-  sourceId: z.string().refine(isCanonicalDigest, "must be a canonical digest"),
+  sourceId: CanonicalDigestSchema,
   sourcePath: z.string().refine(isManagedPath, "must be a managed repository-relative path"),
   sourceLocator: V3DecomposeLocatorSchema,
-  contentDigest: z.string().refine(isCanonicalDigest, "must be a canonical digest"),
+  contentDigest: CanonicalDigestSchema,
 });
 
 export type V3DecomposeSourceReference = z.infer<typeof V3DecomposeSourceReferenceSchema>;

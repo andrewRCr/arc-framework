@@ -2,9 +2,12 @@
 
 import { describe, expect, it } from "vitest";
 
-import type { RawGitExec } from "../../../../../src/lib/change-facts.js";
+import type { RawGitExec } from "../../../../../src/lib/git/exec.js";
 import { projectGitReviewContributionApplicability } from
   "../../../../../src/scripts/review-gate/policy/git-review-contribution-applicability.js";
+import {
+  makeGitProcessError, scriptRawGitExec, type RawGitExecScriptEntry,
+} from "../../../../helpers/git-exec-fake.js";
 
 const oid = (character: string): string => character.repeat(40);
 const bytes = (value: string): Uint8Array => new TextEncoder().encode(value);
@@ -26,35 +29,45 @@ function selector() {
   };
 }
 
-function mechanicalExec(): RawGitExec {
+function mechanicalExec(overrides: readonly RawGitExecScriptEntry[] = []) {
   const trees = new Map([
     [oid("1"), oid("2")],
     [oid("a"), oid("3")],
     [oid("b"), oid("4")],
     [oid("c"), oid("5")],
   ]);
-  return async (args) => {
-    if (args.join(" ") === `merge-base --all ${oid("a")} ${oid("b")}`) return result(`${oid("1")}\n`);
-    if (args[0] === "rev-parse" && args[1] === "--verify") {
-      const head = args[2]?.match(/^([0-9a-f]+)\^\{commit\}$/u)?.[1];
-      if (head !== undefined && trees.has(head)) return result(`${head}\n`);
-    }
-    if (args[0] === "rev-parse") {
-      const head = args[1]?.match(/^([0-9a-f]+)\^\{tree\}$/u)?.[1];
-      const tree = head === undefined ? undefined : trees.get(head);
-      if (tree !== undefined) return result(`${tree}\n`);
-    }
-    if (args[0] === "merge-tree" && args.includes("--name-only")) return result(`${oid("5")}\0`);
-    if (args[0] === "merge-tree") return result(`${oid("9")}\n`);
-    throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
-  };
+  return scriptRawGitExec([
+    ...overrides,
+    {
+      match: { predicate: (args) => args.join(" ") === `merge-base --all ${oid("a")} ${oid("b")}` },
+      responses: [result(`${oid("1")}\n`)],
+    },
+    {
+      match: { predicate: (args) => args[0] === "rev-parse" && args[1] === "--verify" &&
+        trees.has(args[2]?.match(/^([0-9a-f]+)\^\{commit\}$/u)?.[1] ?? "") },
+      responses: [({ args }) => result(`${args[2]!.match(/^([0-9a-f]+)\^\{commit\}$/u)![1]}\n`)],
+    },
+    {
+      match: { predicate: (args) => args[0] === "rev-parse" &&
+        trees.has(args[1]?.match(/^([0-9a-f]+)\^\{tree\}$/u)?.[1] ?? "") },
+      responses: [({ args }) => result(`${trees.get(args[1]!.match(/^([0-9a-f]+)\^\{tree\}$/u)![1]!)}\n`)],
+    },
+    {
+      match: { predicate: (args) => args[0] === "merge-tree" && args.includes("--name-only") },
+      responses: [result(`${oid("5")}\0`)],
+    },
+    {
+      match: { predicate: (args) => args[0] === "merge-tree" },
+      responses: [result(`${oid("9")}\n`)],
+    },
+  ]);
 }
 
 describe("Git review contribution applicability", () => {
   it("delegates the exact rewrite coordinates to D4 and preserves the prior review", async () => {
     await expect(projectGitReviewContributionApplicability({
       selector: selector(),
-      exec: mechanicalExec(),
+      exec: mechanicalExec().exec,
       observeEndpoints: async () => ({ head: oid("c"), base: oid("b") }),
     })).resolves.toMatchObject({
       state: "applicable",
@@ -86,15 +99,16 @@ describe("Git review contribution applicability", () => {
 
   it("proves a fixed head against unrelated prior and current bases", async () => {
     const input = { ...selector(), currentHead: oid("a") };
-    const calls: string[] = [];
-    const exec: RawGitExec = async (args, options) => {
-      calls.push(args.join(" "));
-      if (args[0] === "merge-base") {
-        throw { exitCode: 1, stdout: bytes(""), stderr: bytes("") };
-      }
-      if (args[0] === "diff") return result("src/index.ts\0");
-      return mechanicalExec()(args, options);
-    };
+    const { exec, calls } = mechanicalExec([
+      {
+        match: { predicate: (args) => args[0] === "merge-base" },
+        responses: [{ failure: { exitCode: 1, stdout: bytes(""), stderr: "" } }],
+      },
+      {
+        match: { predicate: (args) => args[0] === "diff" },
+        responses: [result("src/index.ts\0")],
+      },
+    ]);
     await expect(projectGitReviewContributionApplicability({
       selector: input,
       exec,
@@ -104,8 +118,8 @@ describe("Git review contribution applicability", () => {
       selector: input,
       baseMoved: true,
     });
-    expect(calls).toContain(`rev-parse --verify ${oid("1")}^{commit}`);
-    expect(calls.some((call) => call.startsWith("merge-base "))).toBe(false);
+    expect(calls.map((call) => call.args.join(" "))).toContain(`rev-parse --verify ${oid("1")}^{commit}`);
+    expect(calls.some((call) => call.args.join(" ").startsWith("merge-base "))).toBe(false);
   });
 
   it("reruns when either observed endpoint moves before classification", async () => {
@@ -128,7 +142,7 @@ describe("Git review contribution applicability", () => {
     let observation = 0;
     await expect(projectGitReviewContributionApplicability({
       selector: selector(),
-      exec: mechanicalExec(),
+      exec: mechanicalExec().exec,
       observeEndpoints: async () => {
         observation += 1;
         return observation === 1
@@ -143,7 +157,9 @@ describe("Git review contribution applicability", () => {
     await expect(projectGitReviewContributionApplicability({
       selector: selector(),
       exec: async (args) => {
-        if (args[0] === "merge-base") throw { exitCode: 1, stdout: bytes(""), stderr: bytes("") };
+        if (args[0] === "merge-base") {
+          throw makeGitProcessError({ command: "git", args, exitCode: 1, stdout: bytes(""), stderr: "" });
+        }
         throw new Error("unexpected Git invocation");
       },
       observeEndpoints,

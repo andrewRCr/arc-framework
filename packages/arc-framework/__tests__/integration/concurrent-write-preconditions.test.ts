@@ -7,6 +7,7 @@
  * where the ceremony meant to put it.
  */
 
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -47,34 +48,11 @@ async function mergeAllowingConflict(cwd: string, ref: string): Promise<void> {
 }
 
 function metaDocument(): string {
-  return [
-    `# Metadata: ${WORK_UNIT}`,
-    "",
-    "| **State** | **Owner**   | **Branch**     | **Class** | **Priority** |",
-    "| --------- | ----------- | -------------- | --------- | ------------ |",
-    `| \`Active\`  | \`test-user\` | \`${HEAD_REF}\` | \`Light\`   | \`P2\`         |`,
-    "",
-    "- **Cohort:** [none]",
-    "- **Depends On:** [none]",
-    "",
-    "- **Origin:** [internal]",
-    "- **Design:** [none]",
-    `- **Task List:** \`tasks-${WORK_UNIT}.md\``,
-    "- **Review Rubric:** [none]",
-    "",
-    "- **Current Workflow:** [none]",
-    "- **Last Completed:** none",
-    "- **Next Task:** Task 1.1",
-    "- **Blockers:** [none]",
-    "",
-    "- **Next Action:** continue",
-    "",
-    "- **PR URL:** [none]",
-    "- **Completed:** [none]",
-    "",
-    "---",
-    "",
-  ].join("\n");
+  return makeMetaFixture(WORK_UNIT, {
+    owner: "test-user", branch: HEAD_REF, workClass: "Light", priority: "P2", origin: "internal",
+    taskList: `tasks-${WORK_UNIT}.md`, nextTask: "Task 1.1", nextAction: "continue",
+    lastCompleted: "none",
+  });
 }
 
 /** An ARC project whose work unit is committed on its own branch, with the base ready to receive it. */

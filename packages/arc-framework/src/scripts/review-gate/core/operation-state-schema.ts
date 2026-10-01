@@ -1,8 +1,9 @@
 /** Registered non-evidentiary state for resumable review operations. */
 
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
-import { canonicalDigest, canonicalize, type KernelRegistry } from "../../../lib/kernel/index.js";
+import { canonicalDigest, canonicalize, type CanonicalDigest, type KernelRegistry } from "../../../lib/kernel/index.js";
 import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
 import {
   validateReviewRequest,
@@ -45,7 +46,6 @@ import { LocalReviewCoverageAdmissionSchema } from "./local-review-coverage.js";
 import { IncrementalReviewScopeSchema } from "./incremental-review-scope.js";
 import { ReviewRubricIdentitySchema } from "../policy/standard-review-schema.js";
 
-const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
 const OperationEnvelopeShape = {
   schemaVersion: z.literal(1),
@@ -258,7 +258,7 @@ type ConditionalPassAuthorizationIdentity = z.infer<
  */
 export function computeConditionalPassAuthorizationId(
   input: ConditionalPassAuthorizationIdentity,
-): string {
+): CanonicalDigest {
   return canonicalDigest({
     domain: "arc.review.conditional-pass-authorization/v1",
     authorization: ConditionalPassAuthorizationIdentitySchema.parse({
@@ -485,7 +485,7 @@ const HostedResultDigestPreimageSchema = z.strictObject({
 export type HostedResultDigestPreimage = z.infer<typeof HostedResultDigestPreimageSchema>;
 
 /** Compute the immutable identity of one complete hosted producer result. */
-export function computeHostedResultId(input: HostedResultDigestPreimage): string {
+export function computeHostedResultId(input: HostedResultDigestPreimage): CanonicalDigest {
   return canonicalDigest({
     domain: "arc.review.hosted-result/v1",
     result: HostedResultDigestPreimageSchema.parse(input),

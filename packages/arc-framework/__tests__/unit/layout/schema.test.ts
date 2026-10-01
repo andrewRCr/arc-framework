@@ -1,6 +1,7 @@
 /** Unit coverage for the public ARC layout schemas. */
 
 import { describe, expect, expectTypeOf, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import {
@@ -37,12 +38,16 @@ describe("layout schemas", () => {
   });
 
   it.each(["2026-q0", "2026-q5", "26-q1", "2026-Q1"])("rejects invalid quarter %s", (value) => {
-    expect(ArchiveQuarterSchema.safeParse(value).success).toBe(false);
+    assertSchemaRefuses(ArchiveQuarterSchema, value);
   });
 
   it.each(["00", "1", "09", "010", "-1", "1.5"])("rejects invalid sequence %s", (value) => {
     const expected = value === "09";
-    expect(ArchiveSequenceSchema.safeParse(value).success).toBe(expected);
+    if (expected) {
+      assertSchemaAccepts(ArchiveSequenceSchema, value);
+    } else {
+      assertSchemaRefuses(ArchiveSequenceSchema, value);
+    }
   });
 
   it("accepts every physical placement shape", () => {
@@ -67,7 +72,7 @@ describe("layout schemas", () => {
       { kind: "backlog", commitment: "planned", cohort: [slug("a"), slug("b"), slug("c")] },
       { kind: "completed", quarter: "2026-q1", sequence: "1" },
     ];
-    for (const placement of invalid) expect(WorkUnitPlacementSchema.safeParse(placement).success).toBe(false);
+    for (const placement of invalid) assertSchemaRefuses(WorkUnitPlacementSchema, placement);
   });
 
   it("accepts every address family", () => {
@@ -106,14 +111,14 @@ describe("layout schemas", () => {
       { kind: "cohort-document", cohort: [], placement: { kind: "planned" } },
       { kind: "user-document", identity: "Andrew", document: { kind: "working-memory" } },
     ];
-    for (const address of invalid) expect(ArcLayoutAddressSchema.safeParse(address).success).toBe(false);
+    for (const address of invalid) assertSchemaRefuses(ArcLayoutAddressSchema, address);
   });
 
   it.each(["", "/absolute", "C:/drive", "a\\b", "a//b", "a/../b", "a\0b", "e\u0301"])(
     "rejects unsafe template path %s",
     (value) => {
-      expect(TemplateRelativePathSchema.safeParse(value).success).toBe(false);
-      expect(TemplateOutputPathSchema.safeParse(value).success).toBe(false);
+      assertSchemaRefuses(TemplateRelativePathSchema, value);
+      assertSchemaRefuses(TemplateOutputPathSchema, value);
     },
   );
 });

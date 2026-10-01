@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   ArcConfigSchema,
@@ -47,8 +48,8 @@ describe("ARC config field catalog", () => {
     };
 
     for (const [key, values] of Object.entries(domains)) {
-      for (const value of values) expect(field(key).schema.safeParse(value).success, `${key}: ${value}`).toBe(true);
-      expect(field(key).schema.safeParse("neighboring-value").success, key).toBe(false);
+      for (const value of values) assertSchemaAccepts(field(key).schema, value);
+      assertSchemaRefuses(field(key).schema, "neighboring-value");
     }
   });
 
@@ -73,10 +74,10 @@ describe("ARC config field catalog", () => {
         "9007199254740989",
         String(Number.MAX_SAFE_INTEGER),
       ]) {
-        expect(schema.safeParse(value).success, `${key}: ${value}`).toBe(true);
+        assertSchemaAccepts(schema, value);
       }
       for (const value of ["", "+1", "-1", "1.0", "0x10", String(minimum - 1), "9007199254740992"]) {
-        expect(schema.safeParse(value).success, `${key}: ${value}`).toBe(false);
+        assertSchemaRefuses(schema, value);
       }
     }
   });
@@ -84,12 +85,12 @@ describe("ARC config field catalog", () => {
   it("bounds hosted await call timing to the runtime timer contract", () => {
     const timeout = field("review.hosted_await_timeout_seconds").schema;
     const poll = field("review.hosted_await_initial_poll_interval_seconds").schema;
-    expect(timeout.safeParse("1").success).toBe(true);
-    expect(timeout.safeParse("1800").success).toBe(true);
-    expect(timeout.safeParse("1801").success).toBe(false);
-    expect(poll.safeParse("1").success).toBe(true);
-    expect(poll.safeParse("60").success).toBe(true);
-    expect(poll.safeParse("61").success).toBe(false);
+    assertSchemaAccepts(timeout, "1");
+    assertSchemaAccepts(timeout, "1800");
+    assertSchemaRefuses(timeout, "1801");
+    assertSchemaAccepts(poll, "1");
+    assertSchemaAccepts(poll, "60");
+    assertSchemaRefuses(poll, "61");
   });
 
   it("accepts exact unsigned safe-integer domains, including all-zero strings", () => {
@@ -105,10 +106,10 @@ describe("ARC config field catalog", () => {
         "9007199254740989",
         String(Number.MAX_SAFE_INTEGER),
       ]) {
-        expect(schema.safeParse(value).success, `${key}: ${value}`).toBe(true);
+        assertSchemaAccepts(schema, value);
       }
       for (const value of ["", "+0", "-0", "1.0", "0x10", "9007199254740992"]) {
-        expect(schema.safeParse(value).success, `${key}: ${value}`).toBe(false);
+        assertSchemaRefuses(schema, value);
       }
     }
   });
@@ -129,15 +130,15 @@ describe("ARC config field catalog", () => {
     };
 
     for (const [key, values] of Object.entries(openValues)) {
-      for (const value of values) expect(field(key).schema.safeParse(value).success, `${key}: ${value}`).toBe(true);
+      for (const value of values) assertSchemaAccepts(field(key).schema, value);
     }
-    expect(field("worktree.location_template").schema.safeParse("").success).toBe(false);
+    assertSchemaRefuses(field("worktree.location_template").schema, "");
 
     for (const value of [".claude", "custom-harness", "name with spaces"]) {
-      expect(HarnessDirectorySchema.safeParse(value).success, value).toBe(true);
+      assertSchemaAccepts(HarnessDirectorySchema, value);
     }
     for (const value of ["", ".", "..", ".git", ".ARC", "nested/name", "nested\\name"]) {
-      expect(HarnessDirectorySchema.safeParse(value).success, value).toBe(false);
+      assertSchemaRefuses(HarnessDirectorySchema, value);
     }
   });
 
@@ -150,7 +151,7 @@ describe("ARC config field catalog", () => {
       "[coderabbit-cli, project-reviewer]",
       "[,project-reviewer,,]",
     ]) {
-      expect(frontline.safeParse(value).success, `frontline: ${value}`).toBe(true);
+      assertSchemaAccepts(frontline, value);
     }
     for (const value of [
       "[project-reviewer",
@@ -159,7 +160,7 @@ describe("ARC config field catalog", () => {
       "[codex-pr]",
       "[delegated-agent]",
     ]) {
-      expect(frontline.safeParse(value).success, `frontline: ${value}`).toBe(false);
+      assertSchemaRefuses(frontline, value);
     }
 
     const standard = field("review.standard_sources").schema;
@@ -169,7 +170,7 @@ describe("ARC config field catalog", () => {
       "[coderabbit-pr, codex-pr, delegated-agent]",
       "[,codex-pr,,]",
     ]) {
-      expect(standard.safeParse(value).success, `standard: ${value}`).toBe(true);
+      assertSchemaAccepts(standard, value);
     }
     for (const value of [
       "",
@@ -178,7 +179,7 @@ describe("ARC config field catalog", () => {
       "[codex-pr",
       "codex-pr]",
     ]) {
-      expect(standard.safeParse(value).success, `standard: ${value}`).toBe(false);
+      assertSchemaRefuses(standard, value);
     }
   });
 
@@ -214,7 +215,11 @@ describe("ARC config field catalog", () => {
     for (const descriptor of ARC_CONFIG_FIELDS) {
       const expected = invalid.has(descriptor.key) ? "invalid" : unset.has(descriptor.key) ? "unset" : "default";
       expect(descriptor.quotedEmpty, descriptor.key).toBe(expected);
-      expect(descriptor.schema.safeParse("").success, descriptor.key).toBe(expected !== "invalid");
+      if (expected === "invalid") {
+        assertSchemaRefuses(descriptor.schema, "");
+      } else {
+        assertSchemaAccepts(descriptor.schema, "");
+      }
     }
   });
 
@@ -305,8 +310,11 @@ describe("ARC config record schemas", () => {
 
   it("accepts quoted empty only for default and unset fields", () => {
     for (const descriptor of ARC_CONFIG_FIELDS) {
-      const result = ArcConfigSchema.safeParse({ [descriptor.key]: "" });
-      expect(result.success, descriptor.key).toBe(descriptor.quotedEmpty !== "invalid");
+      if (descriptor.quotedEmpty === "invalid") {
+        assertSchemaRefuses(ArcConfigSchema, { [descriptor.key]: "" });
+      } else {
+        assertSchemaAccepts(ArcConfigSchema, { [descriptor.key]: "" });
+      }
     }
   });
 
@@ -319,25 +327,25 @@ describe("ARC config record schemas", () => {
     expect(ArcConfigSchema.parse(accepted)).toEqual(accepted);
 
     for (const key of ["Upper.key", "1future", "_future", "a", "future-key"]) {
-      expect(ArcConfigSchema.safeParse({ [key]: "value" }).success, key).toBe(false);
+      assertSchemaRefuses(ArcConfigSchema, { [key]: "value" });
     }
   });
 
   it("rejects invalid records while keeping the completed projection limited to string shape", () => {
-    expect(ArcConfigSchema.safeParse({ "branch.protection": "sometimes" }).success).toBe(false);
-    expect(ArcConfigSchema.safeParse({ future: 1 }).success).toBe(false);
-    expect(RawArcConfigSchema.safeParse({ future: 1 }).success).toBe(false);
+    assertSchemaRefuses(ArcConfigSchema, { "branch.protection": "sometimes" });
+    assertSchemaRefuses(ArcConfigSchema, { future: 1 });
+    assertSchemaRefuses(RawArcConfigSchema, { future: 1 });
 
     const completed = Object.fromEntries(
       ARC_CONFIG_FIELDS
         .filter(({ key }) => !key.startsWith("hooks."))
         .map(({ key, defaultValue }) => [key, defaultValue]),
     );
-    expect(ConfigSettingsSchema.safeParse({ ...completed, "branch.protection": "tolerated-raw" }).success).toBe(true);
+    assertSchemaAccepts(ConfigSettingsSchema, { ...completed, "branch.protection": "tolerated-raw" });
     const incomplete = { ...completed };
     delete incomplete["branch.base"];
-    expect(ConfigSettingsSchema.safeParse(incomplete).success).toBe(false);
-    expect(ConfigSettingsSchema.safeParse({ ...completed, future: "value" }).success).toBe(false);
+    assertSchemaRefuses(ConfigSettingsSchema, incomplete);
+    assertSchemaRefuses(ConfigSettingsSchema, { ...completed, future: "value" });
   });
 
   it("projects the authorable schema without transforms or refinements", () => {

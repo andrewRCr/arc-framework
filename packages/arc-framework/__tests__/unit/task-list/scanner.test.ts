@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   ParentTaskIdSchema,
@@ -10,10 +11,10 @@ import {
 describe("ParentTaskIdSchema", () => {
   it("accepts canonical parent ids and refuses malformed dotted ids", () => {
     for (const id of ["1.1", "2.R", "5.R.a"]) {
-      expect(ParentTaskIdSchema.safeParse(id).success).toBe(true);
+      assertSchemaAccepts(ParentTaskIdSchema, id);
     }
     for (const id of ["1", "1..a", "1.2.3", "phase.1"]) {
-      expect(ParentTaskIdSchema.safeParse(id).success).toBe(false);
+      assertSchemaRefuses(ParentTaskIdSchema, id);
     }
   });
 });

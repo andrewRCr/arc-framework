@@ -1,24 +1,50 @@
 /**
  * Runtime contracts for session-init and recovery status envelopes.
  *
- * Shared and deep value views in this module deliberately validate only the
- * fields that drive workflow routing. Every view is pass-through so unowned
- * payload fields remain under their handwritten home-module authorities.
+ * Migrated value slots compose their owning strict schemas. Remaining views
+ * validate workflow routing fields while their home-module types are still
+ * handwritten, preserving payload fields outside those views.
  */
 
 import { isDeepStrictEqual } from "node:util";
 
 import { z } from "zod";
+import { RemoteFailureReasonSchema, withRemoteEvidence } from "../../lib/kernel/index.js";
+import { ActiveSessionInitResultSchema } from "../active/schema.js";
+import { ConfigSessionInitResultSchema } from "../config/status.js";
+import { DomainRulesSessionInitResultSchema } from "../constitution/status.js";
+import { ExtensionsSessionInitResultSchema } from "../extensions/status.js";
 
-import type { SessionInitProbeResult, SessionRecoverProbeResult } from "./types.js";
+import type { SessionInitBaseDistanceValue, SessionInitProbeResult, SessionRecoverProbeResult } from "./types.js";
 import { probe } from "./types.js";
 import { BaseBranchSnapshotAnalysisResultSchema } from "../../lib/git/base-branch-sync.js";
+import { DirtyStateResultSchema } from "../../lib/git/dirty-state.js";
+import {
+  BaseDistanceNotApplicableResultSchema,
+  BaseDistanceSnapshotAnalysisResultSchema,
+} from "../../lib/git/base-distance.js";
+import {
+  BaseDriftCoordinatesSchema,
+  BaseDriftResultCommonFields,
+  BaseDriftTerminalContinuationSchema,
+  BaseDriftUnavailableReasonSchema,
+  BaseDriftVerdictSchema,
+  BaseMovementSchema,
+} from "../../lib/git/base-drift-types.js";
+import { WorktreeSyncStatusFields } from "../../lib/git/worktree-sync.js";
+import { WorktreeIdentitySchema } from "../../lib/git/worktree-identity.js";
+import { WorktreeRosterResultSchema } from "../../lib/git/worktree-roster.js";
+import {
+  SupersessionResultSchema,
+  SupersessionSnapshotAnalysisResultSchema,
+} from "../../lib/git/supersession.js";
 import { LoadSetManifestSchema, LoadSetPathSchema } from "../../lib/load-set/types.js";
 import { SessionInitRecoveryValueSchema } from "../../lib/session-init/branch-gone-cascade.js";
 import { ErrandStalenessSweepResultSchema } from "../../lib/session-init/errand-staleness-sweep.js";
 import { InboxStateResultSchema } from "../../lib/session-init/inbox-state.js";
 import { MaterializableWorkUnitDiscoveryResultSchema } from "../../lib/session-init/materializable-work-units.js";
 import { NotesCompactionSessionAdvisoryResultSchema } from "../../lib/session-init/notes-compaction-advisory.js";
+import { CurrentHuskAdvisorySchema } from "../../lib/session-init/current-husk-advisory.js";
 import { OrphanBranchSweepResultSchema } from "../../lib/session-init/orphan-branch-sweep.js";
 import { PartialPushMarkerSurfaceResultSchema } from "../../lib/session-init/partial-push-marker-surface.js";
 import { RetiredSubdirDetectionResultSchema } from "../../lib/session-init/retired-subdir-detection.js";
@@ -26,6 +52,7 @@ import { ClassCompositionSchema } from "../../lib/status/class-composition.js";
 import { TaskListCursorFileResultSchema } from "../../lib/task-list/file-cursor.js";
 import { LocusSessionGuidanceSchema } from "../../lib/locus/session-guidance.js";
 import { RecoveryLocusFrameSchema } from "../../lib/recover/locus-context.js";
+import { ReleaseRoutingValueSchema } from "../../lib/release/routing.js";
 import { assertSessionEnvelopeContract } from "../../lib/session-envelope/validation.js";
 import { DeliveryPositionViewSchema } from "../../lib/session-init/delivery-position.js";
 import { IntegrationBoundaryLocusSchema } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
@@ -47,9 +74,6 @@ function requireRemoteFailureReason(
     context.addIssue({ code: "custom", path: ["failureReason"], message: "only unreachable evidence carries a reason" });
   }
 }
-
-/** Thin routing view of a working-tree dirty-state result. */
-export const DirtyStateValueViewSchema = z.object({ state: z.enum(["clean", "dirty"]) }).loose();
 
 /** Routing view of the read-only current-WU reconcile session fact. */
 export const CurrentWuReconcileSessionValueViewSchema = z
@@ -215,47 +239,11 @@ export const UserReferenceReconcileSessionValueViewSchema = z.object({
   }
 });
 
-/** Thin routing view of a worktree synchronization result. */
-export const WorktreeSyncValueViewSchema = z
-  .object({
-    state: z.enum([
-      "skipped",
-      "clean",
-      "remote-ahead",
-      "local-ahead",
-      "diverged",
-      "no-upstream",
-      "detached-head",
-      "no-remote",
-      "branch-gone",
-      "remote-unavailable",
-    ]),
-    branch: z.string().nullable(),
-    supersession: z.object({ superseded: z.boolean() }).loose().nullable().optional(),
-  })
-  .loose();
-
-/** Thin routing view of a base-distance advisory. */
-export const BaseDistanceValueViewSchema = z
-  .object({ verdict: z.enum(["clean", "reconcile", "unavailable", "skipped"]) })
-  .loose();
-
-/** Object-only view of the worktree roster, whose nested fields do not route workflows. */
-export const WorktreeRosterValueViewSchema = z.object({}).loose();
-
 const WorktreeSubjectViewSchema = z
   .object({ kind: z.enum(["work-unit", "errand", "branch"]) })
   .loose();
 const HuskStampViewSchema = z
   .object({ kind: z.enum(["legacy", "current", "manual-only"]) })
-  .loose();
-
-/** Thin routing view of the current-worktree husk advisory. */
-export const CurrentHuskAdvisoryViewSchema = z
-  .object({
-    subject: z.object({ kind: z.literal("work-unit") }).loose(),
-    stamp: HuskStampViewSchema,
-  })
   .loose();
 
 const BranchedCleanupDecisionViewSchema = z.discriminatedUnion("action", [
@@ -477,52 +465,6 @@ export const ErrandStateValueViewSchema = z
     }
   });
 
-/** Thin routing view of the extension session-init result. */
-export const ExtensionsSessionInitValueViewSchema = z
-  .object({ mode: z.literal("session-init") })
-  .loose();
-
-/** Thin routing view of the twelve session-init policy settings. */
-export const ConfigSessionInitValueViewSchema = z
-  .object({
-    mode: z.literal("session-init"),
-    settings: z
-      .object({
-        "session.remote_sync": z.enum(["enabled", "disabled"]),
-        "session.init_pull.worktree": z.enum(["manual", "prompt"]),
-        "session.init_pull.notes": z.enum(["manual", "prompt", "always"]),
-        "session.init_pull.base": z.enum(["manual", "prompt", "always"]),
-        "session.init_load.notes": z.enum(["manual", "prompt", "always"]),
-        "user.notes_push": z.enum(["manual", "prompt", "on-sync"]),
-        "branch.protection": z.enum(["partial", "full"]),
-        "pm.mode": z.enum(["none", "arc-in-git", "external"]),
-        "commit.format": z.enum(["conventional", "custom", "any"]),
-        "commit.context_footer": z.enum(["required", "recommended", "custom", "disabled"]),
-        "commit.interlock": z.enum(["manual", "on-task-approval", "on-workflow"]),
-        "push.interlock": z.enum(["manual", "on-sync", "on-workflow"]),
-      })
-      .loose(),
-  })
-  .loose();
-
-/** Thin routing view of active work-unit resolution for a session. */
-export const ActiveSessionInitValueViewSchema = z
-  .object({
-    mode: z.literal("session-init"),
-    layout: z.enum(["full", "lite"]),
-    resolution: z.enum(["none", "single", "multiple"]),
-    sessionType: z.enum(["planning", "execution", "prepublication", "integration"]).nullable(),
-    currentWorkflow: z.string().nullable(),
-    planningStage: z.enum(["draft-design", "create-spec", "generate-tasks"]).nullable(),
-    integrationBoundary: IntegrationBoundaryLocusSchema.nullable(),
-  })
-  .loose();
-
-/** Thin routing view of the domain-rule session-init result. */
-export const DomainRulesSessionInitValueViewSchema = z
-  .object({ mode: z.literal("session-init") })
-  .loose();
-
 const USER_REF_STATE = z.enum(["same", "local-ahead", "remote-ahead", "diverged", "remote-unavailable"]);
 const USER_CONTENT_RELATION = z.enum([
   "remote-subset",
@@ -557,20 +499,19 @@ const RECOMMENDATION_SHAPE = {
   recommendedPromptText: z.string(),
 };
 
-/** Thin view of primary/linked worktree identity. */
-export const WorktreeIdentityViewSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("primary") }).loose(),
-  z.object({ kind: z.literal("linked"), path: NON_EMPTY_TEXT }).loose(),
-]);
+const SupersessionValueSchema = z.strictObject({
+  ...SupersessionResultSchema.shape,
+  remoteEvidence: z.enum(["exact", "pending-fetch", "unreachable"]).optional(),
+  failureReason: RemoteFailureReasonSchema.optional(),
+}).pipe(z.union([SupersessionResultSchema, SupersessionSnapshotAnalysisResultSchema]));
 
-/** Recommendation-enriched session worktree view. */
-export const SessionInitWorktreeValueViewSchema = WorktreeSyncValueViewSchema.extend({
-  ...CleanupRemoteEvidenceViewFields,
+/** Strict recommendation-enriched session worktree slot. */
+export const SessionInitWorktreeValueSchema = withRemoteEvidence({
+  ...WorktreeSyncStatusFields,
   ...RECOMMENDATION_SHAPE,
-  ahead: z.number().int().nonnegative(),
-  behind: z.number().int().nonnegative(),
-  identity: WorktreeIdentityViewSchema,
-}).loose().superRefine((value, context) => {
+  identity: WorktreeIdentitySchema,
+  supersession: SupersessionValueSchema.nullable(),
+}).superRefine((value, context) => {
   requireRemoteFailureReason(value, context);
   const exactStates = new Set(["clean", "remote-ahead", "local-ahead", "diverged", "branch-gone"]);
   const inapplicableStates = new Set(["skipped", "no-upstream", "detached-head", "no-remote"]);
@@ -596,9 +537,7 @@ export const SessionInitWorktreeValueViewSchema = WorktreeSyncValueViewSchema.ex
   if (!branchMatches) {
     context.addIssue({ code: "custom", path: ["branch"], message: "must match worktree state" });
   }
-  const supersessionMatches = value.state === "diverged"
-    || value.supersession === null
-    || value.supersession === undefined;
+  const supersessionMatches = value.state === "diverged" || value.supersession === null;
   if (!supersessionMatches) {
     context.addIssue({ code: "custom", path: ["supersession"], message: "requires a diverged worktree" });
   }
@@ -628,40 +567,42 @@ export const SessionInitUserValueViewSchema = UserSessionInitValueViewSchema.ext
     .optional(),
 }).loose();
 
-/** Recommendation-enriched base-distance view. */
-export const SessionInitBaseDistanceValueViewSchema = BaseDistanceValueViewSchema.extend(
-  {
-    ...CleanupRemoteEvidenceViewFields,
-    ...RECOMMENDATION_SHAPE,
-    state: z.enum([
-      "skipped",
-      "clean",
-      "remote-ahead",
-      "local-ahead",
-      "diverged",
-      "no-upstream",
-      "detached-head",
-      "no-remote",
-      "branch-gone",
-      "remote-unavailable",
-    ]),
-    ahead: z.number().int().nonnegative(),
-    behind: z.number().int().nonnegative(),
-    baseOid: z.string().nullable(),
-    movement: z.enum(["disjoint", "overlapping", "unknown"]).optional(),
-    unavailableReason: z.string().optional(),
-  },
-).loose().superRefine((value, context) => {
+const BaseDistanceSlotArms = [
+  ...BaseDistanceSnapshotAnalysisResultSchema.options,
+  ...BaseDistanceNotApplicableResultSchema.options,
+];
+const baseDistanceSlotSchemas = BaseDistanceSlotArms.map(
+  (arm) => z.strictObject({ ...arm.shape, ...RECOMMENDATION_SHAPE }),
+);
+const firstBaseDistanceSlotSchema = baseDistanceSlotSchemas[0];
+if (firstBaseDistanceSlotSchema === undefined) throw new Error("base-distance requires a slot arm");
+const BaseDistanceSlotUnionSchema = z.union(
+  [firstBaseDistanceSlotSchema, ...baseDistanceSlotSchemas.slice(1)],
+);
+
+/** Full base-distance slot with recommendation fields and existing routing refinements. */
+export const SessionInitBaseDistanceValueSchema = z.strictObject({
+  ...BaseDriftResultCommonFields,
+  verdict: BaseDriftVerdictSchema,
+  movement: BaseMovementSchema.optional(),
+  unavailableReason: BaseDriftUnavailableReasonSchema.optional(),
+  detail: z.string().optional(),
+  coordinates: BaseDriftCoordinatesSchema.optional(),
+  continuation: BaseDriftTerminalContinuationSchema.optional(),
+  ...CleanupRemoteEvidenceViewFields,
+  ...RECOMMENDATION_SHAPE,
+}).pipe(BaseDistanceSlotUnionSchema).superRefine((parsed, context) => {
+  const value = parsed as SessionInitBaseDistanceValue;
   requireRemoteFailureReason(value, context);
   const healthy = ["clean", "remote-ahead", "local-ahead", "diverged"].includes(value.state);
   const evidenceMatches = healthy
     ? value.remoteEvidence === "exact" && ["clean", "reconcile"].includes(value.verdict)
     : value.state === "skipped"
-      ? value.remoteEvidence === "not-applicable" && value.verdict === "skipped"
+      ? value.remoteEvidence === "not-applicable"
       // Detachment and an absent remote both resolve before any snapshot evidence is
       // consulted, so each reports the not-applicable qualifier rather than omitting it.
       : value.state === "no-remote" || value.state === "detached-head"
-        ? value.remoteEvidence === "not-applicable" && value.verdict === "unavailable"
+        ? value.remoteEvidence === "not-applicable"
         : value.state === "remote-unavailable"
           && value.verdict === "unavailable"
           && ["exact", "pending-fetch", "unreachable"].includes(value.remoteEvidence);
@@ -728,15 +669,6 @@ export const SessionInitBaseBranchSyncValueViewSchema = RecommendationValueViewS
 export const SessionInitRetiredSubdirsValueViewSchema = RecommendationValueViewSchema.refine((value) => {
   return RetiredSubdirDetectionResultSchema.safeParse(withoutRecommendation(value)).success;
 }, "invalid retired-subdirectory value");
-
-/** Thin routing view of release-wrapper class decisions. */
-export const ReleaseRoutingValueViewSchema = z
-  .object({
-    taskCommit: z.enum(["wrapper", "raw"]),
-    workflowCommit: z.enum(["wrapper", "raw"]),
-    workflowPush: z.enum(["wrapper", "raw"]),
-  })
-  .loose();
 
 /** Complete identity record shared by session envelope roots. */
 export const StatusIdentitySchema = z.strictObject({
@@ -816,22 +748,22 @@ const SessionInitEnvelopeObjectSchema = z.strictObject({
   derivedLocusState: probe(DerivedLocusFrameValueViewSchema),
   locusGuidance: LocusSessionGuidanceSchema,
   user: probe(SessionInitUserValueViewSchema),
-  worktree: probe(SessionInitWorktreeValueViewSchema),
-  baseDistance: probe(SessionInitBaseDistanceValueViewSchema),
+  worktree: probe(SessionInitWorktreeValueSchema),
+  baseDistance: probe(SessionInitBaseDistanceValueSchema),
   baseBranchSync: probe(SessionInitBaseBranchSyncValueViewSchema),
-  dirty: probe(DirtyStateValueViewSchema),
-  extensions: probe(ExtensionsSessionInitValueViewSchema),
-  config: probe(ConfigSessionInitValueViewSchema),
-  active: probe(ActiveSessionInitValueViewSchema),
-  domainRules: probe(DomainRulesSessionInitValueViewSchema),
-  releaseRouting: probe(ReleaseRoutingValueViewSchema),
+  dirty: probe(DirtyStateResultSchema),
+  extensions: probe(ExtensionsSessionInitResultSchema),
+  config: probe(ConfigSessionInitResultSchema),
+  active: probe(ActiveSessionInitResultSchema),
+  domainRules: probe(DomainRulesSessionInitResultSchema),
+  releaseRouting: probe(ReleaseRoutingValueSchema),
   currentWuReconcile: probe(CurrentWuReconcileSessionValueViewSchema).optional(),
   deliveryPosition: probe(DeliveryPositionViewSchema.nullable()).optional(),
   userReferenceReconcile: probe(UserReferenceReconcileSessionValueViewSchema).optional(),
-  roster: probe(WorktreeRosterValueViewSchema).optional(),
+  roster: probe(WorktreeRosterResultSchema).optional(),
   recovery: probe(SessionInitRecoveryValueSchema).optional(),
   sweep: probe(StaleWorktreeSweepValueViewSchema).optional(),
-  currentHusk: probe(CurrentHuskAdvisoryViewSchema.nullable()).optional(),
+  currentHusk: probe(CurrentHuskAdvisorySchema.nullable()).optional(),
   orphanBranchSweep: probe(OrphanBranchSweepResultSchema).optional(),
   retiredSubdirs: probe(SessionInitRetiredSubdirsValueViewSchema).optional(),
   errandSweep: probe(ErrandStalenessSweepResultSchema).optional(),
@@ -1135,12 +1067,11 @@ export const SessionInitProbeResultSchema = SessionInitProbeResultRuntimeSchema 
   SessionInitProbeResult
 >;
 
-/** Thin worktree view used by the lean recovery envelope. */
-export const SessionRecoverWorktreeValueViewSchema = WorktreeSyncValueViewSchema.extend({
-  remoteEvidence: z.enum(["exact", "pending-fetch", "unreachable", "not-applicable"]),
-  failureReason: z.enum(["timeout", "network", "auth", "error"]).optional(),
-  identity: WorktreeIdentityViewSchema,
-}).loose().superRefine((value, context) => {
+/** Strict worktree slot for the lean recovery envelope. */
+export const SessionRecoverWorktreeValueSchema = withRemoteEvidence({
+  ...WorktreeSyncStatusFields,
+  identity: WorktreeIdentitySchema,
+}).superRefine((value, context) => {
   const unreachable = value.remoteEvidence === "unreachable";
   if (unreachable !== (value.failureReason !== undefined)) {
     context.addIssue({
@@ -1157,11 +1088,11 @@ const SessionRecoverEnvelopeObjectSchema = z.strictObject({
   derivedLocusState: probe(DerivedLocusFrameValueViewSchema),
   locusGuidance: LocusSessionGuidanceSchema,
   recoveryFrame: probe(RecoveryLocusFrameSchema),
-  worktree: probe(SessionRecoverWorktreeValueViewSchema),
-  dirty: probe(DirtyStateValueViewSchema),
-  extensions: probe(ExtensionsSessionInitValueViewSchema),
-  config: probe(ConfigSessionInitValueViewSchema),
-  releaseRouting: probe(ReleaseRoutingValueViewSchema),
+  worktree: probe(SessionRecoverWorktreeValueSchema),
+  dirty: probe(DirtyStateResultSchema),
+  extensions: probe(ExtensionsSessionInitResultSchema),
+  config: probe(ConfigSessionInitResultSchema),
+  releaseRouting: probe(ReleaseRoutingValueSchema),
   loadSet: probe(LoadSetManifestSchema),
   taskCursor: probe(TaskListCursorFileResultSchema).optional(),
 });
@@ -1205,15 +1136,9 @@ type DeclaredInput<Value> = Value extends readonly (infer Item)[]
     ? { [Key in keyof Value as string extends Key ? never : Key]: DeclaredInput<Value[Key]> }
     : Value;
 
-type SessionInitDeclaredInput = Omit<
-  DeclaredInput<z.input<typeof SessionInitProbeResultRuntimeSchema>>,
-  "config"
-> & Pick<SessionInitProbeResult, "config">;
+type SessionInitDeclaredInput = DeclaredInput<z.input<typeof SessionInitProbeResultRuntimeSchema>>;
 
-type SessionRecoverDeclaredInput = Omit<
-  DeclaredInput<z.input<typeof SessionRecoverProbeResultRuntimeSchema>>,
-  "config"
-> & Pick<SessionRecoverProbeResult, "config">;
+type SessionRecoverDeclaredInput = DeclaredInput<z.input<typeof SessionRecoverProbeResultRuntimeSchema>>;
 
 /** Compile-only proof that the producer satisfies every declared schema input field. */
 export type SessionInitProbeResultSchemaInputCompatibility<

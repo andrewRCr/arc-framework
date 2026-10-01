@@ -9,7 +9,7 @@ import {
   identifyWorkUnitArtifactPath,
   type WorkUnitArtifactKind,
 } from "../layout/index.js";
-import { canonicalDigest, digestBytes } from "../canonical/canonical-json.js";
+import { canonicalDigest, digestBytes } from "../kernel/canonical/canonical-json.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 import {
   CandidateLineageTargetSchema,

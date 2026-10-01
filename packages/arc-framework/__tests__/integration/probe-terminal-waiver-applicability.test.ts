@@ -12,8 +12,8 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { canonicalDigest } from "../../src/lib/canonical/canonical-json.js";
-import type { RawGitExec } from "../../src/lib/change-facts.js";
+import { canonicalDigest } from "../../src/lib/kernel/canonical/canonical-json.js";
+import type { RawGitExec } from "../../src/lib/git/exec.js";
 import { absorbGitDeliveryChain } from "../../src/lib/delivery/chain-absorption.js";
 import { proveGitDeliveryContribution } from "../../src/lib/delivery/git-contribution-proof.js";
 import { classifyCandidateApplicability } from "../../src/lib/work-unit/candidate-applicability.js";

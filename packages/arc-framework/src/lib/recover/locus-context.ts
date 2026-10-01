@@ -1,7 +1,9 @@
 /** Recovery projection from one exact entering-checkout frame. */
 
+import { posix } from "node:path";
 import { z } from "zod";
 
+import { resolveArcPath } from "../layout/index.js";
 import { resolveLoadSetManifest } from "../load-set/projection.js";
 import type { LoadSetManifest } from "../load-set/types.js";
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";
@@ -15,13 +17,22 @@ import {
 import type { TaskListCursorFileResult } from "../task-list/file-cursor.js";
 
 /** Recovery workflow loaded for Errand sessions. */
-export const RUN_ERRAND_WORKFLOW_PATH = ".arc/system/workflows/arc/supplemental/run-errand.md";
+export const RUN_ERRAND_WORKFLOW_PATH = posix.join(
+  resolveArcPath({ kind: "procedure-root", family: "workflows" }),
+  "arc/supplemental/run-errand.md",
+);
 
 /** Recovery workflow loaded for planning-groom sessions. */
-export const DRAFT_DESIGN_WORKFLOW_PATH = ".arc/system/workflows/arc/draft-design.md";
+export const DRAFT_DESIGN_WORKFLOW_PATH = posix.join(
+  resolveArcPath({ kind: "procedure-root", family: "workflows" }),
+  "arc/draft-design.md",
+);
 
 /** Recovery workflow loaded for housekeeping sessions. */
-export const DRAIN_INBOX_WORKFLOW_PATH = ".arc/system/workflows/arc/supplemental/drain-inbox.md";
+export const DRAIN_INBOX_WORKFLOW_PATH = posix.join(
+  resolveArcPath({ kind: "procedure-root", family: "workflows" }),
+  "arc/supplemental/drain-inbox.md",
+);
 
 const WorkUnitSubjectSchema = z.strictObject({
   kind: z.literal("work-unit"),

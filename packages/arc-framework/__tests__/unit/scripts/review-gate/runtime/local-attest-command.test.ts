@@ -25,7 +25,7 @@ import { projectLocalReviewGuidance } from
 import { attestLocalReviewCommand } from "../../../../../src/scripts/review-gate/runtime/local-attest-command.js";
 import { createLocalReviewReceipt } from "../../../../../src/scripts/review-gate/runtime/local-attestation.js";
 
-const digest = (value: string): string => canonicalDigest({ value });
+const digest = (value: string) => canonicalDigest({ value });
 const objectId = (character: string): string => character.repeat(40);
 const receiptRef = (operationId: string, durableRef: string) => bindReviewSourceReference({
   kind: "attested-local",

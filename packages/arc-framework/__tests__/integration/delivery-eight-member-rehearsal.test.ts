@@ -16,7 +16,7 @@ import {
   assessDeliveryTerminalTop,
   rebindDeliveryTerminalCoordinates,
 } from "../../src/lib/delivery/terminal-integration.js";
-import { canonicalDigest } from "../../src/lib/kernel/index.js";
+import { canonicalDigest, type CanonicalDigest } from "../../src/lib/kernel/index.js";
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
@@ -32,7 +32,7 @@ const oid = (character: string): string => character.repeat(40);
 
 function positionFacts(
   state: DeliveryStateV1,
-  landedDeliverableIds: readonly string[],
+  landedDeliverableIds: readonly CanonicalDigest[],
 ): DeliveryPositionFactsV1 {
   return {
     target: state.target,

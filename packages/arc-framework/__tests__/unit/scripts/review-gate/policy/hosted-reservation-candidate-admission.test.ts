@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import { responsePolicyRequestFixture } from "../../../../fixtures/review-response-policy.js";
-import { canonicalDigest } from "../../../../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest } from "../../../../../src/lib/kernel/canonical/canonical-json.js";
 import { DeliveryReviewMemberVehicleSchema } from
   "../../../../../src/lib/delivery/review-vehicle.js";
 import { createReviewRequirement, createReviewTarget } from

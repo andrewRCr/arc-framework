@@ -16,7 +16,7 @@ import {
   type ProjectReadinessRecordCandidate,
 } from "../../../src/lib/status/project-view.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
-import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import {
   createProspectiveTransitionOverlay,
   createValidatedTransitionOverlay,

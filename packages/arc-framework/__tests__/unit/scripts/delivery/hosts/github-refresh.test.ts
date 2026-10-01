@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { makeGitProcessError, scriptGitExec } from "../../../../helpers/git-exec-fake.js";
 
 import { deriveDeliveryProviderRefreshSubject } from
   "../../../../../src/lib/delivery/provider-refresh-observation.js";
@@ -44,11 +45,10 @@ describe("GitHub provider refresh adapter", () => {
   it("refuses before native observation when the official extension is unavailable", async () => {
     let nativeObserved = false;
     const port = new GhDeliveryProviderRefreshPort({
-      git: async (_command, args) => {
-        if (args[0] === "for-each-ref") return { stdout: "" };
-        if (args[0] === "rev-parse" && args[1] === "--git-common-dir") return { stdout: "/repo/.git\n" };
-        throw new Error(`unexpected git invocation: ${args.join(" ")}`);
-      },
+      git: scriptGitExec([
+        { match: { prefix: ["for-each-ref"] }, responses: [{ stdout: "" }] },
+        { match: { prefix: ["rev-parse", "--git-common-dir"] }, responses: [{ stdout: "/repo/.git\n" }] },
+      ]).exec,
       gh: { run: async () => { throw new Error("extension unavailable"); } },
       nativeStack: { observe: async () => {
         nativeObserved = true;
@@ -98,7 +98,7 @@ describe("GitHub provider refresh adapter", () => {
         const ref = subject.slice(0, -"^{commit}".length);
         const head = refs.get(ref);
         if (head === undefined) {
-          throw Object.assign(new Error("missing refresh candidate"), { exitCode: 1, stderr: "" });
+          throw makeGitProcessError({ command: "git", args, exitCode: 1, stderr: "" });
         }
         return { stdout: `${head}\n` };
       }
@@ -238,7 +238,9 @@ describe("GitHub provider refresh adapter", () => {
         }
         if (args[1] === "--all" && args[2] === before.members[0]!.coordinates!.head
           && args[3] === before.members[1]!.coordinates!.head) {
-          if (forkBoundaries.length === 0) throw new Error("no common fork boundary");
+          if (forkBoundaries.length === 0) {
+            throw makeGitProcessError({ command: "git", args, exitCode: 1, stderr: "no common fork boundary" });
+          }
           return { stdout: `${forkBoundaries.join("\n")}\n` };
         }
         throw new Error("unexpected target ancestry query");
@@ -251,7 +253,7 @@ describe("GitHub provider refresh adapter", () => {
           ? ref.slice(0, -"^{tree}".length)
           : commit ? ref.slice(0, -"^{commit}".length) : ref;
         if (commit && plain.startsWith("refs/arc/delivery-refresh-candidates/") && !imported.has(plain)) {
-          throw Object.assign(new Error("missing refresh candidate"), { exitCode: 1, stderr: "" });
+          throw makeGitProcessError({ command: "git", args, exitCode: 1, stderr: "" });
         }
         const head = plain === `refs/heads/${targetName}`
           ? currentTarget().head
@@ -538,13 +540,17 @@ describe("GitHub provider refresh adapter", () => {
       if (args[0] === "merge-base") return { stdout: `${args[1]}\n` };
       if (args[0] === "fetch") {
         fetchCount += 1;
-        if (fetchCount === 2) throw new Error("second import failed");
+        if (fetchCount === 2) {
+          throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "second import failed" });
+        }
         const destination = args.at(-1)!.split(":")[1]!;
         imported.set(destination, afterHeads[0]!);
         return { stdout: "" };
       }
       if (args[0] === "update-ref" && args[1] === "-d") {
-        if (cleanupFails) throw new Error("candidate cleanup failed");
+        if (cleanupFails) {
+          throw makeGitProcessError({ command: "git", args, exitCode: 1, stderr: "candidate cleanup failed" });
+        }
         deleted.push(args[2]!);
         imported.delete(args[2]!);
         return { stdout: "" };
@@ -557,7 +563,7 @@ describe("GitHub provider refresh adapter", () => {
           ? ref.slice(0, -"^{tree}".length)
           : commit ? ref.slice(0, -"^{commit}".length) : ref;
         if (commit && plain.startsWith("refs/arc/delivery-refresh-candidates/") && !imported.has(plain)) {
-          throw Object.assign(new Error("missing refresh candidate"), { exitCode: 1, stderr: "" });
+          throw makeGitProcessError({ command: "git", args, exitCode: 1, stderr: "" });
         }
         const branchIndex = before.members.findIndex((member) => member.ref === plain);
         const head = plain === `refs/heads/${targetName}`

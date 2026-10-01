@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../../../helpers/schema-assertion.js";
 
 import {
   LocalReviewSourceSchema,
@@ -27,11 +28,11 @@ describe("local review source descriptor", () => {
 
     expect(LocalReviewSourceSchema.parse(source)).toEqual(source);
     expect(source.sourceDigest).toMatch(/^sha256:[0-9a-f]{64}$/u);
-    expect(LocalReviewSourceSchema.safeParse({ ...source, extra: true }).success).toBe(false);
-    expect(LocalReviewSourceSchema.safeParse({
+    assertSchemaRefuses(LocalReviewSourceSchema, { ...source, extra: true });
+    assertSchemaRefuses(LocalReviewSourceSchema, {
       ...source,
       headSha: "f".repeat(40),
-    }).success).toBe(false);
+    });
   });
 
   it("excludes operational locators from the semantic digest", () => {
@@ -56,10 +57,10 @@ describe("local review source descriptor", () => {
       materializationRef: "/tmp/review-1",
     });
 
-    expect(LocalReviewSourceSchema.safeParse({
+    assertSchemaRefuses(LocalReviewSourceSchema, {
       ...source,
       semanticsVersion: "git-object-range/v2",
-    }).success).toBe(false);
+    });
     expect(() => createLocalReviewSource({
       ...semanticFields,
       objectFormat: "sha256",
@@ -100,13 +101,13 @@ describe("local review source descriptor", () => {
 
     expect(first.correctionScope).toEqual(correctionScope);
     expect(relocated.sourceDigest).toBe(first.sourceDigest);
-    expect(LocalReviewSourceSchema.safeParse({
+    assertSchemaRefuses(LocalReviewSourceSchema, {
       ...first,
       correctionScope: { ...correctionScope, headSha: "0".repeat(40) },
-    }).success).toBe(false);
-    expect(LocalReviewSourceSchema.safeParse({
+    });
+    assertSchemaRefuses(LocalReviewSourceSchema, {
       ...first,
       predecessorReachabilityRef: undefined,
-    }).success).toBe(false);
+    });
   });
 });

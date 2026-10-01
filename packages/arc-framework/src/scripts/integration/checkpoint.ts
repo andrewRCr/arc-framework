@@ -2,7 +2,10 @@
 
 import { z } from "zod";
 
-import type { BaseDriftResult, BaseMovement } from "../../lib/git/base-drift-types.js";
+import { SlugSchema } from "../../lib/kernel/schema/slug.js";
+import { CanonicalDigestSchema, WorkUnitStateSchema } from "../../lib/kernel/schema/vocabulary.js";
+import { ArcPlacementTierSchema } from "../../lib/layout/index.js";
+import { BaseDriftResultSchema, type BaseDriftResult, type BaseMovement } from "../../lib/git/base-drift-types.js";
 import {
   GitMergeFeasibilitySchema,
   type GitMergeFeasibility,
@@ -57,9 +60,8 @@ import {
   type SpineRemedy,
 } from "./spine-refusal.js";
 
-const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+const DigestSchema = CanonicalDigestSchema;
 const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
-const SlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
 const DetailSchema = z.string().trim().min(1).max(4_096);
 
 export const IntegrationCheckpointRequestSchema = z.strictObject({
@@ -76,8 +78,8 @@ export const IntegrationLifecycleSummarySchema = z.strictObject({
     "nonexistent", "provisional", "planned", "planning", "active", "integrating", "parked", "shipped",
   ]),
   position: z.strictObject({
-    phase: z.enum(["Planning", "Active", "Integrating", "Shipped"]),
-    location: z.enum(["provisional", "planned", "active", "completed"]),
+    phase: WorkUnitStateSchema,
+    location: ArcPlacementTierSchema,
   }).nullable(),
   artifactFacts: z.array(z.strictObject({
     code: z.string().min(1),
@@ -458,13 +460,13 @@ const IntegrationCheckpointBlockedResultSchema = z.discriminatedUnion("reason", 
   z.strictObject({
     ...CheckpointBlockedBaseShape,
     reason: z.literal("drift-unavailable"),
-    payload: z.strictObject({ drift: z.custom<BaseDriftResult>() }),
+    payload: z.strictObject({ drift: BaseDriftResultSchema }),
   }),
   z.strictObject({
     ...CheckpointBlockedBaseShape,
     reason: z.literal("unsafe-reconcile"),
     payload: z.strictObject({
-      drift: z.custom<BaseDriftResult>(),
+      drift: BaseDriftResultSchema,
       observation: CheckpointMovementObservationSchema,
       detail: z.string().min(1).optional(),
     }),
@@ -473,7 +475,7 @@ const IntegrationCheckpointBlockedResultSchema = z.discriminatedUnion("reason", 
     ...CheckpointBlockedBaseShape,
     reason: z.literal("base-unrelated"),
     payload: z.strictObject({
-      drift: z.custom<BaseDriftResult>(),
+      drift: BaseDriftResultSchema,
       observation: CheckpointMovementObservationSchema,
       detail: z.string().min(1).optional(),
     }),
@@ -771,7 +773,7 @@ export const IntegrationCheckpointResultSchema = z.union([
     reason: z.enum(["base-reconcile-required", "regenerable-reconcile-required"]),
     remedy: SpineRemedySchema,
     payload: z.strictObject({
-      drift: z.custom<BaseDriftResult>(),
+      drift: BaseDriftResultSchema,
       observation: CheckpointMovementObservationSchema,
       candidateHead: ObjectIdSchema,
     }),
@@ -1107,7 +1109,7 @@ function checkpointPostAttestContinuation(workUnit: string, reviewedHead: string
 }
 
 export async function checkpointIntegration(
-  input: IntegrationCheckpointRequest,
+  input: z.input<typeof IntegrationCheckpointRequestSchema>,
   dependencies: IntegrationCheckpointDependencies,
 ): Promise<IntegrationCheckpointResult> {
   const request = IntegrationCheckpointRequestSchema.parse(input);
@@ -1116,7 +1118,16 @@ export async function checkpointIntegration(
     mode: "integrate-checkpoint" as const,
     workUnit: request.workUnit,
   };
-  const drift = await dependencies.readDrift(request.workUnit);
+  const driftResult = BaseDriftResultSchema.safeParse(await dependencies.readDrift(request.workUnit));
+  if (!driftResult.success) {
+    const issue = driftResult.error.issues[0];
+    const field = issue?.path.map(String).join(".") || "drift";
+    return checkpointOperationRefusal(
+      request.workUnit,
+      `Invalid base drift field ${field}: ${issue?.message ?? "unknown validation failure"}.`,
+    );
+  }
+  const drift = driftResult.data;
   const coordinates = checkpointCoordinates(drift);
   if ((drift.verdict !== "clean" && drift.verdict !== "reconcile") || drift.baseOid === null) {
     return IntegrationCheckpointResultSchema.parse({

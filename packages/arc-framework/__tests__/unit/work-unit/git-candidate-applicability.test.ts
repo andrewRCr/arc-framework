@@ -2,8 +2,9 @@
 
 import { describe, expect, it } from "vitest";
 
-import type { RawGitExec } from "../../../src/lib/change-facts.js";
-import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
+import { scriptRawGitExec } from "../../helpers/git-exec-fake.js";
+import type { RawGitExec } from "../../../src/lib/git/exec.js";
+import { canonicalDigest } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import { createCandidateSubjectSnapshot } from "../../../src/lib/work-unit/candidate-attestation.js";
 import { projectGitCandidateApplicability } from "../../../src/lib/work-unit/git-candidate-applicability.js";
 
@@ -30,14 +31,10 @@ function request(currentSubject = subject("current")) {
 }
 
 /**
- * How Git answers `--is-ancestor` for a pair where neither side contains the other: exit 1, no output.
- *
- * Every fixture here pins a merge base distinct from both revisions, which is exactly that pair — so a stub
- * answering the containment question any other way would place these cases on a topology they do not have.
+ * Git answers `--is-ancestor` for divergent revisions with exit 1 and no output.
+ * Each fixture pins a merge base distinct from both revisions, so the containment answer must be negative.
  */
-const notAncestor = (): never => {
-  throw { exitCode: 1, stdout: bytes(""), stderr: bytes("") };
-};
+const divergent = { failure: { exitCode: 1, stdout: bytes(""), stderr: "" } };
 
 function mechanicalReapplyExec(): RawGitExec {
   const trees = new Map([
@@ -46,24 +43,26 @@ function mechanicalReapplyExec(): RawGitExec {
     [oid("b"), oid("4")],
     [oid("c"), oid("5")],
   ]);
-  return async (args) => {
-    if (args.join(" ") === `merge-base --all ${oid("a")} ${oid("b")}`) return result(`${oid("1")}\n`);
-    if (args[0] === "merge-base" && args[1] === "--is-ancestor") notAncestor();
-    if (args[0] === "rev-parse" && args[1] === "--verify") {
-      const expression = args[2] ?? "";
-      if (expression === "HEAD^{commit}") return result(`${oid("c")}\n`);
-      const head = expression.match(/^([0-9a-f]+)\^\{commit\}$/u)?.[1];
-      if (head !== undefined && trees.has(head)) return result(`${head}\n`);
-    }
-    if (args[0] === "rev-parse") {
-      const head = args[1]?.match(/^([0-9a-f]+)\^\{tree\}$/u)?.[1];
-      const tree = head === undefined ? undefined : trees.get(head);
-      if (tree !== undefined) return result(`${tree}\n`);
-    }
-    if (args[0] === "merge-tree" && args.includes("--name-only")) return result(`${oid("5")}\0`);
-    if (args[0] === "merge-tree") return result(`${oid("9")}\n`);
-    throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
-  };
+  return scriptRawGitExec([
+    { match: ["merge-base", "--all", oid("a"), oid("b")], responses: [result(`${oid("1")}\n`)] },
+    { match: { prefix: ["merge-base", "--is-ancestor"] }, responses: [divergent] },
+    { match: ["rev-parse", "--verify", "HEAD^{commit}"], responses: [result(`${oid("c")}\n`)] },
+    {
+      match: { predicate: (args) => args[0] === "rev-parse" && args[1] === "--verify"
+        && /^([0-9a-f]+)\^\{commit\}$/u.test(args[2] ?? "")
+        && trees.has(args[2]?.replace(/\^\{commit\}$/u, "") ?? "") },
+      responses: [({ args }) => result(`${args[2]?.replace(/\^\{commit\}$/u, "")}\n`)],
+    },
+    {
+      match: { predicate: (args) => args[0] === "rev-parse"
+        && /^([0-9a-f]+)\^\{tree\}$/u.test(args[1] ?? "")
+        && trees.has(args[1]?.replace(/\^\{tree\}$/u, "") ?? "") },
+      responses: [({ args }) => result(`${trees.get(args[1]?.replace(/\^\{tree\}$/u, "") ?? "")}\n`)],
+    },
+    { match: { predicate: (args) => args[0] === "merge-tree" && args.includes("--name-only") },
+      responses: [result(`${oid("5")}\0`)] },
+    { match: { prefix: ["merge-tree"] }, responses: [result(`${oid("9")}\n`)] },
+  ]).exec;
 }
 
 describe("Git Candidate applicability", () => {
@@ -95,12 +94,9 @@ describe("Git Candidate applicability", () => {
   });
 
   it("stops as unavailable when no baseline-to-current merge base exists", async () => {
-    const exec: RawGitExec = async (args) => {
-      if (args[0] === "merge-base") {
-        throw { exitCode: 1, stdout: bytes(""), stderr: bytes("") };
-      }
-      throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
-    };
+    const { exec } = scriptRawGitExec([
+      { match: { prefix: ["merge-base"] }, responses: [divergent] },
+    ]);
 
     await expect(projectGitCandidateApplicability({
       request: request(),
@@ -114,11 +110,10 @@ describe("Git Candidate applicability", () => {
   });
 
   it("stops as unavailable when the baseline-to-current merge base is ambiguous", async () => {
-    const exec: RawGitExec = async (args) => {
-      if (args[0] === "merge-base" && args[1] === "--is-ancestor") notAncestor();
-      if (args[0] === "merge-base") return result(`${oid("1")}\n${oid("2")}\n`);
-      throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
-    };
+    const { exec } = scriptRawGitExec([
+      { match: { prefix: ["merge-base", "--is-ancestor"] }, responses: [divergent] },
+      { match: { prefix: ["merge-base"] }, responses: [result(`${oid("1")}\n${oid("2")}\n`)] },
+    ]);
 
     await expect(projectGitCandidateApplicability({
       request: request(),
@@ -136,13 +131,12 @@ describe("Git Candidate applicability", () => {
    * question stays open, so the classification stops rather than reading the silence as divergence.
    */
   it("stops when the containment question cannot be answered at all", async () => {
-    const exec: RawGitExec = async (args) => {
-      if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
-        throw { exitCode: 128, stdout: bytes(""), stderr: bytes("fatal: bad object\n") };
-      }
-      if (args[0] === "merge-base") return result(`${oid("1")}\n`);
-      throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
-    };
+    const { exec } = scriptRawGitExec([
+      { match: { prefix: ["merge-base", "--is-ancestor"] }, responses: [{ failure: {
+        exitCode: 128, stdout: bytes(""), stderr: "fatal: bad object\n",
+      } }] },
+      { match: { prefix: ["merge-base"] }, responses: [result(`${oid("1")}\n`)] },
+    ]);
 
     await expect(projectGitCandidateApplicability({
       request: request(),
@@ -157,10 +151,9 @@ describe("Git Candidate applicability", () => {
   });
 
   it("stops malformed merge-base evidence separately from Git failure", async () => {
-    const exec: RawGitExec = async (args) => {
-      if (args[0] === "merge-base") return result("not-an-object-id\n");
-      throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
-    };
+    const { exec } = scriptRawGitExec([
+      { match: { prefix: ["merge-base"] }, responses: [result("not-an-object-id\n")] },
+    ]);
 
     await expect(projectGitCandidateApplicability({
       request: request(),
@@ -174,10 +167,9 @@ describe("Git Candidate applicability", () => {
   });
 
   it("stops malformed UTF-8 evidence separately from Git failure", async () => {
-    const exec: RawGitExec = async (args) => {
-      if (args[0] === "merge-base") return { stdout: new Uint8Array([0xff]) };
-      throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
-    };
+    const { exec } = scriptRawGitExec([
+      { match: { prefix: ["merge-base"] }, responses: [{ stdout: new Uint8Array([0xff]) }] },
+    ]);
 
     await expect(projectGitCandidateApplicability({
       request: request(),

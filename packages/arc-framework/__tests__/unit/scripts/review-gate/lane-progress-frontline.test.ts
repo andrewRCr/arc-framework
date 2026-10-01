@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
 
+import { CanonicalDigestSchema } from "../../../../src/lib/kernel/index.js";
+
 
 
 import { type ReviewOperationState } from "../../../../src/scripts/review-gate/core/operation-state-schema.js";
+import { FrontlineExecutionOutcomeSchema } from "../../../../src/scripts/review-gate/policy/frontline-outcome.js";
 import { createReviewTarget } from "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { createFrontlineAdmission } from "../../../../src/scripts/review-gate/core/frontline-admission.js";
 import { frontlineLaneOutcome, recordFrontlineAttempt, readCandidateInheritedLaneProgress, readLaneProgress, readLaneProgressAcrossLineage, recordLaneAttempt, settleLaneAttempt } from "../../../../src/scripts/review-gate/lane-progress.js";
 
 import { reduceReviewRouting } from "../../../../src/scripts/review-gate/policy/routing.js";
 
+const digest = (value: string) => CanonicalDigestSchema.parse(value);
 const objectId = (character: string): string => character.repeat(40);
 function createStore() {
   const records = new Map<string, { version: number; state: ReviewOperationState }>();
@@ -60,7 +64,7 @@ const frontlineTarget = createReviewTarget({
 });
 const frontlineLineage = {
   kind: "candidate" as const,
-  candidateId: `sha256:${"1".repeat(64)}`,
+  candidateId: digest(`sha256:${"1".repeat(64)}`),
 };
 const frontlineSource = {
   sourceId: "coderabbit",
@@ -127,7 +131,7 @@ function frontlineOutcome(
   outcome: string,
   reason: { class: string } | null,
 ): Parameters<typeof recordFrontlineAttempt>[1]["outcome"] {
-  return {
+  return FrontlineExecutionOutcomeSchema.parse({
     schemaVersion: 1,
     semanticsVersion: "frontline-review/v1",
     source: frontlineSource,
@@ -137,6 +141,21 @@ function frontlineOutcome(
     outcome,
     findings: [],
     reason,
+  });
+}
+
+/** Exercise lane recording with no finding payload; this consumer reads only verdict metadata. */
+function partialFindingsOutcome(): Parameters<typeof recordFrontlineAttempt>[1]["outcome"] {
+  return {
+    schemaVersion: 1,
+    semanticsVersion: "frontline-review/v1",
+    source: frontlineSource,
+    target: frontlineTarget,
+    pass: 1,
+    maxPasses: 2,
+    outcome: "findings",
+    findings: [],
+    reason: null,
   } as unknown as Parameters<typeof recordFrontlineAttempt>[1]["outcome"];
 }
 
@@ -145,9 +164,9 @@ describe("frontline lane recording", () => {
     const store = createStore();
     const admission = await recordPendingFrontline(store);
     await recordFrontlineAttempt(store, {
-      admission, outcome: frontlineOutcome("findings", null), now: "2026-08-15T12:00:00Z",
+      admission, outcome: partialFindingsOutcome(), now: "2026-08-15T12:00:00Z",
     });
-    const dispositionSetId = `sha256:${"9".repeat(64)}`;
+    const dispositionSetId = digest(`sha256:${"9".repeat(64)}`);
     await settleLaneAttempt(store, {
       lane: "frontline", repositoryId: frontlineTarget.repositoryId,
       headSha: frontlineTarget.headSha, lineage: frontlineLineage,
@@ -230,7 +249,7 @@ describe("frontline lane recording", () => {
     const admission = await recordPendingFrontline(store);
     const state = await recordFrontlineAttempt(store, {
       admission,
-      outcome: frontlineOutcome("findings", null),
+      outcome: partialFindingsOutcome(),
       now: "2026-08-15T12:00:00Z",
     });
     expect(state?.completedPasses).toBe(1);
@@ -248,7 +267,7 @@ describe("frontline lane recording", () => {
     const retry = frontlineAdmission(1);
     const state = await recordFrontlineAttempt(store, {
       admission: retry,
-      outcome: frontlineOutcome("findings", null),
+      outcome: partialFindingsOutcome(),
       now: "2026-08-15T12:01:00Z",
     });
 
@@ -379,7 +398,7 @@ describe("lane progress reader", () => {
     const store = createStore();
     const lineage = {
       kind: "candidate" as const,
-      candidateId: `sha256:${"6".repeat(64)}`,
+      candidateId: digest(`sha256:${"6".repeat(64)}`),
     };
     await recordLaneAttempt(store, {
       ...attempt,

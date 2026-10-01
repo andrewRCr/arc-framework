@@ -5,7 +5,7 @@ import {
   sameDeliveryReviewMemberVehicle,
   type DeliveryReviewMemberVehicle,
 } from "../../../lib/delivery/review-vehicle.js";
-import { canonicalize } from "../../../lib/canonical/canonical-json.js";
+import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import type { DeliveryHostChangeRequest, DeliveryHostPort } from "../../../lib/delivery/host.js";
 import type { GitExec } from "../../../lib/git/index.js";

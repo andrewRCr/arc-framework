@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import { CanonicalDigestSchema, canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { createLocalChangeSetCarrier } from "../../../../../src/scripts/review-gate/core/local-carrier.js";
 
@@ -37,7 +37,10 @@ function fixture() {
       runtimeIdentity: "local-attestor-1",
       mechanism: "local-runtime",
     },
-    lineage: { kind: "candidate" as const, candidateId: "sha256:7777777777777777777777777777777777777777777777777777777777777777" },
+    lineage: {
+      kind: "candidate" as const,
+      candidateId: CanonicalDigestSchema.parse("sha256:7777777777777777777777777777777777777777777777777777777777777777"),
+    },
     logicalPass: 1,
     generation: 0,
     requestMechanism: "automatic",

@@ -18,6 +18,7 @@ import { composePreBindingDeliveryReviewTargets } from
   "../../src/scripts/review-gate/policy/pre-publication-delivery-targets.js";
 import { deliveryThreeMemberStackPlanFixture } from "../fixtures/delivery-plan.js";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 const execFileAsync = promisify(execFile);
 const roots: string[] = [];
@@ -49,13 +50,8 @@ describe("pre-publication delivery target composition", () => {
     await mkdir(join(root, ".arc", "active"), { recursive: true });
     await mkdir(join(root, ".arc", "system"), { recursive: true });
     await writeFile(join(root, ".arc", "system", "arc-config.yml"), "branch.base: main\n", "utf8");
-    await writeFile(join(root, ".arc", "active", `meta-${plan.workUnitId}.md`), [
-      `# Metadata: ${plan.workUnitId}`,
-      "",
-      "- **State:** Active",
-      `- **Branch:** feat/${plan.workUnitId}`,
-      "",
-    ].join("\n"), "utf8");
+    await writeFile(join(root, ".arc", "active", `meta-${plan.workUnitId}.md`),
+      makeMetaFixture(plan.workUnitId, { branch: `feat/${plan.workUnitId}` }), "utf8");
     await git(["add", ".arc/active"]);
     await git(["commit", "-m", "active work unit"]);
     const candidateDirectory = join(root, ".arc", "system", ".internal", "candidates");
@@ -130,13 +126,8 @@ describe("pre-publication delivery target composition", () => {
     });
 
     await git(["branch", "feat/foreign-top", publicationTop]);
-    await writeFile(join(root, ".arc", "active", `meta-${plan.workUnitId}.md`), [
-      `# Metadata: ${plan.workUnitId}`,
-      "",
-      "- **State:** Active",
-      "- **Branch:** feat/foreign-top",
-      "",
-    ].join("\n"), "utf8");
+    await writeFile(join(root, ".arc", "active", `meta-${plan.workUnitId}.md`),
+      makeMetaFixture(plan.workUnitId, { branch: "feat/foreign-top" }), "utf8");
     await git(["add", ".arc/active"]);
     await git(["commit", "-m", "move recorded top"]);
 

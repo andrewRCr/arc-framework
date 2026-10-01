@@ -36,6 +36,7 @@ export {
   validateManagedPath,
 } from "./canonical/managed-path.js";
 export {
+  CanonicalDigestSchema,
   PrioritySchema,
   RemoteEvidenceSchema,
   RemoteFailureReasonSchema,

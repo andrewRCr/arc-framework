@@ -29,10 +29,10 @@
  * @module
  */
 
-import { validateClass, type WorkClass } from "../../../commands/active/types.js";
+import { validateClass, type WorkClass } from "../../kernel/schema/vocabulary.js";
 import { formatValue, type MetaFieldName } from "../../active/meta-reader.js";
 import { resolveArcPath } from "../../layout/index.js";
-import { isSlugSafe } from "../slug.js";
+import { isSlugSafe } from "../../kernel/schema/slug.js";
 import type { ExecuteTransitionContext } from "../lifecycle-executor.js";
 
 /** The planning ceremony whose finalize facts are being written. */

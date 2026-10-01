@@ -642,7 +642,7 @@ function metaWorkUnitNameFromActive(path: string | null): string | null {
   return match?.[1] ?? null;
 }
 
-function projectDerivedActiveSession(frame: DerivedLocusFrame): ActiveSessionInitResult {
+export function projectDerivedActiveSession(frame: DerivedLocusFrame): ActiveSessionInitResult {
   const context = frame.active?.context ?? null;
   if (context === null) {
     return {

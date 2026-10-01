@@ -9,7 +9,7 @@
 
 import { posix } from "node:path";
 
-import { canonicalDigest, digestBytes } from "../canonical/canonical-json.js";
+import { canonicalDigest, digestBytes } from "../kernel/canonical/canonical-json.js";
 import {
   createV3DecomposeStarterMap,
   parseV3DecomposeStarterMap,

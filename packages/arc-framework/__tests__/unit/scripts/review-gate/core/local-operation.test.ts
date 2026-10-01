@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import { CanonicalDigestSchema, canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import { createReviewRequirement, createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import {
   createLocalReviewAdmission,
@@ -15,7 +15,7 @@ import { projectLocalReviewGuidance } from
   "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
 
 const objectId = (character: string): string => character.repeat(40);
-const digest = (value: string): string => canonicalDigest({ value });
+const digest = (value: string) => canonicalDigest({ value });
 
 function fixture() {
   const target = createReviewTarget({
@@ -103,7 +103,7 @@ describe("local review operation identity", () => {
       targetId: admission.target.targetId,
       requestId: admission.carrier.request.requestId,
       policyVersion: admission.requirement.policyVersion,
-      policyBindingDigest: admission.policyBindingDigest,
+      policyBindingDigest: CanonicalDigestSchema.parse(admission.policyBindingDigest),
       laneSourceId: admission.laneSourceId,
       lineage: admission.lineage,
       logicalPass: admission.logicalPass,
@@ -114,7 +114,7 @@ describe("local review operation identity", () => {
       sourceRef: "review-source.json",
       sourceDigest: digest("source"),
       guidance: guidance.projection,
-      guidanceDigest: guidance.guidanceDigest,
+      guidanceDigest: CanonicalDigestSchema.parse(guidance.guidanceDigest),
       reviewerInstructions: guidance.reviewerInstructions,
       target: admission.target,
       requirement: admission.requirement,

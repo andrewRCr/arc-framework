@@ -1,6 +1,6 @@
 /** Byte-preserving Git adapter for transition-record enumeration. */
 
-import type { RawGitExec } from "../change-facts.js";
+import type { RawGitExec } from "../git/exec.js";
 import {
   queryTransitionDisposition,
   type TransitionDispositionQuery,

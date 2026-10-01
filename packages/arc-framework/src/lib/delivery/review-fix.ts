@@ -1,6 +1,6 @@
 /** Provider-neutral routing and selected-member publication for delivery review fixes. */
 
-import { canonicalDigest, canonicalize } from "../kernel/index.js";
+import { canonicalDigest, canonicalize, type CanonicalDigest } from "../kernel/index.js";
 import type { DeliveryRevisionedRecord, DeliveryStateStore } from "./ports.js";
 import {
   deriveDeliveryRewriteLifecycleRevalidation,
@@ -172,7 +172,7 @@ export type DeliveryReviewFixBoundaryCarryResult =
   | {
       readonly status: "carried";
       readonly boundary: IntegrationBoundaryLocus;
-      readonly candidateId: string;
+      readonly candidateId: CanonicalDigest;
       readonly stateRevision: number;
     }
   | { readonly status: "refused"; readonly reason: string };
@@ -182,9 +182,9 @@ export function carryDeliveryReviewFixPublicBoundary(input: {
   readonly plan: DeliveryPlanV1;
   readonly state: DeliveryRevisionedRecord<DeliveryStateV1>;
   readonly boundary: IntegrationBoundaryLocus;
-  readonly candidateId: string;
+  readonly candidateId: CanonicalDigest;
   readonly sourceCandidateSubjectDigest: string;
-  readonly candidateSubjectDigest: string;
+  readonly candidateSubjectDigest: CanonicalDigest;
 }): DeliveryReviewFixBoundaryCarryResult {
   const boundary = input.boundary;
   if (boundary.mode !== "integration-boundary"

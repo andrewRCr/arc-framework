@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createHostedTerminalAttemptFixture } from "../../../../fixtures/hosted-review.js";
-import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import { canonicalDigest, CanonicalDigestSchema } from "../../../../../src/lib/kernel/index.js";
 import type { StandardReviewObligationProjection } from "../../../../../src/scripts/review-gate/policy/standard-review-projection-schema.js";
 
 import { createReviewReceipt, createReviewRequirement, createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
@@ -29,7 +29,7 @@ const routingFacts = {
 } as const;
 
 describe("local review member preparation", () => {
-    const DELIVERABLE_ID = `sha256:${"a".repeat(64)}`;
+    const DELIVERABLE_ID = CanonicalDigestSchema.parse(`sha256:${"a".repeat(64)}`);
     const PLAN_ID = "123e4567-e89b-42d3-a456-426614174000";
 
     function deliveryAdmission(head: string, correctionScope?: IncrementalReviewScope) {
@@ -255,7 +255,7 @@ describe("local review member preparation", () => {
 
     it("admits a local pass after a validated superseded Candidate without copying attempts", async () => {
       const context = fixture();
-      const ancestorId = `sha256:${"6".repeat(64)}`;
+      const ancestorId = CanonicalDigestSchema.parse(`sha256:${"6".repeat(64)}`);
       await recordLaneAttempt(context.dependencies.operationStore, {
         lane: "standard",
         repositoryId: "repo-1",
@@ -1255,7 +1255,7 @@ describe("local review member preparation", () => {
           },
           now: "2026-08-06T18:00:00Z",
         });
-        const dispositionSetId = `sha256:${"6".repeat(64)}`;
+        const dispositionSetId = CanonicalDigestSchema.parse(`sha256:${"6".repeat(64)}`);
         const captured = await captureConditionalNextPassAuthorization(
           context.dependencies.operationStore,
           {
@@ -1458,7 +1458,7 @@ describe("local review member preparation", () => {
       }),
       resolveLineage: async () => ({
         kind: "candidate" as const,
-        candidateId: `sha256:${"7".repeat(64)}`,
+        candidateId: CanonicalDigestSchema.parse(`sha256:${"7".repeat(64)}`),
       }),
       resolveSupersessionAncestors: async () => [],
       composeAssurance: async () => ({
@@ -1595,7 +1595,7 @@ describe("local review member preparation", () => {
         }),
         resolveLineage: async () => ({
           kind: "candidate" as const,
-          candidateId: `sha256:${"7".repeat(64)}`,
+          candidateId: CanonicalDigestSchema.parse(`sha256:${"7".repeat(64)}`),
         }),
         resolveSupersessionAncestors: async () => [],
         composeAssurance: async () => ({

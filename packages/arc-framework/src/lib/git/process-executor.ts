@@ -7,7 +7,7 @@
 import { execa } from "execa";
 
 import type { InteractionContext } from "../command-input/interaction-context.js";
-import type { RawGitExec } from "../change-facts.js";
+import type { RawGitExec } from "./exec.js";
 import type { GitExec, GitExecInput } from "./exec.js";
 import { normalizeGitRejection } from "./process-error.js";
 

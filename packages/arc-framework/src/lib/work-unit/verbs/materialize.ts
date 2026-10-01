@@ -13,7 +13,7 @@ import {
   type TransitionInputs,
 } from "../lifecycle-executor.js";
 import type { LifecycleIndex } from "../lifecycle-index.js";
-import { isSlugSafe } from "../slug.js";
+import { isSlugSafe } from "../../kernel/schema/slug.js";
 
 /** Default spawned materialize — create a local branch from `origin/<branch>` in a fresh worktree. */
 export interface MaterializeSpawnParams {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { digestBytes } from "../../../src/lib/canonical/canonical-json.js";
+import { digestBytes } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import {
   planGitV3RetirementDelta,

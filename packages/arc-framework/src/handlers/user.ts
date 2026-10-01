@@ -27,7 +27,7 @@ import {
 } from "../commands/user.js";
 import { isRefusalCondition } from "../lib/git/index.js";
 import { normalizeCommandIdentity } from "../lib/command-input/identity.js";
-import { SlugSchema } from "../lib/kernel/index.js";
+import { CanonicalDigestSchema, SlugSchema } from "../lib/kernel/index.js";
 import {
   declareCliOperandSite,
   declareCliOptionSite,
@@ -37,9 +37,10 @@ import {
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { resolveInboxEntryOperand } from "../lib/inbox-entry-operand.js";
 import { resolveCurrentWuName } from "../lib/user-sync/index.js";
-import { formatError, UserFacingError, type ArcErrorCode } from "../lib/errors.js";
+import { formatError, UserFacingError } from "../lib/errors.js";
+import { type ArcErrorCode } from "../lib/kernel/errors.js";
 import { getInternalTemplatePath, resolveArcRoot } from "../lib/paths.js";
-import { createRawGitExec, createUserIOContext } from "../lib/io-context.js";
+import { createGitExec, createRawGitExec, createUserIOContext } from "../lib/io-context.js";
 import { atomicWriteFile } from "../lib/fs.js";
 import {
   resolveProcessInteractionContext,
@@ -89,7 +90,7 @@ export async function handleUserReconcileReferences(
 ): Promise<void> {
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
-  const identity = SlugSchema.parse(await resolveUserIdentity());
+  const identity = SlugSchema.parse(await resolveUserIdentity(createGitExec()));
   const io = createUserIOContext(context?.subprocess);
   const exec: GitExec = (cmd, args, options) => io.exec(cmd, args, { ...options, cwd });
   const transitionExec = createRawGitExec(cwd);
@@ -255,7 +256,7 @@ export async function handleUserOpen(
 
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(createGitExec());
   } catch (err) {
     if (isHandledError(err)) return;
     throw err;
@@ -361,7 +362,7 @@ export async function handleUserClose(wuName: string): Promise<void> {
 
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(createGitExec());
   } catch (err) {
     if (isHandledError(err)) return;
     throw err;
@@ -437,7 +438,7 @@ export async function handleUserInboxRemove(
 
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(createGitExec(context?.subprocess));
   } catch (err) {
     if (isHandledError(err)) return;
     throw err;
@@ -489,7 +490,7 @@ export const UserInboxMarkExecuteBoundResultSchema = z.discriminatedUnion("state
       changed: z.boolean(),
       orderedTitles: z.array(z.string().min(1)).min(1),
       outcomes: z.array(InboxMutationOutcomeSchema).min(1),
-      postImageDigest: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+      postImageDigest: CanonicalDigestSchema,
     }),
   }),
   z.strictObject({
@@ -562,7 +563,7 @@ export async function handleUserInboxMarkExecuteBound(
   }
 
   try {
-    const identity = await resolveUserIdentity();
+    const identity = await resolveUserIdentity(createGitExec(context?.subprocess));
     const result = await markCurrentInboxEntriesExecuteBound({
       cwd,
       io: createUserIOContext(context?.subprocess),
@@ -620,7 +621,7 @@ export async function handleUserSave(): Promise<void> {
 
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(createGitExec());
   } catch (err) {
     if (isHandledError(err)) return;
     throw err;
@@ -672,7 +673,7 @@ export async function handleUserLoad(
 
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(createGitExec());
   } catch (err) {
     if (isHandledError(err)) return;
     throw err;
@@ -748,7 +749,7 @@ export async function handleUserPush(
 
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(createGitExec());
   } catch (err) {
     if (isHandledError(err)) return;
     throw err;
@@ -855,7 +856,7 @@ export async function handleUserFetch(
     p.log.info(`Fetching notes for identity: ${identity}`);
   } else {
     try {
-      identity = await resolveUserIdentity();
+      identity = await resolveUserIdentity(createGitExec());
     } catch (err) {
       if (isHandledError(err)) return;
       throw err;
@@ -1030,7 +1031,7 @@ export async function handleUserPull(
     p.log.info(`Pulling notes for identity: ${identity}`);
   } else {
     try {
-      identity = await resolveUserIdentity();
+      identity = await resolveUserIdentity(createGitExec());
     } catch (err) {
       if (isHandledError(err)) return;
       throw err;
@@ -1113,7 +1114,7 @@ export async function handleUserCompact(
 
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(createGitExec());
   } catch (err) {
     if (err instanceof UserFacingError) {
       emitStatusError(json, output, err.code, err.message, err);
@@ -1205,7 +1206,7 @@ export async function handleUserStatus(
 
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(createGitExec());
   } catch (err) {
     if (err instanceof UserFacingError) {
       emitStatusError(json, output, err.code, err.message, err);

@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { deliveryPlanFixture } from "../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../fixtures/delivery-state.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { deriveDeliveryPlanDigest } from "../../src/lib/delivery/plan.js";
 import type { DeliveryPlanV1 } from "../../src/lib/delivery/schema.js";
 import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
@@ -209,12 +210,6 @@ async function installActiveWorkUnit(
   workUnitId = "delivery-plan-record",
 ): Promise<void> {
   await mkdir(join(repository, ".arc", "active"), { recursive: true });
-  await writeFile(join(repository, ".arc", "active", `meta-${workUnitId}.md`), [
-    `# Metadata: ${workUnitId}`,
-    "",
-    "- **State:** Active",
-    `- **Branch:** feat/${workUnitId}`,
-    `- **Task List:** \`tasks-${workUnitId}.md\``,
-    "",
-  ].join("\n"));
+  await writeFile(join(repository, ".arc", "active", `meta-${workUnitId}.md`),
+    makeMetaFixture(workUnitId, { branch: `feat/${workUnitId}`, taskList: `tasks-${workUnitId}.md` }));
 }

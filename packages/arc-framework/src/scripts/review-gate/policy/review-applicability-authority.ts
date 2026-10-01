@@ -1,6 +1,6 @@
 /** Shared authority-aware reduction consumed by review request and discharge paths. */
 
-import { canonicalize } from "../../../lib/canonical/canonical-json.js";
+import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
 import type { CandidateReviewApplicabilitySelectionV1 } from
   "../../../lib/work-unit/candidate-attestation.js";
 import type {

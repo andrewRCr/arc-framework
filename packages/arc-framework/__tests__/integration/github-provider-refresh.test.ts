@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   deriveDeliveryProviderRefreshSubject,
 } from "../../src/lib/delivery/provider-refresh-observation.js";
-import { createRawGitExec } from "../../src/lib/change-facts.js";
+import { createSpawnRawGitExec } from "../../src/lib/change-facts.js";
 import {
   proveGitDeliveryProviderRefreshContribution,
 } from "../../src/lib/delivery/git-contribution-proof.js";
@@ -290,7 +290,7 @@ describe("GitHub provider refresh preparation", () => {
       throw new Error("first dependent movement must be available");
     }
     const proof = await proveGitDeliveryProviderRefreshContribution({
-      exec: createRawGitExec(repository),
+      exec: createSpawnRawGitExec(repository),
       before: {
         predecessor: await coordinate(beforeMember.base),
         member: { head: beforeMember.head, tree: beforeMember.tree },

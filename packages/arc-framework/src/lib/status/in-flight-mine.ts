@@ -22,7 +22,7 @@
  * @module
  */
 
-import { validateClass, validatePriority } from "../../commands/active/types.js";
+import { validateClass, validatePriority } from "../kernel/schema/vocabulary.js";
 import type { InFlightEntry, InFlightWorkUnit } from "../git/in-flight-derivation.js";
 
 import type { StatusViewRow } from "./render.js";

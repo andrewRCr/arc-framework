@@ -6,9 +6,9 @@ import {
   affectedPaths,
   resolveChangeSet,
   type ChangeSet,
-  type RawGitExec,
 } from "../change-facts.js";
 import { ChangeSetSchema } from "../change-facts.schema.js";
+import type { RawGitExec } from "../git/exec.js";
 import {
   supportsMergeTreeWriteTree,
   type MergeTreeCapabilityRefusalReason,

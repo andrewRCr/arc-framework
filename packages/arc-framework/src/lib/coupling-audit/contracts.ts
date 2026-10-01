@@ -4,7 +4,7 @@
  * @module
  */
 
-import { canonicalize, digestBytes } from "../canonical/canonical-json.js";
+import { canonicalize, digestBytes } from "../kernel/canonical/canonical-json.js";
 import type {
   CouplingIdiom,
   CouplingManifest,

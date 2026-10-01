@@ -34,7 +34,7 @@ import {
   type WorktreeSubject,
 } from "../../../src/lib/git/worktree-marker.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
-import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest } from "../../../src/lib/kernel/canonical/canonical-json.js";
 
 describe("worktree-marker", () => {
   let cwd: string;
@@ -71,6 +71,27 @@ describe("worktree-marker", () => {
 
   it("tolerates an absent marker — a missing file reads as 'no marker', not an error", async () => {
     expect(await readWorktreeMarker(cwd)).toEqual({ kind: "absent" });
+  });
+
+  it("reads an absent marker under a decomposed native root", async () => {
+    const nativeRoot = join(cwd, "cafe\u0301");
+    await mkdir(nativeRoot);
+
+    expect(await readWorktreeMarker(nativeRoot)).toEqual({ kind: "absent" });
+    expect(await readWorktreeMarkerGeneration(nativeRoot)).toEqual({ kind: "absent" });
+  });
+
+  it("writes and reads a marker at the original decomposed native root", async () => {
+    const nativeRoot = join(cwd, "cafe\u0301");
+    await mkdir(nativeRoot);
+    await writeWorktreeMarker(nativeRoot, sampleMarker);
+
+    const raw = await readFile(join(nativeRoot, ".arc", "system", ".internal", "worktree-marker.json"), "utf8");
+    expect(JSON.parse(raw)).toEqual(sampleMarker);
+    expect(await readWorktreeMarker(nativeRoot)).toEqual({ kind: "present", marker: sampleMarker });
+    expect(await readWorktreeMarkerGeneration(nativeRoot)).toEqual({
+      kind: "present", marker: sampleMarker, bytes: Buffer.from(raw),
+    });
   });
 
   it("reports invalid marker JSON as malformed", async () => {

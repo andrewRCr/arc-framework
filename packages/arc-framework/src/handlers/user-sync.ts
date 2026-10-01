@@ -30,7 +30,7 @@ import {
 import { isRefusalCondition } from "../lib/git/index.js";
 import { resolveCurrentWuName } from "../lib/user-sync/index.js";
 import { runMaterializingWorktreeInspection } from "../lib/git/worktree-sync.js";
-import { createUserIOContext } from "../lib/io-context.js";
+import { createGitExec, createUserIOContext } from "../lib/io-context.js";
 import {
   resolveProcessInteractionContext,
   type InteractionContext,
@@ -124,7 +124,7 @@ export async function handleUserSync(
 
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(createGitExec());
   } catch (err) {
     if (isHandledError(err)) return;
     throw err;

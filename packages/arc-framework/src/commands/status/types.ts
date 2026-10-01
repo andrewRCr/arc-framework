@@ -45,7 +45,7 @@ import type {
 } from "../../lib/git/worktree-sync.js";
 import type {
   BaseDistanceSnapshotAnalysisResult,
-  BaseDistanceStatusResult,
+  BaseDistanceNotApplicableResult,
 } from "../../lib/git/base-distance.js";
 import type {
   BaseBranchSnapshotAnalysisResult,
@@ -114,22 +114,16 @@ export type SessionInitWorktreeValue = (
    * swaps its generic reconcile for the lossless-reset offer carried in
    * `recommendedPromptText`.
    */
-  supersession: SupersessionResult | null;
+  supersession: SupersessionResult | SupersessionSnapshotAnalysisResult | null;
 };
 
 /**
  * A base-distance reading that resolved before any snapshot evidence was consulted.
  *
- * Bounded to exactly those arms: unbounded, the intersection also admitted
- * `remote-unavailable` with `not-applicable`, which the envelope rule refuses — so a
- * probe could satisfy the type and still fail the contract at runtime. Named once
- * because the probe signature and the envelope value state the same contract, and
- * two copies of it drifted from the schema.
+ * Bounded by the owning strict schema to skipped, no-remote, and detached-head.
+ * The probe signature and envelope value share that same contract.
  */
-export type BaseDistanceNotApplicableResult = BaseDistanceStatusResult & {
-  state: "skipped" | "no-remote" | "detached-head";
-  remoteEvidence: "not-applicable";
-};
+export type { BaseDistanceNotApplicableResult } from "../../lib/git/base-distance.js";
 
 /**
  * Base-distance slot in the session-init envelope. Extends the raw probe

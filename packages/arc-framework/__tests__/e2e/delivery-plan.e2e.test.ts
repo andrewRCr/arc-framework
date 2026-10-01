@@ -9,6 +9,7 @@ import { createCandidateAttestation, type CandidateManagedRecordV1 } from
   "../../src/lib/work-unit/candidate-attestation.js";
 import { writeCandidateRecord } from "../../src/lib/work-unit/candidate-record-store.js";
 import { collectCandidateSubjectTarget } from "../helpers/candidate-subject.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { writeSubmissionBoundary } from "../../src/lib/work-unit/submission-boundary-store.js";
 import { createGitExec } from "../../src/lib/io-context.js";
 import { projectDeliveryPublicReviewContinuation } from
@@ -237,13 +238,7 @@ describe("arc delivery", () => {
     const branch = await git(repository, ["branch", "--show-current"]);
     const metaPath = `.arc/active/meta-${plan.workUnitId}.md`;
     await mkdir(join(repository, ".arc", "active"), { recursive: true });
-    await writeFile(join(repository, metaPath), [
-      `# Metadata: ${plan.workUnitId}`,
-      "",
-      "- **State:** Active",
-      `- **Branch:** ${branch}`,
-      "",
-    ].join("\n"));
+    await writeFile(join(repository, metaPath), makeMetaFixture(plan.workUnitId, { branch }));
     await git(repository, ["add", metaPath]);
     await git(repository, ["commit", "-m", "add delivery work unit"]);
 
@@ -296,19 +291,13 @@ describe("arc delivery", () => {
       await git(repository, ["update-ref", candidateRef, head]);
       const metaPath = `.arc/active/meta-${plan.workUnitId}.md`;
       await mkdir(join(repository, ".arc", "active"), { recursive: true });
-      await writeFile(join(repository, metaPath), [
-        `# Metadata: ${plan.workUnitId}`,
-        "",
-        "- **State:** Integrating",
-        "- **Owner:** test-user",
-        `- **Branch:** ${branch}`,
-        "- **Candidate:** [none]",
-        "- **Current Workflow:** `integrate-work-unit`",
-        "- **Last Completed:** [none]",
-        "- **Next Task:** [none]",
-        "- **Next Action:** Close delivery eligibility",
-        "",
-      ].join("\n"));
+      await writeFile(join(repository, metaPath), makeMetaFixture(plan.workUnitId, {
+        state: "Integrating",
+        owner: "test-user",
+        branch,
+        currentWorkflow: "integrate-work-unit",
+        nextAction: "Close delivery eligibility",
+      }));
       const lifecyclePaths = [
         metaPath,
         ".arc/backlog/ROADMAP.md",
@@ -1257,15 +1246,11 @@ describe("arc delivery", () => {
     const base = await git(repository, ["rev-parse", "HEAD"]);
     await git(repository, ["checkout", "-b", "feature"]);
     await writeFile(join(repository, "contribution.txt"), "branch contribution\n");
-    await writeFile(join(repository, ".arc", "active", "meta-demo.md"), [
-      "# Metadata: demo",
-      "",
-      "- **State:** Active",
-      "- **Branch:** feat/demo",
-      "- **Task List:** `tasks-demo.md`",
-      "- **Next Action:** Author delivery boundaries",
-      "",
-    ].join("\n"));
+    await writeFile(join(repository, ".arc", "active", "meta-demo.md"), makeMetaFixture("demo", {
+      branch: "feat/demo",
+      taskList: "tasks-demo.md",
+      nextAction: "Author delivery boundaries",
+    }));
     await git(repository, ["add", "--", "contribution.txt", ".arc/active/meta-demo.md"]);
     await git(repository, ["commit", "-m", [
       "branch contribution",
@@ -1750,13 +1735,8 @@ describe("arc delivery", () => {
 
   it("emits a typed integrity refusal and abandons the pair idempotently", async () => {
     await mkdir(join(repository, ".arc", "active"), { recursive: true });
-    await writeFile(join(repository, ".arc", "active", "meta-demo.md"), [
-      "# Metadata: demo",
-      "",
-      "- **State:** Active",
-      "- **Branch:** feat/demo",
-      "",
-    ].join("\n"));
+    await writeFile(join(repository, ".arc", "active", "meta-demo.md"),
+      makeMetaFixture("demo", { branch: "feat/demo" }));
     const common = resolve(repository, await git(repository, ["rev-parse", "--git-common-dir"]));
     const authoring = join(common, "arc", "delivery", "authoring");
     await mkdir(authoring, { recursive: true });
@@ -1821,15 +1801,11 @@ async function gitCommonDir(repository: string): Promise<string> {
 
 async function installTaskFixture(repository: string, includeSecondTask = false): Promise<void> {
   await mkdir(join(repository, ".arc", "active"), { recursive: true });
-  await writeFile(join(repository, ".arc", "active", "meta-demo.md"), [
-    "# Metadata: demo",
-    "",
-    "- **State:** Active",
-    "- **Branch:** feat/demo",
-    "- **Design:** `spec-demo.md`",
-    "- **Task List:** `tasks-demo.md`",
-    "",
-  ].join("\n"));
+  await writeFile(join(repository, ".arc", "active", "meta-demo.md"), makeMetaFixture("demo", {
+    branch: "feat/demo",
+    design: ["spec-demo.md"],
+    taskList: "tasks-demo.md",
+  }));
   await writeFile(join(repository, ".arc", "active", "tasks-demo.md"), [
     "# Task List: Demo",
     "",

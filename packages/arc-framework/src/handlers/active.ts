@@ -28,7 +28,7 @@ import {
 } from "../lib/git/in-flight-derivation.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
-import { createGitExec, gitExecInput } from "../lib/io-context.js";
+import { createGitExec, createGitExecInput } from "../lib/io-context.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
@@ -110,7 +110,7 @@ export async function handleActiveRoster(
   if (!cwd) return;
   const exec = createGitExec(interaction?.subprocess);
 
-  const identity = await resolveIdentityWithPrompt(false);
+  const identity = await resolveIdentityWithPrompt(false, exec);
   const { settings } = await readConfigSettings(cwd);
   const teamMode = settings["team.mode"] === "true";
 
@@ -149,7 +149,7 @@ export async function handleActiveInFlight(
   if (!cwd) return;
   const exec = createGitExec(interaction?.subprocess);
 
-  const identity = await resolveIdentityWithPrompt(false);
+  const identity = await resolveIdentityWithPrompt(false, exec);
   const { settings } = await readConfigSettings(cwd);
   const teamMode = settings["team.mode"] === "true";
   const localOnly = Boolean(opts.local) || opts.fetch === false;
@@ -165,7 +165,7 @@ export async function handleActiveInFlight(
 
   const result = await runActiveInFlightExpansion({
     exec,
-    execInput: gitExecInput,
+    execInput: createGitExecInput(interaction?.subprocess),
     cwd,
     identity,
     teamMode,

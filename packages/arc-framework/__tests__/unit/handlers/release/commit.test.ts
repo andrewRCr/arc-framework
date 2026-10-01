@@ -18,13 +18,14 @@ import { tmpdir } from "node:os";
 
 import { runReleaseCommit } from "../../../../src/handlers/release/commit.js";
 import type { ReleaseCommitDeps } from "../../../../src/handlers/release/commit.js";
-import type { AuditEntry } from "../../../../src/lib/release/types.js";
+import { AuditEntrySchema, type AuditEntry } from "../../../../src/lib/release/schema.js";
 import type {
   CommitInterlock,
   PushInterlock,
   ResolvedSettingsResult,
 } from "../../../../src/lib/config/resolved-settings.js";
-import type { ConfigSettings } from "../../../../src/commands/config/types.js";
+import type { ConfigSettings } from "../../../../src/lib/config/schema.js";
+import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 
 // --- Fixture helpers ---
 
@@ -40,15 +41,11 @@ async function createFixture(): Promise<Fixture> {
   return { root };
 }
 
-function statusBody(state = "Active"): string {
-  return [
-    "# Metadata: Sample",
-    "",
-    `- **State:** ${state}`,
-    "- **Branch:** technical/sample",
-    "- **Task List:** `tasks-sample.md`",
-    "",
-  ].join("\n");
+function statusBody(): string {
+  return makeMetaFixture("Sample", {
+    branch: "technical/sample",
+    taskList: "tasks-sample.md",
+  });
 }
 
 async function writeStatus(
@@ -186,7 +183,7 @@ async function readAuditEntries(root: string): Promise<AuditEntry[]> {
   return raw
     .split("\n")
     .filter((line) => line.length > 0)
-    .map((line) => JSON.parse(line) as AuditEntry);
+    .map((line) => AuditEntrySchema.parse(JSON.parse(line)));
 }
 
 // --- Code 12: destructive flag (cheapest — argv only, no I/O) ---

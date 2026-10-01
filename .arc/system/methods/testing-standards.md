@@ -42,6 +42,12 @@ Applied on top of `.default` (`override-mode: extend`) — the universal princip
   rather than by line count; a module offering no such seam is evidence the source wants decomposition.
 - **Project fail-first reconstruction** — apply `.default`'s reconstruct-and-revert procedure by changing only the
   narrow behavior under test and preserving every export and signature the test needs.
+- **Shared contract test support** — use `__tests__/helpers/git-exec-fake.ts` to script `GitExec`, `GitExecInput`,
+  and `RawGitExec` by arguments or response sequence; build typed failures with its `makeGitProcessError` fixture.
+  Build semantic meta Markdown with `makeMetaFixture` in `__tests__/helpers/meta-fixture.ts`, and assert schema
+  acceptance or refusal with `assertSchemaAccepts` / `assertSchemaRefuses` in
+  `__tests__/helpers/schema-assertion.ts`. Keep constant one-response stubs, real-Git doubles, fault-injecting
+  hybrids, and scenario simulators local to their tests.
 
 ## testing-standards.default
 

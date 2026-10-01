@@ -1,6 +1,7 @@
 /** Unit coverage for total evidence-delta composition. */
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   EvidenceDeltaProducerSchema,
@@ -12,7 +13,7 @@ import {
 } from "../../../src/lib/evidence-applicability/index.js";
 
 const oid = (character: string): string => character.repeat(40);
-const digest = (character: string): string => `sha256:${character.repeat(64)}`;
+const digest = (character: string): `sha256:${string}` => `sha256:${character.repeat(64)}`;
 const coordinates = (base = oid("a"), head = oid("b")) => ({
   repository: "owner/repo",
   changeRequest: 42,
@@ -155,13 +156,13 @@ describe("evidence delta composition", () => {
         coordinates: coordinates(),
       },
     });
-    expect(EvidenceDeltaSchema.safeParse({
+    assertSchemaRefuses(EvidenceDeltaSchema, {
       ...movement,
       hostAdmission: {
         ...movement.hostAdmission,
         coordinates: { ...coordinates(), changeRequest: 99 },
       },
-    }).success).toBe(false);
+    });
 
     const before = coordinates(oid("a"), oid("b"));
     const after = coordinates(oid("c"), oid("b"));
@@ -172,13 +173,13 @@ describe("evidence delta composition", () => {
       overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
       hostAdmission: { state: "mergeable", coordinates: after },
     });
-    expect(EvidenceDeltaSchema.safeParse({
+    assertSchemaRefuses(EvidenceDeltaSchema, {
       ...merge,
       hostAdmission: {
         ...merge.hostAdmission,
         coordinates: { ...after, repository: "other/repo" },
       },
-    }).success).toBe(false);
+    });
   });
 
   it("maps D4 proof relations and preserves only bounded residuals", () => {
@@ -277,15 +278,15 @@ describe("evidence delta composition", () => {
         overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
       },
     });
-    expect(EvidenceDeltaSchema.safeParse({ ...normalized, extra: true }).success).toBe(false);
-    expect(EvidenceDeltaSchema.safeParse({
+    assertSchemaRefuses(EvidenceDeltaSchema, { ...normalized, extra: true });
+    assertSchemaRefuses(EvidenceDeltaSchema, {
       ...normalized,
       overlap: {
         kind: "disjoint",
         substantivePaths: ["unexpected.ts"],
         regenerablePaths: [],
       },
-    }).success).toBe(false);
+    });
   });
 
   it("rejects paths classified as both substantive and regenerable", () => {
@@ -313,7 +314,7 @@ describe("evidence delta composition", () => {
         },
       },
     });
-    expect(EvidenceDeltaSchema.safeParse({
+    assertSchemaRefuses(EvidenceDeltaSchema, {
       ...normalized,
       overlap: {
         kind: "overlapping",
@@ -321,7 +322,7 @@ describe("evidence delta composition", () => {
         regenerablePaths: [duplicatedPath],
       },
       residual: [duplicatedPath],
-    }).success).toBe(false);
+    });
   });
 
   it("retains exact over-bound overlap while closing the judgment residual", () => {
@@ -374,8 +375,7 @@ describe("evidence delta composition", () => {
         overlap: { status: "available", substantivePaths: paths, regenerablePaths: [] },
       },
     });
-    expect(EvidenceDeltaSchema.safeParse({ ...normalized, residual: [paths[0]] }).success)
-      .toBe(false);
+    assertSchemaRefuses(EvidenceDeltaSchema, { ...normalized, residual: [paths[0]] });
 
     const bounded = composeEvidenceDelta({
       cause: "base-movement",
@@ -384,7 +384,7 @@ describe("evidence delta composition", () => {
         overlap: { status: "available", substantivePaths: ["a.ts", "b.ts"], regenerablePaths: [] },
       },
     });
-    expect(EvidenceDeltaSchema.safeParse({ ...bounded, residual: ["a.ts"] }).success).toBe(false);
+    assertSchemaRefuses(EvidenceDeltaSchema, { ...bounded, residual: ["a.ts"] });
   });
 
   it("canonicalizes valid Unicode paths by UTF-8 byte order", () => {
@@ -407,34 +407,34 @@ describe("evidence delta composition", () => {
   });
 
   it("fails strict producer and host boundaries closed", () => {
-    expect(EvidenceDeltaProducerSchema.safeParse({
+    assertSchemaRefuses(EvidenceDeltaProducerSchema, {
       cause: "base-movement",
       observation: {
         coordinates: coordinates(),
         overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
       },
       extra: true,
-    }).success).toBe(false);
-    expect(EvidenceDeltaProducerSchema.safeParse({ cause: "base-movement" }).success).toBe(false);
-    expect(EvidenceDeltaProducerSchema.safeParse({
+    });
+    assertSchemaRefuses(EvidenceDeltaProducerSchema, { cause: "base-movement" });
+    assertSchemaRefuses(EvidenceDeltaProducerSchema, {
       cause: "member-rewrite",
       endpoints: {},
       proof: { status: "accepted", proof: "unknown" },
-    }).success).toBe(false);
-    expect(HostMergeAdmissionSchema.safeParse({
+    });
+    assertSchemaRefuses(HostMergeAdmissionSchema, {
       state: "mergeable",
       coordinates: coordinates(),
       providerStatus: 200,
-    }).success).toBe(false);
+    });
   });
 
   it("rejects a base merge that changes non-base coordinates", () => {
-    expect(EvidenceDeltaProducerSchema.safeParse({
+    assertSchemaRefuses(EvidenceDeltaProducerSchema, {
       cause: "base-merge",
       before: coordinates(oid("a"), oid("b")),
       after: { ...coordinates(oid("c"), oid("d")), changeRequest: 43 },
       overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
-    }).success).toBe(false);
+    });
   });
 
   it("rejects normalized base-merge coordinate discontinuity", () => {
@@ -447,7 +447,7 @@ describe("evidence delta composition", () => {
       overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
     });
 
-    expect(EvidenceDeltaSchema.safeParse({
+    assertSchemaRefuses(EvidenceDeltaSchema, {
       ...normalized,
       observed: {
         ...normalized.observed,
@@ -458,7 +458,7 @@ describe("evidence delta composition", () => {
           head: oid("d"),
         },
       },
-    }).success).toBe(false);
+    });
   });
 
   it("rejects normalized carried D4 relations with divergence residuals", () => {
@@ -478,7 +478,7 @@ describe("evidence delta composition", () => {
       paths: ["security.ts"],
     };
     const rewrite = composeEvidenceDelta({ cause: "member-rewrite", endpoints, proof });
-    expect(EvidenceDeltaSchema.safeParse({ ...rewrite, relation: "equal" }).success).toBe(false);
+    assertSchemaRefuses(EvidenceDeltaSchema, { ...rewrite, relation: "equal" });
 
     const before = coordinates(oid("a"), oid("b"));
     const after = coordinates(oid("c"), oid("b"));
@@ -489,9 +489,9 @@ describe("evidence delta composition", () => {
       overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
       projection: { endpoints, proof },
     });
-    expect(EvidenceDeltaSchema.safeParse({
+    assertSchemaRefuses(EvidenceDeltaSchema, {
       ...merge,
       relation: "mechanical-reapply",
-    }).success).toBe(false);
+    });
   });
 });

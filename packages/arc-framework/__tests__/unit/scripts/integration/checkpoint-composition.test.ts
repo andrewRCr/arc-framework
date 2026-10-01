@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { GitExec } from "../../../../src/lib/git/exec.js";
+import { CanonicalDigestSchema } from "../../../../src/lib/kernel/index.js";
 
 import {
   checkpointBaseIsAccepted,
@@ -9,6 +10,7 @@ import {
 } from "../../../../src/scripts/integration/checkpoint-composition.js";
 
 const oid = (character: string): string => character.repeat(40);
+const RECORD_VERSION = CanonicalDigestSchema.parse(`sha256:${"1".repeat(64)}`);
 
 describe("integration checkpoint composition", () => {
   it("shares one managed Candidate record across classification and downstream projection", async () => {
@@ -17,9 +19,9 @@ describe("integration checkpoint composition", () => {
     const context = createCheckpointCandidateContext({
       readRecord: async () => {
         reads += 1;
-        return { record, version: "version-1" };
+        return { record, version: RECORD_VERSION };
       },
-      readVersion: async () => "version-1",
+      readVersion: async () => RECORD_VERSION,
       project: async ({ baseRevision }) => ({
         effective: {
           state: "unavailable",
@@ -34,7 +36,7 @@ describe("integration checkpoint composition", () => {
     const managed = await context.readRecord("example");
     const effective = await context.readEffective("example", oid("a"));
 
-    expect(managed.version).toBe("version-1");
+    expect(managed.version).toBe(RECORD_VERSION);
     expect(effective?.recordVersion).toBe(managed.version);
     expect(reads).toBe(1);
   });
@@ -44,9 +46,9 @@ describe("integration checkpoint composition", () => {
     const context = createCheckpointCandidateContext({
       readRecord: async () => ({
         record: { attestation: { candidateId: "candidate" } } as never,
-        version: "version-1",
+        version: RECORD_VERSION,
       }),
-      readVersion: async () => "version-1",
+      readVersion: async () => RECORD_VERSION,
       project: async ({ baseRevision }) => {
         projectedBases.push(baseRevision);
         return {

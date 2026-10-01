@@ -23,11 +23,9 @@
  * @module
  */
 
-import { validateState, WORK_UNIT_STATE_ORDER, type WorkUnitState } from "../../commands/active/types.js";
-import {
-  parseMetaRecord,
-  type ParsedMetaRecord,
-} from "../active/meta-reader.js";
+import { validateState, WORK_UNIT_STATE_ORDER, type WorkUnitState } from "../kernel/schema/vocabulary.js";
+import { parseMetaRecord } from "../active/meta-reader.js";
+import { type ParsedMetaRecord } from "../active/meta-schema.js";
 import { branchToWorkUnitSlug } from "../work-unit/completed-index.js";
 import { isDecomposeCandidateBranch } from "../work-unit/decompose-candidate.js";
 import type { DerivedCheckoutRow } from "../locus/derived-roster.js";

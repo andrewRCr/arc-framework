@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { responsePolicyRequestFixture } from "../../../../fixtures/review-response-policy.js";
 
-import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import { canonicalDigest, CanonicalDigestSchema } from "../../../../../src/lib/kernel/index.js";
 import { SlugSchema } from "../../../../../src/lib/kernel/schema/slug.js";
 import { ApprovedDispositionRecordSchema } from
   "../../../../../src/scripts/review-gate/core/advisory-records.js";
@@ -69,7 +69,7 @@ import {
 
 const HEAD = "a".repeat(40);
 const PREPUBLICATION_HEAD = "b".repeat(40);
-const CANDIDATE_ID = `sha256:${"c".repeat(64)}`;
+const CANDIDATE_ID: `sha256:${string}` = `sha256:${"c".repeat(64)}`;
 const DELIVERY_PLAN_ID = "123e4567-e89b-12d3-a456-426614174000";
 const WORK_UNIT_ID = SlugSchema.parse("example");
 const OWNER_TERMINUS = {
@@ -80,7 +80,7 @@ const OWNER_TERMINUS = {
   acceptedBy: "andrew",
   completedPasses: 5,
 };
-const digest = (value: string): string => canonicalDigest({ value });
+const digest = (value: string) => canonicalDigest({ value });
 
 const currentCandidate: CandidateRead = {
   status: "current",
@@ -140,7 +140,7 @@ function deliveryMemberTarget(input: {
     vehicle: {
       kind: "delivery-member" as const,
       planId: DELIVERY_PLAN_ID,
-      deliverableId: `sha256:${input.deliverableCharacter.repeat(64)}`,
+      deliverableId: CanonicalDigestSchema.parse(`sha256:${input.deliverableCharacter.repeat(64)}`),
       workUnitId: WORK_UNIT_ID,
       head,
     },

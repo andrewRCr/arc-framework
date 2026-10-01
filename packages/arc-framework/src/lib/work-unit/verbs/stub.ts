@@ -23,7 +23,7 @@
 
 import { join } from "node:path";
 
-import { validateClass } from "../../../commands/active/types.js";
+import { validateClass } from "../../kernel/schema/vocabulary.js";
 import { isSafeCohortPath, validateCohortPath } from "../../active/cohort-path.js";
 import { renderMetaFile, type MetaRenderOverrides } from "../../active/meta-reader.js";
 import { MetaPrioritySchema } from "../../active/meta-schema.js";
@@ -35,7 +35,7 @@ import {
   type ExecuteTransitionContext,
   type TransitionOutcome,
 } from "../lifecycle-executor.js";
-import { isSlugSafe } from "../slug.js";
+import { isSlugSafe } from "../../kernel/schema/slug.js";
 
 /** The backlog tier a stub commits to — both live physically under `backlog/`. */
 export type StubCommitment = "provisional" | "planned";

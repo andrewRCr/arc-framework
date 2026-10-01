@@ -5,7 +5,12 @@ import {
   deriveDeliveryProviderRefreshCandidates,
   executeDeliveryProviderRefresh,
 } from "../../../src/lib/delivery/provider-refresh-execution.js";
-import type { DeliveryOperationSnapshotV1, DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
+import {
+  DeliveryCanonicalDigestSchema,
+  type DeliveryOperationSnapshotV1,
+  type DeliveryStateV1,
+} from "../../../src/lib/delivery/schema.js";
+import type { DeliveryPositionFactsV1 } from "../../../src/lib/delivery/position.js";
 import { reserveDeliveryOperation } from "../../../src/lib/delivery/operation.js";
 import { deriveDeliveryProviderRefreshSubject } from
   "../../../src/lib/delivery/provider-refresh-observation.js";
@@ -20,7 +25,10 @@ const exactTargetAncestry = async (
 const readyTop = async () => ({ status: "ready" as const });
 const clearMemberRefCheckouts = async () => ({ status: "observed" as const, checkouts: [] });
 
-function positionFacts(state: ReturnType<typeof deliveryStateFixture>, landedDeliverableIds: string[] = []) {
+function positionFacts(
+  state: ReturnType<typeof deliveryStateFixture>,
+  landedDeliverableIds: DeliveryPositionFactsV1["landedDeliverableIds"] = [],
+): DeliveryPositionFactsV1 {
   return { target: state.target, members: state.members, landedDeliverableIds };
 }
 
@@ -31,7 +39,7 @@ function snapshot(heads: readonly string[]): DeliveryOperationSnapshotV1 {
       coordinates: { head: oid("1"), tree: oid("2") },
     },
     members: heads.map((head, index) => ({
-      deliverableId: `sha256:${String(index + 1).repeat(64)}`,
+      deliverableId: DeliveryCanonicalDigestSchema.parse(`sha256:${String(index + 1).repeat(64)}`),
       ref: `refs/heads/delivery/example/member-${index + 1}`,
       changeRequest: { providerId: "github", changeRequestId: String(100 + index) },
       coordinates: {
