@@ -13,6 +13,24 @@ function displaySeverity(severity: "critical" | "major" | "minor", nit: true | u
   return `${symbol} ${severity}${nit === true ? " nit" : ""}`;
 }
 
+/** The finding's one-line head: report label, ARC grade, disposition, and title when one was authored. */
+function renderHead(item: DispositionReportItem, reportOrdinal: number): string {
+  const grade = item.sourceVerification === "not-supported"
+    ? "not supported"
+    : displaySeverity(item.verifiedSeverity, item.verifiedNit);
+  const title = item.title === undefined ? "" : ` — ${escapeReviewFindingDisplayText(item.title)}`;
+  return `F${reportOrdinal} · ${grade} · ${item.disposition.toUpperCase()}${title}`;
+}
+
+function renderVerdict(item: DispositionReportItem): string {
+  const reviewer = displaySeverity(item.reportedSeverity, item.reportedNit);
+  if (item.sourceVerification === "not-supported") {
+    return `**Verdict:** Not supported · reviewer graded ${reviewer} · ${item.gating}`;
+  }
+  const sameGrade = item.verifiedSeverity === item.reportedSeverity && item.verifiedNit === item.reportedNit;
+  return `**Verdict:** Confirmed · ${sameGrade ? "" : `reviewer graded ${reviewer} · `}${item.gating}`;
+}
+
 function renderSource(finding: NormalizedReviewFinding): string {
   const escapedLabel = finding.sourceLabel === undefined
     ? undefined
@@ -21,20 +39,8 @@ function renderSource(finding: NormalizedReviewFinding): string {
   const label = escapedLabel === undefined
     ? ""
     : `${escapedLabel}${finding.sourceLabelTruncated === true ? "…" : ""} · `;
-  return `**Source:** ${label}source #${finding.sourceOrdinal} · ${escapedReference}`;
-}
-
-function renderAssessment(item: DispositionReportItem): string {
-  const reviewer = displaySeverity(item.reportedSeverity, item.reportedNit);
-  if (item.sourceVerification === "not-supported") {
-    return `**Assessment:** NOT SUPPORTED · no ARC severity (ARC) · ${reviewer} (reviewer)`;
-  }
-  const verified = displaySeverity(item.verifiedSeverity, item.verifiedNit);
-  if (item.verifiedSeverity === item.reportedSeverity
-    && item.verifiedNit === item.reportedNit) {
-    return `**Assessment:** CONFIRMED · ${verified}`;
-  }
-  return `**Assessment:** CONFIRMED · ${verified} (ARC) · ${reviewer} (reviewer)`;
+  return `**Source:** ${escapeReviewFindingDisplayText(finding.locus)} · ${label}`
+    + `source #${finding.sourceOrdinal} · ${escapedReference}`;
 }
 
 function validateCorrespondence(item: DispositionReportItem, finding: NormalizedReviewFinding): void {
@@ -50,20 +56,21 @@ function renderFinding(
   finding: NormalizedReviewFinding,
   reportOrdinal: number,
 ): string {
-  const lines = [
-    `### Finding F${reportOrdinal}`,
-    `**Rationale:** ${escapeReviewFindingDisplayText(item.rationale)}`,
-    `**Locus:** ${escapeReviewFindingDisplayText(finding.locus)}`,
-    renderSource(finding),
-    `**Verified at:** ${item.verificationRefs.map(escapeReviewFindingDisplayText).join(" · ")}`,
-    renderAssessment(item),
-    `**Recommendation:** ${item.disposition.toUpperCase()} [${item.gating}] — `
-      + escapeReviewFindingDisplayText(item.recommendation),
-  ];
+  const lines = [`### ${renderHead(item, reportOrdinal)}`];
+  if (item.issue !== undefined) lines.push(`**Issue:** ${escapeReviewFindingDisplayText(item.issue)}`);
+  lines.push(
+    renderVerdict(item),
+    `**Action:** ${escapeReviewFindingDisplayText(item.recommendation)}`,
+    `**Detail:** ${escapeReviewFindingDisplayText(item.rationale)}`,
+  );
   if (item.openQuestions.length > 0) {
     lines.push(`**Open questions:** ${item.openQuestions
       .map(escapeReviewFindingDisplayText).join(" · ")}`);
   }
+  lines.push(
+    renderSource(finding),
+    `**Verified at:** ${item.verificationRefs.map(escapeReviewFindingDisplayText).join(" · ")}`,
+  );
   return lines.join("\n");
 }
 
@@ -94,5 +101,13 @@ export function renderDispositionReport(input: {
     validateCorrespondence(item, finding);
     return renderFinding(item, finding, index + 1);
   });
-  return [`**Verification:** ${dispositionSet.proposedVerification}`, "", rendered.join("\n\n---\n\n")].join("\n");
+  const index = dispositionSet.findings.length > 1
+    ? [dispositionSet.findings.map((item, position) => `- ${renderHead(item, position + 1)}`).join("\n"), ""]
+    : [];
+  return [
+    `**Verification:** ${dispositionSet.proposedVerification}`,
+    "",
+    ...index,
+    rendered.join("\n\n---\n\n"),
+  ].join("\n");
 }

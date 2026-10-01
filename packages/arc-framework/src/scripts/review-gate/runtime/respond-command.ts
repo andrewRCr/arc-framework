@@ -27,6 +27,8 @@ import {
   type ErrandReviewBinding,
 } from "../core/advisory-records.js";
 import {
+  DispositionIssueSchema,
+  DispositionTitleSchema,
   type DispositionSourceContext,
   type ProposedDispositionSet,
   type ApprovedDispositionSet,
@@ -108,6 +110,8 @@ import type { LanePolicyConfig } from "../policy/lane-policy-config.js";
 const AuthorDispositionFieldsSchema = z.strictObject({
   findingId: ReviewFindingIdentitySchema,
   verificationRefs: z.array(z.string().trim().min(1)).min(1),
+  title: DispositionTitleSchema,
+  issue: DispositionIssueSchema,
   rationale: z.string().trim().min(1).max(4096),
   recommendation: z.string().trim().min(1).max(4096),
   openQuestions: z.array(z.string().trim().min(1).max(4096)),
@@ -1681,14 +1685,16 @@ function projectProvisionalPassAssessment(input: {
     ? "cap-exhausted" as const
     : null;
   const proposedSignal = { confirmedFindingCount, maxConfirmedSeverity };
-  const signalText = confirmedFindingCount === 0
-    ? "No source-verified findings are proposed."
-    : `${confirmedFindingCount} source-verified finding${confirmedFindingCount === 1 ? " is" : "s are"} proposed; `
-      + `highest proposed severity: ${maxConfirmedSeverity}.`;
-  const capText = potentialStopReason === null
-    ? "No cap stop is asserted from this proposal."
-    : "Potential stop: cap-exhausted if another pass is needed after approval and response; "
-      + "an explicit ceiling decision is required.";
+  const severitySymbol = { minor: "🟡", major: "🟠", critical: "🔴" } as const;
+  const signalText = maxConfirmedSeverity === null
+    ? "No confirmed findings."
+    : `${confirmedFindingCount} confirmed finding${confirmedFindingCount === 1 ? "" : "s"}, `
+      + `highest ${severitySymbol[maxConfirmedSeverity]} ${maxConfirmedSeverity}.`;
+  const positionText = { "below-ceiling": "", "at-ceiling": " (limit reached)", "above-ceiling": " (over the limit)" }[
+    capPosition
+  ];
+  const stopText = potentialStopReason === null ? "" : " Another pass needs a ceiling decision.";
+  const laneText = input.lane === "standard" ? "Standard" : "Frontline";
   return ProvisionalPassAssessmentSchema.parse({
     status: "provisional",
     lane: input.lane,
@@ -1698,11 +1704,8 @@ function projectProvisionalPassAssessment(input: {
     capPosition,
     potentialStopReason,
     nextPassAuthority: "none",
-    summaryText: `Provisional ${input.lane} pass assessment: Pass ${input.admittedLogicalPass} `
-      + `of ${input.configuredMaxPasses} under the current configured ceiling (${capPosition}). `
-      + `${signalText} ${capText} `
-      + "Approval and response are pending. This proposal does not establish coverage or convergence, "
-      + "and grants no next-pass authority. Recommend any further review from its expected cost and signal.",
+    summaryText: `${laneText} pass ${input.admittedLogicalPass} of ${input.configuredMaxPasses}${positionText}. `
+      + `${signalText}${stopText}`,
   });
 }
 

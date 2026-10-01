@@ -12,6 +12,10 @@ import { FindingDispositionSchema, ReviewSeveritySchema } from "./review-primiti
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
 const NonEmptyTextSchema = z.string().trim().min(1).max(4096);
 const ReferenceSchema = z.string().trim().min(1);
+/** A finding's issue in a phrase, for the report's index and heading. */
+export const DispositionTitleSchema = z.string().trim().min(1).max(160);
+/** The reviewer's claim in plain words, stated before ARC's verdict on it. */
+export const DispositionIssueSchema = z.string().trim().min(1).max(1024);
 
 const DispositionReportItemFieldsSchema = z.strictObject({
   findingId: ReviewFindingIdentitySchema,
@@ -20,6 +24,8 @@ const DispositionReportItemFieldsSchema = z.strictObject({
   verificationRefs: z.array(ReferenceSchema).min(1),
   reportedSeverity: ReviewSeveritySchema,
   reportedNit: z.literal(true).optional(),
+  title: DispositionTitleSchema.optional(),
+  issue: DispositionIssueSchema.optional(),
   rationale: NonEmptyTextSchema,
   recommendation: NonEmptyTextSchema,
   openQuestions: z.array(NonEmptyTextSchema),
