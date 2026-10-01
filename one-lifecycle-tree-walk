@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "one-lifecycle-tree-walk",
+  "claimId": "eeaa87f031a5ecff3886d0b2df6d24a9",
+  "createdAt": "2026-10-01T19:46:44.753Z",
+  "updatedAt": "2026-10-01T19:46:44.753Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make the lifecycle index and project-readiness composition share one tier walk: active/ flat, regular files only, active-first source precedence",
+  "branch": "chore/one-lifecycle-tree-walk",
+  "origin": "inbox",
+  "originEntry": "Make the two lifecycle tree walks one: `active/` flat, active-first precedence",
+  "originEntrySourceDigest": "sha256:1e639477e2a361e2d51396bafb9d25f34c92453c0ea98c58f967b4a4c42ef7c7",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
