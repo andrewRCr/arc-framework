@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "assert-never-exhaustiveness",
+  "claimId": "b5fc12e84276b4080e63d2b9b53a5222",
+  "createdAt": "2026-10-01T15:39:52.869Z",
+  "updatedAt": "2026-10-01T15:39:52.869Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Check every switch over a union for exhaustiveness through one shared assertNever",
+  "branch": "chore/assert-never-exhaustiveness",
+  "origin": "inbox",
+  "originEntry": "Check every `switch` over a union for exhaustiveness, through one shared `assertNever`",
+  "originEntrySourceDigest": "sha256:9c473e84b7507c0ee7efc4888d0c4e93351caecd0ee5606c34c55ab0d8925342",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
