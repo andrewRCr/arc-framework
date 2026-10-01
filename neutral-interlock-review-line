@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "neutral-interlock-review-line",
+  "claimId": "270835ce8e4db0920fab2fe006f5d8ad",
+  "createdAt": "2026-10-01T21:22:07.352Z",
+  "updatedAt": "2026-10-01T21:22:07.352Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Stop the integration interlock from claiming a local review landed when none ran",
+  "branch": "chore/neutral-interlock-review-line",
+  "origin": "inbox",
+  "originEntry": "Stop the integration interlock from claiming a local review landed when none ran",
+  "originEntrySourceDigest": "sha256:d3806ae61e1f5b00710f4303f1d769fdae7fcd6de9aeb4f7868ca8193555155b",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
