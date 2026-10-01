@@ -3,7 +3,7 @@
   "slug": "superseded-check-run",
   "claimId": "5985e7589cd5840290918495630ba5e4",
   "createdAt": "2026-10-01T18:10:08.172Z",
-  "updatedAt": "2026-10-01T18:10:08.172Z",
+  "updatedAt": "2026-10-01T19:07:08.881Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Report a required check pending, not failed, while a newer run on the same head is still going",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Stop the required-check waiter reporting a superseded run's failure while a newer run on the head is going",
   "originEntrySourceDigest": "sha256:031a18b4bfcc778d7c20c98e3b5ab7c1cfb982fdd2dbb1de90a747a38d909621",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/superseded-check-run",
+    "headSha": "3d674335b99d4b242a67e3edc33356835992ae86"
+  }
 }
