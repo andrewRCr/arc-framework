@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "interlock-settlement-detail",
+  "claimId": "cabbf2c89335137e218ef905ee5c2336",
+  "createdAt": "2026-10-01T01:59:15.763Z",
+  "updatedAt": "2026-10-01T01:59:15.763Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Name what settlement covers on the integration interlock surface",
+  "branch": "chore/interlock-settlement-detail",
+  "origin": "inbox",
+  "originEntry": "Name what settlement covers on the interlock surface, not just how many",
+  "originEntrySourceDigest": "sha256:577a9c43fa02d421854b52bdd45c38dc34e8a946c54dac31a1af54440de83d34",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
