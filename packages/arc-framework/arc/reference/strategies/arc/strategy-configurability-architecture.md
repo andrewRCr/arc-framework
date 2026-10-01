@@ -354,6 +354,8 @@ Config settings divide into two categories based on how changes take effect:
   call timing
 - `review.hosted_await_attention_after_minutes` — Unattended hosted-review wait duration before ARC asks whether
   to inspect or extend the same request
+- `review.checks_await_timeout_seconds`, `review.checks_await_initial_poll_interval_seconds` — Bounded
+  required-check call timing
 - `changeset.advisory_threshold_lines`, `changeset.advisory_threshold_files` — Independent exact-target
   changeset-size advisory thresholds whose derived attention signal may recommend review chunks
 

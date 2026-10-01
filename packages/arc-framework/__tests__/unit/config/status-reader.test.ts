@@ -46,12 +46,14 @@ describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
       "review.hosted_await_timeout_seconds": "120",
       "review.hosted_await_initial_poll_interval_seconds": "15",
       "review.hosted_await_attention_after_minutes": "15",
+      "review.checks_await_timeout_seconds": "300",
+      "review.checks_await_initial_poll_interval_seconds": "5",
       "user.notes_push": "on-sync",
     });
   });
 
-  it("enumerates the 33 agent-consumable keys", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(33);
+  it("enumerates the 35 agent-consumable keys", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(35);
   });
 
   it("excludes all hooks.* keys", () => {
@@ -119,6 +121,8 @@ describe("readConfigSettings — default fallback", () => {
     expect(result.settings["review.hosted_await_timeout_seconds"]).toBe("120");
     expect(result.settings["review.hosted_await_initial_poll_interval_seconds"]).toBe("15");
     expect(result.settings["review.hosted_await_attention_after_minutes"]).toBe("15");
+    expect(result.settings["review.checks_await_timeout_seconds"]).toBe("300");
+    expect(result.settings["review.checks_await_initial_poll_interval_seconds"]).toBe("5");
     expect(result.settings["changeset.advisory_threshold_lines"]).toBe("0");
     expect(result.settings["changeset.advisory_threshold_files"]).toBe("0");
     expect(result.settings["team.mode"]).toBe("false");
@@ -173,6 +177,8 @@ describe("readConfigSettings — user-supplied values", () => {
       "review.hosted_await_timeout_seconds: 90",
       "review.hosted_await_initial_poll_interval_seconds: 10",
       "review.hosted_await_attention_after_minutes: 40",
+      "review.checks_await_timeout_seconds: 900",
+      "review.checks_await_initial_poll_interval_seconds: 10",
       "changeset.advisory_threshold_lines: 5000",
       "changeset.advisory_threshold_files: 150",
       "pm.mode: arc-in-git",
@@ -204,6 +210,8 @@ describe("readConfigSettings — user-supplied values", () => {
     expect(result.settings["review.hosted_await_timeout_seconds"]).toBe("90");
     expect(result.settings["review.hosted_await_initial_poll_interval_seconds"]).toBe("10");
     expect(result.settings["review.hosted_await_attention_after_minutes"]).toBe("40");
+    expect(result.settings["review.checks_await_timeout_seconds"]).toBe("900");
+    expect(result.settings["review.checks_await_initial_poll_interval_seconds"]).toBe("10");
     expect(result.settings["changeset.advisory_threshold_lines"]).toBe("5000");
     expect(result.settings["changeset.advisory_threshold_files"]).toBe("150");
     expect(result.settings["pm.mode"]).toBe("arc-in-git");
