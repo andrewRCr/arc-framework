@@ -1,5 +1,6 @@
 /** Evidence-delta normalization from existing producer boundaries. */
 
+import { assertNever } from "../kernel/index.js";
 import {
   BoundedEvidenceResidualSchema,
   compareEvidencePaths,
@@ -199,8 +200,4 @@ export function composeEvidenceDelta(input: EvidenceDeltaProducer): EvidenceDelt
     default:
       return assertNever(producer);
   }
-}
-
-function assertNever(value: never): never {
-  throw new Error(`Unhandled evidence-delta producer: ${JSON.stringify(value)}`);
 }

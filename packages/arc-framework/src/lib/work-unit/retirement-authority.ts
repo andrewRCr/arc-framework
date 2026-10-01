@@ -8,6 +8,7 @@
 
 import { canonicalDigest, type CanonicalDigest } from "../kernel/canonical/canonical-json.js";
 import type { ManagedPath } from "../kernel/canonical/managed-path.js";
+import { assertNever } from "../kernel/index.js";
 import type { WorktreeSubject } from "../git/worktree-marker.js";
 
 type DirectRetirementTransition = "abandon" | "park-planning" | "rename";
@@ -217,9 +218,7 @@ export function describeTeardownAuthorizationRefusal(reason: TeardownAuthorizati
       return "retirement authority found conflicting evidence";
     case "authority-conflict":
       return "retirement authority changed during the operation";
-    default: {
-      const exhaustive: never = reason;
-      return exhaustive;
-    }
+    default:
+      return assertNever(reason);
   }
 }

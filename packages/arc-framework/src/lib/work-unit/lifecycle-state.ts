@@ -80,6 +80,7 @@ export function locationFromPath(path: string): Location | null {
       return "planned";
     case "backlog/provisional":
       return "provisional";
+    case undefined:
     default:
       return null;
   }

@@ -1,16 +1,12 @@
 /** Pure projection from semantic ARC layout addresses to managed paths. */
 
-import { validateManagedPath, type ManagedPath, type Slug } from "../kernel/index.js";
+import { assertNever, validateManagedPath, type ManagedPath, type Slug } from "../kernel/index.js";
 import { LayoutError } from "./errors.js";
 import {
   ArcLayoutAddressSchema,
   type ArcLayoutAddress,
   type WorkUnitPlacement,
 } from "./schema.js";
-
-function assertNever(value: never): never {
-  throw new LayoutError(`Unsupported layout address: ${JSON.stringify(value)}`, "layout.invalid-address");
-}
 
 function projectPlacementRoot(tier: "active" | "planned" | "provisional" | "completed"): string {
   switch (tier) {
@@ -51,7 +47,9 @@ function projectAddress(address: ArcLayoutAddress): string {
       return `${projectContainer(address.placement, address.slug)}/${address.artifact}-${address.slug}.md`;
     case "cohort-document": {
       const leaf = address.cohort[address.cohort.length - 1];
-      if (leaf === undefined) return assertNever(address.cohort as never);
+      if (leaf === undefined) {
+        throw new LayoutError(`Unsupported layout address: ${JSON.stringify(address)}`, "layout.invalid-address");
+      }
       if (address.placement.kind === "planned") {
         return `.arc/backlog/planned/${address.cohort.join("/")}/cohort-${leaf}.md`;
       }

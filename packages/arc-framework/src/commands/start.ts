@@ -72,13 +72,12 @@ import type {
 
 /**
  * The arm `start` dispatches to for a resolved lifecycle state. `create-new`
- * mints a fresh worktree, `cold-start` scaffolds the current checkout,
- * `graduate` relocates a backlog stub onto its branch, `resume` re-attaches a
- * parked shelf, and `refuse` carries a directed reason.
+ * mints a fresh worktree, `graduate` relocates a backlog stub onto its branch,
+ * `resume` re-attaches a parked shelf, and `refuse` carries a directed reason.
+ * The `--here` cold start is decided before dispatch and has no arm here.
  */
 export type StartArm =
   | { arm: "create-new" }
-  | { arm: "cold-start" }
   | { arm: "graduate" }
   | { arm: "resume" }
   | { arm: "refuse"; reason: string };
