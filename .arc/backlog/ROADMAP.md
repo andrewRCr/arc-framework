@@ -36,6 +36,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | storage-ref-backend                 | P1       | andrew | —          | state-storage              |
 | cross-worktree-git-state-safety     | P1       | andrew | —          | —                          |
 | delivery-intent-integrity           | P1       | andrew | —          | —                          |
+| grounded-planning-review            | P1       | andrew | —          | —                          |
 | locus-claim-revalidation            | P1       | andrew | —          | —                          |
 | recovery-hardening                  | P1       | andrew | —          | —                          |
 | recurring-errand-pr-resolution      | P1       | andrew | —          | —                          |
