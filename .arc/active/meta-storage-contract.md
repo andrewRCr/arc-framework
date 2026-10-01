@@ -9,11 +9,11 @@
 
 - **Origin:** `[internal] — renamed from arc-backend at the state-storage re-cut (2026-09-28), absorbing
   local-mode`
-- **Design:** `draft-storage-contract.md`
+- **Design:** `spec-storage-contract.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** draft captured formalization-ready after six adversarial passes; stage advanced to create-spec
 - **Next Task:** [none]
 - **Blockers:** [none]

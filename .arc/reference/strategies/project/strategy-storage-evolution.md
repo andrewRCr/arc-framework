@@ -7,17 +7,18 @@
 > cutover.
 >
 > **Status:** In-development reference — the direction is decided in [ADR-035][adr-035] (Accepted 2026-09-28) on the
-> evidence in the [storage substrate analysis][storage-analysis]; it describes where ARC is going, not what ARC is
-> today. Until the cutover, state still lives in tracked files on code branches and in Git notes. _Rename pending:_
-> this file should be renamed to advertise its purpose (e.g. `strategy-storage-forward-compat.md`); deferred as its own
-> reference-cascade follow-up.
+> evidence in the [storage substrate analysis][storage-analysis], and the storage contract is specified in
+> `spec-storage-contract.md`; it describes where ARC is going, not what ARC is today. Until the cutover, state still
+> lives in tracked files on code branches and in Git notes, and the contract's first implementation serves it there.
+> _Rename pending:_ this file should be renamed to advertise its purpose (e.g. `strategy-storage-forward-compat.md`);
+> deferred as its own reference-cascade follow-up.
 
 **Purpose:** Forward-compat discipline for ARC's storage architecture. Summarizes the decided storage model and the
 principles that keep interim work composable with it — so near-term work units don't accrete tracked-file,
 notes-keyed, or append-only assumptions the cutover must undo.
 
 **Scope:** The storage model, the tracked-versus-stored line, forward-compat principles, integration boundaries with
-external tools, the touchpoints the storage contract designs jointly, self-check triggers for plan / PRD authoring. One
+external tools, the storage contract's settled design, self-check triggers for plan / PRD authoring. One
 of four sibling check-docs: this doc owns _where state lives_, [`strategy-knowledge-evolution.md`][knowledge-evolution]
 owns where non-procedural guidance lives, [`strategy-procedure-evolution.md`][procedure-evolution] owns how procedure
 executes, and [`strategy-pm-composition-evolution.md`][pm-composition-evolution] owns how ARC composes with external PM
@@ -64,7 +65,7 @@ knows which backend is active; the target namespace is a backend parameter.
 | ---------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------ |
 | **Same-repository refs** (default) | `refs/arc/*` on the code repository's remote               | Solo developers through mid-size teams; no configuration; clean code history | Decided; the storage program builds it           |
 | **Backing repository**             | another repository, as custom refs or ordinary branches    | Privacy on public repositories; PR-reviewed planning; forge browsing         | Decided; the same implementation, another target |
-| **Local-only**                     | this machine                                               | Evaluation, air-gapped or throwaway use                                      | Decided                                          |
+| **Local-only**                     | this machine                                               | Evaluation, air-gapped or throwaway use, fork contributors                   | Decided; the ref backend with sync switched off  |
 | **Service**                        | a self-hosted coordination service fronting the same store | Per-record authorization; write parallelism beyond the design envelope       | Deferred — `arc-coordination-service`            |
 
 **Privacy belongs to the backing repository.** The default gives clean code history, not privacy: refs in a public
@@ -85,7 +86,7 @@ contract may preclude it.
 | **ARC core**                 | ARC's shipped workflows, methods, rules, and templates                                                                                                                                            | tracked today; a separate decision may resolve it from the package | No                              |
 | **Constitutional documents** | strategies, ADRs, research, analysis, `PROJECT-PRD`, briefs                                                                                                                                       | tracked                                                            | No                              |
 | **Operational state**        | `meta-*`, `tasks-*`, `notes-*`, `cohort-*`, the backlog, the completed archive, inboxes, working memory, session notes, and the lifecycle, delivery, and review records under `system/.internal/` | store                                                              | No — churn with no review value |
-| **Authored design**          | `draft-*`, `spec-*`                                                                                                                                                                               | store; exported one-way by the knob                                | **Yes — one knob**              |
+| **Authored design**          | `draft-*`, `spec-*`                                                                                                                                                                               | store; the spec copied for review by the knob                      | **Yes — one knob**              |
 | **Derived views**            | ROADMAP, status                                                                                                                                                                                   | never stored                                                       | No                              |
 
 The line is drawn at project-owned machinery, not at all of `system/`. The records ARC writes under
@@ -102,23 +103,25 @@ projection layer, and the classifiers built around them.
 
 The store is authoritative. A gitignored projection at the familiar paths — `.arc/active/`, `.arc/backlog/`,
 `.arc/completed/`, and `.arc/user/<identity>/` — is the working copy people and agents browse and edit, as a checkout
-is to the object database. Edits persist at firing points (increment close, handoff, session-init, lifecycle verbs),
-merged against the store version each projected file was written from. Any artifact opens by name and is searchable
-from the editor a person already uses; `arc view` and status surfaces supplement that and never replace it. How the
-projection stays findable in editors and search tools is settled in ADR-035 item 6.
+is to the object database. Edits write back at the start of every `arc` command in the checkout and on `arc save`,
+and lifecycle verbs persist inside themselves, each merged against the store version the projected file was written
+from; pushing stays coarse — handoff, lifecycle transitions, an explicit sync. Any artifact opens by name and is
+searchable from the editor a person already uses; `arc view` and status surfaces supplement that and never replace it.
+How the projection stays findable in editors and search tools is settled in ADR-035 item 6.
 
 ### The one knob
 
 Authored-design export is the only real variation. Expose exactly **one enum**, never per-artifact booleans:
 
 ```yaml
-storage.track_design_docs: none | specs | all     # default: none
+storage.track_design_docs: none | specs     # default: specs under the standard profile; ghost pins none
 ```
 
-It exports authored design into the code repository as a one-way copy, for teams that review specs alongside code;
-the store stays canonical. Privacy and PR-reviewed planning are backend choices, not this knob's. `specs` is the
-costliest arm (a WU's artifacts then live in two places); consider `none | all` only unless the middle earns its cost.
-Default `none`; surface only in guided init.
+It copies a work unit's spec onto its branch for review only: added at prepublication so reviewers comment on it beside
+the code, re-exported when a finding amends the stored spec, and deleted in the candidate-tail before merge, with the
+merge gate failing while the copy remains. The store and its projection stay the spec's only lasting home. Drafts,
+notes, and task lists are working state and never export — `all` has no purpose of its own. Privacy and PR-reviewed
+planning are backend choices, not this knob's. Guided init says plainly what turning it off does.
 
 ---
 
@@ -138,17 +141,19 @@ out only code. After cutover each sees nothing. Inferring lifecycle state from w
 branch is the same coupling: placement becomes a projection of a lifecycle field. Read state by its projected path or
 through an `arc` command.
 
-### 2. Records are storage-agnostic; markdown is a projection (ADR-022)
+### 2. Records are storage-agnostic; the file is the record (ADR-022, amended)
 
-Managed operational-state documents are code-owned records; the `.md` is rendered from them. The first implementation
-stores each artifact group as files behind the contract, with a file-copy projection, and structured records follow
-behind the same contract. Either way, keep records free of baked-in "git-tracked" assumptions so they move into the
-store without reshaping. Don't design a record that can only exist as a tracked-tree file.
+A state document's file is its record: its kind's parser reads its fields, the write path validates them, and rendering
+exists only for derived views. Every reader asks the contract for a record's fields through that parser, never by path
+or placement, so file formats never change at the cutover and a later records engine changes only what sits behind each
+parser. Keep records free of baked-in "git-tracked" assumptions so they move into the store without reshaping. Don't
+design a record that can only exist as a tracked-tree file.
 
 ### 3. Mutating state uses version-checked writes
 
-Any write to state carries the version it read. If the store moved, the write re-reads and re-applies its change to
-the new head — never resubmitting the old tree, never silently clobbering. A same-entry clash lands as a typed
+Any write to state carries the version it read. If the store moved, a single-writer record's write refuses and its
+caller re-reads and re-applies its change, while a mergeable kind merges from the base the write started from by its
+kind's mechanism — never resubmitting the old tree, never silently clobbering. A same-entry clash lands as a typed
 conflict record that keeps both sides, and the next verb that depends on that entry refuses until a resolution names
 it; recency never decides. Deciding verbs re-read the store rather than a projection that may be stale. This is what
 makes read-staleness harmless — a stale read only causes harm via a later unchecked write. Don't design a mutation
@@ -165,8 +170,8 @@ canonical store stays ARC's.
 
 ARC tracks work units separately from branches; multi-WU-per-branch and WU-without-branch already exist. The store
 keeps work units independent of any branch's state, and session locus derives from the checkout's marker and the
-store — don't regress. Planning branches stay only as zero-commit local anchors for locus topology until in-flight
-derivation reads the store.
+store — don't regress. Planning branches retire with branchless planning at the cutover: a work unit in planning keeps
+its own worktree detached at base, and activation creates the work branch.
 
 **Anti-pattern:** inferring WU state from branch existence (e.g. "a `feat/{name}` branch implies WU `{name}` active").
 Works while state rides branches, breaks once it doesn't.
@@ -175,16 +180,19 @@ Works while state rides branches, breaks once it doesn't.
 
 Process-task-loop, session-init, handoff don't know which backend is active — they operate on the contract.
 Backend-specific logic lives in the storage layer or a few well-named lifecycle ceremonies, or is rendered at install
-time. **Anti-pattern:** workflow steps branching on `pm.mode` / storage settings inline.
+time. **Anti-pattern:** workflow steps branching on `pm.mode` / storage settings inline. The one interim exception is
+CLI-side: verbs whose behavior changes at the flip may branch on the contract's one capability — whether state lives
+off the checkout's branch — and the cutover's deletion pass removes those arms.
 
 ### 7. Concurrency is the normal case; team mode is not a storage axis
 
 Many sessions per identity and several identities per repository are the normal case on every backend; a team is the
-same store with more writers, never a separate design. Every shared surface names its mechanism — single-writer refs
-for work-unit state, entry merge for inboxes and working memory, a fractional-index rank for backlog order, three-way
-merge for shared prose — and disjoint edits merge without manual action. Team mode configures ownership and
-coordination conventions, not storage. Plans introducing new in-repo multi-writer mechanics for a shared surface earn
-extra scrutiny: would the store's merge serve the need? Not a prohibition — a forward-looking design pressure.
+same store with more writers, never a separate design. Every shared surface names its mechanism — a single writer for a
+work unit's meta and task list, three-way merge for its prose and for shared prose, entry merge for inboxes, working
+memory, and a work unit's inbound list, and a fractional-index rank for backlog order — and disjoint edits merge without
+manual action. Team mode configures ownership and coordination conventions, not storage. Plans introducing new in-repo
+multi-writer mechanics for a shared surface earn extra scrutiny: would the store's merge serve the need? Not a
+prohibition — a forward-looking design pressure.
 
 ### 8. One storage knob, not per-artifact tracking flags
 
@@ -212,61 +220,108 @@ only in a service database — that is the seam that generated beads' 2026 stora
 Once Git notes retire, `history.policy` becomes configurable, `rewrite-with-lease` by default and `append-only` by
 choice (ADR-035 item 9). Key state to work units and identities, never to a code commit, and don't design a mechanism
 whose correctness depends on pushed work-unit branches never being rewritten. **Anti-pattern:** a record looked up by
-a commit SHA it expects to stay reachable — the defect that made Git-notes user state orphanable.
+a commit SHA it expects to stay reachable — the defect that made Git-notes user state orphanable. A link that must
+name a commit, such as a task's captured commits, carries the commit's patch-id beside its SHA and is remapped by ARC's
+own rewrites.
+
+### 12. Identity is a name plus a UID
+
+A record's slug is its human handle — unique among live records sharing its namespace, reusable once its record
+completes — and a random UID minted at creation is its identity, never reused and never changed. Machine records
+reference each other by UID; prose, filenames, and projected paths keep names. Don't key durable state on a slug that a
+rename or a recreated work unit would change, and don't mint time-ordered or sequential IDs that collide across
+machines.
+
+Work units and Errands are two types of one work-item family over one base — identity, owner, type, lifecycle location,
+origin, and links — sharing one slug namespace. Anything that spans types reads only the base, so promotion is a field
+write that keeps the UID, and a further type adds a type rather than reshaping what spans them. Don't build a cross-type
+mechanism against one type's fields. How an external tracker's items compose with work items belongs to
+[`strategy-pm-composition-evolution.md`][pm-composition-evolution], not here.
+
+An inbox holds only work nobody has started: starting an Errand moves its entry into the Errand, and starting is the
+only claim. A plan or queue that claims entries before they start lets them rot out of everyone else's sight. The one
+exception is a partial-protection Errand, which has no record to hold its entry and leaves it in place until close.
+
+### 13. Freshness binds records, never the store
+
+A caller that needs state unchanged binds the records it read — their own versions, or the changes since a state
+version restricted to them — and code evidence binds its code head. The store-wide state version serves reads as of a
+version, change listings, and continuity anchors; nothing compares it whole. **Anti-pattern:** evidence invalidated by
+any write anywhere in the store, which makes every other session's capture a reason to repeat a ceremony.
+
+### 14. Git is the storage engine, never the schema
+
+Git stores the records; it does not define what they mean. Records carry their own identities, versions, and links, and
+the contract is implementable without Git — its conformance suite runs against a non-Git reference backend. The Git
+notes lesson is the cautionary case: SHA-keyed attachment became the semantic model, and a rewrite orphaned state.
+
+### 15. The final shape over today's
+
+Today's procedure and its vocabulary — verb names, workflow steps, a ceremony's order — and today's choices of where
+state lives and how it is scoped and keyed are open to change wherever the storage program touches them or frees them
+from the substrate that shaped them. Keeping today's shape is never a reason by itself; what holds is that nothing
+breaks at any point along the way. A design the program has settled is amended forward, never reopened by this
+principle. Every procedure the program rewrites is checked against the Self-Check in
+[`strategy-procedure-evolution.md`][procedure-evolution].
 
 ---
 
-## Contract Design Touchpoints
+## The Contract, Settled
 
-The storage contract work unit (`storage-contract`) designs these jointly; the [analysis][storage-analysis] records
-what the spikes settled and what they left open (§ 6.9, § 6.10, § 7). Each item is tagged core or deferred: 1.0 ships
-the complete core for solo developers through mid-size teams.
+This section summarizes the contract design `spec-storage-contract.md` specifies; [ADR-035][adr-035] holds the
+direction. Each item is tagged core or deferred in the `state-storage` cohort.
 
-- **Ref layout and sharding** — one ref per surface is settled; the exact surface list, how shared surfaces shard,
-  and whether the local copy lives in the code repository's refs or a separate Git directory inside `.git` are open.
-- **Projection behavior** — base stamps, writer-pushed refresh of every worktree on a machine, conflict display,
-  adopting a file created inside a projected folder, and the projection's name (`materialize` is already a CLI verb).
-- **Sync and push** — per-machine batches at coarse firing points, never per write; a lifecycle push that already
-  carries a code branch takes its state refs in the same `--atomic` push where store and code share a remote; a push
-  loop that retries only the refusals it can merge past. Cross-machine freshness is open.
-- **Failure taxonomy** — harmonize user sync's transient / push-failed / divergent classes with push refusals and
-  typed conflicts.
-- **Setup and provisioning** — the fetch refspec into a remote-tracking namespace and the `.git/info/exclude` entries
-  written at first projection, `arc init`'s tracked `.ignore` and printed editor setting, and the re-clone and
-  new-machine flow. Project identity is trivial on the default backend; the backing repository still needs it.
-- **Editor scaffolding** — the ignore strategy is settled; whether to scaffold editor settings at all is open, since
-  gitignored settings do not reach spawned worktrees. Zed neither reloads an externally rewritten file nor prompts
-  before saving over it, so the projection's base check is the guard.
-- **History and retention** — notes history collapses to one imported snapshot. Store history stays bounded by unique
-  stored paths, Git maintenance ARC runs itself, rotation to a new ref name, and completed work units' refs leaving
-  the fetched namespace at archive; rotation cadence and a wider delta window are open.
-- **Unsynced work outside ARC** — ARC's teardown persists first, but `git clean -x` and a plain `git worktree remove`
-  delete gitignored files without a prompt. Weigh locking each spawned worktree, which makes a plain removal refuse;
-  `git clean -x` has no hook, so firing-point frequency bounds its loss.
-- **Windows** — renames retried over held files, a re-check that sees a same-size save, bigint file identity, line
-  endings normalized on read, and Git calls batched.
-- **Core from the package** — the projection takes more than one source and supports read-only copies, and the ignore
-  strategy works from a path list `.arc/system/` paths can join.
-- **Protection and forks** — whether protected state is an opt-in mode, and how a fork contributor runs ARC without
-  upstream state; the recorded leans are opt-in protection and the local-only backend.
-- **Tracked-tier delivery projection retirement** — native delivery currently reconstructs filtered member refs
-  because lifecycle artifacts ride the WU's code history and the published top remains append-only. Once state leaves
-  code branches and `history.policy` permits rewrite, replace that projection with ordinary interior-ref members,
-  register the complete stack including the top, and permit native restacking end to end. Preserve the
-  delivery-typed terminal-authorization arm and member-boundary verification; those are substrate-independent
-  contracts, not tracked-tier residue.
+- **Ref layout and where the store lives** — one ref per surface under `refs/arc/*`, keyed by UID: one per work item,
+  work unit or Errand, one per cohort, the project inbox, a project registry, one archive ref per quarter, and per
+  person a personal ref and a claims ref for grooming and housekeeping. No per-person workspace ref exists: a work
+  unit's session context is a section of its meta, which archive clears; its adversarial-pass results are review records
+  on its ref beside the review gate's; and personal scratch lives under each person's `scratch/`. Completed work items'
+  refs leave the fetched namespace. The local copy follows the remote: the code repository's own refs when state shares
+  the code remote, a separate Git directory at `.git/arc/store/` for a backing repository or local-only.
+- **Projection behavior** — base stamps; writer-pushed refresh into every worktree; conflicts shown in the file with
+  standard markers and parsed back at persist; `active/current/` for the checkout's work item and
+  `active/in-flight/<slug>/` for others; ownership by folder; edit rights by lifecycle state and kind of file;
+  protected files marked by a notice line, the read-only mode, and a persist refusal; no user-facing name, and
+  `arc save` as the persist verb.
+- **Sync and push** — per-machine batches at coarse firing points; the state leg in the code push's `--atomic` push
+  where they share a remote, code first and state second where they do not; explicit fetch at session start, firing
+  points, and `arc sync`, never in the background and never through the code remote's configuration.
+- **Failure taxonomy** — one closed vocabulary for local operations, typed conflicts and stale-base merges that are not
+  failures, and `pushed` / `noop` / `reconciled` or `retries-exhausted` / `unreachable` / `refused` for sync.
+- **Setup and provisioning** — exclude entries written once per clone at first projection, the tracked root `.ignore`,
+  a project ID minted at `arc init` and stored, and the state remote designated per clone.
+- **Editor scaffolding** — opt-in only: `arc init` prints the user-level settings that help, and an explicit
+  per-editor command merges ARC's keys on request.
+- **History and retention** — rotation deferred behind a growth tripwire, with every ref name fixed and a continuation
+  field reserved so no caller changes when it is built; no wider delta window.
+- **Unsynced work outside ARC** — teardown persists first, and each spawned worktree is locked against a plain
+  `git worktree remove`.
+- **Windows** — renames retried over held files, a re-check that sees a same-size save, file identity compared as a
+  bigint, line endings normalized on read, and Git calls batched, with store and projection tests in the portability
+  lane.
+- **Core from the package** — the projection takes more than one source and supports read-only copies; the ghost
+  profile needs that read-only package projection.
+- **Protection and forks** — protected state is an opt-in mode, deferred behind its tripwire; fork contributors run
+  local-only and read the upstream's state as a read-only source.
 
-This list is not exhaustive — other touchpoints surface during contract design.
+**Beyond the contract: tracked-tier delivery projection retirement.** Native delivery currently reconstructs filtered
+member refs because lifecycle artifacts ride the WU's code history and the published top remains append-only. Once
+state leaves code branches and `history.policy` permits rewrite, replace that projection with ordinary interior-ref
+members, register the complete stack including the top, and permit native restacking end to end. Preserve the
+delivery-typed terminal-authorization arm and member-boundary verification; those are substrate-independent contracts,
+not tracked-tier residue.
 
 ---
 
 ## Sequencing
 
-No prerequisite work unit lands first: the record migrations once sequenced ahead of the storage work fold into,
-shrink under, or follow it (analysis § 8). The program runs as the `state-storage` cohort, which holds its stages. Two
-rules bind interim work outside it: the cutover is one serialized window per repository, not an argument against
-parallel work on either side; and repository-wide sweeps and anything that edits the lifecycle write path never run
-alongside the contract seam (analysis § 10.2).
+No prerequisite work unit lands first: the record migrations once sequenced ahead of the storage work fold into, shrink
+under, or follow it (analysis § 8). The program runs as the `state-storage` cohort, which holds its stages: the contract
+ships over today's substrates first, readers and writers move onto it there with no change in behavior, and the flip
+then moves every family onto the ref store at once and changes the process — persistence, task close, derived ROADMAP —
+in one step. Two rules bind interim work outside it: the cutover is one serialized window per repository, not an
+argument against parallel work on either side; and repository-wide sweeps and anything that edits the lifecycle write
+path never run alongside the contract seam (analysis § 10.2).
 
 ---
 
@@ -276,7 +331,8 @@ alongside the contract seam (analysis § 10.2).
   notes retirement, and the history policy. Its Consequences list the costs this direction accepts.
 - **[Storage substrate analysis][storage-analysis]** — the evidence: measured cost, the spike results (§ 11), what
   stays open (§ 6.9, § 7), and the program shape (§ 10).
-- **`storage-contract`** — the work unit that designs the contract and carries the touchpoints above.
+- **`storage-contract`** — the work unit that specifies the contract (`spec-storage-contract.md`) and ships it over
+  today's substrates; its settled touchpoints are summarized above.
 - **`arc-coordination-service`** (provisional) — the deferred service backend: self-hosted service, auth model,
   deployment shape. Constrains this doc only via Principle 10 (service-optional).
 - **`research-storage-landscape-2026-07.md`** — 2026-07 research grounding (industry camps, beads churn lesson,
@@ -291,8 +347,9 @@ alongside the contract seam (analysis § 10.2).
   snapshot), and ADR-025's append-only invariant gives way to the history policy once notes retire.
 - **`adr-020-adopt-principle-anchored-scalable-core.md`** — the derived-vs-mutated split: derived views are never
   stored, and mutable shared state is the store's responsibility (Principle 7's per-surface mechanisms).
-- **`adr-022-managed-operational-state-documents.md`** — records-canonical / markdown-projection; records move into
-  the store without reshaping (Principle 2), and notes sync retires rather than bridging.
+- **`adr-022-managed-operational-state-documents.md`** — managed state documents, amended to file-as-record: the file
+  is the record, read through its kind's parser; records move into the store without reshaping (Principle 2), and
+  notes sync retires rather than bridging.
 - **`draft-idiomatic-alignment.md`** — OKF (Open Knowledge Format) as an optional projection/interchange target off
   the record→markdown layer (Principle 2). A _producer/projection_, not a native reshape; emit the `reference/` +
   project-knowledge layer, not operational churn. Forward-compat: keep the option open, don't foreclose it.
