@@ -70,6 +70,7 @@ export function githubActionsJobBinding(
 interface HeadWorkflowRun {
   id: string;
   workflowId: string;
+  event: string;
   runNumber: number;
   status: string;
 }
@@ -83,16 +84,21 @@ function headWorkflowRuns(value: unknown): HeadWorkflowRun[] {
     return {
       id: String(positiveInteger(run.id, `${path}.id`)),
       workflowId: String(positiveInteger(run.workflow_id, `${path}.workflow_id`)),
+      event: string(run.event, `${path}.event`),
       runNumber: positiveInteger(run.run_number, `${path}.run_number`),
       status: string(run.status, `${path}.status`),
     };
   });
 }
 
-/** Name the runs that a newer, still-running run of the same workflow on the same head replaces. */
+/**
+ * Name the runs that a newer, still-running run of the same workflow and trigger event on the same head
+ * replaces. Runs of one workflow under different events run independently, so neither replaces the other.
+ */
 function supersededRunIds(runs: readonly HeadWorkflowRun[]): Set<string> {
   return new Set(runs.filter((run) => runs.some((newer) => (
     newer.workflowId === run.workflowId
+    && newer.event === run.event
     && newer.runNumber > run.runNumber
     && newer.status !== "completed"
   ))).map(({ id }) => id));

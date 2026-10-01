@@ -309,8 +309,8 @@ describe("GitHub required-check port", () => {
     const headSha = "1234567890abcdef1234567890abcdef12345678";
     const runsEndpoint = `repos/owner/repo/actions/runs?head_sha=${headSha}&per_page=100`;
     const jobLink = (run: number, job: number) => `https://github.com/owner/repo/actions/runs/${run}/job/${job}`;
-    const workflowRun = (id: number, workflowId: number, runNumber: number, status: string) => (
-      { id, workflow_id: workflowId, run_number: runNumber, status }
+    const workflowRun = (id: number, workflowId: number, runNumber: number, status: string, event = "pull_request") => (
+      { id, workflow_id: workflowId, run_number: runNumber, status, event }
     );
 
     function host(input: {
@@ -381,6 +381,19 @@ describe("GitHub required-check port", () => {
       await expect(port.readRequiredChecks("owner/repo", 42, AbortSignal.timeout(1000))).resolves.toEqual([
         { name: "merge-ok", state: "failed" },
       ]);
+    });
+
+    it("keeps it failed when the newer run of its workflow answers another trigger event", async () => {
+      const run = host({
+        checks: () => [{ name: "merge-ok", state: "FAILURE", bucket: "fail", link: jobLink(100, 1) }],
+        runs: [workflowRun(200, 7, 6, "in_progress", "pull_request"), workflowRun(100, 7, 5, "completed", "push")],
+      });
+      const port = createGhRequiredChecksPort({ run } satisfies HostedProcessRunner);
+
+      await expect(port.readRequiredChecks("owner/repo", 42, AbortSignal.timeout(1000))).resolves.toEqual([
+        { name: "merge-ok", state: "failed" },
+      ]);
+      expect(run).toHaveBeenCalledWith(["api", runsEndpoint], expect.anything());
     });
 
     it("keeps a failure without an Actions run failed, without reading the head's runs", async () => {
