@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { GitExec } from "../../../../../../src/lib/git/exec.js";
+import type { ProjectViewFs } from "../../../../../../src/lib/status/project-view.js";
 import { createGitTreeReadFs } from "../../../../../../src/scripts/review-gate/hosts/local/git-tree-fs.js";
 import { evaluateReviewReadiness } from "../../../../../../src/scripts/review-gate/readiness.js";
 import { makeGitProcessError } from "../../../../../helpers/git-exec-fake.js";
@@ -62,6 +63,27 @@ describe("Git-tree filesystem", () => {
     await expect(fs.stat("/other/file")).rejects.toThrow("escaped the repository root");
     await expect(fs.readFile("/other/file")).rejects.toThrow("escaped the repository root");
     await expect(fs.readdir("/other")).rejects.toThrow("escaped the repository root");
+  });
+
+  it("reports a regular blob as a file and a symlink blob as neither file nor directory", async () => {
+    const oid = "c".repeat(40);
+    const rows = [
+      `100644 blob ${oid}\tmeta-plain.md`,
+      `100755 blob ${oid}\tmeta-exec.md`,
+      `120000 blob ${oid}\tmeta-link.md`,
+      `040000 tree ${oid}\tnested`,
+    ];
+    const exec: GitExec = async () => ({ stdout: `${rows.join("\0")}\0` });
+    const fs: ProjectViewFs = createGitTreeReadFs({ cwd: "/repo", revision, exec });
+
+    const entries = await fs.readdir("/repo/.arc/active");
+
+    expect(entries.map((entry) => [entry.name, entry.isFile(), entry.isDirectory()])).toEqual([
+      ["meta-plain.md", true, false],
+      ["meta-exec.md", true, false],
+      ["meta-link.md", false, false],
+      ["nested", false, true],
+    ]);
   });
 
   it("makes root-only readiness depend on the exact revision", async () => {

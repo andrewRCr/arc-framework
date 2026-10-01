@@ -9,12 +9,21 @@ import { describe, expect, it, vi } from "vitest";
 import { createProjectViewRefSnapshot } from "../../../src/lib/status/project-view-ref.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 
+/** `ls-tree -r` output for `[path, mode]` blobs, honoring `--name-only` as Git does. */
+function lsTree(args: readonly string[], blobs: ReadonlyArray<readonly [string, string?]>): string {
+  const nameOnly = args.includes("--name-only");
+  return blobs
+    .map(([path, mode = "100644"]) => (nameOnly ? path : `${mode} blob ${"0".repeat(40)}\t${path}`))
+    .map((row) => `${row}\n`)
+    .join("");
+}
+
 describe("createProjectViewRefSnapshot", () => {
   it("exposes nested lifecycle metas from one pinned ref", async () => {
     const path = ".arc/backlog/planned/widget/meta-widget.md";
     const unrelated = ".arc/backlog/planned/elsewhere/meta-elsewhere.md";
     const exec: GitExec = vi.fn(async (_cmd, args) => {
-      if (args[0] === "ls-tree") return { stdout: `${path}\n${unrelated}\n`, stderr: "" };
+      if (args[0] === "ls-tree") return { stdout: lsTree(args, [[path], [unrelated]]), stderr: "" };
       if (args[0] === "show" && args[1] === `abc123:${path}`) {
         return { stdout: "# Metadata: widget\n", stderr: "" };
       }
@@ -29,6 +38,21 @@ describe("createProjectViewRefSnapshot", () => {
     expect(planned.map((entry) => [entry.name, entry.isDirectory()])).toEqual([["widget", true]]);
     await expect(snapshot.fs.readFile(`/repo/${path}`)).resolves.toBe("# Metadata: widget\n");
     expect(exec).not.toHaveBeenCalledWith("git", ["show", `abc123:${unrelated}`], expect.anything());
+  });
+
+  it("omits a meta committed as a symlink, as the working-tree walk does", async () => {
+    const link = ".arc/active/meta-widget.md";
+    const exec: GitExec = vi.fn(async (_cmd, args) => {
+      if (args[0] === "ls-tree") return { stdout: lsTree(args, [[link, "120000"]]), stderr: "" };
+      throw new Error(`unexpected git call: ${args.join(" ")}`);
+    });
+
+    const snapshot = await createProjectViewRefSnapshot({ cwd: "/repo", exec, ref: "abc123", slug: "widget" });
+
+    expect(snapshot.ok).toBe(true);
+    if (!snapshot.ok) return;
+    await expect(snapshot.fs.readdir("/repo/.arc/active")).resolves.toEqual([]);
+    await expect(snapshot.fs.readFile(`/repo/${link}`)).rejects.toThrow("absent from ref snapshot");
   });
 
   it("fails closed when the ref tree cannot be enumerated", async () => {
@@ -50,7 +74,7 @@ describe("createProjectViewRefSnapshot", () => {
   it("fails closed when a listed meta cannot be read", async () => {
     const path = ".arc/active/meta-widget.md";
     const exec: GitExec = vi.fn(async (_cmd, args) => {
-      if (args[0] === "ls-tree") return { stdout: `${path}\n`, stderr: "" };
+      if (args[0] === "ls-tree") return { stdout: lsTree(args, [[path]]), stderr: "" };
       throw new Error("blob missing");
     });
 

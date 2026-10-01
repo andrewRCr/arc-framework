@@ -150,8 +150,8 @@ const LIFECYCLE_SOURCE_PRECEDENCE: Readonly<Record<Location, number>> = {
 };
 
 /**
- * Order two sources of one slug, preferred first: the higher-precedence tier, then the lexically first
- * path within a tier.
+ * Order two sources of one slug, preferred first: the higher-precedence tier, then the path that sorts
+ * first by code unit within a tier — host-independent, and the order the tier walk collects in.
  *
  * @param left - One source's tier and path.
  * @param right - The other source's tier and path.
@@ -162,7 +162,9 @@ export function compareLifecycleSources(
   right: { location: Location; path: string },
 ): number {
   const precedence = LIFECYCLE_SOURCE_PRECEDENCE[right.location] - LIFECYCLE_SOURCE_PRECEDENCE[left.location];
-  return precedence !== 0 ? precedence : left.path.localeCompare(right.path);
+  if (precedence !== 0) return precedence;
+  if (left.path === right.path) return 0;
+  return left.path < right.path ? -1 : 1;
 }
 
 /**

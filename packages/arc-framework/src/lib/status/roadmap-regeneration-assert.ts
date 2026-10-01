@@ -109,18 +109,21 @@ const TRANSITION_RECORD_PATH_RE = new RegExp(
 );
 const CONFLICT_MARKER_RE = /^(?:<{7}(?: .*)?|={7}|>{7}(?: .*)?|\|{7}(?: .*)?)$/mu;
 
+/** What a staged-index name is: a directory prefix, a regular file, or another staged entry kind. */
+type IndexEntryKind = "directory" | "file" | "other";
+
 class IndexDirEntry implements ProjectViewDirEntry {
   constructor(
     readonly name: string,
-    private readonly directory: boolean,
+    private readonly kind: IndexEntryKind,
   ) {}
 
   isDirectory(): boolean {
-    return this.directory;
+    return this.kind === "directory";
   }
 
   isFile(): boolean {
-    return !this.directory;
+    return this.kind === "file";
   }
 }
 
@@ -361,25 +364,30 @@ function repoPath(cwd: string, path: string): string {
 
 async function listIndexDirectory(exec: GitExec, cwd: string, dir: string): Promise<ProjectViewDirEntry[]> {
   const { stdout } = await exec("git", ["ls-files", "--stage", "--", dir], { cwd });
-  const entries = new Map<string, boolean>();
+  const entries = new Map<string, IndexEntryKind>();
   for (const line of stdout.split("\n")) {
-    const indexedPath = pathFromLsFilesStage(line);
-    if (indexedPath === null) continue;
-    const rest = relativeIndexPath(dir, indexedPath);
+    const staged = parseLsFilesStage(line);
+    if (staged === null) continue;
+    const rest = relativeIndexPath(dir, staged.path);
     if (rest === null || rest === "") continue;
     const [name, ...tail] = rest.split("/");
     if (name === undefined || name === "") continue;
-    entries.set(name, (entries.get(name) ?? false) || tail.length > 0);
+    const kind = tail.length > 0 || entries.get(name) === "directory"
+      ? "directory"
+      : staged.regularFile ? "file" : "other";
+    entries.set(name, kind);
   }
   return [...entries.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([name, directory]) => new IndexDirEntry(name, directory));
+    .map(([name, kind]) => new IndexDirEntry(name, kind));
 }
 
-function pathFromLsFilesStage(line: string): string | null {
+/** Split one `ls-files --stage` row into its path and whether its mode is a regular file's. */
+function parseLsFilesStage(line: string): { path: string; regularFile: boolean } | null {
   const tab = line.indexOf("\t");
   if (tab === -1) return null;
-  return line.slice(tab + 1);
+  const mode = line.slice(0, line.indexOf(" "));
+  return { path: line.slice(tab + 1), regularFile: mode === "100644" || mode === "100755" };
 }
 
 function relativeIndexPath(dir: string, path: string): string | null {

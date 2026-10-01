@@ -152,6 +152,18 @@ describe("buildLifecycleIndex — one source per slug", () => {
     expect(index.get("twin")).toMatchObject({ cohort: "alpha", path: ".arc/backlog/planned/alpha/meta-twin.md" });
   });
 
+  it("orders same-tier copies by code unit, not by the host locale", async () => {
+    // Locale collation puts `a/` before `B/`; code-unit order puts `B/` first on every host.
+    const fs = buildMemFs({
+      [A("backlog/planned/a/meta-twin.md")]: meta("Planning", "a"),
+      [A("backlog/planned/B/meta-twin.md")]: meta("Planning", "B"),
+    });
+
+    const index = await buildLifecycleIndex({ cwd, fs });
+
+    expect(index.get("twin")).toMatchObject({ cohort: "B", path: ".arc/backlog/planned/B/meta-twin.md" });
+  });
+
   it("reads only regular files, so a named pipe called meta-*.md never blocks the walk", async () => {
     const reads: string[] = [];
     const fs: LifecycleIndexFs = {

@@ -77,15 +77,17 @@ export function createGitTreeReadFs(input: {
       const projected = repositoryPath(input.cwd, path);
       const output = (await input.exec("git", ["ls-tree", "-z", treeish(input.revision, projected)], options)).stdout;
       return output.split("\0").filter((entry) => entry !== "").map((entry) => {
-        const match = /^[0-7]{6} (blob|tree|commit) [0-9a-f]+\t(.+)$/u.exec(entry);
-        if (match?.[1] === undefined || match[2] === undefined) {
+        const match = /^([0-7]{6}) (blob|tree|commit) [0-9a-f]+\t(.+)$/u.exec(entry);
+        if (match?.[1] === undefined || match[2] === undefined || match[3] === undefined) {
           throw new Error("Git returned a malformed tree entry.");
         }
-        const type = match[1];
+        const [, mode, type] = match;
+        // A symlink is a blob too; only the regular-file modes are files.
+        const regularFile = type === "blob" && (mode === "100644" || mode === "100755");
         return {
-          name: match[2],
+          name: match[3],
           isDirectory: () => type === "tree",
-          isFile: () => type === "blob",
+          isFile: () => regularFile,
         } satisfies ReviewReadinessDirEntry & ProjectViewDirEntry;
       });
     },
