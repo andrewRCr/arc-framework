@@ -94,6 +94,8 @@ function okConfig(): Probe<ConfigStatusResult> {
       "review.hosted_await_timeout_seconds": "120",
       "review.hosted_await_initial_poll_interval_seconds": "15",
       "review.hosted_await_attention_after_minutes": "15",
+      "review.checks_await_timeout_seconds": "300",
+      "review.checks_await_initial_poll_interval_seconds": "5",
         "pm.mode": "none",
         "team.mode": "false",
         "session.remote_sync": "enabled",
@@ -322,7 +324,7 @@ describe("buildStatusSummary — full mode", () => {
     // Extensions full formatter headline: "N active · N inactive · N orphaned refs"
     expect(summary).toContain("1 active · 0 inactive · 0 orphaned refs");
     // Config formatter: "N agent-consumable settings"
-    expect(summary).toContain("33 agent-consumable settings");
+    expect(summary).toContain("35 agent-consumable settings");
     // Active formatter: "0 active work units"
     expect(summary).toContain("0 active work units");
   });

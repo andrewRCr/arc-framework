@@ -23,6 +23,7 @@ import {
   resolveChangeSet,
 } from "../lib/change-facts.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
+import type { ConfigSettings } from "../lib/config/schema.js";
 import { RepositoryDeliveryPlanStore, RepositoryDeliveryStateStore } from "../lib/delivery/local-stores.js";
 import { sameDeliveryReviewMemberVehicle } from "../lib/delivery/review-vehicle.js";
 import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
@@ -252,6 +253,7 @@ import {
   type HostedReviewObserver,
 } from "../scripts/review-gate/hosted/await.js";
 import { resolveHostedAwaitTiming } from "../scripts/review-gate/hosted/await-config.js";
+import { AwaitTimingError, resolveAwaitTiming, type AwaitTiming } from "../scripts/review-gate/await-timing.js";
 import {
   acknowledgeHostedRequest,
   hostedLaneAttemptId,
@@ -791,8 +793,8 @@ export interface ReviewChecksAwaitOptions {
   repository: string;
   pullRequest: string;
   headSha: string;
-  timeoutMs: string;
-  pollIntervalMs: string;
+  timeoutMs?: string;
+  pollIntervalMs?: string;
 }
 
 export interface ReviewStatusOptions {
@@ -1165,11 +1167,52 @@ export async function handleReviewTerminusAccept(
   });
 }
 
+type ChecksAwaitTimingSettings = Pick<
+  ConfigSettings,
+  "review.checks_await_timeout_seconds" | "review.checks_await_initial_poll_interval_seconds"
+>;
+
 export interface ReviewChecksAwaitHandlerDependencies {
+  readTimingSettings(): Promise<ChecksAwaitTimingSettings>;
   awaitChecks(input: z.infer<typeof ChecksAwaitInputSchema>): Promise<ChecksAwaitResult>;
   retrieveFailureLogs(input: FailedCheckLogsInput): Promise<FailedCheckLogsResult>;
   write(text: string): void;
   setExitCode(code: number): void;
+}
+
+/** Parse the exact target, composing its timing from any flags over the project's configured bound. */
+async function parseChecksAwaitInput(
+  options: ReviewChecksAwaitOptions,
+  dependencies: Pick<ReviewChecksAwaitHandlerDependencies, "readTimingSettings">,
+): Promise<{ success: true; data: z.infer<typeof ChecksAwaitInputSchema> } | { success: false; detail: string }> {
+  let timing: AwaitTiming;
+  try {
+    timing = resolveAwaitTiming({
+      wait: "required-check await",
+      keys: {
+        timeoutSeconds: "review.checks_await_timeout_seconds",
+        initialPollIntervalSeconds: "review.checks_await_initial_poll_interval_seconds",
+      },
+      settings: await dependencies.readTimingSettings(),
+      overrides: {
+        timeoutMs: options.timeoutMs === undefined ? undefined : Number(options.timeoutMs),
+        pollIntervalMs: options.pollIntervalMs === undefined ? undefined : Number(options.pollIntervalMs),
+        labels: { timeout: "--timeout-ms", pollInterval: "--poll-interval-ms" },
+      },
+    });
+  } catch (error) {
+    if (error instanceof AwaitTimingError) return { success: false, detail: error.message };
+    throw error;
+  }
+  const parsed = ChecksAwaitInputSchema.safeParse({
+    repository: options.repository,
+    pullRequest: Number(options.pullRequest),
+    headSha: options.headSha,
+    ...timing,
+  });
+  return parsed.success
+    ? { success: true, data: parsed.data }
+    : { success: false, detail: parsed.error.issues.map((issue) => issue.message).join("; ") };
 }
 
 /** Await required checks on one exact pull-request head. */
@@ -1184,6 +1227,7 @@ export async function handleReviewChecksAwait(
   const failedCheckLogsPort = createGhFailedCheckLogsPort(hostedGhRunner);
   const failedCheckLogStore = createLocalFailedCheckLogStore();
   const dependencies: ReviewChecksAwaitHandlerDependencies = {
+    readTimingSettings: async () => (await readConfigSettings(resolveArcRoot(process.cwd()) ?? process.cwd())).settings,
     awaitChecks: (input) => awaitRequiredChecks(input, {
       port,
       clock: { now: () => Date.now(), sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)) },
@@ -1197,15 +1241,9 @@ export async function handleReviewChecksAwait(
     setExitCode: (code) => { process.exitCode = code; },
     ...overrides,
   };
-  const parsed = ChecksAwaitInputSchema.safeParse({
-    repository: options.repository,
-    pullRequest: Number(options.pullRequest),
-    headSha: options.headSha,
-    timeoutMs: Number(options.timeoutMs),
-    pollIntervalMs: Number(options.pollIntervalMs),
-  });
+  const parsed = await parseChecksAwaitInput(options, dependencies);
   if (!parsed.success) {
-    const detail = parsed.error.issues.map((issue) => issue.message).join("; ");
+    const { detail } = parsed;
     dependencies.write(`${JSON.stringify(ChecksAwaitCommandResultSchema.parse({
       schemaVersion: 1,
       mode: "review-checks-await",

@@ -283,6 +283,8 @@ export const ARC_CONFIG_FIELDS = [
   positiveSafeIntegerField("review.hosted_await_timeout_seconds", "120", 1, 30 * 60),
   positiveSafeIntegerField("review.hosted_await_initial_poll_interval_seconds", "15", 1, 60),
   positiveSafeIntegerField("review.hosted_await_attention_after_minutes", "15", 1),
+  positiveSafeIntegerField("review.checks_await_timeout_seconds", "300", 1, 30 * 60),
+  positiveSafeIntegerField("review.checks_await_initial_poll_interval_seconds", "5", 1, 60),
   unsignedSafeIntegerField("changeset.advisory_threshold_lines", "0"),
   unsignedSafeIntegerField("changeset.advisory_threshold_files", "0"),
   enumField("pm.mode", ["none", "arc-in-git", "external"], "none"),

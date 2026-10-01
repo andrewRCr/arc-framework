@@ -101,6 +101,8 @@ function buildSettings(overrides: SettingsOverrides = {}): ResolvedSettingsResul
       "review.hosted_await_timeout_seconds": "120",
       "review.hosted_await_initial_poll_interval_seconds": "15",
       "review.hosted_await_attention_after_minutes": "15",
+      "review.checks_await_timeout_seconds": "300",
+      "review.checks_await_initial_poll_interval_seconds": "5",
     "pm.mode": "arc-in-git",
     "team.mode": "false",
     "session.remote_sync": "enabled",

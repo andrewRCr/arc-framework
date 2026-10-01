@@ -1802,8 +1802,11 @@ reviewCmd
   .requiredOption("--repository <owner/repo>", "Exact repository coordinates")
   .requiredOption("--pull-request <number>", "Pull-request number")
   .requiredOption("--head-sha <oid>", "Exact 40-hex pull-request head")
-  .option("--timeout-ms <milliseconds>", "Bounded wait duration", "300000")
-  .option("--poll-interval-ms <milliseconds>", "Initial polling interval", "5000")
+  .option("--timeout-ms <milliseconds>", "Bounded wait duration (default: review.checks_await_timeout_seconds)")
+  .option(
+    "--poll-interval-ms <milliseconds>",
+    "Initial polling interval (default: review.checks_await_initial_poll_interval_seconds)",
+  )
   .addOption(new Option("--json").hideHelp())
   .on("option:json", rejectUnsupportedReviewOutputJson)
   .action(withInteractionContext({ machineReadable: () => true }, async (context, options: ReviewChecksAwaitOptions) => {
