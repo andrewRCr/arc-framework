@@ -10,6 +10,7 @@ import {
 } from "../../src/lib/delivery/from-branch.js";
 import { DeliveryAuthoringSlotsV1Schema } from "../../src/lib/delivery/authoring-map.js";
 import { createRawGitExec } from "../../src/lib/io-context.js";
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import {
   cleanupTempDir,
   createTempRepo,
@@ -128,7 +129,7 @@ describe("branch-derived delivery facts", () => {
     const exec = createRawGitExec(repository);
     const unsupportedExec: typeof exec = async (args, options) => {
       if (args[0] === "merge-tree" && args[1] === "--write-tree") {
-        throw new Error("unknown option: --write-tree");
+        throw makeGitProcessError({ command: "git", args, exitCode: 129, stderr: "unknown option: --write-tree" });
       }
       return exec(args, options);
     };

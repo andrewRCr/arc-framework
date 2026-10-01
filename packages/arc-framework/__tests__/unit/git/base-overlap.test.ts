@@ -7,20 +7,19 @@ import {
 } from "../../../src/lib/git/base-overlap.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import { GitProcessError } from "../../../src/lib/git/process-error.js";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 
 const BASE = "b".repeat(40);
 const MERGE_BASE = "a".repeat(40);
 
-function overlapExec(branch: string, base: string): { exec: GitExec; calls: string[][] } {
-  const calls: string[][] = [];
-  const exec: GitExec = async (_cmd, args) => {
-    calls.push(args);
-    if (args[0] === "merge-base") return { stdout: `${MERGE_BASE}\n` };
-    if (args.at(-1) === `${MERGE_BASE}..${BASE}`) return { stdout: base };
-    if (args.at(-1)?.startsWith(`${MERGE_BASE}..`) === true) return { stdout: branch };
-    throw new Error("unexpected invocation");
-  };
-  return { exec, calls };
+function overlapExec(branch: string, base: string): ReturnType<typeof scriptGitExec> {
+  return scriptGitExec([
+    { match: { prefix: ["merge-base"] }, responses: [{ stdout: `${MERGE_BASE}\n` }] },
+    { match: { predicate: (args) => args[0] === "diff" && args.at(-1) === `${MERGE_BASE}..${BASE}` },
+      responses: [{ stdout: base }] },
+    { match: { predicate: (args) => args[0] === "diff" && args.at(-1)?.startsWith(`${MERGE_BASE}..`) === true },
+      responses: [{ stdout: branch }] },
+  ]);
 }
 
 describe("base overlap evidence", () => {
@@ -45,8 +44,8 @@ describe("base overlap evidence", () => {
         regenerablePaths: [".arc/backlog/ROADMAP.md"],
       },
     });
-    expect(calls).toContainEqual(["merge-base", "--all", HEAD, BASE]);
-    expect(calls).toContainEqual([
+    expect(calls.map(({ args }) => args)).toContainEqual(["merge-base", "--all", HEAD, BASE]);
+    expect(calls.map(({ args }) => args)).toContainEqual([
       "diff", "--name-only", "-z", "--no-renames", `${MERGE_BASE}..${HEAD}`,
     ]);
   });
@@ -72,15 +71,10 @@ describe("base overlap evidence", () => {
   it("reports a history with multiple best merge bases as ambiguous", async () => {
     const head = "c".repeat(40);
     const otherBase = "d".repeat(40);
-    const exec: GitExec = async (_cmd, args) => {
-      if (args[0] === "merge-base") {
-        return { stdout: args.includes("--all")
-          ? `${MERGE_BASE}\n${otherBase}\n`
-          : `${MERGE_BASE}\n` };
-      }
-      if (args[0] === "diff") return { stdout: "" };
-      throw new Error("unexpected invocation");
-    };
+    const { exec } = scriptGitExec([{
+      match: ["merge-base", "--all", head, BASE],
+      responses: [{ stdout: `${MERGE_BASE}\n${otherBase}\n` }],
+    }]);
 
     const result = await analyzeRevisionOverlap({
       exec,
@@ -165,7 +159,7 @@ describe("base overlap evidence", () => {
       substantivePaths: ["a.ts", "z.ts"],
       regenerablePaths: ["ROADMAP"],
     });
-    expect(calls.filter((args) => args[0] === "diff")).toSatisfy(
+    expect(calls.map(({ args }) => args).filter((args) => args[0] === "diff")).toSatisfy(
       (entries: string[][]) => entries.every((args) => args.includes("--no-renames") && args.includes("-z")),
     );
   });
@@ -214,11 +208,14 @@ describe("base overlap evidence", () => {
   });
 
   it("distinguishes a failed base-side diff from empty overlap", async () => {
-    const exec: GitExec = async (_cmd, args) => {
-      if (args[0] === "merge-base") return { stdout: `${MERGE_BASE}\n` };
-      if (args.at(-1) === `${MERGE_BASE}..${"c".repeat(40)}`) return { stdout: "a.ts\0" };
-      throw new Error("base diff failed");
-    };
+    const { exec } = scriptGitExec([
+      { match: { prefix: ["merge-base"] }, responses: [{ stdout: `${MERGE_BASE}\n` }] },
+      { match: { predicate: (args) => args[0] === "diff" &&
+        args.at(-1) === `${MERGE_BASE}..${"c".repeat(40)}` },
+      responses: [{ stdout: "a.ts\0" }] },
+      { match: { prefix: ["diff"] },
+        responses: [{ failure: { exitCode: 128, stderr: "base diff failed" } }] },
+    ]);
     await expect(analyzeBaseOverlap({
       exec, baseOid: BASE, headOid: "c".repeat(40), ahead: 1, behind: 1, classify: () => "reviewable",
     })).resolves.toEqual({ status: "unavailable", reason: "base-diff-failed" });

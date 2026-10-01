@@ -24,6 +24,7 @@ import {
   writeUnavailableBaseReadShim,
   type BaseMovementKind,
 } from "../helpers/base-advance.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -43,39 +44,11 @@ afterEach(async () => {
   }
 });
 
-const META = [
-  `# Metadata: ${WORK_UNIT}`,
-  "",
-  "| **State** | **Owner**   | **Branch**     | **Class** | **Priority** |",
-  "| --------- | ----------- | -------------- | --------- | ------------ |",
-  `| \`Active\`  | \`test-user\` | \`${HEAD_REF}\` | \`Light\`   | \`P2\`         |`,
-  "",
-  "- **Cohort:** [none]",
-  "- **Depends On:** [none]",
-  "",
-  "- **Origin:** [internal]",
-  "- **Design:** [none]",
-  `- **Task List:** \`tasks-${WORK_UNIT}.md\``,
-  "- **Review Rubric:** [none]",
-  "- **Promotion Receipt:** [none]",
-  "",
-  "- **Current Workflow:** [none]",
-  "- **Last Completed:** verification",
-  "- **Next Task:** [none]",
-  "- **Blockers:** [none]",
-  "",
-  "- **Next Action:** verification complete",
-  "",
-  "- **PR URL:** [none]",
-  "- **Completed:** [none]",
-  "",
-  "---",
-  "",
-  "## Completion Notes",
-  "",
-  "Added one surface and its verification.",
-  "",
-].join("\n");
+const META = `${makeMetaFixture(WORK_UNIT, {
+  owner: "test-user", branch: HEAD_REF, workClass: "Light", priority: "P2",
+  taskList: `tasks-${WORK_UNIT}.md`, lastCompleted: "verification",
+  nextAction: "verification complete",
+})}\n## Completion Notes\n\nAdded one surface and its verification.\n`;
 
 /**
  * A host answering only what landing asks of it, for one open change request on the work unit's branch.

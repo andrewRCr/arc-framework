@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { RawGitExec } from "../../../src/lib/change-facts.js";
+import type { RawGitExec } from "../../../src/lib/git/exec.js";
 import { createExecaGitExec } from "../../../src/lib/git/process-executor.js";
 import { createRawGitExec } from "../../../src/lib/io-context.js";
 import {

@@ -17,6 +17,7 @@ import {
   MERGE_REFUSAL_REASONS,
   mergeRemedy,
 } from "../../../../src/scripts/integration/merge.js";
+import { MergeLockTransitionRequestSchema } from "../../../../src/scripts/review-gate/merge-lock.js";
 import { SpineRemedySchema, spineRemedy } from "../../../../src/scripts/integration/spine-refusal.js";
 import {
   REVIEW_PRE_PUBLICATION_REFUSAL_CODES,
@@ -85,12 +86,12 @@ describe("spine refusal remedies", () => {
       const remedy = SpineRemedySchema.parse(mergeRemedy(
         reason,
         "example",
-        reason === "relock-failed" ? {
+        reason === "relock-failed" ? MergeLockTransitionRequestSchema.parse({
             schemaVersion: 1,
             treeRoot: "/candidate",
             target: { repository: "owner/repo", pullRequest: 42, headSha: "a".repeat(40) },
             vehicle: { kind: "work-unit", slug: "example", archiveCadence: "with-integration" },
-          }
+          })
           : undefined,
         reason === "host-pending" || reason === "merge-outcome-unknown"
           ? `checkpoint-v1:${"c".repeat(40)}:sha256:${"e".repeat(64)}`

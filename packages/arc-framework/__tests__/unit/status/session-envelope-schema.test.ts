@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import { assertSessionInitProbeResult, SessionInitProbeResultSchema } from "../../../src/commands/status/schema.js";
 
@@ -106,12 +107,11 @@ function clone(value: Record<string, unknown>): Record<string, unknown> {
 }
 
 function expectInvalid(value: Record<string, unknown>): void {
-  expect(SessionInitProbeResultSchema.safeParse(value).success).toBe(false);
+  assertSchemaRefuses(SessionInitProbeResultSchema, value);
 }
 
 function expectValid(value: Record<string, unknown>): void {
-  const parsed = SessionInitProbeResultSchema.safeParse(value);
-  expect(parsed.success ? null : parsed.error.message).toBeNull();
+  assertSchemaAccepts(SessionInitProbeResultSchema, value);
 }
 
 function withoutKey(value: Record<string, unknown>, key: string): Record<string, unknown> {
@@ -154,6 +154,22 @@ function integrationBoundaryFixture(workUnit = "active-widget"): Record<string, 
 }
 
 describe("session-init envelope schema", () => {
+  it("refuses undeclared base-distance fields while retaining a valid composed value", () => {
+    const value = fixture("orient");
+    expectValid(value);
+    setPath(value, ["baseDistance", "value", "extraEvidence"], true);
+    expect(() => assertSessionInitProbeResult(value))
+      .toThrow('session-init-envelope: baseDistance.value: Unrecognized key: "extraEvidence"');
+  });
+
+  it("refuses undeclared fields inside the emitted roster and names the field", () => {
+    const value = fixture("orient");
+    expectValid(value);
+    setPath(value, ["roster", "value", "entries", 0, "extraEvidence"], true);
+    expect(() => assertSessionInitProbeResult(value))
+      .toThrow('session-init-envelope: roster.value.entries.0: Unrecognized key: "extraEvidence"');
+  });
+
   it("accepts completed-work-unit integration recovery without a live publication boundary", () => {
     const value = owningWorkUnitFixture();
     setPath(value, ["active", "value", "sessionType"], "integration");
@@ -320,7 +336,7 @@ describe("session-init envelope schema", () => {
       recommendedCommand: null,
       recommendedPromptText: "Base evidence is pending.",
     });
-    expect(SessionInitProbeResultSchema.safeParse(pending).success).toBe(true);
+    assertSchemaAccepts(SessionInitProbeResultSchema, pending);
 
     const unreachable = clone(pending);
     setPath(unreachable, ["userReferenceReconcile", "value", "status"], "unavailable");
@@ -808,7 +824,7 @@ describe("session-init envelope schema", () => {
         text: "git worktree move /wt/old /wt/new",
       },
     }]);
-    expect(SessionInitProbeResultSchema.safeParse(value).success).toBe(true);
+    assertSchemaAccepts(SessionInitProbeResultSchema, value);
 
     setPath(value, ["sweep", "value", "renameMoves", 0, "remedy", "argv", 0], "arc");
     expectContractFailure(value, "sweep.value.renameMoves.0.remedy.argv.0");
@@ -904,6 +920,85 @@ describe("session-init envelope schema", () => {
     });
   });
 
+  it("rejects undeclared dirty-state and current-husk fields at their envelope slots", () => {
+    const dirty = fixture("orient");
+    setPath(dirty, ["dirty", "value", "unexpected"], true);
+    expectContractFailure(dirty, "dirty.value");
+
+    const husk = fixture("current-husk");
+    setPath(husk, ["currentHusk", "value", "unexpected"], true);
+    expectContractFailure(husk, "currentHusk.value");
+  });
+
+  it.each(["extensions", "active", "domainRules"])(
+    "rejects an undeclared %s field at its envelope slot",
+    (slot) => {
+      const value = fixture("orient");
+      setPath(value, [slot, "value", "unexpected"], true);
+      expectContractFailure(value, `${slot}.value`);
+    },
+  );
+
+  it("rejects undeclared config fields", () => {
+    const extra = fixture("orient");
+    setPath(extra, ["config", "value", "unexpected"], true);
+    expectContractFailure(extra, "config.value");
+  });
+
+  it("names a misconfigured config setting at its envelope slot", () => {
+    const misconfigured = fixture("orient");
+    setPath(misconfigured, ["config", "value", "settings", "session.remote_sync"], "sometimes");
+    expectContractFailure(misconfigured, "config.value.settings.session.remote_sync");
+  });
+
+  it("rejects undeclared release-routing fields at its envelope slot", () => {
+    const value = fixture("orient");
+    setPath(value, ["releaseRouting", "value", "rationale", "unexpected"], true);
+    expectContractFailure(value, "releaseRouting.value.rationale");
+  });
+
+  it("accepts a diverged worktree with snapshot supersession evidence", () => {
+    const value = fixture("active-resume");
+    setPath(value, ["worktree", "value"], {
+      state: "diverged", ahead: 1, behind: 1, branch: "feat/active-widget",
+      remoteEvidence: "exact", recommendedAction: "surface", recommendedPromptText: "Reset safely.",
+      identity: { kind: "linked", path: "/redacted/worktree" },
+      supersession: {
+        superseded: true, supersededCommits: ["a".repeat(40)], novelCommits: [], remoteEvidence: "exact",
+      },
+    });
+    expectValid(value);
+  });
+
+  it.each([
+    ["not-needed", { superseded: false, supersededCommits: [], novelCommits: [] }],
+    ["pending-fetch", {
+      superseded: false, supersededCommits: [], novelCommits: [], remoteEvidence: "pending-fetch",
+    }],
+    ["unreachable", {
+      superseded: false, supersededCommits: [], novelCommits: [],
+      remoteEvidence: "unreachable", failureReason: "network",
+    }],
+  ])("accepts a diverged worktree with %s supersession", (_arm, supersession) => {
+    const value = fixture("active-resume");
+    setPath(value, ["worktree", "value"], {
+      state: "diverged", ahead: 1, behind: 1, branch: "feat/active-widget",
+      remoteEvidence: "exact", recommendedAction: "surface", recommendedPromptText: "",
+      identity: { kind: "linked", path: "/redacted/worktree" }, supersession,
+    });
+    expectValid(value);
+  });
+
+  it("rejects undeclared worktree and identity fields at their session-init slot", () => {
+    const worktree = fixture("orient");
+    setPath(worktree, ["worktree", "value", "unexpected"], true);
+    expectContractFailure(worktree, "worktree.value");
+
+    const identity = fixture("active-resume");
+    setPath(identity, ["worktree", "value", "identity", "unexpected"], true);
+    expectContractFailure(identity, "worktree.value.identity");
+  });
+
   it("enforces roster, recovery, and primary sweep gates", () => {
     const branchGone = fixture("branch-gone");
     delete branchGone.roster;
@@ -944,7 +1039,7 @@ describe("session-init envelope schema", () => {
         error: { kind: "runtime", message: "degraded" },
       },
     };
-    expect(SessionInitProbeResultSchema.safeParse(failed).success).toBe(true);
+    assertSchemaAccepts(SessionInitProbeResultSchema, failed);
     expectInvalid({ ...fixture("orient"), currentHusk: failed.currentHusk });
   });
 
@@ -1009,7 +1104,7 @@ describe("session-init envelope schema", () => {
     const orient = fixture("orient");
     delete orient.compactionAdvisory;
     delete orient.inFlightComposition;
-    expect(SessionInitProbeResultSchema.safeParse(orient).success).toBe(true);
+    assertSchemaAccepts(SessionInitProbeResultSchema, orient);
 
     expectInvalid({
       ...fixture("identity-missing"),
@@ -1048,26 +1143,22 @@ describe("session-init envelope schema", () => {
   it("validates but never requires the invocation-only seed-write status", () => {
     const omitted = fixture("orient");
     delete omitted.compactionSeedWrite;
-    expect(SessionInitProbeResultSchema.safeParse(omitted).success).toBe(true);
-    expect(
-      SessionInitProbeResultSchema.safeParse({
-        ...omitted,
-        compactionSeedWrite: {
-          status: "skipped",
-          reason: "identity-missing",
-        },
-      }).success,
-    ).toBe(true);
-    expect(
-      SessionInitProbeResultSchema.safeParse({
-        ...omitted,
-        compactionSeedWrite: {
-          status: "failed",
-          reason: "seed-invalid",
-          message: "invalid",
-        },
-      }).success,
-    ).toBe(true);
+    assertSchemaAccepts(SessionInitProbeResultSchema, omitted);
+    assertSchemaAccepts(SessionInitProbeResultSchema, {
+      ...omitted,
+      compactionSeedWrite: {
+        status: "skipped",
+        reason: "identity-missing",
+      },
+    });
+    assertSchemaAccepts(SessionInitProbeResultSchema, {
+      ...omitted,
+      compactionSeedWrite: {
+        status: "failed",
+        reason: "seed-invalid",
+        message: "invalid",
+      },
+    });
     expectInvalid({
       ...fixture("orient"),
       compactionSeedWrite: { status: "written", path: "" },

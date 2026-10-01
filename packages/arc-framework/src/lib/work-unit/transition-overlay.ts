@@ -1,6 +1,6 @@
 /** Typed transition authority projected into receipt-blind project composition. */
 
-import type { CanonicalDigest } from "../canonical/canonical-json.js";
+import type { CanonicalDigest } from "../kernel/canonical/canonical-json.js";
 
 const prospectiveAuthority: unique symbol = Symbol("prospective-transition-authority");
 const validatedAuthority: unique symbol = Symbol("validated-transition-authority");

@@ -1,6 +1,6 @@
 /** Git-common composition of immutable local, frontline, and hosted producer evidence. */
 
-import { canonicalDigest, canonicalize } from "../../../../lib/kernel/index.js";
+import { canonicalDigest, canonicalize, type CanonicalDigest } from "../../../../lib/kernel/index.js";
 import { FrontlineOutcomeRecordSchema, type FrontlineOutcomeRecord } from "../../core/advisory-records.js";
 import { validateReviewReceipt } from "../../core/gate-contract-v2.js";
 import { LocalReviewSourceSchema } from "../../core/local-review-source.js";
@@ -149,7 +149,7 @@ function localResultDigest(
   state: LocalState,
   local: NonNullable<LaneAttempt["local"]>,
   receipt: ReturnType<typeof validateReviewReceipt>,
-): string {
+): CanonicalDigest {
   return canonicalDigest({
     domain: "arc.review.local-result/v1",
     producerId: state.operationId,

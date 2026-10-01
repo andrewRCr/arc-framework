@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import {
   analyzeOrphanBranchesSnapshot,
   OrphanBranchReportSchema,
@@ -29,20 +31,34 @@ function buildExec(
   branches: Record<string, BranchFixture>,
   shippedWorkUnits: string[] = [],
 ): GitExec {
-  return (async (_cmd: string, args: string[]) => {
-    if (args[0] === "for-each-ref") {
-      const stdout = Object.entries(branches)
-        .map(
-          ([name, fixture]) => `${name}${NUL}${fixture.track}${NUL}${fixture.worktreePath ?? ""}`,
-        )
-        .join("\n");
-      return { stdout, stderr: "" };
-    }
-    if (args[0] === "cherry") {
-      const branch = args[2];
-      const fixture = branch !== undefined ? branches[branch] : undefined;
-      return { stdout: fixture?.merged ? "" : "+ deadbeef\n", stderr: "" };
-    }
+  const surviving = scriptGitExec([
+    {
+      match: { prefix: ["for-each-ref"] },
+      responses: [() => ({
+        stdout: Object.entries(branches)
+          .map(
+            ([name, fixture]) => `${name}${NUL}${fixture.track}${NUL}${fixture.worktreePath ?? ""}`,
+          )
+          .join("\n"),
+        stderr: "",
+      })],
+    },
+    {
+      match: { prefix: ["cherry"] },
+      responses: [({ args }) => {
+        const branch = args[2];
+        const fixture = branch !== undefined ? branches[branch] : undefined;
+        return { stdout: fixture?.merged ? "" : "+ deadbeef\n", stderr: "" };
+      }],
+    },
+    {
+      match: { predicate: () => true },
+      responses: [({ args }) => {
+        throw new Error(`unexpected git invocation: ${args.join(" ")}`);
+      }],
+    },
+  ]);
+  return (async (_cmd: string, args: string[], options) => {
     if (args[0] === "ls-tree") {
       const stdout = shippedWorkUnits
         .map(
@@ -52,7 +68,7 @@ function buildExec(
         .join("\n");
       return { stdout, stderr: "" };
     }
-    throw new Error(`unexpected git invocation: ${args.join(" ")}`);
+    return surviving.exec("git", args, options);
   }) as GitExec;
 }
 
@@ -201,15 +217,19 @@ describe("runOrphanBranchSweep", () => {
 
   it("classifies surviving orphans against the supplied advertised base OID", async () => {
     const baseOid = "3".repeat(40);
+    const surviving = scriptGitExec([
+      { match: { prefix: ["for-each-ref"] }, responses: [{ stdout: `feat/shipped${NUL}gone${NUL}`, stderr: "" }] },
+      { match: { prefix: ["cherry", baseOid] }, responses: [{ stdout: "", stderr: "" }] },
+    ]);
     const exec: GitExec = async (_command, args, options) => {
       if (args[0] === "for-each-ref") {
-        return { stdout: `feat/shipped${NUL}gone${NUL}`, stderr: "" };
+        return surviving.exec(_command, args, options);
       }
       if (options?.objectAccess !== "local-only") throw new Error("object access was not local-only");
       if (args[0] === "ls-tree" && args[4] === baseOid) {
         return { stdout: ".arc/completed/2026-q2/01_shipped/meta-shipped.md", stderr: "" };
       }
-      if (args[0] === "cherry" && args[1] === baseOid) return { stdout: "", stderr: "" };
+      if (args[0] === "cherry" && args[1] === baseOid) return surviving.exec(_command, args, options);
       throw new Error(`tracking-ref fallback: ${args.join(" ")}`);
     };
 
@@ -255,6 +275,13 @@ describe("runOrphanBranchSweep", () => {
 describe("analyzeOrphanBranchesSnapshot", () => {
   it("classifies removable and retained orphans against the exact advertised base", async () => {
     const baseOid = "1111111111111111111111111111111111111111";
+    const surviving = scriptGitExec([{
+      match: { prefix: ["cherry", baseOid] },
+      responses: [({ args }) => ({
+        stdout: args[2] === "feat/shipped" ? "" : "+ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n",
+        stderr: "",
+      })],
+    }]);
     const exec: GitExec = async (_cmd, args, options) => {
       if (options?.objectAccess !== "local-only") throw new Error("object access was not local-only");
       if (args[0] === "ls-tree") {
@@ -266,12 +293,7 @@ describe("analyzeOrphanBranchesSnapshot", () => {
       }
       if (args[0] === "cherry") {
         if (args[1] !== baseOid) throw new Error("unexpected base operand");
-        return {
-          stdout: args[2] === "feat/shipped"
-            ? ""
-            : "+ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n",
-          stderr: "",
-        };
+        return surviving.exec(_cmd, args, options);
       }
       throw new Error(`unexpected git invocation: ${args.join(" ")}`);
     };
@@ -371,9 +393,12 @@ describe("analyzeOrphanBranchesSnapshot", () => {
 
   it("propagates malformed local graph output", async () => {
     const baseOid = "1".repeat(40);
+    const surviving = scriptGitExec([{
+      match: { prefix: ["cherry"] }, responses: [{ stdout: "+ malformed\n", stderr: "" }],
+    }]);
     const exec: GitExec = async (_command, args) => {
       if (args[0] === "ls-tree") return { stdout: "", stderr: "" };
-      if (args[0] === "cherry") return { stdout: "+ malformed\n", stderr: "" };
+      if (args[0] === "cherry") return surviving.exec(_command, args);
       throw new Error(`unexpected git invocation: ${args.join(" ")}`);
     };
 
@@ -428,6 +453,6 @@ describe("OrphanBranchSweepResultSchema", () => {
     { branch: "feat/work", merged: true, shippedWorkUnit: "Not A Slug" },
     { branch: "feat/work", merged: true, shippedWorkUnit: null, leaked: true },
   ])("rejects a malformed orphan row", (orphan) => {
-    expect(OrphanBranchReportSchema.safeParse(orphan).success).toBe(false);
+    assertSchemaRefuses(OrphanBranchReportSchema, orphan);
   });
 });

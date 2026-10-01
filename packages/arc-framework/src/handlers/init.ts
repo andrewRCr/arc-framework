@@ -18,7 +18,6 @@ import { getArcTemplatePath, getInternalTemplatePath, getRecipePath } from "../l
 import { getFrameworkVersion } from "../lib/version.js";
 import { createIOContext } from "../lib/io-context.js";
 import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
-import { gitExec } from "../lib/io-context.js";
 import {
   resolveProcessInteractionContext,
   type InteractionContext,
@@ -56,7 +55,7 @@ export async function handleInit(
   // --- Fresh init path ---
   p.intro(`ARC Framework v${getFrameworkVersion()} \u2502 Initialization`);
 
-  if (!(await requireGitRepo())) return;
+  if (!(await requireGitRepo(io.exec))) return;
 
   p.log.message("Setting up ARC for your project...");
 
@@ -78,7 +77,7 @@ export async function handleInit(
         teamMode: result.team_mode,
       };
     },
-    resolveIdentity: resolveIdentityWithPrompt,
+    resolveIdentity: (interactive) => resolveIdentityWithPrompt(interactive, io.exec),
   });
   if (input.kind !== "resolved") {
     reportInputFailure(input);
@@ -169,7 +168,7 @@ async function handleReconfigure(
 ): Promise<void> {
   p.intro(`ARC Framework v${getFrameworkVersion()} \u2502 Reconfigure${opts.dryRun ? " (dry run)" : ""}`);
 
-  if (!(await requireGitRepo())) return;
+  if (!(await requireGitRepo(io.exec))) return;
   const cwd = requireArcProjectRoot(startDir);
   if (!cwd) return;
 
@@ -188,7 +187,7 @@ async function handleReconfigure(
   // Role gate: require maintainer (or unset)
   let role: string | undefined;
   try {
-    const result = await gitExec("git", ["config", "--get", "arc.role"]);
+    const result = await io.exec("git", ["config", "--get", "arc.role"]);
     role = result.stdout.trim() || undefined;
   } catch {
     // Not set — treated as maintainer

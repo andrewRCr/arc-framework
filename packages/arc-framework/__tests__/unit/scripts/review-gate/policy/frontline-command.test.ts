@@ -231,7 +231,7 @@ describe("frontline workflow command", () => {
 
   it("inherits a validated initial skip after Candidate supersession", async () => {
     const store = operationStore();
-    const ancestorId = `sha256:${"3".repeat(64)}`;
+    const ancestorId: `sha256:${string}` = `sha256:${"3".repeat(64)}`;
     await recordSingletonFrontlineInitialSkip(store, {
       repositoryId: target.repositoryId,
       candidateId: ancestorId,
@@ -346,7 +346,7 @@ describe("frontline workflow command", () => {
       frontline: { admission: producer, effectiveCoverage: "complete" },
       now: "2026-09-08T12:00:00Z",
     });
-    const dispositionSetId = `sha256:${"6".repeat(64)}`;
+    const dispositionSetId: `sha256:${string}` = `sha256:${"6".repeat(64)}`;
     const captured = await captureConditionalNextPassAuthorization(store, {
       lane: "frontline",
       repositoryId: target.repositoryId,

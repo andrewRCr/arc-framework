@@ -1,6 +1,6 @@
 /** Exact final-candidate containment for adopting a delivery chain beneath its originating branch. */
 
-import type { RawGitExec } from "../change-facts.js";
+import type { RawGitExec } from "../git/exec.js";
 import { normalizeGitRejection } from "../git/process-error.js";
 import type { DeliveryContributionCoordinate } from "./contribution-proof.js";
 import {

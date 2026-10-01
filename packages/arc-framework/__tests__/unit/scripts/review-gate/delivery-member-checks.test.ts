@@ -1,6 +1,7 @@
 /** Exact delivery-member required-check qualification. */
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../../helpers/schema-assertion.js";
 
 import {
   DeliveryMemberChecksInputSchema,
@@ -128,12 +129,12 @@ describe("delivery-member required-check qualification", () => {
   });
 
   it("rejects a member identity bound to another head", () => {
-    expect(DeliveryMemberChecksInputSchema.safeParse({
+    assertSchemaRefuses(DeliveryMemberChecksInputSchema, {
       ...input,
       member: { ...member, head: "d".repeat(40) },
-    }).success).toBe(false);
+    });
 
-    expect(DeliveryMemberChecksResultSchema.safeParse({
+    assertSchemaRefuses(DeliveryMemberChecksResultSchema, {
       schemaVersion: 1,
       mode: "delivery-member-checks-observe",
       repository: "owner/repo",
@@ -144,6 +145,6 @@ describe("delivery-member required-check qualification", () => {
       nextAction: "complete",
       qualification: "green",
       checks: [{ name: "ci-ok", state: "green" }],
-    }).success).toBe(false);
+    });
   });
 });

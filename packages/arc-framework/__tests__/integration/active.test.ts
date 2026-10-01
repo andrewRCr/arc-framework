@@ -9,6 +9,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { assertSchemaAccepts } from "../helpers/schema-assertion.js";
 import { mkdir, mkdtemp, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -18,13 +19,14 @@ import {
   runActiveSessionInitStatusInternal,
   runActiveStatus,
 } from "../../src/commands/active.js";
+import { ActiveSessionInitResultSchema } from "../../src/commands/active/schema.js";
 import {
   createStandardReviewReservation,
   IntegrationBoundaryLocusSchema,
   projectCandidateReviewBoundary,
   projectPublicationBoundary,
 } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
-import { stubGitExec } from "../helpers/integration.js";
+import type { GitExec } from "../../src/lib/git/exec.js";
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
@@ -35,6 +37,11 @@ import {
   projectCandidateApplicabilityDecision,
   projectDurableCandidateTarget,
 } from "../helpers/candidate.js";
+
+function stubGitExec(branch: string | null): GitExec {
+  const stdout = branch ?? "HEAD";
+  return async () => ({ stdout, stderr: "" });
+}
 
 /** Shared default — non-planning branch keeps existing assertions stable. */
 const defaultExec = stubGitExec("main");
@@ -228,6 +235,7 @@ describe("runActiveSessionInitStatus — resolution states", () => {
     expect(result.resolution).toBe("none");
     expect(result.path).toBeNull();
     expect(result.candidates).toEqual([]);
+    assertSchemaAccepts(ActiveSessionInitResultSchema, result);
   });
 
   it("returns resolution=single with the resolved path for exactly one candidate", async () => {
@@ -240,6 +248,7 @@ describe("runActiveSessionInitStatus — resolution states", () => {
     expect(result.resolution).toBe("single");
     expect(result.path).toBe(".arc/active/meta-foo.md");
     expect(result.candidates).toEqual([]);
+    assertSchemaAccepts(ActiveSessionInitResultSchema, result);
   });
 
   it("retains semantic project placement without changing the serialized envelope", async () => {
@@ -282,6 +291,7 @@ describe("runActiveSessionInitStatus — resolution states", () => {
     const beta = result.candidates.find((c) => c.filename === "meta-beta.md");
     expect(beta?.branch).toBe("technical/beta");
     expect(beta?.state).toBe("Integrating");
+    assertSchemaAccepts(ActiveSessionInitResultSchema, result);
   });
 
   it("warns per malformed Candidate without hiding a valid sibling", async () => {
@@ -331,6 +341,8 @@ describe("runActiveSessionInitStatus — resolution states", () => {
       integrationBoundary: null,
     });
     expect(session.warnings).toContainEqual(expect.stringContaining(".arc/active/meta-beta.md"));
+    assertSchemaAccepts(ActiveSessionInitResultSchema, session);
+    expect(() => ActiveSessionInitResultSchema.parse({ ...session, unexpected: true })).toThrow(/unexpected/u);
   });
 
   it("resolves Lite layout's single file as resolution=single", async () => {
@@ -351,6 +363,7 @@ describe("runActiveSessionInitStatus — resolution states", () => {
       expect(result.resolution).toBe("none");
       expect(result.warnings.length).toBe(1);
       expect(result.warnings[0]).toContain(".arc/active/");
+      assertSchemaAccepts(ActiveSessionInitResultSchema, result);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

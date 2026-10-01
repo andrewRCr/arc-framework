@@ -1,7 +1,7 @@
 /** Typed local coverage recovery derived from immutable predecessor evidence. */
 
 import { canonicalize } from "../../../lib/kernel/index.js";
-import type { RawGitExec } from "../../../lib/change-facts.js";
+import type { RawGitExec } from "../../../lib/git/exec.js";
 import { proveGitDeliveryContribution } from "../../../lib/delivery/git-contribution-proof.js";
 import {
   candidateReviewApplicabilitySelections,
@@ -147,7 +147,8 @@ export async function confirmNonDeliveryIncrementalApplicability(input: {
   const selector = {
     schemaVersion: 1 as const,
     repositoryId: currentTarget.repositoryId,
-    repository: input.repository,
+    // Origin preserves the host's owner casing; selectors carry the canonical lowercase form.
+    repository: input.repository.toLowerCase(),
     pullRequest: input.pullRequest,
     lane: "standard" as const,
     sourceId: predecessor.sourceIdentity,

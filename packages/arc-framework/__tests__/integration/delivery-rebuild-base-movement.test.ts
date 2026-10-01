@@ -14,7 +14,7 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { RawGitExec } from "../../src/lib/change-facts.js";
+import type { RawGitExec } from "../../src/lib/git/exec.js";
 import { closeDeliveryEligibility } from "../../src/lib/delivery/eligibility.js";
 import { proveGitDeliveryContribution } from "../../src/lib/delivery/git-contribution-proof.js";
 import { createTempRepoCore } from "../helpers/temp-repo.js";

@@ -228,6 +228,7 @@ import {
   SlugSchema,
   sortByCanonicalBytes,
   validateManagedPath,
+  type CanonicalDigest,
 } from "../lib/kernel/index.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { resolveTaskListCursor } from "../lib/task-list/cursor.js";
@@ -265,7 +266,7 @@ import {
 import { parseIntegrationBoundaryLocus } from
   "../scripts/review-gate/policy/integration-boundary-locus.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
-import { resolveGitCommonDir } from "../lib/user-sync/repo-shared-paths.js";
+import { resolveGitCommonDir } from "../lib/git/exec.js";
 import type { GitExec } from "../lib/git/exec.js";
 import { analyzeRevisionOverlap } from "../lib/git/base-overlap.js";
 import { GhDeliveryHostPort } from "../scripts/delivery/hosts/github.js";
@@ -2785,7 +2786,7 @@ async function executeDeliveryCommand(
         }
         return { status: "defer-acknowledgement" };
       }
-      let candidateSubjectDigest: string;
+      let candidateSubjectDigest: CanonicalDigest;
       if (recordClass === "boundary-projection") {
         const locus = await resolveReviewFixLocus();
         if (locus === null || locus.name !== workUnitId) {
@@ -2837,7 +2838,7 @@ async function executeDeliveryCommand(
     };
     const project = async () => {
       let approvedDispositionSet: {
-        readonly dispositionSetId: string;
+        readonly dispositionSetId: CanonicalDigest;
         readonly authorizedFindingIds: readonly string[];
         readonly authorizedFindingLoci: readonly string[];
       } | undefined;
@@ -3886,8 +3887,8 @@ async function executeDeliveryCommand(
         readonly headSha: string;
         readonly lineage: LaneSubjectLineage;
         readonly attemptId: string;
-        readonly dispositionSetId: string;
-        readonly predecessorDispositionSetId?: string;
+        readonly dispositionSetId: CanonicalDigest;
+        readonly predecessorDispositionSetId?: CanonicalDigest;
       } | null = null;
       let verification = parsed.verification;
       const selectedIndex = stateRead.value.value.members.findIndex(
@@ -5431,7 +5432,7 @@ async function executeDeliveryCommand(
             schemaVersion: 1, treeRoot: submit.treeRoot,
             target: { repository: submit.request.repository, pullRequest: changeRequestId, headSha: member?.coordinates?.head ?? "" },
             vehicle: { kind: "delivery-member", planId: plan.planId, deliverableId, workUnitSlug: plan.workUnitId },
-          }, defaultMergeLockPort(cwd));
+          }, defaultMergeLockPort(cwd, exec));
           return { status: released.state === "blocked" ? "refused" as const : released.state === "released" ? "released" as const : "not-configured" as const };
         },
         revalidateMergePolicy: (binding) => revalidateIntermediateDeliveryMergePolicy(cwd, binding),
@@ -5819,7 +5820,7 @@ async function executeDeliveryCommand(
             deliverableId: apply.approved.deliverableId,
             workUnitSlug: plan.workUnitId,
           },
-        }, defaultMergeLockPort(cwd));
+        }, defaultMergeLockPort(cwd, exec));
         return released.state === "blocked"
           ? { status: "refused" as const, reason: released.payload.reason }
           : { status: released.state === "released" ? "released" as const : "not-configured" as const };

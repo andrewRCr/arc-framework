@@ -1,6 +1,6 @@
 /** Git-backed structural identity proof for one carried delivery member. */
 
-import type { RawGitExec } from "../change-facts.js";
+import type { RawGitExec } from "../git/exec.js";
 import { readMergeTreeComposition } from "../git/merge-tree.js";
 import { normalizeGitRejection } from "../git/process-error.js";
 import {

@@ -10,7 +10,15 @@ import {
 import type { OrdinaryErrandRecord } from "../../../src/lib/errand/identity-transitions.js";
 import type { IdentityTransactionOutcome } from "../../../src/lib/errand/identity-transaction.js";
 
-const previous = TransientIdentityRecordV3Schema.parse({
+function parseOrdinaryErrandRecord(value: unknown): OrdinaryErrandRecord {
+  const parsed = TransientIdentityRecordV3Schema.parse(value);
+  if (parsed.kind !== "errand" || parsed.purpose !== "errand") {
+    throw new Error("expected an ordinary Errand record");
+  }
+  return parsed;
+}
+
+const previous = parseOrdinaryErrandRecord({
   version: 3,
   kind: "errand",
   slug: "fix-output",
@@ -25,7 +33,7 @@ const previous = TransientIdentityRecordV3Schema.parse({
   changeRequest: null,
   createdAt: "2026-07-18T00:00:00.000Z",
   updatedAt: "2026-07-18T00:00:00.000Z",
-}) as OrdinaryErrandRecord;
+});
 
 const inbox = {
   title: "Fix output capture",

@@ -6,39 +6,15 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { cleanupTempDir, createTempRepo, git, runArc, runArcWithStdin } from "./helpers.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 const OFFLINE_ORIGIN = "https://arc-fixture.example/arc-framework/example.git";
 const OFFLINE_ENV = { GIT_TERMINAL_PROMPT: "0" };
 
-const META = [
-  "# Metadata: example",
-  "",
-  "| **State** | **Owner**   | **Branch**     | **Class** | **Priority** |",
-  "| --------- | ----------- | -------------- | --------- | ------------ |",
-  "| `Active`  | `test-user` | `feat/example` | `Light`   | `P2`         |",
-  "",
-  "- **Cohort:** [none]",
-  "- **Depends On:** [none]",
-  "",
-  "- **Origin:** [internal]",
-  "- **Design:** [none]",
-  "- **Task List:** `tasks-example.md`",
-  "- **Review Rubric:** [none]",
-  "- **Promotion Receipt:** [none]",
-  "",
-  "- **Current Workflow:** [none]",
-  "- **Last Completed:** verification",
-  "- **Next Task:** [none]",
-  "- **Blockers:** [none]",
-  "",
-  "- **Next Action:** verification complete",
-  "",
-  "- **PR URL:** [none]",
-  "- **Completed:** [none]",
-  "",
-  "---",
-  "",
-].join("\n");
+const META = makeMetaFixture("example", {
+  owner: "test-user", branch: "feat/example", workClass: "Light", priority: "P2",
+  taskList: "tasks-example.md", lastCompleted: "verification", nextAction: "verification complete",
+});
 
 interface Envelope {
   state: string;

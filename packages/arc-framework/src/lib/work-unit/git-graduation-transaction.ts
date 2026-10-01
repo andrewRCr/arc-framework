@@ -6,7 +6,7 @@
 
 import { isAbsolute, posix, resolve } from "node:path";
 
-import { canonicalize, digestBytes } from "../canonical/canonical-json.js";
+import { canonicalize, digestBytes } from "../kernel/canonical/canonical-json.js";
 import type { GitExec } from "../git/exec.js";
 import { parseGitWorktreePorcelain } from "../git/worktree-porcelain.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";

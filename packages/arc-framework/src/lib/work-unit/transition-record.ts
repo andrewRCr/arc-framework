@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { canonicalize } from "../canonical/canonical-json.js";
+import { canonicalize } from "../kernel/canonical/canonical-json.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 
 const TransitionSlugSchema = SlugSchema.transform((value): string => value);

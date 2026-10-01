@@ -1,6 +1,14 @@
 /** Shared registration for delivery-position handler checks and its retained real-CLI smoke. */
 
 import { collectCandidateSubjectTarget } from "./candidate-subject.js";
+import { makeMetaFixture } from "./meta-fixture.js";
+import {
+  setMetaBranch,
+  setMetaBulletFields,
+  setMetaCandidate,
+  setMetaCurrentWorkflow,
+  setMetaState,
+} from "../../src/lib/active/meta-reader.js";
 import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -46,9 +54,10 @@ import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import { writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { createRawGitExec } from "../../src/lib/io-context.js";
-import { canonicalDigest } from "../../src/lib/kernel/index.js";
+import { CanonicalDigestSchema, canonicalDigest } from "../../src/lib/kernel/index.js";
 import {
   candidateReviewApplicabilitySelections,
+  CandidateManagedRecordV1Schema,
   createCandidateAttestation,
   createCandidateVerificationResponseEvidence,
   reduceCandidateDurableBaseline,
@@ -965,20 +974,15 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       "",
     ].join("\n"));
     const metaPath = join(activeDir, `meta-${workUnitId}.md`);
-    await writeFile(metaPath, [
-      `# Metadata: ${workUnitId}`,
-      "",
-      "- **State:** Integrating",
-      "- **Owner:** test-user",
-      `- **Branch:** ${branch}`,
-      `- **Task List:** tasks-${workUnitId}.md`,
-      "- **Candidate:** [none]",
-      "- **Current Workflow:** `integrate-work-unit`",
-      "- **Last Completed:** Task 1.3 — Close member three",
-      "- **Next Task:** [none]",
-      "- **Next Action:** Resume hosted review",
-      "",
-    ].join("\n"));
+    await writeFile(metaPath, makeMetaFixture(workUnitId, {
+      owner: "test-user",
+      state: "Integrating",
+      branch,
+      taskList: `tasks-${workUnitId}.md`,
+      currentWorkflow: "integrate-work-unit",
+      lastCompleted: "Task 1.3 — Close member three",
+      nextAction: "Resume hosted review",
+    }));
     await git(fixture.repository, ["add", "-A"]);
     await git(fixture.repository, ["commit", "--no-verify", "-m", "install integration fixture"]);
 
@@ -1006,10 +1010,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     await writeCandidateRecord(fixture.repository, workUnitId, candidate, null);
     await writeFile(
       metaPath,
-      (await readFile(metaPath, "utf8")).replace(
-        "- **Candidate:** [none]",
-        `- **Candidate:** \`${candidate.attestation.candidateId}\``,
-      ),
+      setMetaCandidate(await readFile(metaPath, "utf8"), candidate.attestation.candidateId),
     );
     await writeSubmissionBoundary(fixture.repository, projectPublicationBoundary({
       workUnit: workUnitId,
@@ -1233,20 +1234,13 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       "### `[x]` **2.1 Verify the work unit**",
       "",
     ].join("\n"));
-    await writeFile(metaPath, [
-      `# Metadata: ${workUnitId}`,
-      "",
-      "- **State:** Active",
-      "- **Owner:** test-user",
-      `- **Branch:** ${branch}`,
-      `- **Task List:** tasks-${workUnitId}.md`,
-      "- **Candidate:** [none]",
-      "- **Current Workflow:** [none]",
-      "- **Last Completed:** Task 2.1 — Verify the work unit",
-      "- **Next Task:** [none]",
-      "- **Next Action:** Attest the Candidate",
-      "",
-    ].join("\n"));
+    await writeFile(metaPath, makeMetaFixture(workUnitId, {
+      owner: "test-user",
+      branch,
+      taskList: `tasks-${workUnitId}.md`,
+      lastCompleted: "Task 2.1 — Verify the work unit",
+      nextAction: "Attest the Candidate",
+    }));
     await git(fixture.repository, ["add", "-A"]);
     await git(fixture.repository, ["commit", "--no-verify", "-m", "active fixture"]);
 
@@ -1269,9 +1263,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     const attestedMeta = await readFile(metaPath, "utf8");
     await writeFile(
       metaPath,
-      attestedMeta
-        .replace("- **State:** Active", "- **State:** Integrating")
-        .replace("- **Current Workflow:** `prepare-work-unit`", "- **Current Workflow:** `integrate-work-unit`"),
+      setMetaCurrentWorkflow(setMetaState(attestedMeta, "Integrating"), "integrate-work-unit"),
     );
 
     const result = await runArc(["status", "--session-init", "--json"], fixture.repository, {
@@ -1438,7 +1430,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
             operationId: "lane-progress/response-loss",
             durableRef: hostedTerminal1.attemptId,
           }),
-          hostedResultId: hostedTerminal1.hosted.sealedResult?.hostedResultId ?? "",
+          hostedResultId: CanonicalDigestSchema.parse(hostedTerminal1.hosted.sealedResult?.hostedResultId),
         },
         approvedDisposition,
         fixAuthorization: createFixAuthorization({ dispositionState: approvedDisposition, oldTarget }),
@@ -1456,7 +1448,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
             operationId: "lane-progress/historical",
             durableRef: hostedTerminal1.attemptId,
           }),
-          hostedResultId: hostedTerminal1.hosted.sealedResult?.hostedResultId ?? "",
+          hostedResultId: CanonicalDigestSchema.parse(hostedTerminal1.hosted.sealedResult?.hostedResultId),
         },
       },
       oldTarget,
@@ -1624,20 +1616,14 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       ".arc",
       "active",
       `meta-${fixture.plan.workUnitId}.md`,
-    ), [
-      `# Metadata: ${fixture.plan.workUnitId}`,
-      "",
-      "- **State:** Integrating",
-      "- **Owner:** test-user",
-      `- **Branch:** ${workUnitBranch}`,
-      "- **Task List:** `tasks-delivery-plan-record.md`",
-      `- **Candidate:** \`${candidate.attestation.candidateId}\``,
-      "- **Current Workflow:** `integrate-work-unit`",
-      "- **Last Completed:** [none]",
-      "- **Next Task:** [none]",
-      "- **Next Action:** [none]",
-      "",
-    ].join("\n"));
+    ), makeMetaFixture(fixture.plan.workUnitId, {
+      owner: "test-user",
+      state: "Integrating",
+      branch: workUnitBranch,
+      taskList: "tasks-delivery-plan-record.md",
+      candidateId: candidate.attestation.candidateId,
+      currentWorkflow: "integrate-work-unit",
+    }));
     await git(fixture.repository, ["add", ".arc/active", ".arc/system/.internal/candidates"]);
     await git(fixture.repository, ["commit", "--no-verify", "-m", "install integration fixture"]);
     const installedHead = await git(fixture.repository, ["rev-parse", "HEAD"]);
@@ -1954,20 +1940,16 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       lineageAttestations: [],
     };
     await writeCandidateRecord(fixture.repository, workUnitId, candidate, null);
-    await writeFile(join(activeDir, `meta-${workUnitId}.md`), [
-      `# Metadata: ${workUnitId}`,
-      "",
-      "- **State:** Integrating",
-      "- **Owner:** test-user",
-      `- **Branch:** ${branch}`,
-      `- **Task List:** \`tasks-${workUnitId}.md\``,
-      `- **Candidate:** \`${candidate.attestation.candidateId}\``,
-      "- **Current Workflow:** `integrate-work-unit`",
-      "- **Last Completed:** [none]",
-      "- **Next Task:** 1.1",
-      "- **Next Action:** Finish the correction",
-      "",
-    ].join("\n"));
+    await writeFile(join(activeDir, `meta-${workUnitId}.md`), makeMetaFixture(workUnitId, {
+      owner: "test-user",
+      state: "Integrating",
+      branch,
+      taskList: `tasks-${workUnitId}.md`,
+      candidateId: candidate.attestation.candidateId,
+      currentWorkflow: "integrate-work-unit",
+      nextTask: "1.1",
+      nextAction: "Finish the correction",
+    }));
     const reservation = {
       schemaVersion: 1 as const,
       semanticsVersion: "standard-review-reservation/v1" as const,
@@ -2041,7 +2023,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         obligation: "required",
         reasons: ["sensitive-change-set"],
         rubricVersion: "standard-review/v1",
-        rubricDigest: reservation.obligation.rubricDigest,
+        rubricDigest: CanonicalDigestSchema.parse(reservation.obligation.rubricDigest),
         retrigger: "full-final",
         count: 1,
       },
@@ -2116,12 +2098,12 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         statusTarget: { repository: "owner/repo", headRef: "member-3", headSha: oldTarget.headSha },
       },
       policyVersion: requirement.policyVersion,
-      policyBindingDigest: admission.policyBindingDigest,
+      policyBindingDigest: CanonicalDigestSchema.parse(admission.policyBindingDigest),
       attestationRuntimeKind: authority.attestationRuntimeKind,
       sourceRef: "source.json",
       sourceDigest: source.sourceDigest,
       guidance: guidance.projection,
-      guidanceDigest: guidance.guidanceDigest,
+      guidanceDigest: CanonicalDigestSchema.parse(guidance.guidanceDigest),
       reviewerInstructions: guidance.reviewerInstructions,
       target: oldTarget,
       requirement,
@@ -2493,27 +2475,19 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       })],
       lineageAttestations: [],
     };
-    await writeFile(join(activeDir, `meta-${fixture.plan.workUnitId}.md`), [
-      `# Metadata: ${fixture.plan.workUnitId}`,
-      "",
-      "- **State:** Integrating",
-      "- **Owner:** test-user",
-      `- **Branch:** ${branch}`,
-      "- **Class:** Heavy",
-      "- **Priority:** P1",
-      "- **Origin:** [internal]",
-      `- **Task List:** tasks-${fixture.plan.workUnitId}.md`,
-      `- **Candidate:** \`${candidate.attestation.candidateId}\``,
-      "- **Current Workflow:** `integrate-work-unit`",
-      "- **Last Completed:** Task 1.1 — Close delivery",
-      "- **Next Task:** [none]",
-      "- **Next Action:** Resume delivery closeout",
-      "",
-      "## Completion Notes",
-      "",
-      "Delivery verification and review are complete.",
-      "",
-    ].join("\n"));
+    await writeFile(join(activeDir, `meta-${fixture.plan.workUnitId}.md`),
+      `${makeMetaFixture(fixture.plan.workUnitId, {
+        owner: "test-user",
+        state: "Integrating",
+        branch,
+        workClass: "Heavy",
+        priority: "P1",
+        taskList: `tasks-${fixture.plan.workUnitId}.md`,
+        candidateId: candidate.attestation.candidateId,
+        currentWorkflow: "integrate-work-unit",
+        lastCompleted: "Task 1.1 — Close delivery",
+        nextAction: "Resume delivery closeout",
+      })}\n## Completion Notes\n\nDelivery verification and review are complete.\n`);
     await writeCandidateRecord(fixture.repository, fixture.plan.workUnitId, candidate, null);
     const reservation = {
       schemaVersion: 1 as const,
@@ -2590,11 +2564,13 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     );
     await mkdir(completedDir, { recursive: true });
     const activeMetaPath = join(activeDir, `meta-${fixture.plan.workUnitId}.md`);
-    const shippedMeta = (await readFile(activeMetaPath, "utf8"))
-      .replace("- **State:** Integrating", "- **State:** Shipped")
-      .replace(`- **Branch:** ${branch}`, "- **Branch:** [none]")
-      .replace("- **Current Workflow:** `integrate-work-unit`", "- **Current Workflow:** [none]")
-      .replace("- **Next Action:** Resume delivery closeout", "- **Next Action:** [none]");
+    const shippedMeta = setMetaBulletFields(
+      setMetaCurrentWorkflow(
+        setMetaBranch(setMetaState(await readFile(activeMetaPath, "utf8"), "Shipped"), "[none]"),
+        "[none]",
+      ),
+      { "Next Action": "[none]" },
+    );
     await writeFile(activeMetaPath, shippedMeta);
     await rename(
       activeMetaPath,
@@ -3199,23 +3175,16 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       ".arc",
       "active",
       `meta-${fixture.plan.workUnitId}.md`,
-    ), [
-      `# Metadata: ${fixture.plan.workUnitId}`,
-      "",
-      "- **State:** Integrating",
-      "- **Owner:** test-user",
-      "- **Branch:** member-3",
-      "- **Class:** Heavy",
-      "- **Priority:** P1",
-      "- **Origin:** [internal]",
-      `- **Task List:** tasks-${fixture.plan.workUnitId}.md`,
-      `- **Candidate:** \`${candidate.attestation.candidateId}\``,
-      "- **Current Workflow:** `integrate-work-unit`",
-      "- **Last Completed:** [none]",
-      "- **Next Task:** [none]",
-      "- **Next Action:** [none]",
-      "",
-    ].join("\n"));
+    ), makeMetaFixture(fixture.plan.workUnitId, {
+      owner: "test-user",
+      state: "Integrating",
+      branch: "member-3",
+      workClass: "Heavy",
+      priority: "P1",
+      taskList: `tasks-${fixture.plan.workUnitId}.md`,
+      candidateId: candidate.attestation.candidateId,
+      currentWorkflow: "integrate-work-unit",
+    }));
     await writeCandidateRecord(fixture.repository, fixture.plan.workUnitId, candidate, null);
     await writeSubmissionBoundary(fixture.repository, projectPublicationBoundary({
       workUnit: fixture.plan.workUnitId,
@@ -3520,7 +3489,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       resolveCandidateRecordRelativePath(fixture.plan.workUnitId),
     );
     const pendingCandidateBytes = await readFile(candidatePath, "utf8");
-    const pendingCandidate = JSON.parse(pendingCandidateBytes) as CandidateManagedRecordV1;
+    const pendingCandidate = CandidateManagedRecordV1Schema.parse(JSON.parse(pendingCandidateBytes));
     const pendingBaseline = reduceCandidateDurableBaseline(pendingCandidate);
     const pendingCurrentTarget = await collectCandidateSubjectTarget({
       cwd: fixture.repository,
@@ -3644,7 +3613,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     ]);
 
     const acknowledgedCandidateBytes = await readFile(candidatePath, "utf8");
-    const wrongAuthorityCandidate = JSON.parse(acknowledgedCandidateBytes) as CandidateManagedRecordV1;
+    const wrongAuthorityCandidate = CandidateManagedRecordV1Schema.parse(JSON.parse(acknowledgedCandidateBytes));
     const appendedVerification = wrongAuthorityCandidate.transitions.at(-1);
     if (appendedVerification?.transitionKind !== "verification-response") {
       throw new Error("expected appended verification response");
@@ -3699,9 +3668,9 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       reason: "candidate-verification-replay-unproven",
     });
 
-    const trailingWrongAuthorityCandidate = JSON.parse(
-      acknowledgedCandidateBytes,
-    ) as CandidateManagedRecordV1;
+    const trailingWrongAuthorityCandidate = CandidateManagedRecordV1Schema.parse(
+      JSON.parse(acknowledgedCandidateBytes),
+    );
     const retainedVerification = trailingWrongAuthorityCandidate.transitions.at(-1);
     if (retainedVerification?.transitionKind !== "verification-response") {
       throw new Error("expected retained verification response");
@@ -3826,7 +3795,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       headSha: oldTarget.headSha,
       headTree: oldTarget.headTree,
     });
-    const replayRubricDigest = `sha256:${"f".repeat(64)}`;
+    const replayRubricDigest = `sha256:${"f".repeat(64)}` as const;
     const replayRequirement = createReviewRequirement({
       target: replayOldTarget,
       projection: {
@@ -4716,8 +4685,11 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     );
 
     expect(result.exitCode, `${result.stderr}\n${result.stdout}`).toBe(0);
-    const adopted = JSON.parse(result.stdout) as {
-      readonly state: { readonly value: DeliveryStateV1 };
+    const rawAdopted = JSON.parse(result.stdout) as {
+      readonly state: { readonly value: unknown };
+    };
+    const adopted = {
+      ...rawAdopted, state: { ...rawAdopted.state, value: DeliveryStateV1Schema.parse(rawAdopted.state.value) },
     };
     expect(adopted).toMatchObject({
       command: "delivery refresh adopt",
@@ -5006,20 +4978,15 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         "### `[x]` **1.1 Close member one**",
         "",
       ].join("\n"));
-      await writeFile(join(activeDir, `meta-${workUnitId}.md`), [
-        `# Metadata: ${workUnitId}`,
-        "",
-        "- **State:** Integrating",
-        "- **Owner:** test-user",
-        `- **Branch:** ${branch}`,
-        `- **Task List:** tasks-${workUnitId}.md`,
-        "- **Candidate:** [none]",
-        "- **Current Workflow:** `integrate-work-unit`",
-        "- **Last Completed:** Task 1.1 — Close member one",
-        "- **Next Task:** [none]",
-        "- **Next Action:** Resume hosted review",
-        "",
-      ].join("\n"));
+      await writeFile(join(activeDir, `meta-${workUnitId}.md`), makeMetaFixture(workUnitId, {
+        owner: "test-user",
+        state: "Integrating",
+        branch,
+        taskList: `tasks-${workUnitId}.md`,
+        currentWorkflow: "integrate-work-unit",
+        lastCompleted: "Task 1.1 — Close member one",
+        nextAction: "Resume hosted review",
+      }));
       await git(fixture.repository, ["add", "-A"]);
       await git(fixture.repository, ["commit", "--no-verify", "-m", "orientation fixture"]);
       return await runArc(["status", "--session-init", "--json"], fixture.repository, {

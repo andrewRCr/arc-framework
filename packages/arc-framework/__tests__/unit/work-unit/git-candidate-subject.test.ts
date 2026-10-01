@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import {
   collectGitCandidateSubject,
   collectUnstagedReviewablePaths,
@@ -12,6 +13,15 @@ const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
 const CURRENT_BASE = "d".repeat(40);
 const SECOND_BASE = "e".repeat(40);
+
+function stagedSubjectGit(paths: readonly string[]) {
+  return scriptGitExec([
+    { match: ["rev-parse", "HEAD"], responses: [{ stdout: `${HEAD}\n` }] },
+    { match: { prefix: ["for-each-ref"] }, responses: [{ stdout: `${BASE}\n` }] },
+    { match: { prefix: ["merge-base"] }, responses: [{ stdout: `${BASE}\n` }] },
+    { match: { prefix: ["diff"] }, responses: [{ stdout: `${paths.join("\0")}\0` }] },
+  ]);
+}
 
 /** The collected subject, so a test reading the success arm says what it expects of a refusal by failing. */
 async function collectSubject(
@@ -51,17 +61,20 @@ async function collect(paths: readonly string[], contents: Readonly<Record<strin
   return new Map(target.subject.entries.map((entry) => [entry.path, entry]));
 }
 
+/** Collect ordinary reviewable content without coupling the fake to lifecycle artifact treatment. */
+async function collectReviewable(paths: readonly string[]) {
+  const target = await collectSubject({
+    cwd: "/repo", name: "example", baseBranch: "main", exec: stagedSubjectGit(paths).exec,
+    readBlob: async (_cwd, _ref, path) => new TextEncoder().encode(`content of ${path}`),
+  });
+  return new Map(target.subject.entries.map((entry) => [entry.path, entry]));
+}
+
 describe("Candidate subject classification", () => {
   it("collects every changed path through one bulk read", async () => {
     const paths = ["z-last.txt", "a-first.txt", "deleted.txt"];
     const bulkReads: Array<{ ref: string | null; paths: readonly string[] }> = [];
-    const exec: GitExec = async (_cmd, args) => {
-      if (args[0] === "rev-parse") return { stdout: `${HEAD}\n` };
-      if (args[0] === "for-each-ref") return { stdout: `${BASE}\n` };
-      if (args[0] === "merge-base") return { stdout: `${BASE}\n` };
-      if (args[0] === "diff") return { stdout: `${paths.join("\0")}\0` };
-      throw new Error(`unexpected git invocation: ${args.join(" ")}`);
-    };
+    const { exec } = stagedSubjectGit(paths);
 
     const target = await collectSubject({
       cwd: "/repo",
@@ -90,14 +103,11 @@ describe("Candidate subject classification", () => {
 
   it("collects an exact committed subject without reading the current index", async () => {
     const revision = "c".repeat(40);
-    const calls: string[][] = [];
     const refs: Array<string | null> = [];
-    const exec: GitExec = async (_cmd, args) => {
-      calls.push([...args]);
-      if (args[0] === "merge-base") return { stdout: `${BASE}\n` };
-      if (args[0] === "diff") return { stdout: "reviewed.txt\0" };
-      throw new Error(`unexpected git invocation: ${args.join(" ")}`);
-    };
+    const { exec, calls } = scriptGitExec([
+      { match: ["merge-base", "--all", revision, BASE], responses: [{ stdout: `${BASE}\n` }] },
+      { match: ["diff", "--name-only", "-z", BASE, revision, "--"], responses: [{ stdout: "reviewed.txt\0" }] },
+    ]);
 
     const target = await collectSubject({
       cwd: "/repo",
@@ -113,7 +123,7 @@ describe("Candidate subject classification", () => {
     });
 
     expect(target.revision).toBe(revision);
-    expect(calls).toEqual([
+    expect(calls.map((call) => call.args)).toEqual([
       ["merge-base", "--all", revision, BASE],
       ["diff", "--name-only", "-z", BASE, revision, "--"],
     ]);
@@ -121,13 +131,10 @@ describe("Candidate subject classification", () => {
   });
 
   it("collects the subject against an exact authoritative base revision", async () => {
-    const calls: string[][] = [];
-    const exec: GitExec = async (_cmd, args) => {
-      calls.push([...args]);
-      if (args[0] === "merge-base") return { stdout: `${BASE}\n` };
-      if (args[0] === "diff") return { stdout: "reviewed.txt\0" };
-      throw new Error(`unexpected git invocation: ${args.join(" ")}`);
-    };
+    const { exec, calls } = scriptGitExec([
+      { match: ["merge-base", "--all", HEAD, CURRENT_BASE], responses: [{ stdout: `${BASE}\n` }] },
+      { match: ["diff", "--name-only", "-z", BASE, HEAD, "--"], responses: [{ stdout: "reviewed.txt\0" }] },
+    ]);
 
     await collectSubject({
       cwd: "/repo",
@@ -139,7 +146,7 @@ describe("Candidate subject classification", () => {
       readBlob: async () => new TextEncoder().encode("reviewed content"),
     });
 
-    expect(calls[0]).toEqual(["merge-base", "--all", HEAD, CURRENT_BASE]);
+    expect(calls[0]?.args).toEqual(["merge-base", "--all", HEAD, CURRENT_BASE]);
   });
 
   it("separates reviewable content from the lifecycle writes that accompany it", async () => {
@@ -226,7 +233,7 @@ describe("Candidate subject classification", () => {
   });
 
   it("leaves another work unit's artifacts as ordinary reviewable content", async () => {
-    const entries = await collect([".arc/completed/2026-q3/01_sibling/tasks-sibling.md"]);
+    const entries = await collectReviewable([".arc/completed/2026-q3/01_sibling/tasks-sibling.md"]);
 
     expect(entries.get(".arc/completed/2026-q3/01_sibling/tasks-sibling.md")?.treatment)
       .toBe("reviewable");
@@ -235,13 +242,12 @@ describe("Candidate subject classification", () => {
   it("refuses a history leaving two equally good bases rather than collecting from one of them", async () => {
     // Both readings of one history: `--all` names both bases, while a plain read names whichever of them
     // Git picks and says nothing about the other. Taking that answer is what makes the choice invisible.
-    const exec: GitExec = async (_cmd, args) => {
-      if (args[0] === "merge-base") {
-        return { stdout: args[1] === "--all" ? `${BASE}\n${SECOND_BASE}\n` : `${BASE}\n` };
-      }
-      if (args[0] === "diff") return { stdout: "reviewed.txt\0" };
-      throw new Error(`unexpected git invocation: ${args.join(" ")}`);
-    };
+    const { exec } = scriptGitExec([
+      { match: { prefix: ["merge-base"] }, responses: [({ args }) => ({
+        stdout: args[1] === "--all" ? `${BASE}\n${SECOND_BASE}\n` : `${BASE}\n`,
+      })] },
+      { match: { prefix: ["diff"] }, responses: [{ stdout: "reviewed.txt\0" }] },
+    ]);
 
     await expect(collectGitCandidateSubject({
       cwd: "/repo",
@@ -270,9 +276,19 @@ async function collectUnstaged(unstaged: readonly string[], untracked: readonly 
   return collectUnstagedReviewablePaths({ cwd: "/repo", name: "example", exec });
 }
 
+/** Read reviewable worktree/index differences and untracked paths through the shared script. */
+async function collectReviewableUnstaged(unstaged: readonly string[], untracked: readonly string[] = []) {
+  const emit = (paths: readonly string[]) => paths.length === 0 ? "" : `${paths.join("\0")}\0`;
+  const { exec } = scriptGitExec([
+    { match: ["diff", "--name-only", "--no-renames", "-z"], responses: [{ stdout: emit(unstaged) }] },
+    { match: ["ls-files", "--others", "--exclude-standard", "-z"], responses: [{ stdout: emit(untracked) }] },
+  ]);
+  return collectUnstagedReviewablePaths({ cwd: "/repo", name: "example", exec });
+}
+
 describe("Unstaged reviewable content", () => {
   it("reports working-tree content the index does not carry", async () => {
-    expect(await collectUnstaged([
+    expect(await collectReviewableUnstaged([
       "packages/arc-framework/src/example.ts",
       ".arc/active/tasks-example.md",
     ])).toEqual(["packages/arc-framework/src/example.ts"]);
@@ -288,7 +304,7 @@ describe("Unstaged reviewable content", () => {
   });
 
   it("reports an untracked reviewable file the subject would otherwise never see", async () => {
-    expect(await collectUnstaged([], [
+    expect(await collectReviewableUnstaged([], [
       "packages/arc-framework/src/added.ts",
       ".arc/active/meta-example.md",
     ])).toEqual(["packages/arc-framework/src/added.ts"]);
@@ -304,10 +320,10 @@ describe("Unstaged reviewable content", () => {
   it("reports each path once when both readings name it", async () => {
     const path = "packages/arc-framework/src/example.ts";
 
-    expect(await collectUnstaged([path], [path])).toEqual([path]);
+    expect(await collectReviewableUnstaged([path], [path])).toEqual([path]);
   });
 
   it("reports nothing when the index carries every reviewable edit", async () => {
-    expect(await collectUnstaged([])).toEqual([]);
+    expect(await collectReviewableUnstaged([])).toEqual([]);
   });
 });

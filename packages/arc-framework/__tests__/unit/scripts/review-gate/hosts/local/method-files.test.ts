@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { join } from "node:path";
 
 import {
   createLocalReviewMethodFilePort,
@@ -17,10 +18,10 @@ const method = (name: string, active: boolean): string => [
 ].join("\n");
 
 describe("local review method files", () => {
-  it("reads the registered review methods from the project ARC root", () => {
+  it.each(["/repo", "/repo/cafe\u0301"])("reads the registered review methods from %s", (cwd) => {
     const contents = new Map([
-      ["/repo/.arc/system/methods/self-review.md", method("self-review", false)],
-      ["/repo/.arc/system/methods/frontline-review.md", method("frontline-review", true)],
+      [join(cwd, ".arc", "system", "methods", "self-review.md"), method("self-review", false)],
+      [join(cwd, ".arc", "system", "methods", "frontline-review.md"), method("frontline-review", true)],
     ]);
     const readFile = (path: string): string => {
       const content = contents.get(path);
@@ -30,14 +31,14 @@ describe("local review method files", () => {
 
     const result = composeWorkUnitReviewAssurance(
       { workClass: "Heavy", reviewRubric: null },
-      createLocalReviewMethodFilePort({ cwd: "/repo", readFile }),
+      createLocalReviewMethodFilePort({ cwd, readFile }),
       { resolveReviewRubricBinding: () => { throw new Error("must not resolve absence"); } },
     );
 
     expect(result.assurance.activity).toEqual({ selfReview: false, frontlineReview: true });
   });
 
-  it("resolves an exact rubric identity through the managed method directory", () => {
+  it.each(["/repo", "/repo/cafe\u0301"])("resolves an exact rubric identity from %s", (cwd) => {
     const content = [
       "---",
       "name: security-audit",
@@ -52,10 +53,14 @@ describe("local review method files", () => {
       "---",
       "",
     ].join("\n");
+    const directory = join(cwd, ".arc", "system", "methods");
     const port = createLocalReviewRubricBindingPort({
-      cwd: "/repo",
-      readDirectory: () => ["security-audit.md"],
-      readFile: () => content,
+      cwd,
+      readDirectory: (path) => path === directory ? ["security-audit.md"] : [],
+      readFile: (path) => {
+        if (path !== join(directory, "security-audit.md")) throw new Error(`missing ${path}`);
+        return content;
+      },
     });
 
     expect(port.resolveReviewRubricBinding("security-audit")).toMatchObject({

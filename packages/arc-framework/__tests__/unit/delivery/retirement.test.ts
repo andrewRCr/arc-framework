@@ -11,6 +11,7 @@ import {
   verifyDeliveryTerminalSettlement,
 } from "../../../src/lib/delivery/retirement.js";
 import type { DeliveryPlanV1, DeliveryStateV1 } from "../../../src/lib/delivery/schema.js";
+import { CanonicalDigestSchema } from "../../../src/lib/kernel/index.js";
 import { deliveryThreeMemberStackPlanFixture } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
 
@@ -307,7 +308,7 @@ describe("delivery record retirement", () => {
             refusePlanOnce = false;
             return { status: "refused" as const, reason: "version-conflict" as const };
           }
-          return dependencies.planStore.removeCurrent(planId, expectedDigest as DeliveryPlanV1["planDigest"]);
+          return dependencies.planStore.removeCurrent(planId, CanonicalDigestSchema.parse(expectedDigest));
         },
       },
     };

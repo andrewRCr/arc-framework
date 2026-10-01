@@ -1,28 +1,33 @@
 import { describe, expect, it } from "vitest";
 
-import type { RawGitExec } from "../../../src/lib/change-facts.js";
+import type { RawGitExec } from "../../../src/lib/git/exec.js";
 import { observeGitMergeFeasibility } from "../../../src/lib/git/merge-feasibility.js";
+import { scriptRawGitExec } from "../../helpers/git-exec-fake.js";
 
 const oid = (character: string): string => character.repeat(40);
 const bytes = (value: string): Uint8Array => new TextEncoder().encode(value);
 const result = (value: string) => ({ stdout: bytes(value) });
 
 function mergeExec(outcome: "clean" | "conflict" | "malformed" | "failed" | "unsupported"): RawGitExec {
-  return async (args) => {
-    if (args[0] === "rev-parse") return result(`${oid("c")}\n`);
-    if (args[0] !== "merge-tree") throw new Error(`unexpected Git call: ${args.join(" ")}`);
-    if (!args.includes("--name-only")) {
-      if (outcome === "unsupported" && args.includes("--merge-base")) throw new Error("unknown option");
-      return result(`${oid("d")}\n`);
-    }
-    if (outcome === "clean") return result(`${oid("e")}\n`);
-    if (outcome === "malformed") return result("not-an-object-id\n");
-    if (outcome === "failed") throw Object.assign(new Error("merge-tree failed"), { exitCode: 2 });
-    throw Object.assign(new Error("conflict"), {
-      exitCode: 1,
-      stdout: `${oid("e")}\0z.ts\0ROADMAP.md\0z.ts\0`,
-    });
-  };
+  return scriptRawGitExec([
+    { match: { prefix: ["rev-parse"] }, responses: [result(`${oid("c")}\n`)] },
+    { match: { predicate: (args) => args[0] === "merge-tree" &&
+      !args.includes("--name-only") && args.includes("--merge-base") && outcome === "unsupported" },
+    responses: [{ failure: { exitCode: 129, stderr: "unknown option" } }] },
+    { match: { predicate: (args) => args[0] === "merge-tree" && !args.includes("--name-only") },
+      responses: [result(`${oid("d")}\n`)] },
+    { match: { predicate: (args) => args[0] === "merge-tree" && args.includes("--name-only") },
+      responses: [() => {
+        if (outcome === "clean") return result(`${oid("e")}\n`);
+        if (outcome === "malformed") return result("not-an-object-id\n");
+        if (outcome === "failed") return { failure: { exitCode: 2, stderr: "merge-tree failed" } };
+        return { failure: {
+          exitCode: 1,
+          stdout: `${oid("e")}\0z.ts\0ROADMAP.md\0z.ts\0`,
+          stderr: "conflict",
+        } };
+      }] },
+  ]).exec;
 }
 
 const input = {

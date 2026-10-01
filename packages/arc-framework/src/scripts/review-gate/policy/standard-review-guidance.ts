@@ -1,6 +1,7 @@
 /** Content-only reviewer guidance projected from the standard-review standard. */
 
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import { canonicalize } from "../../../lib/kernel/index.js";
 import {
@@ -57,7 +58,7 @@ export const StandardReviewGuidanceProjectionSchema = z.strictObject({
   schemaVersion: z.literal(1),
   semanticsVersion: z.literal("standard-review-guidance/v1"),
   rubricVersion: z.literal("standard-review/v1"),
-  rubricDigest: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
+  rubricDigest: CanonicalDigestSchema,
   coverageInstructions: z.array(z.string().min(1)).min(1).readonly(),
   evaluatorInstructions: z.array(z.string().min(1)).min(1).readonly(),
   dimensions: z.array(GuidanceDimensionSchema).min(1).refine(

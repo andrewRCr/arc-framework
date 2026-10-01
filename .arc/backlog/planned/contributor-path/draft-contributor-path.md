@@ -7,6 +7,24 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration at this work unit's next planning iteration._
+
+### `[ ]` **Design the contribution ceremony and the export's removal handshake**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: contributor-path`), housekeep drain (2026-09-30); captured during
+  `storage-contract` draft close, 2026-09-30.
+- _Observation:_ `storage-contract` defers three things here (C7, C14): the contribution's ceremony and tooling, and
+  the review-only spec export's removal when a maintainer merges a fork's pull request — the owner's candidate-tail
+  cleanup deletes the copy, but a maintainer merges, and ARC's merge gate refuses a merge that outruns the cleanup
+  (C10). Its open question of who creates a contributor's meta falls away: a contributor's work unit is an ordinary
+  record in their own store, and the contributor layout retires.
+- _Approach:_ Design the handshake so the contributor's cleanup follows the maintainer's approval without a round
+  trip; drop the contributor-meta question.
+
+---
+
 ## Problem / Motivation
 
 WOR establishes the per-WU subdir convention under `user/{identity}/<wu-name>/` and codifies where the contributor-role

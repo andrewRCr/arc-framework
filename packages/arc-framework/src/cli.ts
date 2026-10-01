@@ -1136,9 +1136,10 @@ userCmd
 userCmd
   .command("close <wu-name>")
   .description("Close per-WU user workspace subdir (removes user/{identity}/<wu-name>/ recursively)")
-  .action(async (wuName: string) => {
+  .action(withInteractionContext({}, async (context, wuName: string) => {
+    void context;
     await (await import("./handlers/user.js")).handleUserClose(wuName);
-  });
+  }));
 
 userCmd
   .command("inbox-mark-execute-bound")
@@ -1298,8 +1299,8 @@ configCmd
   .option("--json", "Emit the typed result as JSON")
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true || opts.sessionInit === true },
-    async (_context, opts: ConfigStatusCliOptions) => {
-      await (await import("./handlers/config.js")).handleConfigStatus(opts);
+    async (context, opts: ConfigStatusCliOptions) => {
+      await (await import("./handlers/config.js")).handleConfigStatus(opts, context);
     },
   ));
 
@@ -1307,9 +1308,10 @@ configCmd
   .command("validate")
   .description("Validate arc-config.yml settings")
   .option("--file <path>", "Validate an explicitly selected configuration file")
-  .action(async (opts: ConfigValidateCliOptions) => {
+  .action(withInteractionContext({}, async (context, opts: ConfigValidateCliOptions) => {
+    void context;
     await (await import("./handlers/config.js")).handleConfigValidate(opts);
-  });
+  }));
 
 // --- Active ---
 
@@ -1442,9 +1444,10 @@ program
   .command("locus")
   .description("Inspect the local checkout and session locus roster")
   .option("--json", "Emit one typed session locus envelope as JSON")
-  .action(async (opts: LocusCliOptions) => {
+  .action(withInteractionContext({ machineReadable: (opts) => opts.json === true }, async (context, opts: LocusCliOptions) => {
+    void context;
     await (await import("./handlers/locus.js")).handleLocus(opts);
-  });
+  }));
 
 // --- Recover ---
 
@@ -1530,18 +1533,18 @@ releaseCmd
   .description(
     "Record per-developer opt-in for release-mode wrappers (writes local git config `arc.releaseOptedIn = true`)",
   )
-  .action(async () => {
-    await (await import("./commands/release.js")).handleReleaseOptIn();
-  });
+  .action(withInteractionContext({}, async (context) => {
+    await (await import("./commands/release.js")).handleReleaseOptIn(context);
+  }));
 
 releaseCmd
   .command("opt-out")
   .description(
     "Record per-developer opt-out for release-mode wrappers (writes local git config `arc.releaseOptedIn = false`)",
   )
-  .action(async () => {
-    await (await import("./commands/release.js")).handleReleaseOptOut();
-  });
+  .action(withInteractionContext({}, async (context) => {
+    await (await import("./commands/release.js")).handleReleaseOptOut(context);
+  }));
 
 releaseCmd
   .command("status")
@@ -1589,9 +1592,10 @@ setupCmd
       .choices(["harness", "raw"])
       .default("harness"),
   )
-  .action(async (opts: ReleaseSetupPrintPatternsOptions) => {
+  .action(withInteractionContext({}, async (context, opts: ReleaseSetupPrintPatternsOptions) => {
+    void context;
     (await import("./commands/release.js")).handleReleaseSetupPrintPatterns(opts);
-  });
+  }));
 
 setupCmd
   .command("uninstall")
@@ -1634,9 +1638,9 @@ logCmd
     "--category <category>",
     "Filter by standalone category (maintenance|planning|documentation|refactor|code review)",
   )
-  .action(async (opts: LogStandaloneOptions) => {
-    await (await import("./handlers/log.js")).handleLogStandalone(opts);
-  });
+  .action(withInteractionContext({}, async (context, opts: LogStandaloneOptions) => {
+    await (await import("./handlers/log.js")).handleLogStandalone(opts, context);
+  }));
 
 // --- Merge ---
 
@@ -1665,9 +1669,9 @@ mergeLockCmd
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .addHelpText("after", `\nRequest JSON:\n  ${mergeLockResolveHelp}\n`)
-  .action(async (input: string) => {
-    await (await import("./handlers/review.js")).handleMergeLockResolve(input);
-  });
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string) => {
+    await (await import("./handlers/review.js")).handleMergeLockResolve(input, {}, context);
+  }));
 
 mergeLockCmd
   .command("hold")
@@ -1675,9 +1679,9 @@ mergeLockCmd
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .addHelpText("after", `\nErrand request JSON:\n  ${mergeLockTransitionHelp}\n`)
-  .action(async (input: string) => {
-    await (await import("./handlers/review.js")).handleMergeLockHold(input);
-  });
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string) => {
+    await (await import("./handlers/review.js")).handleMergeLockHold(input, {}, context);
+  }));
 
 mergeLockCmd
   .command("release")
@@ -1685,9 +1689,9 @@ mergeLockCmd
   .usage("<file | ->")
   .argument("<input>", "Versioned JSON request file, or - for stdin")
   .addHelpText("after", `\nErrand request JSON:\n  ${mergeLockTransitionHelp}\n`)
-  .action(async (input: string) => {
-    await (await import("./handlers/review.js")).handleMergeLockRelease(input);
-  });
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string) => {
+    await (await import("./handlers/review.js")).handleMergeLockRelease(input, {}, context);
+  }));
 
 // --- Review ---
 
@@ -1786,9 +1790,9 @@ reviewCmd
   )
   .addOption(new Option("--json").hideHelp())
   .on("option:json", rejectUnsupportedReviewOutputJson)
-  .action(async (options: ReviewMergeMethodResolveOptions) => {
-    await (await import("./handlers/review.js")).handleReviewMergeMethodResolve(options);
-  });
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, options: ReviewMergeMethodResolveOptions) => {
+    await (await import("./handlers/review.js")).handleReviewMergeMethodResolve(options, {}, context);
+  }));
 
 reviewCmd
   .command("checks")
@@ -1802,9 +1806,9 @@ reviewCmd
   .option("--poll-interval-ms <milliseconds>", "Initial polling interval", "5000")
   .addOption(new Option("--json").hideHelp())
   .on("option:json", rejectUnsupportedReviewOutputJson)
-  .action(async (options: ReviewChecksAwaitOptions) => {
-    await (await import("./handlers/review.js")).handleReviewChecksAwait(options);
-  });
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, options: ReviewChecksAwaitOptions) => {
+    await (await import("./handlers/review.js")).handleReviewChecksAwait(options, {}, context);
+  }));
 
 reviewCmd
   .command("readiness")
@@ -1814,13 +1818,13 @@ reviewCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-readiness-request", input);
       return;
     }
-    await (await import("./handlers/review.js")).handleReviewReadiness(input ?? "");
-  });
+    await (await import("./handlers/review.js")).handleReviewReadiness(input ?? "", {}, context);
+  }));
 
 reviewCmd
   .command("planning-lane <base> <head>")
@@ -1879,13 +1883,13 @@ reviewCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-resolve-request", input);
       return;
     }
-    await (await import("./handlers/review.js")).handleReviewResolve(input ?? "");
-  });
+    await (await import("./handlers/review.js")).handleReviewResolve(input ?? "", {}, context);
+  }));
 
 const frontlineCmd = reviewCmd
   .command("frontline")
@@ -1899,13 +1903,13 @@ frontlineCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-frontline-resolve-request", input);
       return;
     }
-    await (await import("./handlers/review.js")).handleReviewFrontlineResolve(input ?? "");
-  });
+    await (await import("./handlers/review.js")).handleReviewFrontlineResolve(input ?? "", {}, context);
+  }));
 
 frontlineCmd
   .command("run")
@@ -1942,13 +1946,13 @@ hostedCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-hosted-request-request", input);
       return;
     }
-    await (await import("./handlers/review.js")).handleReviewHostedRequest(input ?? "");
-  });
+    await (await import("./handlers/review.js")).handleReviewHostedRequest(input ?? "", {}, context);
+  }));
 
 hostedCmd
   .command("await")
@@ -1962,13 +1966,13 @@ hostedCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-hosted-await-request", input);
       return;
     }
-    await (await import("./handlers/review.js")).handleReviewHostedAwait(input ?? "");
-  });
+    await (await import("./handlers/review.js")).handleReviewHostedAwait(input ?? "", {}, context);
+  }));
 
 hostedCmd
   .command("settle")
@@ -1978,13 +1982,13 @@ hostedCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-hosted-settle-request", input);
       return;
     }
-    await (await import("./handlers/review.js")).handleReviewHostedSettle(input ?? "");
-  });
+    await (await import("./handlers/review.js")).handleReviewHostedSettle(input ?? "", {}, context);
+  }));
 
 reviewCmd
   .command("changeset")
@@ -1996,13 +2000,13 @@ reviewCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-chunking-resolve-request", input);
       return;
     }
-    await (await import("./handlers/review.js")).handleReviewChunkingResolve(input ?? "");
-  });
+    await (await import("./handlers/review.js")).handleReviewChunkingResolve(input ?? "", {}, context);
+  }));
 
 const localReviewCmd = reviewCmd
   .command("local")
@@ -2016,13 +2020,13 @@ localReviewCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-local-prepare-request", input);
       return;
     }
-    await (await import("./handlers/review.js")).handleReviewLocalPrepare(input ?? "");
-  });
+    await (await import("./handlers/review.js")).handleReviewLocalPrepare(input ?? "", {}, context);
+  }));
 
 localReviewCmd
   .command("attest")
@@ -2032,13 +2036,13 @@ localReviewCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-local-attest-request", input);
       return;
     }
-    await (await import("./handlers/review.js")).handleReviewLocalAttest(input ?? "");
-  });
+    await (await import("./handlers/review.js")).handleReviewLocalAttest(input ?? "", {}, context);
+  }));
 
 localReviewCmd
   .command("resume")
@@ -2048,13 +2052,13 @@ localReviewCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-local-resume-request", input);
       return;
     }
-    await (await import("./handlers/review.js")).handleReviewLocalResume(input ?? "");
-  });
+    await (await import("./handlers/review.js")).handleReviewLocalResume(input ?? "", {}, context);
+  }));
 
 reviewCmd
   .command("respond")
@@ -2064,13 +2068,13 @@ reviewCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-respond-request", input);
       return;
     }
-    await (await import("./handlers/review.js")).handleReviewRespond(input ?? "");
-  });
+    await (await import("./handlers/review.js")).handleReviewRespond(input ?? "", {}, context);
+  }));
 
 reviewCmd
   .command("reduce")
@@ -2080,13 +2084,13 @@ reviewCmd
   .option("--schema", "Print the registered public request schema bundle")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
-  .action(async (input: string | undefined, opts: { schema?: boolean }) => {
+  .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
     if (opts.schema === true) {
       (await import("./handlers/review.js")).handleReviewRequestSchema("review-reduce-request", input);
       return;
     }
-    await (await import("./handlers/review.js")).handleReviewReduce(input ?? "");
-  });
+    await (await import("./handlers/review.js")).handleReviewReduce(input ?? "", {}, context);
+  }));
 
 reviewCmd
   .command("pre-publication <name>")

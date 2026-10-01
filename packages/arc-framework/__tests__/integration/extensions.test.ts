@@ -9,6 +9,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { assertSchemaAccepts } from "../helpers/schema-assertion.js";
 import { mkdir, mkdtemp, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -17,6 +18,7 @@ import {
   runExtensionsSessionInitStatus,
   runExtensionsStatus,
 } from "../../src/commands/extensions.js";
+import { ExtensionsSessionInitResultSchema } from "../../src/commands/extensions/status.js";
 
 interface Fixture {
   root: string;
@@ -194,13 +196,25 @@ describe("runExtensionsSessionInitStatus — session-init mode", () => {
     const result = await runExtensionsSessionInitStatus({ cwd: fixture.root });
 
     expect(result.mode).toBe("session-init");
+    assertSchemaAccepts(ExtensionsSessionInitResultSchema, result);
     expect(result.active.sort()).toEqual(["post-context-load", "pre-merge"]);
   });
 
   it("returns an empty list when no extensions are active", async () => {
     await writeExtension(fixture.extDir, "post-task-quality", false);
     const result = await runExtensionsSessionInitStatus({ cwd: fixture.root });
+    assertSchemaAccepts(ExtensionsSessionInitResultSchema, result);
     expect(result.active).toEqual([]);
+  });
+
+  it("loads active extensions from a decomposed native project root", async () => {
+    const root = join(fixture.root, "cafe\u0301");
+    const extDir = join(root, ".arc", "system", "extensions");
+    await mkdir(extDir, { recursive: true });
+    await writeExtension(extDir, "pre-merge", true);
+
+    await expect(runExtensionsSessionInitStatus({ cwd: root }))
+      .resolves.toEqual({ mode: "session-init", active: ["pre-merge"], warnings: [] });
   });
 
   it("does not walk the workflows directory (fast path)", async () => {
@@ -209,5 +223,13 @@ describe("runExtensionsSessionInitStatus — session-init mode", () => {
     await writeExtension(fixture.extDir, "pre-merge", true);
     const result = await runExtensionsSessionInitStatus({ cwd: fixture.root });
     expect(result.active).toEqual(["pre-merge"]);
+  });
+
+  it("parses producer warnings and refuses undeclared fields", async () => {
+    await writeFile(join(fixture.extDir, "broken.md"), "---\nname: broken\n---\n");
+    const result = await runExtensionsSessionInitStatus({ cwd: fixture.root });
+    expect(result.warnings.length).toBeGreaterThan(0);
+    assertSchemaAccepts(ExtensionsSessionInitResultSchema, result);
+    expect(() => ExtensionsSessionInitResultSchema.parse({ ...result, unexpected: true })).toThrow(/unexpected/u);
   });
 });

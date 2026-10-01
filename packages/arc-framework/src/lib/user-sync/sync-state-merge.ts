@@ -21,12 +21,13 @@ import {
   MAX_RECONCILE_ATTEMPTS,
   readRefTip,
   readTreeEntriesDiscriminating,
+  isNonFastForwardError,
+  isRemoteUnavailableError,
   uniqueRefToken,
   writeTreeCommit,
 } from "../git/ref-tree.js";
 import type { GitExec } from "../git/exec.js";
 import { gitFailureText } from "../git/process-error.js";
-import { isNonFastForwardError, isRemoteUnavailableError } from "./notes-merge.js";
 import {
   syncStateRef,
   incomingSyncStateRef,

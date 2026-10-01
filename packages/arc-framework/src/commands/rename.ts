@@ -5,7 +5,7 @@ import { basename, dirname, join, resolve } from "node:path";
 
 import { parseMetaRecord } from "../lib/active/meta-reader.js";
 import { expandActiveInFlight } from "./active.js";
-import { canonicalDigest } from "../lib/canonical/canonical-json.js";
+import { canonicalDigest } from "../lib/kernel/canonical/canonical-json.js";
 import type { UserIOContext } from "./user.js";
 import { runUserRenameWorkspace } from "./user.js";
 import { listArcFiles } from "../lib/fs.js";

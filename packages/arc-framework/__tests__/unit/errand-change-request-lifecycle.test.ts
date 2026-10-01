@@ -12,6 +12,13 @@ import {
 } from "../../src/lib/errand/index.js";
 import { resolveChangeRequestLifecycleConfiguration } from "../../src/lib/errand/change-request-lifecycle.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
+import { scriptGitExec } from "../helpers/git-exec-fake.js";
+
+function parseTransientIdentityTailRecord(value: unknown): TransientIdentityTailRecord {
+  const parsed = TransientIdentityRecordV3Schema.parse(value);
+  if (parsed.state !== "awaiting-merge") throw new Error("expected a change-request tail record");
+  return parsed;
+}
 
 const configured: ChangeRequestLifecycleConfiguration = {
   repositoryRef: "owner/repo",
@@ -82,12 +89,13 @@ describe("GitHub change-request lifecycle port", () => {
       .resolves.toMatchObject({ kind: "missing" });
     await expect(createGhChangeRequestLifecyclePort(ghResult([pull(), pull({ number: 8 })]))
       .read(configured, changeRequest)).resolves.toMatchObject({ kind: "ambiguous" });
-    let query = 0;
-    const movedRef: GitExec = async () => ({
-      stdout: JSON.stringify(query++ === 0 ? [] : [pull({ headRefName: "chore/renamed" })]),
-      stderr: "",
-    });
-    await expect(createGhChangeRequestLifecyclePort(movedRef).read(configured, changeRequest))
+    const { exec } = scriptGitExec([
+      { command: "gh", match: { predicate: (args) => args[0] === "pr" && args.includes("--head") },
+        responses: [{ stdout: "[]", stderr: "" }] },
+      { command: "gh", match: { predicate: (args) => args[0] === "pr" && args.includes("--search") },
+        responses: [{ stdout: JSON.stringify([pull({ headRefName: "chore/renamed" })]), stderr: "" }] },
+    ]);
+    await expect(createGhChangeRequestLifecyclePort(exec).read(configured, changeRequest))
       .resolves.toMatchObject({ kind: "changed-head" });
   });
 
@@ -112,7 +120,7 @@ describe("GitHub change-request lifecycle port", () => {
 });
 
 describe("transient change-request tail retirement", () => {
-  const groom = TransientIdentityRecordV3Schema.parse({
+  const groom = parseTransientIdentityTailRecord({
     version: 3,
     kind: "groom",
     slug: "groom-alpha",
@@ -126,7 +134,7 @@ describe("transient change-request tail retirement", () => {
     changeRequest: { ...changeRequest, headRef: "chore/groom-alpha" },
     createdAt: "2026-07-20T00:00:00.000Z",
     updatedAt: "2026-07-20T00:01:00.000Z",
-  }) as TransientIdentityTailRecord;
+  });
 
   it("finalizes only exact merged truth and replays retirement idempotently", () => {
     const evidence = { kind: "merged", changeRequest: groom.changeRequest } as ChangeRequestLifecycleEvidence;

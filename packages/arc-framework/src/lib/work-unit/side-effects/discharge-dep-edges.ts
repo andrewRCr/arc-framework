@@ -16,7 +16,7 @@ import {
   parseMetaRecord,
   setMetaBulletFields,
 } from "../../active/meta-reader.js";
-import { canonicalDigest, type CanonicalDigest } from "../../canonical/canonical-json.js";
+import { canonicalDigest, type CanonicalDigest } from "../../kernel/canonical/canonical-json.js";
 import type { GitIndexTransaction } from "../../git/exec.js";
 import type { LifecycleIndex } from "../lifecycle-index.js";
 import { resolveSlugState } from "../lifecycle-resolver.js";

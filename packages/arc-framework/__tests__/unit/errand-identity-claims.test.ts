@@ -17,6 +17,20 @@ import {
   type HousekeepIdentityRecord,
 } from "../../src/lib/errand/index.js";
 
+function parseGroomIdentityRecord(value: unknown): GroomIdentityRecord {
+  const parsed = TransientIdentityRecordV3Schema.parse(value);
+  if (parsed.kind !== "groom") throw new Error("expected a grooming identity record");
+  return parsed;
+}
+
+function parseHousekeepIdentityRecord(value: unknown): HousekeepIdentityRecord {
+  const parsed = TransientIdentityRecordV3Schema.parse(value);
+  if (parsed.kind !== "errand" || parsed.purpose !== "housekeep-routing") {
+    throw new Error("expected a housekeeping routing record");
+  }
+  return parsed;
+}
+
 const createdAt = "2026-07-20T00:00:00.000Z";
 const baseHead = "a".repeat(40);
 const changeRequest = {
@@ -28,7 +42,7 @@ const changeRequest = {
 };
 
 function groom(overrides: Record<string, unknown> = {}): GroomIdentityRecord {
-  return TransientIdentityRecordV3Schema.parse({
+  return parseGroomIdentityRecord({
     version: 3,
     kind: "groom",
     slug: "groom-alpha",
@@ -43,11 +57,11 @@ function groom(overrides: Record<string, unknown> = {}): GroomIdentityRecord {
     createdAt,
     updatedAt: createdAt,
     ...overrides,
-  }) as GroomIdentityRecord;
+  });
 }
 
 function housekeep(overrides: Record<string, unknown> = {}): HousekeepIdentityRecord {
-  return TransientIdentityRecordV3Schema.parse({
+  return parseHousekeepIdentityRecord({
     version: 3,
     kind: "errand",
     slug: "route-inbox",
@@ -60,7 +74,7 @@ function housekeep(overrides: Record<string, unknown> = {}): HousekeepIdentityRe
     createdAt,
     updatedAt: createdAt,
     ...overrides,
-  }) as HousekeepIdentityRecord;
+  });
 }
 
 describe("groom identity claims", () => {

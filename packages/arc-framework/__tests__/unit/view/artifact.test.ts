@@ -1,6 +1,7 @@
 /** Unit tests for semantic `arc view` artifact resolution. */
 
 import { describe, expect, it, vi } from "vitest";
+import { join } from "node:path";
 
 import {
   resolveViewArtifact,
@@ -231,6 +232,17 @@ describe("resolveViewArtifact", () => {
       path: "/repo/.arc/backlog/ATOMIC-INBOX.md",
       workUnit: null,
     });
+  });
+
+  it.each([true, false])("resolves a decomposed native inbox root with existence %s", async (exists) => {
+    const cwd = "/repo/cafe\u0301";
+    const path = join(cwd, ".arc", "backlog", "ATOMIC-INBOX.md");
+    const dependencies = deps({ pathExists: async (candidate) => exists && candidate === path });
+
+    await expect(resolveViewArtifact({ cwd, kind: "inbox", project: true, identity: null }, dependencies))
+      .resolves.toEqual(exists
+        ? { status: "resolved", kind: "inbox", path, workUnit: null }
+        : { status: "absent", kind: "inbox" });
   });
 
   it("reports unknown kind, WU-context, identity, and session-note errors", async () => {

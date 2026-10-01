@@ -39,9 +39,11 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../lib/kernel/schema/vocabulary.js";
 
 import { parseMetaRecord } from "../../lib/active/meta-reader.js";
 import { isErrandBranchType } from "../../lib/errand/branch-type.js";
+import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { branchToWorkUnitSlug } from "../../lib/work-unit/completed-index.js";
 import {
   classifyPredecessorRelation,
@@ -54,7 +56,6 @@ import type {
 } from "./core/delivery-member-lookup.js";
 import { GitObjectIdSchema } from "./core/gate-contract-v2-schema.js";
 
-const SlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
 const RepositorySchema = z
   .string()
   .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u)
@@ -63,7 +64,7 @@ const RepositorySchema = z
     "repository segments must not consist only of dots",
   );
 const PlanIdSchema = z.uuid();
-const DeliverableIdSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+const DeliverableIdSchema = CanonicalDigestSchema;
 
 export const ReviewTargetSchema = z.strictObject({
   repository: RepositorySchema,
@@ -107,6 +108,14 @@ export const ReviewReadinessRequestSchema = z.strictObject({
   vehicle: ReviewVehicleSchema,
 }).readonly();
 export type ReviewReadinessRequest = z.infer<typeof ReviewReadinessRequestSchema>;
+type ReviewReadinessInput = Omit<z.input<typeof ReviewReadinessRequestSchema>, "vehicle"> & {
+  vehicle: z.input<typeof ReviewVehicleSchema> | {
+    kind: "delivery-member";
+    planId: string;
+    deliverableId: string;
+    workUnitSlug: string;
+  };
+};
 
 export const ReviewReadinessFactSchema = z.strictObject({
   code: z.string().min(1),
@@ -1035,7 +1044,7 @@ async function evaluateArchivedWorkUnit(
  * @returns A ready or structured-invalid review envelope.
  */
 export async function evaluateReviewReadiness(
-  input: ReviewReadinessRequest,
+  input: ReviewReadinessInput,
   overrides: Partial<ReviewReadinessDependencies> = {},
 ): Promise<ReviewReadinessEnvelope> {
   const request = ReviewReadinessRequestSchema.parse(input);

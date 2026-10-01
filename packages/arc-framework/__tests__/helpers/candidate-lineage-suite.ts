@@ -8,6 +8,7 @@
  */
 
 import { collectCandidateSubjectTarget } from "./candidate-subject.js";
+import { makeMetaFixture } from "./meta-fixture.js";
 import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -41,7 +42,7 @@ import { DeliveryStateV1Schema } from "../../src/lib/delivery/schema.js";
 import { renderDeliveryPlanSection } from "../../src/lib/delivery/task-list-render.js";
 import { gitExec } from "../../src/lib/io-context.js";
 import { runActiveStatus } from "../../src/commands/active.js";
-import { canonicalDigest } from "../../src/lib/kernel/index.js";
+import { CanonicalDigestSchema, canonicalDigest, SlugSchema } from "../../src/lib/kernel/index.js";
 import {
   readCandidateRecord,
   readCandidateRecordVersioned,
@@ -262,35 +263,10 @@ interface ProposalPayload {
 
 const SUBPROCESS_HEAVY_TIMEOUT = 60_000;
 
-const META = [
-  "# Metadata: example",
-  "",
-  "| **State** | **Owner**   | **Branch**     | **Class** | **Priority** |",
-  "| --------- | ----------- | -------------- | --------- | ------------ |",
-  "| `Active`  | `test-user` | `feat/example` | `Light`   | `P2`         |",
-  "",
-  "- **Cohort:** [none]",
-  "- **Depends On:** [none]",
-  "",
-  "- **Origin:** [internal]",
-  "- **Design:** [none]",
-  "- **Task List:** `tasks-example.md`",
-  "- **Review Rubric:** [none]",
-  "- **Promotion Receipt:** [none]",
-  "",
-  "- **Current Workflow:** [none]",
-  "- **Last Completed:** verification",
-  "- **Next Task:** [none]",
-  "- **Blockers:** [none]",
-  "",
-  "- **Next Action:** verification complete",
-  "",
-  "- **PR URL:** [none]",
-  "- **Completed:** [none]",
-  "",
-  "---",
-  "",
-].join("\n");
+const META = makeMetaFixture("example", {
+  owner: "test-user", branch: "feat/example", workClass: "Light", priority: "P2",
+  taskList: "tasks-example.md", lastCompleted: "verification", nextAction: "verification complete",
+});
 
 function hostedTerminal(input: {
   repositoryId: string;
@@ -836,7 +812,7 @@ async function checkpointOver(root: string, cadence: "manual" | "with-integratio
       };
     },
     readLifecycle: async (workUnit) => ({
-      workUnit,
+      workUnit: SlugSchema.parse(workUnit),
       storageVersion: await git(root, ["rev-parse", "HEAD"]),
       archiveCadence: cadence,
       state: shipped ? "shipped" : "integrating",
@@ -2240,7 +2216,7 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     await settleHostedAttemptFinding(operationStore, {
       operationId: operation.operationId,
       attemptId,
-      dispositionSetId: dispositions.dispositionSet.dispositionSetId,
+      dispositionSetId: CanonicalDigestSchema.parse(dispositions.dispositionSet.dispositionSetId),
       findingId: finding.findingId,
       disposition: "fix",
       actorIdentity: "test-user",
@@ -2598,7 +2574,7 @@ async function persistComposition(root: string, approvedHead: string): Promise<s
       },
       statusSummary: {
         lifecycle: {
-          workUnit: "example",
+          workUnit: SlugSchema.parse("example"),
           storageVersion: approvedHead,
           archiveCadence: "manual",
           state: "integrating",
@@ -2674,7 +2650,7 @@ function registerReviewBearingIntegration(it: typeof vitestIt): void {
           pullRequest: (lockTarget ?? target).pullRequest,
           headSha: (lockTarget ?? target).headSha,
         },
-        vehicle: { kind: "work-unit", slug: "example", archiveCadence: "with-integration" },
+        vehicle: { kind: "work-unit", slug: SlugSchema.parse("example"), archiveCadence: "with-integration" },
       }),
       observeChecks: async () => ({
         schemaVersion: 1,
@@ -2738,7 +2714,7 @@ function registerReviewBearingIntegration(it: typeof vitestIt): void {
           schemaVersion: 1,
           treeRoot: root,
           target: { repository: "owner/repo", pullRequest: 42, headSha: approvedHead },
-          vehicle: { kind: "work-unit", slug: "example", archiveCadence: "with-integration" },
+          vehicle: { kind: "work-unit", slug: SlugSchema.parse("example"), archiveCadence: "with-integration" },
         }),
         observeChecks: () => Promise.reject(new Error("unexpected checks observation")),
         resolveMergeMethod: () => Promise.reject(new Error("unexpected method resolve")),

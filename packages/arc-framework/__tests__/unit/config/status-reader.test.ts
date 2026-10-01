@@ -11,11 +11,8 @@ import { mkdir, mkdtemp, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import {
-  AGENT_CONSUMABLE_CONFIG_FIELDS,
-  AGENT_CONSUMABLE_KEYS,
-  readConfigSettings,
-} from "../../../src/lib/config/status-reader.js";
+import { AGENT_CONSUMABLE_KEYS, readConfigSettings } from "../../../src/lib/config/status-reader.js";
+import { AGENT_CONSUMABLE_CONFIG_FIELDS } from "../../../src/lib/config/schema.js";
 import { DEFAULT_WORKTREE_HARNESS_DIRS } from "../../../src/lib/git/worktree-harness-dirs.js";
 
 interface Fixture {

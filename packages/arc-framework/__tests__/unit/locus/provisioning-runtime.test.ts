@@ -8,6 +8,7 @@ import type { BaseSyncResult } from "../../../src/lib/git/base-sync.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import { createNodeProvisioningDependencies } from "../../../src/lib/locus/provisioning-runtime.js";
 import { PrimaryCheckoutResidueError } from "../../../src/lib/locus/provisioning-types.js";
+import { makeGitProcessError, scriptGitExec } from "../../helpers/git-exec-fake.js";
 
 const roots: string[] = [];
 
@@ -38,17 +39,14 @@ describe("node provisioning runtime", () => {
     };
 
     it("pins topology and destructive Git operations to the resolved primary", async () => {
-      const calls: Array<{ args: string[]; cwd: string | undefined }> = [];
-      const exec: GitExec = async (_command, args, options) => {
-        calls.push({ args: [...args], cwd: options?.cwd });
-        if (args[0] === "worktree" && args[1] === "list") {
-          return {
-            stdout: `worktree /repo\0HEAD ${HEAD}\0branch refs/heads/main\0\0`
-              + `worktree ${receipt.worktreePath}\0HEAD ${HEAD}\0branch refs/heads/${receipt.branch}\0\0`,
-          };
-        }
-        return { stdout: "" };
-      };
+      const { exec, calls } = scriptGitExec([
+        { match: ["worktree", "list", "--porcelain", "-z"], responses: [{
+          stdout: `worktree /repo\0HEAD ${HEAD}\0branch refs/heads/main\0\0`
+            + `worktree ${receipt.worktreePath}\0HEAD ${HEAD}\0branch refs/heads/${receipt.branch}\0\0`,
+        }] },
+        { match: ["worktree", "remove", receipt.worktreePath], responses: [{ stdout: "" }] },
+        { match: ["branch", "-D", receipt.branch], responses: [{ stdout: "" }] },
+      ]);
 
       await expect(spawnedRuntime(exec).rollbackSpawned(receipt, HEAD, "/repo"))
         .resolves.toEqual({ kind: "rolled-back" });
@@ -57,7 +55,7 @@ describe("node provisioning runtime", () => {
         ["worktree", "remove", receipt.worktreePath],
         ["branch", "-D", receipt.branch],
       ]);
-      expect(calls.every((call) => call.cwd === "/repo")).toBe(true);
+      expect(calls.every((call) => call.options?.cwd === "/repo")).toBe(true);
     });
 
     it("refuses rollback when the registered checkout generation changed", async () => {
@@ -94,11 +92,15 @@ describe("node provisioning runtime", () => {
     synchronizePrimaryBase?: () => Promise<BaseSyncResult>,
   ) {
     let mutated = false;
-    const exec: GitExec = async (_command, args) => {
+    const exec: GitExec = async (command, args) => {
       calls.push([...args]);
       if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") return { stdout: `${state.branch}\n` };
       if (args[0] === "rev-parse") {
-        if (mutated && failures.probe === true) throw new Error("fatal: ambiguous argument 'HEAD'");
+        if (mutated && failures.probe === true) {
+          throw makeGitProcessError({
+            command, args, exitCode: 128, stderr: "fatal: ambiguous argument 'HEAD'",
+          });
+        }
         return { stdout: `${state.head}\n` };
       }
       if (args[0] === "checkout" && args[1] === "-b") {
@@ -107,7 +109,9 @@ describe("node provisioning runtime", () => {
         return { stdout: "" };
       }
       if (args[0] === "checkout") {
-        if (mutated && failures.restore === true) throw new Error("fatal: cannot switch branches");
+        if (mutated && failures.restore === true) {
+          throw makeGitProcessError({ command, args, exitCode: 128, stderr: "fatal: cannot switch branches" });
+        }
         state.branch = args[1] ?? "";
         mutated = true;
         return { stdout: "" };

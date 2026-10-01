@@ -6,7 +6,8 @@ import {
   canonicalize,
   canonicalDigest,
   sortByCanonicalBytes,
-} from "../canonical/canonical-json.js";
+  type CanonicalDigest,
+} from "../kernel/canonical/canonical-json.js";
 import { composeEvidenceDelta, reduceEvidenceApplicability } from "../evidence-applicability/index.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 import { ReviewContributionApplicabilitySelectorSchema } from "./review-applicability-selector.js";
@@ -164,13 +165,13 @@ export function candidateReviewResponses(
 
 /** A validated older root whose review budget survives an explicit Candidate re-root. */
 export interface CandidateSupersessionAncestor {
-  candidateId: string;
+  candidateId: CanonicalDigest;
   baseRevision: string;
   /** Exact commit carrying this predecessor record, when resolved from repository history. */
   recordRevision?: string;
   reviewResponseCount: number;
   /** Disposition identities let lane owners distinguish frontline from standard responses. */
-  reviewDispositionIds?: readonly string[];
+  reviewDispositionIds?: readonly CanonicalDigest[];
 }
 
 /** Refuse a missing, cyclic, or out-of-order Candidate supersession chain. */
@@ -733,13 +734,13 @@ function requiredConvergenceScopeAtResponse(
 export type CandidateCurrentnessProjection =
   | ({
       status: "current";
-      candidateId: string;
+      candidateId: CanonicalDigest;
       recognizedRevision: string;
       implementationChanged: boolean;
     } & CandidateConvergenceProjection)
   | {
       status: "blocked";
-      candidateId: string;
+      candidateId: CanonicalDigest;
       recognizedRevision: string;
       currentRevision: string;
       delta: { added: string[]; removed: string[]; changed: string[] };
@@ -747,7 +748,7 @@ export type CandidateCurrentnessProjection =
     };
 
 export type CandidateDurableBaselineProjection = {
-  candidateId: string;
+  candidateId: CanonicalDigest;
   target: CandidateLineageTarget;
   implementationChanged: boolean;
   selectedChange: CandidateApplicabilitySelectionV1 | null;
@@ -881,7 +882,7 @@ export function projectCandidateCurrentness(input: {
 }
 
 function blockedProjection(
-  candidateId: string,
+  candidateId: CanonicalDigest,
   recognizedRevision: string,
   current: z.infer<typeof CandidateLineageTargetSchema>,
   recognized: CandidateSubjectSnapshot,

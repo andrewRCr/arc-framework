@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../../../helpers/schema-assertion.js";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import {
@@ -173,21 +174,21 @@ describe("advisory review records", () => {
       }],
     };
     expect(ApprovedDispositionRecordSchema.parse(record)).toEqual(record);
-    expect(ApprovedDispositionRecordSchema.safeParse({
+    assertSchemaRefuses(ApprovedDispositionRecordSchema, {
       ...record,
       source: source.kind === "attested-local"
         ? { ...source, outcomeRef: "forged" }
         : { ...source, receiptRef: "forged" },
-    }).success).toBe(false);
-    expect(ApprovedDispositionRecordSchema.safeParse({
+    });
+    assertSchemaRefuses(ApprovedDispositionRecordSchema, {
       ...record,
       errand: {
         key: "repair-review-state",
         claimId: "claim-1",
         branch: "chore/repair-review-state",
       },
-    }).success).toBe(false);
-    expect(ApprovedDispositionRecordSchema.safeParse({
+    });
+    const deliveryMemberRecord = {
       ...record,
       deliveryMember: {
         kind: "delivery-member",
@@ -196,7 +197,12 @@ describe("advisory review records", () => {
         workUnitId: "example",
         head: "a".repeat(40),
       },
-    }).success).toBe(source.kind === "frontline");
+    };
+    if (source.kind === "frontline") {
+      assertSchemaAccepts(ApprovedDispositionRecordSchema, deliveryMemberRecord);
+    } else {
+      assertSchemaRefuses(ApprovedDispositionRecordSchema, deliveryMemberRecord);
+    }
   });
 
   it("binds a Candidate-owned private member to the fix authorization head", () => {
@@ -248,10 +254,10 @@ describe("advisory review records", () => {
     } as const;
 
     expect(ApprovedDispositionRecordSchema.parse(record)).toEqual(record);
-    expect(ApprovedDispositionRecordSchema.safeParse({
+    assertSchemaRefuses(ApprovedDispositionRecordSchema, {
       ...record,
       deliveryMember: { ...record.deliveryMember, head: "e".repeat(40) },
-    }).success).toBe(false);
+    });
   });
 
   it("accepts one immutable approved-set lineage with an explicit current pointer", () => {
@@ -333,16 +339,16 @@ describe("advisory review records", () => {
 
     const parsed = ApprovedDispositionRecordSchema.parse(record);
     expect(currentApprovedDispositionNode(parsed).approvedDisposition).toEqual(successor);
-    expect(ApprovedDispositionRecordSchema.safeParse({
+    assertSchemaRefuses(ApprovedDispositionRecordSchema, {
       ...record,
       currentDispositionSetId: firstId,
-    }).success).toBe(false);
-    expect(ApprovedDispositionRecordSchema.safeParse({
+    });
+    assertSchemaRefuses(ApprovedDispositionRecordSchema, {
       ...record,
       approvedDispositionLineage: record.approvedDispositionLineage.map((node, index) =>
         index === 1 ? { ...node, predecessorDispositionSetId: null } : node),
-    }).success).toBe(false);
-    expect(ApprovedDispositionRecordSchema.safeParse({
+    });
+    assertSchemaRefuses(ApprovedDispositionRecordSchema, {
       ...record,
       approvedDispositionLineage: record.approvedDispositionLineage.map((node, index) =>
         index === 1
@@ -354,7 +360,7 @@ describe("advisory review records", () => {
               },
             }
           : node),
-    }).success).toBe(false);
+    });
     const { dispositionSetId: _successorId, ...successorFields } = successor.dispositionSet;
     void _successorId;
     const wrongFindingSuccessor = approveDispositionState({
@@ -369,7 +375,7 @@ describe("advisory review records", () => {
       approvedBy: "maintainer-3",
       approvedAt: "2026-07-23T16:30:00Z",
     });
-    expect(ApprovedDispositionRecordSchema.safeParse({
+    assertSchemaRefuses(ApprovedDispositionRecordSchema, {
       ...record,
       currentDispositionSetId: wrongFindingSuccessor.dispositionSet.dispositionSetId,
       approvedDispositionLineage: [{
@@ -379,7 +385,7 @@ describe("advisory review records", () => {
         ...record.approvedDispositionLineage[1]!,
         approvedDisposition: wrongFindingSuccessor,
       }],
-    }).success).toBe(false);
+    });
   });
 
   it("binds the fix authorization to the disposition set's approved verification scope", () => {
@@ -425,13 +431,13 @@ describe("advisory review records", () => {
     };
 
     expect(ApprovedDispositionRecordSchema.parse(record)).toEqual(record);
-    expect(ApprovedDispositionRecordSchema.safeParse({
+    assertSchemaRefuses(ApprovedDispositionRecordSchema, {
       ...record,
       approvedDispositionLineage: record.approvedDispositionLineage.map((node) => ({
         ...node,
         fixAuthorization: { ...fixAuthorization, approvedVerification: "targeted" as const },
       })),
-    }).success).toBe(false);
+    });
   });
 
   it("binds a frontline outcome to its canonical digest and launched executable", () => {
@@ -449,18 +455,18 @@ describe("advisory review records", () => {
     });
 
     expect(FrontlineOutcomeRecordSchema.parse(record)).toEqual(record);
-    expect(FrontlineOutcomeRecordSchema.safeParse({
+    assertSchemaRefuses(FrontlineOutcomeRecordSchema, {
       ...record,
       outcomeDigest: canonicalDigest({ outcome: "tampered" }),
-    }).success).toBe(false);
-    expect(FrontlineOutcomeRecordSchema.safeParse({
+    });
+    assertSchemaRefuses(FrontlineOutcomeRecordSchema, {
       ...record,
       executableIdentity: null,
-    }).success).toBe(false);
-    expect(FrontlineOutcomeRecordSchema.safeParse({
+    });
+    assertSchemaRefuses(FrontlineOutcomeRecordSchema, {
       ...record,
       sourceIdentity: "other-source",
-    }).success).toBe(false);
+    });
   });
 
   it("includes frontline finding navigation in the immutable outcome digest", () => {
@@ -521,13 +527,13 @@ describe("advisory review records", () => {
     });
 
     expect(FrontlineOutcomeRecordSchema.parse(record)).toEqual(record);
-    expect(FrontlineOutcomeRecordSchema.safeParse({
+    assertSchemaRefuses(FrontlineOutcomeRecordSchema, {
       ...record,
       executableIdentity: {
         digest: canonicalDigest({ executable: "reviewer" }),
         qualifiedVersion: "reviewer/v1",
       },
-    }).success).toBe(false);
+    });
   });
 
   it("retains executable identity when a launched carrier reports an unsupported capability", () => {
@@ -552,10 +558,10 @@ describe("advisory review records", () => {
     });
 
     expect(FrontlineOutcomeRecordSchema.parse(record)).toEqual(record);
-    expect(FrontlineOutcomeRecordSchema.safeParse({
+    assertSchemaAccepts(FrontlineOutcomeRecordSchema, {
       ...record,
       executableIdentity: null,
-    }).success).toBe(true);
+    });
   });
 
   it("registers strict reduction state and action pairings", () => {
@@ -570,10 +576,10 @@ describe("advisory review records", () => {
       sourceRefs: ["outcome:1"],
     };
     expect(ReviewReductionProjectionSchema.parse(projection)).toEqual(projection);
-    expect(ReviewReductionProjectionSchema.safeParse({
+    assertSchemaRefuses(ReviewReductionProjectionSchema, {
       ...projection,
       nextAction: "none",
-    }).success).toBe(false);
+    });
     expect(ReviewReductionProjectionSchema.parse({
       schemaVersion: 1,
       semanticsVersion: "review-advisory/v1",

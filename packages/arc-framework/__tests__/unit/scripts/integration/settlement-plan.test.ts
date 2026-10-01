@@ -37,7 +37,7 @@ function target(headSha: string, headTree: string) {
 }
 
 /** One approved single-finding set over `targetId`, carrying the supplied disposition. */
-function approvedSet(targetId: string, disposition: "fix" | "defer") {
+function approvedSet(targetId: `sha256:${string}`, disposition: "fix" | "defer") {
   const dispositionSet = createDispositionSet({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",

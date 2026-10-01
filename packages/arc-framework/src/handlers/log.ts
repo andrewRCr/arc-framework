@@ -8,7 +8,8 @@ import * as p from "@clack/prompts";
 import { z } from "zod";
 
 import { runLogStandalone, buildLogStandaloneOutput } from "../commands/log.js";
-import { gitExec } from "../lib/io-context.js";
+import { createGitExec } from "../lib/io-context.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import { isHandledError } from "./shared.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 
@@ -46,7 +47,11 @@ export const logStandaloneInputRegistration = {
   },
 } satisfies CommandInputRegistration;
 
-export async function handleLogStandalone(opts: LogStandaloneOptions): Promise<void> {
+/** Render standalone commits with the invocation's subprocess policy. */
+export async function handleLogStandalone(
+  opts: LogStandaloneOptions,
+  context: InteractionContext,
+): Promise<void> {
   const parsed = LogStandaloneInputSchema.safeParse(opts);
   if (!parsed.success) {
     p.log.error(z.prettifyError(parsed.error));
@@ -55,7 +60,7 @@ export async function handleLogStandalone(opts: LogStandaloneOptions): Promise<v
   }
   try {
     const result = await runLogStandalone({
-      exec: gitExec,
+      exec: createGitExec(context.subprocess),
       since: parsed.data.since,
       author: parsed.data.author,
       limit: parsed.data.limit,

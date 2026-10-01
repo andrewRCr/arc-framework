@@ -460,6 +460,26 @@
 
 - _Captured during:_ the `function-size-ratchet` errand, 2026-09-18.
 
+### `[ ]` **Give ceremonies a CLI-resolved gate invocation instead of prose the agent must rediscover**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: quality-gate-hooks`), housekeep drain (2026-09-30); captured
+  during `delivery-rebuild-continuity` draft-design re-entry, 2026-09-21.
+- _Observation:_ nothing resolves a project's gate command set mechanically. The Tier 2 set is a fenced bash block
+  of prose in `QUICK-REFERENCE.md`, reached through a `quality-gate-commands` method that is an explicit
+  passthrough carrying a project override path, and no CLI reads either surface. Every ceremony that says "run the
+  gates" spends agent attention rediscovering which commands those are and how to invoke them, and no recorder can
+  attest what actually ran. Surfaced as a blocker while designing a delivery gate-identity digest: the digest had
+  no resolution source, and the project's own path-based gate narrowing means "the resolved command set" names no
+  single value even at one instant.
+- _Approach:_ an `arc run <selector>` verb the CLI owns — it resolves the configured set, executes it, and returns
+  the output — so a ceremony names what it wants rather than how to invoke it. Composes with
+  `strategy-procedure-evolution`'s CLI-versus-agent boundary. Because path narrowing means one selector may
+  legitimately resolve to different sets for different changes, the verb reports what it ran rather than assuming
+  a fixed set.
+- _Related:_ `quality-gate-hooks` holds the planned tier rework this belongs inside, including an entry to make
+  gate invocation "consume one authoritative project gate composition aligned with CI" — the same authoritative
+  composition this verb would execute. Land it there rather than as its own concern.
+
 ## Problem / Motivation
 
 ARC's tiered quality gate system — Tier 1 (per-task), Tier 2 (coherent unit), Tier 3 (pre-PR) — is

@@ -9,6 +9,22 @@ README, public repo, community infrastructure, and release automation.
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration at this work unit's next planning iteration._
+
+### `[ ]` **Consider an edge on storage-cutover for the public release**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu5-public-release`), housekeep drain (2026-09-30); captured
+  during `storage-contract` draft close, 2026-09-30.
+- _Observation:_ The plan carries no edge on `storage-cutover` and ignores `refs/arc/*` history. After the cutover,
+  state history rides the code remote by default, and the default backend gives no privacy on a public repository
+  (ADR-035; the register's `public-repo-flip` row).
+- _Approach:_ Decide at next planning whether release follows the cutover, and how state refs are treated when the
+  repository goes public.
+
+---
+
 ## Scope
 
 WU5 takes the beta-tested, contributor-ready framework (WU4 output) and makes it public. This is

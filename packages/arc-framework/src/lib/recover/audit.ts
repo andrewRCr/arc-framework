@@ -7,6 +7,7 @@
  *
  * @module
  */
+import { posix } from "node:path";
 import { z } from "zod";
 
 import type { Probe } from "../../commands/status/types.js";
@@ -17,6 +18,7 @@ import {
   type CompactionSeed,
 } from "../compaction-seed/schema.js";
 import type { DirtyStateResult } from "../git/dirty-state.js";
+import { resolveArcPath } from "../layout/index.js";
 import {
   LoadSetAuditDiffSchema,
   LoadSetAuditVerdictSchema,
@@ -503,8 +505,9 @@ function candidatePrepublicationProjection(
     || entering.row.context.integrationBoundary === null
     || entering.row.context.taskCursor?.status !== "no-open-task") return null;
 
-  const verifyPath = ".arc/system/workflows/arc/work-unit-lifecycle/verify-work-unit.md";
-  const preparePath = ".arc/system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md";
+  const workflowRoot = resolveArcPath({ kind: "procedure-root", family: "workflows" });
+  const verifyPath = posix.join(workflowRoot, "arc/work-unit-lifecycle/verify-work-unit.md");
+  const preparePath = posix.join(workflowRoot, "arc/work-unit-lifecycle/prepare-work-unit.md");
   if (options.seed.loadSet.entries.some((entry) => entry.readMode.kind === "partial-strategic")
     || options.seed.loadSet.entries.filter((entry) => entry.path === verifyPath).length !== 1) return null;
   const projected = {

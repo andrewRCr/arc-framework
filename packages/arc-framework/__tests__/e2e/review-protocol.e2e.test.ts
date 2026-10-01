@@ -11,6 +11,7 @@ import {
 import { afterEach, describe, expect, it } from "vitest";
 
 import { responsePolicyRequest } from "../fixtures/review-response-policy.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 import {
   cleanupTempDir,
@@ -112,36 +113,16 @@ async function fixture(): Promise<string> {
   await git(root, ["commit", "-m", "install ARC"]);
   await git(root, ["switch", "-c", "feat/review-protocol"]);
   await mkdir(join(root, ".arc", "active"), { recursive: true });
-  await writeFile(join(root, ".arc", "active", "meta-review-protocol.md"), [
-    "# Metadata: review-protocol",
-    "",
-    "- **State:** Active",
-    "- **Owner:** test-user",
-    "- **Branch:** feat/review-protocol",
-    "- **Class:** Light",
-    "- **Priority:** P2",
-    "- **Cohort:** [none]",
-    "- **Depends On:** [none]",
-    "",
-    "- **Origin:** [internal]",
-    "- **Design:** [none]",
-    "- **Task List:** `tasks-review-protocol.md`",
-    "- **Review Rubric:** [none]",
-    "- **Candidate:** [none]",
-    "",
-    "- **Current Workflow:** [none]",
-    "- **Last Completed:** verification",
-    "- **Next Task:** [none]",
-    "- **Blockers:** [none]",
-    "",
-    "- **Next Action:** verification complete",
-    "",
-    "- **PR URL:** [none]",
-    "- **Completed:** [none]",
-    "",
-    "---",
-    "",
-  ].join("\n"), "utf8");
+  await writeFile(join(root, ".arc", "active", "meta-review-protocol.md"),
+    makeMetaFixture("review-protocol", {
+      owner: "test-user",
+      branch: "feat/review-protocol",
+      workClass: "Light",
+      priority: "P2",
+      taskList: "tasks-review-protocol.md",
+      lastCompleted: "verification",
+      nextAction: "verification complete",
+    }), "utf8");
   await writeFile(
     join(root, ".arc", "active", "tasks-review-protocol.md"),
     "# Task List: Review Protocol\n\n- [x] Verification complete\n",

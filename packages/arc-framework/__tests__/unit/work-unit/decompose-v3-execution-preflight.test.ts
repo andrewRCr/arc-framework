@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { v3DecompositionEvidenceFixture } from "../../fixtures/decompose-v3.js";
-import { canonicalize } from "../../../src/lib/canonical/canonical-json.js";
+import { canonicalize } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import {
   createV3DecomposeStarterMap,
   v3PreflightId,

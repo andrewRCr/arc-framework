@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import { CanonicalDigestSchema, canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import {
   createReviewRequirement,
   createReviewTarget,
@@ -11,7 +11,7 @@ import { sweepLocalReviewSources } from "../../../../../src/scripts/review-gate/
 import { projectLocalReviewGuidance } from
   "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
 
-const digest = (value: string): string => canonicalDigest({ value });
+const digest = (value: string) => canonicalDigest({ value });
 const objectId = (character: string): string => character.repeat(40);
 
 function state(
@@ -93,7 +93,7 @@ function state(
     sourceRef: "source.json",
     sourceDigest: digest("source"),
     guidance: guidance.projection,
-    guidanceDigest: guidance.guidanceDigest,
+    guidanceDigest: CanonicalDigestSchema.parse(guidance.guidanceDigest),
     reviewerInstructions: guidance.reviewerInstructions,
     target,
     requirement,

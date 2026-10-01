@@ -9,6 +9,20 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration at this work unit's next planning iteration._
+
+### `[ ]` **Stop building on `user.notes_push`**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: frictionless-capture`), housekeep drain (2026-09-30); captured
+  during `storage-contract` draft close, 2026-09-30.
+- _Observation:_ The plan relies on `user.notes_push`, which `storage-contract` retires (C5): user sync moves onto the
+  store's compare-and-swap writes with explicit fetching, and notes retire at the cutover.
+- _Approach:_ Re-plan capture sync against the store's firing points (`arc save` and the lifecycle writes, C6).
+
+---
+
 ## Problem / Motivation
 
 There is no low-friction way to capture-and-sync a single inbox item when not already in a warm ARC session.

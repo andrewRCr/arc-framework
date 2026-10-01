@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ArcError } from "../../../src/lib/errors.js";
+import { ArcError } from "../../../src/lib/kernel/errors.js";
 import {
   aggregateMarkdownDiagnostics,
   completeExplicitMarkdownFormat,

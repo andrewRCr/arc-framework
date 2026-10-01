@@ -19,16 +19,13 @@ import { execa } from "execa";
 import { resolveAllSettings } from "../../lib/config/resolved-settings.js";
 import { formatError, UserFacingError } from "../../lib/errors.js";
 import { hasEffectiveHook } from "../../lib/hook-manager.js";
-import { gitExec } from "../../lib/io-context.js";
+import { createGitExec } from "../../lib/io-context.js";
 import {
   formatMissingHooksPathMessage,
   resolveHooksPathVerdict,
 } from "../../lib/git/hooks-path.js";
-import {
-  createExecaGitExec,
-  environmentForGitCwd,
-  MAX_GIT_OUTPUT_BYTES,
-} from "../../lib/git/process-executor.js";
+import { environmentForGitCwd, MAX_GIT_OUTPUT_BYTES } from "../../lib/git/process-executor.js";
+import type { GitExec } from "../../lib/git/exec.js";
 import { normalizeGitRejection } from "../../lib/git/process-error.js";
 import { resolveArcRoot } from "../../lib/paths.js";
 import { createDefaultCommitCheckRepository } from "../../lib/commit-check/repository.js";
@@ -87,8 +84,6 @@ export const releaseCommitInputPolicyDeclarations = [{
   ],
 }] satisfies readonly CommandInputDeclaration[];
 
-const capturedGitExec = createExecaGitExec();
-
 /**
  * Strip a leading `--no-wrap` token from `args`, honoring the `--` terminator.
  *
@@ -114,9 +109,10 @@ export async function handleReleaseCommit(
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false, machineReadable: false, yes: "absent",
   });
+  const exec = createGitExec(context.subprocess);
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(exec);
   } catch (err) {
     if (err instanceof UserFacingError) {
       process.stderr.write(`${formatError(err)}\n`);
@@ -137,7 +133,7 @@ export async function handleReleaseCommit(
   // otherwise commit with zero hooks and report success (unprovisioned worktrees).
   try {
     const hooksVerdict = await resolveHooksPathVerdict(cwd, async (command, args, opts) => {
-      const { stdout } = await capturedGitExec(command, [...args], { cwd: opts.cwd });
+      const { stdout } = await exec(command, [...args], { cwd: opts.cwd });
       return { stdout };
     });
     if (hooksVerdict.kind === "missing") {
@@ -156,13 +152,14 @@ export async function handleReleaseCommit(
 
   const settings = await resolveAllSettings({
     cwd,
-    exec: gitExec,
+    exec,
     readFile: (path) => readFile(path, "utf-8"),
   });
 
-  const currentBranch = (await resolveCurrentBranchName(gitExec)) ?? "";
+  const currentBranch = (await resolveCurrentBranchName(exec)) ?? "";
   const preflightRemedy = renderCommitMessageRemedy();
   const { argv, wrap } = stripNoWrap(opts.args);
+  const retryStore = createRealCommitMessageRetryStore(exec);
 
   const result = await runReleaseCommit({
     cwd,
@@ -171,23 +168,23 @@ export async function handleReleaseCommit(
     settings,
     currentBranch,
     spawnGit: createSpawnGit(context),
-    resolveHead: realResolveHead,
-    createMessageSnapshot: createRealCommitMessageSnapshot,
-    persistMessageRetry: persistRealCommitMessageRetry,
-    cleanupConsumedMessageRetry: cleanupRealConsumedMessageRetry,
+    resolveHead: realResolveHead(exec),
+    createMessageSnapshot: createRealCommitMessageSnapshot(exec),
+    persistMessageRetry: retryStore.persist,
+    cleanupConsumedMessageRetry: retryStore.cleanup,
     preflightRemedy,
     preflightCommitMessage: createCommitMessagePreflight({
       stdinIsTTY: context.interaction === "allowed" && context.promptInput.isTTY,
       interactionAllowed: context.interaction === "allowed",
       readFile: (path) => readFile(path),
-      readFileWithIdentity: readRealCommitMessageFileWithIdentity,
+      readFileWithIdentity: retryStore.readFileWithIdentity,
       readStdin,
       setupRepository: (root) => createDefaultCommitCheckRepository(root, {
-        exec: gitExec,
+        exec,
         readFile: (path) => readFile(path, "utf8"),
         pathExists,
       }),
-      hasPrepareCommitMsgHook,
+      hasPrepareCommitMsgHook: (root) => hasPrepareCommitMsgHook(root, exec),
       wrap,
     }),
   });
@@ -213,12 +210,12 @@ async function readStdin(): Promise<Uint8Array> {
   return Buffer.concat(chunks);
 }
 
-async function hasPrepareCommitMsgHook(cwd: string): Promise<boolean> {
+async function hasPrepareCommitMsgHook(cwd: string, exec: GitExec): Promise<boolean> {
   return hasEffectiveHook(cwd, "prepare-commit-msg", {
     access,
     readFile: (path) => readFile(path, "utf8"),
     resolveGitHookPath: async (root, name) => {
-      const { stdout } = await capturedGitExec(
+      const { stdout } = await exec(
         "git",
         ["rev-parse", "--path-format=absolute", "--git-path", `hooks/${name}`],
         { cwd: root },
@@ -278,8 +275,9 @@ export function createSpawnGit(context?: InteractionContext, inheritOutput = tru
   };
 }
 
-export const createRealCommitMessageSnapshot: CreateCommitMessageSnapshot = async ({ cwd, bytes }) => {
-  const { stdout } = await capturedGitExec("git", ["rev-parse", "--absolute-git-dir"], { cwd });
+/** Capture commit-message bytes under the Git directory resolved by this invocation. */
+export const createRealCommitMessageSnapshot = (exec: GitExec): CreateCommitMessageSnapshot => async ({ cwd, bytes }) => {
+  const { stdout } = await exec("git", ["rev-parse", "--absolute-git-dir"], { cwd });
   const path = join(stdout.trim(), `.arc-release-commit-message-${randomUUID()}`);
   const handle = await open(path, "wx", 0o600);
   try {
@@ -303,7 +301,7 @@ function formatFileIdentity(stats: { dev: bigint; ino: bigint }): string {
  * @param path - Commit-message file to capture.
  * @returns Captured bytes plus opaque filesystem identity.
  */
-export async function readRealCommitMessageFileWithIdentity(path: string): Promise<{
+async function readRealCommitMessageFileWithIdentity(path: string): Promise<{
   bytes: Uint8Array;
   identity: string;
 }> {
@@ -316,55 +314,36 @@ export async function readRealCommitMessageFileWithIdentity(path: string): Promi
   }
 }
 
-const realCommitMessageRetryStore = createCommitMessageRetryStore({
-  resolveGitDir: async (cwd) => {
-    const { stdout } = await capturedGitExec("git", ["rev-parse", "--absolute-git-dir"], { cwd });
-    return stdout.trim();
-  },
-  randomId: randomUUID,
-  openPrivate: async (path) => open(path, "wx", 0o600),
-  identifyFile: async (path) => formatFileIdentity(await stat(path, { bigint: true })),
-  rename,
-  unlink,
-  withLock: async (path, operation) => {
-    const handle = await acquireAdvisoryLock(path);
-    try {
-      return await operation();
-    } finally {
-      await releaseAdvisoryLock(handle);
-    }
-  },
-});
-
-/**
- * Atomically replace the worktree-local latest-retry message with private bytes.
- *
- * @param opts - Repository root and canonical approved message bytes.
- * @returns The absolute wrapper-owned retry path.
- */
-export async function persistRealCommitMessageRetry(opts: {
-  cwd: string;
-  bytes: Uint8Array;
-}): Promise<{ path: string }> {
-  return realCommitMessageRetryStore.persist(opts);
-}
-
-/**
- * Remove the same wrapper-owned retry generation after successful consumption.
- *
- * @param opts - Repository root, original file operand, and captured generation identity.
- * @returns Whether the wrapper-owned path was removed.
- */
-export async function cleanupRealConsumedMessageRetry(opts: {
-  cwd: string;
-  sourcePath: string;
-  sourceIdentity: string;
-}): Promise<boolean> {
-  return realCommitMessageRetryStore.cleanup(opts);
+/** Bind retry persistence, cleanup, and generation reads to one Git executor. */
+export function createRealCommitMessageRetryStore(exec: GitExec) {
+  const store = createCommitMessageRetryStore({
+    resolveGitDir: async (cwd) => {
+      const { stdout } = await exec("git", ["rev-parse", "--absolute-git-dir"], { cwd });
+      return stdout.trim();
+    },
+    randomId: randomUUID,
+    openPrivate: async (path) => open(path, "wx", 0o600),
+    identifyFile: async (path) => formatFileIdentity(await stat(path, { bigint: true })),
+    rename,
+    unlink,
+    withLock: async (path, operation) => {
+      const handle = await acquireAdvisoryLock(path);
+      try {
+        return await operation();
+      } finally {
+        await releaseAdvisoryLock(handle);
+      }
+    },
+  });
+  return {
+    readFileWithIdentity: readRealCommitMessageFileWithIdentity,
+    persist: store.persist,
+    cleanup: store.cleanup,
+  };
 }
 
 /** Resolves `HEAD` post-success for the audit entry's `hash` field. */
-const realResolveHead: ResolveHead = async ({ cwd }) => {
-  const { stdout } = await capturedGitExec("git", ["rev-parse", "HEAD"], { cwd });
+const realResolveHead = (exec: GitExec): ResolveHead => async ({ cwd }) => {
+  const { stdout } = await exec("git", ["rev-parse", "HEAD"], { cwd });
   return stdout.trim();
 };

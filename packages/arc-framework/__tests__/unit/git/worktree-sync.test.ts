@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   analyzeWorktreeSnapshot,
@@ -7,14 +8,16 @@ import {
   runMaterializingWorktreeInspection,
   runPassiveWorktreeInspection,
   runWorktreeSyncStatus,
+  WorktreeSyncStatusResultSchema,
+  WorktreeSnapshotAnalysisResultSchema,
 } from "../../../src/lib/git/worktree-sync.js";
 import type {
   ExecResult,
   GitExec,
-  GitExecInput,
   GitExecOptions,
 } from "../../../src/lib/git/index.js";
 import { GitProcessError } from "../../../src/lib/git/process-error.js";
+import { makeGitProcessError, scriptGitExec, scriptGitExecInput } from "../../helpers/git-exec-fake.js";
 
 type ResponseFn = (
   args: string[],
@@ -22,39 +25,19 @@ type ResponseFn = (
 ) => ExecResult | Promise<ExecResult>;
 
 /**
- * Build a GitExec mock keyed off the first argument and an optional second-arg
- * matcher. Returns `{ exec, calls }` so tests can assert recorded invocations.
+ * Script Git by first arguments, with optional wildcard tokens.
  */
 function buildExec(
   responses: Record<string, ExecResult | ResponseFn>,
-): { exec: GitExec; calls: Array<{ cmd: string; args: string[]; options?: GitExecOptions }> } {
-  const calls: Array<{ cmd: string; args: string[]; options?: GitExecOptions }> = [];
-  const exec: GitExec = async (cmd, args, options) => {
-    calls.push({ cmd, args, ...(options === undefined ? {} : { options }) });
-    const key = matchKey(args, responses);
-    if (key === null) {
-      throw new Error(`unmatched git invocation: ${cmd} ${args.join(" ")}`);
-    }
-    const entry = responses[key];
-    if (entry === undefined) {
-      throw new Error(`matched key '${key}' has no response`);
-    }
-    return typeof entry === "function" ? entry(args, options) : entry;
-  };
-  return { exec, calls };
-}
-
-function matchKey(
-  args: string[],
-  responses: Record<string, unknown>,
-): string | null {
-  for (const key of Object.keys(responses)) {
-    const tokens = key.split(" ");
-    if (tokens.every((token, i) => token === "*" || args[i] === token)) {
-      return key;
-    }
-  }
-  return null;
+): ReturnType<typeof scriptGitExec> {
+  return scriptGitExec(Object.entries(responses).map(([key, response]) => ({
+    match: { predicate: (args) => key.split(" ").every(
+      (token, index) => token === "*" || args[index] === token,
+    ) },
+    responses: [typeof response === "function"
+      ? ({ args, options }) => response(args, options)
+      : response],
+  })));
 }
 
 const REV_PARSE_HEAD = "rev-parse --abbrev-ref HEAD";
@@ -62,6 +45,83 @@ const REV_PARSE_UPSTREAM = "rev-parse --abbrev-ref @{upstream}";
 const FETCH_BRANCH = "fetch origin *";
 const REV_LIST_COUNT = "rev-list --left-right --count *";
 const TRACKED_WORKTREE = { remoteSyncEnabled: true, originConfigured: true } as const;
+
+const snapshotRemoteOid = "b".repeat(40);
+const snapshotLocalOid = "a".repeat(40);
+const snapshotBase = {
+  ...TRACKED_WORKTREE,
+  branch: "main",
+  upstreamBranch: "main",
+  snapshot: { kind: "available", scope: "exact", tips: { main: snapshotRemoteOid } },
+  objectAvailability: { kind: "complete", commits: { [snapshotRemoteOid]: true } },
+  history: { kind: "complete" },
+} as const;
+
+describe("worktree snapshot schema", () => {
+  it.each([
+    { state: "skipped", evidence: "not-applicable", overrides: { remoteSyncEnabled: false } },
+    { state: "detached-head", evidence: "not-applicable", overrides: { branch: null } },
+    { state: "no-remote", evidence: "not-applicable", overrides: { originConfigured: false } },
+    { state: "no-upstream", evidence: "not-applicable", overrides: { upstreamBranch: null } },
+    { state: "branch-gone", evidence: "exact", overrides: {
+      snapshot: { kind: "available", scope: "exact", tips: {} },
+    } },
+    { state: "remote-unavailable", evidence: "pending-fetch", overrides: {
+      objectAvailability: { kind: "complete", commits: { [snapshotRemoteOid]: false } },
+    } },
+    { state: "remote-unavailable", evidence: "unreachable", overrides: {
+      snapshot: { kind: "unreachable", failureReason: "network" },
+    } },
+    { state: "clean", evidence: "exact", overrides: {}, localOid: snapshotRemoteOid },
+    { state: "remote-ahead", evidence: "exact", overrides: {}, distance: "0\t2" },
+    { state: "local-ahead", evidence: "exact", overrides: {}, distance: "2\t0" },
+    { state: "diverged", evidence: "exact", overrides: {}, distance: "2\t3" },
+  ])("parses producer $state/$evidence output", async ({ state, evidence, overrides, localOid, distance }) => {
+    const { exec } = buildExec({
+      "rev-parse HEAD": { stdout: localOid ?? snapshotLocalOid, stderr: "" },
+      [REV_LIST_COUNT]: { stdout: distance ?? "0\t0", stderr: "" },
+    });
+    const result = await analyzeWorktreeSnapshot({
+      ...snapshotBase, ...overrides, exec,
+    } as Parameters<typeof analyzeWorktreeSnapshot>[0]);
+    expect(result.state).toBe(state);
+    expect(result.remoteEvidence).toBe(evidence);
+    assertSchemaAccepts(WorktreeSnapshotAnalysisResultSchema, result);
+  });
+
+  it("parses the legacy status producer and names an undeclared key", async () => {
+    const { exec } = buildExec({ [REV_PARSE_HEAD]: { stdout: "main", stderr: "" } });
+    const result = await runWorktreeSyncStatus({ exec, remoteSyncEnabled: false });
+    assertSchemaAccepts(WorktreeSyncStatusResultSchema, result);
+    expect(() => WorktreeSyncStatusResultSchema.parse({ ...result, unexpected: true })).toThrow(/unexpected/u);
+  });
+
+  it("names an undeclared snapshot field", async () => {
+    const { exec } = buildExec({});
+    const result = await analyzeWorktreeSnapshot({
+      ...snapshotBase, exec, remoteSyncEnabled: false,
+    } as Parameters<typeof analyzeWorktreeSnapshot>[0]);
+    expect(() => WorktreeSnapshotAnalysisResultSchema.parse({ ...result, unexpected: true }))
+      .toThrow(/unexpected/u);
+  });
+
+  it("requires a failure reason only for unreachable snapshot evidence", async () => {
+    const { exec } = buildExec({});
+    const inapplicable = await analyzeWorktreeSnapshot({
+      ...snapshotBase, exec, remoteSyncEnabled: false,
+    } as Parameters<typeof analyzeWorktreeSnapshot>[0]);
+    assertSchemaRefuses(WorktreeSnapshotAnalysisResultSchema, {
+      ...inapplicable, failureReason: "network",
+    });
+
+    const unreachable = await analyzeWorktreeSnapshot({
+      ...snapshotBase, exec, snapshot: { kind: "unreachable", failureReason: "network" },
+    } as Parameters<typeof analyzeWorktreeSnapshot>[0]);
+    const withoutReason = structuredClone(unreachable) as Record<string, unknown>;
+    delete withoutReason.failureReason;
+    assertSchemaRefuses(WorktreeSnapshotAnalysisResultSchema, withoutReason);
+  });
+});
 
 describe("readConfiguredUpstreamBranch", () => {
   function recordingExec(stdout: string): { exec: GitExec; seen: () => GitExecOptions | undefined } {
@@ -432,7 +492,9 @@ describe("analyzeWorktreeSnapshot", () => {
   });
 
   it.each([
-    ["execution failure", () => { throw new Error("graph failed"); }, /graph failed/u],
+    ["execution failure", (args: string[]) => {
+      throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "graph failed" });
+    }, /graph failed/u],
     ["malformed output", { stdout: "not counts", stderr: "" }, /Malformed git rev-list/u],
   ] as const)("propagates local graph %s", async (_label, graphResponse, expected) => {
     const localOid = "3".repeat(40);
@@ -487,18 +549,10 @@ describe("runPassiveWorktreeInspection", () => {
       "rev-parse HEAD": { stdout: `${localOid}\n`, stderr: "" },
       [REV_LIST_COUNT]: { stdout: "0\t2\n", stderr: "" },
     });
-    let objectReadCount = 0;
-    const execInput: GitExecInput = async (args, input, options) => {
-      objectReadCount += 1;
-      if (
-        args.join(" ") !== "cat-file --batch-check"
-        || input !== `${advertisedOid}\n`
-        || options?.objectAccess !== "local-only"
-      ) {
-        throw new Error("unexpected object availability read");
-      }
-      return `${advertisedOid} commit 123\n`;
-    };
+    const { exec: execInput, calls: objectCalls } = scriptGitExecInput([{
+      match: ["cat-file", "--batch-check"],
+      responses: [`${advertisedOid} commit 123\n`],
+    }]);
 
     await expect(runPassiveWorktreeInspection({
       exec,
@@ -512,7 +566,12 @@ describe("runPassiveWorktreeInspection", () => {
       remoteEvidence: "exact",
     });
     expect(calls.filter(({ args }) => args[0] === "ls-remote")).toHaveLength(1);
-    expect(objectReadCount).toBe(1);
+    expect(objectCalls).toHaveLength(1);
+    expect(objectCalls[0]).toMatchObject({
+      args: ["cat-file", "--batch-check"],
+      input: `${advertisedOid}\n`,
+      options: { objectAccess: "local-only" },
+    });
     expect(calls.every(({ args }) => !["fetch", "update-ref"].includes(args[0] ?? ""))).toBe(true);
   });
 
@@ -603,14 +662,11 @@ describe("runPassiveWorktreeInspection", () => {
     state,
     branch,
   ) => {
-    const commands: string[] = [];
-    const exec: GitExec = async (_command, args) => {
-      commands.push(args[0] ?? "");
-      if (args[0] === "rev-parse") return { stdout: branchOutput };
-      if (args[0] === "remote") return { stdout: remoteOutput };
-      if (args[0] === "for-each-ref") return { stdout: upstreamOutput };
-      throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
-    };
+    const { exec, calls: gitCalls } = scriptGitExec([
+      { match: { prefix: ["rev-parse"] }, responses: [{ stdout: branchOutput }] },
+      { match: { prefix: ["remote"] }, responses: [{ stdout: remoteOutput }] },
+      { match: { prefix: ["for-each-ref"] }, responses: [{ stdout: upstreamOutput }] },
+    ]);
     let objectRead = false;
 
     await expect(runPassiveWorktreeInspection({
@@ -627,7 +683,7 @@ describe("runPassiveWorktreeInspection", () => {
       branch,
       remoteEvidence: "not-applicable",
     });
-    expect(commands).not.toContain("ls-remote");
+    expect(gitCalls.map(({ args }) => args[0] ?? "")).not.toContain("ls-remote");
     expect(objectRead).toBe(false);
   });
 
@@ -635,24 +691,25 @@ describe("runPassiveWorktreeInspection", () => {
     "propagates a local %s failure",
     async (failureStage) => {
       const advertisedOid = "9".repeat(40);
-      const exec: GitExec = async (_command, args) => {
-        if (failureStage === "branch" && args[0] === "rev-parse") throw new Error("branch failed");
-        if (args[0] === "rev-parse") return { stdout: "main\n" };
-        if (failureStage === "remote configuration" && args[0] === "remote") {
-          throw new Error("remote configuration failed");
-        }
-        if (args[0] === "remote") return { stdout: "origin\n" };
-        if (failureStage === "upstream" && args[0] === "for-each-ref") throw new Error("upstream failed");
-        if (args[0] === "for-each-ref") return { stdout: "origin/main\n" };
-        if (args[0] === "ls-remote") {
-          return { stdout: `${advertisedOid}\trefs/heads/main\n` };
-        }
-        throw new Error(`unexpected Git invocation: ${args.join(" ")}`);
-      };
-      const execInput: GitExecInput = async () => {
-        if (failureStage === "object inspection") throw new Error("object inspection failed");
-        return `${advertisedOid} missing\n`;
-      };
+      const { exec } = scriptGitExec([
+        { match: { prefix: ["rev-parse"] }, responses: [failureStage === "branch"
+          ? { failure: { exitCode: 128, stderr: "branch failed" } }
+          : { stdout: "main\n" }] },
+        { match: { prefix: ["remote"] }, responses: [failureStage === "remote configuration"
+          ? { failure: { exitCode: 128, stderr: "remote configuration failed" } }
+          : { stdout: "origin\n" }] },
+        { match: { prefix: ["for-each-ref"] }, responses: [failureStage === "upstream"
+          ? { failure: { exitCode: 128, stderr: "upstream failed" } }
+          : { stdout: "origin/main\n" }] },
+        { match: { prefix: ["ls-remote"] },
+          responses: [{ stdout: `${advertisedOid}\trefs/heads/main\n` }] },
+      ]);
+      const { exec: execInput } = scriptGitExecInput([{
+        match: ["cat-file", "--batch-check"],
+        responses: [failureStage === "object inspection"
+          ? { failure: { exitCode: 128, stderr: "object inspection failed" } }
+          : `${advertisedOid} missing\n`],
+      }]);
 
       const expectedMessage = {
         branch: "branch failed",
@@ -778,9 +835,9 @@ describe("runMaterializingWorktreeInspection", () => {
     const { exec } = buildExec({
       [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
       "for-each-ref *": { stdout: "origin/main", stderr: "" },
-      [FETCH_BRANCH]: (_args, options) => new Promise((_resolve, reject) => {
+      [FETCH_BRANCH]: (args, options) => new Promise((_resolve, reject) => {
         options?.signal?.addEventListener("abort", () => {
-          reject(Object.assign(new Error("canceled"), { isCanceled: true }));
+          reject(makeGitProcessError({ command: "git", args, isCanceled: true, stderr: "canceled" }));
         });
       }),
     });
@@ -820,7 +877,9 @@ describe("runMaterializingWorktreeInspection", () => {
       "for-each-ref *": { stdout: "origin/main", stderr: "" },
       [FETCH_BRANCH]: { stdout: "", stderr: "" },
       "rev-parse origin/main": { stdout: oid, stderr: "" },
-      "rev-parse --verify *": () => { throw new Error("missing commit object"); },
+      "rev-parse --verify *": (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "missing commit object" });
+      },
     });
 
     await expect(runMaterializingWorktreeInspection({ exec }))
@@ -831,15 +890,9 @@ describe("runMaterializingWorktreeInspection", () => {
     const { exec } = buildExec({
       [REV_PARSE_HEAD]: { stdout: "feat/x", stderr: "" },
       "for-each-ref *": { stdout: "origin/feat/x", stderr: "" },
-      [FETCH_BRANCH]: () => {
-        throw new GitProcessError({
-          kind: "nonzero-exit",
-          command: "git",
-          args: ["fetch", "origin", "feat/x"],
-          exitCode: 128,
-          stderr: "fatal: couldn't find remote ref refs/heads/feat/x",
-          expectedOutcome: "absent-remote-ref",
-        });
+      [FETCH_BRANCH]: (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128,
+          stderr: "fatal: couldn't find remote ref refs/heads/feat/x" });
       },
     });
 
@@ -866,7 +919,9 @@ describe("runMaterializingWorktreeInspection", () => {
 
   it.each([
     ["no-upstream", { stdout: "git@example.test:repo.git", stderr: "" }],
-    ["no-remote", () => { throw new Error("origin is not configured"); }],
+    ["no-remote", (args: string[]) => {
+      throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "origin is not configured" });
+    }],
   ] as const)("preserves %s without attempting materialization", async (state, originResponse) => {
     const { exec, calls } = buildExec({
       [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
@@ -938,8 +993,8 @@ describe("runWorktreeSyncStatus", () => {
       [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
       [REV_PARSE_UPSTREAM]: { stdout: "origin/main", stderr: "" },
       [FETCH_BRANCH]: { stdout: "", stderr: "" },
-      [REV_LIST_COUNT]: () => {
-        throw new Error("fatal: bad revision");
+      [REV_LIST_COUNT]: (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "fatal: bad revision" });
       },
     });
 
@@ -985,8 +1040,9 @@ describe("runWorktreeSyncStatus", () => {
   it("returns no-upstream without fetching when @{upstream} resolution fails", async () => {
     const { exec, calls } = buildExec({
       [REV_PARSE_HEAD]: { stdout: "feature/x", stderr: "" },
-      [REV_PARSE_UPSTREAM]: () => {
-        throw new Error("fatal: no upstream configured for branch 'feature/x'");
+      [REV_PARSE_UPSTREAM]: (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128,
+          stderr: "fatal: no upstream configured for branch 'feature/x'" });
       },
       "remote get-url origin": { stdout: "git@github.com:owner/repo.git", stderr: "" },
     });
@@ -1017,11 +1073,12 @@ describe("runWorktreeSyncStatus", () => {
   it("returns no-remote without fetching when origin is not configured", async () => {
     const { exec, calls } = buildExec({
       [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
-      [REV_PARSE_UPSTREAM]: () => {
-        throw new Error("fatal: no upstream configured for branch 'main'");
+      [REV_PARSE_UPSTREAM]: (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128,
+          stderr: "fatal: no upstream configured for branch 'main'" });
       },
-      "remote get-url origin": () => {
-        throw new Error("fatal: No such remote 'origin'");
+      "remote get-url origin": (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "fatal: No such remote 'origin'" });
       },
     });
 
@@ -1037,10 +1094,10 @@ describe("runWorktreeSyncStatus", () => {
     const { exec } = buildExec({
       [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
       [REV_PARSE_UPSTREAM]: { stdout: "origin/main", stderr: "" },
-      [FETCH_BRANCH]: (_args, options) =>
+      [FETCH_BRANCH]: (args, options) =>
         new Promise((_resolve, reject) => {
           options?.signal?.addEventListener("abort", () => {
-            reject(Object.assign(new Error("canceled"), { isCanceled: true }));
+            reject(makeGitProcessError({ command: "git", args, isCanceled: true, stderr: "canceled" }));
           });
         }),
     });
@@ -1061,10 +1118,9 @@ describe("runWorktreeSyncStatus", () => {
     const { exec } = buildExec({
       [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
       [REV_PARSE_UPSTREAM]: { stdout: "origin/main", stderr: "" },
-      [FETCH_BRANCH]: () => {
-        throw new Error(
-          "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
-        );
+      [FETCH_BRANCH]: (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128,
+          stderr: "fatal: could not read Username for 'https://github.com': terminal prompts disabled" });
       },
     });
 
@@ -1080,9 +1136,9 @@ describe("runWorktreeSyncStatus", () => {
     const { exec } = buildExec({
       [REV_PARSE_HEAD]: { stdout: "feat/x", stderr: "" },
       [REV_PARSE_UPSTREAM]: { stdout: "origin/feat/x", stderr: "" },
-      [FETCH_BRANCH]: () => {
-        throw Object.assign(new Error("fetch failed"), {
-          code: 128,
+      [FETCH_BRANCH]: (args) => {
+        throw makeGitProcessError({ command: "git", args,
+          exitCode: 128,
           stderr: "fatal: couldn't find remote ref refs/heads/feat/x",
         });
       },
@@ -1102,9 +1158,9 @@ describe("runWorktreeSyncStatus", () => {
     const { exec } = buildExec({
       [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
       [REV_PARSE_UPSTREAM]: { stdout: "origin/main", stderr: "" },
-      [FETCH_BRANCH]: () => {
-        throw Object.assign(new Error("fetch failed"), {
-          code: 128,
+      [FETCH_BRANCH]: (args) => {
+        throw makeGitProcessError({ command: "git", args,
+          exitCode: 128,
           stderr: "fatal: unable to access 'https://...': Could not resolve host: github.com",
         });
       },

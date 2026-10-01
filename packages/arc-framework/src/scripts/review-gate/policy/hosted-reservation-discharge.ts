@@ -1,7 +1,7 @@
 /** Discharge evidence for a hosted-review reservation carried across publication. */
 
 import type { DeliveryReviewMemberVehicle } from "../../../lib/delivery/review-vehicle.js";
-import { canonicalize } from "../../../lib/canonical/canonical-json.js";
+import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
 import type { DeliveryHostPort } from "../../../lib/delivery/host.js";
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";

@@ -1,6 +1,6 @@
 /** Append-only ancestry adoption for the originating delivery branch. */
 
-import type { RawGitExec } from "../change-facts.js";
+import type { RawGitExec } from "../git/exec.js";
 import type { DeliveryChainContainmentInput, DeliveryChainContainmentResult } from "./chain-containment.js";
 import { classifyGitDeliveryChainContainment } from "./chain-containment.js";
 

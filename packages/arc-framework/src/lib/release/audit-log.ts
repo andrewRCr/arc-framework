@@ -28,7 +28,7 @@ import type {
   AuditCommand,
   AuditEntry,
   AuditWorkUnit,
-} from "./types.js";
+} from "./schema.js";
 
 export interface AuditLogContext {
   cwd: string;

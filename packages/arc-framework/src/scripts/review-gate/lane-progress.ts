@@ -2,7 +2,7 @@
 
 import { createHash } from "node:crypto";
 
-import { canonicalize } from "../../lib/kernel/index.js";
+import { canonicalize, type CanonicalDigest } from "../../lib/kernel/index.js";
 import { validateReviewReceipt } from "./core/gate-contract-v2.js";
 import type { ReviewReceiptV2 } from "./core/gate-contract-v2-schema.js";
 import {
@@ -36,7 +36,7 @@ import { resolveHostedSealPublishError, sealedHostedReplayMatches } from
 
 function responsePerformanceReplayMatches(
   attempt: LaneAttempt,
-  input: { predecessorDispositionSetId?: string; producedHeadSha: string },
+  input: { predecessorDispositionSetId?: CanonicalDigest; producedHeadSha: string },
 ): boolean {
   const current = attempt.responsePerformance;
   if (current === undefined) return false;
@@ -52,8 +52,8 @@ function responsePerformanceReplayMatches(
 function recordResponsePerformanceOnAttempt(
   attempt: LaneAttempt,
   input: {
-    dispositionSetId: string;
-    predecessorDispositionSetId?: string;
+    dispositionSetId: CanonicalDigest;
+    predecessorDispositionSetId?: CanonicalDigest;
     producedHeadSha: string;
     now: string;
   },
@@ -794,8 +794,8 @@ export async function settleLaneAttempt(
     headSha: string;
     lineage?: LaneSubjectLineage;
     attemptId: string;
-    dispositionSetId?: string;
-    predecessorDispositionSetId?: string;
+    dispositionSetId?: CanonicalDigest;
+    predecessorDispositionSetId?: CanonicalDigest;
     producedHeadSha?: string;
     now: string;
   },
@@ -858,8 +858,8 @@ export async function recordLaneResponsePerformance(
     headSha: string;
     lineage: LaneSubjectLineage;
     attemptId: string;
-    dispositionSetId: string;
-    predecessorDispositionSetId?: string;
+    dispositionSetId: CanonicalDigest;
+    predecessorDispositionSetId?: CanonicalDigest;
     producedHeadSha: string;
     now: string;
   },

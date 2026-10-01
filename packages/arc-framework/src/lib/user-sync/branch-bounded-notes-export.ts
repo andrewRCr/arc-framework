@@ -13,7 +13,7 @@ import {
   serializeNotesCompactionManifest,
   type NotesCompactionManifest,
 } from "./compaction-manifest.js";
-import { isRemoteUnavailableError } from "./notes-merge.js";
+import { isRemoteUnavailableError } from "../git/ref-tree.js";
 import { proveNotesPublication } from "./notes-publication-proof.js";
 import { readLocalExclusiveAnnotatedNoteCommits } from "./notes-ref.js";
 

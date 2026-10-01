@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   analyzeBaseBranchSnapshot,
@@ -13,7 +14,7 @@ import type {
   GitExecOptions,
 } from "../../../src/lib/git/index.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
-import { GitProcessError } from "../../../src/lib/git/process-error.js";
+import { makeGitProcessError, scriptGitExec, type GitExecCall } from "../../helpers/git-exec-fake.js";
 
 type ResponseFn = (
   args: string[],
@@ -21,39 +22,18 @@ type ResponseFn = (
 ) => ExecResult | Promise<ExecResult>;
 
 /**
- * Build a GitExec mock keyed off the first argument and an optional second-arg
- * matcher. Returns `{ exec, calls }` so tests can assert recorded invocations.
+ * Script wildcard-keyed Git responses with the shared invocation recorder.
  */
 function buildExec(
   responses: Record<string, ExecResult | ResponseFn>,
-): { exec: GitExec; calls: Array<{ cmd: string; args: string[] }> } {
-  const calls: Array<{ cmd: string; args: string[] }> = [];
-  const exec: GitExec = async (cmd, args, options) => {
-    calls.push({ cmd, args });
-    const key = matchKey(args, responses);
-    if (key === null) {
-      throw new Error(`unmatched git invocation: ${cmd} ${args.join(" ")}`);
-    }
-    const entry = responses[key];
-    if (entry === undefined) {
-      throw new Error(`matched key '${key}' has no response`);
-    }
-    return typeof entry === "function" ? entry(args, options) : entry;
-  };
-  return { exec, calls };
-}
-
-function matchKey(
-  args: string[],
-  responses: Record<string, unknown>,
-): string | null {
-  for (const key of Object.keys(responses)) {
-    const tokens = key.split(" ");
-    if (tokens.every((token, i) => token === "*" || args[i] === token)) {
-      return key;
-    }
-  }
-  return null;
+): ReturnType<typeof scriptGitExec> {
+  return scriptGitExec(Object.entries(responses).map(([key, entry]) => ({
+    match: { predicate: (args: readonly string[]) => key.split(" ").every((token, index) =>
+      token === "*" || args[index] === token) },
+    responses: [typeof entry === "function"
+      ? ({ args, options }: GitExecCall) => entry(args, options)
+      : entry],
+  })));
 }
 
 const GET_ORIGIN = "remote get-url origin";
@@ -65,8 +45,8 @@ const BASE_OID = "b".repeat(40);
 
 describe("readLocalBaseOid", () => {
   it("propagates a local base inspection failure", async () => {
-    const exec: GitExec = async () => {
-      throw new Error("object database unavailable");
+    const exec: GitExec = async (command, args) => {
+      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "object database unavailable" });
     };
 
     await expect(readLocalBaseOid(exec, "main")).rejects.toThrow("object database unavailable");
@@ -79,13 +59,8 @@ describe("readLocalBaseOid", () => {
   });
 
   it("returns null only for a missing local base ref", async () => {
-    const exec: GitExec = async () => {
-      throw new GitProcessError({
-        kind: "nonzero-exit",
-        command: "git",
-        args: ["rev-parse", "--verify", "--quiet", "refs/heads/main^{commit}"],
-        exitCode: 1,
-      });
+    const exec: GitExec = async (command, args) => {
+      throw makeGitProcessError({ command, args, exitCode: 1 });
     };
 
     await expect(readLocalBaseOid(exec, "main")).resolves.toBeNull();
@@ -300,7 +275,9 @@ describe("snapshot-driven base-branch sync", () => {
   });
 
   it.each([
-    ["execution failure", () => { throw new Error("distance failed"); }, /distance failed/u],
+    ["execution failure", (args: string[]) => {
+      throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "distance failed" });
+    }, /distance failed/u],
     ["malformed output", { stdout: "not counts", stderr: "" }, /Malformed git rev-list/u],
   ] as const)("propagates local distance %s", async (_label, response, expected) => {
     const { exec } = buildExec({ [REV_LIST_COUNT]: response });
@@ -508,8 +485,8 @@ describe("runBaseBranchSyncStatus", () => {
   it("degrades to no-remote without fetching when origin is not configured", async () => {
     const { exec, calls } = buildExec({
       ...NOT_CHECKED_OUT,
-      [GET_ORIGIN]: () => {
-        throw new Error("fatal: No such remote 'origin'");
+      [GET_ORIGIN]: (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "fatal: No such remote 'origin'" });
       },
     });
 
@@ -529,10 +506,10 @@ describe("runBaseBranchSyncStatus", () => {
     const { exec } = buildExec({
       ...NOT_CHECKED_OUT,
       [GET_ORIGIN]: { stdout: "git@github.com:owner/repo.git", stderr: "" },
-      [FETCH_BASE]: (_args, options) =>
+      [FETCH_BASE]: (args, options) =>
         new Promise((_resolve, reject) => {
           options?.signal?.addEventListener("abort", () => {
-            reject(Object.assign(new Error("canceled"), { isCanceled: true }));
+            reject(makeGitProcessError({ command: "git", args, isCanceled: true, stderr: "canceled" }));
           });
         }),
     });
@@ -552,9 +529,9 @@ describe("runBaseBranchSyncStatus", () => {
     const { exec } = buildExec({
       ...NOT_CHECKED_OUT,
       [GET_ORIGIN]: { stdout: "git@github.com:owner/repo.git", stderr: "" },
-      [FETCH_BASE]: () => {
-        throw Object.assign(new Error("fetch failed"), {
-          code: 128,
+      [FETCH_BASE]: (args) => {
+        throw makeGitProcessError({ command: "git", args,
+          exitCode: 128,
           stderr: "fatal: couldn't find remote ref refs/heads/main",
         });
       },
@@ -577,8 +554,8 @@ describe("runBaseBranchSyncStatus", () => {
       ...NOT_CHECKED_OUT,
       [GET_ORIGIN]: { stdout: "git@github.com:owner/repo.git", stderr: "" },
       [FETCH_BASE]: { stdout: "", stderr: "" },
-      [REV_LIST_COUNT]: () => {
-        throw new Error("fatal: bad revision 'main...origin/main'");
+      [REV_LIST_COUNT]: (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "fatal: bad revision 'main...origin/main'" });
       },
     });
 
@@ -612,8 +589,8 @@ describe("runBaseBranchSyncStatus", () => {
 
   it("reports checkout unknown when worktree list fails", async () => {
     const { exec } = buildExec({
-      [WORKTREE_LIST]: () => {
-        throw new Error("fatal: not a git repository");
+      [WORKTREE_LIST]: (args) => {
+        throw makeGitProcessError({ command: "git", args, exitCode: 128, stderr: "fatal: not a git repository" });
       },
       [GET_ORIGIN]: { stdout: "git@github.com:owner/repo.git", stderr: "" },
       [FETCH_BASE]: { stdout: "", stderr: "" },
@@ -643,7 +620,7 @@ describe("BaseBranchSyncStatusResultSchema", () => {
     { state: "no-remote", ahead: 0, behind: 0 },
     { state: "remote-unavailable", ahead: 0, behind: 0, failureReason: "timeout" },
   ])("accepts producer state $state", (state) => {
-    expect(BaseBranchSyncStatusResultSchema.safeParse({ ...base, ...state }).success).toBe(true);
+    assertSchemaAccepts(BaseBranchSyncStatusResultSchema, { ...base, ...state });
   });
 
   it.each([
@@ -652,7 +629,7 @@ describe("BaseBranchSyncStatusResultSchema", () => {
     { kind: "elsewhere", path: "/primary", primary: false },
     { kind: "unknown" },
   ])("accepts checkout locus $kind", (checkout) => {
-    expect(BaseCheckoutLocusSchema.safeParse(checkout).success).toBe(true);
+    assertSchemaAccepts(BaseCheckoutLocusSchema, checkout);
   });
 
   it.each([
@@ -665,7 +642,7 @@ describe("BaseBranchSyncStatusResultSchema", () => {
     { state: "clean", ahead: 0, behind: 0, failureReason: "error" },
     { state: "detached-head", ahead: 0, behind: 0 },
   ])("rejects inconsistent state fields", (state) => {
-    expect(BaseBranchSyncStatusResultSchema.safeParse({ ...base, ...state }).success).toBe(false);
+    assertSchemaRefuses(BaseBranchSyncStatusResultSchema, { ...base, ...state });
   });
 
   it.each([
@@ -674,6 +651,6 @@ describe("BaseBranchSyncStatusResultSchema", () => {
     { kind: "elsewhere", path: "/repo" },
     { kind: "unknown", primary: false },
   ])("rejects invalid checkout fields", (checkout) => {
-    expect(BaseCheckoutLocusSchema.safeParse(checkout).success).toBe(false);
+    assertSchemaRefuses(BaseCheckoutLocusSchema, checkout);
   });
 });

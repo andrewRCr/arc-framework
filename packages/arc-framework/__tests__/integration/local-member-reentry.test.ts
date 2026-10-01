@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { canonicalDigest } from "../../src/lib/kernel/index.js";
+import { CanonicalDigestSchema, canonicalDigest } from "../../src/lib/kernel/index.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import {
   createReviewRequirement,
@@ -37,7 +37,7 @@ import {
 const roots: string[] = [];
 const exec = createExecaGitExec();
 const repositoryId = "12345678-1234-1234-1234-123456789abc";
-const digest = (value: string): string => canonicalDigest({ value });
+const digest = (value: string) => canonicalDigest({ value });
 const withLocalReviewLock = async <T>(action: () => Promise<T>): Promise<T> => action();
 
 afterEach(async () => {
@@ -144,7 +144,7 @@ function operationOver(target: ReviewTarget) {
     targetId: target.targetId,
     requestId: admission.carrier.request.requestId,
     policyVersion: requirement.policyVersion,
-    policyBindingDigest: admission.policyBindingDigest,
+    policyBindingDigest: CanonicalDigestSchema.parse(admission.policyBindingDigest),
     laneSourceId: admission.laneSourceId,
     scopeMode: admission.scopeMode,
     lineage: admission.lineage,

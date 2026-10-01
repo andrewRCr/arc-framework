@@ -34,49 +34,6 @@
 - _Fold-in:_ carry ordered execute-bound entries as an operational-state projection with one discoverable next
   item, preserving the inbox as the interim source until managed entry records replace it.
 
-### `[ ]` **Deterministic same-entry cross-WU notes merge (FP 5.4 fast-follow)**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain (2026-07-18);
-  captured at FP Task 5.4 disposition (2026-07-17). Decision record: `notes-finalize-parallelism.md` § Wave-3
-  seam-audit decisions; induction evidence in its § Wave-3 induction evidence (cell 5.2.b).
-- _Concern:_ FP's GA disposition accepts a documented limitation: `resolveCrossWuState`
-  (`lib/user-sync/merge.ts`) resolves divergent edits to the **same** `WORKING-MEMORY` / `USER-INBOX` entry by
-  wall-clock note recency — silently dropping one edit, machine-dependent under clock skew. FP cell 5.2.b
-  extended the exposure to removals: a different-entry removal pushed from a stale sibling copy resurrects the
-  other side's removed entry; only serialized pull-before-write prevents it structurally. Exposure is narrow
-  (genuinely-concurrent same-entry edits across worktrees, within `CROSS_WU_NOTE_WINDOW`) on recoverable
-  gitignored state — hence fast-follow, not GA gate.
-- _Fold-in:_ replace recency resolution: causal ordering where note commits are ancestry-orderable; a
-  deterministic tie-break (lexicographically-smallest annotated-commit SHA) where genuinely concurrent — never
-  wall-clock. Files: `lib/user-sync/merge.ts` (`resolveCrossWuState`), `lib/user-sync/notes-ref.ts`
-  (`readRecentUserNotes` / `CROSS_WU_NOTE_WINDOW`); extend the same treatment to removal/tombstone
-  reconciliation (the 5.2.b resurrection path). Weigh timing against the `arc-backend` substrate transition at
-  grooming (git-notes is keep-the-lights-on). Sibling piece: the push-reconcile entry-union capture routed to
-  `draft-sync-primitive-discipline.md` the same drain.
-
-### `[ ]` **Records serve a second projection consumer: renderers, not just markdown**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain (2026-07-18);
-  captured at the storage-substrate grooming (2026-07-17).
-- _Concern:_ view/HUD surfaces (`arc-view`, `status-hud`) are projections over the same record layer that renders
-  markdown — the record→projection interface should expose _queries a renderer consumes_ (typed reads of stage,
-  meta fields, task progress, entries), not only a markdown-emit path. Designing the interface single-consumer
-  would force the dashboard work to scrape the rendered markdown it sits beside.
-- _Fold-in:_ carry as a requirement on the record layer's read side; the ADR-022 record-canonical decision
-  already implies it — this makes the second consumer explicit.
-
-### `[ ]` **Upgrade the linked-worktree user-surface signpost to the OSD content view**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain (2026-07-07);
-  captured during `finalize-parallelism` Task 2.6.d (linked-worktree signpost) design discussion, 2026-07-05.
-- _Concern:_ FP Task 2.6.d ships an interim per-surface signpost stub in linked worktrees (standing in for the
-  removed identity-global `WORKING-MEMORY` / `USER-INBOX` copies). Because no content-projection CLI exists yet, the
-  stub points at the raw primary-worktree path for content plus `arc user status` for drift.
-- _Approach:_ When this WU ships the records-canonical → rendered-projection view (e.g. an `arc <surface> show`
-  that renders any identity-global surface, and eventually fetches it when content is no longer a local file),
-  upgrade the signpost to point at that view instead of the raw primary path. Socket now, projection later — FP
-  deliberately mints no content CLI.
-
 ### `[ ]` **Shared inbox staleness nudge supersedes the "nudge-free" assumption**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain
@@ -90,81 +47,11 @@
   concurrency shape from `draft-storage-contract.md` / `draft-shared-inbox-model.md`: shared-mutable inbox records
   are entry-granular (slug-keyed add / remove / re-home), never whole-document state.
 
-### `[ ]` **Compaction seed as a read-only projection over managed records (sibling to `STATUS.*`)**
-
-- _Routed from:_ `compaction-recovery` draft-design (2026-06-28).
-- _Seam:_ the compaction seed reads exactly the surfaces OSD formalizes as managed records (`meta`, `SESSION-NOTES`,
-  `WORKING-MEMORY`). It is pure **read / resolve-don't-store** — re-derived at each compaction, never persisted as
-  authoritative — so it sits on OSD's safe side: interim it projects from markdown, post-OSD from records, with no
-  reshape. Tracks `adr-022`.
-- _Invariant OSD relies on:_ the seed (and its embedded load-set manifest) is produced by the **same** shared
-  load-set projection and reads via session-init's existing `managed-field.ts` extractors — never a new bespoke
-  parser — so it inherits exactly session-init's fragility (no worse) and OSD supersedes **one** reader, not two. At
-  the record layer the seed's pointer fields re-home onto records without a second migration.
-- _Cursor boundary added 2026-06-28:_ `compaction-recovery` now stores a task-list-derived `taskCursor` in the
-  seed and rechecks it through `arc recover audit --json`. Keep this in the same read-only projection bucket: it is
-  an authored-artifact cursor over the task list, not durable thought-state. Post-OSD, meta progress fields remain
-  soft after compaction; the task cursor should still be derived from the task-list record/artifact and compared
-  against the seed baseline.
-
-### `[ ]` **Decide the legacy flat-bullet core fallback in `parseMetaRecord`**
-
-- _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during
-  `class-model-foundation` Task 2.1 handoff.
-- _Concern:_ `parseMetaRecord` now reads the core meta block table-first, with a legacy flat-bullet fallback for
-  the five core fields. After the table re-render there are no live bullet-form core metas in this repo, but the
-  fallback may remain valuable as the tolerant recovery importer ADR-022 anticipates.
-- _Decision point:_ keep the fallback as the recovery-import path or retire it so table-absent core fields fail
-  loudly. Either outcome should reframe lingering "pre-migration" / "interim window" prose toward the chosen
-  recovery model.
-
-### `[ ]` **Dependency-edge lifecycle semantics (gate vs. lineage)**
-
-- _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured after
-  `class-model-foundation` archival. Sharpened from `decomposition-machinery` planning (2026-06-09).
-- _Concern:_ `Depends On` is **state-blind** — it names a dependency without signaling whether that dependency has
-  shipped. This bites in two places: **(a) at read time** — an agent reading a meta / draft during planning can
-  read a satisfied edge as live (observed live 2026-06-09: `class-model-foundation`, shipped and archived at
-  `completed/2026-q2/15_class-model-foundation/`, was reasoned about as an in-flight collaborator while planning
-  `decomposition-machinery`); **(b) across the lifecycle** — the edge is a live readiness gate while a WU is
-  planned / active, but historical lineage once discharged. Decide the field's lifecycle treatment.
-- _Boundary — the gate discharges at activation, not archival:_ a dependency's _scheduling_ job ("don't start
-  until B lands") is done once the dependent WU **activates** (start precedes completion), not at ship — so a
-  live→discharged transition keys on **activation**. Nuance: activation does **not** imply all deps landed —
-  concurrent / stacked delivery activates a WU while a dep is in-flight (rebased onto the dep's branch), so
-  activation _examines each edge and discharges only the landed ones_; unlanded deps stay live (they are the real
-  remaining blockers).
-- _Lean (sharpened 2026-06-09) — resolve at lifecycle triggers, not handle-at-render:_ `Depends On` is two
-  concerns under one label — a **live scheduling gate** (currently-blocking deps; wants resolution when satisfied
-  so it never misleads) and **build lineage** (atemporal "built on B"; wants preservation). Treat the field as the
-  live gate and **resolve discharged edges off it at lifecycle triggers**: `init-work-unit` authors /
-  `activate-work-unit` discharges satisfied / the planning workflows _ground-read_ without mutating (pre-activation
-  edges are legitimately forward-looking) / session-init _optionally surfaces_. The burden sits at write-once
-  events, not every-session read. Lineage, if wanted, rides **write-once prose provenance** (the dual of
-  decomposition's at-cap "provenance, not live grouping" move), **not** a maintained structured `Depended On`
-  alias — a parallel field needs a guard and mints a second source of truth, the same reasons decomposition rejects
-  a maintained cohort roster. Lineage already lives in git history, the `completed/` archive, and spec prose, so a
-  structured lineage field is YAGNI absent a concrete consumer.
-- _Reweighs the prior lean:_ the earlier routing favored "keep canonical, handle at render" (atemporal structural
-  truth; nulling destroys data). That argument is real but solves only the _render_ consumer — it is invisible to
-  the agent reading the raw meta / draft, the consumer that actually got misled (ROADMAP already de-emphasizes
-  shipped deps; the raw meta does not). And "resolve" is not "destroy": a discharged edge moves from the live-gate
-  field to provenance, it is not lost. Net: handle-at-render is insufficient alone; lifecycle-trigger resolution is
-  the spine, render-relevance may complement.
-- _Touchpoints:_ `init-work-unit` / `activate-work-unit` (resolution triggers); the planning workflows
-  (ground-read); session-init (optional surface); plus `template-meta.md` / `archive-work-unit.md` /
-  `renderMetaFile` / `parseMetaRecord` / validation expectations / completed-corpus migration if any field-shape
-  change lands. Shares one substrate with the read-time half: **resolve a referenced WU's lifecycle state** (is X
-  shipped? — a `completed/` check). Coordinates with `decomposition-machinery` (authors live-gate edges) and
-  `roadmap-tooling` (render de-emphasis).
-- _Reframe (2026-07-02 grooming — shipped as behavior):_ `lifecycle-transition-core` Task 4.7 delivered
-  discharge-at-activation on the markdown substrate (`discharge-dep-edges.ts` — live-gate treatment, resolves
-  satisfied edges at `shipped ∨ integrating`, no mirrored lineage field, identifier-list round-trip preserved).
-  The design above is done; this WU's remaining slice is the **re-home onto records** — the list mutation maps
-  1:1 onto a structured `dependsOn` record (zero-reshape lift), keeping the shipped readiness policy.
-
 ### `[ ]` **Reconcile the interim title-keyed parser to the slug-keyed grammar + codify field ordering**
 
+- _Scoped:_ the writer half stays here — idempotent slug-keyed removal and the `--from-inbox` repoint; the schema half
+  (the `_Slug:_` structured key and field ordering) moved to `storage-seam` under `storage-contract` C2, the
+  record-aware seam (2026-09-30).
 - _Routed from:_ work-routing-discipline housekeep drain (2026-06-01) — surfaced classifying the live inbox.
 - _Concern:_ this draft (§ Scope) already states the inbox schemas adopt the "slug-keyed managed-entry grammar,"
   but the interim parser (`parseUserInboxSection`) work-routing-discipline shipped keys entries on the bold
@@ -226,23 +113,6 @@
 - _Interim:_ `_Awaiting:_` is hand-applied on the re-homed TS7 capture in `ATOMIC-INBOX` now, ahead of
   codification (the same pattern recorded for `_Slug:_` above).
 
-### `[ ]` **Carry the `identifier-list` valueClass into the managed-doc structured schema + round-trip harness**
-
-- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: operational-state-docs`), housekeep drain (2026-06-08);
-  captured at `scalable-authoring-pipeline` Task 1.4.
-- _Concern:_ SAP (Task 1.4) added an `identifier-list` valueClass to the meta projection (`meta-reader.ts`
-  `META_FIELDS` / `formatValue` / `parseMetaRecord`) for `Depends On` / `Design`: per-element backtick render
-  with a comma-joined record string recovered via the **global** `stripInlineCode`. The meta-reader docstring
-  frames `valueClass` as "the proto-schema axis a later code-owned schema maps directly" — that later schema is
-  this WU's deliverable.
-- _Proposed:_ when formalizing the managed-doc structured schemas + render/reconcile engine, model list
-  cardinality as a first-class axis (the `identifier-list` member), preserving the per-element render rule and
-  the render↔parse round-trip invariant (per-element render → global-strip parse → comma-joined value). The
-  round-trip harness must cover multi-value list fields so a regression to the compound whole-value form fails
-  loud.
-- _Scope:_ `meta-reader.ts` is the managed-doc surface this WU absorbs; coordinate with roadmap-tooling's
-  sibling note on ROADMAP dep-cell rendering of the same fields.
-
 ### `[ ]` **Take tombstones out of the rendered `USER-INBOX` / `WORKING-MEMORY` files (record field, not in-band)**
 
 - _Routed from:_ `USER-INBOX`, 2026-06-09.
@@ -263,47 +133,11 @@
   `cross-wu`, zero sync-layer change), or stay in-band with a short TTL (shipped via PR #72, 90 → 7 days). Applies
   to BOTH `USER-INBOX` and `WORKING-MEMORY`.
 
-### `[ ]` **Make the tombstone GC TTL a configurable per-user value**
-
-- _Routed from:_ `USER-INBOX`, 2026-06-09.
-- _Concern:_ the tombstone GC window is a hardcoded constant `TOMBSTONE_TTL_MS` in
-  `packages/arc-framework/src/lib/user-sync/merge.ts` (7 days as of PR #72) — not configurable, so the
-  legibility-vs-correctness tradeoff can't be tuned per project or developer.
-- _Proposed:_ expose it as config. Interim: a project-level global key mirroring `inbox.remind_after_days`, whose
-  `arc-config.yml` comment already documents the pattern ("conceptually a per-user preference; lives here today,
-  migrating to a per-user config substrate later"); wire it through the merge (config → TTL into
-  `mergeCrossWuFile`), status-reader, and config types.
-- _Eventual home:_ `arc-config.user.yml` under `config-storage-architecture` (the per-user substrate); if that
-  lands first, target it directly.
-- _Note:_ once the sibling capture (record/projection) lands and tombstones leave the rendered file, the default
-  can rise again — TTL becomes purely a merge-correctness knob (sized to the merge-window staleness horizon), not
-  a legibility constraint.
-
-### `[ ]` **CLI primitive: resolve a WU's lifecycle state by slug**
-
-- _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-10); captured during
-  `doc-cascade-sweep` draft-design.
-- _Concern:_ planning and other workflows repeatedly need to know a referenced WU's lifecycle state
-  (shipped / active / parked / planning / provisional) cheaply and deterministically; today the answer is ad-hoc
-  `find`/`ls` across `active/`, `backlog/**`, and `completed/**`. This hit live three times in one
-  `doc-cascade-sweep` planning session while resolving whether `scalable-authoring-pipeline`,
-  `decomposition-machinery`, `work-routing-discipline`, and `naming-conventions` had shipped. It directly serves
-  this WU's "planning grounds-reads / session-init surfaces" arms and the `Depends On`-edge state-blindness pain.
-- _Approach:_ expose a slug → state resolver as a CLI primitive, composing the existing
-  `lib/work-unit/completed-index.ts` + `lib/active/meta-reader.ts` plus `roster` /
-  `materializable-work-units`. Return a **state enum**, not a boolean — `provisional` / `planning` / `active` /
-  `parked-in-backlog` / `shipped` — so ROADMAP dep de-emphasis, in-flight-scope-check, and materialize all reuse
-  it; `shipped?` is a trivial projection. Resolve by **location** first (presence under `completed/` = shipped;
-  `active/` = active; etc.) as the authoritative ground-truth signal, and the meta `**State:**` field second,
-  since the field can lag the directory (same Axis-1 git-is-truth logic session-init uses).
-- _Scope:_ routed here rather than folded into `doc-cascade-sweep` because it is CLI code + tests, a distinct
-  concern from the Light doc-sweep.
-- _Reframe (2026-07-02 grooming — shipped as behavior):_ the slug → state resolver shipped in
-  `lifecycle-state-resolver` (`arc status <slug>`). The CLI design above is done; this WU's remaining slice is
-  re-homing the read onto records at the substrate migration.
-
 ### `[ ]` **Lifecycle-complete cohort membership — graduated-vs-removed validator fix + cohort-doc archival loop**
 
+- _Scoped:_ only the condition (c) validator fix stays here — the hook is removed at the cutover, so it matters only if
+  it runs ahead; the re-home of the shipped resolution moved to `storage-seam` under `storage-contract` C2, the
+  record-aware seam (2026-09-30).
 - _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-10); captured during `doc-cascade-sweep`
   Task 3.2 cohort-doc conformance audit.
 - _Concern:_ the cohort-consistency validator (`decomposition-machinery`, shipped) derives membership from
@@ -345,56 +179,6 @@
   gate's cohort-doc-presence extension; the shipped membership resolution re-homes onto records at the substrate
   migration.
 
-### `[ ]` **WORKING-MEMORY parser silently drops wrapped or colon-less entry headers**
-
-- _Routed from:_ express-lane capture, housekeep drain (2026-06-11); surfaced fixing a live
-  "missing `_Remove when:_` trigger" warning on `WORKING-MEMORY.md`.
-- _Concern:_ `lib/user-sync/parser.ts` recognizes a WORKING-MEMORY entry header only as a **single line** matching
-  `^\*\*.+:\*\*$`. A header that **wraps** across two physical lines (common past the 120-char wrap target) matches
-  nothing, and the whole entry is **silently swallowed** into its predecessor — no warning, dropped from the
-  cross-WU merge. Found live: 3 of 12 entries dropped this way; a 4th had a missing colon (`_Remove when` without
-  the `:`) and was at least _flagged_. A header that both wrapped and lost its colon would vanish with no signal.
-- _Why here:_ this WU owns the WORKING-MEMORY structured record + the render↔parse round-trip harness. The record
-  model makes the header a record field (not a parsed markdown line), and the harness turns today's silent drop
-  into a **loud** failure. Interim mitigation is an authoring convention (single-line headers ≤120) — whack-a-mole;
-  the durable fix is the record/harness.
-
-### `[ ]` **Frame write-path enforcement explicitly: the consistency-hook is the compliance mechanism**
-
-- _Routed from:_ `lifecycle-transition-core` determinism/judgment-boundary review (2026-06-16); surfaced asking
-  whether cross-WU awareness (is a dep still live or shipped? who are the cohort siblings?) can be made
-  deterministic / automated rather than drift-prone.
-- _Concern:_ this WU's dep-edge resolution + projection substrate make cross-WU state _resolvable_, but the draft
-  frames the guarantee as "resolve at lifecycle triggers" without naming **what makes the automation trustworthy**.
-  The realization: automation is guaranteed **not** by "always use the CLI" (you cannot prevent a hand-edit to a
-  markdown file in git) but by a **consistency check that makes non-CLI drift non-survivable at commit**. Two halves
-  with different guarantees — **reads → resolve-don't-store** (drift _impossible_: nothing stored to drift — the same
-  reason cohort siblings aren't stored in the meta), **writes → CLI-mutate + consistency-hook** (drift _caught_ at
-  commit).
-- _Approach:_ the precedent is `lifecycle-transition-core`'s encoding-consistency invariant (asserts meta `State` ·
-  directory · branch — and, after that WU's executor task, the meta `Branch` _field_). Generalize it: the
-  render/reconcile round-trip harness + the corpus conformance gate assert that every _stored_ cross-ref (dep-edge
-  state, cohort membership, the planning-stage pointers) matches its _resolved_ projection, so a hand-edit that
-  drifts fails the gate. State this explicitly in the substrate design as the compliance mechanism, paired with
-  resolve-don't-store.
-- _Note:_ ties together the Dependency-edge lifecycle entry (the dep-edge half) and the corpus-wide conformance gate
-  entry (the enforcement vehicle) — it is the _framing_ that unifies them, not a separate build.
-
-### `[ ]` **Re-home the errand record onto records + live-PR merge-status read for `arc errand close`**
-
-- _Routed from:_ housekeep drains 2026-06-17 / 2026-06-21 (from errand-lattice Task 3.2, 2026-06-19); the
-  surviving slice of a consolidator entry whose other three re-home targets were folded into their own entries
-  as dated reframes at the 2026-07-02 grooming.
-- _Concern:_ the **errand record** (shipped via errand-lattice) is a 4th surface to re-home onto records. Its
-  consumer `arc errand close` reaps containment-safe (delete only when commits are provably preserved on
-  `origin/<branch>` or in `base`) and ships a `--force` escape for the rest; one narrow case still needs the
-  flag — a **squash-merge whose remote-tracking ref was already pruned** (commits exist under no name git can
-  check). A live-PR merge-status read (read-side external state: `awaiting-merge` / `merged-cleanup`) would let
-  `close` recognize the merged PR and auto-clear the reap without `--force`.
-- _Scope:_ low priority — `--force` already covers it; this removes the manual flag in a rare window and depends
-  on OSD's live-PR-read substrate (behind CSA). OSD owns the errand record's projection + read-side external
-  state; `close` is the consumer.
-
 ### `[ ]` **Pair OSD's `arc inbox add` managed-write with the shipped inbox-remove half (I/O symmetry + kills append drift)**
 
 - _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: operational-state-docs`), housekeep drain (2026-06-19);
@@ -410,28 +194,6 @@
   spacing drift the skill's hand-append produces today — e.g. stray mid-`## Backlog` `---` separators that hid an
   entry from the section parser (`routableCount` under-counted until hand-fixed 2026-06-18). The judgment (what to
   write) stays in the skill; only placement/spacing becomes mechanical.
-
-### `[ ]` **Decouple cross-WU entry identity from rendered header text (managed-record model)**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain (2026-06-21);
-  captured during the errand-lattice session investigating recurring WORKING-MEMORY MD013 failures (2026-06-20).
-- _Concern:_ user-sync keys cross-WU entry identity on the exact rendered header (`parser.ts` `key: header`;
-  `merge.ts` `(section, key)`), so any header edit — including the one MD013 forces on a >120-char title — orphans
-  the old identity. The merge then synthesizes a tombstone for the now-absent original header while treating the
-  reworded entry as new, producing the near-duplicate `## Removed:` fossil trail (repeated `_Removed:_` timestamps =
-  one merge pass minting several). Editing a placed tombstone heading is the same hazard from the other side: it
-  changes the tombstone key and can resurrect the original entry if it's still inside the 10-note window
-  (`CROSS_WU_NOTE_WINDOW`).
-- _Approach:_ give entries a stable short ID/slug decoupled from rendered prose, so the long title lives in a
-  wrappable body and rendering is a projection (line-length-immune) — the managed-record model. Interim if a full
-  migration is too heavy: normalize/slug the merge key (hash or stable prefix) instead of raw header text, so a
-  header reword no longer orphans identity.
-- _Relationship:_ this is the **at-source / durable** fix for the recurring WORKING-MEMORY MD013 churn whose
-  **interim** mitigation (scope `.arc/user/**` out of MD013 line-length lint) was executed as a config errand at
-  this same drain (2026-06-21) — symptom there, root cause here. Sibling of the existing buffer entries **Reconcile
-  the interim title-keyed parser to the slug-keyed grammar** (the USER-INBOX-side analog), **WORKING-MEMORY parser
-  silently drops wrapped or colon-less entry headers**, and **Take tombstones out of the rendered files** — same
-  rendered-text-as-identity family; build the slug/record decoupling once across them.
 
 ### `[ ]` **Cohort-doc presence is enforced on-touch only — grouping dirs missing their `cohort-*.md` slip through**
 
@@ -454,126 +216,6 @@
   on it.
 - _Note:_ the `architecture-remediation` instance was backfilled at this drain (its `cohort-*.md` authored as a
   minimal browsing-bucket record); this entry is the durable guard so the class of gap can't recur silently.
-
-### `[ ]` **Re-point ADR-022's retired `cross-machine-sync-coherence` references to `partial-push-marker`**
-
-- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-06-25); captured during `partial-push-marker`
-  draft-design (ADR-022 forward-compat check).
-- _Concern:_ ADR-022 § Risks (line ~202) and § Coordination (line ~257) still name the retired
-  `cross-machine-sync-coherence` as the notes-synced transport-hardening dependency. Post-decomposition
-  (2026-06-25) that dependency is `partial-push-marker`'s (the marker / partial-push owner). This WU owns the
-  ADR-022 alignment edits, so the re-point rides the propagation set rather than a standalone errand.
-- _Verified at drain:_ the capture's second premise is already stale — `draft-storage-contract.md` no longer
-  references the retired slug, so the live remainder is ADR-022 only.
-- _Adjacent (flagged, not routed here):_ ADR-027 (line ~134) and several backlog drafts
-  (`state-ref-write-safety`, `naming-conventions`, `finalize-parallelism`, `external-coord-probe`, the
-  `cross-machine-coherence` cohort, `stale-state-detect-and-pull`, `cross-wu-forward-compat`) also name the
-  retired slug; each re-points to whichever decomposition successor owns its specific dependency — a
-  per-reference design call, not a blanket rename.
-
-### `[ ]` **Persist errand tip SHA so `arc errand close` auto-confirms without `--force`**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain (2026-06-30);
-  captured during `lifecycle-ux-polish` task generation.
-- _Concern:_ after `gh pr merge --delete-branch` deletes the local errand branch, `arc errand close` has no branch
-  ref and no stored SHA to verify containment, so it cannot auto-confirm that the errand shipped and the operator
-  falls back to `--force`. Persisting the final pushed branch tip in the errand record would let close verify
-  containment with `git merge-base --is-ancestor <record.tip> <base>` and clear the record without the flag.
-- _Approach:_ schema bump (`ErrandRecord` v2, v1-tolerant) plus a tip-refresh at the errand-branch push. An
-  open-time SHA would falsely confirm an unmerged errand; the SHA needs to refresh when the final tip is pushed.
-  That lifecycle-stateful record behavior composes with this WU's records-rehome scope.
-
-### `[ ]` **`VECTOR.PROJECT` / `VECTOR.USER` join the managed-record members (goal-aware-direction)**
-
-- _Routed from:_ `goal-aware-direction` grooming (2026-07-02).
-- _Concern:_ `goal-aware-direction` mints a scope-paired direction surface — `VECTOR.PROJECT` (authored targets
-  at Now/Next/Later horizons, per-target `Owner`, maintainer-gated) and `VECTOR.USER` (private, notes-synced
-  sequencing intents). Both adopt the slug-keyed managed-entry grammar from day one (the render-before-renderer
-  pattern) and are markdown-canonical interim; the structured schemas, round-trip harness membership, and any
-  deterministic verbs' record backing land here.
-- _Substrate asks:_ (1) schema membership — including a band/horizon axis whose **required-field set varies by
-  band** (Now requires realized-by + done-signal; Later only slug + outcome); (2) the corpus conformance gate
-  validates vector slug refs (realized-by WUs/cohorts, intent refs to `INBOX.USER` entries) like `Depends On`
-  edges — dangling refs fail loud; (3) membership in the composed personal view is **derived**
-  (resolve-don't-store: the queued-set is read from `INBOX.USER` at render time, never copied), so only authored
-  intents/targets are stored state; (4) seam — the slug-keyed inbox removal primitive (one authoritative
-  remover + idempotent backstops) may also flag matching `VECTOR.USER` intent refs at errand completion, with
-  the housekeep sweep as backstop; (5) the `_Hold:_` → `_Queued:_` rename (proposed to `shared-inbox-model`,
-  which owns the retention-line semantics) reaches the inbox flag schema this WU codifies — sequence the schema
-  after that call.
-
-### `[ ]` **Audit whether the `session-state` method still earns its place or should be deprecated**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain (2026-06-30);
-  captured during `compaction-recovery` generate-tasks grounding audit.
-- _Concern:_ `system/methods/session-state.md` is a thin read/write contract over `meta-*`, `SESSION-NOTES`, and
-  git notes, carrying `[No override configured]`. Its override seam may be illusory because ARC hard-assumes those
-  managed-record shapes across `session-init` and `session-handoff`, so an override that changes the shape is not
-  actually viable.
-- _Approach:_ while formalizing managed records, decide whether `session-state` remains useful as a stable method
-  contract, gets narrowed to non-shape guidance, or is deprecated entirely in favor of this WU's managed-record
-  documentation.
-
-### `[ ]` **Treat deletion as an explicit record event, not a state diff**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain
-  (2026-07-10); captured during the `user-notes-retention` audit.
-- _Evidence:_ tombstone synthesis currently infers deletion intent from disk-vs-window absence. That is sound only
-  for one writer that always loads first; ref-only reconciliation plus shared identity-global disk breaks the
-  premise under parallelism.
-- _Fold-in:_ carry this as motivating evidence for entry-granular records where deletion is an explicit event,
-  and verify the model closes the reconcile-without-materialize hole. FP may ship the documented same-entry
-  limitation and interim load-before-save/locking guards; this is the durable model.
-
-### `[ ]` **Own the durable integration-resume directive**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain
-  (2026-07-10); captured during PR #217 review.
-- _Interim pulled forward:_ a standalone workflow Errand will replace transient `open the PR` prose with a
-  stable “resume from the first incomplete observable integration step” pointer.
-- _Fold-in:_ make the directive code-owned and storage-agnostic rather than arbitrary caller prose, derive precise
-  continuation from live PR/worktree state, and keep `PR URL` / `Completed` as archive-time durable facts.
-  Coordinate agenda-derived precision with `composable-workflows`; do not mint a second PR-open lifecycle verb
-  by default.
-
-### `[ ]` **Spawned worktree `SESSION-NOTES` can be stale while status reports clean**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
-
-- _Observation:_ At session-init in the `recovery-load-scoping` worktree, the checkout-local
-  `.arc/user/andrew/recovery-load-scoping/SESSION-NOTES.md` was still the seed `arc start` wrote at spawn
-  (`Commit at Handoff: 3e65d5d39`, "Next Action is seeded to `[begin current workflow]`"), while the real
-  handoff notes — written by the prior session and matching HEAD (`392924790`) — lived in the **primary**
-  worktree's identity-global tree. Two copies, silently divergent. `arc user status` reported
-  `andrew: Up to date.` and the session-init probe's `user` slot resolved `state: clean`,
-  `recommendedAction: skip`, so nothing surfaced the divergence; a session trusting the local copy would resume
-  from a stale baseline and re-derive completed work.
-
-- _Approach:_ decide which copy is authoritative for a spawned worktree and make the freshness check compare
-  them, rather than reporting clean when the on-disk copy the session will actually read is stale.
-
-- _Captured during:_ `recovery-load-scoping` session-init (2026-07-24); noticed because the seed's
-  `Commit at Handoff` disagreed with the probe's HEAD.
-
-### `[ ]` **Revisit the tombstone TTL default when projection lands — not merely make it configurable**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
-
-- _Observation:_ `TOMBSTONE_TTL_MS` is 7 days (`lib/user-sync/merge.ts:381`), cut from 90 in PR #72. The reason was
-  **legibility** — this WU's own buffer records the inbox running "~98% tombstones, 55 dead / 1 live" because
-  tombstones render in-band. That is precisely the problem the projection deliverable removes: once tombstones are
-  non-projected record fields, retaining them costs nothing to read. **The justification for 7 days evaporates when
-  projection ships**, so the default should move with it. The sibling entry "Make the tombstone GC TTL a
-  configurable per-user value" is adjacent but weaker on its own — making it tunable while leaving the default at a
-  value chosen to solve a now-absent problem ships everyone the wrong number.
-
-- _Why it matters:_ the TTL bounds how long a deletion is defended against a stale writer (below). A rarely-used
-  second machine is _more_ likely to be stale past 7 days, so the short window bites hardest exactly where the risk
-  is highest.
-
-- _Scope:_ a constant plus its config surface. Explicitly within the notes stop-loss rule — no plumbing deepened.
-
-- _Captured during:_ `WORKING-MEMORY` prune follow-up, 2026-07-25.
 
 ### `[ ]` **Give `WORKING-MEMORY` a mutation verb, and make its proposal gate mechanical**
 
@@ -609,6 +251,18 @@
   boundary so the current in-repo lifecycle index can later move to the materialized git backing store unchanged.
 
 - _Captured during:_ the execute-bound Errand sequence after `keep-approved-errand-merges-waiting`, 2026-09-22.
+
+### `[ ]` **Take operational-state-docs' re-scope from storage-contract**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain (2026-09-30); captured
+  during `storage-contract` draft close, 2026-09-30.
+- _Observation:_ `storage-contract` decided the record-aware seam (C2): each `storage-seam` member builds the parser
+  for the families it reroutes, so this work unit stops being the records engine. Its conformance gate stays an
+  independent slice that can run ahead; its user-surface verbs and fields — `arc inbox add`, a `WORKING-MEMORY`
+  mutation verb, tombstones, `_Awaiting:_` — stay here, re-scoped and deferred (C14). The draft's § Re-scope still
+  names it the records engine, and its buffer still wires a `git mv` and audits notes.
+- _Approach:_ Rewrite § Re-scope to the decided shape at next grooming. The inbound buffer's redistribution is a
+  separate capture.
 
 ---
 

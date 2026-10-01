@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../../../helpers/schema-assertion.js";
 
 import {
   FrontlineExecutionOutcomeSchema,
@@ -72,7 +73,7 @@ describe("frontline outcome normalization", () => {
   });
 
   it("rejects frontline findings whose ordinals do not match complete capture order", () => {
-    expect(FrontlineExecutionOutcomeSchema.safeParse({
+    assertSchemaRefuses(FrontlineExecutionOutcomeSchema, {
       schemaVersion: 1,
       semanticsVersion: "frontline-review/v1",
       outcome: "findings",
@@ -88,7 +89,7 @@ describe("frontline outcome normalization", () => {
         sourceOrdinal: 2,
       }],
       reason: null,
-    }).success).toBe(false);
+    });
   });
 
   it.each([
@@ -163,11 +164,11 @@ describe("frontline outcome normalization", () => {
       pass: 1,
       maxPasses: 2,
     });
-    expect(FrontlineExecutionOutcomeSchema.safeParse({ ...unavailable, reason: null }).success).toBe(false);
-    expect(FrontlineExecutionOutcomeSchema.safeParse({
+    assertSchemaRefuses(FrontlineExecutionOutcomeSchema, { ...unavailable, reason: null });
+    assertSchemaRefuses(FrontlineExecutionOutcomeSchema, {
       ...unavailable,
       reason: { class: "invalid-output" },
-    }).success).toBe(false);
+    });
   });
 
   it("rejects a pass beyond the resolved allowance", () => {

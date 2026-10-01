@@ -640,6 +640,368 @@ checks — move off Git-history and pull-request-diff reads of state as well (§
 
 - _Captured during:_ `cli-substrate-complete-migration` draft-design, 2026-09-28.
 
+### `[ ]` **Let `arc rename` rename a backlog stub inside an Errand instead of on its own branch**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-30); captured during Errand `state-storage-recut`,
+  renaming `arc-backend` to `storage-contract`, 2026-09-28.
+- _Observation:_ `arc rename <slug> <new-slug>` on a backlog stub runs on a fixed short-lived branch,
+  `chore/rename-<old>-to-<new>`, cut from base (`withRenameStubBranch`, `lib/work-unit/rename-identity.ts:160`). It
+  switches the primary checkout to that branch, commits there, and switches back to base. Inside an open Errand
+  the verb therefore cannot contribute to the Errand's branch: it moves the checkout off the Errand and leaves a
+  second branch that needs its own pull request. Grooming that renames a stub alongside other backlog edits has to
+  reproduce the verb by hand — directory move, meta rewrite, artifact-filename code spans, and `Depends On` edges
+  (`rename-reference-sweep.ts`) — which is the error-prone path the verb exists to remove.
+- _Approach:_ when the invoking checkout already holds a transient role on a non-base branch, apply the stub rename
+  and its reference sweep there and leave the commit to the enclosing ceremony, or refuse with a typed remedy that
+  names that route. Keep today's short-lived branch for a bare invocation from base.
+- _Fold-in:_ the register's `arc rename` stub-branch row already rewrites a rename as a store write, so no interim fix
+  is taken. Carry this as that row's acceptance case: a rename invoked from a checkout holding a transient role
+  contributes to that transient, with no branch switch and no second change request.
+
+### `[ ]` **Record an Errand's frontline skip so a head move before standard review cannot reopen the phase**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-seam`), housekeep drain (2026-09-30); captured during
+  Errand `frontline-pre-pr-only`, 2026-09-28.
+- _Observation:_ frontline is an opening phase, closed by a recorded skip, a terminal frontline result, or any
+  standard-review attempt, and never re-entered once the change request opens. Errands now share that closure
+  (`frontlinePhaseClosed` in `frontline-phase.ts`), read from their claim-keyed lane-progress records. The recorded
+  skip is the exception: its marker (`frontline-phase` operation state, `recordSingletonFrontlineInitialSkip`) is keyed
+  by Candidate ID, so an Errand skip leaves no durable trace. If an Errand skips frontline and its head then moves
+  before any standard-review attempt and before the PR opens, `frontline resolve` offers the phase again.
+- _Approach:_ give the phase marker a subject keyed by vehicle lineage rather than Candidate ID, so an Errand claim
+  can carry it, and record it on an Errand's accepted skip. That is a new stored record shape, which the pull-forward
+  filter keeps out of Errands; design it with the seam's review-and-evidence partition.
+- _Naming:_ rename the concept from "phase" to "window" in the same redesign. "Phase" overloads task-plan phases, and
+  "stage" would collide with work-unit lifecycle stages; the Owner agreed "window" fits the one-time pre-change-request
+  opportunity. Rename it everywhere at once: `frontline-phase.ts` and `frontlinePhaseClosed`, the `frontline-phase`
+  record kind and its operation-id domain, the `frontline-phase-closed` diagnostic, and the driver's `phase-closed`
+  skip reason.
+
+### `[ ]` **Reconcile the storage state-path register count with file-exact layout evidence**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-seam`), housekeep drain (2026-09-30); captured during
+  `cli-substrate-complete-migration` Task 5.4, Phase 5 layout reconciliation.
+- _Observation:_ The storage-coupling register's state-path row records 36 hand-built state-class lines in 19 files
+  at `7ddab4979` and explicitly excludes `src/lib/delivery/from-branch.ts:555–559` as basename classification.
+  The migration work unit's earlier recount placed those five lines in the 36, while the Phase 5 reconciliation
+  classifies them under lifecycle classification. The current 15-class layout scan has file-exact rows for
+  surviving state-path access, including `arc-root` hits outside the historical state-class count.
+- _Approach:_ Re-derive the register's counted state-class line and file set from the current Phase 5 rows, keep
+  basename classification under its lifecycle row, and update the historical count or its evidence citation so
+  the storage-seam implementation has an exact migration target.
+
+### `[ ]` **Retire the live transition-record test when lineage moves to the store**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-seam`), housekeep drain (2026-09-30); captured during
+  Errand `transition-record-checks`, 2026-09-30.
+- _Observation:_ An integration test reads the tracked transition records in `.arc/system/.internal/transitions/`
+  directly and checks them for structural integrity: each parses, round-trips to canonical bytes, is the one record
+  for its origin under `<origin>.json`, and projects to a valid reference set. The ARC contract test tier runs it,
+  so docs-only pull requests that add or change a record are checked. The storage register row for Candidate and
+  transition records names the records but not this reader. Once lineage is a store family written only by verbs,
+  the folder is gone and the store's own record validation carries the integrity check.
+- _Approach:_ When the seam moves transition records into the store, delete `live-transition-records.test.ts` and
+  its entry in the ARC contract tier selection (`src/lib/local-vitest-runner.ts` and that module's unit test). If
+  missed, the test fails loudly at the seam on the missing directory rather than passing vacuously.
+
+### `[ ]` **Flip ADR-022 to Accepted as storage-seam's first action**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-seam`), housekeep drain (2026-09-30); captured during
+  `storage-contract` draft close, 2026-09-30.
+- _Observation:_ ADR-022's file-as-record amendment (register batch 3) moved its flip trigger to `storage-seam`'s
+  kickoff, since the seam builds the family parsers (`storage-contract` C2).
+- _Approach:_ Make flipping ADR-022 to Accepted the kickoff's first action.
+
+### `[ ]` **Close the user workspace after the lifecycle executor's record writes, not before**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-seam`), housekeep drain (2026-09-30); captured during
+  `storage-contract` draft-design, readiness gap on the in-repo implementation (2026-09-30).
+- _Observation:_ The lifecycle executor fires its declared side effects at step 6, the user-workspace close among
+  them (`runUserClose`, which removes the work unit's user directory recursively, `SESSION-NOTES` included —
+  `commands/user/close.ts:25`), and only then runs the step 7–8.5 meta writes (`lib/work-unit/lifecycle-executor.ts`).
+  A throw in those writes returns `finalize-failed`, which is forward-recoverable for the transition, but the
+  workspace is already gone, with only a notes snapshot behind it.
+- _Approach:_ In the executor write-path rewrite (its register row), close the workspace after the transition's
+  records are written. The storage contract's in-repo implementation refuses a batch spanning substrates, so the close
+  stays a sequenced step until the flip — ordered after the records, with an idempotent rerun.
+
+### `[ ]` **Records serve a second projection consumer: renderers, not just markdown**
+
+- _Redistributed:_ moved from `operational-state-docs` under `storage-contract` C2, the record-aware seam (2026-09-30).
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain (2026-07-18);
+  captured at the storage-substrate grooming (2026-07-17).
+- _Concern:_ view/HUD surfaces (`arc-view`, `status-hud`) are projections over the same record layer that renders
+  markdown — the record→projection interface should expose _queries a renderer consumes_ (typed reads of stage,
+  meta fields, task progress, entries), not only a markdown-emit path. Designing the interface single-consumer
+  would force the dashboard work to scrape the rendered markdown it sits beside.
+- _Fold-in:_ carry as a requirement on the record layer's read side; the ADR-022 record-canonical decision
+  already implies it — this makes the second consumer explicit.
+
+### `[ ]` **Compaction seed as a read-only projection over managed records (sibling to `STATUS.*`)**
+
+- _Redistributed:_ moved from `operational-state-docs` under `storage-contract` C2, the record-aware seam (2026-09-30).
+- _Routed from:_ `compaction-recovery` draft-design (2026-06-28).
+- _Seam:_ the compaction seed reads exactly the surfaces OSD formalizes as managed records (`meta`, `SESSION-NOTES`,
+  `WORKING-MEMORY`). It is pure **read / resolve-don't-store** — re-derived at each compaction, never persisted as
+  authoritative — so it sits on OSD's safe side: interim it projects from markdown, post-OSD from records, with no
+  reshape. Tracks `adr-022`.
+- _Invariant OSD relies on:_ the seed (and its embedded load-set manifest) is produced by the **same** shared
+  load-set projection and reads via session-init's existing `managed-field.ts` extractors — never a new bespoke
+  parser — so it inherits exactly session-init's fragility (no worse) and OSD supersedes **one** reader, not two. At
+  the record layer the seed's pointer fields re-home onto records without a second migration.
+- _Cursor boundary added 2026-06-28:_ `compaction-recovery` now stores a task-list-derived `taskCursor` in the
+  seed and rechecks it through `arc recover audit --json`. Keep this in the same read-only projection bucket: it is
+  an authored-artifact cursor over the task list, not durable thought-state. Post-OSD, meta progress fields remain
+  soft after compaction; the task cursor should still be derived from the task-list record/artifact and compared
+  against the seed baseline.
+
+### `[ ]` **Decide the legacy flat-bullet core fallback in `parseMetaRecord`**
+
+- _Redistributed:_ moved from `operational-state-docs` under `storage-contract` C2, the record-aware seam (2026-09-30).
+- _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during
+  `class-model-foundation` Task 2.1 handoff.
+- _Concern:_ `parseMetaRecord` now reads the core meta block table-first, with a legacy flat-bullet fallback for
+  the five core fields. After the table re-render there are no live bullet-form core metas in this repo, but the
+  fallback may remain valuable as the tolerant recovery importer ADR-022 anticipates.
+- _Decision point:_ keep the fallback as the recovery-import path or retire it so table-absent core fields fail
+  loudly. Either outcome should reframe lingering "pre-migration" / "interim window" prose toward the chosen
+  recovery model.
+
+### `[ ]` **Dependency-edge lifecycle semantics (gate vs. lineage)**
+
+- _Redistributed:_ moved from `operational-state-docs` under `storage-contract` C2, the record-aware seam (2026-09-30);
+  the re-home onto records.
+- _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured after
+  `class-model-foundation` archival. Sharpened from `decomposition-machinery` planning (2026-06-09).
+- _Concern:_ `Depends On` is **state-blind** — it names a dependency without signaling whether that dependency has
+  shipped. This bites in two places: **(a) at read time** — an agent reading a meta / draft during planning can
+  read a satisfied edge as live (observed live 2026-06-09: `class-model-foundation`, shipped and archived at
+  `completed/2026-q2/15_class-model-foundation/`, was reasoned about as an in-flight collaborator while planning
+  `decomposition-machinery`); **(b) across the lifecycle** — the edge is a live readiness gate while a WU is
+  planned / active, but historical lineage once discharged. Decide the field's lifecycle treatment.
+- _Boundary — the gate discharges at activation, not archival:_ a dependency's _scheduling_ job ("don't start
+  until B lands") is done once the dependent WU **activates** (start precedes completion), not at ship — so a
+  live→discharged transition keys on **activation**. Nuance: activation does **not** imply all deps landed —
+  concurrent / stacked delivery activates a WU while a dep is in-flight (rebased onto the dep's branch), so
+  activation _examines each edge and discharges only the landed ones_; unlanded deps stay live (they are the real
+  remaining blockers).
+- _Lean (sharpened 2026-06-09) — resolve at lifecycle triggers, not handle-at-render:_ `Depends On` is two
+  concerns under one label — a **live scheduling gate** (currently-blocking deps; wants resolution when satisfied
+  so it never misleads) and **build lineage** (atemporal "built on B"; wants preservation). Treat the field as the
+  live gate and **resolve discharged edges off it at lifecycle triggers**: `init-work-unit` authors /
+  `activate-work-unit` discharges satisfied / the planning workflows _ground-read_ without mutating (pre-activation
+  edges are legitimately forward-looking) / session-init _optionally surfaces_. The burden sits at write-once
+  events, not every-session read. Lineage, if wanted, rides **write-once prose provenance** (the dual of
+  decomposition's at-cap "provenance, not live grouping" move), **not** a maintained structured `Depended On`
+  alias — a parallel field needs a guard and mints a second source of truth, the same reasons decomposition rejects
+  a maintained cohort roster. Lineage already lives in git history, the `completed/` archive, and spec prose, so a
+  structured lineage field is YAGNI absent a concrete consumer.
+- _Reweighs the prior lean:_ the earlier routing favored "keep canonical, handle at render" (atemporal structural
+  truth; nulling destroys data). That argument is real but solves only the _render_ consumer — it is invisible to
+  the agent reading the raw meta / draft, the consumer that actually got misled (ROADMAP already de-emphasizes
+  shipped deps; the raw meta does not). And "resolve" is not "destroy": a discharged edge moves from the live-gate
+  field to provenance, it is not lost. Net: handle-at-render is insufficient alone; lifecycle-trigger resolution is
+  the spine, render-relevance may complement.
+- _Touchpoints:_ `init-work-unit` / `activate-work-unit` (resolution triggers); the planning workflows
+  (ground-read); session-init (optional surface); plus `template-meta.md` / `archive-work-unit.md` /
+  `renderMetaFile` / `parseMetaRecord` / validation expectations / completed-corpus migration if any field-shape
+  change lands. Shares one substrate with the read-time half: **resolve a referenced WU's lifecycle state** (is X
+  shipped? — a `completed/` check). Coordinates with `decomposition-machinery` (authors live-gate edges) and
+  `roadmap-tooling` (render de-emphasis).
+- _Reframe (2026-07-02 grooming — shipped as behavior):_ `lifecycle-transition-core` Task 4.7 delivered
+  discharge-at-activation on the markdown substrate (`discharge-dep-edges.ts` — live-gate treatment, resolves
+  satisfied edges at `shipped ∨ integrating`, no mirrored lineage field, identifier-list round-trip preserved).
+  The design above is done; this WU's remaining slice is the **re-home onto records** — the list mutation maps
+  1:1 onto a structured `dependsOn` record (zero-reshape lift), keeping the shipped readiness policy.
+
+### `[ ]` **Reconcile the interim title-keyed parser to the slug-keyed grammar + codify field ordering**
+
+- _Redistributed:_ moved from `operational-state-docs` under `storage-contract` C2, the record-aware seam (2026-09-30);
+  the schema half — the `_Slug:_` structured key and field ordering; the writer half stays with
+  `operational-state-docs`.
+- _Routed from:_ work-routing-discipline housekeep drain (2026-06-01) — surfaced classifying the live inbox.
+- _Concern:_ this draft (§ Scope) already states the inbox schemas adopt the "slug-keyed managed-entry grammar,"
+  but the interim parser (`parseUserInboxSection`) work-routing-discipline shipped keys entries on the bold
+  **title** (`H3_KEY`), not an explicit slug — while `run-errand` removes the "slug-matched" originating entry.
+  The deprecated `ERRANDS.md` `Branch: chore/<slug>` field that previously served as the parse key did not
+  survive the errand re-pivot, and an inbox entry may never become a `chore/<slug>` branch (and wouldn't under
+  partial protection), so the key must be entry-intrinsic.
+- _Reconcile (at the structured-record swap):_ codify an explicit `_Slug:_` field (= slugified title;
+  protection-mode-agnostic) as the structured key. work-routing-discipline hand-applies `_Slug:_` on its
+  execute-bound stayers now, ahead of codification.
+- _Also codify:_ the entry field-ordering convention — parsed/managed fields (`_Slug:_` / `_Remind:_` /
+  `_Created:_` / `_Hold:_` / `WU_Target:`) grouped and blank-line-separated from the prose descriptors, so the
+  render engine emits a stable shape.
+- _Honor (async-merge-lifecycle, 2026-06-13):_ the slug-keyed removal must be **idempotent** — a no-op when the
+  matched line is already absent. The unattended-merge completion contract gives the slug-matched `USER-INBOX`
+  removal one authoritative point (`run-errand` § Complete) plus idempotent backstops (the same-session finalize
+  pass and session-init's in-flight-errand sweep), any of which may replay it, so the structured removal
+  primitive must preserve no-op-when-absent rather than erroring or double-removing. Until `_Slug:_` lands the
+  backstops match by entry title (the current parser key) and stay agent-driven.
+- _Also (`--from-inbox` flag, 2026-06-24):_ `arc errand open --from-inbox <entry-title>` (landed by
+  `lifecycle-closeout`) is another title-keyed inbox consumer — it adopts a capture by its bold title (the interim
+  `H3_KEY`) and `arc errand close` drops it via the title-matched `removeInboxEntry`. When the `_Slug:_` field is
+  codified, repoint this flag's value (the `cli.ts` placeholder + the `handlers/errand.ts` producer) and the
+  close-side match onto the slug key alongside the parser.
+
+### `[ ]` **Carry the `identifier-list` valueClass into the managed-doc structured schema + round-trip harness**
+
+- _Redistributed:_ moved from `operational-state-docs` under `storage-contract` C2, the record-aware seam (2026-09-30).
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: operational-state-docs`), housekeep drain (2026-06-08);
+  captured at `scalable-authoring-pipeline` Task 1.4.
+- _Concern:_ SAP (Task 1.4) added an `identifier-list` valueClass to the meta projection (`meta-reader.ts`
+  `META_FIELDS` / `formatValue` / `parseMetaRecord`) for `Depends On` / `Design`: per-element backtick render
+  with a comma-joined record string recovered via the **global** `stripInlineCode`. The meta-reader docstring
+  frames `valueClass` as "the proto-schema axis a later code-owned schema maps directly" — that later schema is
+  this WU's deliverable.
+- _Proposed:_ when formalizing the managed-doc structured schemas + render/reconcile engine, model list
+  cardinality as a first-class axis (the `identifier-list` member), preserving the per-element render rule and
+  the render↔parse round-trip invariant (per-element render → global-strip parse → comma-joined value). The
+  round-trip harness must cover multi-value list fields so a regression to the compound whole-value form fails
+  loud.
+- _Scope:_ `meta-reader.ts` is the managed-doc surface this WU absorbs; coordinate with roadmap-tooling's
+  sibling note on ROADMAP dep-cell rendering of the same fields.
+
+### `[ ]` **CLI primitive: resolve a WU's lifecycle state by slug**
+
+- _Redistributed:_ moved from `operational-state-docs` under `storage-contract` C2, the record-aware seam (2026-09-30);
+  the re-home onto the lifecycle index `storage-contract` lands.
+- _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-10); captured during
+  `doc-cascade-sweep` draft-design.
+- _Concern:_ planning and other workflows repeatedly need to know a referenced WU's lifecycle state
+  (shipped / active / parked / planning / provisional) cheaply and deterministically; today the answer is ad-hoc
+  `find`/`ls` across `active/`, `backlog/**`, and `completed/**`. This hit live three times in one
+  `doc-cascade-sweep` planning session while resolving whether `scalable-authoring-pipeline`,
+  `decomposition-machinery`, `work-routing-discipline`, and `naming-conventions` had shipped. It directly serves
+  this WU's "planning grounds-reads / session-init surfaces" arms and the `Depends On`-edge state-blindness pain.
+- _Approach:_ expose a slug → state resolver as a CLI primitive, composing the existing
+  `lib/work-unit/completed-index.ts` + `lib/active/meta-reader.ts` plus `roster` /
+  `materializable-work-units`. Return a **state enum**, not a boolean — `provisional` / `planning` / `active` /
+  `parked-in-backlog` / `shipped` — so ROADMAP dep de-emphasis, in-flight-scope-check, and materialize all reuse
+  it; `shipped?` is a trivial projection. Resolve by **location** first (presence under `completed/` = shipped;
+  `active/` = active; etc.) as the authoritative ground-truth signal, and the meta `**State:**` field second,
+  since the field can lag the directory (same Axis-1 git-is-truth logic session-init uses).
+- _Scope:_ routed here rather than folded into `doc-cascade-sweep` because it is CLI code + tests, a distinct
+  concern from the Light doc-sweep.
+- _Reframe (2026-07-02 grooming — shipped as behavior):_ the slug → state resolver shipped in
+  `lifecycle-state-resolver` (`arc status <slug>`). The CLI design above is done; this WU's remaining slice is
+  re-homing the read onto records at the substrate migration.
+
+### `[ ]` **Lifecycle-complete cohort membership — graduated-vs-removed validator fix + cohort-doc archival loop**
+
+- _Redistributed:_ moved from `operational-state-docs` under `storage-contract` C2, the record-aware seam (2026-09-30);
+  the re-home of the shipped membership resolution onto records; the condition (c) validator fix stays with
+  `operational-state-docs`.
+- _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-10); captured during `doc-cascade-sweep`
+  Task 3.2 cohort-doc conformance audit.
+- _Concern:_ the cohort-consistency validator (`decomposition-machinery`, shipped) derives membership from
+  co-located `backlog/planned/` metas in the staged delta, but members **relocate out** of the cohort dir as they
+  activate (→ flat `active/`) and ship (→ `completed/`). The membership universe shrinks as the cohort matures, so
+  a cohort doc edited late flags every graduated member section as an orphan. Root conflation: **"graduated
+  member" is indistinguishable from "removed WU"** to a backlog-scoped check (the dm spec line 260 literally says
+  orphans catch "a renamed/removed WU" — graduation looks identical). Hit live 2026-06-10 auditing
+  `cohort-agile-wu-lifecycle.md` for `doc-cascade-sweep`: all four members (`class-model-foundation` /
+  `scalable-authoring-pipeline` / `decomposition-machinery` shipped, `doc-cascade-sweep` active) flagged as
+  orphans — unfixable in that WU's scope. The authoritative membership is the position-independent `Cohort` field
+  resolved across **all** lifecycle states, not dir co-location in a staged backlog snapshot; the two agree at
+  planning time and silently diverge the moment a member activates.
+- _Related:_ sibling of this WU's captured "CLI primitive: resolve a WU's lifecycle state by slug" and
+  "Dependency-edge lifecycle semantics" items — same state-blindness family, same index machinery
+  (`completed-index` + active `meta-reader` + backlog scan). Build the resolver once; don't double-build.
+- _Approach:_ one primitive resolves all three:
+    1. **Lifecycle-complete cohort-membership resolver** — the set of WUs whose `Cohort` field resolves to a
+       cohort path, across `backlog/planned/` + `active/` + `completed/`. Shared infra under
+       `operational-state-docs`.
+    2. **Validator fix (condition c):** a member-section slug is an orphan only if it resolves to **no** lifecycle
+       state (genuinely renamed/removed); a slug resolving to an active/completed WU with a matching `Cohort` field
+       is a graduated member → not flagged. Distinguishes graduated from removed. Cost guard: keep the hermetic
+       staged-delta path for the common case; resolve only the _graduated_ slugs (absent from the staged set) via
+       the index — cohort membership is small.
+    3. **Archival-trigger wiring:** "cohort doc archives to `completed/` when the last member ships"
+       (dm spec C5, lines 277-279/336) needs the same resolver — when shipping a member, check whether any
+       _other_ member (by `Cohort` field, any state) is not yet in `completed/`; if none, `git mv` the cohort doc
+       to `completed/` in that archival. Closes the loop so the doc never strands. Wire into
+       `integrate-work-unit.md` / archival.
+- _Scope:_ codify the conceptual rule the gap exposed: **a cohort dir is its doc's home until cohort completion,
+  independent of where its members are**; "no co-located backlog members" is the _fully-activated cohort_ (a valid
+  mature state), not breakage. Do **not** relocate the doc on last-member-_activation_ — `active/` is flat by design
+  (no cohort home), and relocating there would fight the flat-`active/` invariant. Relocation happens once, at
+  last-member-_ship_ (already dm's design).
+- _Reframe (2026-07-02 grooming — partially shipped):_ `lifecycle-transition-core` Task 6.1/6.2 delivered the
+  lifecycle-complete membership resolution, archival-trigger wiring, and archive + cohort-doc sweep (approach
+  items 1 and 3). Still genuinely this WU's: the **validator fix (condition c)** and the corpus-wide conformance
+  gate's cohort-doc-presence extension; the shipped membership resolution re-homes onto records at the substrate
+  migration.
+
+### `[ ]` **WORKING-MEMORY parser silently drops wrapped or colon-less entry headers**
+
+- _Redistributed:_ moved from `operational-state-docs` under `storage-contract` C2, the record-aware seam (2026-09-30);
+  the new parser must not repeat it.
+- _Routed from:_ express-lane capture, housekeep drain (2026-06-11); surfaced fixing a live
+  "missing `_Remove when:_` trigger" warning on `WORKING-MEMORY.md`.
+- _Concern:_ `lib/user-sync/parser.ts` recognizes a WORKING-MEMORY entry header only as a **single line** matching
+  `^\*\*.+:\*\*$`. A header that **wraps** across two physical lines (common past the 120-char wrap target) matches
+  nothing, and the whole entry is **silently swallowed** into its predecessor — no warning, dropped from the
+  cross-WU merge. Found live: 3 of 12 entries dropped this way; a 4th had a missing colon (`_Remove when` without
+  the `:`) and was at least _flagged_. A header that both wrapped and lost its colon would vanish with no signal.
+- _Why here:_ this WU owns the WORKING-MEMORY structured record + the render↔parse round-trip harness. The record
+  model makes the header a record field (not a parsed markdown line), and the harness turns today's silent drop
+  into a **loud** failure. Interim mitigation is an authoring convention (single-line headers ≤120) — whack-a-mole;
+  the durable fix is the record/harness.
+
+### `[ ]` **Frame write-path enforcement explicitly: the consistency-hook is the compliance mechanism**
+
+- _Redistributed:_ moved from `operational-state-docs` under `storage-contract` C2, the record-aware seam (2026-09-30);
+  content rules move into the family parsers, validated at write.
+- _Routed from:_ `lifecycle-transition-core` determinism/judgment-boundary review (2026-06-16); surfaced asking
+  whether cross-WU awareness (is a dep still live or shipped? who are the cohort siblings?) can be made
+  deterministic / automated rather than drift-prone.
+- _Concern:_ this WU's dep-edge resolution + projection substrate make cross-WU state _resolvable_, but the draft
+  frames the guarantee as "resolve at lifecycle triggers" without naming **what makes the automation trustworthy**.
+  The realization: automation is guaranteed **not** by "always use the CLI" (you cannot prevent a hand-edit to a
+  markdown file in git) but by a **consistency check that makes non-CLI drift non-survivable at commit**. Two halves
+  with different guarantees — **reads → resolve-don't-store** (drift _impossible_: nothing stored to drift — the same
+  reason cohort siblings aren't stored in the meta), **writes → CLI-mutate + consistency-hook** (drift _caught_ at
+  commit).
+- _Approach:_ the precedent is `lifecycle-transition-core`'s encoding-consistency invariant (asserts meta `State` ·
+  directory · branch — and, after that WU's executor task, the meta `Branch` _field_). Generalize it: the
+  render/reconcile round-trip harness + the corpus conformance gate assert that every _stored_ cross-ref (dep-edge
+  state, cohort membership, the planning-stage pointers) matches its _resolved_ projection, so a hand-edit that
+  drifts fails the gate. State this explicitly in the substrate design as the compliance mechanism, paired with
+  resolve-don't-store.
+- _Note:_ ties together the Dependency-edge lifecycle entry (the dep-edge half) and the corpus-wide conformance gate
+  entry (the enforcement vehicle) — it is the _framing_ that unifies them, not a separate build.
+
+### `[ ]` **Re-point ADR-022's retired `cross-machine-sync-coherence` references to `partial-push-marker`**
+
+- _Redistributed:_ moved from `operational-state-docs` under `storage-contract` C2, the record-aware seam (2026-09-30);
+  ADR-022 lines 203 and 258; it rides the ADR's flip at this work unit's kickoff.
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-06-25); captured during `partial-push-marker`
+  draft-design (ADR-022 forward-compat check).
+- _Concern:_ ADR-022 § Risks (line ~202) and § Coordination (line ~257) still name the retired
+  `cross-machine-sync-coherence` as the notes-synced transport-hardening dependency. Post-decomposition
+  (2026-06-25) that dependency is `partial-push-marker`'s (the marker / partial-push owner). This WU owns the
+  ADR-022 alignment edits, so the re-point rides the propagation set rather than a standalone errand.
+- _Verified at drain:_ the capture's second premise is already stale — `draft-storage-contract.md` no longer
+  references the retired slug, so the live remainder is ADR-022 only.
+- _Adjacent (flagged, not routed here):_ ADR-027 (line ~134) and several backlog drafts
+  (`state-ref-write-safety`, `naming-conventions`, `finalize-parallelism`, `external-coord-probe`, the
+  `cross-machine-coherence` cohort, `stale-state-detect-and-pull`, `cross-wu-forward-compat`) also name the
+  retired slug; each re-points to whichever decomposition successor owns its specific dependency — a
+  per-reference design call, not a blanket rename.
+
+### `[ ]` **Own the durable integration-resume directive**
+
+- _Redistributed:_ moved from `operational-state-docs` under `storage-contract` C2, the record-aware seam (2026-09-30).
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain
+  (2026-07-10); captured during PR #217 review.
+- _Interim pulled forward:_ a standalone workflow Errand will replace transient `open the PR` prose with a
+  stable “resume from the first incomplete observable integration step” pointer.
+- _Fold-in:_ make the directive code-owned and storage-agnostic rather than arbitrary caller prose, derive precise
+  continuation from live PR/worktree state, and keep `PR URL` / `Completed` as archive-time durable facts.
+  Coordinate agenda-derived precision with `composable-workflows`; do not mint a second PR-open lifecycle verb
+  by default.
+
 ---
 
 ## Prior Design — `singleton-integration-continuity` (pre-ADR-035 reading input)

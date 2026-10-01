@@ -12,6 +12,7 @@ import {
   canonicalDigest,
   canonicalize,
   sortByCanonicalBytes,
+  type CanonicalDigest,
 } from "../kernel/index.js";
 import type { CandidateVerificationApplicability } from
   "../work-unit/candidate-attestation.js";
@@ -34,7 +35,7 @@ type PendingDeliveryReviewFixAuthority =
       readonly selectedDeliverableId: string;
       readonly reviewedHead: string;
       readonly fixAuthorizationId: string;
-      readonly dispositionSetId: string;
+      readonly dispositionSetId: CanonicalDigest;
       readonly authorizedFindingIds: readonly string[];
       readonly authorizedFindingLoci: readonly string[];
       readonly approvedVerification:
@@ -441,7 +442,7 @@ export interface DeliveryReviewFixContinuationProjectionInput {
   readonly activeBranch?: string;
   readonly authoring?: DeliveryReviewFixAuthoringReadiness;
   readonly approvedDispositionSet?: {
-    readonly dispositionSetId: string;
+    readonly dispositionSetId: CanonicalDigest;
     readonly authorizedFindingIds: readonly string[];
     readonly authorizedFindingLoci?: readonly string[];
   };

@@ -1,6 +1,6 @@
 /** Hosted disposition and finding settlement transitions. */
 
-import { canonicalize } from "../../lib/kernel/index.js";
+import { canonicalize, type CanonicalDigest } from "../../lib/kernel/index.js";
 import { LaneProgressStateSchema, type LaneProgressState } from "./core/operation-state-schema.js";
 import type { ReviewOperationStateStore } from "./core/ports.js";
 import type { HostedAdmission, HostedRequestResult, HostedTarget } from "./hosted/request.js";
@@ -88,7 +88,7 @@ function findingIdsMatch(recorded: readonly string[], approved: readonly string[
 
 function recordOnlySettlementEvidence(
   hosted: NonNullable<LaneAttempt["hosted"]>,
-  dispositionSetId: string,
+  dispositionSetId: CanonicalDigest,
   noHostSettlementFindingIds: readonly string[],
   dispositionByFindingId: Map<string, {
     findingId: string;
@@ -119,7 +119,7 @@ function recordOnlySettlementEvidence(
 
 function isHostedDispositionReplay(
   hosted: NonNullable<LaneAttempt["hosted"]>,
-  dispositionSetId: string,
+  dispositionSetId: CanonicalDigest,
   findingDispositions: readonly {
     findingId: string;
     disposition: "fix" | "defer" | "reject";
@@ -146,7 +146,7 @@ export async function bindHostedAttemptDisposition(
   input: {
     operationId: string;
     attemptId: string;
-    dispositionSetId: string;
+    dispositionSetId: CanonicalDigest;
     findingDispositions: readonly {
       findingId: string;
       disposition: "fix" | "defer" | "reject";
@@ -214,7 +214,7 @@ export async function bindHostedAttemptDisposition(
 /** Record successful host-side settlement for one approved finding and close the attempt when complete. */
 function isApprovedHostedFindingAttempt(
   attempt: LaneAttempt | undefined,
-  dispositionSetId: string,
+  dispositionSetId: CanonicalDigest,
   findingId: string,
 ): attempt is LaneAttempt & { hosted: NonNullable<LaneAttempt["hosted"]> } {
   return attempt !== undefined
@@ -229,7 +229,7 @@ export async function settleHostedAttemptFinding(
   input: {
     operationId: string;
     attemptId: string;
-    dispositionSetId: string;
+    dispositionSetId: CanonicalDigest;
     findingId: string;
     disposition: "fix" | "defer" | "reject";
     actorIdentity: string;
@@ -237,7 +237,7 @@ export async function settleHostedAttemptFinding(
     fixTarget: HostedTarget | null;
     commentId: string;
     threadId: string;
-    replyDigest: string;
+    replyDigest: CanonicalDigest;
     replyId: string;
     now: string;
   },
@@ -307,8 +307,8 @@ export interface HostedDispositionSupersessionResult {
 export interface HostedDispositionSupersessionInput {
   readonly operationId: string;
   readonly attemptId: string;
-  readonly predecessorDispositionSetId: string;
-  readonly successorDispositionSetId: string;
+  readonly predecessorDispositionSetId: CanonicalDigest;
+  readonly successorDispositionSetId: CanonicalDigest;
   readonly findingDispositions: readonly {
     readonly findingId: string;
     readonly disposition: "fix" | "defer" | "reject";

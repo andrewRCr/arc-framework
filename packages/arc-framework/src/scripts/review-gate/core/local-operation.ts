@@ -1,6 +1,7 @@
 /** Deterministic admission identity and retry lookup for local review operations. */
 
 import { z } from "zod";
+import type { CanonicalDigest } from "../../../lib/kernel/index.js";
 
 import { canonicalDigest, canonicalize } from "../../../lib/kernel/index.js";
 import {
@@ -75,7 +76,7 @@ export interface LocalReviewAdmission {
   authority: LocalReviewAuthority;
   laneSourceId: string;
   scopeMode: ReviewScopeMode;
-  policyBindingDigest: string;
+  policyBindingDigest: CanonicalDigest;
   requestMechanism: string;
   coverageAdmission: LocalReviewCoverageAdmission;
   deliveryAdmission?: DeliveryLocalReviewAdmission;

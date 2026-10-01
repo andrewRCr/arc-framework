@@ -30,11 +30,9 @@ import { pushWorktreeBranch } from "../lib/git/push-worktree.js";
 import { renderCommitMessageRemedy } from "../lib/release/commit-message-remedy.js";
 import { createCommitMessagePreflight } from "./release/commit-message-preflight.js";
 import {
-  cleanupRealConsumedMessageRetry,
   createRealCommitMessageSnapshot,
+  createRealCommitMessageRetryStore,
   createSpawnGit,
-  persistRealCommitMessageRetry,
-  readRealCommitMessageFileWithIdentity,
 } from "./release/commit-cli.js";
 import { runReleaseCommit } from "./release/commit.js";
 import { runReleasePush, type SpawnPush } from "./release/push.js";
@@ -114,6 +112,7 @@ async function runRecordCommit(input: {
     readFile: (path) => readFile(path, "utf8"),
   }));
   const baseSpawn = createSpawnGit(input.interaction, false);
+  const retryStore = createRealCommitMessageRetryStore(input.exec);
   const result = await runReleaseCommit({
     cwd: input.cwd,
     identity: input.identity,
@@ -128,15 +127,15 @@ async function runRecordCommit(input: {
     resolveHead: async ({ cwd }) => (
       await input.exec("git", ["rev-parse", "HEAD"], { cwd })
     ).stdout.trim(),
-    createMessageSnapshot: createRealCommitMessageSnapshot,
-    persistMessageRetry: persistRealCommitMessageRetry,
-    cleanupConsumedMessageRetry: cleanupRealConsumedMessageRetry,
+    createMessageSnapshot: createRealCommitMessageSnapshot(input.exec),
+    persistMessageRetry: retryStore.persist,
+    cleanupConsumedMessageRetry: retryStore.cleanup,
     preflightRemedy: renderCommitMessageRemedy(),
     preflightCommitMessage: createCommitMessagePreflight({
       stdinIsTTY: false,
       interactionAllowed: false,
       readFile: (path) => readFile(path),
-      readFileWithIdentity: readRealCommitMessageFileWithIdentity,
+      readFileWithIdentity: retryStore.readFileWithIdentity,
       readStdin: () => Promise.reject(
         new Error("machine-owned correction commits never read stdin"),
       ),

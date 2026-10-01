@@ -6,7 +6,7 @@ import {
   isCanonicalDigest,
   sortByCanonicalBytes,
   type CanonicalDigest,
-} from "../canonical/canonical-json.js";
+} from "../kernel/canonical/canonical-json.js";
 import {
   parseMetaRecord,
   renderMetaFile,

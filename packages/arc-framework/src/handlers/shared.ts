@@ -17,7 +17,6 @@ import {
   type UserFetchResult,
   type UserPullResult,
 } from "../commands/user.js";
-import { gitExec } from "../lib/io-context.js";
 import { gitFailureText, isGitProcessError } from "../lib/git/process-error.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { SyncOutput } from "../lib/sync-output.js";
@@ -213,7 +212,7 @@ function capitalize(value: string): string {
  * Resolve identity for user commands. Requires arc.identity to be set.
  * Throws UserFacingError if identity is not configured.
  */
-export async function resolveUserIdentity(exec = gitExec): Promise<string> {
+export async function resolveUserIdentity(exec: GitExec): Promise<string> {
   const identity = await resolveIdentity({ exec });
   if (!identity) {
     throw new UserFacingError({
@@ -230,9 +229,9 @@ export async function resolveUserIdentity(exec = gitExec): Promise<string> {
  * Resolve identity with optional interactive prompt (for init/join).
  * Returns null if identity cannot be resolved and no prompt is available.
  */
-export async function resolveIdentityWithPrompt(interactive: boolean): Promise<string | null> {
+export async function resolveIdentityWithPrompt(interactive: boolean, exec: GitExec): Promise<string | null> {
   return resolveIdentity({
-    exec: gitExec,
+    exec,
     prompt: interactive ? async (message: string, defaultValue?: string) => {
       const result = await p.text({
         message,
@@ -285,8 +284,8 @@ export async function resolveCurrentBranchName(exec: GitExec): Promise<string | 
  * Guard: require a git repository. Logs a user-facing error and sets exit
  * code if not in a git repo. Returns true if the guard passes.
  */
-export async function requireGitRepo(): Promise<boolean> {
-  if (await isGitRepo(gitExec)) return true;
+export async function requireGitRepo(exec: GitExec): Promise<boolean> {
+  if (await isGitRepo(exec)) return true;
   p.log.error(formatError(new UserFacingError({
     code: "GIT_MISSING",
     whatHappened: "Not inside a git repository",

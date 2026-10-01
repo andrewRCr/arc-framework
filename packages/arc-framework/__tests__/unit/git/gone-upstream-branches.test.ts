@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 
 import { listGoneUpstreamBranches } from "../../../src/lib/git/gone-upstream-branches.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 const NUL = "\u0000";
 
@@ -55,8 +56,8 @@ describe("listGoneUpstreamBranches", () => {
   });
 
   it("returns an empty list when the read fails (hygiene is a soft signal)", async () => {
-    const exec: GitExec = vi.fn(async () => {
-      throw new Error("for-each-ref failed");
+    const exec: GitExec = vi.fn(async (command, args) => {
+      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "for-each-ref failed" });
     });
 
     const result = await listGoneUpstreamBranches(exec, "refs/heads/plan/");

@@ -1,6 +1,7 @@
 /** Zod authority for forward-only review-gate targets, requests, and identity preimages. */
 
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import {
   canonicalize,
@@ -18,8 +19,7 @@ import { NormalizedReviewFindingsSchema } from "./finding-records.js";
 export const ReviewGateV2SemanticsSchema = z.literal("review-gate/v2");
 export type ReviewGateV2Semantics = z.infer<typeof ReviewGateV2SemanticsSchema>;
 
-export const ReviewCanonicalDigestSchema = z.string()
-  .regex(/^sha256:[0-9a-f]{64}$/u);
+export const ReviewCanonicalDigestSchema = CanonicalDigestSchema;
 export type ReviewCanonicalDigest = z.infer<typeof ReviewCanonicalDigestSchema>;
 
 export const GitObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);

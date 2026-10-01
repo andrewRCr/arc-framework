@@ -5,6 +5,7 @@ import { z } from "zod";
 import { scanTaskListStructure } from "../task-list/scanner.js";
 import { resolveTaskListCursor } from "../task-list/cursor.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
+import type { CanonicalDigest } from "../kernel/index.js";
 import {
   ResolveDeliveryStatusActionSchema,
   ContinuePublicationActionSchema,
@@ -95,9 +96,9 @@ export type DeliveryCorrectionDerivation =
   | {
       readonly kind: "pending-review-response";
       readonly reviewedHead: string;
-      readonly dispositionSetId: string;
+      readonly dispositionSetId: CanonicalDigest;
     }
-  | { readonly kind: "pending-verification"; readonly continuationDigest: string };
+  | { readonly kind: "pending-verification"; readonly continuationDigest: CanonicalDigest };
 
 /** Strict schema for {@link DeliveryCorrectionDerivation}. */
 export const DeliveryCorrectionDerivationSchema = z.discriminatedUnion("kind", [

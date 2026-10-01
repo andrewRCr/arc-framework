@@ -13,7 +13,7 @@
 import { describe, it, expect } from "vitest";
 
 import { parseMetaRecord } from "../../../../src/lib/active/meta-reader.js";
-import { digestBytes } from "../../../../src/lib/canonical/canonical-json.js";
+import { digestBytes } from "../../../../src/lib/kernel/canonical/canonical-json.js";
 import type { ExecuteTransitionContext } from "../../../../src/lib/work-unit/lifecycle-executor.js";
 import type { LifecycleIndexFs } from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../../src/lib/work-unit/lifecycle-transitions.js";

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { CanonicalDigestSchema } from "../../../../../src/lib/kernel/index.js";
 
 import {
   createHostedAdmission,
@@ -34,7 +35,7 @@ const STANDARD_REVIEW = {
   obligation: "required" as const,
   reasons: ["sensitive-change-set" as const],
   rubricVersion: "standard-review/v1",
-  rubricDigest: `sha256:${"c".repeat(64)}`,
+  rubricDigest: CanonicalDigestSchema.parse(`sha256:${"c".repeat(64)}`),
   retrigger: "full-final" as const,
   count: 1 as const,
 };

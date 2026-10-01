@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts } from "../../../../helpers/schema-assertion.js";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import {
@@ -685,7 +686,7 @@ describe("review operation state schemas", () => {
         hosted: first.hosted,
       }],
     };
-    expect(LaneProgressStateSchema.safeParse(state).success).toBe(true);
+    assertSchemaAccepts(LaneProgressStateSchema, state);
     expect(() => LaneProgressStateSchema.parse({
       ...state,
       attempts: [{

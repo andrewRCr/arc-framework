@@ -6,6 +6,8 @@ import { promisify } from "node:util";
 
 import { describe, expect, it, vi } from "vitest";
 
+import { CanonicalDigestSchema } from "../../../../../src/lib/kernel/index.js";
+
 import type { GitExec } from "../../../../../src/lib/git/exec.js";
 import { createRawGitExec } from "../../../../../src/lib/io-context.js";
 import {
@@ -42,8 +44,8 @@ const secondBase = "c".repeat(40);
 
 describe("frontline phase across Candidate roots", () => {
   it("stays closed after an ancestor terminal result before standard admission", async () => {
-    const ancestorId = `sha256:${"1".repeat(64)}`;
-    const currentId = `sha256:${"2".repeat(64)}`;
+    const ancestorId: `sha256:${string}` = `sha256:${"1".repeat(64)}`;
+    const currentId: `sha256:${string}` = `sha256:${"2".repeat(64)}`;
     const operationId = laneProgressOperationId({
       lane: "frontline", repositoryId: "repo-1", headSha,
       lineage: { kind: "candidate", candidateId: ancestorId },
@@ -59,7 +61,10 @@ describe("frontline phase across Candidate roots", () => {
         } as unknown as ReviewOperationState : null,
       }),
     };
-    const candidate = (candidateId: string) => ({ kind: "candidate" as const, candidateId });
+    const candidate = (candidateId: string) => ({
+      kind: "candidate" as const,
+      candidateId: CanonicalDigestSchema.parse(candidateId),
+    });
     const input = { repositoryId: "repo-1", lineages: [candidate(currentId), candidate(ancestorId)] };
     expect(await frontlinePhaseClosed(store, input)).toBe(true);
     outcome = "findings";
@@ -104,7 +109,7 @@ describe("pre-publication diff base", () => {
 });
 
 describe("local Candidate prior-head applicability without a pull request", () => {
-  const candidateId = `sha256:${"d".repeat(64)}`;
+  const candidateId: `sha256:${string}` = `sha256:${"d".repeat(64)}`;
   const priorTarget = createReviewTarget({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",

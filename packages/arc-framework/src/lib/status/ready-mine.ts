@@ -24,7 +24,7 @@
  * @module
  */
 
-import { validateClass, validatePriority } from "../../commands/active/types.js";
+import { validateClass, validatePriority } from "../kernel/schema/vocabulary.js";
 import type { LifecycleIndex } from "../work-unit/lifecycle-index.js";
 import { resolveSlugQuery } from "../work-unit/lifecycle-query.js";
 

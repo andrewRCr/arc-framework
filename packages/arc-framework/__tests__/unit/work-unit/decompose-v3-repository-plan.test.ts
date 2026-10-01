@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 
 import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
-import { digestBytes } from "../../../src/lib/canonical/canonical-json.js";
+import { digestBytes } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import {
   composeV3ExtractionRepositoryPlan,
   composeV3RepositoryPlan,

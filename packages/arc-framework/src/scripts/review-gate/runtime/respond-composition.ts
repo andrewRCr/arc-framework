@@ -2,14 +2,14 @@
 
 import { readFile } from "node:fs/promises";
 
-import { canonicalize } from "../../../lib/canonical/canonical-json.js";
+import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import {
   projectTransientInFlightRead,
   readTransientInFlightIndexes,
 } from "../../../lib/errand/record.js";
 import type { GitExec } from "../../../lib/git/exec.js";
-import type { RawGitExec } from "../../../lib/change-facts.js";
+import type { RawGitExec } from "../../../lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
 import type { DeliveryReviewMemberVehicle } from "../../../lib/delivery/review-vehicle.js";

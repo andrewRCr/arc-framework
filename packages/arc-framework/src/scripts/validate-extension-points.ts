@@ -20,10 +20,12 @@
  */
 
 import { readdirSync } from "node:fs";
+import { posix } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runPathListScript } from "./cli-runner.js";
 import { classifyExtensionRefs } from "../lib/extensions/orphan-detector.js";
+import { resolveArcPath } from "../lib/layout/index.js";
 import { scanExtensionPoints, type ScanInput } from "../lib/extensions/point-scanner.js";
 
 /** Workflow-path classification for extension-point validation. */
@@ -42,7 +44,7 @@ const ARC_WORKFLOW_PATH = /(?:^|\/)\.arc\/system\/workflows\//;
 const PACKAGE_WORKFLOW_PATH =
   /(?:^|\/)packages\/arc-framework\/arc\/system\/workflows\//;
 
-const ARC_EXTENSIONS_DIR = ".arc/system/extensions";
+const ARC_EXTENSIONS_DIR = posix.join(resolveArcPath({ kind: "arc-root" }), "system/extensions");
 const PACKAGE_EXTENSIONS_DIR = "packages/arc-framework/arc/system/extensions";
 
 /**

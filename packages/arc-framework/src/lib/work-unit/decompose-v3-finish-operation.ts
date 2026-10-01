@@ -1,6 +1,6 @@
 /** Compare-and-swap application of a byte-preserving extraction source plan. */
 
-import { digestBytes } from "../canonical/canonical-json.js";
+import { digestBytes } from "../kernel/canonical/canonical-json.js";
 import type {
   V3PartialPathImage,
   V3PartialPathPreimage,

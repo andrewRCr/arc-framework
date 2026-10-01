@@ -8,6 +8,9 @@
  * from frontmatter parsing without blocking the session.
  */
 
+import type { z } from "zod";
+import type { DomainRulesSessionInitResultSchema } from "./status.js";
+
 /** One enumerated DEV-RULES domain file. */
 export interface DomainRulesEntry {
   /** Repo-root-relative path to the file. */
@@ -19,11 +22,7 @@ export interface DomainRulesEntry {
 }
 
 /** Session-init-scoped result — enumerated domain rules plus warnings. */
-export interface DomainRulesSessionInitResult {
-  mode: "session-init";
-  rules: DomainRulesEntry[];
-  warnings: string[];
-}
+export type DomainRulesSessionInitResult = z.infer<typeof DomainRulesSessionInitResultSchema>;
 
 export interface DomainRulesSessionInitOptions {
   cwd: string;

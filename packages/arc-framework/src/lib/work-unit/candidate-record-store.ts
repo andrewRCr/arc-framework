@@ -3,7 +3,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { digestBytes } from "../canonical/canonical-json.js";
+import { digestBytes, type CanonicalDigest } from "../kernel/canonical/canonical-json.js";
 import { atomicWriteFile } from "../fs.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 import type { GitExec } from "../git/index.js";
@@ -40,7 +40,7 @@ const nodeCandidateRecordStoreFs: CandidateRecordStoreFs = {
 
 export interface VersionedCandidateRecord {
   record: CandidateManagedRecordV1 | null;
-  version: string | null;
+  version: CanonicalDigest | null;
 }
 
 export class CandidateRecordVersionConflictError extends Error {
@@ -200,7 +200,7 @@ export async function readCandidateRecordVersion(
   cwd: string,
   name: string,
   fs: CandidateRecordStoreFs = nodeCandidateRecordStoreFs,
-): Promise<string | null> {
+): Promise<CanonicalDigest | null> {
   const relativePath = resolveCandidateRecordRelativePath(name);
   const content = await readCandidateRecordContent(cwd, relativePath, fs);
   return content === null ? null : digestBytes(Buffer.from(content, "utf8"));

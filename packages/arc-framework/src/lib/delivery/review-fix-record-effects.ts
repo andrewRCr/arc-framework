@@ -2,7 +2,7 @@
 
 import { createHash } from "node:crypto";
 
-import { canonicalDigest, canonicalize, sortByCanonicalBytes } from "../kernel/index.js";
+import { canonicalDigest, canonicalize, isCanonicalDigest, sortByCanonicalBytes, type CanonicalDigest } from "../kernel/index.js";
 import type { DeliveryRevisionedRecord } from "./ports.js";
 import { carryDeliveryReviewFixPublicBoundary } from "./review-fix.js";
 import type { DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
@@ -58,7 +58,7 @@ export function reconstructDeliveryReviewFixExpectedRecords(input: {
   readonly currentCandidate: CandidateManagedRecordV1;
   readonly beforeBoundary: IntegrationBoundaryLocus;
   readonly currentBoundary: IntegrationBoundaryLocus;
-  readonly candidateSubjectDigest: string;
+  readonly candidateSubjectDigest: CanonicalDigest;
   readonly candidateRecord: {
     readonly path: string;
     readonly content: string;
@@ -248,7 +248,7 @@ export function isDeliveryReviewFixRecordCommitMessage(input: {
   const suffix = `.\n\nContext: ${input.context}`;
   if (!message.startsWith(prefix) || !message.endsWith(suffix)) return false;
   const digest = message.slice(prefix.length, -suffix.length);
-  return /^sha256:[0-9a-f]{64}$/u.test(digest);
+  return isCanonicalDigest(digest);
 }
 
 /** Commit and publish one exact staged correction-record batch. */

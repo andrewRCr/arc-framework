@@ -70,6 +70,12 @@ The cohort is complete when all seven members ship, their shared contracts agree
 edges point at their delivering members, and `cli-substrate-complete-migration` proves that no cohort-scoped
 first-party importer, transitional shim, or parallel reusable test helper remains.
 
+_Amended 2026-09-28 — Code the storage program deletes or rewrites is outside that proof: a first-party importer,
+shim, or test helper in code carved to the `state-storage` cohort does not count against it, and that cohort's
+storage-coupling register is the authority for each carved item's owner and fate. — Planning
+`cli-substrate-complete-migration` against ADR-035, whose program replaces that code after cutover, so migrating it
+here would be discarded._
+
 ## Members
 
 ### `cli-schema-kernel`
@@ -121,5 +127,20 @@ retired transitional shims, and converged reusable test support.
 
 _Consumes:_ all six landed member contracts. Managed operational-document conversion remains owned by
 `operational-state-docs`.
+
+---
+
+## Closeout
+
+- **Closed:** 2026-09-30
+- **Final member:** `cli-substrate-complete-migration`
+- **Member archives:** `23_cli-schema-kernel`, `26_cli-git-executor`, `27_cli-session-envelope`,
+  `29_cli-layout-resolver`, `35_cli-command-inputs`, `37_cli-validation-surfaces`,
+  `68_cli-substrate-complete-migration`
+- **Outcome:** All seven members shipped; surviving CLI consumers sit on the kernel, session-envelope, layout,
+  validation, Git-executor, and command-input contracts, with transitional shims retired and reusable test support
+  converged.
+- **Follow-up:** code carved out of the final migration as storage-coupled is owned by the `state-storage`
+  storage-coupling register in `cohort-state-storage.md` — removed by `storage-cutover`, rewritten by `storage-seam`.
 
 ---

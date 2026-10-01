@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { canonicalDigest, canonicalize, type CanonicalDigest } from "../kernel/index.js";
+import { canonicalDigest, canonicalize } from "../kernel/index.js";
 import { classifyDeliveryPlanAmendment, type DeliveryPlanAmendmentResult } from "./amendment.js";
 import type { DeliveryChainAdoptionResult } from "./chain-adoption.js";
 import type {
@@ -151,7 +151,7 @@ export async function prepareDeliverySuffixRematerialization(input: {
         proposed: input.proposedPlan,
         boundDeliverableIds: input.state.members
           .filter((member) => member.ref !== null || member.changeRequest !== null || member.coordinates !== null)
-          .map((member) => member.deliverableId as CanonicalDigest),
+          .map((member) => member.deliverableId),
         landedDeliverableIds: position.position.landedPrefix,
       }),
     };
@@ -174,7 +174,7 @@ export async function prepareDeliverySuffixRematerialization(input: {
     return { status: "refused", reason: "direct-delivery-ref" };
   }
   const selected = new Set(input.selectedDeliverableIds);
-  const suffixIds = new Set(suffix.slice(0, -1).map((member) => member.deliverableId));
+  const suffixIds = new Set<string>(suffix.slice(0, -1).map((member) => member.deliverableId));
   if (selected.size === 0 || selected.size !== input.selectedDeliverableIds.length
     || input.selectedDeliverableIds.some((id) => !suffixIds.has(id))) {
     return { status: "refused", reason: "selected-member-invalid" };

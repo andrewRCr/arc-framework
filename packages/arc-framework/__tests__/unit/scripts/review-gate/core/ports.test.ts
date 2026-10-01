@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+
 import type {
   ApprovedDispositionRecord,
   FrontlineOutcomeRecord,
@@ -25,7 +27,23 @@ import type { ReviewReduceEnvelope } from "../../../../../src/scripts/review-gat
 
 describe("review adapter ports", () => {
   it("accepts fixture adapters for the live advisory record families", async () => {
-    const receipt = { targetId: "sha256:target" } as ReviewReceiptV2;
+    const receipt: ReviewReceiptV2 = {
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      requestId: canonicalDigest({ request: "fixture" }),
+      targetId: canonicalDigest({ target: "fixture" }),
+      requirementId: canonicalDigest({ requirement: "fixture" }),
+      applicabilityId: null,
+      reviewRunId: "run-1",
+      evaluatorIdentity: "reviewer-1",
+      attestingRuntimeIdentity: "runtime-1",
+      attestationMechanism: "test",
+      providerEventIdentity: null,
+      rubricVersion: "standard-review/v1",
+      rubricDigest: canonicalDigest({ rubric: "fixture" }),
+      result: "clean",
+      findings: [],
+    };
     const operation = { operationId: "operation-1" } as ReviewOperationState;
     const source = { sourceRef: "source-1" } as unknown as LocalReviewSource;
     const disposition = { operationId: "operation-1" } as ApprovedDispositionRecord;

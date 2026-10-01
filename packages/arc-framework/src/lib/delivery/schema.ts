@@ -2,11 +2,11 @@
 
 import { z } from "zod";
 
-import { canonicalize, SlugSchema, type KernelRegistry } from "../kernel/index.js";
+import { canonicalize, CanonicalDigestSchema, SlugSchema, type KernelRegistry } from "../kernel/index.js";
 import { ParentTaskIdSchema } from "../task-list/scanner.js";
 
 /** Runtime authority for delivery-domain canonical digests. */
-export const DeliveryCanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+export const DeliveryCanonicalDigestSchema = CanonicalDigestSchema;
 /** Minted stable identity for one delivery plan across all revisions. */
 export const DeliveryPlanIdSchema = z.string()
   .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu)

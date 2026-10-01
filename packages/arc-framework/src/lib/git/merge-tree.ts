@@ -1,6 +1,6 @@
 /** Shared byte-preserving execution and parsing for Git merge-tree composition. */
 
-import type { RawGitExec } from "../change-facts.js";
+import type { RawGitExec } from "./exec.js";
 import { gitFailureText, normalizeGitRejection } from "./process-error.js";
 import { supportsMergeTreeWriteTree } from "./merge-tree-capability.js";
 

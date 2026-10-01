@@ -14,7 +14,7 @@
  * @module
  */
 
-import type { Priority, WorkClass } from "../../commands/active/types.js";
+import type { Priority, WorkClass } from "../kernel/schema/vocabulary.js";
 import { cohortLeaf } from "../active/cohort-path.js";
 import { displayWidth, padToDisplayWidth } from "../markdown/display-width.js";
 

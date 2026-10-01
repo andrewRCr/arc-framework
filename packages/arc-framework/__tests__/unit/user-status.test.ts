@@ -3015,18 +3015,29 @@ describe("buildUserStatusResult worktree qualifier", () => {
     worktree: WorktreeSnapshotAnalysisResult | WorktreeSyncStatusResult | undefined,
     overrides: Partial<Parameters<typeof buildUserStatusResult>[0]> = {},
   ) {
-    const qualifiedWorktree = worktree === undefined || "remoteEvidence" in worktree
-      ? worktree
-      : worktree.state === "remote-unavailable"
+    let qualifiedWorktree: WorktreeSnapshotAnalysisResult | undefined;
+    if (worktree === undefined) {
+      qualifiedWorktree = undefined;
+    } else if ("remoteEvidence" in worktree) {
+      qualifiedWorktree = worktree;
+    } else {
+      const base = {
+        state: worktree.state,
+        ahead: worktree.ahead,
+        behind: worktree.behind,
+        branch: worktree.branch,
+      };
+      qualifiedWorktree = worktree.state === "remote-unavailable"
         ? worktree.failureReason === undefined
-          ? { ...worktree, remoteEvidence: "pending-fetch" as const }
-          : { ...worktree, remoteEvidence: "unreachable" as const, failureReason: worktree.failureReason }
+          ? { ...base, remoteEvidence: "pending-fetch" as const }
+          : { ...base, remoteEvidence: "unreachable" as const, failureReason: worktree.failureReason }
         : {
-            ...worktree,
+            ...base,
             remoteEvidence: ["skipped", "no-upstream", "detached-head", "no-remote"].includes(worktree.state)
               ? "not-applicable" as const
               : "exact" as const,
           };
+    }
     return buildUserStatusResult({
       identity: "andrew",
       diskState: "same",

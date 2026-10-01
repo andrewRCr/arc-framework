@@ -10,6 +10,7 @@ import type {
 import { observeRepositoryDeliveryPosition } from "../../../src/lib/session-init/delivery-position-facts.js";
 import { deliveryStackPlanFixture } from "../../fixtures/delivery-plan.js";
 import { deliveryStateFixture } from "../../fixtures/delivery-state.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 function exactDependencies(state: ReturnType<typeof deliveryStateFixture>) {
   if (state.target === null || state.target.coordinates === null) throw new Error("fixture target missing");
@@ -25,14 +26,16 @@ function exactDependencies(state: ReturnType<typeof deliveryStateFixture>) {
   }
   const availableCommits = new Set(trees.keys());
   const exec = vi.fn(async (
-    _command: string,
+    command: string,
     args: readonly string[],
     options?: { cwd?: string; objectAccess?: string },
   ) => {
     expect(options).toMatchObject({ cwd: "/repository", objectAccess: "local-only" });
     if (args[0] === "rev-parse" && args[2]?.endsWith("^{commit}")) {
       const head = args[2].slice(0, -"^{commit}".length);
-      if (!availableCommits.has(head)) throw new Error("commit unavailable");
+      if (!availableCommits.has(head)) {
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "commit unavailable" });
+      }
       return { stdout: `${head}\n`, stderr: "" };
     }
     if (args[0] === "rev-list") return { stdout: `${args.at(-1)}\n`, stderr: "" };
@@ -177,7 +180,7 @@ describe("session-init delivery position facts", () => {
     if (exactExec === undefined) throw new Error("fixture git boundary is missing");
     dependencies.exec.mockImplementation(async (command, args, options) => {
       if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
-        throw new Error("ancestry unavailable");
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "ancestry unavailable" });
       }
       return exactExec(command, args, options);
     });
@@ -186,7 +189,7 @@ describe("session-init delivery position facts", () => {
     })).resolves.toEqual({ status: "refused" });
     dependencies.exec.mockImplementation(async (command, args, options) => {
       if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
-        throw Object.assign(new Error("not an ancestor"), { exitCode: 1, stderr: "" });
+        throw makeGitProcessError({ command, args, exitCode: 1, stderr: "" });
       }
       return exactExec(command, args, options);
     });

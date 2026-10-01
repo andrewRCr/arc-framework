@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createHostedTerminalAttemptFixture } from "../../../../fixtures/hosted-review.js";
 
-import { canonicalDigest, canonicalize } from "../../../../../src/lib/kernel/index.js";
+import { canonicalDigest, canonicalize, CanonicalDigestSchema, type CanonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import { DeliveryReviewMemberVehicleSchema } from
   "../../../../../src/lib/delivery/review-vehicle.js";
 import {
@@ -63,10 +63,10 @@ import {
 } from "../../../../../src/scripts/review-gate/runtime/respond-command.js";
 import { createLocalReviewReceipt } from "../../../../../src/scripts/review-gate/runtime/local-attestation.js";
 
-const digest = (value: string): string => canonicalDigest({ value });
+const digest = (value: string) => canonicalDigest({ value });
 const objectId = (character: string): string => character.repeat(40);
 
-const DELIVERABLE_ID = `sha256:${"a".repeat(64)}`;
+const DELIVERABLE_ID = CanonicalDigestSchema.parse(`sha256:${"a".repeat(64)}`);
 const memberVehicle = { kind: "delivery-member", identity: DELIVERABLE_ID } as const;
 const workUnitVehicle = { kind: "work-unit", identity: "review-surface-binding" } as const;
 const errandVehicle = { kind: "errand", identity: "repair-review-state", claimId: "claim-1" } as const;
@@ -249,12 +249,12 @@ function deliveryLocalFixture() {
 }
 
 function approved(input: {
-  targetId: string;
+  targetId: CanonicalDigest;
   producerId: string;
-  resultDigest: string;
-  policyVersion: string;
+  resultDigest: CanonicalDigest;
+  policyVersion: CanonicalDigest;
   rubricVersion: string;
-  rubricDigest: string;
+  rubricDigest: CanonicalDigest;
   sourceIdentity: string;
   finding: ReturnType<typeof fixture>["finding"];
   disposition?: "fix" | "defer" | "reject";

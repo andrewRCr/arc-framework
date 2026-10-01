@@ -32,6 +32,7 @@ import {
 } from "../../src/lib/errand/identity-record.js";
 import type { OrdinaryErrandRecord } from "../../src/lib/errand/identity-transitions.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 
 const IDENTITY = "andrew";
 const REF = errandsRef(IDENTITY);
@@ -192,7 +193,8 @@ describe("errand-ref reconcile-push", () => {
     const failingExec: GitExec = async (cmd, args) => {
       if (args[0] === "update-ref" && args[1] === REF) {
         casHits += 1;
-        throw new Error(`fatal: cannot lock ref '${REF}': is at aaa but expected bbb`);
+        throw makeGitProcessError({ command: cmd, args, exitCode: 128,
+          stderr: `fatal: cannot lock ref '${REF}': is at aaa but expected bbb` });
       }
       return realExec(cmd, args);
     };

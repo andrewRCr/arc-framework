@@ -43,6 +43,8 @@ export interface DiscoveredOption extends DiscoveredSourceLocus {
 export interface DiscoveredAction extends DiscoveredSourceLocus {
   readonly symbol: string;
   readonly interactionContext: boolean;
+  /** Source-declared machine mode that applies to every invocation of this action. */
+  readonly constantMachineMode: boolean;
 }
 
 /** Canonical command and its syntax-discovered input surface. */
@@ -286,6 +288,22 @@ function actionUsesInteractionContext(call: ts.CallExpression): boolean {
     && candidate.expression.text === "withInteractionContext";
 }
 
+function actionHasConstantMachineMode(call: ts.CallExpression): boolean {
+  const candidate = call.arguments[0];
+  if (candidate === undefined || !ts.isCallExpression(candidate)
+    || !ts.isIdentifier(candidate.expression) || candidate.expression.text !== "withInteractionContext") return false;
+  const policy = candidate.arguments[0];
+  if (policy === undefined || !ts.isObjectLiteralExpression(policy)) return false;
+  const declaration = policy.properties.find((property) => ts.isPropertyAssignment(property)
+    && (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name))
+    && property.name.text === "machineReadable");
+  if (declaration === undefined || !ts.isPropertyAssignment(declaration)) return false;
+  const value = declaration.initializer;
+  return value.kind === ts.SyntaxKind.TrueKeyword
+    || (ts.isArrowFunction(value) && value.parameters.length === 0
+      && value.body.kind === ts.SyntaxKind.TrueKeyword);
+}
+
 /** Extract the canonical Commander tree and its syntax-owned values. */
 export function scanCommanderSource(input: SourceInput): CommanderSourceScan {
   const file = sourceFile(input);
@@ -353,6 +371,7 @@ export function scanCommanderSource(input: SourceInput): CommanderSourceScan {
               action = {
                 symbol: actionSymbol(call),
                 interactionContext: actionUsesInteractionContext(call),
+                constantMachineMode: actionHasConstantMachineMode(call),
                 ...locus(file, call, input.file),
               };
             }

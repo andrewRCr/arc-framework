@@ -4,6 +4,7 @@ import { formatLocusEnvelope, validateLocusEnvelope, type LocusEnvelope } from "
 import { resolveIdentity } from "../lib/git/index.js";
 import { gitExec } from "../lib/io-context.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
+import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { requireArcProjectRoot } from "./shared.js";
 import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
@@ -14,6 +15,17 @@ export interface LocusCliOptions {
 
 /** The read-only command has no value-bearing operand or option registration. */
 export const locusCommandInputRegistrations = [] as const satisfies readonly CommandInputRegistration[];
+
+/** Machine-output policy owned by the locus command adapter. */
+export const locusCommandInputPolicyDeclarations = [{
+  commandPath: "locus",
+  aliases: [],
+  sites: [declareCliOptionSite("json", {
+    acquisition: "machine-mode", schemaOwnership: "none", cancellation: "not-applicable",
+    automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+    mutationBoundary: "output selection", subprocess: "none",
+  })],
+}] satisfies readonly CommandInputDeclaration[];
 
 export interface LocusCliOutput {
   stdout(text: string): void;

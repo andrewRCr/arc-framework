@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { describe, expect, expectTypeOf, it } from "vitest";
+import { assertSchemaRefuses } from "../../../helpers/schema-assertion.js";
 
 import {
   REVIEW_DURABLE_RECORD_INVENTORY,
@@ -67,7 +68,7 @@ describe("review semantic schemas", () => {
   });
 
   it("rejects the retired ARC-owned blocker severity", () => {
-    expect(ReviewSeveritySchema.safeParse("blocker").success).toBe(false);
+    assertSchemaRefuses(ReviewSeveritySchema, "blocker");
   });
 
   it.each(["fix", "defer", "reject"])("accepts disposition %s", (disposition) => {
@@ -79,7 +80,7 @@ describe("review semantic schemas", () => {
       severity: "minor",
       nit: true,
     });
-    expect(FindingClassificationSchema.safeParse({ severity: "major", nit: true }).success).toBe(false);
+    assertSchemaRefuses(FindingClassificationSchema, { severity: "major", nit: true });
   });
 
   it.each([
@@ -101,11 +102,11 @@ describe("review semantic schemas", () => {
       workContext: "unscoped",
       workClass: "Heavy",
     });
-    expect(ReviewMethodActivitySchema.safeParse({
+    assertSchemaRefuses(ReviewMethodActivitySchema, {
       selfReview: true,
       frontlineReview: false,
       hostedReview: true,
-    }).success).toBe(false);
+    });
   });
 
   it("accepts the complete closed routing record and rejects arbitrary facts", () => {
@@ -121,11 +122,11 @@ describe("review semantic schemas", () => {
       activity: { selfReview: true, frontlineReview: false },
     };
     expect(ReviewRoutingFactsSchema.parse(facts)).toEqual(facts);
-    expect(ReviewRoutingFactsSchema.safeParse({ ...facts, ciWeight: "light" }).success).toBe(false);
-    expect(ReviewRoutingFactsSchema.safeParse({
+    assertSchemaRefuses(ReviewRoutingFactsSchema, { ...facts, ciWeight: "light" });
+    assertSchemaRefuses(ReviewRoutingFactsSchema, {
       ...facts,
       reviewRubric: "implementation-audit",
-    }).success).toBe(false);
+    });
   });
 
   it("enforces standard-review and retrigger pairings", () => {
@@ -139,16 +140,16 @@ describe("review semantic schemas", () => {
       reasons: ["auto-eligible-planning"],
     };
     expect(ReviewRoutingDecisionSchema.parse(decision)).toEqual(decision);
-    expect(ReviewRoutingDecisionSchema.safeParse({
+    assertSchemaRefuses(ReviewRoutingDecisionSchema, {
       ...decision,
       standardReview: "required",
-    }).success).toBe(false);
-    expect(ReviewRoutingDecisionSchema.safeParse({
+    });
+    assertSchemaRefuses(ReviewRoutingDecisionSchema, {
       ...decision,
       standardReview: "exempt",
       retrigger: "incremental",
-    }).success).toBe(false);
-    expect(ReviewRoutingDecisionSchema.safeParse({ ...decision, reasons: [] }).success).toBe(false);
+    });
+    assertSchemaRefuses(ReviewRoutingDecisionSchema, { ...decision, reasons: [] });
   });
 
   it("preserves project reason namespaces without accepting fact extensions", () => {
@@ -159,17 +160,17 @@ describe("review semantic schemas", () => {
       reasons: ["project:self-hosting:heavy-class"],
     };
     expect(ProjectRoutingPromotionSchema.parse(promotion)).toEqual(promotion);
-    expect(ProjectRoutingPromotionSchema.safeParse({ ...promotion, facts: { class: "Heavy" } }).success).toBe(false);
-    expect(ProjectRoutingPromotionSchema.safeParse({
+    assertSchemaRefuses(ProjectRoutingPromotionSchema, { ...promotion, facts: { class: "Heavy" } });
+    assertSchemaRefuses(ProjectRoutingPromotionSchema, {
       ...promotion,
       reasons: ["project:other:heavy-class"],
-    }).success).toBe(false);
+    });
   });
 
   it("validates the logical standard-review contract", () => {
     const contract = STANDARD_REVIEW_BASELINE_CONTRACT;
     expect(StandardReviewContractSchema.parse(contract)).toEqual(contract);
-    expect(StandardReviewContractSchema.safeParse({ ...contract, partial: true }).success).toBe(false);
+    assertSchemaRefuses(StandardReviewContractSchema, { ...contract, partial: true });
   });
 
   it("exports schema-inferred structural types", () => {

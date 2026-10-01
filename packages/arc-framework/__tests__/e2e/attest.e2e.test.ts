@@ -12,6 +12,7 @@ import {
   runArc,
 } from "./helpers.js";
 import { advanceBase, movementPaths } from "../helpers/base-advance.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 /**
  * Give the fixture a base it can actually move: a bare repository reached through a host-shaped URL, so the
@@ -41,35 +42,11 @@ async function createAttestFixture(options: { readonly origin?: boolean } = {}):
   await mkdir(join(repository, "src"), { recursive: true });
   await writeFile(
     join(repository, ".arc", "active", "meta-example.md"),
-    [
-      "# Metadata: example",
-      "",
-      "| **State** | **Owner**   | **Branch**     | **Class** | **Priority** |",
-      "| --------- | ----------- | -------------- | --------- | ------------ |",
-      "| `Active`  | `test-user` | `feat/example` | `Light`   | `P2`         |",
-      "",
-      "- **Cohort:** [none]",
-      "- **Depends On:** [none]",
-      "",
-      "- **Origin:** [internal]",
-      "- **Design:** [none]",
-      "- **Task List:** `tasks-example.md`",
-      "- **Review Rubric:** [none]",
-      "- **Promotion Receipt:** [none]",
-      "",
-      "- **Current Workflow:** [none]",
-      "- **Last Completed:** verification",
-      "- **Next Task:** Task 1.1 — Verification complete",
-      "- **Blockers:** [none]",
-      "",
-      "- **Next Action:** verification complete",
-      "",
-      "- **PR URL:** [none]",
-      "- **Completed:** [none]",
-      "",
-      "---",
-      "",
-    ].join("\n"),
+    makeMetaFixture("example", {
+      owner: "test-user", branch: "feat/example", workClass: "Light", priority: "P2",
+      taskList: "tasks-example.md", lastCompleted: "verification",
+      nextTask: "Task 1.1 — Verification complete", nextAction: "verification complete",
+    }),
   );
   await writeFile(join(repository, "src", "example.ts"), "export const example = true;\n");
   await git(repository, ["add", "-A"]);

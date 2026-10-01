@@ -189,9 +189,9 @@ const ACTIVE_WITH_TASKS: MetaSpec = { ...ACTIVE, taskList: TASK_LIST };
 const PUBLICATION_POINTER =
   "Resume publication at the idempotent push, then resolve or open the change request.";
 
-const CANDIDATE_ID = `sha256:${"a".repeat(64)}`;
-const CANDIDATE_SUBJECT = `sha256:${"b".repeat(64)}`;
-const OTHER_SUBJECT = `sha256:${"c".repeat(64)}`;
+const CANDIDATE_ID = `sha256:${"a".repeat(64)}` as const;
+const CANDIDATE_SUBJECT = `sha256:${"b".repeat(64)}` as const;
+const OTHER_SUBJECT = `sha256:${"c".repeat(64)}` as const;
 const WORK_UNIT = SlugSchema.parse("foo");
 const BASE: PublishParams = {
   name: "foo",
@@ -294,7 +294,7 @@ describe("authorizeSubmission", () => {
   });
 
   it("carries the exact hosted-first reservation without settling or erasing it", () => {
-    const candidateId = `sha256:${"a".repeat(64)}`;
+    const candidateId = `sha256:${"a".repeat(64)}` as const;
     const reservation = createStandardReviewReservation({
       candidateId,
       sourceId: "codex-pr",

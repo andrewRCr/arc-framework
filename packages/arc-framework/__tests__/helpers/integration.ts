@@ -37,7 +37,7 @@ import {
   type NotesCompactionManifest,
 } from "../../src/lib/user-sync/compaction-manifest.js";
 import { createTempRepoCore, removeGitBackedDir } from "./temp-repo.js";
-import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
+import { createExecaGitExec, createExecaGitExecInput } from "../../src/lib/git/process-executor.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -54,21 +54,9 @@ export function makeGitExec(cwd: string): GitExec {
  * `mktree`) that reads its payload from stdin.
  */
 export function makeGitExecInput(cwd: string): GitExecInput {
-  return (args, input) =>
-    new Promise((resolve, reject) => {
-      const proc = spawn("git", args, { cwd });
-      let stdout = "";
-      let stderr = "";
-      proc.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
-      proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
-      proc.on("close", (code) => {
-        if (code === 0) resolve(stdout);
-        else reject(new Error(`git ${args.join(" ")} failed (code ${code}): ${stderr}`));
-      });
-      proc.on("error", reject);
-      proc.stdin.write(input);
-      proc.stdin.end();
-    });
+  const exec = createExecaGitExecInput();
+  return async (args, input, options) =>
+    await exec(args, input, { ...options, cwd: options?.cwd ?? cwd });
 }
 
 /** One entry in a synthetic notes tree. */
@@ -157,16 +145,6 @@ export async function makeNotesTreeCommit(
   ];
   const { stdout } = await execFileAsync("git", args, { cwd });
   return { blobs, manifestBlob, tip: stdout.trim() };
-}
-
-/**
- * Stub GitExec returning a fixed `git rev-parse --abbrev-ref HEAD` value
- * for tests that need branch-pattern fallback behavior without a real
- * git repo. Pass `null` for detached HEAD (emits the literal `HEAD`).
- */
-export function stubGitExec(branch: string | null): GitExec {
-  const stdout = branch ?? "HEAD";
-  return async () => ({ stdout, stderr: "" });
 }
 
 /** Create a real IOContext for a given cwd. */

@@ -11,6 +11,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
+import { assertSchemaAccepts } from "../../helpers/schema-assertion.js";
 
 import {
   runRecoverStatus,
@@ -18,6 +19,9 @@ import {
   runSessionInitStatus,
   runStatus,
 } from "../../../src/commands/status.js";
+import { projectDerivedActiveSession } from "../../../src/commands/status/run.js";
+import { ActiveSessionInitResultSchema } from "../../../src/commands/active/schema.js";
+import { buildBaseDistanceNotApplicable } from "../../../src/lib/git/base-distance.js";
 import type {
   HandoffSyncInterlock,
   SessionHandoffProbes,
@@ -246,7 +250,15 @@ function passiveWorktreeSync(
 function worktreeSnapshot(
   overrides: Partial<Omit<WorktreeSnapshotAnalysisResult, "remoteEvidence" | "failureReason">> = {},
 ): WorktreeSnapshotAnalysisResult {
-  return { ...worktreeSync(), remoteEvidence: "exact", ...overrides };
+  const worktree = worktreeSync();
+  return {
+    state: worktree.state,
+    ahead: worktree.ahead,
+    behind: worktree.behind,
+    branch: worktree.branch,
+    remoteEvidence: "exact",
+    ...overrides,
+  };
 }
 
 function worktreeIdentity(value: WorktreeIdentity = { kind: "primary" }): WorktreeIdentity {
@@ -277,24 +289,7 @@ function baseDistance(
 function unavailableBaseDistance(
   state: "no-remote" | "detached-head",
 ): Awaited<ReturnType<SessionInitProbes["baseDistance"]>> {
-  const base = state === "detached-head" ? null : "main";
-  return {
-    mode: "advisory", verdict: "unavailable", state, ahead: 0, behind: 0,
-    base, baseOid: null, headOid: null,
-    integrationEvidence: null, overlap: null, register: null,
-    unavailableReason: state,
-    detail: state === "no-remote"
-      ? "No remote is configured for base-distance evidence."
-      : "Base-distance evidence is unavailable from a detached HEAD.",
-    coordinates: { base, baseOid: null, headOid: null },
-    continuation: {
-      kind: "terminal-explanation",
-      terminalExplanation: state === "no-remote"
-        ? "Configure a remote before requesting base-distance evidence."
-        : "Check out a branch before requesting base-distance evidence.",
-    },
-    remoteEvidence: "not-applicable",
-  };
+  return buildBaseDistanceNotApplicable(state, "main");
 }
 
 function baseBranchSync(
@@ -482,6 +477,22 @@ function derivedFrameFromActive(
     active: { checkoutPath: "/repo", subject, context },
   };
 }
+
+describe("projectDerivedActiveSession schema", () => {
+  it.each([
+    activeSessionInit({ resolution: "none", path: null }),
+    activeSessionInit({
+      resolution: "single",
+      path: ".arc/active/meta-foo.md",
+      taskListPath: ".arc/active/tasks-foo.md",
+      sessionType: "execution",
+    }),
+  ])("parses the derived session result for $resolution", (active) => {
+    const frame = derivedFrameFromActive(active, "andrew", [], null, null);
+    const result = projectDerivedActiveSession(frame);
+    assertSchemaAccepts(ActiveSessionInitResultSchema, result);
+  });
+});
 
 function domainRulesSessionInit(
   overrides: Partial<DomainRulesSessionInitResult> = {},
@@ -1712,7 +1723,9 @@ describe("runSessionInitStatus — base-distance slot", () => {
 });
 
 describe("runSessionInitStatus — base-branch-sync slot", () => {
-  function configWithBasePolicy(policy: string): ConfigSessionInitResult {
+  function configWithBasePolicy(
+    policy: ConfigSessionInitResult["settings"]["session.init_pull.base"],
+  ): ConfigSessionInitResult {
     const base = configSessionInit();
     return { ...base, settings: { ...base.settings, "session.init_pull.base": policy } };
   }
@@ -1828,7 +1841,9 @@ describe("runSessionInitStatus — base-branch-sync slot", () => {
 });
 
 describe("runSessionInitStatus — retired-subdir reconcile slot", () => {
-  function configWithLoadPolicy(policy: string): ConfigSessionInitResult {
+  function configWithLoadPolicy(
+    policy: ConfigSessionInitResult["settings"]["session.init_load.notes"],
+  ): ConfigSessionInitResult {
     const base = configSessionInit();
     return { ...base, settings: { ...base.settings, "session.init_load.notes": policy } };
   }

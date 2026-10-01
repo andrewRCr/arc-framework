@@ -1,6 +1,6 @@
 /** Exact-identity refresh for an authored extraction cut map. */
 
-import { canonicalDigest } from "../canonical/canonical-json.js";
+import { canonicalDigest } from "../kernel/canonical/canonical-json.js";
 import type { V3DecomposePreflight } from "./decompose-v3-preflight.js";
 import type {
   V3DecomposeEvidenceValue,

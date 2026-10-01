@@ -4,7 +4,7 @@ import { mkdir, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import type { GitExec } from "../../../../lib/git/exec.js";
-import { resolveGitCommonDir } from "../../../../lib/user-sync/repo-shared-paths.js";
+import { resolveGitCommonDir } from "../../../../lib/git/exec.js";
 import {
   createLocalReviewSource,
   LocalReviewSourceSchema,

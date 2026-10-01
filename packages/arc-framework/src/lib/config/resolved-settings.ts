@@ -49,7 +49,7 @@ import {
 } from "./resolve-override.js";
 import { readConfigSettings } from "./status-reader.js";
 import { getArcConfigField } from "./schema.js";
-import type { ConfigSettings } from "../../commands/config/types.js";
+import type { ConfigSettings } from "./schema.js";
 import type { GitExec } from "../git/index.js";
 
 // --- Per-key constants and type guards ---

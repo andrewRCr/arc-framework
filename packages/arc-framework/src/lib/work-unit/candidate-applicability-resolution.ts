@@ -2,7 +2,8 @@
 
 import { z } from "zod";
 
-import { canonicalize } from "../canonical/canonical-json.js";
+import { canonicalize } from "../kernel/canonical/canonical-json.js";
+import { CanonicalDigestSchema } from "../kernel/schema/vocabulary.js";
 import {
   CandidateApplicabilityResultSchema,
   type CandidateApplicabilityRequest,
@@ -21,7 +22,7 @@ import {
 import type { VersionedCandidateRecord } from "./candidate-record-store.js";
 import { SpineRemedySchema } from "../../scripts/integration/spine-refusal.js";
 
-const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+const DigestSchema = CanonicalDigestSchema;
 const ObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
 const ResolutionInputCommon = {
   schemaVersion: z.literal(1),

@@ -4,6 +4,7 @@ import { syncLocalBase } from "../../../src/lib/git/base-sync.js";
 
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 interface RepoState {
   base?: string;
@@ -38,10 +39,10 @@ function fakeRepo(initial: RepoState): {
   let managedWorktree = false;
   const ok = (stdout = ""): ExecResult => ({ stdout, stderr: "" });
 
-  const exec: GitExec = async (_cmd, args) => {
+  const exec: GitExec = async (command, args) => {
     if (args[0] === "remote") return ok("test://origin");
     if (args[0] === "fetch") {
-      if (state.fetchFails) throw new Error("fetch failed");
+      if (state.fetchFails) throw makeGitProcessError({ command, args, exitCode: 128, stderr: "fetch failed" });
       return ok();
     }
     if (
@@ -49,15 +50,19 @@ function fakeRepo(initial: RepoState): {
       && (args[2] === `origin/${base}` || args[2] === `refs/remotes/origin/${base}`)
     ) return ok(state.remote);
     if (args[0] === "rev-parse" && (args[2] === base || args[2] === `refs/heads/${base}`)) {
-      if (args[2] === base && state.ambiguousShortName) throw new Error("ambiguous refname");
+      if (args[2] === base && state.ambiguousShortName) {
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "ambiguous refname" });
+      }
       localReads += 1;
       if (localReads > 1 && state.moveAfterStatus !== undefined) state.local = state.moveAfterStatus;
-      if (state.local === null) throw new Error("missing local base");
+      if (state.local === null) throw makeGitProcessError({ command, args, exitCode: 128, stderr: "missing local base" });
       return ok(state.local);
     }
     if (args[0] === "rev-list") return ok(state.distance ?? "0 1");
     if (args[0] === "worktree" && args[1] === "list") {
-      if (state.worktreeListFails) throw new Error("worktree list failed");
+      if (state.worktreeListFails) {
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "worktree list failed" });
+      }
       const roster = state.baseWorktree === undefined
         ? ""
         : `worktree ${state.baseWorktree}\nHEAD ${state.local ?? state.remote}\nbranch refs/heads/${base}\n`;
@@ -66,7 +71,7 @@ function fakeRepo(initial: RepoState): {
     if (args[0] === "worktree" && args[1] === "add") {
       if (state.managedAddFails) {
         if (state.moveOnManagedAddFailure !== undefined) state.local = state.moveOnManagedAddFailure;
-        throw new Error("base became busy");
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "base became busy" });
       }
       managedWorktree = true;
       if (args.includes("-b")) state.local = state.remote;
@@ -74,7 +79,7 @@ function fakeRepo(initial: RepoState): {
       return ok();
     }
     if (args[0] === "worktree" && args[1] === "remove") {
-      if (state.managedCleanupFails) throw new Error("cleanup failed");
+      if (state.managedCleanupFails) throw makeGitProcessError({ command, args, exitCode: 128, stderr: "cleanup failed" });
       managedWorktree = false;
       return ok();
     }

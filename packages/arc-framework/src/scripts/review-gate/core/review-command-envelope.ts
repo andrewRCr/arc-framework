@@ -3,6 +3,7 @@
 import { isDeepStrictEqual } from "node:util";
 
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import { DeliveryReviewMemberVehicleSchema } from "../../../lib/delivery/review-vehicle.js";
 import { FixNotPerformedPayloadSchema } from "./fix-not-performed-envelope.js";
@@ -48,7 +49,6 @@ import { HostedTargetSchema } from "../hosted/request.js";
 import { StandardReviewObligationProjectionSchema } from
   "../policy/standard-review-projection-schema.js";
 
-const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
 const DurableReferenceSchema = z.string().trim().min(1);
 const PersistedVersionSchema = z.number().int().positive();

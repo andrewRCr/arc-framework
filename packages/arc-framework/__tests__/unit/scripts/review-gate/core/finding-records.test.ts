@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../../../helpers/schema-assertion.js";
 
 import {
   NormalizedReviewFindingSchema,
@@ -37,8 +38,8 @@ describe("provider finding classification", () => {
       evidenceUrlOrId: "review:finding-1",
       sourceOrdinal: 1,
     };
-    expect(NormalizedReviewFindingSchema.safeParse(finding).success).toBe(true);
-    expect(NormalizedReviewFindingSchema.safeParse({ ...finding, severity: "blocker" }).success).toBe(false);
+    assertSchemaAccepts(NormalizedReviewFindingSchema, finding);
+    assertSchemaRefuses(NormalizedReviewFindingSchema, { ...finding, severity: "blocker" });
   });
 
   it("requires one NFC spelling for finding identities before canonical hashing", () => {
@@ -50,15 +51,15 @@ describe("provider finding classification", () => {
       sourceOrdinal: 1,
     };
 
-    expect(NormalizedReviewFindingSchema.safeParse(finding).success).toBe(true);
-    expect(NormalizedReviewFindingSchema.safeParse({
+    assertSchemaAccepts(NormalizedReviewFindingSchema, finding);
+    assertSchemaRefuses(NormalizedReviewFindingSchema, {
       ...finding,
       findingId: "finding-e\u0301",
-    }).success).toBe(false);
-    expect(NormalizedReviewFindingSchema.safeParse({
+    });
+    assertSchemaRefuses(NormalizedReviewFindingSchema, {
       ...finding,
       recursFindingId: "finding-e\u0301",
-    }).success).toBe(false);
+    });
   });
 
   function dispositionItem(overrides: Record<string, unknown> = {}) {
@@ -83,19 +84,19 @@ describe("provider finding classification", () => {
     "rejects retired blocker in disposition grade field %s",
     (field) => {
       const item = dispositionItem();
-      expect(DispositionReportItemSchema.safeParse(item).success).toBe(true);
-      expect(DispositionReportItemSchema.safeParse({ ...item, [field]: "blocker" }).success).toBe(false);
+      assertSchemaAccepts(DispositionReportItemSchema, item);
+      assertSchemaRefuses(DispositionReportItemSchema, { ...item, [field]: "blocker" });
     },
   );
 
   it("requires an explicit verified grade for supported findings", () => {
     const { verifiedSeverity, ...withoutVerifiedSeverity } = dispositionItem();
     void verifiedSeverity;
-    expect(DispositionReportItemSchema.safeParse(withoutVerifiedSeverity).success).toBe(false);
-    expect(DispositionReportItemSchema.safeParse({
+    assertSchemaRefuses(DispositionReportItemSchema, withoutVerifiedSeverity);
+    assertSchemaRefuses(DispositionReportItemSchema, {
       ...withoutVerifiedSeverity,
       verifiedSeverity: null,
-    }).success).toBe(false);
+    });
   });
 
   it("keeps unsupported observations ungraded, rejected, and record-only", () => {
@@ -106,27 +107,27 @@ describe("provider finding classification", () => {
       disposition: "reject",
       gating: "record-only",
     });
-    expect(DispositionReportItemSchema.safeParse(unsupported).success).toBe(true);
-    expect(DispositionReportItemSchema.safeParse({ ...unsupported, verifiedSeverity: "critical" }).success).toBe(false);
-    expect(DispositionReportItemSchema.safeParse({ ...unsupported, verifiedNit: true }).success).toBe(false);
-    expect(DispositionReportItemSchema.safeParse({ ...unsupported, disposition: "defer" }).success).toBe(false);
-    expect(DispositionReportItemSchema.safeParse({ ...unsupported, gating: "blocking" }).success).toBe(false);
+    assertSchemaAccepts(DispositionReportItemSchema, unsupported);
+    assertSchemaRefuses(DispositionReportItemSchema, { ...unsupported, verifiedSeverity: "critical" });
+    assertSchemaRefuses(DispositionReportItemSchema, { ...unsupported, verifiedNit: true });
+    assertSchemaRefuses(DispositionReportItemSchema, { ...unsupported, disposition: "defer" });
+    assertSchemaRefuses(DispositionReportItemSchema, { ...unsupported, gating: "blocking" });
   });
 
   it("validates reported and verified nit markers independently", () => {
-    expect(DispositionReportItemSchema.safeParse(dispositionItem({
+    assertSchemaAccepts(DispositionReportItemSchema, dispositionItem({
       reportedSeverity: "minor",
       reportedNit: true,
       verifiedSeverity: "major",
-    })).success).toBe(true);
-    expect(DispositionReportItemSchema.safeParse(dispositionItem({
+    }));
+    assertSchemaAccepts(DispositionReportItemSchema, dispositionItem({
       reportedSeverity: "major",
       verifiedSeverity: "minor",
       verifiedNit: true,
       gating: "record-only",
-    })).success).toBe(true);
-    expect(DispositionReportItemSchema.safeParse(dispositionItem({ reportedNit: true })).success).toBe(false);
-    expect(DispositionReportItemSchema.safeParse(dispositionItem({ verifiedNit: true })).success).toBe(false);
+    }));
+    assertSchemaRefuses(DispositionReportItemSchema, dispositionItem({ reportedNit: true }));
+    assertSchemaRefuses(DispositionReportItemSchema, dispositionItem({ verifiedNit: true }));
   });
 });
 
@@ -159,31 +160,31 @@ describe("normalized finding navigation", () => {
     expect(escapeReviewFindingDisplayText("<script>*unsafe*\n[link](target)"))
       .toBe("&lt;script&gt;\\*unsafe\\* \\[link\\]\\(target\\)");
 
-    expect(NormalizedReviewFindingSchema.safeParse({
+    assertSchemaAccepts(NormalizedReviewFindingSchema, {
       ...finding(1),
       sourceLabel: "x".repeat(512),
       sourceLabelTruncated: true,
-    }).success).toBe(true);
-    expect(NormalizedReviewFindingSchema.safeParse({
+    });
+    assertSchemaRefuses(NormalizedReviewFindingSchema, {
       ...finding(1),
       sourceLabel: "short",
       sourceLabelTruncated: true,
-    }).success).toBe(false);
-    expect(NormalizedReviewFindingSchema.safeParse({
+    });
+    assertSchemaRefuses(NormalizedReviewFindingSchema, {
       ...finding(1),
       sourceLabelTruncated: true,
-    }).success).toBe(false);
-    expect(NormalizedReviewFindingSchema.safeParse({
+    });
+    assertSchemaRefuses(NormalizedReviewFindingSchema, {
       ...finding(1),
       sourceLabel: "short",
       sourceLabelTruncated: false,
-    }).success).toBe(false);
+    });
   });
 
   it("requires complete producer arrays to preserve one-based capture order", () => {
-    expect(NormalizedReviewFindingsSchema.safeParse([finding(1), finding(2)]).success).toBe(true);
-    expect(NormalizedReviewFindingsSchema.safeParse([finding(1), finding(1)]).success).toBe(false);
-    expect(NormalizedReviewFindingsSchema.safeParse([finding(2)]).success).toBe(false);
-    expect(NormalizedReviewFindingsSchema.safeParse([finding(2), finding(1)]).success).toBe(false);
+    assertSchemaAccepts(NormalizedReviewFindingsSchema, [finding(1), finding(2)]);
+    assertSchemaRefuses(NormalizedReviewFindingsSchema, [finding(1), finding(1)]);
+    assertSchemaRefuses(NormalizedReviewFindingsSchema, [finding(2)]);
+    assertSchemaRefuses(NormalizedReviewFindingsSchema, [finding(2), finding(1)]);
   });
 });

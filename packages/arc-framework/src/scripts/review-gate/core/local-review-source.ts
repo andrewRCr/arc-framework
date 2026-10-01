@@ -1,6 +1,7 @@
 /** Immutable Git-object-range source descriptor for local advisory review. */
 
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import {
   canonicalDigest,
@@ -8,7 +9,6 @@ import {
 } from "../../../lib/kernel/index.js";
 import { IncrementalReviewScopeSchema } from "./incremental-review-scope.js";
 
-const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
 const GitObjectIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
 const OpaqueReferenceSchema = z.string().trim().min(1);

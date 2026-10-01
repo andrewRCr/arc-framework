@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   compareDeliveryContribution,
@@ -67,10 +68,10 @@ describe("delivery contribution proof", () => {
   });
 
   it("rejects a conflicted proof without exact path evidence", () => {
-    expect(DeliveryContributionProofResultSchema.safeParse({
+    assertSchemaRefuses(DeliveryContributionProofResultSchema, {
       status: "refused",
       reason: "contribution-conflicted",
       paths: [],
-    }).success).toBe(false);
+    });
   });
 });

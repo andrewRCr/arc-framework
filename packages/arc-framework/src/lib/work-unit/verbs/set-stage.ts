@@ -30,7 +30,7 @@ import {
   PLANNING_WORKFLOWS,
   BEGIN_CURRENT_WORKFLOW_SENTINEL,
 } from "../../active/current-workflow-consistency.js";
-import { isSlugSafe } from "../slug.js";
+import { isSlugSafe } from "../../kernel/schema/slug.js";
 import { resolveArcPath } from "../../layout/index.js";
 import type { ExecuteTransitionContext } from "../lifecycle-executor.js";
 

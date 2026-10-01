@@ -12,16 +12,25 @@
  * @module
  */
 
-import { join } from "node:path";
+import { join, posix } from "node:path";
 import yaml from "js-yaml";
+import { INTERNAL_DIR_SEGMENTS } from "./constants.js";
 import type { HookManagerResult } from "./hook-manager.js";
+import { resolveArcPath } from "./layout/index.js";
 import type { ReadFileFn, WriteFileFn } from "./template/index.js";
 
+/** Relative path from repo root to the installed ARC Git hooks. */
+export const ARC_GIT_HOOKS_DIR = posix.join(
+  resolveArcPath({ kind: "arc-root" }),
+  ...INTERNAL_DIR_SEGMENTS,
+  "githooks",
+);
+
 /** Relative path from repo root to ARC's pre-commit hook. */
-const ARC_PRE_COMMIT = ".arc/system/.internal/githooks/pre-commit";
+const ARC_PRE_COMMIT = posix.join(ARC_GIT_HOOKS_DIR, "pre-commit");
 
 /** Relative path from repo root to ARC's commit-msg hook. */
-const ARC_COMMIT_MSG = ".arc/system/.internal/githooks/commit-msg";
+const ARC_COMMIT_MSG = posix.join(ARC_GIT_HOOKS_DIR, "commit-msg");
 
 const LEGACY_HUSKY_COMMIT_MSG = `${ARC_COMMIT_MSG} $1`;
 const HUSKY_COMMIT_MSG = `${ARC_COMMIT_MSG} "$1"`;
@@ -29,7 +38,7 @@ const LEGACY_LEFTHOOK_COMMIT_MSG = `${ARC_COMMIT_MSG} {1}`;
 const LEFTHOOK_COMMIT_MSG = `${ARC_COMMIT_MSG} "{1}"`;
 
 /** Relative path from repo root to ARC's pre-push hook. */
-const ARC_PRE_PUSH = ".arc/system/.internal/githooks/pre-push";
+const ARC_PRE_PUSH = posix.join(ARC_GIT_HOOKS_DIR, "pre-push");
 
 /**
  * Integrate ARC hooks into the detected hook manager's configuration.

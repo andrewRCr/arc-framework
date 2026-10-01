@@ -1,9 +1,12 @@
 /** Complete-basis reconciliation and compare-and-swap identity transactions. */
 
-import { MAX_RECONCILE_ATTEMPTS, uniqueRefToken } from "../git/ref-tree.js";
+import {
+  isCasRejectionError,
+  isRemoteUnavailableError,
+  MAX_RECONCILE_ATTEMPTS,
+  uniqueRefToken,
+} from "../git/ref-tree.js";
 import { gitFailureText, isGitProcessError, normalizeGitRejection } from "../git/process-error.js";
-import { isCasRejectionError } from "../user-sync/notes-merge.js";
-import { isRemoteUnavailableError } from "../user-sync/index.js";
 import {
   serializeTransientIdentityRecord,
   type TransientIdentityRecord,
@@ -221,7 +224,7 @@ async function applyAndPublish<T>(
     const parents = [...new Set([local.tip, basis.tip].filter((value): value is string => value !== null))];
     tip = await writeTreeCommit(io, objects, params.message, parents, local.tip);
   } catch (error) {
-    return isCasRejectionError(errorMessage(error))
+    return isCasRejectionError(gitFailureText(error))
       ? { kind: "retry", stage: "write" }
       : { kind: "error", stage: "write", message: errorMessage(error) };
   }
@@ -229,7 +232,7 @@ async function applyAndPublish<T>(
     try {
       await io.exec("git", ["push", params.remote, `${ref}:${ref}`]);
     } catch (error) {
-      if (isRemoteUnavailableError(errorMessage(error))) {
+      if (isRemoteUnavailableError(gitFailureText(error))) {
         return { kind: "error", stage: "push", message: errorMessage(error) };
       }
       return { kind: "retry", stage: "push", message: errorMessage(error) };

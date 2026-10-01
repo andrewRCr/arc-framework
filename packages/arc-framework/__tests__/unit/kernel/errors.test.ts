@@ -9,7 +9,6 @@ import {
   type ArcErrorCode,
   type SchemaErrorCode,
 } from "../../../src/lib/kernel/index.js";
-import { ArcError as OldArcError, UserFacingError } from "../../../src/lib/errors.js";
 
 const legacyCodes = [
   "GIT_MISSING",
@@ -61,17 +60,6 @@ describe("kernel error contracts", () => {
     const caused = new ArcError("stable", "domain.failure", { cause });
     expect(basic).toMatchObject({ name: "ArcError", message: "basic", code: "MERGE_FAILED" });
     expect(caused.cause).toBe(cause);
-  });
-
-  it("preserves constructor identity through the presentation module", () => {
-    expect(OldArcError).toBe(ArcError);
-    const userFacing = new UserFacingError({
-      code: "MANIFEST_MISSING",
-      whatHappened: "missing",
-      why: "absent",
-      whatToDo: "restore it",
-    });
-    expect(userFacing).toBeInstanceOf(ArcError);
   });
 
   it("keeps schema-domain codes exhaustive and locally narrowed", () => {

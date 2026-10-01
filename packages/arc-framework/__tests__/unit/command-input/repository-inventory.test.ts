@@ -196,6 +196,67 @@ describe("repository command-input inventory", () => {
     expect(bypasses).toEqual([]);
   });
 
+  it("routes merge-lock JSON commands under a constant machine-mode policy", () => {
+    for (const path of ["merge lock resolve", "merge lock hold", "merge lock release"]) {
+      const command = snapshot.source.commands.find((entry) => entry.path === path);
+      expect(command?.action?.interactionContext, path).toBe(true);
+      expect(command?.action?.constantMachineMode, path).toBe(true);
+    }
+  });
+
+  it("routes review resolve-family JSON commands under a constant machine-mode policy", () => {
+    for (const path of [
+      "review resolve", "review merge-method resolve", "review checks await",
+      "review readiness", "review frontline resolve", "review changeset resolve",
+    ]) {
+      const command = snapshot.source.commands.find((entry) => entry.path === path);
+      expect(command?.action?.interactionContext, path).toBe(true);
+      expect(command?.action?.constantMachineMode, path).toBe(true);
+    }
+  });
+
+  it("routes hosted review JSON commands under a constant machine-mode policy", () => {
+    for (const path of ["review hosted request", "review hosted await", "review hosted settle"]) {
+      const command = snapshot.source.commands.find((entry) => entry.path === path);
+      expect(command?.action?.interactionContext, path).toBe(true);
+      expect(command?.action?.constantMachineMode, path).toBe(true);
+    }
+  });
+
+  it("routes local review and response JSON commands under a constant machine-mode policy", () => {
+    for (const path of [
+      "review local prepare", "review local attest", "review local resume",
+      "review respond", "review reduce",
+    ]) {
+      const command = snapshot.source.commands.find((entry) => entry.path === path);
+      expect(command?.action?.interactionContext, path).toBe(true);
+      expect(command?.action?.constantMachineMode, path).toBe(true);
+    }
+  });
+
+  it("declares JSON mode on attest, publish, and locus", () => {
+    for (const path of ["attest", "publish", "locus"]) {
+      expect(inventory.entries.find((entry) => entry.identity === `${path}:option.json`)?.acquisition, path)
+        .toBe("machine-mode");
+    }
+    const locus = snapshot.source.commands.find((entry) => entry.path === "locus");
+    expect(locus?.action?.interactionContext).toBe(true);
+  });
+
+  it("routes value-bearing human-output commands through the interaction adapter", () => {
+    for (const path of ["user close", "config validate", "release setup print-patterns", "log standalone"]) {
+      const command = snapshot.source.commands.find((entry) => entry.path === path);
+      expect(command?.action?.interactionContext, path).toBe(true);
+    }
+  });
+
+  it("routes release opt-in and opt-out through the interaction adapter", () => {
+    for (const path of ["release opt-in", "release opt-out"]) {
+      const command = snapshot.source.commands.find((entry) => entry.path === path);
+      expect(command?.action?.interactionContext, path).toBe(true);
+    }
+  });
+
   it("routes every terminal-prompt subprocess command through the interaction-context adapter", () => {
     const subprocessCommands = new Set(inventory.entries
       .filter((entry) => entry.subprocess === "terminal-prompts")

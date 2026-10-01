@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { LocusAbsolutePathSchema } from "../../src/lib/locus/schema/limits.js";
+import { assertSchemaAccepts } from "../helpers/schema-assertion.js";
 import {
   normalizeSessionEnvelope,
   prepareSessionEnvelopeFixture,
@@ -62,7 +63,7 @@ describe("session envelope normalization contract", () => {
       WORKTREE_TOKEN,
       REMOTE_TOKEN,
     ]) {
-      expect(LocusAbsolutePathSchema.safeParse(token).success, token).toBe(true);
+      assertSchemaAccepts(LocusAbsolutePathSchema, token);
     }
   });
 

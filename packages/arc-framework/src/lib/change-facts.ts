@@ -12,6 +12,7 @@ import type {
   ChangePathSet,
   ChangeSet,
 } from "./change-facts.schema.js";
+import type { RawGitExec, RawGitResult } from "./git/exec.js";
 
 export type { CanonicalChange, ChangePathFact, ChangePathSet, ChangeSet };
 export type ChangeStatus = ChangePathFact["status"];
@@ -51,18 +52,6 @@ export function affectedPaths(
   }
   return [...paths];
 }
-
-/** Result from a byte-preserving Git invocation. */
-export interface RawGitResult {
-  stdout: Uint8Array;
-  stderr?: Uint8Array;
-}
-
-/** Narrow Git boundary for commands whose NUL-framed output must remain bytes. */
-export type RawGitExec = (
-  args: string[],
-  options?: { cwd?: string; input?: Uint8Array; objectAccess?: "local-only" },
-) => Promise<RawGitResult>;
 
 const UNKNOWN: ChangeSet = { changeSet: "unknown", changes: [] };
 const decoder = new TextDecoder("utf-8", { fatal: true });
@@ -257,9 +246,9 @@ export async function resolveChangeSet(
  * @param cwd - Default repository working directory
  * @returns A raw Git executor
  */
-export function createRawGitExec(cwd = process.cwd()): RawGitExec {
+export function createSpawnRawGitExec(cwd = process.cwd()): RawGitExec {
   return (args, options) =>
-    new Promise((resolveResult, reject) => {
+    new Promise<RawGitResult>((resolveResult, reject) => {
       const effectiveArgs = options?.objectAccess === "local-only"
         ? ["--no-lazy-fetch", ...args]
         : args;
@@ -403,10 +392,9 @@ export function isPlanningArtifactPath(path: string): boolean {
   return path === ".arc/backlog/ROADMAP.md"
     || new RegExp(`^\\.arc/system/\\.internal/transitions/${workUnitDirectory}\\.json$`, "u").test(path)
     || new RegExp(`^\\.arc/active/${artifactName}$`, "u").test(path)
-    || new RegExp(
-      `^\\.arc/backlog/(?:planned|provisional)/(?:${workUnitDirectory}/){1,2}${artifactName}$`,
-      "u",
-    ).test(path);
+    // A planned work unit may sit under a cohort and one subcohort; provisional stubs never nest that deep.
+    || new RegExp(`^\\.arc/backlog/planned/(?:${workUnitDirectory}/){1,3}${artifactName}$`, "u").test(path)
+    || new RegExp(`^\\.arc/backlog/provisional/(?:${workUnitDirectory}/){1,2}${artifactName}$`, "u").test(path);
 }
 
 function isPlainPlanningContentChange(change: CanonicalChange): boolean {
@@ -584,7 +572,7 @@ async function optionalTreeFixture(ref: string): Promise<Uint8Array | undefined>
 
 async function runExecutable(args: string[]): Promise<void> {
   const [command, ...operands] = args;
-  const exec = createRawGitExec();
+  const exec = createSpawnRawGitExec();
 
   if (command === "classification") {
     const [base, head, ...rest] = operands;

@@ -12,7 +12,7 @@ vi.mock("../../../src/commands/active.js", () => ({
 }));
 vi.mock("../../../src/lib/io-context.js", () => ({
   createGitExec: () => mocks.exec,
-  gitExecInput: mocks.execInput,
+  createGitExecInput: () => mocks.execInput,
 }));
 vi.mock("../../../src/lib/config/status-reader.js", () => ({
   readConfigSettings: async () => ({ settings: { "branch.base": "main", "team.mode": "false" } }),

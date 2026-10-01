@@ -20,7 +20,7 @@ import type {
   RenameRetirementContext,
   RenameTransitionSourceEvidence,
 } from "../direct-retirement-driver.js";
-import { validateManagedPath } from "../../canonical/managed-path.js";
+import { validateManagedPath } from "../../kernel/canonical/managed-path.js";
 import type { TerminalTransitionRecordWriter } from "../terminal-transition-record-writer.js";
 import type { TransitionRecord } from "../transition-record.js";
 import { resolveTransitionRecordRelativePath } from "../transition-record-store.js";

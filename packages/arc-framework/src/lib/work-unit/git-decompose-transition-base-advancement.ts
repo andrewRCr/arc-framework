@@ -8,7 +8,7 @@ import {
   canonicalize,
   digestBytes,
   sortByCanonicalBytes,
-} from "../canonical/canonical-json.js";
+} from "../kernel/canonical/canonical-json.js";
 import { normalizeGitRejection } from "../git/process-error.js";
 import type { ProtectionMode } from "../git/write-context.js";
 import { readWorktreeMarker, type WorktreeMarkerReadResult } from "../git/worktree-marker.js";

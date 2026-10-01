@@ -1,12 +1,13 @@
 /** Unit coverage for hosted-review reservation discharge. */
 
+import { makeGitProcessError } from "../../../../helpers/git-exec-fake.js";
 import { describe, expect, it, vi } from "vitest";
 
 import { createHostedTerminalAttemptFixture } from "../../../../fixtures/hosted-review.js";
 
 import type { DeliveryHostPort } from
   "../../../../../src/lib/delivery/host.js";
-import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import { CanonicalDigestSchema, canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import { DeliveryReviewMemberVehicleSchema } from
   "../../../../../src/lib/delivery/review-vehicle.js";
 import type { GitExec } from "../../../../../src/lib/git/index.js";
@@ -322,14 +323,14 @@ function reservation(
   },
 ) {
   const common = {
-    candidateId: `sha256:${"c".repeat(64)}`,
+    candidateId: CanonicalDigestSchema.parse(`sha256:${"c".repeat(64)}`),
     sourceId,
     sources,
     obligation: {
       obligation: "required" as const,
       reasons: ["sensitive-change-set" as const],
       rubricVersion: "standard-review/v1",
-      rubricDigest: `sha256:${"b".repeat(64)}`,
+      rubricDigest: CanonicalDigestSchema.parse(`sha256:${"b".repeat(64)}`),
       retrigger: "full-final" as const,
       count: 1 as const,
     },
@@ -930,8 +931,8 @@ describe("hosted reservation discharge", () => {
   });
 
   it("keeps an unreadable delivery-member span undischarged", async () => {
-    const exec: GitExec = async () => {
-      throw new Error("unknown member commit");
+    const exec: GitExec = async (command, args) => {
+      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "unknown member commit" });
     };
     const reader = createHostedReservationDischargeReader({
       cwd: "/tmp/repository",

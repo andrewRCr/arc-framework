@@ -22,7 +22,7 @@
  * @module
  */
 
-import { validateState, type WorkUnitState } from "../../commands/active/types.js";
+import { validateState, type WorkUnitState } from "../kernel/schema/vocabulary.js";
 
 /**
  * The phase axis — the meta `**State:**` field, verbatim. Reuses the codified

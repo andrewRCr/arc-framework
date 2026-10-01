@@ -1,6 +1,6 @@
 /** Shared Candidate projections for tests that exercise durable recorded state. */
 
-import { canonicalDigest } from "../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest } from "../../src/lib/kernel/canonical/canonical-json.js";
 import {
   createCandidateSubjectSnapshot,
   reduceCandidateDurableBaseline,

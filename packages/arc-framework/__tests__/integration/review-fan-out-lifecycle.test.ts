@@ -29,7 +29,8 @@ import {
   handleReviewTerminusAccept,
 } from "../../src/handlers/review.js";
 import { runDerivedLocusStateProbe } from "../../src/handlers/derived-locus-state-probe.js";
-import { canonicalDigest, canonicalize } from "../../src/lib/canonical/canonical-json.js";
+import { canonicalDigest, canonicalize, type CanonicalDigest } from "../../src/lib/kernel/canonical/canonical-json.js";
+import { CanonicalDigestSchema } from "../../src/lib/kernel/index.js";
 import {
   serializeTransientIdentityRecord,
   TransientIdentityRecordV3Schema,
@@ -64,6 +65,7 @@ import {
   writeCandidateRecord,
 } from "../../src/lib/work-unit/candidate-record-store.js";
 import { collectCandidateSubjectTarget } from "../helpers/candidate-subject.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import {
   readSubmissionBoundaryVersioned,
   resolveSubmissionBoundaryPath,
@@ -264,7 +266,7 @@ async function bindApprovedHostedFinding(
     channelAction: "record-only" | "reply-and-resolve";
     now: string;
   },
-): Promise<string> {
+): Promise<CanonicalDigest> {
   const attemptId = hostedLaneAttemptId(input.handle);
   const hostedResultId = input.progress.attempts.find((attempt) => attempt.attemptId === attemptId)
     ?.hosted?.sealedResult?.hostedResultId;
@@ -275,7 +277,7 @@ async function bindApprovedHostedFinding(
       semanticsVersion: "review-gate/v2",
       targetId: input.handle.admission.reviewTarget.targetId,
       producerId: attemptId,
-      resultDigest: hostedResultId,
+      resultDigest: CanonicalDigestSchema.parse(hostedResultId),
       policyVersion: input.handle.admission.requirement.policyVersion,
       rubricVersion: input.handle.admission.requirement.rubricVersion,
       rubricDigest: input.handle.admission.requirement.rubricDigest,
@@ -299,7 +301,7 @@ async function bindApprovedHostedFinding(
     approvedBy: "andrew",
     approvedAt: input.now,
   });
-  const dispositionSetId = approvedDisposition.dispositionSet.dispositionSetId;
+  const dispositionSetId = CanonicalDigestSchema.parse(approvedDisposition.dispositionSet.dispositionSetId);
   const attemptRef = bindReviewSourceReference({
     kind: "hosted",
     operationId: input.operationId,
@@ -3705,34 +3707,12 @@ describe("hosted review fan-out lifecycle", () => {
       "utf8",
     );
     await mkdir(join(harness.root, ".arc", "active"), { recursive: true });
-    await writeFile(join(harness.root, ".arc", "active", `meta-${harness.plan.workUnitId}.md`), [
-      `# Metadata: ${harness.plan.workUnitId}`,
-      "",
-      "| **State** | **Owner** | **Branch**  | **Class** | **Priority** |",
-      "| --------- | --------- | ----------- | --------- | ------------ |",
-      "| `Active`  | `andrew`  | `prior-top` | `Heavy`   | `P1`         |",
-      "",
-      "- **Cohort:** [none]",
-      "- **Depends On:** [none]",
-      "",
-      "- **Origin:** [internal]",
-      "- **Design:** [none]",
-      `- **Task List:** \`tasks-${harness.plan.workUnitId}.md\``,
-      "- **Review Rubric:** [none]",
-      "",
-      "- **Current Workflow:** [none]",
-      "- **Last Completed:** verification",
-      "- **Next Task:** [none]",
-      "- **Blockers:** [none]",
-      "",
-      "- **Next Action:** integration",
-      "",
-      "- **PR URL:** [none]",
-      "- **Completed:** [none]",
-      "",
-      "---",
-      "",
-    ].join("\n"), "utf8");
+    await writeFile(join(harness.root, ".arc", "active", `meta-${harness.plan.workUnitId}.md`),
+      makeMetaFixture(harness.plan.workUnitId, {
+        owner: "andrew", branch: "prior-top", workClass: "Heavy", priority: "P1",
+        taskList: `tasks-${harness.plan.workUnitId}.md`, lastCompleted: "verification",
+        nextAction: "integration",
+      }), "utf8");
     const candidate = await readCandidateRecordVersioned(harness.root, harness.plan.workUnitId);
     const boundary = await readSubmissionBoundaryVersioned(harness.root, harness.plan.workUnitId);
     if (candidate.record === null || boundary.boundary?.reservation === null
@@ -3806,30 +3786,12 @@ describe("hosted review fan-out lifecycle", () => {
     await writeFile(join(harness.root, ".git", "info", "exclude"),
       ".arc/\nfake-bin/\nprovider-called\nprovider-verdict\n", "utf8");
     await mkdir(join(harness.root, ".arc", "active"), { recursive: true });
-    await writeFile(join(harness.root, ".arc", "active", `meta-${harness.plan.workUnitId}.md`), [
-      `# Metadata: ${harness.plan.workUnitId}`,
-      "",
-      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
-      "| --------- | --------- | ---------- | --------- | ------------ |",
-      "| `Active` | `andrew` | `prior-top` | `Heavy` | `P1` |",
-      "",
-      "- **Cohort:** [none]",
-      "- **Depends On:** [none]",
-      "- **Origin:** [internal]",
-      "- **Design:** [none]",
-      `- **Task List:** \`tasks-${harness.plan.workUnitId}.md\``,
-      "- **Review Rubric:** [none]",
-      "- **Current Workflow:** [none]",
-      "- **Last Completed:** verification",
-      "- **Next Task:** [none]",
-      "- **Blockers:** [none]",
-      "- **Next Action:** integration",
-      "- **PR URL:** [none]",
-      "- **Completed:** [none]",
-      "",
-      "---",
-      "",
-    ].join("\n"), "utf8");
+    await writeFile(join(harness.root, ".arc", "active", `meta-${harness.plan.workUnitId}.md`),
+      makeMetaFixture(harness.plan.workUnitId, {
+        owner: "andrew", branch: "prior-top", workClass: "Heavy", priority: "P1",
+        taskList: `tasks-${harness.plan.workUnitId}.md`, lastCompleted: "verification",
+        nextAction: "integration",
+      }), "utf8");
     const candidate = await readCandidateRecordVersioned(harness.root, harness.plan.workUnitId);
     const boundary = await readSubmissionBoundaryVersioned(harness.root, harness.plan.workUnitId);
     if (candidate.record === null || boundary.boundary?.reservation == null) {

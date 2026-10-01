@@ -37,8 +37,8 @@ import {
   readActiveMetaCandidates,
   setMetaBulletFields,
   setMetaCandidate,
-  type ParsedMetaRecord,
 } from "../lib/active/meta-reader.js";
+import { type ParsedMetaRecord } from "../lib/active/meta-schema.js";
 import { checkCurrentWorkflowConsistency } from "../lib/active/current-workflow-consistency.js";
 import { COHORT_SEGMENT_CAP } from "../lib/active/cohort-path.js";
 import {
@@ -48,7 +48,8 @@ import {
 } from "../commands/active.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { boundedFetch, getCurrentBranch, type GitExec } from "../lib/git/exec.js";
-import { canonicalize } from "../lib/canonical/canonical-json.js";
+import { canonicalize } from "../lib/kernel/canonical/canonical-json.js";
+import { CanonicalDigestSchema } from "../lib/kernel/schema/vocabulary.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import { LocalReviewOperationStateStore } from "../scripts/review-gate/hosts/local/operation-state-store.js";
 import {
@@ -358,7 +359,7 @@ async function resolveVerbBase(context?: InteractionContext, json = false): Prom
   }
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(io.exec);
   } catch (err) {
     if (isHandledError(err)) return null;
     throw err;
@@ -572,7 +573,7 @@ export const DecomposeCommandInputSchema = z.object({
   execute: z.string().trim().min(1).optional(),
   extract: z.string().trim().min(1).optional(),
   finish: z.string().trim().min(1).optional(),
-  apply: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
+  apply: CanonicalDigestSchema.optional(),
   advanceBase: z.string().trim().min(1).optional(),
 }).strict().superRefine((value, refinement) => {
   const modes = DECOMPOSE_MODE_KEYS.filter((key) => decomposeOptionSelected(value, key)).length;
@@ -701,8 +702,8 @@ export const AttestCommandInputSchema = z.object({
   newRoot: z.boolean().optional(),
   scope: z.enum(["focused", "full"]).default("full"),
   verificationEvidenceRef: CandidateVerificationEvidenceRefSchema.optional(),
-  expectedCandidate: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
-  expectedSubject: z.string().regex(/^sha256:[0-9a-f]{64}$/u).optional(),
+  expectedCandidate: CanonicalDigestSchema.optional(),
+  expectedSubject: CanonicalDigestSchema.optional(),
 }).strict().superRefine((value, refinement) => {
   if ((value.expectedCandidate === undefined) !== (value.expectedSubject === undefined)) {
     refinement.addIssue({
@@ -860,6 +861,26 @@ export const lifecycleCommandInputRegistrations = [
 
 /** Interaction policies owned by the lifecycle command adapters. */
 export const lifecycleCommandInputPolicyDeclarations = [
+  {
+    commandPath: "attest",
+    aliases: [],
+    sites: [declareCliOptionSite("json", {
+      acquisition: "machine-mode", schemaOwnership: "owned", schemaField: "json",
+      cancellation: "not-applicable",
+      automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+      mutationBoundary: "output selection", subprocess: "none",
+    })],
+  },
+  {
+    commandPath: "publish",
+    aliases: [],
+    sites: [declareCliOptionSite("json", {
+      acquisition: "machine-mode", schemaOwnership: "owned", schemaField: "json",
+      cancellation: "not-applicable",
+      automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+      mutationBoundary: "output selection", subprocess: "none",
+    })],
+  },
   {
     commandPath: "stub",
     aliases: [],
@@ -1093,7 +1114,7 @@ export async function handleDecompose(
     };
     const protection = settings["branch.protection"] === "full" ? "full" : "partial";
     if (parsed.data.finish !== undefined) {
-      const applyAuthority = (parsed.data.apply ?? null) as `sha256:${string}` | null;
+      const applyAuthority = parsed.data.apply ?? null;
       const result = V3ExtractionFinishResultSchema.parse(await finishGitV3Extraction(repository, {
         cwd,
         baseBranch: settings["branch.base"],
@@ -1111,7 +1132,7 @@ export async function handleDecompose(
     if (parsed.data.execute !== undefined) {
       const result = await executeGitV3DecomposeCommand({
         ...repository,
-        spawningIdentity: await resolveUserIdentity(),
+        spawningIdentity: await resolveUserIdentity(io.exec),
       }, {
         protection,
         baseBranch: settings["branch.base"],
@@ -1128,7 +1149,7 @@ export async function handleDecompose(
     if (parsed.data.extract !== undefined) {
       const result = await executeGitV3ExtractionCommand({
         ...repository,
-        spawningIdentity: await resolveUserIdentity(),
+        spawningIdentity: await resolveUserIdentity(io.exec),
       }, {
         protection,
         baseBranch: settings["branch.base"],

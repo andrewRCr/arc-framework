@@ -1,8 +1,9 @@
 /** Exact-bound review applicability selection over the canonical Candidate record. */
 
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
-import { canonicalize } from "../../../lib/canonical/canonical-json.js";
+import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
 import {
   CandidateManagedRecordV1Schema,
   CandidateReviewApplicabilitySelectionV1Schema,
@@ -18,7 +19,7 @@ import {
   type ReviewContributionApplicabilityResult,
 } from "./review-contribution-applicability.js";
 
-const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+const DigestSchema = CanonicalDigestSchema;
 
 export const ReviewApplicabilityResolutionInputSchema = z.strictObject({
   schemaVersion: z.literal(1),
@@ -100,7 +101,8 @@ const ResultCommon = {
 };
 const ReviewApplicabilityRecordEffectSchema = z.strictObject({
   path: z.string().trim().min(1),
-  digest: DigestSchema,
+  // Direct UTF-8 record-byte hash owned by delivery record effects.
+  digest: z.string().regex(/^sha256:[0-9a-f]{64}$/u),
 });
 export const ReviewApplicabilityResolutionResultSchema = z.union([
   z.strictObject({

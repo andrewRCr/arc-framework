@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { digestBytes } from "../../../src/lib/canonical/canonical-json.js";
+import { digestBytes } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import { readWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
 import { executeV3ExtractionSourceFinish } from

@@ -50,6 +50,16 @@ export type GitExec = (
   options?: GitExecOptions,
 ) => Promise<ExecResult>;
 
+/** Resolve Git's common directory as an absolute path for the current worktree. */
+export async function resolveGitCommonDir(exec: GitExec, cwd: string): Promise<string> {
+  const { stdout } = await exec("git", ["rev-parse", "--git-common-dir"], { cwd });
+  const commonDir = stdout.trim();
+  if (commonDir.length === 0) {
+    throw new Error("git rev-parse --git-common-dir returned an empty path");
+  }
+  return isAbsolute(commonDir) ? commonDir : resolve(cwd, commonDir);
+}
+
 /**
  * A git invocation that pipes `input` to the subprocess stdin and resolves with
  * its stdout. The stdin-fed counterpart to {@link GitExec}, for plumbing that
@@ -63,6 +73,18 @@ export type GitExecInput = (
   input: string,
   options?: Pick<GitExecOptions, "cwd" | "objectAccess">,
 ) => Promise<string>;
+
+/** Result from a byte-preserving Git invocation. */
+export interface RawGitResult {
+  stdout: Uint8Array;
+  stderr?: Uint8Array;
+}
+
+/** Narrow Git boundary for commands whose NUL-framed output must remain bytes. */
+export type RawGitExec = (
+  args: string[],
+  options?: { cwd?: string; input?: Uint8Array; objectAccess?: "local-only" },
+) => Promise<RawGitResult>;
 
 /** One Git index transaction staged through the repository's index lock. */
 export interface GitIndexTransaction {

@@ -1,6 +1,7 @@
 /** Closed-row coverage for deterministic evidence applicability. */
 
 import { describe, expect, it } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   EvidenceApplicabilityResultSchema,
@@ -15,7 +16,7 @@ import {
 } from "../../../src/lib/evidence-applicability/schema.js";
 
 const oid = (character: string): string => character.repeat(40);
-const digest = (character: string): string => `sha256:${character.repeat(64)}`;
+const digest = (character: string): `sha256:${string}` => `sha256:${character.repeat(64)}`;
 const coordinates = () => ({
   repository: "owner/repo",
   changeRequest: 42,
@@ -163,7 +164,7 @@ describe("evidence applicability reducer", () => {
       },
     };
 
-    expect(EvidenceDeltaSchema.safeParse(mismatched).success).toBe(false);
+    assertSchemaRefuses(EvidenceDeltaSchema, mismatched);
     expect(() => reduceEvidenceApplicability(mismatched, "merge-safety")).toThrow();
   });
 
@@ -271,7 +272,7 @@ describe("evidence applicability reducer", () => {
       },
     };
 
-    expect(EvidenceDeltaSchema.safeParse(discontinuous).success).toBe(false);
+    assertSchemaRefuses(EvidenceDeltaSchema, discontinuous);
     expect(() => reduceEvidenceApplicability(discontinuous, "verification")).toThrow();
   });
 
@@ -288,7 +289,7 @@ describe("evidence applicability reducer", () => {
     if (delta.cause !== "member-rewrite") throw new Error("expected member rewrite");
     const inconsistent = { ...delta, relation: "equal" as const };
 
-    expect(EvidenceDeltaSchema.safeParse(inconsistent).success).toBe(false);
+    assertSchemaRefuses(EvidenceDeltaSchema, inconsistent);
     expect(() => reduceEvidenceApplicability(inconsistent, "verification")).toThrow();
   });
 
@@ -310,7 +311,7 @@ describe("evidence applicability reducer", () => {
     if (delta.cause !== "base-movement") throw new Error("expected base movement");
     const truncated = { ...delta, residual: [paths[0]!] };
 
-    expect(EvidenceDeltaSchema.safeParse(truncated).success).toBe(false);
+    assertSchemaRefuses(EvidenceDeltaSchema, truncated);
     expect(() => reduceEvidenceApplicability(truncated, "verification")).toThrow();
   });
 
@@ -327,17 +328,17 @@ describe("evidence applicability reducer", () => {
       overlap: { kind: "regenerable-only", substantivePaths: [], regenerablePaths: [] },
     } as unknown as EvidenceDelta;
 
-    expect(EvidenceDeltaSchema.safeParse(unstated).success).toBe(false);
+    assertSchemaRefuses(EvidenceDeltaSchema, unstated);
     expect(() => reduceEvidenceApplicability(unstated, "review-clearance")).toThrow();
   });
 
   it("rejects impossible result pairs and unknown evidence kinds", () => {
-    expect(EvidenceKindSchema.safeParse("deployment").success).toBe(false);
-    expect(EvidenceApplicabilityResultSchema.safeParse({
+    assertSchemaRefuses(EvidenceKindSchema, "deployment");
+    assertSchemaRefuses(EvidenceApplicabilityResultSchema, {
       verdict: "carries",
       judgmentRequired: true,
       residual: null,
       reason: "bounded-residual",
-    }).success).toBe(false);
+    });
   });
 });

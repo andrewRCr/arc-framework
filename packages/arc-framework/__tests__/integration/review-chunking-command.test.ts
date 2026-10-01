@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { handleReviewChunkingResolve } from "../../src/handlers/review.js";
-import { createRawGitExec } from "../../src/lib/change-facts.js";
+import { createSpawnRawGitExec } from "../../src/lib/change-facts.js";
 import { readConfigSettings } from "../../src/lib/config/status-reader.js";
 import { createReviewTarget } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { resolveReviewChunkingCommand } from "../../src/scripts/review-gate/policy/review-chunking-command.js";
@@ -59,7 +59,7 @@ describe("review chunking command composition", () => {
       "changeset.advisory_threshold_lines: 0\nchangeset.advisory_threshold_files: 0\n",
     );
     const head = git(root, "rev-parse", "HEAD");
-    const exec = vi.fn(createRawGitExec(root));
+    const exec = vi.fn(createSpawnRawGitExec(root));
     const result = await resolveReviewChunkingCommand(
       { schemaVersion: 1, target: target(root, head, head) },
       {
@@ -88,7 +88,7 @@ describe("review chunking command composition", () => {
       resolve: (request) => resolveReviewChunkingCommand(request, {
         readSettings: () => readConfigSettings(root),
         readDeliveryBinding: async () => ({ status: "authoritative-unbound" }),
-        exec: createRawGitExec(root),
+        exec: createSpawnRawGitExec(root),
       }),
       write,
       setExitCode: vi.fn(),
@@ -107,7 +107,7 @@ describe("review chunking command composition", () => {
       {
         readSettings: () => readConfigSettings(root),
         readDeliveryBinding: async () => ({ status: "authoritative-unbound" }),
-        exec: createRawGitExec(root),
+        exec: createSpawnRawGitExec(root),
       },
     );
     expect(later).toMatchObject({ payload: { metrics: { lines: 1, files: 1 } } });
@@ -130,7 +130,7 @@ describe("review chunking command composition", () => {
       resolve: (request) => resolveReviewChunkingCommand(request, {
         readSettings: () => readConfigSettings(root),
         readDeliveryBinding: async () => ({ status: "authoritative-unbound" }),
-        exec: createRawGitExec(root),
+        exec: createSpawnRawGitExec(root),
       }),
       write,
       setExitCode,

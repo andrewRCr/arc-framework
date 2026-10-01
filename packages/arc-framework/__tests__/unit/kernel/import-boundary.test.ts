@@ -50,7 +50,7 @@ describe("kernel import boundary", () => {
     }
 
     expect(values.sort()).toEqual([
-      "ArcError", "PrioritySchema", "RemoteEvidenceSchema", "RemoteFailureReasonSchema", "ResultAsync",
+      "ArcError", "CanonicalDigestSchema", "PrioritySchema", "RemoteEvidenceSchema", "RemoteFailureReasonSchema", "ResultAsync",
       "SLUG_PATTERN", "SchemaError", "SlugSchema",
       "WORK_UNIT_STATE_ORDER", "WorkClassSchema", "WorkUnitStateSchema", "assertCanonicalDigest",
       "canonicalDigest", "canonicalize", "createKernelRegistry", "createRegistry", "digestBytes", "err",
@@ -64,6 +64,16 @@ describe("kernel import boundary", () => {
       "KernelSchemaMeta", "ManagedPath", "MigrationPosture", "Priority", "RemoteEvidence",
       "RemoteFailureReason", "Result", "SchemaErrorCode", "Slug", "WorkClass", "WorkUnitState",
     ].sort());
+  });
+
+  it("keeps the canonical digest core free of Zod imports", () => {
+    const path = resolve(import.meta.dirname, "../../../src/lib/kernel/canonical/canonical-json.ts");
+    const source = ts.createSourceFile(path, readFileSync(path, "utf8"), ts.ScriptTarget.Latest, true);
+    const imports = source.statements
+      .filter(ts.isImportDeclaration)
+      .map(({ moduleSpecifier }) => ts.isStringLiteral(moduleSpecifier) ? moduleSpecifier.text : "");
+
+    expect(imports.some((specifier) => specifier === "zod" || specifier.startsWith("zod/"))).toBe(false);
   });
 
   it("allows kernel-local modules, node builtins, and approved packages", () => {

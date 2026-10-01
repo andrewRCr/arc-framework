@@ -17,6 +17,14 @@ import type {
   ChangeRequestLifecycleTruth,
 } from "../../src/lib/errand/change-request-lifecycle.js";
 
+function parseOrdinaryErrandRecord(value: unknown): OrdinaryErrandRecord {
+  const parsed = TransientIdentityRecordV3Schema.parse(value);
+  if (parsed.kind !== "errand" || parsed.purpose !== "errand") {
+    throw new Error("expected an ordinary Errand record");
+  }
+  return parsed;
+}
+
 const createdAt = "2026-07-18T00:00:00.000Z";
 const updatedAt = "2026-07-18T00:01:00.000Z";
 const claimId = "0123456789abcdef0123456789abcdef";
@@ -32,7 +40,7 @@ const changeRequest = {
 };
 
 function open(overrides: Record<string, unknown> = {}): OrdinaryErrandRecord {
-  return TransientIdentityRecordV3Schema.parse({
+  return parseOrdinaryErrandRecord({
     version: 3,
     kind: "errand",
     slug: "fix-output",
@@ -48,7 +56,7 @@ function open(overrides: Record<string, unknown> = {}): OrdinaryErrandRecord {
     createdAt,
     updatedAt: createdAt,
     ...overrides,
-  }) as OrdinaryErrandRecord;
+  });
 }
 
 function apply(

@@ -6,6 +6,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { makeGitProcessError, scriptGitExec } from "../../helpers/git-exec-fake.js";
 import {
   cleanupOrdinaryErrandRefs,
   closeOrdinaryErrandAtRuntime,
@@ -18,15 +19,23 @@ import * as identityTransaction from "../../../src/lib/errand/identity-transacti
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 
+function parseOrdinaryErrandRecord(value: unknown): OrdinaryErrandRecord {
+  const parsed = TransientIdentityRecordV3Schema.parse(value);
+  if (parsed.kind !== "errand" || parsed.purpose !== "errand") {
+    throw new Error("expected an ordinary Errand record");
+  }
+  return parsed;
+}
+
 const EXPECTED = "a".repeat(40);
 const MOVED = "b".repeat(40);
 
-function gitError(message: string, exitCode: number): Error & { exitCode: number; stderr: string } {
-  return Object.assign(new Error(message), { exitCode, stderr: message });
+function gitError(command: string, args: readonly string[], message: string, exitCode: number) {
+  return makeGitProcessError({ command, args, exitCode, stderr: message });
 }
 
 function awaiting(): OrdinaryErrandRecord {
-  return TransientIdentityRecordV3Schema.parse({
+  return parseOrdinaryErrandRecord({
     version: 3,
     slug: "done",
     claimId: "c".repeat(32),
@@ -47,11 +56,11 @@ function awaiting(): OrdinaryErrandRecord {
       headRef: "chore/done",
       headSha: EXPECTED,
     },
-  }) as OrdinaryErrandRecord;
+  });
 }
 
 function open(): OrdinaryErrandRecord {
-  return TransientIdentityRecordV3Schema.parse({
+  return parseOrdinaryErrandRecord({
     version: 3,
     slug: "done",
     claimId: "c".repeat(32),
@@ -66,7 +75,7 @@ function open(): OrdinaryErrandRecord {
     state: "open",
     savedHead: null,
     changeRequest: null,
-  }) as OrdinaryErrandRecord;
+  });
 }
 
 /** The close target an awaiting record produces: its own recorded change request. */
@@ -84,26 +93,28 @@ function fakeGit(options: {
   worktrees?: readonly { path: string; branch: string }[];
 }): { exec: GitExec; state: { local: string | null; remote: string | null } } {
   const state = { local: options.local, remote: options.remote };
-  const exec: GitExec = async (_command, args) => {
+  const exec: GitExec = async (command, args) => {
     if (args[0] === "fetch") {
       if (args[1] === "--prune") return { stdout: "", stderr: "" };
-      if (options.fetchFailure !== undefined) throw gitError(options.fetchFailure, 128);
-      if (state.remote === null) throw gitError("fatal: couldn't find remote ref refs/heads/chore/done", 128);
+      if (options.fetchFailure !== undefined) throw gitError(command, args, options.fetchFailure, 128);
+      if (state.remote === null) {
+        throw gitError(command, args, "fatal: couldn't find remote ref refs/heads/chore/done", 128);
+      }
       return { stdout: "", stderr: "" };
     }
     if (args[0] === "rev-parse") {
       const ref = args.at(-1) ?? "";
       const oid = ref.includes("refs/arc/tmp/") ? state.remote : state.local;
-      if (oid === null) throw gitError("reference is absent", 1);
+      if (oid === null) throw gitError(command, args, "reference is absent", 1);
       return { stdout: `${oid}\n`, stderr: "" };
     }
     if (args[0] === "push") {
-      if (state.remote !== EXPECTED) throw gitError("stale info", 1);
+      if (state.remote !== EXPECTED) throw gitError(command, args, "stale info", 1);
       state.remote = null;
       return { stdout: "", stderr: "" };
     }
     if (args[0] === "worktree") {
-      if (options.worktreeFailure !== undefined) throw gitError(options.worktreeFailure, 128);
+      if (options.worktreeFailure !== undefined) throw gitError(command, args, options.worktreeFailure, 128);
       const worktrees = options.worktrees ?? [{ path: "/repo", branch: "main" }];
       return {
         stdout: worktreePorcelainZ(worktrees.map((worktree) =>
@@ -113,7 +124,7 @@ function fakeGit(options: {
     }
     if (args[0] === "update-ref" && args[1] === "-d") {
       if ((args[2] ?? "").startsWith("refs/heads/")) {
-        if (state.local !== args[3]) throw gitError("cannot lock ref", 1);
+        if (state.local !== args[3]) throw gitError(command, args, "cannot lock ref", 1);
         state.local = null;
       }
       return { stdout: "", stderr: "" };
@@ -147,18 +158,15 @@ async function closeLockRuntime() {
   const gitDir = join(checkoutPath, ".git");
   await mkdir(gitDir);
   const lockPath = join(gitDir, "HEAD.lock");
-  const exec: GitExec = async (_command, args) => {
-    if (args.join(" ") === "rev-parse --git-path HEAD") {
-      return { stdout: `${join(gitDir, "HEAD")}\n`, stderr: "" };
-    }
-    if (args.join(" ") === "worktree list --porcelain -z") {
-      return {
+  const { exec } = scriptGitExec([
+    { match: ["rev-parse", "--git-path", "HEAD"],
+      responses: [{ stdout: `${join(gitDir, "HEAD")}\n`, stderr: "" }] },
+    { match: ["worktree", "list", "--porcelain", "-z"],
+      responses: [{
         stdout: worktreePorcelainZ(`worktree ${checkoutPath}\nHEAD ${EXPECTED}\nbranch refs/heads/main`),
         stderr: "",
-      };
-    }
-    throw gitError(`unsupported test operation: ${args.join(" ")}`, 1);
-  };
+      }] },
+  ]);
   const acquired = await acquireErrandCloseHeadLock({
     exec,
     checkoutPath,
@@ -197,35 +205,27 @@ function closeResolutionGit(options: {
   pinFailure?: string;
   hostFailure?: string;
 }): GitExec {
-  return async (command, args) => {
-    if (command === "git" && args.join(" ") === "remote get-url origin") {
-      return { stdout: "git@github.com:owner/repo.git\n", stderr: "" };
-    }
-    if (command === "git" && args[0] === "rev-parse" && args.at(-1)?.startsWith("refs/heads/")) {
-      return { stdout: `${EXPECTED}\n`, stderr: "" };
-    }
-    if (command === "git" && args.join(" ") === "check-ref-format --branch main") {
-      return { stdout: "", stderr: "" };
-    }
-    if (command === "git" && args[0] === "fetch") {
-      if (options.pinFailure !== undefined) throw gitError(options.pinFailure, 128);
-      return { stdout: "", stderr: "" };
-    }
-    if (command === "git" && args[0] === "rev-parse" && args.at(-1)?.startsWith("refs/arc/tmp/base-head/")) {
-      return { stdout: `${options.pinnedBase ?? EXPECTED}\n`, stderr: "" };
-    }
-    if (command === "git" && args[0] === "update-ref" && args[1] === "-d") {
-      return { stdout: "", stderr: "" };
-    }
-    if (command === "git" && args.join(" ") === "config --get remote.origin.url") {
-      return { stdout: "git@github.com:owner/repo.git\n", stderr: "" };
-    }
-    if (command === "gh" && args[0] === "pr") {
+  return scriptGitExec([
+    { match: ["remote", "get-url", "origin"],
+      responses: [{ stdout: "git@github.com:owner/repo.git\n", stderr: "" }] },
+    { match: { predicate: (args) => args[0] === "rev-parse"
+      && args.at(-1)?.startsWith("refs/heads/") === true },
+    responses: [{ stdout: `${EXPECTED}\n`, stderr: "" }] },
+    { match: ["check-ref-format", "--branch", "main"], responses: [{ stdout: "", stderr: "" }] },
+    { match: { prefix: ["fetch"] }, responses: [options.pinFailure === undefined
+      ? { stdout: "", stderr: "" }
+      : { failure: { exitCode: 128, stderr: options.pinFailure } }] },
+    { match: { predicate: (args) => args[0] === "rev-parse"
+      && args.at(-1)?.startsWith("refs/arc/tmp/base-head/") === true },
+    responses: [{ stdout: `${options.pinnedBase ?? EXPECTED}\n`, stderr: "" }] },
+    { match: { prefix: ["update-ref", "-d"] }, responses: [{ stdout: "", stderr: "" }] },
+    { match: ["config", "--get", "remote.origin.url"],
+      responses: [{ stdout: "git@github.com:owner/repo.git\n", stderr: "" }] },
+    { command: "gh", match: { prefix: ["pr"] }, responses: [() => {
       if (options.hostFailure !== undefined) throw new Error(options.hostFailure);
       return { stdout: "[]\n", stderr: "" };
-    }
-    throw new Error(`Unexpected resolution operation: ${command} ${args.join(" ")}`);
-  };
+    }] },
+  ]).exec;
 }
 
 describe("closeOrdinaryErrandAtRuntime unchanged-base resolution", () => {

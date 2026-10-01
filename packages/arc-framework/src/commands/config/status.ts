@@ -17,10 +17,13 @@
  */
 
 import { readFile as nodeReadFile } from "node:fs/promises";
+import { z } from "zod";
 
 import { resolveAllSettings } from "../../lib/config/resolved-settings.js";
+import { getArcConfigField } from "../../lib/config/schema.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { gitExec } from "../../lib/io-context.js";
+import { CommitInterlockSchema, PushInterlockSchema } from "../../lib/release/schema.js";
 import type {
   ConfigSessionInitOptions,
   ConfigSessionInitResult,
@@ -28,6 +31,30 @@ import type {
   ConfigStatusOptions,
   ConfigStatusResult,
 } from "./types.js";
+
+/** Strict policy values for the session-init settings selected from the catalog. */
+export const ConfigSessionInitSettingsSchema = z.strictObject({
+  "session.remote_sync": z.enum(getArcConfigField("session.remote_sync").policy.values),
+  "session.init_pull.worktree": z.enum(getArcConfigField("session.init_pull.worktree").policy.values),
+  "session.init_pull.notes": z.enum(getArcConfigField("session.init_pull.notes").policy.values),
+  "session.init_pull.base": z.enum(getArcConfigField("session.init_pull.base").policy.values),
+  "session.init_load.notes": z.enum(getArcConfigField("session.init_load.notes").policy.values),
+  "user.notes_push": z.enum(getArcConfigField("user.notes_push").policy.values),
+  "branch.protection": z.enum(getArcConfigField("branch.protection").policy.values),
+  "pm.mode": z.enum(getArcConfigField("pm.mode").policy.values),
+  "commit.format": z.enum(getArcConfigField("commit.format").policy.values),
+  "commit.context_footer": z.enum(getArcConfigField("commit.context_footer").policy.values),
+  "commit.interlock": CommitInterlockSchema,
+  "push.interlock": PushInterlockSchema,
+});
+
+/** Full strict session-init configuration result. */
+export const ConfigSessionInitResultSchema = z.strictObject({
+  mode: z.literal("session-init"),
+  settings: ConfigSessionInitSettingsSchema,
+  defaultsApplied: z.array(z.string()),
+  warnings: z.array(z.string()),
+});
 
 const SESSION_INIT_KEYS = [
   "session.remote_sync",
@@ -86,7 +113,7 @@ export async function runConfigSessionInitStatus(
       exec,
       readFile,
     });
-  const scoped = {} as ConfigSessionInitSettings;
+  const scoped: Record<string, string> = {};
   for (const key of SESSION_INIT_KEYS) {
     if (key in RESOLVED_KEY_SOURCES) {
       const source = RESOLVED_KEY_SOURCES[key as keyof typeof RESOLVED_KEY_SOURCES];
@@ -100,7 +127,7 @@ export async function runConfigSessionInitStatus(
 
   return {
     mode: "session-init",
-    settings: scoped,
+    settings: scoped as ConfigSessionInitSettings,
     defaultsApplied: scopedDefaults,
     warnings,
   };

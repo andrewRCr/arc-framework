@@ -292,6 +292,44 @@
 
 - _Captured during:_ `delivery-post-landing-conflict-recovery` Task 2.3, 2026-09-17.
 
+### `[ ]` **Place coordination routing at draft close, not at task generation**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-30); captured during `storage-contract` draft-design,
+  C14 tags (2026-09-29).
+- _Observation:_ Coordination routing — sibling-seam captures, stub mints, register routes — is timed "at planning
+  close" by `WORKING-MEMORY`'s coordination-seam entry, and `planning-iteration-mechanics`'s inbound entry "Codify
+  planning closeout and keep task lists implementation-only" puts its gate at the generate-tasks finalization
+  boundary. No shipped workflow or strategy states the timing yet. Under the spec reader standard (`USER-INBOX §
+  Work Unit`, "Write specs for the reader who checks the change against them") a spec cites no other work unit, so
+  these routes must leave the planning record while the draft still holds them — at draft close, before
+  create-spec.
+- _Approach:_ Route the correction to its home: add an inbound entry to `planning-iteration-mechanics`'s draft
+  placing the closeout gate at draft-design exit rather than generate-tasks finalization, citing the reader
+  standard. The `WORKING-MEMORY` entry's wording follows at the next handoff.
+
+### `[ ]` **Surface USER-INBOX captures addressed to the work unit a planning session resumes**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: planning-iteration-mechanics`), housekeep drain (2026-09-30);
+  captured during `delivery-rebuild-continuity` draft-design, resolving open decisions against the inbox, 2026-09-21.
+- _Observation:_ A capture can name its destination work unit and still never reach it. `USER-INBOX` held "Make the
+  checkpoint `movementCause` crossing compiler-enforced" with `WU_Target: delivery-rebuild-continuity` and
+  `_Awaiting:_ owner adoption by the in-flight planning session` from 2026-09-19; the planning session it named
+  resumed on 2026-09-21 and was never shown it. The cause is structural rather than incidental: session-init's inbox
+  surfaces (`inboxState.housekeepNeeded`, the reminder nudge) are Orient-arm and primary-worktree only, so a Resume
+  into an active planning work unit — the exact session a `WU_Target` capture addresses — cannot see it by
+  construction, and a linked worktree omits the slot outright. A second instance sat in the same sweep: "Adopt the
+  shared Git ancestry primitive…" waits on a primitive that shipped 2026-09-19, so its hold is discharged and
+  nothing says so.
+- _Approach:_ This is the link upstream of Concern 1's drain ceremony — `USER-INBOX` → a draft's `Inbound Buffer` →
+  the draft body. Concern 1 owns the second arrow; this is the first, and one ceremony should own both so the chain
+  has no unowned link. The durable form is computed rather than narrated: a `WU_Target`-filtered read resolves
+  mechanically from the slug the session already holds, so it wants a probe slot surfaced on the Resume arm, not
+  prose telling the agent to go look. Boundaries worth settling together: draft-design entry and spec finalization
+  are the two the pipeline actually stops at; more than that is nagging.
+- _Interim pulled forward:_ an errand-sized hook — a `draft-design` / `create-spec` line directing a check of
+  `USER-INBOX` for entries naming the active work unit — closes the hole before the computed surface exists. Take
+  it only if this work unit stays queued; it is the interim, not the design.
+
 ## Problem / Motivation
 
 The planning pipeline's _readiness_ surface (when is a draft spec-ready, who decides, how the stage pointer

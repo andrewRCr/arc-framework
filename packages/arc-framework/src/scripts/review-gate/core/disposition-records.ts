@@ -1,14 +1,14 @@
 /** Canonical channel-neutral disposition proposals and approval records. */
 
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
-import type { KernelRegistry } from "../../../lib/kernel/index.js";
+import type { CanonicalDigest, KernelRegistry } from "../../../lib/kernel/index.js";
 import { CandidateVerificationApplicabilitySchema } from
   "../../../lib/work-unit/candidate-attestation.js";
 import { ReviewFindingIdentitySchema } from "./finding-records.js";
 import { FindingDispositionSchema, ReviewSeveritySchema } from "./review-primitives.js";
 
-const CanonicalDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
 const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
 const NonEmptyTextSchema = z.string().trim().min(1).max(4096);
 const ReferenceSchema = z.string().trim().min(1);
@@ -91,18 +91,18 @@ export const FrontlineDispositionBindingSchema = z.strictObject({
 export type FrontlineDispositionBinding = z.infer<typeof FrontlineDispositionBindingSchema>;
 interface DispositionProducerBinding {
   producerId: string;
-  resultDigest: string;
+  resultDigest: CanonicalDigest;
 }
 export type DispositionSourceContext = DispositionProducerBinding & (
   | {
       kind: "rubric";
-      policyVersion: string;
+      policyVersion: CanonicalDigest;
       rubricVersion: string;
-      rubricDigest: string;
+      rubricDigest: CanonicalDigest;
     }
   | {
       kind: "frontline";
-      policyVersion: string;
+      policyVersion: CanonicalDigest;
       frontlineBinding: FrontlineDispositionBinding;
     }
 );

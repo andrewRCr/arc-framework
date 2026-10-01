@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
-import { canonicalize } from "../../src/lib/canonical/canonical-json.js";
+import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { createUserIOContext, readGitBlobBytes } from "../../src/lib/io-context.js";
 import { revalidateV3DecomposeExecutionPreflight } from "../../src/lib/work-unit/decompose-v3-execution-preflight.js";
 import { createGitV3DecomposePreflight } from "../../src/lib/work-unit/git-decompose-v3-preflight.js";

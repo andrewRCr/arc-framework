@@ -1,6 +1,7 @@
 /** Unit coverage for Git worktree porcelain tokenization and records. */
 
 import { describe, expect, expectTypeOf, it } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 import { z } from "zod";
 
 import {
@@ -62,7 +63,7 @@ describe("GitWorktreePorcelainRecordSchema", () => {
     { path: "", head: null, branch: null, detached: false },
     { path: "/repo", head: null, branch: null, detached: false, extra: true },
   ])("rejects invalid normalized record %#", (value) => {
-    expect(GitWorktreePorcelainRecordSchema.safeParse(value).success).toBe(false);
+    assertSchemaRefuses(GitWorktreePorcelainRecordSchema, value);
   });
 });
 

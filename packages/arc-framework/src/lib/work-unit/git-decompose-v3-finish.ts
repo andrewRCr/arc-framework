@@ -8,8 +8,8 @@ import {
   digestBytes,
   sortByCanonicalBytes,
   type CanonicalDigest,
-} from "../canonical/canonical-json.js";
-import { validateManagedPath } from "../canonical/managed-path.js";
+} from "../kernel/canonical/canonical-json.js";
+import { validateManagedPath } from "../kernel/canonical/managed-path.js";
 import { normalizeGitRejection } from "../git/process-error.js";
 import { resolveArcPath } from "../layout/index.js";
 import type {

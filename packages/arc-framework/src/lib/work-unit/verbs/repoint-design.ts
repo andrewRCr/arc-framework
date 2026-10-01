@@ -28,7 +28,7 @@
 import { posix } from "node:path";
 
 import { resolveArcPath } from "../../layout/index.js";
-import { isSlugSafe } from "../slug.js";
+import { isSlugSafe } from "../../kernel/schema/slug.js";
 import type { ExecuteTransitionContext } from "../lifecycle-executor.js";
 
 /** The executor capability the design repoint needs — nothing more. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { digestBytes } from "../../../src/lib/canonical/canonical-json.js";
+import { digestBytes } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import {
   V3DecomposeOperationRecoverySchema,
   executeV3DecomposeOperation,

@@ -1,6 +1,8 @@
 /** Candidate proposal orchestration over storage-neutral repository boundaries. */
 
 import { z } from "zod";
+import { CanonicalDigestSchema } from "../../kernel/schema/vocabulary.js";
+import type { CanonicalDigest } from "../../kernel/canonical/canonical-json.js";
 
 import {
   CandidateManagedRecordV1Schema,
@@ -42,7 +44,7 @@ const ATTESTED_ORIENTATION = {
   },
 } as const;
 
-const CandidateDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
+const CandidateDigestSchema = CanonicalDigestSchema;
 
 const AttestExpectedBlockedSchema = z.strictObject({
   candidateId: CandidateDigestSchema,
@@ -252,7 +254,7 @@ export interface AttestContext {
   readRecord(name: string): Promise<VersionedCandidateRecord>;
   currentTarget(name: string): Promise<CandidateLineageTarget>;
   effectiveTarget(name: string, record: CandidateManagedRecordV1): Promise<CandidateEffectiveTargetProjection>;
-  inspectReRootReviewAuthority(name: string, candidateId: string): Promise<{
+  inspectReRootReviewAuthority(name: string, candidateId: CanonicalDigest): Promise<{
     lane: "frontline" | "standard";
     attemptId: string;
     outcome: "pending" | "partial" | "findings" | "ambiguous-delivery";

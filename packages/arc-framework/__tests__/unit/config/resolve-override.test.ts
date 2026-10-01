@@ -4,6 +4,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { resolveGitConfigOverride } from "../../../src/lib/config/resolve-override.js";
+import { makeGitProcessError } from "../../helpers/git-exec-fake.js";
 
 const VALID_VALUES = ["always", "prompt", "manual"] as const;
 type TestPolicy = (typeof VALID_VALUES)[number];
@@ -16,7 +17,7 @@ function isValidTestPolicy(value: string): value is TestPolicy {
 function gitExecWithOverride(value: string | undefined) {
   return vi.fn().mockImplementation((cmd: string, args: string[]) => {
     if (cmd === "git" && args[0] === "config" && args[1] === "--get" && args[2] === "arc.testPolicy") {
-      if (value === undefined) return Promise.reject(new Error("exit 1"));
+      if (value === undefined) return Promise.reject(makeGitProcessError({ command: cmd, args, exitCode: 1 }));
       return Promise.resolve({ stdout: `${value}\n` });
     }
     return Promise.reject(new Error(`unexpected call: ${cmd} ${args.join(" ")}`));

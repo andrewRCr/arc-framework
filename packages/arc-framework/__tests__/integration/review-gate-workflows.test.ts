@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 import { load } from "js-yaml";
 import { describe, expect, it } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../helpers/schema-assertion.js";
 
 import type { BaseMergeResult } from "../../src/scripts/base/merge.js";
 import { RespondVerifiedFixSchema } from "../../src/scripts/review-gate/runtime/respond-command.js";
@@ -1083,15 +1084,15 @@ describe("trusted review-gate workflows", () => {
 
   it("keeps verification applicability vocabulary aligned with the typed input schema", () => {
     for (const applicability of ["targeted", "focused", "full"] as const) {
-      expect(RespondVerifiedFixSchema.safeParse({
+      assertSchemaAccepts(RespondVerifiedFixSchema, {
         applicability,
         verificationEvidenceRefs: ["verification://evidence"],
-      }).success).toBe(true);
+      });
     }
-    expect(RespondVerifiedFixSchema.safeParse({
+    assertSchemaRefuses(RespondVerifiedFixSchema, {
       applicability: "complete",
       verificationEvidenceRefs: ["verification://evidence"],
-    }).success).toBe(false);
+    });
   });
 
   it("limits session-notes overrides to discretionary planning and execution phases", async () => {

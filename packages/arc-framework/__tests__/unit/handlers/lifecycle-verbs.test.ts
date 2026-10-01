@@ -7,13 +7,14 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
   createStandardReviewReservation,
   projectCandidateReviewBoundary,
   projectPublicationBoundary,
 } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
-import { canonicalize } from "../../../src/lib/canonical/canonical-json.js";
+import { canonicalize } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import { spineRemedy } from "../../../src/scripts/integration/spine-refusal.js";
 
 const mockLogError = vi.fn();
@@ -1056,6 +1057,18 @@ describe("handleDecompose", () => {
     expect(process.exitCode).toBe(1);
   });
 
+  it("refuses a malformed apply digest with the kernel schema message", async () => {
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+
+    await handleDecompose("mono", { finish: "cut-map.json", apply: "sha256:BAD" });
+
+    expect(stderrWrite.mock.calls.flat().join("")).toContain(
+      "Expected sha256: followed by 64 lowercase hex characters",
+    );
+    expect(mockFinishGitV3Extraction).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
   it("keeps a missing-project finish refusal outside the mode envelope", async () => {
     const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     const stderrWrite = vi.spyOn(process.stderr, "write").mockReturnValue(true);
@@ -1737,15 +1750,15 @@ describe("handleAttest", () => {
   };
   it("defaults convergence scope to full and rejects malformed scope or evidence", () => {
     expect(AttestCommandInputSchema.parse({ name: "foo" })).toMatchObject({ scope: "full" });
-    expect(AttestCommandInputSchema.safeParse({ name: "foo", scope: "broad" }).success).toBe(false);
-    expect(AttestCommandInputSchema.safeParse({
+    assertSchemaRefuses(AttestCommandInputSchema, { name: "foo", scope: "broad" });
+    assertSchemaRefuses(AttestCommandInputSchema, {
       name: "foo",
       verificationEvidenceRef: " ",
-    }).success).toBe(false);
-    expect(AttestCommandInputSchema.safeParse({
+    });
+    assertSchemaRefuses(AttestCommandInputSchema, {
       name: "foo",
       verificationEvidenceRef: "{verificationEvidenceRef}",
-    }).success).toBe(false);
+    });
   });
 
   it("emits one typed JSON refusal when identity resolution fails", async () => {

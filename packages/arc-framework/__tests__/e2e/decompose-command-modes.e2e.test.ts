@@ -6,7 +6,7 @@ import { delimiter, dirname, join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { parseMetaRecord, renderMetaFile } from "../../src/lib/active/meta-reader.js";
-import { canonicalize } from "../../src/lib/canonical/canonical-json.js";
+import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
 import {
   resolveV3DecomposeContentLocator,
   scanV3DecomposeContent,

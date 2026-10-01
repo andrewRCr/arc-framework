@@ -1,6 +1,6 @@
 /** Shared capability probe for Git's write-tree merge forms. */
 
-import type { RawGitExec } from "../change-facts.js";
+import type { RawGitExec } from "./exec.js";
 
 /** Typed refusal shared by consumers that require in-core merge-tree support. */
 export type MergeTreeCapabilityRefusalReason = "merge-tree-write-tree-unsupported";

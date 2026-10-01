@@ -19,6 +19,8 @@
  * the probes together, not the probes themselves.
  */
 
+import { WorkUnitStateSchema } from "../../src/lib/kernel/index.js";
+import { scriptGitExec } from "../helpers/git-exec-fake.js";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdir, mkdtemp, readFile as nodeReadFile, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -66,6 +68,7 @@ import type { DerivedLocusFrame } from "../../src/lib/locus/derived-reader.js";
 import { resolveLoadSetManifest } from "../../src/lib/load-set/projection.js";
 import { execFileAsync, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
 import { worktreeStateEvidence } from "../helpers/worktree-evidence.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { createSessionRemoteContextReader } from "../../src/handlers/status-remote-context.js";
 import { DeliveryPositionViewSchema } from "../../src/lib/session-init/delivery-position.js";
 import {
@@ -163,6 +166,29 @@ async function writeStatusFile(
   if (body.candidateId !== undefined) lines.push(`- **Candidate:** ${body.candidateId}`);
   if (body.nextAction !== undefined) lines.push(`- **Next Action:** ${body.nextAction}`);
   await writeFile(join(activeDir, filename), lines.join("\n"));
+}
+
+async function writeSemanticStatusFile(
+  activeDir: string,
+  _category: string,
+  filename: string,
+  body: {
+    branch: string;
+    state: string;
+    taskList?: string;
+    nextAction?: string;
+    currentWorkflow?: string;
+    candidateId?: string;
+  },
+): Promise<void> {
+  void _category;
+  await writeFile(join(activeDir, filename), makeMetaFixture("fixture", {
+    state: WorkUnitStateSchema.parse(body.state),
+    branch: body.branch,
+    taskList: body.taskList?.replaceAll("`", "") ?? null,
+    currentWorkflow: body.currentWorkflow ?? null,
+    nextAction: body.nextAction ?? null,
+  }));
 }
 
 async function writeCandidate(root: string, slug: string, revision = "a".repeat(40)): Promise<string> {
@@ -575,7 +601,7 @@ describe("runStatus — clean state", () => {
     await writeConfig(fixture.configPath);
     await writeExtension(fixture.extDir, "pre-merge", true);
     await writeExtension(fixture.extDir, "post-task-quality", false);
-    await writeStatusFile(fixture.activeDir, "technical", "meta-alpha.md", {
+    await writeSemanticStatusFile(fixture.activeDir, "technical", "meta-alpha.md", {
       branch: "technical/alpha",
       state: "Active",
     });
@@ -667,13 +693,7 @@ describe("runSessionInitStatus — companion-file resolution carry-through", () 
     await writeExtension(fixture.extDir, "pre-merge", true);
     await writeFile(
       join(fixture.activeDir, "meta-foo.md"),
-      [
-        "# Metadata: fixture",
-        "",
-        "- **State:** Active",
-        "- **Branch:** technical/foo",
-        "- **Task List:** `.arc/active/tasks-foo.md`",
-      ].join("\n"),
+      makeMetaFixture("fixture", { branch: "technical/foo", taskList: ".arc/active/tasks-foo.md" }),
     );
     await writeFile(
       join(fixture.activeDir, "tasks-foo.md"),
@@ -876,7 +896,7 @@ describe("runStatus — mixed (one probe errors, others succeed)", () => {
     // Intentionally remove the extensions dir to force the extensions probe
     // to throw (readdir on ENOENT).
     await rm(fixture.extDir, { recursive: true, force: true });
-    await writeStatusFile(fixture.activeDir, "technical", "meta-alpha.md", {
+    await writeSemanticStatusFile(fixture.activeDir, "technical", "meta-alpha.md", {
       branch: "technical/alpha",
       state: "Active",
     });
@@ -1201,7 +1221,7 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
   });
 
   it("carries sessionType=execution through the composite for a single-WU + Start-Task fixture", async () => {
-    await writeStatusFile(fixture.activeDir, "technical", "meta-foo.md", {
+    await writeSemanticStatusFile(fixture.activeDir, "technical", "meta-foo.md", {
       branch: "technical/foo",
       state: "Active",
       taskList: "`.arc/active/tasks-foo.md`",
@@ -1223,7 +1243,7 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
   });
 
   it("does not infer prepublication from Candidate-shaped narration alone", async () => {
-    await writeStatusFile(fixture.activeDir, "technical", "meta-foo.md", {
+    await writeSemanticStatusFile(fixture.activeDir, "technical", "meta-foo.md", {
       branch: "technical/foo",
       state: "Active",
       taskList: "`.arc/active/tasks-foo.md`",
@@ -1366,15 +1386,15 @@ describe("runSessionInitStatus — release-mode key resolution at envelope path"
         "arc.notesPush": "prompt",
         "arc.releaseOptedIn": "true",
       };
-      const exec = vi.fn().mockImplementation((cmd: string, args: string[]) => {
-        if (cmd === "git" && args[0] === "config" && args[1] === "--get") {
-          const key = args[2];
-          const value = key === undefined ? undefined : overrides[key];
-          if (value === undefined) return Promise.reject(new Error("exit 1"));
-          return Promise.resolve({ stdout: `${value}\n` });
-        }
-        return Promise.reject(new Error(`unexpected exec call: ${cmd} ${(args ?? []).join(" ")}`));
-      });
+      const exec = vi.fn(scriptGitExec([{
+        match: { prefix: ["config", "--get"] },
+        responses: [({ args }) => {
+          const value = args[2] === undefined ? undefined : overrides[args[2]];
+          return value === undefined
+            ? { failure: { exitCode: 1, stderr: "exit 1" } }
+            : { stdout: `${value}\n` };
+        }],
+      }]).exec);
       const probes = makeResolvedReleaseModeSessionInitProbes(fixture, exec);
       const result = await runSessionInitStatus({
         identity: "andrew",
@@ -1430,15 +1450,15 @@ describe("runSessionInitStatus — release-mode key resolution at envelope path"
       "arc.pushInterlock": "on-workflow",
       "arc.releaseOptedIn": "true",
     };
-    const exec = vi.fn().mockImplementation((cmd: string, args: string[]) => {
-      if (cmd === "git" && args[0] === "config" && args[1] === "--get") {
-        const key = args[2];
-        const value = key === undefined ? undefined : overrides[key];
-        if (value === undefined) return Promise.reject(new Error("exit 1"));
-        return Promise.resolve({ stdout: `${value}\n` });
-      }
-      return Promise.reject(new Error(`unexpected exec call: ${cmd} ${(args ?? []).join(" ")}`));
-    });
+    const exec = vi.fn(scriptGitExec([{
+      match: { prefix: ["config", "--get"] },
+      responses: [({ args }) => {
+        const value = args[2] === undefined ? undefined : overrides[args[2]];
+        return value === undefined
+          ? { failure: { exitCode: 1, stderr: "exit 1" } }
+          : { stdout: `${value}\n` };
+      }],
+    }]).exec);
 
     const probes = makeResolvedReleaseModeSessionInitProbes(fixture, exec);
     const result = await runSessionInitStatus({
@@ -1517,15 +1537,15 @@ describe("runSessionHandoffStatus — releaseRouting envelope path", () => {
       "arc.pushInterlock": "on-workflow",
       "arc.releaseOptedIn": "true",
     };
-    const exec = vi.fn().mockImplementation((cmd: string, args: string[]) => {
-      if (cmd === "git" && args[0] === "config" && args[1] === "--get") {
-        const key = args[2];
-        const value = key === undefined ? undefined : overrides[key];
-        if (value === undefined) return Promise.reject(new Error("exit 1"));
-        return Promise.resolve({ stdout: `${value}\n` });
-      }
-      return Promise.reject(new Error(`unexpected exec call: ${cmd} ${(args ?? []).join(" ")}`));
-    });
+    const exec = vi.fn(scriptGitExec([{
+      match: { prefix: ["config", "--get"] },
+      responses: [({ args }) => {
+        const value = args[2] === undefined ? undefined : overrides[args[2]];
+        return value === undefined
+          ? { failure: { exitCode: 1, stderr: "exit 1" } }
+          : { stdout: `${value}\n` };
+      }],
+    }]).exec);
 
     const probes = makeResolvedReleaseModeSessionHandoffProbes(fixture, exec);
     const result = await runSessionHandoffStatus({

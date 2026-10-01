@@ -4,8 +4,8 @@ import { z } from "zod";
 
 import { createResolvedConfigOverrideSchema } from "../config/resolve-override.js";
 
-const CommitInterlockSchema = z.enum(["manual", "on-task-approval", "on-workflow"]);
-const PushInterlockSchema = z.enum(["manual", "on-sync", "on-workflow"]);
+export const CommitInterlockSchema = z.enum(["manual", "on-task-approval", "on-workflow"]);
+export const PushInterlockSchema = z.enum(["manual", "on-sync", "on-workflow"]);
 const SyncInterlockSchema = z.enum(["manual", "on-handoff", "on-workflow"]);
 const NotesPushPolicySchema = z.enum(["manual", "prompt", "on-sync"]);
 

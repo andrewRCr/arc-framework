@@ -10,8 +10,6 @@
 
 import { ArcError, type ArcErrorCode } from "./kernel/errors.js";
 
-export { ArcError, type ArcErrorCode };
-
 /** Options for constructing a UserFacingError. */
 export interface UserFacingErrorOptions {
   code: ArcErrorCode;

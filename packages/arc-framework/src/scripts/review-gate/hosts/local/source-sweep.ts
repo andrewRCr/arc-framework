@@ -4,7 +4,7 @@ import { stat } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { GitExec } from "../../../../lib/git/exec.js";
-import { resolveGitCommonDir } from "../../../../lib/user-sync/repo-shared-paths.js";
+import { resolveGitCommonDir } from "../../../../lib/git/exec.js";
 import { ReviewIdentifierSchema } from "../../core/gate-contract-v2-schema.js";
 import { withRepositoryLocalReviewLock } from "./git-common-state.js";
 

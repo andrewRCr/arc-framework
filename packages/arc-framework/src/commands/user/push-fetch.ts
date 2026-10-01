@@ -1,4 +1,10 @@
 import { runPushabilityStatus } from "../../lib/git/index.js";
+import {
+  isCasRejectionError,
+  isNonFastForwardError,
+  isRemoteUnavailableError,
+  uniqueRefToken,
+} from "../../lib/git/ref-tree.js";
 import type { AccessFn, PushabilityCondition } from "../../lib/git/index.js";
 import {
   clearPartialPushMarker,
@@ -6,9 +12,6 @@ import {
   getNotesLockPath,
   incomingFetchRefspec,
   incomingNotesRef,
-  isCasRejectionError,
-  isNonFastForwardError,
-  isRemoteUnavailableError,
   isResolvedNoteValid,
   notesMergeArgs,
   releaseAdvisoryLock,
@@ -22,7 +25,6 @@ import {
   type BranchBoundedNotesExportRefusalReason,
 } from "../../lib/user-sync/branch-bounded-notes-export.js";
 import { serializeNotesCompactionManifest } from "../../lib/user-sync/compaction-manifest.js";
-import { uniqueRefToken } from "../../lib/git/ref-tree.js";
 import { gitFailureText } from "../../lib/git/process-error.js";
 import { notesRef } from "./shared.js";
 import { runUserLoad } from "./save-load.js";

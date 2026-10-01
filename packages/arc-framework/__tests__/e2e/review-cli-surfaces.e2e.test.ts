@@ -131,7 +131,7 @@ describe("packaged review CLI surfaces", () => {
     [
       ["review", "readiness"],
       "review-readiness-request.schema.json",
-      ["review-readiness-request"],
+      ["review-readiness-request", "slug"],
     ],
     [
       ["review", "frontline", "resolve"],

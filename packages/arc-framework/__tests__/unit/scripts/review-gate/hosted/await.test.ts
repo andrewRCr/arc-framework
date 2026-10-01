@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../../../helpers/schema-assertion.js";
 
 import { DeliveryReviewMemberVehicleSchema } from
   "../../../../../src/lib/delivery/review-vehicle.js";
@@ -100,14 +101,14 @@ describe("hosted review await", () => {
       state: "clean",
       coverageEvidence: nativeCoverageEvidence,
     });
-    expect(HostedAwaitResultSchema.safeParse({
+    assertSchemaRefuses(HostedAwaitResultSchema, {
       ...result,
       coverageEvidence: undefined,
-    }).success).toBe(false);
+    });
   });
 
   it("accepts the durable response source attached to a findings result", () => {
-    expect(HostedAwaitResultSchema.safeParse({
+    assertSchemaAccepts(HostedAwaitResultSchema, {
       schemaVersion: 1,
       mode: "review-hosted-await",
       handle,
@@ -126,11 +127,11 @@ describe("hosted review await", () => {
         sourceOrdinal: 1,
       }],
       responseSourceRef: "arc-review-source:v1:hosted:lane-progress%2F1:hosted%2F1",
-    }).success).toBe(true);
+    });
   });
 
   it("rejects hosted findings whose ordinals do not match final combined order", () => {
-    expect(HostedAwaitResultSchema.safeParse({
+    assertSchemaRefuses(HostedAwaitResultSchema, {
       schemaVersion: 1,
       mode: "review-hosted-await",
       handle,
@@ -148,7 +149,7 @@ describe("hosted review await", () => {
         url: "https://github.com/owner/repo/pull/42#discussion_r1",
         sourceOrdinal: 2,
       }],
-    }).success).toBe(false);
+    });
   });
 
   it.each([
@@ -174,14 +175,14 @@ describe("hosted review await", () => {
       sourceOrdinal: 1,
     }],
   ] as const)("accepts critical and rejects retired blocker in hosted finding schemas", (schema, finding) => {
-    expect(schema.safeParse({ ...finding, severity: "critical" }).success).toBe(true);
-    expect(schema.safeParse({ ...finding, severity: "blocker" }).success).toBe(false);
-    expect(schema.safeParse({ ...finding, severity: "minor", nit: true }).success).toBe(true);
-    expect(schema.safeParse({ ...finding, severity: "major", nit: true }).success).toBe(false);
+    assertSchemaAccepts(schema, { ...finding, severity: "critical" });
+    assertSchemaRefuses(schema, { ...finding, severity: "blocker" });
+    assertSchemaAccepts(schema, { ...finding, severity: "minor", nit: true });
+    assertSchemaRefuses(schema, { ...finding, severity: "major", nit: true });
   });
 
   it("accepts a pending result that asks for inspection or an explicit extension", () => {
-    expect(HostedAwaitResultSchema.safeParse({
+    assertSchemaAccepts(HostedAwaitResultSchema, {
       schemaVersion: 1,
       mode: "review-hosted-await",
       handle,
@@ -190,7 +191,7 @@ describe("hosted review await", () => {
       nextAction: "inspect-or-extend",
       ageMs: ATTENTION_AFTER_MS,
       attentionAfterMs: ATTENTION_AFTER_MS,
-    }).success).toBe(true);
+    });
   });
 
   it("returns a resumable pending state at the bounded deadline", async () => {

@@ -31,6 +31,7 @@ import { DeliveryStateV1Schema } from "../../src/lib/delivery/schema.js";
 import { analyzeRevisionOverlap } from "../../src/lib/git/base-overlap.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
+import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 import {
   createCandidateAttestation,
   type CandidateManagedRecordV1,
@@ -357,7 +358,7 @@ describe("disjoint delivery eligibility", () => {
       readLifecycle: async () => {
         downstreamReads.push("lifecycle");
         return {
-          workUnit: "example",
+          workUnit: SlugSchema.parse("example"),
           storageVersion: terminalHead,
           archiveCadence: "manual",
           state: "integrating",

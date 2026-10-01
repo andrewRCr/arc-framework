@@ -86,7 +86,7 @@ import {
   type WorktreeSyncState,
 } from "../lib/git/worktree-sync.js";
 import { inferRecommendedSummaryLine } from "../lib/handoff/recommended-summary-line.js";
-import { createUserIOContext } from "../lib/io-context.js";
+import { createGitExec, createUserIOContext } from "../lib/io-context.js";
 import {
   resolveProcessInteractionContext,
   type InteractionContext,
@@ -99,7 +99,7 @@ import {
 import { resolveArcRoot } from "../lib/paths.js";
 import type { ResolvedConfigOverride } from "../lib/config/resolve-override.js";
 import { appendAuditEntry, toAuditWorkUnit } from "../lib/release/audit-log.js";
-import type { AuditEntry, AuditOutcome } from "../lib/release/types.js";
+import type { AuditEntry, AuditOutcome } from "../lib/release/schema.js";
 import { AuditEntrySchema } from "../lib/release/schema.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";
@@ -448,7 +448,7 @@ export async function handleSync(
 
   let identity: string;
   try {
-    identity = await resolveUserIdentity();
+    identity = await resolveUserIdentity(createGitExec(context.subprocess));
   } catch (err) {
     if (err instanceof UserFacingError) {
       output.log.error(formatError(err));

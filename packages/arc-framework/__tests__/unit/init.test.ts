@@ -6,6 +6,7 @@
  * full init flow against real filesystems.
  */
 
+import { scriptGitExec } from "../helpers/git-exec-fake.js";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -434,15 +435,10 @@ function mockIO(
       throw Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
     }),
     chmod: vi.fn(async () => undefined),
-    exec: vi.fn(async (_cmd: string, args: string[]) => {
-      // Default: git config --get returns not found
-      if (args[0] === "config" && args[1] === "--get") {
-        throw new Error("not found");
-      }
-      // git config set: no-op
-      if (args[0] === "config") return { stdout: "" };
-      return { stdout: "" };
-    }),
+    exec: vi.fn(scriptGitExec([
+      { match: { prefix: ["config", "--get"] }, responses: [{ failure: { exitCode: 1, stderr: "not found" } }] },
+      { match: { prefix: [] }, responses: [{ stdout: "" }] },
+    ]).exec),
     // Init lock primitives — default virtual behavior is "lock always free":
     // create resolves, release resolves. Contention tests override
     // exclusiveCreate to reject with an EEXIST error.
