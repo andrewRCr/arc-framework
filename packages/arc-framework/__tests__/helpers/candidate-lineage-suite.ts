@@ -740,6 +740,8 @@ async function approvedSet(
         verifiedSeverity: "major",
         verificationRefs: ["source:reviewed.txt:1"],
         disposition,
+        title: "Finding title",
+        issue: "The reviewer's claim.",
         rationale: disposition === "fix"
           ? "The reviewed source supports applying this fix."
           : "The reviewed source supports carrying this to a follow-up.",

@@ -449,6 +449,8 @@ const respondProposalRequest = {
       verificationRefs: ["source:src/index.ts:1"],
       verifiedSeverity: "major",
       disposition: "reject",
+      title: "Finding title",
+      issue: "The reviewer's claim.",
       rationale: "The source does not support the finding.",
       recommendation: "Record the rejection.",
       openQuestions: [],

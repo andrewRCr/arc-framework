@@ -1005,6 +1005,8 @@ describe("review response command", () => {
           sourceVerification: "verified",
           verificationRefs: ["source:src/index.ts:7"],
           disposition: "fix",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "The selected source supports this disposition.",
           recommendation: "Apply the fix.",
           openQuestions: [],
@@ -1027,6 +1029,8 @@ describe("review response command", () => {
           verificationRefs: ["source:src/index.ts:7"],
           verifiedSeverity: "major",
           disposition: "fix",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "The selected source supports this disposition.",
           recommendation: "Apply the fix.",
           openQuestions: [],
@@ -1049,6 +1053,8 @@ describe("review response command", () => {
           verificationRefs: ["source:src/index.ts:7"],
           verifiedSeverity: "minor",
           disposition: "fix",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "The selected source supports this disposition.",
           recommendation: "Apply the fix.",
           openQuestions: [],
@@ -1080,6 +1086,8 @@ describe("review response command", () => {
           verificationRefs: ["source:src/index.ts:7"],
           verifiedSeverity: "major",
           disposition: "fix",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "The selected source supports this disposition.",
           recommendation: "Apply the fix.",
           openQuestions: [],
@@ -1089,6 +1097,8 @@ describe("review response command", () => {
           verificationRefs: ["source:src/earlier.ts:3"],
           verifiedSeverity: "minor",
           disposition: "fix",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "The selected source supports this disposition.",
           recommendation: "Apply the fix.",
           openQuestions: [],
@@ -1129,23 +1139,26 @@ describe("review response command", () => {
         dispositionReportText: [
           "**Verification:** focused",
           "",
-          "### Finding F1",
-          "**Rationale:** The selected source supports this disposition\\.",
-          "**Locus:** src/earlier\\.ts:3",
-          "**Source:** source #2 · review:finding\\-0",
-          "**Verified at:** source:src/earlier\\.ts:3",
-          "**Assessment:** CONFIRMED · 🟡 minor (ARC) · 🟠 major (reviewer)",
-          "**Recommendation:** FIX [record-only] — Apply the fix\\.",
+          "- F1 · 🟡 minor · FIX — Finding title",
+          "- F2 · 🟠 major · FIX — Finding title",
+          "",
+          "### F1 · 🟡 minor · FIX — Finding title",
+          "**Issue:** The reviewer's claim.",
+          "**Verdict:** Confirmed · reviewer graded 🟠 major · record-only",
+          "**Action:** Apply the fix.",
+          "**Detail:** The selected source supports this disposition.",
+          "**Source:** src/earlier.ts:3 · source #2 · review:finding-0",
+          "**Verified at:** source:src/earlier.ts:3",
           "",
           "---",
           "",
-          "### Finding F2",
-          "**Rationale:** The selected source supports this disposition\\.",
-          "**Locus:** src/index\\.ts:7",
-          "**Source:** source #1 · review:finding\\-1",
-          "**Verified at:** source:src/index\\.ts:7",
-          "**Assessment:** CONFIRMED · 🟠 major",
-          "**Recommendation:** FIX [blocking] — Apply the fix\\.",
+          "### F2 · 🟠 major · FIX — Finding title",
+          "**Issue:** The reviewer's claim.",
+          "**Verdict:** Confirmed · blocking",
+          "**Action:** Apply the fix.",
+          "**Detail:** The selected source supports this disposition.",
+          "**Source:** src/index.ts:7 · source #1 · review:finding-1",
+          "**Verified at:** source:src/index.ts:7",
         ].join("\n"),
       },
     });
@@ -1176,6 +1189,8 @@ describe("review response command", () => {
           verificationRefs: ["source:src/index.ts:7"],
           verifiedSeverity: severity,
           disposition: "fix",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "The source supports a fix.",
           recommendation: "Apply the fix.",
           openQuestions: [],
@@ -1200,23 +1215,21 @@ describe("review response command", () => {
     });
     if (response.state !== "awaiting-approval") throw new Error("expected proposal assessment");
     const assessment = response.payload.provisionalPassAssessment;
-    expect(assessment.summaryText).toContain(`Pass ${logicalPass} of ${maxPasses}`);
-    expect(assessment.summaryText).toContain(`highest proposed severity: ${severity}`);
-    expect(assessment.summaryText).toContain("Approval and response are pending");
-    expect(assessment.summaryText).toContain("does not establish coverage or convergence");
-    expect(assessment.summaryText).toContain("grants no next-pass authority");
-    if (stopReason === "cap-exhausted") {
-      expect(assessment.summaryText).toContain("Potential stop: cap-exhausted");
-    } else {
-      expect(assessment.summaryText).not.toContain("Potential stop:");
-    }
-    expect(response.payload.dispositionReportText).toContain("### Finding F1");
-    expect(response.payload.dispositionReportText).not.toContain("Provisional");
+    const position = { "below-ceiling": "", "at-ceiling": " (limit reached)", "above-ceiling": " (over the limit)" }[
+      capPosition
+    ];
+    const symbol = { minor: "🟡", major: "🟠", critical: "🔴" }[severity];
+    expect(assessment.summaryText).toBe(
+      `Standard pass ${logicalPass} of ${maxPasses}${position}. 1 confirmed finding, highest ${symbol} ${severity}.`
+        + (stopReason === "cap-exhausted" ? " Another pass needs a ceiling decision." : ""),
+    );
+    expect(response.payload.dispositionReportText).toContain("### F1 · ");
+    expect(response.payload.dispositionReportText).not.toContain("Standard pass");
   });
 
   it("returns a contained canonical report with its native source label", async () => {
     const records = fixture(workUnitVehicle, "Native **title**");
-    const injected = "First line\n---\n### Finding F2\n**Assessment:** FORGED";
+    const injected = "First line\n---\n### F2 · 🔴 critical · FIX\n**Verdict:** FORGED";
     const proposal = await respondToReviewCommand({
       schemaVersion: 1,
       source: { kind: "attested-local", receiptRef: records.receiptRef },
@@ -1229,6 +1242,8 @@ describe("review response command", () => {
           verificationRefs: ["source:src/index.ts:7"],
           verifiedSeverity: "major",
           disposition: "fix",
+          title: "Finding title",
+          issue: injected,
           rationale: injected,
           recommendation: injected,
           openQuestions: [injected],
@@ -1238,9 +1253,12 @@ describe("review response command", () => {
     if (proposal.state !== "awaiting-approval") throw new Error("expected proposal report");
 
     const report = proposal.payload.dispositionReportText;
-    expect(report).toContain("**Source:** Native \\*\\*title\\*\\* · source #1");
-    expect(report).toContain("**Rationale:** First line \\-\\-\\- \\#\\#\\# Finding F2 \\*\\*Assessment:\\*\\* FORGED");
-    expect(report.match(/^### Finding F\d+$/gmu)).toEqual(["### Finding F1"]);
+    expect(report).toContain("**Source:** src/index.ts:7 · Native \\*\\*title\\*\\* · source #1");
+    for (const prefix of ["**Issue:**", "**Action:**", "**Detail:**"]) {
+      expect(report).toContain(`${prefix} First line --- ### F2 · 🔴 critical · FIX \\*\\*Verdict:\\*\\* FORGED`);
+    }
+    expect(report.match(/^### F\d+ .*$/gmu)).toEqual(["### F1 · 🟠 major · FIX — Finding title"]);
+    expect(report).not.toMatch(/^\*\*Verdict:\*\* FORGED/gmu);
     expect(report).not.toMatch(/^---$/gmu);
   });
 
@@ -1271,6 +1289,8 @@ describe("review response command", () => {
           verificationRefs: ["verification://focused-real-path"],
           verifiedSeverity: null,
           disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "Focused verification disproved the approved finding before the fix landed.",
           recommendation: "Reject the unsupported finding.",
           openQuestions: [],
@@ -1447,6 +1467,8 @@ describe("review response command", () => {
           verificationRefs: ["verification://focused-real-path"],
           verifiedSeverity: null,
           disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "Focused verification disproved the approved finding before the fix landed.",
           recommendation: "Reject the unsupported finding.",
           openQuestions: [],
@@ -1517,6 +1539,8 @@ describe("review response command", () => {
           verificationRefs: ["verification://post-consumption"],
           verifiedSeverity: null,
           disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "The correction arrived after the approved fix was consumed.",
           recommendation: "Preserve the consumed response history.",
           openQuestions: [],
@@ -1554,6 +1578,8 @@ describe("review response command", () => {
           verificationRefs: ["verification://record-only-correction"],
           verifiedSeverity: null,
           disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "New source evidence disproved the record-only judgment.",
           recommendation: "Replace the deferral with a rejection.",
           openQuestions: [],
@@ -1603,6 +1629,8 @@ describe("review response command", () => {
           verificationRefs: ["verification://pinned-member-correction"],
           verifiedSeverity: null,
           disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "Fresh evidence disproved the original deferral.",
           recommendation: "Record the corrected finding judgment.",
           openQuestions: [],
@@ -1633,6 +1661,8 @@ describe("review response command", () => {
           verificationRefs: ["verification://focused-real-path"],
           verifiedSeverity: null,
           disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "Focused verification disproved the approved finding before the fix landed.",
           recommendation: "Reject the unsupported finding.",
           openQuestions: [],
@@ -1653,6 +1683,8 @@ describe("review response command", () => {
           verificationRefs: ["verification://conflicting-successor"],
           verifiedSeverity: "major",
           disposition: "defer",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "A different successor conflicts with the already-published edge.",
           recommendation: "Do not replace the published successor.",
           openQuestions: [],
@@ -1744,6 +1776,8 @@ describe("review response command", () => {
           verificationRefs: [`source:${finding.locus}`],
           verifiedSeverity: "major" as const,
           disposition: "fix" as const,
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "The selected source supports this finding.",
           recommendation: "Apply the fix.",
           openQuestions: [],
@@ -1780,6 +1814,8 @@ describe("review response command", () => {
           verificationRefs: ["verification://earlier-finding-correction"],
           verifiedSeverity: null,
           disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "Focused verification disproved this finding before the fix landed.",
           recommendation: "Reject the unsupported finding.",
           openQuestions: [],
@@ -1789,6 +1825,8 @@ describe("review response command", () => {
           verificationRefs: ["source:src/index.ts:7"],
           verifiedSeverity: "major",
           disposition: "fix",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "The selected source still supports this finding.",
           recommendation: "Apply the fix.",
           openQuestions: [],
@@ -1850,6 +1888,8 @@ describe("review response command", () => {
           verificationRefs: ["verification://consumed-authorization"],
           verifiedSeverity: null,
           disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "The conditional next pass already consumed this authorization.",
           recommendation: "Preserve the consumed admission and predecessor evidence.",
           openQuestions: [],
@@ -1907,6 +1947,8 @@ describe("review response command", () => {
           verificationRefs: ["verification://focused-real-path"],
           verifiedSeverity: null,
           disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "Focused verification disproved the approved finding before the fix landed.",
           recommendation: "Reject the unsupported finding.",
           openQuestions: [],
@@ -1964,6 +2006,8 @@ describe("review response command", () => {
           verificationRefs: ["source:src/index.ts:7"],
           verifiedSeverity: null,
           disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "The reviewer alleges this branch enters a failing path, but source verification shows it "
             + "is unreachable, so no execution failure occurs.",
           recommendation: "Reject the finding without changing code.",
@@ -1974,7 +2018,7 @@ describe("review response command", () => {
     if (proposed.state !== "awaiting-approval") throw new Error("expected a proposed disposition set");
     const expectedReport = proposed.payload.dispositionReportText;
     expect(expectedReport).toContain(
-      "**Assessment:** NOT SUPPORTED · no ARC severity (ARC) · 🟠 major (reviewer)",
+      "**Verdict:** Not supported · reviewer graded 🟠 major · record-only",
     );
     const dispositions = approveDispositionState({
       proposed: proposed.payload.proposal,
@@ -2131,6 +2175,8 @@ describe("review response command", () => {
           verificationRefs: ["source:src/index.ts:7"],
           verifiedSeverity: hosted.records.finding.severity,
           disposition: "defer",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "Fresh evidence preserves the approved deferral.",
           recommendation: "Retain the recorded deferral.",
           openQuestions: [],
@@ -2185,6 +2231,8 @@ describe("review response command", () => {
           verificationRefs: ["source:src/index.ts:7"],
           verifiedSeverity: hosted.records.finding.severity,
           disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "Fresh evidence changes the approved channel action.",
           recommendation: "Reject the finding with a corrected response.",
           openQuestions: [],
@@ -2505,6 +2553,8 @@ describe("review response command", () => {
             verificationRefs: ["source:src/index.ts:7"],
             verifiedSeverity,
             disposition: sourceVerification === "verified" ? "fix" : "reject",
+            title: "Finding title",
+            issue: "The reviewer's claim.",
             rationale: "The selected source determines this disposition.",
             recommendation: sourceVerification === "verified" ? "Apply the fix." : "Reject the finding.",
             openQuestions: [],
@@ -2544,6 +2594,8 @@ describe("review response command", () => {
           verificationRefs: ["source:src/index.ts:7"],
           verifiedSeverity: "blocker",
           disposition: "fix",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "The finding requires a code change.",
           recommendation: "Apply the fix.",
           openQuestions: [],
@@ -2569,6 +2621,8 @@ describe("review response command", () => {
           verificationRefs: ["source:src/index.ts:7"],
           verifiedSeverity: "major",
           disposition: "fix",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "The source supports a non-minor primary grade.",
           recommendation: "Apply the fix.",
           openQuestions: [],
@@ -2588,7 +2642,8 @@ describe("review response command", () => {
       },
     });
     expect(proposal.payload.dispositionReportText).toContain(
-      "**Assessment:** CONFIRMED · 🟠 major (ARC) · 🟡 minor nit (reviewer)",
+      "### F1 · 🟠 major · FIX — Finding title\n**Issue:** The reviewer's claim.\n"
+        + "**Verdict:** Confirmed · reviewer graded 🟡 minor nit · blocking",
     );
   });
 
@@ -2608,6 +2663,8 @@ describe("review response command", () => {
           verifiedSeverity: "minor",
           verifiedNit: true,
           disposition: "defer",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "The source supports a verified polish-only issue.",
           recommendation: "Record the non-blocking disposition.",
           openQuestions: [],
@@ -2647,6 +2704,8 @@ describe("review response command", () => {
           verificationRefs: ["source:src/index.ts:7"],
           verifiedSeverity: "minor",
           disposition: "fix",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "The source supports an ordinary verified minor.",
           recommendation: "Apply the fix.",
           openQuestions: [],
@@ -3148,6 +3207,8 @@ describe("review response command", () => {
           verificationRefs: ["source:src/index.ts:7"],
           verifiedSeverity: null,
           disposition: "reject",
+          title: "Finding title",
+          issue: "The reviewer's claim.",
           rationale: "The source does not support the reported issue.",
           recommendation: "Reject the finding.",
           openQuestions: [],
@@ -3181,9 +3242,8 @@ describe("review response command", () => {
       potentialStopReason: null,
       nextPassAuthority: "none",
     });
-    expect(proposal.payload.provisionalPassAssessment.summaryText).toContain("Pass 1 of 2");
-    expect(proposal.payload.provisionalPassAssessment.summaryText).toContain("source-verified findings are proposed");
-    expect(proposal.payload.provisionalPassAssessment.summaryText).toContain("grants no next-pass authority");
+    expect(proposal.payload.provisionalPassAssessment.summaryText)
+      .toBe("Frontline pass 1 of 2. No confirmed findings.");
     expect(proposal.payload.proposal.dispositionSet).not.toHaveProperty("rubricVersion");
     expect(proposal.payload.proposal.dispositionSet).not.toHaveProperty("rubricDigest");
 
@@ -3686,6 +3746,8 @@ describe("verified-fix Candidate settlement", () => {
                 verifiedSeverity: "major",
                 verificationRefs: ["source:src/index.ts:7"],
                 disposition: "fix",
+                title: "Finding title",
+                issue: "The reviewer's claim.",
                 rationale: "The selected source supports this disposition.",
                 recommendation: "Apply the fix.",
                 openQuestions: [],
