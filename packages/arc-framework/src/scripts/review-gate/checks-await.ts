@@ -301,6 +301,12 @@ function withAwaitTiming(
   return ChecksAwaitResultSchema.parse(projected);
 }
 
+/**
+ * Bound for the one observation made after the wait's deadline. It spans several sequential host reads, so it is
+ * sized for those reads rather than tied to the polling interval, which only paces the observations before it.
+ */
+const FINAL_OBSERVATION_TIMEOUT_MS = 30_000;
+
 /** Await required checks for one exact pull-request head. */
 export async function awaitRequiredChecks(
   input: ChecksAwaitInput,
@@ -313,12 +319,14 @@ export async function awaitRequiredChecks(
     deadline: async (elapsedMs) => {
       const observation = await observeRequiredChecks(input, {
         port: dependencies.port,
-        signal: AbortSignal.timeout(input.pollIntervalMs),
+        signal: AbortSignal.timeout(FINAL_OBSERVATION_TIMEOUT_MS),
       });
       return withAwaitTiming(observation, elapsedMs);
     },
     attempt: async ({ signal, elapsedMs }) => {
       const observation = await observeRequiredChecks(input, { port: dependencies.port, signal });
+      // The wait's own deadline cut this observation short; the final observation answers instead.
+      if (observation.state === "unavailable" && signal.aborted) return { kind: "continue" };
       if (observation.state === "pending" && observation.diagnosticFailures.length === 0) {
         return { kind: "continue" };
       }
