@@ -20,7 +20,7 @@ import {
   readLaneProgressAcrossLineage,
   type LaneProgressProjection,
 } from "../lane-progress.js";
-import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
+import { NO_HOSTED_REVIEW_RESERVATION_DETAIL, type StandardReviewReservationV1 } from "./integration-boundary-locus.js";
 import type { EarlierHostedAttemptApplicabilityRead } from "./earlier-review-applicability.js";
 import type { ReviewResult } from "../core/review-result.js";
 import { projectHostedFinding } from "../hosted/await.js";
@@ -112,7 +112,7 @@ export async function projectHostedReservationDischarge(input: {
 }): Promise<HostedReservationDischarge> {
   const { reservation } = input;
   if (reservation === null) {
-    return { discharged: true, detail: "Local carrier `local-attestation`.", nextSource: null };
+    return { discharged: true, detail: NO_HOSTED_REVIEW_RESERVATION_DETAIL, nextSource: null };
   }
   if (input.target === null) {
     return {

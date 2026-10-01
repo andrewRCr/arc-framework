@@ -15,7 +15,10 @@ import {
   createReviewRequirement,
   createReviewTarget,
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
-import { createStandardReviewReservation } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import {
+  NO_HOSTED_REVIEW_RESERVATION_DETAIL,
+  createStandardReviewReservation,
+} from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { classifyReviewContributionApplicability } from
   "../../../../../src/scripts/review-gate/policy/review-contribution-applicability.js";
 import type { EarlierHostedAttemptApplicabilityRead } from
@@ -1088,13 +1091,22 @@ describe("hosted reservation discharge", () => {
       .toThrow("reserved source must belong to the ordered standard-review sources");
   });
 
-  it("discharges a boundary that carried no reservation", async () => {
-    await expect(projectHostedReservationDischarge({
+  it("discharges a boundary that carried no reservation without naming what settled the lane", async () => {
+    // A lane closed by Owner acceptance at zero passes reaches publication with no reservation and
+    // no recorded attempt, exactly like one closed by a local review.
+    const result = await projectHostedReservationDischarge({
       reservation: null,
       span: [oid("a"), oid("b")],
       target: null,
       readLaneProgress: progress({}),
-    })).resolves.toMatchObject({ discharged: true });
+    });
+
+    expect(result).toEqual({
+      discharged: true,
+      detail: NO_HOSTED_REVIEW_RESERVATION_DETAIL,
+      nextSource: null,
+    });
+    expect(result.detail).not.toMatch(/local|carrier|attestation/iu);
   });
 
   it("does not discharge an earlier clean verdict without current applicability evidence", async () => {

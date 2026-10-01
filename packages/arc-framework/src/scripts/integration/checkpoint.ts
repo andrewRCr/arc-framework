@@ -35,6 +35,7 @@ import {
   type ChangeRequestMergeObservation,
 } from "../review-gate/change-request.js";
 import {
+  NO_HOSTED_REVIEW_RESERVATION_DETAIL,
   RunConvergenceVerificationActionSchema,
   createRunConvergenceVerificationAction,
   type PostAttestContinuation,
@@ -1638,7 +1639,7 @@ export async function checkpointIntegration(
       observedBase: observation.admission.base,
       method: mergeMethod.method,
       candidateTailReference: composition.candidateTailDiff.reference,
-      reviewLanding: hostedReview?.detail ?? "Local carrier `local-attestation`.",
+      reviewLanding: hostedReview?.detail ?? NO_HOSTED_REVIEW_RESERVATION_DETAIL,
       signals: [
         {
           kind: "base-drift",
