@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "retire-ci-defer",
+  "claimId": "4742ec7134496bd35f264d5bea213cf6",
+  "createdAt": "2026-10-01T19:12:44.140Z",
+  "updatedAt": "2026-10-01T19:12:44.140Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Retire the ci-defer-heavy review-cycle CI deferral: the heavy legs run on self-hosted runners, so it no longer saves Actions spend",
+  "branch": "chore/retire-ci-defer",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
