@@ -273,8 +273,8 @@ After each returned pass, apply the method's complete-disposition and bounded-co
 pass to `ADVERSARIAL-PASSES.md` in the work unit's personal workspace (`.arc/user/{identity}/{name}/`, beside
 SESSION-NOTES): the artifact and version reviewed, `Pass N of M`, the rubric, the complete source-verified
 finding/account/action set, the stop reason, and any conditional next-pass decision. Later passes take their
-`prior-findings` from it, and the commit below summarizes each pass in one body line. This advisory evidence creates
-no lane-progress record.
+`prior-findings` from it, and the commit below summarizes each pass in one body line. A stub groomed before it starts
+has no workspace yet, so that summary is its only record. This advisory evidence creates no lane-progress record.
 
 > [!IMPORTANT]
 > `workflow-interlock` — Gate 1 (review / iterate): Stop after the spec is saved and self-reviewed. Surface the

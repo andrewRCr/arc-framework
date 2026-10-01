@@ -546,6 +546,7 @@ describe("PR-open lifecycle extensions", () => {
         expect(normalized).toContain(evidenceLocus);
         if (!packagedPath.endsWith("validate-criteria.md")) {
           expect(normalized).toContain("later passes take their `prior-findings` from it");
+          expect(normalized).toContain("a stub groomed before it starts has no workspace yet");
         }
         expect(normalized).toContain("creates no lane-progress record");
       }
