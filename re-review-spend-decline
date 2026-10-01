@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "re-review-spend-decline",
+  "claimId": "914c3a056a97dbb23c71931557d8481b",
+  "createdAt": "2026-10-01T16:25:41.948Z",
+  "updatedAt": "2026-10-01T16:25:41.948Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Show the re-review a fix will trigger at the disposition turn, and let the Owner decline it",
+  "branch": "chore/re-review-spend-decline",
+  "origin": "inbox",
+  "originEntry": "Show the re-review a fix will trigger at the disposition turn, and let the Owner decline it",
+  "originEntrySourceDigest": "sha256:9ec34f456a3ad8def735f3857f2ebb199f35558dc34bf5de2da5055de541bba1",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
