@@ -346,7 +346,6 @@ export async function handleStart(
         io, cwd, identity, interaction: context, courtesyAccepted: input.yes === true,
       });
       return;
-    // `cold-start` is reached only via `--here`, handled above.
   }
 }
 

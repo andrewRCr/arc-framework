@@ -18,6 +18,7 @@ export {
 } from "./result.js";
 export {
   ArcError,
+  assertNever,
   toArcError,
   type ArcErrorCode,
 } from "./errors.js";

@@ -212,6 +212,8 @@ async function approvedRejection(
         verificationRefs: ["source:reviewed.txt:1"],
         verifiedSeverity: "major",
         disposition: "reject",
+        title: "Finding title",
+        issue: "The reviewer's claim.",
         rationale: "The reviewed source supports recording this disposition.",
         recommendation: "Record the rejected finding.",
         openQuestions: [],

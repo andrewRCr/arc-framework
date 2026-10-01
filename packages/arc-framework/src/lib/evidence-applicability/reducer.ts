@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 
+import { assertNever } from "../kernel/index.js";
 import {
   BoundedEvidenceResidualSchema,
   EvidenceDeltaSchema,
@@ -223,8 +224,4 @@ function reduceOtherMovement(
   if (delta.relation === "interaction") return final("fresh", "interaction");
   if (delta.relation === "unavailable") return final("fresh", "unavailable");
   return final("fresh", "conservative-default");
-}
-
-function assertNever(value: never): never {
-  throw new Error(`Unhandled evidence-applicability value: ${JSON.stringify(value)}`);
 }

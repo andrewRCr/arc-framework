@@ -110,7 +110,7 @@ describe("runMaterialize", () => {
       readdir: async (path) => {
         lifecycleReads += 1;
         if (path.endsWith("/.arc/backlog/planned")) {
-          return [{ name: "meta-foo.md", isDirectory: () => false }];
+          return [{ name: "meta-foo.md", isDirectory: () => false, isFile: () => true }];
         }
         throw new Error(`ENOENT: ${path}`);
       },

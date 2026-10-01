@@ -245,6 +245,8 @@ async function approveFix(
         verificationRefs: ["source:src/example.ts:1"],
         verifiedSeverity: "major",
         disposition: "fix",
+        title: "Finding title",
+        issue: "The reviewer's claim.",
         rationale: "The reviewed source supports applying this fix.",
         recommendation: "Apply the fix.",
         openQuestions: [],
@@ -651,6 +653,8 @@ describe("attest → pre-publication → publish", () => {
             verificationRefs: ["source:src/example.ts:1"],
             verifiedSeverity: "major",
             disposition,
+            title: "Finding title",
+            issue: "The reviewer's claim.",
             rationale: disposition === "defer"
               ? "The material finding is valid but has an approved destination."
               : "The material finding is outside the current change responsibility.",

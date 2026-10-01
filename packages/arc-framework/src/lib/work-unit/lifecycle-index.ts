@@ -11,6 +11,8 @@
  *
  * Phase + location come from {@link resolveLifecyclePosition} (location from the
  * containing tier, phase from the meta `**State:**` field — no git inference);
+ * a slug found in more than one tier keeps the copy {@link compareLifecycleSources}
+ * prefers, so an in-flight `active/` copy outranks a stale archived one;
  * cohort and `**Depends On:**` edges come from the semantic adapter; the slug is
  * the `meta-<slug>.md` filename. The meta schema is parsed once per file through the shared {@link parseMetaRecord}
  * reader and never re-parsed here.
@@ -52,6 +54,8 @@ const META_FILENAME_RE = /^meta-(.+)\.md$/u;
 export interface DirEntry {
   name: string;
   isDirectory(): boolean;
+  /** Regular file. The walk reads only these, so a named pipe or socket can never block it. */
+  isFile(): boolean;
 }
 
 /**
@@ -108,11 +112,59 @@ export interface LifecycleIndexEntry {
 /** The lifecycle-complete index — slug → resolved entry. */
 export type LifecycleIndex = Map<string, LifecycleIndexEntry>;
 
-/** A lifecycle directory to scan and whether its tree nests work units. */
+/** One `meta-*.md` file found by {@link collectLifecycleMetaFiles}. */
+export interface LifecycleMetaFile {
+  /** Lifecycle tier the file was found in. */
+  location: Location;
+  /** Absolute path, joined from the repository root. */
+  path: string;
+}
+
+/** A lifecycle directory to scan, in walk order, and whether its tree nests work units. */
 interface Tier {
-  root: string;
+  location: Location;
+  segments: readonly string[];
   /** `active/` is a flat `meta-*.md` enumeration; the backlog and archive trees nest. */
   recursive: boolean;
+}
+
+const TIERS: readonly Tier[] = [
+  { location: "active", segments: ["active"], recursive: false },
+  { location: "planned", segments: ["backlog", "planned"], recursive: true },
+  { location: "provisional", segments: ["backlog", "provisional"], recursive: true },
+  { location: "completed", segments: ["completed"], recursive: true },
+];
+
+/** An `active/` meta sits directly in `active/`; a copy in a subdirectory is not a lifecycle record. */
+const FLAT_ACTIVE_META_RE = /(?:^|\/)\.arc\/active\/[^/]+$/u;
+
+/**
+ * Source precedence for a slug found in more than one tier: the in-flight `active/` copy outranks the
+ * backlog copies, and every live copy outranks the archived one.
+ */
+const LIFECYCLE_SOURCE_PRECEDENCE: Readonly<Record<Location, number>> = {
+  active: 3,
+  planned: 2,
+  provisional: 1,
+  completed: 0,
+};
+
+/**
+ * Order two sources of one slug, preferred first: the higher-precedence tier, then the path that sorts
+ * first by code unit within a tier — host-independent, and the order the tier walk collects in.
+ *
+ * @param left - One source's tier and path.
+ * @param right - The other source's tier and path.
+ * @returns Negative when `left` is preferred, positive when `right` is, zero for the same source.
+ */
+export function compareLifecycleSources(
+  left: { location: Location; path: string },
+  right: { location: Location; path: string },
+): number {
+  const precedence = LIFECYCLE_SOURCE_PRECEDENCE[right.location] - LIFECYCLE_SOURCE_PRECEDENCE[left.location];
+  if (precedence !== 0) return precedence;
+  if (left.path === right.path) return 0;
+  return left.path < right.path ? -1 : 1;
 }
 
 /**
@@ -136,19 +188,50 @@ async function* walkMetaFiles(
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
       if (recursive) yield* walkMetaFiles(full, fs, true);
-    } else if (META_FILENAME_RE.test(entry.name)) {
+    } else if (entry.isFile() && META_FILENAME_RE.test(entry.name)) {
       yield full;
     }
   }
 }
 
 /**
+ * Collect every lifecycle `meta-*.md` file under the repository's `.arc/`: the
+ * tiers in walk order, `active/` flat, the backlog and archive trees nested,
+ * regular files only, and paths sorted within each tier. The one tier walk both
+ * the lifecycle index and the project readiness composition read.
+ *
+ * @param cwd - Repository root containing `.arc/`.
+ * @param fs - The injected filesystem seam.
+ * @returns The meta files found, each with its tier.
+ */
+export async function collectLifecycleMetaFiles(
+  cwd: string,
+  fs: LifecycleIndexFs,
+): Promise<LifecycleMetaFile[]> {
+  const files: LifecycleMetaFile[] = [];
+  for (const tier of TIERS) {
+    const paths: string[] = [];
+    for await (const path of walkMetaFiles(join(cwd, ".arc", ...tier.segments), fs, tier.recursive)) {
+      paths.push(path);
+    }
+    for (const path of paths.sort()) files.push({ location: tier.location, path });
+  }
+  return files;
+}
+
+/** Keep `entry` unless the index already holds a preferred source for its slug. */
+function addPreferred(index: LifecycleIndex, entry: LifecycleIndexEntry): void {
+  const current = index.get(entry.slug);
+  if (current === undefined || compareLifecycleSources(entry, current) < 0) index.set(entry.slug, entry);
+}
+
+/**
  * Build one index entry from a meta's cwd-relative path and content, or `null`
  * to skip it. The pure parse core shared by the disk walk ({@link readEntry}) and
  * the files-in builder ({@link buildLifecycleIndexFromMetas}): a
- * non-`meta-<slug>.md` name, a malformed core-block table, or an unresolvable
- * `(phase, location)` all drop the entry rather than throwing, so one bad meta
- * never aborts the caller.
+ * non-`meta-<slug>.md` name, a malformed core-block table, an unresolvable
+ * `(phase, location)`, or an `active/` meta below a subdirectory all drop the
+ * entry rather than throwing, so one bad meta never aborts the caller.
  *
  * @param path - Meta path, cwd-relative and forward-slash normalized — supplies
  *   the slug (its basename) and the location axis (its containing tier).
@@ -171,6 +254,7 @@ export function entryFromMeta(path: string, content: string): LifecycleIndexEntr
     return null;
   }
   if (position === null) return null;
+  if (position.location === "active" && !FLAT_ACTIVE_META_RE.test(path.replace(/\\/gu, "/"))) return null;
 
   return {
     slug,
@@ -213,20 +297,10 @@ export async function buildLifecycleIndex(
   options: BuildLifecycleIndexOptions,
 ): Promise<LifecycleIndex> {
   const { cwd, fs } = options;
-  const arc = join(cwd, ".arc");
-  const tiers: Tier[] = [
-    { root: join(arc, "active"), recursive: false },
-    { root: join(arc, "backlog", "planned"), recursive: true },
-    { root: join(arc, "backlog", "provisional"), recursive: true },
-    { root: join(arc, "completed"), recursive: true },
-  ];
-
   const index: LifecycleIndex = new Map();
-  for (const tier of tiers) {
-    for await (const filePath of walkMetaFiles(tier.root, fs, tier.recursive)) {
-      const entry = await readEntry(filePath, cwd, fs);
-      if (entry !== null) index.set(entry.slug, entry);
-    }
+  for (const { path } of await collectLifecycleMetaFiles(cwd, fs)) {
+    const entry = await readEntry(path, cwd, fs);
+    if (entry !== null) addPreferred(index, entry);
   }
   return index;
 }
@@ -249,7 +323,7 @@ export function buildLifecycleIndexFromMetas(
   const index: LifecycleIndex = new Map();
   for (const { path, content } of metas) {
     const entry = entryFromMeta(path, content);
-    if (entry !== null) index.set(entry.slug, entry);
+    if (entry !== null) addPreferred(index, entry);
   }
   return index;
 }

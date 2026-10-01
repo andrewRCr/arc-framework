@@ -990,7 +990,12 @@ export function formatWorktreeQualifierLine(input: {
       return formatRemoteUnavailableWorktreeLine(worktree);
     case "branch-gone":
       return "Local worktree's upstream branch no longer exists on origin (deleted upstream).";
-    default:
+    case "clean":
+    case "skipped":
+    case "local-ahead":
+    case "no-upstream":
+    case "detached-head":
+    case "no-remote":
       return null;
   }
 }

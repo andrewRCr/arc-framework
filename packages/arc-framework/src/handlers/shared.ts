@@ -12,6 +12,7 @@ import * as p from "@clack/prompts";
 import { resolveIdentity, isGitRepo, type GitExec } from "../lib/git/index.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import { formatError, UserFacingError } from "../lib/errors.js";
+import { assertNever } from "../lib/kernel/index.js";
 import {
   UserSaveError,
   type UserFetchResult,
@@ -195,10 +196,8 @@ export function reportUserFetchOutcome(
       process.exitCode = 1;
       return;
     }
-    default: {
-      const _exhaustive: never = result;
-      return _exhaustive;
-    }
+    default:
+      return assertNever(result);
   }
 }
 

@@ -138,6 +138,8 @@ async function settleFinding(root: string, source: FindingsSource, replacement: 
         verificationRefs: ["source:src/example.ts:1"],
         verifiedSeverity: "major",
         disposition: "fix",
+        title: "Finding title",
+        issue: "The reviewer's claim.",
         rationale: "The reviewed source supports the correction.",
         recommendation: "Apply the correction.",
         openQuestions: [],

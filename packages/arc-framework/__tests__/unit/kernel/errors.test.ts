@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   ArcError,
   SchemaError,
+  assertNever,
   createRegistry,
   toArcError,
   type ArcErrorCode,
@@ -27,10 +28,6 @@ const legacyCodes = [
   "MANIFEST_VERSION_UNSUPPORTED",
   "ROLE_FORBIDDEN",
 ] as const;
-
-function assertNever(value: never): never {
-  throw new Error(`Unexpected schema code: ${String(value)}`);
-}
 
 function handleSchemaCode(code: SchemaErrorCode): string {
   switch (code) {
@@ -91,6 +88,20 @@ describe("kernel error contracts", () => {
     expect(() => registry.register(schema, {
       id: "other", version: 1, migrationPosture: "strict-current",
     })).toThrowError(expect.objectContaining({ code: "schema.registry.duplicate-schema" }));
+  });
+
+  it("fails loudly when a value reaches a branch its type rules out", () => {
+    expect(() => assertNever("surprise" as never)).toThrowError("Unhandled variant: \"surprise\"");
+    expect(() => assertNever({ kind: "late-addition" } as never))
+      .toThrowError('Unhandled variant: {"kind":"late-addition"}');
+
+    const cyclic: { self?: unknown } = {};
+    cyclic.self = cyclic;
+    expect(() => assertNever(cyclic as never)).toThrowError("Unhandled variant: [object Object]");
+    expect(() => assertNever(undefined as never)).toThrowError("Unhandled variant: undefined");
+
+    // @ts-expect-error -- a subject the cases have not narrowed to `never` is rejected where it is passed
+    expect(() => assertNever("not narrowed")).toThrowError("Unhandled variant");
   });
 
   it("adapts unknown failures without leaking non-Error values", () => {

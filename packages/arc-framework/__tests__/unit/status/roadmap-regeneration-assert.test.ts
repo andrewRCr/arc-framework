@@ -11,6 +11,7 @@ import {
   type RoadmapRegenerationAssertVerdict,
 } from "../../../src/lib/status/roadmap-regeneration-assert.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
+import { collectLifecycleMetaFiles } from "../../../src/lib/work-unit/lifecycle-index.js";
 import {
   resolveTransitionRecordRelativePath,
 } from "../../../src/lib/work-unit/transition-record-store.js";
@@ -229,6 +230,28 @@ describe("createIndexProjectViewFs", () => {
       "show",
       ":.arc/backlog/planned/ready/meta-ready.md",
     ], { cwd: "/repo" });
+  });
+
+  it("lists a staged symlink as neither file nor directory, so the lifecycle walk skips it", async () => {
+    const link = ".arc/active/meta-linked twin.md";
+    const real = ".arc/active/meta-real.md";
+    const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
+      if (args[0] !== "ls-files") throw new Error(`unexpected git args: ${args.join(" ")}`);
+      const dir = args.at(-1) ?? "";
+      const rows = [`120000 object-id 0\t${link}`, `100755 object-id 0\t${real}`];
+      return { stdout: rows.filter((row) => row.includes(`\t${dir}/`)).join("\n"), stderr: "" };
+    });
+    const fs = createIndexProjectViewFs({ cwd: "/repo", exec });
+
+    const entries = await fs.readdir("/repo/.arc/active");
+
+    expect(entries.map((entry) => [entry.name, entry.isFile(), entry.isDirectory()])).toEqual([
+      ["meta-linked twin.md", false, false],
+      ["meta-real.md", true, false],
+    ]);
+    await expect(collectLifecycleMetaFiles("/repo", fs)).resolves.toEqual([
+      { location: "active", path: `/repo/${real}` },
+    ]);
   });
 });
 

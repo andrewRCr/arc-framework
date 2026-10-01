@@ -32,9 +32,8 @@ function metaBody(slug: string, state: string): string {
 
 /** Build an index placing `slug` under `tier` with `state`. */
 function indexWith(slug: string, tier: string, state: string): LifecycleIndex {
-  return buildLifecycleIndexFromMetas([
-    { path: `.arc/${tier}/${slug}/meta-${slug}.md`, content: metaBody(slug, state) },
-  ]);
+  const dir = tier === "active" ? ".arc/active" : `.arc/${tier}/${slug}`;
+  return buildLifecycleIndexFromMetas([{ path: `${dir}/meta-${slug}.md`, content: metaBody(slug, state) }]);
 }
 
 /** A guard context with the given index + slug (position/inputs unused by these guards). */

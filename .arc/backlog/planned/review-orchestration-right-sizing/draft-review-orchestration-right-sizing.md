@@ -253,8 +253,8 @@
 - _Fold-in:_ emit one submit-ready, lane-specific recommendation bound to exact Errand key, claim, branch, base,
   head, review progress, and rationale; accept only explicit Owner judgment; invalidate every material movement;
   resume the accepted operation by reference; and preserve accepted risk as distinct from provider clean or
-  convergence. Coordinate provider-neutral native-review dismissal and `ci-defer-heavy` convergence with
-  `review-source-authority`'s existing hosted-blocker concern rather than duplicating that authority design here.
+  convergence. Coordinate provider-neutral native-review dismissal with `review-source-authority`'s existing
+  hosted-blocker concern rather than duplicating that authority design here.
 
 ### `[ ]` **Define terminal ownership and collection for review evidence**
 
@@ -292,17 +292,6 @@
 - _Fold-in:_ compose only variable signals and required review facts, collapse host reads, prefer host-observed
   discharge, re-encode Candidate subject identity proportionately, and state one bounded-wait policy. Consume
   `host-policy-evidence`'s truthful host-read shape rather than pruning correctness work into this WU.
-
-### `[ ]` **Drive heavy-CI deferral from effective lane state**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-orchestration-right-sizing`), housekeep drain
-  (2026-08-10); captured during `remote-access-contract` delivery review closeout.
-- _Concern:_ `ci-defer-review.yml` can lose an approving review's toggle because it trusts the triggering event,
-  while a first changes-requested review can start expensive heavy CI even when the final routed lane would not
-  require it.
-- _Approach:_ first fix reconciliation against current review state and exact head. Then decide whether the durable
-  trigger is the lane verdict, draft state, or effective review state, preserving `ci-ok` as the fail-safe aggregate
-  gate and avoiding label thrash across review bursts.
 
 ### `[ ]` **Rename the review-gate module for the architecture that remains**
 

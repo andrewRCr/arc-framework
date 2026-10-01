@@ -16,7 +16,7 @@ export const ReviewFindingIdentitySchema = z.string().trim().min(1).max(512)
   });
 /** Bounded source location carried with a normalized review finding. */
 export const ReviewFindingLocusSchema = z.string().trim().min(1).max(2048);
-const MarkdownPunctuation = new Set(Array.from("\\`*_{}[]()#+.!|-~"));
+const MarkdownPunctuation = new Set(Array.from("\\`*_[]~"));
 export const ReviewFindingSourceOrdinalSchema = z.int().positive();
 export const ReviewFindingSourceLabelSchema = z.string()
   .refine((value) => value.trim().length > 0, { message: "source label must contain visible text" })
@@ -96,10 +96,14 @@ export function captureReviewFindingSourceLabel(input: {
 }
 
 /**
- * Escape provider-owned finding text for inert single-line Markdown display.
+ * Escape finding text for inert single-line Markdown display.
  *
- * @param value - Validated producer-owned text.
- * @returns Text with line breaks collapsed, HTML delimiters encoded, and Markdown punctuation escaped.
+ * Only characters that can open inline structure are escaped — emphasis, code spans, links, strikethrough, and the
+ * escape character itself — so ordinary prose punctuation reads as written. Collapsing line breaks already keeps
+ * block structure (headings, rules, lists) from forming.
+ *
+ * @param value - Validated finding text.
+ * @returns Text with line breaks collapsed, HTML delimiters encoded, and inline Markdown openers escaped.
  */
 export function escapeReviewFindingDisplayText(value: string): string {
   const encoded = value

@@ -234,8 +234,10 @@ remote base all name the same exact head. Any tracked change continues through t
    - `ready / run-frontline` — invoke `arc review frontline resolve -`. Its `skipped / none` completes the lane; from
      its `ready / run-frontline`, invoke `arc review frontline run -` with the ready resolution and the target's
      `{ kind, baseRef, diffBaseSha, headSha }` projection.
-   - `ready / local-prepare` — invoke `arc review local prepare -`; submit evaluator-owned result content through
-     `arc review local attest -`, with runtime-owned bindings injected from the immutable operation.
+   - `ready / local-prepare` — if the Owner declined the pass a fix triggers, prepare nothing; continue to Step 3 and
+     offer the Owner-directed review stop at the open PR. Otherwise invoke `arc review local prepare -`; submit
+     evaluator-owned result content through `arc review local attest -`, with runtime-owned bindings injected from the
+     immutable operation.
    - `findings / respond` — run [`review-triage`][review-triage], include the effective policy as
      `proposal.severityGatingPolicy`, submit the proposal through the first `arc review respond -` call, emit
      `payload.dispositionReportText`, obtain complete-set approval, submit the exact
@@ -387,15 +389,18 @@ remote base all name the same exact head. Any tracked change continues through t
      only after the verb verifies the exact approved reply, actor, comment, and resolved thread with no host
      mutation; every stop state remains a stop. After the required phases complete, follow the approved response
      continuation and, after a fix, the verified-fix response continuation through the owning status or resolve
-     action. Do not feed the same findings to the driver again.
+     action. Do not feed the same findings to the driver again. If the Owner declined the pass the fix triggers,
+     resolve the lane at the new head as usual and, from `ready / hosted-request`, present the Owner-directed review
+     stop offer below instead of requesting the pass.
    - `rate-limited | transient-unavailable / try-next-source` — feed that safe outcome to the same driver call; it
      may select the next configured source without consuming the pass.
    - Any ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops. Never replay
      an uncertain request.
 
    **Owner-directed review stop (open PR only).** When the Owner explicitly asks to end further standard-review
-   spending, or redirects an `approval-required / obtain-ceiling-override` decision, present one exact offer before
-   treating that direction as approval. Re-read `arc review status --target <targetRef>` to validate the
+   spending, declines at a disposition turn the pass a fix triggers, or redirects an
+   `approval-required / obtain-ceiling-override` decision, present one exact offer before treating that direction as
+   approval. Re-read `arc review status --target <targetRef>` to validate the
    current Errand binding; `review-required` is expected, but a refusal or pending/response action stops. Name the
    current Errand key and claim, repository and PR, base ref and OID, head SHA, at least one completed same-claim
    standard-review pass and its disposition/settlement state, the complete current PR diff, and the change since
@@ -499,7 +504,7 @@ remote base all name the same exact head. Any tracked change continues through t
 > the retained last-observed base OID; disclose that required checks are bound to the approved head unless the host
 > supplies a stronger currency guarantee, and that base movement during the provider's in-call merge window remains
 > a residual race. The base OID qualifies the evidence but is not merge authority. Distinguish an Owner-accepted
-> residual review risk from provider-clean evidence and surface native-review or deferred-CI blockers separately.
+> residual review risk from provider-clean evidence and surface native-review blockers separately.
 > State that approval applies remaining dispositions and channel settlement, ends review or confirms the exact
 > Owner-directed stop, invokes exact-head release on the selected lane, and authorizes the exact-head merge represented
 > by this request. Approval authorizes that exact request and
@@ -517,8 +522,7 @@ This separate operation authorizes no merge. Otherwise, continue to the selected
 6. **Run the approved terminal operation.** Under an Owner-directed review stop, immediately recheck the accepted
    Errand claim, PR, base OID, head, and known review/response state. Any movement or new finding returns to Step 4
    for a new exact offer; required checks and host-native review blockers remain independent stops. Owner acceptance
-   never satisfies a required check; if review-cycle CI deferral keeps one red, restore the full check through the
-   project's authorized mechanism before continuing.
+   never satisfies a required check.
 
    For both routes, invoke the existing bounded waiter against the approved target. Omit timing options so the
    project's configured bounded-call defaults apply:

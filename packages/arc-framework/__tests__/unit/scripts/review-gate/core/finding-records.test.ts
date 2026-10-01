@@ -158,7 +158,11 @@ describe("normalized finding navigation", () => {
 
   it("escapes provider text as inert single-line display and validates truthful truncation metadata", () => {
     expect(escapeReviewFindingDisplayText("<script>*unsafe*\n[link](target)"))
-      .toBe("&lt;script&gt;\\*unsafe\\* \\[link\\]\\(target\\)");
+      .toBe("&lt;script&gt;\\*unsafe\\* \\[link\\](target)");
+    expect(escapeReviewFindingDisplayText("A pre-start stub (uncommon) has no home #1 + no table | yet. Done!"))
+      .toBe("A pre-start stub (uncommon) has no home #1 + no table | yet. Done!");
+    expect(escapeReviewFindingDisplayText("`code` _em_ ~~strike~~ \\ back"))
+      .toBe("\\`code\\` \\_em\\_ \\~\\~strike\\~\\~ \\\\ back");
 
     assertSchemaAccepts(NormalizedReviewFindingSchema, {
       ...finding(1),

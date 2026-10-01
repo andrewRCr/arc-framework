@@ -66,7 +66,7 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
   for (const meta of metas) {
     const filename = `meta-${meta.slug}.md`;
     const taskListName = meta.taskList === undefined ? "[none]" : `tasks-${meta.slug}.md`;
-    entries.push({ name: filename, isDirectory: () => false });
+    entries.push({ name: filename, isDirectory: () => false, isFile: () => true });
     if (meta.taskList !== undefined) files.set(`${activeDir}/${taskListName}`, meta.taskList);
     files.set(
       `${activeDir}/${filename}`,

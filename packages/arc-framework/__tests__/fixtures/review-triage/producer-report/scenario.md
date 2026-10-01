@@ -6,6 +6,8 @@
 - Source locus: `src/index.ts:7`.
 - Source evidence: `review:finding-1`.
 - Reviewer judgment: `major` — the branch at the cited locus allegedly enters a failing execution path.
+- Authored title and issue: "Failing path at the cited branch"; the reviewer alleges the branch at this locus enters
+  a failing execution path.
 - ARC source check: `source:src/index.ts:7` shows the branch is unreachable, so no execution failure occurs and the
   finding is `not-supported` with `verifiedSeverity: null`.
 - Proposed disposition: `reject`, record-only.
@@ -47,12 +49,14 @@ The command is at `state: awaiting-approval`, `nextAction: obtain-approval`, wit
         "verifiedSeverity": null,
         "disposition": "reject",
         "gating": "record-only",
+        "title": "Failing path at the cited branch",
+        "issue": "The reviewer alleges the branch at this locus enters a failing execution path.",
         "rationale": "The reviewer alleges this branch enters a failing path, but source verification shows it is unreachable, so no execution failure occurs.",
         "recommendation": "Reject the finding without changing code.",
         "openQuestions": ["Should the reviewer clarify the cited execution path?"]
       }
     ],
-    "dispositionSetId": "sha256:5529cc2e6e4586d357cbdd4f0d63fccdc7a4cdbcd0204f9ec81e2fd76c91ae4e"
+    "dispositionSetId": "sha256:80e5fe487bfd357a881e97997f39b369c3f95c00d0dcf3bedbeb9fc6c90b7568"
   }
 }
 ```
@@ -62,20 +66,20 @@ The command's `payload.dispositionReportText` is exactly these renderer-produced
 ```text
 **Verification:** full
 
-### Finding F1
-**Rationale:** The reviewer alleges this branch enters a failing path, but source verification shows it is unreachable, so no execution failure occurs\.
-**Locus:** src/index\.ts:7
-**Source:** N\-7 · source #1 · review:finding\-1
-**Verified at:** source:src/index\.ts:7
-**Assessment:** NOT SUPPORTED · no ARC severity (ARC) · 🟠 major (reviewer)
-**Recommendation:** REJECT [record-only] — Reject the finding without changing code\.
+### F1 · not supported · REJECT — Failing path at the cited branch
+**Issue:** The reviewer alleges the branch at this locus enters a failing execution path.
+**Verdict:** Not supported · reviewer graded 🟠 major · record-only
+**Action:** Reject the finding without changing code.
+**Detail:** The reviewer alleges this branch enters a failing path, but source verification shows it is unreachable, so no execution failure occurs.
 **Open questions:** Should the reviewer clarify the cited execution path?
+**Source:** src/index.ts:7 · N-7 · source #1 · review:finding-1
+**Verified at:** source:src/index.ts:7
 ```
 
-The same command payload supplies this provisional pass assessment:
+The same command payload supplies this provisional pass line:
 
 ```text
-Provisional standard pass assessment: Pass 1 of 2 under the current configured ceiling (below-ceiling). No source-verified findings are proposed. No cap stop is asserted from this proposal. Approval and response are pending. This proposal does not establish coverage or convergence, and grants no next-pass authority. Recommend any further review from its expected cost and signal.
+Standard pass 1 of 2. No confirmed findings.
 ```
 
 Agent recommendation beside the command payload: Do not request another standard pass from this provisional
@@ -83,5 +87,5 @@ unsupported finding. After any approved record-only response, follow the typed p
 next pass only if it identifies a new expected signal worth the reviewer cost. This recommendation grants no
 next-pass authority.
 
-Assess the combined report, typed proposal, provisional pass assessment, and agent recommendation as the proposed
+Assess the combined report, typed proposal, pass line, and agent recommendation as the proposed
 complete-set approval surface. Do not invent operator approval.
