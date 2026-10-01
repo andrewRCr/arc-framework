@@ -151,8 +151,9 @@ An amendment's artifacts pass the gates the originals passed, over the amendment
 depth. The depth ladder governs whether an adversarial pass is omitted, offered, or recommended. When an eligible
 pass is authorized, run it on the finalization rubric the original cleared, minus nothing —
 [`assess-design-proportionality`][assess-design-proportionality], [`design-audit`][design-audit], and
-[`spec-review`][spec-review]'s coherence slice — and pass prior findings through `adversarial-review`'s
-`prior-findings` input so untouched elements are never re-attacked. Closure re-runs the detecting check
+[`spec-review`][spec-review]'s coherence slice — and pass any prior findings recorded in the work unit's
+`ADVERSARIAL-PASSES.md` through `adversarial-review`'s `prior-findings` input so untouched elements are never
+re-attacked. Append the amendment's pass to that record as the planning passes do. Closure re-runs the detecting check
 (§ Closure).
 
 ### The accretion guard
