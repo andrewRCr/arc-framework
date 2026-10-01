@@ -31,6 +31,79 @@ function stringArray(value: unknown, path: string): string[] {
   return value.map((item, index) => string(item, `${path}[${index}]`));
 }
 
+function positiveInteger(value: unknown, path: string): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) {
+    throw new Error(`${path}: expected a positive integer`);
+  }
+  return value;
+}
+
+/**
+ * Bind a check link to the exact GitHub Actions run and job that produced it.
+ *
+ * @param repository - The `owner/name` the link must belong to.
+ * @param value - The check's link as GitHub reports it.
+ * @returns The run and job identities with the normalized URL, or null for any other link.
+ */
+export function githubActionsJobBinding(
+  repository: string,
+  value: unknown,
+): { runId: string; jobId: string; url: string } | null {
+  if (typeof value !== "string" || value.length === 0) return null;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
+  const match = /^\/([^/]+)\/([^/]+)\/actions\/runs\/([1-9][0-9]*)\/job\/([1-9][0-9]*)\/?$/u
+    .exec(url.pathname);
+  if (url.protocol !== "https:" || url.hostname.toLowerCase() !== "github.com" || match === null) return null;
+  const [, owner, name, runId, jobId] = match;
+  if (owner === undefined || name === undefined || runId === undefined || jobId === undefined) return null;
+  const linkedRepository = `${owner}/${name}`;
+  if (linkedRepository.toLowerCase() !== repository.toLowerCase()) return null;
+  return { runId, jobId, url: url.toString() };
+}
+
+/** One workflow run on a pull request's head, reduced to what supersession needs. */
+interface HeadWorkflowRun {
+  id: string;
+  workflowId: string;
+  event: string;
+  runNumber: number;
+  status: string;
+}
+
+function headWorkflowRuns(value: unknown): HeadWorkflowRun[] {
+  const page = record(value, "head-runs");
+  if (!Array.isArray(page.workflow_runs)) throw new Error("head-runs.workflow_runs: expected an array");
+  return page.workflow_runs.map((item, index) => {
+    const path = `head-runs.workflow_runs[${index}]`;
+    const run = record(item, path);
+    return {
+      id: String(positiveInteger(run.id, `${path}.id`)),
+      workflowId: String(positiveInteger(run.workflow_id, `${path}.workflow_id`)),
+      event: string(run.event, `${path}.event`),
+      runNumber: positiveInteger(run.run_number, `${path}.run_number`),
+      status: string(run.status, `${path}.status`),
+    };
+  });
+}
+
+/**
+ * Name the runs that a newer, still-running run of the same workflow and trigger event on the same head
+ * replaces. Runs of one workflow under different events run independently, so neither replaces the other.
+ */
+function supersededRunIds(runs: readonly HeadWorkflowRun[]): Set<string> {
+  return new Set(runs.filter((run) => runs.some((newer) => (
+    newer.workflowId === run.workflowId
+    && newer.event === run.event
+    && newer.runNumber > run.runNumber
+    && newer.status !== "completed"
+  ))).map(({ id }) => id));
+}
+
 function pullRequestBaseRef(value: unknown): string {
   const pullRequest = record(value, "pull-request");
   const base = record(pullRequest.base, "pull-request.base");
@@ -216,6 +289,29 @@ export function createGhRequiredChecksPort(runner: HostedProcessRunner): Require
     }
   }
 
+  /**
+   * Read a failure as pending while a newer run of its workflow on the same head is still going: that run posts the
+   * head's result under the same name. GitHub lists the newest runs first, so a failure from a run older than the
+   * first hundred keeps its reported state.
+   */
+  async function settleSupersededFailures(
+    repository: string,
+    pullRequest: number,
+    rows: readonly (RequiredCheck & { runId: string | null })[],
+    signal: AbortSignal,
+  ): Promise<RequiredCheck[]> {
+    const checks = rows.map(({ name, state }) => ({ name, state }));
+    if (!rows.some(({ state, runId }) => state === "failed" && runId !== null)) return checks;
+    const headSha = pullRequestHeadSha(await readPullRequest(repository, pullRequest, signal));
+    const superseded = supersededRunIds(headWorkflowRuns(parse((await runner.run([
+      "api", `repos/${repository}/actions/runs?head_sha=${headSha}&per_page=100`,
+    ], { signal })).stdout, "head-runs")));
+    return rows.map(({ name, state, runId }) => ({
+      name,
+      state: state === "failed" && runId !== null && superseded.has(runId) ? "pending" : state,
+    }));
+  }
+
   async function readChecks(
     repository: string,
     pullRequest: number,
@@ -225,20 +321,25 @@ export function createGhRequiredChecksPort(runner: HostedProcessRunner): Require
     const result = await runner.run([
       "pr", "checks", String(pullRequest), "--repo", repository,
       ...(requiredOnly ? ["--required"] : []),
-      "--json", "name,state,bucket",
+      "--json", "name,state,bucket,link",
     ], { signal, allowFailure: true });
     const noReportedChecks = result.stdout.trim() === ""
       && /no (?:required )?checks reported/iu.test(result.stderr);
     const path = requiredOnly ? "required-checks" : "observed-checks";
     const value = noReportedChecks ? [] : parse(result.stdout, path);
     if (!Array.isArray(value)) throw new Error(`${path}: expected an array`);
-    const checks = value.map((item, index) => {
+    const rows = value.map((item, index) => {
       const check = record(item, `${path}[${index}]`);
       if (typeof check.name !== "string" || check.name === "") {
         throw new Error(`${path}[${index}].name: expected a non-empty string`);
       }
-      return { name: check.name, state: checkState(check.bucket, check.state, `${path}[${index}]`) };
+      return {
+        name: check.name,
+        state: checkState(check.bucket, check.state, `${path}[${index}]`),
+        runId: githubActionsJobBinding(repository, check.link)?.runId ?? null,
+      };
     });
+    const checks = await settleSupersededFailures(repository, pullRequest, rows, signal);
     return requiredOnly ? coalesceCheckRows(checks) : checks;
   }
 

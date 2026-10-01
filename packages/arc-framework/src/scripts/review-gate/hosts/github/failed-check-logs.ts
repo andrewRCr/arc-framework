@@ -6,7 +6,7 @@ import type {
   FailedCheckLogsPort,
 } from "../../failed-check-logs.js";
 import type { HostedProcessRunner } from "../../hosted/gh-process.js";
-import { createGhRequiredChecksPort } from "./checks-await.js";
+import { createGhRequiredChecksPort, githubActionsJobBinding } from "./checks-await.js";
 
 function parse(text: string, path: string): unknown {
   try {
@@ -47,27 +47,6 @@ function isFailedCheck(bucket: unknown, state: unknown): boolean {
   if (bucket === "fail" || bucket === "cancel") return true;
   return ["FAILURE", "ERROR", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED", "STARTUP_FAILURE"]
     .includes(String(state));
-}
-
-function actionsBinding(
-  repository: string,
-  value: unknown,
-): { runId: string; jobId: string; url: string } | null {
-  if (typeof value !== "string" || value.length === 0) return null;
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    return null;
-  }
-  const match = /^\/([^/]+)\/([^/]+)\/actions\/runs\/([1-9][0-9]*)\/job\/([1-9][0-9]*)\/?$/u
-    .exec(url.pathname);
-  if (url.protocol !== "https:" || url.hostname.toLowerCase() !== "github.com" || match === null) return null;
-  const [, owner, name, runId, jobId] = match;
-  if (owner === undefined || name === undefined || runId === undefined || jobId === undefined) return null;
-  const linkedRepository = `${owner}/${name}`;
-  if (linkedRepository.toLowerCase() !== repository.toLowerCase()) return null;
-  return { runId, jobId, url: url.toString() };
 }
 
 function unsupportedFailure(name: string, link: unknown): FailedCheckLogFailure {
@@ -165,7 +144,7 @@ export function createGhFailedCheckLogsPort(runner: HostedProcessRunner): Failed
         const check = record(value, `failed-checks[${index}]`);
         if (!isFailedCheck(check.bucket, check.state)) continue;
         const name = nonEmptyString(check.name, `failed-checks[${index}].name`);
-        const binding = actionsBinding(repository, check.link);
+        const binding = githubActionsJobBinding(repository, check.link);
         if (binding === null) {
           failures.push(unsupportedFailure(name, check.link));
           continue;
