@@ -504,7 +504,7 @@ remote base all name the same exact head. Any tracked change continues through t
 > the retained last-observed base OID; disclose that required checks are bound to the approved head unless the host
 > supplies a stronger currency guarantee, and that base movement during the provider's in-call merge window remains
 > a residual race. The base OID qualifies the evidence but is not merge authority. Distinguish an Owner-accepted
-> residual review risk from provider-clean evidence and surface native-review or deferred-CI blockers separately.
+> residual review risk from provider-clean evidence and surface native-review blockers separately.
 > State that approval applies remaining dispositions and channel settlement, ends review or confirms the exact
 > Owner-directed stop, invokes exact-head release on the selected lane, and authorizes the exact-head merge represented
 > by this request. Approval authorizes that exact request and
@@ -522,8 +522,7 @@ This separate operation authorizes no merge. Otherwise, continue to the selected
 6. **Run the approved terminal operation.** Under an Owner-directed review stop, immediately recheck the accepted
    Errand claim, PR, base OID, head, and known review/response state. Any movement or new finding returns to Step 4
    for a new exact offer; required checks and host-native review blockers remain independent stops. Owner acceptance
-   never satisfies a required check; if review-cycle CI deferral keeps one red, restore the full check through the
-   project's authorized mechanism before continuing.
+   never satisfies a required check.
 
    For both routes, invoke the existing bounded waiter against the approved target. Omit timing options so the
    project's configured bounded-call defaults apply:
