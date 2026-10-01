@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "extract-grounded-planning-review",
+  "claimId": "c3d57fb8d549260c302dde28b4be27ca",
+  "createdAt": "2026-10-01T21:12:34.671Z",
+  "updatedAt": "2026-10-01T21:12:34.671Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Extract the grounded planning-review slice of planning-iteration-mechanics into its own planned work unit",
+  "branch": "chore/extract-grounded-planning-review",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
