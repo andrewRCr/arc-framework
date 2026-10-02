@@ -35,6 +35,7 @@ import {
   type HostedReviewCoverage,
 } from "./hosted/request.js";
 import { HostedAwaitEnvelopeSchema } from "./hosted/await.js";
+import { HostReviewStatusSchema, type HostReviewStatus } from "./host-review.js";
 import { ReviewContributionApplicabilityResultSchema } from
   "./policy/review-contribution-applicability.js";
 import {
@@ -936,6 +937,7 @@ const ReviewStatusBaseShape = {
   mode: z.literal("review-status"),
   target: ChangeRequestTargetRefSchema,
   requiredChecks: RequiredCheckStatusSchema,
+  hostReview: HostReviewStatusSchema,
   routedObligation: RoutedReviewObligationSchema,
   currentBaseOid: GitObjectIdSchema.nullable(),
   movement: ReviewStatusMovementSchema,
@@ -1233,6 +1235,7 @@ export const ReviewStatusCommandResultSchema: z.ZodType<ReviewStatusCommandResul
 export interface ReviewStatusObservation {
   actualHeadSha: string;
   requiredChecks: RequiredCheckStatus;
+  hostReview?: HostReviewStatus;
   routedObligation: RoutedReviewObligation;
   currentBaseOid: string | null;
   baseContained: boolean;
@@ -1307,6 +1310,10 @@ export async function resolveReviewStatus(
     mode: "review-status" as const,
     target: request.target,
     requiredChecks: RequiredCheckStatusSchema.parse(observation.requiredChecks),
+    hostReview: HostReviewStatusSchema.parse(observation.hostReview ?? {
+      state: "unavailable",
+      detail: "The host's review state was not read for this target.",
+    }),
     routedObligation: RoutedReviewObligationSchema.parse(observation.routedObligation),
     currentBaseOid: observation.currentBaseOid === null
       ? null

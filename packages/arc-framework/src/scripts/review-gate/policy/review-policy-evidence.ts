@@ -31,6 +31,7 @@ import {
   type IncrementalPredecessorApplicability,
   type IncrementalPredecessorResponseEvidence,
 } from "./incremental-coverage-basis.js";
+import { requireDriverAdmission } from "./review-execution-admission.js";
 
 /** Trusted inputs needed to bind one command request to immutable producer evidence. */
 export interface EvidenceBoundReviewPolicyDependencies {
@@ -512,19 +513,8 @@ export async function assertEvidenceBoundReviewExecutionAdmission(
   },
   dependencies: EvidenceBoundReviewPolicyDependencies,
 ): Promise<Extract<ReviewResolveEnvelope, { state: "ready" }>> {
-  const resolution = await resolveEvidenceBoundReviewPolicyContinuation(input, response, dependencies);
-  if (resolution.state !== "ready" || resolution.nextAction !== expectation.nextAction) {
-    const reason = resolution.state === "invalid-override" ? `/${resolution.payload.reason}` : "";
-    throw new Error(
-      `Review capacity lacks standard-review driver admission `
-      + `(${resolution.state}/${resolution.nextAction}${reason}).`,
-    );
-  }
-  if (resolution.payload.sourceId !== expectation.sourceId) {
-    throw new Error(
-      `Review source \`${expectation.sourceId}\` is not driver-admissible; `
-      + `the standard lane requires \`${resolution.payload.sourceId}\` next.`,
-    );
-  }
+  const request = ReviewPolicyCommandRequestSchema.parse(input);
+  const resolution = await resolveEvidenceBoundReviewPolicyContinuation(request, response, dependencies);
+  requireDriverAdmission(resolution, expectation, { request });
   return resolution;
 }

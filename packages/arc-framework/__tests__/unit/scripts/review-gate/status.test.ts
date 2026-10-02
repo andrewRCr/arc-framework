@@ -402,6 +402,34 @@ describe("review status", () => {
     });
   });
 
+  it("carries the host's blocking reviews without changing the status action", async () => {
+    const hostReview = {
+      state: "changes-requested" as const,
+      blockingReviews: [{
+        reviewId: 5395474284,
+        author: "coderabbitai",
+        commitSha: oid("c"),
+        submittedAt: "2026-10-02T18:43:15Z",
+      }],
+    };
+
+    await expect(resolveReviewStatus({ target }, port({ hostReview }))).resolves.toMatchObject({
+      state: "settled",
+      nextAction: "continue-reconcile",
+      hostReview,
+    });
+    await expect(resolveReviewStatus({ target }, port({
+      routedObligation: { state: "review-required", detail: "Hosted review remains required." },
+      hostReview,
+    }))).resolves.toMatchObject({ state: "review-required", nextAction: "run-review", hostReview });
+  });
+
+  it("reports host review as unavailable when the observation did not read it", async () => {
+    await expect(resolveReviewStatus({ target }, port())).resolves.toMatchObject({
+      hostReview: { state: "unavailable", detail: "The host's review state was not read for this target." },
+    });
+  });
+
   it("returns a complete hosted request for an admitted singleton PR", async () => {
     const exactTarget = { repository: target.repository, pullRequest: 41, headSha: target.headSha };
     const obligation = composeSingletonReviewObligation({

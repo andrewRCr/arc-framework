@@ -347,6 +347,14 @@ import {
   respondToReviewCommand,
 } from "../scripts/review-gate/runtime/respond-command.js";
 import { uncommittedVerifiedFixRemedy } from "../scripts/review-gate/runtime/respond-remedy.js";
+import {
+  HostedReviewAdmissionError,
+  StaleLaneAttemptsError,
+  hostedRequestAdmissionRemedy,
+  localPrepareAdmissionRemedy,
+  staleLaneAttemptsRemedy,
+} from "../scripts/review-gate/runtime/review-policy-remedy.js";
+import { ReviewDriverAdmissionError } from "../scripts/review-gate/policy/review-execution-admission.js";
 import { createReduceDependencies } from "../scripts/review-gate/runtime/reduce-composition.js";
 import {
   ReduceRequestSchema,
@@ -1694,6 +1702,14 @@ async function resolveConfiguredReviewPolicy(
         attemptedTarget,
       });
       if (confirmation.state !== "current") {
+        // Only a request already at the checkout's head is stale in its attempts alone.
+        if (confirmation.currentTarget.headSha === request.target.headSha
+          && confirmation.attemptedTarget.headSha !== request.target.headSha) {
+          throw new StaleLaneAttemptsError({
+            attemptHeadSha: confirmation.attemptedTarget.headSha,
+            targetHeadSha: request.target.headSha,
+          });
+        }
         throw new Error("review producer target does not match the current exact target");
       }
       return confirmation.target;
@@ -1960,6 +1976,7 @@ export async function handleReviewResolve(
       ReviewPolicyCommandRequestSchema.parse(request),
       root,
     ),
+    remedyFor: staleLaneAttemptsRemedy,
   });
 }
 
@@ -2065,6 +2082,8 @@ async function executeHostedReviewHandler(input: {
   resultSchema: ZodType;
   dependencies: HostedReviewHandlerBoundary;
   execute(request: unknown): Promise<unknown>;
+  /** Corrective continuation for an execution refusal. */
+  remedyFor?(error: unknown): SpineRemedy | undefined;
 }): Promise<void> {
   const operand = ReviewCommandInputSchema.safeParse({ input: input.source });
   if (!operand.success) {
@@ -2084,7 +2103,7 @@ async function executeHostedReviewHandler(input: {
   try {
     rawResult = await input.execute(request);
   } catch (error) {
-    emitHostedReviewError(input.mode, error, "execution", input.dependencies);
+    emitHostedReviewError(input.mode, error, "execution", input.dependencies, input.remedyFor?.(error));
     return;
   }
 
@@ -2101,8 +2120,12 @@ function emitHostedReviewError(
   error: unknown,
   phase: ReviewHandlerErrorPhase,
   dependencies: Pick<HostedReviewHandlerBoundary, "write" | "setExitCode">,
+  remedy?: SpineRemedy,
 ): void {
-  dependencies.write(`${JSON.stringify(reviewCommandError(mode, error, phase, ReviewCommandErrorEnvelopeSchema))}\n`);
+  const remedyFor = remedy === undefined ? undefined : () => remedy;
+  dependencies.write(
+    `${JSON.stringify(reviewCommandError(mode, error, phase, ReviewCommandErrorEnvelopeSchema, remedyFor))}\n`,
+  );
   dependencies.setExitCode(1);
 }
 
@@ -3039,6 +3062,7 @@ export async function handleReviewLocalPrepare(
     resultSchema: LocalPrepareEnvelopeSchema,
     dependencies,
     execute: dependencies.prepare,
+    remedyFor: localPrepareAdmissionRemedy,
   });
 }
 
@@ -3786,6 +3810,10 @@ async function executeDefaultHostedRequest(
             return admitted;
           } catch (error) {
             if (error instanceof HostedRequestOwnerCollision) return { state: "ambiguous-delivery" };
+            // The open change request's status re-reads what the driver admits instead.
+            if (error instanceof ReviewDriverAdmissionError) {
+              throw new HostedReviewAdmissionError(error, context.statusTarget);
+            }
             throw error;
           }
         },
@@ -3838,6 +3866,7 @@ export async function handleReviewHostedRequest(
     resultSchema: HostedRequestResultSchema,
     dependencies,
     execute: dependencies.request,
+    remedyFor: hostedRequestAdmissionRemedy,
   });
 }
 

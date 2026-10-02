@@ -258,7 +258,7 @@ export interface ExecuteTransitionContext {
   /**
    * Write the meta `Current Workflow` bullet field at `metaPath` (read → rewrite
    * → write). The workflow-pointer sibling of {@link writeBranchField}: `stage`
-   * is a planning-stage basename, a live publication lifecycle workflow, or
+   * is a planning-stage basename, a live non-planning lifecycle workflow, or
    * `[none]` when the current phase carries no workflow pointer.
    */
   writeCurrentWorkflowField: (metaPath: string, stage: string) => Promise<void>;

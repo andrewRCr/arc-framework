@@ -78,8 +78,8 @@ with the exact corrective boundary.
 The executor then fires the `reopen` edge: flips `**State:** Integrating → Active`, clears the now-stale integration
 `**Next Action:**` pointer, and fires the `withdraw-pr` side-effect — `gh pr close` (default) or
 `gh pr ready --undo` (`--keep-pr`). Without `--task`, `**Next Task:**` stays `[none]` and `Current Workflow`
-returns to `prepare-work-unit`. With an exact `--task`, the transition writes that orientation and clears
-`Current Workflow` to `[none]`, returning the Active work unit to `process-task-loop`. `{name}` defaults to the
+returns to `prepare-work-unit`. With an exact `--task`, the transition writes that orientation and sets
+`Current Workflow` to `process-task-loop`, returning the Active work unit to task execution. `{name}` defaults to the
 current worktree's WU. Candidate currentness remains mandatory before prepublication resumes; reopened task
 execution carries no review or publication authority from the stale Candidate.
 

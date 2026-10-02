@@ -48,6 +48,10 @@ describe("checkCurrentWorkflowConsistency — encoding-consistency validator", (
       expect(check("Active", null, ["spec-foo.md"])).toEqual([]);
     });
 
+    it("process-task-loop for an Active work unit executing its task list", () => {
+      expect(check("Active", "process-task-loop", ["spec-foo.md"])).toEqual([]);
+    });
+
     it("prepare-work-unit for an Active Candidate", () => {
       expect(check("Active", "prepare-work-unit", ["spec-foo.md"])).toEqual([]);
     });

@@ -992,7 +992,7 @@ describe("executeTransition — Branch-field encoding projection", () => {
     expect(branchWrites).toEqual([{ path: ".arc/active/meta-demo.md", branch: "feat/demo" }]);
   });
 
-  it("activate clears `Current Workflow` to `[none]` (planning exits)", async () => {
+  it("activate writes `process-task-loop` to `Current Workflow` (planning exits)", async () => {
     const { ctx, currentWorkflowWrites } = buildSpies({ metas: [PLANNING_ACTIVE_META] });
 
     const outcome = await executeTransition(ctx, {
@@ -1005,7 +1005,7 @@ describe("executeTransition — Branch-field encoding projection", () => {
     });
 
     expect(outcome.status).toBe("ok");
-    expect(currentWorkflowWrites).toEqual([{ path: ".arc/active/meta-demo.md", stage: "[none]" }]);
+    expect(currentWorkflowWrites).toEqual([{ path: ".arc/active/meta-demo.md", stage: "process-task-loop" }]);
   });
 
   it("deactivate restores `plan/<slug>` (from branchOp.toBranch)", async () => {

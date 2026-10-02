@@ -70,6 +70,11 @@ import { FrontlineOperationUncertainError } from
 import { FrontlineRunCommandRequestSchema } from
   "../../../src/scripts/review-gate/core/frontline-run-command-schema.js";
 import { LocalPrepareRequestSchema } from "../../../src/scripts/review-gate/runtime/local-prepare.js";
+import { ReviewDriverAdmissionError } from "../../../src/scripts/review-gate/policy/review-execution-admission.js";
+import {
+  ReviewPolicyCommandRequestSchema,
+  resolveReviewPolicy,
+} from "../../../src/scripts/review-gate/policy/review-policy-driver.js";
 import {
   LocalPrepareCommandError,
 } from "../../../src/scripts/review-gate/runtime/local-prepare.js";
@@ -1054,6 +1059,7 @@ describe("handleReviewStatus", () => {
         headSha: "c".repeat(40),
       },
       requiredChecks: "green" as const,
+      hostReview: { state: "clear" as const },
       routedObligation: {
         state: "review-required" as const,
         detail: `Member one is selected for ${request.workUnitId}.`,
@@ -1112,6 +1118,7 @@ describe("handleReviewStatus", () => {
         headSha: "c".repeat(40),
       },
       requiredChecks: "green" as const,
+      hostReview: { state: "clear" as const },
       routedObligation: {
         state: "review-required" as const,
         detail: `Selected ${request.sourceId ?? "default"}.`,
@@ -1163,6 +1170,7 @@ describe("handleReviewStatus", () => {
       mode: "review-status" as const,
       target: request.target,
       requiredChecks: "green" as const,
+      hostReview: { state: "clear" as const },
       routedObligation: {
         state: "review-required" as const,
         detail: `Selected ${request.sourceId ?? "default"}.`,
@@ -1227,6 +1235,7 @@ describe("handleReviewStatus", () => {
         mode: "review-status",
         target: request.target,
         requiredChecks: "green",
+        hostReview: { state: "clear" },
         routedObligation: {
           state: "review-required",
           detail: request.ceilingOverride === undefined
@@ -1937,6 +1946,47 @@ describe("handleReviewLocalPrepare", () => {
       schemaVersion: 1,
       mode: "review-local-prepare",
       error: { code: "invalid-input" },
+    });
+    expect(setExitCode).toHaveBeenCalledWith(1);
+  });
+
+  it("names the lane resolution the driver evaluated when it no longer admits the local pass", async () => {
+    const write = vi.fn();
+    const setExitCode = vi.fn();
+    const policyRequest = ReviewPolicyCommandRequestSchema.parse({
+      schemaVersion: 1,
+      target: { ...hostedTarget, pullRequest: null },
+      lane: "standard",
+      frontlineActive: false,
+      standardReview: hostedStandardReview,
+      completedPasses: 2,
+      attempts: [],
+      invocation: { mode: "force", sourceId: "delegated-agent" },
+    });
+    const refusal = new ReviewDriverAdmissionError(
+      "Review capacity lacks standard-review driver admission (approval-required/obtain-ceiling-override).",
+      resolveReviewPolicy({ ...policyRequest, sources: ["delegated-agent"], maxPasses: 2 }),
+      policyRequest,
+    );
+
+    await handleReviewLocalPrepare("-", {
+      resolveRoot: () => "/repo",
+      readText: async () => JSON.stringify({ schemaVersion: 1, evaluatorIdentity: "reviewer", routingFacts: {} }),
+      prepare: async () => {
+        throw refusal;
+      },
+      write,
+      setExitCode,
+    });
+
+    expect(JSON.parse(String(write.mock.calls[0]?.[0]))).toMatchObject({
+      mode: "review-local-prepare",
+      error: { code: "invalid-input", message: refusal.message },
+      remedy: {
+        text: expect.stringContaining("For its exact consequence, re-resolve the lane"),
+        argv: ["arc", "review", "resolve", "-"],
+        stdin: policyRequest,
+      },
     });
     expect(setExitCode).toHaveBeenCalledWith(1);
   });
