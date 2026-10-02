@@ -35,17 +35,19 @@ export async function directoryAt(context: InRepoContext, path: string, revision
     try { return await context.ports.fs.readdir(join(context.ports.checkoutRoot, path)); }
     catch (error) { if (isMissing(error)) return []; throw error; }
   }
-  const options = { cwd: context.ports.checkoutRoot, objectAccess: "local-only" as const };
-  const entry = await context.ports.exec("git", ["ls-tree", "-z", revision, "--", `:(literal)${path}`], options);
-  if (entry.stdout === "") return [];
-  if (!/^040000 tree [0-9a-f]+\t/u.test(entry.stdout)) throw new Error(`The record namespace is not a directory: ${path}`);
-  const { stdout } = await context.ports.exec("git", ["ls-tree", "-z", `${revision}:${path}`], {
+  const { stdout } = await context.ports.exec("git", ["ls-tree", "-z", "-t", revision, "--", `:(literal)${path}`, `:(literal)${path}/`], {
     cwd: context.ports.checkoutRoot, objectAccess: "local-only",
   });
-  return stdout.split("\0").filter(Boolean).map((entry) => {
+  const entries = stdout.split("\0").filter(Boolean).map((entry) => {
     const match = /^([0-7]{6}) (blob|tree|commit) [0-9a-f]+\t(.+)$/u.exec(entry);
     if (match?.[3] === undefined) throw new Error("Git returned an invalid record tree entry");
-    return { name: match[3], isDirectory: () => match[2] === "tree",
-      isFile: () => match[2] === "blob" && (match[1] === "100644" || match[1] === "100755") };
+    return { name: match[3], mode: match[1], type: match[2] };
   });
+  const directory = entries.find((entry) => entry.name === path);
+  if (directory === undefined) return [];
+  if (directory.mode !== "040000" || directory.type !== "tree") throw new Error(`The record namespace is not a directory: ${path}`);
+  const prefix = `${path}/`;
+  return entries.filter((entry) => entry.name.startsWith(prefix) && !entry.name.slice(prefix.length).includes("/"))
+    .map((entry) => ({ name: entry.name.slice(prefix.length), isDirectory: () => entry.type === "tree",
+      isFile: () => entry.type === "blob" && (entry.mode === "100644" || entry.mode === "100755") }));
 }

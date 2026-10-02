@@ -1,5 +1,5 @@
 /** Tracked namespace failures remain visible through the public store. */
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createStore } from "../../src/lib/store/create.js";
@@ -34,6 +34,24 @@ async function fixture(kind: "lineage/transition" | "review/candidate" | "review
 }
 
 describe("tracked listing acquisition", () => {
+  it("distinguishes missing, non-directory and repaired saved namespaces", async () => {
+    const h = await fixture("lineage/transition");
+    const namespace = dirname(h.path);
+    const save = async () => {
+      await h.exec("git", ["add", "-A"]);
+      await h.exec("git", ["commit", "-m", "Save namespace state"]);
+      return StateVersionSchema.parse((await h.exec("git", ["rev-parse", "HEAD"])).stdout.trim());
+    };
+    await rm(join(h.root, namespace), { recursive: true });
+    await h.put(`${dirname(namespace)}/kept.json`, "ancestor remains\n");
+    expect(success(await h.store.list({ ...h.input, asOf: await save() }))).toMatchObject({ status: "absent" });
+    await h.put(namespace, "not a directory\n");
+    await expect(h.store.list({ ...h.input, asOf: await save() })).rejects.toMatchObject({ code: "store.operation-failed" });
+    await rm(join(h.root, namespace));
+    await h.put(h.path, inRepoContent(h.reference("lineage/transition")));
+    expect(success(await h.store.list({ ...h.input, asOf: await save() }))).toMatchObject({ status: "complete", missed: false });
+  });
+
   it.each(["lineage/transition", "review/candidate", "review/integration-boundary", "cohort/document", "work-item/meta", "work-item/companion"] as const)("reports denied %s roots and permits retry", async (kind) => {
     const h = await fixture(kind);
     const before = success(await h.store.list(h.input));
