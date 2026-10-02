@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "hosted-respond-continuation",
+  "claimId": "774cb412c9a701e20d2c78c96f30eacf",
+  "createdAt": "2026-10-02T23:21:01.139Z",
+  "updatedAt": "2026-10-02T23:21:01.139Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Name the lane continuation, not reduce, after a settled hosted review response",
+  "branch": "chore/hosted-respond-continuation",
+  "origin": "inbox",
+  "originEntry": "Stop naming `reduce` after a settled hosted review response",
+  "originEntrySourceDigest": "sha256:d2aa8139a93bfa38dff090e18583c3e80967c40d1db545cef8f7bb489ca552f3",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
