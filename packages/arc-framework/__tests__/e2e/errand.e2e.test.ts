@@ -433,9 +433,6 @@ describe("arc review respond for an Errand", () => {
         dispositions,
       })).resolves.toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
 
-      await writeFile(join(repository, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
-      await git(repository, ["add", "reviewed.txt"]);
-      await commitFixture(repository, "apply approved fix");
       const verifiedRequest = {
         schemaVersion: 1,
         source,
@@ -446,7 +443,24 @@ describe("arc review respond for an Errand", () => {
           verificationEvidenceRefs: ["verification://focused-fix"],
         },
       };
-      await expect(invokeReview(repository, ["review", "respond", "-"], verifiedRequest))
+      await writeFile(join(repository, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
+      await git(repository, ["add", "reviewed.txt"]);
+      const uncommitted = await runArcWithStdin(
+        ["review", "respond", "-"],
+        repository,
+        `${JSON.stringify(verifiedRequest)}\n`,
+      );
+      expect(uncommitted.exitCode).not.toBe(0);
+      const refusal = JSON.parse(uncommitted.stdout) as { remedy: { argv: string[]; stdin: unknown } };
+      expect(refusal).toMatchObject({
+        error: { code: "invalid-input" },
+        diagnostics: [{ code: "repository-precondition", precondition: "clean-worktree" }],
+        remedy: { argv: ["arc", "review", "respond", "-"] },
+      });
+      expect(refusal.remedy.stdin).toEqual(verifiedRequest);
+
+      await commitFixture(repository, "apply approved fix");
+      await expect(invokeReview(repository, refusal.remedy.argv.slice(1), refusal.remedy.stdin))
         .resolves.toMatchObject({ state: "errand-advanced", nextAction: "continue-review" });
       await expect(invokeReview(repository, ["review", "respond", "-"], verifiedRequest))
         .resolves.toMatchObject({ state: "errand-current", nextAction: "continue-review" });

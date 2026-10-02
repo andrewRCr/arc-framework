@@ -448,6 +448,14 @@ export class RespondCommandError extends Error {
   }
 }
 
+/** A verified fix submitted while its exact target still reads as the reviewed one. */
+export class UnchangedVerifiedFixTargetError extends RespondCommandError {
+  constructor() {
+    super("invalid-input", "a verified fix requires a changed exact target");
+    this.name = "UnchangedVerifiedFixTargetError";
+  }
+}
+
 interface ResolvedResponseSource {
   result: ReviewResult;
   operationId: string;
@@ -1989,12 +1997,7 @@ async function resolveVerifiedFixTarget(
     changedTarget = candidateBoundFix.candidateFixTarget.targetId === reviewedCandidateTarget.targetId
       ? null : candidateBoundFix.candidateFixTarget;
   }
-  if (verifiedFix !== undefined && changedTarget === null) {
-    throw new RespondCommandError(
-      "invalid-input",
-      "a verified fix requires a changed exact target",
-    );
-  }
+  if (verifiedFix !== undefined && changedTarget === null) throw new UnchangedVerifiedFixTargetError();
   return { recordedFix, currentTarget, changedTarget, deliveryMemberFixTarget };
 }
 
