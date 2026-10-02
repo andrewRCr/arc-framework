@@ -17,3 +17,4 @@ export * from "./create.js";
 export * from "./default-ports.js";
 export * from "./current-work-unit.js";
 export * from "./lifecycle-index.js";
+export * from "./lifecycle-storage.js";

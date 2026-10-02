@@ -20,5 +20,12 @@ The `concurrency/` library supplies pure entry and line merges, stable entry IDs
 both labeled sides as separate records while the current side remains visible. A resolving write names the conflict
 references explicitly.
 
+The current-work-unit resolver preserves checkout occupancy outcomes and falls back to an unhusked marker claim
+when a backend cannot list checkout-held records. The lifecycle index keeps identities, parsed fields, and placement
+without physical paths. Its checkout agreement query is an interim read bridge; writes still decide admission.
+
+The lifecycle storage adapter binds checkpoint and merge filesystem reads to one saved state. Its directories project
+selected meta records only, and its reads retain the existing lifecycle tree reader's trailing-whitespace behavior.
+
 Reference backends and conformance fixtures live exclusively in test support. This module adds no package export
 or standalone build entry.

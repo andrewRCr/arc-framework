@@ -422,7 +422,7 @@ identity-keyed index answers the pilot caller's query with the records and field
         - Real-Git differentials preserve the view resolver’s records and fields for its explicit queries,
           including current, backlog, archive, absent, and saved-state cases; the caller remains unchanged.
 
-### `[ ]` **5.3 Store behind the integration checkpoint's lifecycle port — D9**
+### `[x]` **5.3 Store behind the integration checkpoint's lifecycle port — D9**
 
 - _Goal:_ The checkpoint's and merge composition's default lifecycle storage is the new store — its version the
   contract's `version`, its file reads the contract's reads as of that version through the layout resolver — and it
@@ -430,29 +430,14 @@ identity-keyed index answers the pilot caller's query with the records and field
   which its summary omits where they give an unplaceable meta at its tier and a rejected flat-active meta's slug at its
   other copy.
 
-    - `[ ]` **5.3.a The port over the store**
-        - `IntegrationLifecycleStoragePort.readSnapshot()` (`scripts/integration/checkpoint-composition.ts`) returns
-          `{ version, fs }` from the store: `version` is the contract's `version` — `HEAD` over the in-repo
-          implementation — and `fs` is an adapter in `lib/store/` over the contract's `read` and `list` as of that
-          version. The port's `fs` lists directories as well as reading files — it is `resolveComposedLifecycleIndex`'s
-          reader (`ProjectViewFs`) — so the adapter maps a path to a record through the layout resolver's reverse,
-          `identifyWorkUnitArtifactPath` (`lib/layout/identification.ts`), and each listed work item back to its path
-          through `resolveArcPath`, from the placement its listing carries and, in the backlog, the cohort folder its
-          `Cohort` field gives, as a creation's path is built (Task 4.4.a). No caller reaches a backend's tree reader.
-        - The adapter lists only what records give it — no README, no index file, no archive folder without a meta, and
-          no meta the layout cannot place (Task 4.3.a) — and, for a slug held in two locations, only its selected copy,
-          so its directory listings are not the tree's.
-        - Build `test-first`: a differential test, which today's default ports lack, shows the store's snapshot and
-          today's default, `createGitTreeReadFs` (`scripts/review-gate/hosts/local/git-tree-fs.ts`) at `HEAD`, returning
-          the same version, the same lifecycle summary for each work unit (`readLifecycleSummary`, which builds the
-          composed lifecycle index over the port's `fs` and reads the meta it finds), and the same bytes for every file
-          that summary reads, but for a work unit whose meta sits under an uppercase quarter, which the store's summary
-          omits and today's gives at `completed`, and one whose flat-active meta its parser rejects beside a completed
-          copy, which the store's summary omits and today's gives at `completed`.
+    - `[x]` **5.3.a The port over the store**
+        - The snapshot port binds Store version, indexed directory projection, layout reversal, and record
+          reads to one saved state. Differentials preserve lifecycle summaries and legacy read normalization, with both
+          omissions.
 
-    - `[ ]` **5.3.b The defaults become the store**
-        - The defaults in `checkpoint-composition.ts` and `merge-composition.ts` construct the store; the checkpoint and
-          merge tests pass unchanged.
+    - `[x]` **5.3.b The defaults become the store**
+        - Checkpoint and merge defaults construct the Store snapshot port; injected lifecycle ports retain
+          their authority and existing composition tests continue to pass.
 
 ### `[ ]` **5.4 Shared pieces served end to end** — validate exit criterion at segment scope
 
