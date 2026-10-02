@@ -26,9 +26,16 @@ describe("uncommittedVerifiedFixRemedy", () => {
       });
   });
 
-  it("names the same continuation when the verified fix left the exact target unchanged", () => {
-    expect(uncommittedVerifiedFixRemedy(new UnchangedVerifiedFixTargetError(), verifiedFixRequest))
-      .toMatchObject({ argv: ["arc", "review", "respond", "-"], stdin: verifiedFixRequest });
+  it("asks for the approved fix to be applied first when the exact target never changed", () => {
+    const remedy = uncommittedVerifiedFixRemedy(new UnchangedVerifiedFixTargetError(), verifiedFixRequest);
+
+    expect(remedy).toMatchObject({
+      text: expect.stringMatching(/^A verified fix .* Apply the approved fix if it is not in place, commit it /u),
+      argv: ["arc", "review", "respond", "-"],
+      stdin: verifiedFixRequest,
+    });
+    expect(uncommittedVerifiedFixRemedy(new LocalTargetDerivationError("dirty-worktree"), verifiedFixRequest)?.text)
+      .not.toContain("Apply the approved fix");
   });
 
   it("names nothing for a dirty worktree when the request carries no verified fix", () => {
