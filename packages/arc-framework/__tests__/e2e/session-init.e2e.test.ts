@@ -639,7 +639,7 @@ describe("session-init E2E — sessionType across type variants", () => {
 
     const meta = await readFile(join(activeDir, "meta-foo.md"), "utf8");
     expect(meta).toContain("| `Active`");
-    expect(meta).toContain("- **Current Workflow:** [none]");
+    expect(meta).toContain("- **Current Workflow:** `process-task-loop`");
     expect(meta).toContain(`- **Next Task:** ${task}`);
     expect(await readFile(ghLog, "utf8")).toBe([
       "pr view feat/foo --json state",

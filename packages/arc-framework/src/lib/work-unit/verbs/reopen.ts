@@ -79,7 +79,7 @@ export async function runReopen(
   const inputs = {
     prMerged,
     prWithdrawMode: withdrawMode ?? "close",
-    currentWorkflowOverride: executionTask === undefined ? undefined : "[none]",
+    currentWorkflowOverride: executionTask === undefined ? undefined : "process-task-loop",
     softFields: { nextTask: executionTask ?? "[none]" },
   };
 
