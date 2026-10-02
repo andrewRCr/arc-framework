@@ -484,13 +484,14 @@ enumeration is re-derived against the tree at the phase's close.
 - _Outcome:_ Seven consumer query owners compare their original path reads with identity records, including saved
   HEAD summaries, selected-record authority, task-list bindings and teardown projections.
 
-### `[ ]` **6.4 Index callers exhausted** — validate exit criterion at segment scope
+### `[x]` **6.4 Index callers exhausted** — validate exit criterion at segment scope
 
 - _Goal:_ The enumerated caller set is exhausted and batch-verified: every caller has a passing differential for each
   of its queries, and a fresh enumeration at the phase's close finds no caller the record lacks.
 
-    - Re-run Task 6.1's search at the phase's head and compare it with the recorded enumeration; record the scenario
-      and its result.
+- _Outcome:_ At `4bacf9a9e`, both differential batches passed together over every recorded query owner. Re-running
+  the builder and indirect-path enumeration at that same head found the recorded caller set exhaustive, with the
+  branch-tree exclusions unchanged.
 
 ## **Phase 7:** In-repo implementation over personal files and transient-identity records
 
