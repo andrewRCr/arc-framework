@@ -67,8 +67,13 @@ export async function produceReferenceRecovery(fixture: ConformanceFixture, back
 
 async function produceAmbiguity(fixture: ConformanceFixture, state: ReferenceRecoveryState): Promise<RecoveryOperation> {
   const branch = { repository: "ambiguous-repository", ref: "shared-branch" };
-  await seed(fixture, fixture.reference("work-item/meta"), undefined, { kind: "active" }, { branch });
+  const first = await seed(fixture, fixture.reference("work-item/meta"), undefined, { kind: "active" }, { branch });
   const second = await seed(fixture, fixture.reference("work-item/meta", "two"), undefined, { kind: "active" }, { branch });
-  state.repairs.set("ambiguous-match", async () => { success(await fixture.store.write({ ...update(fixture, second), links: {} })); });
+  const duplicate = success(await fixture.store.write({ ...update(fixture, second),
+    reference: { ...second.reference, owner: { ...second.reference.owner, name: first.reference.owner.name } } }));
+  state.repairs.set("ambiguous-match", async () => {
+    const current = success(await fixture.store.read({ reference: duplicate.reference }));
+    success(await fixture.store.write({ action: "remove", reference: current.reference, expected: current.version, provenance: { verb: "remove", lifecycleAction: "remove" } }));
+  });
   return { run: () => fixture.store.lookup({ kind: "ref", ...branch }) };
 }

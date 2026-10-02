@@ -391,73 +391,21 @@ _Exit criterion:_ `resolveActiveWu`, `readActiveMetaCandidates`, and `resolveCur
 and the checkpoint and merge compositions default to the new store, with every existing test passing unchanged; the
 identity-keyed index answers the pilot caller's query with the records and fields that caller's path read returns.
 
-### `[ ]` **5.1 Current-work-unit resolver and its three delegates — D9**
+### `[x]` **5.1 Current-work-unit resolver and its three delegates — D9**
 
 - _Goal:_ One resolver answers which work unit this checkout holds, by identity, with the answers `resolveActiveWu`,
   `readActiveMetaCandidates`, and `resolveCurrentWuSlug` give today and the candidates the one-work-unit-per-worktree
   guard checks, a symbolic link to a meta aside, and those three become delegates over it with their call sites served
   unchanged.
 
-    - `[ ]` **5.1.a The resolver**
-        - It returns each candidate's identity — with its parsed meta record where the meta's parser accepts it, and its
-          listing diagnostic where it does not — resolved, none, and ambiguous kept distinct. It lists metas at `active`
-          with the held-here filter. Over the in-repo implementation that resolves as today: the metas in the checkout's
-          flat `active/`, whatever their `State`, read from the checkout's working tree (Task 4.3) with no Git process
-          (Task 4.2.b). They are regular files only, as the lifecycle walk takes them, so a symbolic link to a meta,
-          which today's reader follows with `stat`, is no candidate (`notes-storage-contract.md` § Implementation
-          pointers, one tree walk). A meta `parseMetaRecord` rejects — a hand-written `[TBD]` or `—` in `Design` or
-          `Depends On` — is still a candidate, as today's reader keeps it, while one it cannot read, or whose content
-          `parseMetaFile` cannot parse — a malformed core table — is a warning and no candidate, as today's reader drops
-          it (`parseCandidate`). It never reads another branch, so session-init and the release commands keep today's
-          cost.
-        - On a backend whose state lives off the checkout's branch the held-here filter refuses `unsupported`
-          (recoverable), and the resolver takes its remedy: it reads the checkout's marker (`readWorktreeMarker`,
-          `lib/git/worktree-marker.ts`), which reads a file and runs no Git, and, where the marker names a work unit and
-          carries no husk stamp, resolves its claim through `lookup` and keeps the work unit only where a read of its
-          primary record gives placement `active`, as the in-repo arm lists metas at `active` alone. It finds none where
-          the marker is absent, names no work unit — an Errand, a grooming or housekeeping claim, or a branch — or is
-          husked — as teardown leaves a checkout whose work unit shipped, was abandoned, or was parked — or where the
-          work unit is no longer in flight, including where `lookup` or the read refuses `not-found` because this
-          machine no longer holds its record, as after it was abandoned or decomposed elsewhere, just as the in-repo arm
-          finds none where no meta sits at `active`; and none with a warning where the marker is malformed or either
-          refuses otherwise. So the resolver runs unchanged across the flip, without the flat read of `active/` that the
-          projection's `active/current/` layout (D13) would not satisfy; see `notes-storage-contract.md` §
-          Implementation pointers (the checkout's marker).
-        - Two reads stay with today's reader. The lite layout's `status.md` has no slug, so no identity and no layout
-          address. The contributor root under `.arc/user/<identity>/active/`, which `arc status` reads for a
-          contributor (`commands/active/status.ts`), is the contributor's separate layout, which retires (D14), so the
-          contract never carries it.
-        - Build `test-first` (one behavior at a time): one case per layout and per outcome, each matching today's
-          functions over the same checkout, a meta `parseMetaRecord` rejects, an unreadable meta, and one with a
-          malformed core table among them, a symbolic link to a meta that is no candidate, and a directory that is not a
-          Git repository resolving as today with no Git process spawned; and, over the reference backend, whose
-          held-here filter refuses, the work unit the checkout's marker claims resolved through `lookup`; none where the
-          marker is absent, names an Errand, or carries a husk stamp, or where the work unit it names is archived,
-          parked, or abandoned, its records removed; and none with a warning where the marker is malformed, `lookup`
-          refuses `ambiguous-match` through the fixture's `produce` hook, or the read of its primary record refuses
-          `identity-mismatch`, planted through its `plant` hook.
+    - `[x]` **5.1.a The resolver**
+        - The identity resolver keeps resolved, absent, and ambiguous outcomes, parser-rejected candidates,
+          read warnings, and an unhusked marker-claim fallback with executable refusal repairs.
 
-    - `[ ]` **5.1.b The delegates**
-        - `readActiveMetaCandidates` (`lib/active/meta-reader.ts`) delegates to the resolver for which metas the
-          checkout holds and renders today's result from them: it reads each candidate's content through the contract's
-          `read`, which returns it whether or not the meta's parser accepts it, and builds today's candidate with
-          `parseMetaFile`, each candidate's path through the layout resolver's `active` placement, and each read
-          diagnostic as today's warning text. The resolver's parsed record does not serve here: `parseMetaRecord` turns
-          `[none]` and `—` into null and `[TBD]` into `TBD`, while `parseMetaFile` keeps them as written, and today's
-          consumers compare them so (`commands/active/status.ts`, `resolveActiveWu`'s `branch`). Its lite `status.md`
-          branch runs ahead of the resolver, as it runs ahead of the scan today, and a caller-supplied root other than
-          `.arc/active` — the contributor root — keeps today's scan. `resolveActiveWu` always passes a root, the default
-          one when its caller names none (`lib/release/wu-resolution.ts`), so the test is the root's value, never
-          whether one was passed. It loads the resolver on first call, with a dynamic `import()`, so importing
-          `meta-reader.ts`, which the lifecycle index and the composition the in-repo backend wraps import, loads no
-          `lib/store/` module and closes no import cycle.
-        - Build `test-first`: a meta whose fields hold `[none]`, `[none associated]`, `—`, and `[TBD]` — in `Design` and
-          `Depends On` too, where `parseMetaRecord` rejects them — renders the candidate today's reader renders, field
-          for field; and a loading test that reads imports as `cli-loading-boundary.test.ts` does finds no static import
-          of a `lib/store/` module in `meta-reader.ts`.
-        - `resolveActiveWu` (`lib/release/wu-resolution.ts`), `resolveCurrentWuSlug` (`handlers/lifecycle.ts`), and
-          the occupancy guard (`makeWorktreeOccupancyGuard`, `lib/work-unit/lifecycle-guards.ts`) already compose over
-          `readActiveMetaCandidates`, so they follow it; every existing test passes unchanged.
+    - `[x]` **5.1.b The delegates**
+        - The default full-layout reader delegates dynamically and renders raw bytes through its existing
+          parser; lite and contributor scans, placeholder values, warnings, and all three existing delegates are
+          preserved.
 
 ### `[ ]` **5.2 Lifecycle index keyed by identity, proven on one caller — D9**
 

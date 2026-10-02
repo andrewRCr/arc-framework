@@ -119,7 +119,7 @@ function filterLocations(sources: MetaSource[], input: ListInput): MetaSource[] 
 }
 function metaDiagnostic(source: MetaSource): ListingDiagnostic | undefined {
   let condition: string | undefined;
-  if (!SlugSchema.safeParse(source.slug).success) condition = "The meta filename carries no valid work-unit slug";
+  if (!SlugSchema.safeParse(source.slug).success) condition = "The meta filename carries an invalid work-unit slug";
   else if (source.content === null) condition = "The meta file could not be read";
   else if (source.fields === undefined) condition = "The meta parser rejects the record's content";
   else if (source.placement === undefined) condition = "The layout cannot place this meta path";
