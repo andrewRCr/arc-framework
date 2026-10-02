@@ -439,13 +439,14 @@ identity-keyed index answers the pilot caller's query with the records and field
         - Checkpoint and merge defaults construct the Store snapshot port; injected lifecycle ports retain
           their authority and existing composition tests continue to pass.
 
-### `[ ]` **5.4 Shared pieces served end to end** — validate exit criterion at segment scope
+### `[x]` **5.4 Shared pieces served end to end** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds as one exercised scenario: production callers are served through the
   contract over today's tracked records, with no change in behavior.
 
-    - Run the three delegates' tests, the checkpoint and merge tests, the pilot differential, and the in-repo
-      conformance run together at the segment's head, and record the scenario and its result.
+- _Outcome:_ At `de1ebe1cf`, the combined delegates, checkpoint and merge compositions, view pilot, snapshot
+  differential, and tracked conformance scenario passed. The existing callers and production defaults satisfy the
+  shared-piece exit criterion over the committed Store implementation.
 
 ## **Phase 6:** The lifecycle index across its existing callers
 
