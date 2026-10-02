@@ -3,7 +3,7 @@
   "slug": "singleton-applicability-base",
   "claimId": "fb003828b62403e88582fb972fb97519",
   "createdAt": "2026-10-02T22:31:33.607Z",
-  "updatedAt": "2026-10-02T22:31:33.607Z",
+  "updatedAt": "2026-10-02T23:18:52.623Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Observe the singleton review-applicability base as the merge base, matching the offer's coordinate system",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Compare singleton review-applicability bases in the same coordinate system",
   "originEntrySourceDigest": "sha256:e99a2a80d6e0b94e4ac52ad44832126676bb6f9527dcc0f866e2c72a364d8372",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/singleton-applicability-base",
+    "headSha": "c094220ae5d1ad0f4810054bec34fa3103697e98"
+  }
 }
