@@ -50,7 +50,7 @@ async function listedRecord(context: InRepoContext, source: KindSource, input: L
     ...(decoded.fields === undefined ? {} : { fields: decoded.fields }) };
 }
 async function listingContent(context: InRepoContext, source: KindSource, input: ListInput): Promise<string | null | ListingDiagnostic> {
-  try { return await readFileAt(context, source.path, input.asOf ?? source.meta?.revision); } catch (error) {
+  try { return await readFileAt(context, source.path, input.asOf ?? source.revision); } catch (error) {
     const code = error !== null && typeof error === "object" && "code" in error ? error.code : undefined;
     if (code !== "EACCES" && code !== "EPERM") throw error;
     return { kind: "unreadable", key: source.path, condition: `The record could not be read: ${source.path}`,
@@ -76,9 +76,10 @@ async function listMetas(context: InRepoContext, input: ListInput): Promise<List
   }
   return listing(records, diagnostics, input);
 }
-interface KindSource { reference: RecordReference; path: string; meta?: MetaSource }
+interface KindSource { reference: RecordReference; path: string; meta?: MetaSource; revision?: string }
 async function kindSources(context: InRepoContext, kind: KindId, input: ListInput): Promise<KindSource[]> {
-  if (kind.startsWith("review/") || kind === "lineage/transition") return internalReferences(context, kind, input.asOf);
+  if (kind.startsWith("review/")) return reviewSources(context,kind,input);
+  if (kind === "lineage/transition") return internalReferences(context, kind, input.asOf);
   if (kind === "project-inbox/inbox") {
     const reference = recordReferences[kind](input.owner ?? OwnerIdentitySchema.parse({ type: "project", name: "project" }));
     return [{ reference, path: await recordPath(context, reference) }];
@@ -95,10 +96,22 @@ async function kindSources(context: InRepoContext, kind: KindId, input: ListInpu
     const keys = kind === "work-item/companion" ? await companionNames(context, meta) : [undefined];
     for (const key of keys) {
       const reference = RecordReferenceSchema.parse({ kind, owner: owner.data, ...(key === undefined ? {} : { key }) });
-      sources.push({ reference, meta, path: await recordPath(context, reference, meta) });
+      sources.push({ reference, meta, revision:meta.revision, path: await recordPath(context, reference, meta) });
     }
   }
   return sources;
+}
+async function reviewSources(context: InRepoContext, kind: KindId, input: ListInput): Promise<KindSource[]> {
+  const metas = await metaListingSources(context,{...input,filter:input.filter?.heldHere === true ? {heldHere:true} : undefined});
+  const owners = new Map(metas.map((meta)=>[meta.slug,meta]));
+  const sources = await internalReferences(context,kind,input.asOf);
+  return sources.flatMap((source)=> {
+    const meta = owners.get(source.reference.owner.name);
+    if (input.filter?.heldHere === true && meta === undefined) return [];
+    const location = meta?.location ?? "active";
+    if (input.filter?.locations !== undefined && !input.filter.locations.includes(location)) return [];
+    return [{...source,...(meta === undefined ? {} : {meta})}];
+  });
 }
 async function metaListingSources(context: InRepoContext, input: ListInput): Promise<MetaSource[]> {
   const held = await heldMetaSources(context, input.asOf, input.filter?.heldHere === true ? input.filter.locations : undefined);

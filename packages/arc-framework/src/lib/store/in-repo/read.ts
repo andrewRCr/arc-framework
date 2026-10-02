@@ -3,7 +3,7 @@ import { digestBytes } from "../../kernel/canonical/canonical-json.js";
 import { RecordVersionSchema, RecordReferenceSchema, OwnerIdentitySchema, type RecordReference } from "../identity.js";
 import type { ReadInput, StoreRecord } from "../read.js";
 import type { InRepoContext } from "./context.js";
-import { selectMeta, heldMetaSources, type MetaSource } from "./meta.js";
+import { selectMeta, type MetaSource } from "./meta.js";
 import { notFound, refuse, unsupported } from "./refusals.js";
 import { recordPath } from "./paths.js";
 import { readFileAt } from "./files.js";
@@ -22,7 +22,7 @@ export async function readTracked(context: InRepoContext, input: ReadInput): Pro
   const content = await readFileAt(context, path, revision);
   if (content === null) return notFound(input.reference);
   const placement = source?.placement ?? (input.reference.kind.startsWith("review/")
-    ? (await heldMetaSources(context, input.asOf)).find((meta) => meta.slug === input.reference.owner.name)?.placement ?? { kind: "active" as const }
+    ? (await selectMeta(context,input.reference.owner.name,input.asOf))?.placement ?? { kind: "active" as const }
     : undefined);
   if (unit && placement === undefined) return refuse({ code: "record-malformed", class: "recoverable", reference: input.reference,
     rule: "placement", condition: `The layout cannot place ${path}`, remedy: { text: `Move ${path} to a valid lifecycle surface, then retry.` } });
