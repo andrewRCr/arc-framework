@@ -245,16 +245,19 @@ describe("transient Store", () => {
     expect((await store.write(put())).status).toBe("ok");
   });
   it("retains unreadable entry diagnostics and throws its read until the boundary is repaired", async () => {
-    const h = await fixture(); ok(await h.store.write(put()));
+    const h = await fixture(); const landed = ok(await h.store.write(put()));
     const original = h.ports.exec;
-    h.ports.exec = async (command, args, options) => { if (args[0] === "cat-file" && args[1] === "blob") throw new Error("Blob temporarily unreadable"); return original(command, args, options); };
+    const ioFailure = Object.assign(new Error("Blob temporarily unreadable"),{code:"EIO"});
+    h.ports.exec = async (command, args, options) => { if (args[0] === "cat-file" && args[1] === "blob") throw ioFailure; return original(command, args, options); };
     const snapshot = await readTransientIdentitySnapshot({ ...h.io, exec: h.ports.exec });
     expect(snapshot).toMatchObject({ kind: "complete", diagnostics: [{ kind: "unreadable", key: "alpha", message: "Blob temporarily unreadable" }] });
     expect(ok(await h.store.list({ family: "work-item", kind: "work-item/record" }))).toMatchObject({ status: "complete", records: [], diagnostics: [{ kind: "unreadable", key: "alpha", condition: "Blob temporarily unreadable" }] });
-    await expect(h.store.read({ reference })).rejects.toMatchObject({ code: "store.operation-failed" });
-    expect(await h.store.write(put())).toMatchObject({ status: "refused", refusal: { code: "record-malformed", reference } });
+    await expect(h.store.read({ reference })).rejects.toMatchObject({ code: "store.operation-failed", cause:{cause:ioFailure} });
+    const write = put(serializeTransientIdentityRecord(record()),landed.version!);
+    await expect(h.store.write(write)).rejects.toMatchObject({code:"store.operation-failed",cause:{cause:ioFailure}});
     h.ports.exec = original;
     expect(ok(await h.store.read({ reference })).fields).toEqual(record());
+    expect((await h.store.write(write)).status).toBe("ok");
   });
   it("refuses every write after clone divergence and permits the documented manual repair", async () => {
     const clones = await setupMultiClone(); onTestFinished(clones.cleanup);

@@ -20,7 +20,7 @@ export async function readTransient(context: InRepoContext, input: ReadInput): P
   admitTransient(input.reference, io?.identity ?? null);
   if (io === null) throw new Error("Missing admitted identity");
   const snapshot = await readTransientIdentitySnapshot(io);
-  if (snapshot.kind === "error") throw new Error(snapshot.message);
+  if (snapshot.kind === "error") throw new Error(snapshot.message,{cause:snapshot.error});
   if (snapshot.kind === "absent") return notFound(input.reference);
   const key = transientKey(input.reference);
   const oid = snapshot.objects.get(key);
@@ -64,7 +64,7 @@ function matchesSelection(input: ListInput, reference: RecordReference): boolean
 function checkDiagnostic(diagnostic: IdentitySnapshotDiagnostic | undefined, reference: RecordReference, identity: string): void {
   if (diagnostic?.kind === "key-mismatch") transientMismatch(reference, diagnostic.slug, identity);
   if (diagnostic?.kind === "oversized") transientMalformed(reference, `Size ${diagnostic.declaredBytes} exceeds cap ${MAX_LOCUS_JSON_BYTES}`);
-  if (diagnostic?.kind === "unreadable") throw new Error(diagnostic.message);
+  if (diagnostic?.kind === "unreadable") throw new Error(diagnostic.message,{cause:diagnostic.error});
 }
 
 async function pinnedRecord(io: ErrandRecordIO, reference: RecordReference, oid: string, record: TransientIdentityRecord | undefined): Promise<StoreRecord> {

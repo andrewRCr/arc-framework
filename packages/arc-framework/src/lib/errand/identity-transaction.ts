@@ -207,7 +207,7 @@ async function applyAndPublish<T>(
   try {
     decision = await params.transform(new Map(basis.records), new Map(basis.objects));
   } catch (error) {
-    return { kind: "error", stage: "transform", message: errorMessage(error) };
+    return { kind: "error", stage: "transform", message: errorMessage(error), error };
   }
   if (decision.kind === "refused") return decision;
   const finalRecords = decision.kind === "applied" ? new Map(decision.records) : new Map(basis.records);
@@ -215,7 +215,7 @@ async function applyAndPublish<T>(
   try {
     objects = await hashIdentityRecords(io, finalRecords);
   } catch (error) {
-    return { kind: "error", stage: "transform", message: errorMessage(error) };
+    return { kind: "error", stage: "transform", message: errorMessage(error), error };
   }
   const localAlreadyExact = equalObjects(objects, local.objects);
   const basisAlreadyExact = equalObjects(objects, basis.objects);
@@ -254,7 +254,9 @@ async function readCompleteBasis(
 ): Promise<CompleteBasis | Extract<IdentityTransactionOutcome<never>, { kind: "error" }>> {
   const snapshot = await readTransientIdentitySnapshotAtRef(io, ref);
   if (snapshot.kind === "absent") return emptyBasis();
-  if (snapshot.kind === "error") return { kind: "error", stage: "basis", message: snapshot.message };
+  if (snapshot.kind === "error") return { kind: "error", stage: "basis", message: snapshot.message, error:snapshot.error };
+  const unreadable = snapshot.diagnostics.find((item)=>item.kind === "unreadable");
+  if (unreadable !== undefined) return { kind:"error",stage:"basis",message:unreadable.message,error:unreadable.error };
   if (snapshot.diagnostics.length > 0) {
     return {
       kind: "error",
@@ -282,7 +284,7 @@ async function readCommonBasis(
       args: ["merge-base", localTip, remoteTip],
     });
     if (normalized.exitCode === 1) return emptyBasis();
-    return { kind: "error", stage: "basis", message: errorMessage(error) };
+    return { kind: "error", stage: "basis", message: errorMessage(error), error };
   }
   return commonTip === "" ? emptyBasis() : readCompleteBasis(io, commonTip);
 }
@@ -329,7 +331,7 @@ async function deleteTemporaryRef(
     await io.exec("git", ["update-ref", "-d", ref]);
     return null;
   } catch (error) {
-    return { kind: "error", stage: "cleanup", message: errorMessage(error) };
+    return { kind: "error", stage: "cleanup", message: errorMessage(error), error };
   }
 }
 

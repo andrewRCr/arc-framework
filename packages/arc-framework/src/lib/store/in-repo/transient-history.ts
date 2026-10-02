@@ -16,14 +16,15 @@ export async function transientHistory(context: InRepoContext, input: { referenc
   admitTransient(input.reference, io?.identity ?? null);
   if (io === null) throw new Error("Missing admitted identity");
   const snapshot = await readTransientIdentitySnapshot(io);
-  if (snapshot.kind === "error") throw new Error(snapshot.message);
+  if (snapshot.kind === "error") throw new Error(snapshot.message,{cause:snapshot.error});
   if (snapshot.kind === "absent") return notFound(input.reference);
   const key = transientKey(input.reference);
   const { stdout } = await io.exec("git", ["log", "--full-history", "--format=%H", snapshot.tip, "--", `:(literal)${key}`]);
   const entries: HistoryEntry[] = [];
   for (const commit of stdout.trim().split("\n").filter(Boolean)) {
     const at = await readTransientIdentitySnapshotAtRef(io, commit);
-    if (at.kind !== "complete") throw new Error(at.kind === "error" ? at.message : "History commit is absent");
+    if (at.kind === "error") throw new Error(at.message,{cause:at.error});
+    if (at.kind === "absent") throw new Error("History commit is absent");
     const oid = at.objects.get(key);
     const object = await io.execInput(["cat-file", "commit", commit], "");
     const separator = object.indexOf("\n\n");

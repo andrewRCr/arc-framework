@@ -20,14 +20,14 @@ export interface IdentitySnapshotIO {
 export type IdentitySnapshotDiagnostic =
   | { kind: "malformed"; key: string; message: string }
   | { kind: "oversized"; key: string; declaredBytes: number }
-  | { kind: "unreadable"; key: string; message: string }
+  | { kind: "unreadable"; key: string; message: string; error?: unknown }
   | { kind: "unknown-version"; key: string; version: unknown }
   | { kind: "key-mismatch"; key: string; slug: string };
 
 /** Exact snapshot outcome; only `complete` is a safe mutation basis. */
 export type TransientIdentitySnapshot =
   | { kind: "absent" }
-  | { kind: "error"; stage: "tip" | "tree"; message: string }
+  | { kind: "error"; stage: "tip" | "tree"; message: string; error?: unknown }
   | {
       kind: "complete";
       tip: string;
@@ -72,7 +72,7 @@ export async function readTransientIdentitySnapshotAtRef(
     tip = result.stdout.trim();
   } catch (error) {
     if (isAbsentRefFailure(gitFailureText(error))) return { kind: "absent" };
-    return { kind: "error", stage: "tip", message: errorMessage(error) };
+    return { kind: "error", stage: "tip", message: errorMessage(error), error };
   }
   if (!isGitOid(tip)) {
     return { kind: "error", stage: "tip", message: "Identity ref resolved to an invalid commit OID" };
@@ -83,7 +83,7 @@ export async function readTransientIdentitySnapshotAtRef(
     const { stdout } = await io.exec("git", ["ls-tree", "--full-tree", "-z", "-l", tip]);
     entries = parseStrictRootTree(stdout);
   } catch (error) {
-    return { kind: "error", stage: "tree", message: errorMessage(error) };
+    return { kind: "error", stage: "tree", message: errorMessage(error), error };
   }
 
   const records = new Map<string, TransientIdentityRecord>();
@@ -100,7 +100,7 @@ export async function readTransientIdentitySnapshotAtRef(
     try {
       ({ stdout: blob } = await io.exec("git", ["cat-file", "blob", entry.oid]));
     } catch (error) {
-      diagnostics.push({ kind: "unreadable", key: entry.key, message: errorMessage(error) });
+      diagnostics.push({ kind: "unreadable", key: entry.key, message: errorMessage(error), error });
       continue;
     }
     const actualBytes = Buffer.byteLength(blob);

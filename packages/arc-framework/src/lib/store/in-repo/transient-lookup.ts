@@ -1,5 +1,5 @@
 /** Claim and branch resolution through the current local identity snapshot. */
-import { readTransientIdentitySnapshot } from "../../errand/identity-snapshot.js";
+import { readTransientIdentitySnapshot, type IdentitySnapshotIO } from "../../errand/identity-snapshot.js";
 import type { CheckoutClaim, LookupInput, LookupResult } from "../lookup.js";
 import type { TransientIdentityRecord } from "../../errand/identity-record.js";
 import type { InRepoContext } from "./context.js";
@@ -22,8 +22,7 @@ export async function lookupTransient(context: InRepoContext, input: LookupInput
     return missing(input, "No identity is configured.", "Set arc.identity, then retry lookup.");
   }
   if (input.kind === "ref" && !await sameRepository(context, input.repository)) return missing(input, "The lookup names another repository.", "Select this checkout's path or its configured origin URL.");
-  const snapshot = await readTransientIdentitySnapshot(io);
-  if (snapshot.kind === "error") throw new Error(snapshot.message);
+  const snapshot = await lookupSnapshot(io);
   if (snapshot.kind === "complete") {
     for (const [key, record] of snapshot.records) {
       const kind = transientKind(record);
@@ -32,6 +31,13 @@ export async function lookupTransient(context: InRepoContext, input: LookupInput
   }
   if (input.kind === "slug") return null;
   return missing(input, "No identity-ref record matches the lookup.", "Check the branch or claim generation and restore its record before retrying.");
+}
+async function lookupSnapshot(io: IdentitySnapshotIO) {
+  const snapshot = await readTransientIdentitySnapshot(io);
+  if (snapshot.kind === "error") throw new Error(snapshot.message,{cause:snapshot.error});
+  const unreadable = snapshot.kind === "complete" ? snapshot.diagnostics.find((item)=>item.kind === "unreadable") : undefined;
+  if (unreadable !== undefined) throw new Error(unreadable.message,{cause:unreadable.error});
+  return snapshot;
 }
 function lookupBranch(input: LookupInput): string | null {
   return input.kind === "ref" ? input.ref.replace(/^refs\/heads\//u, "").replace(/^refs\/remotes\/[^/]+\//u, "") : null;
