@@ -7,7 +7,12 @@ import { OwnerIdentitySchema, RecordReferenceSchema, type RecordReference } from
 import type { InRepoContext } from "./context.js";
 import { directoryAt } from "./files.js";
 import { selectMeta, type MetaSource } from "./meta.js";
-import { notFound } from "./refusals.js";
+import { notFound, unsupported } from "./refusals.js";
+
+const conventionalRoles = {
+  meta: "work-item/meta", tasks: "work-item/task-list", draft: "work-item/draft", spec: "work-item/spec",
+  notes: "work-item/notes", cohort: "cohort/document",
+} as const;
 
 /** Resolve one role without putting a physical path into its public reference.
  * @param context - Backend dependencies.
@@ -41,6 +46,11 @@ function companionPath(context: InRepoContext, reference: RecordReference, meta:
   }
   const key = reference.key;
   if (typeof key !== "string") throw new Error("A companion requires its name key");
+  if (Object.hasOwn(conventionalRoles, key)) {
+    const kind = conventionalRoles[key as keyof typeof conventionalRoles];
+    return unsupported("unhomed-kind", `The companion name ${key} belongs to the registered ${kind} role.`,
+      `Address this file through its registered ${kind} role, then retry.`);
+  }
   const file = key === "spec-prd" ? `spec-${reference.owner.name}-prd.md`
     : key === "spec-rfc" ? `spec-${reference.owner.name}-rfc.md` : `${key}-${reference.owner.name}.md`;
   return `${dirname(meta.path)}/${file}`;
@@ -98,7 +108,7 @@ export async function companionNames(context: InRepoContext, meta: MetaSource): 
   try { entries = await directoryAt(context, dirname(meta.path), meta.revision); } catch { return []; }
   const { artifactMatcher } = await import("../../work-unit/mutators/relocate-artifacts.js");
   const matcher = artifactMatcher(meta.slug);
-  const roles = new Set(["meta", "draft", "spec", "tasks", "notes", "cohort"]);
+  const roles = new Set(Object.keys(conventionalRoles));
   const keys: string[] = [];
   for (const entry of entries) {
     if (!entry.isFile()) continue;

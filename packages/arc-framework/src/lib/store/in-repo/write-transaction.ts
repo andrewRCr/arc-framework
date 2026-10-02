@@ -2,12 +2,12 @@
 import { join } from "node:path";
 import { digestBytes } from "../../kernel/canonical/canonical-json.js";
 import { ArcError } from "../../kernel/errors.js";
-import { RecordVersionSchema } from "../identity.js";
+import { RecordVersionSchema, type RecordReference } from "../identity.js";
 import type { WriteInput, WriteResult } from "../write.js";
 import type { InRepoContext } from "./context.js";
 import type { MetaSource } from "./meta.js";
 import { readFileAt } from "./files.js";
-import { isMissing } from "./refusals.js";
+import { isMissing, refuse } from "./refusals.js";
 import { admittedWritePath, creationMeta } from "./write-admission.js";
 import { isWriterVersionConflict, staleWrites } from "./write-conflicts.js";
 import { landTracked, withCanonicalRecordLock } from "./write-stores.js";
@@ -24,8 +24,14 @@ export async function captureTrackedWrites(context: InRepoContext, inputs: { inp
   const creations = new Map<string, MetaSource>();
   for (const { input } of inputs) if (input.action === "put" && input.expected === null && input.reference.kind === "work-item/meta") creations.set(input.reference.owner.name, creationMeta(input));
   const prepared: PreparedTrackedWrite[] = [];
+  const targets = new Map<string, RecordReference>();
   for (const entry of inputs) {
     const path = await admittedWritePath(context, entry.input, creations);
+    const previous = targets.get(path);
+    if (previous !== undefined) return refuse({ code: "ambiguous-match", class: "recoverable",
+      candidates: [previous, entry.input.reference], condition: `Two requested records resolve to ${path}.`,
+      remedy: { text: "Use one reference per physical record, then retry this batch." } });
+    targets.set(path, entry.input.reference);
     prepared.push({ ...entry, path, before: await readFileAt(context, path) });
   }
   const stale = prepared.filter(({ input, before }) => {

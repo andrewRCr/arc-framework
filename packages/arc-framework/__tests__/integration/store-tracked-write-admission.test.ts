@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { trackedWriteFixture, trackedCheckoutStore, trackedDigest } from "../helpers/store/tracked-write-fixture.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/index.js";
 
 const provenance = { verb: "start", lifecycleAction: "start" };
 async function exists(path: string) { return access(path).then(() => true, () => false); }
@@ -33,6 +34,37 @@ async function linkedWorkUnit(parked = false) {
 }
 
 describe("tracked work-unit write admission", () => {
+  it.each([
+    ["meta", "work-item/meta"], ["tasks", "work-item/task-list"], ["draft", "work-item/draft"],
+    ["spec", "work-item/spec"], ["notes", "work-item/notes"], ["cohort", "cohort/document"],
+  ] as const)("refuses conventional-role companion aliases: %s", async (key, kind) => {
+    const h = await trackedWriteFixture();
+    const meta = makeMetaFixture("example");
+    await mkdir(join(h.root, ".arc/active"), { recursive: true });
+    await writeFile(join(h.root, ".arc/active/meta-example.md"), meta);
+    const path = join(h.root, `.arc/active/${key}-example.md`);
+    const before = key === "meta" ? meta : "original role bytes\n";
+    await writeFile(path, before);
+    const alias = h.reference("work-item/companion", "example", key);
+    expect(await h.store.read({ reference: alias })).toMatchObject({ status: "refused", refusal: {
+      code: "unsupported", case: "unhomed-kind", remedy: { text: expect.stringContaining(kind) },
+    } });
+    expect(await h.store.write({ action: "put", reference: alias, expected: trackedDigest(before), content: "alias bytes", provenance }))
+      .toMatchObject({ status: "refused", refusal: { code: "unsupported", case: "unhomed-kind" } });
+    expect(await readFile(path, "utf8")).toBe(before);
+    const owner = OwnerIdentitySchema.parse({ type: kind === "cohort/document" ? "cohort" : "work-item", name: "example" });
+    const reference = recordReferences[kind](owner);
+    const content = key === "meta" ? meta + "\nCorrect role update\n" : "correct role bytes\n";
+    success(await h.store.write({ action: "put", reference, expected: key === "cohort" ? null : trackedDigest(before), content,
+      ...(key === "meta" ? { placement: { kind: "active" as const } } : {}), provenance }));
+    expect(success(await h.store.read({ reference })).content).toBe(content);
+    for (const half of ["spec-prd", "spec-rfc"]) {
+      const paired = h.reference("work-item/companion", "example", half);
+      success(await h.store.write({ action: "put", reference: paired, expected: null, content: half, provenance }));
+      expect(success(await h.store.read({ reference: paired })).content).toBe(half);
+    }
+  });
+
   it("refuses an orphan draft and creates it beside a new meta in one batch", async () => {
     const h = await trackedWriteFixture();
     const reference = h.reference("work-item/draft");

@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 import { trackedWriteFixture, trackedDigest } from "../helpers/store/tracked-write-fixture.js";
 import { ArcError } from "../../src/lib/kernel/errors.js";
 import { RecordVersionSchema } from "../../src/lib/store/identity.js";
+import { success } from "../helpers/store/suite-tools.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 const provenance = { verb: "start", lifecycleAction: "start" };
 async function setup() {
@@ -19,6 +21,28 @@ async function setup() {
 }
 
 describe("tracked write batches", () => {
+  it("refuses distinct logical references sharing a physical target before applying any write", async () => {
+    const h = await setup();
+    for (const name of ["example", "part-example"]) {
+      await writeFile(join(h.root, `.arc/active/meta-${name}.md`), makeMetaFixture(name));
+    }
+    const path = join(h.root, ".arc/active/research-part-example.md");
+    await writeFile(path, "original companion\n");
+    const first = h.reference("work-item/companion", "example", "research-part");
+    const second = h.reference("work-item/companion", "part-example", "research");
+    const put = (reference: typeof first, content: string) => ({ action: "put" as const, reference,
+      content, expected: trackedDigest("original companion\n") });
+    expect(await h.store.batch({ writes: [h.writes[0]!, put(first, "first\n"), put(second, "second\n")], provenance }))
+      .toMatchObject({ status: "refused", refusal: { code: "ambiguous-match", class: "recoverable",
+        candidates: [first, second], condition: expect.stringContaining("research-part-example.md"),
+        remedy: { text: expect.stringContaining("one reference") } } });
+    expect(await readFile(path, "utf8")).toBe("original companion\n");
+    expect(await readFile(h.records[0]!.path, "utf8")).toBe(h.records[0]!.content);
+    success(await h.store.batch({ writes: [h.writes[0]!, put(first, "selected\n")], provenance }));
+    expect(await readFile(path, "utf8")).toBe("selected\n");
+    expect(await readFile(h.records[0]!.path, "utf8")).toBe(h.writes[0]!.content);
+  });
+
   it("names every stale record before applying any valid write", async () => {
     const h = await setup();
     for (const record of h.records.slice(0, 2)) await writeFile(record.path, `changed ${record.reference.owner.name}`);
