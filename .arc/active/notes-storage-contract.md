@@ -925,3 +925,12 @@ That work unit has shipped, and this design builds on what it landed:
   A team's hook manager (husky, lefthook) owning the hook directory is why a pre-push guard cannot be relied on there.
 
 ---
+
+## A1: Existing sync behavior in the conformance fixture
+
+Task 7.4.a stated that the exception list was “complete”. Its item 16 assertions also assumed repeat-sync `noop`,
+convergence of a remote edit to an existing entry, and refreshed personal working files. D8 instead preserves today's
+save and push producers: repeated notes saves create another note commit, `reconcileErrandPush` returns `pushed` for
+an existing ref, its two-way tree merge conflicts on unequal same-key blobs, and notes reconcile never loads files.
+A1 preserves those producers and names the three fixture exceptions. Task 7.4.R verifies their actual outcomes,
+disjoint transient reconciliation, and merged remote notes bytes beside unchanged personal files.

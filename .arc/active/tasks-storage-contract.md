@@ -762,6 +762,8 @@ as stated.
 - _Goal:_ The conformance suite passes against the in-repo implementation over every family its fixture serves —
   tracked, personal, and transient-identity — with version conflicts produced by racing writers on each substrate.
 
+- **Additional Context:** `spec-storage-contract.md` § D7 (A1: existing sync behavior)
+
     - `[ ]` **7.4.a The fixture serves every substrate**
         - Personal files over a temporary identity directory with its notes lock; transient-identity records over a ref
           with a remote from the multi-clone helper; `remote` provides the notes and Errand remotes for item 16.
@@ -772,7 +774,7 @@ as stated.
           lock, and `remoteState` takes the multi-clone remote down by moving its bare repository away, or makes it
           contended or refusing.
         - The fixture's declarations now cover every substrate, each exclusion with its reason, and the list is
-          complete:
+          complete (A1):
             - personal files and transient-identity records sit outside the state version (item 7; item 8 covers them);
             - a personal file has no history (item 11) and no format version a build can find newer (item 10), and a
               transient-identity record reads format version 1 until the ref backend writes one, as a tracked record
@@ -805,10 +807,29 @@ as stated.
             - `lock-held` comes from the tracked and personal substrates alone (item 14), since a transient-identity
               write takes no lock of its own and Git's ref lock refuses a concurrent update once its brief retry runs
               out, which the backend throws (Task 7.2.b).
+            - repeat-sync `noop` for personal files and transient records (item 16), since today's notes save and
+              Errand push report `pushed` again for existing refs even with unchanged record bytes;
+            - convergence after a remote edit of an existing transient entry (item 16), since today's two-way Errand
+              push reports unequal same-key entries as `conflict`; distinct entries still reconcile;
+            - refreshed personal working-file bytes after notes reconciliation (item 16), since today's push updates
+              and publishes the notes ref without loading those notes into working files.
 
     - `[ ]` **7.4.b The suite over the new families**
         - Every item and assertion the fixture's declarations admit passes over each new family, and each excluded
           item, assertion, and refusal is reported by name with its reason.
+
+### `[ ]` **7.4.R Preserve existing sync in conformance — A1**
+
+- _Goal:_ Realize A1's named in-repo sync exceptions without changing the existing producers, with direct checks
+  preserving their outcomes and remote bytes beside the shared conformance suite.
+
+    - `[ ]` **7.4.R.a Exact fixture exceptions**
+        - Declare the three A1 exceptions by assertion and role, with each reason reported and no unused declaration.
+
+    - `[ ]` **7.4.R.b Existing behavior verified**
+        - Build `test-first`: repeated notes and Errand publications retain their producer outcomes; a remote-only
+          edit of an existing transient entry conflicts; disjoint entries reconcile; and merged notes preserve both
+          remote manifests while personal working files remain unchanged. Re-run the complete conformance suite.
 
 ## **Phase 8:** Verification
 
@@ -879,5 +900,9 @@ as stated.
 
 - `[ ]` All quality gates pass: Markdown lint and the ARC contract checks, both type checks, `lint:ts` with no new
   size-gate suppression, `npm test`, and the build, with E2E and portability passing in required CI.
+
+- `[ ]` The in-repo fixture reports each A1 sync exception by name and reason, and direct tests verify repeated
+  publish outcomes, same-key transient conflicts, disjoint reconciliation, and merged notes with unchanged personal
+  working files.
 
 - `[ ]` Ready for integration

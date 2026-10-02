@@ -774,6 +774,12 @@ The suite covers, for every backend and every family its fixture serves:
     families publish; and, on backends that merge, a single-writer record changed on both sides, the remote's version
     kept current and the local one in a conflict record (D4).
 
+For the in-repo fixture, shared sync assertions exclude repeated-publish idempotency, same-key transient convergence,
+and personal working-file refresh (A1). Today's notes save and Errand push can report `pushed` again with unchanged
+record bytes; unequal same-key Errand entries conflict under its two-way merge; and notes reconciliation updates the
+notes ref without loading working files. Named exceptions retain those producer behaviors, verified directly beside
+disjoint-entry reconciliation and the merged remote notes bytes.
+
 ### D8. The in-repo implementation
 
 The first backend, over today's three substrates. It exists so every rerouting of callers can start on the landed
@@ -2070,6 +2076,10 @@ Validated at this change's completion, over Part A:
 15. **Quality gates.** Markdown lint and the ARC contract checks, both type checks, `lint:ts` with no new size-gate
     suppression, `npm test`, and the build pass; E2E and portability pass in required CI.
 
+16. **Existing sync behavior.** The in-repo fixture reports each A1 sync exception by name and reason, and direct
+    tests verify repeated publish outcomes, same-key transient conflicts, disjoint reconciliation, and merged notes
+    with unchanged personal working files.
+
 ## Open Questions
 
 None blocks building Part A.
@@ -2099,3 +2109,8 @@ operations and outcomes, and which test tier each conformance fixture runs in.
   design's (D11).
 
 ---
+
+## Amendments
+
+- **A1** — 2026-10-02 — design: preserve existing sync in the fixture's exceptions.
+  _Supersedes:_ tasks §7.4.a complete list. _Trigger:_ 7.4 must-stop. _Work:_ 7.4.R. _Revalidated:_ pending → 7.4.R.b.
