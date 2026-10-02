@@ -95,124 +95,64 @@ _Purpose:_ Entry merge, three-way line merge, ID stamping, and rank keys as pure
 for the reference backend now and the ref backend and projection later. Reviewable as one chunk: pure modules plus their
 dependencies; its seam is the conflict-record type from Phase 1 and the merge calls Phase 3 makes.
 
-### `[ ]` **2.1 The library's dependencies and import boundary — D6**
+### `[x]` **2.1 The library's dependencies and import boundary — D6**
 
 - _Goal:_ The library's two dependencies are present as the design names them — `node-diff3` pinned to an exact
   version among the runtime dependencies, `fast-check` among the development dependencies — with the root
   `package.json` untouched, and no library module can reach anything that does I/O.
 
-- _Note:_ See `notes-storage-contract.md` § Concurrency library for what each package brings.
+- _Outcome:_ Added exact runtime `node-diff3` 3.2.1 and development `fast-check`, preserving the root manifest.
+  The import guard scans static, dynamic, and re-export dependencies against the pure library boundary; package
+  checks pin the merge dependency and its license and dependency properties.
 
-    - Install through the workspace from the repository root (`-w packages/arc-framework`, `--save-exact` for
-      `node-diff3`), confirm `node-diff3` is MIT-licensed with no dependencies of its own, and check `git diff
-      package.json` at the root before staging; `package-lock.json` changes with the install.
-    - Build `test-first` (one behavior at a time):
-        - a test in the manner of `__tests__/unit/layout/import-boundary.test.ts` fails when a library module
-          imports anything but `lib/kernel/`, the contract core under `lib/store/` (whose conflict-record type a merge
-          returns), `node-diff3`, or another library module.
-
-### `[ ]` **2.2 Entry lists: splitting, IDs, and stamping — D6**
+### `[x]` **2.2 Entry lists: splitting, IDs, and stamping — D6**
 
 - _Goal:_ An entry list splits into its entries and the bytes around them and rejoins unchanged, and every entry can be
   keyed by a stable `_Id:_` — eight hex characters in `_Created:_`'s grammar, re-drawn on a clash within the file, and
   given at first persist to an entry without one — so entry merge keys on identity and a retitle stays an edit.
 
-- _Approach:_ The splitter is the library's own, over generic entries — an ID, a section, and bytes. Its caller names
-  the entry shape and the sections that hold entries: a heading entry (`### [ ] **title**`, the inbox's) or a
-  field-header entry (`**title:**` with its `_Remove when:_` trigger, `WORKING-MEMORY`'s). An HTML comment's bytes stay
-  in place but never open an entry. The `_Id:_` field's grammar is defined here too, the one `managedFieldValue` reads.
-  Shapes are named by role, and no surface's name appears in the library.
+- _Outcome:_ Added lossless heading and field-header splitting, comment masking, and injected ID stamping.
+  Parser correspondence, managed field placement, mixed line endings, collision redraws, and existing ID preservation
+  are exercised through the public functions.
 
-    - A stamped ID goes where the entry keeps its managed fields: a `- _Id:_` descriptor bullet after a heading
-      entry's last one, or a line under a field-header entry's `_Remove when:_` trigger. The random source is injected
-      so tests are deterministic.
-    - Build `test-first` (one behavior at a time):
-        - splitting and rejoining an entry list returns its bytes unchanged, for each shape;
-        - the splitter finds exactly the entries `parseCrossWuEntries` (`lib/user-sync/parser.ts`) finds on the same
-          input, so an entry-shaped block inside an HTML comment is not an entry;
-        - a stamped ID is eight lowercase hex characters, and `managedFieldValue` reads it as the `_Id:_` field;
-        - an entry without an ID gains one, and no other byte of the file changes;
-        - an ID that clashes within the file is re-drawn;
-        - an entry's existing ID is never changed.
-
-### `[ ]` **2.3 Three-way line merge over `node-diff3` — D6**
+### `[x]` **2.3 Three-way line merge over `node-diff3` — D6**
 
 - _Goal:_ Prose merges from the base both writers started from, given base, current, and incoming by role: a hunk both
   sides changed differently keeps the current side in the merged text and lands as a conflict record holding the
   incoming side, through one module that passes `node-diff3`'s `diff3Merge` arrays of lines and exposes none of its
   types.
 
-- _Note:_ Each side's final newline is a three-way flag kept outside the line arrays, and `diff3Merge`'s options are
-  set explicitly; see `notes-storage-contract.md` § Concurrency library.
+- _Outcome:_ Added a line-array adapter with explicit merge options and separate final newline reconciliation.
+  Conflicts keep current text and carry base hunk coordinates and labeled sides; generated unchanged-side cases and
+  emitted declaration checks protect byte preservation and the dependency boundary.
 
-    - Build `test-first` (one behavior at a time):
-        - edits in separate regions merge cleanly;
-        - edits to adjacent lines conflict, as Git's merge does;
-        - identical edits on both sides merge cleanly;
-        - a conflicting hunk keeps the current side in the merged text and yields a conflict record naming the hunk's
-          line range in the base and carrying both sides, their labels, and the base;
-        - a side emptied against an unchanged side merges to empty, and against an edited side conflicts;
-        - a final newline added or dropped on either side merges cleanly;
-        - a `fast-check` property: merging against an unchanged side returns the other side's text byte for byte;
-        - the module's exported types reference nothing from `node-diff3`.
-
-### `[ ]` **2.4 Entry merge — D6**
+### `[x]` **2.4 Entry merge — D6**
 
 - _Goal:_ Two concurrent edits of an entry list merge from their common base without manual action where they do not
   clash, a same-entry clash keeps the current entry and becomes a conflict record holding the incoming one, and nothing
   is lost silently.
 
-- _Note:_ The merge takes base, current, and incoming by role, as the line merge does (D6). Placement, sections, and the
-  bytes outside entries follow `notes-storage-contract.md` § Concurrency library.
+    - `[x]` **2.4.a Insertions, edits, and placement**
+        - Added ID-anchored insertion ordering, whole-entry and section comparison, retitle handling, and separate
+          surrounding prose merges. Entry clashes retain current bytes with labeled conflict records.
 
-    - `[ ]` **2.4.a Insertions, edits, and placement**
-        - The bytes outside entries — a file's opening, section headings, comments, and separators — merge by
-          three-way line merge (Task 2.3). An entry's section is part of the entry, so moving it between sections is an
-          edit.
-        - An inserted entry lands after the nearest entry preceding it on its own side, and entries both sides insert
-          at one point order by ID.
-        - Build `test-first` (one behavior at a time):
-            - disjoint insertions merge, with the same result whichever side is current, two at one point included;
-            - an edit on one side against no change on the other takes the edit;
-            - a retitle merges as an edit, keyed on the entry's ID;
-            - identical edits on both sides merge cleanly;
-            - two differing edits to one entry keep the current side's entry in the result and produce a conflict record
-              naming the entry's ID, with both sides labelled and no line merge inside the entry;
-            - a move between sections on one side against an edit on the other is a same-entry clash;
-            - differing edits outside entries merge as prose, a clash landing as a conflict record.
+    - `[x]` **2.4.b Removals as an observed-remove set**
+        - Added observed removals that preserve concurrent edits, remove mutually deleted entries, and ignore
+          wall-clock recency.
 
-    - `[ ]` **2.4.b Removals as an observed-remove set**
-        - Build `test-first` (one behavior at a time):
-            - a removal takes out only the version of the entry it observed;
-            - a removal racing an edit leaves the edit;
-            - a removal on both sides removes the entry;
-            - no outcome depends on which write is more recent.
+    - `[x]` **2.4.c Properties**
+        - Generated entry-list cases exercise role symmetry, entry conservation, unchanged-side merging, and
+          insertion ordering, including prose and section boundaries.
 
-    - `[ ]` **2.4.c Properties**
-        - `fast-check` properties over generated entry lists: swapping current and incoming changes only which side each
-          clash keeps current; no entry present on either side is lost unless an observed removal took it; merging
-          against an unchanged side returns the other side's entries.
-
-### `[ ]` **2.5 Rank keys — D6**
+### `[x]` **2.5 Rank keys — D6**
 
 - _Goal:_ A key can be generated at any position in an ordered list, so a reorder writes one stub — or, where the
   stubs on both sides of the position share a rank, the moved stub and the tied stubs above it in one batch — by
   ARC's own adaptation of the public-domain `fractional-indexing` algorithm with its default base-62 alphabet.
 
-- _Approach:_ The function takes its neighbours as `(rank, stub UID)` pairs. On a tie it generates keys for the moved
-  stub and the tied stubs above the position between the tie's rank and the next rank up, so equal keys never reach
-  the key arithmetic. The adaptation is a restructure, not a copy: it keeps the classic key format, drops the
-  custom-alphabet options that put upstream's `generateKeyBetween` over the complexity limit, and refuses neighbours
-  given out of order, which upstream's fourth version swaps.
-
-    - The adapted code carries the upstream algorithm's CC0 attribution.
-    - Build `test-first` (one behavior at a time):
-        - a `fast-check` property: a key generated between two ordered neighbours, either of them open, sorts strictly
-          between them under plain string comparison;
-        - a `fast-check` property: a stub placed at any position in a list with ties lands there under
-          `(rank, stub UID)` ordering, and only the tied stubs above it are re-keyed;
-        - neighbours given out of order are refused;
-        - a test pins the stored key format.
+- _Outcome:_ Adapted the attributed CC0 base-62 arithmetic with strict neighbor ordering. Atomic placement
+  returns the moved stub and only tied successors; generated open-bound and tied-list cases plus stored-format
+  checks protect ordering and the persisted key grammar.
 
 ## **Phase 3:** Reference backend and conformance suite
 
