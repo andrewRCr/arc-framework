@@ -15,11 +15,11 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | State      | Work unit                       | Priority | Owner  | Depends on | Cohort        |
 | ---------- | ------------------------------- | -------- | ------ | ---------- | ------------- |
-| `Planning` | storage-contract                | P1       | andrew | —          | state-storage |
+| `Active`   | storage-contract                | P1       | andrew | —          | state-storage |
 | `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —          | —             |
 | `Planning` | decomposition-doctrine          | P1       | andrew | —          | —             |
 | `Planning` | delivery-rebuild-continuity     | P1       | andrew | —          | —             |
-| `Planning` | grounded-planning-review        | P1       | andrew | —          | —             |
+| `Active`   | grounded-planning-review        | P1       | andrew | —          | —             |
 | `Planning` | review-checkout-lifecycle       | P1       | andrew | —          | —             |
 | `Planning` | stub-mint-to-launch             | P1       | andrew | —          | —             |
 

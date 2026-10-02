@@ -1,8 +1,8 @@
 # Metadata: grounded-planning-review
 
-| **State**  | **Owner** | **Branch**                      | **Class** | **Priority** |
-| ---------- | --------- | ------------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/grounded-planning-review` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                      | **Class** | **Priority** |
+| --------- | --------- | ------------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/grounded-planning-review` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-grounded-planning-review.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Begin Task 1.1 — Author `source-grounding` and hand `spec-review`'s grounding slice to it
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 via process-task-loop
 
 - **PR URL:** [none]
 - **Completed:** [none]
