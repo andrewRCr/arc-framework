@@ -14,11 +14,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** task list generated after six adversarial passes; work unit activated
-- **Next Task:** Begin Task 1.1 — Baseline the test-cost rows this change moves
+- **Last Completed:** Phases 1–7 complete; Task 7.4.R — Preserve existing sync in conformance — A1
+- **Next Task:** Task 8.1 — Complete verification (line ~595 in `tasks-storage-contract.md`)
 - **Blockers:** [none]
 
-- **Next Action:** Run Task 1.1 via process-task-loop — baseline every affected test-cost row before any new test
+- **Next Action:** Start Task 8.1 — load and follow `verify-work-unit.md` for whole-work-unit verification
 
 - **PR URL:** [none]
 - **Completed:** [none]
