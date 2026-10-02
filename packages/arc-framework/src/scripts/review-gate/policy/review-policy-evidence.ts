@@ -53,6 +53,8 @@ export interface EvidenceBoundReviewPolicyDependencies {
   readonly allowUnapprovedFindings?: boolean;
   /** Pre-publication proved exact lane settlement against the current approved disposition. */
   readonly terminalResponseSettled?: boolean;
+  /** The owning composition proved the subject's opening frontline phase closed from its recorded history. */
+  readonly frontlinePhaseClosed?: boolean;
 }
 
 function requestScope(request: ReviewPolicyCommandRequest): "whole-target" | "chunked" {
@@ -326,6 +328,9 @@ export async function bindReviewPolicyEvidence(
   dependencies: EvidenceBoundReviewPolicyDependencies,
 ): Promise<ReviewPolicyRequest> {
   const request = ReviewPolicyCommandRequestSchema.parse(input);
+  if (dependencies.frontlinePhaseClosed === true && request.lane !== "frontline") {
+    throw new Error("frontline phase closure can be applied only to the frontline lane");
+  }
   const lastAttempt = request.attempts.at(-1);
   if (lastAttempt === undefined
     || (lastAttempt.outcome !== "clean" && lastAttempt.outcome !== "findings")) {
@@ -336,6 +341,7 @@ export async function bindReviewPolicyEvidence(
       ...request,
       sources: dependencies.sources,
       maxPasses: dependencies.maxPasses,
+      ...(dependencies.frontlinePhaseClosed === true ? { frontlinePhaseClosed: true } : {}),
     });
   }
   const result = await dependencies.resultReader.readResult(lastAttempt.reviewOperationId);
@@ -368,6 +374,7 @@ export async function bindReviewPolicyEvidence(
     maxPasses: dependencies.maxPasses,
     verifiedTerminalSignal,
     ...(dependencies.terminalResponseSettled === true ? { terminalResponseSettled: true } : {}),
+    ...(dependencies.frontlinePhaseClosed === true ? { frontlinePhaseClosed: true } : {}),
   });
 }
 

@@ -13,7 +13,7 @@ import {
   TransientIdentityRecordV3Schema,
 } from "../../src/lib/errand/identity-record.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
-import { handleReviewHostedRequest } from "../../src/handlers/review.js";
+import { handleReviewHostedRequest, handleReviewResolve } from "../../src/handlers/review.js";
 import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import { ApprovedDispositionRecordSchema } from "../../src/scripts/review-gate/core/advisory-records.js";
 import { createDispositionSet, proposeDispositionSet, approveDispositionState } from
@@ -909,6 +909,78 @@ describe("Errand review status", () => {
         pullRequest: 42, currentBaseOid: base,
       })).resolves.toMatchObject({ state: expected });
     });
+
+  it("resolves an Errand's opening frontline phase as closed once its recorded history closes it", async () => {
+    const root = await createTempRepoCore({ prefix: "arc-review-resolve-frontline-", identity: "andrew" });
+    roots.push(root);
+    await git(root, ["commit", "--allow-empty", "-m", "base"]);
+    const slug = "frontline-errand";
+    const branch = `chore/${slug}`;
+    const claimId = "0123456789abcdef0123456789abcdef";
+    const record = TransientIdentityRecordV3Schema.parse({
+      version: 3, kind: "errand", slug, claimId, purpose: "errand", origin: "description",
+      originEntry: null, intent: "Close the opening frontline phase", branch, state: "open",
+      savedHead: null, changeRequest: null,
+      createdAt: "2026-09-13T00:00:00.000Z", updatedAt: "2026-09-13T00:00:00.000Z",
+    });
+    await writeFile(join(root, slug), serializeTransientIdentityRecord(record), "utf8");
+    await git(root, ["add", slug]);
+    await git(root, ["commit", "-m", "identity snapshot"]);
+    await git(root, ["update-ref", "refs/arc/user/andrew/errands", "HEAD"]);
+    await git(root, ["switch", "-c", branch]);
+    await mkdir(join(root, ".arc/system"), { recursive: true });
+    await writeFile(join(root, ".arc/system/arc-config.yml"), "review.frontline_sources: [coderabbit-cli]\n", "utf8");
+    const publisher = new RepositoryGitCommonStatePublisher(makeGitExec(root), root);
+    const repositoryId = await resolveRepositoryIdentity(publisher);
+    const advance = async (content: string): Promise<string> => {
+      await writeFile(join(root, "change.txt"), content, "utf8");
+      await git(root, ["add", "change.txt"]);
+      await git(root, ["commit", "-m", `change ${content.trim()}`]);
+      return git(root, ["rev-parse", "HEAD"]);
+    };
+    // The CLI runs from the checkout, whose identity refs carry the Errand claim.
+    const resolveFrontline = async (headSha: string): Promise<unknown> => {
+      const output: string[] = [];
+      const exitCodes: number[] = [];
+      const previous = process.cwd();
+      process.chdir(root);
+      await handleReviewResolve("-", {
+        resolveRoot: () => root,
+        readText: async () => JSON.stringify({
+          schemaVersion: 1, target: { repository: "owner/repo", pullRequest: null, headSha },
+          lane: "frontline", frontlineActive: true, completedPasses: 0, attempts: [],
+          standardReview: {
+            obligation: "required", reasons: ["sensitive-change-set"],
+            rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
+            rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest, retrigger: "full-final", count: 1,
+          },
+        }),
+        write: (text) => output.push(text),
+        setExitCode: (code) => exitCodes.push(code),
+      }).finally(() => process.chdir(previous));
+      expect(exitCodes).toEqual([]);
+      return JSON.parse(output.join(""));
+    };
+    const firstHead = await advance("first\n");
+    await expect(resolveFrontline(firstHead)).resolves.toMatchObject({
+      state: "ready", nextAction: "run-frontline",
+    });
+    // Standard review on an earlier head closes the subject's opening phase for every later head.
+    await recordLaneAttempt(new LocalReviewOperationStateStore(publisher), {
+      lane: "standard", repositoryId, changeRequestId: null, headSha: firstHead,
+      lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: claimId, headSha: firstHead },
+      attemptId: "local/standard-1", sourceId: "delegated-agent",
+      outcome: "clean", consumedPass: true, logicalPass: 1, now: "2026-09-13T00:01:00Z",
+    });
+    await expect(resolveFrontline(await advance("second\n"))).resolves.toMatchObject({
+      state: "skipped", nextAction: "none",
+      payload: { lane: "frontline", reason: "phase-closed" },
+      diagnostics: [{
+        code: "frontline-phase-closed",
+        message: "The opening frontline phase is already closed for this review subject.",
+      }],
+    });
+  });
 
   it("shows the claim-wide ceiling after two reviews on earlier Errand heads", async () => {
     const root = await createTempRepoCore({ prefix: "arc-review-status-ceiling-", identity: "andrew" });

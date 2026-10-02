@@ -8,11 +8,14 @@ import {
   proposeDispositionSet,
 } from "../../../../../src/scripts/review-gate/core/dispositions.js";
 import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import type { ApprovedDispositionRecord } from "../../../../../src/scripts/review-gate/core/advisory-records.js";
+import type { ReviewResult } from "../../../../../src/scripts/review-gate/core/review-result.js";
 import {
   FrontlineFollowUpAdviceSchema,
   projectFrontlineFollowUpAdvice,
   resolveFrontlineFollowUp,
 } from "../../../../../src/scripts/review-gate/policy/frontline-follow-up.js";
+import { settledFrontlineAdviceReader } from "../../../../../src/scripts/review-gate/policy/frontline-phase.js";
 
 const oid = (value: string): string => value.repeat(40);
 const target = (head: string) => createReviewTarget({
@@ -230,4 +233,33 @@ describe("frontline follow-up policy", () => {
       })).toEqual({ action: "stop", reason: `outcome-${terminal}` });
     },
   );
+});
+
+describe("settled frontline advice reader", () => {
+  function reader(kind: ReviewResult["kind"], approval: ReturnType<typeof approved> | null) {
+    const { dispositionState } = approval ?? {};
+    return settledFrontlineAdviceReader(
+      { readResult: async () => ({ kind, outcome: outcome("major") }) as unknown as ReviewResult },
+      {
+        readDispositionRecord: async () => dispositionState === undefined ? null : {
+          currentDispositionSetId: dispositionState.dispositionSet.dispositionSetId,
+          approvedDispositionLineage: [{ approvedDisposition: dispositionState }],
+        } as unknown as ApprovedDispositionRecord,
+      },
+    );
+  }
+
+  it("projects a settled producer's advice from its current approved dispositions", async () => {
+    await expect(reader("frontline", approved("major", "defer"))("frontline-operation"))
+      .resolves.toEqual({ action: "stop", reason: "no-approved-material-fix" });
+    await expect(reader("frontline", approved("major"))("frontline-operation"))
+      .resolves.toMatchObject({ action: "follow-up-after-fix", pass: 2 });
+  });
+
+  it("refuses a producer that is not frontline or lacks an approved disposition record", async () => {
+    await expect(reader("hosted", approved("major"))("hosted-operation"))
+      .rejects.toThrow(/does not match its immutable result/u);
+    await expect(reader("frontline", null)("frontline-operation"))
+      .rejects.toThrow(/lack an approved disposition record/u);
+  });
 });

@@ -1,16 +1,21 @@
 /** Closure of a review subject's opening frontline phase, with a durable skip marker for singleton Candidates. */
 
 import { canonicalDigest } from "../../../lib/kernel/index.js";
+import { currentApprovedDispositionNode } from "../core/advisory-records.js";
 import {
   FrontlinePhaseStateSchema,
   type FrontlinePhaseState,
 } from "../core/operation-state-schema.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
-import type { ReviewOperationStateStore } from "../core/ports.js";
+import type {
+  ApprovedDispositionRecordStore,
+  ReviewOperationStateStore,
+  ReviewResultReader,
+} from "../core/ports.js";
 import { isReviewVersionConflict, REVIEW_VERSION_RETRY_ATTEMPTS } from
   "../core/version-conflict.js";
 import { readLaneProgressOwner } from "../lane-progress.js";
-import type { FrontlineFollowUpAdvice } from "./frontline-follow-up.js";
+import { projectFrontlineFollowUpAdvice, type FrontlineFollowUpAdvice } from "./frontline-follow-up.js";
 
 export function singletonFrontlinePhaseOperationId(input: {
   repositoryId: string;
@@ -45,6 +50,33 @@ export async function readSingletonFrontlinePhaseClosure(
     return marker;
   }
   return null;
+}
+
+/**
+ * Read the follow-up advice a settled frontline producer's current approved dispositions carry.
+ *
+ * @param resultReader - Immutable review result reader.
+ * @param dispositionStore - Approved disposition records keyed by producer.
+ * @returns A reader that projects one producer's advice, refusing a non-frontline or unapproved producer.
+ */
+export function settledFrontlineAdviceReader(
+  resultReader: Pick<ReviewResultReader, "readResult">,
+  dispositionStore: Pick<ApprovedDispositionRecordStore, "readDispositionRecord">,
+): (producerId: string) => Promise<FrontlineFollowUpAdvice> {
+  return async (producerId) => {
+    const result = await resultReader.readResult(producerId);
+    if (result.kind !== "frontline") {
+      throw new Error("settled frontline owner does not match its immutable result");
+    }
+    const dispositions = await dispositionStore.readDispositionRecord(producerId);
+    if (dispositions === null) {
+      throw new Error("settled frontline findings lack an approved disposition record");
+    }
+    return projectFrontlineFollowUpAdvice({
+      outcome: result.outcome,
+      dispositionState: currentApprovedDispositionNode(dispositions).approvedDisposition,
+    });
+  };
 }
 
 /**

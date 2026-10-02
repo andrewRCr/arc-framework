@@ -154,6 +154,14 @@ function validateTerminalResponseSettlement(
   }
 }
 
+/** Frontline is an opening phase that precedes the change request; once it closes it is never re-entered. */
+function closedFrontlinePhaseMessage(request: ReviewPolicyRequest): string | null {
+  if (request.target.pullRequest !== null) return "An open change request closes the opening frontline phase.";
+  return request.frontlinePhaseClosed === true
+    ? "The opening frontline phase is already closed for this review subject."
+    : null;
+}
+
 export const ReviewCeilingOverrideSchema = z.strictObject({
   target: ReviewPolicyTargetSchema,
   lane: z.enum(["frontline", "standard"]),
@@ -291,6 +299,8 @@ export const ReviewPolicyRequestSchema = z.strictObject({
   verifiedTerminalSignal: VerifiedTerminalReviewSignalSchema.optional(),
   /** Repository-proven settlement of the terminal findings response; never a command input. */
   terminalResponseSettled: z.literal(true).optional(),
+  /** Repository-proven closure of the subject's opening frontline phase; the standard lane ignores it. */
+  frontlinePhaseClosed: z.literal(true).optional(),
 }).superRefine((request, context) => {
   validateTerminalPassProgress(request, context);
   validateVerifiedTerminalSignal(request, context);
@@ -694,8 +704,10 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
       },
     });
   }
-  // Frontline is an opening phase that precedes the change request; once one is open it is never re-entered.
-  if (request.lane === "frontline" && !unresolvedFindings && request.target.pullRequest !== null) {
+  const closedPhase = request.lane === "frontline" && !unresolvedFindings
+    ? closedFrontlinePhaseMessage(request)
+    : null;
+  if (closedPhase !== null) {
     return resolveEnvelope({
       state: "skipped",
       nextAction: "none",
@@ -706,10 +718,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
         attemptedSources: request.attempts,
         reason: "phase-closed",
       },
-    }, [{
-      code: "frontline-phase-closed",
-      message: "An open change request closes the opening frontline phase.",
-    }]);
+    }, [{ code: "frontline-phase-closed", message: closedPhase }]);
   }
   if (request.lane === "standard"
     && (request.sources.length === 0 || request.standardReview.obligation === "exempt")) {

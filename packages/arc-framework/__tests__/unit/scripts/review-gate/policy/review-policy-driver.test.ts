@@ -1192,40 +1192,45 @@ describe("resolveReviewPolicy", () => {
     });
   });
 
-  it("closes the opening frontline phase once a change request is open", () => {
-    expect(resolveReviewPolicy({
-      schemaVersion: 1,
-      target,
-      lane: "frontline",
-      standardReview,
-      sources: ["coderabbit-cli"],
-      completedPasses: 0,
-      maxPasses: 2,
-      attempts: [],
-      frontlineActive: true,
-    })).toMatchObject({
+  it.each([
+    { name: "a change request is open", phase: { target }, message: /open change request/ },
+    {
+      name: "its recorded phase has closed",
+      phase: { target: prePrTarget, frontlinePhaseClosed: true as const },
+      message: /already closed for this review subject/,
+    },
+  ])("closes the opening frontline phase once $name", ({ phase, message }) => {
+    const request = {
+      schemaVersion: 1, lane: "frontline" as const, standardReview, sources: ["coderabbit-cli"],
+      completedPasses: 0, maxPasses: 2, attempts: [], frontlineActive: true, ...phase,
+    };
+    expect(resolveReviewPolicy(request)).toMatchObject({
       state: "skipped",
       nextAction: "none",
-      diagnostics: [expect.objectContaining({ code: "frontline-phase-closed" })],
-      payload: {
-        lane: "frontline",
-        scope: "whole-target",
-        attemptedSources: [],
-        reason: "phase-closed",
-      },
+      diagnostics: [{ code: "frontline-phase-closed", message: expect.stringMatching(message) }],
+      payload: { lane: "frontline", scope: "whole-target", attemptedSources: [], reason: "phase-closed" },
     });
+  });
+
+  it("admits a recorded frontline phase closure only as repository-proven evidence", () => {
+    const opening = { schemaVersion: 1, target: prePrTarget, lane: "frontline" as const, standardReview,
+      completedPasses: 0, attempts: [], frontlineActive: true };
+    expect(resolveReviewPolicy({ ...opening, sources: ["coderabbit-cli"], maxPasses: 2 }))
+      .toMatchObject({ state: "ready", nextAction: "run-frontline" });
+    assertSchemaRefuses(ReviewPolicyCommandRequestSchema, { ...opening, frontlinePhaseClosed: true });
   });
 
   it.each([
     { frontlineActive: false, sources: ["coderabbit-cli"], invocation: undefined },
     { frontlineActive: true, sources: ["coderabbit-cli"], invocation: { mode: "skip" as const } },
     { frontlineActive: true, sources: ["coderabbit-cli"], invocation: undefined },
-  ])("retains an admitted frontline findings response across activation changes and an open change request %j", ({
-    frontlineActive, sources, invocation,
+    { frontlineActive: true, sources: ["coderabbit-cli"], invocation: undefined, closed: true },
+  ])("retains an admitted frontline findings response across activation changes and phase closure %j", ({
+    frontlineActive, sources, invocation, closed,
   }) => {
     expect(resolveReviewPolicy({
       schemaVersion: 1,
-      target,
+      ...(closed === true ? { target: prePrTarget, frontlinePhaseClosed: true } : { target }),
       lane: "frontline",
       standardReview,
       sources,

@@ -680,6 +680,22 @@ describe("evidence-bound review policy", () => {
     }, evidence)).rejects.toThrow(/Unrecognized key/u);
   });
 
+  it("binds a recorded frontline phase closure on both binding paths", async () => {
+    const result = cleanHostedResult();
+    const opening = {
+      schemaVersion: 1 as const, target: { ...policyTarget, pullRequest: null }, lane: "frontline" as const,
+      standardReview, completedPasses: 0, attempts: [], frontlineActive: true,
+    };
+    const evidence = { ...dependencies(result), sources: ["coderabbit-cli"], maxPasses: 2 };
+    await expect(resolveEvidenceBoundReviewPolicy(opening, evidence))
+      .resolves.toMatchObject({ state: "ready", nextAction: "run-frontline" });
+    await expect(resolveEvidenceBoundReviewPolicy(opening, { ...evidence, frontlinePhaseClosed: true }))
+      .resolves.toMatchObject({ state: "skipped", nextAction: "none", payload: { reason: "phase-closed" } });
+    await expect(resolveEvidenceBoundReviewPolicy(cleanRequest(result), {
+      ...evidence, sources: ["codex-pr"], frontlinePhaseClosed: true,
+    })).rejects.toThrow(/frontline phase closure can be applied only to the frontline lane/u);
+  });
+
   it("does not spend a pass from a stale nonhosted record-only settlement after a successor fix", async () => {
     const result = chunkedLocalAggregateResult();
     if (result.kind !== "attested-local") throw new Error("expected local aggregate");
