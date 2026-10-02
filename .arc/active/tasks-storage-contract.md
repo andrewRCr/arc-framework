@@ -563,79 +563,32 @@ as stated.
           bindings. Typed empty-save results map to noop; local failures and failed readbacks retain their causes and
           end before the Errand push. Actual transport facts carry their failure class, retry count and elapsed time.
 
-### `[ ]` **7.4 Conformance over every family — D7**
+### `[x]` **7.4 Conformance over every family — D7**
 
 - _Goal:_ The conformance suite passes against the in-repo implementation over every family its fixture serves —
   tracked, personal, and transient-identity — with version conflicts produced by racing writers on each substrate.
 
-- **Additional Context:** `spec-storage-contract.md` § D7 (A1: existing sync behavior)
+    - `[x]` **7.4.a The fixture serves every substrate**
+        - Real identity files, notes locks, transient ref trees and a second clone provide writes, races and faults.
+          Declarations cover every homed family and name the substrate limitations and existing sync exceptions.
 
-    - `[ ]` **7.4.a The fixture serves every substrate**
-        - Personal files over a temporary identity directory with its notes lock; transient-identity records over a ref
-          with a remote from the multi-clone helper; `remote` provides the notes and Errand remotes for item 16.
-        - The `content` hook gives any bytes for a personal file, with no rejecting variant, and for an Errand or a
-          claim a valid record keyed to the identity written, its change, and a record the decoder rejects.
-        - The fault hooks reach the new substrates: `plant` writes on the Errand ref each entry the snapshot diagnoses —
-          malformed, oversized, unreadable, of an unknown version, or keyed for another slug — `hold` holds the notes
-          lock, and `remoteState` takes the multi-clone remote down by moving its bare repository away, or makes it
-          contended or refusing.
-        - The fixture's declarations now cover every substrate, each exclusion with its reason, and the list is
-          complete (A1):
-            - personal files and transient-identity records sit outside the state version (item 7; item 8 covers them);
-            - a personal file has no history (item 11) and no format version a build can find newer (item 10), and a
-              transient-identity record reads format version 1 until the ref backend writes one, as a tracked record
-              does (Task 4.7.a), so neither gives a newer format version (item 10) or the unknown-format-version
-              diagnostic (item 9) — today's `unknown-version` names an Errand entry's content version and lists as
-              `malformed` (Task 7.2.a);
-            - `lookup` of a personal file (item 12), since lookup resolves work items and checkout claims, never a
-              personal file;
-            - the reconciling notes push does not retry (item 16's `retries-exhausted`);
-            - item 16's assertion that project-scope families publish beside `no-identity`, since every in-repo publish
-              rides a ref keyed by the identity until the flip (Task 7.3.b);
-            - a personal batch's shared batch ID (item 4), since personal files have no history or changes to show one
-              (items 7 and 11);
-            - `namespace-corrupt` stays declared (item 14), since no substrate produces it — the tracked one for Task
-              4.7.a's reason, personal files having no structure beyond themselves, and today's snapshot reporting a ref
-              whose tip or tree cannot be read as one `error` whose cause only its message tells, its listing
-              `unreadable` and any other operation on it throwing (Task 7.2.a); the Errand ref produces
-              `record-malformed` and `identity-mismatch` (Tasks 7.2.a and 7.2.b), as the tracked one does (Task 4.7.a);
-            - a transient-identity batch's shared batch ID (item 4) and each write's own provenance in `history` (item
-              11), since an Errand record's history is its ref's commits, whose messages it returns as they are (D3);
-            - a created record's UID (item 1), since no record here carries one before the flip (D2);
-            - a move of an Errand record to another placement, its creation at `completed`, a rename of one, and its
-              links (items 1, 11, and 12), which it refuses `unsupported` (Task 7.2.b);
-            - the `malformed`, `oversized`, and `key-mismatch` diagnostics on personal files (item 9), since the backend
-              never parses a personal file (Task 7.1.b), today's readers cap no size, and a file's identity is its path
-              with no key inside; and, for the first of those reasons, content a personal file's validation rejects;
-            - `lookup` of a transient-identity record by a stored link — a captured commit or a branch link (item 12) —
-              since the in-repo implementation stores none; a ref resolves to its Errand through the record that names
-              the branch (Task 7.2.c), and a commit only from the flip (D3);
-            - `lock-held` comes from the tracked and personal substrates alone (item 14), since a transient-identity
-              write takes no lock of its own and Git's ref lock refuses a concurrent update once its brief retry runs
-              out, which the backend throws (Task 7.2.b).
-            - repeat-sync `noop` for personal files and transient records (item 16), since today's notes save and
-              Errand push report `pushed` again for existing refs even with unchanged record bytes;
-            - convergence after a remote edit of an existing transient entry (item 16), since today's two-way Errand
-              push reports unequal same-key entries as `conflict`; distinct entries still reconcile;
-            - refreshed personal working-file bytes after notes reconciliation (item 16), since today's push updates
-              and publishes the notes ref without loading those notes into working files.
+    - `[x]` **7.4.b The suite over the new families**
+        - All admitted assertions run against the public backend. Excluded items, assertions and refusals report their
+          reasons; registration rejects unused or shadowed assertion declarations, including misspelled names.
 
-    - `[ ]` **7.4.b The suite over the new families**
-        - Every item and assertion the fixture's declarations admit passes over each new family, and each excluded
-          item, assertion, and refusal is reported by name with its reason.
-
-### `[ ]` **7.4.R Preserve existing sync in conformance — A1**
+### `[x]` **7.4.R Preserve existing sync in conformance — A1**
 
 - _Goal:_ Realize A1's named in-repo sync exceptions without changing the existing producers, with direct checks
   preserving their outcomes and remote bytes beside the shared conformance suite.
 
-    - `[ ]` **7.4.R.a Exact fixture exceptions**
-        - Declare the three A1 exceptions by assertion and role, with each reason reported and no unused declaration.
+    - `[x]` **7.4.R.a Exact fixture exceptions**
+        - Repeated publication, same-key transient convergence and personal working-file refresh are excluded by
+          assertion and role, with their existing producer behavior stated in each reported reason.
 
-    - `[ ]` **7.4.R.b Existing behavior verified**
-        - Build `test-first`: repeated notes and Errand publications retain their producer outcomes; a remote-only
-          edit of an existing transient entry conflicts; disjoint entries reconcile; and merged notes preserve both
-          remote manifests while personal working files remain unchanged. Re-run the complete conformance suite.
+    - `[x]` **7.4.R.b Existing behavior verified**
+        - Direct real-Git cases retain repeated notes and transient publication outcomes, same-key conflicts and
+          disjoint reconciliation. Merged remote notes preserve both manifests while personal working files keep
+          their local bytes; the complete shared suite runs beside those cases.
 
 ## **Phase 8:** Verification
 

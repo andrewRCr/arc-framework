@@ -6,6 +6,7 @@ import type { GitExec } from "../../../src/lib/git/exec.js";
 import { createReferenceFixture } from "./reference-fixture.js";
 import { seed, success, testProvenance, update } from "./suite-tools.js";
 import type { ConformanceFixture, RecoveryCaseId, RecoveryOperation } from "./fixture-contract.js";
+import { produceRemoteRecovery } from "./in-repo-remote-recovery.js";
 type Repairs = Map<string, () => Promise<void>>;
 
 /** Produce an actual refused operation whose retained repair preserves its logical intent.
@@ -16,6 +17,14 @@ type Repairs = Map<string, () => Promise<void>>;
  * @returns Original operation and its repaired continuation.
  */
 export async function produceInRepoRecovery(fixture: ConformanceFixture, exec: GitExec, repairs: Repairs, caseId: RecoveryCaseId): Promise<RecoveryOperation> {
+  const remote = await produceRemoteRecovery(fixture, repairs, caseId);
+  if (remote) return remote;
+  if (caseId === "not-found:identity") {
+    const record = await seed(fixture, fixture.reference("personal/document"));
+    fixture.identity(undefined);
+    repairs.set(caseId, async () => { fixture.identity(record.reference.owner.name); });
+    return { run: () => fixture.store.read({ reference: record.reference }) };
+  }
   if (caseId.startsWith("unsupported:")) return unsupported(fixture, exec, repairs, caseId);
   const reference = fixture.reference(caseId === "not-found:name" || caseId === "checkout-not-writable" ? "work-item/meta" : "review/candidate");
   if (caseId === "not-found:name") {
@@ -84,19 +93,18 @@ async function unsupported(fixture: ConformanceFixture, exec: GitExec, repairs: 
 }
 
 async function crossSubstrate(fixture: ConformanceFixture, repairs: Repairs, caseId: RecoveryCaseId): Promise<RecoveryOperation> {
-  const capable = createReferenceFixture();
-  const tracked = fixture.reference("review/candidate"), personal = capable.reference("personal/document");
+  const tracked = fixture.reference("review/candidate"), personal = fixture.reference("personal/document");
   const left = { action: "put" as const, reference: tracked, content: fixture.content(tracked), expected: null, provenance: testProvenance };
-  const right = { action: "put" as const, reference: personal, content: capable.content(personal), expected: null, provenance: testProvenance };
+  const right = { action: "put" as const, reference: personal, content: fixture.content(personal), expected: null, provenance: testProvenance };
   let split = false;
   repairs.set(caseId, async () => { split = true; });
   return { run: async () => {
     if (!split) return fixture.store.batch({ writes: [left, right], provenance: testProvenance });
     success(await fixture.store.write(left));
-    const result = await capable.store.write(right);
+    const result = await fixture.store.write(right);
     success(result);
     expect(success(await fixture.store.read({ reference: tracked })).content).toBe(left.content);
-    expect(success(await capable.store.read({ reference: personal })).content).toBe(right.content);
+    expect(success(await fixture.store.read({ reference: personal })).content).toBe(right.content);
     return result;
   } };
 }
@@ -113,9 +121,10 @@ async function selectCapableBackend(fixture: ConformanceFixture, repairs: Repair
     return { run: () => switched ? seedAndReturn(capable, capable.reference("review/evidence")) : fixture.store.write({ action: "put", reference, content: "{}", expected: null, provenance: testProvenance }) };
   }
   if (caseId === "unsupported:personal-history") {
+    const record = await seed(fixture, fixture.reference("personal/document"));
     const reference = capable.reference("personal/document");
-    repairs.set(caseId, async () => { await seed(capable, reference); switched = true; });
-    return { run: () => (switched ? capable.store : fixture.store).history({ reference }) };
+    repairs.set(caseId, async () => { await seed(capable, reference, record.content); switched = true; });
+    return { run: () => switched ? capable.store.history({ reference }) : fixture.store.history({ reference: record.reference }) };
   }
   repairs.set(caseId, async () => {
     if (current) { current = await seed(capable, migrated); migrated = current.reference; }

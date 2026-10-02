@@ -2113,4 +2113,4 @@ operations and outcomes, and which test tier each conformance fixture runs in.
 ## Amendments
 
 - **A1** — 2026-10-02 — design: preserve existing sync in the fixture's exceptions.
-  _Supersedes:_ tasks §7.4.a complete list. _Trigger:_ 7.4 must-stop. _Work:_ 7.4.R. _Revalidated:_ pending → 7.4.R.b.
+  _Supersedes:_ tasks §7.4.a complete list. _Trigger:_ 7.4 must-stop. _Work:_ 7.4.R. _Revalidated:_ 7.4.R.b.

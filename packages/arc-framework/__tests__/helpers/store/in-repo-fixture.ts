@@ -13,9 +13,12 @@ import { serializeCandidateManagedRecord, createCandidateAttestation } from "../
 import { serializeTransitionRecord } from "../../../src/lib/work-unit/transition-record.js";
 import { parseIntegrationBoundaryLocus } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { makeMetaFixture } from "../meta-fixture.js";
-import { candidateFixture, boundaryFixture, trackedWriteFixture } from "./tracked-write-fixture.js";
+import { candidateFixture, boundaryFixture } from "./tracked-write-fixture.js";
 import { inRepoDeclarations } from "./in-repo-declarations.js";
 import { produceInRepoRecovery } from "./in-repo-recovery.js";
+import { transientContent, plantTransient, plantPersonal } from "./in-repo-substrates.js";
+import { getNotesLockPath } from "../../../src/lib/user-sync/notes-lock.js";
+import { inRepoRemote } from "./in-repo-remote.js";
 import { success } from "./suite-tools.js";
 import type { ConformanceFixture, ConformanceRegistration } from "./fixture-contract.js";
 
@@ -25,6 +28,7 @@ import type { ConformanceFixture, ConformanceRegistration } from "./fixture-cont
  * @returns Whole-file persisted form.
  */
 export function inRepoContent(reference: RecordReference, variant = "valid"): string {
+  if (KIND_REGISTRY[reference.kind].inRepo.substrate === "transient-identity") return transientContent(reference, variant);
   if (variant === "invalid") return "invalid machine JSON";
   const name = reference.owner.name;
   const value = variant === "changed-again" ? 3 : variant === "changed" ? 2 : 1;
@@ -48,13 +52,14 @@ export function inRepoContent(reference: RecordReference, variant = "valid"): st
  * @returns Fresh public store and faithful filesystem/Git hooks.
  */
 export async function createInRepoFixture(): Promise<ConformanceFixture> {
-  const h = await trackedWriteFixture();
+  const topology = await inRepoRemote();
+  const h = topology.a;
   h.ports.locks.tracked = (operation) => withTrackedWriteLock({ exec: h.exec, checkoutRoot: h.root, options: { maxWaitMs: 100 } }, operation);
   const store = createStore(h.ports);
-  await h.exec("git", ["commit", "--allow-empty", "-m", "Initialize conformance repository"]);
   let held: AdvisoryLockHandle | undefined;
+  const denied = new Set<string>();
   const repairs = new Map<string, () => Promise<void>>();
-  onTestFinished(async () => { if (held) await releaseAdvisoryLock(held); });
+  onTestFinished(async () => { if (held) await releaseAdvisoryLock(held); for (const path of denied) await chmod(path, 0o755); topology.restore(); });
   const pathFor = (reference: RecordReference) => {
     const role = KIND_REGISTRY[reference.kind].inRepo.address;
     if (reference.kind === "work-item/companion") return join(h.root, `.arc/active/${String(reference.key)}-${reference.owner.name}.md`);
@@ -68,8 +73,8 @@ export async function createInRepoFixture(): Promise<ConformanceFixture> {
     store, declarations: inRepoDeclarations,
     reference(kind, suffix = "one") {
       const d = KIND_REGISTRY[kind];
-      const owner = { type: d.owner, name: d.owner === "project" ? "project" : `${d.owner}-${suffix}` };
-      const key = d.key === "pass" ? { activity: "review", number: suffix === "two" ? 2 : 1 } : d.key === "path" ? `scratch/${suffix}.md` : suffix;
+      const owner = { type: d.owner, name: d.owner === "person" ? "andrew" : d.owner === "project" ? "project" : `${d.owner}-${suffix}` };
+      const key = d.key === "pass" ? { activity: "review", number: suffix === "two" ? 2 : 1 } : d.key === "path" ? `scratch-${suffix}.md` : kind === "claims/groom" ? `groom-${suffix}` : suffix;
       return RecordReferenceSchema.parse({ owner, kind, ...(d.key === null ? {} : { key }) });
     },
     content: inRepoContent,
@@ -89,17 +94,20 @@ export async function createInRepoFixture(): Promise<ConformanceFixture> {
     },
     reopen: () => createStore(h.ports),
     race: (left, right) => Promise.all([store.write(left), store.write(right)]),
-    remote: () => undefined, identity: () => {}, remoteState: () => {},
+    remote: topology.remote, identity: topology.identity, remoteState: topology.remoteState,
     async plant(reference, kind) {
+      const substrate = KIND_REGISTRY[reference.kind].inRepo.substrate;
+      if (substrate === "transient-identity") return plantTransient(h.ports, reference, kind);
+      if (substrate === "personal") return plantPersonal(h.root, reference, kind, denied);
       const path = pathFor(reference);
       if (kind === "unreadable") { await chmod(path, 0); return; }
       if (kind === "malformed") { await writeFile(path, "invalid machine JSON"); return; }
       if (kind === "key-mismatch") { await writeFile(path, inRepoContent(RecordReferenceSchema.parse({ ...reference, owner: { ...reference.owner, name: "wrong-owner" } }))); return; }
       throw new Error(`Unproducible tracked fault ${kind}`);
     },
-    async hold(_reference, holding) {
+    async hold(reference, holding) {
       if (!holding && held) { await releaseAdvisoryLock(held); held = undefined; }
-      if (holding && !held) held = await acquireAdvisoryLock(join(await resolveCheckoutGitDir(h.exec, h.root), TRACKED_WRITE_LOCK_FILENAME));
+      if (holding && !held) held = await acquireAdvisoryLock(KIND_REGISTRY[reference.kind].inRepo.substrate === "personal" ? await getNotesLockPath(h.exec, h.root, reference.owner.name) : join(await resolveCheckoutGitDir(h.exec, h.root), TRACKED_WRITE_LOCK_FILENAME));
     },
     produce: (caseId) => produceInRepoRecovery(fixture, h.exec, repairs, caseId),
     async repair(caseId) { const repair = repairs.get(caseId); if (!repair) throw new Error(`No produced repair ${caseId}`); await repair(); },
