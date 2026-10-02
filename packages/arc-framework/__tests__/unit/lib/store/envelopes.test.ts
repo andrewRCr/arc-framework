@@ -84,8 +84,12 @@ describe("mutation envelopes", () => {
     expect(LinksSchema.safeParse({ taskCaptures: { "1.1": [{ sha, patchId: sha }, { sha }] } }).success).toBe(false);
   });
   it("preserves both labeled sides and the precise conflict locus", () => {
-    const conflict = { record: reference, location: { kind: "entry", id: "abcdef12" }, base: "base", current: { content: "current", label }, incoming: { content: "incoming", label } };
+    const conflict = { record: reference, location: { kind: "entry", id: "abcdef12" }, base: "base", baseSection: "One",
+      current: { content: "current", section: "Two", label }, incoming: { content: "incoming", section: "Three", label } };
     expect(ConflictRecordSchema.safeParse(conflict).success).toBe(true);
+    expect(ConflictRecordSchema.safeParse({ ...conflict, baseSection: undefined }).success).toBe(false);
+    expect(ConflictRecordSchema.safeParse({ ...conflict, current: { ...conflict.current, section: undefined } }).success).toBe(false);
+    expect(ConflictRecordSchema.safeParse({ ...conflict, incoming: { ...conflict.incoming, section: undefined } }).success).toBe(false);
     expect(ConflictRecordSchema.safeParse({ ...conflict, base: undefined }).success).toBe(false);
     expect(ConflictRecordSchema.safeParse({ ...conflict, location: { kind: "path", path: "file" } }).success).toBe(false);
     expect(ConflictRecordSchema.safeParse({ ...conflict, incoming: { content: "incoming" } }).success).toBe(false);

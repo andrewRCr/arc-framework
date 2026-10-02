@@ -2,10 +2,56 @@
 
 import { describe, expect, it } from "vitest";
 import { createReferenceFixture } from "../../../helpers/store/reference-fixture.js";
-import { LookupInputSchema, RecordReferenceSchema, type StoreResult } from "../../../../src/lib/store/index.js";
+import { ConflictRecordSchema, LookupInputSchema, RecordReferenceSchema, type StoreResult } from "../../../../src/lib/store/index.js";
 import { seed, success, testProvenance, update } from "../../../helpers/store/suite-tools.js";
 
 describe("reference record landing", () => {
+  it.each([false, true])("persists both sections of a move-versus-edit conflict, move current: %s", async (moveCurrent) => {
+    const fixture = createReferenceFixture();
+    const entry = (body: string) => `### [ ] **First**\n\n- _Id:_ \`11111111\`\n\n${body}\n\n`;
+    const document = (section: string, body: string) => `# Inbox\n\n## Errand\n\n${section === "Errand" ? entry(body) : ""}## Work Unit\n\n${section === "Work Unit" ? entry(body) : ""}`;
+    const base = await seed(fixture, fixture.reference("personal/inbox"), document("Errand", "base"));
+    const currentSection = moveCurrent ? "Work Unit" : "Errand";
+    const incomingSection = moveCurrent ? "Errand" : "Work Unit";
+    const currentBody = moveCurrent ? "base" : "edited";
+    const incomingBody = moveCurrent ? "edited" : "base";
+    const current = document(currentSection, currentBody);
+    success(await fixture.store.write(update(fixture, base, current)));
+    const landed = success(await fixture.store.write(update(fixture, base, document(incomingSection, incomingBody))));
+    expect(landed.conflicts).toHaveLength(1);
+    const conflictReference = landed.conflicts[0]!;
+    const saved = success(await fixture.store.read({ reference: conflictReference }));
+    expect(ConflictRecordSchema.parse(JSON.parse(saved.content))).toMatchObject({
+      record: base.reference, location: { kind: "entry", id: "11111111" }, base: entry("base").trimEnd(), baseSection: "Errand",
+      current: { content: entry(currentBody).trimEnd(), section: currentSection, label: { actor: "local", time: new Date(0).toISOString() } },
+      incoming: { content: entry(incomingBody).trimEnd(), section: incomingSection, label: { actor: "local", time: new Date(0).toISOString() } },
+    });
+    expect(success(await fixture.store.read({ reference: base.reference }))).toMatchObject({ content: current, conflicts: [conflictReference] });
+    expect(success(await fixture.reopen().read({ reference: conflictReference }))).toEqual(saved);
+  });
+
+  it("persists divergent destinations for an entry moved from a third section", async () => {
+    const kind = "personal/errand-queue";
+    const fixture = createReferenceFixture({ [kind]: { shape: "heading", sections: ["One", "Two", "Three"] } });
+    const { store } = fixture;
+    const reference = fixture.reference(kind);
+    const entry = "### [ ] **First**\n\n- _Id:_ `11111111`\n\nbase\n\n";
+    const document = (section: string) => `# Queue\n\n${["One", "Two", "Three"].map((name) => `## ${name}\n\n${name === section ? entry : ""}`).join("")}`;
+    const first = success(await store.write({ action: "put", reference, expected: null, content: document("One"), provenance: testProvenance }));
+    const write = (section: string) => ({ action: "put" as const, reference, expected: first.version!, content: document(section), provenance: testProvenance });
+    success(await store.write(write("Two")));
+    const landed = success(await store.write(write("Three")));
+    expect(landed.conflicts).toHaveLength(1);
+    const conflictReference = landed.conflicts[0]!;
+    const saved = success(await store.read({ reference: conflictReference }));
+    expect(ConflictRecordSchema.parse(JSON.parse(saved.content))).toMatchObject({
+      record: reference, location: { kind: "entry", id: "11111111" }, base: entry.trimEnd(), baseSection: "One",
+      current: { content: entry.trimEnd(), section: "Two" }, incoming: { content: entry.trimEnd(), section: "Three" },
+    });
+    expect(success(await store.read({ reference }))).toMatchObject({ content: document("Two"), conflicts: [conflictReference] });
+    expect(success(await fixture.reopen().read({ reference: conflictReference }))).toEqual(saved);
+  });
+
   it("lands a valid primary record with exact bytes, random UID, and placement", async () => {
     const fixture = createReferenceFixture();
     const reference = fixture.reference("work-item/meta");

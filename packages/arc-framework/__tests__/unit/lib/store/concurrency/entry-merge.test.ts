@@ -49,8 +49,8 @@ describe("whole-entry editing", () => {
     const b = entry("11111111","base\nb");
     const result = merge(doc(original),doc(a),doc(b));
     expect(entries(result.content)[0]!.bytes).toBe(a.trimEnd());
-    expect(result.conflicts).toEqual([{record,location:{kind:"entry",id:"11111111"},base:original.trimEnd(),
-      current:{content:a.trimEnd(),label:currentLabel},incoming:{content:b.trimEnd(),label:incomingLabel}}]);
+    expect(result.conflicts).toEqual([{record,location:{kind:"entry",id:"11111111"},base:original.trimEnd(),baseSection:"One",
+      current:{content:a.trimEnd(),section:"One",label:currentLabel},incoming:{content:b.trimEnd(),section:"One",label:incomingLabel}}]);
   });
 
   it("makes a section move racing an edit a whole-entry clash", () => {
@@ -60,7 +60,28 @@ describe("whole-entry editing", () => {
     const result = merge(base,moved,edited);
     expect(entries(result.content)[0]!.section).toBe("Two");
     expect(result.conflicts[0]!.location).toEqual({kind:"entry",id:"11111111"});
-    expect(merge(base,edited,moved).conflicts).toHaveLength(1);
+    expect(result.conflicts[0]).toMatchObject({baseSection:"One",current:{section:"Two"},incoming:{section:"One"}});
+    const reversed = merge(base,edited,moved);
+    expect(reversed.conflicts).toHaveLength(1);
+    expect(entries(reversed.content)[0]!.section).toBe("One");
+    expect(reversed.conflicts[0]).toMatchObject({baseSection:"One",current:{section:"One"},incoming:{section:"Two"}});
+  });
+
+  it("preserves both destinations when the same entry moves to different sections", () => {
+    const config: EntryListConfig = {shape:"heading",sections:["One","Two","Three"]};
+    const document = (section:string)=>config.sections.map((name)=>`## ${name}\n\n${name === section ? entry("11111111") : ""}`).join("");
+    const base = document("One"),current = document("Two"),incoming = document("Three");
+    const result = mergeEntryText({base,current,incoming,record,currentLabel,incomingLabel},config);
+    expect(result.content).toBe(current);
+    expect(result.conflicts).toHaveLength(1);
+    expect(result.conflicts[0]).toMatchObject({baseSection:"One",current:{section:"Two",label:currentLabel},
+      incoming:{section:"Three",label:incomingLabel}});
+  });
+
+  it("records an absent base section for clashing concurrent insertions", () => {
+    const result = merge(doc(""),doc(entry("11111111","current")),doc("",entry("11111111","incoming")));
+    expect(entries(result.content)[0]!.section).toBe("One");
+    expect(result.conflicts[0]).toMatchObject({base:"",baseSection:null,current:{section:"One"},incoming:{section:"Two"}});
   });
 });
 

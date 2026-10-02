@@ -58,14 +58,16 @@ export const referenceDeclarations: FixtureDeclarations = {
 };
 
 /** Open a fresh reference fixture with pure test field parsers, never production field schemas.
+ * @param entryShapes - Optional generic test grammars for reserved entry-list kinds.
  * @returns All backend-neutral hooks over an independently owned memory namespace.
  */
-export function createReferenceFixture(): ConformanceFixture {
+export function createReferenceFixture(entryShapes: FixtureDeclarations["entryShapes"] = {}): ConformanceFixture {
+  const declarations = { ...referenceDeclarations, entryShapes: { ...referenceDeclarations.entryShapes, ...entryShapes } };
   const parsers = Object.fromEntries((Object.keys(KIND_SHAPES) as KindId[])
     .filter((kind) => KIND_REGISTRY[kind].merge === "single-writer").map((kind) => [kind, kind.endsWith("/conflict-record") ? conflictParser : jsonParser]));
   const definitions = createKindRegistry(parsers);
   const registry = Object.fromEntries((Object.keys(definitions) as KindId[]).map((kind) => [kind, {
-    ...definitions[kind], ...(referenceDeclarations.entryShapes[kind] ? { entry: referenceDeclarations.entryShapes[kind] } : {}),
+    ...definitions[kind], ...(declarations.entryShapes[kind] ? { entry: declarations.entryShapes[kind] } : {}),
   }])) as typeof definitions;
   let clock = 0;
   const store = new ReferenceBackend({ registry, environment: { identity: "test-user", actor: "local", now: () => clock, wait: (milliseconds) => { clock += milliseconds; } } });
@@ -75,7 +77,7 @@ export function createReferenceFixture(): ConformanceFixture {
   let contentionWrites = 0;
   const recovery: ReferenceRecoveryState = { repairs: new Map() };
   const fixture: ConformanceFixture = {
-    store, declarations: referenceDeclarations,
+    store, declarations,
     reference(kind, suffix = "one") {
       const shape = KIND_SHAPES[kind];
       const name = shape.owner === "person" ? "test-user" : `${shape.owner}-${suffix}`;

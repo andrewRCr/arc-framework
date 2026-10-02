@@ -39,11 +39,16 @@ function chooseEntries(base:EntryFrame,current:EntryFrame,incoming:EntryFrame,in
     if (selection !== undefined) chosen.set(id,selection);
     // A missing side observes only the base entry: concurrent edits survive its removal.
     if (a !== undefined && b !== undefined && !same(a,b) && !same(a,original) && !same(b,original)) {
-      conflicts.push({record:input.record,location:{kind:"entry",id},base:original?.bytes ?? "",
-        current:{content:a.bytes,label:input.currentLabel},incoming:{content:b.bytes,label:input.incomingLabel}});
+      conflicts.push(entryConflict(input,id,original,a,b));
     }
   }
   return chosen;
+}
+
+function entryConflict(input:MergeTextInput,id:string,base:ListEntry|undefined,current:ListEntry,incoming:ListEntry): ConflictRecord {
+  return {record:input.record,location:{kind:"entry",id},base:base?.bytes ?? "",baseSection:base?.section ?? null,
+    current:{content:current.bytes,section:current.section,label:input.currentLabel},
+    incoming:{content:incoming.bytes,section:incoming.section,label:input.incomingLabel}};
 }
 
 function mapConflicts(conflicts:ConflictRecord[],origins:readonly number[]): ConflictRecord[] {
