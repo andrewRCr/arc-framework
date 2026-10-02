@@ -4,8 +4,25 @@ import { describe, expect, it } from "vitest";
 import { createReferenceFixture } from "../../../helpers/store/reference-fixture.js";
 import { ConflictRecordSchema, LookupInputSchema, RecordReferenceSchema, type StoreResult } from "../../../../src/lib/store/index.js";
 import { seed, success, testProvenance, update } from "../../../helpers/store/suite-tools.js";
+import { splitEntryList } from "../../../../src/lib/store/concurrency/entries.js";
 
 describe("reference record landing", () => {
+  it.each([false, true])("persists a managed edit after section deletion, removal current: %s", async (removalCurrent) => {
+    const fixture = createReferenceFixture();
+    const reference = fixture.reference("personal/inbox");
+    const entry = (body:string)=>`### [ ] **First**\n\n- _Id:_ \`11111111\`\n\n${body}\n\n`;
+    const base = await seed(fixture,reference,`# Inbox\n\n## Errand\n\n${entry("base")}## Work Unit\n\nFooter\n`);
+    const removed = "# Inbox\n\n## Work Unit\n\nFooter\n";
+    const edited = base.content.replace("base\n","edited\n");
+    success(await fixture.store.write(update(fixture,base,removalCurrent ? removed : edited)));
+    const landed = success(await fixture.store.write(update(fixture,base,removalCurrent ? edited : removed)));
+    const saved = success(await fixture.reopen().read({reference}));
+    expect(saved.version).toBe(landed.version);
+    expect(splitEntryList(saved.content,{shape:"heading",sections:["Errand","Work Unit"]}).parts.filter((part)=>part.kind === "entry"))
+      .toMatchObject([{id:"11111111",section:"Errand",bytes:entry("edited").trimEnd()}]);
+    expect(saved.conflicts).toEqual([]);
+  });
+
   it.each([[false, false], [true, false], [false, true]])("persists both sections of a move-versus-edit conflict, move current: %s, extra spacing: %s", async (moveCurrent, extraSpacing) => {
     const fixture = createReferenceFixture();
     const entry = (body: string) => `### [ ] **First**\n\n- _Id:_ \`11111111\`\n\n${body}\n\n`;

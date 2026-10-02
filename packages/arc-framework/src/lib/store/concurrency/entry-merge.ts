@@ -3,6 +3,7 @@ import type { ConflictRecord } from "../conflict.js";
 import type { EntryListConfig, ListEntry } from "./entries.js";
 import { entryFrame, type EntryFrame } from "./entry-frame.js";
 import { orderEntries } from "./entry-order.js";
+import { entrySection, retainEntrySections } from "./entry-sections.js";
 import { mergeLineText, relocateTextOffsets, type MergeTextInput, type MergeTextResult } from "./line-merge.js";
 
 function same(left: ListEntry | undefined,right: ListEntry | undefined): boolean {
@@ -22,7 +23,8 @@ export function mergeEntryText(input: MergeTextInput, config: EntryListConfig): 
   const selected = chooseEntries(base,current,incoming,input,conflicts);
   const prose = mergeLineText({...input,base:base.skeleton,current:current.skeleton,incoming:incoming.skeleton});
   conflicts.push(...mapConflicts(prose.conflicts,base.lineOrigins));
-  const content = renderEntries(config,selected,base,current,incoming,prose.content,input,conflicts);
+  const skeleton = retainEntrySections(prose.content,selected,[current,incoming,base]);
+  const content = renderEntries(config,selected,base,current,incoming,skeleton,input,conflicts);
   return {content,conflicts};
 }
 
@@ -66,11 +68,14 @@ function renderEntries(config:EntryListConfig,selected:Map<string,ListEntry>,bas
   for (const section of config.sections) {
     const order = orderEntries(base.entries,current.entries,incoming.entries,selected,section);
     const positions = placementOffsets(order,section,selected,base,current,incoming,prose);
+    const bounds = entrySection(prose,section);
     for (const [index,id] of order.entries()) {
       const entry = selected.get(id);
       if (entry === undefined) continue;
       const separator = mergeSeparator(id,base,current,incoming,input,conflicts);
-      chunks.push({position:positions[index] ?? prose.length,bytes:entry.bytes+separator,order:chunks.length});
+      if (bounds === undefined) throw new Error(`Selected entry lacks its section: ${section}`);
+      const position = Math.max(bounds.body,Math.min(positions[index] ?? bounds.end,bounds.end));
+      chunks.push({position,bytes:entry.bytes+separator,order:chunks.length});
     }
   }
   chunks.sort((left,right)=>left.position-right.position || left.order-right.order);

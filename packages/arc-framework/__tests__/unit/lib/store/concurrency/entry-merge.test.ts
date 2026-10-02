@@ -95,6 +95,42 @@ describe("whole-entry editing", () => {
 });
 
 describe("observed removal", () => {
+  it.each([false, true])("retains edited entries in their section after section deletion, removal current: %s", (removalCurrent) => {
+    const base = doc(entry("11111111")+entry("22222222"),entry("33333333"));
+    const removed = base.replace(`## One\n\n${entry("11111111")+entry("22222222")}`, "");
+    const edited = doc(entry("11111111","edited first")+entry("22222222","edited second"),entry("33333333"));
+    const result = merge(base,removalCurrent ? removed : edited,removalCurrent ? edited : removed);
+    expect(entries(result.content)).toMatchObject([
+      {id:"11111111",section:"One",bytes:entry("11111111","edited first").trimEnd()},
+      {id:"22222222",section:"One",bytes:entry("22222222","edited second").trimEnd()},
+      {id:"33333333",section:"Two"},
+    ]);
+    expect(result.conflicts).toEqual([]);
+    expect(result.content.match(/^## One$/gm)).toHaveLength(1);
+  });
+
+  it("accepts section deletion when no concurrent entry edit survives", () => {
+    const base = doc(entry("11111111"),entry("22222222"));
+    const removed = base.replace(`## One\n\n${entry("11111111")}`, "");
+    expect(merge(base,removed,base)).toEqual({content:removed,conflicts:[]});
+    expect(merge(base,base,removed)).toEqual({content:removed,conflicts:[]});
+  });
+
+  it("ignores comment headings when restoring a field-header entry after section deletion", () => {
+    const field: EntryListConfig = {shape:"field-header",sections:["Memories"]};
+    const value = (body:string)=>`**Memory:**\n_Id:_ \`11111111\`\n\n${body}\n\n`;
+    const opening = "Opening\n\n<!--\n## Memories\n-->\n\n";
+    const base = `${opening}## Memories\n\n${value("base")}---\nFooter\n`;
+    const edited = base.replace("base\n","edited\n");
+    const removed = `${opening}---\nFooter\n`;
+    const result = mergeEntryText({base,current:removed,incoming:edited,record,currentLabel,incomingLabel},field);
+    expect(splitEntryList(result.content,field).parts.filter((part)=>part.kind === "entry")).toMatchObject([
+      {id:"11111111",section:"Memories",bytes:value("edited").trimEnd()},
+    ]);
+    expect(result.content).toContain("<!--\n## Memories\n-->");
+    expect(result.conflicts).toEqual([]);
+  });
+
   it("removes exactly the observed version while concurrent edits survive", () => {
     const base = doc(entry("11111111")+entry("22222222"));
     const removed = doc(entry("22222222"));
