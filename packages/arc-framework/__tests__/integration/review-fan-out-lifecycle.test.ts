@@ -25,6 +25,7 @@ import {
   handleReviewLocalAttest,
   handleReviewLocalPrepare,
   handleReviewLocalResume,
+  handleReviewResolve,
   handleReviewRespond,
   handleReviewTerminusAccept,
 } from "../../src/handlers/review.js";
@@ -87,6 +88,7 @@ import {
   LocalPrepareEnvelopeSchema,
   LocalResumeEnvelopeSchema,
   RespondEnvelopeSchema,
+  ReviewCommandErrorEnvelopeSchema,
 } from "../../src/scripts/review-gate/core/review-command-envelope.js";
 import { LaneSubjectLineageSchema } from
   "../../src/scripts/review-gate/core/lane-admission.js";
@@ -1569,6 +1571,27 @@ async function requestThroughProductionHandler(
     else process.env.PATH = previousPath;
   }
   return { output: JSON.parse(output.join("")) as unknown, exitCodes };
+}
+
+async function resolveThroughProductionHandler(root: string, request: unknown) {
+  const output: string[] = [];
+  const exitCodes: number[] = [];
+  await handleReviewResolve("-", {
+    resolveRoot: () => root,
+    readText: async () => JSON.stringify(request),
+    write: (text) => output.push(text),
+    setExitCode: (code) => exitCodes.push(code),
+  });
+  return { output: JSON.parse(output.join("")) as unknown, exitCodes };
+}
+
+/** The status target an admission refusal's remedy names, after checking it names review status. */
+function remedyStatusTarget(output: unknown): { repository: string; headRef: string; headSha: string } {
+  const refusal = ReviewCommandErrorEnvelopeSchema.parse(output);
+  if (!("remedy" in refusal)) throw new Error("expected a remedy on the admission refusal");
+  expect(refusal.error.code).toBe("invalid-input");
+  expect(refusal.remedy.argv.slice(0, 4)).toEqual(["arc", "review", "status", "--target"]);
+  return JSON.parse(refusal.remedy.argv[4] ?? "") as { repository: string; headRef: string; headSha: string };
 }
 
 async function awaitThroughProductionHandler(
@@ -3779,17 +3802,27 @@ describe("hosted review fan-out lifecycle", () => {
     const { fakeBin, providerCalled } = await installHostedRequestTestHost(harness, harness.priorSecond);
     expect(await git(harness.root, ["status", "--porcelain"])).toBe("");
 
+    const refused = await requestThroughProductionHandler(harness, fakeBin, {
+      schemaVersion: 1, target, provider: "coderabbit-pr", coverage: "complete",
+    });
+    expect(refused.exitCodes).toEqual([1]);
+    expect(JSON.stringify(refused.output)).toContain("driver admission (approval-required/obtain-ceiling-override)");
+    const statusTarget = remedyStatusTarget(refused.output);
+    expect(statusTarget).toEqual({ repository, headRef: "prior-top", headSha: harness.priorSecond });
+    const ceiling = await selectReviewRequiredUntilRouted(harness, statusTarget);
+    expect(ceiling).toMatchObject({
+      state: "approval-required",
+      nextAction: "obtain-ceiling-override",
+      consequence: { target, lane: "standard", exhaustedPassCount: 2, nextPass: 3 },
+    });
+    if (ceiling.nextAction !== "obtain-ceiling-override") throw new Error("expected exact ceiling consequence");
+
     const result = await requestThroughProductionHandler(harness, fakeBin, {
       schemaVersion: 1,
       target,
       provider: "coderabbit-pr",
       coverage: "complete",
-      ceilingOverride: {
-        target,
-        lane: "standard",
-        exhaustedPassCount: 2,
-        nextPass: 3,
-      },
+      ceilingOverride: ceiling.consequence,
     });
 
     expect(result.exitCodes, JSON.stringify(result.output)).toEqual([]);
@@ -4053,9 +4086,39 @@ describe("hosted review fan-out lifecycle", () => {
     const second = await requestThroughProductionHandler(errandHarness, fakeBin, request);
     expect(second.exitCodes).toEqual([1]);
     expect(JSON.stringify(second.output)).toContain("driver admission (pass-complete/none)");
+    expect(JSON.stringify(second.output)).toContain("The lane is complete for this head");
     const index = new HostedRequestOwnerIndex(new RepositoryGitCommonStatePublisher(harness.exec, harness.root));
     expect((await index.read(harness.repositoryId, request))?.logicalPass).toBe(1);
     await expect(readFile(providerCalled, "utf8")).resolves.toBe("request\n");
+
+    const statusTarget = remedyStatusTarget(second.output);
+    expect(statusTarget).toEqual({ repository, headRef: `chore/${slug}`, headSha: errandHead });
+    await expect(statusThroughHandler({
+      ...errandHarness, exec: makeGitExec(errandRoot), baseHead: await git(errandRoot, ["rev-parse", "main"]),
+    }, statusTarget)).resolves.toMatchObject({ routedObligation: { state: "settled" } });
+
+    await writeFile(join(errandRoot, "errand-change.txt"), "reviewed Errand change\nfollow-up\n", "utf8");
+    await git(errandRoot, ["commit", "-am", "Errand follow-up"]);
+    const followUpHead = await git(errandRoot, ["rev-parse", "HEAD"]);
+    const staleResolve = {
+      schemaVersion: 1, target: { ...request.target, headSha: followUpHead }, lane: "standard",
+      frontlineActive: false, standardReview, completedPasses: 1,
+      attempts: [{ sourceId: "codex-pr", outcome: "findings", reviewOperationId: hostedLaneAttemptId(requested.handle) }],
+    };
+    const stale = await resolveThroughProductionHandler(errandRoot, staleResolve);
+    expect(stale.exitCodes, JSON.stringify(stale.output)).toEqual([1]);
+    expect(stale.output).toMatchObject({
+      mode: "review-resolve",
+      error: { code: "invalid-input", message: expect.stringContaining(errandHead) },
+      remedy: { argv: ["arc", "review", "resolve", "-"], stdin: { ...staleResolve, attempts: [] } },
+    });
+    const replayed = await resolveThroughProductionHandler(
+      errandRoot, (stale.output as { remedy: { stdin: unknown } }).remedy.stdin,
+    );
+    expect(replayed.exitCodes, JSON.stringify(replayed.output)).toEqual([]);
+    expect(replayed.output).toMatchObject({
+      state: "ready", nextAction: "hosted-request", payload: { pass: 2, sourceId: "codex-pr" },
+    });
   });
 
   it("replays an acknowledged production request after its current target context disappears", async () => {

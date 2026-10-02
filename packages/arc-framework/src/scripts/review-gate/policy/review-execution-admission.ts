@@ -27,6 +27,51 @@ interface StandardExecutionInput {
   readonly additionalPassAuthorization?: ReviewAdditionalPassAuthorization;
 }
 
+/** The driver's answer when it does not admit the action a producer was about to spend review capacity on. */
+export class ReviewDriverAdmissionError extends Error {
+  readonly code = "invalid-input" as const;
+  readonly state: ReviewResolveEnvelope["state"];
+  readonly nextAction: ReviewResolveEnvelope["nextAction"];
+  /** Why the driver refused a supplied override, when that is its answer. */
+  readonly reason: string | null;
+  /** The policy request the driver evaluated, when the refusing producer composed one. */
+  readonly request: ReviewPolicyCommandRequest | null;
+
+  constructor(message: string, resolution: ReviewResolveEnvelope, request?: ReviewPolicyCommandRequest) {
+    super(message);
+    this.name = "ReviewDriverAdmissionError";
+    this.state = resolution.state;
+    this.nextAction = resolution.nextAction;
+    this.reason = resolution.state === "invalid-override" ? resolution.payload.reason : null;
+    this.request = request ?? null;
+  }
+}
+
+/**
+ * Require the driver to admit exactly the action and source a producer is about to spend capacity on.
+ *
+ * @param resolution - The driver's answer for the live lane.
+ * @param expected - The action and source about to be spent.
+ * @param context - Whether the producer is hosted, and the policy request it evaluated when it composed one.
+ * @returns Nothing; throws unless the driver admits exactly that action and source.
+ */
+export function requireDriverAdmission<Action extends "local-prepare" | "hosted-request">(
+  resolution: ReviewResolveEnvelope,
+  expected: { readonly nextAction: Action; readonly sourceId: string },
+  context: { readonly hosted?: boolean; readonly request?: ReviewPolicyCommandRequest } = {},
+): asserts resolution is Extract<ReviewResolveEnvelope, { state: "ready"; nextAction: Action }> {
+  const subject = context.hosted === true ? "Hosted review" : "Review";
+  if (resolution.state !== "ready" || resolution.nextAction !== expected.nextAction) {
+    const reason = resolution.state === "invalid-override" ? `/${resolution.payload.reason}` : "";
+    throw new ReviewDriverAdmissionError(`${subject} capacity lacks standard-review driver admission `
+      + `(${resolution.state}/${resolution.nextAction}${reason}).`, resolution, context.request);
+  }
+  if (resolution.payload.sourceId !== expected.sourceId) {
+    throw new ReviewDriverAdmissionError(`${subject} source \`${expected.sourceId}\` is not driver-admissible; `
+      + `the standard lane requires \`${resolution.payload.sourceId}\` next.`, resolution, context.request);
+  }
+}
+
 function sameAdditionalPassAuthority(
   full: ReviewAdditionalPassAuthorization,
   targetless: NonNullable<ReviewLaneJudgment["additionalPassAuthorization"]>,
@@ -107,14 +152,9 @@ export function assertStandardReviewExecutionAdmission(
     ...(additionalPassAuthorization === undefined ? {} : { additionalPassAuthorization }),
     ...(judgment?.terminus === undefined ? {} : { terminus: judgment.terminus }),
   });
-  if (resolution.state !== "ready" || resolution.nextAction !== input.expectedNextAction) {
-    const reason = resolution.state === "invalid-override" ? `/${resolution.payload.reason}` : "";
-    throw new Error(`Review capacity lacks standard-review driver admission `
-      + `(${resolution.state}/${resolution.nextAction}${reason}).`);
-  }
-  if (resolution.payload.sourceId !== input.expectedSourceId) {
-    throw new Error(`Review source \`${input.expectedSourceId}\` is not driver-admissible; `
-      + `the standard lane requires \`${resolution.payload.sourceId}\` next.`);
-  }
+  requireDriverAdmission(resolution, {
+    nextAction: input.expectedNextAction,
+    sourceId: input.expectedSourceId,
+  });
   return resolution;
 }
