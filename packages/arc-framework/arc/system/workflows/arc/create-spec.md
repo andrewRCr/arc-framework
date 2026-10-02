@@ -19,6 +19,9 @@ arc:
 
 # Workflow: Create Spec
 
+For every write — authoring, revision, gate iteration, and folds — a claim that states what shipped code does names
+the code that does it, in backticked symbol form, per [source-grounding][source-grounding].
+
 The second authoring stage — peer to [draft-design](draft-design.md) and [generate-tasks](generate-tasks.md).
 It crystallizes the design into a **spec** at the form the work demands: a one-paragraph `brief`, a
 decision-recording `outline`, or a full `detailed` spec (subtyped PRD or RFC). It reads the **derivation** axis
@@ -356,3 +359,4 @@ Run [generate-tasks.md](generate-tasks.md) when ready — it consumes this spec 
 [integrate-work-unit]: work-unit-lifecycle/integrate-work-unit.md
 [init-work-unit]: work-unit-lifecycle/planning/init-work-unit.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
+[source-grounding]: ../../methods/source-grounding.md

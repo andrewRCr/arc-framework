@@ -15,6 +15,9 @@ arc:
 
 # Workflow: Generate Task List
 
+For every write — authoring, revision, gate iteration, and folds — a claim that states what shipped code does names
+the code that does it, in backticked symbol form, per [source-grounding][source-grounding].
+
 The third authoring stage — peer to [draft-design](draft-design.md) and [create-spec](create-spec.md). It
 transforms a reviewed spec into an executable task list, scaled by planning depth — the plan that implementation
 is built and reviewed against. Run it once the spec has been created and reviewed.
@@ -603,3 +606,4 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 [template-tasks]: ../../../reference/templates/arc/work-unit/template-tasks.md
 [init-work-unit]: work-unit-lifecycle/planning/init-work-unit.md
 [activate-work-unit]: work-unit-lifecycle/activate-work-unit.md
+[source-grounding]: ../../methods/source-grounding.md

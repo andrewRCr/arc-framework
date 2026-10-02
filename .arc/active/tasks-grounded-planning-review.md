@@ -153,48 +153,26 @@ _Exit criterion:_ `draft-design`, `create-spec`, `generate-tasks` (the template 
 `amend-design` each carry their edits, identical across copies; the tests that pin the edited text and
 `lint:arc:triggers` pass; and a hand check finds every new fire-point marked and every `§` pointer resolving.
 
-### `[ ]` **3.1 Carry the actor rule to every planning write — D2**
+### `[x]` **3.1 Carry the actor rule to every planning write — D2**
 
 - _Goal:_ Every write a planning stage makes — authoring, revision, gate iteration, folds — meets the rule that a claim
   about shipped code names the code that does it.
 
-- _Note:_ Path-based selection picks no code test for these Markdown-only edits. Run the tests that pin these files
-  at this task's gate: `pr-open-extensions.test.ts`, `framework-sync.test.ts`,
-  `generate-tasks-delivery-authoring-contract.test.ts`, `delivery-composition-ownership.test.ts`, and
-  `boundary-fit-workflow-contract.test.ts`.
+- _Outcome:_ All four planning workflow openings carry the same actor rule for authoring, revision, gate iteration,
+  and folds, linked to source-grounding; their package sources render to matching project copies.
 
-    - One stage-wide line in the opening of `draft-design.md`, `create-spec.md`, `generate-tasks.template.md`, and
-      `supplemental/amend-design.md`, in the same words, stating the rule and pointing to `source-grounding`; no marker
-      syntax
-    - `generate-tasks.template.md` carries no conditional blocks, so each edit lands identically in the rendered
-      `.arc/system/workflows/arc/generate-tasks.md`
-
-### `[ ]` **3.2 Ground each stage's own artifact behavior-grade — D1**
+### `[x]` **3.2 Ground each stage's own artifact behavior-grade — D1**
 
 - _Goal:_ Every stage grounds its own artifact at source before any subagent sees it — `draft-design` newly,
   `amend-design` at scope, and `create-spec` and `generate-tasks` through the methods Phase 1 changed.
 
-- _Note:_ 3.2.b rewrites the rubric list in the § The assurance invariant sentence that also holds `amend-design`'s
-  pinned "pass any prior findings recorded in the work unit's `ADVERSARIAL-PASSES.md`"; keep that phrase. Run
-  `pr-open-extensions.test.ts`, `framework-sync.test.ts`, and `boundary-fit-workflow-contract.test.ts` at this task's
-  gate.
+    - `[x]` **3.2.a `draft-design` fires `source-grounding` at readiness**
+        - draft-design declares source-grounding and fires its marked artifact-scope author check once at readiness on
+          medium/high paths before the adversarial offer; its pass rubric includes grounding.
 
-- **Additional Context:** `strategy-workflow-authoring.md` § Author-side Declaration Rule
-
-    - `[ ]` **3.2.a `draft-design` fires `source-grounding` at readiness**
-        - `arc.methods` declares it; § Capture the draft runs it at `artifact` scope on the `medium` and `high` paths,
-          once at readiness, before the adversarial offer and the capture commit, folding fixes inline
-        - The run is a marked fire-point — a `source-grounding:` block with `scope: artifact`, as `generate-tasks`
-          marks `task-audit`
-        - The adversarial callout's `rubric` gains `source-grounding`
-
-    - `[ ]` **3.2.b `amend-design` grounds at scope**
-        - § Depth and rigor: `spec-review`'s grounding slice over the affected elements at every depth, `low` included,
-          beside the coherence slice at `medium` and `high`
-        - § The assurance invariant: the pass rubric gains the grounding slice and `task-audit`'s grounding floor over
-          the footprint's tasks
-        - § The accretion guard: its adversarial offer over the accreted union runs as § The assurance invariant's
-          pass does, on that rubric
+    - `[x]` **3.2.b `amend-design` grounds at scope**
+        - amend-design grounds affected spec elements at every depth, includes spec grounding and task grounding in
+          its assurance rubric, and runs its accretion offer on that same rubric.
 
 ### `[ ]` **3.3 Turn fold verification on at every planning pass — D3**
 
