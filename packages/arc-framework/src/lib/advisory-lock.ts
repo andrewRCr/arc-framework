@@ -280,6 +280,48 @@ export async function acquireAdvisoryLock(
   }
 }
 
+/** Run an operation while holding an advisory lock and release it before returning.
+ * @param lockPath - Absolute path of the lock guarding the operation.
+ * @param operation - Critical section receiving its held lock path.
+ * @param options - Optional filesystem, clock and bounded-wait dependencies.
+ * @returns The critical section's result after release succeeds.
+ * @throws Acquisition, operation or release errors; simultaneous operation/release errors are aggregated.
+ */
+export async function withAdvisoryLock<T>(
+  lockPath: string,
+  operation: (lockPath: string) => Promise<T>,
+  options: AdvisoryLockOptions = {},
+): Promise<T> {
+  const handle = await acquireAdvisoryLock(lockPath, options);
+  let result: { readonly kind: "success"; readonly value: T } | { readonly kind: "failure"; readonly error: unknown };
+  try {
+    result = { kind: "success", value: await operation(lockPath) };
+  } catch (error) {
+    result = { kind: "failure", error };
+  }
+
+  let releaseError: unknown;
+  try {
+    await releaseAdvisoryLock(handle, options);
+  } catch (error) {
+    releaseError = error;
+  }
+
+  if (result.kind === "failure") {
+    const primary = normalizeError(result.error);
+    if (releaseError !== undefined) {
+      throw new AggregateError([primary, normalizeError(releaseError)], primary.message, { cause: primary });
+    }
+    throw primary;
+  }
+  if (releaseError !== undefined) throw normalizeError(releaseError);
+  return result.value;
+}
+
+function normalizeError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
+
 /**
  * Extend the deadline of an owned renewable lease.
  *
