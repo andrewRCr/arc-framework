@@ -185,7 +185,7 @@ const provisionalPassAssessment = {
   lane: "standard",
   admittedLogicalPass: 2,
   configuredMaxPasses: 2,
-  proposedSignal: { confirmedFindingCount: 1, maxConfirmedSeverity: "major" },
+  proposedSignal: { confirmedFindingCount: 1, maxConfirmedSeverity: "major", materialFix: true },
   capPosition: "at-ceiling",
   potentialStopReason: "cap-exhausted",
   nextPassAuthority: "none",
@@ -463,6 +463,25 @@ describe("review command envelopes", () => {
     })).toThrow();
   });
 
+  it.each([
+    ["a material fix of a minor maximum", {
+      proposedSignal: { confirmedFindingCount: 1, maxConfirmedSeverity: "minor", materialFix: true },
+    }],
+    ["a ceiling stop without a material fix", {
+      proposedSignal: { confirmedFindingCount: 1, maxConfirmedSeverity: "major", materialFix: false },
+    }],
+    ["a material fix at the ceiling without a stop", { potentialStopReason: null }],
+  ] as const)("rejects a provisional pass assessment carrying %s", (_name, change) => {
+    expect(() => RespondEnvelopeSchema.parse({
+      ...header("review-respond"),
+      state: "awaiting-approval", nextAction: "obtain-approval",
+      payload: {
+        operationId: "local-1", proposal: dispositionProposal, dispositionReportText,
+        provisionalPassAssessment: { ...provisionalPassAssessment, ...change },
+      },
+    })).toThrow();
+  });
+
   it("rejects a ready frontline pass above its declared allowance", () => {
     expect(() => FrontlineResolveEnvelopeSchema.parse({
       ...header("review-frontline-resolve"),
@@ -645,6 +664,26 @@ describe("review command envelopes", () => {
       error: { code: "invalid-input", message: "repository precondition failed" },
     };
     expect(ReviewCommandErrorEnvelopeSchema.parse(error)).toEqual(error);
+  });
+
+  it("lets only the response verb's invalid-input refusal carry a replay remedy", () => {
+    const remedy = {
+      invariant: "A verified fix is recorded only against the clean committed head that contains it.",
+      text: "Commit the fix, then replay the response: `arc review respond -`.",
+      argv: ["arc", "review", "respond", "-"],
+      stdin: { schemaVersion: 1 },
+    };
+    const refusal = {
+      ...header("review-respond"),
+      error: { code: "invalid-input", message: "dirty-worktree" },
+      remedy,
+    };
+    expect(ReviewCommandErrorEnvelopeSchema.parse(refusal)).toEqual(refusal);
+    expect(() => ReviewCommandErrorEnvelopeSchema.parse({
+      ...refusal,
+      error: { code: "corrupt-state", message: "the durable record is unreadable" },
+    })).toThrow();
+    expect(() => ReviewCommandErrorEnvelopeSchema.parse({ ...refusal, ...header("review-reduce") })).toThrow();
   });
 });
 

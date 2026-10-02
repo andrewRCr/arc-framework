@@ -74,8 +74,9 @@ is open. An accepted initial skip or durable standard admission closes it; chang
 supersession do not reopen it. Follow the typed pre-publication continuation across a re-root: inherited completed
 standard passes still count toward the ceiling, while older producer evidence remains bound to its original target.
 
-A clean or confirmed-minor standard result remains converged on ordinary replay. If the Owner explicitly authorizes
-another named standard pass, carry its exact head, preceding producer, completed-pass count, and next ordinal as
+A converged standard result remains converged on ordinary replay: a clean pass, or one whose approved dispositions
+fix no confirmed `critical` or `major` finding. If the Owner explicitly authorizes another named standard pass, carry
+its exact head, preceding producer, completed-pass count, and next ordinal as
 `lanes.standard.additionalPassAuthorization` in `--lanes`. This admits that pass only; each further pass needs a
 fresh decision, even after another convergence. If it is above the configured ceiling, the same explicit decision
 covers the named ceiling override. A later material result follows the ordinary response route.

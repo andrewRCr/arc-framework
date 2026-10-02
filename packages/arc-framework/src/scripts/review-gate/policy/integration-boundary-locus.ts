@@ -249,6 +249,16 @@ export const StandardReviewReservationV1Schema = z.strictObject({
 });
 export type StandardReviewReservationV1 = z.infer<typeof StandardReviewReservationV1Schema>;
 
+/**
+ * Review evidence for a boundary that carried no hosted-review reservation.
+ *
+ * An absent reservation proves only that no hosted review was carried across publication. The
+ * standard lane may have closed through a local review or by Owner acceptance without any pass,
+ * and nothing in the reservation distinguishes them, so the statement names neither.
+ */
+export const NO_HOSTED_REVIEW_RESERVATION_DETAIL =
+  "No hosted review was reserved; this evidence does not identify what settled the standard lane.";
+
 const BoundaryCommonShape = {
   schemaVersion: z.literal(1),
   mode: z.enum(["pre-publication-review", "integration-boundary"]),

@@ -86,7 +86,7 @@ describe("resolveReviewPolicy", () => {
       }],
       verifiedTerminalSignal: {
         reviewOperationId: "local/material-1", confirmedFindingCount: 1,
-        maxConfirmedSeverity: "major" as const, coverageAdequate: true,
+        maxConfirmedSeverity: "major" as const, materialFix: true, coverageAdequate: true,
       },
     };
     expect(resolveReviewPolicy(prior)).toMatchObject({ state: "findings", nextAction: "respond" });
@@ -159,6 +159,7 @@ describe("resolveReviewPolicy", () => {
         reviewOperationId: "hosted/attempt-1",
         confirmedFindingCount: 0,
         maxConfirmedSeverity: null,
+        materialFix: false,
         coverageAdequate: true,
       },
     })).toMatchObject({
@@ -691,37 +692,34 @@ describe("resolveReviewPolicy", () => {
     })).toThrow(/cannot precede recorded source progress/u);
   });
 
-  it("preserves the response continuation for verified material findings", () => {
-    expect(resolveReviewPolicy({
-      schemaVersion: 1,
-      target,
-      lane: "standard",
-      standardReview,
-      sources: ["codex-pr"],
-      completedPasses: 1,
-      maxPasses: 2,
-      attempts: [{
-        sourceId: "codex-pr",
-        outcome: "findings",
-        reviewOperationId: "hosted/attempt-1",
-      }],
+  it("preserves the response continuation only for an approved material fix", () => {
+    const request = {
+      schemaVersion: 1, target, lane: "standard", standardReview,
+      sources: ["codex-pr"], completedPasses: 1, maxPasses: 2,
+      attempts: [{ sourceId: "codex-pr", outcome: "findings", reviewOperationId: "hosted/attempt-1" }],
       verifiedTerminalSignal: {
         reviewOperationId: "hosted/attempt-1",
         confirmedFindingCount: 1,
         maxConfirmedSeverity: "major",
+        materialFix: true,
         coverageAdequate: true,
       },
-    })).toMatchObject({
+    } as const;
+    expect(resolveReviewPolicy(request)).toMatchObject({
       state: "findings",
       nextAction: "respond",
       payload: {
-        sourceId: "codex-pr",
-        pass: 1,
-        completedPasses: 1,
-        consumedPass: true,
-        postResponseAction: "resolve-next-pass",
+        sourceId: "codex-pr", pass: 1, completedPasses: 1, consumedPass: true, postResponseAction: "resolve-next-pass",
       },
     });
+    const settled = { ...request, verifiedTerminalSignal: { ...request.verifiedTerminalSignal, materialFix: false } };
+    for (const response of [{}, { terminalResponseSettled: true }] as const) {
+      expect(resolveReviewPolicy({ ...settled, ...response }))
+        .toMatchObject({ state: "pass-complete", nextAction: "none", payload: { completedPasses: 1 } });
+    }
+    expect(() => resolveReviewPolicy({
+      ...request, verifiedTerminalSignal: { ...request.verifiedTerminalSignal, maxConfirmedSeverity: "minor" },
+    })).toThrow(/material fix requires a major or critical confirmed finding/u);
   });
 
   it.each([
@@ -758,6 +756,7 @@ describe("resolveReviewPolicy", () => {
         reviewOperationId: attempt.reviewOperationId,
         confirmedFindingCount: attempt.outcome === "clean" ? 0 : 1,
         maxConfirmedSeverity: attempt.outcome === "clean" ? null : "major",
+        materialFix: attempt.outcome !== "clean",
         coverageAdequate: true,
       },
       ...(scopeSelection === undefined ? {} : { scopeSelection }),
@@ -835,6 +834,7 @@ describe("resolveReviewPolicy", () => {
         reviewOperationId: "local/aggregate-1",
         confirmedFindingCount: 0,
         maxConfirmedSeverity: null,
+        materialFix: false,
         coverageAdequate: true,
       },
     })).toMatchObject({
@@ -862,6 +862,7 @@ describe("resolveReviewPolicy", () => {
         reviewOperationId: "local/clean-1",
         confirmedFindingCount: 0,
         maxConfirmedSeverity: null,
+        materialFix: false,
         coverageAdequate: true,
       },
     };
@@ -910,17 +911,19 @@ describe("resolveReviewPolicy", () => {
         reviewOperationId: "local/material-3" }],
       verifiedTerminalSignal: {
         reviewOperationId: "local/material-3", confirmedFindingCount: 1,
-        maxConfirmedSeverity: "major" as const, coverageAdequate: true,
+        maxConfirmedSeverity: "major" as const, materialFix: true, coverageAdequate: true,
       },
     };
     expect(resolveReviewPolicy(material)).toMatchObject({ state: "findings", nextAction: "respond" });
-    expect(resolveReviewPolicy({
-      ...material,
-      additionalPassAuthorization: {
-        ...additionalPassAuthorization, precedingProducerId: "local/material-3",
-        completedPasses: 3, nextPass: 4,
-      },
-    })).toMatchObject({ state: "invalid-override", payload: { reason: "pass-not-converged" } });
+    const fourth = {
+      ...additionalPassAuthorization, precedingProducerId: "local/material-3", completedPasses: 3, nextPass: 4,
+    };
+    expect(resolveReviewPolicy({ ...material, additionalPassAuthorization: fourth }))
+      .toMatchObject({ state: "invalid-override", payload: { reason: "pass-not-converged" } });
+    const settled = { ...material, verifiedTerminalSignal: { ...material.verifiedTerminalSignal, materialFix: false } };
+    expect(resolveReviewPolicy(settled)).toMatchObject({ state: "pass-complete", nextAction: "none" });
+    expect(resolveReviewPolicy({ ...settled, additionalPassAuthorization: fourth }))
+      .toMatchObject({ state: "ready", payload: { pass: 4 } });
   });
 
   it("requires exceptional approval when a lane exhausts its ceiling", () => {
@@ -981,6 +984,7 @@ describe("resolveReviewPolicy", () => {
         reviewOperationId: "local/attempt-3",
         confirmedFindingCount: 0,
         maxConfirmedSeverity: null,
+        materialFix: false,
         coverageAdequate: true,
       },
       ceilingOverride: approval.payload.consequence,
@@ -1046,6 +1050,7 @@ describe("resolveReviewPolicy", () => {
         reviewOperationId: "local/attempt-5",
         confirmedFindingCount: 1,
         maxConfirmedSeverity: "major",
+        materialFix: true,
         coverageAdequate: true,
       },
       terminus: {
@@ -1187,40 +1192,45 @@ describe("resolveReviewPolicy", () => {
     });
   });
 
-  it("closes the opening frontline phase once a change request is open", () => {
-    expect(resolveReviewPolicy({
-      schemaVersion: 1,
-      target,
-      lane: "frontline",
-      standardReview,
-      sources: ["coderabbit-cli"],
-      completedPasses: 0,
-      maxPasses: 2,
-      attempts: [],
-      frontlineActive: true,
-    })).toMatchObject({
+  it.each([
+    { name: "a change request is open", phase: { target }, message: /open change request/ },
+    {
+      name: "its recorded phase has closed",
+      phase: { target: prePrTarget, frontlinePhaseClosed: true as const },
+      message: /already closed for this review subject/,
+    },
+  ])("closes the opening frontline phase once $name", ({ phase, message }) => {
+    const request = {
+      schemaVersion: 1, lane: "frontline" as const, standardReview, sources: ["coderabbit-cli"],
+      completedPasses: 0, maxPasses: 2, attempts: [], frontlineActive: true, ...phase,
+    };
+    expect(resolveReviewPolicy(request)).toMatchObject({
       state: "skipped",
       nextAction: "none",
-      diagnostics: [expect.objectContaining({ code: "frontline-phase-closed" })],
-      payload: {
-        lane: "frontline",
-        scope: "whole-target",
-        attemptedSources: [],
-        reason: "phase-closed",
-      },
+      diagnostics: [{ code: "frontline-phase-closed", message: expect.stringMatching(message) }],
+      payload: { lane: "frontline", scope: "whole-target", attemptedSources: [], reason: "phase-closed" },
     });
+  });
+
+  it("admits a recorded frontline phase closure only as repository-proven evidence", () => {
+    const opening = { schemaVersion: 1, target: prePrTarget, lane: "frontline" as const, standardReview,
+      completedPasses: 0, attempts: [], frontlineActive: true };
+    expect(resolveReviewPolicy({ ...opening, sources: ["coderabbit-cli"], maxPasses: 2 }))
+      .toMatchObject({ state: "ready", nextAction: "run-frontline" });
+    assertSchemaRefuses(ReviewPolicyCommandRequestSchema, { ...opening, frontlinePhaseClosed: true });
   });
 
   it.each([
     { frontlineActive: false, sources: ["coderabbit-cli"], invocation: undefined },
     { frontlineActive: true, sources: ["coderabbit-cli"], invocation: { mode: "skip" as const } },
     { frontlineActive: true, sources: ["coderabbit-cli"], invocation: undefined },
-  ])("retains an admitted frontline findings response across activation changes and an open change request %j", ({
-    frontlineActive, sources, invocation,
+    { frontlineActive: true, sources: ["coderabbit-cli"], invocation: undefined, closed: true },
+  ])("retains an admitted frontline findings response across activation changes and phase closure %j", ({
+    frontlineActive, sources, invocation, closed,
   }) => {
     expect(resolveReviewPolicy({
       schemaVersion: 1,
-      target,
+      ...(closed === true ? { target: prePrTarget, frontlinePhaseClosed: true } : { target }),
       lane: "frontline",
       standardReview,
       sources,
@@ -1235,6 +1245,7 @@ describe("resolveReviewPolicy", () => {
         reviewOperationId: "frontline/attempt-1",
         confirmedFindingCount: 1,
         maxConfirmedSeverity: "major",
+        materialFix: true,
         coverageAdequate: true,
       },
       frontlineActive,

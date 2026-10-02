@@ -219,10 +219,11 @@ remote base all name the same exact head. Any tracked change continues through t
    `invocation: { mode: "force", sourceId: "<source-id>" }` on every policy call for that target; the resulting
    Errand binding carries that source and its ordered fallbacks through hosted request and await.
 
-   A converged clean or confirmed-minor result replays as complete. If the Owner explicitly authorizes another
-   named standard pass, carry the exact target, preceding producer, completed-pass count, and next ordinal as
-   `additionalPassAuthorization` through `arc review resolve -`. Carry the full authorization on hosted
-   admission, or its targetless fields under `policyJudgment.additionalPassAuthorization` on local preparation.
+   A converged result replays as complete: a clean pass, or one whose approved dispositions fix no confirmed
+   `critical` or `major` finding. If the Owner explicitly authorizes another named standard pass, carry the exact
+   target, preceding producer, completed-pass count, and next ordinal as `additionalPassAuthorization` through
+   `arc review resolve -`. Carry the full authorization on hosted admission, or its targetless fields under
+   `policyJudgment.additionalPassAuthorization` on local preparation.
    For an open PR, `arc review status --target <targetRef> --additional-pass '<authorization>'` reports the
    outstanding review. A fresh decision is required for each later pass; the same decision covers a named
    above-ceiling pass. A later material result enters the ordinary response route.

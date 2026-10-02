@@ -8,7 +8,11 @@ import {
   ReviewIdentifierSchema,
 } from "../core/gate-contract-v2-schema.js";
 import { CompletedReviewPassCountSchema, ReviewPassSchema } from "../core/review-pass.js";
-import { ReviewScopeModeSchema, ReviewSeveritySchema } from "../core/review-primitives.js";
+import { ReviewScopeModeSchema } from "../core/review-primitives.js";
+import {
+  VerifiedTerminalReviewSignalSchema,
+  type VerifiedTerminalReviewSignal,
+} from "../core/review-convergence.js";
 import {
   ReviewAdditionalPassAuthorizationSchema,
   ReviewPolicyTargetSchema,
@@ -41,21 +45,6 @@ const ReviewPolicyInvocationSchema = z.discriminatedUnion("mode", [
   FrontlinePolicyInvocationSchema,
   StandardPolicyInvocationSchema,
 ]);
-export const VerifiedTerminalReviewSignalSchema = z.strictObject({
-  reviewOperationId: ReviewIdentifierSchema,
-  confirmedFindingCount: z.number().int().nonnegative(),
-  maxConfirmedSeverity: ReviewSeveritySchema.nullable(),
-  coverageAdequate: z.boolean(),
-}).superRefine((signal, context) => {
-  if ((signal.confirmedFindingCount === 0) !== (signal.maxConfirmedSeverity === null)) {
-    context.addIssue({
-      code: "custom",
-      message: "confirmed finding count and maximum severity must agree",
-      path: ["maxConfirmedSeverity"],
-    });
-  }
-}).readonly();
-export type VerifiedTerminalReviewSignal = z.infer<typeof VerifiedTerminalReviewSignalSchema>;
 
 interface ReviewPassProgressInput {
   target: { pullRequest: number | null };
@@ -163,6 +152,14 @@ function validateTerminalResponseSettlement(
       path: ["terminalResponseSettled"],
     });
   }
+}
+
+/** Frontline is an opening phase that precedes the change request; once it closes it is never re-entered. */
+function closedFrontlinePhaseMessage(request: ReviewPolicyRequest): string | null {
+  if (request.target.pullRequest !== null) return "An open change request closes the opening frontline phase.";
+  return request.frontlinePhaseClosed === true
+    ? "The opening frontline phase is already closed for this review subject."
+    : null;
 }
 
 export const ReviewCeilingOverrideSchema = z.strictObject({
@@ -302,6 +299,8 @@ export const ReviewPolicyRequestSchema = z.strictObject({
   verifiedTerminalSignal: VerifiedTerminalReviewSignalSchema.optional(),
   /** Repository-proven settlement of the terminal findings response; never a command input. */
   terminalResponseSettled: z.literal(true).optional(),
+  /** Repository-proven closure of the subject's opening frontline phase; the standard lane ignores it. */
+  frontlinePhaseClosed: z.literal(true).optional(),
 }).superRefine((request, context) => {
   validateTerminalPassProgress(request, context);
   validateVerifiedTerminalSignal(request, context);
@@ -705,8 +704,10 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
       },
     });
   }
-  // Frontline is an opening phase that precedes the change request; once one is open it is never re-entered.
-  if (request.lane === "frontline" && !unresolvedFindings && request.target.pullRequest !== null) {
+  const closedPhase = request.lane === "frontline" && !unresolvedFindings
+    ? closedFrontlinePhaseMessage(request)
+    : null;
+  if (closedPhase !== null) {
     return resolveEnvelope({
       state: "skipped",
       nextAction: "none",
@@ -717,10 +718,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
         attemptedSources: request.attempts,
         reason: "phase-closed",
       },
-    }, [{
-      code: "frontline-phase-closed",
-      message: "An open change request closes the opening frontline phase.",
-    }]);
+    }, [{ code: "frontline-phase-closed", message: closedPhase }]);
   }
   if (request.lane === "standard"
     && (request.sources.length === 0 || request.standardReview.obligation === "exempt")) {
@@ -822,9 +820,8 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
         },
       });
     }
-    const materialFindings = lastAttempt.outcome === "findings"
-      && (signal.maxConfirmedSeverity === "major" || signal.maxConfirmedSeverity === "critical");
-    if (materialFindings && !request.terminalResponseSettled) {
+    const materialFix = lastAttempt.outcome === "findings" && signal.materialFix;
+    if (materialFix && !request.terminalResponseSettled) {
       return resolveEnvelope({
         state: "findings",
         nextAction: "respond",
@@ -842,7 +839,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
       });
     }
     if (request.additionalPassAuthorization === undefined
-      && !(materialFindings && request.terminalResponseSettled)) {
+      && !(materialFix && request.terminalResponseSettled)) {
       return resolveEnvelope({
         state: "pass-complete",
         nextAction: "none",
