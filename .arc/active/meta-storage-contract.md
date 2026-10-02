@@ -1,8 +1,8 @@
 # Metadata: Storage Contract
 
-| **State**  | **Owner** | **Branch**              | **Class** | **Priority** |
-| ---------- | --------- | ----------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/storage-contract` | `Novel`   | `P1`         |
+| **State** | **Owner** | **Branch**              | **Class** | **Priority** |
+| --------- | --------- | ----------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/storage-contract` | `Novel`   | `P1`         |
 
 - **Cohort:** `state-storage`
 - **Depends On:** [none]
@@ -13,12 +13,12 @@
 - **Task List:** `tasks-storage-contract.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** spec finalized after five spec adversarial passes; stage advanced to generate-tasks
-- **Next Task:** [none]
+- **Next Task:** Begin Task 1.1 — Baseline the test-cost rows this change moves
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Run Task 1.1 via process-task-loop — baseline every affected test-cost row before any new test
 
 - **PR URL:** [none]
 - **Completed:** [none]
