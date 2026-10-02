@@ -66,7 +66,7 @@ export function createMemoryState(): MemoryState {
  * @param owner - Caller or backend identity.
  * @returns Its namespace-qualified human handle.
  */
-export function ownerNameKey(owner: OwnerIdentity): string { return `${owner.type}:${owner.name}`; }
+export function ownerNameKey(owner: { type: OwnerIdentity["type"]; name: string }): string { return `${owner.type}:${owner.name}`; }
 
 /** Return a stable record identity, independent of a UID-bearing owner's rename.
  * @param reference - Opaque reference built through the contract.

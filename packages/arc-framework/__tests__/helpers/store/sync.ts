@@ -11,6 +11,7 @@ import { randomUUID } from "node:crypto";
 import { RecordVersionSchema } from "../../../src/lib/store/index.js";
 import { mergeContents, storeConflicts } from "./merge.js";
 import { namespaceAdmission, refused, ok } from "./refusals.js";
+import { indexIdentities } from "./identities.js";
 
 /** Remote transport condition is injected separately from its durable records. */
 export interface MemoryRemote { state: MemoryState; condition: "available" | "down" | "contended" | "refusing"; message: string; beforePublish?: () => void }
@@ -111,12 +112,12 @@ export function syncReference(context: ReferenceContext, publication: ReferenceP
   const started = context.environment.now();
   for (let retry = 0; retry < 3; retry++) {
     const observedRemoteVersion = publication.remote.state.counter;
-    const prepared = { ...context, state: structuredClone(context.state) };
-    const result = reconciledRecords(prepared, publication, families);
+    const prepared = prepareReconciliation(context,publication,families);
+    if (prepared.status === "refused") return prepared;
     publication.remote.beforePublish?.();
     if (publication.remote.state.counter !== observedRemoteVersion) { context.environment.wait(10); continue; }
-    Object.assign(context.state, prepared.state);
-    return finishPublish(context, publication, states, families, result);
+    Object.assign(context.state, prepared.result.state);
+    return finishPublish(context, publication, states, families, prepared.result);
   }
   return ok({ states, publishes: [{ status: "failed", families, failure: {
     code: "retries-exhausted", class: "recoverable", retryCount: 3, waitedMs: context.environment.now() - started,
@@ -125,11 +126,24 @@ export function syncReference(context: ReferenceContext, publication: ReferenceP
   } }] });
 }
 
-function finishPublish(context: ReferenceContext, publication: ReferencePublication, states: SyncResult["states"], families: FamilyId[], result: ReturnType<typeof reconciledRecords>): StoreResult<SyncResult> {
+interface Reconciliation extends ReturnType<typeof reconciledRecords> { state: MemoryState; identities: MemoryState["identities"] }
+function prepareReconciliation(context: ReferenceContext, publication: ReferencePublication, families: FamilyId[]): StoreResult<Reconciliation> {
+  const prepared = { ...context, state: structuredClone(context.state) };
+  const result = reconciledRecords(prepared,publication,families);
+  const localIndex = indexIdentities(prepared.state.records);
+  if (localIndex.status === "refused") return localIndex;
+  const remoteIndex = indexIdentities(result.records);
+  if (remoteIndex.status === "refused") return remoteIndex;
+  prepared.state.identities = localIndex.result;
+  return ok({...result,state:prepared.state,identities:remoteIndex.result});
+}
+
+function finishPublish(context: ReferenceContext, publication: ReferencePublication, states: SyncResult["states"], families: FamilyId[], result: Reconciliation): StoreResult<SyncResult> {
   const remote = publication.remote!;
   const before = structuredClone(remote.state.records);
   const changed = [...new Set([...before.keys(), ...result.records.keys()])].some((key) => !equal(before.get(key), result.records.get(key)));
   remote.state.records = result.records;
+  remote.state.identities = result.identities;
   if (changed) {
     const remoteAllocation = advanceMemoryState(remote.state);
     remote.state.snapshots.set(remoteAllocation.stateVersion, structuredClone(result.records));
