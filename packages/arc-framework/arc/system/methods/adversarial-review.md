@@ -93,7 +93,7 @@ adversarial-review:
 **Named inputs:**
 
 | Input                | Kind                  | Contents                                                       |
-| -------------------- | --------------------- | -------------------------------------------------------------- |
+|----------------------|-----------------------|----------------------------------------------------------------|
 | `rubric`             | per-stage             | Rubric(s) to attack, including their referents.                |
 | `artifacts`          | per-stage             | Artifact under audit plus its upstream chain.                  |
 | `orientation`        | fixed                 | Artifact-neutral briefings shared with every pass.             |
@@ -337,7 +337,7 @@ subagent-unavailable degrade path from [DEV-RULES.ARC § Sub-agent scope][sub-ag
 defines correctness for that stage:
 
 | Fire-point                  | Artifact set                                      |
-| --------------------------- | ------------------------------------------------- |
+|-----------------------------|---------------------------------------------------|
 | draft readiness             | draft                                             |
 | create-spec finalization    | draft + spec                                      |
 | generate-tasks finalization | spec + task list                                  |

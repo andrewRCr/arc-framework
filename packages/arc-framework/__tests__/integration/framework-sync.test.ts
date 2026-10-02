@@ -164,6 +164,7 @@ describe("framework sync (self-hosting drift check)", () => {
       "system/methods/README.md",
       "system/methods/assess-design-proportionality.md",
       "system/methods/assess-evidence-applicability.md",
+      "system/methods/adversarial-review.md",
       "system/methods/design-audit.md",
       "system/methods/source-grounding.md",
       "system/methods/spec-review.md",

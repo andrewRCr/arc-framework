@@ -83,17 +83,14 @@ and the § Exit gate additions, byte-identical across both copies and held there
 pinned phrases and the `over-cap` fixture's signal still pass `pr-open-extensions.test.ts`; and
 `strategy-work-planning.md` § Review at Planning Boundaries is reachable from the method's opening.
 
-### `[ ]` **2.1 Bring `adversarial-review`'s two copies into byte identity**
+### `[x]` **2.1 Bring `adversarial-review`'s two copies into byte identity**
 
 - _Goal:_ The method's copies are identical and held so by test, so every later edit lands in both without tripping
   the package-sync hook.
 
-- _Note:_ This is the first commit to touch the method. It changes only the two table separators (package lines 96 and
-  340) to the project copy's compact form, in the package copy alone: `check-package-sync.sh` refuses a staged project
-  copy of a Configurable file that matches the package copy while the committed copies differ.
-
-    - `adversarial-review.md` joins `framework-sync.test.ts`'s neutral-contract list in the same commit
-    - Confirm `lint:md` accepts the compact separators on the package path before committing
+- _Outcome:_ Normalized only the package method’s two table separators to the project form; adversarial-review now
+  joins the neutral-contract assertion, which caught the original drift before normalization. Both method copies are
+  byte-identical.
 
 ### `[ ]` **2.2 Write § Review at Planning Boundaries and point the method at it**
 
