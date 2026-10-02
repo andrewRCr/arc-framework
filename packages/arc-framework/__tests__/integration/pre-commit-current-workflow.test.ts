@@ -61,4 +61,19 @@ describe("pre-commit Current Workflow validation", () => {
       stderr: expect.stringContaining("Current Workflow"),
     });
   });
+
+  it("accepts a staged Active meta naming its task-execution workflow", async () => {
+    const root = await createTempRepo("arc-current-workflow-task-loop-");
+    fixtures.push(root);
+    const fullPath = join(root, metaPath);
+    await mkdir(dirname(fullPath), { recursive: true });
+    await writeFile(fullPath, meta("`process-task-loop`"));
+    await git(root, ["add", metaPath]);
+
+    await expect(execFileAsync(
+      process.execPath,
+      ["--import", tsxLoader, validatorPath, metaPath],
+      { cwd: root },
+    )).resolves.toMatchObject({ stderr: "" });
+  });
 });

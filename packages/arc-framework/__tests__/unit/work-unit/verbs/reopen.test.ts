@@ -174,7 +174,7 @@ describe("runReopen — the set-phase-only move", () => {
     });
 
     expect(result.status).toBe("reopened");
-    expect(currentWorkflowWrites).toEqual(["[none]"]);
+    expect(currentWorkflowWrites).toEqual(["process-task-loop"]);
     expect(softWrites).toEqual([{
       "Next Task": task,
       "Next Action": "[none]",

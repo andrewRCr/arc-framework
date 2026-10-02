@@ -241,12 +241,12 @@ describe("runActivate — raise a planning WU to Active", () => {
     expect(calls.some((call) => call.startsWith("setPhase:") || call.startsWith("branch:"))).toBe(false);
   });
 
-  it("clears Current Workflow to [none] as State: Active takes over", async () => {
+  it("names process-task-loop in Current Workflow as State: Active takes over", async () => {
     const { ctx, currentWorkflow } = buildCtx([PLANNING]);
 
     await runActivate(ctx, params);
 
-    expect(currentWorkflow).toEqual(["[none]"]);
+    expect(currentWorkflow).toEqual(["process-task-loop"]);
   });
 
   it("rejects activating a WU that is not a planning WU on its branch", async () => {
@@ -302,7 +302,7 @@ describe("runDeactivate — the narrow undo", () => {
     expect(softFields).toContain("Next Action");
   });
 
-  it("does not touch Current Workflow (the activate clear is one-directional)", async () => {
+  it("does not touch Current Workflow (the activate write is one-directional)", async () => {
     const { ctx, currentWorkflow } = buildCtx([ACTIVE]);
 
     await runDeactivate(ctx, BASE);

@@ -888,7 +888,7 @@ describe("checkout subject active-extension seam", () => {
 - **Cohort:** \`release/core\`
 - **Task List:** \`tasks-demo.md\`
 - **Candidate:** \`${candidate.candidateId}\`
-- **Current Workflow:** [none]
+- **Current Workflow:** \`process-task-loop\`
 - **Next Action:** Continue reopened work
 `;
     files.set(`${options.cwd}/.arc/active/meta-demo.md`, meta);

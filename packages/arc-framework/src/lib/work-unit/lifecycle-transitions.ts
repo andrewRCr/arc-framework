@@ -155,8 +155,9 @@ export interface MutatorSpec {
   clearBranchField?: boolean;
   /**
    * Project a live lifecycle workflow into the meta `Current Workflow` field.
-   * Publication writes `integrate-work-unit`; withdrawal returns to
-   * `prepare-work-unit`. Mutually exclusive with `clearCurrentWorkflowField`.
+   * Activation writes `process-task-loop`, publication writes
+   * `integrate-work-unit`, and withdrawal returns to `prepare-work-unit`.
+   * Mutually exclusive with `clearCurrentWorkflowField`.
    */
   setCurrentWorkflowField?: string;
   /**
@@ -375,7 +376,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: ACTIVE,
     inverse: "deactivate",
     guards: [],
-    encodingUpdates: { reconcileBranch: "rename", setPhase: true, clearCurrentWorkflowField: true },
+    encodingUpdates: { reconcileBranch: "rename", setPhase: true, setCurrentWorkflowField: "process-task-loop" },
     sideEffects: withRender("user-workspace"),
     softFields: { nextTask: "input", nextAction: "input", lastCompleted: "leave", blockers: "leave" },
   },
