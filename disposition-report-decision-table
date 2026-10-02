@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "disposition-report-decision-table",
+  "claimId": "08ca5c5e43db14539b429367b53aef70",
+  "createdAt": "2026-10-02T18:20:21.207Z",
+  "updatedAt": "2026-10-02T18:20:21.207Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Lead the review disposition report with a decision table and move the evidence lines into a compact trailing block",
+  "branch": "chore/disposition-report-decision-table",
+  "origin": "inbox",
+  "originEntry": "Lead the disposition report with a decision table, and fold the evidence lines out of the default view",
+  "originEntrySourceDigest": "sha256:254bb32bf8355c4726d741873dc473840885885ab6f8e818c9f2e99044018e7e",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
