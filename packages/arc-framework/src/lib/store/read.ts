@@ -21,7 +21,8 @@ export const StoreRecordSchema = z.strictObject({
   links: LinksSchema.optional(),
 }).superRefine((value, context) => {
   const belongsToWorkItem = value.reference.kind.startsWith("work-item/") || value.reference.kind.startsWith("review/");
-  if (belongsToWorkItem && value.reference.owner.type === "work-item" && value.placement === undefined) {
+  if (belongsToWorkItem && !value.reference.kind.endsWith("/conflict-record")
+    && value.reference.owner.type === "work-item" && value.placement === undefined) {
     context.addIssue({ code: "custom", message: "Work-item records require placement" });
   }
   if (value.reference.kind === "work-item/meta" && !WorkUnitReadPlacementSchema.safeParse(value.placement).success) {

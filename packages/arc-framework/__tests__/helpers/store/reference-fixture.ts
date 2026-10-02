@@ -92,9 +92,11 @@ export function createReferenceFixture(entryShapes: FixtureDeclarations["entrySh
         const target = (Object.keys(KIND_SHAPES) as KindId[]).find((kind) => familyOf(kind) === familyOf(reference.kind) && !kind.endsWith("/conflict-record"))!;
         const targetReference = RecordReferenceSchema.parse({ owner: reference.owner, kind: target,
           ...(KIND_SHAPES[target].key === null ? {} : { key: KIND_SHAPES[target].key === "pass" ? { activity: "test", number: 1 } : "one" }) });
-        return JSON.stringify({ record: targetReference, location: { kind: "record" }, base: "base",
-          current: { content: "current", label: { actor: "current", time: new Date(0).toISOString() } },
-          incoming: { content: "incoming", label: { actor: "incoming", time: new Date(0).toISOString() } } });
+        const value = (content: string) => ({ reference: targetReference, content, version: `record:fixture:${content}`, formatVersion: 1,
+          ...(["work-item", "review"].includes(familyOf(target)) ? { placement: { kind: "active" } } : {}) });
+        return JSON.stringify({ record: targetReference, location: { kind: "record" }, base: value("base"),
+          current: { value: value("current"), label: { actor: "current", time: new Date(0).toISOString() } },
+          incoming: { value: value("incoming"), label: { actor: "incoming", time: new Date(0).toISOString() } } });
       }
       if (registry[reference.kind].merge === "single-writer") return JSON.stringify({ value: variant === "changed-again" ? 3 : variant === "changed" ? 2 : 1, claimId: "1".repeat(32) });
       if (registry[reference.kind].merge === "entry") {

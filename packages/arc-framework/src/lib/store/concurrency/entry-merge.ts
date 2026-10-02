@@ -1,5 +1,5 @@
 /** Whole-entry observed-remove merge with independent three-way prose reconciliation. */
-import type { ConflictRecord } from "../conflict.js";
+import type { TextConflictRecord } from "../conflict.js";
 import type { EntryListConfig, ListEntry } from "./entries.js";
 import { entryFrame, type EntryFrame } from "./entry-frame.js";
 import { orderEntries } from "./entry-order.js";
@@ -19,7 +19,7 @@ export function mergeEntryText(input: MergeTextInput, config: EntryListConfig): 
   const base = entryFrame(input.base,config);
   const current = entryFrame(input.current,config);
   const incoming = entryFrame(input.incoming,config);
-  const conflicts: ConflictRecord[] = [];
+  const conflicts: TextConflictRecord[] = [];
   const selected = chooseEntries(base,current,incoming,input,conflicts);
   const prose = mergeLineText({...input,base:base.skeleton,current:current.skeleton,incoming:incoming.skeleton});
   conflicts.push(...mapConflicts(prose.conflicts,base.lineOrigins));
@@ -28,7 +28,7 @@ export function mergeEntryText(input: MergeTextInput, config: EntryListConfig): 
   return {content,conflicts};
 }
 
-function chooseEntries(base:EntryFrame,current:EntryFrame,incoming:EntryFrame,input:MergeTextInput,conflicts:ConflictRecord[]): Map<string,ListEntry> {
+function chooseEntries(base:EntryFrame,current:EntryFrame,incoming:EntryFrame,input:MergeTextInput,conflicts:TextConflictRecord[]): Map<string,ListEntry> {
   const originals = new Map(base.entries.map((entry)=>[entry.id ?? "",entry]));
   const left = new Map(current.entries.map((entry)=>[entry.id ?? "",entry]));
   const right = new Map(incoming.entries.map((entry)=>[entry.id ?? "",entry]));
@@ -47,13 +47,13 @@ function chooseEntries(base:EntryFrame,current:EntryFrame,incoming:EntryFrame,in
   return chosen;
 }
 
-function entryConflict(input:MergeTextInput,id:string,base:ListEntry|undefined,current:ListEntry,incoming:ListEntry): ConflictRecord {
+function entryConflict(input:MergeTextInput,id:string,base:ListEntry|undefined,current:ListEntry,incoming:ListEntry): TextConflictRecord {
   return {record:input.record,location:{kind:"entry",id},base:base?.bytes ?? "",baseSection:base?.section ?? null,
     current:{content:current.bytes,section:current.section,label:input.currentLabel},
     incoming:{content:incoming.bytes,section:incoming.section,label:input.incomingLabel}};
 }
 
-function mapConflicts(conflicts:ConflictRecord[],origins:readonly number[]): ConflictRecord[] {
+function mapConflicts(conflicts:TextConflictRecord[],origins:readonly number[]): TextConflictRecord[] {
   return conflicts.map((conflict)=> {
     if (conflict.location.kind !== "hunk") return conflict;
     const {start,end} = conflict.location;
@@ -63,7 +63,7 @@ function mapConflicts(conflicts:ConflictRecord[],origins:readonly number[]): Con
 }
 
 
-function renderEntries(config:EntryListConfig,selected:Map<string,ListEntry>,base:EntryFrame,current:EntryFrame,incoming:EntryFrame,prose:string,input:MergeTextInput,conflicts:ConflictRecord[]): string {
+function renderEntries(config:EntryListConfig,selected:Map<string,ListEntry>,base:EntryFrame,current:EntryFrame,incoming:EntryFrame,prose:string,input:MergeTextInput,conflicts:TextConflictRecord[]): string {
   const chunks: {position:number;bytes:string;order:number}[] = [];
   for (const section of config.sections) {
     const order = orderEntries(base.entries,current.entries,incoming.entries,selected,section);
@@ -121,7 +121,7 @@ function placementOffsets(order:readonly string[],section:string,selected:Map<st
   });
 }
 
-function mergeSeparator(id:string,base:EntryFrame,current:EntryFrame,incoming:EntryFrame,input:MergeTextInput,conflicts:ConflictRecord[]): string {
+function mergeSeparator(id:string,base:EntryFrame,current:EntryFrame,incoming:EntryFrame,input:MergeTextInput,conflicts:TextConflictRecord[]): string {
   const original = base.entries.find((entry)=>entry.id === id)?.separator;
   const left = current.entries.find((entry)=>entry.id === id)?.separator;
   const right = incoming.entries.find((entry)=>entry.id === id)?.separator;

@@ -5,7 +5,7 @@ import {
   OwnerIdentitySchema, RecordReferenceSchema, RecordVersionSchema, StateVersionSchema,
   referenceOwner, referenceKind, referenceKey,
   type OwnerIdentity, type RecordReference, type RecordVersion, type StateVersion,
-  type ReadPlacement, type Links, type StoredProvenance, type ConflictRecord, type FamilyId,
+  type ReadPlacement, type Links, type StoredProvenance, type ConflictRecord, type FamilyId, type SideLabel,
 } from "../../../src/lib/store/index.js";
 
 /** One saved record, including backend metadata kept outside its content. */
@@ -28,6 +28,7 @@ export interface MemoryEvent {
   version?: RecordVersion;
   stateVersion: StateVersion;
   provenance: StoredProvenance;
+  label: SideLabel;
 }
 
 /** A bad entry deliberately planted below the contract's validation boundary. */

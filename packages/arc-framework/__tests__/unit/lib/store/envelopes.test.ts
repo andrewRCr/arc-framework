@@ -123,6 +123,27 @@ describe("lookup and result envelopes", () => {
   });
 });
 
+describe("whole-record conflict values", () => {
+  const present = { reference, content: "", version, formatVersion: 1, placement: { kind: "active" }, links: {} };
+  const conflict = { record: reference, location: { kind: "record" }, base: present,
+    current: { value: null, label }, incoming: { value: present, label } };
+  it("keeps absence distinct from empty content and preserves full metadata", () => {
+    expect(ConflictRecordSchema.parse(conflict)).toEqual(conflict);
+    const creation = { ...conflict, base: null, current: { value: present, label } };
+    expect(ConflictRecordSchema.parse(creation)).toEqual(creation);
+  });
+  it.each([
+    { ...present, version: undefined }, { ...present, formatVersion: 0 },
+    { ...present, placement: undefined }, { ...present, placement: { kind: "completed", quarter: "2026-q4" } },
+    { ...present, reference: recordReferences["work-item/record"](owner), placement: { kind: "backlog", commitment: "planned" } },
+    { ...present, reference: recordReferences["work-item/notes"](owner) },
+    { ...present, fields: { derived: true } }, { ...present, conflicts: [] },
+    { ...present, links: { branch: { repository: "owner/repo" } } },
+  ])("validates preserved values and excludes derived fields: %j", (invalid) => {
+    expect(ConflictRecordSchema.safeParse({ ...conflict, incoming: { value: invalid, label } }).success).toBe(false);
+  });
+});
+
 describe("refusals and outcomes", () => {
   it.each(["malformed", "oversized", "unreadable", "unknown-format-version", "key-mismatch"])("names the entry of a %s diagnostic", (kind) => {
     expect(ListingDiagnosticSchema.safeParse({ kind, key: "entry", condition: "Observed", remedy }).success).toBe(true);

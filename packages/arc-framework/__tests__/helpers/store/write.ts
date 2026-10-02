@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import {
   ConflictRecordSchema, RecordReferenceSchema, familyOf, type BatchInput, type BatchResult, type ConflictRecord, type Mutation, type ReadPlacement,
-  type StoreRefusal, type StoreResult, type WriteInput, type WriteResult, type OwnerIdentity,
+  type StoreRefusal, type StoreResult, type WriteInput, type WriteResult, type OwnerIdentity, sameReference,
 } from "../../../src/lib/store/index.js";
 import { ArchiveSequenceSchema } from "../../../src/lib/kernel/index.js";
 import type { ReferenceContext } from "./context.js";
@@ -50,9 +50,10 @@ function preflight(context: ReferenceContext, write: WriteInput): StoreRefusal |
     remedy: { text: "Wait for the holder to release the write lock, then retry." },
   };
   const definition = context.registry[write.reference.kind];
-  if (write.action === "remove" && write.reference.kind.endsWith("/conflict-record")) {
-    return { ...malformed(write.reference, "A conflict record closes only through a resolving write to its subject."),
-      remedy: { text: "Write the conflict's subject against its current version, naming this conflict in resolves." } };
+  if (write.action === "remove" && write.reference.kind.endsWith("/conflict-record")
+    && !write.resolves?.some((conflict) => sameReference(canonicalReference(context.state, conflict), canonicalReference(context.state, write.reference)))) {
+    return { ...malformed(write.reference, "Removing a conflict record requires explicitly naming it in resolves."),
+      remedy: { text: "Name this conflict in resolves and remove it against its current version, or write its subject naming the conflict." } };
   }
   if (definition.writerRule === "write-once" && !definition.writerVerbs?.includes(write.provenance.verb)) {
     return malformed(write.reference, "This write-once record may only be changed by its declared writer verbs.");
@@ -81,6 +82,14 @@ function placement(context: ReferenceContext, write: Extract<Mutation, { action:
   return { ...write.placement, sequence: ArchiveSequenceSchema.parse(String(next).padStart(2, "0")) };
 }
 
+function generationAliases(context: ReferenceContext, key: string, reference: Mutation["reference"]): string[] {
+  const names = [...context.state.snapshots.values()].flatMap((snapshot) => {
+    const record = snapshot.get(key);
+    return record === undefined ? [] : [...record.formerSlugs, record.reference.owner.name];
+  });
+  return [...new Set(names.filter((name) => name !== reference.owner.name))];
+}
+
 function land(context: ReferenceContext, write: WriteInput, batchId?: string): WriteResult {
   const reference = canonicalReference(context.state, write.reference, true);
   const key = recordKey(reference);
@@ -93,6 +102,7 @@ function land(context: ReferenceContext, write: WriteInput, batchId?: string): W
     conflicts = merged.conflicts;
   }
   const allocated = advanceMemoryState(context.state);
+  const label = { actor: context.environment.actor, time: new Date(context.environment.now()).toISOString() };
   const provenance = {
     ...write.provenance, reference,
     ...(reference.owner.type === "person" || reference.owner.uid === undefined ? {} : { ownerUid: reference.owner.uid }),
@@ -100,7 +110,8 @@ function land(context: ReferenceContext, write: WriteInput, batchId?: string): W
   };
   if (write.action === "remove") context.state.records.delete(key);
   else {
-    const formerSlugs = [...(prior?.formerSlugs ?? [])];
+    const formerSlugs = primary(write) && write.resolves?.length ? generationAliases(context, key, reference)
+      : [...(prior?.formerSlugs ?? [])];
     if (primary(write) && prior && prior.reference.owner.name !== reference.owner.name) {
       formerSlugs.push(prior.reference.owner.name);
       for (const record of context.state.records.values()) {
@@ -121,7 +132,7 @@ function land(context: ReferenceContext, write: WriteInput, batchId?: string): W
     context.state.records.set(key, {
       reference, content: content!, version: allocated.version,
       formatVersion: context.registry[reference.kind].formatVersion, formerSlugs,
-      label: { actor: context.environment.actor, time: new Date(context.environment.now()).toISOString() },
+      label,
       ...(selectedPlacement === undefined ? {} : { placement: selectedPlacement }),
       ...(write.links === undefined ? prior?.links === undefined ? {} : { links: prior.links } : { links: write.links }),
       ...(reference.kind.endsWith("/conflict-record") ? { conflict: ConflictRecordSchema.parse({ ...JSON.parse(content!), record: canonicalReference(context.state, JSON.parse(content!).record) }) } : {}),
@@ -130,11 +141,12 @@ function land(context: ReferenceContext, write: WriteInput, batchId?: string): W
   for (const conflict of write.resolves ?? []) {
     const resolved = canonicalReference(context.state, conflict);
     if (context.state.records.delete(recordKey(resolved))) context.state.events.push({ reference: resolved, stateVersion: allocated.stateVersion,
+      label,
       provenance: { ...write.provenance, reference: resolved,
         ...(resolved.owner.type === "person" || resolved.owner.uid === undefined ? {} : { ownerUid: resolved.owner.uid }),
         ...(batchId === undefined ? {} : { batchId }) } });
   }
-  context.state.events.push({ reference, ...(write.action === "remove" ? {} : { version: allocated.version }), stateVersion: allocated.stateVersion, provenance });
+  context.state.events.push({ reference, ...(write.action === "remove" ? {} : { version: allocated.version }), stateVersion: allocated.stateVersion, provenance, label });
   context.state.snapshots.set(allocated.stateVersion, structuredClone(context.state.records));
   const storedConflicts = storeConflicts(context, conflicts, write.provenance, batchId);
   return { reference, ...(write.action === "remove" ? {} : { version: allocated.version }), conflicts: storedConflicts };

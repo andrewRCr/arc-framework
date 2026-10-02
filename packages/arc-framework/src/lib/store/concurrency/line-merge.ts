@@ -1,6 +1,6 @@
 /** Three-way prose merge with preserved labelled conflicts and byte-level newline handling. */
 import { diff3Merge, diffIndices } from "node-diff3";
-import type { ConflictRecord, SideLabel } from "../conflict.js";
+import type { TextConflictRecord, SideLabel } from "../conflict.js";
 import type { RecordReference } from "../identity.js";
 
 /** Role-labelled inputs; a conflict always keeps the store's current side. */
@@ -13,7 +13,7 @@ export interface MergeTextInput {
   readonly incomingLabel: SideLabel;
 }
 /** Text to persist and the clashes to store alongside it. */
-export interface MergeTextResult { content: string; conflicts: ConflictRecord[] }
+export interface MergeTextResult { content: string; conflicts: TextConflictRecord[] }
 
 /** Merge complete text without inline conflict markers.
  * @param input - Base and caller-labelled current and incoming versions.
@@ -24,7 +24,7 @@ export function mergeLineText(input: MergeTextInput): MergeTextResult {
   const current = lines(input.current);
   const incoming = lines(input.incoming);
   const result: string[] = [];
-  const conflicts: ConflictRecord[] = [];
+  const conflicts: TextConflictRecord[] = [];
   for (const region of diff3Merge(current, base, incoming, {excludeFalseConflicts:true,stringSeparator:/\n/u})) {
     result.push(...(region.ok ?? region.conflict?.a ?? []));
     const clash = region.conflict;

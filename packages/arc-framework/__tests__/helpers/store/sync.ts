@@ -1,7 +1,7 @@
 /** Real reconciliation against an independently writable in-memory remote namespace. */
 
 import {
-  FAMILY_IDS, FAMILY_REGISTRY, familyOf, type ConflictRecord, type FamilyId,
+  FAMILY_IDS, FAMILY_REGISTRY, familyOf, type WholeRecordConflict, type ConflictRecordValue, type FamilyId, type SideLabel, type RecordReference,
   type StoreRefusal, type StoreResult, type SyncResult, type StateVersion,
 } from "../../../src/lib/store/index.js";
 import type { ReferenceContext } from "./context.js";
@@ -29,13 +29,28 @@ function equal(left?: MemoryRecord, right?: MemoryRecord): boolean {
     && JSON.stringify(left.links) === JSON.stringify(right.links) && JSON.stringify(left.reference) === JSON.stringify(right.reference);
 }
 
-function wholeRecordConflict( base: MemoryRecord | undefined, current: MemoryRecord, incoming: MemoryRecord): ConflictRecord {
-  return { record: current.reference, location: { kind: "record" }, base: base?.content ?? "",
-    current: { content: current.content, label: current.label },
-    incoming: { content: incoming.content, label: incoming.label } };
+function recordValue(record: MemoryRecord | undefined): ConflictRecordValue | null {
+  if (record === undefined) return null;
+  const { reference, content, version, formatVersion, placement, links } = record;
+  return { reference, content, version, formatVersion,
+    ...(placement === undefined ? {} : { placement }), ...(links === undefined ? {} : { links }) };
 }
 
-function adopt(context: ReferenceContext, key: string, record: MemoryRecord | undefined): void {
+function sideLabel(state: MemoryState, key: string, record: MemoryRecord | undefined): SideLabel {
+  if (record !== undefined) return record.label;
+  const removal = [...state.events].reverse().find((event) => recordKey(event.reference) === key && event.version === undefined);
+  if (removal === undefined) throw new Error("Absent competing record lacks its removal event");
+  return removal.label;
+}
+
+function wholeRecordConflict(context: ReferenceContext, remote: MemoryRemote, key: string, reference: RecordReference,
+  base: MemoryRecord | undefined, current: MemoryRecord | undefined, incoming: MemoryRecord | undefined): WholeRecordConflict {
+  return { record: reference, location: { kind: "record" }, base: recordValue(base),
+    current: { value: recordValue(current), label: sideLabel(remote.state, key, current) },
+    incoming: { value: recordValue(incoming), label: sideLabel(context.state, key, incoming) } };
+}
+
+function adopt(context: ReferenceContext, key: string, record: MemoryRecord | undefined, source: MemoryState): void {
   const prior = context.state.records.get(key);
   if (equal(prior, record)) return;
   const allocation = advanceMemoryState(context.state);
@@ -43,6 +58,7 @@ function adopt(context: ReferenceContext, key: string, record: MemoryRecord | un
   else context.state.records.set(key, structuredClone(record));
   const reference = record?.reference ?? prior!.reference;
   context.state.events.push({ reference, ...(record ? { version: record.version } : {}), stateVersion: allocation.stateVersion,
+    label: sideLabel(source, key, record),
     provenance: { verb: "sync", lifecycleAction: "reconcile", reference,
       ...(reference.owner.type === "person" || reference.owner.uid === undefined ? {} : { ownerUid: reference.owner.uid }) } });
   context.state.snapshots.set(allocation.stateVersion, structuredClone(context.state.records));
@@ -74,19 +90,21 @@ function reconciledRecords(context: ReferenceContext, publication: ReferencePubl
     remoteMoved ||= changedRemote;
     let merged = local;
     if (!changedLocal) merged = current;
-    else if (changedRemote && !equal(local, current) && local && current) {
-      const mechanism = context.registry[reference.kind].merge;
-      const result = mechanism === "single-writer" ? { content: current.content,
-        conflicts: [wholeRecordConflict(base, current, local)] }
-        : mergeContents({ ...context, environment: { ...context.environment, actor: local.label.actor, now: () => Date.parse(local.label.time) } }, reference,
+    else if (changedRemote && !equal(local, current) && context.registry[reference.kind].merge === "single-writer") {
+      const conflict = wholeRecordConflict(context, remote, key, reference, base, current, local);
+      merged = current;
+      adopt(context, key, merged, remote.state);
+      storeConflicts(context, [conflict], { verb: "sync", lifecycleAction: "reconcile" });
+    } else if (changedRemote && !equal(local, current) && local && current) {
+      const result = mergeContents({ ...context, environment: { ...context.environment, actor: local.label.actor, now: () => Date.parse(local.label.time) } }, reference,
           base ?? { ...current, content: "" }, current, local.content);
       merged = { ...current, content: result.content };
       if (merged.content !== current.content) merged.version = RecordVersionSchema.parse(`record:sync:${randomUUID()}`);
-      adopt(context, key, merged);
+      adopt(context, key, merged, context.state);
       storeConflicts(context, result.conflicts, { verb: "sync", lifecycleAction: "reconcile" });
     } else if (changedRemote && !local && current) merged = current;
     if (merged === undefined) records.delete(key); else records.set(key, structuredClone(merged));
-    adopt(context, key, merged);
+    adopt(context, key, merged, merged === current ? remote.state : context.state);
   }
   // Conflicts created by reconciliation are part of the same publish, rather than side-channel state.
   for (const [key, record] of context.state.records) if (record.conflict && selected.has(familyOf(record.reference.kind))) records.set(key, structuredClone(record));
@@ -162,6 +180,7 @@ function publicationEvent(context: ReferenceContext, key: string, before: Memory
     && (after === undefined || JSON.stringify(event.reference) === JSON.stringify(after.reference)));
   const reference = after?.reference ?? source?.reference ?? before!.reference;
   return { reference, ...(after === undefined ? {} : { version: after.version }), stateVersion,
+    label: source?.label ?? sideLabel(context.state, key, after),
     provenance: { ...(source === undefined ? { verb: "sync", lifecycleAction: "reconcile" } : structuredClone(source.provenance)), reference,
       ...(reference.owner.type === "person" || reference.owner.uid === undefined ? {} : { ownerUid: reference.owner.uid }) } };
 }

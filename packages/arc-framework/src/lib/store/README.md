@@ -20,6 +20,12 @@ The `concurrency/` library supplies pure entry and line merges, stable entry IDs
 both labeled sides as separate records while the current side remains visible. A resolving write names the conflict
 references explicitly.
 
+Whole-record conflicts preserve each side's complete value — reference, bytes, versions, placement, and links —
+or `null` for absence, with the actual writer's label. Entry and hunk conflicts preserve their text shapes.
+Conflict records remain readable and listable when their primary is absent, without a fabricated placement.
+Keeping that absence uses a version-checked conflict removal naming itself in `resolves`; restoring the incoming
+value uses an ordinary subject put naming the conflict.
+
 The current-work-unit resolver preserves checkout occupancy outcomes and falls back to an unhusked marker claim
 when a backend cannot list checkout-held records. The lifecycle index keeps identities, parsed fields, and placement
 without physical paths. Its checkout agreement query is an interim read bridge; writes still decide admission.

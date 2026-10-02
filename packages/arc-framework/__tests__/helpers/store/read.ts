@@ -27,7 +27,8 @@ export function publicRecord(context: ReferenceContext, record: MemoryRecord, re
     && recordKey(candidate.conflict.record) === recordKey(record.reference)).map((candidate) => candidate.reference);
   const primary = [...records.values()].find((candidate) => sameOwner(candidate.reference.owner, record.reference.owner)
     && (candidate.reference.kind === "work-item/meta" || candidate.reference.kind === "work-item/record"));
-  const placement = ["work-item", "review"].includes(familyOf(record.reference.kind)) ? primary?.placement ?? record.placement : record.placement;
+  const placement = record.reference.kind.endsWith("/conflict-record") ? primary?.placement
+    : ["work-item", "review"].includes(familyOf(record.reference.kind)) ? primary?.placement ?? record.placement : record.placement;
   const parsed = context.registry[record.reference.kind].parser?.(record.content);
   return {
     reference: record.reference, content: record.content, version: record.version,

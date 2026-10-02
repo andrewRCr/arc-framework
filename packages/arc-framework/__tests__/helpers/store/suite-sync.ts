@@ -1,7 +1,7 @@
 /** publish outcomes, independent configuration states and whole-record reconciliation. */
 
 import { expect } from "vitest";
-import { ConflictRecordSchema, KIND_REGISTRY, SyncResultSchema, type SyncResult, type FamilyId } from "../../../src/lib/store/index.js";
+import { ConflictRecordSchema, TextConflictRecordSchema, KIND_REGISTRY, ListingOutcomeSchema, SyncResultSchema, type SyncResult, type FamilyId } from "../../../src/lib/store/index.js";
 import { assertion, everyKind, seed, success, update, type SuiteContext } from "./suite-tools.js";
 
 /** Register real publish/noop/reconciliation and transport/refusal outcomes through the remote hook.
@@ -44,7 +44,7 @@ export function registerSyncAssertions(context: SuiteContext): void {
     const record = success(await fixture.store.read({ reference: base.reference }));
     expect(record.content).toBe(current);
     expect(record.conflicts).toHaveLength(1);
-    const conflict = ConflictRecordSchema.parse(JSON.parse(success(await fixture.store.read({ reference: record.conflicts[0]! })).content));
+    const conflict = TextConflictRecordSchema.parse(JSON.parse(success(await fixture.store.read({ reference: record.conflicts[0]! })).content));
     expect(conflict.location.kind).toBe(KIND_REGISTRY[reference.kind].merge === "entry" ? "entry" : "hunk");
     expect(current).toContain(conflict.current.content.trim());
     expect(incoming).toContain(conflict.incoming.content.trim());
@@ -99,14 +99,40 @@ export function registerSyncAssertions(context: SuiteContext): void {
     expect(read.content).toBe(current);
     expect(read.conflicts).toHaveLength(1);
     const conflict = success(await fixture.store.read({ reference: read.conflicts[0]! }));
-    expect(ConflictRecordSchema.parse(JSON.parse(conflict.content))).toMatchObject({ record: base.reference, location: { kind: "record" }, base: base.content,
-      current: { content: current, label: { actor: expect.any(String), time: expect.any(String) } }, incoming: { content: incoming, label: { actor: expect.any(String), time: expect.any(String) } } });
+    expect(ConflictRecordSchema.parse(JSON.parse(conflict.content))).toMatchObject({ record: base.reference, location: { kind: "record" },
+      base: { reference: base.reference, content: base.content, version: base.version, formatVersion: base.formatVersion },
+      current: { value: { reference: base.reference, content: current }, label: { actor: expect.any(String), time: expect.any(String) } },
+      incoming: { value: { reference: base.reference, content: incoming }, label: { actor: expect.any(String), time: expect.any(String) } } });
     const listed = success(await fixture.store.list({ family: KIND_REGISTRY[reference.kind].family, kind: read.conflicts[0]!.kind }));
     if (listed.status !== "complete") throw new Error("Expected conflict enumeration");
     expect(listed.records.map((record) => record.reference)).toContainEqual(read.conflicts[0]);
     success(await fixture.store.write({ ...update(fixture, read, current), resolves: read.conflicts }));
     expect(success(await fixture.store.read({ reference: base.reference })).conflicts).toEqual([]);
     expect(SyncResultSchema.parse(success(await fixture.store.sync())).publishes.find((publish) => publish.families.includes(KIND_REGISTRY[reference.kind].family))?.status).toBe("pushed");
+  }, (kind) => KIND_REGISTRY[kind].merge === "single-writer" && KIND_REGISTRY[kind].writerRule !== "create-only" && KIND_REGISTRY[kind].writerRule !== "write-once", mergeReason);
+  for (const removing of ["local", "remote"] as const) everyKind(context, `single-writer-sync-preserves-${removing}-removal`, async (fixture, reference) => {
+    const remote = fixture.remote(true)!;
+    const base = await seed(fixture, reference);
+    success(await fixture.store.sync());
+    const remover = removing === "local" ? fixture.store : remote;
+    const editor = removing === "local" ? remote : fixture.store;
+    success(await remover.write({ action: "remove", reference: base.reference, expected: base.version, provenance: { verb: "remove", lifecycleAction: "remove" } }));
+    success(await editor.write(update(fixture, base)));
+    const edited = success(await editor.read({ reference: base.reference }));
+    expect(success(await fixture.store.sync()).publishes.some((publish) => publish.status === "reconciled")).toBe(true);
+    const listing = ListingOutcomeSchema.parse(success(await fixture.reopen().list({ family: KIND_REGISTRY[reference.kind].family, owner: base.reference.owner })));
+    expect(listing.status).toBe("complete");
+    if (listing.status !== "complete") throw new Error("Expected the clashing family's records");
+    expect(listing.diagnostics).toEqual([]);
+    const conflicts = listing.records.filter((record) => record.reference.kind.endsWith("/conflict-record"));
+    expect(conflicts).toHaveLength(1);
+    const conflict = ConflictRecordSchema.parse(JSON.parse(conflicts[0]!.content));
+    expect(conflict).toMatchObject({ location: { kind: "record" }, record: base.reference,
+      base: { reference: base.reference, content: base.content, version: base.version, formatVersion: base.formatVersion },
+      current: { value: removing === "remote" ? null : { reference: edited.reference, content: edited.content, version: edited.version }, label: { actor: expect.any(String), time: expect.any(String) } },
+      incoming: { value: removing === "local" ? null : { reference: edited.reference, content: edited.content, version: edited.version }, label: { actor: expect.any(String), time: expect.any(String) } } });
+    if (removing === "remote") expect(await fixture.store.read({ reference: base.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    else expect(success(await fixture.store.read({ reference: base.reference }))).toMatchObject({ version: edited.version, conflicts: [conflicts[0]!.reference] });
   }, (kind) => KIND_REGISTRY[kind].merge === "single-writer" && KIND_REGISTRY[kind].writerRule !== "create-only" && KIND_REGISTRY[kind].writerRule !== "write-once", mergeReason);
 }
 
