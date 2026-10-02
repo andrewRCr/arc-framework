@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "review-fix-next-step",
+  "claimId": "809cc3332184bca677d0778dd004b569",
+  "createdAt": "2026-10-02T00:12:43.198Z",
+  "updatedAt": "2026-10-02T00:12:43.198Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make the review-fix flow say what comes after a fix, at the command",
+  "branch": "chore/review-fix-next-step",
+  "origin": "inbox",
+  "originEntry": "Make the review-fix flow say what comes after a fix, at the command",
+  "originEntrySourceDigest": "sha256:f5950a5dc290a0d949ce4c43ba3985a5db71f462c5b28d6e6494127b3f20ba18",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
