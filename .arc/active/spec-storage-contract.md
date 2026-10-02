@@ -122,10 +122,25 @@ The design has two parts.
   backends, what takes effect at the flip, and the pieces around them. Part B is normative: whatever realizes it meets
   it as written, and Part A's types and conformance suite encode it wherever it is observable through the contract.
 
-Code lands under a new `lib/store/` module family in the CLI package: the contract's types and operation signatures,
-its refusal vocabulary, the family and kind registry, the concurrency library, and one directory per backend. It
-depends downward on `lib/kernel/` (Zod schemas, the Result seam) and on `lib/git/`'s executor, and nothing outside it
-imports a backend directly: one composition point selects the backend, and every caller receives the contract.
+Code lands under a new `lib/store/` module family in the CLI package: the contract's types and operation signatures, its
+refusal vocabulary, the family and kind registry, the concurrency library, and one directory per backend. The contract
+core depends downward only on `lib/kernel/` (Zod schemas and `ArcError`), and the concurrency library on it and
+`node-diff3`; the backends add `lib/git/`'s executor, and the in-repo implementation the substrates it wraps (D8).
+Nothing outside `lib/store/` imports a backend directly: one composition point selects the backend, and every caller
+receives the contract. The composition point is a factory that takes the backend's dependencies — the Git executor and
+its stdin variant, file access, the clock, the checkout root, the identity, the remote selection, and the write locks —
+as one required object, the way the CLI's existing `create*Dependencies` factories do, so a test substitutes any of them
+without reaching into the backend. Constructing the contract runs no command and reads no file: the identity, the remote
+selection, and each lock's path are resolved on first use by the operation that needs one, so a caller that reads only
+this checkout's tracked records — the current-work-unit resolver (D9) — spawns no Git process, as today's reader spawns
+none. The identity is resolved as user and Errand commands resolve it (`resolveIdentity` in `lib/git/identity.ts`, with
+no prompt), so a record is read under the identity it was written under. It may be absent. Every operation that names or
+resolves to identity-scope state — a personal file, or a record on a transient-identity ref — then refuses `not-found`,
+saying no identity is configured and naming `arc.identity` as the remedy, and a listing of either is `absent`, as
+today's transient-identity reader answers, since no identity holds no claims (`readTransientInFlightIndexes` in
+`lib/errand/record.ts`); `sync` reports no identity once, a state naming `arc.identity` and the families it held back,
+while the rest publish (D4). A command rerouted onto the contract maps that refusal onto the error it reports today, and
+a caller that checks for an identity before it calls keeps checking.
 
 ### Part A — Built by this change
 
@@ -136,36 +151,58 @@ it knows which backend is active, with one interim exception (D15); the target n
 
 **Operations.**
 
-| Operation | Input                                                                                 | Result                                                                                     |
-| --------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `read`    | a record's identity and kind; optionally a state version                              | the record's content, its record version, and its format version                           |
-| `list`    | a family, optionally a kind and a filter; optionally a state version                  | a listing outcome (D4): parsed fields per record where the kind has a parser, never a path |
-| `write`   | one record's identity, kind, new content, expected record version, and message        | the new record version, plus any conflict records the write created (D3)                   |
-| `batch`   | several writes, each with its own expected version, under one message                 | every write applied, or none (D3)                                                          |
-| `version` | none                                                                                  | the current state version (D2)                                                             |
-| `history` | a record's identity                                                                   | the record's versions, newest first, each with its write message (D3)                      |
-| `changes` | two state versions, optionally restricted to named records                            | the records that changed between them, with their messages                                 |
-| `lookup`  | a slug, a lineage origin, a checkout claim, or a repository plus a commit or ref (D3) | the identity it resolves to (D3's reverse lookup included), or a typed refusal (D4)        |
-| `sync`    | none                                                                                  | a sync outcome (D4)                                                                        |
+| Operation | Input                                                                                                    | Result                                                                                                      |
+| --------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `read`    | a record reference (D2); optionally a state version                                                      | the record's content, its record version, its format version, and the IDs of its open conflict records (D6) |
+| `list`    | a family, optionally a kind, an owner, and a filter; optionally a state version                          | a listing outcome (D4): parsed fields per record where the kind has a parser, never a path                  |
+| `write`   | one record's reference, its new content or its removal, its expected record version, and provenance (D3) | the new record version, or none for a removal, plus any conflict records the write created (D3)             |
+| `batch`   | several writes, each with its own expected version, under one provenance                                 | every write applied, or none (D3)                                                                           |
+| `version` | none                                                                                                     | the current state version (D2)                                                                              |
+| `history` | a record reference                                                                                       | the record's versions, newest first, each with its write's provenance (D3)                                  |
+| `changes` | two state versions, optionally restricted to named record references                                     | the records that changed between them, with their provenance                                                |
+| `lookup`  | a slug, a lineage origin, a checkout claim, or a repository plus a commit or ref (D3)                    | a reference to the record it resolves to, with the tasks a commit resolves to (D3), or a typed refusal (D4) |
+| `sync`    | none                                                                                                     | one outcome per publish, and no remote or no identity as states (D4)                                        |
 
-A **checkout claim** is what a registered checkout's marker names — a work unit, an Errand, a grooming set, or a
-housekeeping sweep — passed to `lookup` as the marker carries it, by kind, slug, and claim ID, never as a checkout path;
-`lookup` by one answers which record that checkout holds. A partial-protection Errand keeps no record (D5), so lookup by
-its claim is `not-found`, saying so.
+A **checkout claim** is what a registered checkout's marker names — a work unit, an Errand, a grooming set, a
+housekeeping sweep, or a partial-protection Errand — passed to `lookup` as the marker carries it, by the marker's kind
+(`work-unit`, `errand`, `groom`, `housekeep`, or `partial-errand`), slug, and the claim ID where the marker carries one,
+never as a checkout path; `lookup` by one answers which record that checkout holds. A work unit's marker carries no
+claim ID. A partial-protection Errand's carries a null one and keeps no record (D5), so lookup by its claim is
+`not-found`, saying so. A marker that names only a branch, or a legacy Errand marker with no claim ID, carries no
+checkout claim. `lookup` returns a record reference, from which the owner's identity is read: a work item's primary
+record for a slug, a former slug, a work item's checkout claim, a commit, or a ref; a lineage's transition record for a
+lineage origin; and the claim's own record for a grooming or housekeeping claim.
+
+A work item's **placement** (D5) and its **links** (D3) travel beside its content, never inside it and never as a path.
+Its primary record — a work unit's meta, an Errand's record — carries both: `read` and `list` return them, and a write
+to that record carries its placement, but for a removal, which places nothing, and may carry a links value, which
+replaces its links whole, an empty value clearing them, while a write carrying no links value keeps them. The work
+item's other kinds read and list with its placement, and a write to one carries neither, landing where its work item is
+placed. A write naming another placement moves the work item, and a rename is a write naming the work item by its UID
+with a new name (D2).
+
+A `list` **owner** keeps one owner's records, such as a work unit's companions. A `list` **filter** names lifecycle
+locations — `active`, `planned`, `provisional`, or `completed`, the lifecycle index's four — and whether to keep only
+the records this checkout holds. A backend whose state lives off the checkout's branch refuses the second `unsupported`,
+recoverable by `lookup` with the checkout's claim or by listing without the filter; the in-repo implementation answers
+it from the working tree (D8). The second serves today's callers of the working tree's index and retires with the
+in-repo implementation at the cutover.
 
 Contract requirements every backend meets:
 
-- **Callers name records by identity, never by projected path.** A listing returns parsed fields; derived views —
+- **Callers name records by reference (D2), never by projected path.** A listing returns parsed fields; derived views —
   ROADMAP, `STATUS.USER`, the archive listing — render from them and are never stored.
-- **Every family is listable, readable, and writable with its identity intact,** so moving state between backends is
+- **Every family is listable, readable, and writable with its references intact,** so moving state between backends is
   generic over the contract.
 - **Sync is its own operation.** A backend without sync is a configuration of one that has it, not another
   implementation. The in-repo implementation's transient-identity writes are the one exception until the cutover: they
   publish inside the write, as today (D8).
 - **A verb confirms its own write from the local store,** never from a fresh fetch: a host's replicas may lag.
 - **Write serialization belongs to the contract:** each surface's writes compare-and-swap against the expected version
-  under a machine-local write lock for that surface. The in-repo implementation uses the locks today's writers take
-  (D8).
+  under a machine-local write lock for that surface, and a write that waits past the lock refuses `lock-held` (D4). The
+  in-repo implementation takes one lock per checkout for tracked records and today's notes lock for personal files; its
+  transient-identity write takes none of its own, and Git's ref lock serializes that transaction's compare-and-swap, so
+  a write that meets the lock throws, as D4 throws what it cannot classify (D8).
 - **The store is CLI-internal plumbing.** People and agents work through the projection and `arc` verbs; no agent runs
   Git against the store, and which family a write lands in is computed by the CLI, never left to agent judgment.
 
@@ -176,11 +213,12 @@ it serves — is declared by the conformance suite's fixture for that backend (D
 
 ### D2. Identity and versions
 
-**Record identity is a name plus a UID.** The name is the slug: the human handle, unique among the live records that
-share its namespace — every work item, whatever its type, shares one (D14) — and reusable once its record completes. The
-UID is minted at creation with `crypto.randomUUID()`, never reused, and never changed, so it tells a recreated record
-from an earlier one of the same name. Work units, cohorts, and Errands carry one, and the project ID (D14) is one;
-Candidate records keep the canonical content digest that already identifies them.
+**An owner's identity is a name plus a UID.** Every record belongs to an owner — a work item, a cohort, the project, or
+a person. The name is the slug: the human handle, unique among the live records that share its namespace — every work
+item, whatever its type, shares one (D14) — and reusable once its record completes. The UID is minted at creation with
+`crypto.randomUUID()`, never reused, and never changed, so it tells a recreated work item from an earlier one of the
+same name. Work units, cohorts, and Errands carry one, and the project ID (D14) is one; a person is named by their
+identity and carries none.
 
 - UIDs are random, neither time-ordered nor sequential: time-ordered prefixes collide for IDs minted close together,
   and sequential numbers collide across offline machines. Counters people read — ADR numbers, the archive sequence —
@@ -192,13 +230,27 @@ Candidate records keep the canonical content digest that already identifies them
   projected paths, which stay slug-keyed; a stored path that is never projected may carry one, as lineage keyed by
   origin UID and a closed Errand's folder in its quarter's archive ref do (D10), and so may a machine-local path, as
   integration checkpoint records' paths do from the flip (D5).
-- A rename is a field write: the record keeps its UID and records its former slugs, so an old name still resolves
-  through `lookup`.
-- **In this change the contract's identity type is opaque.** The in-repo implementation resolves it from the slug,
-  since today's records carry no UID; when the meta gains its `Id` field, the identity becomes the UID with no caller
-  change. The rules above bind the backends that mint UIDs — the reference backend here, the ref backend and the move
-  later. An Errand branch stays `chore/<slug>` until the move gives Errand records their UIDs (D14), and takes its
-  eight-character suffix from then.
+- A rename is a field write, expressed as a write to the work item's primary record naming it by its UID with the new
+  name: the work item keeps its UID and records its former slugs, so an old name still resolves through `lookup`. A
+  backend with no UID for a work item cannot express one; the in-repo implementation refuses it (D4, D8).
+- **In this change the contract's identity and reference types are opaque.** The in-repo implementation resolves an
+  identity from the slug, since today's records carry no UID; when the meta gains its `Id` field, the identity becomes
+  the UID with no caller change. The rules above bind the backends that mint UIDs — the reference backend here, the ref
+  backend and the move later. An Errand branch stays `chore/<slug>` until the move gives Errand records their UIDs
+  (D14), and takes its eight-character suffix from then.
+
+**A record reference names one record:** its owner's identity, its kind (D5), and, for a kind that holds several records
+per owner, a key. The keys are a companion's name — a paired spec's halves are the companions named `spec-prd` and
+`spec-rfc`, and the in-repo implementation maps each name onto today's filename (D8) — a personal document's path, a
+grooming or housekeeping claim's slug, a conflict record's or routing receipt's ID, a durable review fact's ID, an
+adversarial pass's activity and number, a record-number counter's name, and, until the flip, the work unit a
+`SESSION-NOTES.md` file serves. Every other kind holds one record per owner — a meta, a task list, a draft, a spec,
+notes, a Candidate record, an inbox — and takes no key. The reference is opaque in construction — built through one
+typed constructor per kind's shape, so no caller assembles a key its kind does not take — and read through accessors for
+its owner's identity, its kind, and its key, as a caller takes a work unit's identity from what `lookup` returns.
+`read`, `write`, `history`, and `changes`' restriction take a reference, and `list` takes an owner (D1). A work item's
+Candidate record is its one record of that kind: the canonical content digest that identifies each Candidate it has held
+is a field of the record (`attestation.candidateId`), and the chain of those Candidates is the record's `history`.
 
 **Record version.** Each record has its own version, the basis every compare-and-swap checks, exact from the moment
 its write returns — so compare-and-swap and bound checks never wait on anything else. The in-repo implementation uses
@@ -225,7 +277,7 @@ anchors; no caller compares it whole. So no write by another work unit, Errand, 
 evidence or makes it repeat a ceremony; only a change to what that evidence attested does. This is the state-side twin
 of evidence applicability for code, where an earlier result stands unless later content overlaps what it covered.
 
-### D3. Writes, batches, messages, and links
+### D3. Writes, batches, provenance, and links
 
 **Version-checked writes.** Every write carries the version it read.
 
@@ -237,6 +289,12 @@ of evidence applicability for code, where an earlier result stands unless later 
   content; any mismatch there is `version-conflict`, and its writers re-read and re-apply under their lock, as they do
   today. Its transient-identity transaction reconciles the ref's records one by one against the remote, as today, and
   refuses the whole write while any record on the ref changed on both sides or fails to parse (D4, D8).
+- A **removal** is a write of absence, the dual of a creation, which expects absence: it carries the record's expected
+  version and no content, and a read afterwards is `not-found`, but on the in-repo implementation, where it removes this
+  checkout's copy (D8). A kind's writer rule governs it as any write: a create-only kind refuses an update, not a
+  removal, and the verb that created a transition record removes it when the transition it records fails, as abandon and
+  decompose roll one back today; a write-once record is removed only by the writes its rule names, a conflict record by
+  the write that resolves it (D6).
 
 **Batches.** One write may change several records, all or nothing, each checked against its own expected version; a
 `version-conflict` names every stale record. Archive, abandon, rename, decompose, and park each change several records
@@ -245,66 +303,96 @@ atomically refuses it whole, `unsupported`, before writing anything; only the in
 for a batch spanning substrates (D8). The ref backend applies a batch with `git update-ref --stdin` and carries it to
 the remote with `git push --atomic` (D12).
 
-**Messages are provenance, never evidence.** Every store write carries a message the CLI composes. The subject names
-the verb and the record (`archive storage-contract`); trailers carry the owning work unit's or Errand's name and UID,
-the lifecycle action, and the code head when the write attests code. The writes of one batch share a batch ID across
-refs, so `history` and `changes` show an archive as one change rather than one per ref. No evidence needs the message
-as its home. The in-repo implementation keeps today's messages: a tracked record's message is the commit that carries
-it, and an Errand record's is its ref commit's.
+**Provenance, never evidence.** Every store write carries provenance. The caller names the verb, the lifecycle action,
+and, when the write attests code, the code head; the backend adds, as the write lands, the record's reference, its
+owner's UID where the owner has one, and, for a batch, one batch ID that every write in it shares across refs, so
+`history` and `changes` show an archive as one change rather than one per ref. A backend over Git renders provenance as
+a commit message — a subject naming the verb and the record (`archive storage-contract`) and trailers carrying the rest
+— and `history` and `changes` return its fields. No evidence needs provenance as its home. The in-repo implementation
+renders none and keeps today's messages: a tracked record's is the commit that carries it, and an Errand record's its
+ref commit's, which `history` and `changes` return as they are.
 
 **Links.** Traceability is a store link the CLI captures, never a message convention.
 
-- A task record captures its increment's commits — a list, possibly empty, since a decision or research task may
-  produce none. A work unit's integration and an Errand's close capture the landing commit.
+- A task's captures hold its increment's commits — a list, possibly empty, since a decision or research task may produce
+  none. A work unit's integration and an Errand's close capture the landing commit.
 - **Links are base fields the contract itself defines,** read without a kind's parser: a branch (repository and ref
-  name), a change request (repository and number), a landing commit, and task captures. Each commit is held as its SHA
-  and its patch-id.
-- `lookup` by commit matches captured SHAs, then the patch-id the caller computes and passes with the commit; by ref,
-  branch links. So every backend answers it from stored fields, a rebase that leaves a commit's diff alone keeps the
-  link, and ARC's own rewrites remap captures from the rewrite's old-to-new mapping.
-- **Reverse lookup** answers from a repository plus a commit or ref to the owning task and work item, across renames,
-  since records key by UID. A delivery resolves its plan and member from that work item through its own member lookup
-  over its machine-local state (D5); the contract's lookup does not reach them.
+  name), a change request (repository and number), a landing commit, and task captures, keyed by task ID. Each commit is
+  held as its SHA and, where it has one, its patch-id: a merge commit has none, so a landing commit made by merge is
+  matched by its SHA alone. They travel beside a work item's primary record as its placement does (D1): a write to that
+  record may carry a links value, which replaces them whole, an empty value clearing them, and one carrying no links
+  value keeps them.
+- `lookup` by commit matches captured SHAs and, only where none matches, the patch-id the caller computes and passes
+  with a commit that has one; by ref, branch links. So every backend answers it from stored fields, a rebase that leaves
+  a commit's diff alone keeps the link, and ARC's own rewrites remap captures from the rewrite's old-to-new mapping.
+- **Reverse lookup** answers from a repository plus a commit or ref to the owning work item, across renames, since
+  records key by UID, and from a commit to every task that captured it: `lookup` returns a reference to the work item's
+  primary record and the IDs of the tasks whose captures hold the commit, several where one increment closed several
+  tasks (D16), and none for a commit no task captured, such as a landing commit. A delivery resolves its plan and member
+  from that work item through its own member lookup over its machine-local state (D5); the contract's lookup does not
+  reach them.
 - The residual, stated: a rewrite outside ARC that changes a commit's diff — a conflict-resolving rebase, squashed
   fixups — loses the per-task link, and a squash loses per-task granularity by its nature; the landing commit keeps
   the work-unit link under any merge strategy.
-- Until the flip, the in-repo implementation answers reverse lookup with today's derivations: a commit resolves to its
-  task and work unit through its `Context:` footer (`lib/handoff/restate-candidates.ts`, `lib/delivery/from-branch.ts`),
-  and a ref to its work unit through the branch name and to its Errand through the record that names the branch. A
-  commit resolves to an Errand only from the flip, when captures begin and an Errand's close captures its landing commit
-  (D15).
+- Until the flip the in-repo implementation stores no links: its reads and listings carry none, and a write carrying a
+  links value refuses `unsupported` (terminal) (D4). It answers reverse lookup with today's derivations: a commit
+  resolves to its work unit and every task its `Context:` footer names, through that footer, parsed as delivery's
+  attribution parses it (`parseTaskReference` in `lib/commit-check/task-reference.ts`) with a range expanded against the
+  work unit's task list (`expandTaskReference` in `lib/delivery/from-branch.ts`), and a ref to its work unit through the
+  branch name and to its Errand through the record that names the branch. A commit resolves to an Errand only from the
+  flip, when captures begin and an Errand's close captures its landing commit (D15).
 
 ### D4. Failures and outcomes
 
 Every failure meets the recovery-complete refusal rule in `DEV-RULES.PROJECT`: it says whether it is terminal or
 recoverable, reports the observed condition, and names a remedy that leaves the success path reachable.
 
+**Refusals are values; defects throw.** Every operation resolves to a Zod-defined union discriminated on `status`: `ok`
+carrying its result, or `refused` carrying the refusal — the shape `lib/delivery/ports.ts` uses, extended with the
+class, condition, and remedy, so a refusal serializes into an `arc` command's JSON output as it stands. A backend never
+throws a refusal. It throws only for a defect or an environment failure no caller can act on — a permission error, a
+missing Git — as an `ArcError` with a dotted code. What it catches from the code it wraps it classifies by error class
+or error code, never by message text; anything it cannot classify it rethrows as an `ArcError` with the original as its
+cause, never as a refusal.
+
 **Local operations** — `read`, `list`, `write`, `batch`, `history`, `changes`, and `lookup` — refuse from one closed
-vocabulary, the one `lib/delivery/ports.ts` already uses plus `not-found`:
+vocabulary, the one `lib/delivery/ports.ts` already uses plus `not-found` and `lock-held`:
 
-| Refusal             | Class       | Meaning and remedy                                                                          |
-| ------------------- | ----------- | ------------------------------------------------------------------------------------------- |
-| `not-found`         | recoverable | No record has that identity; names the lookup that would resolve a name or former name      |
-| `version-conflict`  | recoverable | An expected version is stale; names each stale record so the caller re-reads and re-applies |
-| `record-malformed`  | recoverable | A record fails its kind's parse or validation; names the record and the failing rule        |
-| `identity-mismatch` | recoverable | A record's stored identity disagrees with the identity asked for; names both                |
-| `ambiguous-match`   | recoverable | A lookup matched more than one record; names the candidates                                 |
-| `namespace-corrupt` | terminal    | The store's structure is broken; names the repair                                           |
+| Refusal             | Class       | Meaning and remedy                                                                                           |
+| ------------------- | ----------- | ------------------------------------------------------------------------------------------------------------ |
+| `not-found`         | recoverable | No record has that reference; names the lookup for a name or former name, or `arc.identity` when none is set |
+| `version-conflict`  | recoverable | An expected version is stale; names each stale record so the caller re-reads and re-applies                  |
+| `record-malformed`  | recoverable | A record fails its kind's parse or validation; names the record and the failing rule                         |
+| `identity-mismatch` | recoverable | A stored or written record's own identity disagrees with the reference asked for; names both                 |
+| `ambiguous-match`   | recoverable | A lookup matched more than one record; names the candidates                                                  |
+| `lock-held`         | recoverable | A process on this machine holds the surface's write lock past the wait; names the lock                       |
+| `namespace-corrupt` | terminal    | The store's structure is broken; names the repair                                                            |
 
-The in-repo implementation adds two refusals that no other backend produces, and one exception; all three retire at the
-cutover:
+The in-repo implementation adds two refusals and one exception, and all three retire at the cutover. Only it produces
+`checkout-not-writable` and the exception; every backend whose state lives off the checkout's branch also produces
+`unsupported`, for the filter to the records this checkout holds (D1), until that filter retires with it:
 
 - **`checkout-not-writable`** — recoverable. This checkout lacks write authority for the write, and the refusal names
-  where it can land. It fires exactly where today's refusals fire, never as a check on every write: at the
-  write-context preflights in `lib/git/write-context.ts` — `arc plan check`'s redirect, the inbox drain's entry check
-  with its move onto a grooming branch under full protection, and park's run-context refusal — and on a write to a
-  record whose selected copy lives on another branch (D8). A commit on the protected base under full protection stays
-  refused by the pre-commit hook and the release wrapper, as today. Grooming, drain, and decomposition branches stay
-  valid write contexts.
-- **`unsupported`** — the call cannot succeed as it stands and is not retryable unchanged. It is recoverable for a
-  batch spanning substrates, or a read or `changes` as of a state version for records the version does not cover (D8),
-  and names the remedy — sequence the writes, or bind per-record versions. It is terminal for a write to a kind with
-  no home before the flip, or for `history` of a personal file, and says that neither is served until then.
+  where it can land. It fires at the write-context preflights in `lib/git/write-context.ts` — `arc plan check`'s
+  redirect, the inbox drain's entry check with its move onto a grooming branch under full protection, and park's
+  run-context refusal — as today; and on a write to a work unit's meta, companion, or task list where the meta copy a
+  read of the work unit returns is not one this checkout holds, as abandon, resume, and rename refuse today where the
+  composed index withholds the writable path they check before touching a work unit's files. That second arm checks
+  every write to a work unit's records and is new for companions and task lists, which no code refuses today; D8 sets
+  out the rule, its exceptions, and where it differs from those verbs' check. A commit on the protected base under full
+  protection stays refused by the pre-commit hook and the release wrapper, as today. Grooming, drain, and decomposition
+  branches stay valid write contexts.
+- **`unsupported`** — the call cannot succeed as it stands and is not retryable unchanged. It is recoverable for a batch
+  spanning substrates, a read or `changes` as of a state version for records the version does not cover (D8), a
+  work-item listing that names no kind (D8), or that filter on a backend whose state lives off the checkout's branch,
+  and names the remedy — sequence the writes, bind per-record versions, list each kind, or `lookup` by the checkout's
+  claim or list without the filter. It is terminal for a well-formed call that work after this change serves: a write to
+  a kind with no home before the flip, `history` of a personal file, and, on the in-repo implementation, a write that
+  carries a links value, moves a work item to another placement, creates a work unit or an Errand's record at
+  `completed`, or renames a work item (D8). It names what serves the call until then: nothing for the first two, or for
+  links, which the flip begins storing; the lifecycle verbs for a work unit's move, archive for its creation at
+  `completed`, and `arc errand close` for an Errand's move or creation at `completed`; and `arc rename` for a work
+  unit's rename, while nothing renames an Errand — each verb keeping its code until it is rerouted.
 - **A transient-identity write fails as sync does** — `unreachable`, `refused`, or `retries-exhausted`, with sync's
   classes — since it fetches and pushes inside the write (D8). While any record on its ref changed both on this
   machine and on the remote, or any entry there fails to parse, every write to that ref refuses, `version-conflict` or
@@ -314,11 +402,20 @@ cutover:
 
 **Neither is a failure:**
 
-- **A conflicted entry.** A same-entry clash lands as a conflict record (D6); the next verb that depends on that entry
-  refuses, naming the conflict record, and a resolution names it.
+- **A conflicted entry or record.** A same-entry clash lands as a conflict record (D6), and so does a single-writer
+  record that sync finds changed both here and on the remote, as one work unit's meta written on two machines before
+  either synced: by D6's rule the version the store holds stays current — the remote's — and the local one is kept in
+  the conflict record, and sync goes on. The next verb that depends on the entry or record refuses, naming the conflict
+  record, and a resolution names it — keeping the remote's version, or redoing the local change through its verb. Which
+  version stands is the owner's call.
 - **A stale base** on a merge kind (D3).
 
-**Sync outcomes.** `sync` ends `pushed`, `noop`, or `reconciled`, or fails:
+**Sync outcomes.** `sync` reports one outcome for each publish it makes, naming the families that publish carried, so a
+caller retries the one that failed. With no remote it reports that state once, and with no identity configured it
+reports `no-identity` once, a state naming `arc.identity` as the remedy and the families it held back — every
+identity-scope family, and on the in-repo implementation the Errand records a person's ref carries until the flip —
+while the rest publish; the two are reported independently, so both can appear. Each publish ends `pushed`, `noop`, or
+`reconciled`, or fails:
 
 - `retries-exhausted` — recoverable: the next firing point or `arc sync` retries; it carries the retry count and the
   time waited, the contention tripwire's fields (D11);
@@ -326,14 +423,23 @@ cutover:
 - `refused` — terminal: any other host refusal, carrying the server's message, which names what must change before a
   retry can succeed.
 
-No remote — as in local-only or ghost use — and being offline are states, not failures. Until the flip the in-repo
+No remote — as in local-only or ghost use — no identity, and being offline are states, not failures. Every publish the
+in-repo implementation makes — the notes save and push and the Errand push — rides a ref keyed by the identity, so with
+no identity its `sync` publishes nothing and reports `no-identity`, naming all three families they carry — personal
+surfaces, work items for the Errand records, and claims — which a rerouted `arc sync` checks before any other outcome
+and maps onto today's `identity-absent`, as it checks the identity first today. Until the flip the in-repo
 implementation's `sync` also reports today's `conflict` and `blocked`, and the notes export's local refusals as they are
 — `unpublished-history`, `history-diverged`, `compaction-lineage`, and `proof-unavailable`
 (`lib/user-sync/branch-bounded-notes-export.ts`); the notes push's `success` is `pushed`; today's `failed` maps by cause
-onto `retries-exhausted`, `unreachable`, or `refused`; and today's `no-remote` splits: a remote that does not exist is a
-state, one that cannot be read is `unreachable`. The notes-only outcomes — `no-local-notes`, and the paired push's
-`cancelled` (the person declining `arc sync`'s notes-push prompt), `failed-nontty-conflict`, and `ok-recovered`
-(`commands/user/types.ts`) — retire with notes.
+onto `retries-exhausted`, `unreachable`, or `refused`, and a `failed` with no Git cause is rethrown — the notes lock not
+taken within its wait among them, as a save that cannot take it throws today, so a lock held past its wait ends sync
+before the Errand push, as a failed save does; and today's `no-remote` splits by the remote's configuration, read before
+anything is pushed, never by Git's message: a remote that does not exist is a state, and one that is configured but
+cannot be read is `unreachable`. Today's `no-local-notes`, and a save that finds no eligible file — nothing local to
+send — end `noop`; a save whose note fails its readback is a failure, which the backend rethrows, as `arc sync` reports
+it failed. The paired push's `cancelled` is the person declining `arc sync`'s notes-push prompt, which contract `sync`
+never shows, and its `failed-nontty-conflict` and `ok-recovered` have no producer (`commands/user/types.ts`); contract
+`sync` reports none of the three, and all four notes-only outcomes retire with notes.
 
 **Surfacing.** Store and sync failures surface as orientation lines at session boundaries. Sessions never stall on the
 store, and a sync failure never blocks a local write — except an in-repo transient-identity write, which publishes
@@ -347,8 +453,11 @@ keeps today:
 - **A complete listing carries every readable record,** a diagnostic for each entry it could not read — malformed,
   oversized, unreadable, an unknown format version, or a key that disagrees with its record — and whether it missed
   any.
-- **A listing is taken as of one state version, its mutation basis.** A write built on it compare-and-swaps each
-  record it writes against that record's version in the listing, never the listing's whole version.
+- **A listing carries a state version only when it is taken as of one** — a state version the caller asked for, or the
+  current one on a backend whose live view is a saved state, as the reference and ref backends' is. Its mutation basis
+  is each record's own version: a write built on it compare-and-swaps each record it writes against that record's
+  version in the listing, never the listing's whole version. The in-repo implementation's live listings carry none,
+  since the working tree they read is no saved state (D8).
 - **Deciding consumers refuse on incomplete evidence** — review-vehicle selection never authorizes review from it —
   while browsing consumers show what they have with the diagnostics. A record unrelated to the current work unit never
   blocks session-init.
@@ -361,19 +470,34 @@ parser, never by path or placement, so file formats never change at the flip and
 changes only what sits behind each parser. A kind's parser is registered by the change that reroutes its family; this
 change registers the ones its own pieces need — the meta parser behind the lifecycle index (D9), and the Errand record's
 existing schema (`lib/errand/identity-record.ts`) behind the in-repo listing's diagnostics. A kind with no parser lists
-its records with their content and versions but no fields.
+its records with their content and versions but no fields. Since the parser gives a listing its fields and a write its
+validation, `read` returns a record's bytes whether or not its kind's parser accepts them; a record the parser rejects
+lists as a diagnostic naming it.
 
 **Placement is a record field, and directory layout a projection of it.** Lifecycle location becomes a field of every
-work item's record; `backlog/`, `active/`, and `completed/` are where the projection places a work unit. Until the flip
-the in-repo implementation keeps directory placement as the source and derives the field from it, as the lifecycle index
-does today.
+work item's record; `backlog/`, `active/`, and `completed/` are where the projection places a work unit. A placement is
+`active`; `backlog` with its commitment, planned or provisional; or `completed` with its archive quarter, at project
+scope. A cohort member's folder in the backlog comes from its `Cohort` field, never from its placement: the layout
+builds it from that field, as the verbs that place a stub build it today (`projectBacklogDestination` in
+`lib/work-unit/verbs/promote-demote.ts`), so membership has one source. A completed work unit's archive sequence is
+output, never input: `read` and `list` give it in the placement they return, the store assigns it as the work unit joins
+its quarter (D10), and a write names the quarter alone. An Errand is never in the backlog, and its `completed` placement
+has no sequence, since a closed Errand's archive folder is named for its branch (D10). A work item's primary record
+carries its placement — a work unit's meta, an Errand's record — and its other kinds take it from their work item. The
+contract carries it beside the record's content (D1), and its schema sits in the contract core over kernel types. Until
+the flip the in-repo implementation keeps directory placement as the source and derives the field from it, the sequence
+included, as the lifecycle index does today: it creates a work unit at its placement's path, a backlog stub in the
+folder its `Cohort` field names, and refuses a write that creates one at `completed` or moves one, which archive and the
+lifecycle verbs keep doing until they are rerouted (D4). An Errand record on today's transient-identity ref is always in
+flight, since close removes it, so its placement is `active`, and a write placing one at `completed` refuses (D4).
 
 **Two levels.**
 
 - A **family** is the storage grouping: its scope (project, or one identity across that person's machines), its ref
   placement (which may be a subtree of another family's ref), retention, sync, lifecycle, and its tracked-versus-stored
   assignment under each profile.
-- A **kind** within a family carries its parser, format version, writer rule, merge mechanism (D6), and projected path.
+- A **kind** within a family carries its parser, format version, writer rule, merge mechanism (D6), and projected path;
+  an entry list also carries its entry shape and the sections that hold its entries, which entry merge takes from it.
   Projected paths come from the layout resolver (`resolveArcPath` in `lib/layout/projection.ts`), the one layout
   authority.
 
@@ -396,6 +520,14 @@ between backends, and the conformance suite all derive from it.
 | identity | personal surfaces                | `USER-INBOX` and `WORKING-MEMORY` (entry lists), personal documents (prose), and the Errand queue (entry references)                                                                                  |
 | identity | grooming and housekeeping claims | grooming-set and housekeeping-sweep records (machine records)                                                                                                                                         |
 
+**Names are roles, never presentation.** Families, kinds, and the contract's identifiers name what a record is to ARC,
+never what a person sees it called. A kind is keyed by its family and its role, so a role that recurs is one kind in
+each family that holds it, under the role's one name: the inbox at project and identity scope (today's `ATOMIC-INBOX`
+and `USER-INBOX`), conflict records, and routing receipts. The status view recurs at both scopes too (`ROADMAP` and
+`STATUS.USER`, derived and never stored), and so does the vector (reserved). Filenames, document titles, and command
+names are presentation, mapped from a kind and its scope in one place — the layout resolver, for paths — so renaming a
+surface edits that mapping and no caller. Where this spec names a file, it names today's file.
+
 **Work items.** Work units and Errands are two types of one family. Every work item has the same base — its identity,
 owner, type, lifecycle location (backlog, in flight, or completed), origin, and links: branch, change request, landing
 commit, and task captures. Everything that spans types reads only the base: the ref layout, slug uniqueness, `lookup`
@@ -403,9 +535,9 @@ and checkout claims, archive and history movement, sync, and the delivery and re
 ref. A type adds the rest — its companions, its writer rules, and its own lifecycle states, which refine the base's
 location and are never merged into one machine. Promotion is a field write on one record: the type changes, and the
 UID, links, and history stay; naming the work unit differently is a rename in the same verb, and its branch is a new
-branch link beside the Errand's. The base's exact field schema is set with its parser, except the links the contract
-defines (D3); a further type would be one more type over the same base, so nothing that spans types changes. How an
-external tracker's items compose with work items is left to that design.
+branch link beside the Errand's. The base's exact field schema is set with its parser, except the links (D3) and the
+placement the contract defines; a further type would be one more type over the same base, so nothing that spans types
+changes. How an external tracker's items compose with work items is left to that design.
 
 - Grooming and housekeeping claims share today's transient-identity ref, but each claims a sweep rather than landing
   work: both stay at identity scope, and their branches retire at the flip (D15).
@@ -430,8 +562,8 @@ external tracker's items compose with work items is left to that design.
 - Reserved and registered with no kinds yet: `VECTOR.PROJECT` at project scope; `VECTOR.USER` and the per-identity
   user configuration at identity scope.
 - **Stored with the families,** so moving state and the conformance suite carry them: conflict records, a kind of every
-  family that has a merge kind (D6); routing receipts, a kind of both inbox families (D11); and each record's format
-  version, which every read returns and every write carries.
+  unreserved family, since a merge or a sync can conflict in any (D4, D6); routing receipts, a kind of both inbox
+  families (D11); and each record's format version, which every read returns and every write records.
 
 **Durable review facts are stored at project scope; review working state stays machine-local.** Evidence, outcomes,
 and termini must survive a change of machine, so they become records of the delivery and review family when review
@@ -495,14 +627,17 @@ edit and naming `scratch/`, as it refuses a file at `active/`'s top level (D13).
   context moves into the meta and everything else into scratch, so a handover needs no other person's state. Until the
   flip the workspace stays as today, with `SESSION-NOTES.md` in it, and scratch has no home: today's classifier reads
   every subdirectory as a workspace, so personal subdirectories such as `archive/` and `drafts/` are never saved. The
-  move onto the ref store puts each file in its place (D14).
+  move onto the ref store puts each file in its place (D14). Until then `SESSION-NOTES.md` is an interim personal kind,
+  keyed by its work unit at the `session-notes` address today's layout has, which retires at the flip.
 
-**Format version.** Every record carries a format version, kept by the store beside the record and never in the file's
-content, so projected files stay plain Markdown. It is per record, not per family, so one newer record never makes an
-older build refuse the rest. A record newer than the build is an unknown-version diagnostic in a listing and, when read
-directly, `record-malformed` naming the cause and the remedy — merge base or rebuild. A record unrelated to the current
-work unit never blocks session-init. Until the ref backend writes format versions, every record reads as version 1; a
-record the in-repo implementation's build cannot parse is an unreadable entry with a diagnostic (D4).
+**Format version.** Every record carries a format version, a positive integer that orders its kind's formats, kept by
+the store beside the record and never in the file's content, so projected files stay plain Markdown. A write records its
+kind's current format version from the registry; no caller names one. It is per record, not per family, so one newer
+record never makes an older build refuse the rest. A record newer than the build is an unknown-version diagnostic in a
+listing and, when read directly, `record-malformed` naming the cause and the remedy — merge base or rebuild. A record
+unrelated to the current work unit never blocks session-init. Until the ref backend writes format versions, every record
+reads as version 1; a record the in-repo implementation's build cannot parse is an unreadable entry with a diagnostic
+(D4).
 
 **Profiles.** Two named install profiles, recorded per family as layout data in the registry:
 
@@ -510,7 +645,8 @@ record the in-repo implementation's build cannot parse is an unreadable entry wi
   project machinery, ARC core, and the constitutional documents tracked.
 - **Ghost** — the same state families; project machinery and the constitutional documents become two project-scope
   families projected at their familiar paths; ARC core projects read-only from the installed package; the export is
-  pinned to `none`.
+  pinned to `none`. The registry records both families now, tracked under standard and stored under ghost; their ref
+  placement comes with ghost mode (D19).
 
 Readers load machinery and constitutional documents by `.arc/` path under both, so nothing above the contract and the
 projection asks which profile is active. The profile is a fact of the install, read by looking — standard when ARC's
@@ -539,7 +675,7 @@ neither builds it for the other.
 | the Errand queue                                                                           | entry merge keyed by entry ID, each member carrying a rank key that orders it as backlog order is ordered: setting the queue whole is one write that adds, removes, and re-ranks members, so it merges with an append or a drop made elsewhere, and a member re-ranked differently on both sides is a same-entry clash, as in any entry list |
 | record-number counters                                                                     | compare-and-swap claims; a hot counter reserves a block per process                                                                                                                                                                                                                                                                          |
 | an Errand's record, delivery and review records, lineage, grooming and housekeeping claims | single-writer machine records written only by verbs                                                                                                                                                                                                                                                                                          |
-| conflict records and routing receipts                                                      | write-once: each is written by the merge or by the verb that moves an entry, and a conflict record closes only by a write that names it                                                                                                                                                                                                      |
+| conflict records and routing receipts                                                      | write-once: each is written by a merge, by sync, or by the verb that moves an entry, and a conflict record closes only by a write that names it                                                                                                                                                                                              |
 
 **Entry merge.**
 
@@ -547,7 +683,10 @@ neither builds it for the other.
   re-drawn on the rare clash within the file. The bold title stays the human handle; keyed on the title, a retitle
   would read as a delete plus an insert, which a concurrent edit elsewhere turns into a conflict or a resurrected
   entry. An entry without an ID, such as one typed by hand, gets one at its first persist.
-- **Union is limited to insertions.** Disjoint insertions merge in any order.
+- **Union is limited to insertions.** Disjoint insertions merge in any order: an inserted entry lands after the nearest
+  entry preceding it on its own side, and entries both sides insert at one point order by ID.
+- **An entry's section is part of the entry,** so moving it between sections is an edit. The bytes outside entries — a
+  file's opening, section headings, comments — merge as prose, by three-way line merge.
 - **A same-entry clash** — two differing edits to one entry — lands as a conflict record keeping both sides. Lists
   conflict per whole entry, with no line merge inside an entry: line merge inside entries was silently wrong in 0.2–2.2%
   of measured pairs.
@@ -558,10 +697,21 @@ neither builds it for the other.
 **Three-way line merge** merges prose from the base version both writers started from; hunks both sides changed
 differently land as a conflict record.
 
-**The conflict record** is typed, keeps both sides as data with each side labelled by its machine or session and
-time, names its base, and is stored with its family. A conflict is resolved only by a write that names it.
+**The conflict record** is typed and stored with its family. It names the record it belongs to by reference and where
+within it the clash lies: the entry's ID, the hunk's line range in the base for prose, or the whole record, for a
+single-writer record changed on both sides; keeps both sides as data, each labelled by its machine or session and time;
+and names its base. A conflict is resolved only by a write that names it, and `read` returns the IDs of a record's open
+conflict records beside its content (D1).
 
-**Rank keys** generate a key between any two neighbours, so a reorder writes one stub.
+**At a clash the store's version stays current.** The version the store already holds keeps its place in the merged
+result, and the incoming side is kept in the conflict record: the write that landed first, against a later write from a
+stale base; the remote's version, against this machine's, in sync (D4, D12); and the store's version, against a
+projected file's edit, at write-back (D13). One rule serves every merge, so the library takes its three inputs by role —
+base, current, and incoming — and which side a clash keeps current follows from the roles alone.
+
+**Rank keys** generate a key at any position, so a reorder writes one stub. Where the stubs on both sides of the
+position share a rank, no single key sorts between them, so the moved stub and the tied stubs above it take fresh keys
+between the tie's rank and the next rank up, in one batch.
 
 **What the library is built from.** Entry merge and the conflict record are ARC's own: no library models them.
 Three-way line merge wraps `node-diff3`'s `diff3Merge`, pinned to an exact version, behind one module that passes it
@@ -570,8 +720,8 @@ fully pins, so proven code earns its place there. The wrapper's tests cover empt
 that touch without overlapping, and identical edits on both sides. Rank keys are ARC's own code, adapted from the
 public-domain `fractional-indexing` algorithm with its default base-62 alphabet, since their correctness is fully
 checked by a property — a key sorts strictly between its neighbours under plain string comparison — and a test pins the
-stored key format. Generating between two equal keys, which concurrent inserts produce, is handled before the key
-arithmetic runs. Property tests use `fast-check`, a dev dependency.
+stored key format. Equal keys, which concurrent inserts produce, never reach the key arithmetic: a tie is re-keyed as
+above. Property tests use `fast-check`, a dev dependency.
 
 ### D7. The reference backend and the conformance suite
 
@@ -582,36 +732,47 @@ version conflicts and stale bases on demand, and defines the state version's sem
 opaque value that advances with each landed write. Its capability report answers yes (D1).
 
 **The conformance suite** is one suite every backend passes, parameterized by a fixture per backend that declares which
-families it serves, whether it merges concurrent writes, how a write reaches a state version, and how a second contract
-instance opens the same store — for the reference backend, by sharing its in-memory store. The in-repo fixture
-commits its tracked records as a ceremony would before it asserts reads as of a version. It runs against the in-repo
-implementation and the reference backend here; the ref and local-only backends join it when built, over both store
-layouts (D10). The reference backend passing it is the substitutability test run rather than argued: the contract is
-implementable without Git, and Git is the storage engine, never the schema.
+families it serves, whether it merges concurrent writes, the answer its capability report gives, whether its live
+listings carry a state version, how a write reaches a state version, and how a second contract instance opens the same
+store — for the reference backend, by sharing its in-memory store — and it runs with an identity configured or none, so
+the identity-scope refusals and sync's `no-identity` are produced through it. The fixture also declares, per family, the
+items and the named assertions within an item its backend cannot produce there, and the refusals it cannot produce in
+any family it serves, each with its reason, and the suite reports each exclusion by name; its fault hooks plant bad
+entries, hold a write lock, and make the remote down, contended, or refusing, so every listing outcome and refusal is
+produced through the fixture. The in-repo fixture commits its tracked records as a ceremony would before it asserts
+reads as of a version. It runs against the in-repo implementation and the reference backend here; the ref and local-only
+backends join it when built, over both store layouts (D10). The reference backend passing it is the substitutability
+test run rather than argued: the contract is implementable without Git, and Git is the storage engine, never the schema.
 
 The suite covers, for every backend and every family its fixture serves:
 
-1. read, write, and list round trips with identity intact;
+1. read, write, removal, and list round trips with references intact, a listing by owner, and a work item's placement, a
+   completed work unit's assigned sequence included, and its links;
 2. `version-conflict` on a stale expected version, on every backend — for the in-repo implementation, produced by
    racing writers;
 3. stale bases on merge kinds, on backends that merge: the merged version returned, a same-entry clash as a conflict
-   record, a removal racing an edit leaving the edit, and disjoint insertions merged;
+   record naming its entry, with the store's version kept current and the conflict among the record's open conflicts, a
+   removal racing an edit leaving the edit, and disjoint insertions merged;
 4. batches all or nothing, a `version-conflict` naming every stale record;
 5. a batch spanning substrates refused `unsupported` before anything is written (in-repo);
 6. freshness: a write to an unrelated record changes no bound check;
-7. the current state version from `version`, reads and lists as of a state version, and `changes` between two;
+7. the current state version from `version`, reads and lists as of a state version, a listing carrying a state version
+   only when taken as of one, and `changes` between two;
 8. reads as of a version for records outside it refused `unsupported` (in-repo);
-9. listing outcomes: absent, unreadable, and complete kept distinct, every diagnostic kind, whether any entry was
-   missed, and the per-record mutation basis;
+9. listing outcomes: absent, unreadable, and complete kept distinct, an identity-scope family listing absent with no
+   identity configured, every diagnostic kind, whether any entry was missed, and the per-record mutation basis;
 10. format versions: an unknown newer version as a listing diagnostic and a read refusal naming the remedy;
-11. `history` order with each write's message;
-12. `lookup` by slug, former slug, lineage origin, checkout claim, and a repository plus a commit or ref, with
-    `not-found` and `ambiguous-match`;
+11. `history` order with each write's provenance;
+12. `lookup` by slug, former slug, lineage origin, checkout claim, and a repository plus a commit or ref, a commit
+    resolving to every task that captured it, with `not-found` and `ambiguous-match`;
 13. durability: a write is readable from a fresh contract instance over the same store when the write returns;
 14. every refusal carrying its class, observed condition, and remedy;
 15. the capability report;
 16. `sync` against a remote the fixture provides: `pushed`, `noop`, and `reconciled`; each failure class with its
-    fields, `retries-exhausted` carrying its retry count and time waited; and no remote as a state, not a failure.
+    fields, `retries-exhausted` carrying its retry count and time waited; no remote and no identity as states, not
+    failures, `no-identity` naming the families held back, every identity-scope family among them, while project-scope
+    families publish; and, on backends that merge, a single-writer record changed on both sides, the remote's version
+    kept current and the local one in a conflict record (D4).
 
 ### D8. The in-repo implementation
 
@@ -621,64 +782,197 @@ contract without waiting for the ref store, and it retires at the cutover.
 **Every family, each where it lives today.**
 
 - **Tracked records** are read and listed through `resolveArcPath` and the lifecycle index, with the records under
-  `.arc/system/.internal/` joining the layout, and ride the branch's push.
-- **Personal files** are read and written where they live, under the machine lock today's notes lock provides
-  (`lib/user-sync/notes-lock.ts`), with a whole-file digest check. The personal-file writers — the inbox writer,
-  `arc user add`, `arc init`, `arc join`, the workspace open seed, and workspace close — are served by it when they are
-  rerouted onto the contract. `SESSION-NOTES.md` is a personal file here, in this identity's per-work-unit workspace, as
-  today.
+  `.arc/system/.internal/` joining the layout, and ride the branch's push. Their writes take one machine-local lock per
+  checkout, in the checkout's own Git directory, through the advisory lock the notes and worktree-operation locks use
+  (`lib/advisory-lock.ts`), around each digest check and write and across a batch; the Candidate and boundary stores'
+  per-file locks are taken inside it, and no lock held across a whole command is taken while it is held. Today no other
+  tracked writer locks, so the lock is new. A kind today's layout has no address for is found as today's code finds it:
+  other companions are the `<prefix>-<slug>.md` files beside the work unit's meta, each named by its prefix
+  (`artifactMatcher` in `lib/work-unit/mutators/relocate-artifacts.ts`), less the same-name cohort document its callers
+  exclude, and a paired spec's halves `spec-prd` and `spec-rfc`, at `spec-<slug>-prd.md` and `spec-<slug>-rfc.md`, which
+  the matcher misses (`lib/work-unit/planning-artifact-tuple.ts`). Lineage's transition records stay create-only, so a
+  second creation is `version-conflict` naming the existing record, which the caller reads, and the verb that created
+  one removes it when its transition fails, as today's rollback does
+  (`lib/work-unit/terminal-transition-record-writer.ts`). A work unit's placement — its location, with its commitment or
+  its quarter and sequence — is its selected copy's directory, read through the layout resolver's reverse
+  (`identifyWorkUnitArtifactPath`), but for a parked work unit — one whose copy in `backlog/planned/` is `Active`,
+  today's parked pointer — which keeps its backlog placement, that copy's directory, as today's composition places it in
+  the backlog (D13). A meta at a path that reverse cannot place — flat in `backlog/planned/` or `completed/`, or under
+  an uppercase quarter, which only test fixtures hold — has no placement and lists as a diagnostic naming its file,
+  where today's index places it by its tier. A write creates a work unit where its placement puts it, a backlog stub in
+  the folder its meta's `Cohort` field names — none where the field is empty, `[none]`, or `—`, as the lifecycle index
+  reads it for `projectBacklogDestination` today — read through the field projection both meta parsers share
+  (`parseMetaProjectionRecord` in `lib/active/meta-reader.ts`), so a hand-written value in another field never stops it;
+  a meta that projection cannot read, or a `Cohort` value the layout cannot place, refuses `record-malformed` naming the
+  field, as `projectBacklogDestination` refuses such a value today (D5). It refuses `unsupported` (terminal) to create a
+  work unit at `completed`, which archive does with its sequence, to move one, which the lifecycle verbs keep doing, to
+  rename a work item, which takes a UID this implementation does not have, or to carry a links value, since it stores
+  none (D2, D3, D4).
+- **Personal files** are read and written where they live, each file one record written whole. Writes take the machine
+  lock today's notes lock provides (`lib/user-sync/notes-lock.ts`), check the whole-file digest, and replace the file
+  atomically (`atomicWriteFile` in `lib/fs.ts`), as the inbox mutation does today; reads take no lock, as today's
+  readers take none, so a session-boundary read never waits on a notes push holding the lock across a fetch. The
+  personal-file writers — the inbox writer, `arc user add`, `arc init`, `arc join`, the workspace open seed, and
+  workspace close — are served by it when they are rerouted onto the contract, workspace close removing the workspace's
+  personal files through it and then, itself, what no backend stores — its `.internal/` and any other dot-named entry
+  the in-repo boundary keeps unsynced (D5) — and the emptied directory. `SESSION-NOTES.md` is a personal file here, in
+  this identity's per-work-unit workspace, as today. Each file is read from the root today's code reads it from
+  (`lib/user-surfaces.ts`): a per-work-unit workspace from the checkout's own copy, and the identity's top-level files
+  from the primary worktree's; a personal document is keyed by its path there.
 - **Errand records and grooming and housekeeping claims** stay on each person's transient-identity ref and keep today's
-  code: reads through the tip, tree, and blob acquisition in `lib/errand/identity-snapshot.ts` and the fetched variant
-  in `lib/errand/record.ts`, keeping the absent, `error`, and complete outcomes, and every write through the
-  transaction in `lib/errand/identity-transaction.ts`. With a remote set, that transaction fetches the remote's ref,
-  reconciles each record against the common base, applies the write, commits the tree with compare-and-swap on the local
-  tip (`lib/git/ref-tree.ts`), and pushes, retrying a lost race; without one, it commits locally. The caller's expected
-  record version is checked inside the transaction against the reconciled records, so a stale one is `version-conflict`;
-  a record on the ref that changed both here and on the remote, or an entry there that fails to parse, refuses every
-  write to the ref, whichever record it names, as today (D4).
+  code: reads through the tip, tree, and blob acquisition in `lib/errand/identity-snapshot.ts` over this person's local
+  ref, keeping the absent, `error`, and complete outcomes and each record's blob object ID, and every write through the
+  transaction in `lib/errand/identity-transaction.ts`. Reads never fetch: the write transaction and `sync` do, and a
+  verb confirms from the local store (D1). With a remote set, that transaction fetches the remote's ref, reconciles each
+  record against the common base, applies the write, commits the tree with compare-and-swap on the local tip
+  (`lib/git/ref-tree.ts`), and pushes, retrying a lost race; without one, it commits locally. A write's content is
+  decoded first, by today's decoder with the key the write names (`deserializeTransientIdentityRecord`,
+  `lib/errand/identity-record.ts`), since today's writers write only records its schema accepts: content it finds
+  malformed or of another content version refuses `record-malformed`, and content naming another slug refuses
+  `identity-mismatch`, naming both, so a write never plants an entry that would refuse every later write to the ref. The
+  caller's expected record version is checked inside the transaction against the reconciled records, so a stale one is
+  `version-conflict`; the transaction still lands the reconciled records without the caller's change, so a change made
+  only on the remote reaches this machine's ref and a re-read sees it. A record on the ref that changed both here and on
+  the remote, or an entry there that fails to parse, refuses every write to the ref, whichever record it names, as today
+  (D4). A read of a key whose entry names another slug — today's `key-mismatch` diagnostic — refuses
+  `identity-mismatch`, naming both; a read of an entry the snapshot finds malformed or of an unknown version returns its
+  bytes, read by its blob object ID (D5), and a listing gives today's `unknown-version`, which names the record's own
+  content version rather than its format version (D5), as a `malformed` diagnostic naming that version; one over the
+  snapshot's size cap refuses `record-malformed`, naming its size and the cap; and one whose blob cannot be read throws,
+  as D4 throws what it cannot classify. Each Errand record there is in flight, since close removes it, so its placement
+  is `active`; a grooming or housekeeping claim is no work item and has none. A write placing an Errand record at
+  `completed`, by creating it there or moving it, renaming one, or carrying a links value refuses `unsupported`
+  (terminal) (D3, D4). The write takes no lock of its own, and Git's ref lock refuses a concurrent update once its brief
+  retry runs out (`core.filesRefLockTimeout`, 100 ms by default), so a write that meets it throws, as D4 throws what it
+  cannot classify.
 - **The work-item family is listed one kind at a time:** a work unit's meta from the tracked tree, an Errand's record
   from this person's ref. A listing that names no kind refuses `unsupported`, recoverable by listing each kind, and the
   lifecycle index lists the meta only, so the state of an Errand ref never reaches it.
 - **`history`** serves tracked records through the branch's commits and Errand records through their ref's commits,
   and refuses `unsupported` for a personal file, since no caller reads one's history before the flip.
 - **Kinds with no home in today's substrates** — the inbound list, conflict records, routing receipts, an Errand's
-  description, the Errand queue, durable review facts, adversarial-pass records, project identity and counters, and the
-  reserved families — list as `absent` and refuse writes `unsupported`, naming that the kind has no home before the
-  flip. Until then an Errand's goal stays in its record's `intent` and its origin entry, each person's queue in their
+  description, the Errand queue, durable review facts, adversarial-pass records, project identity and counters, the
+  reserved families, and the ghost profile's two families, which the standard profile keeps as tracked machinery outside
+  the store (D5) — list as `absent` and refuse writes `unsupported`, naming that the kind has no home before the flip.
+  Until then an Errand's goal stays in its record's `intent` and its origin entry, each person's queue in their
   execute-bound marks, and a pass's results in `ADVERSARIAL-PASSES.md` (D5).
 
 **It mirrors today, commits included, and makes no commit on the checkout's branch.** A write through the contract is
 today's write: for a tracked record, the file where it lives; for a personal file, a locked write; for a
-transient-identity record, today's transaction on its person's ref. Staging belongs to today's commit protocol, not to
-the store: a contract write leaves the index as it found it, and each verb keeps the `git add` it runs today — some
-stage their writes, others leave them to a ceremony's commit step — so rerouting changes no index state. Every branch
-commit ARC makes stays as it is until the flip — each ceremony's commit step with its class tag and routing, the commits
-`arc start` and `arc rename` make themselves, the verification commit carrying `arc attest`'s records, the task list
-riding its code commit, and ROADMAP rendered and staged by the verbs that stage it today. No verb gains a commit: a
-ceremony's save step is its own commit, behind today's gates. The write-then-`git add` protocol and the next actions
-that require a commit (`commit-selection`, `commit-boundary`, `candidate-publication-commit-required`) stay as they are.
+transient-identity record, today's transaction on its person's ref. Until the flip no meta, companion, task list, or
+personal file is validated by a parser at write, since no writer of those validates today: a write a parser would reject
+lands, as a write to a flat-active meta its parser rejects does (below). A Candidate, boundary, or transition record is
+written through today's store (`lib/work-unit/candidate-record-store.ts`, `submission-boundary-store.ts`,
+`transition-record-store.ts`). The backend first parses the content as JSON and validates it with the parser that store
+applies — `CandidateManagedRecordV1Schema`, `parseIntegrationBoundaryLocus`, which also accepts and upgrades a legacy
+boundary shape, or `TransitionRecordSchema` — before any version check, so content that fails refuses `record-malformed`
+naming the failing rule whatever version it expects. Content whose own key — a Candidate record's
+`attestation.workUnit`, a boundary's `workUnit`, a transition record's `origin` — names another record than the write
+does refuses `identity-mismatch`, naming both, since two of the stores take the file's path from that key and the third
+never checks it. The store then writes the record's canonical form inside the tracked-write lock — the Candidate and
+boundary stores under their own per-file locks, the transition store by exclusive create — and the write's version is
+the digest of the bytes the store's own serializer gives for that record, computed rather than re-read, which is the
+content's digest when the caller serializes as today's writer does. Anything the store throws after that comes from the
+stored record or the version: a stale version is `version-conflict`, and a stored record the store's own read rejects —
+malformed, or naming another work unit — throws, as that store throws today (D4). A read of a stored Candidate,
+boundary, or transition record whose own key names another record refuses `identity-mismatch`, naming both, and a
+listing gives it as a `key-mismatch` diagnostic, where today's store read throws. A removal is today's deletion there —
+the file, or the record's entry on the ref, as abandon, resume, workspace close, and Errand close delete today — and
+every substrate serves it, since it changes no placement, unlike a move, which relocates a work item's files and stays
+the lifecycle verbs' until they are rerouted. A tracked removal deletes this checkout's copy only: a later read composes
+as any read with no tree copy does, returning another branch's copy where one is selected, as a resumed work unit's read
+returns its branch's meta once its pointer is gone — on a work unit's own branch, which the composition reads as it
+reads every branch but base, the copy committed at `HEAD` until the removal is committed — and the listing of the
+records this checkout holds no longer gives it, which is how a verb confirms its removal. Staging belongs to today's
+commit protocol, not to the store: a contract write leaves the index as it found it, and each verb keeps the `git add`
+it runs today — some stage their writes, others leave them to a ceremony's commit step — so rerouting changes no index
+state. Every branch commit ARC makes stays as it is until the flip — each ceremony's commit step with its class tag and
+routing, the commits `arc start` and `arc rename` make themselves, the verification commit carrying `arc attest`'s
+records, the task list riding its code commit, and ROADMAP rendered and staged by the verbs that stage it today. No verb
+gains a commit: a ceremony's save step is its own commit, behind today's gates. The write-then-`git add` protocol and
+the next actions that require a commit (`commit-selection`, `commit-boundary`, `candidate-publication-commit-required`)
+stay as they are.
 
 **Reads return the working tree; the state version names saved state.** Reads of this checkout's records return the
-working tree where it holds the selected copy. An edit made by hand — a draft, a ticked checkbox — and a verb's staged
-write are in no state version until the commit carrying it lands: the ceremony's, or the code commit a task list rides.
-A record's own version, its content digest, is exact from the write, so compare-and-swap and bound checks never wait on
-a commit; a caller that anchors on the state version commits first, as handoff already does. The conformance suite
-asserts over writes made through the contract; uncommitted edits are working-copy behavior outside it.
+working tree where it holds the selected copy or a copy agreeing with it — its slug, `State`, `Owner`, `Priority`,
+`Cohort`, `Depends On`, and placement matching — placement standing for the location and parked scheduling it compares,
+both following from directory and `State` — the fields today's composition compares to grant a writable path
+(`recordsAgree` in `lib/work-unit/composed-lifecycle-index.ts`), while its progress fields may differ. A parked work
+unit's backlog pointer is the one such copy whose bytes differ from the selected copy's, both copies deriving its
+backlog placement alike: a read returns the pointer and its version, as resume and abandon read it today, while listings
+give the selected copy's fields, as `arc status` shows them, with the pointer's version. A listed record's version is
+always the one its read returns, so a write built on a listing checks the copy it replaces. A meta that sits flat in
+`active/` is this checkout's record of its work unit whether or not its parser accepts it: a read returns that file and
+consults no other branch, so a read of this checkout's own work unit spawns no Git process; a write targets it; and both
+listings give it in place of any other copy of its slug. That extends today's selection, which takes an `active` copy
+over every other (`selectRecordCandidate` in `lib/status/project-view.ts`) once the composition's reader has accepted
+it, to a copy that reader rejects; beside another copy of its slug, which no ARC writer produces, today's composition
+drops it and selects the other. Every other read composes as records on other branches do, below. `list`'s filter for
+the records this checkout holds (D1) reads the working tree with no cross-branch lookup, by the files the lifecycle walk
+finds (`collectLifecycleMetaFiles` in `lib/work-unit/lifecycle-index.ts`) over the locations it names — `active/` read
+flat, regular files only — keeping, of a slug found in more than one, the flat-active file, else the copy
+`compareLifecycleSources` prefers among those the lifecycle index can place, else the preferred. Each file kept lists as
+a record or a diagnostic whatever its `State`, since dropping a meta its `State` places nowhere is the lifecycle index's
+step, not the listing's, and `readActiveMetaCandidates` keeps such a meta today. The composed index walks the same files
+and ranks a slug's copies the same way, so this checkout's copy under that filter is the composed index's current-tree
+copy, the rejected flat-active meta aside. An edit made by hand — a draft, a ticked checkbox — and a verb's staged write
+are in no state version until the commit carrying it lands: the ceremony's, or the code commit a task list rides. A
+record's own version, its content digest, is exact from the write, so compare-and-swap and bound checks never wait on a
+commit; a caller that anchors on the state version commits first, as handoff already does. The conformance suite asserts
+over writes made through the contract; uncommitted edits are working-copy behavior outside it.
 
 **Records on other branches** are listed and read through today's composed lifecycle index and in-flight derivation
-(`lib/work-unit/composed-lifecycle-index.ts`, `lib/git/in-flight-derivation.ts`, `lib/git/remote-ref-reader.ts`):
-local branches, and pushed branches through remote refs, degrading to the last-known refs offline as today. They are
-read-only and read live. Where a record is both in the working tree and on another branch, reads and lists return the
-copy today's composition selects. A write checks the tree copy, so where the tree copy disagrees with the selected
-one — the index then withholds the writable path — the write refuses `checkout-not-writable`, as abandon and rename
-refuse without current-checkout write authority today, naming where the selected copy lives. A record with no tree
-copy is read-only here.
+(`lib/work-unit/composed-lifecycle-index.ts`, `lib/git/in-flight-derivation.ts`, `lib/git/remote-ref-reader.ts`), built
+as `arc status`'s slug query builds them: local branches, and pushed branches through their remote-tracking refs as last
+fetched, with the base branch from configuration and the Errand branch map from the ref of the identity the composition
+point resolves, where `arc status` and ROADMAP rendering read only `arc.identity`. A listing makes no network call;
+callers that read the remote live today — `arc status --fetch`, and the lifecycle verbs, `arc start`, and `arc rename`
+with their materialized result — keep their code until they are rerouted. Other branches' records are read-only and read
+live from those refs. Where a record is both in the working tree and on another branch, lists return the copy today's
+composition selects, and reads do too unless the tree copy agrees with it, a flat-active meta aside (above). A work unit
+is read from one copy: its companions and task list are read beside the meta copy its read returns — this checkout's,
+where it holds the selected copy or one agreeing with it, else the selected copy on its branch, where today's matcher
+finds them in that copy's directory of the branch's tree, read-only and live. Reading a companion from another branch is
+new, since no reader does it today; a parked work unit's are read beside its pointer, which park writes into the planned
+folder where a stub left on base after start keeps its companions, so they are the stub's from before start, as today's
+readers on base read them, while the work unit's own stay on its preserved branch. The task list is read at its address,
+`tasks-<slug>.md` beside the meta copy, never through the meta's `Task List` field, which today's readers resolve
+(`resolveTaskListPath` in `commands/active/status.ts`); where no file is there, a read is `not-found`. A companion or
+task list of a work unit no read finds is `not-found` too, its remedy creating the meta with it in one batch.
+
+**Write admission follows the same copy.** A write to a work unit's meta, companion, or task list — an update, a
+removal, or a creation — is admitted where the meta copy a read of the work unit returns is one this checkout holds: its
+flat-active meta, or a tree copy agreeing with the selected one. Everywhere else it refuses `checkout-not-writable`
+(D4), naming where the selected copy lives — the worktree holding it where one does, else its branch, which a checkout
+of it can write. A companion or task list lands beside that copy, and a creation's absence is checked there, where its
+read looks. Three cases follow. A flat-active meta is the copy its read returns, so a write to its work unit's records
+is admitted with no composition, whether or not its parser accepts the meta. A parked work unit's pointer agrees with
+its selected copy, so a write to its records beside the pointer is admitted as today — the pointer's own, and abandon's
+removal of the pointer with the stub's files beside it among them. Resume removes the pointer alone (`park-resume.ts`),
+and the stub's files stay on base until the work unit's branch, which deleted them, merges: an edit made to one
+meanwhile conflicts with that deletion, and a file created beside the pointer outlives it, as today. A stub left on base
+after start disagrees with its selected copy, so no write to its work unit's records is admitted from base. Two writes
+are admitted on other grounds: a meta's creation, checked against this checkout's tree as today's create edge checks a
+new slug (`buildLifecycleIndex` in `lib/work-unit/lifecycle-executor.ts`), with any companion or task list created in
+the same batch landing beside it; and a write to a Candidate, boundary, or transition record, which are read from this
+checkout's tree alone and admitted as today, the write-context preflights their only guard. The composition admission
+reads is the listing's, built as `arc status` builds it, while abandon, resume, and rename build theirs with remote work
+units expanded live and the current branch passed as `prospective`. So a work unit started from another clone and not
+yet fetched here is admitted or refused as the listing shows it, and one whose tree copy was moved from `active/` into
+the backlog on its own branch and not yet committed — where `prospective` sets aside the branch's committed copy so the
+moved one is selected — is checked against the committed copy and refused until the move is committed, the refusal
+naming that commit as its remedy, since the worktree holding the selected copy is this one.
 
 **The state version** is the checkout's branch tip, `HEAD`, which advances at each commit on the branch; `version`
-returns it. Personal files, transient-identity records, and other branches' records keep per-record versions — content
-digests and blob object IDs — and sit outside it; nothing binds them to the state version (D2), and reading them as of
-a version, or the changes between two, refuses `unsupported`. A transient-identity listing still comes from one tip,
-so it is consistent in itself.
+returns it. Reads and lists as of a version run over that commit's tree alone, by the rules the listing of the records
+this checkout holds runs by over the working tree, so they keep the copies that listing keeps — never another branch's,
+since other branches sit outside the state version — and drop the same two metas D9 names; whether a record that tree
+lacks is another branch's, which refuses `unsupported`, or no record's, `not-found`, the current composition tells. A
+listing as of a version carries that version, and a live listing carries none, since the working tree it reads is no
+saved state (D4). Personal files, transient-identity records, and other branches' records keep per-record versions —
+content digests and blob object IDs — and sit outside it; nothing binds them to the state version (D2), and reading them
+as of a version, or the changes between two, refuses `unsupported`. A transient-identity listing still comes from one
+tip, so it is consistent in itself.
 
 **Batches.** A batch spanning substrates is refused whole, `unsupported`, before anything is written. Within one
 substrate it is all or nothing:
@@ -688,19 +982,33 @@ substrate it is all or nothing:
   keeps doing so under the index lock, as start graduation and a dependency-edge discharge do through
   `captureGitIndexState` (`lib/git/exec.ts`) and park landing does by hand (`lib/work-unit/park-planning-landing.ts`);
 - a transient-identity ref's records land in one transaction;
-- a personal file lands in one locked write.
+- personal files land under one hold of the notes lock, each checked against its digest before any is replaced, then
+  replaced atomically one by one, every file already replaced restored from its captured bytes if a later one fails, as
+  tracked records are.
 
 Verbs that cross substrates today — the workspace close when a work unit leaves active state, Errand close's inbox drop,
 promotion, and the inbox drain — keep their order and idempotent reruns.
 
-**Sync.** Contract `sync` covers personal files, through today's notes sync, and transient-identity refs, through their
-reconcile and push (`reconcileErrandPush` in `lib/errand/merge.ts`), and reports D4's outcomes with the in-repo
-additions. A transient-identity write also publishes inside the write, as its transaction does today (D4). `arc sync`
-keeps pairing the branch push with the notes push under the push interlock (`handlers/sync.ts`); once `arc sync` is
-rerouted, its notes leg goes through contract `sync`. The branch push is never part of contract `sync`.
+**Sync.** Contract `sync` covers personal files, through today's notes sync — save, then the reconciling push
+(`reconcileNotesPush` in `commands/user/push-fetch.ts`), as `arc sync` runs them when it pushes notes without the branch
+(`pushNotesLeg` in `handlers/sync.ts`) — and transient-identity refs, through their reconcile and push
+(`reconcileErrandPush` in `lib/errand/merge.ts`), and reports D4's outcomes with the in-repo additions: one for the
+notes push, carrying personal files, and one for the Errand push, carrying Errand records and claims. The notes push
+runs first, and the Errand push runs whatever outcome it returns, since they push independent refs; a throw is no
+outcome, so a notes leg that throws — a failed readback — ends sync before the Errand push, where `arc sync` records the
+save failed and still pushes Errand refs. Whether `origin`, the remote both pushes name, is set is read from
+configuration before anything is pushed. A transient-identity write also publishes inside the write, as its transaction
+does today (D4). The branch push is never part of contract `sync`, so that notes-only path is the one it mirrors: notes
+saved on a commit not yet pushed refuse `unpublished-history`, as they do there today. When `arc sync` pushes the branch
+too, it pairs the two under the push interlock (`runPairedPush` in `commands/user/paired-push.ts`): the branch first,
+then a notes export bounded by the branch just pushed, retried twice and then offered for retry, never reconciled.
+`arc sync` keeps both paths until the cutover removes its notes cells; contract `sync` then takes their place, and the
+state push no longer waits on the branch push. The Errand transaction and both pushes gain the detail D4's mapping needs
+— the records they name and a failure's cause, set where Git fails — with their kinds and messages unchanged.
 
 **Entries.** The inbox writer stays keyed on an entry's title and source digest and stamps no `_Id:_`, so every
-unrelated byte stays as today. `arc user inbox-remove` keys on the title, recomputing the digest under its lock.
+unrelated byte stays as today; once rerouted it computes the file's new content, which the contract writes whole
+against the file's digest. `arc user inbox-remove` keys on the title, recomputing the digest under its lock.
 
 **Reverse lookup** keeps today's derivations (D3).
 
@@ -709,7 +1017,8 @@ unrelated byte stays as today. `arc user inbox-remove` keys on the title, recomp
 **Named costs,** accepted for the interval before the flip:
 
 - the next actions that require a commit stay in the machine contracts;
-- today's write-context preflights stay, reported as `checkout-not-writable`;
+- today's write-context preflights stay, reported as `checkout-not-writable`, which a write to a work unit's records
+  also refuses where the meta copy a read of the work unit returns is not this checkout's (D8);
 - the flip carries the workflow rewrite, and `arc save`, write-back, and task captures first run for real at the flip,
   so the cutover's rehearsal is where they are exercised end to end;
 - branchless planning can be built against the contract but verified only on a backend with worktrees — the ref
@@ -728,27 +1037,74 @@ unrelated byte stays as today. `arc user inbox-remove` keys on the title, recomp
 Three pieces every rerouting of callers calls. They land here, over the contract, so parallel rerouting work shares
 nothing but the landed contract.
 
-- **The current-work-unit resolver** returns the checkout's work unit by identity. Over the in-repo implementation it
-  resolves as today's code does — the only meta in this checkout's flat `active/`, the lite layout's `status.md`, or the
-  contributor root under `.arc/user/<identity>/active/` — giving the answers `resolveActiveWu`
-  (`lib/release/wu-resolution.ts`), `readActiveMetaCandidates` (`lib/active/meta-reader.ts`), and `resolveCurrentWuSlug`
-  (`handlers/lifecycle.ts`) give today, and the count the one-work-unit-per-worktree guard takes. Those three become
-  delegates over it, so their call sites are served unchanged. The resolver moves onto the checkout marker plus the
-  store before the projection's `active/current/` layout lands (D13), since it reads `active/` without recursing.
+- **The current-work-unit resolver** returns the checkout's work unit by identity. It lists metas at `active` with
+  `list`'s filter for the records this checkout holds (D1). Over the in-repo implementation it resolves as today's code
+  does — the only meta in this checkout's flat `active/`, read from the checkout's working tree with no Git process, a
+  regular file, as the lifecycle walk takes it, so a symbolic link to a meta, which today's reader follows, is none; and
+  counting a meta as today's reader does: one it cannot read, or whose content `parseMetaFile` cannot parse, is a
+  warning and no candidate, while one only the meta kind's parser rejects is still a candidate (D5) — giving the answers
+  `resolveActiveWu` (`lib/release/wu-resolution.ts`), `readActiveMetaCandidates` (`lib/active/meta-reader.ts`), and
+  `resolveCurrentWuSlug` (`handlers/lifecycle.ts`) give today, and the candidates the one-work-unit-per-worktree guard
+  checks. Those three become delegates over it, so their call sites are served unchanged; `readActiveMetaCandidates`
+  reads each candidate's content through `read` and parses it as today, since the resolver's parsed record normalizes
+  the placeholder values — `[none]`, `[TBD]` — its consumers compare. It loads the resolver on first call, so importing
+  `lib/active/meta-reader.ts`, which the lifecycle index and the composition the in-repo implementation wraps import,
+  loads no store module and closes no import cycle; and the in-repo implementation statically imports none of the
+  modules `arc active status` defers, loading the Candidate, integration-boundary, and transition stores, the
+  configuration reader, and its sync arm on first use. Two reads stay with today's reader: the lite layout's
+  `status.md`, which has no slug, so no identity; and the contributor root under `.arc/user/<identity>/active/`, which
+  `arc status` reads for a contributor — the contributor's separate layout, which retires (D14), so the contract never
+  carries it. A caller names that root by passing it, while `resolveActiveWu` always passes the default `.arc/active`,
+  so the delegate keys on the root's value. On a backend whose state lives off the checkout's branch the filter refuses
+  `unsupported`, and the resolver takes its remedy: it reads the checkout's marker with no Git process
+  (`readWorktreeMarker` in `lib/git/worktree-marker.ts`) and, where the marker names a work unit and carries no husk
+  stamp, resolves its claim through `lookup` and keeps the work unit only where a read of its primary record gives
+  placement `active`, as the in-repo arm lists metas at `active` alone. It finds none where the marker is absent, names
+  no work unit, or is husked — teardown stamps a husk onto the marker of a checkout whose work unit shipped, was
+  abandoned, or was parked, keeping its subject — or where the work unit is no longer in flight, including where
+  `lookup` or the read refuses `not-found` because this machine no longer holds its record, as after it was abandoned or
+  decomposed elsewhere, just as the in-repo arm finds none where no meta sits at `active`; and none with a warning where
+  the marker is malformed or either refuses otherwise. So it runs unchanged across the flip, and it is on the marker and
+  the store before the projection's `active/current/` layout lands (D13), which its flat read of `active/` would not
+  see.
 - **The lifecycle index keyed by identity** lists work units by identity with their parsed meta fields, never a path,
   and answers `lookup` for lineage by slug and in-flight work by checkout claim. Over the in-repo implementation it
-  composes from `resolveComposedLifecycleIndex`, keeping its selected copy, its current-tree copy, and its writable
-  authority. Existing callers of today's index keep their code until rerouted; for every caller that reads the meta
-  through an index entry's path — at least ten — the index serves it in the sense the success criteria test: for each
-  of its queries, it returns the same records and fields that path read does.
+  composes from `resolveComposedLifecycleIndex` through the contract's listing, keeping the selected copy's fields and
+  placement; this checkout's own copy comes from the filter below. From the two it answers whether this checkout's copy
+  is the selected one — agreeing with the selected copy in the fields and placement today's composition compares to
+  grant a writable path, a parked work unit's backlog pointer agreeing with its selected copy since both carry its
+  backlog placement and those fields (D8) — for the callers that read that today, and a caller that needs the copy's
+  path takes it from its placement through the layout resolver. Write admission stays inside the backend, which refuses
+  a write `checkout-not-writable` where the meta copy a read of the work unit returns is not one this checkout holds
+  (D8), never through a listing field. Given a state version, it lists as of that version, as the integration
+  checkpoint's reads at `HEAD` need; it also lists this checkout's records alone, through the same filter over every
+  location — over the in-repo implementation, the lifecycle walk with the copy D8 keeps, dropping a meta it cannot place
+  as `buildLifecycleIndex` does — for callers of today's tree-only index. It drops two metas that index keeps: a
+  flat-active meta it cannot place, beside another copy of its slug, where that index keeps the other copy; and a meta
+  at a path the layout resolver's reverse cannot place (D8), which that index places by its tier. Both of those answers
+  — whether this checkout's copy is the selected one, and this checkout's records alone — rest on `list`'s filter, so
+  they are the in-repo implementation's bridge for callers of today's tree-only index and writable path and retire with
+  it: on a backend whose state lives off the checkout's branch each refuses as the filter does, and a caller rerouted
+  onto either branches on the capability (D15). Existing callers of today's index keep their code until rerouted; for
+  every caller that reads the meta through an index entry's path in this checkout — at least ten — the index serves it
+  in the sense the success criteria test: for each of its queries, it returns the same records and fields that path read
+  does, from the working tree or the state version the query reads. A caller that reads another branch's tree at a named
+  commit, as teardown's retirement authorization reads a parked work unit's head and base, is a branch-tree reader the
+  index does not serve, since reads of other branches' records as of a version refuse `unsupported` (D8).
 - **The store behind the integration checkpoint's lifecycle port** (`IntegrationLifecycleStoragePort` in
   `scripts/integration/checkpoint-composition.ts`, whose `readSnapshot` returns `{ version, fs }`). Its version is the
   contract's `version`, and its file reads resolve through the layout resolver to the contract's reads as of that
-  version. Over the in-repo implementation that is `HEAD` and the tree at `HEAD`, exactly as the default ports in
-  `checkpoint-composition.ts` and `merge-composition.ts` build today, and those defaults become this store. The
+  version; its directory listings, which the lifecycle index walks, come from the contract's listings, each work item at
+  the path its placement and, in the backlog, its `Cohort` field give. They list records only — no README, no archive
+  folder without a meta, and no meta the layout cannot place (D8) — so the store answers as the default ports do in the
+  lifecycle summary the checkpoint reads, not in every directory listing, but for the two metas the index drops (above):
+  the summary omits them, where the default ports give an unplaceable meta at its tier and a rejected flat-active meta's
+  slug at its other copy. Over the in-repo implementation that is `HEAD` and the tree at `HEAD`, exactly as the default
+  ports in `checkpoint-composition.ts` and `merge-composition.ts` build today, and those defaults become this store. The
   checkpoint's binding moves onto its lifecycle records and code head (D2) before the flip: from the flip the state
-  version covers every record, and `merge.ts` compares the port's version whole, so an unrelated write would
-  invalidate it (D15).
+  version covers every record, and `merge.ts` compares the port's version whole, so an unrelated write would invalidate
+  it (D15). When that binding moves, the port answers from the identity-keyed index and the meta's read as of the
+  version, no longer from a file tree.
 
 ### Part B — Specified here, realized by later changes
 
@@ -965,9 +1321,10 @@ past a bound.
 **Pushes batch per machine at coarse firing points** — handoff, lifecycle transitions, an explicit sync — never per
 write. A lifecycle step that already pushes a code branch carries its state refs in the same `--atomic` push.
 
-- **The push loop** fetches into the remote-tracking namespace, merges entry by entry, and retries with jittered backoff
-  sized to the host's push time on `fetch first`, `non-fast-forward`, `incorrect old value provided`, GitHub's
-  `cannot lock ref`, and Azure DevOps's `TF401028`; any other refusal ends the loop and shows the server's message.
+- **The push loop** fetches into the remote-tracking namespace, merges entry by entry — a single-writer record changed
+  on both sides becoming a conflict record (D4) — and retries with jittered backoff sized to the host's push time on
+  `fetch first`, `non-fast-forward`, `incorrect old value provided`, GitHub's `cannot lock ref`, and Azure DevOps's
+  `TF401028`; any other refusal ends the loop and shows the server's message.
 - State commits are authored as the user. A repository keeps one designated state host.
 - The state leg pushes alone when the code leg cannot — a detached verification checkout, or a branch that cannot be
   pushed.
@@ -1038,12 +1395,12 @@ reconcile, the stale sweep, and branch-gone recovery merge up or refuse a linked
 
 **The `active/` layout,** kept if it holds up in use:
 
-- `active/current/` holds the work item this checkout's marker names. For a work unit, that is its files flat as
-  `active/` holds them today, plus a copy of each cohort document its `Cohort` field names; for an
-  Errand, its description, `errand-<slug>.md`, in whichever checkout the Errand occupies, the primary included.
-  `active/in-flight/<slug>/` holds other in-flight work items, read-only —
-  an Errand while it is open elsewhere, paused, or awaiting merge; the checkout's own never appears there. Which ones is
-  a personal setting — `mine` (the default), `cohort`, or `all`, plus named pins — so paths stay stable and only
+- `active/current/` holds the work item this checkout's marker names, while the marker carries no husk stamp and the
+  work item is in flight. For a work unit, that is its files flat as `active/` holds them today, plus a copy of each
+  cohort document its `Cohort` field names; for an Errand, its description, `errand-<slug>.md`, in whichever checkout
+  the Errand occupies, the primary included. `active/in-flight/<slug>/` holds other in-flight work items, read-only — an
+  Errand while it is open elsewhere, paused, or awaiting merge; the checkout's own never appears there. Which ones is a
+  personal setting — `mine` (the default), `cohort`, or `all`, plus named pins — so paths stay stable and only
   membership varies.
 - Folders exist only when they have members: no `current/` in a checkout without a work item, and no empty
   `in-flight/`. A file created at `active/`'s top level has no owner, so persist refuses it with a remedy naming
@@ -1059,10 +1416,11 @@ reconcile, the stale sweep, and branch-gone recovery merge up or refuse a linked
   pass rewrites `strategy-work-organization.md` § Per-Worktree Isolation and its acceptance test.
 - **Revert:** `active/` flat for the checkout's work item, everything else unchanged — one layout-resolver setting until
   the layout has seen use.
-- **Ordering:** the current-work-unit resolver reads `active/` without recursing, so it moves onto the checkout marker
-  plus the store before this layout lands. Session-init's slots that carry literal `.arc/active/meta-<slug>.md` paths
-  — the active path, the frame's meta and task-list paths, load-set entries, and the reconcile command — and the
-  compaction seed take their paths from the layout resolver first, and the seed's schema version bumps.
+- **Ordering:** the current-work-unit resolver reads `active/` without recursing, so it must resolve from the checkout
+  marker plus the store before this layout lands, which it does wherever the store's filter for this checkout's records
+  refuses (D9). Session-init's slots that carry literal `.arc/active/meta-<slug>.md` paths — the active path, the
+  frame's meta and task-list paths, load-set entries, and the reconcile command — and the compaction seed take their
+  paths from the layout resolver first, and the seed's schema version bumps.
 
 **Edit rights follow lifecycle state and kind of file,** not the projected folder:
 
@@ -1087,8 +1445,10 @@ reconcile, the stale sweep, and branch-gone recovery merge up or refuse a linked
 - the read-only file mode (the read-only attribute on Windows), which refresh lifts to rewrite;
 - the typed refusal at persist, as the backstop, which keeps the edit, never drops it, and names where to apply it.
 
-**Conflicts show in the projected file itself,** and status and the refusing verbs report them too. `WORKING-MEMORY`
-loads into every session, so a conflict shown only in status would have every session read one side as settled.
+**Conflicts show in the projected file itself** — as markers around the clash, or, for a whole record, as a notice — and
+status and the refusing verbs report them too. `WORKING-MEMORY` loads into every session, as a work unit's meta and task
+list load into each of its sessions, so a conflict shown only in status would have every session read one side as
+settled.
 
 - **Display:** standard Git conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`) around both whole versions of a
   conflicted entry, or around the conflicting lines of prose, each side labelled with its machine or session and time.
@@ -1100,18 +1460,24 @@ loads into every session, so a conflict shown only in status would have every se
   hold-back guard, with teardown's export into a conflict record, retires for merge surfaces. The surface's owner
   decides a resolution; a session proposes one and applies it on the owner's approval, never picking a side on its own.
   Code gates stop globbing projected state, where a lint rule would read an open conflict's markers as a heading.
+- **A whole-record conflict** — a single-writer record changed on both sides (D4, D6) — takes no markers, which would
+  leave its parsed file unreadable, so write-back would skip it for good. The file shows the store's version with a
+  notice line beside its base stamp, in the generated-file idiom of a protected file's notice and stripped with the
+  stamp at persist, naming the conflict record, the other side's machine or session and time, and the remedy: a verb or
+  a write naming the conflict resolves it (D4).
 
 **Persisting.**
 
 - **Write-back.** At the start of every `arc` command in a checkout, beside the refresh it already runs there, the
-  projection writes back pending edits: the work unit's files and the user surfaces, and in the owning checkout the
-  meta and task list. Each kind's parser accepts a hand edit and refuses, reporting it, a change to a field only a verb
-  may set, while the file keeps the edit. A file that fails to parse is skipped and reported, never blocking the
-  command. There is no setting to turn write-back off: it moves a file the editor already saved into the store, as a
-  sync tool does, and turning it off would only leave edits out of other worktrees' views longer, exposed to
-  `git clean -x`, and open to conflict for longer.
+  projection writes back pending edits: the work unit's files and the user surfaces, and in the owning checkout the meta
+  and task list. Each kind's parser accepts a hand edit and refuses, reporting it, a change to a field only a verb may
+  set, while the file keeps the edit. A file that fails to parse is skipped and reported, never blocking the command. An
+  edit that clashes with a change the store already holds is kept as the incoming side of a conflict record, the store's
+  version staying current (D6). There is no setting to turn write-back off: it moves a file the editor already saved
+  into the store, as a sync tool does, and turning it off would only leave edits out of other worktrees' views longer,
+  exposed to `git clean -x`, and open to conflict for longer.
 - **`arc save`** writes back the checkout's pending edits at once and returns the state version — a named point in
-  history carrying the per-write message. It replaces `arc user save`.
+  history carrying each write's provenance. It replaces `arc user save`.
 - Persisting is local and cheap; pushing stays coarse and batched (D12).
 - **Teardown persists first** and refuses while a projected file is unadopted or held by a conflict.
 
@@ -1258,8 +1624,9 @@ keyed on its one capability (D1), and keeps today's behavior until then:
   `arc errand queue set`, the drain's execute-now disposition, and the next offer; the session-notes path that
   session-init's load set and handoff resolve, the workspace's open seed, its close at park, abandon, decompose, and
   archive, and its move at rename, with archive's clearing of session context and the scratch reconcile at session
-  start; and every code path that writes, renders, or checks the stored ROADMAP. The cutover's
-  deletion pass removes the arms for today's behavior.
+  start; every code path that writes, renders, or checks the stored ROADMAP; and every caller rerouted onto the
+  lifecycle index's two answers over the filter for this checkout's records (D9). The cutover's deletion pass removes
+  the arms for today's behavior.
 - **It is the one exception** to the rule that nothing above the contract knows which backend is active: only the
   in-repo implementation answers no, so a verb that branches on the capability can tell it from the others. The
   exception retires with those arms.
@@ -1279,8 +1646,8 @@ keyed on its one capability (D1), and keeps today's behavior until then:
 
 ### D16. Task close and commit captures
 
-**One close verb** closes a set of tasks — marking each complete, and each parent whose subtasks are then all
-complete — and captures the increment's commits, `HEAD` or named commits, into their task records.
+**One close verb** closes a set of tasks — marking each complete, and each parent whose subtasks are then all complete —
+and captures the increment's commits, `HEAD` or named commits, as those tasks' captures (D3).
 
 - It runs after the commit, which it never makes. The commit is the increment's as today, behind the increment's
   structured gate, which already covers work and commit, and routed as a task-commit fire site; it may come from an
@@ -1288,10 +1655,10 @@ complete — and captures the increment's commits, `HEAD` or named commits, into
 - **Completion is a field only the verb sets.** Write-back persists every other task-list edit — a task added,
   reworded, or annotated — and refuses a hand tick, reporting it and naming the verb while the file keeps the edit. The
   parent cascade is computed, never kept by hand.
-- A task's record holds a list of commits, which may be empty: a task that produced no commit closes with none.
-- **The capture survives rewrites.** It holds each commit's SHA and patch-id (D3). ARC's own rewrites — the history
-  policy's catch-up with base — remap captures from the rewrite's old-to-new mapping, and running the verb again after
-  an amend replaces that increment's capture.
+- A task's captures are a list of commits, which may be empty: a task that produced no commit closes with none.
+- **The capture survives rewrites.** It holds each commit's SHA and, where it has one, its patch-id (D3). ARC's own
+  rewrites — the history policy's catch-up with base — remap captures from the rewrite's old-to-new mapping, and running
+  the verb again after an amend replaces that increment's capture.
 - **It closes any set of tasks** — one, a parent, a phase, several phases — against the commits of that increment;
   nothing in the capture assumes one task per commit or per increment, so a raised review-increment floor composes
   with it.
@@ -1450,8 +1817,8 @@ on who pushes to a branch, not team size.
   evidence, recover's strict-ancestry check, and the advisory pre-push backstop — consults the policy, with a
   lease-guarded rewrite path; the pre-push hook treats state refs separately from code.
 - Supersession detection (`lib/git/supersession.ts`) stays as the safety net once rewrites are allowed.
-- **Nothing depends on commit reachability.** State keys to work units and identities, never to a code commit; a
-  capture that names a commit carries its patch-id and is remapped by ARC's own rewrites (D3, D16).
+- **Nothing depends on commit reachability.** State keys to work units and identities, never to a code commit; a capture
+  that names a commit carries its patch-id where it has one and is remapped by ARC's own rewrites (D3, D16).
 - The many small store commits write-back produces are the history policy's to fold.
 
 **Deferred capabilities,** each never precluded and each with a reserved hook or a tripwire:
@@ -1599,8 +1966,11 @@ whatever two or more of them share or whatever defines their boundary, and build
 - Projection refresh across twenty worktrees on one machine takes under 0.2 s, with a stat re-check.
 - A person-year of personal history pushed commit by commit is 5.5–5.7 MB, 26.6 MB where a host repacks at the default
   window; a rotated year for ten people fetched 8–19 MB.
-- The in-repo implementation adds a layer of indirection over today's reads and writes and no new Git invocations
-  beyond what today's code paths make.
+- The in-repo implementation adds a layer of indirection over today's reads and writes, and Git invocations beyond what
+  today's code paths make in three places only: the composition a read, or a write's admission, runs for a work unit
+  this checkout holds no flat-active meta for (D8), where a reader of the working tree alone runs none today; a
+  companion's or task list's read from another branch; and the tracked-write lock's resolution of the checkout's Git
+  directory.
 
 **Testing.**
 
@@ -1667,22 +2037,22 @@ Validated at this change's completion, over Part A:
 4. **Batches.** A batch with one stale record applies nothing and names every stale record; on the in-repo
    implementation a batch spanning substrates refuses `unsupported` with no file, note, or ref changed.
 5. **Same results over today's substrates.** For each family the in-repo implementation serves — tracked records (a
-   meta through the lifecycle index, a Candidate record, a transition record), personal files (`USER-INBOX` entries, a
-   `SESSION-NOTES` file), and Errand records (the absent, `error`, and complete snapshot outcomes) — a consumer's
-   reads through the contract return what its current code path returns over the same repository, and writes through
-   the contract produce the bytes today's writers produce.
+   meta through the lifecycle index, a Candidate record, a transition record), personal files (a `USER-INBOX` file, its
+   entries as today's parser reads them, and a `SESSION-NOTES` file), and Errand records (the absent, `error`, and
+   complete snapshot outcomes) — a consumer's reads through the contract return what its current code path returns over
+   the same repository, and writes through the contract produce the bytes today's writers produce.
 6. **The shared pieces serve their existing call sites.** `resolveActiveWu`, `readActiveMetaCandidates`, and
    `resolveCurrentWuSlug` delegate to the resolver and every existing test passes unchanged; the lifecycle index returns
    the same records and fields as today's path reads for each query of every existing caller that reads the meta through
-   an index entry's path; and the checkpoint's and merge composition's default lifecycle storage is the new store, with
-   their tests passing unchanged.
+   an index entry's path in this checkout, but for the two cases D9 names; and the checkpoint's and merge composition's
+   default lifecycle storage is the new store, with their tests passing unchanged.
 7. **Nothing observable changes.** The change's diff touches nothing under `packages/arc-framework/arc/` — no
    workflow, template, method, or strategy; no verb gains or loses a commit; and the existing ceremony tests pass
    unchanged.
-8. **The concurrency library** is covered for: disjoint insertions merging; a same-entry clash becoming a conflict
-   record with both sides labelled; a removal racing an edit leaving the edit; a retitle merging as an edit; an entry
-   without an ID gaining one, and an ID clash re-drawn; clean and conflicting three-way line merges; and rank keys
-   between any two neighbours sorting as specified.
+8. **The concurrency library** is covered for: disjoint insertions merging; a same-entry clash keeping the current
+   version and becoming a conflict record that names its entry, with both sides labelled; a removal racing an edit
+   leaving the edit; a retitle merging as an edit; an entry without an ID gaining one, and an ID clash re-drawn; clean
+   and conflicting three-way line merges; and rank keys at any position, tied neighbours included, sorting as specified.
 9. **The reference backend never ships.** The package build output contains none of it, and a check fails if any
    module under `src/` imports it.
 10. **Refusals are recovery-complete.** Every refusal the contract defines carries its class, observed condition, and
@@ -1695,8 +2065,8 @@ Validated at this change's completion, over Part A:
 13. **One composition point.** No module under `src/` outside `lib/store/` imports a backend directly; tests reach
     backends only through the conformance fixtures.
 14. **Sync outcomes.** The reference backend produces every sync outcome and failure class, and over the in-repo
-    implementation each outcome today's notes push and Errand push report maps onto D4's as stated there, with no
-    change in what `arc sync` does.
+    implementation each outcome today's notes save and push and Errand push report maps onto D4's as stated there,
+    with no change in what `arc sync` does.
 15. **Quality gates.** Markdown lint and the ARC contract checks, both type checks, `lint:ts` with no new size-gate
     suppression, `npm test`, and the build pass; E2E and portability pass in required CI.
 
@@ -1709,8 +2079,8 @@ operations and outcomes, and which test tier each conformance fixture runs in.
 
 **Left to the changes that realize Part B,** each bounded by the constraint stated where it arises:
 
-- each family's field schema, and which fields a verb owns (D5, D13), the work-item base's among them, with the name
-  of its type field;
+- each family's field schema, and which fields a verb owns (D5, D13), the work-item base's among them — beyond its
+  links and placement — with the name of its type field;
 - how review working state splits between stored facts and machine-local state (D5);
 - where an executing work unit integrates inbound entries, since it has no next planning iteration (D11);
 - the inbox listing verb's name, and the close verb's name and placement (D11, D16);

@@ -600,11 +600,142 @@ batches append rows at the table's end, so a key keeps its row.
 
 ## Implementation pointers
 
-- **Sync outcomes today,** the set D4 maps: the notes push's nine — `success`, `noop`, `ok-recovered`, `cancelled`,
-  `no-remote`, `refused`, `failed-nontty-conflict`, `blocked`, and `failed` (`PairedPushNotesPusherResult` in
-  `commands/user/types.ts`) — and the Errand push's six — `pushed`, `noop`, `reconciled`, `conflict`, `no-remote`, and
-  `failed` (`ErrandPushOutcome` in `lib/errand/merge.ts`). `cancelled` is what `arc sync` reports when the person
-  declines its notes-push prompt (`handlers/sync.ts`), before the pusher runs.
+- **Sync outcomes today,** the set D4 maps. The notes save (`runUserSave` in `commands/user/save-load.ts`) runs
+  first, as `arc sync` runs it, snapshotting the files into a note on `HEAD`; it throws plain `UserSaveError` when no
+  file is eligible, and its subclass `UserSaveVerificationError` (`commands/user/types.ts`) when the saved note fails
+  its readback. `arc sync` then pushes notes by one of two paths. When it pushes them without the branch, its notes leg
+  (`pushNotesLeg` in `handlers/sync.ts`) runs `reconcileNotesPush` (`commands/user/push-fetch.ts`, through
+  `pushNotesWithReconcile` in `handlers/push-recovery.ts`), which wraps `runUserPush` and, on a `history-diverged`
+  refusal or a thrown non-fast-forward, fetches the remote's notes, merges them with `cat_sort_uniq`, and pushes again.
+  It returns `NotesPushOutcome`: `pushed`, `noop`, `reconciled`, `no-local-notes`, `no-remote`, `refused`, `blocked`,
+  `conflict`, or `failed`. Bare `runUserPush` returns `pushed`, `noop`, `no-local-notes`, `no-remote`, or `refused`,
+  and throws `UserPushBlockedError` on a pushability block and the push's own error otherwise. Notes saved on a commit
+  not yet pushed refuse `unpublished-history` there; two clones that save on commits of their own, each pushed, end
+  `pushed` and then `reconciled`, and two that save different content on one commit end `conflict`, since the merged
+  note no longer parses (probed with the multi-clone helper). When `arc sync` pushes the branch too, the paired cell
+  (`runPairedPush` in `commands/user/paired-push.ts`) saves, pushes the branch, plans a notes export bounded by the
+  branch just pushed (`planBranchBoundedNotesExport`; a plan it cannot make is `refused`, never reconciled), and pushes
+  it under `runNotesPushWithRetry` (`commands/user/notes-push-retry.ts`) — two silent retries on `failed`, then a retry
+  offer. Contract `sync` never pushes the branch, so it mirrors the first path; the cutover removes both, as the
+  consumer map's `handlers/sync.ts` and `paired-push.ts` rows record. The Errand push returns
+  `pushed`, `noop`, `reconciled`, `conflict`, `no-remote`, or `failed` (`ErrandPushOutcome` in `lib/errand/merge.ts`).
+  `arc sync`'s paired pusher type (`PairedPushNotesPusherResult` in `commands/user/types.ts`) adds three: `cancelled`,
+  which `arc sync` reports when the person declines its notes-push prompt (`handlers/sync.ts`), before the pusher runs;
+  and `ok-recovered` and `failed-nontty-conflict`, which nothing in `src/` produces — the type's own comment keeps them
+  for test stubs and legacy rendering.
+- **No remote is read from configuration.** Both pushes report `no-remote` when `isRemoteUnavailableError`
+  (`lib/git/ref-tree.ts`) matches `Could not read from remote`, which `git push`, `git fetch`, and `git ls-remote` print
+  alike for an unconfigured remote and an unreadable one; only `git remote get-url` prints `No such remote`. So whether
+  a remote exists is read with `git remote get-url origin` before anything is pushed: every notes and Errand push and
+  fetch names `origin` (`commands/user/push-fetch.ts`, `lib/errand/merge.ts`), as the identity transaction's callers do,
+  so a repository whose only remote has another name has none to sync with. A configured remote whose repository is gone
+  — a moved bare repository included, checked with Git 2.55 — prints that same text, and `classifyRemoteFailure`
+  (`lib/git/remote-ref-reader.ts`) matches it as neither network nor authentication. So once configuration shows the
+  remote exists, a failure `isRemoteUnavailableError` matches is `unreachable`, and `classifyRemoteFailure` splits the
+  rest.
+- **The tracked-write lock composes the advisory lock and shares no other lock's file.** `acquireAdvisoryLock`
+  (`lib/advisory-lock.ts`) is the one machine-local primitive: test admission, the notes lock, the review gate's locks,
+  the Candidate and boundary stores' per-file locks, and `withWorktreeOperationLock` all build on it, and the
+  tracked-write lock does too, with a lock file of its own. Sharing another lock's file would fail. The
+  worktree-operation lock (`<common-dir>/arc-worktree-operation.lock`) is held across rename, teardown, reconcile, and
+  provisioning, which will write tracked records through the contract once rerouted, and the advisory lock is not
+  reentrant, so a write inside them would wait on its own holder until it timed out. The test-admission slot is a
+  machine-wide heavy-test slot with nothing to do with records. The lock sits in the checkout's own Git directory rather
+  than the common one, since tracked files belong to one working tree, so two checkouts never contend. Each `with*Lock`
+  wrapper today repeats the acquire, run, and release scope — `withWorktreeOperationLock`, the review gate's two in
+  `scripts/review-gate/hosts/local/git-common-state.ts`, and `withLockedUserInbox`; Task 4.2 -
+  `tasks-storage-contract.md` lifts the first into `withAdvisoryLock` for the new lock, and the others keep their own.
+- **One tree walk.** The lifecycle index and the composition walk the same files (`collectLifecycleMetaFiles` in
+  `lib/work-unit/lifecycle-index.ts`): `active/` flat, the backlog and archive trees nested, regular files only, so a
+  symbolic link and a nested `active/` meta are in neither. Both rank a slug's copies by `compareLifecycleSources` —
+  active over planned over provisional over completed, then path order by code unit — and accept the same metas:
+  `entryFromMeta` and the composition's `readProjectMeta` (`lib/status/project-view.ts`) each drop one `parseMetaRecord`
+  rejects or whose `State` places it nowhere. So over `active/meta-resumed.md` and
+  `completed/<quarter>/<n>-resumed/meta-resumed.md` both keep the active copy, and the composition's current-tree copy
+  is the copy `buildLifecycleIndex` keeps. The held-here filter takes that walk and that ranking, keeping one copy per
+  slug, with one departure: a flat-active meta is this checkout's record of its work unit whether or not its parser
+  accepts it, so the filter keeps it, and `read`, a write, and the full listing take it, where the index and the
+  composition drop it and keep another copy of its slug. That needs a hand-written value the parser rejects — no ARC
+  writer emits one, since `renderIdentifierList` writes `[none]` for an empty `Design` or `Depends On` — beside a
+  duplicate copy, which only a bad merge leaves; the alternative, composing such a read, would spawn Git for the
+  current-work-unit resolver and hand `readActiveMetaCandidates` another copy's bytes. The filter takes the walk's
+  files, never the index's entries: a meta whose `State` resolves to no lifecycle position, a missing `State` or H1
+  among them, still lists, and the index over the filter drops it, as `readActiveMetaCandidates`
+  (`lib/active/meta-reader.ts`) keeps it and checks no `State`. A meta whose `Design` or `Depends On` holds a
+  hand-written `[TBD]` or `—` lists as a diagnostic, and the current-work-unit resolver still counts it and its delegate
+  reads its bytes, as today's reader does. Three residues differ from today's readers, all accepted since ARC creates
+  none: a file whose name carries no slug the kernel's slug schema accepts — `meta-.md`, an uppercase name, a name with
+  a line break — has no identity and lists as a diagnostic, where both readers keep it; a symbolic link to a meta in
+  `active/`, which `readActiveMetaCandidates` follows with `stat`, is no candidate once that reader delegates to the
+  resolver, as every lifecycle walk now skips one; and a meta at a path the layout resolver's reverse
+  (`identifyWorkUnitArtifactPath`) cannot place — flat in `backlog/planned/` or `completed/`, under an uppercase
+  quarter, or under a third cohort level — has no placement and lists as a diagnostic, so the index over the contract
+  drops it where today's walk places it by its tier. Only test fixtures hold one (`composed-lifecycle-index.test.ts`);
+  every meta in this repository places, and no writer builds such a path.
+- **Parked work units: two copies that agree.** Parking an Active work unit leaves a pointer meta, `State` `Active`,
+  under `backlog/planned/` on the base branch, and the work unit's own meta at `active/` on its preserved branch
+  (`lib/work-unit/verbs/park-resume.ts`). Today's composition selects the branch copy and, with a planned `Active` copy
+  beside it, places the record at `planned` and marks it parked (`mergeProjectReadinessRecords`,
+  `lib/status/project-view.ts`); the tree's own records run through the same merge, so the pointer alone is marked
+  parked too, and `recordsAgree` (`lib/work-unit/composed-lifecycle-index.ts`) grants the writable path at the pointer.
+  Resume requires `planned` and that path (`park-resume.ts`), and abandon parses the meta there
+  (`handlers/lifecycle.ts`). So the contract places a parked work unit at its pointer's directory, a read returns the
+  pointer, which agrees with the selected copy, and a write checks the pointer, while listings keep the branch copy's
+  fields, as `arc status` shows them, with the pointer's version. Agreement compares only `recordsAgree`'s fields —
+  slug, `State`, `Owner`, `Priority`, `Cohort`, `Depends On`, location, and scheduling — never the progress fields
+  `composePointerRecord` (`lib/work-unit/pointer-record.ts`) leaves at their defaults. Once resume removes the pointer,
+  a read from base returns the branch copy. A work unit's companions and task list are read beside the meta copy its
+  read returns, so a parked work unit's are read beside its pointer, which park writes into the planned folder where a
+  stub left on base after start keeps its companions (`parkedDestination`, `park-resume.ts`), so they are the stub's
+  from before start, as today's readers on base read them, while the work unit's own stay on its preserved branch.
+  Writes beside the pointer are admitted as today: abandon removes the pointer and every `artifactMatcher` match beside
+  it (`verbs/abandon.ts`), while resume removes the pointer alone, leaving the stub's files on base until the work
+  unit's branch, which deleted them, merges. Where this checkout holds no agreeing copy, they are read from the selected
+  copy's branch, which no reader does today: every companion reader reads this checkout's tree. No index entry carries
+  scheduling (`LifecycleIndexEntry`): the in-flight oracle's `scheduling` stays the oracle's, read by session-init's
+  materializable set, foreign-artifact detection, and `lib/status/in-flight-mine.ts`.
+- **A cohort member's folder and its `Cohort` field.** Today they are two facts kept in agreement. `recordsAgree`
+  (`lib/work-unit/composed-lifecycle-index.ts`) compares the field and the location separately; the composition takes a
+  record's cohort from the field (`lib/status/project-view.ts`), never from the folder; and every verb that places a
+  stub builds the folder from the field, an empty, `[none]`, or `—` value meaning no cohort folder, as the lifecycle
+  index reads the field (`nullableProjectionValue` in `lib/active/meta-reader.ts`) — `projectBacklogDestination`
+  (`lib/work-unit/verbs/promote-demote.ts`) for promote and demote, and `stub --cohort` (`lib/work-unit/verbs/stub.ts`).
+  The pre-commit cohort-consistency check (`scripts/validate-cohort-consistency.ts`, over
+  `lib/active/cohort-consistency.ts`) refuses a staged planned meta whose field and folder disagree. So placement
+  carries no cohort: a path built from a placement and the field — a creation (Task 4.4.a), the checkpoint port's
+  adapter (Task 5.3.a) — is where the meta sits wherever that check has held, and the in-repo walk finds a meta wherever
+  it sits, so a hand-moved file that slipped past the check still lists, its cohort read from its field. `stub --cohort`
+  refuses a provisional cohort member, since membership is resolved under `backlog/planned/` alone, while demote places
+  one in a provisional cohort folder; a contract creation follows the layout as demote does, and the verb keeps its
+  refusal until it is rerouted.
+- **The checkout's marker.** `readWorktreeMarker` (`lib/git/worktree-marker.ts`) reads `worktree-marker.json` under
+  `.arc/system/.internal/`, at the path `resolveWorktreeMarkerPath` builds from the checkout root, by file reads alone
+  with no Git process, so the current-work-unit resolver's fallback (Task 5.1.a) keeps today's cost. It answers present,
+  absent, or malformed. A present marker's subject is a work unit by name; an Errand, a grooming claim, or a
+  housekeeping claim by slug and claim ID; a partial-protection Errand by slug with no claim; or a branch by ref.
+  Teardown keeps a checkout it cannot remove yet as a husk by stamping the existing marker (`husk`,
+  `lib/work-unit/teardown-worktree-transaction.ts`), subject and all, when its work unit shipped, was abandoned, or was
+  parked (`lib/session-init/current-husk-advisory.ts`); today that checkout's flat `active/` is empty, so the resolver
+  finds none. So only an unhusked work unit's claim resolves, through `lookup`, and the work unit is kept only where its
+  primary record's placement is `active`: every other subject, a husked or absent marker, and a work unit no longer in
+  flight — `lookup` or the read refusing `not-found` among them, as for one abandoned elsewhere, whose record this
+  machine no longer holds — resolve to none, and a malformed marker, or any other refusal, is a warning and resolves to
+  none, as a meta the resolver cannot read is a warning and no candidate.
+- **The Errand push merges two-way.** `mergeErrandTrees` (`lib/errand/merge.ts`) calls any record both sides hold with
+  different bytes a collision, even one only the remote changed, while the identity transaction reconciles three-way
+  against the common base (`reconcileIdentityObjects` in `lib/errand/identity-transaction.ts`). So when an in-write
+  push fails and another machine then updates a record this one left alone, contract `sync` reports `conflict` for it,
+  as `arc sync` does today, and the next write's transaction merges it. In-repo sync mirrors today here; making the
+  push three-way is outside this change.
+- **One identity, where `arc status` and ROADMAP rendering read another.** The composition point resolves identity as
+  user and Errand commands do — `resolveIdentity` (`lib/git/identity.ts`) with no prompt, falling back to a slugified
+  `user.name` when `arc.identity` is unset (`resolveIdentityWithPrompt(false, …)` in `handlers/shared.ts`, which
+  `arc errand` calls) — so Errand records are read under the identity they were created under. `arc status`'s slug query
+  reads only `arc.identity` (`readIdentityPointers` → `readConfiguredIdentity`, `handlers/identity-pointers.ts`), so for
+  a person with only `user.name` set it reports their own Errand branches as residue, where the contract's full listing
+  does not. ROADMAP rendering and its regeneration check read the same way (`resolveProjectErrandOracleContext` in
+  `lib/status/project-oracle-context.ts`, over `readConfiguredIdentity`). Each keeps its code until `storage-seam`
+  reroutes it onto the contract, and the difference ends when the last of them is rerouted.
 - **The freshness rule's code-side twin.** `strategy-integration.md` leaves an attestation standing unless a base merge
   overlaps what it covered. Today other work's state files ride its merges into base, and base-overlap analysis
   (`lib/git/base-distance.ts`) finds them disjoint from what an attestation covered, while a state file both touch — a
@@ -620,6 +751,40 @@ batches append rows at the table's end, so a key keeps its row.
   values.
 - **The task-commit fire site** is `taskCommit` in the release routing decision (`ReleaseRoutingValueSchema` in
   `lib/release/routing.ts`).
+
+## Concurrency library
+
+- **Entry shapes today.** `USER-INBOX` holds heading entries — `### [ ] **title**`, then descriptor bullets — under
+  `## Errand` and `## Work Unit`; `WORKING-MEMORY` holds field-header entries — a `**title:**` line, a `_Remove when:_`
+  trigger, then prose — under `## Memories`. `parseCrossWuEntries` (`lib/user-sync/parser.ts`) strips HTML comments,
+  reads only its named sections, and trims each block, so it cannot rejoin a file byte for byte. The library's splitter
+  keeps every byte, and a test holds it to the same entries; the caller names the shape and the sections, so no
+  surface's name enters the library.
+- **Where an `_Id:_` goes.** Beside the entry's managed fields: a `- _Id:_` descriptor bullet after a heading entry's
+  last one, or a line under a field-header entry's `_Remove when:_` trigger. The grammar is `managedFieldValue`'s
+  (`lib/session-init/managed-field.ts`), restated in the library because `lib/store/`'s core imports only the kernel.
+- **Placement.** An inserted entry lands after the nearest entry preceding it on its own side that survives the merge,
+  or at the head of its section when none does. Entries both sides insert at one point order by ID, so the result does
+  not depend on which side is current. Order among the entries both sides kept follows the side that reordered
+  them; where both reordered them differently, the base's order stands, since no entry list carries a meaningful hand
+  order — the Errand queue orders by rank key.
+- **Sections and the bytes outside entries.** An entry's section is part of the entry: a move between sections is an
+  edit, and a move racing another edit to the entry is a same-entry clash. A file's opening, section headings,
+  comments, and separators merge as prose, by three-way line merge, a clash landing as a conflict record.
+- **Line merge outcomes.** Each side's final newline is a three-way flag outside the line arrays, so adding or dropping
+  it on either side merges cleanly. A side emptied against an unchanged side merges to empty, and against an edited
+  side conflicts. Edits to adjacent lines conflict: `diff3Merge` and `git merge-file` both report line 2 changed on one
+  side and line 3 on the other as one conflicting hunk.
+- **Rank ties.** `fractional-indexing` is deterministic, so two inserts between the same neighbours draw the same key,
+  and since each stub is its own record both writes succeed and the tie persists. Under `(rank, stub UID)` no single key
+  sorts between two stubs that share a rank: placing Z between X and Y, both ranked `k` with the next rank up `n`, gives
+  Z, Y, and every tied stub above Y fresh keys between `k` and `n` in one batch.
+- **Packages.** `node-diff3` 3.2.1 is MIT with no dependencies, ships ES modules with a `types` export condition, and
+  names only Bun in `engines`, which npm does not enforce. `diff3Merge` defaults `excludeFalseConflicts` to `true`
+  and splits string input on whitespace; the wrapper passes arrays of lines and sets the option itself. `fast-check`
+  4.10.2 is MIT and brings `pure-rand`. `fractional-indexing` 4.0.0 is CC0: with its default alphabet it generates the
+  same keys as 3.2.0, it swaps neighbours given out of order where 3.2.0 throws, and its custom-alphabet branches put
+  `generateKeyBetween` near complexity 20.
 
 ## Evidence behind Part B
 
@@ -671,8 +836,10 @@ That work unit has shipped, and this design builds on what it landed:
    rest — `WorkUnitStateResult`, `ErrandStateResult`, `UserSessionInitStatusResult`, `userReferenceReconcile`,
    `currentWuReconcile`, `StaleWorktreeSweepResult`, and `DerivedLocusFrame` — with full schemas. The consumer map
    names the envelope against that shape.
-3. **Layout.** Framework-path construction runs through the layout resolver; work-unit state paths and the Candidate,
-   submission-boundary, and transition records were carved to the seam and resolve through `resolveArcPath`.
+3. **Layout.** Framework-path construction runs through the layout resolver. Work-unit state paths and the paths of
+   the Candidate, submission-boundary, and transition records were deferred to the seam: their stores still build their
+   own paths, and the layout has no address kind for those records until Task 4.1 - `tasks-storage-contract.md` adds
+   them.
 4. **The Git executor.** `RawGitExec` and `RawGitResult` in `lib/git/exec.ts`, bound executors threaded through every
    spawn, and the failure-text predicates and `resolveGitCommonDir`, moved into `lib/git/ref-tree.ts` and
    `lib/git/exec.ts`, are the groundwork the ref backend's Git access builds on.

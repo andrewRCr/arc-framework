@@ -10,7 +10,7 @@
 - **Origin:** `[internal] — renamed from arc-backend at the state-storage re-cut (2026-09-28), absorbing
   local-mode`
 - **Design:** `spec-storage-contract.md`
-- **Task List:** [none]
+- **Task List:** `tasks-storage-contract.md`
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
@@ -18,7 +18,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]
