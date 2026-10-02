@@ -14,7 +14,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** [none]
-- **Last Completed:** spec finalized after five spec adversarial passes; stage advanced to generate-tasks
+- **Last Completed:** task list generated after six adversarial passes; work unit activated
 - **Next Task:** Begin Task 1.1 — Baseline the test-cost rows this change moves
 - **Blockers:** [none]
 
