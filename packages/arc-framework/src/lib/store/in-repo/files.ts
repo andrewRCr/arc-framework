@@ -31,7 +31,14 @@ export async function readFileAt(context: InRepoContext, path: string, revision?
  * @returns File-type-bearing entries, preserving symbolic links as nonregular.
  */
 export async function directoryAt(context: InRepoContext, path: string, revision?: string): Promise<StoreDirectoryEntry[]> {
-  if (revision === undefined) return context.ports.fs.readdir(join(context.ports.checkoutRoot, path));
+  if (revision === undefined) {
+    try { return await context.ports.fs.readdir(join(context.ports.checkoutRoot, path)); }
+    catch (error) { if (isMissing(error)) return []; throw error; }
+  }
+  const options = { cwd: context.ports.checkoutRoot, objectAccess: "local-only" as const };
+  const entry = await context.ports.exec("git", ["ls-tree", "-z", revision, "--", `:(literal)${path}`], options);
+  if (entry.stdout === "") return [];
+  if (!/^040000 tree [0-9a-f]+\t/u.test(entry.stdout)) throw new Error(`The record namespace is not a directory: ${path}`);
   const { stdout } = await context.ports.exec("git", ["ls-tree", "-z", `${revision}:${path}`], {
     cwd: context.ports.checkoutRoot, objectAccess: "local-only",
   });

@@ -38,7 +38,7 @@ for (const family of families) {
       else if (d.inRepo.substrate === "transient-identity" && name === "diagnostic-unknown-format-version") assertions[`${name}:${kind}`] = "Transient format remains 1; unknown content versions instead list as malformed.";
       else if (d.inRepo.substrate === "transient-identity" && name === "history-caller-and-owner-provenance") assertions[`${name}:${kind}`] = "Transient history returns ref commit messages without individual writer provenance or batch IDs.";
       else if (d.inRepo.substrate !== "tracked" && name !== "first-persist-stamps-handwritten-entry") continue;
-      else if (name === "unreadable-family") assertions[`${name}:${kind}`] = "The lifecycle walk treats inaccessible directories as empty rather than unreadable families.";
+      else if (name === "unreadable-family" && kind === "project-inbox/inbox") assertions[`${name}:${kind}`] = "The legacy project inbox is one fixed file, not an enumerated namespace; denied file access is an unreadable-entry diagnostic.";
       else if (name.includes("write-provenance") || name.includes("owner-provenance")) assertions[`${name}:${kind}`] = historical;
       else if (name === "first-persist-stamps-handwritten-entry") assertions[`${name}:${kind}`] = "Interim whole-file writers preserve legacy bytes and do not stamp _Id_ fields on first persistence.";
       else if (["diagnostic-oversized", "diagnostic-unknown-format-version"].includes(name)) assertions[`${name}:${kind}`] = "Tracked legacy files have neither fixture size limits nor format-version envelopes.";

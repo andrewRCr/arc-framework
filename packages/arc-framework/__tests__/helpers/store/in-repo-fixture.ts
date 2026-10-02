@@ -100,6 +100,10 @@ export async function createInRepoFixture(): Promise<ConformanceFixture> {
       if (substrate === "transient-identity") return plantTransient(h.ports, reference, kind);
       if (substrate === "personal") return plantPersonal(h.root, reference, kind, denied);
       const path = pathFor(reference);
+      if (kind === "family-unreadable") {
+        const root = reference.kind === "cohort/document" ? join(h.root, resolveArcPath({ kind: "placement-root", tier: "planned" })) : dirname(path);
+        await chmod(root, 0); denied.add(root); return;
+      }
       if (kind === "unreadable") { await chmod(path, 0); return; }
       if (kind === "malformed") { await writeFile(path, "invalid machine JSON"); return; }
       if (kind === "key-mismatch") { await writeFile(path, inRepoContent(RecordReferenceSchema.parse({ ...reference, owner: { ...reference.owner, name: "wrong-owner" } }))); return; }

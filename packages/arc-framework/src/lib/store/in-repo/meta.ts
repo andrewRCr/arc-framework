@@ -7,7 +7,9 @@ import { identifyWorkUnitArtifactPath, resolveArcPath } from "../../layout/index
 import { collectLifecycleMetaFiles, compareLifecycleSources, entryFromMeta } from "../../work-unit/lifecycle-index.js";
 import type { ReadPlacement } from "../placement.js";
 import type { InRepoContext } from "./context.js";
-import { directoryAt, readFileAt } from "./files.js";
+import { readFileAt } from "./files.js";
+import { discoverDirectory, isAccessDenied } from "./discovery.js";
+import type { ListingDiagnostic } from "../read.js";
 import type { ComposedLifecycleIndexResult } from "../../work-unit/composed-lifecycle-index.js";
 
 /** One selected copy and the tree where its bytes live. */
@@ -53,30 +55,40 @@ export async function flatActiveMeta(context: InRepoContext, slug: string): Prom
 /** Collect this tree's copies using the existing lifecycle walk and source order.
  * @param context - Backend dependencies.
  * @param revision - Saved tree, or the working tree.
+ * @param locations - Requested lifecycle tiers; excluded tiers are not acquired.
+ * @param diagnostics - Listing-owned evidence for inaccessible directories.
  * @returns One preferred copy per slug, including malformed and invalid-name entries.
  */
 export async function heldMetaSources(context: InRepoContext, revision?: string,
-  locations?: readonly MetaSource["location"][]): Promise<MetaSource[]> {
+  locations?: readonly MetaSource["location"][], diagnostics?: ListingDiagnostic[]): Promise<MetaSource[]> {
   const root = context.ports.checkoutRoot;
-  const fs = revision === undefined ? context.ports.fs : {
-    readdir: (path: string) => directoryAt(context, relative(root, path).split(sep).join("/"), revision),
-    readFile: async (path: string) => {
-      const content = await readFileAt(context, relative(root, path).split(sep).join("/"), revision);
-      if (content === null) throw Object.assign(new Error("Record is absent"), { code: "ENOENT" });
-      return content;
-    },
-  };
+  const acquisition = metaDiscovery(context, revision, locations, diagnostics);
+  const files = await collectLifecycleMetaFiles(root, acquisition.fs);
+  acquisition.requireReadable();
   const candidates: MetaSource[] = [];
-  for (const file of await collectLifecycleMetaFiles(root, fs)) {
+  for (const file of files) {
     if (locations !== undefined && !locations.includes(file.location)) continue;
     const path = relative(root, file.path).split(sep).join("/");
     const slug = /^meta-(.+)\.md$/u.exec(basename(path))?.[1] ?? "";
     let content: string | null;
-    try { content = await readFileAt(context, path, revision); } catch { content = null; }
+    try { content = await readFileAt(context, path, revision); } catch (error) {
+      if (!isAccessDenied(error)) throw error;
+      content = null;
+    }
     candidates.push({ slug, path, content, location: file.location, revision,
       placement: placementFromPath(path), fields: parsedFields(content), writable: revision === undefined });
   }
   return preferredCopies(candidates);
+}
+function metaDiscovery(context: InRepoContext, revision?: string, locations?: readonly MetaSource["location"][], diagnostics?: ListingDiagnostic[]) {
+  const roots = locations?.map((tier) => resolveArcPath({ kind: "placement-root", tier }));
+  const failures: unknown[] = [];
+  return { fs: { ...context.ports.fs, readdir: async (path: string) => {
+    const local = relative(context.ports.checkoutRoot, path).split(sep).join("/");
+    if (roots !== undefined && !roots.some((root) => local === root || local.startsWith(`${root}/`))) return [];
+    try { return await discoverDirectory(context, local, revision, diagnostics); }
+    catch (error) { failures.push(error); throw error; }
+  } }, requireReadable: () => { if (failures.length > 0) throw failures[0]; } };
 }
 function preferredCopies(candidates: MetaSource[]): MetaSource[] {
   const bySlug = new Map<string, MetaSource[]>();
@@ -96,9 +108,10 @@ function preferredCopies(candidates: MetaSource[]): MetaSource[] {
 
 /** Resolve local branch membership with the same identity used by record writers.
  * @param context - Backend dependencies.
+ * @param diagnostics - Listing-owned evidence for inaccessible working-tree directories.
  * @returns Today's composed lifecycle view with no fetch or prospective overlay.
  */
-export async function composedMetas(context: InRepoContext): Promise<ComposedLifecycleIndexResult> {
+export async function composedMetas(context: InRepoContext, diagnostics?: ListingDiagnostic[]): Promise<ComposedLifecycleIndexResult> {
   const [{ resolveComposedLifecycleIndex }, { readConfigSettings }, transient] = await Promise.all([
     import("../../work-unit/composed-lifecycle-index.js"), import("../../config/status-reader.js"),
     import("../../errand/record.js"),
@@ -108,10 +121,13 @@ export async function composedMetas(context: InRepoContext): Promise<ComposedLif
   const identity = await ports.identity();
   const read = transient.projectTransientInFlightRead(await transient.readTransientInFlightIndexes({ exec, identity }));
   const { settings } = await readConfigSettings(ports.checkoutRoot);
-  return resolveComposedLifecycleIndex({ cwd: ports.checkoutRoot, fs: ports.fs, oracle: {
+  const acquisition = metaDiscovery(context, undefined, undefined, diagnostics);
+  const composition = await resolveComposedLifecycleIndex({ cwd: ports.checkoutRoot, fs: acquisition.fs, oracle: {
     exec, acquisitionPolicy: "local", baseBranch: settings["branch.base"],
     errandSlugByBranch: read.indexes.slugByBranch, errandRecordsComplete: read.complete,
   } });
+  acquisition.requireReadable();
+  return composition;
 }
 function sourceLocation(path: string, context: InRepoContext): { path: string; revision?: string } {
   const delimiter = path.indexOf(":.arc/");

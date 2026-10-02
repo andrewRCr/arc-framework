@@ -22,15 +22,16 @@ export async function listTracked(context: InRepoContext, input: ListInput): Pro
     .filter((kind) => kind.family === input.family && kind.inRepo.substrate === "tracked").map((kind) => kind.id) : [input.kind];
   const records: StoreRecord[] = [];
   const diagnostics: ListingDiagnostic[] = [];
+  const acquisition: ListingDiagnostic[] = [];
   for (const kind of kinds) {
-    for (const source of await kindSources(context, kind, input)) {
+    for (const source of await kindSources(context, kind, input, acquisition)) {
       if (input.owner !== undefined && !sameOwner(source.reference.owner, input.owner)) continue;
       const value = await listedRecord(context, source, input);
       if (value === undefined) continue;
       if ("reference" in value) records.push(value); else diagnostics.push(value);
     }
   }
-  return listing(records, diagnostics, input);
+  return listing(records, diagnostics, input, acquisition);
 }
 async function listedRecord(context: InRepoContext, source: KindSource, input: ListInput): Promise<StoreRecord | ListingDiagnostic | undefined> {
   const kind = source.reference.kind;
@@ -57,13 +58,20 @@ async function listingContent(context: InRepoContext, source: KindSource, input:
       remedy: { text: `Restore read access to ${source.path}, then list the records again.` } };
   }
 }
-function listing(records: StoreRecord[], diagnostics: ListingDiagnostic[], input: ListInput): ListingOutcome {
+function listing(records: StoreRecord[], diagnostics: ListingDiagnostic[], input: ListInput, acquisition: ListingDiagnostic[]): ListingOutcome {
+  const failures = [...new Map(acquisition.map((item) => [item.key, item])).values()];
+  if (records.length === 0 && diagnostics.length === 0 && failures.length > 0) {
+    return { status: "unreadable", condition: failures.map((item) => item.condition).join("; "),
+      remedy: { text: failures.map((item) => item.remedy.text).join("; ") } };
+  }
+  diagnostics.push(...failures);
   const asOf = input.asOf === undefined ? {} : { asOf: input.asOf };
   return records.length === 0 && diagnostics.length === 0 ? { status: "absent", ...asOf }
     : { status: "complete", records, diagnostics, missed: diagnostics.length > 0, ...asOf };
 }
 async function listMetas(context: InRepoContext, input: ListInput): Promise<ListingOutcome> {
-  const sources = await metaListingSources(context, input);
+  const acquisition: ListingDiagnostic[] = [];
+  const sources = await metaListingSources(context, input, acquisition);
   const records: StoreRecord[] = [];
   const diagnostics: ListingDiagnostic[] = [];
   for (const source of sources) {
@@ -74,26 +82,26 @@ async function listMetas(context: InRepoContext, input: ListInput): Promise<List
     records.push({ reference, content: source.content ?? "", fields: source.fields, placement: source.placement,
       version: RecordVersionSchema.parse(digestBytes(Buffer.from(source.content ?? ""))), formatVersion: 1, conflicts: [] });
   }
-  return listing(records, diagnostics, input);
+  return listing(records, diagnostics, input, acquisition);
 }
 interface KindSource { reference: RecordReference; path: string; meta?: MetaSource; revision?: string }
-async function kindSources(context: InRepoContext, kind: KindId, input: ListInput): Promise<KindSource[]> {
-  if (kind.startsWith("review/")) return reviewSources(context,kind,input);
-  if (kind === "lineage/transition") return internalReferences(context, kind, input.asOf);
+async function kindSources(context: InRepoContext, kind: KindId, input: ListInput, acquisition: ListingDiagnostic[]): Promise<KindSource[]> {
+  if (kind.startsWith("review/")) return reviewSources(context,kind,input,acquisition);
+  if (kind === "lineage/transition") return internalReferences(context, kind, input.asOf, acquisition);
   if (kind === "project-inbox/inbox") {
     const reference = recordReferences[kind](input.owner ?? OwnerIdentitySchema.parse({ type: "project", name: "project" }));
     return [{ reference, path: await recordPath(context, reference) }];
   }
-  if (kind === "cohort/document") return (await cohortPaths(context, input.asOf)).flatMap((path) => {
+  if (kind === "cohort/document") return (await cohortPaths(context, input.asOf, acquisition)).flatMap((path) => {
     const slug = SlugSchema.safeParse(/^cohort-(.+)\.md$/u.exec(basename(path))?.[1]);
     return slug.success ? [{ path, reference: recordReferences[kind](OwnerIdentitySchema.parse({ type: "cohort", name: slug.data })) }] : [];
   });
   if (!kind.startsWith("work-item/")) return [];
   const sources: KindSource[] = [];
-  for (const meta of await metaListingSources(context, input)) {
+  for (const meta of await metaListingSources(context, input, acquisition)) {
     const owner = OwnerIdentitySchema.safeParse({ type: "work-item", name: meta.slug });
     if (!owner.success) continue;
-    const keys = kind === "work-item/companion" ? await companionNames(context, meta) : [undefined];
+    const keys = kind === "work-item/companion" ? await companionNames(context, meta, acquisition) : [undefined];
     for (const key of keys) {
       const reference = RecordReferenceSchema.parse({ kind, owner: owner.data, ...(key === undefined ? {} : { key }) });
       sources.push({ reference, meta, revision:meta.revision, path: await recordPath(context, reference, meta) });
@@ -101,10 +109,10 @@ async function kindSources(context: InRepoContext, kind: KindId, input: ListInpu
   }
   return sources;
 }
-async function reviewSources(context: InRepoContext, kind: KindId, input: ListInput): Promise<KindSource[]> {
-  const metas = await metaListingSources(context,{...input,filter:input.filter?.heldHere === true ? {heldHere:true} : undefined});
+async function reviewSources(context: InRepoContext, kind: KindId, input: ListInput, acquisition: ListingDiagnostic[]): Promise<KindSource[]> {
+  const metas = await metaListingSources(context,{...input,filter:input.filter?.heldHere === true ? {heldHere:true} : undefined}, acquisition);
   const owners = new Map(metas.map((meta)=>[meta.slug,meta]));
-  const sources = await internalReferences(context,kind,input.asOf);
+  const sources = await internalReferences(context,kind,input.asOf,acquisition);
   return sources.flatMap((source)=> {
     const meta = owners.get(source.reference.owner.name);
     if (input.filter?.heldHere === true && meta === undefined) return [];
@@ -113,10 +121,10 @@ async function reviewSources(context: InRepoContext, kind: KindId, input: ListIn
     return [{...source,...(meta === undefined ? {} : {meta})}];
   });
 }
-async function metaListingSources(context: InRepoContext, input: ListInput): Promise<MetaSource[]> {
-  const held = await heldMetaSources(context, input.asOf, input.filter?.heldHere === true ? input.filter.locations : undefined);
+async function metaListingSources(context: InRepoContext, input: ListInput, acquisition: ListingDiagnostic[]): Promise<MetaSource[]> {
+  const held = await heldMetaSources(context, input.asOf, input.filter?.heldHere === true ? input.filter.locations : undefined, acquisition);
   if (input.asOf !== undefined || input.filter?.heldHere === true) return filterLocations(held, input);
-  const composition = await composedMetas(context);
+  const composition = await composedMetas(context, acquisition);
   const sources = new Map<string, MetaSource>();
   for (const slug of composition.recordsBySlug.keys()) {
     const source = await composedMetaSource(context, slug, composition);

@@ -5,7 +5,8 @@ import { identifyWorkUnitArtifactPath, resolveArcPath } from "../../layout/index
 import type { KindId } from "../catalog.js";
 import { OwnerIdentitySchema, RecordReferenceSchema, type RecordReference } from "../identity.js";
 import type { InRepoContext } from "./context.js";
-import { directoryAt } from "./files.js";
+import type { ListingDiagnostic } from "../read.js";
+import { discoverDirectory } from "./discovery.js";
 import { selectMeta, type MetaSource } from "./meta.js";
 import { notFound, unsupported } from "./refusals.js";
 
@@ -55,13 +56,12 @@ function companionPath(context: InRepoContext, reference: RecordReference, meta:
     : key === "spec-rfc" ? `spec-${reference.owner.name}-rfc.md` : `${key}-${reference.owner.name}.md`;
   return `${dirname(meta.path)}/${file}`;
 }
-async function filesUnder(context: InRepoContext, root: string, revision?: string): Promise<string[]> {
-  let entries;
-  try { entries = await directoryAt(context, root, revision); } catch { return []; }
+async function filesUnder(context: InRepoContext, root: string, revision?: string, diagnostics?: ListingDiagnostic[]): Promise<string[]> {
+  const entries = await discoverDirectory(context, root, revision, diagnostics);
   const paths: string[] = [];
   for (const entry of entries.sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0)) {
     const path = `${root}/${entry.name}`;
-    if (entry.isDirectory()) paths.push(...await filesUnder(context, path, revision));
+    if (entry.isDirectory()) paths.push(...await filesUnder(context, path, revision, diagnostics));
     else if (entry.isFile()) paths.push(path);
   }
   return paths;
@@ -69,24 +69,25 @@ async function filesUnder(context: InRepoContext, root: string, revision?: strin
 /** Discover cohort documents at their current planned or archived surfaces.
  * @param context - Backend dependencies.
  * @param revision - Saved state, or current working tree.
+ * @param diagnostics - Listing-owned evidence for inaccessible directories.
  * @returns Current role-named cohort document paths.
  */
-export async function cohortPaths(context: InRepoContext, revision?: string): Promise<string[]> {
+export async function cohortPaths(context: InRepoContext, revision?: string, diagnostics?: ListingDiagnostic[]): Promise<string[]> {
   const roots = [resolveArcPath({ kind: "placement-root", tier: "planned" }), resolveArcPath({ kind: "placement-root", tier: "completed" })];
-  const paths = (await Promise.all(roots.map((root) => filesUnder(context, root, revision)))).flat();
+  const paths = (await Promise.all(roots.map((root) => filesUnder(context, root, revision, diagnostics)))).flat();
   return paths.filter((path) => /^cohort-.+\.md$/u.test(basename(path)));
 }
 /** Discover references for a tracked kind with a fixed internal namespace.
  * @param context - Backend dependencies.
  * @param kind - Internal record kind.
  * @param revision - Saved state, or current working tree.
+ * @param diagnostics - Listing-owned evidence for inaccessible namespaces.
  * @returns References and the exact discovered paths.
  */
-export async function internalReferences(context: InRepoContext, kind: KindId, revision?: string): Promise<{ reference: RecordReference; path: string }[]> {
+export async function internalReferences(context: InRepoContext, kind: KindId, revision?: string, diagnostics?: ListingDiagnostic[]): Promise<{ reference: RecordReference; path: string }[]> {
   const example = RecordReferenceSchema.parse({ kind, owner: OwnerIdentitySchema.parse({ type: "work-item", name: "example" }) });
   const root = dirname(await recordPath(context, example));
-  let entries;
-  try { entries = await directoryAt(context, root, revision); } catch { return []; }
+  const entries = await discoverDirectory(context, root, revision, diagnostics);
   const pattern = kind === "review/integration-boundary" ? /^(.+)\.boundary\.json$/u : /^(.+)\.json$/u;
   const values: { reference: RecordReference; path: string }[] = [];
   for (const entry of entries) {
@@ -101,11 +102,11 @@ export async function internalReferences(context: InRepoContext, kind: KindId, r
 /** Discover nonstandard companions beside the selected work-unit copy.
  * @param context - Backend dependencies.
  * @param meta - Copy that determines companion locality.
+ * @param diagnostics - Listing-owned evidence for an inaccessible companion directory.
  * @returns Logical name keys, excluding conventional roles and same-name cohort documents.
  */
-export async function companionNames(context: InRepoContext, meta: MetaSource): Promise<string[]> {
-  let entries;
-  try { entries = await directoryAt(context, dirname(meta.path), meta.revision); } catch { return []; }
+export async function companionNames(context: InRepoContext, meta: MetaSource, diagnostics?: ListingDiagnostic[]): Promise<string[]> {
+  const entries = await discoverDirectory(context, dirname(meta.path), meta.revision, diagnostics);
   const { artifactMatcher } = await import("../../work-unit/mutators/relocate-artifacts.js");
   const matcher = artifactMatcher(meta.slug);
   const roles = new Set(Object.keys(conventionalRoles));
