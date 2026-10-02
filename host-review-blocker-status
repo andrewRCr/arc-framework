@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "host-review-blocker-status",
+  "claimId": "6e7b7da5992e834e3b5d32634d2bc0da",
+  "createdAt": "2026-10-02T19:21:48.792Z",
+  "updatedAt": "2026-10-02T19:21:48.792Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Report a host native-review merge blocker in arc review status before the integration gate",
+  "branch": "chore/host-review-blocker-status",
+  "origin": "inbox",
+  "originEntry": "Report a host review blocker in `arc review status` before the integration gate",
+  "originEntrySourceDigest": "sha256:5a8e19c6eb44ebffb927a1606a9ed76b9beea4208d45a2e8da0077e572aad94f",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
