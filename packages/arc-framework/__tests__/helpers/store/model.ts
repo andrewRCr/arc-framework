@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import {
   OwnerIdentitySchema, RecordReferenceSchema, RecordVersionSchema, StateVersionSchema,
-  referenceOwner, referenceKind, referenceKey,
+  referenceOwner, referenceKind, referenceKey, sameOwner,
   type OwnerIdentity, type RecordReference, type RecordVersion, type StateVersion,
   type ReadPlacement, type Links, type StoredProvenance, type ConflictRecord, type FamilyId, type SideLabel,
 } from "../../../src/lib/store/index.js";
@@ -77,6 +77,22 @@ export function recordKey(reference: RecordReference): string {
   const owner = referenceOwner(reference);
   const ownerId = owner.type === "person" ? owner.name : owner.uid ?? owner.name;
   return JSON.stringify([owner.type, ownerId, referenceKind(reference), referenceKey(reference) ?? null]);
+}
+
+/** Recover accepted rename handles from this generation's records and saved primary states.
+ * @param state - Namespace, including published conflicts carrying owner alias metadata.
+ * @param reference - Exact record generation being preserved or restored.
+ * @returns Earlier handles belonging only to that owner generation.
+ */
+export function generationAliases(state: MemoryState, reference: RecordReference): string[] {
+  const key = recordKey(reference);
+  const names = [...state.records.values()].filter((record) => sameOwner(record.reference.owner, reference.owner))
+    .flatMap((record) => record.formerSlugs);
+  for (const snapshot of state.snapshots.values()) {
+    const record = snapshot.get(key);
+    if (record !== undefined) names.push(...record.formerSlugs, record.reference.owner.name);
+  }
+  return [...new Set(names.filter((name) => name !== reference.owner.name))];
 }
 
 /** Resolve a reference's owner, minting random generation IDs only when asked to create.

@@ -7,7 +7,7 @@ import {
 } from "../../../src/lib/store/index.js";
 import { mergeEntryText, mergeLineText, stampEntryIds } from "../../../src/lib/store/concurrency/index.js";
 import type { ReferenceContext } from "./context.js";
-import { advanceMemoryState, canonicalReference, recordKey, type MemoryRecord } from "./model.js";
+import { advanceMemoryState, canonicalReference, generationAliases, recordKey, type MemoryRecord } from "./model.js";
 
 /** Return a kind's declared grammar, or the reference fixture's explicit generic test grammar.
  * @param context - Independent registered kind mechanisms.
@@ -72,7 +72,7 @@ export function storeConflicts(context: ReferenceContext, conflicts: ConflictRec
     const allocated = advanceMemoryState(context.state);
     context.state.records.set(recordKey(reference), {
       reference, content: JSON.stringify(conflict), conflict, version: allocated.version,
-      formatVersion: context.registry[kind].formatVersion, formerSlugs: [], label: conflict.incoming.label,
+      formatVersion: context.registry[kind].formatVersion, formerSlugs: generationAliases(context.state, conflict.record), label: conflict.incoming.label,
     });
     context.state.events.push({ reference, version: allocated.version, stateVersion: allocated.stateVersion,
       label: conflict.incoming.label,

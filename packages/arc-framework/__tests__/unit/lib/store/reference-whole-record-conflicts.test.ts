@@ -188,7 +188,7 @@ it("retains the removing writer's time instead of the removed record's earlier l
     incoming: { label: label("local") } });
 });
 
-it("restores the incoming generation with its earlier rename handles after remote absence", async () => {
+it.each(["local", "receiver"] as const)("restores the incoming generation and earlier rename handles on %s after remote absence", async (resolver) => {
   const fixture = createReferenceFixture();
   const remote = fixture.remote(true)!;
   const base = await seed(fixture, fixture.reference("work-item/meta"));
@@ -201,12 +201,45 @@ it("restores the incoming generation with its earlier rename handles after remot
   success(await remote.write({ action: "remove", reference: base.reference, expected: base.version, provenance: testProvenance }));
   success(await fixture.store.sync());
   const { record } = await clash(fixture, final);
-  success(await fixture.store.write(WriteInputSchema.parse({ ...update(fixture, incoming), expected: null,
+  const resolvingStore = resolver === "local" ? fixture.store : remote;
+  success(await resolvingStore.write(WriteInputSchema.parse({ ...update(fixture, incoming), expected: null,
     content: incoming.content, resolves: [record.reference], provenance: { verb: "resolve", lifecycleAction: "resolve" } })));
   success(await fixture.store.sync());
   for (const store of [fixture.reopen(), remote]) {
     for (const slug of [base.reference.owner.name, middle.owner.name, final.owner.name]) {
       expect(success(await store.lookup({ kind: "slug", slug }))).toEqual({ reference: final });
     }
+  }
+});
+
+it("keeps published incoming aliases with their UID despite name reuse and failed reconciliation", async () => {
+  const fixture = createReferenceFixture();
+  const remote = fixture.remote(true)!;
+  const base = await seed(fixture, fixture.reference("work-item/meta"));
+  success(await fixture.store.sync());
+  const renamed = (name: string) => RecordReferenceSchema.parse({ ...base.reference, owner: { ...base.reference.owner, name } });
+  const middle = renamed("middle-isolated"), final = renamed("final-isolated");
+  success(await fixture.store.write({ ...update(fixture, base), reference: middle }));
+  success(await fixture.store.write({ ...update(fixture, success(await fixture.store.read({ reference: middle }))), reference: final }));
+  const incoming = success(await fixture.store.read({ reference: final }));
+  success(await remote.write({ action: "remove", reference: base.reference, expected: base.version, provenance: testProvenance }));
+  const replacement = success(await remote.write({ action: "put", reference: fixture.reference("work-item/meta"), expected: null,
+    content: fixture.content(base.reference), placement: { kind: "active" }, provenance: testProvenance }));
+  const before = success(await fixture.store.version());
+  fixture.remoteState("contended");
+  expect(success(await fixture.store.sync()).publishes[0]).toMatchObject({ status: "failed", failure: { code: "retries-exhausted" } });
+  expect(success(await fixture.store.version())).toBe(before);
+  expect(success(await fixture.reopen().lookup({ kind: "slug", slug: middle.owner.name }))).toEqual({ reference: final });
+  expect(success(await fixture.store.list({ family: "work-item", kind: "work-item/conflict-record" })).status).toBe("absent");
+  fixture.remoteState("available");
+  success(await fixture.store.sync());
+  const { record } = await clash(fixture, final);
+  success(await remote.write(WriteInputSchema.parse({ ...update(fixture, incoming), expected: null,
+    content: incoming.content, resolves: [record.reference], provenance: { verb: "resolve", lifecycleAction: "resolve" } })));
+  success(await fixture.store.sync());
+  for (const store of [fixture.reopen(), remote]) {
+    expect(success(await store.lookup({ kind: "slug", slug: middle.owner.name }))).toEqual({ reference: final });
+    expect(success(await store.lookup({ kind: "slug", slug: base.reference.owner.name }))).toEqual({ reference: replacement.reference });
+    expect(success(await store.read({ reference: replacement.reference })).version).toBe(replacement.version);
   }
 });

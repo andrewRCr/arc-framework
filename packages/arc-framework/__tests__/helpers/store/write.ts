@@ -8,7 +8,7 @@ import {
 import { ArchiveSequenceSchema } from "../../../src/lib/kernel/index.js";
 import type { ReferenceContext } from "./context.js";
 import {
-  advanceMemoryState, canonicalReference, ownerNameKey, recordKey, type MemoryRecord,
+  advanceMemoryState, canonicalReference, generationAliases, ownerNameKey, recordKey, type MemoryRecord,
 } from "./model.js";
 import { malformed, ok, namespaceAdmission, recordAdmission, refused, surfaceLock, versionConflict } from "./refusals.js";
 import { mergeBase, mergeContents, persistedContent, storeConflicts } from "./merge.js";
@@ -82,14 +82,6 @@ function placement(context: ReferenceContext, write: Extract<Mutation, { action:
   return { ...write.placement, sequence: ArchiveSequenceSchema.parse(String(next).padStart(2, "0")) };
 }
 
-function generationAliases(context: ReferenceContext, key: string, reference: Mutation["reference"]): string[] {
-  const names = [...context.state.snapshots.values()].flatMap((snapshot) => {
-    const record = snapshot.get(key);
-    return record === undefined ? [] : [...record.formerSlugs, record.reference.owner.name];
-  });
-  return [...new Set(names.filter((name) => name !== reference.owner.name))];
-}
-
 function land(context: ReferenceContext, write: WriteInput, batchId?: string): WriteResult {
   const reference = canonicalReference(context.state, write.reference, true);
   const key = recordKey(reference);
@@ -110,7 +102,7 @@ function land(context: ReferenceContext, write: WriteInput, batchId?: string): W
   };
   if (write.action === "remove") context.state.records.delete(key);
   else {
-    const formerSlugs = primary(write) && write.resolves?.length ? generationAliases(context, key, reference)
+    const formerSlugs = primary(write) && write.resolves?.length ? generationAliases(context.state, reference)
       : [...(prior?.formerSlugs ?? [])];
     if (primary(write) && prior && prior.reference.owner.name !== reference.owner.name) {
       formerSlugs.push(prior.reference.owner.name);
