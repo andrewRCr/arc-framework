@@ -389,9 +389,9 @@ prior count.
   On re-entry, re-invoke the exact settlement request. `already-settled / complete` advances the durable attempt
   only after the verb verifies the exact approved reply, actor, comment, and resolved thread with no host mutation;
   every stop state remains a stop. After the required phases complete, follow the approved response continuation
-  and, after a fix, the verified-fix response continuation through the owning status or resolve action. A response
-  that settles with no fix returns `settled | already-settled / continue-review`; continue from its `payload.policy`
-  when present. Do not feed the same findings to the driver again.
+  and, after a fix, the verified-fix response continuation through the owning status or resolve action. A hosted
+  response that settles with no fix returns `settled | already-settled / continue-review`; continue from its
+  `payload.policy` when present. Do not feed the same findings to the driver again.
 - `rate-limited | transient-unavailable / try-next-source` — a delivery member re-enters status; an ordinary
   singleton feeds that safe outcome to the same driver call. The outcome does not consume the pass.
 - Any ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops. Never replay
