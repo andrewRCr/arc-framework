@@ -8,7 +8,49 @@ import {
 import type { ConformanceFixture, ConformanceRegistration, SuiteItem } from "./fixture-contract.js";
 
 /** One numbered item's backend registration context. */
-export interface SuiteContext { item: SuiteItem; registration: ConformanceRegistration }
+export interface SuiteContext { item: SuiteItem; registration: ConformanceRegistration; coverage?: AssertionCoverage }
+/** Assertion names registered and exclusion declarations actually reported by one suite. */
+export interface AssertionCoverage { registered: Map<SuiteItem, Map<FamilyId, Set<string>>>; used: Set<string> }
+/** Create an isolated assertion inventory.
+ * @returns Empty registration and exclusion inventories.
+ */
+export function createAssertionCoverage(): AssertionCoverage { return { registered: new Map(), used: new Set() }; }
+/** Record a registered family assertion without opening a backend.
+ * @param context - Item and optional inventory.
+ * @param family - Served family.
+ * @param name - Exact registered assertion name.
+ */
+export function recordAssertion(context: SuiteContext, family: FamilyId, name: string): void {
+  const coverage = context.coverage;
+  if (!coverage) return;
+  let item = coverage.registered.get(context.item);
+  if (!item) { item = new Map(); coverage.registered.set(context.item, item); }
+  let names = item.get(family);
+  if (!names) { names = new Set(); item.set(family, names); }
+  names.add(name);
+  const excluded = context.registration.declarations.familyExclusions[family];
+  if (!excluded?.items?.[context.item] && excluded?.assertions?.[name]) coverage.used.add(`${family}:${name}`);
+}
+/** Find item exclusions that have no per-family assertion to report them.
+ * @param context - Completed item registration.
+ * @returns Named empty items and their declared reasons.
+ */
+export function emptyItemExclusions(context: SuiteContext): { family: FamilyId; reason: string }[] {
+  return context.registration.declarations.families.flatMap((family) => {
+    const reason = context.registration.declarations.familyExclusions[family]?.items?.[context.item];
+    return reason && !context.coverage?.registered.get(context.item)?.get(family)?.size ? [{ family, reason }] : [];
+  });
+}
+/** Refuse assertion exclusions that never selected a registered assertion.
+ * @param registration - Declared exclusions.
+ * @param coverage - Actual registration inventory.
+ */
+export function validateUsedAssertionExclusions(registration: ConformanceRegistration, coverage: AssertionCoverage): void {
+  const unused = registration.declarations.families.flatMap((family) =>
+    Object.keys(registration.declarations.familyExclusions[family]?.assertions ?? {})
+      .filter((name) => !coverage.used.has(`${family}:${name}`)).map((name) => `${family}: ${name}`));
+  if (unused.length) throw new Error(`Invalid conformance registration: unused assertion exclusions ${unused.join(", ")}`);
+}
 /** Stable caller provenance used by setup writes; behavior tests override it where relevant. */
 export const testProvenance = { verb: "merge", lifecycleAction: "test", codeHead: "a".repeat(40) };
 
@@ -31,6 +73,7 @@ export function success<T>(envelope: StoreResult<T>): T {
  */
 export function assertion(context: SuiteContext, family: FamilyId, name: string, test: (fixture: ConformanceFixture) => Promise<void>, inapplicableReason?: string): void {
   if (!context.registration.declarations.families.includes(family)) return;
+  recordAssertion(context, family, name);
   const exclusions = context.registration.declarations.familyExclusions[family];
   const reason = exclusions?.items?.[context.item] ?? exclusions?.assertions?.[name] ?? inapplicableReason;
   if (reason) it.skip(`${family}: ${name} — ${reason}`, () => {});

@@ -1,10 +1,10 @@
 /** Single backend-neutral registration of all sixteen storage contract conformance items. */
 
-import { describe } from "vitest";
+import { describe, it } from "vitest";
 import { FAMILY_IDS, KIND_REGISTRY, type KindId } from "../../../src/lib/store/index.js";
 import type { ConformanceRegistration, SuiteItem } from "./fixture-contract.js";
 import { refusalRecoveryTable } from "./recovery.js";
-import type { SuiteContext } from "./suite-tools.js";
+import { createAssertionCoverage, emptyItemExclusions, validateUsedAssertionExclusions, type SuiteContext } from "./suite-tools.js";
 import { registerCapabilityAssertions, registerDurabilityAssertions, registerRecordAssertions, registerVersionConflictAssertions } from "./suite-records.js";
 import { registerBatchAssertions, registerFreshnessAssertions, registerHistoryAssertions, registerStateAssertions } from "./suite-versions.js";
 import { registerMergeAssertions } from "./suite-merges.js";
@@ -40,10 +40,15 @@ export const conformanceItems: Record<SuiteItem, { name: string; register(contex
  */
 export function registerStoreConformanceSuite(name: string, registration: ConformanceRegistration): void {
   validateConformanceRegistration(registration);
+  const coverage = createAssertionCoverage();
   for (const [number, item] of Object.entries(conformanceItems)) {
-    const context = { item: Number(number) as SuiteItem, registration };
-    describe(`${name} — item ${number}: ${item.name}`, () => { item.register(context); });
+    const context = { item: Number(number) as SuiteItem, registration, coverage };
+    describe(`${name} — item ${number}: ${item.name}`, () => {
+      item.register(context);
+      for (const { family, reason } of emptyItemExclusions(context)) it.skip(`${family}: item ${number} — ${reason}`, () => {});
+    });
   }
+  describe(`${name} — declaration inventory`, () => { validateUsedAssertionExclusions(registration, coverage); });
 }
 
 

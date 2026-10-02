@@ -3,7 +3,7 @@
 import { expect, it } from "vitest";
 import { StoreRefusalSchema, SyncResultSchema, sameReference, type StoreRefusal, type StoreResult } from "../../../src/lib/store/index.js";
 import { refusalRecoveryTable } from "./recovery.js";
-import { success, type SuiteContext } from "./suite-tools.js";
+import { recordAssertion, success, type SuiteContext } from "./suite-tools.js";
 
 function observedRefusal(result: StoreResult<unknown>): StoreRefusal {
   if (result.status === "refused") return StoreRefusalSchema.parse(result.refusal);
@@ -51,6 +51,7 @@ export function registerRecoveryAssertions(context: SuiteContext): void {
  */
 export function registerCrossSubstrateAssertions(context: SuiteContext): void {
   for (const family of context.registration.declarations.families) {
+    recordAssertion(context, family, "atomic-cross-substrate-batch");
     const reason = context.registration.declarations.familyExclusions[family]?.items?.[5];
     if (reason) { it.skip(`${family}: atomic-cross-substrate-batch — ${reason}`, () => {}); continue; }
     it(`${family}: atomic-cross-substrate-batch`, async () => {
@@ -70,6 +71,7 @@ export function registerCrossSubstrateAssertions(context: SuiteContext): void {
  */
 export function registerCoverageAssertions(context: SuiteContext): void {
   for (const family of context.registration.declarations.families) {
+    recordAssertion(context, family, "uncovered-record-state-version");
     const reason = context.registration.declarations.familyExclusions[family]?.items?.[8];
     if (reason) { it.skip(`${family}: uncovered-record-state-version — ${reason}`, () => {}); continue; }
     it(`${family}: uncovered-record-state-version`, async () => {
