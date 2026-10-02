@@ -13,22 +13,14 @@ only, no backend; its seam with Phases 2–7 is the types they import.
 
 _Mode:_ `layer` through Phase 3 — closes on a settled contract, shown implementable without Git.
 
-### `[ ]` **1.1 Baseline the test-cost rows this change moves**
+### `[x]` **1.1 Baseline the test-cost rows this change moves**
 
 - _Goal:_ Every test-cost budget row this change moves has a pre-change baseline, taken before the first new test
   file lands, so the comparison at verification measures this change alone.
 
-- _Context:_ `lane` (unit, unit-mocks, and integration) overlaps `integration`, so the in-repo conformance and
-  differential tests move it too; the benchmark measures only the working tree and its comparison refuses on any axis
-  mismatch, so a baseline missed now cannot be taken later.
-
-    - Take three runs each of `unit`, `integration`, and `lane` with `npm run -s benchmark:test-cost -w
-      packages/arc-framework -- --condition tier-isolated --project-set <row> --workers 12 --output <path>` — the
-      scripts live in the package, and `--output` resolves against it — written to the work unit's personal workspace,
-      and normalize each row's runs with `benchmark:test-cost:normalize`; the comparison at verification is a `lever`
-      request to `benchmark:test-cost:compare` with these runs as its before group.
-    - `e2e` is not baselined: the plan adds no end-to-end test, and a task that comes to need one baselines `e2e`
-      first. The CI-job rows are measured by CI's budget report, not locally.
+- _Outcome:_ Retained and normalized three pre-change runs each of `unit`, `integration`, and `lane`, with
+  `tier-isolated` and 12 workers, in the personal workspace's `test-cost/` directory. Raw `before-<row>-<n>.json`
+  groups remain available for the verification comparison; no new test file existed when they were captured.
 
 ### `[ ]` **1.2 Contract interface: operations, identities, and versions — D1, D2, D5**
 
