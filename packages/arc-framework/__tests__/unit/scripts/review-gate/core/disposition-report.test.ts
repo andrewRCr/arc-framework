@@ -275,6 +275,48 @@ describe("disposition report", () => {
     ]);
   });
 
+  it("places a nit after other minor findings even when it sorts first canonically", () => {
+    const { dispositionSet: original, producerFindings } = fixture();
+    const { dispositionSetId: _id, findings, ...fields } = original;
+    void _id;
+    const minorFinding: NormalizedReviewFinding = {
+      findingId: "finding-m",
+      severity: "minor",
+      locus: "src/m.ts:1",
+      evidenceUrlOrId: "review:finding-m",
+      sourceOrdinal: 3,
+    };
+    const ordered = createDispositionSet({
+      ...fields,
+      findings: [...findings, {
+        findingId: "finding-m",
+        sourceIdentity: "reviewer-1",
+        locus: "src/m.ts:1",
+        sourceVerification: "verified" as const,
+        verificationRefs: ["source:src/m.ts:1"],
+        reportedSeverity: "minor" as const,
+        verifiedSeverity: "minor" as const,
+        disposition: "defer" as const,
+        title: "Title for finding-m",
+        rationale: "Standalone account for finding-m.",
+        recommendation: "Bounded action for finding-m.",
+        openQuestions: [],
+      }],
+    });
+
+    const report = renderDispositionReport({
+      dispositionSet: ordered,
+      producerFindings: [...producerFindings, minorFinding],
+    });
+
+    expect(ordered.findings.map(({ findingId }) => findingId)).toEqual(["finding-a", "finding-m", "finding-z"]);
+    expect(report.match(/^\| F\d+ .*$/gmu)).toEqual([
+      "| F1 | 🟠 major | Confirmed · blocking | DEFER | Title for finding-z |",
+      "| F2 | 🟡 minor | Confirmed · record-only | DEFER | Title for finding-m |",
+      "| F3 | 🟡 minor nit | Confirmed · record-only | DEFER | Title for finding-a |",
+    ]);
+  });
+
   it("lists every open question under the table by finding, and keeps them out of the sections", () => {
     const { dispositionSet: original, producerFindings } = fixture();
     const { dispositionSetId: _id, findings, ...fields } = original;

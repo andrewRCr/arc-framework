@@ -115,9 +115,9 @@ proposed action. Separate adjacent sections, and the last section from the evide
 and another blank line. The evidence line keeps the producer source distinct from ARC's own verification references.
 
 The command orders findings for the decision — blocking before record-only, then by ARC grade, most severe first, with
-unsupported findings last — and keeps canonical order among equals. It assigns report-local `F` labels in that order
-while retaining producer-native labels, capture ordinals, and references. It escapes only the characters that would
-otherwise open inline Markdown, plus `|` in a table cell.
+a nit after other minor findings and unsupported findings last — and keeps canonical order among equals. It assigns
+report-local `F` labels in that order while retaining producer-native labels, capture ordinals, and references. It
+escapes only the characters that would otherwise open inline Markdown, plus `|` in a table cell.
 
 For a findings proposal, present the CLI's `provisionalPassAssessment.summaryText` beside the verbatim disposition
 report in the same turn. It is the pass line — the lane, admitted pass, configured ceiling, and confirmed-finding
