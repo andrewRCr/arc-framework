@@ -1,6 +1,6 @@
 /** Cause real reference backend failures, then apply the remedy to their underlying state. */
 
-import { LookupInputSchema } from "../../../src/lib/store/index.js";
+import { LookupInputSchema, RecordReferenceSchema } from "../../../src/lib/store/index.js";
 import { canonicalReference, recordKey } from "./model.js";
 import { success, seed, update } from "./suite-tools.js";
 import type { ConformanceFixture, RecoveryCaseId, RecoveryOperation } from "./fixture-contract.js";
@@ -42,7 +42,7 @@ export async function produceReferenceRecovery(fixture: ConformanceFixture, back
     state.repairs.set(caseId, async () => { fixture.remoteState("available"); });
     return { run: () => fixture.store.sync() };
   }
-  if (caseId === "ambiguous-match") return produceAmbiguity(fixture, state);
+  if (caseId === "ambiguous-match") return produceAmbiguity(fixture, backend, state);
   const record = await seed(fixture, fixture.reference("work-item/meta"));
   let mutation = update(fixture, record);
   if (caseId === "version-conflict") {
@@ -65,10 +65,13 @@ export async function produceReferenceRecovery(fixture: ConformanceFixture, back
   return { run: () => fixture.store.write(mutation) };
 }
 
-async function produceAmbiguity(fixture: ConformanceFixture, state: ReferenceRecoveryState): Promise<RecoveryOperation> {
+async function produceAmbiguity(fixture: ConformanceFixture, backend: ReferenceBackend, state: ReferenceRecoveryState): Promise<RecoveryOperation> {
   const branch = { repository: "ambiguous-repository", ref: "shared-branch" };
-  await seed(fixture, fixture.reference("work-item/meta"), undefined, { kind: "active" }, { branch });
+  const first = await seed(fixture, fixture.reference("work-item/meta"), undefined, { kind: "active" }, { branch });
   const second = await seed(fixture, fixture.reference("work-item/meta", "two"), undefined, { kind: "active" }, { branch });
+  const planted = backend.state.records.get(recordKey(second.reference));
+  if (planted === undefined) throw new Error("Ambiguity planting requires the seeded second generation");
+  planted.reference = RecordReferenceSchema.parse({ ...second.reference, owner: { ...second.reference.owner, name: first.reference.owner.name } });
   state.repairs.set("ambiguous-match", async () => {
     const current = success(await fixture.store.read({ reference: second.reference }));
     success(await fixture.store.write({ action: "remove", reference: current.reference, expected: current.version, provenance: { verb: "remove", lifecycleAction: "remove" } }));
