@@ -143,6 +143,7 @@ export const KIND_REGISTRY = createKindRegistry();
 /** Machine-scoped locations never stored, synced, or projected. */
 export const MACHINE_LOCAL_PATHS = [
   { root: "user", pattern: "<identity>/.internal/**" },
+  { root: "user", pattern: "<identity>/*/.internal/**" },
   { root: "git-common", pattern: ".notes.lock" },
   { root: "git-common", pattern: ".machine-id" },
   { root: "git-common", pattern: "arc/**" },

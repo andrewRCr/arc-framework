@@ -86,8 +86,8 @@ _Mode:_ `layer` through Phase 3 — closes on a settled contract, shown implemen
           interim home; entry grammars and the five pending layout addresses remain explicit.
 
     - `[x]` **1.5.c The machine-local path set and derived views**
-        - Recorded machine-local paths and derived views separately from stored families, with registry and layout
-          invariants exercised across all kinds.
+        - Recorded machine-local paths, including interim workspace internal directories, and derived views separately
+          from stored families, with registry and layout invariants exercised across all kinds.
 
 ## **Phase 2:** Concurrency library
 

@@ -95,6 +95,7 @@ describe("role-based storage registry", () => {
   it("changes profile assignment only for the two ghost families", () => {
     expect(Object.values(FAMILY_REGISTRY).filter((family) => family.profiles.standard !== family.profiles.ghost).map((family) => family.id).sort()).toEqual(["constitution", "project-machinery"]);
     expect(MACHINE_LOCAL_PATHS).toContainEqual({ root: "user", pattern: "<identity>/.internal/**" });
+    expect(MACHINE_LOCAL_PATHS).toContainEqual({ root: "user", pattern: "<identity>/*/.internal/**" });
     expect(MACHINE_LOCAL_PATHS).toContainEqual({ root: "git-common", pattern: "arc/**" });
     expect(DERIVED_VIEWS).toEqual(["project-status", "identity-status", "archive-index"]);
   });
