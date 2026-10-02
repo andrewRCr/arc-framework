@@ -1066,10 +1066,27 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
 
     await writeFile(join(root, "reviewed.txt"), "reviewed change, fixed\n", "utf8");
     await git(root, ["add", "reviewed.txt"]);
+    const uncommitted = await runArcWithStdin(
+      ["review", "respond", "-"],
+      root,
+      `${JSON.stringify(verifiedFix)}\n`,
+    );
+    expect(uncommitted.exitCode).not.toBe(0);
+    const refusal = JSON.parse(uncommitted.stdout) as {
+      remedy: { argv: string[]; stdin: unknown };
+    };
+    expect(refusal).toMatchObject({
+      error: { code: "invalid-input", message: expect.stringContaining("changed exact target") },
+      remedy: { argv: ["arc", "review", "respond", "-"] },
+    });
+    expect(refusal.remedy.stdin).toEqual(verifiedFix);
     await git(root, ["commit", "-m", "apply approved fix"]);
 
-    await expect(invoke(root, ["review", "respond", "-"], verifiedFix))
-      .resolves.toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
+    expect(envelope(await runArcWithStdin(
+      refusal.remedy.argv.slice(1),
+      root,
+      `${JSON.stringify(refusal.remedy.stdin)}\n`,
+    ))).toMatchObject({ state: "candidate-advanced", nextAction: "continue-review" });
     await expect(invoke(root, ["review", "respond", "-"], verifiedFix))
       .resolves.toMatchObject({ state: "candidate-current", nextAction: "continue-review" });
     const advanced = await readCandidateRecord(root, "example");

@@ -18,6 +18,8 @@ import {
   composeHostedSettlementAction,
 } from "../../../../src/scripts/integration/settlement-plan.js";
 import { BaseMergeInputSchema } from "../../../../src/scripts/base/merge.js";
+import { NO_HOSTED_REVIEW_RESERVATION_DETAIL } from
+  "../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 
 const oid = (character: string): string => character.repeat(40);
 const digest = (character: string): `sha256:${string}` => `sha256:${character.repeat(64)}`;
@@ -1541,5 +1543,24 @@ describe("integration checkpoint", () => {
           },
         },
       });
+  });
+
+  it("states that no hosted review was reserved rather than claiming a review carrier", async () => {
+    const deps = dependencies();
+    deps.readDrift = async () => CLEAN_DRIFT;
+
+    const result = await checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, deps);
+
+    expect(result).toMatchObject({
+      state: "ready",
+      payload: {
+        interlockSurface: {
+          machineEvidence: {
+            text: expect.stringContaining(`Review landed: ${NO_HOSTED_REVIEW_RESERVATION_DETAIL}`),
+          },
+        },
+      },
+    });
+    expect(JSON.stringify(result)).not.toMatch(/local carrier|local-attestation/iu);
   });
 });

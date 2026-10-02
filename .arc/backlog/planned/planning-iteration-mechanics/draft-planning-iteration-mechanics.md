@@ -53,55 +53,6 @@
   criterion form, not the verification method. `delivery-native-stack-composition` owns member-scoped criteria
   slices and their boundary cadence, so consume that topology rather than re-deriving it here.
 
-### `[ ]` **Run a source-grounded planning pre-flight before adversarial review**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-03); captured during
-  `delivery-plan-record` create-spec closeout.
-- _Concern:_ adversarial passes are being spent on deterministic source, reference, vocabulary, and return-shape
-  defects before they can reach design judgment; one measured pass produced twelve mechanical findings and two
-  design findings.
-- _Fold-in:_ define one shared pre-flight method fired by all three planning stages before their adversarial
-  callouts. It should verify shipped-behavior claims against source, rule-section constraints, internal references,
-  defined-term use, and complete composed return types, while leaving design judgment to adversarial review.
-- _Practice:_ fold a bounded few findings at a time and prefer removing constraints over adding repair machinery.
-
-### `[ ]` **Make empirical planning claims visibly source-grounded**
-
-- _Routed from:_ split `USER-INBOX § Work Unit` capture, housekeep drain (2026-08-03); captured during
-  `delivery-plan-record` planning.
-- _Concern:_ the always-loaded verify-before-assuming rule depends on authors noticing an assumption; inherited
-  empirical claims can instead read as settled premises and survive until expensive adversarial passes.
-- _Fold-in:_ design the authoring convention and planning-stage fire point for source pointers on claims about
-  shipped behavior, coordinated with `knowledge-lint`'s mechanical enforcement half. Do not add another
-  always-loaded reminder.
-
-### `[ ]` **Discharge the adversarial-review cap concern absorbed by convergence design**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: planning-iteration-mechanics`), housekeep drain
-  (2026-07-27); captured during `review-signal-convergence` draft closeout.
-- _Concern:_ the pending inbound concern about adversarial-review convergence and cap-exhaustion reporting is
-  now owned and settled by `review-signal-convergence` D6.2 (visible `Pass N of M`, hard stop at exhaustion,
-  explicit one-pass override authority). Retaining the same concern here would create split ownership for the
-  review-loop contract.
-- _Fold-in:_ remove or mark the older convergence/cap inbound item **discharged** at the next planning
-  closeout. Preserve unrelated iteration-mechanics scope; do not re-derive the convergence or cap-authority
-  rule.
-
-### `[ ]` **Fix adversarial-review convergence and make cap exhaustion report**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-23); captured during `wu-rename`
-  create-spec finalization.
-- _Concern:_ the current exit test asks whether primary-confirmed findings remain open after their repairs land,
-  so a pass that found several majors can immediately read as converged. Reaching the pass cap can then end the
-  loop silently even when another pass is still likely to find material issues.
-- _Fold-in:_ judge what the pass found and explicitly ask whether another pass is likely to find anything
-  material. Treat the cap as a cost ceiling that always reports: when not converged, recommend the additional
-  pass and let the author accept or decline. Include repair-introduced defects as evidence against convergence.
-  `wu-rename` required three passes despite a Heavy cap of two; pass two found a repair-introduced blocker and
-  pass three found an original blocker missed by both earlier passes.
-- _Status note (2026-07-27 drain):_ supersession candidate — see discharge item above once
-  `review-signal-convergence` D6.2 is treated as authoritative ownership.
-
 ### `[ ]` **Collapse `create-spec` finalization into one scope-stating interlock**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during a planning-stage gate
@@ -407,6 +358,14 @@ entry; likely `Heavy` given the multi-surface workflow design, but confirm again
 - **Coordination (not blockers):** `planning-pipeline-readiness` — the buffer-drain contract (Concern 1's seam)
   composes with PPR's `assess-draft-readiness` method; sequence so the readiness _criterion_ and the drain
   _ceremony_ agree. No hard dependency edge — the seam is a contract, not a gate.
+- **Coordination:** `grounded-planning-review` owns grounding planning claims and checking adversarial fixes between
+  passes; its pre-flight sits beside this work unit's question of a spec-readiness gate at `generate-tasks` entry.
+- **Storage program:** much of this draft predates `state-storage` and is reshaped by it — re-scope against it before
+  starting. `storage-contract` replaces the `Inbound Buffer` section with a per-work-unit inbound list that captures
+  route into directly (its D11), which changes Concern 1's drain ceremony and absorbs the computed form of the
+  `USER-INBOX` surfacing entry. The grooming entry is a storage-coupling register row (re-scope to branchless
+  grooming). The `Current Workflow` and readiness re-validation entries depend on how the meta's verb-owned fields are
+  stored, and the create-spec gate shape on how planning artifacts persist once planning is branchless.
 
 ## Continuity
 

@@ -994,6 +994,8 @@ export const ReviewCommandErrorEnvelopeSchema = z.union([
     .map((code) => remedialErrorVariant("review-pre-publication", code)),
   remedialErrorVariant("review-pre-publication", "scope-judgment-required")
     .extend({ scopeMismatch: PrePublicationScopeMismatchSchema }),
+  // A response refused over an uncommitted verified fix names the replay that continues it.
+  remedialErrorVariant("review-respond", "invalid-input"),
 ]);
 
 function errorVariant<Mode extends ReviewCommandMode, Code extends ReviewPrePublicationRefusalCode>(
