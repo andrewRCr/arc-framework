@@ -2,7 +2,7 @@
 
 import type {
   FamilyId, KindId, RecordReference, RefusalCode, StateVersion, Store, StoreResult,
-  UnsupportedCase, WriteInput, WriteResult, EntryConfig,
+  UnsupportedCase, WriteInput, WriteResult, EntryConfig, StoreRecord, WritePlacement,
 } from "../../../src/lib/store/index.js";
 
 /** The numbered contract item, kept stable across every backend fixture. */
@@ -47,12 +47,14 @@ export interface ConformanceFixture {
   reference(kind: KindId, suffix?: string): RecordReference;
   content(reference: RecordReference, variant?: "valid" | "changed" | "changed-again" | "invalid"): string;
   settle(): Promise<StateVersion>;
+  /** Materialize an existing lifecycle surface for completed listing setup. */
+  materialize?(reference: RecordReference, placement: WritePlacement): Promise<StoreRecord>;
   reopen(): Store;
   race(left: WriteInput, right: WriteInput): Promise<[StoreResult<WriteResult>, StoreResult<WriteResult>]>;
   remote(enabled: boolean): Store | undefined;
   identity(name: string | undefined): void;
-  plant(reference: RecordReference, kind: PlantKind): void;
-  hold(reference: RecordReference, held: boolean): void;
+  plant(reference: RecordReference, kind: PlantKind): void | Promise<void>;
+  hold(reference: RecordReference, held: boolean): void | Promise<void>;
   remoteState(state: RemoteState, message?: string): void;
   produce(caseId: RecoveryCaseId): Promise<RecoveryOperation>;
   repair(caseId: RecoveryCaseId): Promise<void>;
@@ -61,5 +63,5 @@ export interface ConformanceFixture {
 /** Registration pairs static declarations with a fresh isolated fixture for each assertion. */
 export interface ConformanceRegistration {
   declarations: FixtureDeclarations;
-  create(): ConformanceFixture;
+  create(): ConformanceFixture | Promise<ConformanceFixture>;
 }

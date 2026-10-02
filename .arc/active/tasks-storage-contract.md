@@ -286,86 +286,26 @@ records, with no change in behavior.
   descriptors resolve all five pending homes; differential coverage preserves existing paths and selects the primary
   identity-global inbox from linked worktrees.
 
-### `[ ]` **4.2 In-repo backend and the composition point — D1, D8**
+### `[x]` **4.2 In-repo backend and the composition point — D1, D8**
 
 - _Goal:_ The in-repo implementation exists behind the one composition point, dispatches each kind to its substrate by
   the registry, and answers the capability report with no.
 
-- _Note:_ The tracked-write lock composes the existing advisory lock rather than sharing another lock's file; see
-  `notes-storage-contract.md` § Implementation pointers (the tracked-write lock).
+    - `[x]` **4.2.a The tracked-write lock**
+        - Shared advisory scope and checkout-private Git-directory locking isolate tracked writes; typed timeouts
+          retain the lock-held repair and retry path.
 
-    - `[ ]` **4.2.a The tracked-write lock**
-        - `withAdvisoryLock` in `lib/advisory-lock.ts` runs an operation while holding a lock and releases it after,
-          surfacing both errors when the operation and the release fail; it is `withWorktreeOperationLock`'s body
-          (`lib/work-unit/worktree-operation-lock.ts`), which then calls it.
-        - The tracked-write lock is a named lock file in the checkout's own Git directory (`git rev-parse
-          --absolute-git-dir`), resolved beside `resolveGitCommonDir` (`lib/git/exec.ts`) and held through
-          `withAdvisoryLock` around each digest check and write, and across a batch (Task 4.4). The Candidate and
-          boundary stores' per-file locks are taken inside it, as their writers take them today; no lock held across a
-          whole command — the worktree-operation lock among them — is taken while it is held, so a rerouted verb takes
-          that lock first.
-        - Build `test-first` (one behavior at a time):
-            - `withAdvisoryLock` releases after the operation returns and after it throws, and a failed release
-              alongside a failed operation surfaces both;
-            - `withWorktreeOperationLock`'s tests pass unchanged;
-            - two checkouts of one repository write their own tracked records without waiting on each other;
-            - a lock held past the wait refuses `lock-held` naming the lock, classified by `AdvisoryLockTimeoutError`'s
-              class, and the write succeeds once the lock is released.
+    - `[x]` **4.2.b The composition point**
+        - The public factory takes one complete port object, constructs without I/O, and lazily binds backend,
+          identity, origin selection, and write locks. Import guards keep implementations private and heavy reads
+          deferred.
 
-    - `[ ]` **4.2.b The composition point**
-        - A factory in `lib/store/` that takes the Git executor and the stdin executor (`execInput`), file access, the
-          clock, the checkout root, the identity, the remote selection, and the write locks — the tracked-write lock
-          (Task 4.2.a) and the notes lock — as one required object and returns the contract; it is the only importer of
-          a backend's module.
-        - Constructing the contract runs no command and reads no file. The identity, the remote selection, and each
-          lock's path are resolved on first use by the operation that needs one, so an operation that needs none —
-          reading a meta that sits flat in `active/` (Task 4.3.a), or listing this checkout's own tracked records —
-          spawns no Git process and runs outside a Git repository, as `readActiveMetaCandidates` does today (Task 5.1).
-          The in-repo backend statically imports none of the modules `arc active status` defers
-          (`deferredActiveProjectionModules`, `__tests__/unit/cli-loading-boundary.test.ts`): it loads the Candidate,
-          integration-boundary, and transition stores on first use of their kinds, the configuration reader
-          (`lib/config/status-reader.ts`), which the composition's base branch needs, on its first read or listing of
-          other branches' records, and its sync arm — the notes save and push (`commands/user/save-load.ts`,
-          `commands/user/push-fetch.ts`), which import `lib/config/status-reader.ts`, and the Errand push — on first
-          `sync`, so reading metas loads none of them.
-        - The identity is resolved as user and Errand commands resolve it: `resolveIdentity` (`lib/git/identity.ts`)
-          with no prompt, which falls back to a slugified `user.name` when `arc.identity` is unset, so records are read
-          under the identity they were written under. It may be absent, when neither is set. Every operation that names
-          or resolves to identity-scope state — a personal file, or a record on a transient-identity ref — then refuses
-          `not-found`, saying no identity is configured and naming `arc.identity`, which `arc init` sets, as its remedy,
-          and a listing of either is `absent`, as `readTransientInFlightIndexes` (`lib/errand/record.ts`) answers today,
-          since no identity holds no claims. A command rerouted onto the contract maps that refusal onto the error it
-          reports today, as user commands report `IDENTITY_MISSING` (`resolveUserIdentity`, `handlers/shared.ts`), and
-          callers that branch on a missing identity today — `arc status`'s `no-identity` view, the handoff probes, the
-          stale-worktree sweep — keep checking it before they call.
-        - The remote selection is read from configuration — whether `origin`, the remote every notes and Errand push and
-          fetch names today (`commands/user/push-fetch.ts`, `lib/errand/merge.ts`), is set, by
-          `git remote get-url origin` — never from a failed push's message.
-        - Build `test-first` (one behavior at a time):
-            - constructing the contract, a read of a meta flat in `active/`, and a held-here listing of this checkout's
-              tracked records spawn no Git process, and each succeeds in a directory that is not a Git repository;
-            - with no identity configured, a tracked read and listing succeed; the personal and transient-identity arms'
-              answers are tested with the arms (Tasks 7.1.a, 7.2.a, and 7.2.c);
-            - an import-boundary test fails when a module under `src/` outside `lib/store/` imports a backend, or a test
-              reaches one other than through a conformance fixture;
-            - a loading test that reads imports as `cli-loading-boundary.test.ts` does finds no module that test defers
-              in the in-repo backend's static import closure, and the stores, the configuration reader, and the sync arm
-              imported only on first use;
-            - a repository whose only remote is `upstream` has no remote selected.
-
-    - `[ ]` **4.2.c Substrate dispatch and the capability report**
-        - Each kind dispatches by the in-repo location the registry records; a work-item listing that names no kind
-          refuses `unsupported` (recoverable), naming listing each kind.
-        - The personal and transient-identity arms throw an `ArcError` until Phase 7 builds them.
+    - `[x]` **4.2.c Substrate dispatch and the capability report**
+        - Registry homes dispatch tracked, pending, and unhomed roles explicitly; capability reports false.
+          Unclassified failures preserve their original cause in a thrown ArcError.
         - _Retired in:_ Phase 7
-        - Build `test-first` (one behavior at a time):
-            - the capability report answers no;
-            - every kind with no home before the flip lists `absent` and refuses a write `unsupported` (terminal),
-              naming that it has no home before the flip;
-            - an error the wrapped code throws that the backend cannot classify surfaces as a thrown `ArcError` with the
-              original as its cause, never as a refusal.
 
-### `[ ]` **4.3 Tracked reads and listings through the composed lifecycle index — D5, D8**
+### `[x]` **4.3 Tracked reads and listings through the composed lifecycle index — D5, D8**
 
 - _Goal:_ Tracked records read and list through the contract with the results today's code paths return — a meta through
   the composed lifecycle index with its parser registered, a Candidate record and a transition record through the layout
@@ -374,358 +314,71 @@ records, with no change in behavior.
   rejects and a read of a copy this checkout holds that agrees with the selected one, as a parked work unit's backlog
   pointer does.
 
-    - `[ ]` **4.3.a The meta kind and its parser**
-        - Register `parseMetaRecord` (`lib/active/meta-reader.ts`) as the meta kind's parser, and list metas through
-          `resolveComposedLifecycleIndex`: a listing gives each work unit's selected copy, and the backend decides write
-          admission itself (Task 4.4.c), never through a listing field.
-        - The composition's oracle is built as `arc status`'s slug query builds it (`handlers/status.ts`): local refs
-          only, with no network call; the base branch from configuration; and the Errand branch map and its completeness
-          from the ref of the identity the composition point resolves (`readTransientInFlightIndexes`,
-          `lib/errand/record.ts`), so a recorded Errand branch is never reported as residue. `arc status` and ROADMAP
-          rendering read only `arc.identity` (`readIdentityPointers`; `resolveProjectErrandOracleContext`,
-          `lib/status/project-oracle-context.ts`), so for a person with only `user.name` set they differ from it
-          (`notes-storage-contract.md` § Implementation pointers, one identity). Callers that read live today —
-          `arc status --fetch`, and the lifecycle verbs, `arc start`, and `arc rename`, which supply a materialized
-          result — keep their code until they are rerouted.
-        - A meta's placement is its selected copy's directory, as the layout resolver's reverse reads it
-          (`identifyWorkUnitArtifactPath`, `lib/layout/identification.ts`). A parked work unit — one whose copy in
-          `backlog/planned/` is `Active`, today's parked pointer, and whose selected copy is not terminal — keeps its
-          backlog placement, that copy's directory, where today's composition places it at `planned` and marks it parked
-          (`mergeProjectReadinessRecords`, `lib/status/project-view.ts`). Parked follows from that placement with
-          `State` `Active`, so a listing carries no scheduling field (`notes-storage-contract.md` § Implementation
-          pointers, parked work units). A meta at a path that reverse cannot place — flat in `backlog/planned/` or
-          `completed/`, or under an uppercase quarter — lists as a diagnostic naming its file, where today's composition
-          places it by its tier; only test fixtures hold one. The placement carries no cohort: a cohort member's backlog
-          folder comes from its `Cohort` field (D5), which a listing gives among the meta's fields, as today's
-          composition reads it (`lib/status/project-view.ts`); see `notes-storage-contract.md` § Implementation pointers
-          (a cohort member's folder).
-        - `read` returns a meta's bytes whether or not its parser accepts them: the parser gives a listing its fields,
-          and a meta it rejects lists as a diagnostic naming its identity (D5).
-        - A meta that sits flat in `active/` is this checkout's record of its work unit whether or not its parser
-          accepts it or its `State` places it: a `read` returns that file and consults no other branch, so no Git
-          process runs; a write targets it (Task 4.4.c); and both listings give it in place of any other copy of its
-          slug, as a record or a diagnostic. Today's selection takes an `active` copy over every other
-          (`selectRecordCandidate`, `lib/status/project-view.ts`) once the composition's reader (`readProjectMeta`) has
-          accepted it; a flat-active meta that reader rejects, beside another copy of its slug — which no ARC writer
-          produces — is one of two cases where the listings differ from today's composition, which drops the file and
-          selects the other copy; a meta at a path the layout cannot place, above, is the other. Every other read
-          composes as Task 4.3.b reads.
-        - `list`'s held-here filter is answered from the working tree, with no cross-branch lookup, by the files the
-          lifecycle walk finds (`collectLifecycleMetaFiles`, `lib/work-unit/lifecycle-index.ts`) — `active/` read flat,
-          regular files only, a symbolic link skipped — restricted to the locations the filter names. Of a slug found in
-          more than one, it keeps the flat-active file where there is one; otherwise, of the copies the lifecycle index
-          can place (`entryFromMeta`), the one `compareLifecycleSources` prefers — active over planned over provisional
-          over completed, then path order by code unit — else the preferred of all. Each file kept lists as a record or
-          a diagnostic, as any listing does, whatever its `State`: its location is its directory. Dropping a meta whose
-          `State` places it nowhere is the lifecycle index's own step, which the index over the contract takes (Task
-          5.2.a), so `readActiveMetaCandidates`, which keeps such a meta, still does (Task 5.1). A file whose name
-          carries no slug the kernel's slug schema accepts has no identity and lists as a diagnostic. The composition
-          walks the same files and ranks a slug's copies the same way (`compareCandidates`,
-          `lib/status/project-view.ts`), so this checkout's copy in the held-here listing is the composed index's
-          current-tree copy, but for the rejected flat-active meta above; see `notes-storage-contract.md` §
-          Implementation pointers (one tree walk).
-        - Build `test-first` (one behavior at a time), each differential against today's path over the same repository:
-            - a meta listed and read through the contract returns the fields today's path read returns;
-            - every record reads format version 1, with no links and no open conflict records;
-            - a read of a meta flat in `active/` returns it with no Git process spawned, from a directory that is not a
-              Git repository too;
-            - a flat-active meta `parseMetaRecord` rejects, beside a planned copy of its slug, is the record a read
-              returns, a write targets, and both listings give as a diagnostic, where today's composition gives the
-              planned copy;
-            - each meta lists with the placement its directory gives — active; planned and provisional, each from a
-              cohort folder too; and completed with its quarter and sequence — and with the cohort its `Cohort` field
-              gives;
-            - a parked work unit whose pointer sits in its cohort's folder lists with its backlog placement and the
-              fields its branch copy gives, where today's composition gives `planned`;
-            - a meta flat in `backlog/planned/`, one flat in `completed/`, and one under an uppercase quarter each list
-              as a diagnostic naming its file, where today's composition gives each at its tier;
-            - an unparseable meta lists as a diagnostic naming its identity, still reads its bytes, and blocks no read
-              of another work unit;
-            - a held-here listing at `active` gives the metas `readActiveMetaCandidates` reads from the flat `active/`
-              root, a meta whose `State` names no lifecycle state among them, and never a record only on another
-              branch, but skips a symbolic link to a meta, which that reader follows today;
-            - a held-here listing over every location finds the files `buildLifecycleIndex`'s walk finds, and this
-              checkout's copy of each slug is the one that index keeps and the composed index's current-tree copy, over
-              a repository that also holds a meta nested under `active/`, which none finds; one slug's metas in
-              `active/` and `completed/`, whose active copy all keep; and another's in `backlog/planned/` and
-              `completed/` with the planned copy's `State` placing it nowhere, whose completed copy all keep — and a
-              third's in `active/` and `completed/` with the active copy's `State` placing it nowhere, whose active copy
-              the listing keeps where the index and the composition keep the completed one;
-            - a meta whose filename carries no valid slug lists as a diagnostic naming the file.
+    - `[x]` **4.3.a The meta kind and its parser**
+        - The meta parser and regular-file lifecycle walk preserve flat-active precedence, restricted held
+          selection, duplicate ordering, and diagnostics for unreadable, malformed, and unplaceable records.
 
-    - `[ ]` **4.3.b Records on other branches**
-        - Local branches, and pushed branches through their remote-tracking refs as last fetched, as `arc status` reads
-          them without `--fetch`; a listing never fetches.
-        - Where this checkout's copy agrees with the selected one — its slug, `State`, `Owner`, `Priority`, `Cohort`,
-          `Depends On`, and placement matching, the fields `recordsAgree` (`lib/work-unit/composed-lifecycle-index.ts`)
-          compares to grant a writable path, placement standing for its location and parked scheduling, while progress
-          fields may differ — a read returns this checkout's copy and
-          its version, so a write built on it checks the copy it replaces (Task 4.4.c). A parked work unit's backlog
-          pointer is the one such copy whose bytes differ from the selected copy's; listings keep the selected copy's
-          fields, and every listed record carries the version its read returns.
-        - The index carries a record's projected fields, not its bytes; an in-flight meta's source path is
-          `<ref>:<path>` (`lib/status/project-view.ts`), and the backend reads that blob for the content and its digest.
-        - A work unit is read from one copy: its companions and task list are read beside the meta copy its read returns
-          — this checkout's where it holds the selected copy or an agreeing one, else the selected copy on its branch,
-          found by today's matcher over that copy's directory in the branch's tree, read-only and live. No reader reads
-          a companion from another branch today, so this path is new; a parked work unit's are read beside its pointer,
-          which park writes into the planned folder where a stub left on base after start keeps its companions, so they
-          are the stub's from before start, as today's readers on base read them. The task list is read at its address,
-          `tasks-<slug>.md` beside the meta copy, never through the meta's `Task List` field, which today's readers
-          resolve (`resolveTaskListPath`, `commands/active/status.ts`); where no file is there, a read is `not-found`.
-        - Build `test-first` (one behavior at a time):
-            - a record only on another branch lists and reads, live;
-            - where a record has a tree copy other than a flat-active one and a copy on another branch, reads return the
-              copy today's composition selects, the branch's over a backlog copy that disagrees with it, as a stub left
-              on base after start does;
-            - a parked work unit's read returns its backlog pointer's bytes and version, as abandon reads the meta at
-              today's writable path, though the pointer's progress fields differ from the branch copy's, while its
-              listing gives the branch copy's fields with the pointer's version, and a write built on that listing
-              lands;
-            - a listing runs no fetch and makes no network call, and a branch pushed from another clone lists once a
-              fetch has updated its remote-tracking ref;
-            - a recorded Errand branch is never reported as residue: with `arc.identity` set, as `arc status` reports
-              none for it, and with only `user.name` set, where `arc status` reports it;
-            - a work unit's draft and task list read from its branch beside the selected meta when this checkout holds
-              no copy, and from the branch rather than beside a stub on base that disagrees with the selected copy,
-              while an agreeing copy's are read from this checkout's tree;
-            - a task list is read at its address whatever the meta's `Task List` field names, and a read is
-              `not-found` where no file is there.
+    - `[x]` **4.3.b Records on other branches**
+        - Local composition selects branch or agreeing checkout copies without fetching; raw bytes supply
+          digests while listings retain selected fields. Companion locality and writer-identity Errand discovery follow
+          it.
 
-    - `[ ]` **4.3.c Candidate records, transition records, and other companions**
-        - Build `test-first` (one behavior at a time), each differential against today's reader:
-            - a Candidate record read through the contract equals the Candidate store's read;
-            - a transition record read through the contract equals today's reader's;
-            - another companion — a `<prefix>-<slug>.md` file beside the meta that no address kind names, and a paired
-              spec's two halves — lists with its work unit and reads byte for byte, found as Task 1.5.b records, while
-              a same-name `cohort-<slug>.md` beside it does not;
-            - each record's version is its content digest;
-            - a stored Candidate record whose key names another work unit lists as a `key-mismatch` diagnostic, and a
-              read of it refuses `identity-mismatch` naming both, where today's store read throws.
+    - `[x]` **4.3.c Candidate records, transition records, and other companions**
+        - Layout roles and the existing companion matcher serve canonical internal records and paired specs;
+          Candidate key mismatches retain explicit listing diagnostics and typed read refusals.
 
-### `[ ]` **4.4 Tracked writes and batches — D3, D8**
+### `[x]` **4.4 Tracked writes and batches — D3, D8**
 
 - _Goal:_ Writes to tracked records through the contract produce the bytes today's writers produce, compare-and-swap
   on content digests under the checkout's tracked-write lock (Task 4.2.a), apply a batch all or nothing with every
   record restored on failure, and leave the Git index as they found it.
 
-    - `[ ]` **4.4.a Single writes**
-        - A Candidate, boundary, or transition record is written through today's store — `writeCandidateRecord`,
-          `writeSubmissionBoundary`, or `writeTransitionRecord`. The backend first parses the content as JSON and
-          validates it with the parser that store applies — `CandidateManagedRecordV1Schema`,
-          `parseIntegrationBoundaryLocus` (`scripts/review-gate/policy/integration-boundary-locus.ts`, which also
-          accepts and upgrades a legacy boundary shape), or `TransitionRecordSchema`, exported from
-          `lib/work-unit/transition-record.ts` for it, since `parseTransitionRecord` returns `null` and loses the
-          failing rule — before any version check: content that fails refuses `record-malformed` naming the failing
-          rule, whatever version it expects, and content whose own key — `attestation.workUnit`, `workUnit`, or `origin`
-          — names another record than the write does refuses `identity-mismatch`, naming both, since the boundary and
-          transition stores take the file's path from that key and the Candidate store never checks it.
-        - The store then writes inside the tracked-write lock, the Candidate and boundary stores under their own
-          per-file locks and the transition store by exclusive create (`flag: "wx"`, no lock). The version returned is
-          the digest (`digestBytes`) of the bytes the store's own serializer gives for the validated record —
-          `serializeCandidateManagedRecord`, `canonicalize`, or `serializeTransitionRecord` — computed, never re-read,
-          since today's stores return a path or nothing. Anything the store throws after that comes from the stored
-          record or the version: a stored record its own read rejects — malformed, or naming another work unit — throws
-          the store's error as an `ArcError` (D4). A meta, companion, or task list is written as its bytes, unvalidated,
-          as today.
-        - Today's stores report a stale version as `CandidateRecordVersionConflictError` and
-          `SubmissionBoundaryVersionConflictError`, and the transition store's create-only write as `EEXIST`; the
-          backend maps each to `version-conflict` by its class or code.
-        - A transition record is created once and never updated, by lineage's create-only writer rule (Task 1.5.b): a
-          second creation refuses `version-conflict` naming the existing record, and its remedy is to read that record.
-          The verb that created one removes it when its transition fails, as `rollbackRecord`
-          (`lib/work-unit/terminal-transition-record-writer.ts`) does for abandon and decompose today.
-        - A write that creates a work item writes its meta at its placement's path (`resolveArcPath`): flat in
-          `active/`, or in the backlog in its commitment's folder under the cohort folder its `Cohort` field names —
-          none where the field is empty, `[none]`, or `—`, as the lifecycle index reads it for
-          `projectBacklogDestination` today, else one level or two — read through `parseMetaProjectionRecord`
-          (`lib/active/meta-reader.ts`), as `projectBacklogDestination` (`lib/work-unit/verbs/promote-demote.ts`) builds
-          a stub's folder today. A meta that projection cannot read, or a `Cohort` value the layout cannot place — more
-          than two levels, or a segment that is not a slug — refuses `record-malformed` naming the field, before
-          anything is written. A write to an existing work item keeps its placement.
-        - A creation at `completed`, which archive does with its sequence; a write naming another placement, which moves
-          the work item as today's lifecycle verbs do; and a rename, which names a UID the in-repo implementation has
-          none of, each refuse `unsupported` (terminal) before writing anything, naming the verb that serves it until it
-          is rerouted — archive, the lifecycle verbs, or `arc rename`. A write carrying a links value, an empty one
-          included, refuses `unsupported` (terminal), since this implementation stores none and derives reverse lookup
-          as today (Task 4.6).
-        - Build `test-first` (one behavior at a time):
-            - a write with the current digest writes the file and returns the new digest;
-            - a Candidate record whose content its schema rejects refuses `record-malformed` naming the rule, with no
-              file changed, also when its expected version is stale, and the corrected content lands; and a write over a
-              stored Candidate record naming another work unit throws an `ArcError`;
-            - a Candidate record, a boundary, and a transition record whose content names another work unit each refuse
-              `identity-mismatch` naming both, with no file changed under either name, and the content naming the
-              record written lands;
-            - each store's write returns the digest a read of the written file then returns, a legacy-shaped boundary
-              included;
-            - a write creating a meta at `active` writes it flat in `active/`, and one at a backlog commitment writes it
-              in the folder its commitment and `Cohort` field give — no cohort, whether empty, `[none]`, or `—`, one
-              level, and two;
-            - a creation whose `Cohort` the layout cannot place, or whose meta the field projection cannot read, refuses
-              `record-malformed` naming the field, with no file written, and the corrected meta lands;
-            - a creation at `completed`, a write naming another placement, and a rename each refuse `unsupported` naming
-              its verb, and a write carrying a links value, an empty one included, refuses `unsupported`, each with no
-              file changed;
-            - a stale digest refuses `version-conflict`, also when racing writers produce it — one write lands and the
-              other refuses — and a re-read and re-apply succeeds;
-            - two racing creations of one transition record land one and refuse the other `version-conflict` naming
-              it, and reading the record it names succeeds;
-            - the bytes written equal today's writer's for a meta, a Candidate record, and a transition record;
-            - a removal with the current digest deletes the file, as abandon and resume delete today, and a stale digest
-              refuses `version-conflict` with the file in place;
-            - a transition record created and then removed with its current digest, as a refused abandon rolls it back,
-              leaves no file, and a later creation for the same origin lands;
-            - a contract write leaves the index unchanged.
+    - `[x]` **4.4.a Single writes**
+        - Canonical validation precedes digest checks and delegates serialization to the existing stores.
+          Raw records retain their bytes; creation placement, typed conflicts, immutable transitions, and index
+          isolation hold.
 
-    - `[ ]` **4.4.b Batches within the tracked substrate**
-        - Each record is checked against its current bytes, as the Candidate store checks today; on any failure every
-          record already written is restored from the bytes captured before the batch, as start graduation restores its
-          files (`lib/work-unit/atomic-graduation.ts`).
-        - Build `test-first` (one behavior at a time):
-            - a batch with one stale record writes nothing and names every stale record;
-            - a write that fails midway restores every record already written;
-            - a restore that itself fails throws an `ArcError` naming every file it left changed and the repair —
-              inspect each with `git diff` and restore it by hand.
+    - `[x]` **4.4.b Batches within the tracked substrate**
+        - Batches capture and preflight every target under one tracked lock, name every stale record, and
+          restore attempted writes on failure. Failed restores name all remaining files and the manual repair.
 
-    - `[ ]` **4.4.c `checkout-not-writable`**
-        - A write to a work unit's meta, companion, or task list — an update, a removal, or a creation — is admitted
-          where the meta copy a read of the work unit returns is one this checkout holds: its flat-active meta, or a
-          tree copy agreeing with the selected one. Everywhere else it refuses, naming where the selected copy lives —
-          the worktree holding it where one does (`worktreePathBySlug`, `lib/work-unit/composed-lifecycle-index.ts`),
-          else its branch, which a checkout of it can write. A companion or task list lands beside that copy, and a
-          creation's absence is checked there, where its read looks.
-        - A meta flat in `active/` is its own selected copy (Task 4.3.a), so a write to its work unit's records checks
-          its content digest and no other copy's agreement, and composes nothing, whether or not its parser accepts it.
-          A parked work unit's backlog pointer agrees with its selected copy, so a write to it, or its removal, checks
-          the pointer's digest, as resume and abandon read and delete the pointer at today's writable path, and a write
-          to the stub's files beside it is admitted as today, abandon removing them with the pointer (`artifactMatcher`
-          over the pointer's folder, `verbs/abandon.ts`) while resume removes the pointer alone (`park-resume.ts`). A
-          companion or task list of a work unit no read finds is `not-found`, its remedy creating the meta with it in
-          one batch. A meta's creation is checked against this checkout's tree, as the lifecycle executor's create edge
-          checks a new slug (`buildLifecycleIndex`, `lib/work-unit/lifecycle-executor.ts`), and a companion or task list
-          created in the batch that creates its meta lands beside it. A write to a Candidate, boundary, or transition
-          record, which are read from this checkout's tree alone, is admitted as today, the preflights below its only
-          guard.
-        - Admission reads the listing's composition (Task 4.3.a), not the one abandon, resume, and rename build with
-          remote work units expanded live and `prospective` set (`handlers/lifecycle.ts`, `commands/rename.ts`): a work
-          unit started from another clone and not yet fetched here is admitted or refused as the listing shows it, and
-          one whose tree copy was moved from `active/` into the backlog on its own branch and not yet committed is
-          checked against the committed copy and refused, naming the move's commit as its remedy, since the worktree
-          holding the selected copy is this one.
-        - Today's write-context preflights (`lib/git/write-context.ts`) map onto the refusal through one function the
-          rerouted verbs call; no ordinary write runs a preflight.
-        - Build `test-first` (one behavior at a time):
-            - each case refuses with its remedy, and the write succeeds from the checkout the remedy names, or from a
-              checkout of the branch it names where no worktree holds the selected copy, or once the commit it names
-              lands;
-            - a write for a work unit started from another clone and not yet fetched here refuses as the listing shows
-              no agreeing copy here, and a write after a move from `active/` into the backlog on the work unit's own
-              branch refuses naming the move's commit, and lands once it is committed;
-            - a draft written for a work unit no read finds is `not-found`, and lands in a batch that creates its meta;
-            - a meta created with its draft in one batch lands, while a write to a draft or task list beside a stub
-              that disagrees with its selected copy refuses, naming the selected copy's branch, and lands from that
-              branch's checkout;
-            - creating a draft beside a stub that disagrees with its selected copy, and creating one for a work unit
-              this checkout holds no copy of, each refuse, with no file written, and the same creation lands from the
-              selected copy's checkout, where a read then returns it;
-            - in a work unit's own checkout whose flat-active meta its parser rejects, a write to its task list lands
-              with no composition run;
-            - a parked work unit's pointer and the stub's draft start left beside it are removed in one batch, as
-              abandon removes them, and a draft written beside the pointer lands;
-            - a parked work unit's pointer is written and removed against the version its read returns, after which a
-              read returns its branch copy and the listing of this checkout's records no longer gives it;
-            - each preflight refusal maps onto `checkout-not-writable` with the landing place it names today.
+    - `[x]` **4.4.c `checkout-not-writable`**
+        - Reads and writes share selected-copy admission, including flat metas, parked pointers, companion
+          creation, last-fetched state, and uncommitted moves. A pure mapper preserves existing preflight landing
+          remedies.
 
-### `[ ]` **4.5 State version, history, and changes over the branch — D2, D8**
+### `[x]` **4.5 State version, history, and changes over the branch — D2, D8**
 
 - _Goal:_ Over tracked records the state version is the branch tip, reads and lists as of a version read that commit's
   tree alone by the rules the listing of this checkout's records runs by over the working tree, `changes` reports the
   records whose files differ between two commits, and `history` walks the branch's commits with their messages, while
   records outside the state version refuse `unsupported`.
 
-    - Build `test-first` (one behavior at a time):
-        - `version` returns `HEAD`, and moves only when a commit lands;
-        - a read as of a version returns the bytes at that commit, an uncommitted edit excluded;
-        - a listing as of a version keeps the copies the listing of this checkout's records keeps over that commit's
-          tree, never another branch's — a stub left on base after start lists as the stub, where the working tree's
-          composed listing gives its branch copy — with a rejected flat-active meta beside a completed copy and a meta
-          under an uppercase quarter each as a diagnostic;
-        - a listing as of a version carries that version, and a live listing carries none;
-        - `changes` between two commits names the records whose files changed, restricted when asked, with the commits'
-          messages;
-        - `history` of a meta returns its commits newest first with their messages;
-        - `history` of a renamed meta follows the file across the rename, as `git log --follow` does;
-        - a read as of a version, or `changes`, for another branch's record refuses `unsupported` (recoverable), naming
-          per-record versions as the remedy, and a check of the record's own version then succeeds, while one for a
-          record no branch holds is `not-found`.
+- _Outcome:_ Saved anchors use branch HEAD and immutable local trees. History follows renamed files with exact commit
+  messages and removal versions; changes conserve endpoint differences, restrictions, and other-branch refusal remedies.
 
-### `[ ]` **4.6 Lookup through today's derivations — D3, D8**
+### `[x]` **4.6 Lookup through today's derivations — D3, D8**
 
 - _Goal:_ `lookup` over tracked records resolves a slug, a former slug through today's transition record, a lineage
   origin, a work unit's checkout claim, and a commit or ref through today's derivations, so reverse lookup answers as
   today before captures exist.
 
-    - An Errand's or a claim's checkout claim, and a ref resolving to its Errand, join with the transient-identity arm
-      in Task 7.2.
-    - A commit's `Context:` footer parses through `parseTaskReference` (`lib/commit-check/task-reference.ts`), and a
-      range expands against the work unit's task list as `expandTaskReference` (`lib/delivery/from-branch.ts`) expands
-      it, falling back to its endpoints where either is missing; the expansion moves beside the parser, so delivery's
-      attribution and the in-repo implementation share it.
-    - Build `test-first` (one behavior at a time):
-        - a slug resolves to its work unit, and a former slug to the renamed one;
-        - a lineage origin resolves to the decomposed or abandoned origin's transition record;
-        - a work unit's checkout claim resolves to its meta;
-        - a commit resolves to its work unit and every task its `Context:` footer names, two included and a range
-          expanded against the task list, through that footer, and a ref to its work unit through the branch name;
-        - `not-found` and `ambiguous-match` carry their remedies.
+- _Outcome:_ Lookup derives current and former slugs, origin transitions, checkout claims, and final Context footers
+  or branch names. Shared task-range expansion preserves delivery attribution; reused aliases retain ambiguity remedies.
 
-### `[ ]` **4.7 In-repo conformance over the tracked families — D7**
+### `[x]` **4.7 In-repo conformance over the tracked families — D7**
 
 - _Goal:_ The conformance suite passes against the in-repo implementation over the tracked families, with version
   conflicts produced by racing writers, so the tracked arm meets the reference backend's assertions before the shared
   caller pieces build on it.
 
-    - `[ ]` **4.7.a The in-repo conformance fixture**
-        - Over a temporary repository (`createTempRepo`, `__tests__/helpers/integration.ts`), serving the tracked
-          families; `settle` commits as a ceremony would, `race` runs two writers against one record, and `identity`
-          builds the contract with its identity dependency resolving none. It runs in the integration lane; the personal
-          and transient-identity families join it in Task 7.4.
-        - Its fault hooks plant a bad record file, hold the checkout's tracked-write lock, and produce and repair each
-          in-repo refusal — `record-malformed` by a Candidate record whose content its schema rejects, and
-          `identity-mismatch` by one whose content names another work unit, each repaired by a valid write (Task 4.4.a).
-          Its `content` hook gives a Candidate record, a boundary, or a transition record whose key is the identity
-          written, and any bytes for a meta, companion, or task list, with no rejecting variant for those three. It
-          declares its capability report's answer, no (Task 4.2.c), that its live listings carry no state version (Task
-          4.5), and what the tracked families cannot produce, each with its reason, and the list is complete:
-            - a newer format version (item 10), since every record reads version 1 until the ref backend writes one;
-            - `sync` (item 16), which never covers tracked records;
-            - `not-found`'s no-identity case (Task 3.6.b), since no tracked record is identity-scope; it runs from Task
-              7.4;
-            - a created record's UID (item 1), since a tracked record keys by its slug and carries no UID before the
-              flip (D2);
-            - a rename (its assertions in items 1, 11, and 12), a move to another placement, and a creation at
-              `completed` (item 1), which it refuses `unsupported` (Task 4.4.a), since `arc rename`, the lifecycle
-              verbs, and archive keep their code until they are rerouted;
-            - links (item 1) and `lookup` by a stored link — a captured commit or a branch link (item 12) — since the
-              in-repo implementation stores none and refuses a write carrying a links value (Task 4.4.a); its
-              derivations through `Context:` footers and branch names are tested in Task 4.6;
-            - a batch's shared batch ID (item 4) and each write's own provenance in `changes` and `history` (items 7 and
-              11), since a tracked record's history is the commits that carry it, whose messages it returns as they are
-              (D3);
-            - the `oversized` and unknown-format-version diagnostics, `key-mismatch` on a meta, companion, or task list,
-              and the `unreadable` family outcome (item 9), since today's tracked readers cap no size, a meta's identity
-              is its filename with no key inside to disagree, every record reads format version 1 until the ref backend
-              writes one, and the lifecycle walk reads a directory it cannot open as empty;
-            - content a meta's, companion's, or task list's validation rejects (the `content` hook's rejecting variant),
-              since the in-repo backend validates none of them at write (D8);
-            - `namespace-corrupt` (item 14), since the tracked substrate is the working tree, whose walk reads a
-              directory it cannot open as empty;
-            - `unsupported`'s held-here case (item 12), since it answers the filter (Task 4.3.a).
+    - `[x]` **4.7.a The in-repo conformance fixture**
+        - The public factory fixture uses real Git, tracked locks, racing writes, corrupt and unreadable files,
+          and executable refusal repairs. Every interim assertion and refusal exception has a rendered name and reason.
 
-    - `[ ]` **4.7.b The suite over the tracked families**
-        - Every item and assertion the fixture's declarations admit passes over the tracked families, and each excluded
-          item, assertion, and refusal is reported by name with its reason.
+    - `[x]` **4.7.b The suite over the tracked families**
+        - The tracked suite exercises every admitted assertion; split capability assertions preserve the
+          reference suite while isolating actual unsupported behavior and legacy provenance or format limits.
 
 ## **Phase 5:** Shared caller pieces
 

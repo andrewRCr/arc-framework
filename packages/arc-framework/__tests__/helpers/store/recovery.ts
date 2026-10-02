@@ -28,7 +28,7 @@ export const refusalRecoveryTable: Record<RefusalCode, readonly RecoveryCase[]> 
   "version-conflict": [{ id: "version-conflict", class: "recoverable", produce: "Update a single-writer record from a stale version.", repair: "Re-read the record version and re-apply the intended content." }, transient("version-conflict")],
   "record-malformed": [{ id: "record-malformed", class: "recoverable", produce: "Write bytes rejected by the record's pure parser.", repair: "Repair the content to the parser's documented shape." }, transient("record-malformed")],
   "identity-mismatch": [{ id: "identity-mismatch", class: "recoverable", produce: "Read an entry whose stored key disagrees with its record.", repair: "Restore the record under the correct identity and repeat the read." }],
-  "ambiguous-match": [{ id: "ambiguous-match", class: "recoverable", produce: "Lookup a branch linked by two work items.", repair: "Clear the erroneous branch link and repeat lookup." }],
+  "ambiguous-match": [{ id: "ambiguous-match", class: "recoverable", produce: "Lookup a logical handle that resolves to two work items.", repair: "Remove the erroneous competing resolution and repeat lookup." }],
   "lock-held": [{ id: "lock-held", class: "recoverable", produce: "Hold the injected surface write lock while a write waits.", repair: "Release that lock and repeat the original write." }],
   "namespace-corrupt": [{ id: "namespace-corrupt", class: "terminal", produce: "Break the namespace record index.", repair: "Rebuild the index from its saved record state." }],
   "checkout-not-writable": [{ id: "checkout-not-writable", class: "recoverable", produce: "Attempt a write in a checkout without authority.", repair: "Repeat the write in the authorized checkout named by its remedy." }],

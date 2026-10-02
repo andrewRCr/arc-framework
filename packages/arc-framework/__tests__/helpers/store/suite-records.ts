@@ -43,6 +43,8 @@ export function registerRecordAssertions(context: SuiteContext): void {
     const removed = success(await fixture.store.write({ action: "remove", reference: record.reference, expected: record.version, provenance: testProvenance }));
     expect(removed.version).toBeUndefined();
     expect(await fixture.store.read({ reference: record.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    const recreated = await seed(fixture, reference);
+    expect(recreated.content).toBe(record.content);
   }, (kind) => !kind.endsWith("/conflict-record"));
   everyKind(context, "keyed-independence", async (fixture, reference) => {
     const first = await seed(fixture, reference);
@@ -63,9 +65,15 @@ export function registerRecordAssertions(context: SuiteContext): void {
     }
   }, (kind) => KIND_REGISTRY[kind].key !== null);
   for (const kind of ["work-item/meta", "work-item/record"] as const) {
-    assertion(context, "work-item", `primary-placement-links:${kind}`, async (fixture) => {
-      const record = await seed(fixture, fixture.reference(kind), undefined, { kind: "active" }, { branch: { repository: "repo", ref: "feat/original" } });
+    assertion(context, "work-item", `primary-active-placement:${kind}`, async (fixture) => {
+      const record = await seed(fixture, fixture.reference(kind));
       expect(record.placement).toEqual({ kind: "active" });
+      const listed = success(await fixture.store.list({ family: "work-item", kind }));
+      if (listed.status !== "complete") throw new Error("Expected active listing");
+      expect(listed.records[0]).toMatchObject({ placement: { kind: "active" } });
+    });
+    assertion(context, "work-item", `primary-links-create-retain-replace-clear:${kind}`, async (fixture) => {
+      const record = await seed(fixture, fixture.reference(kind), undefined, { kind: "active" }, { branch: { repository: "repo", ref: "feat/original" } });
       expect(record.links).toEqual({ branch: { repository: "repo", ref: "feat/original" } });
       success(await fixture.store.write(update(fixture, record)));
       const retained = success(await fixture.store.read({ reference: record.reference }));
@@ -73,23 +81,39 @@ export function registerRecordAssertions(context: SuiteContext): void {
       success(await fixture.store.write({ ...update(fixture, retained), links: { changeRequest: { repository: "repo", number: 7 } } }));
       const replaced = success(await fixture.store.read({ reference: record.reference }));
       expect(replaced.links).toEqual({ changeRequest: { repository: "repo", number: 7 } });
-      success(await fixture.store.write({ ...update(fixture, replaced), links: {}, placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }));
+      success(await fixture.store.write({ ...update(fixture, replaced), links: {} }));
+      const cleared = success(await fixture.store.read({ reference: record.reference }));
+      expect(cleared.links).toEqual({});
+      const listed = success(await fixture.store.list({ family: "work-item", kind }));
+      if (listed.status !== "complete") throw new Error("Expected link listing");
+      expect(listed.records[0]).toMatchObject({ links: {} });
+    });
+    assertion(context, "work-item", `primary-placement-move-to-completed:${kind}`, async (fixture) => {
+      const record = await seed(fixture, fixture.reference(kind));
+      success(await fixture.store.write({ ...update(fixture, record), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }));
       const completed = success(await fixture.store.read({ reference: record.reference }));
-      expect(completed.links).toEqual({});
       expect(ReadPlacementSchema.safeParse(completed.placement).success).toBe(true);
       expect(completed.placement).toMatchObject({ kind: "completed", quarter: "2026-q4", ...(kind === "work-item/meta" ? { sequence: "01" } : {}) });
       if (kind === "work-item/record") expect(completed.placement).not.toHaveProperty("sequence");
       const listed = success(await fixture.store.list({ family: "work-item", kind }));
       if (listed.status !== "complete") throw new Error("Expected completed listing");
-      expect(listed.records[0]).toMatchObject({ placement: completed.placement, links: {} });
+      expect(listed.records[0]).toMatchObject({ placement: completed.placement });
+    });
+    assertion(context, "work-item", `primary-create-at-completed:${kind}`, async (fixture) => {
+      const completed = await seed(fixture, fixture.reference(kind), undefined, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+      expect(completed.placement).toMatchObject({ kind: "completed", quarter: "2026-q4" });
     });
   }
-  assertion(context, "work-item", "UID-rename-and-generations", async (fixture) => {
+  assertion(context, "work-item", "created-work-item-UID", async (fixture) => {
     const record = await seed(fixture, fixture.reference("work-item/meta"));
     expect(record.reference.owner.type).toBe("work-item");
+    if (record.reference.owner.type === "person") throw new Error("Expected work-item owner");
+    expect(record.reference.owner.uid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u);
+  });
+  assertion(context, "work-item", "UID-rename-and-generations", async (fixture) => {
+    const record = await seed(fixture, fixture.reference("work-item/meta"));
     const owner = record.reference.owner;
-    if (owner.type === "person") throw new Error("Expected work-item owner");
-    expect(owner.uid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u);
+    if (owner.type === "person" || owner.uid === undefined) throw new Error("Expected minted work-item owner");
     const renamed = RecordReferenceSchema.parse({ ...record.reference, owner: OwnerIdentitySchema.parse({ ...owner, name: "renamed-work" }) });
     success(await fixture.store.write({ ...update(fixture, record), reference: renamed }));
     const current = success(await fixture.store.read({ reference: renamed }));
@@ -117,7 +141,7 @@ export function registerVersionConflictAssertions(context: SuiteContext): void {
     const failed = results.filter((result) => result.status === "refused");
     expect(failed.length).toBeGreaterThan(0);
     expect(failed[0]).toMatchObject({ refusal: { code: "version-conflict", records: [record.reference] } });
-  }, (kind) => KIND_REGISTRY[kind].merge === "single-writer");
+  }, (kind) => KIND_REGISTRY[kind].merge === "single-writer" && !["create-only", "write-once"].includes(KIND_REGISTRY[kind].writerRule));
   everyKind(context, "stale-removal", async (fixture, reference) => {
     const record = await seed(fixture, reference);
     success(await fixture.store.write(update(fixture, record)));

@@ -26,15 +26,22 @@ export function registerBatchAssertions(context: SuiteContext): void {
     expect(success(await fixture.store.read({ reference: second.reference }))).toEqual(currentSecond);
     expect(success(await fixture.store.read({ reference: third.reference }))).toEqual(third);
   }, (kind) => mutable(kind) && KIND_REGISTRY[kind].merge === "single-writer");
-  assertion(context, "work-item", "batch-mixed-removal-and-write", async (fixture) => {
+  assertion(context, "work-item", "batch-mixed-atomic-write-and-removal", async (fixture) => {
     const remove = await seed(fixture, fixture.reference("work-item/meta"));
     const change = await seed(fixture, fixture.reference("work-item/meta", "two"));
     const writes: Mutation[] = [{ action: "remove", reference: remove.reference, expected: remove.version }, update(fixture, change)];
-    const before = await fixture.settle();
     const landed = success(await fixture.store.batch({ writes, provenance: testProvenance }));
     expect(landed.writes).toHaveLength(2);
     expect(await fixture.store.read({ reference: remove.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
     expect(success(await fixture.store.read({ reference: change.reference })).content).toBe(fixture.content(change.reference, "changed"));
+  });
+  assertion(context, "work-item", "batch-shared-ID-in-changes-and-history", async (fixture) => {
+    const remove = await seed(fixture, fixture.reference("work-item/meta"));
+    const change = await seed(fixture, fixture.reference("work-item/meta", "two"));
+    const before = await fixture.settle();
+    const landed = success(await fixture.store.batch({ writes: [
+      { action: "remove", reference: remove.reference, expected: remove.version }, update(fixture, change),
+    ], provenance: testProvenance }));
     const changes = success(await fixture.store.changes({ from: before, to: await fixture.settle() }));
     expect(changes).toHaveLength(2);
     expect(changes.every((entry) => "batchId" in entry.provenance && entry.provenance.batchId === landed.batchId)).toBe(true);
@@ -74,15 +81,22 @@ export function registerStateAssertions(context: SuiteContext): void {
     expect(created).not.toBe(before);
     expect(success(await fixture.store.version())).toBe(created);
     expect(success(await fixture.store.read({ reference: record.reference, asOf: created }))).toEqual(record);
-    const saved = success(await fixture.store.list({ family: KIND_REGISTRY[reference.kind].family, asOf: created }));
+    const saved = success(await fixture.store.list({ family: KIND_REGISTRY[reference.kind].family, kind: reference.kind, asOf: created }));
     expect(saved).toMatchObject({ status: "complete", asOf: created });
-    const live = success(await fixture.store.list({ family: KIND_REGISTRY[reference.kind].family }));
+    const live = success(await fixture.store.list({ family: KIND_REGISTRY[reference.kind].family, kind: reference.kind }));
     if (live.status === "unreadable") throw new Error("Expected readable live listing");
     expect(live.asOf).toBe(fixture.declarations.liveListingStateVersion ? created : undefined);
     expect(await fixture.settle()).toBe(created);
     const changes = success(await fixture.store.changes({ from: before, to: created, references: [record.reference] }));
     expect(changes).toHaveLength(1);
-    expect(changes[0]).toMatchObject({ reference: record.reference, version: record.version, provenance: testProvenance });
+    expect(changes[0]).toMatchObject({ reference: record.reference, version: record.version });
+  });
+  everyKind(context, "saved-state-changes-write-provenance", async (fixture, reference) => {
+    const before = await fixture.settle();
+    const record = await seed(fixture, reference);
+    const changes = success(await fixture.store.changes({ from: before, to: await fixture.settle(), references: [record.reference] }));
+    expect(changes).toHaveLength(1);
+    expect(changes[0]?.provenance).toMatchObject(testProvenance);
   });
   everyKind(context, "earlier-state-keeps-prior-bytes", async (fixture, reference) => {
     const record = await seed(fixture, reference);
@@ -91,7 +105,7 @@ export function registerStateAssertions(context: SuiteContext): void {
     const after = await fixture.settle();
     expect(after).not.toBe(before);
     expect(success(await fixture.store.read({ reference: record.reference, asOf: before }))).toEqual(record);
-    const earlier = success(await fixture.store.list({ family: KIND_REGISTRY[reference.kind].family, asOf: before }));
+    const earlier = success(await fixture.store.list({ family: KIND_REGISTRY[reference.kind].family, kind: reference.kind, asOf: before }));
     if (earlier.status !== "complete") throw new Error("Expected historical complete listing");
     expect(earlier.records).toContainEqual(record);
     expect(success(await fixture.store.changes({ from: before, to: after, references: [record.reference] }))).toHaveLength(1);
@@ -102,13 +116,21 @@ export function registerStateAssertions(context: SuiteContext): void {
  * @param context - item 11 context.
  */
 export function registerHistoryAssertions(context: SuiteContext): void {
-  everyKind(context, "history-order-and-provenance", async (fixture, reference) => {
+  everyKind(context, "history-newest-first-versions", async (fixture, reference) => {
     const first = await seed(fixture, reference);
-    if (mutable(reference.kind)) success(await fixture.store.write({ ...update(fixture, first), provenance: { ...testProvenance, verb: "update", lifecycleAction: "resume" } }));
+    await fixture.settle();
+    if (mutable(reference.kind)) success(await fixture.store.write(update(fixture, first)));
+    await fixture.settle();
     const current = success(await fixture.store.read({ reference: first.reference }));
     const history = success(await fixture.store.history({ reference: first.reference }));
-    expect(history[0]?.version).toBe(current.version);
-    expect(history.at(-1)?.version).toBe(first.version);
+    expect(history.map((entry) => entry.version)).toEqual(mutable(reference.kind) ? [current.version, first.version] : [first.version]);
+  });
+  everyKind(context, "history-caller-and-owner-provenance", async (fixture, reference) => {
+    const first = await seed(fixture, reference);
+    await fixture.settle();
+    if (mutable(reference.kind)) success(await fixture.store.write({ ...update(fixture, first), provenance: { ...testProvenance, verb: "update", lifecycleAction: "resume" } }));
+    await fixture.settle();
+    const history = success(await fixture.store.history({ reference: first.reference }));
     expect(history.at(-1)?.provenance).toMatchObject({ ...testProvenance, reference: first.reference });
     if (first.reference.owner.type !== "person") expect(history.at(-1)?.provenance).toMatchObject({ ownerUid: first.reference.owner.uid });
     if (mutable(reference.kind)) expect(history[0]?.provenance).toMatchObject({ verb: "update", lifecycleAction: "resume", codeHead: testProvenance.codeHead });

@@ -27,12 +27,14 @@ export function success<T>(envelope: StoreResult<T>): T {
  * @param family - Family under test.
  * @param name - Stable assertion name used by per-assertion exclusions.
  * @param test - Behavior driven entirely through fixture hooks and the public store.
+ * @param inapplicableReason - Named mechanism limitation when the behavior does not apply.
  */
-export function assertion(context: SuiteContext, family: FamilyId, name: string, test: (fixture: ConformanceFixture) => Promise<void>): void {
+export function assertion(context: SuiteContext, family: FamilyId, name: string, test: (fixture: ConformanceFixture) => Promise<void>, inapplicableReason?: string): void {
+  if (!context.registration.declarations.families.includes(family)) return;
   const exclusions = context.registration.declarations.familyExclusions[family];
-  const reason = exclusions?.items?.[context.item] ?? exclusions?.assertions?.[name];
+  const reason = exclusions?.items?.[context.item] ?? exclusions?.assertions?.[name] ?? inapplicableReason;
   if (reason) it.skip(`${family}: ${name} — ${reason}`, () => {});
-  else it(`${family}: ${name}`, async () => { await test(context.registration.create()); });
+  else it(`${family}: ${name}`, async () => { await test(await context.registration.create()); });
 }
 
 /** Register one named behavior for each served role selected by its declared mechanism.
@@ -40,11 +42,12 @@ export function assertion(context: SuiteContext, family: FamilyId, name: string,
  * @param name - Assertion role, prefixed to each kind identifier.
  * @param test - Per-kind observable behavior.
  * @param select - Optional applicability filter from registry data.
+ * @param inapplicableReason - Explicit mechanism reason reported for each selected kind.
  */
-export function everyKind(context: SuiteContext, name: string, test: (fixture: ConformanceFixture, reference: RecordReference) => Promise<void>, select: (kind: KindId) => boolean = () => true): void {
+export function everyKind(context: SuiteContext, name: string, test: (fixture: ConformanceFixture, reference: RecordReference) => Promise<void>, select: (kind: KindId) => boolean = () => true, inapplicableReason?: string): void {
   for (const family of context.registration.declarations.families) {
     const kinds = (Object.keys(KIND_REGISTRY) as KindId[]).filter((kind) => KIND_REGISTRY[kind].family === family && select(kind));
-    for (const kind of kinds) assertion(context, family, `${name}:${kind}`, (fixture) => test(fixture, fixture.reference(kind)));
+    for (const kind of kinds) assertion(context, family, `${name}:${kind}`, (fixture) => test(fixture, fixture.reference(kind)), inapplicableReason);
   }
 }
 

@@ -23,7 +23,7 @@ export function registerRecoveryAssertions(context: SuiteContext): void {
     const name = `${scenario.id}: ${scenario.produce} Remedy: ${scenario.repair}`;
     if (reason) { it.skip(`${name} — ${reason}`, () => {}); continue; }
     it(name, async () => {
-      const fixture = context.registration.create();
+      const fixture = await context.registration.create();
       const operation = await fixture.produce(scenario.id);
       const failure = observedRefusal(await operation.run());
       expect(failure.code).toBe(code);
@@ -54,7 +54,7 @@ export function registerCrossSubstrateAssertions(context: SuiteContext): void {
     const reason = context.registration.declarations.familyExclusions[family]?.items?.[5];
     if (reason) { it.skip(`${family}: atomic-cross-substrate-batch — ${reason}`, () => {}); continue; }
     it(`${family}: atomic-cross-substrate-batch`, async () => {
-      const fixture = context.registration.create();
+      const fixture = await context.registration.create();
       const operation = await fixture.produce("unsupported:cross-substrate-batch");
       const before = success(await fixture.store.version());
       expect(observedRefusal(await operation.run())).toMatchObject({ code: "unsupported", case: "cross-substrate-batch", class: "recoverable" });
@@ -73,7 +73,7 @@ export function registerCoverageAssertions(context: SuiteContext): void {
     const reason = context.registration.declarations.familyExclusions[family]?.items?.[8];
     if (reason) { it.skip(`${family}: uncovered-record-state-version — ${reason}`, () => {}); continue; }
     it(`${family}: uncovered-record-state-version`, async () => {
-      const fixture = context.registration.create();
+      const fixture = await context.registration.create();
       const operation = await fixture.produce("unsupported:uncovered-state-version");
       expect(observedRefusal(await operation.run())).toMatchObject({ code: "unsupported", case: "uncovered-state-version", class: "recoverable" });
       await fixture.repair("unsupported:uncovered-state-version");

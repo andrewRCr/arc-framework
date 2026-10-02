@@ -11,24 +11,24 @@ import { assertion, everyKind, seed, success, update, type SuiteContext } from "
 export function registerListingAssertions(context: SuiteContext): void {
   for (const family of context.registration.declarations.families) {
     assertion(context, family, "empty-family-is-absent", async (fixture) => {
-      expect(success(await fixture.store.list({ family }))).toMatchObject({ status: "absent" });
+      expect(success(await fixture.store.list({ family, ...(family === "work-item" ? { kind: "work-item/meta" as const } : {}) }))).toMatchObject({ status: "absent" });
     });
     if (FAMILY_REGISTRY[family].scope === "identity") assertion(context, family, "no-identity-is-absent", async (fixture) => {
       const kind = (Object.keys(KIND_REGISTRY) as KindId[]).find((kind) => KIND_REGISTRY[kind].family === family);
       if (kind !== undefined) await seed(fixture, fixture.reference(kind));
       fixture.identity(undefined);
-      expect(success(await fixture.store.list({ family }))).toMatchObject({ status: "absent" });
+      expect(success(await fixture.store.list({ family, ...(family === "work-item" ? { kind: "work-item/meta" as const } : {}) }))).toMatchObject({ status: "absent" });
     });
   }
   everyKind(context, "unreadable-family", async (fixture, reference) => {
     await seed(fixture, reference);
-    fixture.plant(reference, "family-unreadable");
+    await fixture.plant(reference, "family-unreadable");
     expect(success(await fixture.store.list({ family: KIND_REGISTRY[reference.kind].family }))).toMatchObject({ status: "unreadable", condition: expect.any(String), remedy: { text: expect.any(String) } });
   });
   for (const kind of ["unreadable", "oversized", "malformed", "key-mismatch", "unknown-format-version"] as const) {
     everyKind(context, `diagnostic-${kind}`, async (fixture, reference) => {
       const record = await seed(fixture, reference);
-      fixture.plant(record.reference, kind);
+      await fixture.plant(record.reference, kind);
       const listed = success(await fixture.store.list({ family: KIND_REGISTRY[reference.kind].family, kind: reference.kind }));
       expect(listed).toMatchObject({ status: "complete", records: [], missed: true,
         diagnostics: [{ kind, key: expect.any(String), condition: expect.any(String), remedy: { text: expect.any(String) } }] });
@@ -40,7 +40,7 @@ export function registerListingAssertions(context: SuiteContext): void {
     for (const [index, kind] of diagnostics.entries()) {
       const reference = RecordReferenceSchema.parse({ ...good.reference, key: `scratch/bad-${index}.md` });
       await seed(fixture, reference);
-      fixture.plant(reference, kind);
+      await fixture.plant(reference, kind);
     }
     const listed = success(await fixture.store.list({ family: "personal", kind: "personal/document" }));
     if (listed.status !== "complete") throw new Error("Expected completed enumeration");
@@ -49,20 +49,26 @@ export function registerListingAssertions(context: SuiteContext): void {
     expect(new Set(listed.diagnostics.map((diagnostic) => diagnostic.key)).size).toBe(5);
     expect(listed.missed).toBe(true);
   });
-  assertion(context, "work-item", "lifecycle-location-filter-and-per-record-mutation-basis", async (fixture) => {
+  assertion(context, "work-item", "lifecycle-location-filter", async (fixture) => {
     const active = await seed(fixture, fixture.reference("work-item/meta"));
     const planned = await seed(fixture, fixture.reference("work-item/meta", "planned"), undefined, { kind: "backlog", commitment: "planned" });
     const provisional = await seed(fixture, fixture.reference("work-item/meta", "provisional"), undefined, { kind: "backlog", commitment: "provisional" });
-    const completed = await seed(fixture, fixture.reference("work-item/meta", "completed"), undefined, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+    const completedRef = fixture.reference("work-item/meta", "completed");
+    const placement = { kind: "completed" as const, quarter: ArchiveQuarterSchema.parse("2026-q4") };
+    const completed = fixture.materialize ? await fixture.materialize(completedRef, placement) : await seed(fixture, completedRef, undefined, placement);
     for (const [location, record] of [["active", active], ["planned", planned], ["provisional", provisional], ["completed", completed]] as const) {
       const listed = success(await fixture.store.list({ family: "work-item", kind: "work-item/meta", filter: { locations: [location] } }));
       if (listed.status !== "complete") throw new Error("Expected lifecycle complete listing");
       expect(listed.records).toEqual([record]);
     }
+  });
+  assertion(context, "work-item", "listing-per-record-mutation-basis", async (fixture) => {
+    const active = await seed(fixture, fixture.reference("work-item/meta"));
     const listed = success(await fixture.store.list({ family: "work-item", kind: "work-item/meta" }));
     if (listed.status !== "complete") throw new Error("Expected current listing");
     await seed(fixture, fixture.reference("work-item/meta", "unrelated"));
-    const chosen = listed.records.find((record) => record.reference.owner.name === active.reference.owner.name)!;
+    const chosen = listed.records.find((record) => record.reference.owner.name === active.reference.owner.name);
+    if (!chosen) throw new Error("Expected seeded active record");
     success(await fixture.store.write(update(fixture, chosen)));
     expect(success(await fixture.store.read({ reference: chosen.reference })).content).toBe(fixture.content(chosen.reference, "changed"));
   });
@@ -74,7 +80,7 @@ export function registerListingAssertions(context: SuiteContext): void {
 export function registerFormatAssertions(context: SuiteContext): void {
   everyKind(context, "newer-format-refusal-with-remedy", async (fixture, reference) => {
     const record = await seed(fixture, reference);
-    fixture.plant(record.reference, "unknown-format-version");
+    await fixture.plant(record.reference, "unknown-format-version");
     const listed = success(await fixture.store.list({ family: KIND_REGISTRY[reference.kind].family, kind: reference.kind }));
     expect(listed).toMatchObject({ status: "complete", missed: true, diagnostics: [{ kind: "unknown-format-version" }] });
     expect(await fixture.store.read({ reference: record.reference })).toMatchObject({ status: "refused", refusal: {

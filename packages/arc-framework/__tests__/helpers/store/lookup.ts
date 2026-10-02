@@ -47,7 +47,7 @@ export function lookupReference(context: ReferenceContext, input: LookupInput): 
   } else candidates = records.filter((record) => {
     switch (input.kind) {
       case "slug": return primary(record) && (record.reference.owner.name === input.slug || record.formerSlugs.includes(input.slug));
-      case "lineage": return record.reference.kind === "lineage/transition" && record.reference.owner.type !== "person" && record.reference.owner.uid === input.origin;
+      case "lineage": return record.reference.kind === "lineage/transition" && record.reference.owner.type !== "person" && (record.reference.owner.uid === input.origin || record.reference.owner.name === input.origin);
       case "ref": return primary(record) && record.links?.branch?.repository === input.repository && record.links.branch.ref === input.ref;
       case "claim": {
         const claim = input.claim;

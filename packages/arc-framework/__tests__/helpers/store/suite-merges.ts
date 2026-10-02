@@ -17,7 +17,7 @@ function appendEntry(content: string, id: string, title: string): string {
  * @param context - item 3 context.
  */
 export function registerMergeAssertions(context: SuiteContext): void {
-  everyKind(context, "disjoint-entry-insertions", async (fixture, reference) => {
+  mergingKind(context, "disjoint-entry-insertions", async (fixture, reference) => {
     const base = await seed(fixture, reference);
     const current = appendEntry(base.content, "22222222", "Second");
     const incoming = appendEntry(base.content, "33333333", "Third");
@@ -28,7 +28,7 @@ export function registerMergeAssertions(context: SuiteContext): void {
     for (const title of ["First", "Second", "Third"]) expect(read.content).toContain(title);
     expect(merged.conflicts).toEqual([]);
   }, (kind) => KIND_REGISTRY[kind].merge === "entry");
-  everyKind(context, "same-entry-current-and-stored-labelled-conflict", async (fixture, reference) => {
+  mergingKind(context, "same-entry-current-and-stored-labelled-conflict", async (fixture, reference) => {
     const base = await seed(fixture, reference);
     const current = base.content.replace("\nfirst", "\ncurrent");
     const incoming = base.content.replace("\nfirst", "\nincoming");
@@ -50,7 +50,7 @@ export function registerMergeAssertions(context: SuiteContext): void {
     expect(success(await fixture.store.read({ reference: base.reference })).conflicts).toEqual([]);
     expect(await fixture.store.read({ reference: result.conflicts[0]! })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   }, (kind) => KIND_REGISTRY[kind].merge === "entry");
-  for (const order of ["edit-first", "remove-first"] as const) everyKind(context, `observed-remove-${order}`, async (fixture, reference) => {
+  for (const order of ["edit-first", "remove-first"] as const) mergingKind(context, `observed-remove-${order}`, async (fixture, reference) => {
     const base = await seed(fixture, reference);
     const edited = base.content.replace("\nfirst", "\nedited");
     const removed = base.content.slice(0, entryStart(base.content));
@@ -66,14 +66,14 @@ export function registerMergeAssertions(context: SuiteContext): void {
     expect(record.content).toMatch(/_Id:_ `([0-9a-f]{8})`/u);
     expect(record.content.replace(/^.*_Id:_.*\n/gmu, "")).toBe(handWritten);
   }, (kind) => KIND_REGISTRY[kind].merge === "entry");
-  everyKind(context, "disjoint-prose-lines", async (fixture, reference) => {
+  mergingKind(context, "disjoint-prose-lines", async (fixture, reference) => {
     const base = await seed(fixture, reference);
     success(await fixture.store.write(update(fixture, base, "current opening\nbase\nclosing\n")));
     const result = success(await fixture.store.write(update(fixture, base, "opening\nbase\nincoming closing\n")));
     expect(result.conflicts).toEqual([]);
     expect(success(await fixture.store.read({ reference: base.reference })).content).toBe("current opening\nbase\nincoming closing\n");
   }, (kind) => KIND_REGISTRY[kind].merge === "line");
-  everyKind(context, "conflicting-prose-keeps-current-hunk", async (fixture, reference) => {
+  mergingKind(context, "conflicting-prose-keeps-current-hunk", async (fixture, reference) => {
     const base = await seed(fixture, reference);
     const current = "opening\ncurrent\nclosing\n";
     success(await fixture.store.write(update(fixture, base, current)));
@@ -86,4 +86,10 @@ export function registerMergeAssertions(context: SuiteContext): void {
     expect(ConflictRecordSchema.parse(JSON.parse(conflict.content))).toMatchObject({ record: base.reference,
       location: { kind: "hunk", start: 1, end: 2 }, base: "base", current: { content: "current" }, incoming: { content: "incoming" } });
   }, (kind) => KIND_REGISTRY[kind].merge === "line");
+}
+
+function mergingKind(context: SuiteContext, name: string, test: Parameters<typeof everyKind>[2], select: Parameters<typeof everyKind>[3]): void {
+  const reason = context.registration.declarations.mergesConcurrentWrites ? undefined
+    : "This backend never merges stale content bases; callers re-read and re-apply under its write lock.";
+  everyKind(context, name, test, select, reason);
 }

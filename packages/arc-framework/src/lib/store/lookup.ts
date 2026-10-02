@@ -19,7 +19,7 @@ export type CheckoutClaim = z.infer<typeof CheckoutClaimSchema>;
 /** Every supported resolution request. */
 export const LookupInputSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("slug"), ...slug }),
-  z.strictObject({ kind: z.literal("lineage"), origin: z.uuid() }),
+  z.strictObject({ kind: z.literal("lineage"), origin: z.union([z.uuid(), SlugSchema]) }),
   z.strictObject({ kind: z.literal("claim"), claim: CheckoutClaimSchema }),
   z.strictObject({ kind: z.literal("commit"), repository: z.string().min(1), sha: CommitShaSchema, patchId: CommitShaSchema.optional() }),
   z.strictObject({ kind: z.literal("ref"), repository: z.string().min(1), ref: z.string().min(1) }),
