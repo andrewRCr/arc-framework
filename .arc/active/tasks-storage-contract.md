@@ -407,60 +407,20 @@ identity-keyed index answers the pilot caller's query with the records and field
           parser; lite and contributor scans, placeholder values, warnings, and all three existing delegates are
           preserved.
 
-### `[ ]` **5.2 Lifecycle index keyed by identity, proven on one caller — D9**
+### `[x]` **5.2 Lifecycle index keyed by identity, proven on one caller — D9**
 
 - _Goal:_ A lifecycle index keyed by identity lists work units with their parsed meta fields, never a path, answers
   `lookup` for lineage by slug and in-flight work by checkout claim, and returns, for one existing caller's query, the
   records and fields that caller's path read returns.
 
-    - `[ ]` **5.2.a The index**
-        - Composed from the contract's meta listing, which `resolveComposedLifecycleIndex` answers in-repo, keeping each
-          work unit's selected copy with its fields and placement; this checkout's own copy comes from the held-here
-          listing below. From the two listings the index answers whether this checkout's copy is the selected one — its
-          slug, `State`, `Owner`, `Priority`, `Cohort`, `Depends On`, and placement agreeing with the selected copy's,
-          the fields today's composition compares to grant a writable path (`recordsAgree`,
-          `lib/work-unit/composed-lifecycle-index.ts`), placement standing for its location and parked scheduling,
-          never every parsed field — for callers that read that today:
-          `arc status <slug>`'s operational read, abandon's read of the meta in the verb and in its handler, resume's
-          check, rename's write authority, and transform coordination's partition of dependents. A parked work unit's
-          backlog pointer agrees with its selected copy, both carrying its backlog placement (Task 4.3.a). A caller that
-          needs the copy's path takes it from its placement through the layout resolver, as Task 5.3.a's adapter does.
-          Write admission stays the backend's, answered by a write's `checkout-not-writable` (Task 4.4.c), never an
-          index field.
-        - Both answers that rest on `list`'s held-here filter — whether this checkout's copy is the selected one, and
-          this checkout's records alone (below) — are the in-repo implementation's bridge for callers of today's
-          tree-only index and writable path, and retire with it: on a backend whose state lives off the checkout's
-          branch each refuses as the filter does, and a caller rerouted onto either branches on the capability (D15).
-        - Given a state version, it lists as of that version through the contract's `list`: over the in-repo
-          implementation, a commit on this checkout's branch, read through the in-repo backend's tree reader at it.
-        - It also lists this checkout's records alone, through `list`'s held-here filter over every location — over the
-          in-repo implementation, the lifecycle walk with the copy Task 4.3.a keeps — dropping a meta it cannot place,
-          as `entryFromMeta` does, so callers of today's tree-only index compare like for like but for two metas: a
-          flat-active meta it cannot place beside another copy of its slug, which the listing keeps and so the index
-          drops, where `buildLifecycleIndex` keeps the other copy; and a meta at a path the layout cannot place, which
-          the listing gives as a diagnostic, where `buildLifecycleIndex` places it by its tier.
-        - Build `test-first` (one behavior at a time):
-            - a backlog, an active, a completed, and an in-flight work unit each list with the fields today's path
-              reads give;
-            - listed as of `HEAD`, the index gives what today's composition gives over the tree at `HEAD`, but for the
-              two metas it drops there too, and a working-tree edit made after it reaches neither;
-            - listing this checkout's records alone gives what `buildLifecycleIndex` gives over the same checkout, a
-              meta whose `State` places it nowhere absent from both, and a slug whose planned copy cannot be placed at
-              its completed copy in both, while a slug whose flat-active copy cannot be placed, beside a completed copy,
-              is absent from the index and at its completed copy in `buildLifecycleIndex`, as a meta flat in
-              `backlog/planned/` is absent from the index and at `planned` there;
-            - whether this checkout's copy is the selected one matches whether today's composed index grants a writable
-              path, over a work unit whose tree copy is selected, one selected on another branch, one whose tree copy
-              disagrees with the selected copy, and a parked work unit, whose backlog pointer agrees, and the path from
-              its placement is the writable path;
-            - lineage by slug and in-flight work by checkout claim resolve;
-            - over the reference backend, whether this checkout's copy is the selected one and this checkout's records
-              alone each refuse `unsupported`, as the filter does.
+    - `[x]` **5.2.a The index**
+        - The path-free identity index retains parsed fields, placement, versions, and completeness evidence;
+          selected/held agreement uses lifecycle fields and placement, while saved-state and lookup queries retain
+          refusals.
 
-    - `[ ]` **5.2.b The pilot caller**
-        - `arc view`'s resolution (`handlers/view.ts`), which parses the meta at an index entry's path and is
-          read-only: a differential test shows, for each of its queries, the identity-keyed index returning the same
-          records and fields. The caller keeps its code, and heads the enumeration Task 6.1 records.
+    - `[x]` **5.2.b The pilot caller**
+        - Real-Git differentials preserve the view resolver’s records and fields for its explicit queries,
+          including current, backlog, archive, absent, and saved-state cases; the caller remains unchanged.
 
 ### `[ ]` **5.3 Store behind the integration checkpoint's lifecycle port — D9**
 
