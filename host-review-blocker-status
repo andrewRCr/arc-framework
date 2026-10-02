@@ -3,7 +3,7 @@
   "slug": "host-review-blocker-status",
   "claimId": "6e7b7da5992e834e3b5d32634d2bc0da",
   "createdAt": "2026-10-02T19:21:48.792Z",
-  "updatedAt": "2026-10-02T19:21:48.792Z",
+  "updatedAt": "2026-10-02T20:38:23.547Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Report a host native-review merge blocker in arc review status before the integration gate",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Report a host review blocker in `arc review status` before the integration gate",
   "originEntrySourceDigest": "sha256:5a8e19c6eb44ebffb927a1606a9ed76b9beea4208d45a2e8da0077e572aad94f",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/host-review-blocker-status",
+    "headSha": "0520575a845ae708a2e2d52a615afc9e40d84120"
+  }
 }
