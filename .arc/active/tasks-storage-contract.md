@@ -467,17 +467,13 @@ enumeration is re-derived against the tree at the phase's close.
 - _Outcome:_ `notes-storage-contract.md` records eighteen query-owning call sites derived at `0d0e79a33`, split
   between lifecycle verbs and the remaining consumers, with saved-state queries and branch-tree exclusions explicit.
 
-### `[ ]` **6.2 Differential batch: lifecycle verbs — D9**
+### `[x]` **6.2 Differential batch: lifecycle verbs — D9**
 
 - _Goal:_ For every enumerated lifecycle-verb caller, and for each of its queries, a differential test shows the
   identity-keyed index returning the same records and fields as the caller's path read over the same repository.
 
-    - One test per caller over a repository arranged to exercise each query, reading the index where the query reads:
-      the working tree, or as of the state version the query reads at. A caller of `buildLifecycleIndex` compares with
-      the index's listing of this checkout's records alone.
-    - A divergence is fixed in the index, never by loosening the comparison, and the caller keeps its code. A
-      flat-active meta its parser rejects, beside another copy of its slug, and a meta at a path the layout cannot place
-      are the two designed differences (Tasks 4.3.a and 5.2.a), asserted there, never divergences to fix here.
+- _Outcome:_ Eleven lifecycle query owners compare their original path reads with held or selected identity records,
+  including pointer agreement, dependency authority, field-block validation and finalization workflow bindings.
 
 ### `[ ]` **6.3 Differential batch: integration, status, view, reconcile, teardown, and retirement — D9**
 
