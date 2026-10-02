@@ -174,52 +174,32 @@ _Exit criterion:_ `draft-design`, `create-spec`, `generate-tasks` (the template 
         - amend-design grounds affected spec elements at every depth, includes spec grounding and task grounding in
           its assurance rubric, and runs its accretion offer on that same rubric.
 
-### `[ ]` **3.3 Turn fold verification on at every planning pass — D3**
+### `[x]` **3.3 Turn fold verification on at every planning pass — D3**
 
 - _Goal:_ Each planning stage's pass runs with the fold grounding, the offered fix check, the kept versions, the fold
   tags, and the runner label.
 
-- _Note:_ The `amend-design` prose lands in the § The assurance invariant section that holds its pinned prior-findings
-  sentence; keep that phrase. Run `pr-open-extensions.test.ts`, `framework-sync.test.ts`,
-  `generate-tasks-delivery-authoring-contract.test.ts`, `delivery-composition-ownership.test.ts`, and
-  `boundary-fit-workflow-contract.test.ts` at this task's gate.
+- _Outcome:_ Enabled fold-verification at the draft, spec, and task-generation callsites and in amend-design’s
+  assurance pass; the accretion offer inherits that pass’s settings. Verification and code-review callers retain their
+  existing invocation contracts.
 
-    - `fold-verification: on` in the `adversarial-review` callsite of `draft-design`, `create-spec`, and
-      `generate-tasks.template.md`
-    - `amend-design`: stated in prose under § The assurance invariant, since its passes have no callsite block; the
-      accretion guard's offer runs as that pass does
-    - The verification and code-review callers stay untouched
-
-### `[ ]` **3.4 Point each pass entry at § Pass record and trim the post-settle steps — D3**
+### `[x]` **3.4 Point each pass entry at § Pass record and trim the post-settle steps — D3**
 
 - _Goal:_ The pass-entry contents and the residual reason are stated once, in the method, and `amend-design` gains the
   re-read its originals have.
 
-- _Note:_ `pr-open-extensions.test.ts` pins phrases in each workflow's pass-entry paragraph ("apply the method's
-  complete-disposition and bounded-continuation protocol", the personal-workspace locus, "later passes take their
-  `prior-findings` from it", "a stub groomed before it starts has no workspace yet", "creates no lane-progress record")
-  and `amend-design`'s prior-findings sentence. The pointer prose keeps them and the test stays unchanged.
+- _Outcome:_ All planning pass entries point to the method’s Pass record section while preserving settlement and
+  prior-findings routing. The three existing post-settle steps retain their checks without duplicating the residual
+  rationale; amendment passes gain the scoped re-read on every arm.
 
-- _Note:_ `generate-tasks-delivery-authoring-contract.test.ts` pins the `Post-settle coherence re-read` label by order,
-  between `arc delivery compose` and the `workflow-interlock`. Path-based selection picks no code test for a
-  Markdown-only change, so run `pr-open-extensions.test.ts`, `framework-sync.test.ts`,
-  `generate-tasks-delivery-authoring-contract.test.ts`, `delivery-composition-ownership.test.ts`, and
-  `boundary-fit-workflow-contract.test.ts` at this task's gate.
-
-    - Three workflows: the pass-entry list becomes a pointer to `adversarial-review` § Pass record; the post-settle step
-      drops its restated residual reason
-    - `amend-design`: "as the planning passes do" points to § Pass record; under § The assurance invariant, the
-      post-settle coherence re-read over the amended footprint, when its pass folded anything, as the last step before
-      the amendment lands, on every arm
-
-### `[ ]` **3.5 Exercise the planning stages against the substrate** — validate exit criterion at segment scope
+### `[x]` **3.5 Exercise the planning stages against the substrate** — validate exit criterion at segment scope
 
 - _Goal:_ The Phase 3 exit criterion holds, with the scenario and its result recorded.
 
-    - Run `pr-open-extensions.test.ts`, `framework-sync.test.ts`, `generate-tasks-delivery-authoring-contract.test.ts`,
-      `delivery-composition-ownership.test.ts`, `boundary-fit-workflow-contract.test.ts`, and `lint:arc:triggers`
-    - Trace each stage's adversarial fire-point and post-settle step through to `adversarial-review` § Fold verification
-      and § Pass record, and each `source-grounding` fire-point to its declaration
+- _Outcome:_ The segment scenario holds: all four planning workflows match their project copies, carry the same actor
+  rule, reach behavior grounding, enable fold verification, and resolve the shared pass record and post-settle checks.
+  Traced every direct grounding declaration/fire-point and both method section pointers; the reviewer prompt and
+  convergence rule remain unchanged.
 
 ## **Phase 4:** Verification
 

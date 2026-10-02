@@ -154,14 +154,17 @@ Skip their ceremony steps by reference.
 ### The assurance invariant
 
 An amendment's artifacts pass the gates the originals passed, over the amendment's footprint, at the amendment's
-depth. The depth ladder governs whether an adversarial pass is omitted, offered, or recommended. When an eligible
-pass is authorized, run it on the finalization rubric the original cleared, minus nothing —
-[`assess-design-proportionality`][assess-design-proportionality], [`design-audit`][design-audit], and
-[`spec-review`][spec-review]'s coherence and grounding slices, and [`task-audit`][task-audit]'s grounding floor over
-the footprint's tasks — and pass any prior findings recorded in the work unit's
-`ADVERSARIAL-PASSES.md` through `adversarial-review`'s `prior-findings` input so untouched elements are never
-re-attacked. Append the amendment's pass to that record as the planning passes do. Closure re-runs the detecting check
-(§ Closure).
+depth. The depth ladder governs whether an adversarial pass is omitted, offered, or recommended. Run every such pass
+with `fold-verification: on`. When an eligible pass is authorized, run it on the finalization rubric the original
+cleared, minus nothing — [`assess-design-proportionality`][assess-design-proportionality],
+[`design-audit`][design-audit], and [`spec-review`][spec-review]'s coherence and grounding slices, and
+[`task-audit`][task-audit]'s grounding floor over the footprint's tasks — and pass any prior findings recorded in the
+work unit's `ADVERSARIAL-PASSES.md` through `adversarial-review`'s `prior-findings` input so untouched elements are
+never re-attacked. Append the amendment's pass to that record following [adversarial-review § Pass
+record][pass-record], as the planning passes do. Closure re-runs the detecting check (§ Closure).
+
+**Post-settle coherence re-read** (always-on, in-context): when its pass folded anything, re-read the amended
+footprint for coherence as the last step before the amendment lands, on every arm.
 
 ### The accretion guard
 
@@ -415,3 +418,4 @@ appended supersession lines — the same extent rule parent Goals follow. Stated
 [verify-work-unit]: ../work-unit-lifecycle/verify-work-unit.md
 [prepare-work-unit]: ../work-unit-lifecycle/prepare-work-unit.md
 [source-grounding]: ../../../methods/source-grounding.md
+[pass-record]: ../../../methods/adversarial-review.md#pass-record

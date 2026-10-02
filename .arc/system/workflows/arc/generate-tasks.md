@@ -509,13 +509,13 @@ adversarial-review:
     - AGENT-BRIEF.ARC
     - AGENT-BRIEF.PROJECT
   pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
+  fold-verification: on
   prior-findings:  # pass two onward; omitted on pass one
 ```
 
 After each returned pass, apply the method's complete-disposition and bounded-continuation protocol, then append the
 pass to `ADVERSARIAL-PASSES.md` in the work unit's personal workspace (`.arc/user/{identity}/{name}/`, beside
-SESSION-NOTES): the artifact and version reviewed, `Pass N of M`, the rubric, the complete source-verified
-finding/account/action set, the stop reason, and any conditional next-pass decision. Later passes take their
+SESSION-NOTES): follow [adversarial-review § Pass record][pass-record] for the entry contents. Later passes take their
 `prior-findings` from it, and the commit below summarizes each pass in one body line. A stub groomed before it starts
 has no workspace yet, so that summary is its only record. This advisory evidence creates no lane-progress record.
 
@@ -546,8 +546,7 @@ If the task or design inventory drifted, run `arc delivery plan abandon --json` 
 Never patch the machine-owned snapshot or publish stale authoring state.
 
 **Post-settle coherence re-read** (always-on, in-context): after renderer replacement and any adversarial folds,
-re-fire the Final suite-coherence pass over the settled task list. The final pass's folds are otherwise never
-re-attacked.
+re-fire the Final suite-coherence pass over the settled task list.
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after the pre-save checklist passes. Surface the task list location for review;
@@ -607,3 +606,4 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 [init-work-unit]: work-unit-lifecycle/planning/init-work-unit.md
 [activate-work-unit]: work-unit-lifecycle/activate-work-unit.md
 [source-grounding]: ../../methods/source-grounding.md
+[pass-record]: ../../methods/adversarial-review.md#pass-record

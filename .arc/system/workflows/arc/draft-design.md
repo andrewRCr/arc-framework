@@ -209,13 +209,13 @@ adversarial-review:
     - AGENT-BRIEF.ARC
     - AGENT-BRIEF.PROJECT
   pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
+  fold-verification: on
   prior-findings:  # pass two onward; omitted on pass one
 ```
 
 After each returned pass, apply the method's complete-disposition and bounded-continuation protocol, then append the
 pass to `ADVERSARIAL-PASSES.md` in the work unit's personal workspace (`.arc/user/{identity}/{name}/`, beside
-SESSION-NOTES): the artifact and version reviewed, `Pass N of M`, the rubric, the complete source-verified
-finding/account/action set, the stop reason, and any conditional next-pass decision. Later passes take their
+SESSION-NOTES): follow [adversarial-review § Pass record][pass-record] for the entry contents. Later passes take their
 `prior-findings` from it, and the commit below summarizes each pass in one body line. A stub groomed before it starts
 has no workspace yet, so that summary is its only record. This advisory evidence creates no lane-progress record.
 
@@ -256,8 +256,7 @@ fast-forward it, and remove the local grooming branch if it is still present.
 
 **Post-settle coherence re-read** (always-on, in-context): when folds landed after the readiness read —
 adversarial-pass findings, review amendments — re-read the settled draft for coherence (the readiness bar's
-coherence check, re-fired) as the last step before the capture commit. The final pass's folds are otherwise
-never re-attacked.
+coherence check, re-fired) as the last step before the capture commit.
 
 What is staged sets the commit shape: a `medium` / `high` path bundles the `draft-*` with the meta `Class` +
 `Design` writes; a `low` path that produced no draft writes only the meta, landing as a dedicated `chore(arc):`
@@ -291,3 +290,4 @@ planning-depth level is never recorded.
 [setup-merge-gate]: supplemental/setup-merge-gate.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [source-grounding]: ../../methods/source-grounding.md
+[pass-record]: ../../methods/adversarial-review.md#pass-record
