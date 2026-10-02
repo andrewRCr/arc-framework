@@ -343,6 +343,7 @@ import {
   RespondRequestSchema,
   respondToReviewCommand,
 } from "../scripts/review-gate/runtime/respond-command.js";
+import { uncommittedVerifiedFixRemedy } from "../scripts/review-gate/runtime/respond-remedy.js";
 import { createReduceDependencies } from "../scripts/review-gate/runtime/reduce-composition.js";
 import {
   ReduceRequestSchema,
@@ -1966,6 +1967,8 @@ async function executeReviewHandler(input: {
   errorSchema?: ZodType;
   dependencies: ReviewHandlerBoundary;
   execute(request: unknown, root: string): Promise<unknown>;
+  /** Corrective continuation for an execution refusal, given the request exactly as submitted. */
+  remedyFor?(error: unknown, submittedRequest: unknown): SpineRemedy | undefined;
 }): Promise<void> {
   const errorSchema = input.errorSchema ?? ReviewCommandErrorEnvelopeSchema;
   const operand = ReviewCommandInputSchema.safeParse({ input: input.source });
@@ -1984,9 +1987,11 @@ async function executeReviewHandler(input: {
     return;
   }
 
+  let submittedRequest: unknown;
   let request: unknown;
   try {
-    request = input.requestSchema.parse(JSON.parse(await input.dependencies.readText(operand.data.input)));
+    submittedRequest = JSON.parse(await input.dependencies.readText(operand.data.input));
+    request = input.requestSchema.parse(submittedRequest);
   } catch (error) {
     emitReviewCommandError(input.mode, error, "request", input.dependencies, errorSchema);
     return;
@@ -1996,7 +2001,8 @@ async function executeReviewHandler(input: {
   try {
     rawResult = await input.execute(request, root);
   } catch (error) {
-    emitReviewCommandError(input.mode, error, "execution", input.dependencies, errorSchema);
+    const remedy = input.remedyFor?.(error, submittedRequest);
+    emitReviewCommandError(input.mode, error, "execution", input.dependencies, errorSchema, remedy);
     return;
   }
 
@@ -2062,8 +2068,10 @@ function emitReviewCommandError(
   phase: ReviewHandlerErrorPhase,
   dependencies: Pick<ReviewHandlerBoundary, "write" | "setExitCode">,
   errorSchema: ZodType,
+  remedy?: SpineRemedy,
 ): void {
-  dependencies.write(`${JSON.stringify(reviewCommandError(mode, error, phase, errorSchema))}\n`);
+  const remedyFor = remedy === undefined ? undefined : () => remedy;
+  dependencies.write(`${JSON.stringify(reviewCommandError(mode, error, phase, errorSchema, remedyFor))}\n`);
   dependencies.setExitCode(1);
 }
 
@@ -3138,6 +3146,7 @@ export async function handleReviewRespond(
     resultSchema: RespondEnvelopeSchema,
     dependencies,
     execute: dependencies.respond,
+    remedyFor: uncommittedVerifiedFixRemedy,
   });
 }
 

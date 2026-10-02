@@ -59,6 +59,7 @@ import { computeFrontlineSourceBindingId } from
   "../../../../../src/scripts/review-gate/policy/frontline-operation.js";
 import {
   respondToReviewCommand,
+  UnchangedVerifiedFixTargetError,
   type RespondCommandDependencies,
 } from "../../../../../src/scripts/review-gate/runtime/respond-command.js";
 import { createLocalReviewReceipt } from "../../../../../src/scripts/review-gate/runtime/local-attestation.js";
@@ -3723,7 +3724,7 @@ describe("verified-fix Candidate settlement", () => {
     await expect(respondToReviewCommand(
       verifiedFixRequest(records),
       deps,
-    )).rejects.toThrow("requires a changed exact target");
+    )).rejects.toThrow(UnchangedVerifiedFixTargetError);
   });
 
   it.each(["proposal", "approval"] as const)(
