@@ -243,3 +243,38 @@ it("keeps published incoming aliases with their UID despite name reuse and faile
     expect(success(await store.read({ reference: replacement.reference })).version).toBe(replacement.version);
   }
 });
+
+describe.each(["work-item/task-list", "review/candidate"] as const)("%s inherited placement values", (kind) => {
+  it.each([false, true])("preserves each side's effective placement before primary reconciliation; moved before base: %s", async (beforeBase) => {
+    const fixture = createReferenceFixture();
+    const remote = fixture.remote(true)!;
+    const primary = await seed(fixture, fixture.reference("work-item/meta"));
+    const dependent = await seed(fixture, fixture.reference(kind));
+    if (beforeBase) success(await fixture.store.write(WriteInputSchema.parse({ ...update(fixture, primary),
+      placement: { kind: "backlog", commitment: "planned" } })));
+    const base = StoreRecordSchema.parse(success(await fixture.store.read({ reference: dependent.reference })));
+    success(await fixture.store.sync());
+    const baseState = success(await fixture.store.version());
+    success(await fixture.store.write(update(fixture, base)));
+    success(await remote.write(update(fixture, base, fixture.content(base.reference, "changed-again"))));
+    success(await fixture.store.write(WriteInputSchema.parse({ ...update(fixture, success(await fixture.store.read({ reference: primary.reference }))),
+      placement: { kind: "backlog", commitment: "provisional" } })));
+    success(await remote.write(WriteInputSchema.parse({ ...update(fixture, success(await remote.read({ reference: primary.reference })), fixture.content(primary.reference, "changed-again")),
+      placement: { kind: "backlog", commitment: "planned" } })));
+    const incoming = StoreRecordSchema.parse(success(await fixture.store.read({ reference: base.reference })));
+    const current = StoreRecordSchema.parse(success(await remote.read({ reference: base.reference })));
+    expect(incoming.placement).toEqual({ kind: "backlog", commitment: "provisional" });
+    expect(current.placement).toEqual({ kind: "backlog", commitment: "planned" });
+    success(await fixture.store.sync());
+    const resolved = StoreRecordSchema.parse(success(await fixture.reopen().read({ reference: base.reference })));
+    expect(resolved).toMatchObject({ version: current.version, placement: current.placement });
+    expect(resolved.conflicts).toHaveLength(1);
+    const conflict = StoreRecordSchema.parse(success(await fixture.reopen().read({ reference: resolved.conflicts[0]! })));
+    expect(ConflictRecordSchema.parse(JSON.parse(conflict.content))).toEqual({ record: base.reference, location: { kind: "record" },
+      base: value(base), current: { value: value(current), label: label("remote") }, incoming: { value: value(incoming), label: label("local") } });
+    const saved = success(await fixture.store.version());
+    expect(success(await remote.read({ reference: conflict.reference })).content).toBe(conflict.content);
+    expect(success(await fixture.reopen().read({ reference: conflict.reference, asOf: saved }))).toEqual(conflict);
+    expect(success(await fixture.store.read({ reference: base.reference, asOf: baseState }))).toEqual(base);
+  });
+});

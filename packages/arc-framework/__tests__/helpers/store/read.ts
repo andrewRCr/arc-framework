@@ -22,7 +22,7 @@ function recordsAt(context: ReferenceContext, asOf?: StateVersion): Map<string, 
  * @param records - All records in that same state.
  * @returns The path-free contract record.
  */
-export function publicRecord(context: ReferenceContext, record: MemoryRecord, records = context.state.records): StoreRecord {
+export function publicRecord(context: ReferenceContext, record: MemoryRecord, records: ReadonlyMap<string, MemoryRecord> = context.state.records): StoreRecord {
   const conflicts = [...records.values()].filter((candidate) => candidate.conflict
     && recordKey(candidate.conflict.record) === recordKey(record.reference)).map((candidate) => candidate.reference);
   const primary = [...records.values()].find((candidate) => sameOwner(candidate.reference.owner, record.reference.owner)

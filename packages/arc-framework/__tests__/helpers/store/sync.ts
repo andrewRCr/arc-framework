@@ -12,6 +12,7 @@ import { RecordVersionSchema } from "../../../src/lib/store/index.js";
 import { mergeContents, storeConflicts } from "./merge.js";
 import { namespaceAdmission, refused, ok } from "./refusals.js";
 import { indexIdentities } from "./identities.js";
+import { publicRecord } from "./read.js";
 
 /** Remote transport condition is injected separately from its durable records. */
 export interface MemoryRemote { state: MemoryState; condition: "available" | "down" | "contended" | "refusing"; message: string; beforePublish?: () => void }
@@ -29,9 +30,9 @@ function equal(left?: MemoryRecord, right?: MemoryRecord): boolean {
     && JSON.stringify(left.links) === JSON.stringify(right.links) && JSON.stringify(left.reference) === JSON.stringify(right.reference);
 }
 
-function recordValue(record: MemoryRecord | undefined): ConflictRecordValue | null {
+function recordValue(context: ReferenceContext, record: MemoryRecord | undefined, records: ReadonlyMap<string, MemoryRecord>): ConflictRecordValue | null {
   if (record === undefined) return null;
-  const { reference, content, version, formatVersion, placement, links } = record;
+  const { reference, content, version, formatVersion, placement, links } = publicRecord(context, record, records);
   return { reference, content, version, formatVersion,
     ...(placement === undefined ? {} : { placement }), ...(links === undefined ? {} : { links }) };
 }
@@ -44,10 +45,11 @@ function sideLabel(state: MemoryState, key: string, record: MemoryRecord | undef
 }
 
 function wholeRecordConflict(context: ReferenceContext, remote: MemoryRemote, key: string, reference: RecordReference,
-  base: MemoryRecord | undefined, current: MemoryRecord | undefined, incoming: MemoryRecord | undefined): WholeRecordConflict {
-  return { record: reference, location: { kind: "record" }, base: recordValue(base),
-    current: { value: recordValue(current), label: sideLabel(remote.state, key, current) },
-    incoming: { value: recordValue(incoming), label: sideLabel(context.state, key, incoming) } };
+  baseRecords: ReadonlyMap<string, MemoryRecord>, incomingRecords: ReadonlyMap<string, MemoryRecord>): WholeRecordConflict {
+  const base = baseRecords.get(key), current = remote.state.records.get(key), incoming = incomingRecords.get(key);
+  return { record: reference, location: { kind: "record" }, base: recordValue(context, base, baseRecords),
+    current: { value: recordValue(context, current, remote.state.records), label: sideLabel(remote.state, key, current) },
+    incoming: { value: recordValue(context, incoming, incomingRecords), label: sideLabel(context.state, key, incoming) } };
 }
 
 function adopt(context: ReferenceContext, key: string, record: MemoryRecord | undefined, source: MemoryState): void {
@@ -80,10 +82,11 @@ function reconciledRecords(context: ReferenceContext, publication: ReferencePubl
   const remote = publication.remote!;
   const selected = new Set(families);
   const records = structuredClone(remote.state.records);
-  const keys = new Set([...context.state.records.keys(), ...remote.state.records.keys(), ...publication.base.keys()]);
+  const incomingRecords: ReadonlyMap<string, MemoryRecord> = structuredClone(context.state.records);
+  const keys = new Set([...incomingRecords.keys(), ...remote.state.records.keys(), ...publication.base.keys()]);
   let remoteMoved = false;
   for (const key of keys) {
-    const base = publication.base.get(key), local = context.state.records.get(key), current = remote.state.records.get(key);
+    const base = publication.base.get(key), local = incomingRecords.get(key), current = remote.state.records.get(key);
     const reference = local?.reference ?? current?.reference ?? base!.reference;
     if (!selected.has(familyOf(reference.kind))) continue;
     const changedLocal = !equal(base, local), changedRemote = !equal(base, current);
@@ -91,7 +94,7 @@ function reconciledRecords(context: ReferenceContext, publication: ReferencePubl
     let merged = local;
     if (!changedLocal) merged = current;
     else if (changedRemote && !equal(local, current) && context.registry[reference.kind].merge === "single-writer") {
-      const conflict = wholeRecordConflict(context, remote, key, reference, base, current, local);
+      const conflict = wholeRecordConflict(context, remote, key, reference, publication.base, incomingRecords);
       merged = current;
       adopt(context, key, merged, remote.state);
       storeConflicts(context, [conflict], { verb: "sync", lifecycleAction: "reconcile" });
