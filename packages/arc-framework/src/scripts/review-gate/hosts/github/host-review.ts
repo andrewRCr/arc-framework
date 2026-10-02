@@ -11,11 +11,11 @@ import { GitObjectIdSchema } from "../../core/gate-contract-v2-schema.js";
 
 // `reviewDecision` is the verdict GitHub's own review rule computes; it is null when no review rule applies.
 // `latestOpinionatedReviews` keeps each writer's latest approving or change-requesting review, so a dismissed or
-// superseded review never appears.
+// superseded review never appears. Review IDs exceed 32 bits, so they come from `fullDatabaseId`, a decimal string.
 const QUERY = "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){"
   + "pullRequest(number:$number){reviewDecision "
   + "latestOpinionatedReviews(first:100,writersOnly:true){nodes{"
-  + "databaseId state submittedAt author{login} commit{oid}}}}}}";
+  + "fullDatabaseId state submittedAt author{login} commit{oid}}}}}}";
 
 function parse(text: string, path: string): unknown {
   try {
@@ -32,6 +32,12 @@ function record(value: unknown, path: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+function reviewId(value: unknown, path: string): number {
+  const id = typeof value === "string" && /^[1-9][0-9]*$/u.test(value) ? Number(value) : Number.NaN;
+  if (!Number.isSafeInteger(id)) throw new Error(`${path}: expected a positive integer review ID`);
+  return id;
+}
+
 function blockingReviews(value: unknown): HostBlockingReview[] {
   const nodes = record(value, "host-review.latestOpinionatedReviews").nodes;
   if (!Array.isArray(nodes)) throw new Error("host-review.latestOpinionatedReviews.nodes: expected an array");
@@ -45,7 +51,7 @@ function blockingReviews(value: unknown): HostBlockingReview[] {
     }
     const author = review.author === null ? null : record(review.author, `host-review.reviews[${index}].author`);
     return [{
-      reviewId: review.databaseId as number,
+      reviewId: reviewId(review.fullDatabaseId, `host-review.reviews[${index}].fullDatabaseId`),
       // GitHub reports a deleted account's reviews with no author and shows them as `ghost`.
       author: author === null ? "ghost" : author.login as string,
       commitSha: commitSha as string | null,

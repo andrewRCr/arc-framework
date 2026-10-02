@@ -8,9 +8,10 @@ const oid = (character: string): string => character.repeat(40);
 const signal = new AbortController().signal;
 const submittedAt = "2026-10-02T18:43:15Z";
 
-function review(databaseId: number, state: string, login: string | null, commit: string | null) {
+// Review IDs above 2^31 are what GitHub issues today; they need its 64-bit ID field.
+function review(fullDatabaseId: string, state: string, login: string | null, commit: string | null) {
   return {
-    databaseId,
+    fullDatabaseId,
     state,
     submittedAt,
     author: login === null ? null : { login },
@@ -30,32 +31,41 @@ function response(reviewDecision: string | null, nodes: unknown[] = []) {
 describe("GitHub host review port", () => {
   it("lists the latest reviews from writers that still request changes", async () => {
     const run = vi.fn<HostedProcessRunner["run"]>(async () => response("CHANGES_REQUESTED", [
-      review(11, "CHANGES_REQUESTED", "coderabbitai", oid("a")),
-      review(12, "APPROVED", "maintainer", oid("b")),
+      review("5396287217", "CHANGES_REQUESTED", "coderabbitai", oid("a")),
+      review("5396287218", "APPROVED", "maintainer", oid("b")),
     ]));
     const port = createGhHostReviewPort({ run } satisfies HostedProcessRunner);
 
     await expect(port.read("owner/repo", 42, signal)).resolves.toEqual({
       state: "changes-requested",
-      blockingReviews: [{ reviewId: 11, author: "coderabbitai", commitSha: oid("a"), submittedAt }],
+      blockingReviews: [{ reviewId: 5396287217, author: "coderabbitai", commitSha: oid("a"), submittedAt }],
     });
     const args = run.mock.calls[0]?.[0] ?? [];
     expect(args.slice(0, 2)).toEqual(["api", "graphql"]);
-    expect(args.find((arg) => arg.startsWith("query="))).toContain(
-      "latestOpinionatedReviews(first:100,writersOnly:true)",
-    );
+    const query = args.find((arg) => arg.startsWith("query="));
+    expect(query).toContain("latestOpinionatedReviews(first:100,writersOnly:true)");
+    expect(query).toContain("fullDatabaseId");
+    expect(query).not.toMatch(/[{ ]databaseId/u);
     expect(args).toEqual(expect.arrayContaining(["owner=owner", "name=repo", "number=42"]));
   });
 
   it("names a deleted reviewer and keeps a review without a commit", async () => {
     const port = createGhHostReviewPort({
-      run: async () => response("CHANGES_REQUESTED", [review(13, "CHANGES_REQUESTED", null, null)]),
+      run: async () => response("CHANGES_REQUESTED", [review("13", "CHANGES_REQUESTED", null, null)]),
     });
 
     await expect(port.read("owner/repo", 42, signal)).resolves.toEqual({
       state: "changes-requested",
       blockingReviews: [{ reviewId: 13, author: "ghost", commitSha: null, submittedAt }],
     });
+  });
+
+  it.each(["9007199254740993", "0", "12a"])("refuses review ID %s that is not a safe positive integer", async (id) => {
+    const port = createGhHostReviewPort({
+      run: async () => response("CHANGES_REQUESTED", [review(id, "CHANGES_REQUESTED", "coderabbitai", oid("a"))]),
+    });
+
+    await expect(port.read("owner/repo", 42, signal)).rejects.toThrow("fullDatabaseId");
   });
 
   it.each([

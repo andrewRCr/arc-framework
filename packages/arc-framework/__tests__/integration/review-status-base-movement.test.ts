@@ -98,7 +98,7 @@ async function installHost(root: string): Promise<string> {
   const hostReview = JSON.stringify({ data: { repository: { pullRequest: {
     reviewDecision: "CHANGES_REQUESTED",
     latestOpinionatedReviews: { nodes: [{
-      databaseId: 7,
+      fullDatabaseId: "5396287217",
       state: "CHANGES_REQUESTED",
       submittedAt: "2026-10-02T18:43:15Z",
       author: { login: "reviewer-bot" },
@@ -226,7 +226,7 @@ describe("review status over a base advanced under the work unit", () => {
       hostReview: {
         state: "changes-requested",
         blockingReviews: [{
-          reviewId: 7,
+          reviewId: 5396287217,
           author: "reviewer-bot",
           commitSha: fixture.headSha,
           submittedAt: "2026-10-02T18:43:15Z",
