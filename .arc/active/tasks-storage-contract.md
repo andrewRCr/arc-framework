@@ -525,133 +525,28 @@ as stated.
         - One lock covers complete digest preflight and all replacements. Restoration includes removals and attempted
           failing targets, certifies resulting bytes, and names every remaining changed or unreadable file.
 
-### `[ ]` **7.2 Transient-identity records: snapshot reads and transactional writes — D4, D8**
+### `[x]` **7.2 Transient-identity records: snapshot reads and transactional writes — D4, D8**
 
 - _Goal:_ Errand records and grooming and housekeeping claims read through the identity snapshot and write through
   today's transaction, keeping the absent, `error`, and complete outcomes and the blob object ID as each record's
   version, with every transaction outcome mapped onto a typed result, so their reads and writes through the contract
   match today's code paths.
 
-- _Note:_ No production code writes a grooming or housekeeping claim today — `groomClaimTransform` and
-  `housekeepClaimTransform` (`lib/errand/identity-claims.ts`) have no caller — so fixtures write claims through them.
+    - `[x]` **7.2.a Snapshot reads and listings**
+        - Local snapshots retain blob versions, raw bytes and per-entry diagnostics, partition records by registered
+          role, and preserve absent, structural-error and complete outcomes without fetching.
 
-    - `[ ]` **7.2.a Snapshot reads and listings**
-        - Through `lib/errand/identity-snapshot.ts`'s tip, tree, and blob acquisition over this person's local ref
-          (`readTransientIdentitySnapshot`), which keeps each record's blob object ID; the Errand record kind's parser
-          is its existing schema (`lib/errand/identity-record.ts`).
-        - `read` and `list` never fetch: the local ref is current as of this machine's last write or sync, since the
-          write transaction and `sync` fetch (D1: a verb confirms from the local store). `lib/errand/record.ts`'s
-          fetched variant serves neither, since its projection drops the blob object IDs and it falls back to the
-          local read when the remote is unavailable.
-        - One ref holds both families: a listing keeps the records the registry assigns to the family listed, by kind
-          and purpose (Task 1.5.b).
-        - Each Errand record lists and reads with placement `active`, since close removes it from the ref; a grooming or
-          housekeeping claim is no work item and carries none.
-        - A read of a key whose entry names another slug — the snapshot's `key-mismatch` diagnostic
-          (`deserializeTransientIdentityRecord`, `lib/errand/identity-record.ts`) — refuses `identity-mismatch`, naming
-          the key and the slug, with the hand repair that rewrites the entry as its remedy; a write to the ref refuses
-          `record-malformed` naming it, as for any entry the transaction's basis rejects (Task 7.2.b). A read of an
-          entry the snapshot finds malformed or of an unknown version returns its bytes, read by its blob object ID,
-          since a read returns bytes whatever the parser says (D5). Today's `unknown-version` names the entry's own
-          content version (`version` other than 3, `lib/errand/identity-record.ts`), not a format version, so a listing
-          gives it as a `malformed` diagnostic naming that version; one over the snapshot's size cap
-          (`MAX_LOCUS_JSON_BYTES`), whose bytes the snapshot does not keep, refuses `record-malformed` naming its size
-          and the cap, with the hand repair as its remedy; and one whose blob cannot be read throws an `ArcError`
-          carrying the failure. Any operation but a listing over a ref whose tip or tree cannot be read — the snapshot's
-          `error`, which tells a broken structure from a Git failure only by its message — throws an `ArcError` carrying
-          it, as D4 throws what it cannot classify.
-        - Build `test-first` (one behavior at a time), each differential against today's snapshot over the same ref:
-            - absent, `error`, and complete match today's outcomes;
-            - an Errand listing omits grooming and housekeeping claims, and a claims listing omits Errand records;
-            - a complete listing carries today's per-entry diagnostics, an entry of another content version among
-              them as a `malformed` diagnostic naming that version;
-            - each record's version is its blob object ID, never the ref's tip;
-            - a read and a listing run no fetch, and a record another clone pushed reads once a write or `sync` has
-              fetched it;
-            - each Errand record lists and reads with placement `active`, and a claim with none;
-            - a read of a key-mismatched entry refuses `identity-mismatch` naming both, and succeeds once the entry is
-              rewritten;
-            - a read of a malformed entry and of one with an unknown version each return the entry's bytes, and a read
-              of an oversized entry refuses `record-malformed` naming its size and the cap, and succeeds once the entry
-              is rewritten within it;
-            - a read over a ref whose tree cannot be read throws an `ArcError`, while its listing is `unreadable`;
-            - with no identity configured, a listing is `absent`, as today, and a read and a write each refuse
-              `not-found` saying no identity is configured and naming `arc.identity` as its remedy; once `arc.identity`
-              is set, the same read succeeds.
+    - `[x]` **7.2.b Transactional writes**
+        - The optional blob basis enables reconciled compare-and-swap inside the existing transaction. Additive outcome
+          evidence names stale, divergent and invalid entries and classifies actual Git publication failures; local
+          process failures retain their causes. Content admission runs before the transaction.
 
-    - `[ ]` **7.2.b Transactional writes**
-        - Through `lib/errand/identity-transaction.ts`, the expected record version checked inside the transaction
-          against the reconciled records: the transform also receives the basis's blob object IDs, which it does not
-          see today, as an optional second parameter, so today's transforms and the test double that calls one
-          (`__tests__/unit/errand/close-runtime.test.ts`) type-check unchanged.
-        - A stale expected version is answered `idempotent`, carrying the stale records' names, and the backend reports
-          `version-conflict` naming them. The transaction still lands the reconciled records without the caller's
-          change: where they differ from the local ref's, it commits them over the local tip and pushes, as it does for
-          any `idempotent` decision (`applyAndPublish`), so a change only the remote made reaches this machine's ref
-          and a re-read through the snapshot sees it. A `refused` decision would return before that and leave the local
-          ref stale, so no re-read could clear it.
-        - The transaction's outcomes gain the detail the mapping needs, their kinds and messages unchanged so today's
-          callers are untouched: the keys of diverged records and of unreadable entries as data, a fetch or push
-          failure's cause — `unreachable`, `refused`, or `retries-exhausted` — set where Git fails, and whether a
-          write-stage error is retries exhausted.
-        - The transaction runs only with a remote the configuration names (the remote selection, Task 4.2.b), so a
-          fetch or push failure that `isRemoteUnavailableError` (`lib/git/ref-tree.ts`) matches is `unreachable`: Git
-          prints that text for a configured remote it cannot read, as for a missing one. Today's retry loop stays, and
-          its last failure is classified: a non-fast-forward (`isNonFastForwardError`, as `reconcileErrandPush` splits a
-          race today) is `retries-exhausted` with the attempt count; any other goes through `classifyRemoteFailure`
-          (`lib/git/remote-ref-reader.ts`) — a network or authentication failure is `unreachable`, any other `refused`.
-          Each `unreachable` carries `classifyRemoteFailure`'s reason. The backend measures the time waited with its
-          injected clock.
-        - Outcomes map by kind and that detail, never by message: a stale expected version or a record changed on both
-          sides is `version-conflict`, an unreadable entry `record-malformed`, each naming its records, and a failed
-          publish takes its cause.
-        - A write placing an Errand record at `completed`, by creating it there or moving it, renaming one, or carrying
-          a links value refuses `unsupported` (terminal) before writing anything, naming `arc errand close`, which
-          closes an Errand by removing its record, for a placement, and nothing for a rename or links, since no verb
-          renames an Errand today and the in-repo implementation stores no links (D3).
-        - A write's content is decoded before the transaction runs, by `deserializeTransientIdentityRecord` with the key
-          the write names (`lib/errand/identity-record.ts`), since today's transforms write only records its schema
-          accepts (`serializeTransientIdentityRecord`): content it finds malformed or of another content version refuses
-          `record-malformed`, and content naming another slug refuses `identity-mismatch`, naming both, so no write
-          plants an entry that would refuse every later write to the ref.
-        - The transaction's `error` at its write stage maps by the detail it gains: retries lost to a concurrent local
-          update on every attempt are `retries-exhausted`, as a push's are; any other failure — a ref Git holds locked
-          among them, since Git's ref lock refuses a concurrent update once its brief retry runs out
-          (`core.filesRefLockTimeout`, 100 ms by default) — is thrown as an `ArcError` carrying the transaction's
-          message (D4).
-        - Build `test-first` (one behavior at a time):
-            - the transaction's outcomes carry the diverged and unreadable keys and each failure's cause, with today's
-              messages unchanged;
-            - a push lost to contention on every attempt is `retries-exhausted` with its attempt count and time waited,
-              and a host rejection on the last attempt `refused` with the server's message;
-            - a write lands and returns the record's new blob object ID, and the blob it writes is byte for byte the one
-              today's transform writes for the same record (`serializeTransientIdentityRecord`);
-            - a removal drops the record from the ref, as close's transform does, and a stale expected version refuses
-              `version-conflict` with the record in place;
-            - a stale expected version refuses `version-conflict`, and a re-read and re-apply succeeds — on one clone,
-              and across two (`__tests__/helpers/multi-clone.ts`) when the other clone changed the record and this
-              clone's ref has not yet seen the change;
-            - a record diverged between two clones refuses every write to the ref, naming it, and the hand repair the
-              remedy names clears it;
-            - with the remote's bare repository moved away, the write fails `unreachable`, and succeeds once it is moved
-              back;
-            - with no remote configured the write commits locally;
-            - a write creating an Errand record at `completed`, one moving it there, one renaming it, and one carrying a
-              links value, an empty one included, each refuse `unsupported` with the ref unchanged;
-            - a write whose local ref update loses to another on every attempt is `retries-exhausted`, and one while Git
-              holds the ref's lock past that retry throws an `ArcError`, never a refusal;
-            - a write whose content is malformed, or names another slug, refuses `record-malformed` or
-              `identity-mismatch` with the ref unchanged, and later writes to the ref still land.
+    - `[x]` **7.2.c History and lookup**
+        - Record history returns raw ref commit messages newest first. Claims and canonical Errand branches resolve
+          through local records, with explicit identity repair and partial-protection absence.
 
-    - `[ ]` **7.2.c History and lookup**
-        - Build `test-first` (one behavior at a time):
-            - `history` of an Errand record walks its ref's commits with their messages;
-            - an Errand's or a claim's checkout claim resolves to its record;
-            - a partial-protection Errand's claim is `not-found`, saying it keeps no record;
-            - a ref resolves to its Errand through the record that names the branch;
-            - with no identity configured, `history` of an Errand record, a lookup by an Errand's checkout claim, and a
-              lookup by its branch each refuse `not-found` saying no identity is configured, and each succeeds once
-              `arc.identity` is set.
+- _Outcome:_ A stale expected version leaves the caller change unapplied while publishing the reconciled basis,
+  so a re-read can observe a remote-only change and clear the conflict.
 
 ### `[ ]` **7.3 Batches across substrates and in-repo sync — D3, D4, D8**
 

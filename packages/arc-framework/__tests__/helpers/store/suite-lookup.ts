@@ -72,6 +72,6 @@ export function registerLookupAssertions(context: SuiteContext): void {
     const lookup = { kind: "slug" as const, slug: SlugSchema.parse("missing-name") };
     expect(await fixture.store.lookup(lookup)).toMatchObject({ status: "refused", refusal: { code: "not-found", lookup, remedy: { text: expect.stringContaining("lookup") } } });
     expect(await fixture.store.lookup({ kind: "claim", claim: { kind: "partial-errand", slug: SlugSchema.parse("partial"), claimId: null } }))
-      .toMatchObject({ status: "refused", refusal: { code: "not-found", condition: expect.stringMatching(/no stored record|no tracked record/iu) } });
+      .toMatchObject({ status: "refused", refusal: { code: "not-found", condition: expect.stringMatching(/no stored record|no tracked record|keeps no record/iu) } });
   });
 }

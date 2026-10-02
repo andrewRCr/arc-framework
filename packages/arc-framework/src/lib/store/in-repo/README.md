@@ -19,3 +19,8 @@ slugs, transition aliases, checkout claims, branch names, and final Context foot
 Personal files use the existing primary identity root and checkout workspace roots. Reads and listings take no lock;
 whole-file digest writes and batches take the existing notes lock. A failed batch restores and verifies every attempted
 target, including removals. Machine state and derived identity status remain outside personal storage.
+
+Transient identity records read the current local ref without fetching and retain each blob object ID as the mutation
+basis. Writes use the existing complete-basis transaction, checking expected versions after remote reconciliation.
+Stale writes leave caller changes unapplied while landing the reconciled basis. History preserves raw ref commit
+messages; claims and canonical Errand branches resolve through local records.

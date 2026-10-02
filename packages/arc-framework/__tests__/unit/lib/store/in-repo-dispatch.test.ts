@@ -22,10 +22,11 @@ describe("repository store registry dispatch", () => {
           condition: expect.stringMatching(/no .*home/u), remedy: { text: expect.any(String) } } });
     }
   });
-  it("serves personal listings without identity and preserves explicit transient dispatch", async () => {
+  it("lists implemented identity families as absent without configured identity or I/O", async () => {
     const store = createStore(testStorePorts("/unavailable", unavailable, unavailable));
-    expect(await store.list({ family: "personal" })).toEqual({ status: "ok", result: { status: "absent" } });
-    await expect(store.list({ family: "claims" })).rejects.toMatchObject({ name: "ArcError", code: "store.not-implemented" });
+    for (const family of ["personal", "claims"] as const) {
+      expect(await store.list({ family })).toEqual({ status: "ok", result: { status: "absent" } });
+    }
   });
   it("preserves an unknown I/O failure as a thrown ArcError with its original cause", async () => {
     const ports = testStorePorts("/unavailable", unavailable, unavailable);
