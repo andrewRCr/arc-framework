@@ -554,7 +554,7 @@ re-attacked.
 `**State:** Planning` (planning-branch sessions); skip otherwise. Run `arc finalize generate-tasks --class <Class>`
 to write the resolved `**Class:**`, derived `**Task List:**`, and terminal `**Next Action:**` through the field
 model in one call. generate-tasks is the planning terminus, so no stage advance or boundary sentinel; `activate`
-clears `Current Workflow`. Bundle this write with the task list in the ceremony commit.
+sets `Current Workflow` to `process-task-loop`. Bundle this write with the task list in the ceremony commit.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
