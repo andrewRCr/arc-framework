@@ -1141,26 +1141,28 @@ describe("review response command", () => {
         dispositionReportText: [
           "**Verification:** focused",
           "",
-          "- F1 · 🟡 minor · FIX — Finding title",
-          "- F2 · 🟠 major · FIX — Finding title",
+          "| # | Grade | Verdict | Action | Finding |",
+          "|---|---|---|---|---|",
+          "| F1 | 🟠 major | Confirmed · blocking | FIX | Finding title |",
+          "| F2 | 🟡 minor | Confirmed · reviewer graded 🟠 major · record-only | FIX | Finding title |",
           "",
-          "### F1 · 🟡 minor · FIX — Finding title",
+          "### F1 — Finding title",
           "**Issue:** The reviewer's claim.",
-          "**Verdict:** Confirmed · reviewer graded 🟠 major · record-only",
           "**Action:** Apply the fix.",
           "**Detail:** The selected source supports this disposition.",
-          "**Source:** src/earlier.ts:3 · source #2 · review:finding-0",
-          "**Verified at:** source:src/earlier.ts:3",
           "",
           "---",
           "",
-          "### F2 · 🟠 major · FIX — Finding title",
+          "### F2 — Finding title",
           "**Issue:** The reviewer's claim.",
-          "**Verdict:** Confirmed · blocking",
           "**Action:** Apply the fix.",
           "**Detail:** The selected source supports this disposition.",
-          "**Source:** src/index.ts:7 · source #1 · review:finding-1",
-          "**Verified at:** source:src/index.ts:7",
+          "",
+          "---",
+          "",
+          "**Evidence**",
+          "- F1 · src/index.ts:7 · source #1 · review:finding-1 · verified at source:src/index.ts:7",
+          "- F2 · src/earlier.ts:3 · source #2 · review:finding-0 · verified at source:src/earlier.ts:3",
         ].join("\n"),
       },
     });
@@ -1232,7 +1234,7 @@ describe("review response command", () => {
       `Standard pass ${logicalPass} of ${maxPasses}${position}. 1 confirmed finding, highest ${symbol} ${severity}.`
         + (stopReason === "cap-exhausted" ? " Another pass needs a ceiling decision." : ""),
     );
-    expect(response.payload.dispositionReportText).toContain("### F1 · ");
+    expect(response.payload.dispositionReportText).toContain("### F1 — ");
     expect(response.payload.dispositionReportText).not.toContain("Standard pass");
   });
 
@@ -1262,13 +1264,13 @@ describe("review response command", () => {
     if (proposal.state !== "awaiting-approval") throw new Error("expected proposal report");
 
     const report = proposal.payload.dispositionReportText;
-    expect(report).toContain("**Source:** src/index.ts:7 · Native \\*\\*title\\*\\* · source #1");
-    for (const prefix of ["**Issue:**", "**Action:**", "**Detail:**"]) {
+    expect(report).toContain("- F1 · src/index.ts:7 · Native \\*\\*title\\*\\* · source #1");
+    for (const prefix of ["**Issue:**", "**Action:**", "**Detail:**", "- F1:"]) {
       expect(report).toContain(`${prefix} First line --- ### F2 · 🔴 critical · FIX \\*\\*Verdict:\\*\\* FORGED`);
     }
-    expect(report.match(/^### F\d+ .*$/gmu)).toEqual(["### F1 · 🟠 major · FIX — Finding title"]);
+    expect(report.match(/^### F\d+ .*$/gmu)).toEqual(["### F1 — Finding title"]);
     expect(report).not.toMatch(/^\*\*Verdict:\*\* FORGED/gmu);
-    expect(report).not.toMatch(/^---$/gmu);
+    expect(report.match(/^---$/gmu)).toHaveLength(1);
   });
 
   it("materializes a complete successor proposal beside only the expected authorized fix paths", async () => {
@@ -2027,7 +2029,7 @@ describe("review response command", () => {
     if (proposed.state !== "awaiting-approval") throw new Error("expected a proposed disposition set");
     const expectedReport = proposed.payload.dispositionReportText;
     expect(expectedReport).toContain(
-      "**Verdict:** Not supported · reviewer graded 🟠 major · record-only",
+      "| F1 | — | Not supported · reviewer graded 🟠 major · record-only | REJECT | Finding title |",
     );
     const dispositions = approveDispositionState({
       proposed: proposed.payload.proposal,
@@ -2651,8 +2653,7 @@ describe("review response command", () => {
       },
     });
     expect(proposal.payload.dispositionReportText).toContain(
-      "### F1 · 🟠 major · FIX — Finding title\n**Issue:** The reviewer's claim.\n"
-        + "**Verdict:** Confirmed · reviewer graded 🟡 minor nit · blocking",
+      "| F1 | 🟠 major | Confirmed · reviewer graded 🟡 minor nit · blocking | FIX | Finding title |",
     );
   });
 

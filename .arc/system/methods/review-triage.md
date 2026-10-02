@@ -74,36 +74,50 @@ governing caller. The command resolves the durable producer, applies the input p
 
 Author each finding's narrative so the report stands without the raw review:
 
-- `title` — the issue in a phrase; it heads the finding and its index line.
+- `title` — the issue in a phrase; it names the finding in the decision table and heads its section.
 - `issue` — the reviewer's claim in plain words, before any judgment of it.
 - `recommendation` — the proposed action and its boundaries.
 - `rationale` — the source check and consequence behind the verdict.
 - `openQuestions` — what remains for the approver, when anything does.
 
 Emit that returned report verbatim unless a configured `review-triage` override replaces or extends presentation.
-When the set holds more than one finding, an index of their head lines precedes them. Its fixed per-finding field
-order is:
+Show it as text in your reply to the approver — never a file path, link, or summary in its place — because approval
+binds to the report the approver read. It is layered for the decision: a table the approver decides from, with every
+open question beneath it; one section per finding for drill-down; and one closing block of evidence. Its fixed shape
+is:
 
 ```markdown
 **Verification:** <targeted | focused | full>
 
-- F{ordinal} · <ARC grade> · <FIX | DEFER | REJECT> — <title>   [one index line per finding, when more than one]
+| # | Grade | Verdict | Action | Finding |
+|---|---|---|---|---|
+| F{ordinal} | <ARC grade, or —> | <verdict> · <blocking or record-only> | <FIX, DEFER, or REJECT> | <title> |
 
-### F{ordinal} · <ARC grade, or not supported> · <FIX | DEFER | REJECT> — <title>
+**Open questions**                                       [only when any finding carries one]
+- F{ordinal}: <question>
+
+### F{ordinal} — <title>
 **Issue:** <the reviewer's claim>
-**Verdict:** <Confirmed | Not supported> · reviewer graded <severity> [when it differs] · <blocking | record-only>
 **Action:** <proposed action and boundaries>
 **Detail:** <source check and consequence>
-**Open questions:** <questions, when present>
-**Source:** <locus> · <native label, when available> · source #{sourceOrdinal} · <originating reference>
-**Verified at:** <ARC source-verification references, distinct from the producer source>
+
+---
+
+**Evidence**
+- F{ordinal} · <locus> · <native label, when available> · source #{sourceOrdinal} · <originating reference> · verified at <ARC source-verification references>
 ```
 
-Severity grades display with their symbols: `🔴 critical`, `🟠 major`, and `🟡 minor` (plus `nit` when present).
-Separate adjacent findings with a blank line, `---`, and another blank line. The command assigns report-local `F`
-labels from canonical order while retaining producer-native labels, capture ordinals, and references, and escapes
-only the characters that would otherwise open inline Markdown. A not-supported verdict always names the reviewer's
-grade; a confirmed one names it only when it differs from ARC's.
+Every set gets the table, one row per finding. Grade is ARC's verified grade, shown with its symbol — `🔴 critical`,
+`🟠 major`, or `🟡 minor`, plus `nit` when present — or `—` when the finding is not supported. Verdict is `Confirmed`
+or `Not supported`; a not-supported verdict always names the reviewer's grade (`reviewer graded <severity>`), and a
+confirmed one names it only when it differs from ARC's. Action is the disposition; the section carries the full
+proposed action. Separate adjacent sections, and the last section from the evidence block, with a blank line, `---`,
+and another blank line. The evidence line keeps the producer source distinct from ARC's own verification references.
+
+The command orders findings for the decision — blocking before record-only, then by ARC grade, most severe first, with
+unsupported findings last — and keeps canonical order among equals. It assigns report-local `F` labels in that order
+while retaining producer-native labels, capture ordinals, and references. It escapes only the characters that would
+otherwise open inline Markdown, plus `|` in a table cell.
 
 For a findings proposal, present the CLI's `provisionalPassAssessment.summaryText` beside the verbatim disposition
 report in the same turn. It is the pass line — the lane, admitted pass, configured ceiling, and confirmed-finding
