@@ -7,10 +7,21 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { handleCandidateApplicabilityResolve } from "../../src/handlers/candidate.js";
 import type { RawGitExec } from "../../src/lib/git/exec.js";
+import { createRawGitExec, gitExec } from "../../src/lib/io-context.js";
 import { canonicalDigest } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { CanonicalDigestSchema } from "../../src/lib/kernel/schema/vocabulary.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
+import {
+  createCandidateAttestation,
+  createCandidateSubjectSnapshot,
+} from "../../src/lib/work-unit/candidate-attestation.js";
+import {
+  readCandidateRecordVersioned,
+  writeCandidateRecord,
+} from "../../src/lib/work-unit/candidate-record-store.js";
+import { readGitCandidateTargetBase } from "../../src/lib/work-unit/git-candidate-effective-target.js";
 import { createReviewRequest, createReviewRequirement } from
   "../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { projectGitReviewContributionApplicability } from
@@ -229,5 +240,171 @@ describe("review contribution applicability against Git", () => {
     await run(["commit", "-am", "change member contribution"]);
     const changedHead = await run(["rev-parse", "HEAD"]);
     await expect(confirm(changedHead)).resolves.toBe("review-required");
+  });
+});
+
+describe("singleton review applicability through the selection command", () => {
+  // A reviewed feature commit, then an unreviewed notes commit, on a branch whose configured base has since
+  // advanced past work the branch never touched.
+  async function singletonBehindBase() {
+    const root = await createTempRepoCore({ prefix: "arc-singleton-applicability-" });
+    roots.push(root);
+    const run = async (args: string[]): Promise<string> => (
+      await execFileAsync("git", args, { cwd: root })
+    ).stdout.trim();
+    const commit = async (path: string, content: string, message: string): Promise<string> => {
+      await writeFile(join(root, path), content, "utf8");
+      await run(["add", path]);
+      await run(["commit", "-m", message]);
+      return run(["rev-parse", "HEAD"]);
+    };
+
+    const mergeBase = await commit("root.txt", "root\n", "root");
+    await run(["checkout", "-b", "feat/example"]);
+    const reviewedHead = await commit("feature.txt", "feature\n", "reviewed feature");
+    const notesHead = await commit("notes.md", "# Notes\n", "add notes");
+    await run(["checkout", "main"]);
+    const baseTip = await commit("base.txt", "unrelated\n", "unrelated base movement");
+    await run(["update-ref", "refs/remotes/origin/main", baseTip]);
+    await run(["checkout", "feat/example"]);
+
+    const subject = createCandidateSubjectSnapshot([{
+      path: "feature.txt",
+      mode: "100644",
+      digest: canonicalDigest({ source: "feature" }),
+      treatment: "reviewable",
+    }]);
+    const attestation = createCandidateAttestation({
+      workUnit: "example",
+      subject,
+      baseRevision: mergeBase,
+      attestedBy: "andrew",
+      attestedAt: "2026-10-02T12:00:00.000Z",
+      verificationEvidenceRef: "verification://example",
+    });
+    await writeCandidateRecord(root, "example", {
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      attestation,
+      subject,
+      transitions: [],
+      lineageAttestations: [],
+    }, null);
+
+    // The offer binds the head's merge base with the configured base, the base its review covers.
+    const offer = async (currentHead: string) => {
+      const base = await readGitCandidateTargetBase({
+        cwd: root,
+        revision: currentHead,
+        baseBranch: "main",
+        exec: gitExec,
+      });
+      if (base.status !== "resolved") throw new Error("expected a sole merge base");
+      const projection = await projectGitReviewContributionApplicability({
+        selector: {
+          schemaVersion: 1,
+          repositoryId: "repository-1",
+          repository: "owner/repository",
+          pullRequest: 42,
+          lane: "standard",
+          sourceId: "coderabbit-pr",
+          priorAttemptId: "attempt-prior",
+          priorHead: reviewedHead,
+          currentHead,
+          priorBase: mergeBase,
+          currentBase: base.base,
+        },
+        exec: createRawGitExec(root),
+        observeEndpoints: async () => ({ head: currentHead, base: base.base }),
+      });
+      const { version } = await readCandidateRecordVersioned(root, "example");
+      return {
+        schemaVersion: 1,
+        kind: "review-applicability-selection",
+        workUnitId: "example",
+        expectedRecordVersion: version,
+        candidateId: attestation.candidateId,
+        projection,
+        choices: ["covered", "review-required"],
+        interactionText: "Is the residual covered by the earlier review?",
+      };
+    };
+    const select = async (selectionOffer: unknown, selectedAt: string) => {
+      const output: string[] = [];
+      const exitCodes: number[] = [];
+      await handleCandidateApplicabilityResolve("example", "-", undefined, {
+        resolveRoot: () => root,
+        resolveMutationOwner: async () => ({ status: "owned", workUnit: "example" }),
+        readText: async () => JSON.stringify({
+          kind: "review-applicability-selection",
+          offer: selectionOffer,
+          selection: { selectedBy: "andrew", selectedAt, choice: "covered" },
+        }),
+        write: (text) => output.push(text),
+        setExitCode: (code) => exitCodes.push(code),
+      });
+      return { result: JSON.parse(output.join("")) as unknown, exitCodes };
+    };
+    return { root, run, commit, mergeBase, reviewedHead, notesHead, baseTip, offer, select };
+  }
+
+  it("binds a covered residual while the base moves past unrelated work, after refusing a moved head", async () => {
+    const fixture = await singletonBehindBase();
+    const earlier = await fixture.offer(fixture.notesHead);
+    expect(earlier.projection).toMatchObject({ state: "decision-required", paths: ["notes.md"] });
+
+    const movedHead = await fixture.commit("notes.md", "# Notes\n\nMore.\n", "extend notes");
+    await expect(fixture.select(earlier, "2026-10-02T12:01:00.000Z")).resolves.toEqual({
+      result: expect.objectContaining({
+        state: "projection-failed",
+        nextAction: "return-to-projection",
+        reason: "decision-no-longer-required",
+        projection: expect.objectContaining({
+          reason: "head-moved",
+          observed: { head: movedHead, base: fixture.mergeBase },
+        }),
+      }),
+      exitCodes: [1],
+    });
+
+    const current = await fixture.offer(movedHead);
+    expect(current.projection).toMatchObject({ state: "decision-required", paths: ["notes.md"] });
+    await expect(fixture.select(current, "2026-10-02T12:02:00.000Z")).resolves.toEqual({
+      result: expect.objectContaining({ state: "resolved", nextAction: "commit-selection", choice: "covered" }),
+      exitCodes: [],
+    });
+    const { record } = await readCandidateRecordVersioned(fixture.root, "example");
+    expect(record?.transitions).toEqual([
+      expect.objectContaining({ transitionKind: "review-applicability-selection", choice: "covered" }),
+    ]);
+  });
+
+  it("refuses a selection once the base takes in the reviewed commit, then binds the re-derived residual", async () => {
+    const fixture = await singletonBehindBase();
+    const earlier = await fixture.offer(fixture.notesHead);
+
+    await fixture.run(["checkout", "main"]);
+    await fixture.run(["merge", "--no-ff", "--no-edit", fixture.reviewedHead]);
+    const absorbingBase = await fixture.run(["rev-parse", "HEAD"]);
+    await fixture.run(["update-ref", "refs/remotes/origin/main", absorbingBase]);
+    await fixture.run(["checkout", "feat/example"]);
+    await expect(fixture.select(earlier, "2026-10-02T12:01:00.000Z")).resolves.toEqual({
+      result: expect.objectContaining({
+        state: "projection-failed",
+        reason: "decision-no-longer-required",
+        projection: expect.objectContaining({
+          reason: "base-moved",
+          observed: { head: fixture.notesHead, base: fixture.reviewedHead },
+        }),
+      }),
+      exitCodes: [1],
+    });
+
+    const current = await fixture.offer(fixture.notesHead);
+    expect(current.projection).toMatchObject({ state: "decision-required", paths: ["notes.md"] });
+    await expect(fixture.select(current, "2026-10-02T12:02:00.000Z")).resolves.toEqual({
+      result: expect.objectContaining({ state: "resolved", choice: "covered" }),
+      exitCodes: [],
+    });
   });
 });
