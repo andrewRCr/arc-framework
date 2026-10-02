@@ -58,6 +58,8 @@ import { createGhChangeRequestResolutionPort } from "./hosts/github/change-reque
 import { GhDeliveryHostPort } from "../delivery/hosts/github.js";
 import { aggregateChecks } from "./checks-await.js";
 import { createGhRequiredChecksPort } from "./hosts/github/checks-await.js";
+import { readHostReview } from "./host-review.js";
+import { createGhHostReviewPort } from "./hosts/github/host-review.js";
 import { RepositoryDeliveryMemberLookup } from "./hosts/local/delivery-member-lookup.js";
 import { resolveRepositoryIdentity } from "./hosts/local/git-common-state.js";
 import { LocalReviewOperationStateStore } from "./hosts/local/operation-state-store.js";
@@ -905,9 +907,16 @@ export function createReviewStatusPort(
         const requiredChecks = aggregateChecks(
           await checksPort.readRequiredChecks(target.repository, resolution.candidate.number, signal),
         );
+        const hostReview = await readHostReview(
+          createGhHostReviewPort(hostedGhRunner),
+          target.repository,
+          resolution.candidate.number,
+          signal,
+        );
         return {
           actualHeadSha: checkedHead,
           requiredChecks,
+          hostReview,
           routedObligation,
           ...base,
           ...(subject.status === "resolved" ? { workUnitId: subject.workUnitId } : {}),

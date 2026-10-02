@@ -1054,6 +1054,7 @@ describe("handleReviewStatus", () => {
         headSha: "c".repeat(40),
       },
       requiredChecks: "green" as const,
+      hostReview: { state: "clear" as const },
       routedObligation: {
         state: "review-required" as const,
         detail: `Member one is selected for ${request.workUnitId}.`,
@@ -1112,6 +1113,7 @@ describe("handleReviewStatus", () => {
         headSha: "c".repeat(40),
       },
       requiredChecks: "green" as const,
+      hostReview: { state: "clear" as const },
       routedObligation: {
         state: "review-required" as const,
         detail: `Selected ${request.sourceId ?? "default"}.`,
@@ -1163,6 +1165,7 @@ describe("handleReviewStatus", () => {
       mode: "review-status" as const,
       target: request.target,
       requiredChecks: "green" as const,
+      hostReview: { state: "clear" as const },
       routedObligation: {
         state: "review-required" as const,
         detail: `Selected ${request.sourceId ?? "default"}.`,
@@ -1227,6 +1230,7 @@ describe("handleReviewStatus", () => {
         mode: "review-status",
         target: request.target,
         requiredChecks: "green",
+        hostReview: { state: "clear" },
         routedObligation: {
           state: "review-required",
           detail: request.ceilingOverride === undefined
