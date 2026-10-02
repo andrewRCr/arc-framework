@@ -9,6 +9,13 @@ function primary(record: MemoryRecord): boolean {
   return record.reference.kind === "work-item/meta" || record.reference.kind === "work-item/record";
 }
 
+function preferredSlugRecords(records: MemoryRecord[], slug: string): MemoryRecord[] {
+  const matches = records.filter((record) => primary(record) && (record.reference.owner.name === slug || record.formerSlugs.includes(slug)));
+  const priority = (record: MemoryRecord) => (record.placement?.kind === "completed" ? 0 : 2) + (record.reference.owner.name === slug ? 1 : 0);
+  const highest = Math.max(...matches.map(priority));
+  return matches.filter((record) => priority(record) === highest);
+}
+
 function fields(context: ReferenceContext, record: MemoryRecord): Record<string, unknown> | undefined {
   const parsed = context.registry[record.reference.kind].parser?.(record.content);
   if (!parsed?.success || typeof parsed.data !== "object" || parsed.data === null || Array.isArray(parsed.data)) return undefined;
@@ -44,9 +51,9 @@ export function lookupReference(context: ReferenceContext, input: LookupInput): 
   if (input.kind === "commit") {
     const sha = records.flatMap((record) => commitMatch(record, input, "sha") ?? []);
     candidates = sha.length > 0 ? sha : records.flatMap((record) => commitMatch(record, input, "patchId") ?? []);
-  } else candidates = records.filter((record) => {
+  } else if (input.kind === "slug") candidates = preferredSlugRecords(records, input.slug).map((record) => ({ reference: record.reference }));
+  else candidates = records.filter((record) => {
     switch (input.kind) {
-      case "slug": return primary(record) && (record.reference.owner.name === input.slug || record.formerSlugs.includes(input.slug));
       case "lineage": return record.reference.kind === "lineage/transition" && record.reference.owner.type !== "person" && (record.reference.owner.uid === input.origin || record.reference.owner.name === input.origin);
       case "ref": return primary(record) && record.links?.branch?.repository === input.repository && record.links.branch.ref === input.ref;
       case "claim": {
