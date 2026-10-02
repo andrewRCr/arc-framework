@@ -486,12 +486,18 @@ remote base all name the same exact head. Any tracked change continues through t
    `approvedTarget.headRef` must name the same branch. `lane` is the value the lane classifier selected, and
    `method` and `policyFingerprint` are the resolver's returned values, never chosen here.
 
+   Read `arc review status --target <targetRef>` once for the final head and surface its `hostReview`, the host's
+   own review verdict. It is a merge blocker separate from ARC's review state, so neither settled review nor an
+   Owner-directed stop clears it. `changes-requested` names each blocking review's author, ID, and reviewed commit;
+   the host refuses the merge while one stands, so obtain Owner direction to dismiss it or request re-review before
+   the integration interlock. `approval-required` names a host approval still missing. `unavailable` surfaces its
+   `detail`; inspect the PR's native review on the host instead.
+
    Under an Owner-directed review stop, `review-required` remains expected; a status refusal or pending/response
    action stops. Recheck the accepted Errand claim, PR, base OID, head, and known review/response state before the
    integration interlock. A changed coordinate (including base OID or Errand claim), new finding, or unfinished fix
-   returns to Step 4 for a new exact offer. Inspect the PR's native review and unresolved
-   conversations separately; the stop clears no host blocker, so obtain separate Owner direction for any dismissal
-   or thread action before proceeding.
+   returns to Step 4 for a new exact offer. Inspect the PR's unresolved conversations as well; the stop clears no
+   host blocker, so obtain separate Owner direction for any dismissal or thread action before proceeding.
 
    **Extension report** · `#pre-merge`: If active, execute its `.actions` once for this settled request and render
    their results under this label. Otherwise, skip — an inactive extension renders nothing. No review-authored commit
@@ -505,7 +511,8 @@ remote base all name the same exact head. Any tracked change continues through t
 > the retained last-observed base OID; disclose that required checks are bound to the approved head unless the host
 > supplies a stronger currency guarantee, and that base movement during the provider's in-call merge window remains
 > a residual race. The base OID qualifies the evidence but is not merge authority. Distinguish an Owner-accepted
-> residual review risk from provider-clean evidence and surface native-review blockers separately.
+> residual review risk from provider-clean evidence, and surface each `hostReview` blocker separately with the Owner
+> direction obtained for it.
 > State that approval applies remaining dispositions and channel settlement, ends review or confirms the exact
 > Owner-directed stop, invokes exact-head release on the selected lane, and authorizes the exact-head merge represented
 > by this request. Approval authorizes that exact request and

@@ -94,6 +94,17 @@ async function installHost(root: string): Promise<string> {
     head: { ref: HEAD_REF, sha: headSha, repo: { full_name: REPOSITORY } },
     base: { ref: "main", sha: "%s", repo: { full_name: REPOSITORY } },
   });
+  // The host's review verdict: one writer's review still requests changes.
+  const hostReview = JSON.stringify({ data: { repository: { pullRequest: {
+    reviewDecision: "CHANGES_REQUESTED",
+    latestOpinionatedReviews: { nodes: [{
+      databaseId: 7,
+      state: "CHANGES_REQUESTED",
+      submittedAt: "2026-10-02T18:43:15Z",
+      author: { login: "reviewer-bot" },
+      commit: { oid: headSha },
+    }] },
+  } } } });
   await mkdir(bin, { recursive: true });
   const script = join(bin, "gh");
   await writeFile(script, [
@@ -109,6 +120,7 @@ async function installHost(root: string): Promise<string> {
     `  api:repos/${REPOSITORY}/commits/${TEST_MERGE})`,
     `    printf '{"parents":[{"sha":"%s"},{"sha":"${headSha}"}]}\\n' "$base" ;;`,
     "  api:--paginate) printf '%s\\n' '[[]]' ;;",
+    `  api:graphql) printf '%s\\n' '${hostReview}' ;;`,
     '  *) echo "unexpected host invocation: $*" >&2; exit 1 ;;',
     "esac",
     "",
@@ -209,6 +221,18 @@ describe("review status over a base advanced under the work unit", () => {
     // The stop this held is gone: containment no longer decides the reading, so an advance the branch shares
     // no path with costs public review nothing.
     expect(status).toMatchObject({ state: "settled", nextAction: "continue-reconcile" });
+    // The host's own merge blocker is reported beside it, without changing the action.
+    expect(status).toMatchObject({
+      hostReview: {
+        state: "changes-requested",
+        blockingReviews: [{
+          reviewId: 7,
+          author: "reviewer-bot",
+          commitSha: fixture.headSha,
+          submittedAt: "2026-10-02T18:43:15Z",
+        }],
+      },
+    });
   });
 });
 
