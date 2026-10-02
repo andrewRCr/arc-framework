@@ -165,218 +165,104 @@ _Exit criterion:_ The conformance suite passes against the reference backend ove
 producing every outcome and failure class; the concurrency library's property tests pass; and the ship guard fails
 when a module under `src/` imports the reference backend.
 
-### `[ ]` **3.1 Conformance suite harness and fixture contract — D7**
+### `[x]` **3.1 Conformance suite harness and fixture contract — D7**
 
 - _Goal:_ One suite every backend passes, parameterized by a fixture that declares what its backend serves and how to
   drive it, so each backend runs the same assertions and differs only in its fixture's declarations.
 
-    - `[ ]` **3.1.a The fixture contract**
-        - Declarations: the families served, whether the backend merges concurrent writes, the substrates it spans, so
-          the cross-substrate items run only where a batch can span them, the answer its capability report gives, and
-          whether its live listings carry a state version; per family, the suite items and the named assertions within
-          an item the backend cannot produce there; and the refusals it cannot produce in any family it serves — by
-          code, and for `unsupported` and `not-found` by case, as the recovery table runs them (Task 3.6.b) — each with
-          its reason: a personal file has no history, and the reconciling notes push has no retry loop.
-        - Hooks: `settle`, how a write reaches a state version (the in-repo fixture commits as a ceremony would);
-          `reopen`, a second contract instance over the same store; `race`, two writers against one record; `remote`, a
-          remote for `sync`, or none; `identity`, an identity configured, or none; and `content`, the bytes a write to a
-          named reference carries — valid, a valid change to it, or one its kind's validation rejects — since a backend
-          that validates writes accepts no arbitrary bytes; a fixture gives the rejecting variant only for the kinds its
-          backend validates at write, and declares the rest. The suite reads each kind's writer rule from the registry
-          (Task 1.5.b), so a create-only kind is never updated.
-        - Fault hooks, through which the suite produces every listing outcome and refusal: `plant`, a bad entry of a
-          named kind — unreadable, oversized, malformed, a key disagreeing with its record, or a newer format version —
-          or an unreadable family; `hold`, a surface's write lock held by another process; `remoteState`, the remote
-          down, contended past the retry limit, or refusing with a message; and `produce` and `repair`, a named refusal
-          brought about and then cleared by its remedy.
+    - `[x]` **3.1.a The fixture contract**
+        - Added backend-neutral hooks for valid and rejecting content, persistence, races, identity, faults, locks,
+          remote state, and refusal repair. Family, publish, entry-shape, and coverage declarations stay test-only.
 
-    - `[ ]` **3.1.b The suite's registration and item map**
-        - A registration function in the test support code, as `registerDeliveryPositionSuite`
-          (`__tests__/helpers/delivery-position-suite.ts`) is, with one `describe` per item of D7's sixteen and one
-          named test per assertion within it; an item, an assertion, or a refusal code a fixture's declarations exclude
-          is reported skipped by name with its reason, never silently absent.
-        - The suite reaches a backend only through its fixture's hooks; each item's assertions are written test-first
-          in the task whose behavior they cover (Tasks 3.2–3.6).
+    - `[x]` **3.1.b The suite's registration and item map**
+        - Registered all sixteen items over every served kind, with named reasoned exclusions. Invalid declarations
+          fail before registration; known subsets and multiple publishes remain supported.
 
-### `[ ]` **3.2 Reference backend: records, versions, history, and changes — D1, D2, D3, D7**
+### `[x]` **3.2 Reference backend: records, versions, history, and changes — D1, D2, D3, D7**
 
 - _Goal:_ An in-memory backend with no Git serves `read`, `write`, `list`, `version`, `history`, and `changes` over
   every family and kind, with a monotonic opaque state version that advances with each landed write and record
   versions assigned as writes land, so the contract is shown implementable without Git.
 
-- _Note:_ It lives with the test support code under `__tests__/helpers/`, never under `src/`; its suite runs in the
-  unit lane.
+    - `[x]` **3.2.a Records, references, record versions, and capability** — suite items 1, 2, 13, and 15
+        - Added durable memory records, minted UIDs, rename and generation isolation, exact record versions,
+          placements and archive sequences, whole-value links, keyed ownership, and the off-branch capability.
 
-    - `[ ]` **3.2.a Records, references, record versions, and capability** — suite items 1, 2, 13, and 15
-        - Build `test-first` (one behavior at a time):
-            - the capability report gives the answer the fixture declares — yes for this backend;
-            - a written record reads back by its reference with its content, its record version, its kind's format
-              version from the registry, 1 for every kind here, and no open conflict records;
-            - a work item created here carries a `crypto.randomUUID()` UID, and a rename — a write to its primary record
-              naming it by its UID with a new name — keeps the UID and records the former slug;
-            - a work item written with a placement reads and lists with it, and a write naming another placement moves
-              it; a work unit written at completed with its quarter reads and lists with the sequence the backend
-              assigned;
-            - links written with a work item's primary record read and list with it; a write carrying a links value
-              replaces them whole, an empty value clearing them, and a write carrying none keeps them;
-            - two records of one keyed kind under one owner — two companions of a work unit, or two personal documents —
-              read, write, and list apart by their keys, and a listing by owner keeps exactly that owner's records;
-            - a stale expected version on a single-writer kind is `version-conflict` naming the record;
-            - creating a record that exists conflicts, as two starts of one stub do, and a write to an existing record
-              of a create-only kind refuses `version-conflict` naming it;
-            - a removal with the current version removes the record, after which a read refuses `not-found`; a stale one
-              refuses `version-conflict`; and a create-only record removed with its current version is gone, as a failed
-              transition's rollback removes it;
-            - a write is readable from a reopened instance over the same store when it returns.
+    - `[x]` **3.2.b State versions, reads as of a version, and changes** — suite items 6 and 7
+        - Added saved snapshots and bounded changes. Historical identity resolution ignores later aliases and faults;
+          unrelated writes preserve record-bound writes and scoped changes through separate assertions.
 
-    - `[ ]` **3.2.b State versions, reads as of a version, and changes** — suite items 6 and 7
-        - Build `test-first` (one behavior at a time):
-            - `version` advances with each landed write and with nothing else;
-            - `read` and `list` as of an earlier version return that version's records;
-            - `changes` between two versions names exactly the records written between them, each with its write's
-              provenance, and honours a restriction to one record's reference;
-            - a live listing carries the current state version where the fixture declares that its live listings carry
-              one, and none where it declares they do not; a listing as of a version carries that version;
-            - a write to an unrelated record changes no bound check.
+    - `[x]` **3.2.c History** — suite item 11
+        - Added newest-first record history across renames and removal, with caller facts, canonical references,
+          owner UIDs, and shared batch provenance.
 
-    - `[ ]` **3.2.c History** — suite item 11
-        - Build `test-first` (one behavior at a time):
-            - `history` returns a record's versions newest first, each with its write's provenance — the caller's verb,
-              lifecycle action, and code head, and the reference the backend added, with the owner's UID where the owner
-              has one and the batch ID on a batch's writes;
-            - a renamed record's history continues across the rename.
-
-### `[ ]` **3.3 Reference backend: batches and merge kinds — D3, D6, D7**
+### `[x]` **3.3 Reference backend: batches and merge kinds — D3, D6, D7**
 
 - _Goal:_ Batches apply all or nothing with every stale record named, and a stale base on a merge kind merges through
   the concurrency library by the kind's mechanism, returning the merged version and any conflict records, which the
   backend stores with the record's family.
 
-    - `[ ]` **3.3.a Batches** — suite item 4
-        - Build `test-first` (one behavior at a time):
-            - a batch with one stale record applies nothing, and its `version-conflict` names every stale record;
-            - a batch that removes some records and writes others applies all of it or none;
-            - a batch's writes share one batch ID in `history` and `changes`.
+    - `[x]` **3.3.a Batches** — suite item 4
+        - Preflight every mutation and publish a prepared namespace atomically. Stale batches name all stale records
+          and apply nothing; mixed removals and writes share one batch ID in history and changes.
 
-    - `[ ]` **3.3.b Merge kinds** — suite item 3
-        - An entry list merges with the entry shape and sections its kind records (Task 1.5.b); for a kind that records
-          none — an Errand's description, the inbound list, and the Errand queue — the reference fixture declares a test
-          shape.
-        - Build `test-first` (one behavior at a time):
-            - a stale base on an entry list merges disjoint insertions and returns the merged version;
-            - a same-entry clash keeps the stored version's entry current and lands as a stored conflict record naming
-              the record and the entry's ID, which a read of the record lists among its open conflicts, and the write
-              still succeeds;
-            - a removal racing an edit leaves the edit;
-            - a stale base on prose merges by three-way line merge, a conflicting hunk keeping the stored version's text
-              and landing as a conflict record naming the hunk's line range in the base;
-            - a stale base on a single-writer kind is `version-conflict`, never a merge;
-            - a conflict record closes only by a write that names it, after which a read of its record no longer lists
-              it.
+    - `[x]` **3.3.b Merge kinds** — suite item 3
+        - Applied registry-selected entry and line merges against saved record bases, with first-persist ID stamping.
+          Conflicts persist with labeled sides in their family and close through subject writes naming them;
+          create-only and write-once updates remain refused.
 
-### `[ ]` **3.4 Reference backend: listings, format versions, and lookup — D3, D4, D5, D7**
+### `[x]` **3.4 Reference backend: listings, format versions, and lookup — D3, D4, D5, D7**
 
 - _Goal:_ Listings keep absent, unreadable, and complete distinct with every diagnostic, a record newer than the build
   surfaces as a diagnostic or a refusal naming its remedy, and `lookup` resolves every input D1 names, so a deciding
   consumer can refuse on incomplete evidence and a browsing one can show what it has.
 
-    - `[ ]` **3.4.a Listings and format versions** — suite items 9 and 10
-        - The reference fixture's `plant` hook makes the backend hold an unreadable, oversized, or malformed entry, a
-          key disagreeing with its record, a newer-format record, or an unreadable family, so each outcome is produced
-          on demand.
-        - Build `test-first` (one behavior at a time):
-            - an empty family lists `absent` and an unreadable one `unreadable`, never the reverse;
-            - with no identity configured, through the `identity` hook, an identity-scope family lists `absent`, never
-              `complete` or `unreadable`;
-            - a complete listing carries every readable record with its version, one diagnostic per bad entry, and
-              whether it missed any;
-            - a listing filtered to lifecycle locations keeps exactly the work items placed there;
-            - a write built on a listing compare-and-swaps each record against its version in the listing, never the
-              listing's state version;
-            - a newer-format record is a listing diagnostic and, read directly, `record-malformed` naming merge base or
-              rebuild as the remedy.
+    - `[x]` **3.4.a Listings and format versions** — suite items 9 and 10
+        - Added distinct absent, unreadable, and complete listings, all five entry diagnostics, lifecycle filters,
+          identity admission, and record-bound mutation bases. Newer formats diagnose and refuse with a rebuild remedy.
 
-    - `[ ]` **3.4.b Lookup** — suite item 12
-        - The links a lookup matches are written through `write` as each test's setup, as any caller writes them.
-        - Build `test-first` (one behavior at a time):
-            - by slug, and by former slug after a rename;
-            - by lineage origin after a terminal transition;
-            - by checkout claim;
-            - a listing with the held-here filter refuses `unsupported` (recoverable), naming `lookup` by the checkout's
-              claim or a listing without the filter, and that lookup resolves the record the checkout holds;
-            - by a repository plus a commit, matching captured SHAs and, only where none matches, the caller's patch-id
-              — so a reapplied commit whose patch-id another task's capture shares resolves by its SHA to its own task
-              alone — a commit two tasks captured resolving to the work item and both tasks' IDs, and a landing commit
-              made by merge, held with no patch-id, to the work item with none; and by a repository plus a ref, matching
-              branch links;
-            - `not-found` naming the lookup that would resolve a name, and `ambiguous-match` naming its candidates.
+    - `[x]` **3.4.b Lookup** — suite item 12
+        - Added slug and former-name, terminal-origin, checkout-claim, commit, and ref lookup. Exact SHAs precede
+          patch IDs, task captures remain complete, and held-here and ambiguous lookups have reachable remedies.
 
-### `[ ]` **3.5 Reference backend: sync against an in-memory remote — D4, D7**
+### `[x]` **3.5 Reference backend: sync against an in-memory remote — D4, D7**
 
 - _Goal:_ The reference backend's `sync` against an in-memory remote produces every sync outcome and failure class
   with its fields, so the contract's sync semantics are held by a running backend before any Git-backed sync exists.
 
-    - Build `test-first` (one behavior at a time) — suite item 16, each failure through the fixture's `remoteState`:
-        - `pushed` after a local write, `noop` with nothing to send, and `reconciled` when the remote moved and the
-          merge applies by each kind's mechanism;
-        - `retries-exhausted` under sustained contention, carrying its retry count and the time waited from the injected
-          clock;
-        - `unreachable` while the remote is down, and success once it answers;
-        - `refused` carrying the remote's message;
-        - no remote reported as a state, never a failure;
-        - with no identity, through the fixture's `identity` hook, `no-identity` reported once, naming every
-          identity-scope family, while a project-scope family's publish in the same sync ends `pushed`; and with no
-          remote too, both states;
-        - each outcome names the families its publish carried, and together they name every family the backend syncs;
-        - on a backend that merges, a single-writer record changed both locally and on the remote ends `reconciled` with
-          the remote's version current and the local one in an open conflict record naming the whole record, which a
-          read of the record names and listing the family's conflict records shows, and a write naming it closes it,
-          after which sync ends `pushed`.
+- _Outcome:_ Added an independently writable memory remote with registry-based reconciliation and family-scoped
+  publishes. Actual competing writes exhaust compare-and-swap retries without applying pending local state, using
+  injected elapsed time; transport and policy failures recover after repair. Configuration states remain independent,
+  and concurrent entry, prose, and single-writer changes preserve labeled conflicts.
 
-### `[ ]` **3.6 Every refusal recovery-complete — D4**
+### `[x]` **3.6 Every refusal recovery-complete — D4**
 
 - _Goal:_ Every refusal the contract defines is returned as a value with its class, observed condition, and remedy,
   and each recoverable refusal has a test that applies its remedy and reaches the success path, so no refusal is a
   guard-only dead end.
 
-    - `[ ]` **3.6.a Item 14 over the reference backend**
-        - A table-driven test produces each refusal the reference fixture can produce through its `produce` hook,
-          asserts its class, condition, and remedy, applies the remedy through `repair`, and asserts the retried call
-          succeeds; a terminal refusal asserts the repair it names.
-        - `lock-held` is produced through the `hold` hook on the backend's injected write lock, and each sync failure
-          through `remoteState`.
+    - `[x]` **3.6.a Item 14 over the reference backend**
+        - Produced each supported refusal, checked its exact code or case, class, condition, and remedy, then repaired
+          the cause and retried successfully. Namespace admission covers every operation, and key faults differ by
+          identity. Content and newer-format remedies use typed causes rather than message keywords.
 
-    - `[ ]` **3.6.b Completeness by construction**
-        - The recovery table is typed as a record over every refusal code, so a new member fails to compile until it has
-          its case, and it compiles here: each case says how a fixture produces the refusal and what its remedy does,
-          and the table runs only the codes a fixture does not declare it cannot produce, `unsupported` with one case
-          per D4 case and `not-found` with two: a name no record has, and an identity-scope record — personal or
-          transient-identity — named with no identity configured, whose remedy sets `arc.identity`, which the reference
-          fixture produces for a personal record through its `identity` hook. The in-repo implementation's own refusals
-          — `checkout-not-writable`, `unsupported`'s in-repo cases, and the transient-identity write's failures — have
-          their cases from the start; the reference fixture declares them unproducible, and they run over the in-repo
-          fixture from Tasks 4.7 and 7.4. The reference fixture produces `unsupported`'s held-here case (Task 3.4.b),
-          which the in-repo fixture declares unproducible, since it answers the filter.
+    - `[x]` **3.6.b Completeness by construction**
+        - Added the exhaustive code and case table, including future transient-write cases with explicit reference
+          exclusions. All exclusions are reported by name; the reference suite's 56 skips cover substrate/state
+          coverage, parser-free kinds, and checkout/interim/transient-only refusals.
 
-### `[ ]` **3.7 Keep the reference backend out of the package — D7**
+### `[x]` **3.7 Keep the reference backend out of the package — D7**
 
 - _Goal:_ The reference backend never ships: the package build output contains none of it, and a check fails when any
   module under `src/` imports it.
 
-- _Note:_ `npm run typecheck` is a second layer: under `rootDir: "src"` it fails any `src/` import from `__tests__/`
-  with TS6059, and the bundle holds only what the `src/` entry points reach.
+    - `[x]` **3.7.a Import guard**
+        - Added source resolution guards for imports, re-exports, dynamic imports, require, and import types. Planted
+          production imports demonstrate that a reference dependency is rejected.
 
-    - `[ ]` **3.7.a Import guard**
-        - An import-boundary test in the manner of `__tests__/unit/layout/import-boundary.test.ts` scans `src/` and
-          fails on any import resolving into the reference backend; its own fixture plants such an import and asserts
-          the failure.
-
-    - `[ ]` **3.7.b Build-output check**
-        - After `npm run build`, a check reads `dist/metafile-esm.json`'s raw `inputs` keys and every output's
-          `inputs`, and fails on any that resolves under the reference backend's directory. It cannot use
-          `selectBundleInputs` (`lib/dev-check.ts`), which keeps only `src/` inputs and so would never see one.
-        - Its own test plants a reference-backend input in a metafile and asserts the failure; the run's result is
-          recorded as the build-output criterion's evidence.
+    - `[x]` **3.7.b Build-output check**
+        - Build-output criterion passed after the full package build: actual `dist/metafile-esm.json` raw inputs and
+          every output's input attribution contain no reference support. Planted raw and output inputs are rejected.
 
 ## **Phase 4:** In-repo implementation over tracked records
 
