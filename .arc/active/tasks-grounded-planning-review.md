@@ -52,42 +52,24 @@ existence-only grounding left at either stage.
   reciprocal links to spec-review, task-audit, and adversarial-review. Both Framework projections match the package
   source.
 
-### `[ ]` **1.4 Register `source-grounding` across every shipment surface — D1**
+### `[x]` **1.4 Register `source-grounding` across every shipment surface — D1**
 
 - _Goal:_ Projects install `source-grounding` as a Configurable core method, and every inventory that asserts the
   shipped methods fails without it.
 
-- _Rationale:_ Those inventories list only the methods they name, so a site that omits the new one reads green; writing
-  each assertion before the registration lands proves it bites.
+- _Outcome:_ Registered source-grounding as a core Configurable method in the recipe, classifier, manifest, shipment
+  inventories, and sync inventory. Added neutral-copy assertions for source-grounding, spec-review, and task-audit;
+  install and classification assertions demonstrated omissions before registration, and a controlled drift
+  demonstrated the copy assertion.
 
-- _Note:_ The manifest's `pristine_hash` records the package file as registered and goes stale on later edits, as
-  `adversarial-review`'s already has; only `assess-evidence-applicability`'s hash is pinned, and none is added here.
-
-    - Shipment: `init-recipe.json` `include_files`; `CONFIGURABLE_FILES` in `src/lib/classification.ts`; a
-      `.arc/system/.internal/manifest.json` entry (`Configurable`, `core`, `pristine_hash` the SHA-256 of the package
-      file — the form the `assess-evidence-applicability` entry took)
-    - `strategy-package-project-sync.md`: the inventory list entry; Configurable 45 → 46 in the inventory heading and
-      the classification table; self-hosting installed files 152 → 153. `framework-sync.test.ts`'s existing count and
-      manifest-alignment checks go red on the recipe entry until these and the manifest move with it
-    - `framework-sync.test.ts`'s neutral-contract list gains `source-grounding.md`, `spec-review.md`, and
-      `task-audit.md`
-    - Lanes: the change mixes `src/**`, tests, JSON, and Markdown, so every check runs, plus `npm run test:e2e` since
-      E2E files change
-    - `integration/update.test.ts`'s per-file list gains `source-grounding`. It asserts only that a repeat update
-      leaves listed files out of its change sets, so it cannot fail first; the entry keeps the list current
-    - Build `test-first` (one behavior at a time):
-        - `integration/init.test.ts`: the installed method-file list and the manifest `methodNames` list include
-          `source-grounding`
-        - `e2e/init.e2e.test.ts`'s method inventory includes it
-        - `unit/init.test.ts`: the planning-method check ships it, and the `classifyFile` block asserts `Configurable`
-
-### `[ ]` **1.5 Exercise the grounding check through both stage callers** — validate exit criterion at segment scope
+### `[x]` **1.5 Exercise the grounding check through both stage callers** — validate exit criterion at segment scope
 
 - _Goal:_ The Phase 1 exit criterion holds, with the scenario and its result recorded.
 
-    - Run the init and update integration suites, `npm run test:e2e`, `lint:arc:triggers`, and `framework-sync.test.ts`
-    - Trace `create-spec` → `spec-review` → `source-grounding` and `generate-tasks` → `task-audit` →
-      `source-grounding`, confirming neither stage's grounding remains existence-only
+- _Outcome:_ The segment scenario holds: fresh installs carry source-grounding as Configurable core, repeat updates
+  preserve it, and the five edited method files and task-generation template match their project copies. Traced
+  create-spec → spec-review and generate-tasks → task-audit to behavior checks and propagation sweeps, with no
+  existence-only grounding at either caller.
 
 ## **Phase 2:** The review substrate — fold verification, exit gate, pass record, reasons
 

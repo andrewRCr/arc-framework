@@ -186,7 +186,7 @@ describe("init", () => {
       "implementation-audit", "review-chunking", "self-review", "design-audit",
       "issue-triage", "quality-gate-commands", "resolve-plan-segmentation", "resolve-planning-depth",
       "review-response", "review-triage",
-      "session-state", "spec-review", "task-audit", "test-first", "testing-standards", "validate-criteria",
+      "session-state", "source-grounding", "spec-review", "task-audit", "test-first", "testing-standards", "validate-criteria",
     ];
     const extensionNames = [
       "post-context-load", "post-task-completion", "post-task-quality",
