@@ -391,9 +391,10 @@ remote base all name the same exact head. Any tracked change continues through t
      only after the verb verifies the exact approved reply, actor, comment, and resolved thread with no host
      mutation; every stop state remains a stop. After the required phases complete, follow the approved response
      continuation and, after a fix, the verified-fix response continuation through the owning status or resolve
-     action. Do not feed the same findings to the driver again. If the Owner declined the pass the fix triggers,
-     resolve the lane at the new head as usual and, from `ready / hosted-request`, present the Owner-directed review
-     stop offer below instead of requesting the pass.
+     action. A response that settles with no fix returns `settled | already-settled / continue-review`; continue
+     from its `payload.policy` when present. Do not feed the same findings to the driver again. If the Owner
+     declined the pass the fix triggers, resolve the lane at the new head as usual and, from `ready / hosted-request`,
+     present the Owner-directed review stop offer below instead of requesting the pass.
    - `rate-limited | transient-unavailable / try-next-source` — feed that safe outcome to the same driver call; it
      may select the next configured source without consuming the pass.
    - Any ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops. Never replay

@@ -2045,10 +2045,12 @@ describe("review response command", () => {
     } as const;
     await expect(respondToReviewCommand(approvedRequest, deps)).resolves.toMatchObject({
       state: "settled",
+      nextAction: "reduce",
       payload: { dispositionReportText: expectedReport },
     });
     await expect(respondToReviewCommand(approvedRequest, deps)).resolves.toMatchObject({
       state: "already-settled",
+      nextAction: "reduce",
       payload: { dispositionReportText: expectedReport },
     });
     await expect(respondToReviewCommand({
@@ -2056,11 +2058,12 @@ describe("review response command", () => {
       settledFixTarget: records.target,
     }, deps)).resolves.toMatchObject({
       state: "already-settled",
+      nextAction: "reduce",
       payload: { dispositionReportText: expectedReport },
     });
   });
 
-  it("settles a hosted body finding through the durable attempt without Candidate authority", async () => {
+  it("settles a hosted body finding into its lane continuation without Candidate authority", async () => {
     const hosted = hostedResponseFixture("review-body");
     const attempt = hosted.operation.attempts[0];
     if (attempt?.hosted === undefined) throw new Error("missing hosted attempt fixture");
@@ -2082,7 +2085,7 @@ describe("review response command", () => {
       disposition: "defer",
     });
 
-    await expect(respondToReviewCommand({
+    const approvedRequest = {
       schemaVersion: 1,
       source: { kind: "hosted", attemptRef: hosted.attemptRef },
       policyRequest: policyRequest(hosted.records, {
@@ -2091,7 +2094,14 @@ describe("review response command", () => {
         pullRequest: 42,
       }),
       dispositions: disposition,
-    }, deps)).resolves.toMatchObject({ state: "settled", nextAction: "reduce" });
+    } as const;
+    // A hosted attempt leaves no durable operation to reduce, so every settled answer names the lane continuation.
+    await expect(respondToReviewCommand(approvedRequest, deps))
+      .resolves.toMatchObject({ state: "settled", nextAction: "continue-review" });
+    await expect(respondToReviewCommand(approvedRequest, deps))
+      .resolves.toMatchObject({ state: "already-settled", nextAction: "continue-review" });
+    await expect(respondToReviewCommand({ ...approvedRequest, settledFixTarget: hosted.records.target }, deps))
+      .resolves.toMatchObject({ state: "already-settled", nextAction: "continue-review" });
     expect(bind).toHaveBeenCalledWith(expect.objectContaining({
       operationId: hosted.operation.operationId,
       attemptId: attempt.attemptId,
@@ -2215,7 +2225,7 @@ describe("review response command", () => {
     }, deps);
     expect(response).toMatchObject({
       state: "settled",
-      nextAction: "reduce",
+      nextAction: "continue-review",
       payload: {
         supersession: {
           carriedFindingIds: [hosted.records.finding.findingId],

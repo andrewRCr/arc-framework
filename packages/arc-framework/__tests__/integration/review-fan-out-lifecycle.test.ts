@@ -3200,7 +3200,7 @@ describe("hosted review fan-out lifecycle", () => {
     await expect(respondThroughHandler(harness, {
       schemaVersion: 1, source, policyRequest, dispositions,
     })).resolves.toMatchObject({
-      state: "settled", nextAction: "reduce",
+      state: "settled", nextAction: "continue-review",
       payload: { policy: { state: "pass-complete", payload: {
         verifiedTerminalSignal: { coverageAdequate: true },
       } } },
