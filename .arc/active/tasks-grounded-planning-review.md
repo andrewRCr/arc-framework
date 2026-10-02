@@ -203,33 +203,40 @@ _Exit criterion:_ `draft-design`, `create-spec`, `generate-tasks` (the template 
 
 ## **Phase 4:** Verification
 
-### `[ ]` **4.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **4.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown and code lint, shell lint, both type checks, all three ARC contract checks, 13,227 routine
+  tests (2 skipped), 619 E2E tests, and build passed.
+- _Success criteria:_ All 17 met against the spec and complete work-unit tree. Independent adversarial Pass 1 of 2
+  returned no findings and converged. Verified grounding, fold-check and record contracts, all four planning callers,
+  install inventories, copy identity, and unchanged convergence; all 16 prior commits passed package-sync replay.
+  The effect on later planning reviews remains the spec's explicit post-ship measurement.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` `source-grounding.md` ships as a Configurable method carrying the D1 signature, its `artifacts` and `scope`
+- `[x]` `source-grounding.md` ships as a Configurable method carrying the D1 signature, its `artifacts` and `scope`
   inputs, and `adversarial-review`'s report schema as its return, with `verdict` naming the scope and the runner
 
-- `[ ]` `source-grounding` carries the behavior-grade check, the propagation sweep reaching source, the Reach rules, the
+- `[x]` `source-grounding` carries the behavior-grade check, the propagation sweep reaching source, the Reach rules, the
   factored procedure, non-mutating probes, the unnamed-actor finding, the severity interpretation, the rule by which
   the running agent labels its report `independent` only when it never loads author reasoning or the work unit's
   SESSION-NOTES and `author` otherwise, and the D2 rule as its authority; its prose names no internal work unit or
   corpus figure
 
-- `[ ]` `source-grounding` resolves in `init-recipe.json`, `CONFIGURABLE_FILES`, the self-hosting manifest, the init,
+- `[x]` `source-grounding` resolves in `init-recipe.json`, `CONFIGURABLE_FILES`, the self-hosting manifest, the init,
   update, and e2e install inventories, and the unit init planning-method check; the package-sync inventory lists it
   with Configurable and installed-file counts matching the recipe; the methods README pairs it with its three
   consuming methods
 
-- `[ ]` `spec-review`'s grounding slice and `task-audit`'s grounding floor each hand claim grounding to
+- `[x]` `spec-review`'s grounding slice and `task-audit`'s grounding floor each hand claim grounding to
   `source-grounding`, with the runner label by its rule and no new input, each declaring it and naming `amend-design`
   in its Workflow header; no existence-only grounding remains: `spec-review` no longer calls its grounding a light
   verification, `task-audit`'s `grounding-only` is `source-grounding` run alone, and `design-audit`'s account of
   `spec-review` is behavior-grade
 
-- `[ ]` `adversarial-review` carries `fold-verification` as a primary-side, never-serialized input and a
+- `[x]` `adversarial-review` carries `fold-verification` as a primary-side, never-serialized input and a
   `### Fold verification` section carrying:
     - an opening definition of a fold: an approved fix, a correction the author makes while grounding the fixes, or
       another change the Owner approved, landed in a reviewed planning artifact before the next review reads it;
@@ -247,45 +254,45 @@ _Exit criterion:_ `draft-design`, `create-spec`, `generate-tasks` (the template 
     - the kept reviewed versions, with location, keying, recording, removal, and loss behavior;
     - the fold tag
 
-- `[ ]` `adversarial-review` carries `### Pass record` with each fold's tag, each finding's origin, a finding in a gap
+- `[x]` `adversarial-review` carries `### Pass record` with each fold's tag, each finding's origin, a finding in a gap
   taking the origin of the text that left it, the author's fold-grounding corrections, and other changes the Owner
   approved between reviews; it declares and relates `source-grounding` and `assess-design-proportionality`, and its
   opening points to `strategy-work-planning.md` § Review at Planning Boundaries
 
-- `[ ]` `adversarial-review` § Exit gate states the re-inspection test as a recommendation input and makes a
+- `[x]` `adversarial-review` § Exit gate states the re-inspection test as a recommendation input and makes a
   recommendation, another pass or stop, the default at `cap-exhausted`; its convergence rule and pass caps are
   unchanged, and its final-fold residual paragraph names the last fix-check round's repairs as the residual
 
-- `[ ]` `draft-design`, `create-spec`, and `generate-tasks` each carry the stage-wide D2 line, `fold-verification: on`
+- `[x]` `draft-design`, `create-spec`, and `generate-tasks` each carry the stage-wide D2 line, `fold-verification: on`
   in their adversarial callout, a `§ Pass record` pointer in place of their pass-entry list, and a post-settle step
   without its restated residual reason
 
-- `[ ]` `draft-design` declares `source-grounding`, runs it at `artifact` scope at the readiness boundary on the
+- `[x]` `draft-design` declares `source-grounding`, runs it at `artifact` scope at the readiness boundary on the
   `medium` and `high` paths before the adversarial offer, and includes it in its adversarial rubric; `generate-tasks`'
   description of `grounding-only` and its greenfield framing are behavior-grade
 
-- `[ ]` `amend-design` carries the stage-wide D2 line; `spec-review`'s grounding slice over the affected elements at
+- `[x]` `amend-design` carries the stage-wide D2 line; `spec-review`'s grounding slice over the affected elements at
   every depth; the grounding slice and `task-audit`'s grounding floor over the footprint's tasks in its
   assurance-invariant rubric; `fold-verification: on` on its passes, the accretion guard's offer included; the
   post-settle coherence re-read when its pass folded anything, as the last step before the amendment lands; and a
   `§ Pass record` pointer
 
-- `[ ]` `strategy-work-planning.md` carries `## Review at Planning Boundaries` with its Contents and Related
+- `[x]` `strategy-work-planning.md` carries `## Review at Planning Boundaries` with its Contents and Related
   Documentation entries; the section states the five reasons, points to `adversarial-review` and `source-grounding`
   for the mechanics, and cites no ADR or internal work unit
 
-- `[ ]` ADR-036 is `Accepted` under `.arc/reference/adr/` and records the core model and this design's extension, each
+- `[x]` ADR-036 is `Accepted` under `.arc/reference/adr/` and records the core model and this design's extension, each
   with its rejected alternatives; no shipped file cites it
 
-- `[ ]` No always-loaded surface, CLI behavior, stored record, pass cap, or convergence rule changes
+- `[x]` No always-loaded surface, CLI behavior, stored record, pass cap, or convergence rule changes
 
-- `[ ]` `lint:arc:triggers` passes; every edited Framework file is identical across both copies; the methods
+- `[x]` `lint:arc:triggers` passes; every edited Framework file is identical across both copies; the methods
   `README.md`, `design-audit.md`, `adversarial-review.md`, `spec-review.md`, `task-audit.md`, and
   `source-grounding.md` pass the neutral-contract identity test; every commit passes `check-package-sync.sh`
 
-- `[ ]` The `over-cap` fixture reaches `cap-exhausted` with material signal and expects the recommendation as the
+- `[x]` The `over-cap` fixture reaches `cap-exhausted` with material signal and expects the recommendation as the
   default
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration

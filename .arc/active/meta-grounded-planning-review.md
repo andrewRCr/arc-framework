@@ -11,13 +11,14 @@
 - **Design:** `spec-grounded-planning-review.md`
 - **Task List:** `tasks-grounded-planning-review.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:32cbefbb0e18b7f99e3c701a927fab80b78dbe9970fa962743875a496c59301e`
 
-- **Current Workflow:** process-task-loop
-- **Last Completed:** Task 3.5 — Exercise the planning stages against the substrate
-- **Next Task:** Task 4.1 — Complete verification (line ~206)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 4.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 4.1 in a fresh session; load and follow `verify-work-unit.md`.
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]
