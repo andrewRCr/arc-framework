@@ -3,7 +3,7 @@
   "slug": "storage-register-work-items",
   "claimId": "183243d5238e693daa27bd193c1c23d3",
   "createdAt": "2026-10-02T00:05:34.344Z",
-  "updatedAt": "2026-10-02T00:05:34.344Z",
+  "updatedAt": "2026-10-02T00:11:06.221Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Align the state-storage cohort register with the storage contract's work-item decisions",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Bring the `state-storage` cohort register in line with the storage contract's work-item decisions",
   "originEntrySourceDigest": "sha256:b26d75034b8b1b7667a56cc0aa59d743fafb05282649ffb5281a9dcc29e31a3c",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/storage-register-work-items",
+    "headSha": "ceb7effa0ff14c885434d3973289c2c838896f19"
+  }
 }
