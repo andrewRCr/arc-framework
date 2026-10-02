@@ -82,7 +82,9 @@ function renderEntries(config:EntryListConfig,selected:Map<string,ListEntry>,bas
   let result = "";
   let cursor = 0;
   for (const chunk of chunks) {
-    result += prose.slice(cursor,chunk.position)+chunk.bytes;
+    result += prose.slice(cursor,chunk.position);
+    if (result.length > 0 && !result.endsWith("\n")) result += chunk.bytes.match(/\r?\n/u)?.[0] ?? "\n";
+    result += chunk.bytes;
     cursor = chunk.position;
   }
   return result+prose.slice(cursor);

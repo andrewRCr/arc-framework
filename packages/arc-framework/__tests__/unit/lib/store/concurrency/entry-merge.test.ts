@@ -95,6 +95,24 @@ describe("whole-entry editing", () => {
 });
 
 describe("observed removal", () => {
+  for (const shape of ["heading", "field-header"] as const) for (const newline of ["\n", "\r\n"]) {
+    it.each([false, true])(`retains an edited ${shape} entry after an unterminated heading with ${JSON.stringify(newline)}, removal current: %s`, (removalCurrent) => {
+      const grammar: EntryListConfig = { shape, sections: ["One"] };
+      const opening = `Opening${newline}<!-- opaque comment -->${newline}${newline}`;
+      const heading = `${opening}## One  `;
+      const value = (body: string) => `${shape === "heading" ? "### **Entry**" : "**Memory:**"}${newline}_Id:_ \`11111111\`${newline}${newline}${body}${newline}${newline}`;
+      const base = `${heading}${newline}${newline}${value("base")}`;
+      const edited = `${heading}${newline}${newline}${value("edited")}`;
+      const input = { base, current: removalCurrent ? heading : edited, incoming: removalCurrent ? edited : heading, record, currentLabel, incomingLabel };
+      const result = mergeEntryText(input, grammar);
+      expect(splitEntryList(result.content, grammar).parts.filter((part) => part.kind === "entry"))
+        .toMatchObject([{ id: "11111111", section: "One", bytes: value("edited").trimEnd() }]);
+      expect(result.content).toBe(`${heading}${newline}${value("edited")}`);
+      expect(result.conflicts).toEqual([]);
+      expect(mergeEntryText({ ...input, current: heading, incoming: base }, grammar)).toEqual({ content: heading, conflicts: [] });
+    });
+  }
+
   it.each([false, true])("retains edited entries in their section after section deletion, removal current: %s", (removalCurrent) => {
     const base = doc(entry("11111111")+entry("22222222"),entry("33333333"));
     const removed = base.replace(`## One\n\n${entry("11111111")+entry("22222222")}`, "");
