@@ -459,30 +459,13 @@ _Mode:_ `replication` — closes when the enumerated caller set is exhausted and
 _Exit criterion:_ Every caller in the enumerated set has a passing differential test for each of its queries, and the
 enumeration is re-derived against the tree at the phase's close.
 
-### `[ ]` **6.1 Enumerate the index-path callers and their queries — D9**
+### `[x]` **6.1 Enumerate the index-path callers and their queries — D9**
 
 - _Goal:_ Every existing caller that reads the meta through an index entry's path is enumerated with each of its
   queries and assigned to a batch, so the replication has a closed surface whose exhaustion can be checked.
 
-- **Additional Context:** `notes-storage-contract.md` § Lifecycle and in-flight (128)
-
-    - Search `src/` for the callers of every lifecycle index builder — `buildLifecycleIndex`,
-      `buildLifecycleIndexFromMetas`, `buildLifecycleIndexFromRecords`, and `resolveComposedLifecycleIndex` — and for
-      every read of an entry's `path` from what they return. Record each caller, its queries (which records, which
-      fields, read from where), and its batch (Task 6.2 or 6.3) in `notes-storage-contract.md` § Index-path callers,
-      with the commit it was derived at. The design expects at least ten.
-    - A read of the composed index's writable path or current-tree copy (`writablePath`, `currentTree`) is recorded as
-      the question whether this checkout's copy is the selected one (Task 5.2.a), with the path from its placement where
-      the caller uses one; `handlers/status.ts`, abandon in `handlers/lifecycle.ts` and
-      `lib/work-unit/verbs/abandon.ts`, `lib/work-unit/verbs/park-resume.ts`, `commands/rename.ts`, and
-      `lib/work-unit/transform-coordination.ts` read it today. Decomposition's writable path
-      (`lib/work-unit/decompose-v3-conservation.ts`) is a meta's path in the result base's tree, read by `readTreeMetas`
-      (`lib/work-unit/decompose-v3-repository-tree.ts`) rather than through any index, so it is no caller here.
-    - Each query reads one of three places, and the record names it: the working tree; a commit on this checkout's
-      branch, which is a state version, as the integration checkpoint reads at `HEAD`; or another branch's tree at a
-      named commit, as teardown's retirement authorization reads a parked work unit's head and base. The third kind is
-      a branch-tree reader, recorded with its consumer-map row and left out of the set: the in-repo implementation reads
-      other branches' records live and refuses reads of them as of a version (D8).
+- _Outcome:_ `notes-storage-contract.md` records eighteen query-owning call sites derived at `0d0e79a33`, split
+  between lifecycle verbs and the remaining consumers, with saved-state queries and branch-tree exclusions explicit.
 
 ### `[ ]` **6.2 Differential batch: lifecycle verbs — D9**
 

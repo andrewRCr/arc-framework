@@ -598,6 +598,55 @@ batches append rows at the table's end, so a key keeps its row.
   `config-storage-architecture` — where the state remote's designation lives; `ghost-mode` — the footprint inventory,
   the task trailer's form, harness bootstrap, and the user-facing name.
 
+## Index-path callers
+
+Derived at `0d0e79a33342cddc535ea8237157b2004582830c`. The source search covers all uses of
+`buildLifecycleIndex`, `buildLifecycleIndexFromMetas`, `buildLifecycleIndexFromRecords`, and
+`resolveComposedLifecycleIndex`, following indexed meta paths and the composed `writablePath` and `currentTree`
+queries through their consumers. Each row names one distinct query-owning call site; callers retain their code.
+
+The held index serves a tree-only caller. A composed caller compares the selected index, the held index, and
+selected-here agreement; file bytes come from the held record when its pointer agrees with the selected copy.
+Saved-state queries use the requested commit, never a later working-tree edit.
+
+| Caller                                                                     | Read source                                  | Queries and fields                                                                                                                                       | Batch |
+| -------------------------------------------------------------------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| `handlers/lifecycle.ts — promote`                                          | working tree, held                           | Requested provisional slug: phase/location and workClass, including unresolved Class.                                                                    | 6.2   |
+| `lib/work-unit/verbs/promote-demote.ts — promote`                          | working tree, held                           | Requested provisional slug: location, cohort placement and workClass; demote also uses source placement.                                                 | 6.2   |
+| `handlers/lifecycle.ts — abandon preview`                                  | working tree, selected + held                | Requested target: lifecycle state, selected-here agreement and branch from its writable copy.                                                            | 6.2   |
+| `lib/work-unit/verbs/abandon.ts`                                           | working tree, selected + held; held fallback | Requested target: existence, lifecycle state, selected-here agreement and branch for retirement/overlay.                                                 | 6.2   |
+| `lib/work-unit/verbs/park-resume.ts — resume`                              | working tree, selected + held; held fallback | Requested parked slug: planned placement, selected-here agreement and preserved branch.                                                                  | 6.2   |
+| `commands/rename.ts`                                                       | working tree, selected + held                | Source and collision target: existence, state/location/cohort, selected-here agreement, branch and prUrl.                                                | 6.2   |
+| `lib/work-unit/transform-coordination.ts`                                  | working tree, selected + held                | All dependents of origin: dependsOn, state, selected-here agreement and held-copy placement; partition authority, exclusions and Integrating advisories. | 6.2   |
+| `lib/work-unit/lifecycle-executor.ts — executeTransition`                  | working tree, held                           | Requested slug: lifecycle position and all fields the encoding/finalization legs read through the original meta path.                                    | 6.2   |
+| `lib/work-unit/lifecycle-executor.ts — resumeTransitionFinalization`       | working tree, held                           | Requested slug: destination position, unique transition and currentWorkflow before finalization replay.                                                  | 6.2   |
+| `commands/start.ts — default preflightGraduate`                            | working tree, held                           | Requested backlog Planning slug: phase/location and complete field block before graduation.                                                              | 6.2   |
+| `handlers/lifecycle.ts — attest archived new root`                         | working tree, held                           | Requested completed slug: location, state and taskList binding.                                                                                          | 6.2   |
+| `handlers/status.ts — slug query`                                          | working tree, selected + held                | Requested slug: lifecycle query and selected-here agreement for operational lookup where no mapped worktree exists.                                      | 6.3   |
+| `handlers/reconcile.ts`                                                    | working tree, held                           | Every record: branch equals checkout branch; explicit archived fallback: Shipped/completed and artifact binding.                                         | 6.3   |
+| `handlers/view.ts — explicit target`                                       | working tree, held                           | Requested active/planned/provisional/completed slug: existence/location, cohort placement and taskList binding.                                          | 6.3   |
+| `lib/work-unit/verbs/teardown.ts — competing projection`                   | working tree, held                           | Branch-derived slug: existence, location and declared branch compared with retirement evidence.                                                          | 6.3   |
+| `scripts/integration/checkpoint-composition.ts — readLifecycleSummary`     | same-checkout commit, saved state            | Requested work unit: phase/location and archive artifact facts from meta content under either archive cadence.                                           | 6.3   |
+| `scripts/integration/checkpoint-composition.ts — shipped delivery renewal` | same-checkout commit, saved state            | Requested shipped work unit: meta availability and taskList binding at resolved HEAD.                                                                    | 6.3   |
+| `handlers/delivery-execution.ts — completed review-fix locus`              | working tree, held                           | Candidate-owned completed work unit: location and taskList binding for entry inspection and review-fix execution.                                        | 6.3   |
+
+### Outside the replication set
+
+- `handlers/start.ts`'s refreshed `baseSnapshot.fs` query and the supplied-source `commands/start.ts` preflight read
+  another branch's named base tree. The working-tree preflight above remains in the set; the base-tree query remains
+  with the lifecycle consumer-map rows for those modules.
+- `lib/work-unit/git-retirement-authorization-context.ts` builds the parked subject's index from a named retiring
+  head or result/base tree and reads its artifact group, including completed projection digests at `baseRef`. This is
+  the branch-tree retirement-authorization consumer-map row, outside the saved-state index's scope.
+- `lib/work-unit/decompose-v3-conservation.ts` reads a path from repository-tree metas rather than an index entry.
+- `lib/store/in-repo/meta.ts` now consumes composed selected paths, writable paths and current-tree paths to implement
+  the substrate itself. Its operational-byte, semantic-field, pointer-placement and write-admission behavior is covered
+  by the backend's existing tests; it is not an old caller awaiting rerouting.
+
+Other builder consumers use index fields without rereading a meta path or querying selected-copy agreement: active,
+Errand, Candidate ownership, foreign-artifact checks, ready-mine, cohort context, project-view records, ROADMAP, archive,
+and parked-slug reconciliation wiring. They fall outside the index-path criterion.
+
 ## Implementation pointers
 
 - **Sync outcomes today,** the set D4 maps. The notes save (`runUserSave` in `commands/user/save-load.ts`) runs
