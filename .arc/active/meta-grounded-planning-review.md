@@ -12,12 +12,12 @@
 - **Task List:** `tasks-grounded-planning-review.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** [none]
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — Author `source-grounding` and hand `spec-review`'s grounding slice to it
+- **Current Workflow:** process-task-loop
+- **Last Completed:** Task 3.5 — Exercise the planning stages against the substrate
+- **Next Task:** Task 4.1 — Complete verification (line ~206)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 via process-task-loop
+- **Next Action:** Start Task 4.1 in a fresh session; load and follow `verify-work-unit.md`.
 
 - **PR URL:** [none]
 - **Completed:** [none]
