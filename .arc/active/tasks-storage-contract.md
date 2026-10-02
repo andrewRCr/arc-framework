@@ -475,13 +475,14 @@ enumeration is re-derived against the tree at the phase's close.
 - _Outcome:_ Eleven lifecycle query owners compare their original path reads with held or selected identity records,
   including pointer agreement, dependency authority, field-block validation and finalization workflow bindings.
 
-### `[ ]` **6.3 Differential batch: integration, status, view, reconcile, teardown, and retirement — D9**
+### `[x]` **6.3 Differential batch: integration, status, view, reconcile, teardown, and retirement — D9**
 
 - _Goal:_ For every enumerated caller in integration, status, view, reconcile, teardown, and retirement, and for each
   of its queries, a differential test shows the identity-keyed index returning the same records and fields as the
   caller's path read over the same repository.
 
-    - One test per caller, as in Task 6.2.
+- _Outcome:_ Seven consumer query owners compare their original path reads with identity records, including saved
+  HEAD summaries, selected-record authority, task-list bindings and teardown projections.
 
 ### `[ ]` **6.4 Index callers exhausted** — validate exit criterion at segment scope
 
