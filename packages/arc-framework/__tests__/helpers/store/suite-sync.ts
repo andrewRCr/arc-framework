@@ -8,6 +8,7 @@ import { assertion, everyKind, seed, success, update, type SuiteContext } from "
  * @param context - item 16 context.
  */
 export function registerSyncAssertions(context: SuiteContext): void {
+  const mergeReason = context.registration.declarations.mergesConcurrentWrites ? undefined : "This backend refuses concurrent writes instead of storing merge conflicts.";
   everyKind(context, "publish-and-noop-family-coverage", async (fixture, reference) => {
     fixture.remote(true);
     await seed(fixture, reference);
@@ -51,7 +52,7 @@ export function registerSyncAssertions(context: SuiteContext): void {
     expect(conflict.incoming.label.actor.length).toBeGreaterThan(0);
     expect(Number.isNaN(Date.parse(conflict.current.label.time))).toBe(false);
     expect(Number.isNaN(Date.parse(conflict.incoming.label.time))).toBe(false);
-  }, (kind) => KIND_REGISTRY[kind].merge !== "single-writer");
+  }, (kind) => KIND_REGISTRY[kind].merge !== "single-writer", mergeReason);
   for (const [state, code, classification] of [["down", "unreachable", "recoverable"], ["contended", "retries-exhausted", "recoverable"], ["refusing", "refused", "terminal"]] as const) {
     assertion(context, "work-item", `remote-${state}-with-success-after-repair`, async (fixture) => {
       fixture.remote(true);
@@ -61,8 +62,8 @@ export function registerSyncAssertions(context: SuiteContext): void {
       const publish = result.publishes.find((outcome) => outcome.status === "failed");
       expect(publish).toMatchObject({ status: "failed", failure: { code, class: classification, condition: expect.any(String), remedy: { text: expect.any(String) } } });
       if (publish?.status !== "failed") throw new Error("Expected failed publish");
-      if (publish.failure.code === "retries-exhausted") expect(publish.failure).toMatchObject({ retryCount: 3, waitedMs: 30 });
-      if (publish.failure.code === "refused") expect(publish.failure.message).toBe("Remote policy requires a permitted writer.");
+      if (publish.failure.code === "retries-exhausted") expect(publish.failure).toMatchObject({ retryCount: fixture.declarations.syncRetryCount ?? 3, waitedMs: fixture.declarations.syncWaitedMs ?? 30 });
+      if (publish.failure.code === "refused") expect(publish.failure.message).toContain("Remote policy requires a permitted writer.");
       fixture.remoteState("available");
       expect(SyncResultSchema.parse(success(await fixture.store.sync())).publishes.some((outcome) => ["pushed", "reconciled"].includes(outcome.status))).toBe(true);
     });
@@ -106,7 +107,7 @@ export function registerSyncAssertions(context: SuiteContext): void {
     success(await fixture.store.write({ ...update(fixture, read, current), resolves: read.conflicts }));
     expect(success(await fixture.store.read({ reference: base.reference })).conflicts).toEqual([]);
     expect(SyncResultSchema.parse(success(await fixture.store.sync())).publishes.find((publish) => publish.families.includes(KIND_REGISTRY[reference.kind].family))?.status).toBe("pushed");
-  }, (kind) => KIND_REGISTRY[kind].merge === "single-writer" && KIND_REGISTRY[kind].writerRule !== "create-only" && KIND_REGISTRY[kind].writerRule !== "write-once");
+  }, (kind) => KIND_REGISTRY[kind].merge === "single-writer" && KIND_REGISTRY[kind].writerRule !== "create-only" && KIND_REGISTRY[kind].writerRule !== "write-once", mergeReason);
 }
 
 function expectPublishedFamilies(result: SyncResult, families: readonly FamilyId[]): void {

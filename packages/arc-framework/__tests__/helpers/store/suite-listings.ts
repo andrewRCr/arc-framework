@@ -23,7 +23,7 @@ export function registerListingAssertions(context: SuiteContext): void {
   everyKind(context, "unreadable-family", async (fixture, reference) => {
     await seed(fixture, reference);
     await fixture.plant(reference, "family-unreadable");
-    expect(success(await fixture.store.list({ family: KIND_REGISTRY[reference.kind].family }))).toMatchObject({ status: "unreadable", condition: expect.any(String), remedy: { text: expect.any(String) } });
+    expect(success(await fixture.store.list({ family: KIND_REGISTRY[reference.kind].family, kind: reference.kind }))).toMatchObject({ status: "unreadable", condition: expect.any(String), remedy: { text: expect.any(String) } });
   });
   for (const kind of ["unreadable", "oversized", "malformed", "key-mismatch", "unknown-format-version"] as const) {
     everyKind(context, `diagnostic-${kind}`, async (fixture, reference) => {

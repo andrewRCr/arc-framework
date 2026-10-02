@@ -50,7 +50,10 @@ export function registerRecordAssertions(context: SuiteContext): void {
     const first = await seed(fixture, reference);
     const second = await seed(fixture, RecordReferenceSchema.parse({ ...fixture.reference(reference.kind, "two"), owner: first.reference.owner }));
     const foreign = fixture.reference(reference.kind, "foreign");
-    await seed(fixture, RecordReferenceSchema.parse({ ...foreign, owner: OwnerIdentitySchema.parse({ ...foreign.owner, name: "foreign-owner" }) }));
+    const foreignOwner = OwnerIdentitySchema.parse({ ...foreign.owner, name: "foreign-owner" });
+    if (foreignOwner.type === "person") fixture.identity(foreignOwner.name);
+    try { await seed(fixture, RecordReferenceSchema.parse({ ...foreign, owner: foreignOwner })); }
+    finally { if (first.reference.owner.type === "person") fixture.identity(first.reference.owner.name); }
     expect(first.reference).not.toEqual(second.reference);
     expect(success(await fixture.store.read({ reference: first.reference })).version).toBe(first.version);
     expect(success(await fixture.store.read({ reference: second.reference })).version).toBe(second.version);

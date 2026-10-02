@@ -30,6 +30,10 @@ export interface FixtureDeclarations {
   liveListingStateVersion: boolean;
   syncFamilies: readonly FamilyId[];
   identitySyncFamilies: readonly FamilyId[];
+  /** Exact attempts observed at the fixture's contended sync boundary. */
+  syncRetryCount?: number;
+  /** Elapsed time supplied by the fixture clock for that sync failure. */
+  syncWaitedMs?: number;
   entryShapes: Partial<Record<KindId, EntryConfig>>;
   familyExclusions: Partial<Record<FamilyId, FamilyExclusions>>;
   refusalExclusions: Partial<Record<RecoveryCaseId, string>>;
