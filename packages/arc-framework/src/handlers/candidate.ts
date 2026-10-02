@@ -32,6 +32,7 @@ import {
   writeCandidateRecord,
 } from "../lib/work-unit/candidate-record-store.js";
 import { projectGitCandidateApplicability } from "../lib/work-unit/git-candidate-applicability.js";
+import { readGitCandidateTargetBase } from "../lib/work-unit/git-candidate-effective-target.js";
 import {
   CandidateSubjectUncollectableError,
   collectGitCandidateSubject,
@@ -214,11 +215,13 @@ async function executeCandidateApplicabilityResolution(
               }
               return { head: member.member.head, base: member.member.base };
             }
-            const [head, base] = await Promise.all([
-              readObjectId("HEAD^{commit}"),
-              currentBase(),
-            ]);
-            return { head, base };
+            // A singleton's review covers what its head contributes over the merge base with the configured base,
+            // so that merge base is the base its offer binds. The base branch advancing past unrelated work leaves
+            // it unchanged; it moves when the base takes in the branch's history or the branch takes in the base.
+            const head = await readObjectId("HEAD^{commit}");
+            const base = await readGitCandidateTargetBase({ cwd: root, revision: head, baseBranch, exec: git });
+            if (base.status !== "resolved") throw new Error(base.detail);
+            return { head, base: base.base };
           },
         })
       ),
