@@ -2,10 +2,10 @@
 
 import {
   FAMILY_IDS, FAMILY_REGISTRY, familyOf, type ConflictRecord, type FamilyId,
-  type StoreRefusal, type StoreResult, type SyncResult,
+  type StoreRefusal, type StoreResult, type SyncResult, type StateVersion,
 } from "../../../src/lib/store/index.js";
 import type { ReferenceContext } from "./context.js";
-import { advanceMemoryState, type MemoryRecord, type MemoryState } from "./model.js";
+import { advanceMemoryState, recordKey, type MemoryEvent, type MemoryRecord, type MemoryState } from "./model.js";
 import { createMemoryState } from "./model.js";
 import { randomUUID } from "node:crypto";
 import { RecordVersionSchema } from "../../../src/lib/store/index.js";
@@ -141,11 +141,13 @@ function prepareReconciliation(context: ReferenceContext, publication: Reference
 function finishPublish(context: ReferenceContext, publication: ReferencePublication, states: SyncResult["states"], families: FamilyId[], result: Reconciliation): StoreResult<SyncResult> {
   const remote = publication.remote!;
   const before = structuredClone(remote.state.records);
-  const changed = [...new Set([...before.keys(), ...result.records.keys()])].some((key) => !equal(before.get(key), result.records.get(key)));
+  const changedKeys = [...new Set([...before.keys(), ...result.records.keys()])].filter((key) => !equal(before.get(key), result.records.get(key)));
+  const changed = changedKeys.length > 0;
   remote.state.records = result.records;
   remote.state.identities = result.identities;
   if (changed) {
     const remoteAllocation = advanceMemoryState(remote.state);
+    for (const key of changedKeys) remote.state.events.push(publicationEvent(context, key, before.get(key), result.records.get(key), remoteAllocation.stateVersion));
     remote.state.snapshots.set(remoteAllocation.stateVersion, structuredClone(result.records));
   }
   for (const family of families) {
@@ -153,4 +155,13 @@ function finishPublish(context: ReferenceContext, publication: ReferencePublicat
     for (const [key, record] of result.records) if (familyOf(record.reference.kind) === family) publication.base.set(key, structuredClone(record));
   }
   return ok({ states, publishes: [{ status: result.remoteMoved ? "reconciled" : changed ? "pushed" : "noop", families }] });
+}
+
+function publicationEvent(context: ReferenceContext, key: string, before: MemoryRecord | undefined, after: MemoryRecord | undefined, stateVersion: StateVersion): MemoryEvent {
+  const source = [...context.state.events].reverse().find((event) => recordKey(event.reference) === key && event.version === after?.version
+    && (after === undefined || JSON.stringify(event.reference) === JSON.stringify(after.reference)));
+  const reference = after?.reference ?? source?.reference ?? before!.reference;
+  return { reference, ...(after === undefined ? {} : { version: after.version }), stateVersion,
+    provenance: { ...(source === undefined ? { verb: "sync", lifecycleAction: "reconcile" } : structuredClone(source.provenance)), reference,
+      ...(reference.owner.type === "person" || reference.owner.uid === undefined ? {} : { ownerUid: reference.owner.uid }) } };
 }
