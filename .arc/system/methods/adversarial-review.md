@@ -34,6 +34,7 @@ override-active: false
 
 Adversarial review is the mechanism that runs a supplied rubric from outside the primary's working context. It is
 not itself a rubric: each fire-point supplies the artifact-specific questions, artifacts, and interpretation.
+See [Work Planning Strategy § Review at Planning Boundaries][planning-review] for the reasons and ordering.
 
 The properties below are the method's identity contract. An override that drops one of them is no longer
 adversarial review, even though the current method model states that contract as advisory rather than
@@ -426,3 +427,4 @@ the same source verification, disposition, and exit-gate rules as a standard pas
 [integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md
 [prepare-work-unit]: ../workflows/arc/work-unit-lifecycle/prepare-work-unit.md
 [sub-agent-scope]: ../rules/DEV-RULES.ARC.md#sub-agent-scope
+[planning-review]: ../../reference/strategies/arc/strategy-work-planning.md#review-at-planning-boundaries

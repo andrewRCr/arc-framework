@@ -92,20 +92,14 @@ pinned phrases and the `over-cap` fixture's signal still pass `pr-open-extension
   joins the neutral-contract assertion, which caught the original drift before normalization. Both method copies are
   byte-identical.
 
-### `[ ]` **2.2 Write § Review at Planning Boundaries and point the method at it**
+### `[x]` **2.2 Write § Review at Planning Boundaries and point the method at it**
 
 - _Goal:_ Projects can read why ARC reviews planning artifacts adversarially and grounds first, reached from where the
   review fires.
 
-- **Additional Context:** `spec-grounded-planning-review.md` § The reasons, written down
-
-    - `strategy-work-planning.md`: a new `## Review at Planning Boundaries` stating the five reasons in the spec's
-      order and pointing to `adversarial-review` and `source-grounding` for the mechanics; its Contents entry; Related
-      Documentation entries for both methods
-    - Shipped register: the section stands alone and cites no ADR, internal work unit, corpus figure, or research
-      citation; STRATEGY-INDEX unchanged
-    - `adversarial-review`'s `.default` opening gains the pointer to the section
-    - Both files mirrored byte-identical
+- _Outcome:_ Added Review at Planning Boundaries with the five reasons in order and links to the review and grounding
+  mechanics; its Contents and Related Documentation entries resolve, and adversarial-review points to it from its
+  opening. Both copies match.
 
 ### `[ ]` **2.3 Add the `fold-verification` input and `### Fold verification` — D1, D3, D4**
 

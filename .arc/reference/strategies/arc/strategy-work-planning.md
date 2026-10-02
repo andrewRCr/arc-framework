@@ -20,6 +20,7 @@ Task Loop][process-loop].
 
 - [The Planning Pipeline](#the-planning-pipeline)
 - [Planning Depth](#planning-depth)
+- [Review at Planning Boundaries](#review-at-planning-boundaries)
 - [Draft Documents](#draft-documents)
 - [Spec Conventions](#spec-conventions)
 - [Layered Specs](#layered-specs)
@@ -124,6 +125,32 @@ honest:
 - **The floor never drops.** Down-switching is bounded by the work's demand floor, and a heavier artifact
   already produced is never torn down — the `Class` ratchet is one-way (see the
   [classify-work-unit][classify-work-unit] method). Per-stage depth floats within the band the floor sets.
+
+---
+
+## Review at Planning Boundaries
+
+A design defect is cheapest to fix before code depends on it. Adversarial review at planning boundaries attacks the
+artifact while its decisions can still change without implementation rework.
+
+Use a reviewer from fresh context: a model checking its own output without external feedback rarely improves it,
+and a model judging its own output tends to favor it. Fresh context keeps the author's assumptions and preferred
+answers out of that review.
+
+The primary verifies every finding against source, and the Owner holds the spend. Findings remain advisory until
+verified and disposed; a pass cap bounds autonomy rather than deciding whether further review would be useful.
+At the cap, a recommendation with its cost-and-signal rationale lets the Owner decide whether to spend another pass.
+
+The author grounds the artifact first so the reviewer attacks a best-effort artifact rather than doing part of the
+author's work. A defect that source grounding could have found but that surfaces only downstream is the earlier
+stage's miss; re-entry remains available, but is never the plan.
+
+Check folds as well: a fix writes new material after the reviewer has read the artifact. Confirm that it closes its
+finding, holds at source, reaches every governed site, and introduces no new failure before another reviewer relies
+on it. Keep the reviewed versions to compare what changed, and let the Owner choose each independent check.
+
+[adversarial-review][adversarial-review] carries the review, continuation, and fold-verification mechanics;
+[source-grounding][source-grounding] carries the behavior check and propagation sweep.
 
 ---
 
@@ -308,6 +335,8 @@ course-correction is still cheap.
 
 ## Related Documentation
 
+- [Adversarial Review][adversarial-review] — Fresh-context review and fold verification
+- [Source Grounding][source-grounding] — Behavior checks and propagation sweeps
 - [Planning Module][planning-module] — Backlog structure, triage flow, atomic tasks **(arc-in-git)**
 - [Work Organization][work-org] — Work categories, branching model, directory structure
 - [Draft Design Workflow][draft-design] — Design-shaping stage upstream of the spec
@@ -331,3 +360,5 @@ course-correction is still cheap.
 [adr-methodology]: strategy-adr-methodology.md
 [process-loop]: ../../../system/workflows/arc/process-task-loop.md
 [arc-config]: ../../../system/arc-config.yml
+[adversarial-review]: ../../../system/methods/adversarial-review.md
+[source-grounding]: ../../../system/methods/source-grounding.md
