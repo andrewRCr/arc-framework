@@ -763,6 +763,9 @@ export const RespondEnvelopeSchema = z.union([
   ),
   envelopeVariant("review-respond", "settled", "reduce", DispositionPayloadSchema),
   envelopeVariant("review-respond", "already-settled", "reduce", DispositionPayloadSchema),
+  // A settled hosted response has no operation to reduce; its lane continues through policy or status.
+  envelopeVariant("review-respond", "settled", "continue-review", DispositionPayloadSchema),
+  envelopeVariant("review-respond", "already-settled", "continue-review", DispositionPayloadSchema),
   envelopeVariant("review-respond", "fix-not-performed", "complete-verified-fix", FixNotPerformedPayloadSchema),
   envelopeVariant(
     "review-respond",
