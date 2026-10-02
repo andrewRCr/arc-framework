@@ -40,7 +40,7 @@ when populating any `.override` section. Methods not listed here are independent
 
 | Method                        | Related Methods                                                          | Coupling                                   |
 | ----------------------------- | ------------------------------------------------------------------------ | ------------------------------------------ |
-| adversarial-review            | validate-criteria, source-grounding                                      | Criteria walk and fresh-context companion  |
+| adversarial-review            | validate-criteria, source-grounding, assess-design-proportionality       | Criteria walk and fresh-context companion  |
 | source-grounding              | spec-review, task-audit, adversarial-review                              | Shared behavior and propagation check      |
 | spec-review                   | source-grounding                                                         | Spec coherence and claim grounding         |
 | task-audit                    | source-grounding                                                         | Task grounding floor and category analysis |
@@ -53,7 +53,7 @@ when populating any `.override` section. Methods not listed here are independent
 | review-response               | review-triage                                                            | Consumes approved finding dispositions     |
 | assess-boundary-fit           | classify-work-unit                                                       | Upper/lower WU-boundary tests              |
 | classify-work-unit            | assess-boundary-fit                                                      | Upper/lower WU-boundary tests              |
-| assess-design-proportionality | design-audit                                                             | Material proportionality and broader fit   |
+| assess-design-proportionality | design-audit, adversarial-review                                         | Material proportionality and broader fit   |
 | design-audit                  | assess-design-proportionality                                            | Broader fit and material proportionality   |
 | testing-standards             | test-first                                                               | Planning/execution seam split              |
 | test-first                    | testing-standards                                                        | Planning/execution seam split              |

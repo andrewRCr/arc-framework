@@ -1,7 +1,13 @@
 ---
 name: adversarial-review
 description: Fresh-context adversarial review mechanism for planning and verification fire-points.
+arc:
+  methods:
+    - source-grounding
+    - assess-design-proportionality
 related:
+  - source-grounding
+  - assess-design-proportionality
   - frontline-review
   - implementation-audit
   - review-chunking
@@ -13,14 +19,15 @@ override-active: false
 # Method: adversarial-review
 
 > - **Workflow:** [draft-design.md][draft-design], [create-spec.md][create-spec],
->   [generate-tasks.md][generate-tasks], [process-task-loop.md][process-task-loop],
+>   [generate-tasks.md][generate-tasks], [amend-design.md][amend-design],
+>   [process-task-loop.md][process-task-loop],
 >   [verify-work-unit.md][verify-work-unit],
 >   [prepare-work-unit.md][prepare-work-unit], [integrate-work-unit.md][integrate-work-unit]
 > - **When:** A stage boundary runs its readiness, finalization, task-generation, or work-unit verification gate
 >   and has a supplied rubric to attack.
 >
-> - **Signature:** `adversarial-review(rubric, artifacts, orientation, pass-cap, prior-findings?,
->   authored-partition?, aggregate-evidence?, partition-map?)` → findings report
+> - **Signature:** `adversarial-review(rubric, artifacts, orientation, pass-cap, fold-verification?,
+>   prior-findings?, authored-partition?, aggregate-evidence?, partition-map?)` → findings report
 > - **Contract:** Given a supplied rubric and stage artifacts, run that rubric adversarially with fresh context,
 >   primary-held judgment, caller-owned launch policy, and convergence-oriented follow-up. Findings are advisory for
 >   mutation until the primary verifies and disposes them; the method never creates a hard gate or satisfying
@@ -68,10 +75,10 @@ finding against source, presents the complete disposition set for approval, perf
 under the exit gate whether the loop has converged or stopped. One logical pass uses one fresh reviewer unless the
 authored-partition or bounded chunk-series carrier applies; each reviewer performs one fresh call inside that pass. A
 reviewer never edits the target, assigns dispositions, closes conversations, or attests its own result. It receives
-only the pass-specific context serialized from the subagent-context inputs below; it never receives private
-loop-control state such as `pass-cap`, convergence decisions, or spawn bookkeeping. The primary adds the pass ordinal,
-verified disposition report, continuation recommendation, and stop reason only after the reviewer returns. Only an
-authorized adapter may attest a completed exact target as satisfying evidence.
+only the pass-specific context serialized from the subagent-context inputs below; it never receives private loop control
+state such as `pass-cap`, `fold-verification`, convergence decisions, or spawn bookkeeping. The primary adds
+the pass ordinal, verified disposition report, continuation recommendation, and stop reason only after the reviewer
+returns. Only an authorized adapter may attest a completed exact target as satisfying evidence.
 
 **Signature — canonical callsite.** The fenced block below is the call expression: a workflow invokes the method
 by instantiating it. Its single top-level key is the method name — the shape that identifies a method call
@@ -85,6 +92,7 @@ adversarial-review:
     - AGENT-BRIEF.ARC
     - AGENT-BRIEF.PROJECT
   pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3 (§ Exit gate)
+  fold-verification: # on for planning folds; primary-side only, omitted otherwise
   prior-findings:  # pass two onward — prior findings + applied fixes; omitted on pass one
   authored-partition: # attention carrier only — existing contract-closed groups; omitted otherwise
   aggregate-evidence: # authored-partition aggregate only — scoped reports + complete coverage facts
@@ -94,11 +102,12 @@ adversarial-review:
 **Named inputs:**
 
 | Input                | Kind                  | Contents                                                       |
-|----------------------|-----------------------|----------------------------------------------------------------|
+| -------------------- | --------------------- | -------------------------------------------------------------- |
 | `rubric`             | per-stage             | Rubric(s) to attack, including their referents.                |
 | `artifacts`          | per-stage             | Artifact under audit plus its upstream chain.                  |
 | `orientation`        | fixed                 | Artifact-neutral briefings shared with every pass.             |
 | `pass-cap`           | `Class`-scaled        | Primary-side cap on spawned passes; not serialized.            |
+| `fold-verification`  | optional primary-side | `on` enables § Fold verification; omitted leaves it off.       |
 | `prior-findings`     | pass two onward       | Prior findings and applied fixes; omitted from the first pass. |
 | `authored-partition` | attention carrier     | Existing contract-closed groups (§ Authored-partition mode).   |
 | `aggregate-evidence` | aggregate call only   | Current scoped reports plus complete coverage facts.           |
@@ -106,8 +115,9 @@ adversarial-review:
 
 `rubric`, `artifacts`, `orientation`, `prior-findings`, `authored-partition`, `aggregate-evidence`, and
 `partition-map` (when present) are subagent-context inputs. Serialize the inputs needed by each fresh call.
-`pass-cap` is a primary-side loop bound only: the primary uses it to decide how many logical passes it may run, but a
-reviewer never sees that bound.
+`pass-cap` is a primary-side loop bound only: the primary uses it to decide how many logical passes it may run.
+`fold-verification` is primary-side only too; it enables § Fold verification. Never serialize either input to a
+reviewer.
 
 **Return schema:**
 
@@ -261,6 +271,15 @@ At `N == M`, a non-converged pass reports `cap-exhausted`; stop before another e
 pass completes normally and reports that its allowance is exhausted. Neither outcome bypasses completeness for the
 current pass, and cap exhaustion resolves no material finding.
 
+**Re-inspection test.** Recommend another full pass when the folds changed the artifact so much that the last
+pass's assessment no longer holds. Otherwise, the caller's response check verifies the rework — the fix check where
+one is offered. This is a recommendation input, never a trigger or authorization; the share of majors landing in a
+previous pass's fixes may inform its cost-and-signal rationale.
+
+**Cap recommendation.** At `cap-exhausted` with material signal remaining, state a clear recommendation — another
+pass or stop — with its cost-and-signal rationale in the same turn as the complete disposition report. The cap bounds
+autonomy, not advice; it never settles whether review is done or permits another pass without approval.
+
 When another pass may yield useful fresh signal, the primary may recommend it with a cost-and-signal rationale in the
 same turn as the complete disposition report. A recommendation is not authorization. Disposition approval alone
 authorizes no additional pass, and unused capacity under the cap is not permission. Every successor pass requires
@@ -278,11 +297,6 @@ authorize any number of later passes one at a time; a later material result re-e
 where an approved fix leaves the latest pass non-converged. Neither a minor observation nor unused capacity starts a
 pass without that decision.
 
-Advisory planning callers keep the finding/account/action set, conditional decision, response-performance check, and
-consumption fact in `ADVERSARIAL-PASSES.md` in the work unit's personal workspace; criteria callers keep them with
-the criteria report. This creates no lane-progress record, code-review operation,
-Candidate, policy binding, or receipt.
-
 **Uniform materiality threshold.** The convergence threshold does not vary by `Class`. `Class` scales the
 recommendation posture and pass cap, not the meaning of material severity.
 
@@ -290,9 +304,142 @@ recommendation posture and pass cap, not the meaning of material severity.
 primary's applied fixes to re-attack repaired loci; they are context, not the search frontier. Every pass reruns the
 full rubric over the whole artifact. Add `prior-findings` only after pass one.
 
-**Final-fold residual.** The final pass's folded findings are not attacked by a successor pass. That residual is
-why the planning fire-points later wire a post-settle coherence re-read before finalization commit; this method
-states the reason, while the workflow fire-points own the actual re-read step.
+**Final-fold residual.** After the last pass, the last fix-check round's repairs remain unattacked by a successor
+review. If no round ran, the final pass's folds remain that residual. The planning fire-points' post-settle coherence
+re-read covers it, after rounds converge or the Owner stops them with the residual named. The method states the
+reason; workflows own the re-read step.
+
+### Fold verification
+
+With `fold-verification: on`, a **fold** is a change landed in a reviewed planning artifact before the next review
+reads it: an approved fix, a correction made while grounding those fixes, or another change the Owner approved.
+This input enables author grounding, the offered fix check, kept reviewed versions, fold tags, and runner labels.
+
+**Author grounding.** As part of performing the approved response, run [source-grounding][source-grounding] at
+`fold` scope over the folds before the fix check:
+
+```yaml
+source-grounding:
+  artifacts:  # changed artifacts + upstream chain + change account + kept reviewed versions
+  scope: fold
+```
+
+A correction that carries out an approved action as approved folds inline: list it in the pass entry, name it in
+the next report to the Owner, and give it to the fix check. A correction that changes what the approved action
+decides returns for approval under [DEV-RULES.ARC § Review finding mutation guard][mutation-guard].
+
+**Fold tags.** Each disposition fixing a planning artifact in place carries one tag, using
+[resolve-planning-depth][resolve-planning-depth]'s correction-versus-new-design cut:
+
+- `local correction` — an existing decision corrected where it stands;
+- `new design` — a fix adds a concept, rule, type, field, or decision reaching beyond its finding's locus.
+
+For a new-design fold, run [assess-design-proportionality][assess-design-proportionality] before presenting the
+disposition set; prefer removing the constraint that caused the defect over adding repair machinery. It may also
+raise the caller's re-entry floor. The Owner settles the tags by approving the tagged set. If the Owner retags a
+fold as new design, run that method before it lands; a `revise` result returns as a changed disposition for approval.
+Tags are recommendation inputs and a record, never the fix check's gate.
+
+**Fix check — standing and timing.** A fix check is an independent review of the folds after author grounding,
+before a successor pass launches, including after the last pass before its post-settle re-read. It is not a pass:
+it sits outside the pass cap and its findings never enter the pass's convergence signal. It is not the evaluator
+invocation § Exit gate stops before at `cap-exhausted`; that stop bounds passes, and the fix check still runs only
+with the Owner's approval.
+
+After each pass with folds, offer the fix check; propose it beside every disposition set carrying a fix, in the same
+turn. The author never skips a check of its own work on its own authority; the Owner may decline it. Source-verify
+every returned finding and present a complete disposition set for approval before repairs land: a second approval
+within the pass. Response performance remains incomplete until the folds are author-grounded and the offered fix check
+resolves — declined, or run with every round's approved repairs landed and author-grounded. Conditional successor
+permission stays pending until then.
+
+**Target and rubric.** The first round spans the reviewed copies to the settled artifacts. Each later round spans
+the versions the previous round reviewed to the artifacts its repairs left. Diff both kept versions of every
+planning artifact the change touched and compare that diff with the supplied account; catch changes the account
+does not list. Attack only what the folds changed, while reading the whole artifact and upstream chain for context.
+
+The four rubric axes are:
+
+- **closure** — does each fix resolve its finding?
+- **behavioral grounding** — `source-grounding` at `fold` scope, probe-backed;
+- **propagation and completeness** — `source-grounding`'s sweep;
+- **new failure** — did a fix introduce a defect?
+
+**Inputs and read instruction.** Reuse the invocation contract: `rubric` takes those four axes; `artifacts` takes
+the two kept versions of each planning artifact the change touched, the later one the settled artifact, plus the
+upstream chain; `prior-findings` takes the account. The account includes the checked findings as reported (the
+pass's in round one, the previous round's thereafter) and their approved `fix` / `defer` / `reject` actions, the
+author's grounding corrections, and other changes the Owner approved since those versions, each with locus and
+what changed. Omit the author's disposition rationale. `pass-cap` does not apply to this check.
+
+Use the canonical prompt template unchanged except for its read paragraph, replaced with:
+
+```text
+Read the complete current artifacts, their upstream chain, and the four-axis rubric.
+Derive the change from both kept versions of each touched artifact, then check the
+findings' approved actions and the listed corrections and other approved changes
+against that diff. Attack the change in its whole-artifact context for closure,
+grounding, propagation, completeness, and new failure. The change, not the account,
+is the search frontier. If kept versions are unavailable, scope from the account
+alone and state that limitation in the report.
+```
+
+**Runner label.** With fold verification on, the serialized report schema's `verdict` names the runner by
+`source-grounding`'s rule in every pass report and every fix-check report. An `author` fix-check report does not
+count; the Owner reruns it or skips it with a note, never the author alone. Where subagents are unavailable,
+[DEV-RULES.ARC § Sub-agent scope][sub-agent-scope] applies; its manual fresh-session pass counts only while it never
+loads the work unit's SESSION-NOTES.
+
+**Rounds and recommendation.** Propose each further round beside that round's complete disposition set. Each round
+checks the previous round's repairs and the rules they rest on, runs only with Owner approval, and is declinable;
+there is no round cap. The primary recommends, and the Owner decides:
+
+- First round: read the fold tags with the same turn's successor decision. Recommend the fix check when any fold is
+  new design or no full pass will follow; recommend declining when all folds are local corrections and a full pass
+  will follow. Propose both decisions together so the Owner settles both.
+- Later rounds: recommend another round when the exit gate's convergence rule, read over the previous round's
+  result and approved dispositions, would withhold convergence; recommend stopping otherwise.
+
+These readings guide recommendations only, never the outer pass's signal or a gate. At any round, the exit gate's
+re-inspection test may recommend a full pass instead. Every round's findings and repairs join the applied response
+given to the next pass in `prior-findings`, as context rather than its search frontier. The next outer pass covers
+the last round's repairs; after the last pass, the post-settle coherence re-read does, once the rounds converge or
+the Owner stops them with the residual named.
+
+**Kept reviewed versions.** At each pass's launch and each round's launch, copy every present planning artifact of
+the work unit — draft, spec, task list, notes — since folds can extend beyond the reviewed set. Keep the copies under
+`.arc/user/{identity}/.internal/reviewed-versions/{slug}/{sha256}.md`, keyed by work-unit or stub slug and content hash.
+`getUserInternalDir` resolves the identity's internal directory per checkout, including for a stub groomed before
+start; the user-notes `serialize` walk skips dot-prefixed paths, and `classifyUserSyncPath` classifies them
+`never-synced`. The copies stay local.
+
+Record each artifact's filename and hash in the pass entry for the pass and each round. Remove the copies once the
+loop has ended, its stop reason is recorded, and no round is offered or running. Moving to another machine or
+checkout may lose the copies; scope the fix check from the account alone and disclose that limitation in its report.
+
+### Pass record
+
+Advisory planning callers keep the finding/account/action set, conditional decision, response-performance check, and
+consumption fact in `ADVERSARIAL-PASSES.md` in the work unit's personal workspace; criteria callers keep them with
+the criteria report. This creates no lane-progress record, code-review operation, Candidate, policy binding, or receipt.
+
+A planning pass entry carries:
+
+- the artifact reviewed and, with fold verification on, the filename and content hash of each kept version for the
+  pass and each fix-check round;
+- `Pass N of M` and the rubric;
+- the complete source-verified finding/account/action set, each fixing fold's tag and each finding's origin: the
+  original artifact, a previous pass's fix, a fix-check repair, or another change the Owner approved between reviews.
+  A finding in a gap takes the origin of the text that left that gap in what it changed;
+- each fix-check round's complete set, accounts, and actions;
+- the author's fold-grounding corrections after the pass and each round, plus other changes the Owner approved
+  between those reviews;
+- the response-performance check and the consumption fact;
+- the stop reason and any conditional next-pass decision.
+
+Attach every round's set to the entry of the pass whose fixes it checks; it creates no new record kind. A stub
+groomed before it starts has no workspace yet: its commit-body summary line remains its only record, and it does
+not keep the new entry fields. Its kept versions still serve the fix check's diff.
 
 ### Authored-partition carrier mode
 
@@ -338,7 +485,7 @@ subagent-unavailable degrade path from [DEV-RULES.ARC § Sub-agent scope][sub-ag
 defines correctness for that stage:
 
 | Fire-point                  | Artifact set                                      |
-|-----------------------------|---------------------------------------------------|
+| --------------------------- | ------------------------------------------------- |
 | draft readiness             | draft                                             |
 | create-spec finalization    | draft + spec                                      |
 | generate-tasks finalization | spec + task list                                  |
@@ -428,3 +575,8 @@ the same source verification, disposition, and exit-gate rules as a standard pas
 [prepare-work-unit]: ../workflows/arc/work-unit-lifecycle/prepare-work-unit.md
 [sub-agent-scope]: ../rules/DEV-RULES.ARC.md#sub-agent-scope
 [planning-review]: ../../reference/strategies/arc/strategy-work-planning.md#review-at-planning-boundaries
+[amend-design]: ../workflows/arc/supplemental/amend-design.md
+[source-grounding]: source-grounding.md
+[assess-design-proportionality]: assess-design-proportionality.md
+[resolve-planning-depth]: resolve-planning-depth.md
+[mutation-guard]: ../rules/DEV-RULES.ARC.md#review-finding-mutation-guard

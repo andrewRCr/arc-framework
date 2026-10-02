@@ -101,106 +101,45 @@ pinned phrases and the `over-cap` fixture's signal still pass `pr-open-extension
   mechanics; its Contents and Related Documentation entries resolve, and adversarial-review points to it from its
   opening. Both copies match.
 
-### `[ ]` **2.3 Add the `fold-verification` input and `### Fold verification` — D1, D3, D4**
+### `[x]` **2.3 Add the `fold-verification` input and `### Fold verification` — D1, D3, D4**
 
 - _Goal:_ With fold verification on, the method carries the author's fold grounding, the Owner-held fix check, the
   kept reviewed versions, the fold tag, and the runner label in one section, and the input stays primary-side like
   `pass-cap`.
 
-- _Note:_ `pr-open-extensions.test.ts` requires the canonical prompt template never match
-  `pass-cap|Pass N of M|cap-exhausted` and keep "do not decide loop state, continuation, or authorization"; the fix
-  check's own read instruction lives in the new section, not in that template. Path-based selection picks no code
-  test for a Markdown-only change, so run that test at this task's gate.
+    - `[x]` **2.3.a Thread `fold-verification` through the invocation contract**
+        - Added the optional primary-side fold-verification input to the signature, YAML callsite, input table, and
+          serialization boundary without changing the canonical reviewer prompt.
 
-- **Additional Context:** `spec-grounded-planning-review.md` § D3, § D4, and § D1 "Who runs it"
+    - `[x]` **2.3.b State the author's fold grounding**
+        - Requires fold-scope author grounding before the fix check, discloses inline corrections, and returns changed
+          dispositions for approval.
 
-    - The section sits after § Exit gate and before § Authored-partition carrier mode, ahead of the `### Pass record`
-      Task 2.4 adds, since the record lists what this section defines
-    - The section opens by defining a fold: a change landed in a reviewed planning artifact before the next review
-      reads it — an approved fix, a correction the author makes while grounding the fixes, or another change the Owner
-      approved
-    - Each term the section makes load-bearing — fold, fix check, fold tag and its two values — is defined once here
-      and used unglossed everywhere else
-    - The kept-version path is stated here only; callers and the strategy name the concept, never the path
-    - Shipped register: no internal work unit, ADR, corpus figure, research citation, or transitional state
+    - `[x]` **2.3.c State the fix check**
+        - Defines Owner-held independent fix-check rounds outside the pass cap and signal, with the four-axis rubric,
+          change frontier, invocation-slot inputs, runner label, recommendations, and last-round coverage.
 
-    - `[ ]` **2.3.a Thread `fold-verification` through the invocation contract**
-        - The signature line, the callsite YAML, and the named-inputs table, as a primary-side input never
-          serialized to a reviewer; the serialization paragraph names it beside `pass-cap`
+    - `[x]` **2.3.d State the kept reviewed versions**
+        - Defines locally kept reviewed versions by slug and content hash, pass-entry recording, removal at loop end,
+          and account-only scope with disclosure when copies are lost.
 
-    - `[ ]` **2.3.b State the author's fold grounding**
-        - `source-grounding` at `fold` scope over the folds, as part of performing the approved response, before the
-          fix check
-        - A correction that carries out an approved action as approved folds inline and is disclosed — listed in the
-          pass entry, named in the next report, handed to the fix check; one that changes what an approved action
-          decides returns for approval under `DEV-RULES.ARC` § Review finding mutation guard
+    - `[x]` **2.3.e State the fold tag**
+        - Defines local correction and new design tags, with Owner settlement and proportionality assessment before
+          new design lands.
 
-    - `[ ]` **2.3.c State the fix check**
-        - Its standing: outside the cap and the convergence signal; its findings are findings, under a second approval
-          within the pass; Owner-held, proposed per pass and per round
-        - It is not the evaluator invocation § Exit gate stops before at `cap-exhausted`: that stop bounds passes, and
-          the fix check still runs only on the Owner's approval
-        - When it runs and how it completes response performance; its change-since-last-review target; attention scoped
-          with reading unscoped; the four axes; its inputs without disposition rationale
-        - Its inputs fill the invocation contract's slots: `rubric` takes the four axes; `artifacts` takes the two kept
-          versions of each planning artifact the change touched, the later one the settled artifact, and the upstream
-          chain; `prior-findings` takes the account — the checked findings as reported with their approved actions,
-          the author's corrections, and other changes the Owner approved; `pass-cap` does not apply, since the fix
-          check is not a pass
-        - Its read instruction is a short `text` block holding only the paragraph that replaces the canonical template's
-          read paragraph, making the change, not the account, the search frontier; the rest of the template is used
-          unchanged, and the block names no loop state (`pass-cap`, `Pass N of M`, `cap-exhausted`)
-        - The runner label: with fold verification on, the serialized report schema's `verdict` also names the runner
-          by `source-grounding`'s rule, in each pass's report and the fix check's. A fix-check report labeled `author`
-          does not count as the fix check; the Owner reruns it or skips it with a note, and the author never skips it.
-          Where the harness has no subagent, `DEV-RULES.ARC` § Sub-agent scope's clause applies, its manual
-          fresh-session pass counting only when it never loads the work unit's SESSION-NOTES
-        - Rounds, the one-place recommendation (first round from the fold tags and the same-turn successor decision;
-          later rounds from the convergence-rule reading), the next pass seeing every round, and last-round coverage
+    - `[x]` **2.3.f Declare what the section fires**
+        - Declares and relates source-grounding and assess-design-proportionality; added amend-design to the caller
+          header and reciprocal README couplings.
 
-    - `[ ]` **2.3.d State the kept reviewed versions**
-        - Copy every present planning artifact at each pass's and each round's launch, under
-          `.arc/user/{identity}/.internal/reviewed-versions/{slug}/{sha256}.md`; record filename and hash in the pass
-          entry; remove once the loop has ended; scope from the account alone, and say so, when the copies are lost
-
-    - `[ ]` **2.3.e State the fold tag**
-        - `local correction` or `new design`, drawn from `resolve-planning-depth`'s cut; a new-design fold runs
-          `assess-design-proportionality` before the set is presented; the Owner settles the tags; the tag is a
-          recommendation input and a record, never the fix check's gate
-
-    - `[ ]` **2.3.f Declare what the section fires**
-        - `arc.methods` declares `source-grounding` and `assess-design-proportionality`; `related:` gains both; the
-          Workflow header gains `amend-design`
-        - The methods `README.md` Related Methods pairs `adversarial-review` and `assess-design-proportionality` on
-          both rows; mirror it byte-identical
-
-### `[ ]` **2.4 Settle the exit gate and the pass record — D5**
+### `[x]` **2.4 Settle the exit gate and the pass record — D5**
 
 - _Goal:_ A cap ends with a recommendation rather than silence, a successor rationale can cite the re-inspection test,
   and the pass-entry contents have one home every caller points to.
 
-- _Note:_ The recommendation paragraph this rewrites carries pinned phrases — "same turn as the complete disposition
-  report", "a recommendation is not authorization", "disposition approval alone authorizes no additional pass" — and
-  so does the paragraph `### Pass record` absorbs; keep them, and run `pr-open-extensions.test.ts` at this task's
-  gate.
-
-- **Additional Context:** `spec-grounded-planning-review.md` § D5, § The pass record
-
-    - § Exit gate: the re-inspection test as a recommendation input; at `cap-exhausted` with material signal, a
-      recommendation — another pass or stop — becomes the default in the disposition-report turn; the convergence rule
-      and the pass caps unchanged
-    - `### Pass record`, after `### Fold verification`: the entry-content list, absorbing the paragraph that names where
-      advisory planning callers and criteria callers keep their evidence; a sibling of § Exit gate rather than part of
-      `### Fold verification`, since criteria callers keep evidence too
-    - The list carries each fold's tag, each finding's origin with a finding in a gap taking the origin of the text
-      that left it, the author's fold-grounding corrections, and other changes the Owner approved between reviews
-    - Shipped register: no internal work unit, ADR, corpus figure, research citation, or transitional state
-    - The final-fold residual paragraph narrows to the last fix-check round's repairs and keeps the reason the
-      workflows' post-settle steps will stop restating
-    - The `over-cap` fixture: its scenario approves a fix of the confirmed major rather than carrying it forward, with a
-      signal rationale that fits a fix, and stays a criteria-validation activity so no fix check enters it; its expected
-      behavior states the recommendation as the default at `cap-exhausted`, still saying "stop before another evaluator
-      invocation"
+- _Outcome:_ Added the re-inspection recommendation and explicit cap recommendation while preserving the convergence
+  rule and canonical prompt. Pass record now owns origins, fold tags, reviewed-version hashes, round sets,
+  corrections, and continuation evidence; narrowed the residual to final-round repairs and corrected the over-cap
+  fixture to exercise a confirmed major fix.
 
 ## **Phase 3:** The planning stages run the checks
 
