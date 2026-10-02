@@ -113,7 +113,8 @@ source-grounding(artifacts, scope) → findings report
 | `scope`     | required | `artifact` or `fold` — what the check reads; see below. |
 
 `artifact` scope covers the whole artifact, an amendment's footprint, or a task scope. `fold` scope covers the change
-since the last review (D3).
+since the last review (D3); there `artifacts` also carries the account of that change and, when they were kept, the
+reviewed versions it starts from.
 
 **Return schema:** `adversarial-review`'s report schema (`findings` with `title`, `severity`, `locus`, `evidence`,
 and `rationale`, then `withstood` and `verdict`), so every consumer reads one shape. The `verdict` line names the scope
@@ -177,6 +178,11 @@ only where a pass will spend — inside the pass itself, and in the fix check.
       the rule below.
     - Both keep their posture: `spec-review` folds fixes inline, and `task-audit`'s findings feed `generate-tasks`'
       per-phase gates and carry its two-tier disposition in standalone runs.
+    - Grounding findings take `source-grounding`'s severity interpretation. `task-audit`'s own interpretation keeps
+      grading its eight categories and stops grading grounding, so no finding carries two readings. Its Codebase
+      drift category leaves drift in named referents to the floor and keeps new code a task does not account for.
+    - `spec-review`'s scaling to the form keeps the bar at every form and scales the distance by how many claims about
+      shipped behavior the form carries. A `brief` carries few, so it still collapses to one minimal check.
     - `task-audit` keeps its two depths, but `grounding-only` becomes `source-grounding` run alone; no existence-only
       depth remains.
 - **`amend-design` runs the same checks at scope.**
@@ -250,25 +256,33 @@ folds. The line states the rule and points to `source-grounding`. The four workf
 The split with `knowledge-lint` is clean: whether a named symbol resolves is mechanical and lint's; whether it does
 what the claim says is `source-grounding`'s.
 
-### D3 — The planning checks: the fix check
+### D3 — Fold verification: the fix check
 
-The fix check lives in one new `adversarial-review` section, `### Planning checks`, gated by one primary-side input.
+The fix check lives in one new `adversarial-review` section, `### Fold verification`, gated by one primary-side input.
 It reuses the method's invocation contract and report schema, with its own read instruction in place of the canonical
 template's: the template tells a later-pass reviewer to check the whole artifact for new failures, and the fix
 check's instruction is scoped to the change.
 
-**The gate input.** `planning-checks: on` joins `adversarial-review`'s signature as a primary-side input. Like
-`pass-cap`, the primary holds it and never serializes it to a reviewer. When on, it turns on four things: the
+**The term.** The section opens by defining what it verifies. A **fold** is a change landed in a reviewed planning
+artifact before the next review reads it: an approved fix, a correction the author makes while grounding the fixes, or
+another change the Owner approved. `source-grounding`'s `fold` scope reads the same set, and the fold tag (D4) applies
+only to the folds that fix a finding.
+
+**The gate input.** `fold-verification: on` joins `adversarial-review`'s signature as a primary-side input. Like
+`pass-cap`, the primary holds it and never serializes it to a reviewer. When on, it turns on five things: the
 author's grounding of its folds (D1), the offered fix check after each pass with folds, the kept reviewed versions,
-and the fold tag (D4). The callouts at `draft-design`, `create-spec`, and `generate-tasks` set it, and so does
-`amend-design`'s pass. Verification callers omit it and keep their own loops; code-review lanes are other machinery,
-whose fixes run through review increments.
+the fold tag (D4), and the runner label. The callouts at `draft-design`, `create-spec`, and `generate-tasks` set it,
+and so do `amend-design`'s passes: the assurance invariant's, and the accretion guard's offer, which runs as that one
+does. Verification callers omit it and keep their own loops; code-review lanes are other machinery, whose fixes run
+through review increments.
 
 **Its standing.**
 
 - **Outside the cap and the convergence signal.** The fix check is not a pass. It does not count against `pass-cap`,
   and its findings never enter a pass's convergence signal — keeping fix-introduced slips out of that signal is the
-  point. It may also spare an over-cap full pass that the fixes alone would have prompted.
+  point. It may also spare an over-cap full pass that the fixes alone would have prompted. Nor is it the evaluator
+  invocation § Exit gate stops before at `cap-exhausted`: that stop bounds passes, and the fix check still runs only
+  on the Owner's approval.
 - **Its findings are findings.** The primary source-verifies them and presents them as a complete disposition set,
   and the set is approved before any repair lands. Under the mutation guard, this is a second approval within the
   pass.
@@ -279,7 +293,7 @@ whose fixes run through review increments.
 **The fix check.**
 
 - **When.** After a pass's approved fixes fold and the author has grounded them (D1), and before the next pass
-  launches — including after the last pass, before the post-settle re-read. Where the planning checks are on, the
+  launches — including after the last pass, before the post-settle re-read. Where fold verification is on, the
   primary proposes it beside every disposition set that carries a fix, in the same turn; the author's own grounding
   of the folds is part of performing that response.
 - **Part of performing the response.** The fix check belongs to performing the pass's approved response, which
@@ -287,11 +301,11 @@ whose fixes run through review increments.
   incomplete until the folds are author-grounded and the offered fix check resolves — declined, or run with every
   round's approved repairs landed and author-grounded. Until then a conditionally approved successor's permission
   stays pending.
-- **Target — the change since the last review.** The first round runs from the reviewed copy to the settled artifact.
-  Each later round runs from the version the previous round reviewed to the artifact its repairs left. The reviewer
-  derives the change by diffing the two kept versions and checks the findings' actions, the author's listed
-  corrections, and any other change the Owner approved since the reviewed version against that diff, so a change
-  the account does not list is caught outside the author.
+- **Target — the change since the last review.** The first round runs from the reviewed copies to the settled
+  artifacts. Each later round runs from the versions the previous round reviewed to the artifacts its repairs left.
+  The reviewer derives the change by diffing each artifact's two kept versions and checks the findings' actions, the
+  author's listed corrections, and any other change the Owner approved since the reviewed versions against that
+  diff, so a change the account does not list is caught outside the author.
 - **Attention scoped, reading not.** The reviewer attacks only what the folds changed, but reads the change in the
   context of the whole artifact and its upstream chain. No review practice treats a delta alone as sufficient.
 - **Four axes:**
@@ -300,13 +314,21 @@ whose fixes run through review increments.
     - **propagation and completeness** — `source-grounding`'s sweep;
     - **new failure** — did the fix itself introduce a defect?
 
-  Closure and new failure are stated in `### Planning checks`, and the two grounding axes are `source-grounding`.
+  Closure and new failure are stated in `### Fold verification`, and the two grounding axes are `source-grounding`.
   That section is the rubric's one home.
 - **Inputs.** The findings it checks, as reported: the pass's in the first round, the previous round's after that.
-  Each comes with its approved action — `fix`, `defer`, or `reject` — plus the two versions the target spans and the
-  upstream chain. It also receives the corrections the author's fold grounding made and any other change the Owner
-  approved since the reviewed version, each as a locus and what changed.
-  It does not receive the author's disposition rationale, so its grounding half stays factored.
+  Each comes with its approved action — `fix`, `defer`, or `reject` — plus, for each planning artifact the change
+  touched, the two versions the target spans, and the upstream chain. It also receives the corrections the author's
+  fold grounding made and any other change the Owner approved since the reviewed versions, each as a locus and what
+  changed. It does not receive the author's disposition rationale, so its grounding half stays factored. These fill
+  the invocation contract's slots: `rubric` takes the four axes; `artifacts` the two kept versions of each planning
+  artifact the change touched, the later one the settled artifact, and the upstream chain; `prior-findings` the
+  account. Its read instruction makes the change, not the account, the search frontier, and `pass-cap` does not
+  apply.
+- **The runner label.** Where fold verification is on, the serialized report schema's `verdict` also names the
+  runner by `source-grounding`'s rule, in each pass's report and the fix check's, so D1's rule has a reader. A
+  fix-check report labeled `author` does not count as the fix check: the Owner reruns it or skips it with a note (D1,
+  No subagent).
 - **Rounds.** Each further round attacks the previous round's repairs and the rules they rest on. It is proposed
   beside that round's disposition set and is declinable like the first. Every round runs only on the Owner's
   approval, so no round cap is needed.
@@ -332,7 +354,7 @@ whose fixes run through review increments.
 
 **The reviewed versions are kept, locally.** The diff needs both versions, and planning folds land uncommitted.
 
-- **Copying.** At each pass's launch and each round's launch, a caller with the planning checks on copies every
+- **Copying.** At each pass's launch and each round's launch, a caller with fold verification on copies every
   planning artifact of the work unit that is present — draft, spec, task list, notes — since folds land beyond the
   reviewed set.
 - **Location.** The copies go under the identity's `.internal/` directory at
@@ -349,7 +371,7 @@ whose fixes run through review increments.
 
 ### D4 — Classify each fold
 
-Where the planning checks are on, each disposition that fixes a planning artifact in place carries one tag. The tag
+Where fold verification is on, each disposition that fixes a planning artifact in place carries one tag. The tag
 draws `resolve-planning-depth`'s existing cut between correcting an existing decision and authoring new design
 (§ Mid-stage re-entry, "Re-entry vs. in-place correction"):
 
@@ -402,7 +424,7 @@ existing § Exit gate paragraph that names where advisory planning callers and c
 The three planning workflows replace their own copies of the list with a pointer to it, and `amend-design`'s "as the
 planning passes do" points there too. A planning pass entry carries:
 
-- the artifact reviewed and, where the planning checks are on, each kept version's filename and content hash — the
+- the artifact reviewed and, where fold verification is on, each kept version's filename and content hash — the
   pass's and each fix-check round's;
 - `Pass N of M` and the rubric;
 - the complete source-verified finding/account/action set, each fold carrying its tag (D4) and each finding naming
@@ -462,27 +484,32 @@ Methods, under `system/methods/`:
   planning workflows.
 - **`adversarial-review.md`** — D3, D4, D5.
     - A pointer from the opening of `.default` to `strategy-work-planning.md` § Review at Planning Boundaries.
-    - The `planning-checks` input in the signature line, the callsite, and the named-inputs table.
-    - `### Planning checks`: the author's grounding of its folds; the fix check with its standing, recommendation,
-      rounds, target, inputs, rubric, and read instruction; the kept reviewed versions; and the fold tag.
+    - The `fold-verification` input in the signature line, the callsite, and the named-inputs table.
+    - `### Fold verification`: the definition of a fold; the author's grounding of its folds; the fix check with its
+      standing, recommendation, rounds, target, inputs and their slots, rubric, read instruction, and runner label;
+      the kept reviewed versions; and the fold tag.
     - The § Exit gate additions, the narrowed final-fold residual paragraph, and `### Pass record`.
-    - `arc.methods` declares `source-grounding` and `assess-design-proportionality`; `related:` gains
-      `source-grounding`; the Workflow header gains `amend-design`.
+    - `arc.methods` declares `source-grounding` and `assess-design-proportionality`; `related:` gains both; the
+      Workflow header gains `amend-design`.
 - **`spec-review.md`** — D1. The grounding slice hands claim grounding to `source-grounding`, with the runner label
-  by its rule; the "light verification" wording and the form-scaling lines are updated; `arc.methods` and `related:`
-  are added; the Workflow header gains `amend-design`.
+  by its rule; the slice's "concrete references are real" heading, "light verification" wording, and the opening's
+  "refers to real things" are restated behavior-grade, and the `description` and § Posture drop "Lightweight"; the
+  form-scaling lines scale by how many claims about shipped behavior the form carries (D1); `arc.methods` and
+  `related:` are added; the Workflow header gains `amend-design`.
 - **`task-audit.md`** — D1. The grounding floor hands claim grounding to `source-grounding`, with the runner label by
   its rule; `grounding-only` is defined as that check run alone; the "exists / missing / drifted" stop line and the
-  `depth` input row are updated; `arc.methods` and `related:` are added; the Workflow header gains `amend-design`.
+  `depth` input row are updated; the severity interpretation leaves grounding findings to `source-grounding`'s and
+  keeps grading the eight categories; the Codebase drift category leaves drift in named referents to the floor;
+  `arc.methods` and `related:` are added; the Workflow header gains `amend-design`.
 - **`design-audit.md`** — D1. Its account of `spec-review` ("its concrete references are real") is restated
   behavior-grade.
-- **`README.md`** — D1. Related Methods rows pair `source-grounding` with `spec-review`, `task-audit`, and
-  `adversarial-review`.
+- **`README.md`** — D1, D4. Related Methods rows pair `source-grounding` with `spec-review`, `task-audit`, and
+  `adversarial-review`, and pair `adversarial-review` with `assess-design-proportionality`.
 
 Workflows, under `system/workflows/arc/`:
 
 - **`draft-design.md`, `create-spec.md`, and `generate-tasks.template.md`** — D2, D3. Four edits each: the stage-wide
-  D2 line; `planning-checks: on` in the adversarial callout; the pass-entry list replaced by a `§ Pass record`
+  D2 line; `fold-verification: on` in the adversarial callout; the pass-entry list replaced by a `§ Pass record`
   pointer; the post-settle step's restated residual reason dropped.
 - **`draft-design.md`, additionally** — D1. `arc.methods` declares `source-grounding`, and § Capture the draft fires
   it at `artifact` scope on the `medium` and `high` paths, before the adversarial offer. The adversarial callout's
@@ -492,9 +519,10 @@ Workflows, under `system/workflows/arc/`:
   restated behavior-grade.
 - **`supplemental/amend-design.md`** — D1, D2, D3. The stage-wide D2 line; `spec-review`'s grounding slice at scope at
   every depth; the grounding slice and `task-audit`'s grounding floor over the footprint's tasks in the
-  assurance-invariant rubric; `planning-checks: on` on its pass, stated in
-  prose under § The assurance invariant since that pass has no callsite block; the post-settle coherence re-read
-  under the same section, when its pass folded anything; "as the planning passes do" pointing to `§ Pass record`.
+  assurance-invariant rubric; `fold-verification: on` on its passes, stated in prose under § The assurance invariant
+  since its passes have no callsite block, with § The accretion guard's adversarial offer running as that pass does;
+  the post-settle coherence re-read under the same section, when its pass folded anything; "as the planning passes
+  do" pointing to `§ Pass record`.
 
 Strategies, under `reference/strategies/arc/`:
 
@@ -529,6 +557,10 @@ Test fixtures — D5:
 
 - the `arc-task-audit` skill stays true: its depth line ("the grounding floor alone") holds once the floor is
   `source-grounding`, and its "Two caller inputs" stay two, since the runner label is not an input;
+- `create-spec`'s account of `spec-review` stays true: a `brief` still collapses to a single minimal check, since it
+  carries few claims about shipped behavior;
+- `design-audit`'s and `assess-design-proportionality`'s severity interpretations grade design, not claim grounding,
+  so they keep their levels;
 - `strategy-session-operations.md`'s Method Classification by Trigger table lists no planning method, so it gains no
   row;
 - `framework-sync.test.ts`'s design-proportionality check pins the four planning workflows only, so
@@ -622,7 +654,13 @@ mechanic is stated as what it does, without forward-pointing to the storage prog
 - `check-package-sync.sh` passes at every commit, given the commit order under Registration;
 - `pr-open-extensions.test.ts` pins phrases in the three workflows' pass-entry paragraphs and in
   `adversarial-review`'s § Exit gate paragraphs, matched anywhere in each file, and the `over-cap` fixture's signal.
-  The edits keep those phrases, or update the test with them;
+  The edits keep those phrases and the test is unchanged, since a test cannot pin the new `§` pointers
+  (`lint:arc:section-refs` refuses the glyph under `__tests__/`);
+- `generate-tasks-delivery-authoring-contract.test.ts` pins the rendered `generate-tasks` to its template and the
+  `Post-settle coherence re-read` label's place in the finalize order; `delivery-composition-ownership.test.ts` pins
+  the template's one "unmarked provisional `## Delivery Plan`" instruction; and
+  `boundary-fit-workflow-contract.test.ts` pins `draft-design`'s and `create-spec`'s copies identical. The edits keep
+  that label and that instruction. These tests read Markdown, so the Markdown-only workflow edits run them by name;
 - the Markdown gate passes.
 
 Checked by hand: fire-point markers, `§` pointers, and link fragments in prose.
@@ -664,7 +702,7 @@ evidence. Probes never mutate shared state (D1).
     - `source-grounding` takes the signature-led method shape that work unit generalizes.
     - The fix check sits in one section behind one input. It has inputs and an outcome — the procedural kind that
       extracts whole as a private method, leaving one gate line.
-    - Cross-file pointers cite `§` anchors (`§ Planning checks`, `§ Pass record`), never step ordinals.
+    - Cross-file pointers cite `§` anchors (`§ Fold verification`, `§ Pass record`), never step ordinals.
     - `adversarial-review` declares `source-grounding` as today's schema allows; it becomes an arm-gated entry when
       conditional declaration lands.
 - **Knowledge.** `source-grounding` has four direct consumers, which earns the extraction. The rule's authority
@@ -723,41 +761,44 @@ evidence. Probes never mutate shared state (D1).
   header. No existence-only grounding remains: `spec-review` no longer calls its grounding a light verification,
   `task-audit`'s `grounding-only` is `source-grounding` run alone, and `design-audit`'s account of `spec-review` is
   behavior-grade.
-- `adversarial-review` carries the `planning-checks` input as primary-side and never serialized, and a
-  `### Planning checks` section carrying:
+- `adversarial-review` carries the `fold-verification` input as primary-side and never serialized, and a
+  `### Fold verification` section carrying:
+    - an opening definition of a fold: an approved fix, a correction the author makes while grounding the fixes, or
+      another change the Owner approved, landed in a reviewed planning artifact before the next review reads it;
     - the author's `fold`-scope grounding of its folds as part of performing the response, before the fix check,
       folding inline with disclosure a correction that carries out an approved action as approved, and returning one
       that changes what an approved action decides for approval under `DEV-RULES.ARC` § Review finding mutation
       guard, with each correction listed in the pass entry, named in the next report, and handed to the fix check;
     - the fix check's standing outside the cap and convergence signal, timing, change-since-last-review target, four
-      axes, inputs without disposition rationale, Owner-held rounds, and last-round coverage;
+      axes, inputs without disposition rationale and the slots they fill, Owner-held rounds, and last-round coverage;
+    - the runner named in each pass's and the fix check's `verdict`, with a fix-check report labeled `author` not
+      counting as the fix check;
     - the fix check's recommendation, in one place: the folds' tags read with the same turn's successor decision for
       the first round, and the convergence-rule reading for later rounds;
     - the kept reviewed versions, with location, keying, recording, removal, and loss behavior;
     - the D4 fold tag.
 - `adversarial-review` also carries a `### Pass record` subsection listing the entry contents, with each fold's tag,
   each finding's origin, a gap taking the origin of the text that left it, the author's fold-grounding corrections, and
-  other changes the Owner approved between reviews. It declares `source-grounding` and `assess-design-proportionality`,
-  and its opening points to `strategy-work-planning.md` § Review at Planning Boundaries.
+  other changes the Owner approved between reviews. It declares and relates `source-grounding` and
+  `assess-design-proportionality`, and its opening points to `strategy-work-planning.md` § Review at Planning Boundaries.
 - `adversarial-review` § Exit gate states the re-inspection test as a recommendation input and makes a
   recommendation, another pass or stop, the default at `cap-exhausted`. Its convergence rule and pass caps are
   unchanged. Its final-fold residual paragraph names the last fix-check round's repairs as the residual.
 - `draft-design`, `create-spec`, and `generate-tasks` each carry:
     - the stage-wide D2 line;
-    - `planning-checks: on` in their adversarial callout;
+    - `fold-verification: on` in their adversarial callout;
     - a `§ Pass record` pointer in place of their pass-entry list;
     - a post-settle step without its restated residual reason.
 
   `draft-design` also declares `source-grounding` and runs it at `artifact` scope at the readiness boundary on the
-  `medium` and `high` paths, before the adversarial offer, and its adversarial rubric
-  includes `source-grounding`. `generate-tasks`' description of `grounding-only` and its greenfield framing are
-  behavior-grade.
+  `medium` and `high` paths, before the adversarial offer, and its adversarial rubric includes `source-grounding`.
+  `generate-tasks`' description of `grounding-only` and its greenfield framing are behavior-grade.
 - `amend-design` carries:
     - the stage-wide D2 line;
     - `spec-review`'s grounding slice over the affected elements at every depth;
     - the grounding slice, and `task-audit`'s grounding floor over the footprint's tasks, in its assurance-invariant
       rubric;
-    - `planning-checks: on` on its pass;
+    - `fold-verification: on` on its passes, the accretion guard's offer included;
     - the post-settle coherence re-read when its pass folded anything, as the last step before the amendment lands;
     - a `§ Pass record` pointer.
 - `strategy-work-planning.md` carries `## Review at Planning Boundaries`, with its Contents entry and Related
