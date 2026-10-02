@@ -137,7 +137,7 @@ export function registerVersionConflictAssertions(context: SuiteContext): void {
   });
   everyKind(context, "stale-writer", async (fixture, reference) => {
     const record = await seed(fixture, reference);
-    const results = await fixture.race(update(fixture, record), { ...update(fixture, record), content: fixture.content(reference) });
+    const results = await fixture.race(update(fixture, record), { ...update(fixture, record), content: fixture.content(reference, "changed-again") });
     const failed = results.filter((result) => result.status === "refused");
     expect(failed.length).toBeGreaterThan(0);
     expect(failed[0]).toMatchObject({ refusal: { code: "version-conflict", records: [record.reference] } });
