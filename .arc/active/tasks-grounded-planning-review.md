@@ -18,53 +18,21 @@ this phase edits are byte-identical across both copies, and the `generate-tasks`
 and reading `create-spec`'s self-review and `generate-tasks`' grounding audit through to `source-grounding` finds no
 existence-only grounding left at either stage.
 
-### `[ ]` **1.1 Author `source-grounding` and hand `spec-review`'s grounding slice to it — D1, D2**
+### `[x]` **1.1 Author `source-grounding` and hand `spec-review`'s grounding slice to it — D1, D2**
 
 - _Goal:_ The behavior-grade check is stated whole in one overridable method, and `create-spec`'s self-review reaches
   it.
 
-- _Note:_ The two land in one commit. `lint:arc:triggers` enumerates the package `system/methods/` directory and fails
-  any method no workflow reaches (`audit-method-triggers.ts`). No commit hook runs it; it runs at the task's gate with
-  the ARC contract checks and is required in CI, so `source-grounding` committed before a reachable consumer declares
-  it fails there.
+    - `[x]` **1.1.a Write `system/methods/source-grounding.md` in the package source**
+        - Authored source-grounding with artifact/fold scopes, behavior checks, propagation sweep, non-mutating
+          probes, severity interpretation, and the runner and actor rules.
 
-- **Additional Context:** `spec-grounded-planning-review.md` § D1, § D2
+    - `[x]` **1.1.b Hand `spec-review`'s grounding slice to `source-grounding`**
+        - spec-review delegates grounding at artifact scope and scales its distance by the number of behavior claims
+          while keeping the same bar and inline corrective posture.
 
-    - `[ ]` **1.1.a Write `system/methods/source-grounding.md` in the package source**
-        - Configurable method shape, as `adversarial-review` prototypes it: frontmatter (`name`, `description`,
-          `related:` naming `spec-review`, `task-audit`, `adversarial-review`, `override-active: false`); header block
-          (Workflow naming `draft-design`, `create-spec`, `generate-tasks`, `amend-design`; When; Signature;
-          Contract); the `.override` placeholder; `.default`
-        - `.default`: named inputs (`artifacts`; `scope` as `artifact` or `fold`); return schema reusing
-          `adversarial-review`'s report schema, with `verdict` naming the scope and the runner; the behavior-grade
-          check; the propagation sweep reaching source; Reach; how it runs (factored, probe where cheap, probes never
-          mutate, unnamed actors); the severity interpretation; the runner rule; the D2 rule as its authority
-        - `artifact` scope covers the whole artifact, an amendment's footprint, or a task scope; a narrowed target
-          travels in `artifacts`, so no caller gains an input
-        - `fold` scope covers the change since the last review; there `artifacts` also carries the account of that
-          change and, when they were kept, the reviewed versions it starts from. The scope is stated in those terms,
-          with no pointer to the section that later defines a fold
-        - The runner values (`author`, `independent`) and the two scopes are defined here once; consumers use them
-          unglossed
-        - Declares no methods — never `adversarial-review`, which declares it back in Task 2.3
-        - Shipped register: no internal work unit, ADR, corpus figure, or research citation
-
-    - `[ ]` **1.1.b Hand `spec-review`'s grounding slice to `source-grounding`**
-        - The grounding slice hands claim grounding to `source-grounding` at `artifact` scope, the runner label set by
-          its rule, with no new input; restate its "the spec's concrete references are real" heading and its "light
-          verification" line behavior-grade
-        - Restate the form-scaling lines that scale grounding down ("near-trivial", "the handful of concrete references
-          grounded", "all concrete references grounded"): the bar holds at every form, and the distance scales by how
-          many claims about shipped behavior the form carries, so a `brief` still collapses to one minimal check —
-          which keeps `create-spec`'s own account of the self-review true without an edit there
-        - Restate the `.default` opening ("holds together and refers to real things") so the grounding slice reads
-          behavior-grade; the frontmatter `description` drops "Lightweight" and reads "coherence and behavior-grade
-          grounding, scaled to the form"
-        - `arc.methods` declares `source-grounding`; `related:` added; the Workflow header gains `amend-design`
-        - § Posture drops "Lightweight" too and reads "Corrective: fix what you can inline…"; the posture itself is
-          unchanged — fixes still fold inline, and no gate is added
-
-    - `[ ]` **1.1.c Mirror both files into `.arc/` byte-identical and run the Markdown gate with the contract checks**
+    - `[x]` **1.1.c Mirror both files into `.arc/` byte-identical and run the Markdown gate with the contract checks**
+        - Authored matching project copies of both methods; their package and project contents are byte-identical.
 
 ### `[ ]` **1.2 Hand `task-audit`'s grounding floor to `source-grounding` — D1**
 
