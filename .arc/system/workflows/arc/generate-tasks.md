@@ -340,7 +340,7 @@ task-audit:
   depth:  # grounding-only at low; full at medium / high
 ```
 
-The method defines each depth — `grounding-only` is the named-files-and-symbols-exist floor, never dropped.
+The method defines each depth — `grounding-only` is `source-grounding` run alone, never dropped.
 
 The level only sets a generation-time default, not a ceiling — the full audit stays available on demand
 mid-implementation, regardless of the resolved level or `Class`.
@@ -348,7 +348,7 @@ mid-implementation, regardless of the resolved level or `Class`.
 Generation-time framing differs from the audit's typical pre-impl use:
 
 - **Greenfield:** the task list was just authored. Codebase drift is unlikely; file-path / symbol assumptions
-  are common. Focus on grounding (verifying named files and symbols exist).
+  are common. Focus on grounding claims in source behavior and sweeping their propagation.
 - **Pre-impl-ready gate:** the phase isn't ready until "fix before starting" findings are resolved. "Carry as
   context" findings can ride.
 

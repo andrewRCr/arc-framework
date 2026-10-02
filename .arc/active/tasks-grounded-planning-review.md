@@ -34,40 +34,23 @@ existence-only grounding left at either stage.
     - `[x]` **1.1.c Mirror both files into `.arc/` byte-identical and run the Markdown gate with the contract checks**
         - Authored matching project copies of both methods; their package and project contents are byte-identical.
 
-### `[ ]` **1.2 Hand `task-audit`'s grounding floor to `source-grounding` — D1**
+### `[x]` **1.2 Hand `task-audit`'s grounding floor to `source-grounding` — D1**
 
 - _Goal:_ `task-audit` keeps no existence-only depth: its floor is `source-grounding`, `grounding-only` is that check
   run alone, and `generate-tasks` describes the depth that way.
 
-    - The grounding floor hands claim grounding to `source-grounding` at `artifact` scope, runner label by its rule;
-      caller inputs stay `scope` and `depth`
-    - Restate the `depth` row and the "report exists / missing / drifted and stop there" line: `grounding-only` is
-      `source-grounding` run alone
-    - § Severity interpretation leaves grounding findings to `source-grounding`'s interpretation and keeps grading the
-      eight categories: drop the grounding readings ("an ungrounded referent that makes a task unexecutable as
-      written", the grounding half of "a substantive grounding or planning problem"), so no finding carries two grades
-    - The Codebase drift category leaves drift in named referents — renamed, moved, changed, or deleted — to the
-      grounding floor, and keeps new code added since the task was written that the task does not account for
-    - `generate-tasks.template.md` and its rendered `.arc/system/workflows/arc/generate-tasks.md`: restate the
-      `grounding-only` gloss ("the named-files-and-symbols-exist floor") and the greenfield framing ("verifying named
-      files and symbols exist") behavior-grade. `generate-tasks-delivery-authoring-contract.test.ts` pins the two
-      copies identical; run it at this task's gate
-    - Two-tier disposition and the feed into `generate-tasks`' per-phase gates unchanged
-    - `arc.methods` declares `source-grounding`; `related:` added; the Workflow header gains `amend-design`; mirror to
-      `.arc/`
-    - The `arc-task-audit` skill stays true as written ("the grounding floor alone", "Two caller inputs") — confirm, no
-      edit
+- _Outcome:_ task-audit delegates its grounding floor to source-grounding, including grounding-only depth; category
+  severity excludes grounding and named-referent drift. generate-tasks describes the same behavior-grade floor. The
+  standalone skill retains its two inputs and disposition contract.
 
-### `[ ]` **1.3 Restate `design-audit`'s account of `spec-review` and pair the methods in the README — D1**
+### `[x]` **1.3 Restate `design-audit`'s account of `spec-review` and pair the methods in the README — D1**
 
 - _Goal:_ No method describes `spec-review`'s grounding as an existence check, and the Related Methods table names the
   new method's couplings.
 
-    - `design-audit` § Relationship to `spec-review`: "its concrete references are real" restated behavior-grade
-    - Methods `README.md` Related Methods: a `source-grounding` row naming `spec-review`, `task-audit`, and
-      `adversarial-review`, with the reciprocal entry on each of those three rows (add rows for `spec-review` and
-      `task-audit`; extend `adversarial-review`'s)
-    - Both files sit in `framework-sync.test.ts`'s neutral-contract list: mirror byte-identical
+- _Outcome:_ design-audit describes source-grounded behavior claims; the methods README records source-grounding and
+  reciprocal links to spec-review, task-audit, and adversarial-review. Both Framework projections match the package
+  source.
 
 ### `[ ]` **1.4 Register `source-grounding` across every shipment surface — D1**
 

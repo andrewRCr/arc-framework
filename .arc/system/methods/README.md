@@ -40,7 +40,10 @@ when populating any `.override` section. Methods not listed here are independent
 
 | Method                        | Related Methods                                                          | Coupling                                   |
 | ----------------------------- | ------------------------------------------------------------------------ | ------------------------------------------ |
-| adversarial-review            | validate-criteria                                                        | Criteria walk and fresh-context companion  |
+| adversarial-review            | validate-criteria, source-grounding                                      | Criteria walk and fresh-context companion  |
+| source-grounding              | spec-review, task-audit, adversarial-review                              | Shared behavior and propagation check      |
+| spec-review                   | source-grounding                                                         | Spec coherence and claim grounding         |
+| task-audit                    | source-grounding                                                         | Task grounding floor and category analysis |
 | commit-format                 | commit-footer                                                            | Both govern the commit message             |
 | commit-footer                 | commit-format                                                            | Both govern the commit message             |
 | frontline-review              | adversarial-review, implementation-audit, review-chunking, review-triage | Advisory review mechanism, scope, and lens |
