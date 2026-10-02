@@ -12,6 +12,11 @@ import { validateApprovedDispositionRecordForResult } from
   "../core/review-result-disposition.js";
 import type { ReviewResult } from "../core/review-result.js";
 import type { ReviewScopeMode, ReviewSeverity } from "../core/review-primitives.js";
+import {
+  fixesMaterialFinding,
+  isMaterialSeverity,
+  type VerifiedTerminalReviewSignal,
+} from "../core/review-convergence.js";
 import type { LaneResponsePerformance } from "../core/operation-state-schema.js";
 import {
   ReviewPolicyCommandRequestSchema,
@@ -20,7 +25,6 @@ import {
   type ReviewPolicyCommandRequest,
   type ReviewPolicyRequest,
   type ReviewResolveEnvelope,
-  type VerifiedTerminalReviewSignal,
 } from "./review-policy-driver.js";
 import {
   resolveIncrementalCoverageBasis,
@@ -49,6 +53,8 @@ export interface EvidenceBoundReviewPolicyDependencies {
   readonly allowUnapprovedFindings?: boolean;
   /** Pre-publication proved exact lane settlement against the current approved disposition. */
   readonly terminalResponseSettled?: boolean;
+  /** The owning composition proved the subject's opening frontline phase closed from its recorded history. */
+  readonly frontlinePhaseClosed?: boolean;
 }
 
 function requestScope(request: ReviewPolicyCommandRequest): "whole-target" | "chunked" {
@@ -216,7 +222,7 @@ export async function readIncrementalPredecessorResponseEvidence(
   const dispositions = node.approvedDisposition.dispositionSet.findings;
   const requiredFindings = dispositions
     .filter(({ sourceVerification, verifiedSeverity }) => sourceVerification === "verified"
-      && (verifiedSeverity === "major" || verifiedSeverity === "critical"))
+      && isMaterialSeverity(verifiedSeverity))
     .map(({ findingId }) => {
       const finding = predecessor.findings.find((candidate) => candidate.findingId === findingId);
       if (finding === undefined) {
@@ -272,6 +278,7 @@ async function deriveVerifiedTerminalSignal(
       reviewOperationId: operationId,
       confirmedFindingCount: 0,
       maxConfirmedSeverity: null,
+      materialFix: false,
       coverageAdequate,
     };
   }
@@ -284,6 +291,7 @@ async function deriveVerifiedTerminalSignal(
         reviewOperationId: operationId,
         confirmedFindingCount: 0,
         maxConfirmedSeverity: null,
+        materialFix: false,
         coverageAdequate,
       };
     }
@@ -291,9 +299,10 @@ async function deriveVerifiedTerminalSignal(
   }
   const approved = validateApprovedDispositionRecordForResult(record, result);
   const current = currentApprovedDispositionNode(approved);
+  const findings = current.approvedDisposition.dispositionSet.findings;
   let confirmedFindingCount = 0;
   let maxConfirmedSeverity: ReviewSeverity | null = null;
-  for (const finding of current.approvedDisposition.dispositionSet.findings) {
+  for (const finding of findings) {
     if (finding.sourceVerification !== "verified") continue;
     confirmedFindingCount += 1;
     maxConfirmedSeverity = greaterSeverity(maxConfirmedSeverity, finding.verifiedSeverity);
@@ -302,6 +311,7 @@ async function deriveVerifiedTerminalSignal(
     reviewOperationId: operationId,
     confirmedFindingCount,
     maxConfirmedSeverity,
+    materialFix: fixesMaterialFinding(findings),
     coverageAdequate,
   };
 }
@@ -318,6 +328,9 @@ export async function bindReviewPolicyEvidence(
   dependencies: EvidenceBoundReviewPolicyDependencies,
 ): Promise<ReviewPolicyRequest> {
   const request = ReviewPolicyCommandRequestSchema.parse(input);
+  if (dependencies.frontlinePhaseClosed === true && request.lane !== "frontline") {
+    throw new Error("frontline phase closure can be applied only to the frontline lane");
+  }
   const lastAttempt = request.attempts.at(-1);
   if (lastAttempt === undefined
     || (lastAttempt.outcome !== "clean" && lastAttempt.outcome !== "findings")) {
@@ -328,6 +341,7 @@ export async function bindReviewPolicyEvidence(
       ...request,
       sources: dependencies.sources,
       maxPasses: dependencies.maxPasses,
+      ...(dependencies.frontlinePhaseClosed === true ? { frontlinePhaseClosed: true } : {}),
     });
   }
   const result = await dependencies.resultReader.readResult(lastAttempt.reviewOperationId);
@@ -360,6 +374,7 @@ export async function bindReviewPolicyEvidence(
     maxPasses: dependencies.maxPasses,
     verifiedTerminalSignal,
     ...(dependencies.terminalResponseSettled === true ? { terminalResponseSettled: true } : {}),
+    ...(dependencies.frontlinePhaseClosed === true ? { frontlinePhaseClosed: true } : {}),
   });
 }
 

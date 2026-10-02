@@ -185,7 +185,7 @@ const provisionalPassAssessment = {
   lane: "standard",
   admittedLogicalPass: 2,
   configuredMaxPasses: 2,
-  proposedSignal: { confirmedFindingCount: 1, maxConfirmedSeverity: "major" },
+  proposedSignal: { confirmedFindingCount: 1, maxConfirmedSeverity: "major", materialFix: true },
   capPosition: "at-ceiling",
   potentialStopReason: "cap-exhausted",
   nextPassAuthority: "none",
@@ -460,6 +460,25 @@ describe("review command envelopes", () => {
       state: "ready",
       nextAction: "bind-source",
       payload: { routing, frontlineReview: readyFrontlineReview, pass: 1, maxPasses: 2 },
+    })).toThrow();
+  });
+
+  it.each([
+    ["a material fix of a minor maximum", {
+      proposedSignal: { confirmedFindingCount: 1, maxConfirmedSeverity: "minor", materialFix: true },
+    }],
+    ["a ceiling stop without a material fix", {
+      proposedSignal: { confirmedFindingCount: 1, maxConfirmedSeverity: "major", materialFix: false },
+    }],
+    ["a material fix at the ceiling without a stop", { potentialStopReason: null }],
+  ] as const)("rejects a provisional pass assessment carrying %s", (_name, change) => {
+    expect(() => RespondEnvelopeSchema.parse({
+      ...header("review-respond"),
+      state: "awaiting-approval", nextAction: "obtain-approval",
+      payload: {
+        operationId: "local-1", proposal: dispositionProposal, dispositionReportText,
+        provisionalPassAssessment: { ...provisionalPassAssessment, ...change },
+      },
     })).toThrow();
   });
 

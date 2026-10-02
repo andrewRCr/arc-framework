@@ -188,6 +188,7 @@ function hostedProgressAttempt(input: {
 function candidatePredecessor(input: {
   outcome: "clean" | "settled-findings";
   severity?: "minor" | "major";
+  disposition?: "fix" | "reject";
   attemptId?: string;
 }) {
   const attempt = hostedProgressAttempt({
@@ -259,7 +260,7 @@ function candidatePredecessor(input: {
         verifiedSeverity: finding.severity,
         rationale: "The source check established this disposition.",
         recommendation: "Record the approved response.",
-        disposition: "reject",
+        disposition: input.disposition ?? "reject",
         openQuestions: [],
       }],
     });
@@ -392,7 +393,7 @@ describe("Candidate hosted reservation admission", () => {
   });
 
   it("requires a verified settled predecessor before an additional Candidate pass", async () => {
-    const predecessor = candidatePredecessor({ outcome: "settled-findings", severity: "major" });
+    const predecessor = candidatePredecessor({ outcome: "settled-findings", severity: "major", disposition: "fix" });
     const target = { repository: "owner/repo", pullRequest: 42, headSha: CURRENT_HEAD };
     const input = {
       reservation,
@@ -412,6 +413,14 @@ describe("Candidate hosted reservation admission", () => {
         appendDispositionRecord: async () => { throw new Error("read-only test store"); },
       },
       confirmTarget: async () => predecessor.result.target,
+      readResponsePerformance: async () => predecessor.disposition === null ? null : {
+        schemaVersion: 1 as const,
+        producerId: predecessor.result.producerId,
+        dispositionSetId: predecessor.disposition.currentDispositionSetId,
+        originatingHeadSha: predecessor.result.target.headSha,
+        producedHeadSha: predecessor.result.target.headSha,
+        performedAt: "2026-09-09T21:00:00Z",
+      },
     };
 
     expect(() => assertCandidateHostedReservationPolicyAdmission(input))
@@ -434,9 +443,10 @@ describe("Candidate hosted reservation admission", () => {
       .rejects.toThrow(/approval-required\/obtain-ceiling-override/u);
   });
 
-  it("admits an additional Candidate pass after exact clean or minor predecessor evidence", async () => {
+  it.each(["minor", "major"] as const)("admits an additional Candidate pass after exact clean or settled %s "
+    + "predecessor evidence", async (severity) => {
     for (const outcome of ["clean", "settled-findings"] as const) {
-      const predecessor = candidatePredecessor({ outcome, severity: "minor" });
+      const predecessor = candidatePredecessor({ outcome, severity });
       const target = { repository: "owner/repo", pullRequest: 42, headSha: CURRENT_HEAD };
       const input = {
         reservation,

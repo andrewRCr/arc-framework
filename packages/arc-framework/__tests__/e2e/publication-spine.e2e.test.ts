@@ -635,7 +635,7 @@ describe("attest → pre-publication → publish", () => {
   }, 120_000);
 
   it.each(["defer", "reject"] as const)(
-    "continues a settled material %s at the unchanged head to the next pass", async (disposition) => {
+    "converges a settled material %s at the unchanged head without another pass", async (disposition) => {
       repository = await createAtCapPublicationRepo();
       expect((await runArc(["attest", "example", "--json"], repository)).exitCode).toBe(0);
       await git(repository, ["commit", "-m", "verification"]);
@@ -659,8 +659,8 @@ describe("attest → pre-publication → publish", () => {
               ? "The material finding is valid but has an approved destination."
               : "The material finding is outside the current change responsibility.",
             recommendation: disposition === "defer"
-              ? "Defer to the recorded destination and continue review."
-              : "Record the approved rejection and continue review.",
+              ? "Defer to the recorded destination."
+              : "Record the approved rejection.",
             openQuestions: [],
           }],
         },
@@ -701,18 +701,16 @@ describe("attest → pre-publication → publish", () => {
         schemaVersion: 1, source, policyRequest, dispositions,
       })).resolves.toMatchObject({ state: "settled", nextAction: "reduce" });
 
+      // Deferring or rejecting a confirmed major fixes nothing, so the pass converges without spending another.
       const continued = await runArc(prePublicationArgv, repository, { env: OFFLINE_ENV });
       expect(continued.exitCode, JSON.stringify(continued)).toBe(0);
       expect(JSON.parse(continued.stdout)).toMatchObject({
-        locus: "candidate-review-pending",
-        policy: { state: "ready", nextAction: "local-prepare", payload: { pass: 2 } },
+        locus: "candidate-publish-ready", policy: null, nextAction: { kind: "publish-candidate" },
       });
-      const replay = await runArc(prePublicationArgv, repository, { env: OFFLINE_ENV });
+      // A settled boundary re-enters through the bare command; its saved judgment is not re-supplied.
+      const replay = await runArc(["review", "pre-publication", "example"], repository, { env: OFFLINE_ENV });
       expect(replay.exitCode, JSON.stringify(replay)).toBe(0);
-      expect(JSON.parse(replay.stdout)).toMatchObject({
-        locus: "candidate-review-pending",
-        policy: { state: "ready", nextAction: "local-prepare", payload: { pass: 2 } },
-      });
+      expect(JSON.parse(replay.stdout)).toMatchObject({ locus: "candidate-publish-ready", policy: null });
       expect((await reviewAccounting(repository)).completedPasses).toBe(1);
   }, 120_000);
 

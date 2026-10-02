@@ -50,7 +50,6 @@ import { resolveAcceptableDeliveryBaseRefs } from "../core/delivery-member-looku
 import { createGhChangeRequestResolutionPort } from "../hosts/github/change-request.js";
 import { RepositoryDeliveryMemberLookup } from "../hosts/local/delivery-member-lookup.js";
 import { LocalApprovedDispositionRecordStore } from "../hosts/local/disposition-record-store.js";
-import { currentApprovedDispositionNode } from "../core/advisory-records.js";
 import { createLocalFrontlineSourcePreferenceReader } from "../hosts/local/frontline-source-preferences.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { createRepositoryReviewResultReader } from
@@ -71,8 +70,7 @@ import {
   readCandidateInheritedLaneProgress,
   readLaneResponsePerformance,
 } from "../lane-progress.js";
-import { frontlinePhaseClosed } from "./frontline-phase.js";
-import { projectFrontlineFollowUpAdvice } from "./frontline-follow-up.js";
+import { frontlinePhaseClosed, settledFrontlineAdviceReader } from "./frontline-phase.js";
 import { composeWorkUnitReviewAssurance } from "./assurance.js";
 import { resolveConfiguredLanePolicy } from "./lane-policy-config.js";
 import {
@@ -772,20 +770,7 @@ export function createPrePublicationCompositionDependencies(input: {
         .map((id) => ({ kind: "candidate" as const, candidateId: id }));
       return frontlinePhaseClosed(store, {
         repositoryId: repository, lineages,
-        readSettledFindingsAdvice: async (producerId) => {
-          const result = await resultReader.readResult(producerId);
-          if (result.kind !== "frontline") {
-            throw new Error("settled frontline owner does not match its immutable result");
-          }
-          const dispositions = await dispositionStore.readDispositionRecord(producerId);
-          if (dispositions === null) {
-            throw new Error("settled frontline findings lack an approved disposition record");
-          }
-          return projectFrontlineFollowUpAdvice({
-            outcome: result.outcome,
-            dispositionState: currentApprovedDispositionNode(dispositions).approvedDisposition,
-          });
-        },
+        readSettledFindingsAdvice: settledFrontlineAdviceReader(resultReader, dispositionStore),
       });
     },
 
