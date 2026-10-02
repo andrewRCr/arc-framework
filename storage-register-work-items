@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "storage-register-work-items",
+  "claimId": "183243d5238e693daa27bd193c1c23d3",
+  "createdAt": "2026-10-02T00:05:34.344Z",
+  "updatedAt": "2026-10-02T00:05:34.344Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Align the state-storage cohort register with the storage contract's work-item decisions",
+  "branch": "chore/storage-register-work-items",
+  "origin": "inbox",
+  "originEntry": "Bring the `state-storage` cohort register in line with the storage contract's work-item decisions",
+  "originEntrySourceDigest": "sha256:b26d75034b8b1b7667a56cc0aa59d743fafb05282649ffb5281a9dcc29e31a3c",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
