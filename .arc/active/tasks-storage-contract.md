@@ -19,267 +19,75 @@ _Mode:_ `layer` through Phase 3 — closes on a settled contract, shown implemen
   file lands, so the comparison at verification measures this change alone.
 
 - _Outcome:_ Retained and normalized three pre-change runs each of `unit`, `integration`, and `lane`, with
-  `tier-isolated` and 12 workers, in the personal workspace's `test-cost/` directory. Raw `before-<row>-<n>.json`
+  `tier-isolated` and 12 workers, in the personal workspace's `.internal/test-cost/` directory. Raw `before-<row>-<n>.json`
   groups remain available for the verification comparison; no new test file existed when they were captured.
 
-### `[ ]` **1.2 Contract interface: operations, identities, and versions — D1, D2, D5**
+### `[x]` **1.2 Contract interface: operations, identities, and versions — D1, D2, D5**
 
 - _Goal:_ One interface declares every operation D1 names with its input and result, over opaque owner identities and
   record references, record versions, state versions, ordered format versions, and work items' placements and links, so
   every backend and caller builds against the same surface and no caller can learn which backend answered.
 
-    - `[ ]` **1.2.a Identity, reference, version, and placement values**
-        - An owner's identity is opaque to callers: a name plus a UID where the backend mints one, resolved from the
-          slug on the in-repo implementation; a person's is their identity, with no UID. Former slugs are a field of the
-          record, which `lookup` reads, never part of its identity.
-        - A record reference is its owner's identity, its kind, and, for a kind that holds several records per owner,
-          its key (D2). It is opaque in construction, built only through one typed constructor per kind's shape, which
-          takes a key exactly when the registry records the kind as keyed (Task 1.5.b), and read through accessors for
-          its owner's identity, its kind, and its key.
-        - Record and state versions are opaque values compared only for equality; a write that creates a record expects
-          absence, so two creations of one record conflict. A format version is a positive integer per kind, ordered, so
-          a build tells a record newer than itself.
-        - A work item's placement (D5) is `active`; `backlog` with its commitment, `planned` or `provisional`; or
-          `completed` with its archive quarter. A read's placement carries a completed work unit's archive sequence, as
-          output; a write's placement never names one, and a cohort member's backlog folder comes from its `Cohort`
-          field, never its placement. An Errand's is `active` or `completed`, with no sequence, since its archive folder
-          is named for its branch. The schemas are in the contract core over kernel types: `ArchiveQuarterSchema` and
-          `ArchiveSequenceSchema` move from `lib/layout/schema.ts` into `lib/kernel/schema/`, and the layout imports
-          them from there.
-        - Build `test-first` (one behavior at a time):
-            - the identity, reference, and version schemas accept their documented forms and reject anything else;
-            - two identities with one name and different UIDs are distinct, as are two references that differ only in
-              their key;
-            - a reference's accessors return the owner's identity, kind, and key it was built with;
-            - a reference to a keyed kind without its key, or to a kind holding one record per owner with one, cannot be
-              built;
-            - a record with no stored format version reads as version 1, and a format version above its kind's current
-              one is newer than the build;
-            - the placement schema accepts each placement and rejects an unknown commitment, a malformed quarter, and a
-              cohort or a sequence in a write's placement;
-            - a work unit's read placement at `completed` without a sequence is rejected, as is an Errand's with one or
-              an Errand's in the backlog.
+    - `[x]` **1.2.a Identity, reference, version, and placement values**
+        - Added opaque owner and record values, typed per-kind constructors, equality and accessors, ordered format
+          versions, and logical placement. Archive labels now have one kernel authority shared with layout.
 
-    - `[ ]` **1.2.b The operations interface and its result envelope**
-        - `read`, `list`, `write`, `batch`, `version`, `history`, `changes`, `lookup`, and `sync`, each resolving to one
-          generic `status`-discriminated envelope — `ok` with its result, `refused` with a refusal from Task 1.4.
-        - `read` takes a record reference and `list` an optional owner, and both take an optional state version;
-          `history` takes a reference; `changes` takes two state versions and an optional restriction to named
-          references; `lookup` takes a slug, a lineage origin, a checkout claim (the marker's kind, its slug, and its
-          claim ID where it carries one, never a checkout path), or a repository plus a commit, with the patch-id the
-          caller computes for it where it has one, or a ref.
-        - `read` and `list` return a work item's placement beside the content and fields of each of its records, and its
-          links beside its primary record's, never a path; `read` also returns the IDs of the record's open conflict
-          records (D6). `lookup` returns a reference to the record it resolves to — a work item's primary record, a
-          lineage's transition record, or a grooming or housekeeping claim's record — and, for a commit, the IDs of
-          every task whose captures hold it, possibly none.
-        - `list`'s filter takes lifecycle locations — `active`, `planned`, `provisional`, or `completed`, the lifecycle
-          index's `Location` (`lib/work-unit/lifecycle-state.ts`) — and a held-here flag, which keeps the records this
-          checkout holds. A backend whose state lives off the checkout's branch refuses the flag `unsupported`
-          (recoverable), naming `lookup` by the checkout's claim or a listing without the flag; the in-repo answer is
-          Task 4.3's. The flag serves today's callers of the working tree's index and retires with the in-repo
-          implementation at the cutover.
-        - Build `test-first` (one behavior at a time):
-            - the envelope schema parses an `ok` and a `refused` result and rejects any other `status`;
-            - a checkout-claim input validates its slug with the kernel's slug schema;
-            - the claim's kind is one the marker carries — `work-unit`, `errand`, `groom`, `housekeep`, or
-              `partial-errand` — and its claim ID is shaped as the marker carries it: absent for a work unit, `null`
-              for a partial-protection Errand, and required for an Errand, a grooming set, or a housekeeping sweep, so
-              a `branch` subject and a legacy `errand` subject with no claim ID are rejected, carrying no claim;
-            - a filter naming a location outside those four is rejected;
-            - a `lookup` result carrying task IDs without a work item's reference is rejected, and one for a commit may
-              carry several task IDs or none.
+    - `[x]` **1.2.b The operations interface and its result envelope**
+        - Declared all nine Store operations under the common result envelope, with path-free lookup, marker-shaped
+          claims using the shared kernel token grammar, and lifecycle listing filters.
 
-### `[ ]` **1.3 Write, batch, provenance, link, and conflict-record shapes — D3, D6**
+### `[x]` **1.3 Write, batch, provenance, link, and conflict-record shapes — D3, D6**
 
 - _Goal:_ Writes, batches, provenance, links, and conflict records each have one validated shape, so a version-checked
   write, an all-or-nothing batch, the provenance it carries, the traceability links a backend stores, and the clash a
   merge keeps are the same data on every backend.
 
-    - `[ ]` **1.3.a Writes and batches**
-        - A write carries the record's reference, new content, expected record version, and provenance, and for a work
-          item's primary record — a work unit's meta, an Errand's record — its placement and, optionally, a links value
-          — absent, keeping the stored links, or a value, an empty one included, replacing them whole; a write to
-          another kind of a work item carries neither and lands where its work item is placed. Its result is the new
-          record version with any conflict records the write created — on a merge kind with a stale base, the merged
-          version.
-        - A removal is a write carrying the expected version and no content, placement, or links, the dual of a
-          creation, which expects absence, and its result carries no record version. A kind's writer rule governs it as
-          any write: a create-only kind refuses an update, not a removal, which the verb that created a transition
-          record makes when the transition it records fails, and a write-once record is removed only by the writes its
-          rule names, a conflict record by the write that resolves it.
-        - A write naming a work item's placement other than its current one moves it. A rename is a write whose
-          reference names the work item by its UID with a new name: the backend keeps the UID and records the former
-          slug.
-        - A batch carries several writes, each with its own expected version, under one provenance; the backend gives it
-          one batch ID, and its result is every write applied, or none.
-        - Build `test-first` (one behavior at a time):
-            - a write without an expected version is rejected, as is a write other than a removal to a work item's
-              primary record without its placement, a write to another of its kinds with a placement or links, and a
-              removal carrying content, a placement, or links;
-            - an absent links value and an empty one parse as distinct values;
-            - a batch result never lists a partial set of applied writes.
+    - `[x]` **1.3.a Writes and batches**
+        - Added strict put/removal and batch inputs, input-bound success validators, and UID-based duplicate
+          detection. Primary placement and whole-value optional links remain distinct from companion writes.
 
-    - `[ ]` **1.3.b Provenance and links**
-        - The caller's provenance names the verb, the lifecycle action, and, when the write attests code, the code head;
-          the backend adds the record's reference, its owner's UID where the owner has one, and, for a batch, its batch
-          ID as the write lands. A backend over Git renders it as a commit message, a subject naming the verb and the
-          record and trailers for the rest. A `history` or `changes` entry carries the provenance's fields, or, over the
-          in-repo implementation, the commit message as it is.
-        - Links are base fields the contract reads without a kind's parser: a branch (repository and ref name), a change
-          request (repository and number), a landing commit, and task captures keyed by task ID; a write's links value
-          is optional — absent keeps the record's links, and a value, an empty one included, replaces them whole; each
-          commit is its SHA and, where it has one, its patch-id, which a merge commit lacks.
-        - Build `test-first` (one behavior at a time):
-            - provenance naming no verb is rejected, as is a caller's provenance carrying a record reference, an owner
-              UID, or a batch ID, which only the backend adds;
-            - a captured commit parses with a patch-id or, as a merge commit, without one;
-            - a task's captures may be an empty list, and two captures under one task ID are rejected.
+    - `[x]` **1.3.b Provenance and links**
+        - Added caller and backend provenance plus branch, change-request, landing, and task-capture links; caller
+          validation rejects backend-assigned fields and repeated captures.
 
-    - `[ ]` **1.3.c Conflict records**
-        - A conflict record names its record by reference and where within it the clash lies: the entry's ID, the hunk's
-          line range in the base for prose, or the whole record, for a single-writer record changed on both sides; keeps
-          both sides as data, each with the label its caller supplies — the machine or session and the time — and the
-          base it merged from; and stays open until a write that names it closes it. A write may name the conflict
-          records it resolves.
-        - Build `test-first` (one behavior at a time):
-            - the record's schema requires its record's reference, its place within that record — an entry ID, a base
-              line range, or the whole record, and nothing else — both sides, their labels, and its base;
-            - a write naming a resolved conflict record names it by its reference.
+    - `[x]` **1.3.c Conflict records**
+        - Added serialized conflict loci and both labeled sides over the common base; resolving writes name conflict-
+          record references.
 
-### `[ ]` **1.4 Refusals, sync and listing outcomes, and the capability report — D1, D4**
+### `[x]` **1.4 Refusals, sync and listing outcomes, and the capability report — D1, D4**
 
 - _Goal:_ Every failure a backend can report is a member of one closed, Zod-defined vocabulary carrying its class,
   observed condition, and remedy, and every listing and sync outcome is typed, so a caller handles each case
   exhaustively and a refusal serializes into an `arc` command's JSON output as it stands.
 
-- _Note:_ The remedy is `{ text, argv? }` — text always, and the command line when one command advances — defined in
-  `lib/store/` rather than reusing `SpineRemedySchema`, which lives under `scripts/`. `unreachable` carries its cause
-  through the kernel's `RemoteFailureReasonSchema`. The schemas join the production schema registry only when a
-  command first emits them.
+    - `[x]` **1.4.a The refusal vocabulary**
+        - Added the closed local and transient-publish refusal union, assigned classes, observed conditions, and
+          executable remedies, including every named interim unsupported case.
 
-    - `[ ]` **1.4.a The refusal vocabulary**
-        - Local: `not-found`, `version-conflict` (naming every stale record), `record-malformed`, `identity-mismatch`,
-          `ambiguous-match` (naming the candidates), and `lock-held`, all recoverable; `namespace-corrupt`, terminal.
-        - Typed to retire at the cutover: `checkout-not-writable` (recoverable, naming where the write can land), which
-          only the in-repo implementation produces, and `unsupported`, recoverable or terminal by case as D4 assigns.
-          One of its cases — the held-here filter (Task 1.2.b) — every backend whose state lives off the checkout's
-          branch produces; the rest are the in-repo implementation's.
-        - A transient-identity write's failures take sync's classes (1.4.b).
-        - Every `switch` over the union in `lib/store/` ends in a compile-time exhaustiveness check — the kernel's
-          `assertNever` (`lib/kernel/errors.ts`) — so a new member fails to compile at every site that does not handle
-          it.
-        - Build `test-first` (one behavior at a time):
-            - each member's schema requires its class, condition, and remedy;
-            - each member's class is the one D4 assigns, `unsupported` taking either by case;
-            - an unknown refusal code is rejected.
+    - `[x]` **1.4.b Listing and sync outcomes**
+        - Added complete listing diagnostics and per-record mutation bases, independently reported sync states, and
+          family-scoped publish outcomes with retry timing and remote failure causes.
 
-    - `[ ]` **1.4.b Listing and sync outcomes**
-        - Listing: `absent`, `unreadable`, or `complete`. A complete listing carries every readable record with its
-          record version — a work item's records with its placement too, and its primary record with its links — a
-          diagnostic per entry it could not read — malformed, oversized, unreadable, unknown format version, or a key
-          disagreeing with its record — whether it missed any, and the state version it was taken as of, which it
-          carries only when it was taken as of one: a requested version, or the current one on a backend whose live view
-          is a saved state. The in-repo implementation's live listings carry none (D8); each record's own version is the
-          mutation basis everywhere.
-        - Sync: no remote and no identity, states and not failures, each reported once and independently — `no-identity`
-          naming `arc.identity` and the families held back; and one outcome for each publish, naming the families that
-          publish carried — `pushed`, `noop`, or `reconciled`, or `retries-exhausted` (recoverable, with its retry count
-          and time waited), `unreachable` (recoverable), or `refused` (terminal, with the server's message).
-        - The in-repo sync additions D4 lists — `conflict`, `blocked`, and the notes export's local refusals — are typed
-          as in-repo outcomes that retire at the cutover. The notes-only outcomes D4 retires with notes are not
-          contract outcomes: `no-local-notes` ends `noop` (Task 7.3), and contract `sync` never meets the other three.
-        - Build `test-first` (one behavior at a time):
-            - a complete listing without its missed flag is rejected, as is one with a work item that carries no
-              placement;
-            - each diagnostic kind parses with the entry key it names;
-            - `retries-exhausted` without its retry count and time waited is rejected;
-            - a sync result carrying both no remote and `no-identity` parses, and a `no-identity` naming no family is
-              rejected;
-            - no remote parses as a sync state, never as a failure, and a publish's outcome naming no family is
-              rejected.
+    - `[x]` **1.4.c The capability report** — one capability, whether state lives off the checkout's branch
+        - Added the strict stateOffBranch capability report as the single caller-visible backend distinction.
 
-    - `[ ]` **1.4.c The capability report** — one capability, whether state lives off the checkout's branch
-
-### `[ ]` **1.5 Family and kind registry as data — D5, D10**
+### `[x]` **1.5 Family and kind registry as data — D5, D10**
 
 - _Goal:_ The record model lives as one data registry under `lib/store/` — every family's storage properties and
   every kind's mechanism, never a field schema — from which the conformance suite, the in-repo dispatch, the ref
   layout, and moving state all derive.
 
-- _Note:_ Families and kinds are named by role, never by presentation (D5). A kind is keyed by its family and its role,
-  so a role that recurs — the inbox at project and identity scope, conflict records, routing receipts — is one kind in
-  each family that holds it, under the role's one name, and no surface's filename or title appears in `lib/store/`.
+    - `[x]` **1.5.a Families**
+        - Recorded the eight state families, reserved roles, and two ghost families with scope, declared ref
+          ownership, retention, sync, lifecycle, and profile assignment.
 
-    - `[ ]` **1.5.a Families**
-        - The eight families of D5, each with its scope, ref placement from D10's table (a work item's delivery and
-          review records ride its `refs/arc/work/<uid>`; lineage sits in `refs/arc/project/registry`), retention, sync,
-          lifecycle, and tracked-versus-stored assignment under the standard and ghost profiles.
-        - Reserved with no kinds: `VECTOR.PROJECT` at project scope; `VECTOR.USER` and the per-identity user
-          configuration at identity scope.
-        - The ghost profile's two project-scope families, project machinery and the constitutional documents: tracked
-          under the standard profile and stored under ghost, each a prose kind merged by three-way line merge, with
-          their ref placement left to the ghost profile's later change.
+    - `[x]` **1.5.b Kinds and their mechanisms**
+        - Recorded every role's owner, cardinality, key, parser slot, format, writer and merge rules, projection and
+          interim home; entry grammars and the five pending layout addresses remain explicit.
 
-    - `[ ]` **1.5.b Kinds and their mechanisms**
-        - Each kind carries its parser slot (empty until a parser is registered), format version, writer rule, merge
-          mechanism from D6's table, and its projection: a layout address kind where today's layout has one, `never`
-          for a kind only verbs read and write, or `projection-defined` where the projection's layout will set the
-          path — other companions, personal documents, an Errand's description, and the inbound list.
-        - Stored with their families: a conflict-record kind in every unreserved family, since a merge or a sync can
-          conflict in any, and routing receipts in every family holding an inbox.
-        - Each entry-list kind records its entry shape and, per scope, the sections that hold its entries, which entry
-          merge takes from its caller (Task 2.2): the inbox's heading entries under `## Inbox` at project scope and
-          under `## Errand` and `## Work Unit` at identity scope, and `WORKING-MEMORY`'s field-header entries under
-          `## Memories`. An Errand's description, the inbound list, and the Errand queue have no file before the flip
-          and record none.
-        - Lineage's writer rule is create-only: no write updates a transition record, as today.
-        - Each kind records its owner — a work item, a cohort, the project, or a person — and whether it holds one
-          record per owner or several, and a kind that holds several records its key's shape (D2): a companion's name, a
-          paired spec's halves being the companions named `spec-prd` and `spec-rfc`; a personal document's path; a
-          grooming or housekeeping claim's slug; a conflict record's or routing receipt's ID; a durable review fact's
-          ID; an adversarial pass's activity and number; a record-number counter's name; and, for `SESSION-NOTES`, its
-          work unit.
-        - Each kind records where the in-repo implementation finds it — tracked, personal, transient-identity, or no
-          home before the flip — and, for a tracked or personal kind, how the in-repo dispatch finds its records: the
-          layout address kind it lives at, or, where today's layout has no address for it, the finder today's code uses.
-          Other companions are the `<prefix>-<slug>.md` files `artifactMatcher`
-          (`lib/work-unit/mutators/relocate-artifacts.ts`) selects beside the work unit's meta, each named by its
-          prefix, less the kinds with an address and the same-name cohort document, which its callers exclude by hand
-          (`lib/work-unit/reference-reconcile.ts`), and a paired spec's halves `spec-prd` and `spec-rfc`, at
-          `spec-<slug>-prd.md` and `spec-<slug>-rfc.md`, which the matcher misses and the planning tuple names
-          (`lib/work-unit/planning-artifact-tuple.ts`); a personal document is a file under the identity's root or a
-          workspace in it, outside the machine-local set and the personal kinds with an address, keyed by its path
-          there. A kind whose projection is `never` still records its address here. Today's layout has none for the
-          Candidate, integration-boundary, and transition records or the inbox at either scope, so until Task 4.1 adds
-          them these five kinds record that their address is pending, and Task 4.1 records each.
-        - The ghost profile's two families have no home before the flip: the standard profile, the only one the in-repo
-          implementation runs under, keeps them as tracked machinery outside the store.
-        - `SESSION-NOTES` is an interim personal kind, keyed by its work unit, at the `session-notes` address today's
-          layout has (`UserDocumentSchema`, `lib/layout/schema.ts`); it retires at the flip, when session context
-          becomes a section of the meta.
-        - The transient-identity ref holds Errand records and grooming and housekeeping claims under one schema; the
-          registry assigns its records to the work-item and claims families by kind and purpose — a `groom` record,
-          or an `errand` record whose purpose is `housekeep-routing`, is a claim.
-
-    - `[ ]` **1.5.c The machine-local path set and derived views**
-        - The local-only set: all of `.arc/user/<identity>/.internal/`, and in the common Git directory `.notes.lock`,
-          `.machine-id`, and everything under `.git/arc/`. ROADMAP, `STATUS.USER`, and the archive index are recorded
-          as derived views, never stored.
-
-    - Build `test-first` (one invariant at a time):
-        - every kind belongs to exactly one family, and every unreserved family has a kind;
-        - every kind records its owner and whether it is keyed, and every keyed kind its key's shape;
-        - every unreserved family has a conflict-record kind, and every family holding an inbox has routing receipts;
-        - every kind whose projection is an address, and every in-repo address a kind records, resolves through
-          `resolveArcPath` (`lib/layout/projection.ts`), and every tracked or personal kind records an address or a
-          finder, the five kinds pending Task 4.1 excepted by name;
-        - every entry-list kind records its entry shape and sections, unless it has no home before the flip;
-        - no source file under `lib/store/` contains a surface's filename;
-        - no two families share a ref placement except a declared subtree, and a family whose placement is left to a
-          later change has none;
-        - only the ghost profile's two families change assignment between profiles;
-        - every kind's in-repo location matches D8's account of where each family lives today, unhomed kinds included.
+    - `[x]` **1.5.c The machine-local path set and derived views**
+        - Recorded machine-local paths and derived views separately from stored families, with registry and layout
+          invariants exercised across all kinds.
 
 ## **Phase 2:** Concurrency library
 

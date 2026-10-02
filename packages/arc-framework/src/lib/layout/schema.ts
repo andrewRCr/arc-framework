@@ -4,7 +4,7 @@
 
 import { z } from "zod";
 
-import { SlugSchema, validateManagedPath } from "../kernel/index.js";
+import { ArchiveQuarterSchema, ArchiveSequenceSchema, SlugSchema, validateManagedPath } from "../kernel/index.js";
 
 /** Runtime authority for project lifecycle placement roots. */
 export const ArcPlacementTierSchema = z.enum(["active", "planned", "provisional", "completed"]);
@@ -26,15 +26,8 @@ export const ProcedureFamilySchema = z.enum(["methods", "workflows"]);
 /** A top-level procedure family. */
 export type ProcedureFamily = z.infer<typeof ProcedureFamilySchema>;
 
-/** Runtime authority for completed-archive quarters. */
-export const ArchiveQuarterSchema = z.string().regex(/^\d{4}-q[1-4]$/u).brand<"ArchiveQuarter">();
-/** A validated completed-archive quarter. */
-export type ArchiveQuarter = z.infer<typeof ArchiveQuarterSchema>;
-
-/** Runtime authority for completed-archive sequence identifiers. */
-export const ArchiveSequenceSchema = z.string().regex(/^(?:0[1-9]|[1-9][0-9]+)$/u).brand<"ArchiveSequence">();
-/** A validated completed-archive sequence identifier. */
-export type ArchiveSequence = z.infer<typeof ArchiveSequenceSchema>;
+/** Shared archive value authorities, re-exported for layout consumers. */
+export { ArchiveQuarterSchema, ArchiveSequenceSchema, type ArchiveQuarter, type ArchiveSequence } from "../kernel/index.js";
 
 function managedPathRefinement(value: string, context: z.RefinementCtx): void {
   try {

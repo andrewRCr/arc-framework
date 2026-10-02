@@ -15,11 +15,8 @@ export const MAX_LOCUS_OPAQUE_CHARS = 4_096;
 export const LocusOpaqueTextSchema = z.string().min(1).max(MAX_LOCUS_OPAQUE_CHARS);
 /** Canonical SHA-256 digest grammar. */
 export const LocusDigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
-/** At-least-128-bit lowercase hexadecimal or unpadded base64url token. */
-export const LocusTokenSchema = z.string().max(512).refine((value) =>
-  /^(?:[0-9a-f]{32,}|[A-Za-z0-9_-]{22,})$/u.test(value), {
-  error: "Token must encode at least 128 bits as lowercase hex or unpadded base64url",
-});
+/** Shared opaque claim-token authority. */
+export { LocusTokenSchema } from "../../kernel/index.js";
 /** UTC RFC 3339 instant. */
 export const LocusTimestampSchema = z.iso.datetime({ offset: false });
 /** Git object identity used at preservation boundaries. */
