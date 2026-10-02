@@ -1,4 +1,4 @@
-/** Rebuild name resolution from the durable generations a reconciliation actually retains. */
+/** Rebuild name resolution from the complete proposed durable generations. */
 import { type OwnerIdentity, type StoreResult } from "../../../src/lib/store/index.js";
 import { ownerNameKey, type MemoryRecord } from "./model.js";
 import { ok, refused } from "./refusals.js";
@@ -23,8 +23,8 @@ export function indexIdentities(records: ReadonlyMap<string, MemoryRecord>): Sto
     if (prior !== undefined && prior.reference.owner.type !== "person" && record.reference.owner.type !== "person"
       && prior.reference.owner.uid !== record.reference.owner.uid) return refused({
         code:"ambiguous-match",class:"recoverable",candidates:[prior.reference,record.reference],
-        condition:`Reconciliation contains multiple live generations named ${record.reference.owner.name}.`,
-        remedy:{text:"Disambiguate the live work-item names by UID before retrying sync."},
+        condition:`The proposed namespace contains multiple live generations named ${record.reference.owner.name}.`,
+        remedy:{text:"Give the colliding live owners distinct names by UID, then retry."},
       });
     live.set(key,record);
   }

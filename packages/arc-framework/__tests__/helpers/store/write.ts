@@ -12,6 +12,7 @@ import {
 } from "./model.js";
 import { malformed, ok, namespaceAdmission, recordAdmission, refused, surfaceLock, versionConflict } from "./refusals.js";
 import { mergeBase, mergeContents, persistedContent, storeConflicts } from "./merge.js";
+import { indexIdentities } from "./identities.js";
 
 function primary(write: Mutation): boolean {
   return write.reference.kind === "work-item/meta" || write.reference.kind === "work-item/record";
@@ -132,7 +133,13 @@ export function writeReference(context: ReferenceContext, write: WriteInput): St
   const refusal = preflight(context, write);
   if (refusal) return refused(refusal);
   if (stale(context, write)) return refused(versionConflict([write.reference]));
-  return ok(land(context, write));
+  const prepared = { ...context, state: structuredClone(context.state) };
+  const result = land(prepared, write);
+  const identities = indexIdentities(prepared.state.records);
+  if (identities.status === "refused") return identities;
+  prepared.state.identities = identities.result;
+  Object.assign(context.state, prepared.state);
+  return ok(result);
 }
 
 /** Validate every input before publishing the batch's independently prepared namespace.
@@ -150,6 +157,9 @@ export function batchReference(context: ReferenceContext, input: BatchInput): St
   const prepared = { ...context, state: structuredClone(context.state) };
   const batchId = randomUUID();
   const results = writes.map((write) => land(prepared, write, batchId));
+  const identities = indexIdentities(prepared.state.records);
+  if (identities.status === "refused") return identities;
+  prepared.state.identities = identities.result;
   Object.assign(context.state, prepared.state);
   return ok({ batchId, writes: results });
 }
