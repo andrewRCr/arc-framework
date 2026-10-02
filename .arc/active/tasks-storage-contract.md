@@ -592,76 +592,81 @@ as stated.
 
 ## **Phase 8:** Verification
 
-### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **8.1 Complete verification** — whole-work-unit verification
+
+- _Quality gates:_ Markdown/ARC checks, code/shell lint, both type checks, build and the routine lane pass;
+  15,340 tests with 693 declared skips. Required CI run 37074329507 passes E2E and Linux portability.
+- _Success criteria:_ All 20 met against the complete work-unit diff and tree. Four full adversarial passes
+  stopped with the broader residual accepted; both focused response checks completed, the final one clean.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` The conformance suite passes against the in-repo implementation and the reference backend, each over every
+- `[x]` The conformance suite passes against the in-repo implementation and the reference backend, each over every
   family its fixture serves, with each item, assertion, or refusal a fixture excludes reported by name with its reason.
 
-- `[ ]` Version conflicts are produced and asserted on both backends — on the in-repo implementation by racing writers
+- `[x]` Version conflicts are produced and asserted on both backends — on the in-repo implementation by racing writers
   on each substrate — and stale bases, with merged versions and conflict records, on the reference backend.
 
-- `[ ]` On both backends, a write to an unrelated record changes no bound check.
+- `[x]` On both backends, a write to an unrelated record changes no bound check.
 
-- `[ ]` A batch with one stale record applies nothing and names every stale record; on the in-repo implementation a
+- `[x]` A batch with one stale record applies nothing and names every stale record; on the in-repo implementation a
   batch spanning substrates refuses `unsupported` with no file, note, or ref changed.
 
-- `[ ]` Differential tests show reads through the contract returning what the current code path returns, and writes
+- `[x]` Differential tests show reads through the contract returning what the current code path returns, and writes
   producing the bytes today's writers produce, for a meta through the lifecycle index, a Candidate record, a transition
   record, a `USER-INBOX` file with its entries as today's parser reads them, a `SESSION-NOTES` file, and Errand records
   — their absent, `error`, and complete outcomes read, and a record's blob written.
 
-- `[ ]` `resolveActiveWu`, `readActiveMetaCandidates`, and `resolveCurrentWuSlug` delegate to the current-work-unit
+- `[x]` `resolveActiveWu`, `readActiveMetaCandidates`, and `resolveCurrentWuSlug` delegate to the current-work-unit
   resolver, and every existing test passes unchanged.
 
-- `[ ]` The identity-keyed lifecycle index returns the same records and fields as today's path reads for each query of
+- `[x]` The identity-keyed lifecycle index returns the same records and fields as today's path reads for each query of
   every enumerated caller, but for the two cases Tasks 4.3.a and 5.2.a name, and the enumeration re-derived at Phase 6's
   close finds none missing.
 
-- `[ ]` The checkpoint's and merge composition's default lifecycle storage is the new store, and their tests pass
+- `[x]` The checkpoint's and merge composition's default lifecycle storage is the new store, and their tests pass
   unchanged.
 
-- `[ ]` The diff touches nothing under `packages/arc-framework/arc/`, no verb gains or loses a commit, and the existing
+- `[x]` The diff touches nothing under `packages/arc-framework/arc/`, no verb gains or loses a commit, and the existing
   ceremony tests pass unchanged.
 
-- `[ ]` The concurrency library is covered for disjoint insertions; a same-entry clash keeping the current version and
+- `[x]` The concurrency library is covered for disjoint insertions; a same-entry clash keeping the current version and
   becoming a conflict record that names its entry, with both sides labelled; a removal racing an edit leaving the edit;
   a retitle merging as an edit; an entry without an ID gaining one and an ID clash re-drawn; clean and conflicting
   three-way line merges; and rank keys at any position, tied neighbours included, sorting as specified.
 
-- `[ ]` The package build output contains none of the reference backend, and the import guard fails on a planted import
+- `[x]` The package build output contains none of the reference backend, and the import guard fails on a planted import
   from `src/`.
 
-- `[ ]` Every refusal the contract defines is returned as a value, never thrown, and carries its class, observed
+- `[x]` Every refusal the contract defines is returned as a value, never thrown, and carries its class, observed
   condition, and remedy; each recoverable refusal has a test reaching the success path after its remedy; and no error a
   backend catches from the code it wraps is classified by its message text — the wrapped code sets each cause where
   Git fails, with today's predicates.
 
-- `[ ]` The in-repo implementation reports no for state off the checkout's branch and the reference backend yes; every
+- `[x]` The in-repo implementation reports no for state off the checkout's branch and the reference backend yes; every
   record reads format version 1 over the in-repo implementation; and an unparseable record is an unreadable entry with
   a diagnostic that blocks no session-init for an unrelated work unit.
 
-- `[ ]` On the in-repo implementation, every kind with no home in today's substrates lists `absent` and refuses writes
+- `[x]` On the in-repo implementation, every kind with no home in today's substrates lists `absent` and refuses writes
   `unsupported`.
 
-- `[ ]` No module under `src/` outside `lib/store/` imports a backend, and tests reach backends only through the
+- `[x]` No module under `src/` outside `lib/store/` imports a backend, and tests reach backends only through the
   conformance fixtures.
 
-- `[ ]` The reference backend produces every sync outcome and failure class, and over the in-repo implementation each
+- `[x]` The reference backend produces every sync outcome and failure class, and over the in-repo implementation each
   outcome today's notes save and push and Errand push report maps onto D4's as stated, with `arc sync`'s behavior and
   tests unchanged.
 
-- `[ ]` Every test-cost budget row the change moves was baselined before the first new test file landed, and its
+- `[x]` Every test-cost budget row the change moves was baselined before the first new test file landed, and its
   comparison is recorded at verification.
 
-- `[ ]` All quality gates pass: Markdown lint and the ARC contract checks, both type checks, `lint:ts` with no new
+- `[x]` All quality gates pass: Markdown lint and the ARC contract checks, both type checks, `lint:ts` with no new
   size-gate suppression, `npm test`, and the build, with E2E and portability passing in required CI.
 
-- `[ ]` The in-repo fixture reports each A1 sync exception by name and reason, and direct tests verify repeated
+- `[x]` The in-repo fixture reports each A1 sync exception by name and reason, and direct tests verify repeated
   publish outcomes, same-key transient conflicts, disjoint reconciliation, and merged notes with unchanged personal
   working files.
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration

@@ -12,13 +12,14 @@
 - **Design:** `spec-storage-contract.md`
 - **Task List:** `tasks-storage-contract.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:fb1c8194db1732b064f54d34aaad1485625cd6464f811b6b26fbe6aa0d20d7da`
 
-- **Current Workflow:** [none]
-- **Last Completed:** Phases 1–7 complete; Task 7.4.R — Preserve existing sync in conformance — A1
-- **Next Task:** Task 8.1 — Complete verification (line ~595 in `tasks-storage-contract.md`)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 8.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 8.1 — load and follow `verify-work-unit.md` for whole-work-unit verification
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]
