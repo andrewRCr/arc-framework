@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "current-workflow-lifecycle-name",
+  "claimId": "f93d2f388eca6bbed75892a9bf6e72f6",
+  "createdAt": "2026-10-02T17:10:46.916Z",
+  "updatedAt": "2026-10-02T17:10:46.916Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make Current Workflow name the active lifecycle workflow",
+  "branch": "chore/current-workflow-lifecycle-name",
+  "origin": "inbox",
+  "originEntry": "Make Current Workflow name the active lifecycle workflow",
+  "originEntrySourceDigest": "sha256:d3bbc7fcaa851af3f5f7bcf7188d1bda8def7c387ca11216d3d6da369ab84765",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
