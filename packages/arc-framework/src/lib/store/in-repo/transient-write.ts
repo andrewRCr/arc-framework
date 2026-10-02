@@ -30,7 +30,7 @@ export async function writeTransient(context: InRepoContext, input: WriteInput):
  */
 export async function batchTransient(context: InRepoContext, input: BatchInput): Promise<BatchResult> {
   const io = await transientIO(context);
-  for (const write of input.writes) admitTransient(write.reference, io?.identity ?? null);
+  admitTargets(input.writes, io?.identity ?? null);
   if (io === null) throw new Error("Missing admitted identity");
   const replacements = new Map<string, TransientIdentityRecord>();
   for (const write of input.writes) {
@@ -58,6 +58,18 @@ export async function batchTransient(context: InRepoContext, input: BatchInput):
     } });
   const value = transactionValue(outcome, input.writes, io.identity, Math.max(0, context.ports.clock().getTime() - started));
   return { batchId: randomUUID(), writes: value.writes };
+}
+function admitTargets(writes: Mutation[], identity: string | null): void {
+  const targets = new Map<string, RecordReference>();
+  for (const write of writes) {
+    admitTransient(write.reference, identity);
+    const key = transientKey(write.reference);
+    const previous = targets.get(key);
+    if (previous !== undefined) refuse({ code: "ambiguous-match", class: "recoverable",
+      candidates: [previous, write.reference], condition: `Two requested records resolve to identity entry ${key}.`,
+      remedy: { text: "Use one reference per physical identity entry, then retry this batch." } });
+    targets.set(key, write.reference);
+  }
 }
 function staleMutation(write: Mutation, records: ReadonlyMap<string, TransientIdentityRecord>, objects: ReadonlyMap<string, string>): boolean {
   const key = transientKey(write.reference);
