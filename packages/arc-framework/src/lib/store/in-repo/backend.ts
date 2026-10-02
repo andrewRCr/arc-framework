@@ -31,12 +31,14 @@ export function createInRepoBackend(ports: StorePorts): Store {
     version: () => runOperation(() => stateVersion(context)),
     history: (input) => runOperation(() => trackedHistory(context, input)),
     changes: (input) => runOperation(() => trackedChanges(context, input)),
-    lookup: (input) => runOperation(() => lookupTracked(context, input)), sync: () => pending(),
+    lookup: (input) => runOperation(() => lookupTracked(context, input)),
+    sync: () => pending(),
   };
 }
 async function dispatchedWrite(context: InRepoContext, input: WriteInput): Promise<WriteResult> {
   const home = context.registry[input.reference.kind].inRepo.substrate;
-  if (home === "personal" || home === "transient-identity") throw new ArcError(`${home} storage is not implemented`, "store.not-implemented");
+  if (home === "personal") return (await import("./personal-write.js")).writePersonal(context, input);
+  if (home === "transient-identity") throw new ArcError(`${home} storage is not implemented`, "store.not-implemented");
   return writeTracked(context, input);
 }
 async function dispatchedBatch(context: InRepoContext, input: BatchInput): Promise<BatchResult> {
@@ -44,6 +46,7 @@ async function dispatchedBatch(context: InRepoContext, input: BatchInput): Promi
   if (homes.has("none")) return unsupported("unhomed-kind", "A requested kind has no home before the flip", "Keep using the existing verb for this record until it is rerouted.");
   if (homes.size > 1) return unsupported("cross-substrate-batch", "This batch spans the interim substrates",
     "Split the batch by substrate and use a backend currently serving each one, preserving the verb's existing order and idempotent retries.");
+  if (homes.has("personal")) return (await import("./personal-write.js")).batchPersonal(context, input);
   if (!homes.has("tracked")) throw new ArcError("This batch substrate is not implemented", "store.not-implemented");
   return batchTracked(context, input);
 }
@@ -53,8 +56,10 @@ async function dispatchedList(context: InRepoContext, input: ListInput): Promise
   if (input.kind !== undefined) {
     const home = context.registry[input.kind].inRepo.substrate;
     if (home === "none") return { status: "absent", ...(input.asOf === undefined ? {} : { asOf: input.asOf }) };
+    if (home === "personal") return (await import("./personal.js")).listPersonal(context, input);
     if (home !== "tracked") throw new ArcError(`${home} storage is not implemented`, "store.not-implemented");
   }
+  if (input.kind === undefined && input.family === "personal") return (await import("./personal.js")).listPersonal(context, input);
   if (input.kind === undefined && Object.values(context.registry).some((kind) => kind.family === input.family
     && ["personal", "transient-identity"].includes(kind.inRepo.substrate))) {
     throw new ArcError("This family substrate is not implemented", "store.not-implemented");
@@ -66,6 +71,7 @@ async function dispatchedRead(context: InRepoContext, input: ReadInput): Promise
   if (home === "none") return notFound(input.reference);
   if (home !== "tracked") {
     if (input.asOf !== undefined) return unsupported("uncovered-state-version", "This record is outside the branch's saved state", "Read the record using its own per-record version instead.");
+    if (home === "personal") return (await import("./personal.js")).readPersonal(context, input);
     throw new ArcError(`${home} storage is not implemented`, "store.not-implemented");
   }
   return readTracked(context, input);

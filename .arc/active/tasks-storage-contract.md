@@ -507,62 +507,23 @@ serves; reads and writes of personal files and Errand records through the contra
 spanning substrates refuses `unsupported` with no file, note, or ref changed; and in-repo sync outcomes map onto D4's
 as stated.
 
-### `[ ]` **7.1 Personal files: lock-free reads and compare-and-swap writes — D5, D8**
+### `[x]` **7.1 Personal files: lock-free reads and compare-and-swap writes — D5, D8**
 
 - _Goal:_ Personal files read and write through the contract where they live, each file one record, with the whole-file
   content digest as its version and compare-and-swap basis and writes under today's notes lock, returning the bytes
   today's readers read and writing the bytes today's writers write, for a `USER-INBOX` file and a `SESSION-NOTES` file.
 
-    - `[ ]` **7.1.a Reads and listings**
-        - Reads and listings take no lock, as today's readers take none: a contract write replaces a file atomically
-          (Task 7.1.b), so a read sees the old bytes or the new, never a part. A read never waits on a notes push,
-          which holds the notes lock across `git fetch` (`reconcileAndRepush`, `commands/user/push-fetch.ts`). The
-          machine-local set is never listed, by today's two dot-prefix rules.
-        - Each file is read from the root today's code reads it from (`createUserSurfaceResolver`,
-          `lib/user-surfaces.ts`): a `SESSION-NOTES` file from this checkout's per-work-unit workspace, by its work
-          unit, at its `session-notes` address (Task 1.5.b), as is any other file in that workspace; `USER-INBOX`,
-          `WORKING-MEMORY`, and the other files at the identity's top level from the identity-global root
-          `resolveUserSurfaceResolver` selects, the primary worktree's.
-        - Build `test-first` (one behavior at a time), each differential against today's reader:
-            - a `USER-INBOX` file reads byte for byte, and today's entry parser (`parseCrossWuEntries`,
-              `lib/user-sync/parser.ts`) over the bytes read gives the entries today's reader gives;
-            - a `SESSION-NOTES` file reads byte for byte;
-            - a personal document reads byte for byte by its path under the identity's root;
-            - from a linked worktree, `SESSION-NOTES` reads that checkout's file and `USER-INBOX` the primary's;
-            - a read and a listing return at once while another process holds the notes lock;
-            - with no identity configured, a listing is `absent`, and a read and a write each refuse `not-found` saying
-              no identity is configured and naming `arc.identity` as its remedy; once it is set, the same read and write
-              succeed;
-            - a missing file is `not-found`.
+    - `[x]` **7.1.a Reads and listings**
+        - Whole-file reads retain exact bytes and digest versions through the existing primary and checkout workspace
+          roots. Lock-free listings exclude machine state and distinguish unreadable roots from unreadable entries.
 
-    - `[ ]` **7.1.b Compare-and-swap writes**
-        - A write replaces the whole file. The caller computes the new content with today's writer — the inbox writer's
-          transforms (`lib/user-sync/inbox-writer.ts`) for an entry change — so finding an entry by its title, and any
-          content today's writer rejects, stay with the caller, and the backend never parses the file.
-        - Under the lock `getNotesLockPath` names, acquired through `acquireAdvisoryLock` (`lib/advisory-lock.ts`), the
-          write checks the digest — new, since no personal writer checks one today — and replaces the file atomically
-          (`atomicWriteFile`, `lib/fs.ts`), as the inbox mutation does today (`commands/user/inbox-mutation.ts`).
-        - Build `test-first` (one behavior at a time):
-            - a write with the current digest writes the content and returns the new digest, and for an inbox entry
-              change the file's bytes equal the inbox writer's for the same change;
-            - a `SESSION-NOTES` file written with the seed `runUserOpen` (`commands/user/open.ts`) writes has the bytes
-              it leaves today;
-            - a stale digest refuses `version-conflict`, also from racing writers, and a re-read and re-apply succeeds;
-            - a removal with the current digest deletes the file under the lock, as workspace close deletes today;
-            - a lock held past the wait refuses `lock-held`, classified by error class, and the write succeeds once the
-              lock is released;
-            - `history` of a personal file refuses `unsupported` (terminal), and a read as of a version `unsupported`
-              (recoverable).
+    - `[x]` **7.1.b Compare-and-swap writes**
+        - Whole-file replacements and removals check digests under the existing notes lock. Reserved aliases name their
+          unique role; racing writes and typed lock timeouts have repairable refusals.
 
-    - `[ ]` **7.1.c Batches of personal files**
-        - Under one hold of the notes lock, every file's digest is checked before any is replaced; then each is replaced
-          atomically, and on any failure every file already replaced is restored from the bytes captured before the
-          batch, as tracked batches restore (Task 4.4.b). A removal in the batch is restored by rewriting its bytes.
-        - Build `test-first` (one behavior at a time):
-            - a batch with one stale file writes nothing and names every stale file;
-            - a batch that fails midway restores every file already written or removed;
-            - a restore that itself fails throws an `ArcError` naming every file it left changed, as a failed tracked
-              restore does.
+    - `[x]` **7.1.c Batches of personal files**
+        - One lock covers complete digest preflight and all replacements. Restoration includes removals and attempted
+          failing targets, certifies resulting bytes, and names every remaining changed or unreadable file.
 
 ### `[ ]` **7.2 Transient-identity records: snapshot reads and transactional writes — D4, D8**
 
