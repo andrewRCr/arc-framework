@@ -24,7 +24,6 @@ import type { HistoryEntry } from "../contract.js";
  */
 export function createInRepoBackend(ports: StorePorts): Store {
   const context = createInRepoContext(ports);
-  const pending = (): Promise<never> => Promise.reject(new ArcError("Store operation is not implemented", "store.not-implemented"));
   return {
     capabilities: { stateOffBranch: false },
     read: (input) => runOperation(() => dispatchedRead(context, input)),
@@ -35,7 +34,7 @@ export function createInRepoBackend(ports: StorePorts): Store {
     history: (input) => runOperation(() => dispatchedHistory(context, input)),
     changes: (input) => runOperation(() => trackedChanges(context, input)),
     lookup: (input) => runOperation(() => dispatchedLookup(context, input)),
-    sync: () => pending(),
+    sync: () => runOperation(async () => (await import("./sync.js")).syncInRepo(context)),
   };
 }
 async function dispatchedWrite(context: InRepoContext, input: WriteInput): Promise<WriteResult> {

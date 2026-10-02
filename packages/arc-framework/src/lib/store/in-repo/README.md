@@ -24,3 +24,9 @@ Transient identity records read the current local ref without fetching and retai
 basis. Writes use the existing complete-basis transaction, checking expected versions after remote reconciliation.
 Stale writes leave caller changes unapplied while landing the reconciled basis. History preserves raw ref commit
 messages; claims and canonical Errand branches resolve through local records.
+
+Sync saves and reconciles personal notes before pushing the independent transient ref, without pushing the branch.
+Returned notes outcomes allow the second publish; a thrown local failure ends sync before it. Configured remote Git
+failures carry structured publication facts, while local failures retain their original causes. Producer behavior
+includes repeated `pushed` results, same-key transient conflicts, and notes reconciliation without loading working files.
+Batches spanning substrates refuse before changing files, notes, refs or the index; retry them separately in order.

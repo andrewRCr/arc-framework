@@ -123,13 +123,10 @@ export async function runUserSave(
   // the tombstone basis is also a repo-shared disk snapshot. Serialize the HEAD
   // resolution, disk read, tombstone apply, write, verification, and baseline
   // stamp together so every diff input belongs to the same locked view.
-  const lock = await acquireAdvisoryLock(await getNotesLockPath(io.exec, cwd, identity));
-  let saved: LockedUserSave;
-  try {
-    saved = await saveUserDirectoryUnderHeldLock(options, currentWuName);
-  } finally {
-    await releaseAdvisoryLock(lock);
-  }
+  const saved = await (options.withNotesLock ?? (async <T>(operation: () => Promise<T>): Promise<T> => {
+    const lock = await acquireAdvisoryLock(await getNotesLockPath(io.exec, cwd, identity));
+    try { return await operation(); } finally { await releaseAdvisoryLock(lock); }
+  }))(() => saveUserDirectoryUnderHeldLock(options, currentWuName));
   return finishUserSave(options, saved);
 }
 
@@ -157,7 +154,7 @@ async function saveUserDirectoryUnderHeldLock(
   });
 
   if (Object.keys(result.manifest.files).length === 0) {
-    throw new UserSaveError("No eligible files found in user directory to save.");
+    throw new UserSaveError("No eligible files found in user directory to save.", "no-eligible-files");
   }
 
   const baseline = await readMaterializedBaselineStamp(io.exec, cwd, identity);

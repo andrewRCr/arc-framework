@@ -548,70 +548,20 @@ as stated.
 - _Outcome:_ A stale expected version leaves the caller change unapplied while publishing the reconciled basis,
   so a re-read can observe a remote-only change and clear the conflict.
 
-### `[ ]` **7.3 Batches across substrates and in-repo sync — D3, D4, D8**
+### `[x]` **7.3 Batches across substrates and in-repo sync — D3, D4, D8**
 
 - _Goal:_ A batch spanning substrates refuses `unsupported` before anything is written, and contract `sync` covers
   personal files through today's notes save and push and transient-identity refs through their reconcile and push,
   reporting D4's outcomes with the in-repo additions while what `arc sync` does stays unchanged.
 
-- **Additional Context:** `notes-storage-contract.md` § Implementation pointers (sync outcomes today; no remote read
-  from configuration; the Errand push's two-way merge)
+    - `[x]` **7.3.a Cross-substrate batches**
+        - A real three-substrate batch refuses before changing any tracked file, personal file, note, ref or index.
+          The independently sequenced writes then succeed with the same expected versions.
 
-    - `[ ]` **7.3.a Cross-substrate batches**
-        - Build `test-first`: a batch spanning tracked, personal, and transient-identity records refuses `unsupported`
-          (recoverable) with no file, note, or ref changed, all three asserted, and the writes sequenced as the remedy
-          names succeed.
-
-    - `[ ]` **7.3.b In-repo sync**
-        - Personal files sync through today's notes sync, save then push, as `arc sync` runs them when it pushes notes
-          without the branch (`pushNotesLeg` in `handlers/sync.ts`): `runUserSave` (`commands/user/save-load.ts`)
-          snapshots the files into today's note on `HEAD`, then `reconcileNotesPush` (`commands/user/push-fetch.ts`)
-          pushes, and on a `history-diverged` refusal or a non-fast-forward fetches, merges the notes, and pushes again.
-          Contract `sync` never pushes the branch, so `arc sync`'s paired path (`runPairedPush`), which pushes the
-          branch and then a notes export bounded by it, stays `arc sync`'s own until the cutover removes it.
-          Transient-identity refs sync through `reconcileErrandPush` (`lib/errand/merge.ts`). The notes push runs first,
-          as `arc sync` runs it, and the Errand push runs whatever outcome the first returns, since they push
-          independent refs; sync reports one outcome for each: the notes push's naming personal files, the Errand push's
-          naming Errand records and claims. A throw is no outcome: a leg that throws — the notes save's failed readback,
-          below, or anything D4 rethrows — ends sync there, so a notes leg that throws leaves the Errand push unrun,
-          where `arc sync` records the save failed and still runs its Errand leg (`handlers/sync.ts`); the caller
-          repairs the cause and syncs again. Each outcome they produce maps onto D4's as D4 states it: the notes push's
-          `pushed`, `noop`, and `reconciled` as themselves, `no-local-notes` as `noop`, `conflict` and `blocked` as the
-          in-repo outcomes, `refused` as the notes export's local refusal it names, and `no-remote` and `failed` as
-          below.
-        - A save that finds no eligible file ends `noop`, as `no-local-notes` does: the `UserSaveError` it throws gains
-          a typed reason, its class and message unchanged, and only that reason ends `noop`. `UserSaveVerificationError`
-          extends `UserSaveError` (`commands/user/types.ts`) and means the saved note failed its readback: the backend
-          rethrows it as an `ArcError` with the original as its cause, as `arc sync` reports it failed.
-        - With no identity configured — neither `arc.identity` nor `user.name` set — both pushes ride refs keyed by the
-          identity, so sync reports `no-identity` once, naming `arc.identity` and the three families they carry —
-          personal surfaces, work items for the Errand records, and claims — and runs neither the save nor either push,
-          whether or not a remote is configured, as `arc sync` reports `identity-absent` before either leg today
-          (`handlers/sync.ts`).
-        - Whether `origin` is set is read from configuration before anything is pushed (the remote selection, Task
-          4.2.b): with none, sync reports no remote as a state and calls neither push. A push or fetch that then fails
-          maps as in Task 7.2.b, so today's `no-remote` from a configured remote is `unreachable`; whether a remote
-          exists is never told apart by Git's message.
-        - The Errand push's `failed` and the notes push's `failed` carry their cause as data, set where Git fails, their
-          kinds and messages unchanged; the Errand push's exhausted attempts are `retries-exhausted`. A notes push
-          `failed` with no Git cause — the notes lock not taken within its wait (`AdvisoryLockTimeoutError`), the
-          compaction-lineage check unable to run, or a local error inside the push — is rethrown as an `ArcError` with
-          the original as its cause (D4), as the save's own lock timeout already throws, so either leg's lock held past
-          its wait ends sync before the Errand push.
-        - Build `test-first`: one case per outcome today's save and two pushes produce, asserting the mapped outcome and
-          its fields; with this clone's Errand ref ahead of the remote's, left by a transient write whose own push
-          failed, so that an unchanged remote ref shows the Errand push never ran, a reconciling notes push whose lock
-          seam (`ReconcileNotesLock`, `commands/user/push-fetch.ts`) times out, and one whose lineage check cannot run,
-          each throw an `ArcError` with the remote's Errand ref unchanged, and a failed readback surfaces as a thrown
-          `ArcError`, never `noop`, with the remote's Errand ref unchanged; notes saved on a commit not yet pushed
-          refuse `unpublished-history` while the same sync's Errand push ends `pushed`, each outcome naming its
-          families; two clones (`__tests__/helpers/multi-clone.ts`) that each save notes on a commit of their own,
-          pushed to the remote, and then sync end `pushed` and then `reconciled`, the remote holding both clones' files,
-          while two that save different content on one commit end `conflict`; with no identity configured, sync reports
-          `no-identity` once, naming the three families, with no note or ref changed, and with `origin` unset reports no
-          remote beside it, and syncs once `arc.identity` is set; and a personal file written through the contract and
-          then synced reaches the remote's notes.
-        - `arc sync` (`handlers/sync.ts`) keeps its code; its tests pass unchanged.
+    - `[x]` **7.3.b In-repo sync**
+        - Notes save and reconcile run before the independent Errand push, preserving producer outcomes and family
+          bindings. Typed empty-save results map to noop; local failures and failed readbacks retain their causes and
+          end before the Errand push. Actual transport facts carry their failure class, retry count and elapsed time.
 
 ### `[ ]` **7.4 Conformance over every family — D7**
 

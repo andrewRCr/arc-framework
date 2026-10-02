@@ -49,7 +49,7 @@ export type PlanBranchBoundedNotesExportResult =
 export type PushBranchBoundedNotesExportResult =
   | { kind: "pushed" }
   | { kind: "noop" }
-  | { kind: "no-remote" }
+  | { kind: "no-remote"; error?: Error }
   | { kind: "failed"; error: Error };
 
 /** Inputs for {@link planBranchBoundedNotesExport}. */
@@ -170,7 +170,7 @@ export async function pushBranchBoundedNotesExport(
     return { kind: "pushed" };
   } catch (error) {
     const normalized = toError(error);
-    if (isRemoteUnavailableError(gitFailureText(error))) return { kind: "no-remote" };
+    if (isRemoteUnavailableError(gitFailureText(error))) return { kind: "no-remote", error: normalized };
     return { kind: "failed", error: normalized };
   }
 }
