@@ -142,8 +142,11 @@ import { projectDeliveryPublicReviewContinuation } from
   "../../src/lib/delivery/public-review-continuation.js";
 import { createPrePublicationCompositionDependencies } from
   "../../src/scripts/review-gate/policy/pre-publication-composition.js";
-import type { ReviewCeilingOverride } from
-  "../../src/scripts/review-gate/policy/review-policy-driver.js";
+import type {
+  ReviewAdditionalPassAuthorization,
+  ReviewCeilingOverride,
+} from "../../src/scripts/review-gate/policy/review-policy-driver.js";
+import { optionalReviewStatusJudgment } from "../../src/scripts/review-gate/status-judgment.js";
 import type { DeliveryLocalReviewAdmission } from
   "../../src/scripts/review-gate/policy/delivery-local-review-admission.js";
 import { projectLocalReviewGuidance } from
@@ -921,18 +924,20 @@ async function statusThroughHandler(
   ceilingOverride?: ReviewCeilingOverride,
   coverage?: HostedReviewCoverage,
   sourceId?: "coderabbit-pr" | "codex-pr" | "delegated-agent",
+  additionalPass?: ReviewAdditionalPassAuthorization,
 ) {
   const output: string[] = [];
   const exitCodes: number[] = [];
   await handleReviewStatus({
     target: JSON.stringify(target),
     ...(ceilingOverride === undefined ? {} : { ceilingOverride: JSON.stringify(ceilingOverride) }),
+    ...(additionalPass === undefined ? {} : { additionalPass: JSON.stringify(additionalPass) }),
     ...(coverage === undefined ? {} : { coverage }),
     ...(sourceId === undefined ? {} : { source: sourceId }),
   }, undefined, {
     resolveRoot: () => harness.root,
     resolve: (root, input) => resolveReviewStatus(input, {
-      observe: async (statusTarget, admittedOverride, admittedCoverage, admittedSourceId) => ({
+      observe: async (statusTarget, admittedOverride, admittedCoverage, admittedSourceId, admittedAdditional) => ({
         actualHeadSha: statusTarget.headSha,
         requiredChecks: "green",
         routedObligation: await readRoutedObligation(
@@ -942,13 +947,12 @@ async function statusThroughHandler(
           42,
           new RepositoryDeliveryMemberLookup({ cwd: root, exec: harness.exec }),
           harness.baseHead,
-          admittedOverride === undefined && admittedCoverage === undefined && admittedSourceId === undefined
-            ? undefined
-            : {
-                ...(admittedOverride === undefined ? {} : { ceilingOverride: admittedOverride }),
-                ...(admittedCoverage === undefined ? {} : { coverage: admittedCoverage }),
-                ...(admittedSourceId === undefined ? {} : { sourceId: admittedSourceId }),
-              },
+          optionalReviewStatusJudgment({
+            ceilingOverride: admittedOverride,
+            additionalPassAuthorization: admittedAdditional,
+            coverage: admittedCoverage,
+            sourceId: admittedSourceId,
+          }),
           deliveryHost(harness),
         ),
         currentBaseOid: harness.baseHead,
@@ -2242,14 +2246,20 @@ describe("hosted review fan-out lifecycle", () => {
       now: "2026-09-04T20:03:00.000Z",
     });
     if (finalProgress === null) throw new Error("expected final member findings progress");
-    await bindApprovedHostedFinding(harness, {
+    const finalDispositionSetId = await bindApprovedHostedFinding(harness, {
       operationId: finalProgress.operationId,
       handle: finalRequested.handle,
       progress: finalProgress,
       finding,
-      disposition: "reject",
+      disposition: "fix",
       channelAction: "record-only",
       now: "2026-09-04T20:04:00.000Z",
+    });
+    await recordLaneResponsePerformance(harness.store, {
+      lane: "standard", repositoryId: harness.repositoryId, headSha: initialTerminalHead,
+      lineage: finalRequested.handle.admission.lineage, attemptId: hostedLaneAttemptId(finalRequested.handle),
+      dispositionSetId: finalDispositionSetId, producedHeadSha: initialTerminalHead,
+      now: "2026-09-04T20:04:30.000Z",
     });
 
     const continuation = await workUnitStatusThroughHandler(harness, firstStatusTarget);
@@ -3418,7 +3428,7 @@ describe("hosted review fan-out lifecycle", () => {
     const authorizationId = result.payload.conditionalPassAuthorizationId;
     expect(authorizationId).toMatch(/^sha256:[0-9a-f]{64}$/u);
     expect(result.payload).toMatchObject({
-      policy: { state: "findings", nextAction: "respond" },
+      policy: { state: "pass-complete", nextAction: "none" },
       policyRequest: {
         ceilingOverride: {
           ...ceilingOverride,
@@ -3892,7 +3902,7 @@ describe("hosted review fan-out lifecycle", () => {
         findings: [finding] }, now: "2026-09-01T10:04:00.000Z" });
     if (progress === null) throw new Error("expected fallback findings");
     const dispositionSetId = await bindApprovedHostedFinding(harness, { operationId: progress.operationId, handle, progress,
-      finding, disposition: "reject", channelAction: "record-only", now: "2026-09-01T10:05:00.000Z" });
+      finding, disposition: "fix", channelAction: "record-only", now: "2026-09-01T10:05:00.000Z" });
     await recordLaneResponsePerformance(harness.store, {
       lane: "standard", repositoryId: harness.repositoryId, headSha: target.headSha, lineage,
       attemptId: hostedLaneAttemptId(handle), dispositionSetId,
@@ -3945,7 +3955,7 @@ describe("hosted review fan-out lifecycle", () => {
     });
   });
 
-  it("admits a second same-head Errand pass after a performed record-only response", async () => {
+  it("does not admit a second same-head Errand pass after a rejected major", async () => {
     const harness = await createHarness(["codex-pr"]);
     const slug = "review-pass-two";
     const claimId = "0123456789abcdef0123456789abcdef";
@@ -4039,18 +4049,13 @@ describe("hosted review fan-out lifecycle", () => {
       errandRoot, makeGitExec(errandRoot),
       { repository, headRef: `chore/${slug}`, headSha: errandHead },
       42, undefined, await git(errandRoot, ["rev-parse", "main"]),
-    )).resolves.toMatchObject({
-      state: "review-required",
-      detail: expect.stringContaining("ready/hosted-request"),
-    });
+    )).resolves.toMatchObject({ state: "settled" });
     const second = await requestThroughProductionHandler(errandHarness, fakeBin, request);
-    expect(second.exitCodes, JSON.stringify(second.output)).toEqual([]);
-    expect(second.output).toMatchObject({ state: "requested", handle: { admission: { logicalPass: 2 } } });
+    expect(second.exitCodes).toEqual([1]);
+    expect(JSON.stringify(second.output)).toContain("driver admission (pass-complete/none)");
     const index = new HostedRequestOwnerIndex(new RepositoryGitCommonStatePublisher(harness.exec, harness.root));
-    expect((await index.read(harness.repositoryId, request))).toMatchObject({
-      logicalPass: 2, completedPassesAtAdmission: 1, phase: "admitted",
-    });
-    await expect(readFile(providerCalled, "utf8")).resolves.toBe("request\nrequest\n");
+    expect((await index.read(harness.repositoryId, request))?.logicalPass).toBe(1);
+    await expect(readFile(providerCalled, "utf8")).resolves.toBe("request\n");
   });
 
   it("replays an acknowledged production request after its current target context disappears", async () => {
@@ -4378,7 +4383,7 @@ describe("hosted review fan-out lifecycle", () => {
     });
   });
 
-  it("keeps a five-pass material member outstanding without re-reviewing its clean sibling", async () => {
+  it("keeps a five-pass material-fix member outstanding without re-reviewing its clean sibling", async () => {
     const harness = await createHarness(["coderabbit-pr"]);
     const firstStatusTarget = {
       repository,
@@ -4495,11 +4500,11 @@ describe("hosted review fan-out lifecycle", () => {
             sourceVerification: "verified" as const,
             verificationRefs: [finding.url],
             verifiedSeverity: "major" as const,
-            disposition: "reject" as const,
+            disposition: "fix" as const,
             title: "Finding title",
             issue: "The reviewer's claim.",
             rationale: "The material signal remains present in the reviewed source.",
-            recommendation: "Retain the material result and continue only through explicit pass authority.",
+            recommendation: "Fix the material finding, then review the member again.",
             openQuestions: [],
           })),
         },
@@ -4516,19 +4521,13 @@ describe("hosted review fan-out lifecycle", () => {
         source,
         policyRequest,
         dispositions,
-      })).resolves.toMatchObject({
-        state: "settled",
-        payload: {
-          policy: {
-            state: "findings",
-            payload: {
-              verifiedTerminalSignal: {
-                confirmedFindingCount: findingCount,
-                maxConfirmedSeverity: "major",
-              },
-            },
-          },
-        },
+      })).resolves.toMatchObject({ state: "delivery-correction-required", nextAction: "continue-delivery-correction" });
+      await recordLaneResponsePerformance(harness.store, {
+        lane: "standard", repositoryId: harness.repositoryId, headSha: harness.priorSecond,
+        lineage: requested.handle.admission.lineage, attemptId: hostedLaneAttemptId(requested.handle),
+        dispositionSetId: CanonicalDigestSchema.parse(dispositions.dispositionSet.dispositionSetId),
+        producedHeadSha: harness.priorSecond,
+        now: `2026-09-10T14:${String(pass).padStart(2, "0")}:50.000Z`,
       });
       nextStatus = await statusThroughHandler(harness, secondStatusTarget);
     }
@@ -5692,66 +5691,6 @@ describe("hosted review fan-out lifecycle", () => {
       now: "2026-08-24T04:10:00.000Z",
     });
 
-    const thirdPassCeiling = await statusThroughHandler(harness, currentStatusTarget);
-    expect(thirdPassCeiling).toMatchObject({
-      state: "approval-required",
-      nextAction: "obtain-ceiling-override",
-      consequence: {
-        target: currentSecondTarget,
-        exhaustedPassCount: 2,
-        nextPass: 3,
-      },
-      routedObligation: {
-        conjunction: {
-          status: "outstanding",
-          members: [
-            { state: "discharged", vehicle: movedFirst },
-            { state: "outstanding", vehicle: currentSecond },
-          ],
-        },
-      },
-    });
-    if (thirdPassCeiling.nextAction !== "obtain-ceiling-override") {
-      throw new Error("expected a third-pass ceiling override");
-    }
-    const thirdPassStatus = await statusThroughHandler(
-      harness,
-      currentStatusTarget,
-      thirdPassCeiling.consequence,
-    );
-    expect(thirdPassStatus).toMatchObject({
-      state: "review-required",
-      nextAction: "review-hosted-request",
-      action: {
-        target: currentSecondTarget,
-        vehicle: currentSecond,
-        ceilingOverride: thirdPassCeiling.consequence,
-      },
-    });
-    if (thirdPassStatus.nextAction !== "review-hosted-request") {
-      throw new Error("expected overridden third-pass request");
-    }
-    const thirdPassRequested = await requestThroughHandler(thirdPassStatus.action, {
-      kind: "created",
-      artifact: {
-        kind: "pull-request-review",
-        id: "review-second-pass-three",
-        url: "https://example.test/review-second-pass-three",
-        createdAt: "2026-08-24T04:11:00.000Z",
-      },
-      effectiveCoverage: "complete",
-    }, harness.root, harness.exec);
-    if (thirdPassRequested.nextAction !== "await") throw new Error("expected third-pass review handle");
-    const thirdPassAwait = await awaitThroughHandler(thirdPassRequested.handle, {
-      kind: "clean",
-      reviewUrl: "https://example.test/review-second-pass-three",
-    });
-    await recordHostedAwaitAttempt(harness.store, {
-      repositoryId: harness.repositoryId,
-      result: thirdPassAwait,
-      now: "2026-08-24T04:12:00.000Z",
-    });
-
     const terminal = await statusThroughHandler(harness, currentStatusTarget);
     expect(terminal).toMatchObject({
       state: "settled",
@@ -5781,8 +5720,8 @@ describe("hosted review fan-out lifecycle", () => {
       consequence: {
         target: { repository, pullRequest: 42, headSha: third.head },
         lane: "standard",
-        exhaustedPassCount: 3,
-        nextPass: 4,
+        exhaustedPassCount: 2,
+        nextPass: 3,
       },
       routedObligation: {
         conjunction: {

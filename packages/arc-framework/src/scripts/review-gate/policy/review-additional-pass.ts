@@ -29,13 +29,8 @@ function sameReviewTarget(
     && left.headSha === right.headSha;
 }
 
-function convergedSignal(signal: {
-  coverageAdequate: boolean;
-  maxConfirmedSeverity: "critical" | "major" | "minor" | null;
-} | undefined): boolean {
-  return signal !== undefined && signal.coverageAdequate
-    && signal.maxConfirmedSeverity !== "major"
-    && signal.maxConfirmedSeverity !== "critical";
+function convergedSignal(signal: { coverageAdequate: boolean; materialFix: boolean } | undefined): boolean {
+  return signal !== undefined && signal.coverageAdequate && !signal.materialFix;
 }
 
 /**
@@ -50,7 +45,7 @@ export function invalidAdditionalPassReason(input: {
   completedPasses: number;
   authorization?: ReviewAdditionalPassAuthorization;
   terminal?: { outcome: string; reviewOperationId?: string };
-  signal?: { coverageAdequate: boolean; maxConfirmedSeverity: "critical" | "major" | "minor" | null };
+  signal?: { coverageAdequate: boolean; materialFix: boolean };
 }): "target-mismatch" | "lane-mismatch" | "pass-count-mismatch" | "next-pass-mismatch"
   | "preceding-producer-mismatch" | "pass-not-converged" | null {
   const { authorization } = input;

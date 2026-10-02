@@ -886,6 +886,7 @@ describe("earlier review attempt query", () => {
         reviewOperationId: attempt.attemptId,
         confirmedFindingCount: attempt.outcome === "clean" ? 0 : 1,
         maxConfirmedSeverity: attempt.outcome === "clean" ? null : "major",
+        materialFix: attempt.outcome !== "clean",
         coverageAdequate: true,
       },
     });

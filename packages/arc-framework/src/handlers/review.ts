@@ -181,8 +181,11 @@ import {
   ReviewResolveEnvelopeSchema,
   type ReviewPolicyCommandRequest,
 } from "../scripts/review-gate/policy/review-policy-driver.js";
-import { recordSingletonFrontlineInitialSkip } from
-  "../scripts/review-gate/policy/frontline-phase.js";
+import {
+  frontlinePhaseClosed,
+  recordSingletonFrontlineInitialSkip,
+  settledFrontlineAdviceReader,
+} from "../scripts/review-gate/policy/frontline-phase.js";
 import {
   assertEvidenceBoundReviewExecutionAdmission,
   resolveEvidenceBoundReviewPolicy,
@@ -298,9 +301,9 @@ import {
   LocalApprovedDispositionRecordStore,
 } from "../scripts/review-gate/hosts/local/disposition-record-store.js";
 import { currentApprovedDispositionNode } from "../scripts/review-gate/core/advisory-records.js";
-import { projectFrontlineFollowUpAdvice } from "../scripts/review-gate/policy/frontline-follow-up.js";
 import { createRepositoryReviewResultReader } from
   "../scripts/review-gate/hosts/local/review-result-reader-composition.js";
+import type { ReviewResultReader } from "../scripts/review-gate/core/ports.js";
 import {
   HostedSettleEnvelopeSchema,
   HostedSettleResultSchema,
@@ -1566,6 +1569,42 @@ export interface ReviewResolveHandlerDependencies {
   setExitCode(code: number): void;
 }
 
+/** Bind an Errand's frontline review to its claim, so phase history holds across every head the Errand reaches. */
+function errandFrontlineLineage(claimId: string, headSha: string): LaneSubjectLineage {
+  return LaneSubjectLineageSchema.parse({
+    kind: "head-bound",
+    vehicleKind: "errand",
+    vehicleIdentity: claimId,
+    headSha,
+  });
+}
+
+/**
+ * Read whether the active Errand has closed its opening frontline phase, from the record `frontline resolve` reads.
+ * Only a pre-change-request frontline request for an Errand subject consults it; an open change request already
+ * closes the phase, and a work unit reaches frontline through its pre-publication request.
+ */
+async function errandFrontlinePhaseClosed(
+  request: ReviewPolicyCommandRequest,
+  input: {
+    root: string;
+    exec: GitExec;
+    publisher: RepositoryGitCommonStatePublisher;
+    operationStore: LocalReviewOperationStateStore;
+    resultReader: ReviewResultReader;
+    dispositionStore: LocalApprovedDispositionRecordStore;
+  },
+): Promise<boolean> {
+  if (request.lane !== "frontline" || request.target.pullRequest !== null) return false;
+  const live = await readLocalReviewLiveContext({ exec: input.exec, cwd: input.root });
+  if (live.context.workUnit !== null || live.context.errand === null) return false;
+  return frontlinePhaseClosed(input.operationStore, {
+    repositoryId: await resolveRepositoryIdentity(input.publisher),
+    lineages: [errandFrontlineLineage(live.context.errand.claimId, request.target.headSha)],
+    readSettledFindingsAdvice: settledFrontlineAdviceReader(input.resultReader, input.dispositionStore),
+  });
+}
+
 function defaultReviewResolveDependencies(exec: GitExec): ReviewResolveHandlerDependencies {
   return {
     ...defaultReviewHandlerBoundary(),
@@ -1593,10 +1632,15 @@ async function resolveConfiguredReviewPolicy(
   const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
   const readResponsePerformance = (predecessor: ReviewResult) =>
     readLaneResponsePerformance(operationStore, predecessor);
+  const resultReader = createRepositoryReviewResultReader(publisher);
+  const phaseClosed = await errandFrontlinePhaseClosed(request, {
+    root, exec, publisher, operationStore, resultReader, dispositionStore,
+  });
   return resolveEvidenceBoundReviewPolicy(request, {
     sources,
     maxPasses,
-    resultReader: createRepositoryReviewResultReader(publisher),
+    ...(phaseClosed ? { frontlinePhaseClosed: true } : {}),
+    resultReader,
     dispositionStore,
     readResponsePerformance,
     confirmIncrementalApplicability: async (predecessor, current) => {
@@ -2587,20 +2631,9 @@ function defaultFrontlineResolveDependencies(context: InteractionContext): Revie
           producerId,
           dispositionSetId,
         ),
-        readSettledFindingsAdvice: async (producerId) => {
-          const result = await createRepositoryReviewResultReader(publisher).readResult(producerId);
-          if (result.kind !== "frontline") {
-            throw new Error("settled frontline owner does not match its immutable result");
-          }
-          const dispositions = await dispositionStore.readDispositionRecord(producerId);
-          if (dispositions === null) {
-            throw new Error("settled frontline findings lack an approved disposition record");
-          }
-          return projectFrontlineFollowUpAdvice({
-            outcome: result.outcome,
-            dispositionState: currentApprovedDispositionNode(dispositions).approvedDisposition,
-          });
-        },
+        readSettledFindingsAdvice: settledFrontlineAdviceReader(
+          createRepositoryReviewResultReader(publisher), dispositionStore,
+        ),
         resolveLineage: async (target, vehicle) => {
           const live = await readLocalReviewLiveContext({ exec, cwd: root });
           if (vehicle !== undefined) {
@@ -2617,12 +2650,7 @@ function defaultFrontlineResolveDependencies(context: InteractionContext): Revie
           if (live.context.errand === null) {
             throw new Error("frontline review lineage authority is unavailable");
           }
-          return LaneSubjectLineageSchema.parse({
-            kind: "head-bound",
-            vehicleKind: "errand",
-            vehicleIdentity: live.context.errand.claimId,
-            headSha: target.headSha,
-          });
+          return errandFrontlineLineage(live.context.errand.claimId, target.headSha);
         },
         resolveSupersessionAncestors: (lineage) =>
           resolveFrontlineSupersessionAncestors(root, exec, lineage),
