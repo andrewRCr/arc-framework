@@ -1,5 +1,19 @@
 # Notes: storage-contract
 
+## Contents
+
+- [Consumer map](#consumer-map)
+- [Seam ordering](#seam-ordering)
+- [Who builds Part B](#who-builds-part-b)
+- [Index-path callers](#index-path-callers)
+- [Implementation pointers](#implementation-pointers)
+- [Concurrency library](#concurrency-library)
+- [Evidence behind Part B](#evidence-behind-part-b)
+- [Groundwork from `cli-substrate-complete-migration`](#groundwork-from-cli-substrate-complete-migration)
+- [Register conventions](#register-conventions)
+- [Reading inputs](#reading-inputs)
+- [Existing sync behavior in the conformance fixture](#existing-sync-behavior-in-the-conformance-fixture)
+
 ## Consumer map
 
 Every ARC reader and writer of operational and planning state, one row per module, command, workflow, method, extension,
@@ -690,10 +704,10 @@ and parked-slug reconciliation wiring. They fall outside the index-path criterio
   provisioning, which will write tracked records through the contract once rerouted, and the advisory lock is not
   reentrant, so a write inside them would wait on its own holder until it timed out. The test-admission slot is a
   machine-wide heavy-test slot with nothing to do with records. The lock sits in the checkout's own Git directory rather
-  than the common one, since tracked files belong to one working tree, so two checkouts never contend. Each `with*Lock`
-  wrapper today repeats the acquire, run, and release scope — `withWorktreeOperationLock`, the review gate's two in
-  `scripts/review-gate/hosts/local/git-common-state.ts`, and `withLockedUserInbox`; Task 4.2 -
-  `tasks-storage-contract.md` lifts the first into `withAdvisoryLock` for the new lock, and the others keep their own.
+  than the common one, since tracked files belong to one working tree, so two checkouts never contend. The shared `withAdvisoryLock`
+  scope now serves `withWorktreeOperationLock` and the tracked-write lock. The review gate's two wrappers in
+  `scripts/review-gate/hosts/local/git-common-state.ts` and `withLockedUserInbox` keep their own acquire, run, and
+  release scopes.
 - **One tree walk.** The lifecycle index and the composition walk the same files (`collectLifecycleMetaFiles` in
   `lib/work-unit/lifecycle-index.ts`): `active/` flat, the backlog and archive trees nested, regular files only, so a
   symbolic link and a nested `active/` meta are in neither. Both rank a slug's copies by `compareLifecycleSources` —
@@ -885,10 +899,9 @@ That work unit has shipped, and this design builds on what it landed:
    rest — `WorkUnitStateResult`, `ErrandStateResult`, `UserSessionInitStatusResult`, `userReferenceReconcile`,
    `currentWuReconcile`, `StaleWorktreeSweepResult`, and `DerivedLocusFrame` — with full schemas. The consumer map
    names the envelope against that shape.
-3. **Layout.** Framework-path construction runs through the layout resolver. Work-unit state paths and the paths of
-   the Candidate, submission-boundary, and transition records were deferred to the seam: their stores still build their
-   own paths, and the layout has no address kind for those records until Task 4.1 - `tasks-storage-contract.md` adds
-   them.
+3. **Layout.** Framework-path construction runs through the layout resolver, whose Candidate, integration-boundary,
+   and transition-record address kinds now serve the in-repo implementation. Their existing stores still build their
+   own paths, and work-unit state-path callers await the seam's rerouting.
 4. **The Git executor.** `RawGitExec` and `RawGitResult` in `lib/git/exec.ts`, bound executors threaded through every
    spawn, and the failure-text predicates and `resolveGitCommonDir`, moved into `lib/git/ref-tree.ts` and
    `lib/git/exec.ts`, are the groundwork the ref backend's Git access builds on.
@@ -926,11 +939,11 @@ That work unit has shipped, and this design builds on what it landed:
 
 ---
 
-## A1: Existing sync behavior in the conformance fixture
+## Existing sync behavior in the conformance fixture
 
 Task 7.4.a stated that the exception list was “complete”. Its item 16 assertions also assumed repeat-sync `noop`,
 convergence of a remote edit to an existing entry, and refreshed personal working files. D8 instead preserves today's
 save and push producers: repeated notes saves create another note commit, `reconcileErrandPush` returns `pushed` for
 an existing ref, its two-way tree merge conflicts on unequal same-key blobs, and notes reconcile never loads files.
-A1 preserves those producers and names the three fixture exceptions. Task 7.4.R verifies their actual outcomes,
-disjoint transient reconciliation, and merged remote notes bytes beside unchanged personal files.
+Amendment A1 preserves those producers and names the three fixture exceptions. Direct tests verified their actual
+outcomes, disjoint transient reconciliation, and merged remote notes bytes beside unchanged personal files.
