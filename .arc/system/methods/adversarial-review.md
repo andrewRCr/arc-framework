@@ -234,19 +234,23 @@ review evidence.
 disposition, including a `reject` disposition for an unsupported finding. An undisposed refuted or `minor` finding
 therefore leaves completeness open even when the pass signal converges.
 
-**Convergence.** Convergence is a property of the pass result. A pass converges when it surfaces no
-triage-confirmed finding above `minor`, independent of what the primary subsequently did with the findings.
+**Convergence.** Convergence is a property of the pass result and its approved disposition set. A successor pass
+exists to review what a material fix changed, so a pass converges unless its approved dispositions fix a
+triage-confirmed finding above `minor`.
 
 - A zero-finding report is a clean convergence.
 - All-refuted and confirmed-minors-only passes converge once the complete disposition set is approved.
-- A disposed confirmed `critical` or `major` finding still withholds convergence; only a later fresh pass can
-  establish a new converged result.
+- A confirmed `critical` or `major` finding approved as `defer` or `reject` converges too: the artifact is unchanged,
+  so another pass would only re-review it. The pass still reports the finding's verified grade.
+- An approved fix of a confirmed `critical` or `major` finding withholds convergence; only a later fresh pass over
+  the fixed artifact can establish a new converged result.
 - A confirmed `minor` never authorizes another pass and never raises its verified severity to manufacture material
   signal. When it remains unusually informative, name it as a follow-up observation in the converged completion
   report; that observation is not control state or a permission request.
 
-The primary-facing report distinguishes clean convergence, converged signal with disposed non-material findings, and
-non-convergence. Disposition settlement never changes which one the completed pass established.
+The primary-facing report distinguishes clean convergence, convergence with settled findings — confirmed `minor`
+findings, or material ones deferred or rejected — and non-convergence. The approved disposition set decides which one
+the completed pass established; performing the response never changes it.
 
 **`Class`-scaled pass cap.** Use `Light` 1, `Heavy` 2, and `Novel` 3 as the default pass caps. Present every
 completed result as `Pass N of M`. Every ended loop names one stop reason: converged, `cap-exhausted`, suspended, or
@@ -269,8 +273,8 @@ Launching the named fresh pass consumes that permission, and replay cannot autho
 over-cap pass requires fresh approval.
 
 A converged result is a signal about the latest pass, not a veto on an Owner-directed successor. The Owner may
-authorize any number of later passes one at a time; a later material result changes the latest signal to
-non-converged and re-enters the normal response loop. Neither a minor observation nor unused capacity starts a
+authorize any number of later passes one at a time; a later material result re-enters the normal response loop,
+where an approved fix leaves the latest pass non-converged. Neither a minor observation nor unused capacity starts a
 pass without that decision.
 
 Advisory planning callers keep the finding/account/action set, conditional decision, response-performance check, and
@@ -408,9 +412,9 @@ dense for origin ownership, create a dedicated seam or integration slice. Partit
 defects.
 
 **Merge and convergence.** Because responsibility is disjoint, merge reports by concatenation rather than
-deduplicating overlap. A partitioned pass converges only when no slice report carries an open finding above
-`minor`; cross-report convergence is a simple AND over slice reports. After merging, the primary applies the same
-source verification, disposition, and exit-gate rules as a standard pass.
+deduplicating overlap. A partitioned pass converges only when its approved dispositions fix no finding above `minor`
+from any slice report; cross-report convergence is a simple AND over slice reports. After merging, the primary applies
+the same source verification, disposition, and exit-gate rules as a standard pass.
 
 ---
 

@@ -462,6 +462,7 @@ function dependencies(records: ReturnType<typeof fixture>) {
               : records.operation.operationId,
             confirmedFindingCount: 1,
             maxConfirmedSeverity: "major",
+            materialFix: true,
             coverageAdequate: true,
           },
           postResponseAction: "resolve-next-pass",
@@ -1166,14 +1167,17 @@ describe("review response command", () => {
   });
 
   it.each([
-    { logicalPass: 2, maxPasses: 2, severity: "major" as const,
+    { logicalPass: 2, maxPasses: 2, severity: "major" as const, disposition: "fix" as const,
       capPosition: "at-ceiling", stopReason: "cap-exhausted" },
-    { logicalPass: 1, maxPasses: 3, severity: "major" as const,
+    { logicalPass: 1, maxPasses: 3, severity: "major" as const, disposition: "fix" as const,
       capPosition: "below-ceiling", stopReason: null },
-    { logicalPass: 2, maxPasses: 2, severity: "minor" as const,
+    { logicalPass: 2, maxPasses: 2, severity: "minor" as const, disposition: "fix" as const,
       capPosition: "at-ceiling", stopReason: null },
-  ])("reports a provisional standard pass assessment at pass $logicalPass of $maxPasses", async ({
-    logicalPass, maxPasses, severity, capPosition, stopReason,
+    { logicalPass: 2, maxPasses: 2, severity: "major" as const, disposition: "defer" as const,
+      capPosition: "at-ceiling", stopReason: null },
+  ])("reports a provisional standard pass assessment at pass $logicalPass of $maxPasses for a $severity "
+    + "$disposition", async ({
+    logicalPass, maxPasses, severity, disposition, capPosition, stopReason,
   }) => {
     const records = fixture(workUnitVehicle, undefined, undefined, "whole-target", logicalPass);
     const deps = dependencies(records);
@@ -1189,7 +1193,7 @@ describe("review response command", () => {
           sourceVerification: "verified",
           verificationRefs: ["source:src/index.ts:7"],
           verifiedSeverity: severity,
-          disposition: "fix",
+          disposition,
           title: "Finding title",
           issue: "The reviewer's claim.",
           rationale: "The source supports a fix.",
@@ -1207,7 +1211,11 @@ describe("review response command", () => {
           lane: "standard",
           admittedLogicalPass: logicalPass,
           configuredMaxPasses: maxPasses,
-          proposedSignal: { confirmedFindingCount: 1, maxConfirmedSeverity: severity },
+          proposedSignal: {
+            confirmedFindingCount: 1,
+            maxConfirmedSeverity: severity,
+            materialFix: disposition === "fix" && severity === "major",
+          },
           capPosition,
           potentialStopReason: stopReason,
           nextPassAuthority: "none",
@@ -2766,6 +2774,7 @@ describe("review response command", () => {
           reviewOperationId: records.operation.operationId,
           confirmedFindingCount: 1,
           maxConfirmedSeverity: "major" as const,
+          materialFix: true,
           coverageAdequate: true,
         },
         postResponseAction: "resolve-next-pass" as const,
@@ -3238,7 +3247,7 @@ describe("review response command", () => {
       lane: "frontline",
       admittedLogicalPass: 1,
       configuredMaxPasses: 2,
-      proposedSignal: { confirmedFindingCount: 0, maxConfirmedSeverity: null },
+      proposedSignal: { confirmedFindingCount: 0, maxConfirmedSeverity: null, materialFix: false },
       capPosition: "below-ceiling",
       potentialStopReason: null,
       nextPassAuthority: "none",

@@ -42,6 +42,7 @@ import { renderDispositionReport } from "../core/disposition-report.js";
 import { FIX_NOT_PERFORMED_INTERACTION_TEXT } from "../core/fix-not-performed-envelope.js";
 import { ReviewFindingIdentitySchema } from "../core/finding-records.js";
 import { ReviewSeveritySchema } from "../core/review-primitives.js";
+import { fixesMaterialFinding } from "../core/review-convergence.js";
 import { SeverityGatingPolicySchema } from "../core/severity-gating-policy.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import {
@@ -1688,11 +1689,11 @@ function projectProvisionalPassAssessment(input: {
     : input.admittedLogicalPass === input.configuredMaxPasses
       ? "at-ceiling" as const
       : "above-ceiling" as const;
-  const material = maxConfirmedSeverity === "major" || maxConfirmedSeverity === "critical";
-  const potentialStopReason = material && capPosition !== "below-ceiling"
+  const materialFix = fixesMaterialFinding(input.proposal.dispositionSet.findings);
+  const potentialStopReason = materialFix && capPosition !== "below-ceiling"
     ? "cap-exhausted" as const
     : null;
-  const proposedSignal = { confirmedFindingCount, maxConfirmedSeverity };
+  const proposedSignal = { confirmedFindingCount, maxConfirmedSeverity, materialFix };
   const severitySymbol = { minor: "🟡", major: "🟠", critical: "🔴" } as const;
   const signalText = maxConfirmedSeverity === null
     ? "No confirmed findings."

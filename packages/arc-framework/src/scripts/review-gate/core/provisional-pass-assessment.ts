@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 
+import { isMaterialSeverity } from "./review-convergence.js";
 import { ReviewPassSchema } from "./review-pass.js";
 
 export const ProvisionalPassAssessmentSchema = z.strictObject({
@@ -12,6 +13,8 @@ export const ProvisionalPassAssessmentSchema = z.strictObject({
   proposedSignal: z.strictObject({
     confirmedFindingCount: z.number().int().nonnegative(),
     maxConfirmedSeverity: z.enum(["minor", "major", "critical"]).nullable(),
+    /** Whether the proposal fixes a major or critical finding, the one outcome that needs another pass. */
+    materialFix: z.boolean(),
   }),
   capPosition: z.enum(["below-ceiling", "at-ceiling", "above-ceiling"]),
   potentialStopReason: z.literal("cap-exhausted").nullable(),
@@ -30,13 +33,19 @@ export const ProvisionalPassAssessmentSchema = z.strictObject({
   if ((signal.confirmedFindingCount === 0) !== (signal.maxConfirmedSeverity === null)) {
     context.addIssue({ code: "custom", path: ["proposedSignal"], message: "count and maximum severity must agree" });
   }
-  const material = signal.maxConfirmedSeverity === "major" || signal.maxConfirmedSeverity === "critical";
-  const stopReason = material && position !== "below-ceiling" ? "cap-exhausted" : null;
+  if (signal.materialFix && !isMaterialSeverity(signal.maxConfirmedSeverity)) {
+    context.addIssue({
+      code: "custom",
+      path: ["proposedSignal", "materialFix"],
+      message: "a material fix requires a major or critical confirmed finding",
+    });
+  }
+  const stopReason = signal.materialFix && position !== "below-ceiling" ? "cap-exhausted" : null;
   if (assessment.potentialStopReason !== stopReason) {
     context.addIssue({
       code: "custom",
       path: ["potentialStopReason"],
-      message: "must match the proposed material signal and ceiling",
+      message: "must match the proposed material fix and ceiling",
     });
   }
 });

@@ -216,8 +216,9 @@ A `review-hosted-request` or `review-local-prepare` result may also carry `termi
 pass. Surface it as an optional Owner alternative without turning it into a stop; absent explicit acceptance,
 execute the returned review action unchanged.
 
-After a converged clean or confirmed-minor standard result, status replay remains complete. An explicit Owner
-decision for another named pass is carried as exact JSON with `--additional-pass` on the same status scope. The
+After a converged standard result — a clean pass, or one whose approved dispositions fix no confirmed `critical` or
+`major` finding — status replay remains complete. An explicit Owner decision for another named pass is carried as
+exact JSON with `--additional-pass` on the same status scope. The
 authorization names the current target, preceding producer, completed-pass count, and next ordinal; each later
 pass needs a fresh decision. Above the configured ceiling, that same decision covers the named pass without a
 second approval. A later material result re-enters the ordinary response route.

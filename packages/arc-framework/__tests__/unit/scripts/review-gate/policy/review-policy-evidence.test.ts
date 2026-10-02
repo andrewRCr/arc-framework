@@ -485,6 +485,7 @@ describe("evidence-bound review policy", () => {
           reviewOperationId: result.producerId,
           confirmedFindingCount: 0,
           maxConfirmedSeverity: null,
+          materialFix: false,
           coverageAdequate: true,
         },
       },
@@ -654,13 +655,18 @@ describe("evidence-bound review policy", () => {
     });
   });
 
-  it("binds a repository-proven unchanged-head material settlement without admitting a caller assertion", async () => {
+  it("binds a repository-proven material-fix settlement without admitting a caller assertion", async () => {
     const result = findingsHostedResult(["major"]);
     const record = approvedRecord(result, [{
-      sourceVerification: "verified", verifiedSeverity: "major", disposition: "defer",
+      sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix",
     }]);
     const request = findingsRequest(result);
-    const evidence = { ...dependencies(result, record), sources: ["codex-pr"], maxPasses: 2 };
+    const evidence = {
+      ...dependencies(result, record),
+      sources: ["codex-pr"],
+      maxPasses: 2,
+      readResponsePerformance: async () => performedFix(result, record),
+    };
     await expect(resolveEvidenceBoundReviewPolicy(request, evidence)).resolves.toMatchObject({
       state: "findings", nextAction: "respond",
     });
@@ -721,7 +727,7 @@ describe("evidence-bound review policy", () => {
     };
     await expect(resolveEvidenceBoundReviewPolicyContinuation(request, {
       terminalResponsePerformed: true,
-    }, evidence)).resolves.toMatchObject({ state: "ready", payload: { pass: 2 } });
+    }, evidence)).resolves.toMatchObject({ state: "pass-complete", nextAction: "none" });
 
     current = successor;
     await expect(resolveEvidenceBoundReviewPolicyContinuation(request, {
@@ -930,13 +936,39 @@ describe("evidence-bound review policy", () => {
         verifiedTerminalSignal: {
           confirmedFindingCount: count,
           maxConfirmedSeverity: maximum,
+          materialFix: false,
         },
       },
     });
   });
 
-  it.each(["fix", "defer", "reject"] as const)(
-    "retains confirmed material signal after an approved %s disposition",
+  it("requires another pass after an approved material fix", async () => {
+    const result = findingsHostedResult(["major"]);
+    const record = approvedRecord(result, [{
+      sourceVerification: "verified",
+      verifiedSeverity: "major",
+      disposition: "fix",
+    }]);
+    await expect(resolveEvidenceBoundReviewPolicy(findingsRequest(result), {
+      ...dependencies(result, record),
+      sources: ["codex-pr"],
+      maxPasses: 2,
+    })).resolves.toMatchObject({
+      state: "findings",
+      nextAction: "respond",
+      payload: {
+        postResponseAction: "resolve-next-pass",
+        verifiedTerminalSignal: {
+          confirmedFindingCount: 1,
+          maxConfirmedSeverity: "major",
+          materialFix: true,
+        },
+      },
+    });
+  });
+
+  it.each(["defer", "reject"] as const)(
+    "converges when a confirmed major is approved as %s, still reporting its grade",
     async (disposition) => {
       const result = findingsHostedResult(["major"]);
       const record = approvedRecord(result, [{
@@ -949,13 +981,13 @@ describe("evidence-bound review policy", () => {
         sources: ["codex-pr"],
         maxPasses: 2,
       })).resolves.toMatchObject({
-        state: "findings",
-        nextAction: "respond",
+        state: "pass-complete",
+        nextAction: "none",
         payload: {
-          postResponseAction: "resolve-next-pass",
           verifiedTerminalSignal: {
             confirmedFindingCount: 1,
             maxConfirmedSeverity: "major",
+            materialFix: false,
           },
         },
       });
@@ -986,11 +1018,12 @@ describe("evidence-bound review policy", () => {
       sources: ["codex-pr"],
       maxPasses: 2,
     })).resolves.toMatchObject({
-      state: "findings",
+      state: "pass-complete",
       payload: {
         verifiedTerminalSignal: {
           confirmedFindingCount: 2,
           maxConfirmedSeverity: "major",
+          materialFix: false,
         },
       },
     });
@@ -1025,6 +1058,7 @@ describe("evidence-bound review policy", () => {
           reviewOperationId: result.producerId,
           confirmedFindingCount: 2,
           maxConfirmedSeverity: "major",
+          materialFix: true,
           coverageAdequate: true,
         },
       },
@@ -1071,6 +1105,7 @@ describe("evidence-bound review policy", () => {
         responseRequired: true,
         verifiedTerminalSignal: {
           maxConfirmedSeverity: "critical",
+          materialFix: true,
           coverageAdequate: false,
         },
       },
@@ -1344,6 +1379,7 @@ describe("evidence-bound review policy", () => {
       ...request,
       confirmedFindingCount: 0,
       maxConfirmedSeverity: null,
+      materialFix: false,
     }, {
       ...dependencies(result),
       sources: ["codex-pr"],

@@ -8,7 +8,11 @@ import {
   ReviewIdentifierSchema,
 } from "../core/gate-contract-v2-schema.js";
 import { CompletedReviewPassCountSchema, ReviewPassSchema } from "../core/review-pass.js";
-import { ReviewScopeModeSchema, ReviewSeveritySchema } from "../core/review-primitives.js";
+import { ReviewScopeModeSchema } from "../core/review-primitives.js";
+import {
+  VerifiedTerminalReviewSignalSchema,
+  type VerifiedTerminalReviewSignal,
+} from "../core/review-convergence.js";
 import {
   ReviewAdditionalPassAuthorizationSchema,
   ReviewPolicyTargetSchema,
@@ -41,21 +45,6 @@ const ReviewPolicyInvocationSchema = z.discriminatedUnion("mode", [
   FrontlinePolicyInvocationSchema,
   StandardPolicyInvocationSchema,
 ]);
-export const VerifiedTerminalReviewSignalSchema = z.strictObject({
-  reviewOperationId: ReviewIdentifierSchema,
-  confirmedFindingCount: z.number().int().nonnegative(),
-  maxConfirmedSeverity: ReviewSeveritySchema.nullable(),
-  coverageAdequate: z.boolean(),
-}).superRefine((signal, context) => {
-  if ((signal.confirmedFindingCount === 0) !== (signal.maxConfirmedSeverity === null)) {
-    context.addIssue({
-      code: "custom",
-      message: "confirmed finding count and maximum severity must agree",
-      path: ["maxConfirmedSeverity"],
-    });
-  }
-}).readonly();
-export type VerifiedTerminalReviewSignal = z.infer<typeof VerifiedTerminalReviewSignalSchema>;
 
 interface ReviewPassProgressInput {
   target: { pullRequest: number | null };
@@ -822,9 +811,8 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
         },
       });
     }
-    const materialFindings = lastAttempt.outcome === "findings"
-      && (signal.maxConfirmedSeverity === "major" || signal.maxConfirmedSeverity === "critical");
-    if (materialFindings && !request.terminalResponseSettled) {
+    const materialFix = lastAttempt.outcome === "findings" && signal.materialFix;
+    if (materialFix && !request.terminalResponseSettled) {
       return resolveEnvelope({
         state: "findings",
         nextAction: "respond",
@@ -842,7 +830,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
       });
     }
     if (request.additionalPassAuthorization === undefined
-      && !(materialFindings && request.terminalResponseSettled)) {
+      && !(materialFix && request.terminalResponseSettled)) {
       return resolveEnvelope({
         state: "pass-complete",
         nextAction: "none",

@@ -494,7 +494,9 @@ describe("PR-open lifecycle extensions", () => {
       expect(normalized).toContain("every reported finding has one approved disposition");
       expect(normalized).toContain("including a `reject` disposition for an unsupported finding");
       expect(normalized).toContain("convergence is a property of the pass result");
-      expect(normalized).toContain("a disposed confirmed `critical` or `major` finding still withholds convergence");
+      expect(normalized).toContain("converges unless its approved dispositions fix a triage-confirmed finding above");
+      expect(normalized).toContain("approved as `defer` or `reject` converges too");
+      expect(normalized).toContain("approved fix of a confirmed `critical` or `major` finding withholds convergence");
       expect(normalized).toContain("all-refuted and confirmed-minors-only passes converge");
       expect(normalized).toContain("a confirmed `minor` never authorizes another pass");
       expect(normalized).toContain("never raises its verified severity");
