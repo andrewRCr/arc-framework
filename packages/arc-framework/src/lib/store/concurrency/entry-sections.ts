@@ -37,7 +37,9 @@ export function retainEntrySections(prose: string, selected: ReadonlyMap<string,
     const blank = source.skeleton.slice(section.body).match(/^(?:[ \t]*\r?\n)*/u)?.[0] ?? "";
     const heading = source.skeleton.slice(section.start, section.body) + blank;
     const position = relocateTextOffsets(source.skeleton, result, [section.start])[0] ?? result.length;
-    result = result.slice(0, position) + heading + result.slice(position);
+    const prefix = result.slice(0, position);
+    const boundary = prefix.length > 0 && !prefix.endsWith("\n") ? heading.match(/\r?\n/u)?.[0] ?? "\n" : "";
+    result = prefix + boundary + heading + result.slice(position);
   }
   return result;
 }

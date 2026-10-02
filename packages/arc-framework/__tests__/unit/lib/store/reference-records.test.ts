@@ -8,6 +8,27 @@ import { splitEntryList } from "../../../../src/lib/store/concurrency/entries.js
 
 describe("reference record landing", () => {
   for (const kind of ["personal/inbox", "personal/working-memory"] as const) for (const newline of ["\n", "\r\n"]) {
+    it.each([false, true])(`reopens a surviving ${kind} entry after section removal leaves unterminated prose with ${JSON.stringify(newline)}, removal current: %s`, async (removalCurrent) => {
+      const fixture = createReferenceFixture();
+      const reference = fixture.reference(kind);
+      const shape = kind === "personal/inbox" ? "heading" : "field-header";
+      const section = shape === "heading" ? "Errand" : "Memories";
+      const prefix = `# Document${newline}<!-- comment -->`;
+      const entry = (body: string) => `${shape === "heading" ? "### [ ] **First**" : "**Memory:**"}${newline}_Id:_ \`11111111\`${newline}${newline}${body}${newline}${newline}`;
+      const base = await seed(fixture, reference, `${prefix}${newline}${newline}## ${section}${newline}${newline}${entry("base")}`);
+      const edited = base.content.replace(`base${newline}`, `edited${newline}`);
+      success(await fixture.store.write(WriteInputSchema.parse(update(fixture, base, removalCurrent ? prefix : edited))));
+      const landed = success(await fixture.reopen().write(WriteInputSchema.parse(update(fixture, base, removalCurrent ? edited : prefix))));
+      const saved = success(await fixture.reopen().read({ reference }));
+      expect(saved.version).toBe(landed.version);
+      expect(saved.content).toBe(`${prefix}${newline}## ${section}${newline}${newline}${entry("edited")}`);
+      expect(splitEntryList(saved.content, { shape, sections: [section] }).parts.filter((part) => part.kind === "entry"))
+        .toMatchObject([{ id: "11111111", section, bytes: entry("edited").trimEnd() }]);
+      expect(saved.conflicts).toEqual([]);
+    });
+  }
+
+  for (const kind of ["personal/inbox", "personal/working-memory"] as const) for (const newline of ["\n", "\r\n"]) {
     it.each([false, true])(`reopens a surviving ${kind} entry after a heading loses its final ${JSON.stringify(newline)}, removal current: %s`, async (removalCurrent) => {
       const fixture = createReferenceFixture();
       const reference = fixture.reference(kind);
