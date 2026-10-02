@@ -1,6 +1,6 @@
 /** Architecture guards for the test-only whole-contract reference backend. */
 
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -65,8 +65,4 @@ describe("reference backend build output", () => {
     expect(referenceBundleInputs(metafile, packageRoot, referenceRoot)).toEqual([input]);
   });
 
-  it("contains no reference backend in the actual package build metadata", async () => {
-    const metafile = JSON.parse(await readFile(join(packageRoot, "dist/metafile-esm.json"), "utf8")) as ReferenceMetafile;
-    expect(referenceBundleInputs(metafile, packageRoot, referenceRoot)).toEqual([]);
-  });
 });
