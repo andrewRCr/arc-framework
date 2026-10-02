@@ -6,10 +6,10 @@ import { ConflictRecordSchema, LookupInputSchema, RecordReferenceSchema, type St
 import { seed, success, testProvenance, update } from "../../../helpers/store/suite-tools.js";
 
 describe("reference record landing", () => {
-  it.each([false, true])("persists both sections of a move-versus-edit conflict, move current: %s", async (moveCurrent) => {
+  it.each([[false, false], [true, false], [false, true]])("persists both sections of a move-versus-edit conflict, move current: %s, extra spacing: %s", async (moveCurrent, extraSpacing) => {
     const fixture = createReferenceFixture();
     const entry = (body: string) => `### [ ] **First**\n\n- _Id:_ \`11111111\`\n\n${body}\n\n`;
-    const document = (section: string, body: string) => `# Inbox\n\n## Errand\n\n${section === "Errand" ? entry(body) : ""}## Work Unit\n\n${section === "Work Unit" ? entry(body) : ""}`;
+    const document = (section: string, body: string) => `# Inbox\n\n## Errand\n\n${section === "Errand" ? entry(body) : ""}${extraSpacing ? "\n" : ""}## Work Unit\n\n${section === "Work Unit" ? entry(body) : ""}`;
     const base = await seed(fixture, fixture.reference("personal/inbox"), document("Errand", "base"));
     const currentSection = moveCurrent ? "Work Unit" : "Errand";
     const incomingSection = moveCurrent ? "Errand" : "Work Unit";

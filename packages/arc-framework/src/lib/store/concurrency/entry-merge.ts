@@ -87,11 +87,12 @@ function placementOffsets(order:readonly string[],section:string,selected:Map<st
   const originalIds = new Set(base.entries.filter((entry)=>entry.section === section && selected.get(entry.id ?? "")?.section === section).map((entry)=>entry.id));
   const slots = base.entries.filter((entry)=>originalIds.has(entry.id)).map((entry)=>base.offsets.get(entry.id ?? "") ?? 0);
   const translated = relocateTextOffsets(base.skeleton,prose,slots).sort((left,right)=>left-right);
-  const source = current.skeleton === base.skeleton && incoming.skeleton !== base.skeleton ? incoming : current;
+  const proseSource = current.skeleton === base.skeleton && incoming.skeleton !== base.skeleton ? incoming : current;
   const positions = new Map<string,number>();
   let retained = 0;
   for (const id of order) {
     if (originalIds.has(id)) {
+      const source = proseSource.entries.find((entry)=>entry.id === id)?.section === section ? proseSource : current;
       const offset = source.offsets.get(id);
       const position = offset === undefined || source.skeleton === base.skeleton ? translated[retained] ?? 0
         : relocateTextOffsets(source.skeleton,prose,[offset])[0] ?? 0;

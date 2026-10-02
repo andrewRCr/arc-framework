@@ -78,6 +78,15 @@ describe("whole-entry editing", () => {
       incoming:{section:"Three",label:incomingLabel}});
   });
 
+  it("keeps the current section when incoming spacing changes beside a conflicting move", () => {
+    const document = (section:string,body:string)=>`## One\n\n${section === "One" ? entry("11111111",body) : ""}\n## Two\n\n${section === "Two" ? entry("11111111",body) : ""}`;
+    const result = merge(document("One","base"),document("One","edited"),document("Two","base"));
+    expect(entries(result.content)).toMatchObject([{id:"11111111",section:"One",bytes:entry("11111111","edited").trimEnd()}]);
+    expect(result.conflicts).toHaveLength(1);
+    expect(result.conflicts[0]).toMatchObject({baseSection:"One",current:{section:"One",label:currentLabel},
+      incoming:{section:"Two",label:incomingLabel}});
+  });
+
   it("records an absent base section for clashing concurrent insertions", () => {
     const result = merge(doc(""),doc(entry("11111111","current")),doc("",entry("11111111","incoming")));
     expect(entries(result.content)[0]!.section).toBe("One");
