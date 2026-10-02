@@ -17,7 +17,6 @@ function sourceFiles(root: string): string[] {
 }
 
 const kinds = Object.values(KIND_REGISTRY);
-const pending = ["review/candidate", "review/integration-boundary", "lineage/transition", "project-inbox/inbox", "personal/inbox"];
 
 describe("role-based storage registry", () => {
   it("covers every declared kind once and leaves only reserved families empty", () => {
@@ -51,13 +50,13 @@ describe("role-based storage registry", () => {
     expect(KIND_REGISTRY["work-item/meta"].parser).toBeNull();
     expect(registered["work-item/meta"].merge).toBe("single-writer");
   });
-  it("has a finder or address for each housed record with exactly five pending additions", () => {
+  it("has a concrete finder or address for each housed record", () => {
     for (const kind of kinds) {
       if (kind.inRepo.substrate === "tracked" || kind.inRepo.substrate === "personal") {
         expect(kind.inRepo.address !== undefined || kind.inRepo.finder !== undefined).toBe(true);
       }
     }
-    expect(kinds.filter((kind) => kind.inRepo.address?.pending).map((kind) => kind.id).sort()).toEqual(pending.sort());
+    expect(kinds.some((kind) => kind.inRepo.address?.kind === "pending")).toBe(false);
     expect(KIND_REGISTRY["work-item/companion"].inRepo.finder).toBe("companions");
     expect(KIND_REGISTRY["personal/document"].inRepo.finder).toBe("personal-documents");
     expect(KIND_REGISTRY["personal/session-context"].interim).toBe(true);
@@ -66,10 +65,13 @@ describe("role-based storage registry", () => {
   it("projects declared addresses only through the layout authority", () => {
     for (const kind of kinds) {
       for (const candidate of [typeof kind.projection === "object" ? kind.projection : undefined, kind.inRepo.address]) {
-        if (candidate === undefined || candidate.kind === "pending") continue;
+        if (candidate === undefined) continue;
         let address: unknown;
         if (candidate.kind === "work-unit-artifact") address = { ...candidate, slug: "example", placement: { kind: "active", scope: { kind: "project" } } };
         else if (candidate.kind === "cohort-document") address = { kind: "cohort-document", cohort: ["example"], placement: { kind: "planned" } };
+        else if (candidate.kind === "candidate-record" || candidate.kind === "integration-boundary-record") address = { kind: candidate.kind, slug: "example" };
+        else if (candidate.kind === "transition-record") address = { kind: candidate.kind, origin: "example" };
+        else if (candidate.kind === "inbox") address = { kind: candidate.kind, scope: candidate.scope === "project" ? { kind: "project" } : { kind: "identity", identity: "andrew" } };
         else address = { kind: "user-document", identity: "andrew", document: { kind: candidate.document, ...(candidate.document === "session-notes" ? { workUnit: "example" } : {}) } };
         expect(resolveArcPath(ArcLayoutAddressSchema.parse(address))).toMatch(/^\.arc\//u);
       }
@@ -110,5 +112,19 @@ describe("role-based storage registry", () => {
     expect(KIND_REGISTRY["work-item/record"].inRepo.substrate).toBe("transient-identity");
     expect(KIND_REGISTRY["claims/groom"].inRepo.substrate).toBe("transient-identity");
     expect(KIND_REGISTRY["claims/housekeep"].inRepo.substrate).toBe("transient-identity");
+  });
+});
+
+describe("record role layout descriptors", () => {
+  it.each([
+    ["review/candidate", "tracked", {kind:"candidate-record"}, "never"],
+    ["review/integration-boundary", "tracked", {kind:"integration-boundary-record"}, "never"],
+    ["lineage/transition", "tracked", {kind:"transition-record"}, "never"],
+    ["project-inbox/inbox", "tracked", {kind:"inbox",scope:"project"}, {kind:"inbox",scope:"project"}],
+    ["personal/inbox", "personal", {kind:"inbox",scope:"identity"}, {kind:"inbox",scope:"identity"}],
+  ] as const)("declares a concrete role address and projection for %s", (id,substrate,descriptor,projection) => {
+    expect(KIND_REGISTRY[id].inRepo).toEqual({substrate,address:descriptor});
+    expect(KIND_REGISTRY[id].projection).toEqual(projection);
+    if (typeof projection === "object") expect(projection.scope).toBe(FAMILY_REGISTRY[KIND_REGISTRY[id].family].scope);
   });
 });

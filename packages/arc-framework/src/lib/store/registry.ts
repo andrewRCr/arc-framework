@@ -4,10 +4,19 @@ import { FAMILY_IDS, KIND_SHAPES, familyOf, type FamilyId, type KindId } from ".
 
 /** Pure family parser outcome; defects remain thrown rather than disguised as refusals. */
 export type RecordParser = (content: string) => { success: true; data: unknown } | { success: false; error: string };
+/** Partial semantic address; the backend supplies its record name, placement, or identity.
+ * Scope is a family role, never a physical filename or checkout path.
+ */
+export interface LayoutRoleDescriptor {
+  kind: string;
+  artifact?: string;
+  document?: string;
+  scope?: "project" | "identity";
+}
 /** Physical substrate used by the interim backend, including records not yet housed. */
 export type InRepoHome = {
   substrate: "tracked" | "personal" | "transient-identity" | "none";
-  address?: { kind: string; artifact?: string; document?: string; pending?: true };
+  address?: LayoutRoleDescriptor;
   finder?: "companions" | "personal-documents" | "transient-records";
 };
 /** Pure generic entry shape and the sections in which entries live. */
@@ -17,14 +26,13 @@ export interface KindMechanism {
   merge: "single-writer" | "line" | "entry";
   writerRule: "cas" | "single-writer" | "create-only" | "write-once";
   writerVerbs?: readonly string[];
-  projection: "never" | "projection-defined" | { kind: string; artifact?: string; document?: string };
+  projection: "never" | "projection-defined" | LayoutRoleDescriptor;
   inRepo: InRepoHome;
   entry?: EntryConfig;
   interim?: true;
 }
 const unhomed = { substrate: "none" } as const;
 const never = { projection: "never" } as const;
-const pendingTracked = { substrate: "tracked", address: { kind: "pending", pending: true } } as const;
 const transient = { substrate: "transient-identity", finder: "transient-records" } as const;
 const machine = (inRepo: InRepoHome): KindMechanism => ({ merge: "single-writer", writerRule: "single-writer", ...never, inRepo });
 const prose = (inRepo: InRepoHome, projection: KindMechanism["projection"]): KindMechanism => ({ merge: "line", writerRule: "cas", projection, inRepo });
@@ -54,17 +62,17 @@ export const KIND_MECHANISMS = {
   "work-item/description": entry(unhomed),
   "work-item/inbound": entry(unhomed),
   "cohort/document": prose({ substrate: "tracked", address: { kind: "cohort-document" } }, { kind: "cohort-document" }),
-  "project-inbox/inbox": entry(pendingTracked, { shape: "heading", sections: ["Inbox"] }),
-  "review/candidate": machine(pendingTracked),
-  "review/integration-boundary": machine(pendingTracked),
+  "project-inbox/inbox": { ...entry({ substrate: "tracked", address: { kind: "inbox", scope: "project" } }, { shape: "heading", sections: ["Inbox"] }), projection: { kind: "inbox", scope: "project" } },
+  "review/candidate": machine({ substrate: "tracked", address: { kind: "candidate-record" } }),
+  "review/integration-boundary": machine({ substrate: "tracked", address: { kind: "integration-boundary-record" } }),
   "review/evidence": machine(unhomed),
   "review/outcome": machine(unhomed),
   "review/terminus": machine(unhomed),
   "review/adversarial-pass": machine(unhomed),
   "project-registry/identity": { ...machine(unhomed), writerRule: "create-only" },
   "project-registry/counter": { ...machine(unhomed), writerRule: "cas" },
-  "lineage/transition": { ...machine(pendingTracked), writerRule: "create-only" },
-  "personal/inbox": entry({ substrate: "personal", address: { kind: "pending", pending: true } }, { shape: "heading", sections: ["Errand", "Work Unit"] }),
+  "lineage/transition": { ...machine({ substrate: "tracked", address: { kind: "transition-record" } }), writerRule: "create-only" },
+  "personal/inbox": { ...entry({ substrate: "personal", address: { kind: "inbox", scope: "identity" } }, { shape: "heading", sections: ["Errand", "Work Unit"] }), projection: { kind: "inbox", scope: "identity" } },
   "personal/working-memory": { ...entry({ substrate: "personal", address: { kind: "user-document", document: "working-memory" } }, { shape: "field-header", sections: ["Memories"] }), projection: { kind: "user-document", document: "working-memory" } },
   "personal/document": prose({ substrate: "personal", finder: "personal-documents" }, "projection-defined"),
   "personal/errand-queue": entry(unhomed),

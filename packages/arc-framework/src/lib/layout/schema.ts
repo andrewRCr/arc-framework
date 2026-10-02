@@ -55,6 +55,7 @@ export const TemplateOutputPathSchema = z.string()
 export type TemplateOutputPath = z.infer<typeof TemplateOutputPathSchema>;
 
 const ProjectActiveScopeSchema = z.strictObject({ kind: z.literal("project") });
+const IdentityInboxScopeSchema = z.strictObject({ kind: z.literal("identity"), identity: SlugSchema });
 const ContributorActiveScopeSchema = z.strictObject({
   kind: z.literal("contributor"),
   identity: SlugSchema,
@@ -104,6 +105,10 @@ const UserDocumentSchema = z.discriminatedUnion("kind", [
 /** Runtime authority for complete semantic ARC layout addresses. */
 export const ArcLayoutAddressSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("arc-root") }),
+  z.strictObject({ kind: z.literal("candidate-record"), slug: SlugSchema }),
+  z.strictObject({ kind: z.literal("integration-boundary-record"), slug: SlugSchema }),
+  z.strictObject({ kind: z.literal("transition-record"), origin: SlugSchema }),
+  z.strictObject({ kind: z.literal("inbox"), scope: z.discriminatedUnion("kind", [ProjectActiveScopeSchema, IdentityInboxScopeSchema]) }),
   z.strictObject({ kind: z.literal("placement-root"), tier: ArcPlacementTierSchema }),
   z.strictObject({
     kind: z.literal("work-unit-container"),

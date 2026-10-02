@@ -275,28 +275,16 @@ seam with Phase 7 is the substrate dispatch the other arms join.
 _Mode:_ `slice` through Phase 5 — closes on production callers served through the contract over today's tracked
 records, with no change in behavior.
 
-### `[ ]` **4.1 Layout addresses for the internal records and the inbox — D8**
+### `[x]` **4.1 Layout addresses for the internal records and the inbox — D8**
 
 - _Goal:_ The tracked records under `.arc/system/.internal/` — Candidate, integration-boundary, and transition
   records — and the inbox at project and identity scope have layout address kinds named by role, which
   `resolveArcPath` maps to today's paths, so the in-repo implementation finds every record it reads through the one
   layout authority and only the resolver knows a surface's filename.
 
-    - The inbox is one address kind with a scope, and the inbox kind in each family that holds it — the project family's
-      and the identity family's — takes it as its projection at its family's scope. The record stores —
-      `candidate-record-store.ts`, `submission-boundary-store.ts`, and `transition-record-store.ts` under
-      `lib/work-unit/` — and today's inbox readers keep building their own paths; moving them onto the resolver is later
-      work.
-    - The resolver returns repository-relative paths. The identity-scope inbox is materialized against the
-      identity-global root `resolveUserSurfaceResolver` (`lib/user-surfaces.ts`) selects, the primary worktree's, as
-      `WORKING-MEMORY` already is.
-    - Build `test-first` (one behavior at a time):
-        - each new internal-record address kind resolves to the path today's store builds for the same record, for
-          every record shape that store writes;
-        - the inbox address resolves at project scope to today's project inbox, and at identity scope, materialized
-          against the user-surface resolver's identity-global root, to the path today's readers use, from a linked
-          worktree as from the primary;
-        - every existing address kind resolves as before.
+- _Outcome:_ The layout now owns Candidate, boundary, origin-keyed transition, and scoped inbox paths. Registry
+  descriptors resolve all five pending homes; differential coverage preserves existing paths and selects the primary
+  identity-global inbox from linked worktrees.
 
 ### `[ ]` **4.2 In-repo backend and the composition point — D1, D8**
 
