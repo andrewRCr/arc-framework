@@ -103,7 +103,7 @@ export function extractSectionBody(
  * Paths classified as `other` are skipped silently — the hook invokes this
  * script with the full staged file list and filtering happens here. When
  * frontmatter fails to parse, neutrality diagnostics are suppressed (the
- * schema-validation hook, CHECK 12, surfaces that class of error).
+ * schema-validation hook, CHECK[frontmatter-schema], surfaces that class of error).
  */
 export function validateFiles(
   paths: string[],
