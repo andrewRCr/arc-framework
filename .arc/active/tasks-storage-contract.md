@@ -671,10 +671,10 @@ as stated.
 
 - `[x]` Ready for integration
 
-- `[ ]` Historical entries expose bytes matching each non-removal record version after later updates or removals;
+- `[x]` Historical entries expose bytes matching each non-removal record version after later updates or removals;
   removal entries carry null content and version (A2).
 
-- `[ ]` Two distinct repository-qualified branches on one work-item UID both resolve to that UID; duplicate branch
+- `[x]` Two distinct repository-qualified branches on one work-item UID both resolve to that UID; duplicate branch
   pairs are refused (A3).
 
-- `[ ]` D20 limits rewrites to code branches and preserves D2/D10/D11 store ancestry and saved-state anchors (A4).
+- `[x]` D20 limits rewrites to code branches and preserves D2/D10/D11 store ancestry and saved-state anchors (A4).
