@@ -71,23 +71,20 @@ judgments and every binding obligation retained.
   returns through existing review and approvals before migration or deletion; only supplemental context migrates.
   Both projections retain the two gates, design re-entry, retirement sequence, and ceremony behavior.
 
-### `[ ]` **2.2 Review specification writes during task generation — Decisions 1–4, 7**
+### `[x]` **2.2 Review specification writes during task generation — Decisions 1–4, 7**
 
 - _Goal:_ Corrected specification content reaches task planning as a complete reader-independent contract while
   local corrections keep their existing scope and approval flow.
 
-    - `[ ]` **2.2.a Integrate proportionality and boundary-decision writes**
-        - Update `packages/arc-framework/arc/system/workflows/arc/generate-tasks.template.md` first and mirror its
-          applicable edits to `.arc/system/workflows/arc/generate-tasks.md`. Declare the direct `spec-review`
-          consumer and invoke it after bounded batches of substantive specification corrections or decision writes.
-        - Review changed elements and their affected surrounding contract before the corrected plan is finalized;
-          retain existing approval and restart behavior and prospective eligibility.
+    - `[x]` **2.2.a Integrate proportionality and boundary-decision writes**
+        - The authoritative task-generation template and rendered projection declare and invoke the shared review
+          after eligible proportionality corrections and specification decision writes, covering removals and the
+          affected contract before existing boundaries while retaining approval, restart, and depth selection.
 
-    - `[ ]` **2.2.b Integrate propagation and suite-coherence writes**
-        - Cover Spec-propagation corrections and edits to the specification during final suite coherence, feeding
-          reader findings into the existing iteration/approval flow.
-        - Keep review tied to specification writes rather than task/notes edits or unchanged reads; preserve the
-          selected generation depth and existing source-grounding/task-audit work.
+    - `[x]` **2.2.b Integrate propagation and suite-coherence writes**
+        - Direct shared-review invocations follow bounded Spec-propagation corrections and eligible specification
+          edits during suite coherence, including post-settle re-fires. Findings follow existing iteration and
+          phase-confirmation flow; unchanged reads and task/notes-only edits skip the review.
 
 ### `[ ]` **2.3 Review distributed and retained extraction contracts — Decisions 1–5, 7**
 
