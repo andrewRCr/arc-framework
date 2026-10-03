@@ -79,7 +79,10 @@ export function writeResultSchema(input: Mutation) {
   "A put returns its version and a removal returns none");
 }
 /** Batch result shape; input-bound validation additionally forbids a partial set. */
-export const BatchResultSchema = z.strictObject({ batchId: z.string().min(1), writes: z.array(WriteResultSchema).min(1) });
+export const BatchResultSchema = z.strictObject({ batchId: z.string().min(1), writes: z.array(WriteResultSchema).min(1) })
+  .refine((result) => result.writes.every((write,index) => !result.writes.slice(0,index)
+    .some((other) => sameReference(write.reference,other.reference))),
+  "An atomic batch returns each canonical record at most once");
 /** One complete batch result. */
 export type BatchResult = z.infer<typeof BatchResultSchema>;
 

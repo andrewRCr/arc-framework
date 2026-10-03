@@ -1,10 +1,52 @@
 /** Local writes preserve the complete live owner namespace atomically. */
 import { describe, expect, it } from "vitest";
 import { BatchInputSchema, RecordReferenceSchema, WriteInputSchema } from "../../../../src/lib/store/index.js";
+import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import { createReferenceFixture } from "../../../helpers/store/reference-fixture.js";
 import { seed, success, testProvenance, update } from "../../../helpers/store/suite-tools.js";
 
 describe("reference local rename admission", () => {
+  it("accepts distinct UID generations sharing one human name in a batch", async () => {
+    const fixture = createReferenceFixture();
+    const named = fixture.reference("work-item/meta");
+    const first = await seed(fixture,named);
+    success(await fixture.store.write({...update(fixture,first),placement:{kind:"completed",quarter:ArchiveQuarterSchema.parse("2026-q4")}}));
+    const archived = success(await fixture.store.read({reference:first.reference}));
+    const current = await seed(fixture,named);
+    const writes = [archived,current].map((record)=> {
+      const {provenance,...mutation} = update(fixture,record);
+      void provenance;
+      return mutation;
+    });
+    const result = success(await fixture.store.batch(BatchInputSchema.parse({writes,provenance:testProvenance})));
+    expect(result.writes.map((write)=>write.reference.owner)).toEqual([archived.reference.owner,current.reference.owner]);
+    expect(archived.reference.owner).not.toEqual(current.reference.owner);
+  });
+
+  it.each([false,true])("refuses canonical batch duplicates before any mutation, alias: %s", async (alias) => {
+    const fixture = createReferenceFixture();
+    const requested = fixture.reference("work-item/meta","duplicate");
+    let original = await seed(fixture,requested);
+    if (alias) {
+      const renamed = RecordReferenceSchema.parse({...original.reference,owner:{...original.reference.owner,name:"renamed"}});
+      success(await fixture.store.write(WriteInputSchema.parse({...update(fixture,original),reference:renamed})));
+      original = success(await fixture.store.read({reference:renamed}));
+    }
+    const before = await fixture.settle();
+    const history = success(await fixture.store.history({reference:original.reference}));
+    const other = fixture.reference("personal/document","untouched");
+    const put = {action:"put",reference:original.reference,expected:original.version,content:fixture.content(original.reference,"changed"),placement:original.placement};
+    const batch = BatchInputSchema.parse({writes:[put,{...put,reference:requested},{action:"put",reference:other,expected:null,content:"unrelated"}],provenance:testProvenance});
+    expect(await fixture.store.batch(batch)).toMatchObject({status:"refused",refusal:{code:"record-malformed",remedy:{text:expect.any(String)}}});
+    expect(await fixture.settle()).toBe(before);
+    expect(success(await fixture.store.read({reference:original.reference}))).toEqual(original);
+    expect(success(await fixture.store.history({reference:original.reference}))).toEqual(history);
+    expect(await fixture.store.read({reference:other})).toMatchObject({status:"refused",refusal:{code:"not-found"}});
+    const repaired = BatchInputSchema.parse({...batch,writes:batch.writes.filter((_,index)=>index!==1)});
+    success(await fixture.store.batch(repaired));
+    expect(success(await fixture.store.read({reference:original.reference})).content).toBe(put.content);
+  });
+
   for (const leftKind of ["work-item/meta", "work-item/record"] as const) for (const rightKind of ["work-item/meta", "work-item/record"] as const) {
     it.each([false, true])(`refuses colliding ${leftKind} and ${rightKind} names without namespace effects, batch: %s`, async (batch) => {
       const fixture = createReferenceFixture();

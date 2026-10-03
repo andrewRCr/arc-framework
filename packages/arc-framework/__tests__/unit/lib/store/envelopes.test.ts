@@ -73,6 +73,14 @@ describe("mutation envelopes", () => {
     expect(schema.safeParse({ batchId: "batch", writes: [{ reference, version, conflicts: [] }] }).success).toBe(false);
     expect(schema.safeParse({ batchId: "batch", writes: [{ reference, version, conflicts: [] }, { reference: other, version, conflicts: [] }] }).success).toBe(true);
   });
+  it("rejects duplicate canonical results for mixed name and UID requests", () => {
+    const named = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({type:"work-item",name:owner.name}));
+    const input = BatchInputSchema.parse({writes:[mutation,{...mutation,reference:named}],provenance});
+    expect(batchResultSchema(input).safeParse({batchId:"batch",writes:[{reference,version,conflicts:[]},{reference,version,conflicts:[]}]}).success).toBe(false);
+    const distinct = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({...owner,uid:"22222222-2222-4222-8222-222222222222"}));
+    const generations = BatchInputSchema.parse({writes:[mutation,{...mutation,reference:distinct}],provenance});
+    expect(batchResultSchema(generations).safeParse({batchId:"batch",writes:[{reference,version,conflicts:[]},{reference:distinct,version,conflicts:[]}]}).success).toBe(true);
+  });
   it.each([
     {}, { verb: "", lifecycleAction: "update" }, { ...provenance, reference },
     { ...provenance, ownerUid: "11111111-1111-4111-8111-111111111111" }, { ...provenance, batchId: "batch" },

@@ -174,6 +174,12 @@ export function batchReference(context: ReferenceContext, input: BatchInput): St
   const writes = input.writes.map((write) => ({ ...write, provenance: input.provenance }));
   const prepared = { ...context, state: structuredClone(context.state) };
   const mutations = prepareGenerations(prepared, writes);
+  const keys = new Set<string>();
+  for (const write of mutations) {
+    const key = recordKey(canonicalReference(prepared.state,write.reference));
+    if (keys.has(key)) return refused(malformed(write.reference,"An atomic batch must name each canonical record at most once."));
+    keys.add(key);
+  }
   for (const write of mutations) { const refusal = preflight(prepared, write); if (refusal) return refused(refusal); }
   const conflicts = mutations.flatMap((write, index) => stale(prepared, write) ? [writes[index]!.reference] : []);
   if (conflicts.length > 0) return refused(versionConflict(conflicts));
