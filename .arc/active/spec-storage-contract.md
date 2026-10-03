@@ -1822,9 +1822,9 @@ its own surfaces.
 
 ### D20. History policy and deferred capabilities
 
-**History policy.** Once notes retire, `history.policy: rewrite-with-lease | append-only`, default `rewrite-with-lease`,
-with `append-only` for teams that prefer fixup-then-squash review or branches several people push to — the idiom turns
-on who pushes to a branch, not team size.
+**History policy (A4).** Once notes retire, code branches use `history.policy: rewrite-with-lease | append-only`,
+default `rewrite-with-lease`, with `append-only` for teams that prefer fixup-then-squash review or branches several
+people push to — the idiom turns on who pushes to a branch, not team size.
 
 - The code built on the append-only rule — `arc base merge`, decomposition's base advancement, Candidate applicability
   evidence, recover's strict-ancestry check, and the advisory pre-push backstop — consults the policy, with a
@@ -1832,7 +1832,8 @@ on who pushes to a branch, not team size.
 - Supersession detection (`lib/git/supersession.ts`) stays as the safety net once rewrites are allowed.
 - **Nothing depends on commit reachability.** State keys to work units and identities, never to a code commit; a capture
   that names a commit carries its patch-id where it has one and is remapped by ARC's own rewrites (D3, D16).
-- The many small store commits write-back produces are the history policy's to fold.
+- Store history keeps its commit ancestry and every saved-state anchor (A4). The code-branch policy never folds
+  durable store commits; D2's continuity, D10's immutable history and D11's ancestry check remain in force.
 
 **Deferred capabilities,** each never precluded and each with a reserved hook or a tripwire:
 
@@ -2093,6 +2094,9 @@ Validated at this change's completion, over Part A:
 18. **Retained branch links (A3).** Two distinct repository-qualified branches on one work-item UID both resolve to
     that UID; duplicate branch pairs are refused.
 
+19. **History-policy separation (A4).** D20 limits rewrites to code branches and preserves D2/D10/D11 store ancestry
+    and saved-state anchors.
+
 ## Open Questions
 
 None blocks building Part A.
@@ -2131,3 +2135,5 @@ operations and outcomes, and which test tier each conformance fixture runs in.
   _Trigger:_ storage-standard-1-F08 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 - **A3** — 2026-10-02 — design: retain all work-item branch links. _Supersedes:_ D3 links cardinality; D5 base.
   _Trigger:_ storage-standard-1-F09 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A4** — 2026-10-02 — design: keep store ancestry immutable. _Supersedes:_ D20 store-commit folding instruction.
+  _Trigger:_ storage-standard-1-F10 review. _Work:_ review-fix. _Revalidated:_ review-fix.

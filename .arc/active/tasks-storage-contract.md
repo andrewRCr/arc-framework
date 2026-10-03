@@ -676,3 +676,5 @@ as stated.
 
 - `[ ]` Two distinct repository-qualified branches on one work-item UID both resolve to that UID; duplicate branch
   pairs are refused (A3).
+
+- `[ ]` D20 limits rewrites to code branches and preserves D2/D10/D11 store ancestry and saved-state anchors (A4).

@@ -976,3 +976,13 @@ all affected metadata and conflict values, and their fixtures; the in-repo limit
 
 This satisfies the two existing work-item types without implementing promotion or changing the remaining captures.
 The appended criterion proves that either retained branch resolves to the same UID and duplicates are rejected.
+
+## A4 — Code-branch policy and immutable store history
+
+D20's superseded instruction was “The many small store commits write-back produces are the history policy's to fold.”
+D2 instead keeps saved-state anchors readable; D10 forbids rewriting durable store history; and D11 refuses a state
+head outside the previously seen ancestry. Those requirements already settle the store's behavior.
+
+The code-branch rewrite policy now explicitly leaves durable store commits and their saved versions intact. This is
+an amendment to the contradictory instruction, with no compaction or rotation mechanism added. The review-fix source
+check and appended criterion verify that the four sections agree.
