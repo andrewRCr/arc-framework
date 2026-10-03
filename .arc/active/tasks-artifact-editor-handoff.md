@@ -14,31 +14,20 @@ _Mode:_ `slice` — closes on a resolved artifact opened through the CLI's guard
 _Exit criterion:_ An interactive `arc view --editor` hands the same real absolute file as `--path` to the selected
 command; forbidden and failed invocations return diagnostics, and ordinary view destinations remain compatible.
 
-### `[ ]` **1.1 Hand resolved artifacts to the configured editor — Decisions 1, 2, 3, 4**
+### `[x]` **1.1 Hand resolved artifacts to the configured editor — Decisions 1, 2, 3, 4**
 
 - _Goal:_ Editor handoff opens the resolved real file with the chosen command, preserves literal filename transport,
   and reports process failures without producing ARC presentation content.
-
-- _Note:_ See `notes-artifact-editor-handoff.md` § Existing seams for shell argument transport and the
-  noninteractive Git environment override.
 
     - `[x]` **1.1.a Select and launch the editor through an injectable process boundary**
         - Added `src/handlers/view-editor.ts` with injected Git/process ports.
           Non-empty `ARC_EDITOR` overrides Git selection; an invocation-local Git shell alias transports the real
           file as literal argv, inherits terminal streams, waits, and reports failures with an override remedy.
 
-    - `[ ]` **1.1.b Route resolved artifacts to the editor before presentation**
-        - Extend `RunViewOptions` in `src/lib/view/types.ts` and `ViewDependencies` in `src/commands/view/run.ts`
-          with the editor option and injectable launcher. Preserve existing callers and the public view surface.
-        - In `runView`, reuse the existing resolver and absolute-path conversion used by `--path`; return from the
-          editor branch before `readFile`, `prepareViewDocument`, renderer discovery, or paging.
-        - Build `test-first` (one behavior at a time) in `__tests__/unit/view/run.test.ts`:
-            - Resolved editor handoff passes the actual absolute file once and returns empty ARC stdout on success;
-              presentation dependencies are unused and ARC performs no artifact rewrite.
-            - Missing/error artifacts return nonzero without launching. Invalid destination combinations and
-              forbidden interaction refuse before resolution or editor selection/launch.
-            - Selection/launch/exit failures become nonzero stderr diagnostics naming `ARC_EDITOR`, with no silent
-              fallback; a successful subsequent handoff returns normally.
+    - `[x]` **1.1.b Route resolved artifacts to the editor before presentation**
+        - Added an injectable editor destination to `runView`, using the resolver's real absolute file before
+          reading or formatting. Conflicting destinations and missing interaction permission refuse before
+          resolution; absence and failed handoffs return diagnostics, and repaired commands can retry.
 
 ### `[ ]` **1.2 Expose guarded editor handoff through the CLI — Decisions 1, 3, 4**
 

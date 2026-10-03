@@ -7,6 +7,7 @@ import { resolve as resolvePath } from "node:path";
 import type {
   RunViewOptions,
   ViewArtifactResolver,
+  ViewArtifactResult,
   ViewOutput,
 } from "../../lib/view/types.js";
 import { prepareViewDocument, type ViewDocumentAnchor } from "../../lib/view/format.js";
@@ -17,6 +18,7 @@ import type { ResolvedViewClock } from "../../lib/view/clock.js";
 export interface ViewDependencies {
   resolveArtifact: ViewArtifactResolver;
   readFile: (path: string) => Promise<string>;
+  launchEditor?: (path: string) => Promise<void>;
   resolveRenderer?: () => Promise<ResolvedViewRenderer>;
   renderWithPager?: (input: {
     renderer: ViewRenderer;
@@ -54,6 +56,7 @@ export async function runView(
       exitCode: 1,
     };
   }
+  if (options.editor === true) return openArtifactInEditor(artifact, options, dependencies);
   if (options.path === true) {
     // A path consumer such as `$(arc view <kind> --path)` must never receive the absence message as a path.
     return artifact.status === "absent"
@@ -122,8 +125,36 @@ export async function runView(
   }
 }
 
+async function openArtifactInEditor(
+  artifact: Exclude<ViewArtifactResult, { status: "error" }>,
+  options: RunViewOptions,
+  dependencies: ViewDependencies,
+): Promise<ViewOutput> {
+  if (artifact.status === "absent") {
+    return { stdout: "", stderr: `${artifact.kind} is not present.\n`, exitCode: 1 };
+  }
+  try {
+    if (dependencies.launchEditor === undefined) throw new Error("Editor launcher is unavailable");
+    await dependencies.launchEditor(resolvePath(options.cwd, artifact.path));
+    return { stdout: "", stderr: "", exitCode: 0 };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const remedy = message.includes("ARC_EDITOR") ? "" : ". Set ARC_EDITOR to a working editor command.";
+    return { stdout: "", stderr: `Unable to open ${artifact.kind} in editor: ${message}${remedy}\n`, exitCode: 1 };
+  }
+}
+
 /** Refuse option combinations that are invalid before any artifact is resolved. */
 function rejectInvalidOptions(options: RunViewOptions, kind: string | undefined): ViewOutput | null {
+  if (options.editor === true) {
+    if (options.path === true || options.current === true) {
+      const conflict = options.path === true ? "--path" : "--current";
+      return { stdout: "", stderr: `--editor cannot be combined with ${conflict}.\n`, exitCode: 1 };
+    }
+    if (options.editorAllowed !== true) {
+      return { stdout: "", stderr: "--editor requires an interactive terminal and allowed interaction.\n", exitCode: 1 };
+    }
+  }
   if (options.path === true && options.current === true) {
     return { stdout: "", stderr: "--path cannot be combined with --current.\n", exitCode: 1 };
   }
