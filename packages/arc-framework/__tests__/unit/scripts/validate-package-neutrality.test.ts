@@ -324,7 +324,7 @@ describe("validateFiles", () => {
     expect(result.diagnostics).toEqual([]);
   });
 
-  it("suppresses neutrality diagnostics when frontmatter fails to parse — CHECK 12 surfaces schema errors", () => {
+  it("defers malformed-frontmatter errors to CHECK[frontmatter-schema]", () => {
     const broken = [
       "---",
       "description: missing name and override-active",
@@ -338,7 +338,7 @@ describe("validateFiles", () => {
       "packages/arc-framework/arc/system/methods/commit-format.md": broken,
     };
     const result = validateFiles(Object.keys(files), fakeReader(files));
-    // No diagnostics here: schema-level issues are owned by CHECK 12,
+    // No diagnostics here: schema-level issues are owned by CHECK[frontmatter-schema],
     // and this check declines to pile on when frontmatter is unparseable.
     expect(result.pass).toBe(true);
     expect(result.diagnostics).toEqual([]);

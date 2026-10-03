@@ -5,6 +5,11 @@
 # Setup: git config core.hooksPath .arc/system/.internal/githooks
 # NOTE: Never use --no-verify to bypass hooks. Fix the issue instead.
 #
+# Check identity: # CHECK[slug]: Human description; references use CHECK[slug].
+# IDs are unique lowercase kebab-case: [a-z][a-z0-9]*(-[a-z0-9]+)*.
+# Keep an ID when its check moves or its description changes; give a new concern its own ID.
+# Never recycle an old ID for an unrelated check.
+#
 # shellcheck disable=SC2001 # sed 's/^/   /' for multiline indentation is clearer than parameter expansion
 
 set -e
@@ -42,7 +47,7 @@ errors=0
 warnings=0
 
 # ============================================================================
-# CHECK 1: Base branch commit protection (config-aware)
+# CHECK[base-branch-protection]: Base branch commit protection (config-aware)
 # ============================================================================
 # Behavior determined by branch_protection setting in arc-config.yml:
 #   partial - warning (planned work should use branches)
@@ -71,7 +76,7 @@ elif [ "$current_branch" = "$base_branch" ]; then
 fi
 
 # ============================================================================
-# CHECK 2: Large file check (prevent accidental commits)
+# CHECK[large-files]: Large file check (prevent accidental commits)
 # ============================================================================
 large_files=$(git diff --cached --name-only --diff-filter=ACMR | while IFS= read -r file; do
     size=$(git show ":$file" 2>/dev/null | wc -c || echo 0)
@@ -93,7 +98,7 @@ if [ -n "$large_files" ]; then
 fi
 
 # ============================================================================
-# CHECK 3: Sensitive file patterns (prevent credential leaks)
+# CHECK[sensitive-files]: Sensitive file patterns (prevent credential leaks)
 # ============================================================================
 sensitive_patterns=(
     "\.env$"
@@ -114,7 +119,7 @@ for pattern in "${sensitive_patterns[@]}"; do
 done
 
 # ============================================================================
-# CHECK 4: Check for common merge conflict markers
+# CHECK[merge-conflict-markers]: Check for common merge conflict markers
 # ============================================================================
 # Under arc-in-git, regenerate and restage ROADMAP before the generic marker
 # check when it is the only conflicted or marker-bearing path. Wider conflicts
@@ -149,7 +154,7 @@ if [ -n "$conflict_markers" ]; then
 fi
 
 # ============================================================================
-# CHECK 5: Debug statements check (optional warning)
+# CHECK[debug-statements]: Debug statements check (optional warning)
 # ============================================================================
 # Adopter: adjust patterns to match your project's languages and debug conventions.
 # Default covers JavaScript/TypeScript (console.log, debugger) and Python (pdb, breakpoint).
@@ -186,7 +191,7 @@ for pattern in "${debug_patterns[@]}"; do
 done
 
 # ============================================================================
-# CHECK 6: Contributor protected file warning
+# CHECK[contributor-protected-files]: Contributor protected file warning
 # ============================================================================
 # When role=contributor, warn if staging files in maintainer-managed directories.
 # Soft warning (not a hard block) — contributors may have legitimate reasons.
@@ -208,7 +213,7 @@ if [ "$arc_role" = "contributor" ]; then
 fi
 
 # ============================================================================
-# CHECK 7: Verify modified task lists are staged (maintainer only)
+# CHECK[task-list-staging]: Verify modified task lists are staged (maintainer only)
 # ============================================================================
 # If committing code changes, check if related task lists should also be staged.
 # Skipped for contributors — they don't manage task lists.
@@ -225,7 +230,7 @@ if [ "$arc_role" != "contributor" ]; then
 fi
 
 # ============================================================================
-# CHECK 8: Task numbering format (numeric.numeric.alpha) (maintainer only)
+# CHECK[task-numbering]: Task numbering format (numeric.numeric.alpha) (maintainer only)
 # ============================================================================
 # Per strategy-task-list-formatting.md: Third level uses letters (1.1.a not 1.1.1)
 # Format: X.Y (parent) -> X.Y.a (subtask) -> X.Y.a.1 (fourth level, rare)
@@ -267,7 +272,7 @@ if [ "$arc_role" != "contributor" ] && [ "$task_numbering_mode" != "off" ]; then
 fi
 
 # ============================================================================
-# CHECK 9: No meta-project references in production code
+# CHECK[meta-project-references]: No meta-project references in production code
 # ============================================================================
 # Per DEV-RULES.ARC.md § Documentation Boundaries: code, tests, and durable
 # documentation must not reference planning IDs (task X.Y, phase N, requirement
@@ -352,7 +357,7 @@ if [ -n "$meta_project_refs" ]; then
 fi
 
 # ============================================================================
-# CHECK 11: Frontmatter schema validation (methods / extensions)
+# CHECK[frontmatter-schema]: Frontmatter schema validation (methods / extensions)
 # ============================================================================
 # Delegates to validate-frontmatter.ts via Node's TypeScript loader — schema logic lives in
 # TypeScript where it is unit-tested; this hook is a thin invoker. Catches
@@ -373,9 +378,9 @@ if [ -n "$frontmatter_candidates" ]; then
 fi
 
 # ============================================================================
-# CHECK 12: Domain-rules frontmatter validation (DEV-RULES.{DOMAIN}.md)
+# CHECK[domain-rules-frontmatter]: Domain-rules frontmatter validation (DEV-RULES.{DOMAIN}.md)
 # ============================================================================
-# Delegates to validate-frontmatter.ts — same validator as CHECK 11, scoped
+# Delegates to validate-frontmatter.ts — same validator as CHECK[frontmatter-schema], scoped
 # to DEV-RULES.{DOMAIN}.md files under system/rules/. Reserved
 # filenames (DEV-RULES.ARC.md, DEV-RULES.PROJECT.md) are filtered by the
 # validator's classifier and not checked.
@@ -394,7 +399,7 @@ if [ -n "$domain_rules_candidates" ]; then
 fi
 
 # ============================================================================
-# CHECK 13: Markdown link resolution (D7a)
+# CHECK[markdown-links]: Markdown link resolution (D7a)
 # ============================================================================
 # Validates that inline and reference-style markdown links in staged .md files
 # resolve to existing files. Skips external links, anchor-only links, and
@@ -414,14 +419,14 @@ if [ -n "$link_candidates" ]; then
 fi
 
 # ============================================================================
-# CHECK 14: Package-source neutrality (per-file methods / extensions)
+# CHECK[package-source-neutrality]: Package-source neutrality (per-file methods / extensions)
 # ============================================================================
 # Framework package source must ship neutral defaults: per-file methods and
 # extensions under packages/arc-framework/arc/system/{methods,extensions}/
 # must have `override-active: false` / `active: false` frontmatter and
 # `[No override configured]` / `[No extension configured]` placeholder bodies.
 # Local customization belongs only in the .arc/ copy — this hook blocks
-# personal-repo content from leaking into the package. Complements CHECK 11
+# personal-repo content from leaking into the package. Complements CHECK[frontmatter-schema]
 # (frontmatter schema) with a semantic gate on values and body content.
 neutrality_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
     grep -E '^packages/arc-framework/arc/system/(methods|extensions)/[^/]+\.md$' | \
@@ -441,12 +446,12 @@ if [ -n "$neutrality_candidates" ]; then
 fi
 
 # ============================================================================
-# CHECK 15: Extension-point reference resolution (D7b)
+# CHECK[extension-point-references]: Extension-point reference resolution (D7b)
 # ============================================================================
 # Every anchor-suffix marker (`· `#<name>``) in a staged workflow file must
 # target an existing `system/extensions/<name>.md` in the same copy — .arc/
 # workflow resolves against .arc/ extensions; package-source workflow
-# resolves against package-source extensions. Complements CHECK 14
+# resolves against package-source extensions. Complements CHECK[package-source-neutrality]
 # (neutrality on extension bodies) with a gate on workflow references.
 # Existence is the pass criterion; `active:` and body content are not
 # inspected.
@@ -466,7 +471,7 @@ if [ -n "$extension_point_candidates" ]; then
 fi
 
 # ============================================================================
-# CHECK 16: Meta-file shape validation
+# CHECK[meta-file-shape]: Meta-file shape validation
 # ============================================================================
 # Validates staged lifecycle meta files: managed field-block anchor shape,
 # `**Design:**` field shape, lifecycle State enum, and Cohort path shape.
@@ -487,7 +492,7 @@ if [ -n "$meta_spec_candidates" ]; then
 fi
 
 # ============================================================================
-# CHECK 17: ROADMAP regeneration trigger (arc-in-git only)
+# CHECK[roadmap-regeneration-trigger]: ROADMAP regeneration trigger (arc-in-git only)
 # ============================================================================
 # When a staged meta file under active/ or backlog/planned/ changes a ROADMAP
 # render field (Depends On / Owner / Cohort), backlog/ROADMAP.md should be
@@ -523,7 +528,7 @@ if [ "$pm_mode" = "arc-in-git" ]; then
 fi
 
 # ============================================================================
-# CHECK 18: Cohort-consistency invariant (backlog-scoped)
+# CHECK[cohort-consistency]: Cohort-consistency invariant (backlog-scoped)
 # ============================================================================
 # Validates the three-condition cohort-consistency invariant over staged
 # work-unit metas and cohort docs under `.arc/backlog/planned/`: (a) a WU's
@@ -547,7 +552,7 @@ if [ -n "$cohort_consistency_candidates" ]; then
 fi
 
 # ============================================================================
-# CHECK 19: ROADMAP regenerated assert (arc-in-git only)
+# CHECK[roadmap-regeneration-assert]: ROADMAP regenerated assert (arc-in-git only)
 # ============================================================================
 # Validates a staged ROADMAP as a derived artifact: staged blob versus a fresh
 # staged-index render, with a finalized retirement staged in the same index
@@ -574,7 +579,7 @@ if [ "$pm_mode" = "arc-in-git" ]; then
 fi
 
 # ============================================================================
-# CHECK 20: Foreign-write advisory backstop
+# CHECK[foreign-write-advisory]: Foreign-write advisory backstop
 # ============================================================================
 # Surfaces a staged per-WU artifact that another in-flight work unit also
 # touches — a foreign-owned write about to land on the wrong branch. Reuses the

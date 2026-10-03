@@ -1,5 +1,6 @@
 /**
- * Extension-point reference validator — pre-commit hook entry point (CHECK 16).
+ * Extension-point reference validator — pre-commit hook entry point
+ * (CHECK[extension-point-references]).
  *
  * Workflows mark extension fire points with anchor-suffix markers
  * (e.g., `### 3. Post-Context-Load Extensions · `#post-context-load``
@@ -10,9 +11,9 @@
  * the two trees evolve independently, and a reference pointing at an
  * extension only present in the other copy would silently break on sync.
  *
- * Complements CHECK 15 (package-source neutrality): CHECK 15 asserts
- * extension bodies and frontmatter toggles are neutral in the package
- * source; CHECK 16 asserts workflow references have a target. No overlap
+ * Complements CHECK[package-source-neutrality], which asserts extension
+ * bodies and frontmatter toggles are neutral in the package source;
+ * CHECK[extension-point-references] asserts workflow references have a target. No overlap
  * — different surfaces, different diagnostics. Existence is the pass
  * criterion here; `active:` values and body content are not inspected.
  *
