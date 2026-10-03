@@ -359,6 +359,62 @@
   ADR-022 amendments, the same refusal, merged on Owner acceptance at zero passes; `arc review status` read
   `review-required` with no obligation level.
 
+### `[ ]` **Hold the adversarial-pass recording verb to one call**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- _WU_Target:_ `review-orchestration-right-sizing`
+
+- _Observation:_ `spec-storage-contract.md` D5 makes each adversarial pass a review record from the storage flip and
+  bounds its recording: one verb call at the disposition approval, whose input is the evaluator's report in the
+  adversarial-review method's shape plus one disposition and account per finding. The CLI derives the artifact
+  versions, pass number, and lineage itself, publishes its input schema, and refuses malformed input naming the
+  expected shape, so no session hand-builds an identifier, writes a request file, or reads source to record a pass.
+  The records share the review gate's record shapes, never its operation machinery. Today's review recording is
+  slower than writing a Markdown file, and an agent that cannot find a request's shape repeats commands or reads
+  source.
+
+- _Approach:_ when right-sizing review recording, keep the pass-recording verb inside that bound, and measure the
+  calls and wall-clock time a pass's recording takes against appending to a file.
+
+- _Captured during:_ `storage-contract` create-spec, 2026-10-01.
+
+### `[ ]` **Admit the fix-check finding sets, rounds, and finding origin in the adversarial-pass record**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- _WU_Target:_ `review-orchestration-right-sizing`
+
+- _Observation:_ `storage-contract` D5 makes each adversarial pass a review record, recorded in one call at the
+  disposition approval. `grounded-planning-review` puts the fix check's finding sets beside a pass's own, approved
+  after the pass's disposition and possibly over several rounds, each round with its own reviewed version. Each
+  finding's account also names its origin — a previous pass's fix or a fix-check repair — and each fold carries a tag,
+  local correction or new design. The entry also lists the corrections the author's own grounding of its folds made,
+  after the pass and after each round. Today these are sections of the pass's `ADVERSARIAL-PASSES.md` entry.
+
+- _Approach:_ either the record schema admits the fix-check sets, with rounds, origin, fold tags, and the author's
+  corrections, or recording moves to successor launch; decide beside "Hold the adversarial-pass recording verb to one
+  call".
+
+- _Captured during:_ `grounded-planning-review` draft-design close, 2026-10-01 (draft at `725ddeaa9`).
+
+### `[ ]` **Decide whether code-review lanes' next-pass recommendation adopts the re-inspection test**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- _WU_Target:_ `review-orchestration-right-sizing`
+
+- _Observation:_ `grounded-planning-review` D5 adds inspection practice's re-inspection test to `adversarial-review`
+  § Exit gate: recommend another full pass when the folds have changed the artifact so much that the last pass's
+  assessment no longer holds; otherwise the caller's own check of the response verifies the rework. It also makes a
+  clear recommendation — another pass or stop — the default at `cap-exhausted`: the cap bounds autonomy, not advice.
+  Code-review lanes reach a next-pass recommendation through `review-triage` and the review gate's pass policy, which
+  already name the pass a fix triggers and its coverage, complete or incremental; the draft routes them here.
+
+- _Approach:_ decide whether the test and the recommendation default sit beside complete-or-incremental coverage.
+
+- _Captured during:_ `grounded-planning-review` draft-design close, 2026-10-01 (draft at `725ddeaa9`).
+
 ---
 
 ## Problem / Motivation
