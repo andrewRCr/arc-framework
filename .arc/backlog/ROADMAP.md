@@ -13,18 +13,18 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                       | Priority | Owner  | Depends on       | Cohort                   |
-| ---------- | ------------------------------- | -------- | ------ | ---------------- | ------------------------ |
-| `Active`   | storage-contract                | P1       | andrew | —                | state-storage            |
-| `Planning` | storage-seam                    | P1       | andrew | storage-contract | state-storage            |
-| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                | —                        |
-| `Planning` | decomposition-doctrine          | P1       | andrew | —                | —                        |
-| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                | —                        |
-| `Planning` | review-checkout-lifecycle       | P1       | andrew | —                | —                        |
-| `Planning` | stub-mint-to-launch             | P1       | andrew | —                | —                        |
-| `Active`   | check-id-stabilization          | P2       | andrew | —                | architecture-remediation |
-| `Planning` | spec-reader-standard            | P2       | andrew | —                | doc-conventions          |
-| `Planning` | cli-help-discovery              | P3       | andrew | —                | —                        |
+| State         | Work unit                       | Priority | Owner  | Depends on       | Cohort                   |
+| ------------- | ------------------------------- | -------- | ------ | ---------------- | ------------------------ |
+| `Active`      | storage-contract                | P1       | andrew | —                | state-storage            |
+| `Planning`    | storage-seam                    | P1       | andrew | storage-contract | state-storage            |
+| `Planning`    | candidate-reroot-recovery-frame | P1       | andrew | —                | —                        |
+| `Planning`    | decomposition-doctrine          | P1       | andrew | —                | —                        |
+| `Planning`    | delivery-rebuild-continuity     | P1       | andrew | —                | —                        |
+| `Planning`    | review-checkout-lifecycle       | P1       | andrew | —                | —                        |
+| `Planning`    | stub-mint-to-launch             | P1       | andrew | —                | —                        |
+| `Integrating` | check-id-stabilization          | P2       | andrew | —                | architecture-remediation |
+| `Active`      | spec-reader-standard            | P2       | andrew | —                | doc-conventions          |
+| `Planning`    | cli-help-discovery              | P3       | andrew | —                | —                        |
 
 ## Ready
 
