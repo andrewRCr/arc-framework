@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "singleton-forced-source-applicability",
+  "claimId": "ee5d2693175bfb731d5ade4080c39e66",
+  "createdAt": "2026-10-03T23:57:10.260Z",
+  "updatedAt": "2026-10-03T23:57:10.260Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Align singleton status applicability with the explicitly selected hosted review source to unblock spec-reader-standard pass 2.",
+  "branch": "chore/singleton-forced-source-applicability",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
