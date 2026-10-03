@@ -36,6 +36,36 @@ time.
 - _Fold-in:_ fold both into the charter with a positive content test each — e.g. WORKING-MEMORY earns place when it
   constrains work the reader has not started yet.
 
+### `[ ]` **Cut restated procedure from session output; keep state, next step, and recommendations**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- `WU_Target: TBD`
+
+- _Observation:_ ARC workflows and CLI-composed texts have the agent restate policy to the Owner at nearly every
+  gate: "approval is not merge authority", "this does not establish convergence", "a disposition approval grants no
+  next pass", residual-race disclaimers, "completed responses are not re-approved at this gate". Useful on someone's
+  first day, noise ever after. It buries the state and the decision the Owner needs and lengthens every gate. This
+  session's integration interlock, review-stop offer, and disposition reports were each mostly restated policy.
+
+- _Principle (Owner, 2026-10-01):_ session output earns its lines by anchoring current state, naming what is next,
+  or carrying a decision with the agent's recommendation. Restating ARC policy to the user does none of these.
+  Every decision point comes with a recommendation.
+
+- _Approach:_ a pass over the user-facing texts — workflow interlock and offer text (integration interlock,
+  Owner-directed review stop, commit gates) and CLI-composed texts (`dispositionReportText`,
+  `provisionalPassAssessment`, `recommendedPromptText`) — separating what the agent must do or check (stays in the
+  workflow) from what it must say (cut to state, next step, decision, recommendation). The mirror of
+  `agent-context-optimization`'s reading test: every line the agent says should change what the Owner knows or
+  decides. Decide per item whether a disclosure must reach the Owner or only the agent; some, like checks bound to
+  the approved head, may need to stay. Candidate homes: `documentation-surface-routing` (the conversation as one
+  more content surface) or a new `agent-context-optimization` member.
+
+- _Captured during:_ Errand `review-evidence-record`, 2026-10-01.
+
+- _Routing decision (2026-10-03):_ home is `documentation-surface-routing`; conversation is another output
+  surface whose content discipline this design can settle. The capture's `TBD` records its original home uncertainty.
+
 ## Problem / Motivation
 
 The codified rules across task-adjacent surfaces already say "don't restate":

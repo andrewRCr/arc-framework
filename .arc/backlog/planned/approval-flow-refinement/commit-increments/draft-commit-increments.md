@@ -98,6 +98,26 @@
 
 - _Captured during:_ `delivery-post-landing-conflict-recovery` planning, 2026-09-17.
 
+### `[ ]` **Plan the increment ratchet against the storage contract's task close verb**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- _WU_Target:_ `commit-increments`
+
+- _Observation:_ `spec-storage-contract.md` D16 adds one close verb that, from the storage flip, owns task completion:
+  it marks a set of tasks complete — one, a parent, a phase, or several phases — and captures that increment's commits
+  (`HEAD` or named commits) into their task records, running after the commit it never makes. Write-back refuses a
+  hand tick. Nothing in the capture assumes one task per commit or per increment, so a raised review-increment floor
+  composes with it. The flip rewords the review-increment invariant only to say a persist is a save, not a commit;
+  the broader loosening into a tunable default stays this work unit's and `unit-scoped-review`'s
+  (`approval-flow-refinement`). `draft-commit-increments.md` does not yet name this dependency.
+
+- _Approach:_ at the next planning pass, design the ratchet's task-close step through the close verb rather than
+  hand-ticking, and confirm the per-task default, the project and user floors, and the conversational override each
+  close one increment's tasks in a single call.
+
+- _Captured during:_ `storage-contract` create-spec, 2026-09-30.
+
 ## Problem / Motivation
 
 ARC's task-execution model conflates two distinct boundaries — _where the agent stops to ask_

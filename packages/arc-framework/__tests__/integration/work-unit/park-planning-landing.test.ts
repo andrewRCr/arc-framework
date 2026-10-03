@@ -310,6 +310,44 @@ describe("landParkPlanningTransition", () => {
     expect(harness.calls.some((call) => call.args[0] === "update-index")).toBe(false);
   });
 
+  it.each(["moved tip", "missing owner"] as const)(
+    "preserves foreign index locks when the source has a %s",
+    async (fault) => {
+      const harness = productionHarness();
+      const expected = await harness.context.readBase("solo", transition.files);
+      const foreignLock = new TextEncoder().encode("another Git process owns this lock");
+      harness.files.set("/repo/.git/index.lock", foreignLock);
+      harness.files.set("/repo/.git/index.lock.lock", foreignLock);
+      if (fault === "moved tip") harness.setPlanTip("e".repeat(40));
+      else harness.setOwnerPresent(false);
+
+      const result = await harness.context.stage(transition, expected);
+
+      expect(result).toMatchObject({ status: "rejected", reason: expect.stringMatching(/no longer/iu) });
+      expect(harness.files.get("/repo/.git/index.lock")).toEqual(foreignLock);
+      expect(harness.files.get("/repo/.git/index.lock.lock")).toEqual(foreignLock);
+      expect(harness.files.has("/repo/.arc/backlog/planned/solo/meta-solo.md")).toBe(false);
+    },
+  );
+
+  it("preserves a foreign index lock on exclusive-create refusal and lands after it clears", async () => {
+    const harness = productionHarness();
+    const expected = await harness.context.readBase("solo", transition.files);
+    const foreignLock = new TextEncoder().encode("another Git process owns this lock");
+    harness.files.set("/repo/.git/index.lock", foreignLock);
+
+    const refused = await harness.context.stage(transition, expected);
+
+    expect(refused).toMatchObject({ status: "rejected", reason: expect.stringContaining("EEXIST") });
+    expect(harness.files.get("/repo/.git/index.lock")).toEqual(foreignLock);
+    expect(harness.files.has("/repo/.arc/backlog/planned/solo/meta-solo.md")).toBe(false);
+
+    harness.files.delete("/repo/.git/index.lock");
+    expect(await harness.context.stage(transition, expected)).toEqual({ status: "staged" });
+    expect(harness.files.get("/repo/.arc/backlog/planned/solo/meta-solo.md")).toEqual(transition.files[0]?.bytes);
+    expect(harness.files.has("/repo/.git/index.lock")).toBe(false);
+  });
+
   it("rejects owner disappearance at stage time before writing", async () => {
     const harness = productionHarness();
     const expected = await harness.context.readBase("solo", transition.files);

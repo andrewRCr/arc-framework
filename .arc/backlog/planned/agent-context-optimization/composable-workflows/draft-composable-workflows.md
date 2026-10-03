@@ -326,6 +326,28 @@
 - _Approach:_ At next planning, re-derive the fixtures from the post-cutover session-init envelope (the slots
   `storage-seam` rebuilds) rather than today's notes and relocate shapes.
 
+### `[ ]` **Consider a uniform method interface for who runs a check and where it runs**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- _WU_Target:_ `composable-workflows`
+
+- _Observation:_ ARC methods already split in two without saying so. **Procedures** are run by the primary:
+  `adversarial-review` delegates to a fresh evaluator and holds primary-side inputs, such as `pass-cap`, that are
+  never serialized to it. **Checks** are rubric content that runs either in the primary's own context or handed to
+  a fresh evaluator as a procedure's rubric: `spec-review`, `task-audit`, `design-audit`,
+  `assess-design-proportionality`, and `grounded-planning-review`'s new `source-grounding`. The method is never
+  passed to the evaluator; the rubric is. So independence is a property of where a check runs, not of the check.
+  `source-grounding`'s report carries a `runner` label (`author` / `independent`) in its verdict, set by the running
+  agent — `independent` only when it was started without the author's context — rather than taken as an input.
+
+- _Approach:_ not pre-decided. Consider whether the generalized method interface should name the
+  procedure/check distinction and the primary-side versus serialized inputs, and whether every findings report
+  should carry one standard execution-context label. Today only `source-grounding` needs the label, since it is the
+  one report where an author run could be read as independent evidence.
+
+- _Captured during:_ `grounded-planning-review` create-spec, 2026-10-02 (Owner question on the `runner` design).
+
 ## Problem / Motivation
 
 ARC's workflows scale across modes, tiers, and session states via **carry-and-skip**: inline conditionals
