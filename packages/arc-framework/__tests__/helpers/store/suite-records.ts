@@ -11,6 +11,25 @@ import { assertion, everyKind, seed, success, testProvenance, update, type Suite
  * @param context - Item and fresh fixture registration.
  */
 export function registerRecordAssertions(context: SuiteContext): void {
+  for (const key of [".internal/request.json", "work-unit/.internal/checkpoint.json"]) {
+    assertion(context, "personal", `machine-local-path:${key}`, async (fixture) => {
+      const record = await seed(fixture, fixture.reference("personal/document"));
+      const excluded = RecordReferenceSchema.parse({ ...record.reference, key });
+      const before = await fixture.settle();
+      expect(await fixture.store.write({ action: "put", reference: excluded, expected: null,
+        content: fixture.content(record.reference), provenance: testProvenance })).toMatchObject({ status: "refused" });
+      expect(await fixture.store.read({ reference: excluded })).toMatchObject({ status: "refused" });
+      expect(await fixture.store.batch({ writes: [update(fixture, record),
+        { action: "put", reference: excluded, expected: null, content: fixture.content(record.reference) }],
+      provenance: testProvenance })).toMatchObject({ status: "refused" });
+      expect(await fixture.settle()).toBe(before);
+      expect(success(await fixture.store.read({ reference: record.reference }))).toEqual(record);
+      success(await fixture.store.write(update(fixture, record)));
+      expect(success(await fixture.store.read({ reference: record.reference })).content)
+        .toBe(fixture.content(record.reference, "changed"));
+    });
+  }
+
   everyKind(context, "round-trip", async (fixture, reference) => {
     const content = fixture.content(reference);
     const record = await seed(fixture, reference);

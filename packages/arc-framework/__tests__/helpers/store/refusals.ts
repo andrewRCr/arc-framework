@@ -1,6 +1,7 @@
 /** Genuine failure conditions shared by the test-only reference operations. */
 
 import { type RecordReference, type StoreRefusal, type StoreResult, type LookupInput } from "../../../src/lib/store/index.js";
+import { MACHINE_LOCAL_PATHS } from "../../../src/lib/store/registry.js";
 import { canonicalReference, ownerNameKey, recordKey, type MemoryState } from "./model.js";
 
 /** Wrap a successful operation payload.
@@ -79,6 +80,10 @@ export function recordAdmission(state: MemoryState, reference: RecordReference, 
   const namespace = namespaceAdmission(state);
   if (namespace) return namespace;
   if (reference.owner.type === "person" && identity === undefined) return missingRecord(reference, identity);
+  if (machineLocalPersonalPath(reference)) return {
+    ...malformed(reference, "This personal path names excluded machine-local state."),
+    remedy: { text: "Choose a stored personal path outside the machine-local directories, then retry with that reference." },
+  };
   const fault = state.faults.get(recordKey(canonicalReference(state, reference)));
   if (fault?.kind === "identity-mismatch") return {
     code: "identity-mismatch", class: "recoverable", expected: reference, actual: fault.actual!,
@@ -86,6 +91,14 @@ export function recordAdmission(state: MemoryState, reference: RecordReference, 
     remedy: { text: "Restore the record under its actual identity, then retry using the corrected reference." },
   };
   return undefined;
+}
+
+function machineLocalPersonalPath(reference: RecordReference): boolean {
+  if (reference.kind !== "personal/document" || typeof reference.key !== "string") return false;
+  const segments = reference.key.split("/");
+  return MACHINE_LOCAL_PATHS.some((path) => path.root === "user"
+    && path.pattern.split("/").slice(1, -1).every((segment, index) =>
+      segment === "*" ? segments[index] !== undefined : segments[index] === segment));
 }
 
 /** Refuse operations whose shared record index cannot be trusted.
