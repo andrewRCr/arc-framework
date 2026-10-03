@@ -483,3 +483,29 @@
 
 - _Captured during:_ `review-protocol-alignment` grooming, 2026-07-26 — surfaced while settling the scheduling
   verb now named `arc publish`, distinct from the `arc integrate` procedure namespace.
+
+### `[ ]` **Re-seed a planning stage when `deactivate` returns a work unit to Planning**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-10-03).
+
+- _Observation:_ the `deactivate` edge (Active → Planning) declares no `Current Workflow` write, so the meta keeps
+  what activation wrote — `process-task-loop` since the `current-workflow-lifecycle-name` Errand, `[none]` before
+  it. `checkCurrentWorkflowConsistency` requires a planning stage under `State: Planning`, so a deactivated meta
+  fails pre-commit and stops resolving in `subject-meta`. The defect predates that Errand; it only changed the
+  stale value.
+
+- _Approach:_ give `deactivate` a planning-stage write (likely `generate-tasks`, since activation follows the
+  planning terminus). Not a one-liner: once `deactivate` sets the field, `sourceWorkflowFor(activate)` stops being
+  `undefined`, so a staging failure inside `activate` would write a recovery marker (Active plus a planning stage)
+  that no `resumeTransitionFinalization` path consumes. Settle the re-seed and that marker interaction together.
+  Design-fork smell — re-triage at drain.
+
+- _Files:_ `lib/work-unit/lifecycle-transitions.ts`, `lib/work-unit/lifecycle-executor.ts` (`sourceWorkflowFor`,
+  the staging-failure marker), `lib/work-unit/verbs/activate-deactivate.ts`, `deactivate-work-unit.md`, and the
+  `activate-deactivate` / `lifecycle-executor` tests.
+
+- _Drain note:_ likely better settled in a holistic revisit of the deactivate / park / reopen lifecycle after the
+  `state-storage` cohort cutover, alongside the refresh `wu-lifecycle-state-model` will need for the storage changes,
+  than as a standalone Errand. Also raised as a deferred major on PR #772.
+
+- _Captured during:_ Errand `current-workflow-lifecycle-name`, 2026-10-02.
