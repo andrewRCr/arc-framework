@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "coderabbit-rate-limit-reply",
+  "claimId": "7de9a66fa3ea16d26c1e506b89aa7b5c",
+  "createdAt": "2026-10-03T16:10:59.225Z",
+  "updatedAt": "2026-10-03T16:10:59.225Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Recognize authenticated CodeRabbit command replies reporting Review rate limited., preserve exact request correlation, and verify safe review-source fallback before resuming PR #787.",
+  "branch": "chore/coderabbit-rate-limit-reply",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
