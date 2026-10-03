@@ -35,8 +35,10 @@ import { projectGitReviewContributionApplicability } from
 import {
   reduceReviewApplicabilityAuthorityWithMechanicalCarry,
 } from "./review-applicability-authority.js";
-import { projectMechanicalReviewApplicabilityCarry } from
-  "./mechanical-review-applicability-carry.js";
+import {
+  gitCandidateRecordAtHead,
+  projectMechanicalReviewApplicabilityCarry,
+} from "./mechanical-review-applicability-carry.js";
 import {
   resolveIncrementalCorrectionScope,
   type IncrementalPredecessorApplicability,
@@ -186,6 +188,7 @@ export async function confirmNonDeliveryIncrementalApplicability(input: {
         projection,
         selections,
         projectSelector,
+        ownRecord: gitCandidateRecordAtHead(input.exec, input.candidate.attestation.workUnit),
       });
   const authority = reduceReviewApplicabilityAuthorityWithMechanicalCarry(
     currentLineage.candidateId,

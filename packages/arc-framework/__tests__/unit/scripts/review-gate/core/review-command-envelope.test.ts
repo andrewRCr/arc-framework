@@ -337,6 +337,11 @@ describe("review command envelopes", () => {
     }],
     [RespondEnvelopeSchema, {
       ...header("review-respond"),
+      state: "settled", nextAction: "continue-review",
+      payload: { operationId: "hosted/1", dispositionRecordRef: "disposition/1", dispositionReportText },
+    }],
+    [RespondEnvelopeSchema, {
+      ...header("review-respond"),
       state: "stale-target", nextAction: "prepare-current-target",
       payload: { operationId: "local-1", attemptedTarget: target, currentTarget: target },
     }],

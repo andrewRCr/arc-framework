@@ -317,6 +317,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "review-response.md",
       "review-triage.md",
       "session-state.md",
+      "source-grounding.md",
       "spec-review.md",
       "task-audit.md",
       "test-first.md",
@@ -377,7 +378,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
         "implementation-audit", "review-chunking", "self-review", "design-audit",
         "issue-triage", "quality-gate-commands", "resolve-plan-segmentation", "resolve-planning-depth",
         "review-response", "review-triage",
-        "session-state", "spec-review", "task-audit", "test-first", "testing-standards",
+        "session-state", "source-grounding", "spec-review", "task-audit", "test-first", "testing-standards",
         "validate-criteria",
       ];
       const extensionNames = [

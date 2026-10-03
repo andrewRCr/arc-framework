@@ -1,12 +1,17 @@
 ---
 name: task-audit
 description: Rubric method auditing tasks against the codebase — grounding floor plus eight issue categories at two depths.
+arc:
+  methods:
+    - source-grounding
+related:
+  - source-grounding
 override-active: false
 ---
 
 # Method: task-audit
 
-> - **Workflow:** [generate-tasks.md][generate-tasks]
+> - **Workflow:** [generate-tasks.md][generate-tasks], [amend-design.md][amend-design]
 > - **When:** Task generation runs its grounding-audit gate over a just-written phase, or an ad-hoc run audits
 >   tasks-as-written before or during implementation — a pre-impl pause or a mid-impl reground — via the
 >   [`arc-task-audit` door][arc-task-audit-skill].
@@ -28,25 +33,26 @@ execute in; this rubric checks that claim before implementation stakes work on i
 
 **Named inputs:**
 
-| Input   | Kind     | Contents                                                                                                     |
-|---------|----------|--------------------------------------------------------------------------------------------------------------|
-| `scope` | required | Which tasks to audit — a single task, a range, a phase, or the full task list.                               |
-| `depth` | optional | `full` (default) — grounding plus the eight-category analysis; `grounding-only` — the grounding floor alone. |
+| Input   | Kind     | Contents                                                                                                        |
+| ------- | -------- | --------------------------------------------------------------------------------------------------------------- |
+| `scope` | required | Which tasks to audit — a single task, a range, a phase, or the full task list.                                  |
+| `depth` | optional | `full` (default) — grounding plus the eight-category analysis; `grounding-only` — `source-grounding` run alone. |
 
 **Scope reading.** For single-task audits, read the task and its immediate neighbors (predecessor and successor)
 for ordering context. For phase or multi-task audits, read the full phase and skim adjacent phases for
 cross-phase dependencies.
 
-**Grounding floor — always runs.** Read the codebase context each task touches:
+**Grounding floor — always runs.** Run [source-grounding][source-grounding] at `artifact` scope over the task scope
+and its upstream chain. Its behavior check and propagation sweep ground task claims in source; its rule sets the
+runner label, and its severity interpretation governs these findings. Caller inputs remain `scope` and `depth`.
 
-- For every file, function, module, or interface referenced or implied by the task description, verify it exists
-  and inspect its current state.
-- Note any drift between the task description and what the code actually looks like — renamed functions, moved
-  files, changed signatures, deleted modules.
-- Check imports, exports, and call sites to understand the dependency surface.
+```yaml
+source-grounding:
+  artifacts:  # task scope + upstream chain
+  scope: artifact
+```
 
-At `grounding-only` depth, the grounding results are the entire finding set — report exists / missing / drifted
-and stop there.
+At `grounding-only` depth, run `source-grounding` alone and return its findings without the eight-category analysis.
 
 **Eight-category analysis — `full` depth.** Analyze each in-scope task against:
 
@@ -55,8 +61,8 @@ and stop there.
   wrong.
 - **Masked design decisions** — implementation will force a choice (naming, interface shape, error-handling
   strategy, module boundary) the task doesn't acknowledge. Surface the decision and its alternatives.
-- **Codebase drift** — gap between the task description and actual code: renamed functions, moved files, changed
-  interfaces, deleted modules, or new code added since the task was written.
+- **Codebase drift** — new code added since the task was written that the task does not account for. Drift in
+  named referents — renamed, moved, changed, or deleted — belongs to the grounding floor.
 - **Ordering and dependency risks** — the task assumes a prior task's output without saying so, or would be
   materially easier in a different sequence. Flag hidden dependencies and suggest reordering if warranted.
 - **Scope ambiguity** — the description could reasonably be read as two or more different scopes of work. Flag
@@ -95,15 +101,15 @@ not implement fixes — present findings and let the caller decide how to procee
 
 Through the `adversarial-review` mechanism, findings map into the fixed `critical` / `major` / `minor` enum the
 [severity model][adversarial-review] owns — the rubric maps _into_ the enum and never extends it. What each level
-looks like for a task list:
+looks like for the eight categories below; grounding findings retain `source-grounding`'s interpretation:
 
-- **`critical`** — the gate cannot certify the tasks against their design: an ungrounded referent that makes a
-  task unexecutable as written, a masked decision that reopens design, an assumption that — if wrong —
+- **`critical`** — the gate cannot certify the tasks against their design: a masked decision that reopens design,
+  an assumption that — if wrong —
   invalidates the decomposition itself.
-- **`major`** — a substantive grounding or planning problem that should resolve before implementation: a hidden
+- **`major`** — a substantive planning problem that should resolve before implementation: a hidden
   ordering dependency, materially divergent scope readings, an unspecified interface contract a later task
   consumes, a test-strategy gap on shared code.
-- **`minor`** — residue: cosmetic drift (a rename that doesn't change behavior), wording, a marginal
+- **`minor`** — residue: wording, a marginal
   acceptance-criteria gap where completion is still inferable.
 
 **Two-axis reconciliation.** The native tiers above are **dispositions**, not severities — the two axes compose
@@ -123,3 +129,5 @@ already dispositions, which is exactly what a directly-consuming caller needs.
 [design-audit]: design-audit.md
 [adversarial-review]: adversarial-review.md
 [arc-task-audit-skill]: ../.internal/skills/arc-task-audit/SKILL.md
+[amend-design]: ../workflows/arc/supplemental/amend-design.md
+[source-grounding]: source-grounding.md

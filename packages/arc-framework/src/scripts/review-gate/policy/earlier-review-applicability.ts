@@ -15,8 +15,10 @@ import {
 } from "./earlier-review-attempts.js";
 import { projectGitReviewContributionApplicability } from
   "./git-review-contribution-applicability.js";
-import { projectMechanicalReviewApplicabilityCarry } from
-  "./mechanical-review-applicability-carry.js";
+import {
+  gitCandidateRecordAtHead,
+  projectMechanicalReviewApplicabilityCarry,
+} from "./mechanical-review-applicability-carry.js";
 import {
   reduceReviewApplicabilityAuthority,
   reduceReviewApplicabilityAuthorityWithMechanicalCarry,
@@ -163,6 +165,7 @@ export async function projectEarlierReviewApplicability(
     return { status: "unavailable", detail: queried.detail };
   }
   const selections = candidateReviewApplicabilitySelections(input.candidate);
+  const ownRecord = gitCandidateRecordAtHead(input.exec, input.candidate.attestation.workUnit);
   const attempts = await Promise.all(queried.candidates.map(async (candidate) => {
     const dispositionRecord = candidate.outcome === "settled-findings"
       && input.readDispositionRecord !== undefined
@@ -230,6 +233,7 @@ export async function projectEarlierReviewApplicability(
           projection,
           selections,
           projectSelector,
+          ownRecord,
         });
     const authority = projection === undefined
       ? null

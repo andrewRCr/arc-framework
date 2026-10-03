@@ -16,6 +16,9 @@ arc:
 
 # Workflow: Amend Design
 
+For every write — authoring, revision, gate iteration, and folds — a claim that states what shipped code does names
+the code that does it, in backticked symbol form, per [source-grounding][source-grounding].
+
 > **Signature:** `amend-design(finding, design record) → amended record + revision work | design holds | escalate`
 
 Entered when implementation evidence meets the **design record** — the artifact the meta's `Design` field names,
@@ -130,6 +133,9 @@ The arm says what changes and who decides; **depth** says how much must be deriv
 Run [`resolve-planning-depth`][resolve-planning-depth] over the finding and the gap — not over the work unit — and
 take the level it returns. The work unit's `Class` does not govern here.
 
+At every depth, `low` included, run [`spec-review`][spec-review]'s grounding slice over the affected spec elements.
+At `medium` / `high`, run it beside the coherence slice below.
+
 - **`low`** — a determinate correction. The Owner's approval at the existing stop is the gate and no adversarial
   pass runs. Run [`task-audit`][task-audit] at grounding-only depth over the revision tasks.
 - **`medium`** — a bounded set of decisions to compose. The canonical procedures run **at scope, never whole**:
@@ -148,13 +154,17 @@ Skip their ceremony steps by reference.
 ### The assurance invariant
 
 An amendment's artifacts pass the gates the originals passed, over the amendment's footprint, at the amendment's
-depth. The depth ladder governs whether an adversarial pass is omitted, offered, or recommended. When an eligible
-pass is authorized, run it on the finalization rubric the original cleared, minus nothing —
-[`assess-design-proportionality`][assess-design-proportionality], [`design-audit`][design-audit], and
-[`spec-review`][spec-review]'s coherence slice — and pass any prior findings recorded in the work unit's
-`ADVERSARIAL-PASSES.md` through `adversarial-review`'s `prior-findings` input so untouched elements are never
-re-attacked. Append the amendment's pass to that record as the planning passes do. Closure re-runs the detecting check
-(§ Closure).
+depth. The depth ladder governs whether an adversarial pass is omitted, offered, or recommended. Run every such pass
+with `fold-verification: on`. When an eligible pass is authorized, run it on the finalization rubric the original
+cleared, minus nothing — [`assess-design-proportionality`][assess-design-proportionality],
+[`design-audit`][design-audit], and [`spec-review`][spec-review]'s coherence and grounding slices, and
+[`task-audit`][task-audit]'s grounding floor over the footprint's tasks — and pass any prior findings recorded in the
+work unit's `ADVERSARIAL-PASSES.md` through `adversarial-review`'s `prior-findings` input so untouched elements are
+never re-attacked. Append the amendment's pass to that record following [adversarial-review § Pass
+record][pass-record], as the planning passes do. Closure re-runs the detecting check (§ Closure).
+
+**Post-settle coherence re-read** (always-on, in-context): when its pass folded anything, re-read the amended
+footprint for coherence as the last step before the amendment lands, on every arm.
 
 ### The accretion guard
 
@@ -162,6 +172,7 @@ Many `low` amendments can sum to a design nobody re-read. The log makes that vis
 consolidation read [`draft-design`][draft-design] already applies to an accreting draft: one coherence pass, one
 proportionality pass over the accreted union, and the adversarial offer over that union — once the log's footprint
 has touched a material share of the design. Suggest it, never enforce it; no threshold is named.
+The adversarial offer runs as § The assurance invariant's pass does, on that rubric.
 
 ## The ceiling
 
@@ -406,3 +417,5 @@ appended supersession lines — the same extent rule parent Goals follow. Stated
 [task-list-formatting]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
 [verify-work-unit]: ../work-unit-lifecycle/verify-work-unit.md
 [prepare-work-unit]: ../work-unit-lifecycle/prepare-work-unit.md
+[source-grounding]: ../../../methods/source-grounding.md
+[pass-record]: ../../../methods/adversarial-review.md#pass-record

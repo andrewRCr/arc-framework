@@ -12,9 +12,13 @@ arc:
     - adversarial-review
     - assess-design-proportionality
     - design-audit
+    - source-grounding
 ---
 
 # Workflow: Draft Design
+
+For every write — authoring, revision, gate iteration, and folds — a claim that states what shipped code does names
+the code that does it, in backticked symbol form, per [source-grounding][source-grounding].
 
 The first authoring stage — peer to [create-spec](create-spec.md) and [generate-tasks](generate-tasks.md).
 It shapes the design before a spec crystallizes it: surface the problem, work the alternatives, and settle the
@@ -179,8 +183,18 @@ accretion is real.
 
 ## Capture the draft
 
-On a draft-producing path (`medium` / `high`), the readiness boundary carries an advisory adversarial
-fire-point — the gate's own rubrics run from fresh context:
+On a draft-producing path (`medium` / `high`), ground the finished draft once at readiness, before the adversarial
+offer and capture commit. Run [source-grounding][source-grounding] as the author's own check and fold fixes inline,
+surfacing any decision needed at the existing capture gate:
+
+```yaml
+source-grounding:
+  artifacts:  # finished draft + its upstream chain
+  scope: artifact
+```
+
+The readiness boundary then carries an advisory adversarial fire-point — the gate's own rubrics run from fresh
+context:
 
 > [!IMPORTANT]
 > `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Novel` (strongest framing);
@@ -189,19 +203,19 @@ fire-point — the gate's own rubrics run from fresh context:
 
 ```yaml
 adversarial-review:
-  rubric:          # assess-draft-readiness divergence + assess-design-proportionality + design-audit
+  rubric:          # assess-draft-readiness divergence + assess-design-proportionality + design-audit + source-grounding
   artifacts:       # draft-{name}.md + non-exhaustive key-file pointers (the implementation loci the design names)
   orientation:
     - AGENT-BRIEF.ARC
     - AGENT-BRIEF.PROJECT
   pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
+  fold-verification: on
   prior-findings:  # pass two onward; omitted on pass one
 ```
 
 After each returned pass, apply the method's complete-disposition and bounded-continuation protocol, then append the
 pass to `ADVERSARIAL-PASSES.md` in the work unit's personal workspace (`.arc/user/{identity}/{name}/`, beside
-SESSION-NOTES): the artifact and version reviewed, `Pass N of M`, the rubric, the complete source-verified
-finding/account/action set, the stop reason, and any conditional next-pass decision. Later passes take their
+SESSION-NOTES): follow [adversarial-review § Pass record][pass-record] for the entry contents. Later passes take their
 `prior-findings` from it, and the commit below summarizes each pass in one body line. A stub groomed before it starts
 has no workspace yet, so that summary is its only record. This advisory evidence creates no lane-progress record.
 
@@ -242,8 +256,7 @@ fast-forward it, and remove the local grooming branch if it is still present.
 
 **Post-settle coherence re-read** (always-on, in-context): when folds landed after the readiness read —
 adversarial-pass findings, review amendments — re-read the settled draft for coherence (the readiness bar's
-coherence check, re-fired) as the last step before the capture commit. The final pass's folds are otherwise
-never re-attacked.
+coherence check, re-fired) as the last step before the capture commit.
 
 What is staged sets the commit shape: a `medium` / `high` path bundles the `draft-*` with the meta `Class` +
 `Design` writes; a `low` path that produced no draft writes only the meta, landing as a dedicated `chore(arc):`
@@ -276,3 +289,5 @@ planning-depth level is never recorded.
 [template-draft]: ../../../reference/templates/arc/work-unit/template-draft.md
 [setup-merge-gate]: supplemental/setup-merge-gate.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
+[source-grounding]: ../../methods/source-grounding.md
+[pass-record]: ../../methods/adversarial-review.md#pass-record

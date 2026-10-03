@@ -117,6 +117,51 @@ describe("review applicability authority", () => {
     });
   });
 
+  it("preserves an exact Owner selection across the commit recording it, only for the record's own path", () => {
+    const recordPath = ".arc/system/.internal/candidates/example.json";
+    const selectedProjection = decision();
+    const ownerSelection = selection(selectedProjection, "covered");
+    const diverged = (
+      applicabilitySelector: typeof selectedProjection.selector,
+      paths: string[],
+    ) => {
+      const projection = classifyReviewContributionApplicability(applicabilitySelector, {
+        endpoints: {
+          before: selectedProjection.projection.after,
+          after: {
+            predecessor: selectedProjection.projection.after.predecessor,
+            member: { head: applicabilitySelector.currentHead, tree: oid("9") },
+          },
+        },
+        proof: { status: "refused", reason: "contribution-diverged", paths },
+      });
+      if (projection.state !== "decision-required") throw new Error("record carry fixtures must classify");
+      return projection;
+    };
+    const current = { ...selectedProjection.selector, currentHead: oid("c") };
+    const mechanicalProjection = diverged({
+      ...current,
+      priorHead: selectedProjection.selector.currentHead,
+      priorBase: selectedProjection.selector.currentBase,
+    }, [recordPath]);
+    const reduce = (paths: string[]) => {
+      const projection = diverged(current, paths);
+      return reduceReviewApplicabilityAuthorityWithMechanicalCarry(
+        CANDIDATE_ID,
+        projection,
+        [ownerSelection],
+        [{ selection: ownerSelection, selectedProjection, mechanicalProjection, ownRecordPath: recordPath }],
+      );
+    };
+
+    expect(reduce([recordPath, "src/example.ts"])).toMatchObject({
+      state: "applicable",
+      authority: "owner-covered",
+      selection: ownerSelection,
+    });
+    expect(reduce([recordPath, "src/added.ts", "src/example.ts"])).toMatchObject({ state: "decision-required" });
+  });
+
   it("keeps an unresolved residual factual and turns only the exact choices into consumer outcomes", () => {
     const projection = decision();
     expect(reduceReviewApplicabilityAuthority(CANDIDATE_ID, projection, [])).toEqual({

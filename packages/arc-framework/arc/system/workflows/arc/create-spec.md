@@ -19,6 +19,9 @@ arc:
 
 # Workflow: Create Spec
 
+For every write — authoring, revision, gate iteration, and folds — a claim that states what shipped code does names
+the code that does it, in backticked symbol form, per [source-grounding][source-grounding].
+
 The second authoring stage — peer to [draft-design](draft-design.md) and [generate-tasks](generate-tasks.md).
 It crystallizes the design into a **spec** at the form the work demands: a one-paragraph `brief`, a
 decision-recording `outline`, or a full `detailed` spec (subtyped PRD or RFC). It reads the **derivation** axis
@@ -266,13 +269,13 @@ adversarial-review:
     - AGENT-BRIEF.ARC
     - AGENT-BRIEF.PROJECT
   pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
+  fold-verification: on
   prior-findings:  # pass two onward; omitted on pass one
 ```
 
 After each returned pass, apply the method's complete-disposition and bounded-continuation protocol, then append the
 pass to `ADVERSARIAL-PASSES.md` in the work unit's personal workspace (`.arc/user/{identity}/{name}/`, beside
-SESSION-NOTES): the artifact and version reviewed, `Pass N of M`, the rubric, the complete source-verified
-finding/account/action set, the stop reason, and any conditional next-pass decision. Later passes take their
+SESSION-NOTES): follow [adversarial-review § Pass record][pass-record] for the entry contents. Later passes take their
 `prior-findings` from it, and the commit below summarizes each pass in one body line. A stub groomed before it starts
 has no workspace yet, so that summary is its only record. This advisory evidence creates no lane-progress record.
 
@@ -315,7 +318,7 @@ Documents).
 
 **Post-settle coherence re-read** (always-on, in-context): when folds landed after the self-review —
 adversarial-pass findings, Gate 1 iteration amendments — re-fire `spec-review`'s coherence slice over the
-settled spec as the last step before the commit below. The final pass's folds are otherwise never re-attacked.
+settled spec as the last step before the commit below.
 
 After substeps 1-3, stage all edits — spec save (Write and save), any promotion-write inbox deletion (Write and
 save, arc-in-git), draft deletion + `notes-*` migration, meta update.
@@ -356,3 +359,5 @@ Run [generate-tasks.md](generate-tasks.md) when ready — it consumes this spec 
 [integrate-work-unit]: work-unit-lifecycle/integrate-work-unit.md
 [init-work-unit]: work-unit-lifecycle/planning/init-work-unit.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
+[source-grounding]: ../../methods/source-grounding.md
+[pass-record]: ../../methods/adversarial-review.md#pass-record
