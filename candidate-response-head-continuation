@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "candidate-response-head-continuation",
+  "claimId": "1d0cf0d328f3ef91ee14c1444e1bd3cf",
+  "createdAt": "2026-10-03T20:41:29.328Z",
+  "updatedAt": "2026-10-03T20:41:29.328Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Preserve performed review responses and exact single-use next-pass approval across the required Candidate record commit using canonical currentness proof; repair hosted fix settlement and conditional admission while refusing unrelated source changes and retaining immutable verification and approval records.",
+  "branch": "chore/candidate-response-head-continuation",
+  "origin": "inbox",
+  "originEntry": "Carry a conditional next-pass approval across the required Candidate response commit",
+  "originEntrySourceDigest": "sha256:59b0e7e79de7f2765ccbac006a7ba5382ebdf93939ac981787a783be76db615b",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
