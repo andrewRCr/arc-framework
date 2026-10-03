@@ -618,10 +618,11 @@ no workspace, so its passes have no home before the flip.
 - **Derived views**, never stored: ROADMAP, `STATUS.USER`, the archive index, and any query cache.
 - **Tracked machinery and constitutional documents** under the standard profile (below).
 
-**Personal files.** Everything under `.arc/user/<identity>/` except the machine-local set and `STATUS.USER`, a derived
-view, is stored and synced. From the flip the identity's root holds only ARC's surfaces — `USER-INBOX`,
-`WORKING-MEMORY`, `STATUS.USER`, `.internal/`, and `scratch/` — and persist refuses any other file there, keeping the
-edit and naming `scratch/`, as it refuses a file at `active/`'s top level (D13).
+**Personal files.** On the ref backend after the flip, everything under `.arc/user/<identity>/` except the
+machine-local set and `STATUS.USER`, a derived view, is stored and synced. The in-repo implementation retains today's
+notes eligibility and current-workspace selection (D8). From the flip the identity's root holds only ARC's surfaces —
+`USER-INBOX`, `WORKING-MEMORY`, `STATUS.USER`, `.internal/`, and `scratch/` — and persist refuses any other file there,
+keeping the edit and naming `scratch/`, as it refuses a file at `active/`'s top level (D13).
 
 - **`scratch/`** holds the person's own documents, which ARC never reads: anything goes, and nothing outside
   `scratch/work-unit/` is ever touched.
@@ -786,6 +787,8 @@ and personal working-file refresh (A1). Today's notes save and Errand push can r
 record bytes; unequal same-key Errand entries conflict under its two-way merge; and notes reconciliation updates the
 notes ref without loading working files. Named exceptions retain those producer behaviors, verified directly beside
 disjoint-entry reconciliation and the merged remote notes bytes.
+Its personal-sync samples are notes-eligible files in the identity root and the selected current workspace, under
+the serializer's restrictions (D8); broader personal record admission does not establish notes publication.
 
 ### D8. The in-repo implementation
 
@@ -832,6 +835,8 @@ contract without waiting for the ref store, and it retires at the cutover.
   this identity's per-work-unit workspace, as today. Each file is read from the root today's code reads it from
   (`lib/user-surfaces.ts`): a per-work-unit workspace from the checkout's own copy, and the identity's top-level files
   from the primary worktree's; a personal document is keyed by its path there.
+  These read/write addresses retain today's physical files; their notes publication remains bounded by the sync
+  eligibility and current-workspace selection below.
 - **Errand records and grooming and housekeeping claims** stay on each person's transient-identity ref and keep today's
   code: reads through the tip, tree, and blob acquisition in `lib/errand/identity-snapshot.ts` over this person's local
   ref, keeping the absent, `error`, and complete outcomes and each record's blob object ID, and every write through the
@@ -1002,22 +1007,32 @@ substrate it is all or nothing:
 Verbs that cross substrates today — the workspace close when a work unit leaves active state, Errand close's inbox drop,
 promotion, and the inbox drain — keep their order and idempotent reruns.
 
-**Sync.** Contract `sync` covers personal files, through today's notes sync — save, then the reconciling push
-(`reconcileNotesPush` in `commands/user/push-fetch.ts`), as `arc sync` runs them when it pushes notes without the branch
-(`pushNotesLeg` in `handlers/sync.ts`) — and transient-identity refs, through their reconcile and push
-(`reconcileErrandPush` in `lib/errand/merge.ts`), and reports D4's outcomes with the in-repo additions: one for the
-notes push, carrying personal files, and one for the Errand push, carrying Errand records and claims. The notes push
-runs first, and the Errand push runs whatever outcome it returns, since they push independent refs; a throw is no
-outcome, so a notes leg that throws — a failed readback — ends sync before the Errand push, where `arc sync` records the
-save failed and still pushes Errand refs. Whether `origin`, the remote both pushes name, is set is read from
-configuration before anything is pushed. A transient-identity write also publishes inside the write, as its transaction
-does today (D4). The branch push is never part of contract `sync`, so that notes-only path is the one it mirrors: notes
-saved on a commit not yet pushed refuse `unpublished-history`, as they do there today. When `arc sync` pushes the branch
-too, it pairs the two under the push interlock (`runPairedPush` in `commands/user/paired-push.ts`): the branch first,
-then a notes export bounded by the branch just pushed, retried twice and then offered for retry, never reconciled.
-`arc sync` keeps both paths until the cutover removes its notes cells; contract `sync` then takes their place, and the
-state push no longer waits on the branch push. The Errand transaction and both pushes gain the detail D4's mapping needs
-— the records they name and a failure's cause, set where Git fails — with their kinds and messages unchanged.
+**Sync.** Contract `sync` covers the personal files admitted by today's notes serializer, through notes sync — save,
+then the reconciling push (`reconcileNotesPush` in `commands/user/push-fetch.ts`), as `arc sync` runs them when it
+pushes notes without the branch (`pushNotesLeg` in `handlers/sync.ts`) — and transient-identity refs, through their
+reconcile and push (`reconcileErrandPush` in `lib/errand/merge.ts`), and reports D4's outcomes with the in-repo
+additions: one for the notes push, carrying personal files, and one for the Errand push, carrying Errand records and
+claims. The notes push runs first, and the Errand push runs whatever outcome it returns, since they push independent
+refs; a throw is no outcome, so a notes leg that throws — a failed readback — ends sync before the Errand push, where
+`arc sync` records the save failed and still pushes Errand refs. Whether `origin`, the remote both pushes name, is
+set is read from configuration before anything is pushed. A transient-identity write also publishes inside the write,
+as its transaction does today (D4). The branch push is never part of contract `sync`, so that notes-only path is the
+one it mirrors: notes saved on a commit not yet pushed refuse `unpublished-history`, as they do there today. When
+`arc sync` pushes the branch too, it pairs the two under the push interlock (`runPairedPush` in
+`commands/user/paired-push.ts`): the branch first, then a notes export bounded by the branch just pushed, retried
+twice and then offered for retry, never reconciled. `arc sync` keeps both paths until the cutover removes its notes
+cells; contract `sync` then takes their place, and the state push no longer waits on the branch push.
+
+`serialize` in `lib/git/user-sync.ts` excludes `README.md` basenames and dot-named path segments, applies
+`isAllowedFile` and its type exclusions, and skips files larger than `MAX_FILE_SIZE` (256 KiB).
+`serializeSplitUserManifest` in `commands/user/save-load.ts` saves eligible flat identity-root files, excluding the
+legacy root `SESSION-NOTES.md`, plus only the resolved current work unit's workspace. `classifyUserSyncPath` in
+`lib/user-sync/classifier.ts` classifies every other non-dot subdirectory as a per-work-unit workspace, so personal
+subdirectories such as `archive/` and `drafts/` are outside that save. A personal record write can succeed at a path
+these producers do not publish; it leaves their eligibility and selection behavior unchanged until the flip.
+
+The Errand transaction and both pushes gain the detail D4's mapping needs — the records they name and a failure's cause,
+set where Git fails — with their kinds and messages unchanged.
 
 **Entries.** The inbox writer stays keyed on an entry's title and source digest and stamps no `_Id:_`, so every
 unrelated byte stays as today; once rerouted it computes the file's new content, which the contract writes whole
