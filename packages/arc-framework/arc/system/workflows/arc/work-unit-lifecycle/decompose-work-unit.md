@@ -22,9 +22,9 @@ on stdout. On refusal, surface its status, reason, optional locus and evidence, 
 unchanged. Stop until the reported correction is complete. Never construct identifiers, Git topology, recovery
 commands, or extraction report fields.
 
-The specification reviews below apply to new specification sets and substantive changes to specifications authored
-under the reader standard. For revisions, include removals and affected surrounding obligations and definitions,
-without reviewing unrelated content; unchanged bytes need no repeated review.
+The specification reviews below apply to every new specification set and every substantive edit to an existing
+specification, regardless of when it was authored. For revisions, include removals and affected surrounding
+obligations and definitions without reviewing unrelated content; unchanged bytes need no repeated review.
 
 ## Preconditions
 
@@ -108,14 +108,14 @@ Follow the successful result packets in their reported order:
 Do not add unreported destinations, topology changes, or dependency edits.
 
 After destination authoring, run [spec-review][spec-review] over each new member's complete specification set,
-including copied origin specifications continuing directly to task generation, and the affected contract of eligible
+including copied origin specifications continuing directly to task generation, and the affected contract of changed
 existing destinations. Apply both common reader checks before distributed-result approval, with the remaining
 coherence and grounding work at the applicable form and depth.
 
-For extraction from source specifications authored under the standard, also run [spec-review][spec-review] over
-the prospective retained source contract using the reported source units and operator allocation intent. Removed
-units supply change context, not definitions or obligations needed by retained design; a destination specification
-cannot supply missing retained authority. Surface missing binding design before the existing distribution approval.
+For extraction, also run [spec-review][spec-review] over the prospective retained source contract using the reported
+source units and operator allocation intent. Removed units supply change context, not definitions or obligations
+needed by retained design; a destination specification cannot supply missing retained authority. Surface missing
+binding design before the existing distribution approval.
 
 ## 5. Review the distributed result
 
@@ -252,8 +252,8 @@ transferred locators, and live-base destination validation. This is destructive 
 second semantic distribution gate.
 
 Before destructive apply, run [spec-review][spec-review] over the exact CLI-reported retained specification bytes
-or absence for eligible source specifications. Use the reported content, not the unthinned source or a destination
-specification as missing authority. Surface missing binding design at the existing finish stop; do not apply a
+or absence for source specifications. Use the reported content, not the unthinned source or a destination specification
+as missing authority. Surface missing binding design at the existing finish stop; do not apply a
 known-incomplete preview. A correction changing the approved distribution returns to the existing owner decision.
 Preserve the reported source paths and exact `preview.applyAuthority`.
 

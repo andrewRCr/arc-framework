@@ -19,10 +19,10 @@ arc:
 For every write — authoring, revision, gate iteration, and folds — a claim that states what shipped code does names
 the code that does it, in backticked symbol form, per [source-grounding][source-grounding].
 
-The specification-write reviews below apply to substantive changes to specifications authored under the reader
-standard. Review the changed footprint, including removals and affected surrounding obligations and definitions,
-without expanding to unrelated content. Both common reader checks apply at every depth; retain the existing
-depth selection for remaining review work and the existing iteration, approval, and restart boundaries.
+The specification-write reviews below apply to every substantive specification edit, regardless of when the
+specification was authored. Review the changed footprint, including removals and affected surrounding obligations
+and definitions, without expanding to unrelated content. Both common reader checks apply at every depth; retain
+the existing depth selection for remaining review work and the existing iteration, approval, and restart boundaries.
 Task-only or notes-only edits and unchanged specification reads do not trigger these reviews.
 
 The third authoring stage — peer to [draft-design](draft-design.md) and [create-spec](create-spec.md). It
@@ -234,7 +234,7 @@ line. On `revise`, surface every finding and the proposed spec correction before
 > `workflow-interlock`: Stop after a disproportionate provisional skeleton is identified. Surface the findings
 > and proposed spec correction; await approval before amending the spec and rebuilding the task list.
 
-On approval, amend `spec-{name}.md`. After the bounded batch of eligible specification corrections, run
+On approval, amend `spec-{name}.md`. After the bounded batch of substantive specification corrections, run
 [spec-review][spec-review] over the changed contract, folding corrections through the existing iteration flow and
 surfacing decisions at the existing stop. Then discard the superseded provisional skeleton and restart at
 **Resolve depth & Class**. Re-read the scale axis and rebuild the task list from scratch under the newly resolved
@@ -247,7 +247,7 @@ Run [`assess-boundary-fit`][arc-methods-abf] against the provisional skeleton: t
 task-scale evidence and is independent of the scale/derivation depth valve. A derivation gap returns to design;
 orthogonal concerns route a complete cut-map to `decompose-work-unit`; a cohesive concern with separable delivery
 surfaces selects `stays one WU + delivery-plan candidate`. Record the selected outcome and evidence basis in
-existing draft or spec decision prose. After a bounded batch of eligible substantive specification decision writes,
+existing draft or spec decision prose. After a bounded batch of substantive specification decision writes,
 run [spec-review][spec-review] over the changed contract before proceeding past this procedure's existing boundary.
 Feed corrections or decisions into the existing iteration and approval flow; draft-only writes do not trigger it.
 
@@ -396,7 +396,7 @@ suite stays coherent (per [DEV-RULES.ARC][dev-rules-arc] § Design before implem
 was wrong and is corrected in place — distinct from re-entering the spec to _author_ design that does not yet
 exist (see [`resolve-planning-depth`][arc-methods-rpd] § Mid-stage re-entry).
 
-After each bounded batch of eligible Spec-propagation corrections, run [spec-review][spec-review] over the changed
+After each bounded batch of substantive Spec-propagation corrections, run [spec-review][spec-review] over the changed
 specification contract. Fold corrections into the coherent revision; surface decisions at the existing phase
 confirm gate before proceeding.
 
@@ -420,7 +420,7 @@ revision was clean, heavier when phases interlock tightly. If this pass surfaces
 inconsistency), loop back to that phase's confirm gate (Surface findings + decisions, then confirm) — the
 coherence pass is not a second decision venue.
 
-When this pass makes a bounded batch of eligible substantive specification edits, run [spec-review][spec-review]
+When this pass makes a bounded batch of substantive specification edits, run [spec-review][spec-review]
 over the changed contract before finalizing the corrected plan. Feed findings into this same iteration flow,
 returning decisions to the existing phase confirm gate. Unchanged reads and task/notes-only corrections skip it;
 the post-settle re-fire of this procedure follows the same rule.

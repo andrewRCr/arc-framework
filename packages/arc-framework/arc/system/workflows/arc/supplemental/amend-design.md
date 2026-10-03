@@ -135,10 +135,10 @@ take the level it returns. The work unit's `Class` does not govern here.
 
 At every depth, `low` included, retain [`spec-review`][spec-review]'s grounding slice. Run the selected review on
 the written amendment before release, as directed in § The capture commit below.
-For specifications authored under the reader standard, apply both common reader-independence and binding-completeness
-checks even when grounding is the only selected slice. Cover the amendment footprint, including removals and affected
-surrounding obligations and definitions, without expanding to unrelated content. At `medium` / `high`, retain the
-coherence slice below alongside grounding; existing specifications require no retrofit.
+Apply both common reader-independence and binding-completeness checks to specification amendments, regardless of when
+the specification was authored, even when grounding is the only selected slice. Cover the amendment footprint,
+including removals and affected surrounding obligations and definitions, without expanding to unrelated content.
+At `medium` / `high`, retain the coherence slice below alongside grounding; unchanged specifications need no retrofit.
 
 - **`low`** — a determinate correction. The Owner's approval at the existing stop is the gate and no adversarial
   pass runs. Run [`task-audit`][task-audit] at grounding-only depth over the revision tasks.
@@ -169,8 +169,8 @@ record][pass-record], as the planning passes do. Closure re-runs the detecting c
 
 **Post-settle coherence re-read** (always-on, in-context): when its pass folded anything, re-fire
 [`spec-review`][spec-review]'s coherence slice over the amended footprint as the last step before the amendment
-lands, on every arm. For eligible specifications, retain both common reader checks and the affected surrounding
-contract at this reread, without expanding to unrelated content.
+lands, on every arm. Retain both common reader checks and the affected surrounding contract at this reread, without
+expanding to unrelated content.
 
 ### The accretion guard
 
@@ -261,7 +261,7 @@ forward-amendment paragraphs and no provenance in task bodies — the list stays
 After the amendment record's bounded writes, run [`spec-review`][spec-review]'s grounding slice at every depth,
 `low` included, over the written specification delta and affected surrounding obligations and definitions. When
 the specification body is unchanged, retain the existing affected-element grounding scope. Apply the common reader
-checks to eligible specifications and retain the other slices selected by § Depth and rigor. Complete this review
+checks to specifications and retain the other slices selected by § Depth and rigor. Complete this review
 before the existing capture, task, or review-fix commit; route findings through the existing iteration and approval
 flow.
 

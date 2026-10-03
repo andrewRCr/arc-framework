@@ -251,3 +251,36 @@ adversarial-companion:
     stop-reason: converged
   conditional-next-pass: authorized Pass 2 permission consumed once; no further pass authorized
 ```
+
+## A1 — Review eligibility for substantive specification edits
+
+Decision 7 paragraph 1 previously stated:
+
+> New specifications receive the standard; later substantive changes to those specifications retain it. Existing
+> specifications require no rewrite, backfill, or retrofit.
+
+Hosted Codex review finding `PRRT_kwDOP8ODB86orFZU` showed that later sessions had no observable rule for deciding
+which specifications were authored under the standard. The approved design amendment applies the common reader
+checks to every new specification and future substantive edit, regardless of original age, over the affected
+footprint. Unchanged legacy content requires no retrofit. No marker, configuration, detector, or gate is added.
+
+The review-site correction is one bounded increment: the shared method, three revision workflows, and their matching
+project projections carry the rule; Decisions 3–5 propagate it, and a new criterion appends to the original group.
+The unconditional new-spec creation workflow and four authoring templates retain their existing behavior. The
+amendment resolves at low derivation depth; its grounding and reader checks cover the changed footprint.
+
+Focused review-fix verification passed: full Markdown lint (750 files), the three ARC contract checks, and all
+98 framework-contract tests. All nine source/projection pairs match exactly. The Markdown-only delta leaves code,
+shell, type, and build checks outside its affected scope; the original full verification remains recorded above.
+
+The appended criterion is met by the unconditional age-independent method and caller instructions. Source walkthroughs
+cover substantive edits to older specifications in task generation, decomposition destinations and retained source,
+and grounding-only amendments. Unchanged specification reads and task/notes-only writes keep their existing skips;
+new specification creation and the four templates retain complete-set review.
+
+An independent fresh-context source-grounding and reader-check fix check covered the complete ten-file guidance,
+specification, and criterion delta, including affected surrounding obligations, and returned no findings. It verified
+propagation, source/projection equality, recipe inclusion, and extraction behavior at the named source actors.
+The check loaded no author reasoning or session notes. These results establish the written contract and artifact
+integrity; executing-agent adherence remains unmeasured. Evidence is retained in
+`/tmp/arc-spec-reader-a1-verification.json`. Complete hosted Codex pass 2 is authorized for the resulting committed head.

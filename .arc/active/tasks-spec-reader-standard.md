@@ -190,3 +190,6 @@ _Purpose:_ Validate the completed implementation against the specification and p
 - `[x]` All quality gates pass.
 
 - `[x]` Ready for integration.
+
+- `[x]` Every future substantive specification edit receives the common reader checks over its affected footprint,
+  regardless of original age; unchanged legacy content requires no retrofit or adoption marker (A1).

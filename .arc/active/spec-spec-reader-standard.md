@@ -63,9 +63,9 @@ The permitted references and exceptions are:
 2. **Binding completeness:** the executor can derive complete coverage of the form's enumerable design and the
    verifier can distinguish correct behavior, with no additional obligation or decision hidden in notes.
 
-Make both checks a common requirement when reviewing a new specification or changed content in a specification
-authored under the standard. Grounding-only calls and coherence-only rereads retain that common requirement.
-Existing depth rules continue to select the remaining coherence and grounding work.
+Make both checks a common requirement when reviewing every new specification or substantive edit to an existing
+specification, regardless of when it was authored (A1). Grounding-only calls and coherence-only rereads retain that
+common requirement. Existing depth rules continue to select the remaining coherence and grounding work.
 
 Generalize the method's create-spec-finalization framing to specification authoring and revision. Review a complete
 new specification set, or the changed footprint, including removals, with affected surrounding obligations and
@@ -83,7 +83,8 @@ the existing method already owns artifact review, and all consumers need that re
   corrections, boundary-decision writes, Spec-propagation corrections, or suite-coherence edits. Feed findings into
   the existing iteration and approval flow before finalizing the corrected plan.
 - **`decompose-work-unit`:** after destination authoring and before distributed-result approval, review each newly
-  authored member's specification set and affected content in existing destinations authored under the standard.
+  authored member's specification set and substantively changed content in existing destinations, regardless of
+  when they were authored (A1).
   This includes specifications copied from an origin that continue directly to task generation. Extraction also
   reviews the retained source as specified in Decision 5.
 - **`amend-design`:** invoke the common reader checks over the amendment footprint and affected surrounding
@@ -96,9 +97,9 @@ and approval boundaries.
 
 ### 5. Preserve the retained source contract during extraction
 
-Before distributed-result approval, review the prospective retained contract of source specifications authored
-under the standard, using reported source units and the operator's allocation intent. Removed units are change
-context; they cannot supply definitions or obligations still needed by the retained design.
+Before distributed-result approval, review the prospective retained contract of every source specification (A1),
+using reported source units and the operator's allocation intent. Removed units are change context; they cannot supply
+definitions or obligations still needed by the retained design.
 
 At the finish leg, review the exact CLI-reported retained specification bytes before destructive apply. Report
 missing binding design before applying a known-incomplete preview. A change to the approved distribution requires
@@ -120,8 +121,9 @@ Use the existing finalization steps without a new gate or checklist runner.
 
 ### 7. Apply the standard prospectively through nine sources
 
-New specifications receive the standard; later substantive changes to those specifications retain it. Existing
-specifications require no rewrite, backfill, or retrofit.
+Every new specification and every future substantive specification edit receives the standard, regardless of when
+the specification was authored (A1). Review edits over their affected footprint; unchanged existing content requires
+no rewrite, backfill, or retrofit.
 
 Update these authoritative sources under `packages/arc-framework/arc/` and their matching project projections:
 
@@ -191,6 +193,8 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
       Review occurs before distribution approval and over the exact finish preview before apply; a destination spec
       cannot supply the missing authority. Later unchanged bytes need no repeated review.
 - Markdown lint and the ARC method-trigger, domain-rule, and section-reference checks pass.
+- Every future substantive specification edit receives the common reader checks over its affected footprint,
+  regardless of original age; unchanged legacy content requires no retrofit or adoption marker (A1).
 
 ## Open items
 
@@ -199,4 +203,5 @@ implementation details within the defined surfaces and review boundaries.
 
 ## Amendments
 
-None.
+- **A1** — 2026-10-03 — design: apply reader checks to every new specification and future substantive edit.
+  _Supersedes:_ Decision 7 ¶1. _Trigger:_ PRRT_kwDOP8ODB86orFZU review. _Work:_ review-fix. _Revalidated:_ review-fix.

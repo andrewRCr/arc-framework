@@ -13,8 +13,8 @@ override-active: false
 
 > - **Workflow:** [create-spec.md][create-spec], [generate-tasks.md][generate-tasks],
 >   [decompose-work-unit.md][decompose-work-unit], [amend-design.md][amend-design]
-> - **When:** A new specification set or a bounded batch of substantive changes to a specification authored under
->   this reader standard is ready for its existing approval or release boundary.
+> - **When:** A new specification set or a bounded batch of substantive changes to any existing specification is
+>   ready for its existing approval or release boundary.
 >
 > - **Contract:** Check reader independence and binding completeness for the selected scope, with coherence and
 >   grounding scaled to the form and caller-selected depth. Fold corrections into the existing iteration flow;
@@ -27,9 +27,10 @@ override-active: false
 
 ## spec-review.default
 
-Review the complete new specification set, or the changed footprint of a specification authored under this standard,
-including removals and affected surrounding obligations and definitions. A local correction does not expand review
-to unrelated content. Apply the standard prospectively; existing specifications need no retrofit.
+Review every new specification as a complete set. For every substantive edit to an existing specification, regardless
+of when it was authored, review the changed footprint, including removals and affected surrounding obligations and
+definitions. A local correction does not expand review to unrelated content. Unchanged existing specifications need
+no retrofit.
 
 **Common reader checks — required for either slice**, including grounding-only calls and coherence-only rereads:
 
