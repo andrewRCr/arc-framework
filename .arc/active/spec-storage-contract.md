@@ -345,9 +345,9 @@ ref commit's, which `history` and `changes` return as they are.
   links value refuses `unsupported` (terminal) (D4). It answers reverse lookup with today's derivations: a commit
   resolves to its work unit and every task its `Context:` footer names, through that footer, parsed as delivery's
   attribution parses it (`parseTaskReference` in `lib/commit-check/task-reference.ts`) with a range expanded against the
-  work unit's task list (`expandTaskReference` in `lib/delivery/from-branch.ts`), and a ref to its work unit through the
-  branch name and to its Errand through the record that names the branch. A commit resolves to an Errand only from the
-  flip, when captures begin and an Errand's close captures its landing commit (D15).
+  work unit's task list (`expandTaskReference` in `lib/commit-check/task-reference.ts`), and a ref to its work unit
+  through the branch name and to its Errand through the record that names the branch. A commit resolves to an Errand
+  only from the flip, when captures begin and an Errand's close captures its landing commit (D15).
 
 ### D4. Failures and outcomes
 
