@@ -421,6 +421,8 @@ describe("trusted review-gate workflows", () => {
     expect(interlock).toMatch(softWrappedProse("approved responses already performed there and the final dispositions carried by the checkpointed settlement plan"));
     expect(interlock).not.toContain("proposed final dispositions");
     expect(interlock).not.toContain("applies final dispositions");
+    expect(finalGate).toMatch(softWrappedProse("Re-enter status once over the checkpointed head, in Step 2's status scope, and surface its `hostReview`"));
+    expect(interlock).toMatch(softWrappedProse("the Owner direction obtained for any `hostReview` blocker"));
 
     const reviewCoordination = sectionBetween(
       packaged,
@@ -855,7 +857,11 @@ describe("trusted review-gate workflows", () => {
     const compactLanding = landing.replace(/\s+/gu, " ");
     expect(compactLanding).toContain("`review-required` remains expected");
     expect(compactLanding).toContain("A changed coordinate (including base OID or Errand claim)");
-    expect(compactLanding).toContain("Inspect the PR's native review and unresolved conversations separately");
+    expect(compactLanding).toContain(
+      "Read `arc review status --target <targetRef>` once for the final head and surface its `hostReview`",
+    );
+    expect(compactLanding).toContain("neither settled review nor an Owner-directed stop clears it");
+    expect(compactLanding).toContain("Inspect the PR's unresolved conversations as well");
     expect(compactLanding).toContain("Owner acceptance never satisfies a required check");
     expect(compactLanding).toContain("obtain separate Owner direction for any dismissal or thread action");
     expect(compactLanding).toContain("pass `errandMergeRequest` unchanged exactly once");

@@ -16,7 +16,7 @@ import {
   type ReviewPolicyCommandRequest,
   type ReviewResolveEnvelope,
 } from "./review-policy-driver.js";
-import { assertStandardReviewExecutionAdmission } from "./review-execution-admission.js";
+import { assertStandardReviewExecutionAdmission, requireDriverAdmission } from "./review-execution-admission.js";
 import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
 import type { ReviewApplicabilityConsumerAction } from "./review-applicability-authority.js";
 import type { HostedReservationDischarge } from "./hosted-reservation-discharge.js";
@@ -348,18 +348,7 @@ function assertHostedPolicyResolution(
   readonly policy: Extract<ReviewResolveEnvelope, { state: "ready"; nextAction: "hosted-request" }>;
 } {
   if (resolution.status === "unavailable") throw new Error(resolution.detail);
-  if (resolution.policy.state !== "ready"
-    || resolution.policy.nextAction !== "hosted-request") {
-    throw new Error(
-      `Hosted review capacity lacks standard-review driver admission (${resolution.policy.state}/${resolution.policy.nextAction}).`,
-    );
-  }
-  if (resolution.policy.payload.sourceId !== provider) {
-    throw new Error(
-      `Hosted review source \`${provider}\` is not driver-admissible; `
-      + `the standard lane requires \`${resolution.policy.payload.sourceId}\` next.`,
-    );
-  }
+  requireDriverAdmission(resolution.policy, { nextAction: "hosted-request", sourceId: provider }, { hosted: true });
 }
 
 function assertHostedCoverageAdmission(

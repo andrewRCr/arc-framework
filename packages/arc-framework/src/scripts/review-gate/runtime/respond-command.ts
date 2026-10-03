@@ -1506,6 +1506,14 @@ async function approvedFixPerformedForReplay(
     && performance.producedHeadSha === performedHead;
 }
 
+/**
+ * A local or frontline review leaves a durable operation to reduce once its response settles; a hosted attempt
+ * leaves none, so its lane continues through the policy continuation or the change request's review status.
+ */
+function settledNextAction(source: ResolvedResponseSource): "reduce" | "continue-review" {
+  return source.hostedAttempt === undefined ? "reduce" : "continue-review";
+}
+
 /** Replay only a durable, already performed approved response. */
 async function settleApprovedReplay(
   source: ResolvedResponseSource,
@@ -1551,7 +1559,7 @@ async function settleApprovedReplay(
     mode: "review-respond",
     diagnostics: [],
     state: "already-settled",
-    nextAction: "reduce",
+    nextAction: settledNextAction(source),
     payload: {
       operationId: source.operationId,
       dispositionRecordRef: appended.dispositionRecordRef,
@@ -2504,7 +2512,7 @@ async function settleNewApprovedResponse(
     mode: "review-respond",
     diagnostics: [],
     state: plan.state === "ready-to-fix" ? "ready-to-fix" : alreadySettled ? "already-settled" : "settled",
-    nextAction: plan.state === "ready-to-fix" ? "apply-fix" : "reduce",
+    nextAction: plan.state === "ready-to-fix" ? "apply-fix" : settledNextAction(source),
     payload: {
       operationId: source.operationId,
       dispositionRecordRef: appended.dispositionRecordRef,

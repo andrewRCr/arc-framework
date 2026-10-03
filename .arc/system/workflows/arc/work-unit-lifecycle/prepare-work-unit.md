@@ -166,7 +166,8 @@ scope from a finding count, and keep the Owner's next-pass authorization separat
 Dispatch local operations only through public typed actions. The evaluator submits status, result, findings, and
 run identity to `arc review local attest -`; runtime-owned bindings come from the immutable operation. Resume with
 `arc review local resume -`, reduce with `arc review reduce -`, and submit approved dispositions with
-`arc review respond -`. A command error envelope carries no dispatchable state.
+`arc review respond -`. A command error envelope carries no dispatchable state unless it names a `remedy`: then render
+`remedy.text` and continue only through `remedy.argv`, passing any `remedy.stdin` unchanged.
 For frontline `operator-repair`, inspect the reported failure; another provider invocation requires an explicit
 Owner decision and a new run request carrying `retryOfOperationId` from the prior operation.
 

@@ -389,8 +389,9 @@ prior count.
   On re-entry, re-invoke the exact settlement request. `already-settled / complete` advances the durable attempt
   only after the verb verifies the exact approved reply, actor, comment, and resolved thread with no host mutation;
   every stop state remains a stop. After the required phases complete, follow the approved response continuation
-  and, after a fix, the verified-fix response continuation through the owning status or resolve action. Do not feed
-  the same findings to the driver again.
+  and, after a fix, the verified-fix response continuation through the owning status or resolve action. A hosted
+  response that settles with no fix returns `settled | already-settled / continue-review`; continue from its
+  `payload.policy` when present. Do not feed the same findings to the driver again.
 - `rate-limited | transient-unavailable / try-next-source` — a delivery member re-enters status; an ordinary
   singleton feeds that safe outcome to the same driver call. The outcome does not consume the pass.
 - Any ambiguous delivery, stale target, malformed output, source failure, or terminal failure stops. Never replay
@@ -728,12 +729,19 @@ their results under this label. Otherwise, skip — the composed surface's slot 
 extension renders nothing. The extension fires here — after `ready`, before the integration interlock.
 No commit or push may occur after `ready`.
 
+Re-enter status once over the checkpointed head, in Step 2's status scope, and surface its `hostReview`, the host's
+own review verdict — a merge blocker the ready evidence does not clear. `changes-requested` names each blocking
+review's author, ID, and reviewed commit; the host refuses the merge while one stands, so obtain Owner direction to
+dismiss it or request re-review before merge. `approval-required` names a host approval still missing. On
+`unavailable` or a status refusal, surface the detail and inspect the PR's native review on the host instead.
+
 > [!IMPORTANT]
-> `integration-interlock`: Stop after the ready evidence and extension report. Surface both, the composed
-> candidate-tail diff — the Release Notes entry and Completion Notes — with any swept or regenerated artifacts
-> named rather than diffed, the review applicability calls and targeted verification retained from Step 2, and the
-> approved responses already performed there and the final dispositions carried by the checkpointed settlement
-> plan. State that completed responses are not re-approved at this gate; approval executes the exact remaining plan,
+> `integration-interlock`: Stop after the ready evidence, extension report, and `hostReview` read. Surface each,
+> the composed candidate-tail diff — the Release Notes entry and Completion Notes — with any swept or regenerated
+> artifacts named rather than diffed, the review applicability calls and targeted verification retained from Step 2,
+> the approved responses already performed there and the final dispositions carried by the checkpointed settlement
+> plan, and the Owner direction obtained for any `hostReview` blocker.
+> State that completed responses are not re-approved at this gate; approval executes the exact remaining plan,
 > settles the review-response channel — hosted settlement already ran at Step 2 — ends review, and authorizes merge
 > of the checkpointed head. Approval authorizes that exact request; it does not satisfy required checks and is not
 > an instruction to invoke merge this turn while those checks are pending. Close with `Approve (or redirect)?`.

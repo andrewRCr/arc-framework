@@ -763,6 +763,9 @@ export const RespondEnvelopeSchema = z.union([
   ),
   envelopeVariant("review-respond", "settled", "reduce", DispositionPayloadSchema),
   envelopeVariant("review-respond", "already-settled", "reduce", DispositionPayloadSchema),
+  // A settled hosted response has no operation to reduce; its lane continues through policy or status.
+  envelopeVariant("review-respond", "settled", "continue-review", DispositionPayloadSchema),
+  envelopeVariant("review-respond", "already-settled", "continue-review", DispositionPayloadSchema),
   envelopeVariant("review-respond", "fix-not-performed", "complete-verified-fix", FixNotPerformedPayloadSchema),
   envelopeVariant(
     "review-respond",
@@ -996,6 +999,11 @@ export const ReviewCommandErrorEnvelopeSchema = z.union([
     .extend({ scopeMismatch: PrePublicationScopeMismatchSchema }),
   // A response refused over an uncommitted verified fix names the replay that continues it.
   remedialErrorVariant("review-respond", "invalid-input"),
+  // A lane re-resolved at a new head while carrying the earlier head's attempts names the replay without them.
+  remedialErrorVariant("review-resolve", "invalid-input"),
+  // A producer the driver no longer admits names the read that shows what the lane admits instead.
+  remedialErrorVariant("review-local-prepare", "invalid-input"),
+  remedialErrorVariant("review-hosted-request", "invalid-input"),
 ]);
 
 function errorVariant<Mode extends ReviewCommandMode, Code extends ReviewPrePublicationRefusalCode>(
