@@ -53,9 +53,6 @@ export async function composePublishedSingletonReview(input: PublishedSingletonI
     expectedRecordVersion: input.recordVersion,
     candidateId: input.record.attestation.candidateId,
   };
-  if (input.judgment?.sourceId !== undefined && input.judgment.sourceId !== discharge.nextSource) {
-    return composeSingletonReviewObligation({ discharge, applicabilityContext });
-  }
   const request = !discharge.discharged && discharge.nextSource !== null
     ? await resolveSingletonRequest(input, discharge, dischargeInput)
     : undefined;
@@ -90,6 +87,8 @@ async function resolveSingletonRequest(
     coverageSelected: input.judgment?.coverage !== undefined,
     ceilingOverride: input.judgment?.ceilingOverride,
     additionalPassAuthorization: input.judgment?.additionalPassAuthorization,
+    ...(input.judgment?.sourceId === undefined ? {}
+      : { invocation: { mode: "force", sourceId: input.judgment.sourceId } }),
   }, {
     resultReader: createRepositoryReviewResultReader(publisher),
     dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
@@ -107,5 +106,7 @@ async function resolveSingletonRequest(
     correctionScope: discharge.correctionScope,
     ceilingOverride: input.judgment?.ceilingOverride,
     additionalPassAuthorization: input.judgment?.additionalPassAuthorization,
+    ...(input.judgment?.sourceId === undefined ? {}
+      : { invocation: { mode: "force", sourceId: input.judgment.sourceId } }),
   };
 }
