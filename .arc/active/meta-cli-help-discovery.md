@@ -1,8 +1,8 @@
 # Metadata: cli-help-discovery
 
-| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
-| ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | [TBD]     | `P3`         |
+| **State**  | **Owner** | **Branch**                | **Class** | **Priority** |
+| ---------- | --------- | ------------------------- | --------- | ------------ |
+| `Planning` | `andrew`  | `plan/cli-help-discovery` | `Light`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,13 +12,12 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** [none]
+- **Current Workflow:** `draft-design`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run draft-design: identify the priority user journeys, then settle help grouping with
-  `cli-output-contract`.
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
