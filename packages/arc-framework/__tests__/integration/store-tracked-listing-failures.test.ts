@@ -102,8 +102,10 @@ describe("tracked listing acquisition", () => {
     const failure = makeGitProcessError({ command: "git", args: ["ls-tree"], exitCode: 128, stderr: "fatal: object failure" });
     h.ports.exec = async (command, args, options) => { if (args[0] === "ls-tree") throw failure; return actual(command, args, options); };
     await expect(h.store.list({ ...h.input, asOf: h.asOf })).rejects.toBe(failure);
+    await expect(h.store.changes({from:h.asOf,to:h.asOf})).rejects.toBe(failure);
     h.ports.exec = actual;
     expect(success(await createStore(h.ports).list({ ...h.input, asOf: h.asOf }))).toMatchObject({ status: "complete", missed: false });
+    expect(success(await createStore(h.ports).changes({from:h.asOf,to:h.asOf}))).toEqual([]);
   });
 
   it("reports a denied companion directory after acquiring its meta", async () => {

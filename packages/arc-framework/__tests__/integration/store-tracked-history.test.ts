@@ -33,6 +33,36 @@ async function repository() {
 }
 
 describe("tracked state and history", () => {
+  for (const mode of ["creation","removal","both"] as const) {
+    it.each(["all","meta","notes"] as const)(`reports raw parser-rejected ${mode} changes restricted to %s`, async (restriction) => {
+      const repo = await repository();
+      const path = ".arc/active/meta-example.md";
+      const notesPath = ".arc/active/notes-example.md";
+      const malformed = (label:string)=>`# Bad meta\n\n| State | Owner | Branch | Class | Priority |\n|---|---|---|---|---|\n| \`Active\` | \`andrew\` |\n\n${label}\n`;
+      if (mode !== "creation") {
+        await repo.put(path,malformed("before"));
+        await repo.put(notesPath,"notes before\n");
+      }
+      const from = await repo.commit("before raw mutation");
+      if (mode === "removal") await repo.exec("git",["rm",path,notesPath]);
+      else {
+        await repo.put(path,malformed("after"));
+        await repo.put(notesPath,"notes after\n");
+      }
+      const to = await repo.commit("raw mutation");
+      expect(success(await repo.store.list({family:"work-item",kind:"work-item/meta",asOf:mode === "removal" ? from : to})))
+        .toMatchObject({status:"complete",records:[],missed:true,diagnostics:[{kind:"malformed",key:path}]});
+      const notes = recordReferences["work-item/notes"](reference().owner);
+      const references = restriction === "all" ? undefined : [restriction === "meta" ? reference() : notes];
+      const changed = success(await repo.store.changes({from,to,references}));
+      const expected = [
+        {reference:reference(),version:mode === "removal" ? null : version(malformed("after"))},
+        {reference:notes,version:mode === "removal" ? null : version("notes after\n")},
+      ].filter((entry)=>restriction === "all" || entry.reference.kind === (restriction === "meta" ? "work-item/meta" : "work-item/notes"));
+      expect(changed.map(({reference,version})=>({reference,version}))).toEqual(expected);
+    });
+  }
+
   it("anchors at HEAD and ignores working-copy edits until their commit lands", async () => {
     const repo = await repository();
     await repo.put(".arc/active/meta-example.md", makeMetaFixture("example"));

@@ -7,8 +7,7 @@ import { selectMeta, type MetaSource } from "./meta.js";
 import { recordPath } from "./paths.js";
 import { readFileAt } from "./files.js";
 import { notFound, unsupported } from "./refusals.js";
-import { listTracked } from "./list.js";
-import { familyOf, type KindId } from "../catalog.js";
+import { trackedReferences } from "./list.js";
 
 /** Return the branch's saved state anchor.
  * @param context - Explicit repository dependencies.
@@ -115,14 +114,8 @@ async function uncoveredOrMissing(context: InRepoContext, reference: RecordRefer
 
 async function endpointReferences(context: InRepoContext, input: ChangesInput): Promise<RecordReference[]> {
   const references = new Map<string, RecordReference>();
-  const kinds = Object.keys(context.registry) as KindId[];
   for (const revision of [input.from, input.to]) {
-    for (const kind of kinds.filter((kind) => context.registry[kind].inRepo.substrate === "tracked")) {
-      const listing = await listTracked(context, { family: familyOf(kind), kind, asOf: revision });
-      if (listing.status === "unreadable") throw new Error(listing.condition);
-      if (listing.status !== "complete") continue;
-      for (const { reference } of listing.records) references.set(JSON.stringify(reference), reference);
-    }
+    for (const reference of await trackedReferences(context,revision)) references.set(JSON.stringify(reference),reference);
   }
   return [...references.values()];
 }

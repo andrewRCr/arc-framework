@@ -11,6 +11,25 @@ import { readFileAt } from "./files.js";
 import { decodeTrackedContent } from "./read-codec.js";
 import { basename } from "node:path";
 
+/** Discover raw tracked references without requiring successful field parsing.
+ * @param context - Backend dependencies and registered physical homes.
+ * @param revision - Exact saved tree to enumerate.
+ * @returns Every present addressable tracked record; incomplete acquisition throws.
+ */
+export async function trackedReferences(context:InRepoContext,revision:NonNullable<ListInput["asOf"]>): Promise<RecordReference[]> {
+  const references: RecordReference[] = [];
+  const acquisition: ListingDiagnostic[] = [];
+  for (const definition of Object.values(context.registry)) {
+    if (definition.inRepo.substrate !== "tracked") continue;
+    const input = {family:definition.family,kind:definition.id,asOf:revision};
+    for (const source of await kindSources(context,definition.id,input,acquisition,true)) {
+      if (await readFileAt(context,source.path,revision) !== null) references.push(source.reference);
+    }
+  }
+  if (acquisition.length > 0) throw new Error(acquisition.map((diagnostic)=>diagnostic.condition).join("; "));
+  return references;
+}
+
 /** Enumerate tracked records by logical family and role.
  * @param context - Backend dependencies.
  * @param input - Logical family, role, owner, locations, and optional saved tree.
@@ -85,7 +104,7 @@ async function listMetas(context: InRepoContext, input: ListInput): Promise<List
   return listing(records, diagnostics, input, acquisition);
 }
 interface KindSource { reference: RecordReference; path: string; meta?: MetaSource; revision?: string }
-async function kindSources(context: InRepoContext, kind: KindId, input: ListInput, acquisition: ListingDiagnostic[]): Promise<KindSource[]> {
+async function kindSources(context: InRepoContext, kind: KindId, input: ListInput, acquisition: ListingDiagnostic[], strictOwner = false): Promise<KindSource[]> {
   if (kind.startsWith("review/")) return reviewSources(context,kind,input,acquisition);
   if (kind === "lineage/transition") return internalReferences(context, kind, input.asOf, acquisition);
   if (kind === "project-inbox/inbox") {
@@ -100,7 +119,10 @@ async function kindSources(context: InRepoContext, kind: KindId, input: ListInpu
   const sources: KindSource[] = [];
   for (const meta of await metaListingSources(context, input, acquisition)) {
     const owner = OwnerIdentitySchema.safeParse({ type: "work-item", name: meta.slug });
-    if (!owner.success) continue;
+    if (!owner.success) {
+      if (strictOwner) throw new Error(`The tracked meta filename cannot be addressed: ${meta.path}`);
+      continue;
+    }
     const keys = kind === "work-item/companion" ? await companionNames(context, meta, acquisition) : [undefined];
     for (const key of keys) {
       const reference = RecordReferenceSchema.parse({ kind, owner: owner.data, ...(key === undefined ? {} : { key }) });
