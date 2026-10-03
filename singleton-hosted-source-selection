@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "singleton-hosted-source-selection",
+  "claimId": "64b87d0105c58bba2d8e12b1b8293f59",
+  "createdAt": "2026-10-03T18:19:06.966Z",
+  "updatedAt": "2026-10-03T18:19:06.966Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Honor the existing explicit hosted source selection for singleton work units so the chosen configured provider can be requested without changing default ordering or bypassing admission guards",
+  "branch": "chore/singleton-hosted-source-selection",
+  "origin": "inbox",
+  "originEntry": "Honor explicit hosted-source selection for singleton work units",
+  "originEntrySourceDigest": "sha256:64878595af7ebdc1328c67452c7f9fbe8bca569cd3321a38de45813796069a4c",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
