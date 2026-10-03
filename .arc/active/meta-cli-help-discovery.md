@@ -1,8 +1,8 @@
 # Metadata: cli-help-discovery
 
-| **State**  | **Owner** | **Branch**                | **Class** | **Priority** |
-| ---------- | --------- | ------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/cli-help-discovery` | `Light`   | `P3`         |
+| **State** | **Owner** | **Branch**                | **Class** | **Priority** |
+| --------- | --------- | ------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/cli-help-discovery` | `Light`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-cli-help-discovery.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** `process-task-loop`
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Task 1.1.a — Complete grouped root help (line ~35)
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1.a — Complete grouped root help using test-first sequencing.
 
 - **PR URL:** [none]
 - **Completed:** [none]
