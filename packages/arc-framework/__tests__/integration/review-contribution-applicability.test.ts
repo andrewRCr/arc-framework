@@ -14,11 +14,13 @@ import { canonicalDigest } from "../../src/lib/kernel/canonical/canonical-json.j
 import { CanonicalDigestSchema } from "../../src/lib/kernel/schema/vocabulary.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 import {
+  candidateReviewApplicabilitySelections,
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
 } from "../../src/lib/work-unit/candidate-attestation.js";
 import {
   readCandidateRecordVersioned,
+  resolveCandidateRecordRelativePath,
   writeCandidateRecord,
 } from "../../src/lib/work-unit/candidate-record-store.js";
 import { readGitCandidateTargetBase } from "../../src/lib/work-unit/git-candidate-effective-target.js";
@@ -26,6 +28,14 @@ import { createReviewRequest, createReviewRequirement } from
   "../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { projectGitReviewContributionApplicability } from
   "../../src/scripts/review-gate/policy/git-review-contribution-applicability.js";
+import {
+  gitCandidateRecordAtHead,
+  projectMechanicalReviewApplicabilityCarry,
+} from "../../src/scripts/review-gate/policy/mechanical-review-applicability-carry.js";
+import { reduceReviewApplicabilityAuthorityWithMechanicalCarry } from
+  "../../src/scripts/review-gate/policy/review-applicability-authority.js";
+import type { ReviewContributionApplicabilitySelector } from
+  "../../src/scripts/review-gate/policy/review-contribution-applicability.js";
 import { confirmDeliveryMemberIncrementalApplicability } from
   "../../src/scripts/review-gate/policy/local-review-coverage-selection.js";
 import { composeDeliveryMemberTarget } from
@@ -261,12 +271,6 @@ describe("singleton review applicability through the selection command", () => {
 
     const mergeBase = await commit("root.txt", "root\n", "root");
     await run(["checkout", "-b", "feat/example"]);
-    const reviewedHead = await commit("feature.txt", "feature\n", "reviewed feature");
-    const notesHead = await commit("notes.md", "# Notes\n", "add notes");
-    await run(["checkout", "main"]);
-    const baseTip = await commit("base.txt", "unrelated\n", "unrelated base movement");
-    await run(["update-ref", "refs/remotes/origin/main", baseTip]);
-    await run(["checkout", "feat/example"]);
 
     const subject = createCandidateSubjectSnapshot([{
       path: "feature.txt",
@@ -290,9 +294,21 @@ describe("singleton review applicability through the selection command", () => {
       transitions: [],
       lineageAttestations: [],
     }, null);
+    await run(["add", resolveCandidateRecordRelativePath("example")]);
+    const reviewedHead = await commit("feature.txt", "feature\n", "reviewed feature");
+    const notesHead = await commit("notes.md", "# Notes\n", "add notes");
+    await run(["checkout", "main"]);
+    const baseTip = await commit("base.txt", "unrelated\n", "unrelated base movement");
+    await run(["update-ref", "refs/remotes/origin/main", baseTip]);
+    await run(["checkout", "feat/example"]);
 
     // The offer binds the head's merge base with the configured base, the base its review covers.
-    const offer = async (currentHead: string) => {
+    const project = (selector: ReviewContributionApplicabilitySelector) => projectGitReviewContributionApplicability({
+      selector,
+      exec: createRawGitExec(root),
+      observeEndpoints: async () => ({ head: selector.currentHead, base: selector.currentBase }),
+    });
+    const projectAt = async (currentHead: string) => {
       const base = await readGitCandidateTargetBase({
         cwd: root,
         revision: currentHead,
@@ -300,23 +316,44 @@ describe("singleton review applicability through the selection command", () => {
         exec: gitExec,
       });
       if (base.status !== "resolved") throw new Error("expected a sole merge base");
-      const projection = await projectGitReviewContributionApplicability({
-        selector: {
-          schemaVersion: 1,
-          repositoryId: "repository-1",
-          repository: "owner/repository",
-          pullRequest: 42,
-          lane: "standard",
-          sourceId: "coderabbit-pr",
-          priorAttemptId: "attempt-prior",
-          priorHead: reviewedHead,
-          currentHead,
-          priorBase: mergeBase,
-          currentBase: base.base,
-        },
-        exec: createRawGitExec(root),
-        observeEndpoints: async () => ({ head: currentHead, base: base.base }),
+      return project({
+        schemaVersion: 1,
+        repositoryId: "repository-1",
+        repository: "owner/repository",
+        pullRequest: 42,
+        lane: "standard",
+        sourceId: "coderabbit-pr",
+        priorAttemptId: "attempt-prior",
+        priorHead: reviewedHead,
+        currentHead,
+        priorBase: mergeBase,
+        currentBase: base.base,
       });
+    };
+    // Status's reading of the recorded authority over the prior review at a head.
+    const authorityAt = async (currentHead: string) => {
+      const projection = await projectAt(currentHead);
+      const { record } = await readCandidateRecordVersioned(root, "example");
+      if (record === null) throw new Error("expected the Candidate record");
+      const selections = candidateReviewApplicabilitySelections(record);
+      const carried = projection.state !== "decision-required"
+        ? []
+        : await projectMechanicalReviewApplicabilityCarry({
+            candidateId: attestation.candidateId,
+            projection,
+            selections,
+            projectSelector: project,
+            ownRecord: gitCandidateRecordAtHead(createRawGitExec(root), "example"),
+          });
+      return reduceReviewApplicabilityAuthorityWithMechanicalCarry(
+        attestation.candidateId,
+        projection,
+        selections,
+        carried,
+      );
+    };
+    const offer = async (currentHead: string) => {
+      const projection = await projectAt(currentHead);
       const { version } = await readCandidateRecordVersioned(root, "example");
       return {
         schemaVersion: 1,
@@ -345,7 +382,7 @@ describe("singleton review applicability through the selection command", () => {
       });
       return { result: JSON.parse(output.join("")) as unknown, exitCodes };
     };
-    return { root, run, commit, mergeBase, reviewedHead, notesHead, baseTip, offer, select };
+    return { root, run, commit, mergeBase, reviewedHead, notesHead, baseTip, offer, select, authorityAt };
   }
 
   it("binds a covered residual while the base moves past unrelated work, after refusing a moved head", async () => {
@@ -377,6 +414,26 @@ describe("singleton review applicability through the selection command", () => {
     expect(record?.transitions).toEqual([
       expect.objectContaining({ transitionKind: "review-applicability-selection", choice: "covered" }),
     ]);
+  });
+
+  it("keeps a covered selection across the commit recording it, and re-asks once reviewed content changes", async () => {
+    const fixture = await singletonBehindBase();
+    const selected = await fixture.offer(fixture.notesHead);
+    await expect(fixture.select(selected, "2026-10-02T12:01:00.000Z")).resolves.toEqual({
+      result: expect.objectContaining({ state: "resolved", nextAction: "commit-selection", choice: "covered" }),
+      exitCodes: [],
+    });
+    await fixture.run(["commit", "-m", "record the review applicability selection"]);
+    const recordHead = await fixture.run(["rev-parse", "HEAD"]);
+
+    const recorded = await fixture.authorityAt(recordHead);
+    expect(recorded).toMatchObject({ state: "applicable", authority: "owner-covered" });
+    expect(recorded.projection).toMatchObject({
+      paths: [resolveCandidateRecordRelativePath("example"), "notes.md"],
+    });
+
+    const changedHead = await fixture.commit("feature.txt", "feature changed\n", "change reviewed feature");
+    await expect(fixture.authorityAt(changedHead)).resolves.toMatchObject({ state: "decision-required" });
   });
 
   it("refuses a selection once the base takes in the reviewed commit, then binds the re-derived residual", async () => {
