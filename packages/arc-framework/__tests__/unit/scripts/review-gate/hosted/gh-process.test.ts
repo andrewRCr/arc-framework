@@ -45,7 +45,7 @@ function review(state: string) {
 function comment(id: number) {
   return {
     id: `PRRC_${id}`,
-    databaseId: id,
+    fullDatabaseId: id,
     body: `comment ${id}`,
     url: `https://github.com/owner/repo/pull/42#discussion_r${id}`,
     path: "src/a.ts",
@@ -174,7 +174,7 @@ describe("hosted GitHub process boundary", () => {
                 comments: {
                   nodes: [{
                     id: "PRRC_1",
-                    databaseId: 1,
+                    fullDatabaseId: 1,
                     body: "comment",
                     url: "https://github.com/owner/repo/pull/42#discussion_r1",
                     path: "src/a.ts",
@@ -269,6 +269,60 @@ describe("hosted GitHub process boundary", () => {
       "-F",
       "commentCursor=COMMENTS_1",
     ]));
+  });
+
+  it("preserves full-width comment identities on initial and paginated reads", async () => {
+    const firstId = "4169384475";
+    const nextId = "9223372036854775807";
+    const boundary: HostedProcessRunner = {
+      run: (args) => {
+        const query = args.find((arg) => arg.startsWith("query=")) ?? "";
+        const paged = args.includes("commentCursor=COMMENTS_1");
+        const commentId = paged ? nextId : firstId;
+        const node = {
+          ...comment(paged ? 2 : 1),
+          id: `PRRC_${commentId}`,
+          url: `https://github.com/owner/repo/pull/42#discussion_r${commentId}`,
+          ...(query.includes("fullDatabaseId")
+            ? { fullDatabaseId: commentId }
+            : { fullDatabaseId: undefined, databaseId: null }),
+        };
+        const comments = {
+          nodes: [node],
+          pageInfo: { hasNextPage: !paged, endCursor: paged ? null : "COMMENTS_1" },
+        };
+        const data = paged
+          ? { node: { id: "PRRT_1", comments } }
+          : { repository: { pullRequest: { reviewThreads: {
+              nodes: [{ id: "PRRT_1", isResolved: false, comments }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            } } } };
+        return Promise.resolve({ stdout: JSON.stringify({ data }), stderr: "" });
+      },
+    };
+
+    await expect(new GhHostedReviewPort(boundary).readThreads(target)).resolves.toMatchObject([{
+      id: "PRRT_1",
+      comments: [{ id: firstId, actorIdentity: "123" }, { id: nextId, actorIdentity: "123" }],
+    }]);
+  });
+
+  it.each([null, 0, -1, 1.5, "1e3", "01"])("refuses an invalid full-width comment identity: %s", async (id) => {
+    const mock = runner([{ data: { repository: { pullRequest: { reviewThreads: {
+      nodes: [{
+        id: "PRRT_1",
+        isResolved: false,
+        comments: {
+          nodes: [{ ...comment(1), fullDatabaseId: id }],
+          pageInfo: { hasNextPage: false, endCursor: null },
+        },
+      }],
+      pageInfo: { hasNextPage: false, endCursor: null },
+    } } } } }]);
+
+    await expect(new GhHostedReviewPort(mock.boundary).readThreads(target)).rejects.toMatchObject({
+      message: "threads[0].comments[0].fullDatabaseId: expected a positive integer identity",
+    });
   });
 
   it("passes caller cancellation into the gh runner", async () => {
