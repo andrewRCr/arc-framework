@@ -77,7 +77,11 @@ function stale(context: ReferenceContext, write: Mutation): boolean {
 function placement(context: ReferenceContext, write: Extract<Mutation, { action: "put" }>, prior?: MemoryRecord): ReadPlacement | undefined {
   if (write.placement?.kind !== "completed" || write.reference.kind !== "work-item/meta") return write.placement;
   if (prior?.placement?.kind === "completed" && prior.placement.quarter === write.placement.quarter) return prior.placement;
-  const next = (context.state.archiveSequences.get(write.placement.quarter) ?? 0) + 1;
+  const quarter = write.placement.quarter;
+  const imported = [...context.state.records.values()].flatMap((record) =>
+    record.reference.kind === "work-item/meta" && record.placement?.kind === "completed" && record.placement.quarter === quarter && "sequence" in record.placement
+      ? [Number(record.placement.sequence)] : []);
+  const next = Math.max(context.state.archiveSequences.get(quarter) ?? 0,...imported) + 1;
   context.state.archiveSequences.set(write.placement.quarter, next);
   return { ...write.placement, sequence: ArchiveSequenceSchema.parse(String(next).padStart(2, "0")) };
 }

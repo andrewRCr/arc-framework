@@ -13,6 +13,22 @@ function clients(direction: "pull" | "publish") {
 }
 
 describe.each(["pull", "publish"] as const)("reference identity %s", (direction) => {
+  it("allocates completion order after imported completed records", async () => {
+    const {fixture,writer,reader} = clients(direction);
+    const quarter = ArchiveQuarterSchema.parse("2026-q4");
+    const reference = fixture.reference("work-item/meta","imported");
+    const first = success(await writer.write({action:"put",reference,expected:null,content:fixture.content(reference),placement:{kind:"completed",quarter},provenance:testProvenance}));
+    success(await fixture.store.sync());
+    const imported = success(await reader.read({reference:first.reference}));
+    expect(imported.placement).toEqual({kind:"completed",quarter,sequence:"01"});
+    const next = fixture.reference("work-item/meta","next");
+    const second = success(await reader.write({action:"put",reference:next,expected:null,content:fixture.content(next),placement:{kind:"completed",quarter},provenance:testProvenance}));
+    expect(success(await reader.read({reference:second.reference})).placement).toEqual({kind:"completed",quarter,sequence:"02"});
+    expect(success(await reader.read({reference:first.reference}))).toEqual(imported);
+    success(await reader.write({...update(fixture,imported),placement:{kind:"completed",quarter}}));
+    expect(success(await reader.read({reference:first.reference})).placement).toEqual(imported.placement);
+  });
+
   it("retains name-only reads, exact UIDs, and duplicate creation refusal after sync", async () => {
     const {fixture,writer,reader} = clients(direction);
     const reference = fixture.reference("work-item/meta");
