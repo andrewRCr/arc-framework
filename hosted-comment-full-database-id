@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "hosted-comment-full-database-id",
+  "claimId": "5b51f79af166e9e4b30d2591f47d8b90",
+  "createdAt": "2026-10-03T15:07:14.723Z",
+  "updatedAt": "2026-10-03T15:07:14.723Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Read hosted review-comment identities from fullDatabaseId",
+  "branch": "chore/hosted-comment-full-database-id",
+  "origin": "inbox",
+  "originEntry": "Read review-comment IDs from `fullDatabaseId` in the hosted thread reader",
+  "originEntrySourceDigest": "sha256:b86f88725b65c5ecb3168772d039240eb02a428b295b17022551cf95c47b6a1e",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
