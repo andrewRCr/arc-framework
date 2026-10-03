@@ -43,14 +43,12 @@ and the two hook copies match with comment-only production changes.
         - Corrected the neutrality validator's suppressed-parse-error comment and unit-test label/comment to name
           `CHECK[frontmatter-schema]`; validator behavior and test assertions remain unchanged.
 
-### `[ ]` **1.4 Migrate integration-test references**
+### `[x]` **1.4 Migrate integration-test references**
 
 - _Goal:_ Integration-test descriptions refer to the same stable checks they exercise.
 
-    - Migrate comments and suite labels in `integration/pre-commit-meta-ref.test.ts`,
-      `integration/validate-cohort-consistency.test.ts`, and `integration/validate-links.test.ts` under
-      `packages/arc-framework/__tests__/` to `CHECK[meta-project-references]`, `CHECK[cohort-consistency]`, and
-      `CHECK[markdown-links]`, respectively. Preserve the existing test setup and assertions.
+- _Outcome:_ Migrated all three integration-test comments and their ordinal suite labels to the matching stable
+  check IDs; fixture setup and behavior assertions remain unchanged.
 
 ### `[ ]` **1.5 Migrate integrity-check references**
 

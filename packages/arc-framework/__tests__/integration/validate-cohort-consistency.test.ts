@@ -1,5 +1,5 @@
 /**
- * Integration tests for validate-cohort-consistency.ts — pre-commit CHECK 18.
+ * Integration tests for validate-cohort-consistency.ts — pre-commit CHECK[cohort-consistency].
  *
  * Exercises the validator the way the hook invokes it: via Node's TypeScript loader against
  * on-disk fixture metas and cohort docs under real `.arc/backlog/planned/`
@@ -84,7 +84,7 @@ function cohortDocFixture(
   return lines.join("\n");
 }
 
-describe("validate-cohort-consistency.ts (pre-commit CHECK 18)", () => {
+describe("validate-cohort-consistency.ts (pre-commit CHECK[cohort-consistency])", () => {
   let tmp: string;
 
   beforeAll(async () => {
