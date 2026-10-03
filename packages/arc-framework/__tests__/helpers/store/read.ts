@@ -31,10 +31,10 @@ export function publicRecord(context: ReferenceContext, record: MemoryRecord, re
     : ["work-item", "review"].includes(familyOf(record.reference.kind)) ? primary?.placement ?? record.placement : record.placement;
   const parsed = context.registry[record.reference.kind].parser?.(record.content);
   return {
-    reference: record.reference, content: record.content, version: record.version,
-    formatVersion: record.formatVersion, conflicts,
+    reference: structuredClone(record.reference), content: record.content, version: record.version,
+    formatVersion: record.formatVersion, conflicts: structuredClone(conflicts),
     ...(parsed?.success ? { fields: parsed.data } : {}),
-    ...(placement === undefined ? {} : { placement }), ...(record.links === undefined ? {} : { links: record.links }),
+    ...(placement === undefined ? {} : { placement: structuredClone(placement) }), ...(record.links === undefined ? {} : { links: structuredClone(record.links) }),
   };
 }
 
@@ -134,8 +134,8 @@ export function changesReference(context: ReferenceContext, input: ChangesInput)
 }
 
 function historyEntry(context:ReferenceContext,event:MemoryEvent): HistoryEntry {
-  if (event.version === undefined) return {reference:event.reference,version:null,content:null,provenance:event.provenance};
+  if (event.version === undefined) return {reference:structuredClone(event.reference),version:null,content:null,provenance:structuredClone(event.provenance)};
   const record = context.state.snapshots.get(event.stateVersion)?.get(recordKey(event.reference));
   if (record === undefined || record.version !== event.version) throw new Error("A landed history event lacks its exact saved content");
-  return {reference:event.reference,version:event.version,content:record.content,provenance:event.provenance};
+  return {reference:structuredClone(event.reference),version:event.version,content:record.content,provenance:structuredClone(event.provenance)};
 }

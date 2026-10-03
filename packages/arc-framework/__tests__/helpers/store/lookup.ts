@@ -75,5 +75,5 @@ export function lookupReference(context: ReferenceContext, input: LookupInput): 
     condition: "The lookup matches more than one record generation.",
     remedy: { text: "Disambiguate the stored names or links, then repeat the lookup." },
   });
-  return ok(candidates[0]!);
+  return ok(structuredClone(candidates[0]!));
 }

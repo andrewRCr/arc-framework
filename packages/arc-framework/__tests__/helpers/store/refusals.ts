@@ -14,7 +14,7 @@ export function ok<T>(result: T): StoreResult<T> { return { status: "ok", result
  * @param refusal - The contract's closed failure value.
  * @returns A refused operation envelope.
  */
-export function refused<T>(refusal: StoreRefusal): StoreResult<T> { return { status: "refused", refusal }; }
+export function refused<T>(refusal: StoreRefusal): StoreResult<T> { return { status: "refused", refusal: structuredClone(refusal) }; }
 
 /** Name every stale record in one compare-and-swap refusal.
  * @param records - Records whose mutation bases no longer match.

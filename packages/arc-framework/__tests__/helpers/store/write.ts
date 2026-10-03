@@ -14,6 +14,15 @@ import { malformed, ok, namespaceAdmission, recordAdmission, refused, surfaceLoc
 import { mergeBase, mergeContents, persistedContent, storeConflicts } from "./merge.js";
 import { indexIdentities } from "./identities.js";
 
+function detachedWrite(write: WriteInput): WriteInput {
+  return { ...write, reference: structuredClone(write.reference), provenance: structuredClone(write.provenance),
+    ...(write.resolves === undefined ? {} : { resolves: structuredClone(write.resolves) }),
+    ...(write.action === "put" ? {
+      ...(write.placement === undefined ? {} : { placement: structuredClone(write.placement) }),
+      ...(write.links === undefined ? {} : { links: structuredClone(write.links) }),
+    } : {}) };
+}
+
 function primary(write: Mutation): boolean {
   return write.reference.kind === "work-item/meta" || write.reference.kind === "work-item/record";
 }
@@ -160,7 +169,7 @@ function land(context: ReferenceContext, write: WriteInput, batchId?: string): W
  */
 export function writeReference(context: ReferenceContext, write: WriteInput): StoreResult<WriteResult> {
   const prepared = { ...context, state: structuredClone(context.state) };
-  const mutation = prepareGenerations(prepared, [write])[0]!;
+  const mutation = prepareGenerations(prepared, [detachedWrite(write)])[0]!;
   const refusal = preflight(prepared, mutation);
   if (refusal) return refused(refusal);
   if (stale(prepared, mutation)) return refused(versionConflict([write.reference]));
@@ -169,7 +178,7 @@ export function writeReference(context: ReferenceContext, write: WriteInput): St
   if (identities.status === "refused") return identities;
   prepared.state.identities = identities.result;
   Object.assign(context.state, prepared.state);
-  return ok(result);
+  return ok(structuredClone(result));
 }
 
 /** Validate every input before publishing the batch's independently prepared namespace.
@@ -180,7 +189,7 @@ export function writeReference(context: ReferenceContext, write: WriteInput): St
 export function batchReference(context: ReferenceContext, input: BatchInput): StoreResult<BatchResult> {
   const namespace = namespaceAdmission(context.state);
   if (namespace) return refused(namespace);
-  const writes = input.writes.map((write) => ({ ...write, provenance: input.provenance }));
+  const writes = input.writes.map((write) => detachedWrite({ ...write, provenance: input.provenance }));
   const prepared = { ...context, state: structuredClone(context.state) };
   const mutations = prepareGenerations(prepared, writes);
   const keys = new Set<string>();
@@ -198,5 +207,5 @@ export function batchReference(context: ReferenceContext, input: BatchInput): St
   if (identities.status === "refused") return identities;
   prepared.state.identities = identities.result;
   Object.assign(context.state, prepared.state);
-  return ok({ batchId, writes: results });
+  return ok(structuredClone({ batchId, writes: results }));
 }
