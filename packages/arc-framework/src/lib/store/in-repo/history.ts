@@ -38,7 +38,7 @@ export async function trackedHistory(context: InRepoContext, input: { reference:
   if (commits.length === 0) return notFound(reference, "Check the record name or commit its file before asking for history.");
   const entries: HistoryEntry[] = [];
   for (const commit of commits) {
-    entries.push(await historyEntry(context, reference, path, commit));
+    entries.push(await historyEntry(context, reference, await readFileAt(context, path, commit), commit));
     path = await previousPath(context, path, commit);
   }
   return entries;
@@ -61,17 +61,15 @@ export async function trackedChanges(context: InRepoContext, input: ChangesInput
   const commits = await intervalCommits(context, input);
   const revisions = [...new Set([input.from, input.to, ...commits.flatMap((commit) => [commit.revision, ...commit.parents])])];
   const references = input.references ?? await intervalReferences(context, revisions);
-  const records = await intervalRecords(context, input, references, revisions);
+  await admitIntervalRecords(context, input, references, revisions);
   const entries: HistoryEntry[] = [];
   for (const commit of commits) {
     const parent = commit.parents[0];
-    const args = parent === undefined ? ["diff-tree", "--root", "--no-commit-id", "-r", "--name-only", "-z", commit.revision]
-      : ["diff", "--name-only", "-z", parent, commit.revision];
-    const paths = new Set((await git(context, args)).split("\0").filter(Boolean));
-    for (const item of records) {
-      const path = await pathAt(context, item.reference, commit.revision);
-      const changedPath = path !== undefined && paths.has(path) ? path : item.paths.find((candidate) => paths.has(candidate));
-      if (changedPath !== undefined) entries.push(await historyEntry(context, item.reference, changedPath, commit.revision));
+    for (const reference of references) {
+      const before = parent === undefined ? { path: undefined, content: null } : await recordAt(context, reference, parent);
+      const after = await recordAt(context, reference, commit.revision);
+      if (before.content === after.content && (after.content === null || before.path === after.path)) continue;
+      entries.push(await historyEntry(context, reference, after.content, commit.revision));
     }
   }
   return entries;
@@ -87,22 +85,22 @@ async function intervalCommits(context: InRepoContext, input: ChangesInput): Pro
   return commits;
 }
 
-async function intervalRecords(context: InRepoContext, input: ChangesInput, references: RecordReference[], revisions: string[]): Promise<{ reference: RecordReference; paths: string[] }[]> {
-  const records: { reference: RecordReference; paths: string[] }[] = [];
+async function admitIntervalRecords(context: InRepoContext, input: ChangesInput, references: RecordReference[], revisions: string[]): Promise<void> {
   for (const reference of references) {
     changesAdmission(context, reference);
-    const paths = new Set<string>();
     let present = false;
     for (const revision of revisions) {
       const path = await pathAt(context, reference, revision);
       if (path === undefined) continue;
-      paths.add(path);
       if (await readFileAt(context, path, revision) !== null) present = true;
     }
     if (!present && input.references !== undefined) await uncoveredOrMissing(context, reference);
-    records.push({ reference, paths: [...paths] });
   }
-  return records;
+}
+
+async function recordAt(context: InRepoContext, reference: RecordReference, revision: string): Promise<{ path: string | undefined; content: string | null }> {
+  const path = await pathAt(context, reference, revision);
+  return { path, content: path === undefined ? null : await readFileAt(context, path, revision) };
 }
 
 function changesAdmission(context: InRepoContext, reference: RecordReference): void {
@@ -146,8 +144,7 @@ async function git(context: InRepoContext, args: string[]): Promise<string> {
   return (await context.ports.exec("git", args, { cwd: context.ports.checkoutRoot, objectAccess: "local-only" })).stdout;
 }
 
-async function historyEntry(context: InRepoContext, reference: RecordReference, path: string, commit: string): Promise<HistoryEntry> {
-  const content = await readFileAt(context, path, commit);
+async function historyEntry(context: InRepoContext, reference: RecordReference, content: string | null, commit: string): Promise<HistoryEntry> {
   const object = await context.ports.execInput(["cat-file", "commit", commit], "", {
     cwd: context.ports.checkoutRoot, objectAccess: "local-only",
   });

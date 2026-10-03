@@ -272,4 +272,71 @@ describe("tracked state and history", () => {
       { reference: reference(), version: version(content), content: content, provenance: { message: "move placement\n" } },
     ]);
   });
+
+  for (const sameBytes of [false, true]) {
+    it.each(["all", "meta", "notes"] as const)(`follows surviving selected copies with identical bytes ${sameBytes}, restricted to %s`, async (restriction) => {
+      const repo = await repository();
+      const active = ".arc/active";
+      const archive = ".arc/completed/2026-q4/01_example";
+      const meta = makeMetaFixture("example", { branch: "main" });
+      const archivedMeta = sameBytes ? meta : makeMetaFixture("example", { state: "Shipped", branch: "main" });
+      const records = [
+        { name: "meta", reference: reference(), active: meta, archived: archivedMeta },
+        { name: "notes", reference: recordReferences["work-item/notes"](reference().owner), active: "active notes\n", archived: sameBytes ? "active notes\n" : "archived notes\n" },
+      ];
+      for (const record of records) {
+        await repo.put(`${active}/${record.name}-example.md`, record.active);
+        await repo.put(`${archive}/${record.name}-example.md`, record.archived);
+      }
+      const from = await repo.commit("coexisting copies");
+      for (const record of records) await repo.put(`${archive}/${record.name}-example.md`, `${record.archived}\nunselected edit\n`);
+      const edited = await repo.commit("edit unselected archive");
+      for (const record of records) await repo.put(`${archive}/${record.name}-example.md`, record.archived);
+      await repo.commit("restore unselected archive");
+      await repo.exec("git", ["rm", ...records.map((record) => `${active}/${record.name}-example.md`)]);
+      const selectedArchive = await repo.commit("select surviving archive");
+      const selected = records.filter((record) => restriction === "all" || record.name === restriction);
+      const references = restriction === "all" ? undefined : selected.map((record) => record.reference);
+      expect(success(await repo.store.changes({ from, to: edited, references }))).toEqual([]);
+      const changes = success(await repo.store.changes({ from, to: selectedArchive, references }));
+      expect(changes).toHaveLength(selected.length);
+      for (const record of selected) {
+        const landed = success(await repo.store.read({ reference: record.reference, asOf: selectedArchive }));
+        expect(changes.filter((entry) => entry.reference.kind === record.reference.kind)).toEqual([
+          { reference: record.reference, content: landed.content, version: landed.version, provenance: { message: "select surviving archive\n" } },
+        ]);
+        expect(landed.content).toBe(record.archived);
+      }
+      await repo.exec("git", ["rm", ...records.map((record) => `${archive}/${record.name}-example.md`)]);
+      const removed = await repo.commit("remove final copy");
+      const complete = success(await repo.store.changes({ from, to: removed, references }));
+      expect(complete).toHaveLength(selected.length * 2);
+      for (const record of selected) expect(complete.filter((entry) => entry.reference.kind === record.reference.kind)).toEqual([
+        { reference: record.reference, content: record.archived, version: version(record.archived), provenance: { message: "select surviving archive\n" } },
+        { reference: record.reference, content: null, version: null, provenance: { message: "remove final copy\n" } },
+      ]);
+    });
+  }
+
+  it.each(["all", "meta", "notes"] as const)("ignores removal of a formerly selected archive restricted to %s", async (restriction) => {
+    const repo = await repository();
+    const archive = ".arc/completed/2026-q4/01_example";
+    const records = [
+      { name: "meta", reference: reference(), content: makeMetaFixture("example", { branch: "main" }) },
+      { name: "notes", reference: recordReferences["work-item/notes"](reference().owner), content: "same notes\n" },
+    ];
+    for (const record of records) await repo.put(`${archive}/${record.name}-example.md`, record.content);
+    const from = await repo.commit("archive selected");
+    for (const record of records) await repo.put(`.arc/active/${record.name}-example.md`, record.content);
+    await repo.commit("select active copy");
+    await repo.exec("git", ["rm", ...records.map((record) => `${archive}/${record.name}-example.md`)]);
+    const to = await repo.commit("remove unselected archive");
+    const selected = records.filter((record) => restriction === "all" || record.name === restriction);
+    const changes = success(await repo.store.changes({ from, to,
+      ...(restriction === "all" ? {} : { references: selected.map((record) => record.reference) }) }));
+    expect(changes).toHaveLength(selected.length);
+    for (const record of selected) expect(changes.filter((entry) => entry.reference.kind === record.reference.kind)).toEqual([
+      { reference: record.reference, content: record.content, version: version(record.content), provenance: { message: "select active copy\n" } },
+    ]);
+  });
 });
