@@ -11,21 +11,15 @@ _Purpose:_ Establish the common reader checks and authoring prompts before wirin
 _Mode:_ `replication` through Phase 2 — closes when the nine source surfaces and their project projections carry
 the complete reader contract, with every required operation covered and the representative cases checked.
 
-### `[ ]` **1.1 Define the shared reader-review contract — Decisions 1–3, 7**
+### `[x]` **1.1 Define the shared reader-review contract — Decisions 1–3, 7**
 
 - _Goal:_ Reviewers can assess reader independence and binding completeness over a new specification set or an
   affected footprint without importing planning history, dropping binding design, or expanding unrelated review.
 
-    - Update `packages/arc-framework/arc/system/methods/spec-review.md` first, then apply matching framework edits
-      to `.arc/system/methods/spec-review.md`, preserving project override content and method-loading behavior.
-    - Make the paired checks common to either selected slice, including grounding-only calls and coherence-only
-      rereads. Keep existing depth-based coherence/grounding work and design re-entry routing.
-    - State the substantive-reference boundary, completeness safeguard, technical precision, metadata/amendment
-      exceptions, accessible distinct-author PRD/RFC set, and expected-contract treatment of unshipped prerequisites.
-    - Generalize the invocation contract to new specifications and later substantive changes to specifications
-      authored under the standard; include removals and affected surrounding obligations and definitions.
-    - Keep the full rubric canonical here. Preserve existing nested method declarations and lifecycle/interlock
-      behavior; use the existing method rather than introducing a reader-only method or token policy.
+- _Outcome:_ The shared method and matching projection require reader independence and binding completeness for
+  either review slice, scoped to new specification sets or changed contracts, including removals and affected
+  obligations. Its reference rules preserve precision, tracking, amendments, accessible paired specs, and expected
+  prerequisite contracts while retaining source grounding, depth selection, and design re-entry.
 
 ### `[ ]` **1.2 Guide brief specification authors — Decisions 1–3, 7**
 
