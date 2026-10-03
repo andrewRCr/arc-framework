@@ -74,27 +74,34 @@ and the two hook copies match with comment-only production changes.
 
 _Purpose:_ Validate the complete migration against its acceptance criteria and project quality gates.
 
-### `[ ]` **2.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **2.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Goal:_ The complete migration meets its acceptance criteria with recorded behavior, reference, and quality evidence.
+
+- _Quality gates:_ Fresh complete local Tier 3 passed: Markdown/TypeScript/shell lint, both type checks, ARC
+  contract audits, 13,266 tests (2 skipped), and the ESM/declaration build.
+- _Success criteria:_ All 8 met against the complete work-unit diff and tree; verified the specified 19-ID map,
+  live-reference census, source-selection boundaries, matching copies, comment-only shell edits, and historical
+  exclusions. Fresh-context adversarial Pass 1 of 1 returned no findings; stopped converged. Criterion identities,
+  source evidence, and the advisory report are retained in the per-work-unit criteria report.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Each current hook check has its specified stable ID; all headings satisfy the grammar and are unique.
+- `[x]` Each current hook check has its specified stable ID; all headings satisfy the grammar and are unique.
 
-- `[ ]` A case-insensitive scan of live code, scripts, tests, and durable documentation finds no ordinal references
+- `[x]` A case-insensitive scan of live code, scripts, tests, and durable documentation finds no ordinal references
   to current pre-commit checks; both READMEs and the known schema, neutrality, and extension corrections are covered.
 
-- `[ ]` Source-block selection survives neighboring insertion and reordering, including final-block selection.
+- `[x]` Source-block selection survives neighboring insertion and reordering, including final-block selection.
 
-- `[ ]` Missing or duplicate requested IDs and a missing final Summary boundary fail explicitly.
+- `[x]` Missing or duplicate requested IDs and a missing final Summary boundary fail explicitly.
 
-- `[ ]` Package and project hook copies match, production edits are comments only, and behavior assertions pass.
+- `[x]` Package and project hook copies match, production edits are comments only, and behavior assertions pass.
 
-- `[ ]` Historical records and excluded planning artifacts remain untouched.
+- `[x]` Historical records and excluded planning artifacts remain untouched.
 
-- `[ ]` All quality gates pass.
+- `[x]` All quality gates pass.
 
-- `[ ]` Ready for integration.
+- `[x]` Ready for integration.
