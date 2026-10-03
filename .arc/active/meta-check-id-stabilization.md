@@ -13,8 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** Stub created from a USER-INBOX capture at the `single-owner-wu-model` housekeep drain
-  (2026-06-24).
+- **Last Completed:** Planning finalized and work unit activated; implementation has not started.
 - **Next Task:** Task 1.1 — Add exact-ID source-block selection (line ~17)
 - **Blockers:** [none]
 
