@@ -22,8 +22,9 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                | —                        |
 | `Planning` | review-checkout-lifecycle       | P1       | andrew | —                | —                        |
 | `Planning` | stub-mint-to-launch             | P1       | andrew | —                | —                        |
-| `Planning` | check-id-stabilization          | P2       | andrew | —                | architecture-remediation |
+| `Active`   | check-id-stabilization          | P2       | andrew | —                | architecture-remediation |
 | `Planning` | spec-reader-standard            | P2       | andrew | —                | doc-conventions          |
+| `Planning` | cli-help-discovery              | P3       | andrew | —                | —                        |
 
 ## Ready
 
@@ -84,7 +85,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | arc-reinforce                       | P3       | andrew | —          | —                          |
 | artifact-editor-handoff             | P3       | andrew | —          | —                          |
 | chunk-scope-binding                 | P3       | andrew | —          | —                          |
-| cli-help-discovery                  | P3       | andrew | —          | —                          |
 | cohort-cut-coherence                | P3       | andrew | —          | —                          |
 | cold-start-init-polish              | P3       | andrew | —          | —                          |
 | contributor-path                    | P3       | andrew | —          | —                          |
