@@ -11,6 +11,17 @@ request, schema-discovery, and input-exclusivity behavior. `resolveCommandIntera
 `Help.subcommandDescription`, grouping through `Help.groupItems`, and inherited options through
 `Help.visibleGlobalOptions`.
 
+## Contents
+
+- [Navigation alternatives](#navigation-alternatives)
+- [Root help](#root-help)
+- [Bare invocation](#bare-invocation)
+- [Status command help](#status-command-help)
+- [Review resolution help](#review-resolution-help)
+- [Representative validation](#representative-validation)
+- [Discovery evidence](#discovery-evidence)
+- [Verification evidence](#verification-evidence)
+
 ## Navigation alternatives
 
 - A curated explicit root help page plus a separate complete listing reduces the first list but introduces another
@@ -315,5 +326,96 @@ Validation witnesses for the completed implementation:
 - A read-only working change review covered the complete implementation diff from `2ba56ec7e`, including the example
   suite before staging, and reported no material findings. Completion and discovery-record edits receive Markdown
   and ARC contract checks separately. This evidence supports the segment exit; terminal criteria remain for verification.
+
+## Verification evidence
+
+The terminal walk covers the complete work-unit diff and reachable tree. Author aggregate self-review found no
+issues requiring a disposition. The fresh-context adversarial companion received the spec, task list with markings
+withheld, complete diff, and source/check witnesses; it received no primary criteria report.
+
+```yaml
+criteria-slice: Success Criteria
+span:
+  diff:
+    baseSha: aa28c99dda4704b5f0d842c743430c7784d0483e
+    headSha: 0263600789e0adee971ce9c0bcfb8e1f57adea97
+    kind: complete-work-unit
+    workingTreeDelta: terminal verification documentation closure
+  reachability: complete tree at the stated head plus that documentation closure
+  boundary-order-deviation: null
+criteria:
+  - locus: Success Criteria > 1
+    criterion-digest: sha256:e350da1f38f73a042bb49e099e1a1c63b2d8cfd94bd81bec01a922d3d04164a1
+    evidence: >-
+      HELP_GROUPS and visibleCommands implement the specified display order; source-derived inventory guards and
+      built-CLI namespace tests verify exact visible coverage and generated help.
+    state: "[x]"
+  - locus: Success Criteria > 2
+    criterion-digest: sha256:4ccae37f7ab2be7ca2eaafb994def87b01d0ae9787c3a319088bdcf4e532ac7f
+    evidence: >-
+      configureArcHelp, bareIntroduction, and formatArcHelp preserve native parsing and channels. Formatter
+      action-hook isolation, built-CLI outside-project checks, and cli-loading-boundary tests verify visibility,
+      inherited syntax, and lazy handlers.
+    state: "[x]"
+  - locus: Success Criteria > 3
+    criterion-digest: sha256:30f2603448be1154762a58094225c9923ba24c6e15f3155af07c8009e5cb2641
+    evidence: >-
+      COMMAND_SUMMARIES covers every visible registered path; applyArcHelp retains own-page descriptions unless
+      a precise purpose override is supplied. Formatter tests verify section order, native defaults, wrapping,
+      and inherited flags.
+    state: "[x]"
+  - locus: Success Criteria > 4
+    criterion-digest: sha256:f06be541b5c1ee8ec27c06ea52fedd3953b8e6b582a052899af57b0a390ec8e3
+    evidence: >-
+      COMMAND_HELP contains the ten specified example sets. cli-help-examples.e2e.test.ts verifies supported
+      forms, assumptions, purpose effects, and hosted continuation; request schemas remain handler-owned.
+    state: "[x]"
+  - locus: Success Criteria > 5
+    criterion-digest: sha256:d9a99fdd8dca98ca0f87bc1c75f084d7afa95af083c4f3f825479699d26873bf
+    evidence: >-
+      StatusCommandInputSchema and handleStatus match status page modes, refresh defaults, JSON and writes.
+      reviewDiscoverableCommandInputSchema, handleReviewRequestSchema, and resolve handler match
+      schema/file/stdin and result JSON notes; existing actions are unchanged.
+    state: "[x]"
+  - locus: Success Criteria > 6
+    criterion-digest: sha256:f11198a01770fdc764a210c95fef0c130f4587888b489b81db33daa34d4560da
+    evidence: >-
+      notes-cli-help-discovery.md Discovery evidence records the fresh help/schema-only reader paths, actual
+      contextual assumptions, and constructed project/view/session/review forms, without claiming operational
+      execution.
+    state: "[x]"
+  - locus: Success Criteria > 7
+    criterion-digest: sha256:1ea4d51faae9eee4e2e26241f5c53a09252e4072cac5af386bf483ae843fc588
+    evidence: >-
+      Final complete local gate: whole Markdown, TypeScript and shell lint; both type checks; ARC
+      triggers/domain/section contracts; 13283 routine tests passed with 2 skipped; full ESM/declaration build
+      passed. The unchanged help E2E input retains its 27-test green result.
+    state: "[x]"
+  - locus: Success Criteria > 8
+    criterion-digest: sha256:58db93fe39223454b81347ff1a639f8238086deb7e85ae3c3f70a2bbbc6c04d1
+    evidence: >-
+      Every implementation task is complete, scoped intent has no deferred or unresolved part, executable help
+      checks cover top-level discovery intent, and no author-side aggregate finding remains. Readiness here is
+      for Candidate preparation and integration review.
+    state: "[x]"
+summary: { met: 8, superseded: 0, unresolved: 0 }
+adversarial-review:
+  pass: 1 of 1
+  findings: []
+  dispositions: []
+  response-performance: No responses required; empty finding set.
+  consumption: Compared with the primary complete walk; no unresolved criterion.
+  stop-reason: converged
+  conditional-next-pass: null
+```
+
+The companion independently examined ordered inventory, native help behavior, representative contracts, examples,
+tracked discovery, and quality witnesses. Its verdict found the complete approved help-discovery contract satisfied
+with sufficient terminal evidence. Source, behavior, and scope claims were checked against the primary walk and
+its source/test witnesses. The zero-finding pass converged; its one-pass allowance is exhausted.
+
+The built-CLI discovery suites supply executable checks of the top-level intent: removing grouped navigation,
+summaries, or the specified examples makes their assertions fail. No original intent remains deferred or unowned.
+This verification establishes implementation readiness for Candidate preparation and integration review.
 
 ---

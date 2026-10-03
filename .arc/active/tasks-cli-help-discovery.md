@@ -103,36 +103,43 @@ inventory exactly; all ten example pages and the human/agent discovery exercises
 
 ## **Phase 3:** Verification
 
-### `[ ]` **3.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **3.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Goal:_ The implementation satisfies the approved help-discovery contract with complete validation evidence and
   is ready for the work unit's integration review.
+
+- _Quality gates:_ Whole-project Markdown/TypeScript/shell lint, both type checks, ARC contracts, 13,283 routine
+  tests, and the full ESM/declaration build passed. The unchanged help E2E input retains its 27-test green result.
+
+- _Success criteria:_ All eight met, with none superseded or unresolved. The fresh-context companion returned no
+  findings (Pass 1 of 1, converged); complete criterion identities and evidence are in `notes-cli-help-discovery.md`
+  § Verification evidence.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Root and the five grouped namespace outputs match the specified membership/order and exactly cover visible
+- `[x]` Root and the five grouped namespace outputs match the specified membership/order and exactly cover visible
   registrations, including intentional generated-help placement, with automated guards against omissions.
 
-- `[ ]` Bare root and explicit help forms pass built-CLI channel/exit checks outside an ARC project; help invokes no
+- `[x]` Bare root and explicit help forms pass built-CLI channel/exit checks outside an ARC project; help invokes no
   operational action or prompt, and registered syntax, hidden visibility, and lazy implementation loading are preserved.
 
-- `[ ]` All visible commands have intentional concise summaries and precise own-page purposes; representative output
+- `[x]` All visible commands have intentional concise summaries and precise own-page purposes; representative output
   demonstrates the specified section order, native wrapping/default annotations, and applicable inherited flags.
 
-- `[ ]` All ten initial example pages contain the supported invocations with accurate assumptions, effects, and
+- `[x]` All ten initial example pages contain the supported invocations with accurate assumptions, effects, and
   continuation guidance; schema discovery remains available without a duplicated request schema.
 
-- `[ ]` Status help correctly covers every local flag, mode exclusivity, refresh defaults, JSON selection, and write
+- `[x]` Status help correctly covers every local flag, mode exclusivity, refresh defaults, JSON selection, and write
   conditions/effects; review-resolve help correctly covers request/schema exclusivity, file/stdin input, automatic
   JSON, actual-state request facts, and unsupported `--json`.
 
-- `[ ]` Tracked discovery evidence records successful help paths and valid invocations for project work, human-facing
+- `[x]` Tracked discovery evidence records successful help paths and valid invocations for project work, human-facing
   current-task display, session-init JSON, and review schema/file/stdin use without implementation-source consultation.
 
-- `[ ]` All quality gates pass.
+- `[x]` All quality gates pass.
 
-- `[ ]` Ready for integration.
+- `[x]` Ready for integration.
 
 ---
