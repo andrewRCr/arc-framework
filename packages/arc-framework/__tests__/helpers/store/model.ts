@@ -134,6 +134,18 @@ export function savedReference(records: Map<string, MemoryRecord>, reference: Re
  */
 export function currentStateVersion(state: MemoryState): StateVersion { return StateVersionSchema.parse(`state:${state.counter}`); }
 
+/** Retain the highest completed allocation observed through reconciliation.
+ * @param state - Receiving namespace, including its durable allocation counters.
+ * @param record - Imported or published record whose placement has been saved.
+ * @returns Nothing; the namespace retains the observed allocation.
+ */
+export function observeArchivePlacement(state: MemoryState, record: MemoryRecord): void {
+  const placement = record.placement;
+  if (record.reference.kind !== "work-item/meta" || placement?.kind !== "completed" || !("sequence" in placement)) return;
+  state.archiveSequences.set(placement.quarter,
+    Math.max(state.archiveSequences.get(placement.quarter) ?? 0, Number(placement.sequence)));
+}
+
 /** Allocate record and state versions; the caller saves its state after applying the write.
  * @param state - Shared local namespace receiving the write.
  * @returns Its new record and state versions.

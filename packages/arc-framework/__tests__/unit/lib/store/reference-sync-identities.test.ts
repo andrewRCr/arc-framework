@@ -13,7 +13,7 @@ function clients(direction: "pull" | "publish") {
 }
 
 describe.each(["pull", "publish"] as const)("reference identity %s", (direction) => {
-  it("allocates completion order after imported completed records", async () => {
+  it.each([false,true])("allocates completion order after imported completed records, removed: %s", async (removed) => {
     const {fixture,writer,reader} = clients(direction);
     const quarter = ArchiveQuarterSchema.parse("2026-q4");
     const reference = fixture.reference("work-item/meta","imported");
@@ -21,12 +21,16 @@ describe.each(["pull", "publish"] as const)("reference identity %s", (direction)
     success(await fixture.store.sync());
     const imported = success(await reader.read({reference:first.reference}));
     expect(imported.placement).toEqual({kind:"completed",quarter,sequence:"01"});
+    if (removed) success(await reader.write({action:"remove",reference:imported.reference,expected:imported.version,provenance:testProvenance}));
     const next = fixture.reference("work-item/meta","next");
     const second = success(await reader.write({action:"put",reference:next,expected:null,content:fixture.content(next),placement:{kind:"completed",quarter},provenance:testProvenance}));
     expect(success(await reader.read({reference:second.reference})).placement).toEqual({kind:"completed",quarter,sequence:"02"});
-    expect(success(await reader.read({reference:first.reference}))).toEqual(imported);
-    success(await reader.write({...update(fixture,imported),placement:{kind:"completed",quarter}}));
-    expect(success(await reader.read({reference:first.reference})).placement).toEqual(imported.placement);
+    if (removed) expect(success(await reader.history({reference:first.reference}))[0]).toMatchObject({version:null,content:null});
+    else {
+      expect(success(await reader.read({reference:first.reference}))).toEqual(imported);
+      success(await reader.write({...update(fixture,imported),placement:{kind:"completed",quarter}}));
+      expect(success(await reader.read({reference:first.reference})).placement).toEqual(imported.placement);
+    }
   });
 
   it("retains name-only reads, exact UIDs, and duplicate creation refusal after sync", async () => {

@@ -5,7 +5,7 @@ import {
   type StoreRefusal, type StoreResult, type SyncResult, type StateVersion,
 } from "../../../src/lib/store/index.js";
 import type { ReferenceContext } from "./context.js";
-import { advanceMemoryState, recordKey, type MemoryEvent, type MemoryRecord, type MemoryState } from "./model.js";
+import { advanceMemoryState, observeArchivePlacement, recordKey, type MemoryEvent, type MemoryRecord, type MemoryState } from "./model.js";
 import { createMemoryState } from "./model.js";
 import { randomUUID } from "node:crypto";
 import { RecordVersionSchema } from "../../../src/lib/store/index.js";
@@ -57,7 +57,10 @@ function adopt(context: ReferenceContext, key: string, record: MemoryRecord | un
   if (equal(prior, record)) return;
   const allocation = advanceMemoryState(context.state);
   if (record === undefined) context.state.records.delete(key);
-  else context.state.records.set(key, structuredClone(record));
+  else {
+    context.state.records.set(key, structuredClone(record));
+    observeArchivePlacement(context.state, record);
+  }
   const reference = record?.reference ?? prior!.reference;
   context.state.events.push({ reference, ...(record ? { version: record.version } : {}), stateVersion: allocation.stateVersion,
     label: sideLabel(source, key, record),
@@ -166,6 +169,7 @@ function finishPublish(context: ReferenceContext, publication: ReferencePublicat
   const changed = changedKeys.length > 0;
   remote.state.records = result.records;
   remote.state.identities = result.identities;
+  for (const record of result.records.values()) observeArchivePlacement(remote.state, record);
   if (changed) {
     const remoteAllocation = advanceMemoryState(remote.state);
     for (const key of changedKeys) remote.state.events.push(publicationEvent(context, key, before.get(key), result.records.get(key), remoteAllocation.stateVersion));
