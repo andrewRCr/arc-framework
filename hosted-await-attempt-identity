@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "hosted-await-attempt-identity",
+  "claimId": "3f115d6ad93a4fa679bddf9c7fe6bc53",
+  "createdAt": "2026-10-03T16:13:00.865Z",
+  "updatedAt": "2026-10-03T16:13:00.865Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "hosted-await-attempt-identity",
+  "branch": "chore/hosted-await-attempt-identity",
+  "origin": "inbox",
+  "originEntry": "Give a terminal hosted await result the attempt identity the policy driver accepts",
+  "originEntrySourceDigest": "sha256:d286e2da8f647119712e23c303de94c2df9f0fc08474c8f8d12fe228d5336e4b",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
