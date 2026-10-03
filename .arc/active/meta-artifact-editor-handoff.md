@@ -1,8 +1,8 @@
 # Metadata: artifact-editor-handoff
 
-| **State**  | **Owner** | **Branch**                     | **Class** | **Priority** |
-| ---------- | --------- | ------------------------------ | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/artifact-editor-handoff` | `Light`   | `P3`         |
+| **State** | **Owner** | **Branch**                     | **Class** | **Priority** |
+| --------- | --------- | ------------------------------ | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/artifact-editor-handoff` | `Light`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-artifact-editor-handoff.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** `process-task-loop`
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Task 1.1.a — Select and launch the editor through an injectable process boundary (line ~25)
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1.a — Select and launch the editor through an injectable process boundary
 
 - **PR URL:** [none]
 - **Completed:** [none]
