@@ -36,6 +36,21 @@
   become store operations.
 - _Approach:_ Re-plan against lifecycle as a record field once `storage-seam` lands.
 
+### `[ ]` **Take a plan's named actors as the dependency-conformance re-check list**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- _WU_Target:_ `cross-wu-coordination`
+
+- _Observation:_ the fold-in extends relatedness from liveness to conformance at first start or resume. Under
+  `grounded-planning-review` D2, planning claims about shipped code name that code as backticked symbols, so a resumed
+  plan's named symbols are a ready list to re-check against the landed base. That work unit does not re-validate
+  claims after the base moves; it leaves that here, with `decomposition-doctrine`'s held entry for decomposed members.
+
+- _Approach:_ when designing the conformance check, seed it from the plan's named symbols.
+
+- _Captured during:_ `grounded-planning-review` draft-design close, 2026-10-01 (draft at `725ddeaa9`).
+
 ## Structural decision (settle first at planning)
 
 This stub deliberately holds the thinking as a **single WU** for now. The proposed end-state is a **cohort**, and

@@ -98,10 +98,10 @@ describe("CodeRabbit structured frontline parser", () => {
     },
   );
 
-  it("keeps normalized finding identity stable across executable versions", () => {
+  it.each(["blocker", "critical"])("keeps %s finding identity stable across executable versions", (severity) => {
     const finding = {
       type: "finding",
-      severity: "blocker",
+      severity,
       fileName: "src/index.ts",
       codegenInstructions: "Preserve the exact target binding.",
       suggestions: [],

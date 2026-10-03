@@ -24,7 +24,9 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Planning`    | stub-mint-to-launch             | P1       | andrew | —                | —                        |
 | `Integrating` | check-id-stabilization          | P2       | andrew | —                | architecture-remediation |
 | `Active`      | spec-reader-standard            | P2       | andrew | —                | doc-conventions          |
-| `Planning`    | cli-help-discovery              | P3       | andrew | —                | —                        |
+| `Planning`    | workspace-tool-paths            | P2       | andrew | —                | —                        |
+| `Active`      | artifact-editor-handoff         | P3       | andrew | —                | —                        |
+| `Active`      | cli-help-discovery              | P3       | andrew | —                | —                        |
 
 ## Ready
 
@@ -83,7 +85,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | adopter-content-aware-ci            | P3       | andrew | —          | —                          |
 | adr-accept-timing                   | P3       | andrew | —          | —                          |
 | arc-reinforce                       | P3       | andrew | —          | —                          |
-| artifact-editor-handoff             | P3       | andrew | —          | —                          |
 | chunk-scope-binding                 | P3       | andrew | —          | —                          |
 | cohort-cut-coherence                | P3       | andrew | —          | —                          |
 | cold-start-init-polish              | P3       | andrew | —          | —                          |
@@ -95,6 +96,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | idiomatic-alignment                 | P3       | andrew | —          | —                          |
 | inbound-routing-method              | P3       | andrew | —          | —                          |
 | knowledge-lint                      | P3       | andrew | —          | —                          |
+| merge-queue-landing                 | P3       | andrew | —          | —                          |
 | planning-iteration-mechanics        | P3       | andrew | —          | —                          |
 | quality-gate-hooks                  | P3       | andrew | —          | —                          |
 | rules-restructure                   | P3       | andrew | —          | —                          |

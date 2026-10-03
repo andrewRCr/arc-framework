@@ -387,6 +387,7 @@ async function stageExactFiles(
   const ordered = [...files].sort((left, right) => compareUtf8(left.path, right.path));
   const created: string[] = [];
   let installed = false;
+  let indexLockOwned = false;
   let indexLock = "";
   let baseLease: { release(): Promise<void> } | null = null;
   let sourceLease: { release(): Promise<void> } | null = null;
@@ -403,6 +404,7 @@ async function stageExactFiles(
     const sourceRefusal = await currentParkSourceRefusal(deps, name, transitionCommit);
     if (sourceRefusal !== null) return { status: "rejected", reason: sourceRefusal };
     await deps.fs.writeFile(indexLock, beforeLock, { flag: "wx" });
+    indexLockOwned = true;
     const afterLock = await deps.fs.readFile(indexPath);
     if (!Buffer.from(beforeLock).equals(Buffer.from(afterLock))) {
       return { status: "rejected", reason: "The base changed during park landing; retry from the fresh base." };
@@ -452,9 +454,8 @@ async function stageExactFiles(
     await baseLease?.release().catch(() => undefined);
     if (!installed) {
       await Promise.all(created.map((path) => deps.fs.rm(path, { force: true }).catch(() => undefined)));
-      if (indexLock !== "") await deps.fs.rm(indexLock, { force: true }).catch(() => undefined);
+      if (indexLockOwned) await deps.fs.rm(indexLock, { force: true }).catch(() => undefined);
     }
-    if (indexLock !== "") await deps.fs.rm(`${indexLock}.lock`, { force: true }).catch(() => undefined);
   }
 }
 

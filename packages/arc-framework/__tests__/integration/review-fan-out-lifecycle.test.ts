@@ -1677,7 +1677,7 @@ async function writeSettlementGhFake(
     "  writeFileSync(resolvedPath, 'resolved'); output({ data: { resolveReviewThread: { thread: { id: 'THREAD_1', isResolved: true } } } });",
     "} else if (route === 'graphql') output({ data: { repository: { pullRequest: { reviewThreads: {",
     "  nodes: [{ id: 'THREAD_1', isResolved: existsSync(resolvedPath), comments: {",
-    "    nodes: [{ databaseId: 111, body: 'Finding', url: 'https://example.test/finding-production-settlement',",
+    "    nodes: [{ fullDatabaseId: 111, body: 'Finding', url: 'https://example.test/finding-production-settlement',",
     "      path: 'first.txt', line: 1, commit: { oid: head }, pullRequestReview: { id: 'REVIEW_1' },",
     "      replyTo: null, author: { databaseId: 2 } }],",
     "    pageInfo: { hasNextPage: false, endCursor: null } } }],",
