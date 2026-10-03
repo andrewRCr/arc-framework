@@ -12,6 +12,16 @@ function program(): Command {
 }
 
 describe("ARC help", () => {
+  it("places explanations beneath long quoted examples while keeping the invocation intact", () => {
+    const root = program();
+    const open = root.command("errand").command("open <slug>");
+    applyArcHelp(root);
+    const help = open.helpInformation();
+    expect(help).toContain('arc errand open my-fix --from-inbox "Fix the formatting issue"');
+    expect(help.replace(/\s+/gu, " ")).toContain("Adopt an existing inbox capture");
+    expect(help.split("\n").every((line) => line.length <= 80)).toBe(true);
+  });
+
   it("wraps qualifiers beside long registered command terms at 80 columns", () => {
     const root = program();
     const review = root.command("review").description("Review work");

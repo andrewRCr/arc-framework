@@ -73,35 +73,22 @@ inventory exactly; all ten example pages and the human/agent discovery exercises
           show inherited flags, native wrapping, file/stdin contracts, schema pointers, and accurate JSON modes.
           New visible registrations without summaries fail the test guard; hidden registrations are excluded.
 
-### `[ ]` **2.2 Remaining workflow examples and descriptions**
+### `[x]` **2.2 Remaining workflow examples and descriptions**
 
 - _Goal:_ The initial example set resolves common invocation ambiguities for both audiences while preserving the
   actual command effects, context assumptions, and continuation contracts.
 
-- _Context:_ `spec-cli-help-discovery.md` § Initial example coverage; § Command pages and summaries.
+    - `[x]` **2.2.a Work launch and human-facing display examples**
+        - Added planned/new and isolated/`--here` start examples, retaining branch, commit, and push effects before
+          examples. View examples explain current tasks and an existing work unit's spec for human display.
 
-    - These are presentation/content batches; add targeted assertions after each edit. Preserve the status and
-      review-resolve examples delivered in Phase 1, and avoid duplicate tutorials on namespace overview pages.
+    - `[x]` **2.2.b Errand and synchronization examples**
+        - Added open/next, sync, and user-status examples with existing-title, dry-run, offline, and JSON assumptions.
+          Long quoted invocations remain intact, with their explanations placed beneath them when columns are narrow.
 
-    - `[ ]` **2.2.a Work launch and human-facing display examples**
-        - Add the listed `start` and `view` examples. Explain planned versus fresh targets, isolated checkout versus
-          `--here`, and the human-facing artifact display.
-        - Retain `program`'s start branch/commit/push effects in the purpose before examples; verify every displayed
-          spelling against registrations without executing start ceremonies.
-
-    - `[ ]` **2.2.b Errand and synchronization examples**
-        - Add the listed `errand open`, `errand next`, `sync`, and `user status` examples with their existing-title,
-          dry-run, offline, and JSON assumptions described accurately.
-        - Verify their actual flags and purpose from `program` and scoped help. Trace mutating examples or use
-          disposable fixtures; no example invocation should alter the development checkout or its user notes.
-
-    - `[ ]` **2.2.c Hosted-request and release examples**
-        - Add schema and file examples to `review hosted request`, preserving its existing instruction to submit
-          the emitted action unchanged to `arc review hosted await -`.
-        - Add `arc release commit -F message.txt`, explaining the valid-message-file assumption while retaining
-          existing forwarded Git arguments, validation, and approval requirements.
-        - Keep request/message payloads as valid contextual inputs rather than fabricated help content; schema
-          structure remains discoverable through the registered schema command.
+    - `[x]` **2.2.c Hosted-request and release examples**
+        - Added schema/file hosted-request examples with the emitted-action continuation, and the message-file commit
+          example with validation, forwarded arguments, and required approval. Payload validity remains contextual.
 
 ### `[ ]` **2.3 Validate complete discovery coverage** — validate exit criterion at segment scope
 

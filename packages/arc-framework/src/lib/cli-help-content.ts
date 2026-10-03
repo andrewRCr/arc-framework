@@ -166,7 +166,14 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
   "review hosted await": { summary: COMMAND_SUMMARIES["review hosted await"], notes: requestNotes },
   "review reduce": { summary: COMMAND_SUMMARIES["review reduce"], notes: requestNotes },
   "review respond": { summary: COMMAND_SUMMARIES["review respond"], notes: requestNotes },
-  "review hosted request": { summary: COMMAND_SUMMARIES["review hosted request"], notes: requestNotes },
+  "review hosted request": {
+    summary: COMMAND_SUMMARIES["review hosted request"],
+    examples: [
+      ["arc review hosted request --schema", "Inspect the accepted request schema"],
+      ["arc review hosted request request.json", "Submit a valid request file"],
+    ],
+    notes: requestNotes,
+  },
   "review readiness": { summary: COMMAND_SUMMARIES["review readiness"], notes: requestNotes },
   "review frontline resolve": { summary: COMMAND_SUMMARIES["review frontline resolve"], notes: requestNotes },
   "review hosted settle": { summary: COMMAND_SUMMARIES["review hosted settle"], notes: requestNotes },
@@ -179,4 +186,60 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
   "errand": { summary: COMMAND_SUMMARIES["errand"], notes: [["Related:", "arc errand open --help"]] },
   "release": { summary: COMMAND_SUMMARIES["release"], notes: [["Related:", "arc release commit --help"]] },
   "delivery": { summary: COMMAND_SUMMARIES["delivery"], notes: [["Related:", "arc delivery plan --help"]] },
+  "start": {
+    summary: COMMAND_SUMMARIES["start"],
+    examples: [
+      ["arc start my-work", "Start an existing planned target"],
+      ["arc start fresh-work --new", "Create and start a new target"],
+      ["arc start my-work --here", "Start the planned target in this checkout"],
+    ],
+    notes: [["Example context:", "my-work denotes an existing planned target; fresh-work denotes a new target. "
+      + "--here uses the current checkout instead of the default isolated worktree."]],
+  },
+  "view": {
+    summary: COMMAND_SUMMARIES["view"],
+    purpose: "Display a work artifact for a person from the current ARC work context.",
+    examples: [
+      ["arc view tasks --current", "Display the current task"],
+      ["arc view spec --for my-work", "Display a named work unit's spec"],
+    ],
+    notes: [["Example context:", "The current task requires a work context with a task list. "
+      + "my-work denotes an existing work unit with a spec."]],
+  },
+  "errand open": {
+    summary: COMMAND_SUMMARIES["errand open"],
+    examples: [
+      ["arc errand open my-fix", "Open an isolated atomic concern"],
+      ['arc errand open my-fix --from-inbox "Fix the formatting issue"', "Adopt an existing inbox capture"],
+    ],
+    notes: [["Example context:", "The quoted title must match an existing capture's inner bold title. "
+      + "Review and merge require their own approvals."]],
+  },
+  "errand next": {
+    summary: COMMAND_SUMMARIES["errand next"],
+    examples: [["arc errand next --json", "Inspect the next execute-bound inbox capture"]],
+  },
+  "sync": {
+    summary: COMMAND_SUMMARIES["sync"],
+    examples: [
+      ["arc sync --dry-run", "Inspect synchronization decisions"],
+      ["arc sync", "Synchronize according to configured policies"],
+    ],
+  },
+  "user status": {
+    summary: COMMAND_SUMMARIES["user status"],
+    examples: [
+      ["arc user status", "Inspect local, remote, and on-disk note state"],
+      ["arc user status --offline --json", "Inspect the local snapshot and disk as JSON"],
+    ],
+    notes: [["Example context:", "These examples assume a configured ARC identity and notes workspace. "
+      + "--offline skips remote and worktree probes."]],
+  },
+  "release commit": {
+    summary: COMMAND_SUMMARIES["release commit"],
+    purpose: "Run release validation and forward Git arguments after the required approval.",
+    examples: [["arc release commit -F message.txt", "Commit with a valid message file"]],
+    notes: [["Example context:", "message.txt is a valid commit-message file for the configured message format. "
+      + "Git commit arguments are forwarded through the release validation cascade."]],
+  },
 };

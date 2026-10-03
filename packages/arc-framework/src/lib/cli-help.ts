@@ -82,8 +82,12 @@ function bareIntroduction(command: Command, helper: Help): boolean {
 }
 
 function examples(page: HelpPage | undefined, helper: Help, width: number): string[] {
-  return helper.formatItemList("Examples:", (page?.examples ?? []).map(([term, description]) =>
-    helper.formatItem(term, width, description, helper)), helper);
+  return helper.formatItemList("Examples:", (page?.examples ?? []).map(([term, description]) => {
+    if ((helper.helpWidth ?? 80) - width - 4 < helper.minWidthToWrap) {
+      return `  ${term}\n${helper.formatItem("", 0, description, helper)}`;
+    }
+    return helper.formatItem(term, width, description, helper);
+  }), helper);
 }
 
 function notes(page: HelpPage | undefined, helper: Help): string[] {
