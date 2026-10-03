@@ -191,6 +191,16 @@ describe("observed removal", () => {
 });
 
 describe("surrounding prose", () => {
+  it.each([false,true])("keeps complete one-sided placement around outside prose, move current: %s", (moveCurrent) => {
+    const comment = '<!-- comment -->\n\n';
+    const base = doc(entry("11111111")+comment+entry("22222222")+entry("33333333"));
+    const moved = doc(entry("22222222")+comment+entry("33333333"),entry("11111111"));
+    expect(merge(base,moveCurrent ? moved : base,moveCurrent ? base : moved)).toEqual({content:moved,conflicts:[]});
+    const prose = base.replace("Footer","edited footer");
+    expect(merge(base,moveCurrent ? moved : prose,moveCurrent ? prose : moved))
+      .toEqual({content:moved.replace("Footer","edited footer"),conflicts:[]});
+  });
+
   it("merges disjoint prose edits beside concurrent entry insertions", () => {
     const base = doc(entry("11111111"));
     const current = doc(entry("11111111")+entry("22222222"),"","Opening edited");

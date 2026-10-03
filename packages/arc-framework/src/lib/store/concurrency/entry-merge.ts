@@ -92,18 +92,10 @@ function renderEntries(config:EntryListConfig,selected:Map<string,ListEntry>,bas
 
 function placementOffsets(order:readonly string[],section:string,selected:Map<string,ListEntry>,base:EntryFrame,current:EntryFrame,incoming:EntryFrame,prose:string): number[] {
   const originalIds = new Set(base.entries.filter((entry)=>entry.section === section && selected.get(entry.id ?? "")?.section === section).map((entry)=>entry.id));
-  const slots = base.entries.filter((entry)=>originalIds.has(entry.id)).map((entry)=>base.offsets.get(entry.id ?? "") ?? 0);
-  const translated = relocateTextOffsets(base.skeleton,prose,slots).sort((left,right)=>left-right);
-  const proseSource = current.skeleton === base.skeleton && incoming.skeleton !== base.skeleton ? incoming : current;
   const positions = new Map<string,number>();
-  let retained = 0;
   for (const id of order) {
     if (originalIds.has(id)) {
-      const source = proseSource.entries.find((entry)=>entry.id === id)?.section === section ? proseSource : current;
-      const offset = source.offsets.get(id);
-      const position = offset === undefined || source.skeleton === base.skeleton ? translated[retained] ?? 0
-        : relocateTextOffsets(source.skeleton,prose,[offset])[0] ?? 0;
-      positions.set(id,position);retained++;
+      positions.set(id,retainedPosition(id,section,base,current,incoming,prose));
     }
   }
   let prior = 0;
@@ -119,6 +111,19 @@ function placementOffsets(order:readonly string[],section:string,selected:Map<st
     prior = position;
     return position;
   });
+}
+
+function retainedPosition(id:string,section:string,base:EntryFrame,current:EntryFrame,incoming:EntryFrame,prose:string): number {
+  const position = (frame:EntryFrame): number | undefined => {
+    if (frame.entries.find((entry)=>entry.id === id)?.section !== section) return undefined;
+    const offset = frame.offsets.get(id);
+    return offset === undefined ? undefined : relocateTextOffsets(frame.skeleton,prose,[offset])[0];
+  };
+  const original = position(base) ?? 0;
+  const left = position(current);
+  const right = position(incoming);
+  if (left === original && right !== undefined) return right;
+  return left ?? right ?? original;
 }
 
 function mergeSeparator(id:string,base:EntryFrame,current:EntryFrame,incoming:EntryFrame,input:MergeTextInput,conflicts:TextConflictRecord[]): string {
