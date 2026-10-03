@@ -2,7 +2,7 @@
  * Regression coverage for hook-internal shell-script invocation.
  *
  * Fresh clones may preserve tracked hook files without executable bits. The
- * pre-commit hook must invoke nested shell scripts through `bash` so CHECK 13
+ * pre-commit hook must invoke nested shell scripts through `bash` so CHECK[markdown-links]
  * still runs even when `validate-links.sh` itself is not executable.
  */
 
@@ -105,6 +105,17 @@ describe("pre-commit source-block selection", () => {
 });
 
 describe("pre-commit hook shell-script invocation", () => {
+  it("gives every hook check a unique lowercase kebab-case ID", () => {
+    const headings = [...preCommitSource.matchAll(/^# CHECK[^\r\n]*$/gmu)];
+    const ids = [...preCommitSource.matchAll(
+      /^# CHECK\[([a-z][a-z0-9]*(?:-[a-z0-9]+)*)\]: .+$/gmu,
+    )].map((heading) => heading[1]);
+
+    expect(headings.length).toBeGreaterThan(0);
+    expect(ids).toHaveLength(headings.length);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it("invokes validate-links.sh via bash instead of relying on the exec bit", () => {
     expect(preCommitSource).toMatch(
       /bash "\$\((?:dirname )?"\$0"\)\/\.\.\/scripts\/validate-links\.sh"/,
@@ -134,11 +145,7 @@ describe("foreign-write advisory backstop wiring", () => {
   });
 
   it("treats the backstop as advisory — increments warnings, never errors", () => {
-    // The foreign-write block runs between the ROADMAP assert and the Summary.
-    const block = preCommitSource.slice(
-      preCommitSource.indexOf("CHECK 20"),
-      preCommitSource.indexOf("# Summary"),
-    );
+    const block = selectCheckBlock(preCommitSource, "foreign-write-advisory");
     expect(block).toContain("warnings=$((warnings + 1))");
     expect(block).not.toContain("errors=$((errors + 1))");
   });
@@ -155,10 +162,7 @@ describe("ROADMAP conflict auto-remedy wiring", () => {
   });
 
   it("runs the package-portable remedy before generic marker rejection", () => {
-    const block = preCommitSource.slice(
-      preCommitSource.indexOf("CHECK 4"),
-      preCommitSource.indexOf("CHECK 5"),
-    );
+    const block = selectCheckBlock(preCommitSource, "merge-conflict-markers");
 
     const markerCheckIndex = block.indexOf("conflict_markers=");
     const remedyCommands = [
@@ -172,10 +176,7 @@ describe("ROADMAP conflict auto-remedy wiring", () => {
   });
 
   it("keeps failed remedies and remaining markers as hard errors", () => {
-    const block = preCommitSource.slice(
-      preCommitSource.indexOf("CHECK 4"),
-      preCommitSource.indexOf("CHECK 5"),
-    );
+    const block = selectCheckBlock(preCommitSource, "merge-conflict-markers");
 
     expect(block).toContain("roadmap_remedy_status");
     expect(block).toContain("ROADMAP conflict auto-remedy failed");
@@ -191,10 +192,7 @@ describe("ROADMAP regeneration assert wiring", () => {
   });
 
   it("treats rejection output as an error and indeterminate output as a warning", () => {
-    const block = preCommitSource.slice(
-      preCommitSource.indexOf("CHECK 19"),
-      preCommitSource.indexOf("CHECK 20"),
-    );
+    const block = selectCheckBlock(preCommitSource, "roadmap-regeneration-assert");
 
     expect(block).toContain("errors=$((errors + 1))");
     expect(block).toContain("warnings=$((warnings + 1))");
@@ -202,10 +200,7 @@ describe("ROADMAP regeneration assert wiring", () => {
   });
 
   it("documents the local-hook boundary for GitHub-side merges", () => {
-    const block = preCommitSource.slice(
-      preCommitSource.indexOf("CHECK 19"),
-      preCommitSource.indexOf("CHECK 20"),
-    );
+    const block = selectCheckBlock(preCommitSource, "roadmap-regeneration-assert");
 
     expect(block).toContain("GitHub-side conflict resolution does not run local hooks");
   });

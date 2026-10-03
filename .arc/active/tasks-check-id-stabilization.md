@@ -22,25 +22,14 @@ and the two hook copies match with comment-only production changes.
   Synthetic fixtures cover neighbor insertion/reordering, prefix and description decoys, and explicit missing-ID,
   duplicate-ID, and missing-Summary failures.
 
-### `[ ]` **1.2 Assign stable IDs to the hook and its source assertions**
+### `[x]` **1.2 Assign stable IDs to the hook and its source assertions**
 
 - _Goal:_ Every current hook block has its intended stable identity, and existing wiring assertions inspect that
   block without depending on its neighbors' identities.
 
-- _Context:_ The hook headings and the existing `preCommitSource.slice` callsites must change together so the
-  migrated hook retains meaningful passing source assertions.
-
-    - Apply the full initial map in `spec-check-id-stabilization.md` § Stable check identities to the packaged
-      `system/.internal/githooks/pre-commit`; migrate its internal references and state the convention in its prologue.
-    - Propagate the same comment edits to `.arc/system/.internal/githooks/pre-commit` through targeted edits from
-      package source. Preserve human descriptions, execution order, filtering, configuration, diagnostics, and policy.
-    - Replace all five ordinal-based `preCommitSource.slice` callsites in `pre-commit-shell-invocation.test.ts` with
-      the selector from Task 1.1; migrate its module comment and preserve every existing behavior assertion.
-    - Build `test-first` (one behavior at a time):
-        - Every live hook heading has a lowercase kebab-case ID matching `[a-z][a-z0-9]*(-[a-z0-9]+)*` and no duplicate.
-        - The migrated lookups still prove foreign-write warnings, conflict-remedy ordering and errors, and ROADMAP
-          assertion behavior; retain `projectPreCommitSource` equality with `preCommitSource`.
-    - Review the production hook diff for comment-only changes and compare the resulting IDs against the initial map.
+- _Outcome:_ Applied all 19 specified IDs and documented their preservation convention in matching hook copies;
+  non-comment lines remain unchanged. Replaced all five positional slices with exact-ID selection, preserving the
+  behavior assertions and adding heading-grammar and uniqueness coverage.
 
 ### `[ ]` **1.3 Correct validator references and their unit-test labels**
 
