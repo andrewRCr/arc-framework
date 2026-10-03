@@ -94,11 +94,27 @@ function notes(page: HelpPage | undefined, helper: Help): string[] {
   ]);
 }
 
+function visibleOptions(command: Command, helper: Help, page: HelpPage | undefined): ReturnType<Help["visibleOptions"]> {
+  const options = helper.visibleOptions(command);
+  if (page?.optionGroups === undefined) return options;
+  const order = page.optionGroups.flatMap(([, flags]) => flags);
+  for (const [heading, flags] of page.optionGroups) {
+    for (const option of options) {
+      if (flags.includes(option.long ?? option.short ?? "")) option.helpGroup(heading);
+    }
+  }
+  const rank = (flag: string): number => {
+    const index = order.indexOf(flag);
+    return index === -1 ? order.length : index;
+  };
+  return options.sort((a, b) => rank(a.long ?? a.short ?? "") - rank(b.long ?? b.short ?? ""));
+}
+
 function formatArcHelp(command: Command, helper: Help): string {
   const page = COMMAND_HELP[helpCommandPath(command)];
   const intro = bareIntroduction(command, helper);
-  const width = Math.max(helper.padWidth(command, helper),
-    ...(page?.examples ?? []).map(([term]) => helper.displayWidth(term)));
+  const width = helper.padWidth(command, helper);
+  const exampleWidth = Math.max(width, ...(page?.examples ?? []).map(([term]) => helper.displayWidth(term)));
   const item = (term: string, description: string): string => helper.formatItem(term, width, description, helper);
   const list = (heading: string, items: string[]): string[] => helper.formatItemList(heading, items, helper);
   const output = [
@@ -106,12 +122,12 @@ function formatArcHelp(command: Command, helper: Help): string {
   ];
   const purpose = helper.commandDescription(command);
   if (purpose !== "") output.push(helper.boxWrap(helper.styleCommandDescription(purpose), helper.helpWidth ?? 80), "");
-  output.push(...examples(page, helper, width));
+  output.push(...examples(page, helper, exampleWidth));
   output.push(...list("Arguments:", helper.visibleArguments(command).map((argument) => item(
     helper.styleArgumentTerm(helper.argumentTerm(argument)),
     helper.styleArgumentDescription(helper.argumentDescription(argument)),
   ))));
-  const options = helper.visibleOptions(command);
+  const options = visibleOptions(command, helper, page);
   for (const [heading, members] of helper.groupItems(options, options, (option) => option.helpGroupHeading ?? "Options:")) {
     output.push(...list(heading, members.map((option) => item(
       helper.styleOptionTerm(helper.optionTerm(option)),

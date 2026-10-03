@@ -12,6 +12,23 @@ function program(): Command {
 }
 
 describe("ARC help", () => {
+  it("groups status options in task order without changing registration order", () => {
+    const root = program();
+    const status = root.command("status [slug]");
+    for (const flag of ["--session-init", "--session-handoff", "--recover", "--user", "--project", "--fetch", "--local",
+      "--no-fetch", "--staged", "--write", "--write-compaction-seed", "--json"]) status.option(flag, flag);
+    const order = status.options.map((option) => option.flags);
+    applyArcHelp(root);
+    const help = status.helpInformation();
+    const headings = ["Examples:", "Work views:", "Session context:", "Refresh:", "Project rendering:",
+      "Context writes:", "Options:", "Global options:", "Defaults:", "Choose one:"];
+    for (let index = 1; index < headings.length; index += 1) {
+      expect(help.indexOf(headings[index] ?? "")).toBeGreaterThan(help.indexOf(headings[index - 1] ?? ""));
+    }
+    expect(help).toMatch(/Work views:\n\s+--project[^]*--user/u);
+    expect(status.options.map((option) => option.flags)).toEqual(order);
+  });
+
   it("shows a concise introduction only for bare error help without running actions", async () => {
     const root = program();
     let stdout = "";
@@ -76,5 +93,17 @@ describe("ARC help", () => {
     expect(stderr).toContain("unknown option '--unknown'");
     expect(stderr).toContain("Inspect work and context:");
     expect(stderr).not.toContain("More help:");
+  });
+
+  it("keeps long stdin examples from disabling native option wrapping at 80 columns", () => {
+    const root = program();
+    const resolve = root.command("review").command("resolve");
+    resolve.argument("[input]", "Versioned JSON request file, or - for stdin; required unless --schema is selected");
+    resolve.option("--schema", "Print the request schema and referenced definitions; use without request input");
+    applyArcHelp(root);
+    const help = resolve.helpInformation();
+    expect(help).toContain("cat request.json | arc review resolve -");
+    expect(help.split("\n").every((line) => line.length <= 80)).toBe(true);
+    expect(help.replace(/\s+/gu, " ")).toContain("referenced definitions; use without request input");
   });
 });

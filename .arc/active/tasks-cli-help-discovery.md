@@ -27,45 +27,27 @@ inherited options, channels, and exit codes outside an initialized ARC project.
         - Bare invocation shows the shared introduction and help pointers on stderr with exit 1. Explicit root and
           child help retain stdout/exit 0, with inherited options and ordinary parser errors preserved.
 
-### `[ ]` **1.2 Status and review-resolution command pages**
+### `[x]` **1.2 Status and review-resolution command pages**
 
 - _Goal:_ The two representative multi-mode and structured-request commands explain enough of their contracts
   for a reader to select a valid invocation from help.
 
-- _Context:_ `spec-cli-help-discovery.md` § Representative contracts; § Command pages and summaries.
+    - `[x]` **1.2.a Status page, defaults, and effects**
+        - Added examples, ordered option groups, inherited flags, Defaults, and Choose one. Help now states mode
+          exclusivity, refresh behavior, explicit JSON selection, and write conditions beside their flags.
 
-- _Note:_ See `notes-cli-help-discovery.md` § Status command help and § Review resolution help.
+    - `[x]` **1.2.b Review-resolution page and schema discovery**
+        - Added schema-first file/stdin examples, conditional input guidance, automatic JSON and unsupported-flag
+          notes, and parent help. Example columns are independent of native argument/option wrapping.
 
-    - `[ ]` **1.2.a Status page, defaults, and effects**
-        - Apply the specified section order, three examples, local-option groups, inherited flags, Defaults, and
-          Choose one sections through the presentation helper and `program` metadata.
-        - Describe the modes, refresh defaults, JSON selection, and write requirements established by `handleStatus`
-          and `StatusCommandInputSchema`; retain every existing local flag and positional argument.
-        - Extend built-CLI help assertions in `run-cli.e2e.test.ts` to check those contracts and group order. This
-          presentation metadata can use tests after the edit; existing operation behavior is preserved.
-
-    - `[ ]` **1.2.b Review-resolution page and schema discovery**
-        - Place schema discovery before file/stdin examples; retain the current Usage, conditional input description,
-          applicable inherited flags, Input and output notes, and parent-help pointer.
-        - Reflect `handleReviewResolve`, `handleReviewRequestSchema`, `reviewDiscoverableCommandInputSchema`, and
-          `rejectUnsupportedReviewJson`: schema versus request exclusivity, automatic JSON, and unsupported `--json`.
-        - Check rendered help after the presentation edit and probe existing `--schema` output without request
-          execution. Cover file/stdin example syntax using existing fixtures or source tracing; do not create a
-          handwritten request-schema copy or fabricate review-authority fields.
-
-### `[ ]` **1.3 Validate representative discovery** — validate exit criterion at segment scope
+### `[x]` **1.3 Validate representative discovery** — validate exit criterion at segment scope
 
 - _Goal:_ The pilot demonstrates that shared formatting composes with real CLI parsing, help contexts, and the
   two difficult invocation contracts before the larger metadata sweep.
 
-- _Context:_ `spec-cli-help-discovery.md` § Entry help and root navigation; § Representative contracts.
-
-    - Exercise bare root, all explicit root-help forms, status help, and review-resolve help through the built CLI in
-      an empty temporary directory. Inspect the root/status/resolve rendering at 80 columns.
-    - Confirm the expected channels and exit codes, group/section order, exact terms, representative examples, and
-      inherited options. Check the existing lazy-loading boundary and applicable focused quality gates.
-    - Record the executed scenarios and results against the phase exit criterion. Route any corrective work to the
-      producing task rather than turn this verification task into an implementation task.
+- _Outcome:_ The representative exit scenario passed through the built CLI outside an initialized project,
+  including 80-column root/status/resolve rendering, channels, exit codes, inherited flags, and schema discovery.
+  Executed scenarios and source-traced request forms are recorded in `notes-cli-help-discovery.md`.
 
 ## **Phase 2:** Complete command discovery coverage
 

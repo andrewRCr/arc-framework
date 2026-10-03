@@ -255,4 +255,24 @@ request schema in help; the schema supplies field structure while descriptions e
 expectations. The page states that output is already JSON and that `--schema` is an alternative to request input.
 It makes no new guarantee about JSON output from parser or self-hosting guard failures.
 
+## Representative validation
+
+The built-CLI pilot passed outside an initialized ARC project at Commander's default 80-column width. The subprocess
+suite in `packages/arc-framework/__tests__/e2e/run-cli.e2e.test.ts` exercised these entry paths in empty temporary
+folders; focused native-Commander tests checked display ordering, hidden visibility, inherited settings, wrapping,
+and action-hook isolation.
+
+- Bare invocation: stderr, exit 1, concise introduction and help pointers, no command inventory.
+- Explicit `-h`, `--help`, and `help`: stdout, exit 0, complete ordered root groups, examples, and documentation.
+- `status --help`: ordered local-option groups, inherited flags, refresh defaults, JSON selection, mode exclusivity,
+  and write requirements/effects.
+- `review resolve --help`: exact Usage, schema-first file/stdin examples, input exclusivity, automatic result JSON,
+  unsupported `--json`, and related help. Separate example columns retain native wrapping for arguments and options.
+- `review resolve --schema`: stdout JSON with the registered root and referenced schema definitions, exit 0, no
+  project required.
+
+The file and stdin examples retain the registered optional `input` operand, whose handler requires exactly one
+request source or schema selection. No request execution or fabricated review-authority payload was needed for the
+pilot. The CLI loading-boundary checks continue to show implementation handlers loaded only when their actions run.
+
 ---

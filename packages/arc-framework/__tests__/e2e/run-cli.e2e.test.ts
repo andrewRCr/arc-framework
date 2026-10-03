@@ -85,8 +85,63 @@ describe("runCli", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("--fetch");
-    expect(result.stdout).toContain("upgrade the local-default query");
-    expect(result.stdout).toMatch(/skip the live-default network\s+read/u);
+    expect(result.stdout.replace(/\s+/gu, " ")).toContain("upgrade the local-default query");
+    expect(result.stdout.replace(/\s+/gu, " ")).toContain("skip the live-default network read");
+  });
+
+  it("explains status modes, defaults, and write effects in ordered sections", async () => {
+    const result = await runCli(["status", "--help"]);
+    const help = result.stdout;
+    expect(result.exitCode).toBe(0);
+    const headings = ["Usage:", "Examples:", "Arguments:", "Work views:", "Session context:", "Refresh:",
+      "Project rendering:", "Context writes:", "Options:", "Global options:", "Defaults:", "Choose one:"];
+    let previous = -1;
+    for (const heading of headings) {
+      expect(help.indexOf(heading), heading).toBeGreaterThan(previous);
+      previous = help.indexOf(heading);
+    }
+    expect(help).toContain("arc status my-work --json");
+    expect(help).toContain("arc status --session-init --json");
+    expect(help).toMatch(/--session-handoff\s+Select handoff context; requires --json/u);
+    expect(help).toMatch(/--recover\s+Select recovery context; requires --json/u);
+    expect(help).toMatch(/requires omitting\s+--json/u);
+    expect(help).toMatch(/write the machine-local\s+compaction\s+recovery seed/u);
+    expect(help).toMatch(/Session-init does not itself select\s+JSON/u);
+    expect(help).toMatch(/modes are mutually exclusive/u);
+    expect(help).toContain("--no-input");
+    expect(help).toContain("--version");
+  });
+
+  it("documents review request input and preserves schema discovery outside a project", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "arc-review-help-"));
+    try {
+      const result = await runCli(["review", "resolve", "--help"], { cwd });
+      const help = result.stdout;
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe("");
+      expect(help).toContain("Usage: arc review resolve [file | -] [--schema]");
+      const headings = ["Examples:", "Arguments:", "Options:", "Global options:", "Input and output:", "Related:"];
+      let previous = -1;
+      for (const heading of headings) {
+        expect(help.indexOf(heading), heading).toBeGreaterThan(previous);
+        previous = help.indexOf(heading);
+      }
+      expect(help.indexOf("arc review resolve --schema")).toBeLessThan(help.indexOf("arc review resolve request.json"));
+      expect(help).toContain("cat request.json | arc review resolve -");
+      expect(help.replace(/\s+/gu, " ")).toContain("required unless --schema is selected");
+      expect(help.split("\n").every((line) => line.length <= 80)).toBe(true);
+      expect(help).toMatch(/exactly one request source or --schema/u);
+      expect(help).toMatch(/actual review target and review state/u);
+      expect(help).toMatch(/result is JSON\. --json is unsupported/u);
+      expect(help).not.toMatch(/^\s+--json\s/mu);
+      expect(help).toContain("arc review --help");
+      const schema = await runCli(["review", "resolve", "--schema"], { cwd });
+      expect(schema.exitCode).toBe(0);
+      expect(schema.stderr).toBe("");
+      expect(JSON.parse(schema.stdout)).toMatchObject({ rootId: "review-resolve-request.schema.json" });
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
   });
 
   it("documents directly composable hosted-review and merge-lock JSON inputs", async () => {

@@ -6,6 +6,7 @@ export interface HelpPage {
   readonly purpose?: string;
   readonly examples?: readonly (readonly [string, string])[];
   readonly notes?: readonly (readonly [string, string])[];
+  readonly optionGroups?: readonly (readonly [string, readonly string[]])[];
 }
 
 /** Task groups keyed by namespace path, with help-only member ordering. */
@@ -73,7 +74,30 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
   "config": { summary: "Inspect ARC configuration" },
   "active": { summary: "Inspect active ARC work" },
   "view": { summary: "Render an artifact from the current work context" },
-  "status": { summary: "Inspect identity, sync, configuration, and work state" },
+  "status": {
+    summary: "Inspect work, project, and session state",
+    purpose: "Inspect work-unit state, project work, and session context.",
+    examples: [
+      ["arc status my-work --json", "Inspect an existing work unit as JSON"],
+      ["arc status --project", "See the project work list"],
+      ["arc status --session-init --json", "Read session initialization context"],
+    ],
+    optionGroups: [
+      ["Work views:", ["--project", "--user"]],
+      ["Session context:", ["--session-init", "--session-handoff", "--recover"]],
+      ["Refresh:", ["--fetch", "--local", "--no-fetch"]],
+      ["Project rendering:", ["--staged", "--write"]],
+      ["Context writes:", ["--write-compaction-seed"]],
+      ["Options:", ["--json", "--help"]],
+    ],
+    notes: [
+      ["Defaults:", "Without a slug or view flag, inspect user sync, extensions, configuration, and active work.\n"
+        + "Slug queries use local state by default. Ordinary --user and --project views read live refs by default; "
+        + "use --local or --no-fetch for local views. Session-init does not itself select JSON; add --json."],
+      ["Choose one:", "A slug, --project, --user, --session-init, --session-handoff, or --recover. "
+        + "These modes are mutually exclusive."],
+    ],
+  },
   "locus": { summary: "Inspect checkout and session locations" },
   "recover": { summary: "Support recovery after harness compaction" },
   "sync": { summary: "Synchronize configured worktree and user-note concerns" },
@@ -81,4 +105,19 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
   "log": { summary: "Browse ARC commit history" },
   "merge": { summary: "Manage merge controls" },
   "review": { summary: "Resolve and execute review workflows" },
+  "review resolve": {
+    summary: "Resolve the next review-policy action",
+    purpose: "Resolve the next configured review-policy action from a JSON request.",
+    examples: [
+      ["arc review resolve --schema", "Inspect the accepted request schema"],
+      ["arc review resolve request.json", "Resolve a valid request file"],
+      ["cat request.json | arc review resolve -", "Read a valid request from stdin"],
+    ],
+    notes: [
+      ["Input and output:", "Supply exactly one request source or --schema. A request must match the schema, "
+        + "and its facts must describe the actual review target and review state.\n"
+        + "The review-policy result is JSON. --json is unsupported."],
+      ["Related:", "arc review --help"],
+    ],
+  },
 };
