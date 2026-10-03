@@ -61,16 +61,15 @@ _Exit criterion:_ All nine authoritative sources and matching project projection
 at their specified scopes and existing boundaries, with the eight representative cases receiving their specified
 judgments and every binding obligation retained.
 
-### `[ ]` **2.1 Review new specs and preserve binding content at retirement — Decisions 1–4, 6–7**
+### `[x]` **2.1 Review new specs and preserve binding content at retirement — Decisions 1–4, 6–7**
 
 - _Goal:_ A new specification is reviewed as a complete contract, and draft retirement cannot move a missing
   obligation or settled decision into supplemental notes.
 
-    - Update `packages/arc-framework/arc/system/workflows/arc/create-spec.md` and its `.arc/` counterpart. Invoke
-      the shared checks on the full new specification or sanctioned layered set before spec approval.
-    - Extend the reference-content audit to absorb binding content into the specification and migrate only
-      supplemental context. Route missing binding design through existing review/iteration before retirement.
-    - Preserve the existing method declaration, two approval gates, retirement sequence, and ceremony behavior.
+- _Outcome:_ New specifications and accessible complementary sets receive the shared checks before approval.
+  The retirement audit absorbs missing binding obligations, decisions, and decisive rationale into the spec and
+  returns through existing review and approvals before migration or deletion; only supplemental context migrates.
+  Both projections retain the two gates, design re-entry, retirement sequence, and ceremony behavior.
 
 ### `[ ]` **2.2 Review specification writes during task generation — Decisions 1–4, 7**
 
