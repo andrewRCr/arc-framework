@@ -147,4 +147,31 @@ describe("current work-unit marker fallback", () => {
     const replacement = await seed(h.reference, h.reference.reference("work-item/meta"));
     expect(await resolve()).toMatchObject({ status: "resolved", candidate: { reference: replacement.reference }, warnings: [] });
   });
+
+  it("finds none when the primary changes to an Errand after lookup and resolves its restored role", async () => {
+    const h = await fixture();
+    await h.marker();
+    const lookup = h.reference.store.lookup.bind(h.reference.store);
+    const store = Object.create(h.reference.store) as Store;
+    let changeRole = true;
+    store.lookup = async (input) => {
+      const found = await lookup(input);
+      if (changeRole && found.status === "ok") {
+        const record = success(await h.reference.store.read({ reference: found.result.reference }));
+        const reference = { ...record.reference, kind: "work-item/record" as const };
+        success(await h.reference.store.write({ action: "put", reference, content: h.reference.content(reference),
+          expected: record.version, placement: { kind: "active" }, provenance: { verb: "change-role", lifecycleAction: "change-role" } }));
+      }
+      return found;
+    };
+    const resolve = () => resolveCurrentWorkUnit({ cwd: h.cwd, store });
+    expect(await resolve()).toEqual({ status: "none", candidates: [], warnings: [] });
+    const actual = success(await h.reference.store.read({ reference: h.record.reference }));
+    expect(actual.reference.kind).toBe("work-item/record");
+    expect(actual.reference.owner).toEqual(h.record.reference.owner);
+    changeRole = false;
+    success(await h.reference.store.write({ action: "put", reference: h.record.reference,
+      content: h.record.content, expected: actual.version, placement: { kind: "active" }, provenance: { verb: "restore-role", lifecycleAction: "restore-role" } }));
+    expect(await resolve()).toMatchObject({ status: "resolved", candidate: { reference: h.record.reference }, warnings: [] });
+  });
 });

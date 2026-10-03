@@ -27,7 +27,8 @@ export async function readClaimedCurrentWorkUnit(input: { cwd: string; store: St
       if (read.refusal.code !== "not-found") warnings.push(`${read.refusal.condition} ${read.refusal.remedy.text}`);
       return undefined;
     }
-    return read.result.placement?.kind === "active" ? read.result : undefined;
+    return read.result.reference.kind === "work-item/meta" && read.result.placement?.kind === "active"
+      ? read.result : undefined;
   } catch (error) {
     warnings.push(`Unable to resolve the checkout's work-unit claim: ${error instanceof Error ? error.message : String(error)}`);
     return undefined;
