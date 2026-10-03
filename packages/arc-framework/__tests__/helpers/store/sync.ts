@@ -1,9 +1,10 @@
 /** Real reconciliation against an independently writable in-memory remote namespace. */
 
 import {
-  FAMILY_IDS, FAMILY_REGISTRY, familyOf, sameReference, type WholeRecordConflict, type ConflictRecordValue, type FamilyId, type SideLabel, type RecordReference,
+  FAMILY_IDS, FAMILY_REGISTRY, familyOf, sameOwner, sameReference, type WholeRecordConflict, type ConflictRecordValue, type FamilyId, type SideLabel, type RecordReference,
   type StoreRefusal, type StoreResult, type SyncResult, type StateVersion,
 } from "../../../src/lib/store/index.js";
+import { ArchiveSequenceSchema } from "../../../src/lib/kernel/index.js";
 import type { ReferenceContext } from "./context.js";
 import { advanceMemoryState, observeArchivePlacement, recordKey, type MemoryEvent, type MemoryRecord, type MemoryState } from "./model.js";
 import { createMemoryState } from "./model.js";
@@ -81,7 +82,7 @@ function remoteFailure( remote: MemoryRemote): StoreRefusal | undefined {
   return undefined;
 }
 
-function reconciledRecords(context: ReferenceContext, publication: ReferencePublication, families: FamilyId[]): { records: Map<string, MemoryRecord>; remoteMoved: boolean } {
+function reconciledRecords(context: ReferenceContext, publication: ReferencePublication, families: FamilyId[]): { records: Map<string, MemoryRecord>; remoteMoved: boolean; archiveSequences: Map<string, number> } {
   const remote = publication.remote!;
   const selected = new Set(families);
   const records = structuredClone(remote.state.records);
@@ -111,11 +112,53 @@ function reconciledRecords(context: ReferenceContext, publication: ReferencePubl
       storeConflicts(context, result.conflicts, { verb: "sync", lifecycleAction: "reconcile" });
     } else if (changedRemote && !local && current) merged = current;
     if (merged === undefined) records.delete(key); else records.set(key, structuredClone(merged));
-    adopt(context, key, merged, merged === current ? remote.state : context.state);
   }
   // Conflicts created by reconciliation are part of the same publish, rather than side-channel state.
   for (const [key, record] of context.state.records) if (record.conflict && selected.has(familyOf(record.reference.kind))) records.set(key, structuredClone(record));
-  return { records, remoteMoved };
+  const archiveSequences = reconcileArchivePositions(records, remote.state);
+  for (const [quarter, highWater] of archiveSequences) context.state.archiveSequences.set(quarter,
+    Math.max(context.state.archiveSequences.get(quarter) ?? 0, highWater));
+  for (const key of new Set([...context.state.records.keys(), ...records.keys()])) {
+    const record = records.get(key);
+    const reference = record?.reference ?? context.state.records.get(key)!.reference;
+    if (selected.has(familyOf(reference.kind))) adopt(context, key, record, remote.state);
+  }
+  return { records, remoteMoved, archiveSequences };
+}
+
+function reconcileArchivePositions(records: Map<string, MemoryRecord>, remote: MemoryState): Map<string, number> {
+  const highWater = new Map(remote.archiveSequences);
+  for (const record of remote.records.values()) {
+    if (record.reference.kind === "work-item/meta" && record.placement?.kind === "completed" && "sequence" in record.placement)
+      highWater.set(record.placement.quarter, Math.max(highWater.get(record.placement.quarter) ?? 0, Number(record.placement.sequence)));
+  }
+  const completions = [...records.values()].filter((record) => record.reference.kind === "work-item/meta"
+    && record.placement?.kind === "completed" && "sequence" in record.placement);
+  // Local allocations encode completion order; the key supplies a deterministic tie breaker.
+  completions.sort((left, right) => {
+    const position = (record: MemoryRecord) => record.placement?.kind === "completed" && "sequence" in record.placement ? Number(record.placement.sequence) : 0;
+    return position(left) - position(right) || recordKey(left.reference).localeCompare(recordKey(right.reference));
+  });
+  for (const record of completions) {
+    if (record.placement?.kind !== "completed") continue;
+    const quarter = record.placement.quarter;
+    const published = remote.records.get(recordKey(record.reference));
+    const retained = published?.reference.kind === "work-item/meta" && published.placement?.kind === "completed"
+      && published.placement.quarter === quarter && "sequence" in published.placement ? published.placement.sequence : undefined;
+    const next = retained === undefined ? (highWater.get(quarter) ?? 0) + 1 : Number(retained);
+    highWater.set(quarter, Math.max(highWater.get(quarter) ?? 0, next));
+    const placement = { ...record.placement, sequence: ArchiveSequenceSchema.parse(String(next).padStart(2, "0")) };
+    if (JSON.stringify(record.placement) === JSON.stringify(placement)) continue;
+    record.placement = placement;
+    record.version = RecordVersionSchema.parse(`record:sync:${randomUUID()}`);
+    for (const companion of records.values()) {
+      if (companion === record || !sameOwner(companion.reference.owner, record.reference.owner)
+        || !["work-item", "review"].includes(familyOf(companion.reference.kind)) || companion.reference.kind.endsWith("/conflict-record")) continue;
+      companion.placement = structuredClone(placement);
+      companion.version = RecordVersionSchema.parse(`record:sync:${randomUUID()}`);
+    }
+  }
+  return highWater;
 }
 
 /** Fetch, reconcile by registry mechanism, and publish the eligible family's complete saved state.
@@ -170,6 +213,7 @@ function finishPublish(context: ReferenceContext, publication: ReferencePublicat
   const changed = changedKeys.length > 0;
   remote.state.records = result.records;
   remote.state.identities = result.identities;
+  remote.state.archiveSequences = result.archiveSequences;
   for (const record of result.records.values()) observeArchivePlacement(remote.state, record);
   if (changed) {
     const remoteAllocation = advanceMemoryState(remote.state);
