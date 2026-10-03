@@ -2179,6 +2179,7 @@ async function resolveHostedProgressContext(input: {
   vehicle?: HostedProgressVehicle;
   settings?: Awaited<ReturnType<typeof readConfigSettings>>["settings"];
   admitCapacity: boolean;
+  invocation?: HostedRequestEnvelope["invocation"];
 }) {
   const settings = input.settings ?? (await readConfigSettings(input.root)).settings;
   const baseRef = settings["branch.base"];
@@ -2449,6 +2450,7 @@ async function resolveHostedProgressContext(input: {
       provider: input.provider,
       attempts,
       ...(applicabilityAction === undefined ? {} : { applicabilityAction }),
+      ...(input.invocation === undefined ? {} : { invocation: input.invocation }),
     });
   } else {
     assertHostedReservationBindingAuthority(bindingAuthority);
@@ -3531,6 +3533,7 @@ async function executeDefaultHostedRequest(
         ...(request.vehicle === undefined ? {} : { vehicle: request.vehicle }),
         settings,
         admitCapacity: true,
+        ...(request.invocation === undefined ? {} : { invocation: request.invocation }),
       });
       const supersessionAncestors = await hostedCandidateSupersessionAncestors({
         root,

@@ -13,7 +13,12 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { handleAttest, handlePublish } from "../../src/handlers/lifecycle.js";
-import { handleReviewPrePublication } from "../../src/handlers/review.js";
+import {
+  handleReviewHostedAwait,
+  handleReviewHostedRequest,
+  handleReviewPrePublication,
+} from "../../src/handlers/review.js";
+import { HostedRequestResultSchema } from "../../src/scripts/review-gate/hosted/request.js";
 import { resolveProcessInteractionContext } from "../../src/lib/command-input/interaction-context.js";
 import { CandidateReviewResponseEvidenceV1Schema } from
   "../../src/lib/work-unit/candidate-attestation.js";
@@ -97,6 +102,7 @@ async function installHost(root: string): Promise<string> {
   // The host's review verdict: one writer's review still requests changes.
   const hostReview = JSON.stringify({ data: { repository: { pullRequest: {
     reviewDecision: "CHANGES_REQUESTED",
+    reviewThreads: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } },
     latestOpinionatedReviews: { nodes: [{
       fullDatabaseId: "5396287217",
       state: "CHANGES_REQUESTED",
@@ -113,6 +119,16 @@ async function installHost(root: string): Promise<string> {
     // advance would invalidate.
     `base=$(git --git-dir='${join(root, ".arc-fixture", "origin.git")}' rev-parse refs/heads/main)`,
     'case "$1:$2" in',
+    '  api:user) printf \'%s\\n\' \'{"id":123}\' ;;',
+    `  api:repos/${REPOSITORY}/issues/${String(PULL_REQUEST)}/comments)`,
+    '    if test "$6" = "body=@coderabbitai full review"; then echo "HTTP 429 rate limited" >&2; exit 1; fi',
+    '    test "$6" = "body=@codex review" || exit 1',
+    `    printf '%s\\n' '{"node_id":"request-comment","html_url":"https://example.test/request","user":{"id":123},"body":"@codex review","created_at":"2026-10-03T00:00:00Z","updated_at":"2026-10-03T00:00:00Z"}' ;;`,
+    `  api:repos/${REPOSITORY}/issues/${String(PULL_REQUEST)}/comments\\?*)`,
+    `    if test -f '${join(root, ".arc-fixture", "codex-result.json")}'; then`,
+    `      cat '${join(root, ".arc-fixture", "codex-result.json")}'`,
+    "    else printf '%s\\n' '[[]]'; fi ;;",
+    `  api:repos/${REPOSITORY}/pulls/${String(PULL_REQUEST)}/reviews\\?*) printf '%s\\n' '[[]]' ;;`,
     `  pr:list) printf '%s\\n' '${listed}' ;;`,
     "  pr:checks) echo 'no required checks reported' >&2; exit 1 ;;",
     `  api:repos/${REPOSITORY}/pulls/${String(PULL_REQUEST)}) printf '${pull}\\n' "$base" ;;`,
@@ -237,7 +253,7 @@ describe("review status over a base advanced under the work unit", () => {
 });
 
 describe("singleton hosted review after publication", () => {
-  it("admits the hosted pass, then stages the reviewed Candidate's rebound public boundary", async () => {
+  it.each([undefined, "codex-pr", "coderabbit-pr"] as const)("admits selected source %s", async (sourceId) => {
     const fixture = await singletonUnderReview();
     const reviewed = await runHandlerAt(fixture.root, async () => {
       await handleReviewPrePublication(WORK_UNIT, { selfReview: "settled" }, {}, machineContext());
@@ -295,6 +311,82 @@ describe("singleton hosted review after publication", () => {
     });
     if (status.nextAction !== "review-hosted-request") throw new Error("expected hosted review admission");
     expect(status.action).not.toHaveProperty("vehicle");
+
+    if (sourceId !== undefined) {
+      if (sourceId === "coderabbit-pr") {
+        const initial = await withHost(fixture.bin, async () => resolveReviewStatus({
+          target: { repository: REPOSITORY, headRef: HEAD_REF, headSha: fixture.headSha },
+          sourceId,
+        }, createReviewStatusPort({ cwd: fixture.root, exec: makeGitExec(fixture.root) })));
+        if (initial.nextAction !== "review-hosted-request") throw new Error("expected initial hosted request");
+        const unavailable = await withHost(fixture.bin, async () => runHandlerAt(fixture.root, async () => {
+          await handleReviewHostedRequest("-", { readText: async () => JSON.stringify(initial.action) });
+        }));
+        expect(unavailable.exitCode, unavailable.stdout + unavailable.stderr).toBe(0);
+        expect(JSON.parse(unavailable.stdout)).toMatchObject({
+          state: "rate-limited", nextAction: "try-next-source", provider: "coderabbit-pr",
+        });
+      }
+      const selected = await withHost(fixture.bin, async () => resolveReviewStatus({
+        target: { repository: REPOSITORY, headRef: HEAD_REF, headSha: fixture.headSha },
+        sourceId,
+      }, createReviewStatusPort({ cwd: fixture.root, exec: makeGitExec(fixture.root) })));
+      expect(selected).toMatchObject({
+        state: "review-required",
+        nextAction: "review-hosted-request",
+        action: {
+          ...status.action,
+          provider: "codex-pr",
+          invocation: { mode: "force", sourceId: "codex-pr" },
+        },
+      });
+      if (selected.nextAction !== "review-hosted-request") throw new Error("expected selected hosted request");
+      const requested = await withHost(fixture.bin, async () => runHandlerAt(fixture.root, async () => {
+        await handleReviewHostedRequest("-", { readText: async () => JSON.stringify(selected.action) });
+      }));
+      expect(requested.exitCode, requested.stdout + requested.stderr).toBe(0);
+      const request = HostedRequestResultSchema.parse(JSON.parse(requested.stdout));
+      expect(request).toMatchObject({
+        state: "requested",
+        nextAction: "await",
+        attemptedProviders: ["codex-pr"],
+        handle: {
+          provider: "codex-pr",
+          invocation: { mode: "force", sourceId: "codex-pr" },
+          admission: {
+            lineage: { kind: "candidate", candidateId: envelope.candidateId },
+            logicalPass: 1,
+          },
+        },
+      });
+      if (request.nextAction !== "await") throw new Error("expected selected hosted handle");
+      if (sourceId === "codex-pr") {
+        const competing = await withHost(fixture.bin, async () => runHandlerAt(fixture.root, async () => {
+          await handleReviewHostedRequest("-", { readText: async () => JSON.stringify(status.action) });
+        }));
+        expect(JSON.parse(competing.stdout)).toMatchObject({ state: "ambiguous-delivery", nextAction: "stop" });
+      }
+      await writeFile(join(fixture.root, ".arc-fixture", "codex-result.json"), JSON.stringify([[{
+        node_id: "codex-clean",
+        html_url: "https://example.test/codex-clean",
+        user: { id: 199175422 },
+        performed_via_github_app: { id: 1144995 },
+        body: `Codex Review: didn't find any major issues\nReviewed commit: ${fixture.headSha}`,
+        created_at: "2026-10-03T00:01:00Z",
+        updated_at: "2026-10-03T00:01:00Z",
+      }]]));
+      const awaited = await withHost(fixture.bin, async () => runHandlerAt(fixture.root, async () => {
+        await handleReviewHostedAwait("-", { readText: async () => JSON.stringify(request.action) });
+      }));
+      expect(awaited.exitCode, awaited.stdout + awaited.stderr).toBe(0);
+      expect(JSON.parse(awaited.stdout)).toMatchObject({
+        state: "clean",
+        nextAction: "complete",
+        hostedResultId: expect.any(String),
+        handle: { admission: request.handle.admission },
+      });
+      expect(await statusThroughPort(fixture)).toMatchObject({ state: "settled", nextAction: "continue-reconcile" });
+    }
 
     const before = (await readSubmissionBoundaryVersioned(fixture.root, WORK_UNIT)).boundary;
     if (before === null || before.candidateSubjectDigest === null) throw new Error("missing public boundary");

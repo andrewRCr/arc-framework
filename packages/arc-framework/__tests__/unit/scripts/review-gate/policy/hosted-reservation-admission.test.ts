@@ -1344,6 +1344,25 @@ describe("hosted reservation admission", () => {
     })).toThrow(/requires `coderabbit-pr` next/u);
   });
 
+  it.each([
+    { provider: "codex-pr", sourceId: "codex-pr", refusal: null },
+    { provider: "unknown-provider", sourceId: "unknown-provider", refusal: /not a configured/u },
+    { provider: "coderabbit-pr", sourceId: "codex-pr", refusal: /requires `codex-pr` next/u },
+  ])("validates explicit singleton selection $sourceId for provider $provider", ({ provider, sourceId, refusal }) => {
+    const admit = () => assertHostedReservationAdmission({
+      reservation,
+      provider,
+      repository: "owner/repo",
+      headSha: CURRENT_HEAD,
+      targetKind: "change-set",
+      attempts: [],
+      ...binding,
+      invocation: { mode: "force", sourceId },
+    });
+    if (refusal === null) expect(admit).not.toThrow();
+    else expect(admit).toThrow(refusal);
+  });
+
   it("admits a carried reservation after an approved Candidate subject advance", () => {
     expect(() => assertHostedReservationAdmission({
       reservation,
