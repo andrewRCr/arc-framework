@@ -8,11 +8,11 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal] — minted at the 2026-09-30 housekeep drain from a `USER-INBOX` capture
-- **Design:** `draft-cli-help-discovery.md`
+- **Design:** `spec-cli-help-discovery.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
