@@ -1,8 +1,8 @@
 # Metadata: Check ID Stabilization
 
-| **State**     | **Owner** | **Branch**                        | **Class** | **Priority** |
-| ------------- | --------- | --------------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `refactor/check-id-stabilization` | `Light`   | `P2`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Light`   | `P2`         |
 
 - **Cohort:** `architecture-remediation`
 - **Depends On:** [none]
@@ -13,15 +13,15 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:77f1e1a9c0e25554e91ed3a41848cf0492740855a2823ccc3815ef5f8d19f6e9`
 
-- **Current Workflow:** `integrate-work-unit`
+- **Current Workflow:** [none]
 - **Last Completed:** Task 2.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/787>
+- **Completed:** 2026-10-03
 
 ## Release Notes Entry
 
