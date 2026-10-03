@@ -31,20 +31,17 @@ and the two hook copies match with comment-only production changes.
   non-comment lines remain unchanged. Replaced all five positional slices with exact-ID selection, preserving the
   behavior assertions and adding heading-grammar and uniqueness coverage.
 
-### `[ ]` **1.3 Correct validator references and their unit-test labels**
+### `[x]` **1.3 Correct validator references and their unit-test labels**
 
 - _Goal:_ Validator comments and test descriptions identify the concern that actually owns each validation result.
 
-    - `[ ]` **1.3.a Align extension-point and neutrality references**
-        - In `packages/arc-framework/src/scripts/validate-extension-points.ts` and its
-          `__tests__/unit/scripts/validate-extension-points.test.ts`, use `CHECK[extension-point-references]` for the
-          extension validator and `CHECK[package-source-neutrality]` for its complementary gate. The hook's
-          `extension_point_candidates` and `neutrality_candidates` name those blocks.
+    - `[x]` **1.3.a Align extension-point and neutrality references**
+        - Corrected validator and unit-test comments to name `CHECK[extension-point-references]` and its
+          complementary `CHECK[package-source-neutrality]` gate.
 
-    - `[ ]` **1.3.b Align malformed-frontmatter ownership references**
-        - In `packages/arc-framework/src/scripts/validate-package-neutrality.ts`'s `validateFiles` comment and its
-          `__tests__/unit/scripts/validate-package-neutrality.test.ts`, use `CHECK[frontmatter-schema]` for suppressed
-          parse errors, whose hook owner is `frontmatter_candidates`; retain all validator behavior and assertions.
+    - `[x]` **1.3.b Align malformed-frontmatter ownership references**
+        - Corrected the neutrality validator's suppressed-parse-error comment and unit-test label/comment to name
+          `CHECK[frontmatter-schema]`; validator behavior and test assertions remain unchanged.
 
 ### `[ ]` **1.4 Migrate integration-test references**
 
