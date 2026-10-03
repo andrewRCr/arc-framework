@@ -1,9 +1,18 @@
 /** Recovery audit over checkout-local seed and derived-frame facts. */
 
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
+import { runRecoverStatus } from "../../../src/commands/status.js";
+import {
+  assertSessionRecoverProbeResult,
+  SessionRecoverProbeResultSchema,
+} from "../../../src/commands/status/schema.js";
 import type { Probe } from "../../../src/commands/status/types.js";
+import { emitCompactionSeed } from "../../../src/lib/compaction-seed/emitter.js";
 import type { CompactionSeed } from "../../../src/lib/compaction-seed/schema.js";
+import { resolveLoadSetManifest } from "../../../src/lib/load-set/projection.js";
 import type { LoadSetManifest } from "../../../src/lib/load-set/types.js";
 import type { DerivedCheckoutRow } from "../../../src/lib/locus/derived-roster.js";
 import type { DerivedLocusFrame } from "../../../src/lib/locus/derived-reader.js";
@@ -218,6 +227,11 @@ function recoveryFrame(overrides: Partial<Extract<RecoveryLocusFrame, { kind: "r
 
 function ok<T>(value: T): Probe<T> {
   return { ok: true, value };
+}
+
+function fixtureValue<T>(probe: Probe<T>): T {
+  if (!probe.ok) throw new Error("Expected a successful fixture probe");
+  return probe.value;
 }
 
 function recover(overrides: Partial<RecoveryAuditProbeState> = {}): RecoveryAuditProbeState {
@@ -1101,5 +1115,90 @@ describe("auditRecoveryState", () => {
     });
     expect(result.status).toBe("ready");
     expect(result.taskCursor).toBeNull();
+  });
+
+  it("recovers a Planning work unit with a written task list from its emitted seed", async () => {
+    const taskCursor = resolveTaskListCursor(APPENDED_INTEGRATION_TASKS);
+    if (taskCursor.status !== "found") throw new Error("Expected a written task-list cursor");
+    const loadSet = resolveLoadSetManifest({
+      identity: "andrew",
+      activeWorkUnit: "demo",
+      metaPath: ".arc/active/meta-demo.md",
+      sessionType: "planning",
+      planningStage: "generate-tasks",
+      taskListPath: ".arc/active/tasks-demo.md",
+      activeExtensions: [],
+      cohortDocPath: null,
+    });
+    const row = workUnitRow({
+      checkout: { ...workUnitRow().checkout, branch: "plan/demo" },
+      context: {
+        ...workUnitRow().context!,
+        branch: "plan/demo",
+        sessionType: "planning",
+        workflow: "planning",
+        stage: "generate-tasks",
+        taskCursor,
+        loadSet,
+        integrationBoundary: null,
+      },
+    });
+    const state = derivedFrame({
+      roster: [row],
+      entering: { kind: "selected", row },
+      active: { checkoutPath: "/repo", subject: { kind: "work-unit", key: "demo" }, context: row.context! },
+    });
+    const report = JSON.parse(readFileSync(
+      new URL("../../fixtures/session-envelope/recovery-audit-ready.json", import.meta.url), "utf8",
+    )) as { recover: unknown };
+    const baseline = SessionRecoverProbeResultSchema.parse(report.recover);
+    const fresh = await runRecoverStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes: {
+        derivedLocusState: async () => state,
+        worktree: async () => ({
+          state: "no-remote",
+          ahead: 0,
+          behind: 0,
+          branch: "plan/demo",
+          remoteEvidence: "not-applicable",
+        }),
+        worktreeIdentity: async () => ({ kind: "primary" }),
+        dirty: async () => ({ state: "dirty", fileCount: 1 }),
+        extensions: async () => fixtureValue(baseline.extensions),
+        config: async () => fixtureValue(baseline.config),
+        releaseRouting: async () => fixtureValue(baseline.releaseRouting),
+      },
+    });
+    assertSessionRecoverProbeResult(fresh);
+    const emitted = await emitCompactionSeed({
+      cwd: "/repo",
+      envelope: {
+        identity: { identity: "andrew" },
+        derivedLocusState: ok(state),
+        worktree: fresh.worktree,
+        active: ok({ path: ".arc/active/meta-demo.md", sessionType: "planning", currentWorkflow: "generate-tasks" }),
+        loadSet: ok(loadSet),
+        extensions: ok({ active: [] }),
+        taskCursor: ok(taskCursor),
+      },
+      gitSnapshot: { branch: "plan/demo", head: "a".repeat(40), uncommittedFiles: [".arc/active/tasks-demo.md"] },
+      writeSeed: async () => undefined,
+    });
+    expect(emitted.status).toBe("written");
+    if (emitted.status !== "written") throw new Error("Expected a compaction seed");
+
+    const result = await run({
+      seed: emitted.seed,
+      recover: fresh,
+      freshBranch: "plan/demo",
+      freshUncommittedFiles: [".arc/active/tasks-demo.md"],
+    });
+
+    expect(result.status).toBe("ready");
+    expect(result.taskCursor).toBeNull();
+    expect(fresh).not.toHaveProperty("taskCursor");
+    expect(row.context?.taskCursor).toEqual(taskCursor);
   });
 });
