@@ -61,6 +61,7 @@ export const WriteResultSchema = z.strictObject({
 export type WriteResult = z.infer<typeof WriteResultSchema>;
 
 function matchesMutationReference(result: WriteResult, input: Mutation): boolean {
+  if (input.action === "put" && result.reference.kind !== input.reference.kind) return false;
   if (sameReference(result.reference, input.reference)) return true;
   const requested = input.reference.owner;
   const resolved = result.reference.owner;

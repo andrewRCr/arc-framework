@@ -66,6 +66,10 @@ for (const family of families) {
   familyExclusions[family] = { items: { 10: "Interim substrates have no newer-format envelope." }, assertions };
 }
 Object.assign(familyExclusions["work-item"]?.assertions ?? {}, {
+  "primary-role-transition-retains-generation-and-metadata": "Interim UID-less meta and Errand records retain distinct substrates; promotion is not rerouted here.",
+  "primary-role-stale-absence-and-atomic-batch-guards": "Interim UID-less meta and Errand records retain distinct substrates; promotion is not rerouted here.",
+  "primary-role-reopen-sync-and-current-side-conflicts": "Interim UID-less meta and Errand records retain distinct substrates; promotion is not rerouted here.",
+  "primary-role-removal-retains-actual-historical-role": "Interim UID-less meta and Errand records retain distinct substrates; promotion is not rerouted here.",
   "created-work-item-UID": "Tracked work-item identity remains its slug without a persisted UID.",
   "UID-rename-and-generations": "Tracked writes neither mint UIDs nor rename work units.",
   "former-slug-after-rename": "Tracked writes do not perform rename; real transition alias lookup is covered separately.",

@@ -51,8 +51,8 @@ export function readReference(context: ReferenceContext, input: ReadInput): Stor
   const reference = input.asOf === undefined ? canonicalReference(context.state, input.reference) : savedReference(records, input.reference);
   const record = records.get(recordKey(reference));
   if (record === undefined) return refused(missingRecord(input.reference, context.environment.identity));
-  const newer = record.formatVersion > context.registry[reference.kind].formatVersion;
-  if (newer) return refused(malformed(reference, "Stored format version is newer than this build supports.", "newer-format"));
+  const newer = record.formatVersion > context.registry[record.reference.kind].formatVersion;
+  if (newer) return refused(malformed(record.reference, "Stored format version is newer than this build supports.", "newer-format"));
   return ok(publicRecord(context, record, records));
 }
 

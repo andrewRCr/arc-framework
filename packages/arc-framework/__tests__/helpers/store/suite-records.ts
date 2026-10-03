@@ -6,11 +6,13 @@ import {
 } from "../../../src/lib/store/index.js";
 import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
 import { assertion, everyKind, seed, success, testProvenance, update, type SuiteContext } from "./suite-tools.js";
+import { registerPrimaryRoleAssertions } from "./suite-primary-role.js";
 
 /** Register item 1 over every served role and primary metadata behavior.
  * @param context - Item and fresh fixture registration.
  */
 export function registerRecordAssertions(context: SuiteContext): void {
+  registerPrimaryRoleAssertions(context);
   for (const key of [".internal/request.json", "work-unit/.internal/checkpoint.json"]) {
     assertion(context, "personal", `machine-local-path:${key}`, async (fixture) => {
       const record = await seed(fixture, fixture.reference("personal/document"));

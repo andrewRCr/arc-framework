@@ -1,7 +1,7 @@
 /** Real reconciliation against an independently writable in-memory remote namespace. */
 
 import {
-  FAMILY_IDS, FAMILY_REGISTRY, familyOf, type WholeRecordConflict, type ConflictRecordValue, type FamilyId, type SideLabel, type RecordReference,
+  FAMILY_IDS, FAMILY_REGISTRY, familyOf, sameReference, type WholeRecordConflict, type ConflictRecordValue, type FamilyId, type SideLabel, type RecordReference,
   type StoreRefusal, type StoreResult, type SyncResult, type StateVersion,
 } from "../../../src/lib/store/index.js";
 import type { ReferenceContext } from "./context.js";
@@ -90,7 +90,8 @@ function reconciledRecords(context: ReferenceContext, publication: ReferencePubl
   let remoteMoved = false;
   for (const key of keys) {
     const base = publication.base.get(key), local = incomingRecords.get(key), current = remote.state.records.get(key);
-    const reference = local?.reference ?? current?.reference ?? base!.reference;
+    const reference = local && current && local.reference.kind !== current.reference.kind
+      && sameReference(local.reference, current.reference) ? current.reference : local?.reference ?? current?.reference ?? base!.reference;
     if (!selected.has(familyOf(reference.kind))) continue;
     const changedLocal = !equal(base, local), changedRemote = !equal(base, current);
     remoteMoved ||= changedRemote;

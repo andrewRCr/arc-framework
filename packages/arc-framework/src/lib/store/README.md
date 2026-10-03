@@ -12,6 +12,11 @@ role and its declared key; use the reference accessors to inspect it. A UID iden
 renames, while record versions provide the exact compare-and-swap basis. State versions select saved snapshots;
 they do not replace per-record mutation checks.
 
+A UID-bearing work item has one primary whose kind is its current role: `work-item/record` or `work-item/meta`.
+A version-checked put to the destination role changes that primary; either handle reads the actual role and follows
+its history. Listings filter the actual role. Batch guards reject duplicate primary handles, while put results
+still require the requested destination kind. UID-less interim records remain kind-qualified.
+
 The family registry describes scope, ref ownership, retention, sync, and install assignment. Each kind adds its
 writer rule, merge mechanism, projection, and independent parser slot. Parser registration returns an isolated
 registry. Logical placement and code links travel beside record content, without projected paths.

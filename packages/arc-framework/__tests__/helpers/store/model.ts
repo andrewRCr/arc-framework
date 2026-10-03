@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import {
   OwnerIdentitySchema, RecordReferenceSchema, RecordVersionSchema, StateVersionSchema,
-  referenceOwner, referenceKind, referenceKey, sameOwner,
+  referenceOwner, referenceKind, referenceKey, sameOwner, sameReference,
   type OwnerIdentity, type RecordReference, type RecordVersion, type StateVersion,
   type ReadPlacement, type Links, type StoredProvenance, type ConflictRecord, type FamilyId, type SideLabel,
 } from "../../../src/lib/store/index.js";
@@ -76,7 +76,10 @@ export function ownerNameKey(owner: { type: OwnerIdentity["type"]; name: string 
 export function recordKey(reference: RecordReference): string {
   const owner = referenceOwner(reference);
   const ownerId = owner.type === "person" ? owner.name : owner.uid ?? owner.name;
-  return JSON.stringify([owner.type, ownerId, referenceKind(reference), referenceKey(reference) ?? null]);
+  const kind = referenceKind(reference);
+  const identityKind = owner.type === "work-item" && owner.uid !== undefined
+    && ["work-item/meta", "work-item/record"].includes(kind) ? "work-item/primary" : kind;
+  return JSON.stringify([owner.type, ownerId, identityKind, referenceKey(reference) ?? null]);
 }
 
 /** Recover accepted rename handles from this generation's records and saved primary states.
@@ -120,10 +123,9 @@ export function canonicalReference(state: MemoryState, reference: RecordReferenc
  */
 export function savedReference(records: Map<string, MemoryRecord>, reference: RecordReference): RecordReference {
   if (reference.owner.type === "person" || reference.owner.uid !== undefined) return reference;
-  const matches = [...records.values()].filter((record) => record.reference.kind === reference.kind
-    && record.reference.owner.type === reference.owner.type
+  const matches = [...records.values()].filter((record) => record.reference.owner.type === reference.owner.type
     && (record.reference.owner.name === reference.owner.name || record.formerSlugs.includes(reference.owner.name))
-    && JSON.stringify(record.reference.key) === JSON.stringify(reference.key));
+    && sameReference(record.reference, { ...reference, owner: record.reference.owner }));
   const record = matches.find((record) => record.placement?.kind !== "completed") ?? matches[0];
   return record === undefined ? reference : record.reference;
 }

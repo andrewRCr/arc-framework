@@ -71,14 +71,16 @@ function stale(context: ReferenceContext, write: Mutation): boolean {
   const record = context.state.records.get(recordKey(canonicalReference(context.state, write.reference)));
   if (write.expected === null) return record !== undefined;
   if (record === undefined) return true;
-  if (record.version !== write.expected) return write.action === "remove" || context.registry[write.reference.kind].merge === "single-writer"
+  if (record.version !== write.expected) return write.action === "remove" || record.reference.kind !== write.reference.kind
+    || context.registry[write.reference.kind].merge === "single-writer"
     || mergeBase(context, { ...write, provenance: { verb: "check", lifecycleAction: "check" } }) === undefined;
   return write.action === "put" && ["create-only", "write-once"].includes(context.registry[write.reference.kind].writerRule);
 }
 
 function placement(context: ReferenceContext, write: Extract<Mutation, { action: "put" }>, prior?: MemoryRecord): ReadPlacement | undefined {
   if (write.placement?.kind !== "completed" || write.reference.kind !== "work-item/meta") return write.placement;
-  if (prior?.placement?.kind === "completed" && prior.placement.quarter === write.placement.quarter) return prior.placement;
+  if (prior?.placement?.kind === "completed" && "sequence" in prior.placement
+    && prior.placement.quarter === write.placement.quarter) return prior.placement;
   const quarter = write.placement.quarter;
   const imported = [...context.state.records.values()].flatMap((record) =>
     record.reference.kind === "work-item/meta" && record.placement?.kind === "completed" && record.placement.quarter === quarter && "sequence" in record.placement
@@ -89,9 +91,10 @@ function placement(context: ReferenceContext, write: Extract<Mutation, { action:
 }
 
 function land(context: ReferenceContext, write: WriteInput, batchId?: string): WriteResult {
-  const reference = canonicalReference(context.state, write.reference, true);
+  let reference = canonicalReference(context.state, write.reference, true);
   const key = recordKey(reference);
   const prior = context.state.records.get(key);
+  if (write.action === "remove" && prior !== undefined) reference = prior.reference;
   let content = write.action === "put" ? persistedContent(context, reference, write.content) : undefined;
   let conflicts: ConflictRecord[] = [];
   if (write.action === "put" && prior && prior.version !== write.expected) {

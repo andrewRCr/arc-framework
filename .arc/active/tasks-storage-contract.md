@@ -678,3 +678,9 @@ as stated.
   pairs are refused (A3).
 
 - `[x]` D20 limits rewrites to code branches and preserves D2/D10/D11 store ancestry and saved-state anchors (A4).
+
+- `[x]` A version-bound Errand-record-to-meta put on one UID leaves one primary, retaining its links, description,
+  placement, rename aliases and open conflicts; either primary handle reads its actual role at a selected state,
+  history and restricted changes retain historical roles, bytes and provenance, stale/expected-absent puts and a
+  batch naming both primary handles apply nothing, and reopen/sync preserve it with current-side retention on a
+  concurrent role clash (A5).

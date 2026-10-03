@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import {
   OwnerIdentitySchema, RecordReferenceSchema, RecordVersionSchema, StateVersionSchema,
-  FormatVersionSchema, recordReferences, referenceOwner, referenceKind, referenceKey, sameOwner,
+  FormatVersionSchema, recordReferences, referenceOwner, referenceKind, referenceKey, sameOwner, sameReference,
 } from "../../../../src/lib/store/identity.js";
 import {
   WritePlacementSchema, WorkUnitReadPlacementSchema, ErrandReadPlacementSchema,
@@ -34,6 +34,16 @@ describe("store identities and references", () => {
     expect(sameOwner(owner, OwnerIdentitySchema.parse({ type: "work-item", name: "example", uid: otherUid }))).toBe(false);
     expect(sameOwner(owner, OwnerIdentitySchema.parse({ type: "work-item", name: "renamed", uid }))).toBe(true);
     expect(sameOwner(owner, OwnerIdentitySchema.parse({ type: "cohort", name: "example", uid }))).toBe(false);
+  });
+  it("identifies both primary roles as one UID generation while keeping interim and other roles separate", () => {
+    const record = recordReferences["work-item/record"](owner);
+    const meta = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ ...owner, name: "promoted" }));
+    expect(sameReference(record, meta)).toBe(true);
+    expect(sameReference(meta, record)).toBe(true);
+    expect(sameReference(record, recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ ...owner, uid: otherUid })))).toBe(false);
+    expect(sameReference(meta, recordReferences["work-item/task-list"](owner))).toBe(false);
+    const interim = OwnerIdentitySchema.parse({ type: "work-item", name: "example" });
+    expect(sameReference(recordReferences["work-item/record"](interim), recordReferences["work-item/meta"](interim))).toBe(false);
   });
 
   it("constructs and reads a singleton reference", () => {

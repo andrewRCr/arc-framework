@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import {
   FAMILY_IDS, FAMILY_REGISTRY, KIND_SHAPES, KIND_REGISTRY, OwnerIdentitySchema, RecordReferenceSchema,
-  ConflictRecordSchema, createKindRegistry, familyOf, type KindId, type RecordParser,
+  ConflictRecordSchema, createKindRegistry, familyOf, type KindId, type KindDefinition, type RecordParser,
 } from "../../../src/lib/store/index.js";
 import { ReferenceBackend } from "./reference-backend.js";
 import { canonicalReference, currentStateVersion, recordKey } from "./model.js";
@@ -59,15 +59,18 @@ export const referenceDeclarations: FixtureDeclarations = {
 
 /** Open a fresh reference fixture with pure test field parsers, never production field schemas.
  * @param entryShapes - Optional generic test grammars for reserved entry-list kinds.
+ * @param registryOverrides - Isolated test definitions for parser and format behavior.
  * @returns All backend-neutral hooks over an independently owned memory namespace.
  */
-export function createReferenceFixture(entryShapes: FixtureDeclarations["entryShapes"] = {}): ConformanceFixture {
+export function createReferenceFixture(entryShapes: FixtureDeclarations["entryShapes"] = {},
+  registryOverrides: Partial<Record<KindId, Partial<KindDefinition>>> = {}): ConformanceFixture {
   const declarations = { ...referenceDeclarations, entryShapes: { ...referenceDeclarations.entryShapes, ...entryShapes } };
   const parsers = Object.fromEntries((Object.keys(KIND_SHAPES) as KindId[])
     .filter((kind) => KIND_REGISTRY[kind].merge === "single-writer").map((kind) => [kind, kind.endsWith("/conflict-record") ? conflictParser : jsonParser]));
   const definitions = createKindRegistry(parsers);
   const registry = Object.fromEntries((Object.keys(definitions) as KindId[]).map((kind) => [kind, {
     ...definitions[kind], ...(declarations.entryShapes[kind] ? { entry: declarations.entryShapes[kind] } : {}),
+    ...registryOverrides[kind],
   }])) as typeof definitions;
   let clock = 0;
   const store = new ReferenceBackend({ registry, environment: { identity: "test-user", actor: "local", now: () => clock, wait: (milliseconds) => { clock += milliseconds; } } });

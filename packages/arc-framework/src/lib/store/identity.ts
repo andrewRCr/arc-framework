@@ -120,7 +120,11 @@ export function sameOwner(left: OwnerIdentity, right: OwnerIdentity): boolean {
  * @returns Whether both name the same record in the same owner generation.
  */
 export function sameReference(left: RecordReference, right: RecordReference): boolean {
-  if (left.kind !== right.kind || !sameOwner(left.owner, right.owner)) return false;
+  if (!sameOwner(left.owner, right.owner)) return false;
+  const primaryRoles = ["work-item/meta", "work-item/record"];
+  const uidPrimary = left.owner.type === "work-item" && left.owner.uid !== undefined
+    && primaryRoles.includes(left.kind) && primaryRoles.includes(right.kind);
+  if (left.kind !== right.kind && !uidPrimary) return false;
   if (typeof left.key === "object" && typeof right.key === "object") {
     return left.key.activity === right.key.activity && left.key.number === right.key.number;
   }

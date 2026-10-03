@@ -179,7 +179,8 @@ to that record carries its placement, but for a removal, which places nothing, a
 replaces its links whole, an empty value clearing them, while a write carrying no links value keeps them. The work
 item's other kinds read and list with its placement, and a write to one carries neither, landing where its work item is
 placed. A write naming another placement moves the work item, and a rename is a write naming the work item by its UID
-with a new name (D2).
+with a new name (D2). For a UID-bearing work item, the meta and Errand-record kinds are roles of its one primary:
+a version-bound write to the destination role changes that primary, preserving its generation (A5, D2).
 
 A `list` **owner** keeps one owner's records, such as a work unit's companions. A `list` **filter** names lifecycle
 locations — `active`, `planned`, `provisional`, or `completed`, the lifecycle index's four — and whether to keep only
@@ -252,6 +253,21 @@ its owner's identity, its kind, and its key, as a caller takes a work unit's ide
 Candidate record is its one record of that kind: the canonical content digest that identifies each Candidate it has held
 is a field of the record (`attestation.candidateId`), and the chain of those Candidates is the record's `history`.
 
+**One primary across roles (A5).** A UID-bearing work item has one logical primary, addressed by either
+`work-item/meta` or `work-item/record`; its stored reference kind is the actual role at that state. An
+expected-version put to the destination role changes the same primary atomically. Expected absence checks the entire
+primary, and a stale expectation refuses rather than creating a second primary. A put result must name the requested
+destination role; removal through either handle returns the removed primary's actual role. Reference equality and
+batch input/result validation treat both primary handles as one record only when their work-item UID identifies the
+same generation; all other kinds and UID-less interim identities stay kind-qualified.
+
+Reads through either primary handle return the actual role, bytes, parsed fields and format at the selected state;
+listings filter the actual role. History and restricted changes follow that generation across role changes, keeping
+each historical role, exact content and provenance, including the actual role of a removal. Links, description,
+placement, rename aliases and open conflict references survive the transition. Storage, snapshot and sync keys share
+that logical identity. A concurrent role clash preserves the current side's actual primary and metadata, with the
+incoming role and bytes in the existing whole-record conflict representation (D6).
+
 **Record version.** Each record has its own version, the basis every compare-and-swap checks, exact from the moment
 its write returns — so compare-and-swap and bound checks never wait on anything else. The in-repo implementation uses
 the record's content digest on every substrate — for an Errand record, its blob's object ID in its ref's tree, never
@@ -287,7 +303,7 @@ of evidence applicability for code, where an earlier result stands unless later 
 
 **Version-checked writes.** Every write carries the version it read.
 
-- On a **single-writer kind** — a work unit's meta and task list — an expected version older than the current one is
+- On a **single-writer kind** — a work unit's meta and task list, or an Errand's record — an older expected version is
   `version-conflict`.
 - On a **merge kind** — an entry list or prose (D6) — an older expected version is a **stale base**: a backend that
   merges concurrent writes merges from that base with the kind's mechanism and returns the merged version with any
@@ -303,7 +319,8 @@ of evidence applicability for code, where an earlier result stands unless later 
   the write that resolves it (D6).
 
 **Batches.** One write may change several records, all or nothing, each checked against its own expected version; a
-`version-conflict` names every stale record. Archive, abandon, rename, decompose, and park each change several records
+`version-conflict` names every stale record. Both primary handles on one UID name the same record (A5), so a batch
+naming both refuses before mutation. Archive, abandon, rename, decompose, and park each change several records
 in one verb, and several verbs already stage several files all or nothing today. A backend that cannot apply a batch
 atomically refuses it whole, `unsupported`, before writing anything; only the in-repo implementation does, and only
 for a batch spanning substrates (D8). The ref backend applies a batch with `git update-ref --stdin` and carries it to
@@ -540,8 +557,9 @@ owner, type, lifecycle location (backlog, in flight, or completed), origin, and 
 landing commit, and task captures. Everything that spans types reads only the base: the ref layout, slug uniqueness,
 `lookup` and checkout claims, archive and history movement, sync, and the delivery and review records that ride a work
 item's ref. A type adds the rest — its companions, its writer rules, and its own lifecycle states, which refine the
-base's location and are never merged into one machine. Promotion is a field write on one record: the type changes, and
-the UID, links, and history stay; naming the work unit differently is a rename in the same verb, and its branch is a new
+base's location and are never merged into one machine. Promotion changes the type on one logical primary by an
+expected-version put to its destination meta role (A5, D2): the UID, links, description and history stay; naming the
+work unit differently is a rename in the same verb, and its branch is a new
 branch link beside the Errand's in the same collection (A3). The base's exact field schema is set with its parser,
 except the links (D3) and the placement the contract defines; a further type would be one more type over the same base,
 so nothing that spans types changes. How an external tracker's items compose with work items is left to that design.
@@ -755,7 +773,8 @@ test run rather than argued: the contract is implementable without Git, and Git 
 The suite covers, for every backend and every family its fixture serves:
 
 1. read, write, removal, and list round trips with references intact, a listing by owner, and a work item's placement, a
-   completed work unit's assigned sequence included, and its links;
+   completed work unit's assigned sequence included, and its links; a UID-bearing primary's role change keeps one
+   record, its UID, links, description, aliases and conflicts, with expected-absence/stale and batch guards (A5);
 2. `version-conflict` on a stale expected version, on every backend — for the in-repo implementation, produced by
    racing writers;
 3. stale bases on merge kinds, on backends that merge: the merged version returned, a same-entry clash as a conflict
@@ -770,7 +789,7 @@ The suite covers, for every backend and every family its fixture serves:
 9. listing outcomes: absent, unreadable, and complete kept distinct, an identity-scope family listing absent with no
    identity configured, every diagnostic kind, whether any entry was missed, and the per-record mutation basis;
 10. format versions: an unknown newer version as a listing diagnostic and a read refusal naming the remedy;
-11. `history` order with each write's provenance;
+11. `history` order with each write's provenance, preserving historical primary roles across promotion and removal (A5);
 12. `lookup` by slug, former slug, lineage origin, checkout claim, and a repository plus a commit or ref, a commit
     resolving to every task that captured it, with `not-found` and `ambiguous-match`;
 13. durability: a write is readable from a fresh contract instance over the same store when the write returns;
@@ -780,7 +799,8 @@ The suite covers, for every backend and every family its fixture serves:
     fields, `retries-exhausted` carrying its retry count and time waited; no remote and no identity as states, not
     failures, `no-identity` naming the families held back, every identity-scope family among them, while project-scope
     families publish; and, on backends that merge, a single-writer record changed on both sides, the remote's version
-    kept current and the local one in a conflict record (D4).
+    kept current and the local one in a conflict record (D4), including a primary-role clash and the canonical role
+    surviving reopen, saved-state reads and sync (A5).
 
 For the in-repo fixture, shared sync assertions exclude repeated-publish idempotency, same-key transient convergence,
 and personal working-file refresh (A1). Today's notes save and Errand push can report `pushed` again with unchanged
@@ -793,7 +813,9 @@ the serializer's restrictions (D8); broader personal record admission does not e
 ### D8. The in-repo implementation
 
 The first backend, over today's three substrates. It exists so every rerouting of callers can start on the landed
-contract without waiting for the ref store, and it retires at the cutover.
+contract without waiting for the ref store, and it retires at the cutover. Its UID-less meta and Errand-record
+identities remain kind-qualified, and `promoteOrdinaryErrandAtRuntime` in `lib/errand/promote-runtime.ts` keeps today's
+promotion path until rerouted (A5).
 
 **Every family, each where it lives today.**
 
@@ -1064,6 +1086,9 @@ against the file's digest. `arc user inbox-remove` keys on the title, recomputin
 
 Three pieces every rerouting of callers calls. They land here, over the contract, so parallel rerouting work shares
 nothing but the landed contract.
+
+The shared pieces consume actual meta roles from listings; a primary read alias never makes an Errand role a work-unit
+index entry (A5).
 
 - **The current-work-unit resolver** returns the checkout's work unit by identity. It lists metas at `active` with
   `list`'s filter for the records this checkout holds (D1). Over the in-repo implementation it resolves as today's code
@@ -2115,6 +2140,12 @@ Validated at this change's completion, over Part A:
 19. **History-policy separation (A4).** D20 limits rewrites to code branches and preserves D2/D10/D11 store ancestry
     and saved-state anchors.
 
+20. **Stable primary promotion (A5).** A version-bound Errand-record-to-meta put on one UID leaves one primary with
+    its links, description, placement, rename aliases and open conflicts intact. Either primary handle reads its actual
+    role at the selected state; history and restricted changes retain historical roles, bytes and provenance. Stale
+    or expected-absent puts and a batch naming both primary handles apply nothing; reopen and sync preserve the
+    canonical primary, including current-side retention on a concurrent role clash.
+
 ## Open Questions
 
 None blocks building Part A.
@@ -2155,3 +2186,5 @@ operations and outcomes, and which test tier each conformance fixture runs in.
   _Trigger:_ storage-standard-1-F09 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 - **A4** — 2026-10-02 — design: keep store ancestry immutable. _Supersedes:_ D20 store-commit folding instruction.
   _Trigger:_ storage-standard-1-F10 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A5** — 2026-10-03 — design: preserve one primary through role changes. _Supersedes:_ D2 primary identity; D1/D5 promotion.
+  _Trigger:_ storage-standard-2-F08 review. _Work:_ review-fix. _Revalidated:_ review-fix.
