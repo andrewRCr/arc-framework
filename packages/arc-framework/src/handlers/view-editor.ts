@@ -1,6 +1,7 @@
 /** Editor selection and inherited-terminal process handoff for artifact viewing. */
 
 import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
+import { randomUUID } from "node:crypto";
 
 import type { GitExec } from "../lib/git/exec.js";
 import { environmentForGitCwd } from "../lib/git/process-executor.js";
@@ -38,7 +39,7 @@ export async function launchViewEditor(
   try {
     const command = env.ARC_EDITOR !== undefined && env.ARC_EDITOR.length > 0
       ? env.ARC_EDITOR
-      : (await dependencies.exec("git", ["var", "GIT_EDITOR"], { cwd })).stdout;
+      : (await dependencies.exec("git", ["var", "GIT_EDITOR"], { cwd, preserveOutput: true })).stdout.replace(/\n$/u, "");
     if (command.length === 0) throw new Error("Git returned an empty editor command");
     await waitForEditor(command, path, cwd, env, dependencies.spawn ?? spawnEditor);
   } catch (error) {
@@ -58,9 +59,11 @@ function waitForEditor(
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     // Git supplies its platform shell and appends extra argv through "$@".
-    // The alias is invocation-local; the filename never enters shell source.
+    // A fresh alias name avoids collisions with installed git-* helpers.
+    // The filename never enters shell source.
+    const alias = `arc-view-editor-${randomUUID()}`;
     const child = createProcess("git", [
-      "--no-pager", "-c", `alias.arc-view-editor=!${command}`, "arc-view-editor", path,
+      "--no-pager", "-c", `alias.${alias}=!${command}`, alias, path,
     ], { cwd, env, stdio: "inherit" });
     child.once("error", reject);
     child.once("close", (code: number | null, signal: NodeJS.Signals | null) => {

@@ -1,13 +1,14 @@
 /** Editor command selection and literal argument transport through harmless recorders. */
 
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { ChildProcess } from "node:child_process";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { launchViewEditor, type ViewEditorSpawn } from "../../../src/handlers/view-editor.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import { createExecaGitExec } from "../../../src/lib/git/process-executor.js";
 
 function quote(commandPath: string): string {
   return `'${commandPath.replaceAll("\\", "/").replaceAll("'", "'\\''")}'`;
@@ -32,6 +33,7 @@ describe("launchViewEditor", () => {
   afterEach(async () => {
     await rm(cwd, { recursive: true, force: true });
     vi.resetAllMocks();
+    vi.unstubAllEnvs();
   });
 
   function environment(override?: string): NodeJS.ProcessEnv {
@@ -62,6 +64,39 @@ describe("launchViewEditor", () => {
     await launchViewEditor(path, cwd, { exec, env: environment(override) });
     expect(JSON.parse(await readFile(output, "utf8"))).toEqual(["--wait", "expanded argument", path]);
   });
+
+  it("preserves an escaped trailing space in Git's selected command", async () => {
+    const path = join(cwd, "artifact.md");
+    vi.stubEnv("GIT_EDITOR", `${command} label\\ `);
+    await launchViewEditor(path, cwd, { exec: createExecaGitExec(), env: environment() });
+    expect(JSON.parse(await readFile(output, "utf8"))).toEqual(["--wait", "expanded argument", "label ", path]);
+  });
+
+  it.runIf(process.platform !== "win32").each(["selected", "missing"])(
+    "keeps a Git helper from replacing a %s editor command", async (editor) => {
+      const bin = join(cwd, "bin");
+      const helperLog = join(cwd, "helper.log");
+      const helper = join(bin, "git-arc-view-editor");
+      const path = join(cwd, "artifact.md");
+      await mkdir(bin);
+      await writeFile(helper, `#!/bin/sh\nprintf shadowed > ${quote(helperLog)}\n`);
+      await chmod(helper, 0o755);
+      vi.stubEnv("PATH", `${bin}${delimiter}${process.env.PATH ?? ""}`);
+      const exec = createExecaGitExec();
+      await exec("git", ["arc-view-editor", path], { cwd });
+      expect(await readFile(helperLog, "utf8")).toBe("shadowed");
+      await rm(helperLog);
+      const pending = launchViewEditor(path, cwd, {
+        exec, env: environment(editor === "selected" ? command : "arc-editor-does-not-exist"),
+      });
+      if (editor === "missing") await expect(pending).rejects.toThrow(/ARC_EDITOR/);
+      else {
+        await pending;
+        expect(JSON.parse(await readFile(output, "utf8"))).toEqual(["--wait", "expanded argument", path]);
+      }
+      await expect(access(helperLog)).rejects.toThrow();
+    },
+  );
 
   it("accepts Git's ordinary fallback and waits with inherited terminal streams", async () => {
     const child = new ChildProcess();
