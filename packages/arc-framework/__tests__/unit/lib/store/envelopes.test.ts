@@ -92,6 +92,16 @@ describe("mutation envelopes", () => {
     expect(LinksSchema.safeParse({ landingCommit: { sha }, taskCaptures: { "1.1": [] } }).success).toBe(true);
     expect(LinksSchema.safeParse({ taskCaptures: { "1.1": [{ sha, patchId: sha }, { sha }] } }).success).toBe(false);
   });
+  it("retains unique repository-qualified branches and rejects duplicate pairs", () => {
+    const branch = {repository:"owner/repo",ref:"chore/original"};
+    const branches = [branch,{...branch,ref:"feat/promoted"}];
+    expect(LinksSchema.parse({branches})).toEqual({branches});
+    expect(LinksSchema.parse({branches:[]})).toEqual({branches:[]});
+    expect(LinksSchema.safeParse({branches:[branch,branch]}).success).toBe(false);
+    expect(LinksSchema.safeParse({branches:[branch,{...branch,repository:"other/repo"}]}).success).toBe(true);
+    expect(LinksSchema.safeParse({branches:[{...branch,ref:""}]}).success).toBe(false);
+    expect(LinksSchema.safeParse({branch}).success).toBe(false);
+  });
   it("preserves both labeled sides and the precise conflict locus", () => {
     const conflict = { record: reference, location: { kind: "entry", id: "abcdef12" }, base: "base", baseSection: "One",
       current: { content: "current", section: "Two", label }, incoming: { content: "incoming", section: "Three", label } };

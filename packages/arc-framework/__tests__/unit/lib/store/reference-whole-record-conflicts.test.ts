@@ -82,7 +82,7 @@ describe("whole-record metadata conflicts", () => {
     const remote = fixture.remote(true)!;
     const base = await seed(fixture, fixture.reference("work-item/meta"), undefined, { kind: "active" }, {});
     success(await fixture.store.sync());
-    const links = { branch: { repository: "owner/repo", ref: "feat/local" } };
+    const links = { branches: [{ repository: "owner/repo", ref: "feat/local" }] };
     const localWrite = { ...update(fixture, base, changes === "remote-metadata" ? fixture.content(base.reference, "changed") : base.content),
       ...(changes === "remote-metadata" ? {} : { placement: { kind: "backlog" as const, commitment: "planned" as const }, links }) };
     const remoteWrite = { ...update(fixture, base, changes === "local-metadata" ? fixture.content(base.reference, "changed-again") : base.content),

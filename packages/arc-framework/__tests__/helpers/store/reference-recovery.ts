@@ -67,8 +67,8 @@ export async function produceReferenceRecovery(fixture: ConformanceFixture, back
 
 async function produceAmbiguity(fixture: ConformanceFixture, backend: ReferenceBackend, state: ReferenceRecoveryState): Promise<RecoveryOperation> {
   const branch = { repository: "ambiguous-repository", ref: "shared-branch" };
-  const first = await seed(fixture, fixture.reference("work-item/meta"), undefined, { kind: "active" }, { branch });
-  const second = await seed(fixture, fixture.reference("work-item/meta", "two"), undefined, { kind: "active" }, { branch });
+  const first = await seed(fixture, fixture.reference("work-item/meta"), undefined, { kind: "active" }, { branches:[branch] });
+  const second = await seed(fixture, fixture.reference("work-item/meta", "two"), undefined, { kind: "active" }, { branches:[branch] });
   const planted = backend.state.records.get(recordKey(second.reference));
   if (planted === undefined) throw new Error("Ambiguity planting requires the seeded second generation");
   planted.reference = RecordReferenceSchema.parse({ ...second.reference, owner: { ...second.reference.owner, name: first.reference.owner.name } });

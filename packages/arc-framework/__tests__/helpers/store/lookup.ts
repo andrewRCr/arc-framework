@@ -23,7 +23,7 @@ function fields(context: ReferenceContext, record: MemoryRecord): Record<string,
 }
 
 function repositoryMatches(record: MemoryRecord, repository: string): boolean {
-  return record.links?.branch?.repository === repository || record.links?.changeRequest?.repository === repository;
+  return record.links?.branches?.some((branch)=>branch.repository === repository) === true || record.links?.changeRequest?.repository === repository;
 }
 
 function commitMatch(record: MemoryRecord, input: Extract<LookupInput, { kind: "commit" }>, match: "sha" | "patchId"): LookupResult | undefined {
@@ -55,7 +55,7 @@ export function lookupReference(context: ReferenceContext, input: LookupInput): 
   else candidates = records.filter((record) => {
     switch (input.kind) {
       case "lineage": return record.reference.kind === "lineage/transition" && record.reference.owner.type !== "person" && (record.reference.owner.uid === input.origin || record.reference.owner.name === input.origin);
-      case "ref": return primary(record) && record.links?.branch?.repository === input.repository && record.links.branch.ref === input.ref;
+      case "ref": return primary(record) && record.links?.branches?.some((branch)=>branch.repository === input.repository && branch.ref === input.ref) === true;
       case "claim": {
         const claim = input.claim;
         if (claim.kind === "partial-errand") return false;

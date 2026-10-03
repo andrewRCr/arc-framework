@@ -76,8 +76,15 @@ export function registerRecordAssertions(context: SuiteContext): void {
       expect(listed.records[0]).toMatchObject({ placement: { kind: "active" } });
     });
     assertion(context, "work-item", `primary-links-create-retain-replace-clear:${kind}`, async (fixture) => {
-      const record = await seed(fixture, fixture.reference(kind), undefined, { kind: "active" }, { branch: { repository: "repo", ref: "feat/original" } });
-      expect(record.links).toEqual({ branch: { repository: "repo", ref: "feat/original" } });
+      const branches = [{repository:"repo",ref:"chore/original"},{repository:"repo",ref:"feat/promoted"}];
+      const record = await seed(fixture, fixture.reference(kind), undefined, { kind: "active" }, {branches});
+      expect(record.links).toEqual({branches});
+      for (const branch of branches) expect(success(await fixture.store.lookup({kind:"ref",...branch})).reference).toEqual(record.reference);
+      const before = await fixture.settle();
+      expect(await fixture.store.write({...update(fixture,record),links:{branches:[branches[0]!,branches[0]!]}}))
+        .toMatchObject({status:"refused",refusal:{code:"record-malformed"}});
+      expect(await fixture.settle()).toBe(before);
+      expect(success(await fixture.store.read({reference:record.reference}))).toEqual(record);
       success(await fixture.store.write(update(fixture, record)));
       const retained = success(await fixture.store.read({ reference: record.reference }));
       expect(retained.links).toEqual(record.links);

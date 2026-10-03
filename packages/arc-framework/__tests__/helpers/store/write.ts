@@ -2,7 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import {
-  ConflictRecordSchema, RecordReferenceSchema, familyOf, type BatchInput, type BatchResult, type ConflictRecord, type Mutation, type ReadPlacement,
+  ConflictRecordSchema, LinksSchema, RecordReferenceSchema, familyOf, type BatchInput, type BatchResult, type ConflictRecord, type Mutation, type ReadPlacement,
   type StoreRefusal, type StoreResult, type WriteInput, type WriteResult, type OwnerIdentity, sameReference,
 } from "../../../src/lib/store/index.js";
 import { ArchiveSequenceSchema } from "../../../src/lib/kernel/index.js";
@@ -59,6 +59,8 @@ function preflight(context: ReferenceContext, write: WriteInput): StoreRefusal |
     return malformed(write.reference, "This write-once record may only be changed by its declared writer verbs.");
   }
   if (write.action === "put") {
+    const links = write.links === undefined ? undefined : LinksSchema.safeParse(write.links);
+    if (links?.success === false) return malformed(write.reference,`links: ${links.error.message}`);
     const parsed = definition.parser?.(write.content);
     if (parsed?.success === false) return malformed(write.reference, parsed.error);
   }

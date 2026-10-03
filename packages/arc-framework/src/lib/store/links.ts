@@ -13,9 +13,12 @@ const captures = z.array(CommitCaptureSchema).refine(
   (values) => new Set(values.map((value) => value.sha)).size === values.length,
   "One task cannot capture the same commit twice",
 );
+const branches = z.array(z.strictObject({repository:z.string().min(1),ref:z.string().min(1)}))
+  .refine((values)=>new Set(values.map((value)=>JSON.stringify([value.repository,value.ref]))).size === values.length,
+    "Each repository-qualified branch occurs at most once");
 /** Base links read without a family-specific parser. */
 export const LinksSchema = z.strictObject({
-  branch: z.strictObject({ repository: z.string().min(1), ref: z.string().min(1) }).optional(),
+  branches: branches.optional(),
   changeRequest: z.strictObject({ repository: z.string().min(1), number: z.number().int().positive() }).optional(),
   landingCommit: CommitCaptureSchema.optional(),
   taskCaptures: z.record(z.string().regex(/^\d+(?:\.[A-Za-z0-9]+)+$/u), captures).optional(),

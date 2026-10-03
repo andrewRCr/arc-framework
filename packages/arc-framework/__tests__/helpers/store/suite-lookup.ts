@@ -58,7 +58,7 @@ export function registerLookupAssertions(context: SuiteContext): void {
     const repository = "repo";
     const sha = "a".repeat(40), reapplied = "b".repeat(40), patchId = "c".repeat(40), landing = "d".repeat(40);
     const record = await seed(fixture, fixture.reference("work-item/meta"), undefined, { kind: "active" }, {
-      branch: { repository, ref: "feat/example" }, landingCommit: { sha: landing },
+      branches: [{ repository, ref: "feat/example" }], landingCommit: { sha: landing },
       taskCaptures: { "1.1": [{ sha, patchId }], "1.2": [{ sha, patchId }], "1.3": [{ sha: reapplied, patchId }] },
     });
     expect(success(await fixture.store.lookup({ kind: "commit", repository, sha, patchId }))).toEqual({ reference: record.reference, taskIds: ["1.1", "1.2"] });
