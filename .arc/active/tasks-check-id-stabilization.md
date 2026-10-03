@@ -14,21 +14,13 @@ _Mode:_ `replication` — closes on the complete live-reference migration with p
 _Exit criterion:_ All enumerated live references name their intended stable check, source-selection regressions pass,
 and the two hook copies match with comment-only production changes.
 
-### `[ ]` **1.1 Add exact-ID source-block selection**
+### `[x]` **1.1 Add exact-ID source-block selection**
 
 - _Goal:_ Source assertions select only the requested check's block and reject ambiguous or incomplete boundaries.
 
-- _Approach:_ Keep the selector local to `pre-commit-shell-invocation.test.ts`; prove its contract with synthetic
-  source before connecting it to the live hook.
-
-    - Implement the spec's `Position-independent source-block tests` decision: match the exact heading ID, end at
-      the next generic check heading, and use `# Summary` for the final block. Do not add a production parser.
-    - Build `test-first` (one behavior at a time):
-        - A selected block excludes its neighbors; similar ID prefixes and marker text in descriptions do not
-          select another heading.
-        - Inserting or reordering neighboring checks preserves the selected body and existing IDs, including when
-          the selected block becomes the final block.
-        - Missing or duplicate requested IDs and a missing final-block Summary boundary fail explicitly.
+- _Outcome:_ Added a test-local exact-ID selector with generic next-heading and final Summary boundaries.
+  Synthetic fixtures cover neighbor insertion/reordering, prefix and description decoys, and explicit missing-ID,
+  duplicate-ID, and missing-Summary failures.
 
 ### `[ ]` **1.2 Assign stable IDs to the hook and its source assertions**
 

@@ -24,6 +24,86 @@ const projectPreCommitSource = readFileSync(
   "utf-8",
 );
 
+function selectCheckBlock(source: string, id: string): string {
+  const headings = [...source.matchAll(/^# CHECK\[([^\]\r\n]+)\]:.*$/gmu)];
+  const matches = headings.filter((heading) => heading[1] === id);
+  const selected = matches[0];
+  if (!selected) throw new Error(`Missing check ID: ${id}`);
+  if (matches.length > 1) throw new Error(`Duplicate check ID: ${id}`);
+
+  const next = headings[headings.indexOf(selected) + 1];
+  if (next) return source.slice(selected.index, next.index);
+
+  const summaryOffset = source.slice(selected.index).search(/^# Summary$/mu);
+  if (summaryOffset === -1) throw new Error(`Missing Summary boundary for check ID: ${id}`);
+  return source.slice(selected.index, selected.index + summaryOffset);
+}
+
+describe("pre-commit source-block selection", () => {
+  it("selects an exact heading ID and excludes neighboring blocks", () => {
+    const source = [
+      "# CHECK[target-extra]: Neighbor mentioning CHECK[target]",
+      "before_body",
+      "# A description also mentions CHECK[target]",
+      "# CHECK[target]: Selected check",
+      "selected_body",
+      "# CHECK[another]: Following check",
+      "after_body",
+      "# Summary",
+    ].join("\n");
+
+    expect(selectCheckBlock(source, "target")).toBe(
+      "# CHECK[target]: Selected check\nselected_body\n",
+    );
+  });
+
+  it("preserves selection through insertion and reordering, including the final block", () => {
+    const target = "# CHECK[target]: Selected check\nselected_body\n";
+    const before = "# CHECK[before]: Previous check\nbefore_body\n";
+    const after = "# CHECK[after]: Following check\nafter_body\n";
+    const inserted = "# CHECK[inserted]: New neighbor\ninserted_body\n";
+    const layouts = [
+      [before, target, after],
+      [inserted, before, target, after],
+      [after, target, inserted, before],
+      [after, inserted, before, target],
+    ];
+
+    for (const blocks of layouts) {
+      const source = `${blocks.join("")}# Summary\nsummary_body\n`;
+      expect(selectCheckBlock(source, "target")).toBe(target);
+      for (const id of ["before", "after"]) {
+        expect(selectCheckBlock(source, id)).toBe(id === "before" ? before : after);
+      }
+    }
+  });
+
+  it("rejects a missing requested ID", () => {
+    const source = "# CHECK[target-extra]: Different check\nbody\n# Summary\n";
+    expect(() => selectCheckBlock(source, "target")).toThrow("Missing check ID: target");
+  });
+
+  it("rejects duplicate requested IDs", () => {
+    const source = [
+      "# CHECK[target]: First check",
+      "first_body",
+      "# CHECK[other]: Neighbor",
+      "other_body",
+      "# CHECK[target]: Duplicate check",
+      "duplicate_body",
+      "# Summary",
+    ].join("\n");
+    expect(() => selectCheckBlock(source, "target")).toThrow("Duplicate check ID: target");
+  });
+
+  it("rejects a final block without a Summary heading", () => {
+    const source = "# CHECK[target]: Final check\n# Description mentions # Summary\nbody\n";
+    expect(() => selectCheckBlock(source, "target")).toThrow(
+      "Missing Summary boundary for check ID: target",
+    );
+  });
+});
+
 describe("pre-commit hook shell-script invocation", () => {
   it("invokes validate-links.sh via bash instead of relying on the exec bit", () => {
     expect(preCommitSource).toMatch(
