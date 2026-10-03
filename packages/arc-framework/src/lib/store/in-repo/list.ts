@@ -95,10 +95,11 @@ async function listMetas(context: InRepoContext, input: ListInput): Promise<List
   const records: StoreRecord[] = [];
   const diagnostics: ListingDiagnostic[] = [];
   for (const source of sources) {
+    if (input.owner !== undefined && SlugSchema.safeParse(source.slug).success
+      && !sameOwner(OwnerIdentitySchema.parse({ type: "work-item", name: source.slug }), input.owner)) continue;
     const diagnostic = metaDiagnostic(source);
     if (diagnostic !== undefined) { diagnostics.push(diagnostic); continue; }
     const reference = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: source.slug }));
-    if (input.owner !== undefined && !sameOwner(reference.owner, input.owner)) continue;
     records.push({ reference, content: source.content ?? "", fields: source.fields, placement: source.placement,
       version: RecordVersionSchema.parse(digestBytes(Buffer.from(source.content ?? ""))), formatVersion: 1, conflicts: [] });
   }

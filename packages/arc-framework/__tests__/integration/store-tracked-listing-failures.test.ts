@@ -34,6 +34,25 @@ async function fixture(kind: "lineage/transition" | "review/candidate" | "review
 }
 
 describe("tracked listing acquisition", () => {
+  it("scopes known malformed owners while retaining unknown-owner diagnostics", async () => {
+    const h = await fixture("work-item/meta");
+    const malformed = "# Bad meta\n\n| State | Owner | Branch | Class | Priority |\n|---|---|---|---|---|\n| `Active` | `andrew` |\n";
+    await h.put(".arc/active/meta-beta.md", malformed);
+    const input = { ...h.input, owner: h.reference("work-item/meta").owner };
+    const listed = success(await h.store.list(input));
+    expect(listed).toMatchObject({ status: "complete", missed: false, diagnostics: [] });
+    expect(listed.status === "complete" && listed.records).toHaveLength(1);
+    await h.put(".arc/active/meta-example.md", malformed);
+    expect(success(await h.store.list(input))).toMatchObject({ status: "complete", records: [], missed: true,
+      diagnostics: [{ kind: "malformed", key: ".arc/active/meta-example.md" }] });
+    await h.put(".arc/active/meta-example.md", makeMetaFixture("example"));
+    await h.put(".arc/active/meta-Bad_Name.md", malformed);
+    expect(success(await h.store.list(input))).toMatchObject({ status: "complete", missed: true,
+      diagnostics: [{ kind: "malformed", key: ".arc/active/meta-Bad_Name.md" }] });
+    await rm(join(h.root, ".arc/active/meta-Bad_Name.md"));
+    expect(success(await h.store.list(input))).toMatchObject({ status: "complete", missed: false, diagnostics: [] });
+  });
+
   for (const keepValid of [false, true]) for (const badSlug of ["Bad_Name", ""]) {
     it.each(["lineage/transition", "review/candidate", "review/integration-boundary", "cohort/document"] as const)(
       `diagnoses invalid recognized %s coordinates '${badSlug}', readable neighbor: ${keepValid}`, async (kind) => {
