@@ -21,6 +21,10 @@ The family registry describes scope, ref ownership, retention, sync, and install
 writer rule, merge mechanism, projection, and independent parser slot. Parser registration returns an isolated
 registry. Logical placement and code links travel beside record content, without projected paths.
 
+Landing and task commit captures carry their own repository, SHA and optional patch ID. Commit lookup filters those
+captures by repository and prefers exact SHA matches; it needs no branch or change-request link. Task captures
+reject duplicate repository and SHA pairs.
+
 The `concurrency/` library supplies pure entry and line merges, stable entry IDs, and rank keys. Conflicts preserve
 both labeled sides as separate records while the current side remains visible. A resolving write names the conflict
 references explicitly.

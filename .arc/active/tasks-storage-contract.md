@@ -684,3 +684,8 @@ as stated.
   history and restricted changes retain historical roles, bytes and provenance, stale/expected-absent puts and a
   batch naming both primary handles apply nothing, and reopen/sync preserve it with current-side retention on a
   concurrent role clash (A5).
+
+- `[x]` Repository-qualified landing and task captures resolve without optional branch or change-request links,
+  including after those links clear; wrong-repository lookup refuses, exact SHA precedes patch-id matches in the
+  requested repository, duplicates use repository and SHA, and an unqualified capture refuses without changing state
+  before its qualified repair succeeds (A6).

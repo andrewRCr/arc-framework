@@ -341,11 +341,14 @@ ref commit's, which `history` and `changes` return as they are.
   none. A work unit's integration and an Errand's close capture the landing commit.
 - **Links are base fields the contract itself defines,** read without a kind's parser: an optional collection of
   branches (A3), each a repository and ref name, unique by that pair; a change request (repository and number), a
-  landing commit, and task captures, keyed by task ID. Each commit is held as its SHA and, where it has one, its
-  patch-id: a merge commit has none, so a landing commit made by merge is matched by its SHA alone. They travel beside a
-  work item's primary record as its placement does (D1): a write to that record may carry a links value, which replaces
+  landing commit, and task captures, keyed by task ID. Each commit capture holds its repository, SHA and, where it has
+  one, its patch-id (A6). A task's captures are unique by repository and SHA; the same SHA in different repositories
+  remains distinct. A merge commit has no patch-id, so a landing commit made by merge is matched by its SHA alone.
+  They travel beside a work item's primary record as its placement does (D1): a write to that record may carry a
+  links value, which replaces
   them whole, an empty value clearing them, and one carrying no links value keeps them.
-- `lookup` by commit matches captured SHAs and, only where none matches, the patch-id the caller computes and passes
+- `lookup` by commit matches captures in the requested repository, independently of optional branch or change-request
+  links (A6). It matches captured SHAs and, only where none matches in that repository, the patch-id the caller passes
   with a commit that has one; by ref, every retained branch link (A3). So every backend answers it from stored fields, a
   rebase that leaves a commit's diff alone keeps the link, and ARC's own rewrites remap captures from the rewrite's
   old-to-new mapping.
@@ -791,7 +794,9 @@ The suite covers, for every backend and every family its fixture serves:
 10. format versions: an unknown newer version as a listing diagnostic and a read refusal naming the remedy;
 11. `history` order with each write's provenance, preserving historical primary roles across promotion and removal (A5);
 12. `lookup` by slug, former slug, lineage origin, checkout claim, and a repository plus a commit or ref, a commit
-    resolving to every task that captured it, with `not-found` and `ambiguous-match`;
+    resolving to every task that captured it, with `not-found` and `ambiguous-match`; repository-qualified captures
+    resolving independently of optional branch or change-request links, with wrong-repository refusal and exact-SHA
+    precedence over patch-id matches (A6);
 13. durability: a write is readable from a fresh contract instance over the same store when the write returns;
 14. every refusal carrying its class, observed condition, and remedy;
 15. the capability report;
@@ -1712,7 +1717,7 @@ and captures the increment's commits, `HEAD` or named commits, as those tasks' c
   reworded, or annotated — and refuses a hand tick, reporting it and naming the verb while the file keeps the edit. The
   parent cascade is computed, never kept by hand.
 - A task's captures are a list of commits, which may be empty: a task that produced no commit closes with none.
-- **The capture survives rewrites.** It holds each commit's SHA and, where it has one, its patch-id (D3). ARC's own
+- **The capture survives rewrites.** It holds each commit's repository, SHA and optional patch-id (A6, D3). ARC's own
   rewrites — the history policy's catch-up with base — remap captures from the rewrite's old-to-new mapping, and running
   the verb again after an amend replaces that increment's capture.
 - **It closes any set of tasks** — one, a parent, a phase, several phases — against the commits of that increment;
@@ -2146,6 +2151,11 @@ Validated at this change's completion, over Part A:
     or expected-absent puts and a batch naming both primary handles apply nothing; reopen and sync preserve the
     canonical primary, including current-side retention on a concurrent role clash.
 
+21. **Independent capture authority (A6).** Landing and task captures carry their repository and resolve without
+    branch or change-request links, including after those links clear. Lookup refuses a wrong repository and prefers
+    an exact SHA over patch-id matches within the requested repository. Duplicate task captures are keyed by repository
+    and SHA. An unqualified capture refuses without changing state, and its qualified repair succeeds.
+
 ## Open Questions
 
 None blocks building Part A.
@@ -2188,3 +2198,5 @@ operations and outcomes, and which test tier each conformance fixture runs in.
   _Trigger:_ storage-standard-1-F10 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 - **A5** — 2026-10-03 — design: preserve one primary through role changes. _Supersedes:_ D2 primary identity; D1/D5 promotion.
   _Trigger:_ storage-standard-2-F08 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A6** — 2026-10-03 — design: qualify commit captures by repository. _Supersedes:_ D3 capture shape.
+  _Trigger:_ storage-standard-2-F12 review. _Work:_ review-fix. _Revalidated:_ review-fix.

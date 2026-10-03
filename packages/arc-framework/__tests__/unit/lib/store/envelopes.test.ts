@@ -89,8 +89,11 @@ describe("mutation envelopes", () => {
     expect(CallerProvenanceSchema.safeParse(value).success).toBe(false);
   });
   it("keeps empty task captures and rejects duplicate commits", () => {
-    expect(LinksSchema.safeParse({ landingCommit: { sha }, taskCaptures: { "1.1": [] } }).success).toBe(true);
-    expect(LinksSchema.safeParse({ taskCaptures: { "1.1": [{ sha, patchId: sha }, { sha }] } }).success).toBe(false);
+    expect(LinksSchema.safeParse({ landingCommit: { repository: "repo", sha }, taskCaptures: { "1.1": [] } }).success).toBe(true);
+    expect(LinksSchema.safeParse({ taskCaptures: { "1.1": [{ repository: "repo", sha, patchId: sha }, { repository: "repo", sha }] } }).success).toBe(false);
+    expect(LinksSchema.safeParse({ taskCaptures: { "1.1": [{ repository: "repo", sha }, { repository: "other-repo", sha }] } }).success).toBe(true);
+    expect(LinksSchema.safeParse({ landingCommit: { sha } }).success).toBe(false);
+    expect(LinksSchema.safeParse({ taskCaptures: { "1.1": [{ sha }] } }).success).toBe(false);
   });
   it("retains unique repository-qualified branches and rejects duplicate pairs", () => {
     const branch = {repository:"owner/repo",ref:"chore/original"};

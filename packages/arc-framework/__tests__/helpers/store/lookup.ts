@@ -22,16 +22,15 @@ function fields(context: ReferenceContext, record: MemoryRecord): Record<string,
   return parsed.data as Record<string, unknown>;
 }
 
-function repositoryMatches(record: MemoryRecord, repository: string): boolean {
-  return record.links?.branches?.some((branch)=>branch.repository === repository) === true || record.links?.changeRequest?.repository === repository;
-}
-
 function commitMatch(record: MemoryRecord, input: Extract<LookupInput, { kind: "commit" }>, match: "sha" | "patchId"): LookupResult | undefined {
-  if (!primary(record) || !repositoryMatches(record, input.repository)) return undefined;
+  if (!primary(record)) return undefined;
   const value = input[match];
   if (value === undefined) return undefined;
-  const taskIds = Object.entries(record.links?.taskCaptures ?? {}).filter(([, captures]) => captures.some((capture) => capture[match] === value)).map(([taskId]) => taskId);
-  return taskIds.length > 0 || record.links?.landingCommit?.[match] === value ? { reference: record.reference, taskIds } : undefined;
+  const taskIds = Object.entries(record.links?.taskCaptures ?? {}).filter(([, captures]) => captures
+    .some((capture) => capture.repository === input.repository && capture[match] === value)).map(([taskId]) => taskId);
+  const landing = record.links?.landingCommit;
+  return taskIds.length > 0 || (landing?.repository === input.repository && landing[match] === value)
+    ? { reference: record.reference, taskIds } : undefined;
 }
 
 /** Resolve logical handles and code links without reading a projected path or Git repository.

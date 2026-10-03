@@ -1006,3 +1006,20 @@ remains a companion of the same UID, and links, placement and aliases retain the
 conformance assertions and appended criterion cover transition, stale/absence and batch refusal, historical roles,
 reopen/sync and conflict preservation. The future promotion consumer changes that primary instead of creating a
 second one. No promotion verb, type-field parser, ref backend, projection or compatibility migration is built here.
+
+## A6 — Repository-qualified commit captures
+
+D3's superseded capture shape was “Each commit is held as its SHA and, where it has one, its patch-id”. Optional
+branch or change-request links supplied repository authority to `commitMatch` in the reference lookup: accepted
+standalone captures did not resolve, and clearing only a branch lost their lookup despite retaining the captures.
+
+Each landing or task capture now carries its own repository. Lookup filters each capture by that repository, then
+prefers an exact SHA across matching work items before considering patch-id matches. Task duplicates use the
+repository and SHA pair, preserving equal SHAs from different repositories. Branch lookup and whole-links replacement
+keep their existing behavior. The earlier unpublished unqualified shape is rejected, with no compatibility reader or
+migration; the existing typed write validation preserves state and admits a qualified retry.
+
+The low-depth amendment composes the existing repository-qualified lookup and branch-link model. Its footprint is D3,
+the core capture schema, reference lookup and shared conformance fixtures; the appended criterion tests standalone
+task and landing captures, optional-link removal, wrong-repository refusal, SHA precedence and refusal/repair.
+Production task-close capture, the ref backend and the cutover stay with their existing owners.

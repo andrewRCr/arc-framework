@@ -5,13 +5,13 @@ import { RecordReferenceSchema } from "./identity.js";
 
 /** Git object identity used at repository lookup seams. */
 export const CommitShaSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
-/** One code capture; a merge commit has no patch identity. */
-export const CommitCaptureSchema = z.strictObject({ sha: CommitShaSchema, patchId: CommitShaSchema.optional() });
+/** One repository-qualified code capture; a merge commit has no patch identity. */
+export const CommitCaptureSchema = z.strictObject({ repository: z.string().min(1), sha: CommitShaSchema, patchId: CommitShaSchema.optional() });
 /** A stored code capture. */
 export type CommitCapture = z.infer<typeof CommitCaptureSchema>;
 const captures = z.array(CommitCaptureSchema).refine(
-  (values) => new Set(values.map((value) => value.sha)).size === values.length,
-  "One task cannot capture the same commit twice",
+  (values) => new Set(values.map((value) => JSON.stringify([value.repository, value.sha]))).size === values.length,
+  "One task cannot capture the same repository-qualified commit twice",
 );
 const branches = z.array(z.strictObject({repository:z.string().min(1),ref:z.string().min(1)}))
   .refine((values)=>new Set(values.map((value)=>JSON.stringify([value.repository,value.ref]))).size === values.length,
