@@ -3,7 +3,7 @@
   "slug": "park-landing-lock-ownership",
   "claimId": "d37bb983a45d86dd978ec87036f2b227",
   "createdAt": "2026-10-03T13:36:43.859Z",
-  "updatedAt": "2026-10-03T13:36:43.859Z",
+  "updatedAt": "2026-10-03T14:08:12.332Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Preserve foreign Git index locks during park landing cleanup",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Stop park landing's cleanup from removing another process's `index.lock`",
   "originEntrySourceDigest": "sha256:e0ef02179809e96a3b2f581a58abaf5d6a216d97ba9fba634de80b34696e6027",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/park-landing-lock-ownership",
+    "headSha": "4aeee55fd29f548424ad5cd1305dd3c8dd628670"
+  }
 }
