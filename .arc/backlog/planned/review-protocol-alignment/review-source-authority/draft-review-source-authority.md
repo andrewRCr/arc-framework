@@ -232,6 +232,97 @@
   these. This shares the unit's terminus-kind discriminant and authority boundary: the terminus reader must inspect
   `terminus.kind` before this line can name one.
 
+### `[ ]` **Let an explicit Owner merge authorization bind a later head the tooling proves carries no unseen change**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- _WU_Target:_ `review-source-authority`
+
+- _Observation:_ `DEV-RULES.ARC` § Review-Increment Invariant says a pre-composition direction "never" grants
+  "prospective merge authority over a head that does not yet exist", `run-errand`'s integration interlock binds
+  approval to one exact request, and `arc errand merge` binds `approvedTarget.headSha` exactly. So an Owner who
+  explicitly approves a merge ahead of time is re-asked whenever the head moves at all — even by a conflict-free
+  base merge that cannot carry agent-authored content. That overrides the holder's own decision rather than guarding
+  it: the invariant exists to stop the agent inferring or manufacturing merge authority, not to stop the Owner
+  granting it conditionally. The re-ask also trains reflexive approval, which weakens the gate it protects. Same
+  shape as `WORKING-MEMORY`'s standing rule for review acceptance — ARC may report that the subject moved, not
+  revoke or re-ask on the strength of that movement alone.
+
+- _Approach:_ let an explicit prior authorization cover a later head within a mechanically witnessed envelope,
+  never an agent judgment of "no semantic change" (that is self-attestation). A candidate envelope: the only
+  movement is a conflict-free base merge; the change's own diff against the new base equals the approved diff
+  (`base drift`'s overlap read already proves the disjoint case); review re-resolves clean or exempt with no new
+  finding; required checks green. Any agent-authored delta, conflict, new finding, or substantive overlap falls
+  back to an ordinary stop, and the applied carry-forward is disclosed where the Owner reads. Needs a typed
+  authorization scope on the merge verbs, not only a prose change — and it is a fourth instance for the buffer
+  item "Reconcile the three Owner-acceptance instances behind one primitive, or record why not".
+
+- _Captured during:_ housekeep drain session, integrating the `planning-path-subcohort-depth` Errand ahead of the
+  paused housekeep PR, 2026-09-30.
+
+### `[ ]` **Let an Owner's stop at the disposition turn bind through the fix it approves**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- `WU_Target: review-source-authority`
+
+- _Observation:_ on PR #759 the Owner approved a disposition set with one fix and agreed to stop review in the same
+  turn. The fix moved the head, `arc review status` reported `review-required` ("the new head still requires
+  review", `retrigger: full-final`), and a second metered CodeRabbit pass was requested on that basis. Nothing at
+  the disposition turn could carry the Owner's stop through the fix:
+    - `review-triage`'s next-pass recommendation covers only passes beyond the routed obligation. The re-review a fix
+      triggers is never presented as spend the Owner can decline, so "stop" there means "no extra pass", not "no
+      more review".
+    - `run-errand`'s Owner-directed review stop is the Errand's only route, and it is per-head by design: open PR
+      only, refused while any review request is pending, and any changed target "requires a new exact offer …
+      never carry the prior acceptance forward". An approved fix always changes the target, so the stop cannot be
+      given in the turn that approves the fix.
+    - The agent compounded it by presenting the re-review as the policy's call instead of offering that stop.
+
+- _Principle (Owner, 2026-10-01):_ Owner acceptance overrides routed review policy by design. ARC must never
+  overrule the Owner, above all on token spend.
+
+- _Approach:_ fold into the draft's "sharp form" item (the acceptance destroyed by the fix it authorized) and extend
+  it to the Errand vehicle and the disposition turn. Show the re-review a fix will trigger beside the disposition
+  set, and let a stop given there bind through the approved fix's head movement — recorded as accepted residual
+  risk, never provider clean.
+
+- _Captured during:_ Errand `review-evidence-record`, 2026-10-01 (PR #759, second standard pass).
+
+### `[ ]` **Predict the host's native-review blocker before the integration interlock, and settle it in that approval**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- `WU_Target: review-source-authority`
+
+- _Observation:_ after an Owner-directed review stop on PR #759, the approved `arc errand merge` came back
+  `host-refused / stop`: "1 review requesting changes by reviewers with write access". CodeRabbit had left two
+  `CHANGES_REQUESTED` reviews, one per standard pass, and the `main` ruleset's `pull_request` rule blocks on them
+  even with `required_approving_review_count: 0`. Nothing in ARC predicted it: `arc review status` reported green
+  checks and `approval-required`, and the interlock read the ruleset by hand and got it wrong ("0 approvals
+  required, so it may not block"). Clearing it took a second Owner decision, a host dismissal, and a second merge
+  call after the one integration approval.
+
+- _Owner direction (2026-10-01):_ smooth this out — a host blocker the Owner has already accepted review over
+  should never surface as a surprise at merge.
+
+- _Approach:_ extend the draft's "Make Owner-accepted termini settle hosted review blockers" item to the Errand stop
+  and to prediction. Before the integration interlock, derive from the host's ruleset and the PR's native reviews
+  whether merge will be refused, name each blocking review in the interlock, and let that one approval authorize
+  its dismissal (recorded as Owner acceptance, never provider clean). Restoring deferred CI belongs in the same
+  pre-merge settlement, so the approved merge runs without another stop.
+
+- _Captured during:_ Errand `review-evidence-record`, 2026-10-01 (PR #759 merge step).
+
+- _Recurred:_ PR #773, 2026-10-02 — the same stale CodeRabbit review, the same misread at the interlock, and the same
+  dismissal plus second merge call. The prediction half is pulled forward as the § Errand capture "Report a host review
+  blocker in `arc review status` before the integration gate"; what stays here is letting the integration approval
+  authorize the dismissal.
+
+- _Resolved facet (2026-10-03):_ PR #774 shipped prediction of native-review blockers in review status.
+  Integrate only the remaining scope: let the integration approval authorize the necessary host-review settlement
+  after Owner acceptance, covering the Errand vehicle as well as work units.
+
 ## Operator Selection Override
 
 Mirror the existing ceiling override rather than inventing a shape. `src/scripts/review-gate/policy/review-policy-driver.ts`

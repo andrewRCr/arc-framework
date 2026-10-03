@@ -281,6 +281,22 @@
   `USER-INBOX` for entries naming the active work unit — closes the hole before the computed surface exists. Take
   it only if this work unit stays queued; it is the interim, not the design.
 
+### `[ ]` **Settle the generate-tasks entry gate beside the planning grounding check**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- _WU_Target:_ `planning-iteration-mechanics`
+
+- _Observation:_ `grounded-planning-review` hands `spec-review`'s grounding slice and `task-audit`'s grounding floor
+  to a new `source-grounding` method — behavior-grade, author-run every time — and every adversarial pass the Owner
+  takes at a planning fire-point grounds from fresh context through its own rubric. This work unit's open question,
+  whether `generate-tasks` gates spec readiness at entry, sits beside it; the draft leaves the gate here.
+
+- _Approach:_ when settling the entry gate, count the spec's grounding already run at `create-spec` and the task
+  list's own.
+
+- _Captured during:_ `grounded-planning-review` draft-design close, 2026-10-01 (draft at `725ddeaa9`).
+
 ## Problem / Motivation
 
 The planning pipeline's _readiness_ surface (when is a draft spec-ready, who decides, how the stage pointer

@@ -42,6 +42,22 @@
 - _Fold-in:_ fold this framing into the WU's motivation at grooming; reassess priority/sequencing relative to the
   `agent-context-optimization` cohort (evals become more load-bearing exactly as prose shrinks to judgment-only).
 
+### `[ ]` **Evaluate the planning grounding and fix-check behaviors**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- _WU_Target:_ `workflow-eval-harness`
+
+- _Observation:_ `grounded-planning-review` adds judgment-layer behavior with no instrument: author-run behavior-grade
+  grounding, independent grounding inside each pass's rubric, an Owner-held fix check in rounds over each pass's
+  fixes, a fold tag, and the fix-check recommendation. Its success signal is observational — the fix-borne share of
+  later passes' majors against `storage-contract`'s share across its successor passes.
+
+- _Approach:_ candidate cases — a draft with planted behavioral and propagation slips, and fold-introduced slips the
+  fix check should catch before the next pass does.
+
+- _Captured during:_ `grounded-planning-review` draft-design close, 2026-10-01 (draft at `725ddeaa9`).
+
 ---
 
 ## Problem
