@@ -5,6 +5,7 @@ import { describe, expect, it, onTestFinished } from "vitest";
 import { createStore } from "../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
 import { createStoreLifecycleStorage } from "../../src/lib/store/lifecycle-storage.js";
+import { StateVersionSchema } from "../../src/lib/store/identity.js";
 import { createGitTreeReadFs } from "../../src/scripts/review-gate/hosts/local/git-tree-fs.js";
 import { readLifecycleSummary, createIntegrationCheckpointDependencies } from "../../src/scripts/integration/checkpoint-composition.js";
 import { createIntegrationMergeDependencies } from "../../src/scripts/integration/merge-composition.js";
@@ -24,6 +25,13 @@ async function fixture() {
   return { root, exec, store, storage, put, save };
 }
 const completion = "\n## Completion Notes\n\nDelivered the work unit.\n";
+function changeRequestPort(head: string) {
+  return {
+    resolveRepository: async () => "owner/repo", readHeadRef: async () => ({ local: null, remote: head }),
+    listByHead: async () => [{ number: 42, url: "https://example.test/owner/repo/pull/42", state: "OPEN" as const,
+      baseRefName: "main", headRefName: "main", headRefOid: head }], searchByHeadSha: async () => [],
+  };
+}
 
 describe("store lifecycle snapshot", () => {
   it("matches the legacy lifecycle summary and bytes at a pinned state across every placement", async () => {
@@ -57,6 +65,9 @@ describe("store lifecycle snapshot", () => {
     await h.put(".arc/active/meta-rejected.md", makeMetaFixture("rejected").replace("`Active`", "`Unknown`"));
     await h.put(".arc/completed/2026-q4/03_rejected/meta-rejected.md", makeMetaFixture("rejected", { state: "Shipped" }) + completion);
     const head = await h.save();
+    const listing = await h.store.list({ family: "work-item", kind: "work-item/meta", asOf: StateVersionSchema.parse(head) });
+    expect(listing).toMatchObject({ status: "ok", result: { status: "complete", missed: true,
+      diagnostics: [expect.objectContaining({ key: ".arc/completed/2026-Q4/01_upper/meta-upper.md" })] } });
     const snapshot = await h.storage.readSnapshot();
     const legacy = createGitTreeReadFs({ cwd: h.root, revision: head, exec: h.exec });
     expect((await snapshot.fs.readdir(join(h.root, ".arc/completed/2026-q4"))).map((entry) => entry.name)).toEqual(["01_example"]);
@@ -82,16 +93,48 @@ describe("store lifecycle snapshot", () => {
     expect(await injected.readLifecycle("example")).toMatchObject({ storageVersion: head, complete: true });
     await h.put(".arc/system/arc-config.yml", "archive.cadence: with-integration\n");
     const mergeHead = await h.save();
-    const changeRequestPort = {
-      resolveRepository: async () => "owner/repo", readHeadRef: async () => ({ local: null, remote: mergeHead }),
-      listByHead: async () => [{ number: 42, url: "https://example.test/owner/repo/pull/42", state: "OPEN" as const,
-        baseRefName: "main", headRefName: "main", headRefOid: mergeHead }], searchByHeadSha: async () => [],
-    };
-    const merge = createIntegrationMergeDependencies({ cwd: h.root, exec: h.exec, workUnit: "upper", changeRequestPort });
+    const merge = createIntegrationMergeDependencies({ cwd: h.root, exec: h.exec, workUnit: "upper", changeRequestPort: changeRequestPort(mergeHead) });
     expect(await merge.readStatus("upper")).toMatchObject({ lifecycleVersion: mergeHead, lifecycleComplete: false });
-    const legacyMerge = createIntegrationMergeDependencies({ cwd: h.root, exec: h.exec, workUnit: "upper", changeRequestPort,
+    const legacyMerge = createIntegrationMergeDependencies({ cwd: h.root, exec: h.exec, workUnit: "upper", changeRequestPort: changeRequestPort(mergeHead),
       lifecycleStorage: { readSnapshot: async () => ({ version: mergeHead,
         fs: createGitTreeReadFs({ cwd: h.root, revision: mergeHead, exec: h.exec }) }) } });
     expect(await legacyMerge.readStatus("upper")).toMatchObject({ lifecycleVersion: mergeHead, lifecycleComplete: true });
+  });
+  it("refuses missed lifecycle evidence in snapshots and default deciding ports, then resumes after repair", async () => {
+    const h = await fixture();
+    const broken = ".arc/active/meta-broken.md";
+    await h.put(".arc/system/arc-config.yml", "archive.cadence: with-integration\n");
+    await h.put(".arc/completed/2026-q4/01_example/meta-example.md", makeMetaFixture("example", { state: "Shipped" }) + completion);
+    await h.put(".arc/completed/2026-Q4/01_upper/meta-upper.md", makeMetaFixture("upper", { state: "Shipped" }) + completion);
+    await h.put(".arc/active/meta-rejected.md", makeMetaFixture("rejected").replace("`Active`", "`Unknown`"));
+    await h.put(".arc/completed/2026-q4/02_rejected/meta-rejected.md", makeMetaFixture("rejected", { state: "Shipped" }) + completion);
+    await h.put(broken, makeMetaFixture("broken").replace("- **Design:** [none]", "- **Design:** [TBD]"));
+    const head = await h.save();
+    const checkpoint = createIntegrationCheckpointDependencies({ cwd: h.root, exec: h.exec });
+    const merge = createIntegrationMergeDependencies({ cwd: h.root, exec: h.exec, workUnit: "example", changeRequestPort: changeRequestPort(head) });
+    for (const read of [() => h.storage.readSnapshot(), () => checkpoint.readLifecycle("example"), () => merge.readStatus("example")]) {
+      await expect(read()).rejects.toMatchObject({ code: "store.lifecycle-incomplete", message: expect.stringContaining(broken) });
+      await expect(read()).rejects.toThrow(/Repair.*then/);
+    }
+    await h.put(broken, makeMetaFixture("broken"));
+    const repaired = await h.save();
+    const snapshot = await h.storage.readSnapshot();
+    expect(snapshot.version).toBe(repaired);
+    expect(await checkpoint.readLifecycle("example")).toMatchObject({ storageVersion: repaired, complete: true });
+    expect(await merge.readStatus("example")).toMatchObject({ lifecycleVersion: repaired, lifecycleComplete: true });
+    for (const name of ["upper", "rejected"]) {
+      expect(await readLifecycleSummary(h.root, name, "with-integration", repaired, snapshot.fs)).toMatchObject({ state: "nonexistent" });
+    }
+  });
+  it.each([true, false])("refuses either missed evidence or diagnostics even if the other signal is absent (%s)", async (missed) => {
+    const h = await fixture();
+    await h.put("README.md", "Repository fixture\n");
+    await h.save();
+    const diagnostics = missed ? [] : [{ kind: "unreadable" as const, key: "one-record", condition: "Record access denied",
+      remedy: { text: "Restore access, then retry." } }];
+    const storage = createStoreLifecycleStorage({ checkoutRoot: h.root, store: { ...h.store,
+      list: async () => ({ status: "ok", result: { status: "complete", records: [], missed, diagnostics } }) } });
+    await expect(storage.readSnapshot()).rejects.toMatchObject({ code: "store.lifecycle-incomplete" });
+    await expect(storage.readSnapshot()).rejects.toThrow(missed ? /missed.*Repair/ : /Record access denied.*Restore access/);
   });
 });

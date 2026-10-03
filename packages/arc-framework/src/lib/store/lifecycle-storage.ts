@@ -1,12 +1,13 @@
 /** Immutable lifecycle filesystem projection over the public storage contract. */
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { basename, isAbsolute, relative, resolve, sep } from "node:path";
 import { ArcError } from "../kernel/errors.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 import { identifyWorkUnitArtifactPath, resolveArcPath, type WorkUnitArtifactKind, type WorkUnitPlacement } from "../layout/index.js";
 import type { ProjectViewFs, ProjectViewDirEntry } from "../status/project-view.js";
 import type { Store } from "./contract.js";
 import { RecordReferenceSchema, type StateVersion } from "./identity.js";
-import { listLifecycleIndex, type LifecycleEntry } from "./lifecycle-index.js";
+import { listLifecycleIndex, type LifecycleEntry, type LifecycleIndexOutcome } from "./lifecycle-index.js";
+import type { ListingDiagnostic } from "./read.js";
 import type { StoreResult } from "./refusal.js";
 
 /** One lifecycle version and its record-backed filesystem projection. */
@@ -21,10 +22,31 @@ export function createStoreLifecycleStorage(input: { store: Store; checkoutRoot:
   return { readSnapshot: async () => {
     const version = unwrap(await input.store.version());
     const listing = unwrap(await listLifecycleIndex(input.store, { asOf: version }));
-    if (listing.status === "unreadable") throw new ArcError(`${listing.condition} ${listing.remedy.text}`, "store.lifecycle-unreadable");
+    await requireCompleteInventory(input.store, version, listing);
     const entries = listing.status === "complete" ? listing.index.entries() : [];
     return { version, fs: snapshotFs(input, version, entries) };
   } };
+}
+async function requireCompleteInventory(store: Store, version: StateVersion, listing: LifecycleIndexOutcome): Promise<void> {
+  if (listing.status === "unreadable") throw new ArcError(`${listing.condition} ${listing.remedy.text}`, "store.lifecycle-unreadable");
+  if (listing.status !== "complete" || (!listing.missed && listing.diagnostics.length === 0)) return;
+  const omissions = store.capabilities.stateOffBranch
+    ? listing.diagnostics.map(() => false)
+    : await Promise.all(listing.diagnostics.map((item) => placementOmission(store, version, item)));
+  const diagnostics = listing.diagnostics.filter((_, index) => !omissions[index]);
+  // A missed signal without any diagnostic has no established omission basis.
+  if (diagnostics.length === 0 && listing.diagnostics.length > 0) return;
+  const evidence = diagnostics.map((item) => `${item.condition} ${item.remedy.text}`).join("; ")
+    || "Lifecycle inventory reports missed records. Repair the missed lifecycle records, then retry the snapshot.";
+  throw new ArcError(evidence, "store.lifecycle-incomplete", { cause: diagnostics });
+}
+async function placementOmission(store: Store, version: StateVersion, diagnostic: ListingDiagnostic): Promise<boolean> {
+  if (diagnostic.kind !== "malformed" || !diagnostic.key.startsWith(".arc/")) return false;
+  const name = SlugSchema.safeParse(/^meta-(.+)\.md$/u.exec(basename(diagnostic.key))?.[1]);
+  if (!name.success) return false;
+  const reference = RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: name.data } });
+  const read = await store.read({ reference, asOf: version });
+  return read.status === "refused" && read.refusal.code === "record-malformed" && read.refusal.rule === "placement";
 }
 function unwrap<T>(value: StoreResult<T>): T {
   if (value.status === "ok") return value.result;
