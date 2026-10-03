@@ -2,7 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import {
-  ConflictRecordSchema, LinksSchema, RecordReferenceSchema, familyOf, type BatchInput, type BatchResult, type ConflictRecord, type Mutation, type ReadPlacement,
+  ConflictRecordSchema, LinksSchema, ReadPlacementSchema, RecordReferenceSchema, familyOf, sameOwner, type BatchInput, type BatchResult, type ConflictRecord, type Mutation, type ReadPlacement,
   type StoreRefusal, type StoreResult, type WriteInput, type WriteResult, type OwnerIdentity, sameReference,
 } from "../../../src/lib/store/index.js";
 import { ArchiveSequenceSchema } from "../../../src/lib/kernel/index.js";
@@ -162,6 +162,28 @@ function land(context: ReferenceContext, write: WriteInput, batchId?: string): W
   return { reference, ...(write.action === "remove" ? {} : { version: allocated.version }), conflicts: storedConflicts };
 }
 
+function validatePlacement(context: ReferenceContext, since: number): StoreRefusal | undefined {
+  for (const record of context.state.records.values()) {
+    if (record.reference.owner.type !== "work-item" || !["work-item", "review"].includes(familyOf(record.reference.kind))
+      || primary({ action: "remove", reference: record.reference, expected: record.version }) || record.reference.kind.endsWith("/conflict-record")) continue;
+    const ownerPrimary = [...context.state.records.values()].find((candidate) => sameOwner(candidate.reference.owner, record.reference.owner)
+      && ["work-item/meta", "work-item/record"].includes(candidate.reference.kind));
+    const selected = ownerPrimary?.placement ?? record.placement;
+    if (!ReadPlacementSchema.safeParse(selected).success) return {
+      ...malformed(record.reference, "This companion has no primary or retained placement."),
+      remedy: { text: "Create its work-item primary with placement, separately or in the same atomic batch, then retry the companion write." },
+    };
+    record.placement = structuredClone(selected);
+    // A companion-first batch has already saved its event snapshot before the primary lands.
+    for (const [version, snapshot] of context.state.snapshots) {
+      if (Number(version.slice("state:".length)) <= since) continue;
+      const saved = snapshot.get(recordKey(record.reference));
+      if (saved && saved.placement === undefined) saved.placement = structuredClone(selected);
+    }
+  }
+  return undefined;
+}
+
 /** Land one validated version-checked mutation in the shared local namespace.
  * @param context - State, registry, identity and clock.
  * @param write - Complete caller write with provenance.
@@ -174,6 +196,8 @@ export function writeReference(context: ReferenceContext, write: WriteInput): St
   if (refusal) return refused(refusal);
   if (stale(prepared, mutation)) return refused(versionConflict([write.reference]));
   const result = land(prepared, mutation);
+  const placementRefusal = validatePlacement(prepared, context.state.counter);
+  if (placementRefusal) return refused(placementRefusal);
   const identities = indexIdentities(prepared.state.records);
   if (identities.status === "refused") return identities;
   prepared.state.identities = identities.result;
@@ -203,6 +227,8 @@ export function batchReference(context: ReferenceContext, input: BatchInput): St
   if (conflicts.length > 0) return refused(versionConflict(conflicts));
   const batchId = randomUUID();
   const results = mutations.map((write) => land(prepared, write, batchId));
+  const placementRefusal = validatePlacement(prepared, context.state.counter);
+  if (placementRefusal) return refused(placementRefusal);
   const identities = indexIdentities(prepared.state.records);
   if (identities.status === "refused") return identities;
   prepared.state.identities = identities.result;
