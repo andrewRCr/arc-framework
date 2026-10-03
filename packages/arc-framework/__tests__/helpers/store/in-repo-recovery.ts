@@ -78,9 +78,11 @@ async function unsupported(fixture: ConformanceFixture, exec: GitExec, repairs: 
   }
   if (caseId === "unsupported:uncovered-state-version") {
     const asOf = await fixture.settle();
+    const sourceBranch = (await exec("git", ["branch", "--show-current"])).stdout.trim();
     await exec("git", ["checkout", "-b", "feat/work-item-one"]);
     const record = await seed(fixture, fixture.reference("work-item/meta"));
     await fixture.settle();
+    await exec("git", ["checkout", sourceBranch]);
     let own = false;
     repairs.set(caseId, async () => { own = true; });
     return { run: async () => {
