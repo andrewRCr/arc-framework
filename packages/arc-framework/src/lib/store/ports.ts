@@ -13,7 +13,7 @@ export interface StoreDirectoryEntry {
 export interface StoreFileAccess {
   readFile(path: string): Promise<string>;
   readdir(path: string): Promise<StoreDirectoryEntry[]>;
-  lstat(path: string): Promise<{ isFile(): boolean; isDirectory(): boolean; isSymbolicLink(): boolean }>;
+  lstat(path: string): Promise<{ size: number; isFile(): boolean; isDirectory(): boolean; isSymbolicLink(): boolean }>;
   mkdir(path: string, options: { recursive: boolean }): Promise<unknown>;
   writeFile(path: string, content: string): Promise<void>;
   exclusiveCreate(path: string, content: string): Promise<void>;

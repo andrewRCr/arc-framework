@@ -41,7 +41,10 @@ async function notesDirectory(context: InRepoContext, root: string): Promise<Dir
       const path = join(directory, entry.name);
       const name = prefix === "" ? entry.name : `${prefix}/${entry.name}`;
       if (entry.isDirectory()) await walk(path, name);
-      else if (entry.isFile()) result.push({ name, size: Buffer.byteLength(await context.ports.fs.readFile(path)) });
+      else if (entry.isFile()) {
+        const stat = await context.ports.fs.lstat(path);
+        if (stat.isFile()) result.push({ name, size: stat.size });
+      }
     }
   };
   await walk(root, "");
