@@ -127,58 +127,66 @@ judgments and every binding obligation retained.
 
 _Purpose:_ Validate the completed implementation against the specification and prepare the work unit for integration.
 
-### `[ ]` **3.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **3.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Goal:_ The complete implemented reader contract has source-grounded Success Criteria dispositions and passing
   required quality gates.
+
+- _Quality gates:_ Full Markdown lint, the three ARC audits, TypeScript and shell lint, both type checks, and the
+  full build passed. All 98 framework-contract tests passed; the routine suite reported 13,260 passed and two skipped.
+  An isolated missing-guidance negative control failed as intended and passed after restoration. E2E and portability
+  remain required CI checks before merge.
+- _Success criteria:_ All 16 met, none superseded. Fresh criteria Pass 1 found a major amendment-review timing gap;
+  its approved correction was committed and fresh full Pass 2 returned no findings. The locus/digest report and
+  verification limits are recorded in `notes-spec-reader-standard.md` § Work-unit verification.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` The exact nine source surfaces and matching projections implement the specification's seven decisions;
+- `[x]` The exact nine source surfaces and matching projections implement the specification's seven decisions;
   each template has a concise form-appropriate prompt, and the shared method owns the complete paired checks.
 
-- `[ ]` Every required writer operation declares and directly invokes the shared review at the specified boundary,
+- `[x]` Every required writer operation declares and directly invokes the shared review at the specified boundary,
   including task-generation corrections, decomposition destinations, retained extraction source, and amendments.
 
-- `[ ]` Either selected review slice retains reader independence and binding completeness; affected surrounding
+- `[x]` Either selected review slice retains reader independence and binding completeness; affected surrounding
   obligations and definitions are included without automatically reviewing unrelated content.
 
-- `[ ]` Draft retirement absorbs binding requirements and decisions into the specification, migrates only
+- `[x]` Draft retirement absorbs binding requirements and decisions into the specification, migrates only
   supplemental context, and routes missing binding design back through review before deletion or migration.
 
-- `[ ]` A sibling name, register row, or foreign specification supplying scope or an interface obligation is
+- `[x]` A sibling name, register row, or foreign specification supplying scope or an interface obligation is
   rejected in favor of explicit behavior and preconditions.
 
-- `[ ]` A conflict policy supplied only by notes is rejected; its policy and decisive rationale remain in the
+- `[x]` A conflict policy supplied only by notes is rejected; its policy and decisive rationale remain in the
   specification while tasks may reference supplemental implementation context.
 
-- `[ ]` Technical identifiers and internal references remain usable, and removing provenance retains failure
+- `[x]` Technical identifiers and internal references remain usable, and removing provenance retains failure
   cases, invariants, and acceptance conditions.
 
-- `[ ]` Header tracking, amendment anchors, and an accessible sanctioned PRD/RFC pair retain their permitted roles;
+- `[x]` Header tracking, amendment anchors, and an accessible sanctioned PRD/RFC pair retain their permitted roles;
   the thesis and binding delta stand without tracking anchors, and an unavailable companion cannot supply context.
 
-- `[ ]` An unshipped prerequisite is defined as an expected contract, and an ARC artifact used as subject matter is
+- `[x]` An unshipped prerequisite is defined as an expected contract, and an ARC artifact used as subject matter is
   permitted with its definition.
 
-- `[ ]` New member specs, task-generation corrections, and grounding-only low-depth amendments receive the common
+- `[x]` New member specs, task-generation corrections, and grounding-only low-depth amendments receive the common
   checks over the required scope before their existing approval/release boundaries.
 
-- `[ ]` Extraction cannot remove a definition needed by retained design unnoticed: the prospective retained contract
+- `[x]` Extraction cannot remove a definition needed by retained design unnoticed: the prospective retained contract
   and exact finish preview receive review before distribution approval and apply respectively; a destination spec
   cannot supply missing authority, and later unchanged bytes require no repeated review.
 
-- `[ ]` Task-list coverage, Success Criteria validation, metadata, amendment records, supplemental task context,
+- `[x]` Task-list coverage, Success Criteria validation, metadata, amendment records, supplemental task context,
   depth selection, and native lifecycle/approval controls retain their specified behavior.
 
-- `[ ]` The implementation remains prospective and within the nine-source surface, with no historical retrofit,
+- `[x]` The implementation remains prospective and within the nine-source surface, with no historical retrofit,
   always-loaded change, checker, new configuration, CLI behavior, interlock, review method, or evaluation framework.
 
-- `[ ]` Verification reports distinguish document integrity and intended case judgments from unmeasured runtime
+- `[x]` Verification reports distinguish document integrity and intended case judgments from unmeasured runtime
   adherence, with no claimed measured improvement in executing-agent reliability.
 
-- `[ ]` All quality gates pass.
+- `[x]` All quality gates pass.
 
-- `[ ]` Ready for integration.
+- `[x]` Ready for integration.
