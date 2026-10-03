@@ -121,6 +121,7 @@ async function installHost(root: string): Promise<string> {
     'case "$1:$2" in',
     '  api:user) printf \'%s\\n\' \'{"id":123}\' ;;',
     `  api:repos/${REPOSITORY}/issues/${String(PULL_REQUEST)}/comments)`,
+    '    if test "$6" = "body=@coderabbitai full review"; then echo "HTTP 429 rate limited" >&2; exit 1; fi',
     '    test "$6" = "body=@codex review" || exit 1',
     `    printf '%s\\n' '{"node_id":"request-comment","html_url":"https://example.test/request","user":{"id":123},"body":"@codex review","created_at":"2026-10-03T00:00:00Z","updated_at":"2026-10-03T00:00:00Z"}' ;;`,
     `  api:repos/${REPOSITORY}/issues/${String(PULL_REQUEST)}/comments\\?*)`,
@@ -252,7 +253,7 @@ describe("review status over a base advanced under the work unit", () => {
 });
 
 describe("singleton hosted review after publication", () => {
-  it.each([undefined, "codex-pr" as const])("admits the selected singleton source (%s)", async (sourceId) => {
+  it.each([undefined, "codex-pr", "coderabbit-pr"] as const)("admits selected source %s", async (sourceId) => {
     const fixture = await singletonUnderReview();
     const reviewed = await runHandlerAt(fixture.root, async () => {
       await handleReviewPrePublication(WORK_UNIT, { selfReview: "settled" }, {}, machineContext());
@@ -312,6 +313,20 @@ describe("singleton hosted review after publication", () => {
     expect(status.action).not.toHaveProperty("vehicle");
 
     if (sourceId !== undefined) {
+      if (sourceId === "coderabbit-pr") {
+        const initial = await withHost(fixture.bin, async () => resolveReviewStatus({
+          target: { repository: REPOSITORY, headRef: HEAD_REF, headSha: fixture.headSha },
+          sourceId,
+        }, createReviewStatusPort({ cwd: fixture.root, exec: makeGitExec(fixture.root) })));
+        if (initial.nextAction !== "review-hosted-request") throw new Error("expected initial hosted request");
+        const unavailable = await withHost(fixture.bin, async () => runHandlerAt(fixture.root, async () => {
+          await handleReviewHostedRequest("-", { readText: async () => JSON.stringify(initial.action) });
+        }));
+        expect(unavailable.exitCode, unavailable.stdout + unavailable.stderr).toBe(0);
+        expect(JSON.parse(unavailable.stdout)).toMatchObject({
+          state: "rate-limited", nextAction: "try-next-source", provider: "coderabbit-pr",
+        });
+      }
       const selected = await withHost(fixture.bin, async () => resolveReviewStatus({
         target: { repository: REPOSITORY, headRef: HEAD_REF, headSha: fixture.headSha },
         sourceId,
@@ -345,10 +360,12 @@ describe("singleton hosted review after publication", () => {
         },
       });
       if (request.nextAction !== "await") throw new Error("expected selected hosted handle");
-      const competing = await withHost(fixture.bin, async () => runHandlerAt(fixture.root, async () => {
-        await handleReviewHostedRequest("-", { readText: async () => JSON.stringify(status.action) });
-      }));
-      expect(JSON.parse(competing.stdout)).toMatchObject({ state: "ambiguous-delivery", nextAction: "stop" });
+      if (sourceId === "codex-pr") {
+        const competing = await withHost(fixture.bin, async () => runHandlerAt(fixture.root, async () => {
+          await handleReviewHostedRequest("-", { readText: async () => JSON.stringify(status.action) });
+        }));
+        expect(JSON.parse(competing.stdout)).toMatchObject({ state: "ambiguous-delivery", nextAction: "stop" });
+      }
       await writeFile(join(fixture.root, ".arc-fixture", "codex-result.json"), JSON.stringify([[{
         node_id: "codex-clean",
         html_url: "https://example.test/codex-clean",

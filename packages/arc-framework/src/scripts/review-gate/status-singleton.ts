@@ -98,15 +98,16 @@ async function resolveSingletonRequest(
       input.readDischarge.confirmIncrementalApplicability(dischargeInput, predecessor, current)
     ),
   });
+  const sourceId = admission.state === "ready" ? admission.payload.sourceId : discharge.nextSource;
   return {
     target: input.target,
     admission,
-    sourceId: admission.state === "ready" ? admission.payload.sourceId : discharge.nextSource,
+    sourceId,
     coverage: input.judgment?.coverage ?? discharge.requestCoverage ?? "complete",
     correctionScope: discharge.correctionScope,
     ceilingOverride: input.judgment?.ceilingOverride,
     additionalPassAuthorization: input.judgment?.additionalPassAuthorization,
     ...(input.judgment?.sourceId === undefined ? {}
-      : { invocation: { mode: "force", sourceId: input.judgment.sourceId } }),
+      : { invocation: { mode: "force", sourceId } }),
   };
 }
