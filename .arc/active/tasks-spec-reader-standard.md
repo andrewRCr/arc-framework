@@ -113,22 +113,15 @@ judgments and every binding obligation retained.
   footprints, removals, and affected obligations at every depth, including grounding-only low review and the
   post-settle coherence slice. The existing arms, assurance rubric, declaration, and approval/capture flow remain.
 
-### `[ ]` **2.5 Validate the complete guidance and projection surface — Decisions 1–7**
+### `[x]` **2.5 Validate the complete guidance and projection surface — Decisions 1–7**
 
 - _Goal:_ The shipped guidance and project projections agree on the reader contract and all required fire points,
   with intended judgments verified without claiming measured agent adherence.
 
-    - Confirm the exact nine-source inventory and matching projections, including the task-generation template's
-      rendered filename. Use targeted propagation that preserves the configurable method's project override.
-    - Inspect every required caller declaration and executable fire point; declaration reachability alone cannot
-      establish body invocation. Confirm affected-footprint scope, prospective eligibility, retained-source review,
-      unchanged-byte handling, and existing depth/approval boundaries.
-    - Walk all eight representative cases from the specification against the completed method, authoring prompts,
-      and applicable caller instructions, recording the actual rule/operation supporting each intended judgment.
-    - Confirm the retirement audit keeps binding design in the specification, task-local supplemental context
-      remains usable, and no always-loaded guidance, checker, configuration, CLI behavior, or interlock was added.
-    - Run Markdown lint plus the ARC method-trigger, domain-rule, and section-reference checks. Report artifact
-      integrity and the case judgments separately from unverified runtime adherence.
+- _Outcome:_ Validated the exact nine shipped sources and matching projections, preserved override and approval
+  surfaces, and direct invocation at every required writer operation. Traced all eight case judgments to the
+  completed rules and recorded them in `notes-spec-reader-standard.md` § Complete guidance validation, separately
+  from unmeasured runtime adherence; the implementation stays prospective and within the declared guidance surface.
 
 ## **Phase 3:** Verification
 

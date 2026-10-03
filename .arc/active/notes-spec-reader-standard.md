@@ -43,3 +43,48 @@ The `meta_project_refs` pipeline in `packages/arc-framework/arc/system/.internal
 `.arc/`, package ARC content, and Markdown. Its code-reference rules reject identifiers and citations that are
 useful in specifications. It is not an existing semantic specification check to compose with, and a token scan
 cannot prove reader independence or binding completeness.
+
+## Complete guidance validation
+
+All nine authoritative sources are unconditional `init-recipe.json` inclusions and match their project projections
+byte-for-byte, including `generate-tasks.template.md` rendered as `generate-tasks.md`. The configurable method's
+override body and nested `source-grounding` declaration remain intact. All four writers declare `spec-review`;
+direct invocations cover complete new sets, every required correction operation, retained extraction contracts,
+and grounding-only amendment review. Existing approval/interlock callouts are unchanged.
+
+The eight representative cases were walked against the completed instructions:
+
+1. **Planning ownership supplies scope or an interface:** rejected by `spec-review.md` § Common reader checks.
+   The replacement must state the behavior, required interface, and precondition; a sibling name, register row,
+   or foreign specification cannot supply that meaning. All four template prompts retain the required substance.
+2. **Notes supply the sole conflict policy:** rejected by the binding-completeness check. Policy and decisive
+   rationale stay in the specification; `create-spec.md` § Finalize absorbs missing binding content before draft
+   retirement. Supplemental task-context pointers remain usable for otherwise non-binding execution context.
+3. **Precise identifiers and provenance removal:** identifiers, schema fields, symbols, examples, and internal
+   references remain permitted by § Reference boundaries. The completeness check retains failure cases,
+   invariants, preconditions, and acceptance conditions when planning dependence is replaced.
+4. **Header tracking and amendment anchors:** permitted for tracking by § Reference boundaries, while the thesis
+   and binding delta must stand independently. Template headers, boundary carriers, and amendment locators remain
+   unchanged; `amend-design.md` reviews the binding footprint and affected contract at every depth.
+5. **Complementary PRD/RFC context:** an accessible pair by distinct product and engineering authors is accepted
+   as one set with its existing content division; an unavailable companion supplies no authority. The detailed
+   prompts and `create-spec.md` full-set invocation apply this boundary without changing paired-mode scaffolding.
+6. **Unshipped prerequisite or ARC subject matter:** an expected prerequisite contract with its availability
+   condition is accepted, rather than a claim of shipped behavior. ARC terms and artifacts used as actual subject
+   matter remain valid when their required meaning is established or locally defined, under § Reference boundaries.
+7. **Destination, task-generation, and low-depth amendment writes:** the shared checks are reached before the
+   existing boundaries. `decompose-work-unit.md` § Author every reported destination includes copied member specs;
+   `generate-tasks.template.md` invokes review after proportionality, boundary, propagation, and suite-coherence
+   writes; `amend-design.md` § Depth and rigor retains both checks in grounding-only calls and post-settle rereads.
+8. **Extraction transfers a definition needed by a retained requirement:** rejected by retained-contract review
+   before distribution approval and exact-preview review before apply in `decompose-work-unit.md`. Removed units
+   and destination specs cannot supply missing retained authority. Later substantive source edits receive scoped
+   review before finish release; unchanged bytes and task/pointer-only reconciliation skip repeated spec review.
+
+Markdown lint, the method-trigger/domain-rule/section-reference audits, and the framework-contract test suite passed.
+The changed guidance inventory is exactly the nine sources and nine projections; work-unit notes and task records
+carry completion evidence. Work-unit Success Criteria remain unchanged for terminal verification. No always-loaded
+guidance, configuration, CLI behavior, detector, review method, or interlock was added.
+
+These results establish artifact integrity and the judgments directed by the completed guidance. They do not measure
+executing-agent adherence or demonstrate a measured improvement in reliability.
