@@ -104,16 +104,14 @@ judgments and every binding obligation retained.
           to the owner decision. Exact authority, reconciliation, and finish controls remain, with unchanged bytes
           and task/pointer-only edits requiring no repeated specification review.
 
-### `[ ]` **2.4 Retain the reader checks at every amendment depth — Decisions 1–4, 7**
+### `[x]` **2.4 Retain the reader checks at every amendment depth — Decisions 1–4, 7**
 
 - _Goal:_ Every eligible binding amendment remains understandable and complete, including determinate corrections
   whose existing review uses only the grounding slice.
 
-    - Update `packages/arc-framework/arc/system/workflows/arc/supplemental/amend-design.md` and its `.arc/`
-      counterpart. Explicitly invoke the common checks on the amendment footprint and affected surrounding contract
-      at every depth, including low-depth grounding-only review and the post-settle coherence reread.
-    - Preserve amendment arms, locators, depth-selected remaining reviews, the assurance rubric, and native
-      approval/capture behavior. Keep the existing direct method declaration and prospective specification scope.
+- _Outcome:_ Both amendment projections explicitly retain the common reader checks over eligible amendment
+  footprints, removals, and affected obligations at every depth, including grounding-only low review and the
+  post-settle coherence slice. The existing arms, assurance rubric, declaration, and approval/capture flow remain.
 
 ### `[ ]` **2.5 Validate the complete guidance and projection surface — Decisions 1–7**
 

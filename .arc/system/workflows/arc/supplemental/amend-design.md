@@ -134,7 +134,10 @@ Run [`resolve-planning-depth`][resolve-planning-depth] over the finding and the 
 take the level it returns. The work unit's `Class` does not govern here.
 
 At every depth, `low` included, run [`spec-review`][spec-review]'s grounding slice over the affected spec elements.
-At `medium` / `high`, run it beside the coherence slice below.
+For specifications authored under the reader standard, apply both common reader-independence and binding-completeness
+checks even when grounding is the only selected slice. Cover the amendment footprint, including removals and affected
+surrounding obligations and definitions, without expanding to unrelated content. At `medium` / `high`, retain the
+coherence slice below alongside grounding; existing specifications require no retrofit.
 
 - **`low`** — a determinate correction. The Owner's approval at the existing stop is the gate and no adversarial
   pass runs. Run [`task-audit`][task-audit] at grounding-only depth over the revision tasks.
@@ -163,8 +166,10 @@ work unit's `ADVERSARIAL-PASSES.md` through `adversarial-review`'s `prior-findin
 never re-attacked. Append the amendment's pass to that record following [adversarial-review § Pass
 record][pass-record], as the planning passes do. Closure re-runs the detecting check (§ Closure).
 
-**Post-settle coherence re-read** (always-on, in-context): when its pass folded anything, re-read the amended
-footprint for coherence as the last step before the amendment lands, on every arm.
+**Post-settle coherence re-read** (always-on, in-context): when its pass folded anything, re-fire
+[`spec-review`][spec-review]'s coherence slice over the amended footprint as the last step before the amendment
+lands, on every arm. For eligible specifications, retain both common reader checks and the affected surrounding
+contract at this reread, without expanding to unrelated content.
 
 ### The accretion guard
 
