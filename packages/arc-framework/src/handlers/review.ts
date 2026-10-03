@@ -1,5 +1,7 @@
 /** Machine-readable review workflow handlers. */
 
+import { createCandidateResponseHeadContinuationReader } from
+  "../scripts/review-gate/runtime/candidate-response-head-continuation.js";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { z, ZodError, type ZodType } from "zod";
@@ -2651,6 +2653,9 @@ function defaultFrontlineResolveDependencies(context: InteractionContext): Revie
           10_000,
           action,
         ),
+        confirmResponseHeadContinuation: createCandidateResponseHeadContinuationReader({
+          cwd: root, exec, dispositionStore, operationStore,
+        }),
         confirmDispositionSetCurrent: (producerId, dispositionSetId) => confirmCurrentDispositionSet(
           dispositionStore,
           producerId,
@@ -3794,6 +3799,9 @@ async function executeDefaultHostedRequest(
                   });
                   if (reservation === "collision") throw new HostedRequestOwnerCollision();
                 },
+                confirmResponseHeadContinuation: createCandidateResponseHeadContinuationReader({
+                  cwd: root, exec, dispositionStore, operationStore: context.store,
+                }),
                 confirmDispositionSetCurrent: (producerId, dispositionSetId) => confirmCurrentDispositionSet(
                   dispositionStore,
                   producerId,
@@ -3983,15 +3991,49 @@ export function hostedFixSettlementPerformed(input: {
   dispositionSetId: string;
   producedHeadSha: string | undefined;
   responsePerformance: LaneResponsePerformance | undefined;
+  confirmedContinuation?: { fromHeadSha: string; toHeadSha: string };
 }): boolean {
   const performance = input.responsePerformance;
   if (performance?.dispositionSetId !== input.dispositionSetId) return false;
   if (performance.producerId !== input.attemptId
     || performance.originatingHeadSha !== input.originatingHeadSha
-    || performance.producedHeadSha !== input.producedHeadSha) {
+    || (performance.producedHeadSha !== input.producedHeadSha
+      && (input.confirmedContinuation?.fromHeadSha !== performance.producedHeadSha
+        || input.confirmedContinuation.toHeadSha !== input.producedHeadSha))) {
     throw new Error("Hosted fix settlement requires matching durable response-performance evidence.");
   }
   return true;
+}
+
+async function hostedSettlementHeadContinuation(input: {
+  attempt: LaneProgressState["attempts"][number];
+  repositoryId: string;
+  lineage: LaneSubjectLineage;
+  requestedHeadSha: string | undefined;
+  confirmResponseHeadContinuation: import("../scripts/review-gate/core/response-head-continuation.js").ConfirmResponseHeadContinuation;
+}): Promise<{ fromHeadSha: string; toHeadSha: string } | undefined> {
+  const performance = input.attempt.responsePerformance;
+  if (performance === undefined || input.requestedHeadSha === undefined
+    || performance.producedHeadSha === input.requestedHeadSha) return undefined;
+  const confirmed = await input.confirmResponseHeadContinuation({
+    repositoryId: input.repositoryId, lineage: input.lineage, producerId: input.attempt.attemptId,
+    dispositionSetId: performance.dispositionSetId, originatingHeadSha: input.attempt.headSha,
+    fromHeadSha: performance.producedHeadSha, toHeadSha: input.requestedHeadSha,
+  });
+  return confirmed ? { fromHeadSha: performance.producedHeadSha, toHeadSha: input.requestedHeadSha } : undefined;
+}
+
+async function readHostedSettlementAttempt(
+  store: LocalReviewOperationStateStore,
+  reference: { operationId: string; durableRef: string },
+): Promise<{ state: LaneProgressState; attempt: LaneProgressState["attempts"][number] }> {
+  const { state } = await store.readOperation(reference.operationId);
+  if (state?.kind !== "lane-progress" || state.lane !== "standard") {
+    throw new Error("Hosted settlement requires a persisted standard-lane operation.");
+  }
+  const attempt = state.attempts.find(({ attemptId }) => attemptId === reference.durableRef);
+  if (attempt === undefined) throw new Error(`Hosted settlement attempt is unavailable: ${reference.durableRef}`);
+  return { state, attempt };
 }
 
 function defaultHostedSettleDependencies(context: InteractionContext): ReviewHostedSettleHandlerDependencies {
@@ -4006,37 +4048,20 @@ function defaultHostedSettleDependencies(context: InteractionContext): ReviewHos
       const request = HostedSettleEnvelopeSchema.parse(input);
       const reference = parseReviewSourceReference(request.response.attemptRef, "hosted");
       const operationStore = new LocalReviewOperationStateStore(publisher);
-      const initial = await operationStore.readOperation(reference.operationId);
-      if (initial.state?.kind !== "lane-progress" || initial.state.lane !== "standard") {
-        throw new Error("Hosted settlement requires a persisted standard-lane operation.");
-      }
-      const initialAttempt = initial.state.attempts
-        .find(({ attemptId }) => attemptId === reference.durableRef);
-      if (initialAttempt === undefined) {
-        throw new Error(`Hosted settlement attempt is unavailable: ${reference.durableRef}`);
-      }
+      const { state: initial, attempt: initialAttempt } = await readHostedSettlementAttempt(operationStore, reference);
       return withRepositoryReviewOperationLock(
         exec,
         root,
         laneContinuationOperationId({
           lane: "standard",
-          repositoryId: initial.state.repositoryId,
+          repositoryId: initial.repositoryId,
           headSha: initialAttempt.headSha,
-          lineage: initial.state.lineage,
+          lineage: initial.lineage,
         }),
         10_000,
         async () => {
-          const persisted = await operationStore.readOperation(reference.operationId);
-          const attempt = persisted.state?.kind === "lane-progress"
-            ? persisted.state.attempts.find(({ attemptId }) => attemptId === reference.durableRef)
-            : undefined;
-          const hosted = attempt?.hosted;
-          if (persisted.state?.kind !== "lane-progress" || persisted.state.lane !== "standard") {
-            throw new Error("Hosted settlement requires a persisted standard-lane operation.");
-          }
-          if (attempt === undefined) {
-            throw new Error(`Hosted settlement attempt is unavailable: ${reference.durableRef}`);
-          }
+          const { state: persisted, attempt } = await readHostedSettlementAttempt(operationStore, reference);
+          const hosted = attempt.hosted;
           if (hosted === undefined) {
             throw new Error(`Hosted settlement attempt has no hosted binding: ${reference.durableRef}`);
           }
@@ -4044,8 +4069,11 @@ function defaultHostedSettleDependencies(context: InteractionContext): ReviewHos
           if (bindingMismatch !== null) {
             throw new Error(`Hosted settlement does not match its approved findings attempt: ${bindingMismatch}.`);
           }
-          const dispositionRecord = await new LocalApprovedDispositionRecordStore(publisher)
-            .readDispositionRecord(attempt.attemptId);
+          const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
+          const dispositionRecord = await dispositionStore.readDispositionRecord(attempt.attemptId);
+          const confirmResponseHeadContinuation = createCandidateResponseHeadContinuationReader({
+            cwd: root, exec, dispositionStore, operationStore,
+          });
           const currentDisposition = dispositionRecord === null
             ? null
             : currentApprovedDispositionNode(dispositionRecord).approvedDisposition;
@@ -4055,12 +4083,18 @@ function defaultHostedSettleDependencies(context: InteractionContext): ReviewHos
             || disposition?.disposition !== request.disposition) {
             throw new Error("Hosted settlement does not match its approved disposition.");
           }
+          const confirmedContinuation = disposition.disposition === "fix"
+            ? await hostedSettlementHeadContinuation({
+              attempt, repositoryId: persisted.repositoryId, lineage: persisted.lineage,
+              requestedHeadSha: request.fixTarget?.headSha, confirmResponseHeadContinuation,
+            }) : undefined;
           if (disposition.disposition === "fix" && !hostedFixSettlementPerformed({
             attemptId: attempt.attemptId,
             originatingHeadSha: attempt.headSha,
             dispositionSetId: request.response.dispositionSetId,
             producedHeadSha: request.fixTarget?.headSha,
             responsePerformance: attempt.responsePerformance,
+            confirmedContinuation,
           })) {
             return hostedFixNotPerformedResult(request);
           }
@@ -4082,6 +4116,7 @@ function defaultHostedSettleDependencies(context: InteractionContext): ReviewHos
                 body: request.reply,
               }),
               replyId: result.replyId,
+              confirmResponseHeadContinuation,
               now: new Date().toISOString(),
             });
           }
