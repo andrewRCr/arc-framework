@@ -26,6 +26,23 @@
   through recorded rename transitions. Treat any implementation as a downstream cut after this WU settles the
   identity boundary.
 
+### `[ ]` **Build the external-PM model on the storage contract's work-item base**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- _WU_Target:_ `external-pm-composition`
+
+- _Observation:_ `spec-storage-contract.md` gives work units and Errands one base — identity as a slug plus a UID,
+  owner, type, lifecycle location, origin, and links (branch, change request, landing commit, task captures) — that
+  everything spanning types reads exclusively, and leaves how an external tracker's items compose with work items to
+  this design.
+
+- _Approach:_ decide the model on top: further types, how an external tracker's item maps (perhaps a type carrying
+  only the base plus its binding), and the base's field vocabulary and the type field's name before public release.
+  This also answers the inbound item asking for a durable work-unit identifier: a random UID beside the slug.
+
+- _Captured during:_ `storage-contract` create-spec, 2026-09-30.
+
 ## Planning Continuity
 
 - **Readiness:** rough

@@ -133,6 +133,48 @@
 
 - _Captured during:_ `delivery-post-landing-conflict-recovery` integration, 2026-09-19.
 
+### `[ ]` **Re-base the shared-inbox model on the storage contract's inbox and Errand decisions**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- _WU_Target:_ `shared-inbox-model`
+
+- _Observation:_ `spec-storage-contract.md` changes premises the draft rests on:
+    - `INBOX.USER` is personal — fetched and projected only for its person — but not private: anyone who can read the
+      state host can read it. "User-relative", not "private".
+    - Entry merge on the project inbox's own ref removes the merge-conflict reason for "the drain is the sole
+      promotion point", so that rule stands or falls on its own merits; the interim base-branch serialization and the
+      event-log idea are superseded, and the `arc-backend` wording is stale.
+    - The "Errand adoption from `INBOX.PROJECT`" build scope is settled: an Errand's origin names the inbox and the
+      entry ID; starting an Errand moves its entry into the Errand's description; one live Errand per entry, the later
+      of two starts yielding; abandon returns it to the inbox it came from; and each person's Errand queue — entry IDs
+      from either inbox, replacing the execute-bound marks and their file order — orders what they run next and claims
+      nothing. The cited `record.ts` v1 and `runUserInboxRemove` are gone.
+    - A started Errand that stalls holds its entry, and only its owner can abandon it. Prior art pairs every claim with
+      an inactivity signal and a takeover after notice (Zulip's contributor guide: ask, wait two to three days, then
+      take it over). Decide what the in-flight view shows of an Errand's last activity, and whether a teammate may take
+      over or return a stalled Errand after notice; the owner is one field, so either is a field write. The spec
+      records this as left to this design, an exception to its rule that another person's work items are read-only.
+    - "Queued" now names the Errand queue: from the flip `arc errand queue` and `arc errand queue set` replace the
+      execute-bound marks, and the drain calls those entries queued. The draft's proposed `_Hold:_` → `_Queued:_`
+      rename for the retained set would give one word two states; pick another word for the retain flag, or keep
+      `_Hold:_`.
+    - Inbox entries carry a `[ ]` checkbox nothing ever checks: an entry leaves its inbox when done, and the record
+      holds an Errand's state. Consider retiring the checkbox from the entry format.
+    - Both inboxes always project, empty or not.
+
+- _Approach:_ the model stays here — dispositions, the retention line, writer classes, consumption wiring, how a
+  session and its person agree the Errand queue and how the next Errand is offered from it, and the `INBOX.USER` /
+  `INBOX.PROJECT` naming with `naming-conventions`. Re-test "solo ≡ team" against the evidence: with promotion banned,
+  13 of 19 `USER-INBOX § Errand` entries sat held (oldest 2026-09-07), a project inbox living in the triage buffer;
+  `storage-contract`'s recommendation is to keep the project inbox, with no presence toggle. Also fix the shipped
+  prose left from the single-inbox era: `strategy-team-coordination.md` (:61, :210), `user/README.md`,
+  `template-pull-request.md`, and `AGENT-BRIEF.CONTRIBUTOR.md` call `ATOMIC-INBOX` personal and gitignored, against
+  `strategy-planning-module.md:37`; and `process-task-loop.template.md:382` ticks finished entries where
+  `strategy-planning-module.md:138` deletes them.
+
+- _Captured during:_ `storage-contract` create-spec, 2026-09-30.
+
 ## Problem / Motivation
 
 The core invariant — _no item with a known home may rest in a capture surface_ — is enforced at **write-time**
