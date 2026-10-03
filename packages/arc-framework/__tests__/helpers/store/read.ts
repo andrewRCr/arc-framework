@@ -6,7 +6,7 @@ import {
   type StateVersion, type StoreRecord, type StoreResult,
 } from "../../../src/lib/store/index.js";
 import type { ReferenceContext } from "./context.js";
-import { canonicalReference, currentStateVersion, ownerNameKey, recordKey, savedReference, type MemoryRecord } from "./model.js";
+import { canonicalReference, currentStateVersion, ownerNameKey, recordKey, savedReference, type MemoryRecord, type MemoryEvent } from "./model.js";
 import { malformed, missingRecord, namespaceAdmission, ok, recordAdmission, refused } from "./refusals.js";
 
 function recordsAt(context: ReferenceContext, asOf?: StateVersion): Map<string, MemoryRecord> {
@@ -112,7 +112,7 @@ export function listReference(context: ReferenceContext, input: ListInput): Stor
 export function historyReference(context: ReferenceContext, reference: RecordReference): HistoryEntry[] {
   const key = recordKey(canonicalReference(context.state, reference));
   return context.state.events.filter((event) => recordKey(event.reference) === key).reverse()
-    .map((event) => ({ reference: event.reference, version: event.version ?? null, provenance: event.provenance }));
+    .map((event) => historyEntry(context,event));
 }
 
 /** Read bounded changes by equality against saved-state anchors, never whole-store freshness.
@@ -130,5 +130,12 @@ export function changesReference(context: ReferenceContext, input: ChangesInput)
   return context.state.events.filter((event) => included.has(event.stateVersion)
     && (context.environment.identity !== undefined || FAMILY_REGISTRY[familyOf(event.reference.kind)].scope !== "identity")
     && (restricted === undefined || restricted.includes(recordKey(event.reference))))
-    .map((event) => ({ reference: event.reference, version: event.version ?? null, provenance: event.provenance }));
+    .map((event) => historyEntry(context,event));
+}
+
+function historyEntry(context:ReferenceContext,event:MemoryEvent): HistoryEntry {
+  if (event.version === undefined) return {reference:event.reference,version:null,content:null,provenance:event.provenance};
+  const record = context.state.snapshots.get(event.stateVersion)?.get(recordKey(event.reference));
+  if (record === undefined || record.version !== event.version) throw new Error("A landed history event lacks its exact saved content");
+  return {reference:event.reference,version:event.version,content:record.content,provenance:event.provenance};
 }

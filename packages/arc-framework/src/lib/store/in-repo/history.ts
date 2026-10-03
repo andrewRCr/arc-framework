@@ -138,7 +138,7 @@ async function historyEntry(context: InRepoContext, reference: RecordReference, 
   });
   const separator = object.indexOf("\n\n");
   if (separator === -1) throw new Error("Git returned a commit without a header boundary");
-  return { reference, version: content === null ? null : RecordVersionSchema.parse(digestBytes(Buffer.from(content))),
+  return { reference, content, version: content === null ? null : RecordVersionSchema.parse(digestBytes(Buffer.from(content))),
     provenance: { message: object.slice(separator + 2) } };
 }
 

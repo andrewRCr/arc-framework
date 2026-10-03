@@ -25,10 +25,11 @@ export async function transientHistory(context: InRepoContext, input: { referenc
     const value = await historicalValue(io,commit,key,input.reference.kind);
     if (!value.matches && !await precedingRole(io,commit,key,input.reference.kind)) continue;
     const oid = value.matches ? value.oid : undefined;
+    const content = oid === undefined ? null : await io.execInput(["cat-file","blob",oid],"");
     const object = await io.execInput(["cat-file", "commit", commit], "");
     const separator = object.indexOf("\n\n");
     if (separator === -1) throw new Error("Git returned a commit without a header boundary");
-    entries.push({ reference: input.reference, version: oid === undefined ? null : RecordVersionSchema.parse(oid), provenance: { message: object.slice(separator + 2) } });
+    entries.push({ reference: input.reference, content, version: oid === undefined ? null : RecordVersionSchema.parse(oid), provenance: { message: object.slice(separator + 2) } });
   }
   if (entries.length === 0) return notFound(input.reference);
   return entries;

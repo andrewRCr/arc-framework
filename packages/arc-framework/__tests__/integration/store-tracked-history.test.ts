@@ -108,8 +108,8 @@ describe("tracked state and history", () => {
     await repo.commit("second state");
     await repo.put(".arc/active/meta-example.md", "uncommitted edit");
     expect(success(await repo.store.history({ reference: reference() }))).toEqual([
-      { reference: reference(), version: version(second), provenance: { message: "second state\n" } },
-      { reference: reference(), version: version(first), provenance: { message: "first state\n\nContext: tasks-example.md (Task 1.1)\n" } },
+      { reference: reference(), version: version(second), content: second, provenance: { message: "second state\n" } },
+      { reference: reference(), version: version(first), content: first, provenance: { message: "first state\n\nContext: tasks-example.md (Task 1.1)\n" } },
     ]);
   });
   it("follows the meta file across a real Git rename", async () => {
@@ -122,8 +122,8 @@ describe("tracked state and history", () => {
     await repo.put(".arc/active/meta-renamed.md", renamed);
     await repo.commit("rename work unit");
     expect(success(await repo.store.history({ reference: reference("renamed") }))).toEqual([
-      { reference: reference("renamed"), version: version(renamed), provenance: { message: "rename work unit\n" } },
-      { reference: reference("renamed"), version: version(content), provenance: { message: "before rename\n" } },
+      { reference: reference("renamed"), version: version(renamed), content: renamed, provenance: { message: "rename work unit\n" } },
+      { reference: reference("renamed"), version: version(content), content: content, provenance: { message: "before rename\n" } },
     ]);
   });
   it.each(["all", "meta", "notes"] as const)("reports chronological provenance for endpoint changes restricted to %s", async (restriction) => {
@@ -146,8 +146,8 @@ describe("tracked state and history", () => {
     const notes = recordReferences["work-item/notes"](reference().owner);
     const references = restriction === "all" ? undefined : [restriction === "meta" ? reference() : notes];
     expect(success(await repo.store.changes({ from, to, references }))).toEqual(restriction === "notes" ? [] : [
-      { reference: reference(), version: version(middle), provenance: { message: "first mutation\n" } },
-      { reference: reference(), version: version(final), provenance: { message: "second mutation\n" } },
+      { reference: reference(), version: version(middle), content: middle, provenance: { message: "first mutation\n" } },
+      { reference: reference(), version: version(final), content: final, provenance: { message: "second mutation\n" } },
     ]);
   });
   it.each(["foreign", "missing"] as const)("distinguishes a %s record outside the saved branch states", async (name) => {
@@ -178,8 +178,8 @@ describe("tracked state and history", () => {
     const entries = success(await repo.store.changes({ from, to }));
     expect(entries).toHaveLength(2);
     expect(entries).toEqual(expect.arrayContaining([
-      { reference: recordReferences["work-item/notes"](reference().owner), version: version(notes), provenance: { message: "add tracked records\n" } },
-      { reference: recordReferences["lineage/transition"](reference("retired").owner), version: version(transition), provenance: { message: "add tracked records\n" } },
+      { reference: recordReferences["work-item/notes"](reference().owner), version: version(notes), content: notes, provenance: { message: "add tracked records\n" } },
+      { reference: recordReferences["lineage/transition"](reference("retired").owner), version: version(transition), content: transition, provenance: { message: "add tracked records\n" } },
     ]));
   });
   it("keeps a removed meta's history and reports its removal with a null version", async () => {
@@ -190,11 +190,11 @@ describe("tracked state and history", () => {
     await repo.exec("git", ["rm", ".arc/active/meta-example.md"]);
     const to = await repo.commit("remove work unit");
     expect(success(await repo.store.changes({ from, to }))).toEqual([
-      { reference: reference(), version: null, provenance: { message: "remove work unit\n" } },
+      { reference: reference(), version: null, content: null, provenance: { message: "remove work unit\n" } },
     ]);
     expect(success(await repo.store.history({ reference: reference() }))).toEqual([
-      { reference: reference(), version: null, provenance: { message: "remove work unit\n" } },
-      { reference: reference(), version: version(content), provenance: { message: "create work unit\n" } },
+      { reference: reference(), version: null, content: null, provenance: { message: "remove work unit\n" } },
+      { reference: reference(), version: version(content), content: content, provenance: { message: "create work unit\n" } },
     ]);
   });
   it("reports a selected file's placement move even when its bytes are identical", async () => {
@@ -206,7 +206,7 @@ describe("tracked state and history", () => {
     await repo.exec("git", ["mv", ".arc/active/meta-example.md", ".arc/completed/2026-q3/01_example/meta-example.md"]);
     const to = await repo.commit("move placement");
     expect(success(await repo.store.changes({ from, to }))).toEqual([
-      { reference: reference(), version: version(content), provenance: { message: "move placement\n" } },
+      { reference: reference(), version: version(content), content: content, provenance: { message: "move placement\n" } },
     ]);
   });
 });

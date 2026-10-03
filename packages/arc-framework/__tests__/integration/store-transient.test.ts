@@ -89,12 +89,15 @@ describe("transient Store", () => {
     const changed = ok(await h.store.write(put(serializeTransientIdentityRecord(record("changed")), read.version)));
     const history = ok(await h.store.history({ reference }));
     expect(history.map((item) => item.version)).toEqual([changed.version, created.version]);
+    expect(history.map((item)=>item.content)).toEqual([serializeTransientIdentityRecord(record("changed")),serializeTransientIdentityRecord(record())]);
     expect(history.map((item) => item.provenance)).toEqual([{ message: "arc errand: update\n" }, { message: "arc errand: update\n" }]);
     expect(await h.store.write(put("{}", read.version))).toMatchObject({ status: "refused", refusal: { code: "record-malformed" } });
     expect(await h.store.write(put(serializeTransientIdentityRecord(record()), read.version))).toMatchObject({ status: "refused", refusal: { code: "version-conflict", records: [reference] } });
     ok(await h.store.write({ action: "remove", reference, expected: changed.version!, provenance }));
     expect(await h.store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
-    expect(ok(await h.store.history({ reference }))[0]?.version).toBeNull();
+    const removed = ok(await h.store.history({reference}));
+    expect(removed[0]).toMatchObject({version:null,content:null});
+    expect(removed.slice(1)).toEqual(history);
   });
   it("separates claims by family and resolves producer claims and branch records", async () => {
     const h = await fixture();
@@ -131,6 +134,7 @@ describe("transient Store", () => {
       const oid = await plant(bytes);
       expect(ok(await h.store.read({ reference }))).toMatchObject({ content: bytes, version: oid });
       expect(ok(await h.store.history({reference}))[0]?.version).toBe(oid);
+      expect(ok(await h.store.history({reference}))[0]?.content).toBe(bytes);
       const listing = ok(await h.store.list({ family: "work-item", kind: "work-item/record" }));
       expect(listing).toMatchObject({ status: "complete", records: [], missed: true, diagnostics: [{ kind: "malformed", key: "alpha" }] });
       if (bytes.includes('"version":9')) expect(listing).toMatchObject({ diagnostics: [{ condition: "Unknown content version 9" }] });

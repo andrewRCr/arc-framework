@@ -89,7 +89,7 @@ export function registerStateAssertions(context: SuiteContext): void {
     expect(await fixture.settle()).toBe(created);
     const changes = success(await fixture.store.changes({ from: before, to: created, references: [record.reference] }));
     expect(changes).toHaveLength(1);
-    expect(changes[0]).toMatchObject({ reference: record.reference, version: record.version });
+    expect(changes[0]).toMatchObject({ reference: record.reference, version: record.version, content:record.content });
   });
   everyKind(context, "saved-state-changes-write-provenance", async (fixture, reference) => {
     const before = await fixture.settle();
@@ -124,6 +124,15 @@ export function registerHistoryAssertions(context: SuiteContext): void {
     const current = success(await fixture.store.read({ reference: first.reference }));
     const history = success(await fixture.store.history({ reference: first.reference }));
     expect(history.map((entry) => entry.version)).toEqual(mutable(reference.kind) ? [current.version, first.version] : [first.version]);
+    expect(history.map((entry) => entry.content)).toEqual(mutable(reference.kind) ? [current.content,first.content] : [first.content]);
+    if (mutable(reference.kind)) {
+      success(await fixture.store.write({action:"remove",reference:current.reference,expected:current.version,provenance:testProvenance,
+        ...(reference.kind.endsWith("/conflict-record") ? {resolves:[current.reference]} : {})}));
+      await fixture.settle();
+      const removed = success(await fixture.reopen().history({reference:current.reference}));
+      expect(removed[0]).toMatchObject({version:null,content:null});
+      expect(removed.slice(1)).toEqual(history);
+    }
   });
   everyKind(context, "history-caller-and-owner-provenance", async (fixture, reference) => {
     const first = await seed(fixture, reference);

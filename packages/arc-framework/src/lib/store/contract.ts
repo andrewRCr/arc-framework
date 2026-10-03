@@ -13,8 +13,9 @@ import type { BatchInput, BatchResult, WriteInput, WriteResult } from "./write.j
 export const HistoryInputSchema = z.strictObject({ reference: RecordReferenceSchema });
 /** Changes between saved states, optionally bound to named records. */
 export const ChangesInputSchema = z.strictObject({ from: StateVersionSchema, to: StateVersionSchema, references: z.array(RecordReferenceSchema).optional() });
-/** One landed record mutation's provenance, including removals. */
-export const HistoryEntrySchema = z.strictObject({ reference: RecordReferenceSchema, version: RecordVersionSchema.nullable(), provenance: StoredProvenanceSchema });
+/** Exact landed record content and provenance; removals pair null version and content. */
+export const HistoryEntrySchema = z.strictObject({ reference: RecordReferenceSchema, version: RecordVersionSchema.nullable(), content:z.string().nullable(), provenance: StoredProvenanceSchema })
+  .refine((entry)=>(entry.version === null) === (entry.content === null),"Removal pairs null content with a null version");
 /** One history or change entry. */
 export type HistoryEntry = z.infer<typeof HistoryEntrySchema>;
 /** A scoped state change query. */
@@ -34,9 +35,9 @@ export interface Store {
   batch(input: BatchInput): Promise<StoreResult<BatchResult>>;
   /** Return the current saved state anchor. */
   version(): Promise<StoreResult<StateVersion>>;
-  /** Return newest-first record history. */
+  /** Return newest-first record versions with their exact content and provenance. */
   history(input: { reference: RecordReference }): Promise<StoreResult<HistoryEntry[]>>;
-  /** Return provenance for the records changed between two anchors. */
+  /** Return landed content, versions and provenance for records changed between two anchors. */
   changes(input: ChangesInput): Promise<StoreResult<HistoryEntry[]>>;
   /** Resolve human handles, lineage, claims, and code links. */
   lookup(input: LookupInput): Promise<StoreResult<LookupResult>>;

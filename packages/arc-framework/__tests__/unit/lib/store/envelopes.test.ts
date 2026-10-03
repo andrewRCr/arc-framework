@@ -9,6 +9,7 @@ import {
   StoreCapabilitiesSchema, UNSUPPORTED_CASES, ListingDiagnosticSchema, writeResultSchema,
 } from "../../../../src/lib/store/index.js";
 import { z } from "zod";
+import { HistoryEntrySchema } from "../../../../src/lib/store/contract.js";
 
 const owner = OwnerIdentitySchema.parse({ type: "work-item", name: "example", uid: "11111111-1111-4111-8111-111111111111" });
 const person = OwnerIdentitySchema.parse({ type: "person", name: "andrew" });
@@ -106,6 +107,14 @@ describe("mutation envelopes", () => {
 });
 
 describe("lookup and result envelopes", () => {
+  it("pairs historical content with its version and represents removal explicitly", () => {
+    const entry = {reference,version,content:"",provenance:{message:"saved\n"}};
+    expect(HistoryEntrySchema.parse(entry)).toEqual(entry);
+    expect(HistoryEntrySchema.parse({...entry,version:null,content:null})).toEqual({...entry,version:null,content:null});
+    expect(HistoryEntrySchema.safeParse({...entry,version:null}).success).toBe(false);
+    expect(HistoryEntrySchema.safeParse({...entry,content:null}).success).toBe(false);
+    expect(HistoryEntrySchema.safeParse({...entry,content:undefined}).success).toBe(false);
+  });
   it.each([
     { kind: "work-unit", slug: "example" }, { kind: "partial-errand", slug: "example", claimId: null },
     { kind: "errand", slug: "example", claimId: "a".repeat(32) }, { kind: "groom", slug: "example", claimId: "a".repeat(32) },

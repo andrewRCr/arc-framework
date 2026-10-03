@@ -12,7 +12,7 @@ describe("reference publication history", () => {
     const first = await seed(fixture, fixture.reference("work-item/meta"));
     success(await fixture.store.sync());
     const published = success(await remote.version());
-    const creation = { reference: first.reference, version: first.version,
+    const creation = { reference: first.reference, version: first.version, content:first.content,
       provenance: { ...testProvenance, reference: first.reference, ownerUid: "uid" in first.reference.owner ? first.reference.owner.uid : undefined } };
     expect(success(await remote.history({ reference: first.reference }))).toEqual([creation]);
     expect(success(await remote.changes({ from, to: published, references: [first.reference] }))).toEqual([creation]);
@@ -55,7 +55,7 @@ describe("reference publication history", () => {
     const removals = success(await remote.changes({ from: to, to: final, references: batch.writes.map((write) => write.reference) }));
     expect(removals).toHaveLength(2);
     for (const removal of removals) {
-      expect(removal).toMatchObject({ version: null, provenance: { verb: "remove", batchId: removed.batchId, reference: removal.reference } });
+      expect(removal).toMatchObject({ version: null, content: null, provenance: { verb: "remove", batchId: removed.batchId, reference: removal.reference } });
       expect(success(await remote.history({ reference: removal.reference }))[0]).toEqual(removal);
       expect(await remote.read({ reference: removal.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
       expect(success(await remote.read({ reference: removal.reference, asOf: to }))).toMatchObject({ version: changes.find((change) => JSON.stringify(change.reference) === JSON.stringify(removal.reference))?.version });
@@ -110,7 +110,7 @@ describe("reference publication history", () => {
       success(await fixture.store.batch(BatchInputSchema.parse({ writes: [mutation], provenance })));
     } else success(await fixture.store.write(write));
     const removals = success(await fixture.store.changes({ from: localFrom, to: success(await fixture.store.version()), references: [conflict] }));
-    expect(removals).toMatchObject([{ reference: conflict, version: null, provenance: { verb: "resolve", codeHead: "c".repeat(40), reference: conflict } }]);
+    expect(removals).toMatchObject([{ reference: conflict, version: null, content: null, provenance: { verb: "resolve", codeHead: "c".repeat(40), reference: conflict } }]);
     expect(success(await fixture.reopen().history({ reference: conflict }))[0]).toEqual(removals[0]);
     expect(await fixture.store.read({ reference: conflict })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
     success(await fixture.store.sync());
