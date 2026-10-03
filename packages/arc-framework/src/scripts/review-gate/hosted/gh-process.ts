@@ -113,7 +113,16 @@ function integerString(value: unknown, path: string): string {
 
 function parse(text: string, path: string): unknown {
   try {
-    return JSON.parse(text) as unknown;
+    return JSON.parse(text, (key: string, value: unknown, context?: { source: string }) => {
+      if ((key === "id" || key === "in_reply_to_id")
+        && typeof value === "number" && !Number.isSafeInteger(value)) {
+        // Numeric primitives retain their original JSON token in the Node 24+ reviver context.
+        const source = context?.source;
+        if (source === undefined) throw new Error("JSON identity token is unavailable");
+        return source;
+      }
+      return value;
+    }) as unknown;
   } catch {
     throw new HostedGitHubReadError("terminal-failure", `${path}: malformed JSON`);
   }
