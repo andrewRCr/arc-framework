@@ -12,6 +12,13 @@ design and its tradeoffs_ (a refactor, migration, internal architecture, or perf
 question is instead _what should this do_, use the `PRD` subtype.) The heart is the Proposed Design and the
 Alternatives that justify it.}
 
+{Make the structured design, interfaces, invariants, failure behavior, decisive rationale, and criteria a complete
+technical contract understandable without planning history. Replace planning references with their required
+substance; preserve technical precision and permitted references, and state unshipped prerequisite contracts with
+availability conditions. An accessible complementary PRD/RFC pair by distinct product and engineering authors may
+share context under its existing division of content. Apply [spec-review][spec-review]'s common reader checks to
+the specification set.}
+
 <!--
   Paired-spec mode — when this RFC is authored alongside a product spec (`spec-{name}-prd.md`), it goes
   referential: the PRD owns the shared spine, so the sections flagged `omit-when-paired` below drop out and the
@@ -73,3 +80,4 @@ defined once, in [`amend-design`][amend-design]. Replace the example row with th
 ---
 
 [amend-design]: ../../../../../system/workflows/arc/supplemental/amend-design.md
+[spec-review]: ../../../../../system/methods/spec-review.md

@@ -21,40 +21,36 @@ the complete reader contract, with every required operation covered and the repr
   obligations. Its reference rules preserve precision, tracking, amendments, accessible paired specs, and expected
   prerequisite contracts while retaining source grounding, depth selection, and design re-entry.
 
-### `[ ]` **1.2 Guide brief specification authors — Decisions 1–3, 7**
+### `[x]` **1.2 Guide brief specification authors — Decisions 1–3, 7**
 
 - _Goal:_ A brief states its complete falsifiable signal and scope without relying on planning history.
 
-    - Add a concise authoring instruction to
-      `packages/arc-framework/arc/reference/templates/arc/work-unit/spec/template-spec-brief.md` and its matching
-      `.arc/` template. Direct authors to retain required substance when removing planning references.
-    - Preserve the form's header, clause-scoped boundary carrier, amendment convention, and technical precision;
-      reference the canonical review responsibility without duplicating its full rubric.
+- _Outcome:_ The brief template and projection prompt authors to preserve the complete intent, boundary, and
+  falsifiable signal when replacing planning dependence, and link the shared checks without changing the header,
+  clause-scoped freeze, amendment convention, or technical precision.
 
-### `[ ]` **1.3 Guide outline specification authors — Decisions 1–3, 7**
+### `[x]` **1.3 Guide outline specification authors — Decisions 1–3, 7**
 
 - _Goal:_ An outline records every settled decision and decisive rationale needed for complete task coverage.
 
-    - Add the form-appropriate authoring instruction to
-      `packages/arc-framework/arc/reference/templates/arc/work-unit/spec/template-spec-outline.md` and its matching
-      `.arc/` template, retaining the complete decisions, boundaries, consequences, and success criteria.
-    - Preserve the header and amendment/boundary forms; distinguish supplemental context from otherwise missing
-      obligations or decisions without duplicating the review rubric.
+- _Outcome:_ The outline template and projection preserve complete decisions, decisive rationale, boundaries,
+  consequences, and criteria while directing authors to the common checks. Supplemental notes cannot supply
+  otherwise missing design; the form's header, scope carrier, and amendment anchors remain intact.
 
-### `[ ]` **1.4 Guide detailed product and engineering authors — Decisions 1–3, 7**
+### `[x]` **1.4 Guide detailed product and engineering authors — Decisions 1–3, 7**
 
 - _Goal:_ Detailed specifications retain exhaustive requirements or design elements and the sanctioned division
   of authority in an accessible distinct-author PRD/RFC pair.
 
-    - `[ ]` **1.4.a Add the product-spec authoring prompt**
-        - Update `packages/arc-framework/arc/reference/templates/arc/work-unit/spec/template-spec-detailed-prd.md`
-          and its `.arc/` counterpart. Preserve numbered requirements, shared context ownership, header fields,
+    - `[x]` **1.4.a Add the product-spec authoring prompt**
+        - The product template and projection require a complete numbered-requirement contract and shared reader
+          checks, preserving accessible distinct-author pairing, shared context ownership, header fields,
           boundary/amendment carriers, and paired-mode scaffolding.
 
-    - `[ ]` **1.4.b Add the engineering-spec authoring prompt**
-        - Update `packages/arc-framework/arc/reference/templates/arc/work-unit/spec/template-spec-detailed-rfc.md`
-          and its `.arc/` counterpart. Preserve structured design, interfaces, invariants, failure behavior, and
-          the accessible companion reference, including the existing paired/standalone section division.
+    - `[x]` **1.4.b Add the engineering-spec authoring prompt**
+        - The engineering template and projection require complete design, interfaces, invariants, failure behavior,
+          rationale, and criteria under the common reader checks, retaining the accessible companion contract and
+          existing paired/standalone section division.
 
 ## **Phase 2:** Writer integration and complete-surface validation
 
