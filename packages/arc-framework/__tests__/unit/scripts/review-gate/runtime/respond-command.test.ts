@@ -424,6 +424,7 @@ function dependencies(records: ReturnType<typeof fixture>) {
         subject: record.subject,
       });
     },
+    readCandidateResponseTarget: () => Promise.reject(new Error("unexpected historical Candidate read")),
     appendCandidateResponse: () => Promise.reject(new Error("unexpected Candidate append")),
     stageCandidateResponse: () => Promise.reject(new Error("unexpected Candidate stage")),
     rebindSingletonPublicationResponse: () => Promise.reject(new Error("unexpected publication rebind")),
@@ -628,6 +629,7 @@ function lineageDependencies(
       ...candidateLineageBinding(records, record, current),
       recordVersion,
     }),
+    readCandidateResponseTarget: async () => current,
     appendCandidateResponse: async (input) => {
       appends.push(input);
       return { recordPath: CANDIDATE_RECORD_PATH };
@@ -3634,6 +3636,76 @@ describe("verified-fix Candidate settlement", () => {
       payload: { candidateId: advanced.attestation.candidateId },
     });
     expect(appends).toHaveLength(1);
+  });
+
+  it.each([false, true])("replays the verified snapshot after neutral record bytes change, legacy: %s", async (legacy) => {
+    const records = fixture();
+    const neutralEntry = { path: CANDIDATE_RECORD_PATH, digest: digest("record-before-response"),
+      mode: "100644" as const, treatment: "evidence-neutral" as const };
+    const fixed = { revision: objectId("e"),
+      subject: createCandidateSubjectSnapshot([...candidateSubject("fixed").entries, neutralEntry]) };
+    const { deps, appends } = lineageDependencies(records, fixed);
+    const request = verifiedFixRequest(records);
+    await respondToReviewCommand(request, deps);
+    const advanced = appends[0]?.record;
+    if (advanced === undefined) throw new Error("expected response");
+    const committed = { revision: objectId("f"), subject: createCandidateSubjectSnapshot([
+      ...candidateSubject("fixed").entries, { ...neutralEntry, digest: digest("record-after-response") },
+    ]) };
+    expect(committed.subject.subjectDigest).toBe(fixed.subject.subjectDigest);
+    expect(committed.subject.entries).not.toEqual(fixed.subject.entries);
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, advanced, committed);
+    deps.confirmCandidateResponseCommit = async () => true;
+    const readHistoricalTarget = vi.fn(async () => fixed);
+    deps.readCandidateResponseTarget = readHistoricalTarget;
+    if (legacy) deps.readResponsePerformance = async () => null;
+    await expect(respondToReviewCommand(request, deps)).resolves.toMatchObject({ state: "candidate-current" });
+    expect(readHistoricalTarget).toHaveBeenCalledWith({ workUnit: "example", revision: fixed.revision });
+    expect(appends).toHaveLength(1);
+  });
+
+  it("refuses a substituted neutral snapshot on legacy replay before recording performance", async () => {
+    const records = fixture();
+    const neutralEntry = { path: CANDIDATE_RECORD_PATH, digest: digest("record-before-response"),
+      mode: "100644" as const, treatment: "evidence-neutral" as const };
+    const fixed = { revision: objectId("e"), subject: createCandidateSubjectSnapshot([
+      ...candidateSubject("fixed").entries, neutralEntry,
+    ]) };
+    const { deps, appends } = lineageDependencies(records, fixed);
+    const request = verifiedFixRequest(records);
+    await respondToReviewCommand(request, deps);
+    const advanced = appends[0]?.record;
+    const response = advanced === undefined ? undefined : candidateReviewResponses(advanced)[0];
+    if (advanced === undefined || response === undefined) throw new Error("expected response");
+    const substituted = { ...fixed, subject: createCandidateSubjectSnapshot([
+      ...candidateSubject("fixed").entries, { ...neutralEntry, digest: digest("substituted-record") },
+    ]) };
+    expect(substituted.subject.subjectDigest).toBe(fixed.subject.subjectDigest);
+    const changed = { ...advanced, transitions: [createCandidateReviewResponseEvidence({
+      ...response, newTarget: substituted,
+    })] };
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, changed, fixed);
+    deps.readResponsePerformance = async () => null;
+    const recordPerformance = vi.fn(async () => undefined);
+    deps.recordResponsePerformance = recordPerformance;
+    await expect(respondToReviewCommand(request, deps)).rejects.toThrow("complete verified response");
+    expect(recordPerformance).not.toHaveBeenCalled();
+  });
+
+  it("stops replay when its historical subject cannot be read", async () => {
+    const records = fixture();
+    const fixed = { revision: objectId("e"), subject: candidateSubject("fixed") };
+    const { deps, appends } = lineageDependencies(records, fixed);
+    const request = verifiedFixRequest(records);
+    await respondToReviewCommand(request, deps);
+    const advanced = appends[0]?.record;
+    if (advanced === undefined) throw new Error("expected response");
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, advanced, fixed);
+    deps.readCandidateResponseTarget = async () => { throw new Error("historical subject unavailable"); };
+    const recordPerformance = vi.fn(async () => undefined);
+    deps.recordResponsePerformance = recordPerformance;
+    await expect(respondToReviewCommand(request, deps)).rejects.toThrow("historical subject unavailable");
+    expect(recordPerformance).not.toHaveBeenCalled();
   });
 
   it.each([false, true])("requires record-commit proof when binding at a later head: %s", async (confirmed) => {

@@ -587,6 +587,19 @@ export function createRespondDependencies(input: {
         unstagedReviewablePaths,
       };
     },
+    readCandidateResponseTarget: async ({ workUnit, revision }) => {
+      const collected = await collectGitCandidateSubject({
+        cwd: input.cwd, name: workUnit, revision,
+        baseBranch: (await settings())["branch.base"], exec: input.exec,
+      });
+      if (collected.status !== "collected") {
+        throw new LocalTargetDerivationError(
+          "ambiguous-merge-base",
+          "The verified Candidate response target's subject could not be collected.",
+        );
+      }
+      return collected.target;
+    },
     // Staged like the record `attest` publishes: the Candidate's own projection never enters the
     // reviewable subject, so staging it advances the lineage without disturbing what review sees.
     appendCandidateResponse: async ({ workUnit, record, expectedRecordVersion }) => {

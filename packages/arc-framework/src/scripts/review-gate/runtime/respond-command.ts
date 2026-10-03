@@ -315,6 +315,11 @@ export interface RespondCommandDependencies {
   now(): string;
   /** Null when the response target identifies no active or archived Candidate lineage. */
   readCandidateLineage(target: ReviewTarget): Promise<CandidateLineageBinding | null>;
+  /** Independently collect the complete committed subject at one verified response head. */
+  readCandidateResponseTarget(input: {
+    workUnit: string;
+    revision: string;
+  }): Promise<CandidateLineageTarget>;
   appendCandidateResponse(input: {
     workUnit: string;
     record: CandidateManagedRecordV1;
@@ -855,7 +860,8 @@ async function recordPerformedResponse(
       ? {}
       : { predecessorDispositionSetId }),
     producedHeadSha,
-    ...(candidateResponseId === undefined ? {} : { candidateResponseId }),
+    ...(candidateResponseId === undefined || source.result.admission.lineage.kind !== "candidate"
+      ? {} : { candidateResponseId }),
   });
 }
 
@@ -869,11 +875,15 @@ async function assertCompleteCandidateReplay(input: {
   source: ResolvedResponseSource;
   dependencies: RespondCommandDependencies;
 }): Promise<void> {
+  if (input.source.result.admission.lineage.kind !== "candidate") return;
   const { lineage, matching, candidateTarget, dispositions, verifiedFix } = input;
+  const responseTarget = await input.dependencies.readCandidateResponseTarget({
+    workUnit: lineage.workUnit, revision: matching.newTarget.revision,
+  });
   const expected = recordCandidateVerifiedResponse({
     projection: projectCandidateDeltaVerification({ record: lineage.record,
       oldTarget: { ...lineage.reviewed.recognizedTarget, revision: candidateTarget.headSha },
-      current: { ...lineage.current, revision: matching.newTarget.revision } }),
+      current: responseTarget }),
     dispositionId: dispositions.dispositionSet.dispositionSetId,
     approvedBy: dispositions.approval.approvedBy, appliedBy: dispositions.dispositionSet.proposedBy,
     approvedVerification: dispositions.dispositionSet.proposedVerification,

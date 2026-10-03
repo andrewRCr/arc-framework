@@ -1,7 +1,8 @@
 /** Response bindings survive a proved Candidate record commit without spending pass authority. */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { canonicalDigest } from "../../../../src/lib/kernel/index.js";
+import { SlugSchema } from "../../../../src/lib/kernel/schema/slug.js";
 import type { LaneProgressState, ReviewOperationState } from
   "../../../../src/scripts/review-gate/core/operation-state-schema.js";
 import { createReviewRequirement, createReviewTarget } from
@@ -92,6 +93,18 @@ function authorization(progress: LaneProgressState) {
 }
 
 describe("Candidate response head continuation", () => {
+  it.each([
+    { kind: "delivery-member" as const, planId: canonicalDigest("plan"), deliverableId: canonicalDigest("member"), workUnitId: SlugSchema.parse("example") },
+    { kind: "head-bound" as const, vehicleKind: "review-target" as const, vehicleIdentity: "repo/head", headSha: originalHead },
+  ])("rejects a Candidate response digest on $kind lineage before reading state", async (otherLineage) => {
+    const readOperation = vi.fn(async () => { throw new Error("unexpected state read"); });
+    const store = { ...storeFixture(), readOperation };
+    await expect(recordLaneResponsePerformance(store, { ...coordinates, lineage: otherLineage,
+      dispositionSetId, producedHeadSha: fixHead, candidateResponseId: canonicalDigest("response") }))
+      .rejects.toThrow("Candidate response digest requires its Candidate lineage");
+    expect(readOperation).not.toHaveBeenCalled();
+  });
+
   it("admits the record head while retaining the verified response and approval bindings", async () => {
     const { store, captured, performance, performed } = await performedFixture();
     let proofs = 0;
