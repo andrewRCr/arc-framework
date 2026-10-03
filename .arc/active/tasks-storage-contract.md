@@ -689,3 +689,13 @@ as stated.
   including after those links clear; wrong-repository lookup refuses, exact SHA precedes patch-id matches in the
   requested repository, duplicates use repository and SHA, and an unqualified capture refuses without changing state
   before its qualified repair succeeds (A6).
+
+- `[x]` D3/D4/D10–D12 and the consumer map require receiver atomic-push capability and `--atomic` for multi-state-ref
+  publication, without ordinary fallback; existing terminal `PublishFailure` `refused` carries the condition/remedy
+  and preserves pending local state for repaired retry. Single-state-ref ordinary publication and separate code/state
+  ordering remain; source/design agreement is checked without building the deferred backend (A7; SC22).
+
+- `[x]` D8 and the consumer map agree with `planNotesExport`/`proveNotesPublication` across the locally readable histories
+  of all live origin heads, including cross-live-branch proof; branch-first canonical pairing and two retries remain,
+  failed plans stay distinct from refusals, notes-only reconciliation stays separate, and current runtime is unchanged
+  (A8; SC23).

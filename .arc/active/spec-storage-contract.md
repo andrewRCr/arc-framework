@@ -323,8 +323,10 @@ of evidence applicability for code, where an earlier result stands unless later 
 naming both refuses before mutation. Archive, abandon, rename, decompose, and park each change several records
 in one verb, and several verbs already stage several files all or nothing today. A backend that cannot apply a batch
 atomically refuses it whole, `unsupported`, before writing anything; only the in-repo implementation does, and only
-for a batch spanning substrates (D8). The ref backend applies a batch with `git update-ref --stdin` and carries it to
-the remote with `git push --atomic` (D12).
+for a batch spanning substrates (D8). The ref backend applies a batch with `git update-ref --stdin`; publication
+spanning several state refs requires receiver atomic-push capability and `git push --atomic` (A7, D12). Without that
+capability, publication fails terminally as the existing `PublishFailure` `refused`, preserving the pending local batch;
+it never falls back to an ordinary multi-state-ref push. A single-state-ref publication may use ordinary push.
 
 **Provenance, never evidence.** Every store write carries provenance. The caller names the verb, the lifecycle action,
 and, when the write attests code, the code head; the backend adds, as the write lands, the record's reference, its
@@ -448,7 +450,9 @@ while the rest publish; the two are reported independently, so both can appear. 
   time waited, the contention tripwire's fields (D11);
 - `unreachable` — recoverable: network, timeout, or authentication, retried once the remote answers;
 - `refused` — terminal: any other host refusal, carrying the server's message, which names what must change before a
-  retry can succeed.
+  retry can succeed. Multi-state-ref publication without receiver atomic-push capability uses this existing
+  `PublishFailure` refusal (A7), naming the capability condition and the remedy to enable an atomic-capable receiver;
+  pending local state remains available for retry after that remedy.
 
 No remote — as in local-only or ghost use — no identity, and being offline are states, not failures. Every publish the
 in-repo implementation makes — the notes save and push and the Errand push — rides a ref keyed by the identity, so with
@@ -1046,8 +1050,12 @@ set is read from configuration before anything is pushed. A transient-identity w
 as its transaction does today (D4). The branch push is never part of contract `sync`, so that notes-only path is the
 one it mirrors: notes saved on a commit not yet pushed refuse `unpublished-history`, as they do there today. When
 `arc sync` pushes the branch too, it pairs the two under the push interlock (`runPairedPush` in
-`commands/user/paired-push.ts`): the branch first, then a notes export bounded by the branch just pushed, retried
-twice and then offered for retry, never reconciled. `arc sync` keeps both paths until the cutover removes its notes
+`commands/user/paired-push.ts`): the branch first, then its `planNotesExport` port, whose default
+`defaultPlanNotesExport` calls `planBranchBoundedNotesExport` (`lib/user-sync/branch-bounded-notes-export.ts`).
+`proveNotesPublication` (`lib/user-sync/notes-publication-proof.ts`) proves publication through the union of locally
+readable histories of all live origin heads (A8). The selected branch supplies worktree context, not the whole proof
+boundary. Strict failed plans report `failed`, distinctly from `refused`; notes pushes retry twice and then offer
+retry, never using the notes-only reconciliation path. `arc sync` keeps both paths until the cutover removes its notes
 cells; contract `sync` then takes their place, and the state push no longer waits on the branch push.
 
 `serialize` in `lib/git/user-sync.ts` excludes `README.md` basenames and dot-named path segments, applies
@@ -1214,6 +1222,10 @@ name.
   no code references, is residue. Delivery candidates and refresh candidates, review pins, and `refs/arc/tmp/*` are not
   state and stay out of the state refspec.
 
+A batch spanning these state refs publishes all or none with receiver atomic-push capability and `--atomic`
+(A7, D3/D12); without it the local batch stays pending and publication reports the existing terminal `refused`
+failure. This state-leg requirement is separate from code/state-leg ordering and applies to both store layouts.
+
 **The fetch refspec** lists these namespaces and the person's own identity rather than `refs/arc/*` wholesale, so no one
 fetches teammates' personal refs or history by default. Every clone does fetch each in-flight work unit's session
 context with its meta: today's session notes measure 0.4–6 KB each, against the 5.5–5.7 MB a person-year of personal
@@ -1302,6 +1314,9 @@ while insertions elsewhere still merge. Before the flip the drain removes by tit
 **Starting an Errand moves its entry.** From the flip, starting a full-protection Errand from an inbox entry is a
 routing whose destination is the new Errand: one batch (D3) creates the work item, makes the entry its description (D5),
 removes the version read, and writes the routing receipt, and the Errand's origin names the inbox and the entry's ID.
+This cross-ref state batch requires atomic-capable publication with `--atomic` (A7, D3/D12); a receiver lacking that
+capability yields the existing terminal `refused` failure and leaves the local batch pending, without ordinary
+multi-state-ref fallback.
 Partial protection aside (below), an inbox then holds only work nobody has started. This supersedes
 `adr-021-introduce-errand-work-class.md`'s 2026-05-31 amendment where it keeps the entry until the Errand completes and
 rules out an `errand-*` file and a queue: the description is `errand-<slug>.md`, and the Errand queue below holds
@@ -1377,7 +1392,9 @@ past a bound.
 ### D12. Sync, push, and freshness
 
 **Pushes batch per machine at coarse firing points** — handoff, lifecycle transitions, an explicit sync — never per
-write. A lifecycle step that already pushes a code branch carries its state refs in the same `--atomic` push.
+write. When code and state share an atomic-capable receiver, a lifecycle step already pushing code carries its state
+refs in the same `--atomic` push. A state leg spanning several refs always requires atomic capability and `--atomic`;
+a single-state-ref leg may use ordinary push (A7).
 
 - **The push loop** fetches into the remote-tracking namespace, merges entry by entry — a single-writer record changed
   on both sides becoming a conflict record (D4) — and retries with jittered backoff sized to the host's push time on
@@ -1386,11 +1403,14 @@ write. A lifecycle step that already pushes a code branch carries its state refs
 - State commits are authored as the user. A repository keeps one designated state host.
 - The state leg pushes alone when the code leg cannot — a detached verification checkout, or a branch that cannot be
   pushed.
-- **Without `--atomic`** — the backing repository's two remotes, or a host without it — the code leg pushes first and
-  the state leg second, each independent, with no repair verb. Code pushed and state not loses nothing: the local store
-  holds the write, an orientation line reports the pending push, and the next firing point or `arc sync` retries it.
-  A captured commit the code remote lacks reads as not yet published, never as an error. Local-only has nothing to
-  order.
+- **Separate code and state legs (A7).** With two remotes, or when code cannot join an atomic push, the code leg
+  pushes first and the state leg second, each independent, with no repair verb. Within the state leg, publication
+  spanning several refs requires receiver atomic-push capability and `git push --atomic`; absence ends publication
+  as the existing terminal `PublishFailure` `refused`, naming the capability condition and the remedy to enable an
+  atomic-capable receiver. Never fall back to ordinary multi-state-ref push. A single-state-ref publication may use
+  ordinary push. Code pushed and state pending loses nothing: the local store holds the write, an orientation line
+  reports it, and a firing point or `arc sync` retries after the receiver is repaired. A captured commit the code
+  remote lacks reads as not yet published, never as an error. Local-only has nothing to order.
 
 **Freshness.** Another machine sees a write only after it fetches, and a no-change fetch costs 0.7–0.9 s on GitHub, so
 ARC fetches explicitly at coarse points: session start, under `session.remote_sync`; every firing point, whose push
@@ -2156,6 +2176,19 @@ Validated at this change's completion, over Part A:
     an exact SHA over patch-id matches within the requested repository. Duplicate task captures are keyed by repository
     and SHA. An unqualified capture refuses without changing state, and its qualified repair succeeds.
 
+22. **Atomic state publication (A7).** D3/D4/D10–D12 and the consumer map agree that a publication spanning several
+    state refs requires receiver atomic-push capability and `--atomic`, with no ordinary multi-state-ref fallback.
+    Without the capability the existing terminal `PublishFailure` `refused` names the condition and enable-capable-
+    receiver remedy, preserving local pending state for retry after repair. Single-state-ref publication may use
+    ordinary push; code/state-leg ordering remains separate. Verification is source/design agreement at this scope,
+    with no deferred backend implemented.
+
+23. **Paired notes source agreement (A8).** D8 and the consumer map name `planNotesExport`/`proveNotesPublication`'s
+    proof through the union of locally readable histories of all live origin heads, including supported publication
+    through a live branch other than the selected branch. They preserve branch-first pairing, canonical export and
+    two retries, distinguish strict failed plans from refusals, and keep notes-only reconciliation separate. Current
+    runtime stays unchanged.
+
 ## Open Questions
 
 None blocks building Part A.
@@ -2200,3 +2233,9 @@ operations and outcomes, and which test tier each conformance fixture runs in.
   _Trigger:_ storage-standard-2-F08 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 - **A6** — 2026-10-03 — design: qualify commit captures by repository. _Supersedes:_ D3 capture shape.
   _Trigger:_ storage-standard-2-F12 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+<!-- markdownlint-disable MD013 -->
+- **A7** — 2026-10-03 — design: require atomic capability for publication spanning state refs.
+  _Supersedes:_ D12 Without --atomic state-leg admission. _Trigger:_ storage-standard-3-whole-aggregate-3-F10 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A8** — 2026-10-03 — design: describe paired notes export through all live origin heads.
+  _Supersedes:_ D8 paired notes publication-boundary sentence. _Trigger:_ storage-standard-3-whole-aggregate-3-F33 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+<!-- markdownlint-enable MD013 -->
