@@ -25,7 +25,7 @@ export type CodeRabbitAgentProviderResult =
 
 interface AgentFindingFields {
   type: "finding";
-  severity: "blocker" | "major" | "minor";
+  severity: "blocker" | "critical" | "major" | "minor";
   fileName: string;
   suggestions: unknown[];
 }
@@ -117,7 +117,7 @@ function parseFindingEvent(event: Record<string, unknown>): ParsedAgentFinding |
   const severity = event.severity;
   const text = findingText(event);
   if (event.type !== "finding"
-    || (severity !== "blocker" && severity !== "major" && severity !== "minor")
+    || (severity !== "blocker" && severity !== "critical" && severity !== "major" && severity !== "minor")
     || typeof event.fileName !== "string"
     || event.fileName.trim().length === 0
     || text === null
