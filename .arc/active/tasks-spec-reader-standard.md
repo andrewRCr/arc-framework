@@ -86,27 +86,23 @@ judgments and every binding obligation retained.
           edits during suite coherence, including post-settle re-fires. Findings follow existing iteration and
           phase-confirmation flow; unchanged reads and task/notes-only edits skip the review.
 
-### `[ ]` **2.3 Review distributed and retained extraction contracts — Decisions 1–5, 7**
+### `[x]` **2.3 Review distributed and retained extraction contracts — Decisions 1–5, 7**
 
 - _Goal:_ Both destination specifications and the surviving source retain every definition and obligation needed
   to understand and validate their assigned design before their existing mutation/release boundaries.
 
 - **Additional Context:** `notes-spec-reader-standard.md` § Extraction source behavior.
 
-    - `[ ]` **2.3.a Integrate destination and prospective retained-source review**
-        - Update `packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/decompose-work-unit.md` and
-          its `.arc/` counterpart. Declare `spec-review` and invoke it after destination authoring, before
-          distributed-result approval, on new member specification sets and eligible existing destinations.
-        - Include the prospective retained source contract for extraction, using reported source units and
-          allocation intent. Removed units are context, not authority for the retained contract. Preserve reported
-          profiles, topology, paths, and the sole semantic distribution approval.
+    - `[x]` **2.3.a Integrate destination and prospective retained-source review**
+        - Both projections declare and invoke the shared checks over new destination sets, including copied specs,
+          eligible existing destinations, and the prospective retained source from reported units and allocation
+          intent, before the sole distribution approval. Removed units and destinations supply no missing authority.
 
-    - `[ ]` **2.3.b Integrate exact finish-preview and later-edit review**
-        - Review the exact CLI-reported retained specification bytes before destructive apply. Surface missing
-          binding design through the existing stop and owner decision; preserve approved distribution and
-          `applyAuthority` without reconstructing CLI-owned facts or adding a preview mechanism.
-        - Review any later substantive specification edits before source-finish release. Keep review scoped and
-          avoid repeating it over unchanged bytes; retain the existing reconciliation and finish controls.
+    - `[x]` **2.3.b Integrate exact finish-preview and later-edit review**
+        - Shared review covers exact reported retained bytes or absence before apply and later substantive source
+          edits before finish release. Incomplete previews surface at the existing stop; distribution changes return
+          to the owner decision. Exact authority, reconciliation, and finish controls remain, with unchanged bytes
+          and task/pointer-only edits requiring no repeated specification review.
 
 ### `[ ]` **2.4 Retain the reader checks at every amendment depth — Decisions 1–4, 7**
 
