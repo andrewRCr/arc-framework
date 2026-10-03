@@ -12,6 +12,17 @@ function program(): Command {
 }
 
 describe("ARC help", () => {
+  it("wraps qualifiers beside long registered command terms at 80 columns", () => {
+    const root = program();
+    const review = root.command("review").description("Review work");
+    review.command("planning-lane <base> <head>").option("--json", "Emit JSON");
+    applyArcHelp(root);
+    const help = review.helpInformation();
+    expect(help).toContain("planning-lane [options] <base> <head>");
+    expect(help.replace(/\s+/gu, " ")).toContain("Classify a Git change for planning clearance");
+    expect(help.split("\n").every((line) => line.length <= 80)).toBe(true);
+  });
+
   it("groups status options in task order without changing registration order", () => {
     const root = program();
     const status = root.command("status [slug]");

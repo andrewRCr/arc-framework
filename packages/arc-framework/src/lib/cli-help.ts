@@ -25,6 +25,7 @@ export function helpCommandPath(command: Command): string {
 export function configureArcHelp(program: Command): void {
   program.configureHelp({
     showGlobalOptions: true,
+    minWidthToWrap: 20,
     prepareContext(this: Help, context) {
       Help.prototype.prepareContext.call(this, context);
       if (context.error === true) errorContexts.add(this);

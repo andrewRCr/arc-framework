@@ -59,39 +59,19 @@ _Mode:_ `replication` — closes on the visible command tree and initial example
 _Exit criterion:_ Every visible command has a concise summary; root and namespace groups cover the registered
 inventory exactly; all ten example pages and the human/agent discovery exercises pass.
 
-### `[ ]` **2.1 Namespace groups and command-list summaries**
+### `[x]` **2.1 Namespace groups and command-list summaries**
 
 - _Goal:_ Every visible operation can be found through a concise command list, and each busy namespace presents
   its full inventory in the settled task order.
 
-- _Context:_ `spec-cli-help-discovery.md` § Namespace navigation; § Command pages and summaries.
+    - `[x]` **2.1.a Five namespace grouping batches**
+        - Applied the settled review/user/errand/release/delivery groups and member order, with generated help last.
+          Source-derived guards and built-CLI checks prove exact coverage without changing registration order.
 
-    - `scanCommanderSource` in `src/lib/command-input/source-scanner.ts` currently discovers 185 registrations,
-      including 184 visible commands and 47 visible root commands. Reuse this existing discovery in coverage tests
-      where useful; it is not a new runtime registry or a replacement grammar.
-
-    - `[ ]` **2.1.a Five namespace grouping batches**
-        - Build `test-first` (one behavior at a time):
-            - `review`, `user`, `errand`, `release`, and `delivery` show their specified headings, membership, and
-              display order, including final generated-help placement.
-            - Root and these namespace lists cover their applicable children exactly once; an omitted assignment
-              is detected when the registered set changes.
-        - Apply each grouping batch through the proven presentation hooks. Keep registration/routing order
-          unchanged; other small namespaces retain their single Commands group. Derive coverage from the live tree
-          or existing source discovery and check the rendered CLI output.
-
-    - `[ ]` **2.1.b Remaining visible command summaries**
-        - Build `test-first` (one behavior at a time):
-            - Every remaining visible path has an intentional nonempty list summary; hidden paths are excluded,
-              and a new visible registration without a summary fails the coverage guard.
-            - Deep namespace lists retain precise own-page purposes and meaningful qualifiers, with inherited
-              flags and existing hidden visibility preserved.
-        - Author concise, verb-first summaries for the remaining paths, grouping test and content edits into
-          repeatable command-family batches. Keep the guard in tests, without adding a startup refusal.
-        - Extend the shared page convention and applicable inherited-option display across the visible tree.
-          Derive command terms and option annotations from Commander rather than repeat their syntax in metadata.
-        - Inspect representative deep namespace help and long command terms after the edit; preserve schema and
-          continuation pointers already registered on those pages.
+    - `[x]` **2.1.b Remaining visible command summaries**
+        - Authored summaries for all 184 visible paths, preserving own-page purposes and qualifiers. Shared pages
+          show inherited flags, native wrapping, file/stdin contracts, schema pointers, and accurate JSON modes.
+          New visible registrations without summaries fail the test guard; hidden registrations are excluded.
 
 ### `[ ]` **2.2 Remaining workflow examples and descriptions**
 

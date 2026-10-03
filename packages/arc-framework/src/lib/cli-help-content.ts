@@ -1,5 +1,7 @@
 /** Help-only descriptions, examples, and display order; registrations own command syntax. */
 
+import { COMMAND_SUMMARIES } from "./cli-help-summaries.js";
+
 /** Presentation for one registered command. */
 export interface HelpPage {
   readonly summary?: string;
@@ -19,10 +21,94 @@ export const HELP_GROUPS: Readonly<Record<string, readonly (readonly [string, re
     ["Run errands and synchronize:", ["errand", "housekeep", "sync", "user"]],
     ["Set up and maintain ARC:", ["init", "join", "update", "health", "diff", "check", "config", "extensions"]],
   ],
+  review: [
+    ["Choose review work:", ["pre-publication", "resolve", "changeset"]],
+    ["Run and respond:", ["frontline", "hosted", "local", "respond", "reduce", "terminus"]],
+    ["Check readiness:", ["status", "readiness", "checks", "change-request", "merge-method"]],
+    ["Clear planning changes:", ["planning-lane", "planning-grooming"]],
+  ],
+  user: [
+    ["Inspect and synchronize:", ["status", "sync", "save", "load", "push", "fetch", "pull"]],
+    ["Manage workspaces:", ["add", "open", "close"]],
+    ["Maintain notes and inbox:", ["compact", "reconcile-references", "inbox-mark-execute-bound", "inbox-remove"]],
+  ],
+  errand: [
+    ["Find and open work:", ["next", "check", "open", "link", "materialize"]],
+    ["Pause and finish work:", ["leave", "merge", "close", "abandon", "promote"]],
+  ],
+  release: [
+    ["Commit and push:", ["commit", "push"]],
+    ["Configure and inspect:", ["status", "opt-in", "opt-out", "setup"]],
+  ],
+  delivery: [
+    ["Prepare and transfer plans:", ["entry", "plan", "authoring", "eligibility", "compose", "transfer"]],
+    ["Publish and inspect:", ["publish", "native", "position", "checks"]],
+    ["Refresh and repair:", ["refresh", "review-fix", "reconcile", "rewrite", "rematerialize", "top-remedy"]],
+    ["Land and clean up:", ["land", "teardown", "closeout"]],
+  ],
 };
+
+const requestNotes: HelpPage["notes"] = [["Input and output:",
+  "Provide exactly one JSON request file, - for stdin, or --schema. "
+  + "Schema discovery prints the registered schema and referenced definitions.\n"
+  + "JSON result output is automatic; --json is unsupported. Request facts must describe the actual target and state.",
+]];
+
+const requestSourceNotes: HelpPage["notes"] = [["Input and output:",
+  "Read one JSON request from a file or - for stdin. The command result is JSON; no --json flag is needed.",
+]];
+
+const automaticRequestPaths = [
+  "candidate applicability resolve",
+  "merge lock resolve",
+  "merge lock hold",
+  "merge lock release",
+  "user inbox-mark-execute-bound",
+  "delivery authoring locate",
+  "delivery authoring rematerialize",
+  "delivery authoring rebind",
+  "delivery closeout",
+  "delivery entry inspect",
+  "delivery checks observe",
+  "delivery eligibility prepare",
+  "delivery eligibility close",
+  "delivery publish",
+  "delivery native observe",
+  "delivery native link",
+  "delivery native unlink",
+  "delivery native land-select",
+  "delivery native land-prepare",
+  "delivery native land-submit",
+  "delivery native land-status",
+  "delivery native land-release",
+  "delivery refresh plan",
+  "delivery refresh execute",
+  "delivery refresh adopt",
+  "delivery review-fix continue",
+  "delivery review-fix plan",
+  "delivery review-fix publish",
+  "delivery review-fix acknowledge",
+  "delivery position",
+  "delivery land prepare",
+  "delivery land apply",
+  "delivery reconcile",
+  "delivery rewrite",
+  "delivery rematerialize",
+  "delivery teardown",
+  "delivery top-remedy"
+] as const;
 
 /** Intentional command presentation, independent of grammar and output behavior. */
 export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
+  ...Object.fromEntries(Object.entries(COMMAND_SUMMARIES).map(([path, summary]) => [path, { summary }])),
+  ...Object.fromEntries(automaticRequestPaths.map((path) => [path, {
+    summary: COMMAND_SUMMARIES[path], notes: requestSourceNotes,
+  }])),
+  "errand merge": {
+    summary: COMMAND_SUMMARIES["errand merge"],
+    notes: [["Input and output:", "Read the exact approved merge request from a JSON file or - for stdin. "
+      + "Use --json for the typed result; otherwise render the terminal outcome and continuation guidance."]],
+  },
   "": {
     purpose: "Plan, run, review, and land development work with ARC.",
     examples: [
@@ -35,45 +121,6 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
       + "Docs: https://github.com/andrewRCr/arc-framework#readme\n"
       + "Issues: https://github.com/andrewRCr/arc-framework/issues"]],
   },
-  "check": { summary: "Run standalone repository checks" },
-  "init": { summary: "Initialize ARC in the current project" },
-  "join": { summary: "Join an existing ARC project" },
-  "wu": { summary: "Manage the current work unit" },
-  "start": { summary: "Start a work unit" },
-  "stub": { summary: "Create a backlog work-unit stub" },
-  "decompose": { summary: "Manage a work-unit decomposition" },
-  "rename": { summary: "Rename a work unit and its identities" },
-  "promote": { summary: "Promote a provisional stub to planned" },
-  "demote": { summary: "Demote a planned stub to provisional" },
-  "park": { summary: "Park a started work unit" },
-  "resume": { summary: "Resume a parked work unit" },
-  "materialize": { summary: "Check out a remote-only work unit" },
-  "activate": { summary: "Activate a planning work unit" },
-  "deactivate": { summary: "Return an active work unit to planning" },
-  "publish": { summary: "Schedule an active work unit for publication" },
-  "integrate": { summary: "Check readiness and merge work units" },
-  "reopen": { summary: "Return an integrating work unit to active" },
-  "abandon": { summary: "Destroy a pre-merge work unit" },
-  "archive": { summary: "Archive a shipped work unit" },
-  "teardown": { summary: "Clean up a retired work unit" },
-  "set-stage": { summary: "Set the current planning stage" },
-  "finalize": { summary: "Record planning ceremony completion facts" },
-  "attest": { summary: "Attest a verified work-unit Candidate" },
-  "candidate": { summary: "Manage Candidate lineage transitions" },
-  "repoint-design": { summary: "Advance the current design pointer" },
-  "errand": { summary: "Manage Errand lifecycles" },
-  "housekeep": { summary: "Prepare to drain the user inbox" },
-  "base": { summary: "Manage the local integration base" },
-  "plan": { summary: "Check where planning can begin" },
-  "delivery": { summary: "Author and manage delivery plans" },
-  "update": { summary: "Update installed ARC framework files" },
-  "health": { summary: "Show installed framework health" },
-  "diff": { summary: "Compare installed and latest framework files" },
-  "user": { summary: "Manage user directories and portable notes" },
-  "extensions": { summary: "Inspect ARC extensions" },
-  "config": { summary: "Inspect ARC configuration" },
-  "active": { summary: "Inspect active ARC work" },
-  "view": { summary: "Render an artifact from the current work context" },
   "status": {
     summary: "Inspect work, project, and session state",
     purpose: "Inspect work-unit state, project work, and session context.",
@@ -98,13 +145,6 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
         + "These modes are mutually exclusive."],
     ],
   },
-  "locus": { summary: "Inspect checkout and session locations" },
-  "recover": { summary: "Support recovery after harness compaction" },
-  "sync": { summary: "Synchronize configured worktree and user-note concerns" },
-  "release": { summary: "Validate and audit release operations" },
-  "log": { summary: "Browse ARC commit history" },
-  "merge": { summary: "Manage merge controls" },
-  "review": { summary: "Resolve and execute review workflows" },
   "review resolve": {
     summary: "Resolve the next review-policy action",
     purpose: "Resolve the next configured review-policy action from a JSON request.",
@@ -120,4 +160,23 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
       ["Related:", "arc review --help"],
     ],
   },
+  "review changeset resolve": { summary: COMMAND_SUMMARIES["review changeset resolve"], notes: requestNotes },
+  "review planning-grooming resolve": { summary: COMMAND_SUMMARIES["review planning-grooming resolve"], notes: requestNotes },
+  "review frontline run": { summary: COMMAND_SUMMARIES["review frontline run"], notes: requestNotes },
+  "review hosted await": { summary: COMMAND_SUMMARIES["review hosted await"], notes: requestNotes },
+  "review reduce": { summary: COMMAND_SUMMARIES["review reduce"], notes: requestNotes },
+  "review respond": { summary: COMMAND_SUMMARIES["review respond"], notes: requestNotes },
+  "review hosted request": { summary: COMMAND_SUMMARIES["review hosted request"], notes: requestNotes },
+  "review readiness": { summary: COMMAND_SUMMARIES["review readiness"], notes: requestNotes },
+  "review frontline resolve": { summary: COMMAND_SUMMARIES["review frontline resolve"], notes: requestNotes },
+  "review hosted settle": { summary: COMMAND_SUMMARIES["review hosted settle"], notes: requestNotes },
+  "review local prepare": { summary: COMMAND_SUMMARIES["review local prepare"], notes: requestNotes },
+  "review local attest": { summary: COMMAND_SUMMARIES["review local attest"], notes: requestNotes },
+  "review local resume": { summary: COMMAND_SUMMARIES["review local resume"], notes: requestNotes },
+  "review terminus accept": { summary: COMMAND_SUMMARIES["review terminus accept"], notes: requestNotes },
+  "review": { summary: COMMAND_SUMMARIES["review"], notes: [["Related:", "arc review resolve --help"]] },
+  "user": { summary: COMMAND_SUMMARIES["user"], notes: [["Related:", "arc user status --help"]] },
+  "errand": { summary: COMMAND_SUMMARIES["errand"], notes: [["Related:", "arc errand open --help"]] },
+  "release": { summary: COMMAND_SUMMARIES["release"], notes: [["Related:", "arc release commit --help"]] },
+  "delivery": { summary: COMMAND_SUMMARIES["delivery"], notes: [["Related:", "arc delivery plan --help"]] },
 };
