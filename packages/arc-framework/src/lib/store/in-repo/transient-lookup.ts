@@ -4,7 +4,8 @@ import type { CheckoutClaim, LookupInput, LookupResult } from "../lookup.js";
 import type { TransientIdentityRecord } from "../../errand/identity-record.js";
 import type { InRepoContext } from "./context.js";
 import { transientIO, transientKind, transientReference } from "./transient-common.js";
-import { refuse } from "./refusals.js";
+import { refuse, runOperation } from "./refusals.js";
+import { lookupTracked } from "./lookup.js";
 
 /** Resolve transient handles or allow a tracked-only handle to continue there.
  * @param context - Backend dependencies.
@@ -17,10 +18,7 @@ export async function lookupTransient(context: InRepoContext, input: LookupInput
   if (!isTransientLookup(input, claim, branch)) return null;
   if (claim?.kind === "partial-errand") return missing(input, "A partial-protection Errand keeps no record.", "Use its checkout-local claim; partial Errands have no Store record.");
   const io = await transientIO(context);
-  if (io === null) {
-    if (input.kind === "slug") return null;
-    return missing(input, "No identity is configured.", "Set arc.identity, then retry lookup.");
-  }
+  if (io === null) return lookupWithoutIdentity(context,input);
   if (input.kind === "ref" && !await sameRepository(context, input.repository)) return missing(input, "The lookup names another repository.", "Select this checkout's path or its configured origin URL.");
   const snapshot = await lookupSnapshot(io);
   if (snapshot.kind === "complete") {
@@ -29,8 +27,17 @@ export async function lookupTransient(context: InRepoContext, input: LookupInput
       if (matchesLookup(input, claim, branch, record)) return { reference: transientReference(kind, key, io.identity) };
     }
   }
-  if (input.kind === "slug") return null;
+  if (input.kind !== "claim") return null;
   return missing(input, "No identity-ref record matches the lookup.", "Check the branch or claim generation and restore its record before retrying.");
+}
+async function lookupWithoutIdentity(context:InRepoContext,input:LookupInput): Promise<LookupResult|null> {
+  if (input.kind === "slug") return null;
+  if (input.kind === "ref") {
+    const tracked = await runOperation(()=>lookupTracked(context,input));
+    if (tracked.status === "ok") return tracked.result;
+    if (tracked.refusal.code !== "not-found") return refuse(tracked.refusal);
+  }
+  return missing(input,"No identity is configured.","Set arc.identity, then retry lookup.");
 }
 async function lookupSnapshot(io: IdentitySnapshotIO) {
   const snapshot = await readTransientIdentitySnapshot(io);

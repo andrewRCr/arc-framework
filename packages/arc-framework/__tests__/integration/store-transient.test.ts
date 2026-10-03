@@ -159,6 +159,7 @@ describe("transient Store", () => {
       return original(command, args, options);
     };
     await expect(h.store.read({ reference })).rejects.toMatchObject({ code: "store.operation-failed" });
+    await expect(h.store.lookup({kind:"ref",repository:h.root,ref:"refs/heads/chore/alpha"})).rejects.toMatchObject({code:"store.operation-failed"});
     expect(ok(await h.store.list({ family: "work-item", kind: "work-item/record" }))).toMatchObject({ status: "unreadable", condition: "Tree unavailable" });
   });
   it("refuses identity-bound operations without configuration then succeeds after configuration", async () => {

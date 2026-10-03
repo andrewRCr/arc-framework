@@ -34,6 +34,24 @@ async function repository() {
 }
 
 describe("tracked lookup", () => {
+  it.each([false,true])("resolves a work unit on a chore branch without a transient owner, identity: %s", async (configured) => {
+    const repo = await repository();
+    const ports = testStorePorts(repo.root,repo.exec,makeGitExecInput(repo.root));
+    ports.identity = async ()=>configured ? SlugSchema.parse("andrew") : null;
+    const store = createStore(ports);
+    await repo.put(".arc/active/meta-example.md",makeMetaFixture("example",{branch:"chore/example"}));
+    await repo.commit("work unit on chore branch");
+    await repo.exec("git",["branch","chore/example"]);
+    expect(success(await store.lookup({kind:"ref",repository:repo.root,ref:"refs/heads/chore/example"})))
+      .toEqual({reference:meta("example")});
+    expect(await store.lookup({kind:"ref",repository:repo.root,ref:"refs/heads/chore/missing"}))
+      .toMatchObject({status:"refused",refusal:{code:"not-found"}});
+    expect(await store.lookup({kind:"claim",claim:{kind:"errand",slug:SlugSchema.parse("example"),claimId:"a".repeat(32)}}))
+      .toMatchObject({status:"refused",refusal:{code:"not-found"}});
+    expect(await store.lookup({kind:"ref",repository:"https://foreign.test/repository",ref:"refs/heads/chore/example"}))
+      .toMatchObject({status:"refused",refusal:{code:"not-found"}});
+  });
+
   it.each(["current", "former", "claim"] as const)("resolves a %s work-unit handle", async (handle) => {
     const repo = await repository();
     await repo.put(".arc/active/meta-current.md", makeMetaFixture("current"));
