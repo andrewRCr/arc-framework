@@ -8,6 +8,8 @@ import type { ReviewOperationStateSnapshotIndex, ReviewOperationStateStore } fro
 import { isReviewVersionConflict, REVIEW_VERSION_RETRY_ATTEMPTS } from "./core/version-conflict.js";
 import { laneProgressOperationId } from "./lane-progress.js";
 
+import type { ConfirmResponseHeadContinuation } from "./core/response-head-continuation.js";
+
 type LaneAttempt = LaneProgressState["attempts"][number];
 type ConditionalPassAuthorization = NonNullable<LaneAttempt["conditionalPassAuthorizations"]>["authorizations"][number];
 
@@ -20,6 +22,7 @@ export interface ConditionalPendingAdmission {
   nextPass: number;
   admissionId: string;
   now: string;
+  confirmResponseHeadContinuation?: ConfirmResponseHeadContinuation;
   confirmDispositionSetCurrent(producerId: string, dispositionSetId: CanonicalDigest): Promise<boolean>;
 }
 
@@ -579,7 +582,12 @@ export async function bindConditionalPendingAdmission(
   if (authorization.status !== "bound") {
     throw new Error(`conditional pass authorization is ${authorization.status}`);
   }
-  if (authorization.producedHeadSha !== input.producedHeadSha) {
+  if (authorization.producedHeadSha !== input.producedHeadSha
+    && !await input.confirmResponseHeadContinuation?.({
+      repositoryId: input.repositoryId, lineage: input.lineage, producerId: authorization.producerId,
+      dispositionSetId: authorization.dispositionSetId, originatingHeadSha: authorization.originatingHeadSha,
+      fromHeadSha: authorization.producedHeadSha, toHeadSha: input.producedHeadSha,
+    })) {
     throw new Error("conditional pass authorization does not match the produced head");
   }
   if (terminalContinuationAttemptIds(snapshot, input).length > 0) {

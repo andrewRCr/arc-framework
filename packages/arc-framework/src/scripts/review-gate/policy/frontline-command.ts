@@ -1,5 +1,6 @@
 /** Workflow-facing composition API for frontline semantic resolution. */
 
+import type { ConfirmResponseHeadContinuation } from "../core/response-head-continuation.js";
 import {
   FrontlineCommandResultEnvelopeSchema,
 } from "../core/review-command-envelope.js";
@@ -75,6 +76,7 @@ interface FrontlineCommandDependencies {
     lineage: LaneSubjectLineage,
   ): Promise<readonly CandidateSupersessionAncestor[]>;
   withLaneOperationLock<T>(operationId: string, action: () => Promise<T>): Promise<T>;
+  confirmResponseHeadContinuation?: ConfirmResponseHeadContinuation;
   confirmDispositionSetCurrent: (
     producerId: string,
     dispositionSetId: string,
@@ -152,6 +154,7 @@ function frontlineConditionalAdmission(
     admissionId: admission.operationId,
     now: dependencies.now(),
     confirmDispositionSetCurrent: dependencies.confirmDispositionSetCurrent,
+    confirmResponseHeadContinuation: dependencies.confirmResponseHeadContinuation,
   };
 }
 

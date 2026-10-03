@@ -1,5 +1,6 @@
 /** Production assembly for approved review dispositions. */
 
+import { createCandidateResponseHeadContinuationReader } from "./candidate-response-head-continuation.js";
 import { readFile } from "node:fs/promises";
 
 import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
@@ -315,6 +316,7 @@ export function createRespondDependencies(input: {
   const rawGit = createRawGitExec(input.cwd);
   const prepare = createLocalPrepareDependencies(input);
   const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
+  const confirmResponseHeadContinuation = createCandidateResponseHeadContinuationReader({ ...input, dispositionStore });
   const deliveryMembers = new RepositoryDeliveryMemberLookup(input);
   const privateDeliveryTargets = createPreBindingDeliveryReviewTargetDependencies(input);
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
@@ -618,6 +620,7 @@ export function createRespondDependencies(input: {
     recordResponsePerformance: async (performance) => {
       await recordLaneResponsePerformance(prepare.operationStore, {
         ...performance,
+        confirmResponseHeadContinuation,
         now: new Date().toISOString(),
       });
     },
@@ -625,6 +628,7 @@ export function createRespondDependencies(input: {
     bindHostedDisposition: async (binding) => {
       await bindHostedAttemptDisposition(prepare.operationStore, {
         ...binding,
+        confirmResponseHeadContinuation,
         now: new Date().toISOString(),
       });
     },
@@ -769,6 +773,7 @@ export function createRespondDependencies(input: {
       try {
         const result = await supersedeHostedAttemptDisposition(prepare.operationStore, {
           ...supersession,
+          confirmResponseHeadContinuation,
           now: new Date().toISOString(),
         });
         return {

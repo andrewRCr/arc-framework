@@ -89,6 +89,7 @@ describe("review-gate canonical serializer inventory", () => {
       "policy/standard-review-guidance.ts",
       "policy/standard-review-schema.ts",
       "policy/standard-review.ts",
+      "runtime/candidate-response-head-continuation.ts",
       "runtime/frontline-run-command.ts",
       "runtime/local-attest-command.ts",
       "runtime/local-pending-replay.ts",

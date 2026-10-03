@@ -1,3 +1,6 @@
+/** Prepare exact local review operations and enforce lane admission. */
+
+import type { ConfirmResponseHeadContinuation } from "../core/response-head-continuation.js";
 import { z } from "zod";
 
 import { canonicalize } from "../../../lib/kernel/index.js";
@@ -208,6 +211,7 @@ export interface LocalPrepareDependencies {
   validateDeliveryAdmission(
     admission: DeliveryLocalReviewAdmission,
   ): Promise<StandardReviewObligationProjection | undefined>;
+  confirmResponseHeadContinuation?: ConfirmResponseHeadContinuation;
   confirmDispositionSetCurrent: (
     producerId: string,
     dispositionSetId: string,
@@ -709,6 +713,7 @@ async function recordPreparedLocalAdmission(
             admissionId: admitted.preparation.state.operationId,
             now: dependencies.now(),
             confirmDispositionSetCurrent: dependencies.confirmDispositionSetCurrent,
+            confirmResponseHeadContinuation: dependencies.confirmResponseHeadContinuation,
           },
         }),
       });
