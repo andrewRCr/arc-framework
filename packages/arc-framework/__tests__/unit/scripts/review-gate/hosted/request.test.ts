@@ -467,19 +467,19 @@ describe("hosted review request", () => {
     });
   });
 
-  it("retains an admitted Owner-selected source in the durable delivery-member handle", async () => {
+  it.each([undefined, {
+    kind: "delivery-member" as const,
+    planId: DELIVERY_MEMBER.planId,
+    deliverableId: DELIVERY_MEMBER.deliverableId,
+    workUnitId: DELIVERY_MEMBER.workUnitId,
+    head: DELIVERY_MEMBER.head,
+  }])("retains an admitted Owner-selected source in the durable handle (%s)", async (vehicle) => {
     const input = {
       schemaVersion: 1,
       target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
       provider: "codex-pr" as const,
       coverage: "complete" as const,
-      vehicle: {
-        kind: "delivery-member" as const,
-        planId: DELIVERY_MEMBER.planId,
-        deliverableId: DELIVERY_MEMBER.deliverableId,
-        workUnitId: DELIVERY_MEMBER.workUnitId,
-        head: DELIVERY_MEMBER.head,
-      },
+      ...(vehicle === undefined ? {} : { vehicle }),
       invocation: { mode: "force" as const, sourceId: "codex-pr" },
     };
     const result = await requestHostedReview(input, {
@@ -493,7 +493,7 @@ describe("hosted review request", () => {
           createdAt: "2026-07-23T12:00:00.000Z",
         },
       })), id: "codex-pr" }],
-      deliveryMemberLookup: {
+      deliveryMemberLookup: vehicle === undefined ? undefined : {
         resolveMemberByHead: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
         resolveMemberByRef: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
         resolveMemberByVehicle: async () => ({ status: "resolved", member: DELIVERY_MEMBER }),
@@ -508,8 +508,8 @@ describe("hosted review request", () => {
     });
   });
 
-  it.each([undefined, { kind: "errand" as const, standardReview: STANDARD_REVIEW }])(
-    "refuses forced invocation without a delivery-member vehicle before admission or dispatch (%s)",
+  it.each([{ kind: "errand" as const, standardReview: STANDARD_REVIEW }])(
+    "refuses forced invocation on an Errand vehicle before admission or dispatch (%s)",
     async (vehicle) => {
       let admitted = false;
       let dispatched = false;

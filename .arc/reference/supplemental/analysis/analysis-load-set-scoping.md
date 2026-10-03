@@ -301,7 +301,7 @@ for them." Workflow authoring governs frontmatter and prose economy, not address
 **Declared-method eager loading is corpus-wide.** `create-spec` pulls 8,036 words of method against a
 2,659-word body; `draft-design` 7,486 against 2,197; the methods corpus is 17,121 words across 25 files.
 Correcting it means converting a frontmatter declaration from a preload list into validated fire-site triggers
-— the `point-scanner.ts` CHECK 16 extension-marker precedent is the mechanism.
+— the `point-scanner.ts` `CHECK[extension-point-references]` extension-marker precedent is the mechanism.
 
 **`DEV-RULES` is not worth structuring around lifecycle position.** Of 4,243 words, § Task Execution's
 execution-only portion (653 total), § Scaled Process (119), and part of § Documentation Boundaries (549) are
