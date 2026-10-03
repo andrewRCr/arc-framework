@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "housekeep-storage-routing",
+  "claimId": "a6461fb451df147e54f61eae0890cefa",
+  "createdAt": "2026-10-03T13:18:20.737Z",
+  "updatedAt": "2026-10-03T13:18:20.737Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Route the approved storage and lifecycle inbox captures into their planned work units",
+  "branch": "chore/housekeep-storage-routing",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
