@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "planning-task-list-recovery",
+  "claimId": "c9e9bbb9645a85e83aa5eba68f90c47b",
+  "createdAt": "2026-10-03T14:36:59.875Z",
+  "updatedAt": "2026-10-03T14:36:59.875Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Recover Planning sessions with written task lists without an execution cursor",
+  "branch": "chore/planning-task-list-recovery",
+  "origin": "inbox",
+  "originEntry": "Let post-compaction recovery run for a Planning work unit whose task list is already written",
+  "originEntrySourceDigest": "sha256:d4802046daceaa27293091eb40a21169a70ead28da1f2b4b00155337687ccea0",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
