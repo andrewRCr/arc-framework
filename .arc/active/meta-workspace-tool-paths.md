@@ -2,7 +2,7 @@
 
 | **State**  | **Owner** | **Branch**                  | **Class** | **Priority** |
 | ---------- | --------- | --------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/workspace-tool-paths` | `Light`   | `P2`         |
+| `Planning` | `andrew`  | `plan/workspace-tool-paths` | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,7 +12,7 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
