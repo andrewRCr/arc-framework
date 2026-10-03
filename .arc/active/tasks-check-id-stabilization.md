@@ -62,16 +62,13 @@ and the two hook copies match with comment-only production changes.
         - Updated the packaged workflow to use backticked `CHECK[frontmatter-schema]` and projected the installed
           copy with the framework renderer; integrity-check scope and behavior remain unchanged.
 
-### `[ ]` **1.6 Migrate customization guidance and the extension-marker precedent**
+### `[x]` **1.6 Migrate customization guidance and the extension-marker precedent**
 
 - _Goal:_ Current customization guidance and durable extension-marker analysis point to the intended stable checks.
 
-    - In packaged `system/.internal/githooks/README.md`, replace the sensitive-file and debug-statement customization
-      references with `CHECK[sensitive-files]` and `CHECK[debug-statements]`; backtick both Markdown markers and
-      project the installed copy with `npm run -s render:framework -- <package-source-path>`.
-    - In `.arc/reference/supplemental/analysis/analysis-load-set-scoping.md`, identify the `point-scanner.ts` precedent
-      with `CHECK[extension-point-references]`. Preserve the dated `analysis-beta-readiness-audit.md` and other
-      historical records and planning artifacts.
+- _Outcome:_ Migrated both customization references through package source and framework rendering, and corrected
+  the durable extension-marker precedent. The final live-reference census contains no ordinal pre-commit citations;
+  historical audit text and unrelated PR-number fixtures remain unchanged.
 
 ## **Phase 2:** Verification
 
