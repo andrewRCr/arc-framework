@@ -2,7 +2,7 @@
 
 | **State**  | **Owner** | **Branch**                  | **Class** | **Priority** |
 | ---------- | --------- | --------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/spec-reader-standard` | `Light`   | `P2`         |
+| `Planning` | `andrew`  | `plan/spec-reader-standard` | `Heavy`   | `P2`         |
 
 - **Cohort:** `doc-conventions`
 - **Depends On:** [none]
@@ -12,7 +12,7 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
