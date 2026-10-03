@@ -50,18 +50,17 @@ and the two hook copies match with comment-only production changes.
 - _Outcome:_ Migrated all three integration-test comments and their ordinal suite labels to the matching stable
   check IDs; fixture setup and behavior assertions remain unchanged.
 
-### `[ ]` **1.5 Migrate integrity-check references**
+### `[x]` **1.5 Migrate integrity-check references**
 
 - _Goal:_ Integrity diagnostics accurately distinguish the current frontmatter hook from the post-hoc audit.
 
-    - `[ ]` **1.5.a Align integrity-script comments**
-        - Migrate the frontmatter reference in packaged `system/.internal/scripts/verify-integrity.sh` to
-          `CHECK[frontmatter-schema]`, then propagate that comment to its `.arc/` counterpart with targeted edits.
+    - `[x]` **1.5.a Align integrity-script comments**
+        - Updated the frontmatter reference to `CHECK[frontmatter-schema]` in both integrity scripts through
+          targeted comment edits.
 
-    - `[ ]` **1.5.b Align integrity-workflow guidance**
-        - Migrate the same reference in packaged `system/workflows/arc/supplemental/verify-arc-integrity.md`, backtick
-          the marker, and project its installed copy with `npm run -s render:framework -- <package-source-path>`.
-          Preserve the scope and behavior of the integrity checks.
+    - `[x]` **1.5.b Align integrity-workflow guidance**
+        - Updated the packaged workflow to use backticked `CHECK[frontmatter-schema]` and projected the installed
+          copy with the framework renderer; integrity-check scope and behavior remain unchanged.
 
 ### `[ ]` **1.6 Migrate customization guidance and the extension-marker precedent**
 
