@@ -22,19 +22,10 @@ command; forbidden and failed invocations return diagnostics, and ordinary view 
 - _Note:_ See `notes-artifact-editor-handoff.md` § Existing seams for shell argument transport and the
   noninteractive Git environment override.
 
-    - `[ ]` **1.1.a Select and launch the editor through an injectable process boundary**
-        - Add a focused editor adapter, proposed as `src/handlers/view-editor.ts`, with injected Git/process ports
-          for tests. Keep production process and environment effects in the adapter; add no dependency.
-        - Use non-empty `ARC_EDITOR`; otherwise read `git var GIT_EDITOR` in the project context. Retain Git's
-          fallback and command-side shell semantics. Pass the artifact path separately as literal argument data.
-        - Build `test-first` (one behavior at a time):
-            - Override precedence and empty/absent override delegation to Git, including an ordinary fallback.
-            - Arguments, quoted executable paths, and command-side expansion work on supported platforms; spaces,
-              quotes, and shell metacharacters in an artifact path remain one literal filename argument.
-            - Streams are inherited, completion waits for the selected process, and configured wait flags are
-              neither added nor removed. Exercise argument transport with a harmless recorder, never a real editor.
-            - Failed selection, launch errors, signals, and unsuccessful exits reject the handoff without trying
-              another editor; correcting the command permits a successful retry.
+    - `[x]` **1.1.a Select and launch the editor through an injectable process boundary**
+        - Added `src/handlers/view-editor.ts` with injected Git/process ports.
+          Non-empty `ARC_EDITOR` overrides Git selection; an invocation-local Git shell alias transports the real
+          file as literal argv, inherits terminal streams, waits, and reports failures with an override remedy.
 
     - `[ ]` **1.1.b Route resolved artifacts to the editor before presentation**
         - Extend `RunViewOptions` in `src/lib/view/types.ts` and `ViewDependencies` in `src/commands/view/run.ts`
