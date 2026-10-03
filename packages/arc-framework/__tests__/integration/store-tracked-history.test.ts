@@ -33,6 +33,30 @@ async function repository() {
 }
 
 describe("tracked state and history", () => {
+  it.each(["work-item/draft","work-item/notes","work-item/companion"] as const)("distinguishes an uncovered %s from true companion absence", async (kind) => {
+    const repo = await repository();
+    const empty = await repo.commit("empty base");
+    const stub = ".arc/backlog/planned/example/meta-example.md";
+    await repo.put(stub,makeMetaFixture("example",{state:"Planning",branch:null}));
+    const baseline = await repo.commit("planned stub");
+    await repo.exec("git",["checkout","-b","feat/example"]);
+    await repo.exec("git",["rm",stub]);
+    await repo.put(".arc/active/meta-example.md",makeMetaFixture("example",{branch:"feat/example"}));
+    const prefix = kind === "work-item/draft" ? "draft" : kind === "work-item/notes" ? "notes" : "research";
+    await repo.put(`.arc/active/${prefix}-example.md`,"on owning branch\n");
+    await repo.commit("live companion");
+    await repo.exec("git",["checkout","main"]);
+    const companion = kind === "work-item/companion" ? recordReferences[kind](reference().owner,"research") : recordReferences[kind](reference().owner);
+    const absent = recordReferences["work-item/spec"](reference().owner);
+    for (const asOf of [empty,baseline]) {
+      expect(await repo.store.read({reference:companion,asOf})).toMatchObject({status:"refused",refusal:{code:"unsupported",case:"uncovered-state-version",remedy:{text:expect.stringContaining("per-record version")}}});
+      expect(await repo.store.read({reference:absent,asOf})).toMatchObject({status:"refused",refusal:{code:"not-found"}});
+    }
+    const live = success(await repo.store.read({reference:companion}));
+    expect(live.content).toBe("on owning branch\n");
+    expect(success(await repo.store.read({reference:companion})).version).toBe(live.version);
+  });
+
   for (const mode of ["creation","removal","both"] as const) {
     it.each(["all","meta","notes"] as const)(`reports raw parser-rejected ${mode} changes restricted to %s`, async (restriction) => {
       const repo = await repository();

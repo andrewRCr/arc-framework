@@ -20,7 +20,7 @@ export async function readTracked(context: InRepoContext, input: ReadInput): Pro
   const path = await recordPath(context, input.reference, source, input.asOf);
   const revision = input.asOf ?? source?.revision;
   const content = await readFileAt(context, path, revision);
-  if (content === null) return notFound(input.reference);
+  if (content === null) return missingTracked(context,input);
   const placement = source?.placement ?? (input.reference.kind.startsWith("review/")
     ? (await selectMeta(context,input.reference.owner.name,input.asOf))?.placement ?? { kind: "active" as const }
     : undefined);
@@ -36,8 +36,13 @@ export async function readTracked(context: InRepoContext, input: ReadInput): Pro
 async function requiredMeta(context: InRepoContext, input: ReadInput): Promise<MetaSource> {
   const source = await selectMeta(context, input.reference.owner.name, input.asOf);
   if (source !== undefined) return source;
-  if (input.asOf !== undefined && await selectMeta(context, input.reference.owner.name) !== undefined) {
-    return unsupported("uncovered-state-version", "The requested saved tree does not hold this work unit's record",
+  return missingTracked(context,input);
+}
+async function missingTracked(context:InRepoContext,input:ReadInput): Promise<never> {
+  const live = input.asOf !== undefined && input.reference.kind.startsWith("work-item/")
+    ? await selectMeta(context,input.reference.owner.name) : undefined;
+  if (live?.revision !== undefined && await readFileAt(context,await recordPath(context,input.reference,live),live.revision) !== null) {
+    return unsupported("uncovered-state-version", "The requested saved tree does not hold this record from another branch",
       "Read the record using its own per-record version instead.");
   }
   return notFound(input.reference, "Create the work unit's meta with its companions in one batch, then retry.");
