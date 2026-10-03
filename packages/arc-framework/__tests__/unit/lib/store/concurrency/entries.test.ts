@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { parseCrossWuEntries } from "../../../../../src/lib/user-sync/parser.js";
 import { managedFieldValue } from "../../../../../src/lib/session-init/managed-field.js";
 import { stampEntryIds } from "../../../../../src/lib/store/concurrency/stamp.js";
+import { mergeEntryText } from "../../../../../src/lib/store/concurrency/entry-merge.js";
+import { keyedReference, OwnerIdentitySchema } from "../../../../../src/lib/store/identity.js";
 import { splitEntryList, rejoinEntryList, type EntryListConfig } from "../../../../../src/lib/store/concurrency/entries.js";
 
 const heading: EntryListConfig = {shape:"heading",sections:["Errand","Work Unit"]};
@@ -26,6 +28,25 @@ describe("entry splitting", () => {
 
 
 describe("managed ID stamping", () => {
+  it.each([
+    [heading,'## Errand\n\n### **Entry**\n\n- _Created:_ `2026-10-01`\n\n<!-- example\n- _Description:_ example field\n-->\n\nactual body\n'],
+    [field,'## Memories\n\n**Memory:**\n<!-- example\n_Remove when:_ example\n-->\n_Remove when:_ real\n\nbody\n'],
+    [heading,'## Errand\n\n### **Entry**\n- _Description:_ real <!-- example\n- _Description:_ hidden\n-->\n\nbody\n'],
+    [field,'## Memories\n\n**Memory:**\n_Remove when:_ real <!-- example\n_Remove when:_ hidden\n-->\n\nbody\n']
+  ] as const)("stamps a usable identity outside comment examples for %j", (config,input) => {
+    for (const newline of ["\n","\r\n"]) {
+      const content = input.replaceAll("\n",newline);
+      const stamped = stampEntryIds(content,config,()=>0.5);
+      const entries = splitEntryList(stamped,config).parts.filter((part)=>part.kind === "entry");
+      expect(entries).toHaveLength(1);
+      expect(entries[0]?.id).toBe("80000000");
+      expect(stampEntryIds(stamped,config,()=>{throw new Error("must not draw");})).toBe(stamped);
+      expect(stamped.match(/<!--[\s\S]*?-->/u)?.[0]).toBe(content.match(/<!--[\s\S]*?-->/u)?.[0]);
+      const record = keyedReference(OwnerIdentitySchema.parse({type:"person",name:"owner"}),"personal/document","list.md");
+      expect(mergeEntryText({base:stamped,current:stamped,incoming:stamped,record,currentLabel:{actor:"current",time:"2026-10-01T00:00:00Z"},incomingLabel:{actor:"incoming",time:"2026-10-01T01:00:00Z"}},config)).toEqual({content:stamped,conflicts:[]});
+    }
+  });
+
   it.each([[heading,headingText],[field,fieldText]] as const)("adds only missing ID lines in managed-field positions for %j", (config,text) => {
     const stamped = stampEntryIds(text,config, (() => {let draw=0.5; return () => {const next=draw;draw+=0.25;return next;};})());
     const entries = splitEntryList(stamped,config).parts.filter((part) => part.kind === "entry");

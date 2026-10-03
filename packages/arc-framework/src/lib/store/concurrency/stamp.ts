@@ -1,5 +1,5 @@
 /** Stable managed entry IDs drawn only from a caller-provided random source. */
-import { rejoinEntryList, splitEntryList, type EntryListConfig, type ListEntry } from "./entries.js";
+import { maskComments, rejoinEntryList, splitEntryList, type EntryListConfig, type ListEntry } from "./entries.js";
 
 /** Stamp entries missing an identity without rewriting any other bytes.
  * @param content - Document to persist.
@@ -22,23 +22,32 @@ export function stampEntryIds(content: string, config: EntryListConfig, random: 
 
 function insertId(entry: ListEntry, shape: EntryListConfig["shape"], id: string): string {
   const lines = [...entry.bytes.matchAll(/[^\n]*(?:\n|$)/gu)].filter((line)=>line[0].length > 0);
+  const visible = [...maskComments(entry.bytes).matchAll(/[^\n]*(?:\n|$)/gu)].filter((line)=>line[0].length > 0);
   let position = 0;
   if (shape === "field-header") {
-    position = lines.findIndex((line)=>/^[_*]Remove when:/u.test(line[0].trim()));
+    position = visible.findIndex((line)=>/^[_*]Remove when:/u.test(line[0].trim()));
     if (position < 0) throw new Error("Field-header entry has no removal trigger");
   } else {
-    for (const [index,line] of lines.entries()) {
+    for (const [index,line] of visible.entries()) {
       if (/^\s*-\s+_[^_]+:_/u.test(line[0])) position = index;
     }
-    while (/^\s{2,}\S/u.test(lines[position+1]?.[0] ?? "")) position++;
+    while (/^\s{2,}\S/u.test(visible[position+1]?.[0] ?? "")) position++;
   }
   const line = lines[position];
   if (line === undefined) throw new Error("Entry has no header");
   const newline = line[0].endsWith("\r\n") || (!line[0].endsWith("\n") && entry.bytes.includes("\r\n")) ? "\r\n" : "\n";
   const idLine = `${shape === "heading" ? "- " : ""}_Id:_ \`${id}\``;
-  const offset = line.index+line[0].length;
-  const inserted = line[0].endsWith("\n") ? idLine+newline : newline+idLine;
-  return entry.bytes.slice(0,offset)+inserted+entry.bytes.slice(offset);
+  return insertOutsideComment(entry.bytes,line.index+line[0].length,idLine,newline);
+}
+
+function insertOutsideComment(bytes:string,offset:number,idLine:string,newline:string): string {
+  const comment = [...bytes.matchAll(/<!--[\s\S]*?(?:-->|$)/gu)]
+    .find((match)=>match.index < offset && offset < match.index+match[0].length);
+  if (comment !== undefined) offset = comment.index;
+  const prefix = offset > 0 && bytes[offset-1] !== "\n" ? newline : "";
+  const suffix = offset < bytes.length ? newline : "";
+  const inserted = prefix+idLine+suffix;
+  return bytes.slice(0,offset)+inserted+bytes.slice(offset);
 }
 
 
