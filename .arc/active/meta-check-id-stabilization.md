@@ -8,11 +8,11 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-check-id-stabilization.md`
+- **Design:** `spec-check-id-stabilization.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** Stub created from a USER-INBOX capture at the `single-owner-wu-model` housekeep drain
   (2026-06-24).
 - **Next Task:** [none]
