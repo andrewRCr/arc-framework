@@ -9,7 +9,7 @@
 
 - **Origin:** [internal] — minted at the 2026-09-30 housekeep drain from a `USER-INBOX` capture
 - **Design:** `spec-cli-help-discovery.md`
-- **Task List:** [none]
+- **Task List:** `tasks-cli-help-discovery.md`
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]
