@@ -15,10 +15,10 @@ import type { ErrandRecordIO } from "../../errand/ref-tree.js";
  * @returns Stored bytes with their blob mutation basis.
  */
 export async function readTransient(context: InRepoContext, input: ReadInput): Promise<StoreRecord> {
-  if (input.asOf !== undefined) unsupported("uncovered-state-version", "The branch anchor does not cover identity refs.", "Read the current record using its per-record version.");
   const io = await transientIO(context);
   admitTransient(input.reference, io?.identity ?? null);
   if (io === null) throw new Error("Missing admitted identity");
+  if (input.asOf !== undefined) unsupported("uncovered-state-version", "The branch anchor does not cover identity refs.", "Read the current record using its per-record version.");
   const snapshot = await readTransientIdentitySnapshot(io);
   if (snapshot.kind === "error") throw new Error(snapshot.message,{cause:snapshot.error});
   if (snapshot.kind === "absent") return notFound(input.reference);
@@ -37,9 +37,9 @@ export async function readTransient(context: InRepoContext, input: ReadInput): P
  * @returns Absent, unreadable, or complete local enumeration.
  */
 export async function listTransient(context: InRepoContext, input: ListInput): Promise<ListingOutcome> {
-  if (input.asOf !== undefined) unsupported("uncovered-state-version", "The branch anchor does not cover identity refs.", "List current identity records instead.");
   const io = await transientIO(context);
   if (io === null) return { status: "absent" };
+  if (input.asOf !== undefined) unsupported("uncovered-state-version", "The branch anchor does not cover identity refs.", "List current identity records instead.");
   const snapshot = await readTransientIdentitySnapshot(io);
   if (snapshot.kind === "absent") return { status: "absent" };
   if (snapshot.kind === "error") return { status: "unreadable", condition: snapshot.message, remedy: { text: "Repair the identity ref's tip or root tree, then retry listing." } };

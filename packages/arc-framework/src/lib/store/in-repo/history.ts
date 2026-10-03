@@ -8,6 +8,8 @@ import { recordPath } from "./paths.js";
 import { readFileAt } from "./files.js";
 import { notFound, unsupported } from "./refusals.js";
 import { trackedReferences } from "./list.js";
+import { personalIdentity } from "./personal-paths.js";
+import { admitTransient } from "./transient-common.js";
 
 /** Return the branch's saved state anchor.
  * @param context - Explicit repository dependencies.
@@ -26,7 +28,7 @@ export async function stateVersion(context: InRepoContext): Promise<StateVersion
  */
 export async function trackedHistory(context: InRepoContext, input: { reference: RecordReference }): Promise<HistoryEntry[]> {
   const reference = input.reference;
-  historyAdmission(context, reference);
+  await historyAdmission(context, reference);
   const home = context.registry[reference.kind].inRepo;
   const needsMeta = home.address?.kind === "work-unit-artifact" || home.finder === "companions";
   const liveMeta = needsMeta ? await selectMeta(context, reference.owner.name) : undefined;
@@ -58,6 +60,7 @@ async function historicalMeta(context: InRepoContext, slug: string, revision: st
  * @returns Changes in chronological commit order.
  */
 export async function trackedChanges(context: InRepoContext, input: ChangesInput): Promise<HistoryEntry[]> {
+  for (const reference of input.references ?? []) await changesAdmission(context, reference);
   const commits = await intervalCommits(context, input);
   const revisions = [...new Set([input.from, input.to, ...commits.flatMap((commit) => [commit.revision, ...commit.parents])])];
   const references = input.references ?? await intervalReferences(context, revisions);
@@ -87,7 +90,7 @@ async function intervalCommits(context: InRepoContext, input: ChangesInput): Pro
 
 async function admitIntervalRecords(context: InRepoContext, input: ChangesInput, references: RecordReference[], revisions: string[]): Promise<void> {
   for (const reference of references) {
-    changesAdmission(context, reference);
+    await changesAdmission(context, reference);
     let present = false;
     for (const revision of revisions) {
       const path = await pathAt(context, reference, revision);
@@ -103,7 +106,8 @@ async function recordAt(context: InRepoContext, reference: RecordReference, revi
   return { path, content: path === undefined ? null : await readFileAt(context, path, revision) };
 }
 
-function changesAdmission(context: InRepoContext, reference: RecordReference): void {
+async function changesAdmission(context: InRepoContext, reference: RecordReference): Promise<void> {
+  await identityAdmission(context, reference);
   if (context.registry[reference.kind].inRepo.substrate !== "tracked") unsupported("uncovered-state-version",
     "The branch's saved state does not cover this record.", "Read and check the record's own per-record version instead.");
 }
@@ -133,11 +137,18 @@ async function intervalReferences(context: InRepoContext, revisions: string[]): 
   return [...references.values()];
 }
 
-function historyAdmission(context: InRepoContext, reference: RecordReference): void {
+async function historyAdmission(context: InRepoContext, reference: RecordReference): Promise<void> {
+  await identityAdmission(context, reference);
   const substrate = context.registry[reference.kind].inRepo.substrate;
   if (substrate === "none") unsupported("unhomed-kind", "This record has no home before the store cutover.", "Use a kind housed by the current backend.");
   if (substrate === "personal") unsupported("personal-history", "Personal files have no history in this backend.", "Read the current personal file instead.");
   if (substrate !== "tracked") unsupported("uncovered-state-version", "The branch anchor does not cover this record's substrate.", "Use the record's own version instead.");
+}
+
+async function identityAdmission(context: InRepoContext, reference: RecordReference): Promise<void> {
+  const substrate = context.registry[reference.kind].inRepo.substrate;
+  if (substrate === "personal") await personalIdentity(context, reference);
+  if (substrate === "transient-identity") admitTransient(reference, await context.ports.identity());
 }
 
 async function git(context: InRepoContext, args: string[]): Promise<string> {

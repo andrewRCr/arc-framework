@@ -70,7 +70,6 @@ async function dispatchedRead(context: InRepoContext, input: ReadInput): Promise
   const home = context.registry[input.reference.kind].inRepo.substrate;
   if (home === "none") return notFound(input.reference);
   if (home !== "tracked") {
-    if (input.asOf !== undefined) return unsupported("uncovered-state-version", "This record is outside the branch's saved state", "Read the record using its own per-record version instead.");
     if (home === "personal") return (await import("./personal.js")).readPersonal(context, input);
     return (await import("./transient-read.js")).readTransient(context, input);
   }
