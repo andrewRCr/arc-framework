@@ -1,12 +1,17 @@
 ---
 name: spec-review
-description: Lightweight default self-review of a just-written spec — coherence + grounding, scaled to the form.
+description: Self-review of a just-written spec — coherence and behavior-grade grounding, scaled to the form.
+arc:
+  methods:
+    - source-grounding
+related:
+  - source-grounding
 override-active: false
 ---
 
 # Method: spec-review
 
-> - **Workflow:** [create-spec.md][create-spec]
+> - **Workflow:** [create-spec.md][create-spec], [amend-design.md][amend-design]
 > - **When:** A spec has just been written, at create-spec's finalization review gate — before the spec is
 >   approved and committed.
 >
@@ -24,7 +29,7 @@ override-active: false
 A final pass over the spec you just wrote, before it is surfaced for approval. Two slices, each scaled to the
 form. This is not a re-litigation of the design (discovery settled that) nor a repeat of the alignment checks
 (those ran against PROJECT-PRD / TECHNICAL-OVERVIEW earlier) — it reviews whether the written artifact holds
-together and refers to real things.
+together and grounds its claims in source behavior.
 
 **Coherence — the spec hangs together.**
 
@@ -36,24 +41,30 @@ together and refers to real things.
   Design** (RFC), the settled **Decisions** (`outline`), the one **signal** (`brief`) — is complete and
   unambiguous.
 
-**Grounding — the spec's concrete references are real.**
+**Grounding — the spec's claims hold at source.**
 
-- Named files, symbols, components, and dependencies exist (or are clearly marked as to-be-created).
-- Cited principles / sections resolve to real anchors.
-- Claims leaning on existing code or prior work are plausible against reality — a **light** verification, not the
-  deep per-phase grounding audit at task generation (that one is scale-keyed and runs later against the work
-  surface).
+Run [source-grounding][source-grounding] at `artifact` scope over the spec and its upstream chain, or the affected
+spec elements when amending it. The runner label follows that method's rule; caller inputs stay unchanged. Its
+behavior check and propagation sweep ground claims in what named code, tools, configuration, and shipped rules
+actually do, with its severity interpretation.
 
-**Scale to the form — the bar is invariant (coherent + grounded); the distance scales.**
+```yaml
+source-grounding:
+  artifacts:  # spec (or amendment footprint) + upstream chain
+  scope: artifact
+```
+
+**Scale to the form — the bar is invariant (coherent + grounded); grounding distance scales with the number of
+claims about shipped behavior.**
 
 - **`brief` → quick.** One pass: is the single success signal concrete and falsifiable, and the scope boundary
-  clear? Grounding is near-trivial. Collapses to one minimal check.
+  clear? Ground every claim about shipped behavior; few claims keep this to one minimal check.
 - **`outline` → moderate.** Each decision settled with its rationale; consequences / risks named; success criteria
-  checkable; the handful of concrete references grounded.
+  checkable; every claim about shipped behavior grounded.
 - **`detailed` → full.** Every section coherent and complete; the substrate (Requirements / Proposed Design)
-  exhaustive and unambiguous; the cross-cutting surface present; all concrete references grounded.
+  exhaustive and unambiguous; the cross-cutting surface present; every claim about shipped behavior grounded.
 
-**Posture.** Lightweight and corrective: fix what you can inline as you go, and surface anything that needs a
+**Posture.** Corrective: fix what you can inline as you go, and surface anything that needs a
 decision at the finalization stop rather than adding a gate. A finding that reopens _design_ — a masked decision,
 an unsettled fundamental — is a derivation signal: route it back to the design (draft / spec), never paper over it
 in the spec.
@@ -66,3 +77,5 @@ the finalization stop, never a gate.
 ---
 
 [create-spec]: ../workflows/arc/create-spec.md
+[amend-design]: ../workflows/arc/supplemental/amend-design.md
+[source-grounding]: source-grounding.md

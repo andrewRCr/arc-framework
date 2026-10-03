@@ -13,14 +13,15 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                       | Priority | Owner  | Depends on | Cohort        |
-| ---------- | ------------------------------- | -------- | ------ | ---------- | ------------- |
-| `Planning` | storage-contract                | P1       | andrew | —          | state-storage |
-| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —          | —             |
-| `Planning` | decomposition-doctrine          | P1       | andrew | —          | —             |
-| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —          | —             |
-| `Planning` | review-checkout-lifecycle       | P1       | andrew | —          | —             |
-| `Planning` | stub-mint-to-launch             | P1       | andrew | —          | —             |
+| State         | Work unit                       | Priority | Owner  | Depends on | Cohort        |
+| ------------- | ------------------------------- | -------- | ------ | ---------- | ------------- |
+| `Active`      | storage-contract                | P1       | andrew | —          | state-storage |
+| `Planning`    | candidate-reroot-recovery-frame | P1       | andrew | —          | —             |
+| `Planning`    | decomposition-doctrine          | P1       | andrew | —          | —             |
+| `Planning`    | delivery-rebuild-continuity     | P1       | andrew | —          | —             |
+| `Integrating` | grounded-planning-review        | P1       | andrew | —          | —             |
+| `Planning`    | review-checkout-lifecycle       | P1       | andrew | —          | —             |
+| `Planning`    | stub-mint-to-launch             | P1       | andrew | —          | —             |
 
 ## Ready
 
@@ -36,7 +37,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | storage-ref-backend                 | P1       | andrew | —          | state-storage              |
 | cross-worktree-git-state-safety     | P1       | andrew | —          | —                          |
 | delivery-intent-integrity           | P1       | andrew | —          | —                          |
-| grounded-planning-review            | P1       | andrew | —          | —                          |
 | locus-claim-revalidation            | P1       | andrew | —          | —                          |
 | recovery-hardening                  | P1       | andrew | —          | —                          |
 | recurring-errand-pr-resolution      | P1       | andrew | —          | —                          |
