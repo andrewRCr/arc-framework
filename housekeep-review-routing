@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "housekeep-review-routing",
+  "claimId": "c02be7211d434e595c7b5ebcbe459e48",
+  "createdAt": "2026-10-03T13:26:40.605Z",
+  "updatedAt": "2026-10-03T13:26:40.605Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Route the approved review, planning, and merge-queue inbox captures into their planned work units",
+  "branch": "chore/housekeep-review-routing",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
