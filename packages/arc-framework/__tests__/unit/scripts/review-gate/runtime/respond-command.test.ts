@@ -435,6 +435,7 @@ function dependencies(records: ReturnType<typeof fixture>) {
         dispositionSetId: performance.dispositionSetId,
         originatingHeadSha: performance.headSha,
         producedHeadSha: performance.producedHeadSha,
+        ...(performance.candidateResponseId === undefined ? {} : { candidateResponseId: performance.candidateResponseId }),
         performedAt: "2026-07-23T21:00:00Z",
       };
     },
@@ -582,7 +583,9 @@ function candidateLineageBinding(
     workUnit: "example",
     record,
     recordVersion: canonicalDigest(record),
-    reviewed: effectiveCurrent(record, { revision: records.target.headSha, subject: baseline.target.subject }),
+    reviewed: effectiveCurrent(record, { revision: records.target.headSha,
+      subject: candidateReviewResponses(record).find(({ oldTarget }) => oldTarget.revision === records.target.headSha)
+        ?.oldTarget.subject ?? baseline.target.subject }),
     effective: effectiveCurrent(record, current),
     current,
     candidateFixTarget,
@@ -3485,6 +3488,7 @@ describe("verified-fix Candidate settlement", () => {
       attemptId: records.operation.operationId,
       dispositionSetId: request.dispositions.dispositionSet.dispositionSetId,
       producedHeadSha: objectId("e"),
+      candidateResponseId: response?.responseId,
     });
   });
 
@@ -3632,6 +3636,29 @@ describe("verified-fix Candidate settlement", () => {
     expect(appends).toHaveLength(1);
   });
 
+  it.each([false, true])("requires record-commit proof when binding at a later head: %s", async (confirmed) => {
+    const records = fixture();
+    const fixed = { revision: objectId("e"), subject: candidateSubject("fixed") };
+    const { deps, appends } = lineageDependencies(records, fixed);
+    const request = verifiedFixRequest(records);
+    await respondToReviewCommand(request, deps);
+    const advanced = appends[0]?.record;
+    const response = advanced === undefined ? undefined : candidateReviewResponses(advanced)[0];
+    if (advanced === undefined || response === undefined) throw new Error("expected response");
+    const committed = { ...fixed, revision: objectId("f") };
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, advanced, committed);
+    const confirmCommit = vi.fn(async () => confirmed);
+    deps.confirmCandidateResponseCommit = confirmCommit;
+    const recordPerformance = vi.fn(async () => undefined);
+    deps.recordResponsePerformance = recordPerformance;
+    const replay = respondToReviewCommand(request, deps);
+    if (confirmed) await expect(replay).resolves.toMatchObject({ state: "candidate-current" });
+    else await expect(replay).rejects.toThrow("clean direct record commit");
+    expect(confirmCommit).toHaveBeenCalledWith({ workUnit: "example", response,
+      fromHeadSha: fixed.revision, toHeadSha: committed.revision });
+    expect(recordPerformance).toHaveBeenCalledTimes(confirmed ? 1 : 0);
+  });
+
   it.each([
     ["applicability", { applicability: "full" as const }],
     ["verification evidence", { verificationEvidenceRefs: ["verification://different"] }],
@@ -3649,6 +3676,28 @@ describe("verified-fix Candidate settlement", () => {
       ...request,
       verifiedFix: { ...request.verifiedFix, ...verifiedFixPatch },
     }, deps)).rejects.toThrow("replay conflicts");
+  });
+
+  it.each([
+    ["approved verification", { approvedVerification: "targeted" as const }],
+    ["implementation status", { implementationChanged: false }],
+    ["subject", { newTarget: { revision: objectId("e"), subject: candidateSubject("substituted") } }],
+  ])("refuses to bind a replay with substituted %s", async (_label, patch) => {
+    const records = fixture();
+    const current = { revision: objectId("e"), subject: candidateSubject("fixed") };
+    const { deps, appends } = lineageDependencies(records, current);
+    const request = verifiedFixRequest(records);
+    await respondToReviewCommand(request, deps);
+    const advanced = appends[0]?.record;
+    const response = advanced === undefined ? undefined : candidateReviewResponses(advanced)[0];
+    if (advanced === undefined || response === undefined) throw new Error("expected response");
+    const changed = { ...advanced, transitions: [createCandidateReviewResponseEvidence({ ...response, ...patch })] };
+    deps.readCandidateLineage = async () => candidateLineageBinding(records, changed, current);
+    const recordPerformance = vi.fn(async () => undefined);
+    deps.recordResponsePerformance = recordPerformance;
+    await expect(respondToReviewCommand(request, deps)).rejects.toThrow(_label === "implementation status"
+      ? "canonical reviewable-subject delta" : "complete verified response");
+    expect(recordPerformance).not.toHaveBeenCalled();
   });
 
   it("rejects a Candidate response replay whose recorded review target moved", async () => {

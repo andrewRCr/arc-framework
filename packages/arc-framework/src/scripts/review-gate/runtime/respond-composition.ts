@@ -1,6 +1,6 @@
 /** Production assembly for approved review dispositions. */
 
-import { createCandidateResponseHeadContinuationReader } from "./candidate-response-head-continuation.js";
+import { createCandidateResponseHeadContinuationReader, confirmCandidateResponseHeadContinuation } from "./candidate-response-head-continuation.js";
 import { readFile } from "node:fs/promises";
 
 import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
@@ -316,7 +316,7 @@ export function createRespondDependencies(input: {
   const rawGit = createRawGitExec(input.cwd);
   const prepare = createLocalPrepareDependencies(input);
   const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
-  const confirmResponseHeadContinuation = createCandidateResponseHeadContinuationReader({ ...input, dispositionStore });
+  const confirmResponseHeadContinuation = createCandidateResponseHeadContinuationReader({ ...input, dispositionStore, operationStore: prepare.operationStore });
   const deliveryMembers = new RepositoryDeliveryMemberLookup(input);
   const privateDeliveryTargets = createPreBindingDeliveryReviewTargetDependencies(input);
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
@@ -611,6 +611,11 @@ export function createRespondDependencies(input: {
         requirePublished,
       });
     },
+    confirmCandidateResponseCommit: ({ workUnit, response, fromHeadSha, toHeadSha }) =>
+      confirmCandidateResponseHeadContinuation({ ...input, workUnit, candidateId: response.candidateId,
+        dispositionSetId: response.dispositionId, expectedResponseId: response.responseId,
+        originatingHeadSha: response.oldTarget.revision, verifiedHeadSha: fromHeadSha, fromHeadSha, toHeadSha,
+        approvedBy: response.approvedBy, appliedBy: response.appliedBy }),
     settleLaneFindings: async (settlement) => {
       await settleLaneAttempt(prepare.operationStore, {
         ...settlement,

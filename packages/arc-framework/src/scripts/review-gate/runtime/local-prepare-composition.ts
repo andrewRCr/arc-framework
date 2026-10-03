@@ -372,7 +372,7 @@ export function createLocalPrepareDependencies(input: {
       10_000,
       action,
     ),
-    confirmResponseHeadContinuation: createCandidateResponseHeadContinuationReader({ ...input, dispositionStore }),
+    confirmResponseHeadContinuation: createCandidateResponseHeadContinuationReader({ ...input, dispositionStore, operationStore }),
     confirmDispositionSetCurrent: (producerId, dispositionSetId) => confirmCurrentDispositionSet(
       dispositionStore,
       producerId,

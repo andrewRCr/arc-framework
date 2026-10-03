@@ -326,6 +326,12 @@ export interface RespondCommandDependencies {
     response: CandidateReviewResponseEvidenceV1;
     requirePublished: boolean;
   }): Promise<void>;
+  confirmCandidateResponseCommit?(input: {
+    workUnit: string;
+    response: CandidateReviewResponseEvidenceV1;
+    fromHeadSha: string;
+    toHeadSha: string;
+  }): Promise<boolean>;
   settleLaneFindings(input: {
     lane: "frontline" | "standard";
     repositoryId: string;
@@ -345,6 +351,7 @@ export interface RespondCommandDependencies {
     dispositionSetId: CanonicalDigest;
     predecessorDispositionSetId?: CanonicalDigest;
     producedHeadSha: string;
+    candidateResponseId?: CanonicalDigest;
   }): Promise<void>;
   readResponsePerformance(result: ReviewResult): Promise<LaneResponsePerformance | null>;
   bindHostedDisposition(input: {
@@ -835,6 +842,7 @@ async function recordPerformedResponse(
   producedHeadSha: string,
   predecessorDispositionSetId: CanonicalDigest | null,
   dependencies: RespondCommandDependencies,
+  candidateResponseId?: CanonicalDigest,
 ): Promise<void> {
   await dependencies.recordResponsePerformance({
     lane: source.frontlineOutcome === undefined ? "standard" : "frontline",
@@ -847,7 +855,44 @@ async function recordPerformedResponse(
       ? {}
       : { predecessorDispositionSetId }),
     producedHeadSha,
+    ...(candidateResponseId === undefined ? {} : { candidateResponseId }),
   });
+}
+
+/** Check every response field before independently binding a verified Candidate replay. */
+async function assertCompleteCandidateReplay(input: {
+  lineage: CandidateLineageBinding;
+  matching: CandidateReviewResponseEvidenceV1;
+  candidateTarget: ReviewTarget;
+  dispositions: ApprovedDispositionSet;
+  verifiedFix: z.infer<typeof RespondVerifiedFixSchema>;
+  source: ResolvedResponseSource;
+  dependencies: RespondCommandDependencies;
+}): Promise<void> {
+  const { lineage, matching, candidateTarget, dispositions, verifiedFix } = input;
+  const expected = recordCandidateVerifiedResponse({
+    projection: projectCandidateDeltaVerification({ record: lineage.record,
+      oldTarget: { ...lineage.reviewed.recognizedTarget, revision: candidateTarget.headSha },
+      current: { ...lineage.current, revision: matching.newTarget.revision } }),
+    dispositionId: dispositions.dispositionSet.dispositionSetId,
+    approvedBy: dispositions.approval.approvedBy, appliedBy: dispositions.dispositionSet.proposedBy,
+    approvedVerification: dispositions.dispositionSet.proposedVerification,
+    applicability: verifiedFix.applicability, verificationEvidenceRefs: verifiedFix.verificationEvidenceRefs,
+  });
+  if (canonicalize(matching) !== canonicalize(expected)) {
+    throw new RespondCommandError("invalid-input", "Candidate response replay conflicts with the complete verified response");
+  }
+  const prior = await input.dependencies.readResponsePerformance(input.source.result);
+  if (prior?.dispositionSetId === dispositions.dispositionSet.dispositionSetId
+    && (prior.producedHeadSha !== matching.newTarget.revision
+      || (prior.candidateResponseId !== undefined && prior.candidateResponseId !== expected.responseId))) {
+    throw new RespondCommandError("invalid-input", "Candidate response replay conflicts with immutable response performance");
+  }
+  if (matching.newTarget.revision !== lineage.current.revision
+    && !await input.dependencies.confirmCandidateResponseCommit?.({ workUnit: lineage.workUnit,
+      response: expected, fromHeadSha: matching.newTarget.revision, toHeadSha: lineage.current.revision })) {
+    throw new RespondCommandError("invalid-input", "Candidate response replay requires the clean direct record commit of its verified fix head");
+  }
 }
 
 /**
@@ -892,6 +937,7 @@ async function replayCandidateResponse(
         !== canonicalize(verifiedFix.verificationEvidenceRefs)) {
       throw new RespondCommandError("invalid-input", "Candidate response replay conflicts with the recorded response");
     }
+    await assertCompleteCandidateReplay({ lineage, matching, candidateTarget, dispositions, verifiedFix, source, dependencies });
     const { recordPath } = await dependencies.stageCandidateResponse(lineage.workUnit);
     await dependencies.rebindSingletonPublicationResponse({
       workUnit: lineage.workUnit,
@@ -904,6 +950,7 @@ async function replayCandidateResponse(
       matching.newTarget.revision,
       current.predecessorDispositionSetId,
       dependencies,
+      matching.responseId,
     );
     return RespondEnvelopeSchema.parse({
       ...header,
@@ -1054,6 +1101,7 @@ async function persistCandidateResponse(
     response.newTarget.revision,
     current.predecessorDispositionSetId,
     dependencies,
+    response.responseId,
   );
   return RespondEnvelopeSchema.parse({
     ...header,

@@ -2651,7 +2651,9 @@ function defaultFrontlineResolveDependencies(context: InteractionContext): Revie
           10_000,
           action,
         ),
-        confirmResponseHeadContinuation: createCandidateResponseHeadContinuationReader({ cwd: root, exec, dispositionStore }),
+        confirmResponseHeadContinuation: createCandidateResponseHeadContinuationReader({
+          cwd: root, exec, dispositionStore, operationStore,
+        }),
         confirmDispositionSetCurrent: (producerId, dispositionSetId) => confirmCurrentDispositionSet(
           dispositionStore,
           producerId,
@@ -3794,7 +3796,9 @@ async function executeDefaultHostedRequest(
                   });
                   if (reservation === "collision") throw new HostedRequestOwnerCollision();
                 },
-                confirmResponseHeadContinuation: createCandidateResponseHeadContinuationReader({ cwd: root, exec, dispositionStore }),
+                confirmResponseHeadContinuation: createCandidateResponseHeadContinuationReader({
+                  cwd: root, exec, dispositionStore, operationStore: context.store,
+                }),
                 confirmDispositionSetCurrent: (producerId, dispositionSetId) => confirmCurrentDispositionSet(
                   dispositionStore,
                   producerId,
@@ -4065,7 +4069,7 @@ function defaultHostedSettleDependencies(context: InteractionContext): ReviewHos
           const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
           const dispositionRecord = await dispositionStore.readDispositionRecord(attempt.attemptId);
           const confirmResponseHeadContinuation = createCandidateResponseHeadContinuationReader({
-            cwd: root, exec, dispositionStore,
+            cwd: root, exec, dispositionStore, operationStore,
           });
           const currentDisposition = dispositionRecord === null
             ? null

@@ -59,6 +59,7 @@ function recordResponsePerformanceOnAttempt(
     dispositionSetId: CanonicalDigest;
     predecessorDispositionSetId?: CanonicalDigest;
     producedHeadSha: string;
+    candidateResponseId?: CanonicalDigest;
     now: string;
   },
 ): LaneAttempt {
@@ -68,7 +69,14 @@ function recordResponsePerformanceOnAttempt(
       if (!responsePerformanceReplayMatches(attempt, input)) {
         throw new Error("lane response performance replay conflicts");
       }
-      return attempt;
+      if (input.candidateResponseId === undefined) return attempt;
+      if (current.candidateResponseId !== undefined) {
+        if (current.candidateResponseId !== input.candidateResponseId) {
+          throw new Error("lane Candidate response digest replay conflicts");
+        }
+        return attempt;
+      }
+      return { ...attempt, responsePerformance: { ...current, candidateResponseId: input.candidateResponseId } };
     }
     const hostedSuccessor = attempt.hosted === undefined
       || attempt.hosted.dispositionSetLineage.some((node) =>
@@ -89,6 +97,7 @@ function recordResponsePerformanceOnAttempt(
         dispositionSetId: input.dispositionSetId,
         originatingHeadSha: attempt.headSha,
         producedHeadSha: input.producedHeadSha,
+        ...(input.candidateResponseId === undefined ? {} : { candidateResponseId: input.candidateResponseId }),
         performedAt: input.now,
       },
     };
@@ -101,6 +110,7 @@ function recordResponsePerformanceOnAttempt(
       dispositionSetId: input.dispositionSetId,
       originatingHeadSha: attempt.headSha,
       producedHeadSha: input.producedHeadSha,
+      ...(input.candidateResponseId === undefined ? {} : { candidateResponseId: input.candidateResponseId }),
       performedAt: input.now,
     },
   };
@@ -798,6 +808,14 @@ function responsePerformanceAttemptMatches(
     && (attempt.outcome === "findings" || attempt.outcome === "settled-findings");
 }
 
+function validateCandidateResponseBinding(input: {
+  candidateResponseId?: CanonicalDigest; lineage: LaneSubjectLineage;
+}): void {
+  if (input.candidateResponseId !== undefined && input.lineage.kind !== "candidate") {
+    throw new Error("Candidate response digest requires its Candidate lineage");
+  }
+}
+
 export async function recordLaneResponsePerformance(
   store: ReviewOperationStateStore,
   input: {
@@ -809,10 +827,12 @@ export async function recordLaneResponsePerformance(
     dispositionSetId: CanonicalDigest;
     predecessorDispositionSetId?: CanonicalDigest;
     producedHeadSha: string;
+    candidateResponseId?: CanonicalDigest;
     confirmResponseHeadContinuation?: ConfirmResponseHeadContinuation;
     now: string;
   },
 ): Promise<LaneProgressState> {
+  validateCandidateResponseBinding(input);
   const operationId = laneProgressOperationId(input);
   for (let writeAttempt = 0; writeAttempt < REVIEW_VERSION_RETRY_ATTEMPTS; writeAttempt += 1) {
     const { version, state } = await store.readOperation(operationId);
