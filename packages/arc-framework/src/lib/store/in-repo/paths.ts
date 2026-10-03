@@ -38,7 +38,7 @@ export async function recordPath(context: InRepoContext, reference: RecordRefere
   if (reference.kind === "work-item/meta") return selected.path;
   return companionPath(context, reference, selected);
 }
-function companionPath(context: InRepoContext, reference: RecordReference, meta: MetaSource): string {
+async function companionPath(context: InRepoContext, reference: RecordReference, meta: MetaSource): Promise<string> {
   const role = context.registry[reference.kind].inRepo.address?.artifact;
   const address = identifyWorkUnitArtifactPath(meta.path);
   if (role !== undefined && address !== null) {
@@ -54,6 +54,11 @@ function companionPath(context: InRepoContext, reference: RecordReference, meta:
   }
   const file = key === "spec-prd" ? `spec-${reference.owner.name}-prd.md`
     : key === "spec-rfc" ? `spec-${reference.owner.name}-rfc.md` : `${key}-${reference.owner.name}.md`;
+  const { artifactMatcher } = await import("../../work-unit/mutators/relocate-artifacts.js");
+  if (key !== "spec-prd" && key !== "spec-rfc" && !artifactMatcher(reference.owner.name).test(file)) {
+    return unsupported("unhomed-kind", `The companion name ${key} is outside this layout's discoverable artifact names.`,
+      "Use a lowercase-letter companion name, or spec-prd/spec-rfc for a paired spec, then retry.");
+  }
   return `${dirname(meta.path)}/${file}`;
 }
 async function filesUnder(context: InRepoContext, root: string, revision?: string, diagnostics?: ListingDiagnostic[]): Promise<string[]> {

@@ -21,7 +21,7 @@ async function setup() {
 }
 
 describe("tracked write batches", () => {
-  it("refuses distinct logical references sharing a physical target before applying any write", async () => {
+  it("refuses unserved companion aliases before applying any write", async () => {
     const h = await setup();
     for (const name of ["example", "part-example"]) {
       await writeFile(join(h.root, `.arc/active/meta-${name}.md`), makeMetaFixture(name));
@@ -33,12 +33,11 @@ describe("tracked write batches", () => {
     const put = (reference: typeof first, content: string) => ({ action: "put" as const, reference,
       content, expected: trackedDigest("original companion\n") });
     expect(await h.store.batch({ writes: [h.writes[0]!, put(first, "first\n"), put(second, "second\n")], provenance }))
-      .toMatchObject({ status: "refused", refusal: { code: "ambiguous-match", class: "recoverable",
-        candidates: [first, second], condition: expect.stringContaining("research-part-example.md"),
-        remedy: { text: expect.stringContaining("one reference") } } });
+      .toMatchObject({ status: "refused", refusal: { code: "unsupported", case: "unhomed-kind",
+        remedy: { text: expect.stringContaining("retry") } } });
     expect(await readFile(path, "utf8")).toBe("original companion\n");
     expect(await readFile(h.records[0]!.path, "utf8")).toBe(h.records[0]!.content);
-    success(await h.store.batch({ writes: [h.writes[0]!, put(first, "selected\n")], provenance }));
+    success(await h.store.batch({ writes: [h.writes[0]!, put(second, "selected\n")], provenance }));
     expect(await readFile(path, "utf8")).toBe("selected\n");
     expect(await readFile(h.records[0]!.path, "utf8")).toBe(h.writes[0]!.content);
   });
