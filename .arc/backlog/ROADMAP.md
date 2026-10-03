@@ -24,8 +24,9 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Planning`    | stub-mint-to-launch             | P1       | andrew | —                | —                        |
 | `Integrating` | check-id-stabilization          | P2       | andrew | —                | architecture-remediation |
 | `Active`      | spec-reader-standard            | P2       | andrew | —                | doc-conventions          |
-| `Planning`    | artifact-editor-handoff         | P3       | andrew | —                | —                        |
-| `Planning`    | cli-help-discovery              | P3       | andrew | —                | —                        |
+| `Planning`    | workspace-tool-paths            | P2       | andrew | —                | —                        |
+| `Active`      | artifact-editor-handoff         | P3       | andrew | —                | —                        |
+| `Active`      | cli-help-discovery              | P3       | andrew | —                | —                        |
 
 ## Ready
 
