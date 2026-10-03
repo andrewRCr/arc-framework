@@ -33,6 +33,23 @@ async function repository() {
 }
 
 describe("tracked state and history", () => {
+  it.each(["work-item/draft","work-item/notes","work-item/companion"] as const)("preserves historical %s absence after same-branch creation", async (kind) => {
+    const repo = await repository();
+    await repo.put(".arc/active/meta-example.md",makeMetaFixture("example",{branch:"main"}));
+    const asOf = await repo.commit("owner without companion");
+    const companion = kind === "work-item/companion" ? recordReferences[kind](reference().owner,"research") : recordReferences[kind](reference().owner);
+    const before = await repo.store.read({reference:companion,asOf});
+    expect(before).toMatchObject({status:"refused",refusal:{code:"not-found"}});
+    const prefix = kind === "work-item/draft" ? "draft" : kind === "work-item/notes" ? "notes" : "research";
+    const content = "created later on the same branch\n";
+    await repo.put(`.arc/active/${prefix}-example.md`,content);
+    await repo.commit("later companion creation");
+    expect(await repo.store.read({reference:companion,asOf})).toEqual(before);
+    const live = success(await repo.store.read({reference:companion}));
+    expect(live.content).toBe(content);
+    expect(success(await repo.store.history({reference:companion}))).toMatchObject([{content,version:live.version}]);
+  });
+
   it.each(["work-item/draft","work-item/notes","work-item/companion"] as const)("distinguishes an uncovered %s from true companion absence", async (kind) => {
     const repo = await repository();
     const empty = await repo.commit("empty base");

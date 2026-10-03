@@ -20,7 +20,7 @@ export async function readTracked(context: InRepoContext, input: ReadInput): Pro
   const path = await recordPath(context, input.reference, source, input.asOf);
   const revision = input.asOf ?? source?.revision;
   const content = await readFileAt(context, path, revision);
-  if (content === null) return missingTracked(context,input);
+  if (content === null) return missingTracked(context,input,source !== undefined);
   const placement = source?.placement ?? (input.reference.kind.startsWith("review/")
     ? (await selectMeta(context,input.reference.owner.name,input.asOf))?.placement ?? { kind: "active" as const }
     : undefined);
@@ -38,10 +38,11 @@ async function requiredMeta(context: InRepoContext, input: ReadInput): Promise<M
   if (source !== undefined) return source;
   return missingTracked(context,input);
 }
-async function missingTracked(context:InRepoContext,input:ReadInput): Promise<never> {
+async function missingTracked(context:InRepoContext,input:ReadInput,coveredOwner = false): Promise<never> {
   const live = input.asOf !== undefined && input.reference.kind.startsWith("work-item/")
     ? await selectMeta(context,input.reference.owner.name) : undefined;
-  if (live !== undefined && await readFileAt(context,await recordPath(context,input.reference,live),live.revision) !== null) {
+  if (live !== undefined && (!coveredOwner || live.revision !== undefined)
+    && await readFileAt(context,await recordPath(context,input.reference,live),live.revision) !== null) {
     return unsupported("uncovered-state-version", "The requested saved tree does not cover this live record",
       "Read the record using its own per-record version instead.");
   }
