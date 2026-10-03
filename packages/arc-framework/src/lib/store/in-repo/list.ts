@@ -6,7 +6,7 @@ import type { KindId } from "../catalog.js";
 import type { ListInput, ListingOutcome, ListingDiagnostic, StoreRecord } from "../read.js";
 import type { InRepoContext } from "./context.js";
 import { composedMetas, composedMetaSource, heldMetaSources, type MetaSource } from "./meta.js";
-import { cohortPaths, internalReferences, companionNames, recordPath } from "./paths.js";
+import { cohortPaths, internalReferences, companionNames, recordPath, invalidTrackedCoordinate } from "./paths.js";
 import { readFileAt } from "./files.js";
 import { decodeTrackedContent } from "./read-codec.js";
 import { basename } from "node:path";
@@ -79,7 +79,8 @@ async function listingContent(context: InRepoContext, source: KindSource, input:
 }
 function listing(records: StoreRecord[], diagnostics: ListingDiagnostic[], input: ListInput, acquisition: ListingDiagnostic[]): ListingOutcome {
   const failures = [...new Map(acquisition.map((item) => [item.key, item])).values()];
-  if (records.length === 0 && diagnostics.length === 0 && failures.length > 0) {
+  if (records.length === 0 && diagnostics.length === 0 && failures.length > 0
+    && failures.every((failure) => failure.kind === "unreadable")) {
     return { status: "unreadable", condition: failures.map((item) => item.condition).join("; "),
       remedy: { text: failures.map((item) => item.remedy.text).join("; ") } };
   }
@@ -112,8 +113,9 @@ async function kindSources(context: InRepoContext, kind: KindId, input: ListInpu
     return [{ reference, path: await recordPath(context, reference) }];
   }
   if (kind === "cohort/document") return (await cohortPaths(context, input.asOf, acquisition)).flatMap((path) => {
-    const slug = SlugSchema.safeParse(/^cohort-(.+)\.md$/u.exec(basename(path))?.[1]);
-    return slug.success ? [{ path, reference: recordReferences[kind](OwnerIdentitySchema.parse({ type: "cohort", name: slug.data })) }] : [];
+    const slug = SlugSchema.safeParse(/^cohort-(.*)\.md$/u.exec(basename(path))?.[1]);
+    if (!slug.success) { acquisition.push(invalidTrackedCoordinate(path)); return []; }
+    return [{ path, reference: recordReferences[kind](OwnerIdentitySchema.parse({ type: "cohort", name: slug.data })) }];
   });
   if (!kind.startsWith("work-item/")) return [];
   const sources: KindSource[] = [];

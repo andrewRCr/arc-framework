@@ -34,6 +34,32 @@ async function fixture(kind: "lineage/transition" | "review/candidate" | "review
 }
 
 describe("tracked listing acquisition", () => {
+  for (const keepValid of [false, true]) for (const badSlug of ["Bad_Name", ""]) {
+    it.each(["lineage/transition", "review/candidate", "review/integration-boundary", "cohort/document"] as const)(
+      `diagnoses invalid recognized %s coordinates '${badSlug}', readable neighbor: ${keepValid}`, async (kind) => {
+        const h = await fixture(kind);
+        const name = kind === "cohort/document" ? `cohort-${badSlug}.md`
+          : kind === "review/integration-boundary" ? `${badSlug}.boundary.json` : `${badSlug}.json`;
+        const invalid = `${dirname(h.path)}/${name}`;
+        await h.put(invalid, "invalid coordinate\n");
+        await h.put(`${dirname(h.path)}/unrelated.txt`, "unrelated\n");
+        await h.put(`${dirname(h.path)}/.notes.lock`, "lock\n");
+        if (!keepValid) await rm(join(h.root, h.path));
+        await h.exec("git", ["add", "-A"]);
+        await h.exec("git", ["commit", "-m", "Save invalid coordinate"]);
+        const asOf = StateVersionSchema.parse((await h.exec("git", ["rev-parse", "HEAD"])).stdout.trim());
+        for (const input of [h.input, { ...h.input, asOf }]) {
+          const listed = success(await h.store.list(input));
+          expect(listed).toMatchObject({ status: "complete", missed: true,
+            diagnostics: [{ kind: "malformed", key: invalid, remedy: { text: expect.stringContaining("Repair") } }] });
+          expect(listed.status === "complete" && listed.records).toHaveLength(keepValid ? 1 : 0);
+        }
+        await rm(join(h.root, invalid));
+        expect(success(await h.store.list(h.input))).toMatchObject(keepValid
+          ? { status: "complete", missed: false, diagnostics: [] } : { status: "absent" });
+      });
+  }
+
   it("distinguishes missing, non-directory and repaired saved namespaces", async () => {
     const h = await fixture("lineage/transition");
     const namespace = dirname(h.path);

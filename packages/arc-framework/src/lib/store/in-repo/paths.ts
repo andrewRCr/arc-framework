@@ -75,7 +75,7 @@ async function filesUnder(context: InRepoContext, root: string, revision?: strin
 export async function cohortPaths(context: InRepoContext, revision?: string, diagnostics?: ListingDiagnostic[]): Promise<string[]> {
   const roots = [resolveArcPath({ kind: "placement-root", tier: "planned" }), resolveArcPath({ kind: "placement-root", tier: "completed" })];
   const paths = (await Promise.all(roots.map((root) => filesUnder(context, root, revision, diagnostics)))).flat();
-  return paths.filter((path) => /^cohort-.+\.md$/u.test(basename(path)));
+  return paths.filter((path) => /^cohort-.*\.md$/u.test(basename(path)));
 }
 /** Discover references for a tracked kind with a fixed internal namespace.
  * @param context - Backend dependencies.
@@ -88,16 +88,26 @@ export async function internalReferences(context: InRepoContext, kind: KindId, r
   const example = RecordReferenceSchema.parse({ kind, owner: OwnerIdentitySchema.parse({ type: "work-item", name: "example" }) });
   const root = dirname(await recordPath(context, example));
   const entries = await discoverDirectory(context, root, revision, diagnostics);
-  const pattern = kind === "review/integration-boundary" ? /^(.+)\.boundary\.json$/u : /^(.+)\.json$/u;
+  const pattern = kind === "review/integration-boundary" ? /^(.*)\.boundary\.json$/u : /^(.*)\.json$/u;
   const values: { reference: RecordReference; path: string }[] = [];
   for (const entry of entries) {
     if (!entry.isFile() || (kind === "review/candidate" && entry.name.endsWith(".boundary.json"))) continue;
-    const parsed = SlugSchema.safeParse(pattern.exec(entry.name)?.[1]);
-    if (!parsed.success) continue;
+    const match = pattern.exec(entry.name);
+    if (match === null) continue;
+    const parsed = SlugSchema.safeParse(match[1]);
+    if (!parsed.success) { diagnostics?.push(invalidTrackedCoordinate(`${root}/${entry.name}`)); continue; }
     const reference = RecordReferenceSchema.parse({ kind, owner: OwnerIdentitySchema.parse({ type: "work-item", name: parsed.data }) });
     values.push({ reference, path: await recordPath(context, reference) });
   }
   return values;
+}
+/** Preserve a recognized record whose filename cannot form a logical reference.
+ * @param path - Discovered record path with an invalid owner coordinate.
+ * @returns A per-entry diagnostic with a retryable repair route.
+ */
+export function invalidTrackedCoordinate(path: string): ListingDiagnostic {
+  return { kind: "malformed", key: path, condition: `The record filename carries an invalid owner slug: ${path}`,
+    remedy: { text: `Repair the record filename ${path}, then list the records again.` } };
 }
 /** Discover nonstandard companions beside the selected work-unit copy.
  * @param context - Backend dependencies.
