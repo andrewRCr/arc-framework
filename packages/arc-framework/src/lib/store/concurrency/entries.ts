@@ -75,7 +75,7 @@ function isEntryHeader(line: string, shape: EntryListConfig["shape"]): boolean {
  * @returns Equal-length text with comment characters hidden.
  */
 export function maskComments(content: string): string {
-  return content.replace(/<!--[\s\S]*?(?:-->|$)/gu, (comment) => comment.replace(/[^\r\n]/gu," "));
+  return content.replace(/<!--[\s\S]*?(?:-->|$)/gu, (comment) => comment.replace(/[^\r\n]/g," "));
 }
 
 /** Read the stable managed entry field outside comment examples.

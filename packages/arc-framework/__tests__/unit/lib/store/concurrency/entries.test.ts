@@ -6,6 +6,7 @@ import { stampEntryIds } from "../../../../../src/lib/store/concurrency/stamp.js
 import { mergeEntryText } from "../../../../../src/lib/store/concurrency/entry-merge.js";
 import { keyedReference, OwnerIdentitySchema } from "../../../../../src/lib/store/identity.js";
 import { splitEntryList, rejoinEntryList, type EntryListConfig } from "../../../../../src/lib/store/concurrency/entries.js";
+import { entrySection } from "../../../../../src/lib/store/concurrency/entry-sections.js";
 
 const heading: EntryListConfig = {shape:"heading",sections:["Errand","Work Unit"]};
 const field: EntryListConfig = {shape:"field-header",sections:["Memories"]};
@@ -13,6 +14,32 @@ const headingText = '# Opening\r\n\r\n## Errand\r\n\r\n<!--\r\n### **hidden**\r\
 const fieldText = '# Opening\n\n## Memories\n\n<!--\n**Hidden:**\n_Remove when:_ ignored\n-->\n\n**First:**\n_Remove when:_ condition\n\nbody\n\n**Second:**\n_Remove when:_ other\n\n---\nfooter\n';
 
 describe("entry splitting", () => {
+  for (const shape of ["heading", "field-header"] as const) for (const newline of ["\n", "\r\n"]) {
+    it.each(["example", "😀🧭🚀"])(`retains offsets around opaque ${shape} comments with ${JSON.stringify(newline)}: %s`, (comment) => {
+      const config: EntryListConfig = { shape, sections: ["One", "Two"] };
+      const header = shape === "heading" ? "### **Entry**" : "**Memory:**";
+      const descriptor = shape === "heading" ? "- _Description:_ real" : "_Remove when:_ real";
+      const entry = `${header}${newline}${descriptor}${newline}${newline}body`;
+      const opening = `<!-- ${comment}${newline}## Hidden${newline}-->${newline}${newline}`;
+      const content = `${opening}## One${newline}${newline}${entry}${newline}${newline}## Two${newline}`;
+      const split = splitEntryList(content, config);
+      expect(rejoinEntryList(split)).toBe(content);
+      expect(split.parts.filter((part) => part.kind === "entry")).toMatchObject([{ section: "One", bytes: entry }]);
+      const section = entrySection(content, "One");
+      expect(section).toBeDefined();
+      expect(content.slice(section!.start)).toMatch(/^## One/u);
+      const stamped = stampEntryIds(content, config, () => 0.5);
+      expect(stamped).toContain(opening);
+      expect(splitEntryList(stamped, config).parts.filter((part) => part.kind === "entry"))
+        .toMatchObject([{ section: "One", id: "80000000" }]);
+      const record = keyedReference(OwnerIdentitySchema.parse({ type: "person", name: "owner" }), "personal/document", "list.md");
+      expect(mergeEntryText({ base: stamped, current: stamped, incoming: stamped, record,
+        currentLabel: { actor: "current", time: "2026-10-01T00:00:00Z" },
+        incomingLabel: { actor: "incoming", time: "2026-10-01T01:00:00Z" } }, config))
+        .toEqual({ content: stamped, conflicts: [] });
+    });
+  }
+
   it.each([[heading,headingText,"user-inbox"],[field,fieldText,"working-memory"]] as const)(
     "retains every byte and detects the same entries as the established parser for %j", (config,text,parserShape) => {
       const split = splitEntryList(text,config);
