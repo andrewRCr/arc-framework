@@ -42,6 +42,32 @@ async function fixture() {
   return { root, ports, store: createStore(ports), io: { identity: "andrew", exec, execInput } };
 }
 describe("transient Store", () => {
+  it("keeps history within each logical role across deletion and physical key reuse", async () => {
+    const h = await fixture();
+    const claimReference = recordReferences["claims/housekeep"](OwnerIdentitySchema.parse({type:"person",name:"andrew"}),"alpha");
+    const housekeep = TransientIdentityRecordSchema.parse({version:3,kind:"errand",purpose:"housekeep-routing",slug:"alpha",claimId:"c".repeat(32),branch:"chore/alpha",state:"open",savedHead:null,changeRequest:null,createdAt:record().createdAt,updatedAt:record().updatedAt});
+    const claim = ok(await h.store.write({action:"put",reference:claimReference,content:serializeTransientIdentityRecord(housekeep),expected:null,provenance:{verb:"housekeep",lifecycleAction:"create"}}));
+    expect(await h.store.history({reference})).toMatchObject({status:"refused",refusal:{code:"not-found"}});
+    ok(await h.store.write({action:"remove",reference:claimReference,expected:claim.version!,provenance:{verb:"housekeep",lifecycleAction:"remove"}}));
+    expect(await h.store.history({reference})).toMatchObject({status:"refused",refusal:{code:"not-found"}});
+    const errand = ok(await h.store.write(put()));
+    ok(await h.store.write({action:"remove",reference,expected:errand.version!,provenance:{verb:"errand",lifecycleAction:"remove"}}));
+    const claimAgain = ok(await h.store.write({action:"put",reference:claimReference,content:serializeTransientIdentityRecord({...housekeep,updatedAt:"2026-07-18T00:00:01.000Z"}),expected:null,provenance:{verb:"housekeep",lifecycleAction:"create"}}));
+    expect(ok(await h.store.history({reference})).map(({version,provenance})=>({version,message:"message" in provenance ? provenance.message : undefined})))
+      .toEqual([{version:null,message:"errand: remove\n"},{version:errand.version,message:"arc errand: update\n"}]);
+    expect(ok(await h.store.history({reference:claimReference})).map(({version,provenance})=>({version,message:"message" in provenance ? provenance.message : undefined})))
+      .toEqual([{version:claimAgain.version,message:"housekeep: create\n"},{version:null,message:"housekeep: remove\n"},{version:claim.version,message:"housekeep: create\n"}]);
+  });
+  it("records a role replacement as absence of its preceding logical role", async () => {
+    const h = await fixture();
+    const errand = ok(await h.store.write(put()));
+    const housekeep = TransientIdentityRecordSchema.parse({version:3,kind:"errand",purpose:"housekeep-routing",slug:"alpha",claimId:"c".repeat(32),branch:"chore/alpha",state:"open",savedHead:null,changeRequest:null,createdAt:record().createdAt,updatedAt:record().updatedAt});
+    await transactTransientIdentities(h.io,{remote:null,message:"Replace role",transform:()=>({kind:"applied",records:new Map([["alpha",housekeep]]),value:null})});
+    expect(ok(await h.store.history({reference})).map(({version,provenance})=>({version,message:"message" in provenance ? provenance.message : undefined})))
+      .toEqual([{version:null,message:"Replace role\n"},{version:errand.version,message:"arc errand: update\n"}]);
+    const claimReference = recordReferences["claims/housekeep"](OwnerIdentitySchema.parse({type:"person",name:"andrew"}),"alpha");
+    expect(ok(await h.store.history({reference:claimReference}))).toHaveLength(1);
+  });
   it("preserves absent identity snapshots in family listings", async () => {
     const h = await fixture();
     expect(await readTransientIdentitySnapshot(h.io)).toEqual({ kind: "absent" });
@@ -104,6 +130,7 @@ describe("transient Store", () => {
     for (const bytes of ["broken-json\n", '{"version":9}\n']) {
       const oid = await plant(bytes);
       expect(ok(await h.store.read({ reference }))).toMatchObject({ content: bytes, version: oid });
+      expect(ok(await h.store.history({reference}))[0]?.version).toBe(oid);
       const listing = ok(await h.store.list({ family: "work-item", kind: "work-item/record" }));
       expect(listing).toMatchObject({ status: "complete", records: [], missed: true, diagnostics: [{ kind: "malformed", key: "alpha" }] });
       if (bytes.includes('"version":9')) expect(listing).toMatchObject({ diagnostics: [{ condition: "Unknown content version 9" }] });
