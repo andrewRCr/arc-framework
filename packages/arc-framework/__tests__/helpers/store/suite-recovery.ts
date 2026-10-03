@@ -3,7 +3,7 @@
 import { expect, it } from "vitest";
 import { StoreRefusalSchema, SyncResultSchema, sameReference, type StoreRefusal, type StoreResult } from "../../../src/lib/store/index.js";
 import { refusalRecoveryTable } from "./recovery.js";
-import { recordAssertion, success, type SuiteContext } from "./suite-tools.js";
+import { assertion, success, type SuiteContext } from "./suite-tools.js";
 
 function observedRefusal(result: StoreResult<unknown>): StoreRefusal {
   if (result.status === "refused") return StoreRefusalSchema.parse(result.refusal);
@@ -51,11 +51,7 @@ export function registerRecoveryAssertions(context: SuiteContext): void {
  */
 export function registerCrossSubstrateAssertions(context: SuiteContext): void {
   for (const family of context.registration.declarations.families) {
-    recordAssertion(context, family, "atomic-cross-substrate-batch");
-    const reason = context.registration.declarations.familyExclusions[family]?.items?.[5];
-    if (reason) { it.skip(`${family}: atomic-cross-substrate-batch — ${reason}`, () => {}); continue; }
-    it(`${family}: atomic-cross-substrate-batch`, async () => {
-      const fixture = await context.registration.create();
+    assertion(context, family, "atomic-cross-substrate-batch", async (fixture) => {
       const operation = await fixture.produce("unsupported:cross-substrate-batch");
       const before = success(await fixture.store.version());
       expect(observedRefusal(await operation.run())).toMatchObject({ code: "unsupported", case: "cross-substrate-batch", class: "recoverable" });
@@ -71,11 +67,7 @@ export function registerCrossSubstrateAssertions(context: SuiteContext): void {
  */
 export function registerCoverageAssertions(context: SuiteContext): void {
   for (const family of context.registration.declarations.families) {
-    recordAssertion(context, family, "uncovered-record-state-version");
-    const reason = context.registration.declarations.familyExclusions[family]?.items?.[8];
-    if (reason) { it.skip(`${family}: uncovered-record-state-version — ${reason}`, () => {}); continue; }
-    it(`${family}: uncovered-record-state-version`, async () => {
-      const fixture = await context.registration.create();
+    assertion(context, family, "uncovered-record-state-version", async (fixture) => {
       const operation = await fixture.produce("unsupported:uncovered-state-version");
       expect(observedRefusal(await operation.run())).toMatchObject({ code: "unsupported", case: "uncovered-state-version", class: "recoverable" });
       await fixture.repair("unsupported:uncovered-state-version");
