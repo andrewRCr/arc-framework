@@ -1,8 +1,8 @@
 # Metadata: spec-reader-standard
 
-| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
-| ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | [TBD]     | `P2`         |
+| **State**  | **Owner** | **Branch**                  | **Class** | **Priority** |
+| ---------- | --------- | --------------------------- | --------- | ------------ |
+| `Planning` | `andrew`  | `plan/spec-reader-standard` | `Light`   | `P2`         |
 
 - **Cohort:** `doc-conventions`
 - **Depends On:** [none]
@@ -12,13 +12,12 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** [none]
+- **Current Workflow:** `draft-design`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run draft-design: settle the header carve-out and whether a check flags foreign references; land
-  ahead of the storage program.
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
