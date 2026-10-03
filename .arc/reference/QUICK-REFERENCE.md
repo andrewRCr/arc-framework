@@ -291,6 +291,28 @@ Materialization, pull, and sync verbs likewise own their documented Git writes. 
 Errand-record transport are separate channels with their own operational ref behavior; they never count as passive
 code-head evidence. See [Session Operations Strategy][session-ops] § Remote access boundary.
 
+### Artifact Viewing
+
+`arc view [kind]` renders an artifact using the existing selectors. With no kind, it checks
+**tasks → spec → draft → meta**. `--path` prints the selected file's absolute path; `--editor` or `-e` opens
+that same real file in the configured editor. Kind, `--for`, and `inbox --project` selection stays the same.
+
+Use a non-empty `ARC_EDITOR` to supply an editor command, including arguments and shell expansion. Otherwise ARC
+delegates to `git var GIT_EDITOR`: `GIT_EDITOR`, `core.editor`, `VISUAL`, `EDITOR`, then Git's compile-time default,
+usually `vi`.
+
+Editor mode inherits terminal streams and requires allowed interaction. `--no-input`, CI, piped stdin, or piped
+stdout refuse with a nonzero diagnostic. `--editor` also conflicts with `--path` and `--current`. Missing artifacts,
+failed editor selection or launch, and unsuccessful exits report failures; set `ARC_EDITOR` to repair the command
+and retry.
+
+ARC waits for the configured command to exit and preserves its wait flags. A successful exit confirms handoff;
+buffer opening and saving depend on the editor. For a GUI command that waits for the file to close:
+
+```bash
+ARC_EDITOR="code --wait" npx arc view -e
+```
+
 ### Setup and Configuration
 
 ```bash

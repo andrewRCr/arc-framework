@@ -44,20 +44,13 @@ command; forbidden and failed invocations return diagnostics, and ordinary view 
           declared the editor process boundary. Recorder-based CLI coverage compares bare fallback, explicit,
           identity-scoped, and project-inbox paths with `--path`, and exercises refusal and repair/retry behavior.
 
-### `[ ]` **1.3 Document the editor destination — Decision 4**
+### `[x]` **1.3 Document the editor destination — Decision 4**
 
 - _Goal:_ Command help and the quick reference let a person choose editor handoff, configure it, and understand
   completion and interaction requirements without needing implementation context.
 
-    - Update view help in `src/cli.ts` and add artifact-viewing guidance under `ARC CLI Commands` in
-      `packages/arc-framework/arc/reference/QUICK-REFERENCE.template.md`, then sync the installed reference through
-      the normal package/project update flow.
-    - Describe `--editor` / `-e`, unchanged bare-view selection, `ARC_EDITOR`, delegation to Git's editor selection
-      and fallback, inherited terminal interaction, conflicts with `--path` / `--current`, and noninteractive refusal.
-    - Explain that ARC waits for the configured command without changing wait flags; command success confirms
-      handoff, not that a buffer was opened or saved. Include a wait-enabled GUI command example.
-    - Check emitted help for both option spellings and the documented contract; run the existing command-reference
-      validation. Documentation prose is test-after; no separate documentation-only test suite is needed.
+- _Outcome:_ View help and both quick-reference copies describe editor selection, destination conflicts,
+  interaction requirements, and wait-enabled GUI use. The installed reference retains its self-hosting prefix.
 
 ## **Phase 2:** Verification
 
