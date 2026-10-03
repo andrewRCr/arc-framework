@@ -62,6 +62,16 @@ export function personalPath(surfaces: UserSurfaceResolver, reference: RecordRef
   return reference.key.includes("/") ? join(surfaces.cwd, ".arc", "user", surfaces.identity, reference.key)
     : surfaces.identityGlobalPath(reference.key);
 }
+/** Select the configured surface below which personal path components are admitted.
+ * @param surfaces - Existing primary and checkout personal roots.
+ * @param reference - Logical personal role with its managed key.
+ * @returns The root owning this role's resolved path.
+ */
+export function personalRoot(surfaces: UserSurfaceResolver, reference: RecordReference): string {
+  return reference.kind === "personal/session-context"
+    || (reference.kind === "personal/document" && typeof reference.key === "string" && reference.key.includes("/"))
+    ? join(surfaces.cwd, ".arc", "user", surfaces.identity) : surfaces.identityGlobalRoot;
+}
 /** Name the unique role for an alias, or the machine-state boundary for an excluded path.
  * @param identity - Resolved personal namespace.
  * @param reference - Address whose path has no matching storage role.

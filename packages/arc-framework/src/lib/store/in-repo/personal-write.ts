@@ -6,30 +6,31 @@ import { ArcError } from "../../kernel/errors.js";
 import { RecordVersionSchema } from "../identity.js";
 import type { WriteInput, WriteResult, BatchInput, BatchResult } from "../write.js";
 import type { InRepoContext } from "./context.js";
-import { personalIdentity, personalSurfaces, personalPath, personalPathRemedy } from "./personal-paths.js";
+import { personalIdentity, personalSurfaces, personalPath, personalRoot, personalPathRemedy } from "./personal-paths.js";
 import { personalFileAt } from "./personal.js";
 import { isMissing, unsupported } from "./refusals.js";
 import { staleWrites, withTrackedRefusal } from "./write-conflicts.js";
 
-interface PreparedPersonalWrite { input: WriteInput; path: string; before: string | null }
+interface PreparedPersonalWrite { input: WriteInput; path: string; root: string; before: string | null }
 async function writeAll(context: InRepoContext, inputs: WriteInput[]): Promise<WriteResult[]> {
-  const paths: { input: WriteInput; path: string }[] = [];
+  const paths: { input: WriteInput; path: string; root: string }[] = [];
   for (const input of inputs) {
     const identity = await personalIdentity(context, input.reference);
-    const path = personalPath(await personalSurfaces(context, identity), input.reference);
+    const surfaces = await personalSurfaces(context, identity);
+    const path = personalPath(surfaces, input.reference);
     if (path === undefined) return unsupported("unhomed-kind", "This path has no personal-document storage role", personalPathRemedy(identity, input.reference));
-    paths.push({ input, path });
+    paths.push({ input, path, root: personalRoot(surfaces, input.reference) });
   }
   return withTrackedRefusal(() => context.ports.locks.notes(async () => {
     const prepared: PreparedPersonalWrite[] = [];
-    for (const entry of paths) prepared.push({ ...entry, before: await personalFileAt(context, entry.path) });
+    for (const entry of paths) prepared.push({ ...entry, before: await personalFileAt(context, entry.path, entry.root, entry.input.reference) });
     const stale = prepared.filter(({ input, before }) => input.expected !== (before === null ? null : RecordVersionSchema.parse(digestBytes(Buffer.from(before)))));
     if (stale.length !== 0) staleWrites(stale.map(({ input }) => input.reference));
     return applyPersonalWrites(context, prepared);
   }));
 }
 async function restorePersonalEntry(context: InRepoContext, entry: PreparedPersonalWrite): Promise<void> {
-  if (await personalFileAt(context, entry.path) === entry.before) return;
+  if (await personalFileAt(context, entry.path, entry.root, entry.input.reference) === entry.before) return;
   if (entry.before !== null) { await context.ports.fs.writeFile(entry.path, entry.before); return; }
   try { await context.ports.fs.unlink(entry.path); } catch (error) { if (!isMissing(error)) throw error; }
 }
@@ -38,7 +39,7 @@ async function restorePersonal(context: InRepoContext, attempted: PreparedPerson
   for (const entry of [...attempted].reverse()) {
     try { await restorePersonalEntry(context, entry); }
     catch (error) {
-      try { if (await personalFileAt(context, entry.path) === entry.before) continue; } catch { /* Unreadable restored bytes cannot be certified. */ }
+      try { if (await personalFileAt(context, entry.path, entry.root, entry.input.reference) === entry.before) continue; } catch { /* Unreadable restored bytes cannot be certified. */ }
       failures.push({ path: entry.path, error });
     }
   }

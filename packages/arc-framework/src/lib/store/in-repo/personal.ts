@@ -1,11 +1,11 @@
 /** Whole-file personal records rooted by the existing user-surface resolver. */
-import { join, relative } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 import { digestBytes } from "../../kernel/canonical/canonical-json.js";
 import { RecordVersionSchema, type RecordReference } from "../identity.js";
 import type { ReadInput, StoreRecord, ListInput, ListingOutcome, ListingDiagnostic } from "../read.js";
 import type { InRepoContext } from "./context.js";
-import { isMissing, notFound, unsupported } from "./refusals.js";
-import { personalIdentity, personalSurfaces, personalPath, personalFileReference, personalPathRemedy, personalSingletonKey } from "./personal-paths.js";
+import { isMissing, notFound, unsupported, refuse } from "./refusals.js";
+import { personalIdentity, personalSurfaces, personalPath, personalRoot, personalFileReference, personalPathRemedy, personalSingletonKey } from "./personal-paths.js";
 import { SlugSchema } from "../../kernel/schema/slug.js";
 import type { UserSurfaceResolver } from "../../user-surfaces.js";
 import type { StoreDirectoryEntry } from "../ports.js";
@@ -13,13 +13,31 @@ import type { StoreDirectoryEntry } from "../ports.js";
 /** Read a regular personal file, preserving missing paths separately from failed I/O.
  * @param context - Explicit filesystem access.
  * @param path - Absolute address resolved from the logical record.
+ * @param root - Configured personal surface owning the address.
+ * @param reference - Logical record used by an actionable path refusal.
  * @returns Exact bytes decoded as UTF-8, or null for absence and nonregular entries.
  */
-export async function personalFileAt(context: InRepoContext, path: string): Promise<string | null> {
+export async function personalFileAt(context: InRepoContext, path: string, root: string, reference: RecordReference): Promise<string | null> {
+  await admitPersonalAncestors(context, path, root, reference);
   try {
     const stat = await context.ports.fs.lstat(path);
-    return stat.isFile() && !stat.isSymbolicLink() ? await context.ports.fs.readFile(path) : null;
+    if (stat.isSymbolicLink()) rejectPersonalSymlink(reference, path);
+    return stat.isFile() ? await context.ports.fs.readFile(path) : null;
   } catch (error) { if (isMissing(error)) return null; throw error; }
+}
+async function admitPersonalAncestors(context: InRepoContext, path: string, root: string, reference: RecordReference): Promise<void> {
+  let ancestor = root;
+  for (const segment of relative(root, dirname(path)).split(sep).filter(Boolean)) {
+    ancestor = join(ancestor, segment);
+    try { if ((await context.ports.fs.lstat(ancestor)).isSymbolicLink()) rejectPersonalSymlink(reference, ancestor); }
+    catch (error) { if (isMissing(error)) return; throw error; }
+  }
+}
+function rejectPersonalSymlink(reference: RecordReference, path: string): never {
+  return refuse({ code: "record-malformed", class: "recoverable", reference,
+    rule: "Personal record paths must not traverse symbolic links below their configured surface.",
+    condition: `The personal path ${path} is a symbolic link.`,
+    remedy: { text: `Replace the symbolic link ${path} with a regular file or directory containing the intended personal content, then retry.` } });
 }
 function personalRecord(reference: RecordReference, content: string): StoreRecord {
   return { reference, content, version: RecordVersionSchema.parse(digestBytes(Buffer.from(content))), formatVersion: 1, conflicts: [] };
@@ -32,9 +50,10 @@ function personalRecord(reference: RecordReference, content: string): StoreRecor
 export async function readPersonal(context: InRepoContext, input: ReadInput): Promise<StoreRecord> {
   const identity = await personalIdentity(context, input.reference);
   if (input.asOf !== undefined) return unsupported("uncovered-state-version", "Personal files are outside the branch's saved state", "Read the file using its current per-record version instead.");
-  const path = personalPath(await personalSurfaces(context, identity), input.reference);
+  const surfaces = await personalSurfaces(context, identity);
+  const path = personalPath(surfaces, input.reference);
   if (path === undefined) return notFound(input.reference, personalPathRemedy(identity, input.reference));
-  const content = await personalFileAt(context, path);
+  const content = await personalFileAt(context, path, personalRoot(surfaces, input.reference), input.reference);
   return content === null ? notFound(input.reference) : personalRecord(input.reference, content);
 }
 /** Enumerate live personal files without acquiring the notes lock.
@@ -55,7 +74,7 @@ export async function listPersonal(context: InRepoContext, input: ListInput): Pr
     const reference = personalFileReference(identity, source.key);
     if (reference === undefined || (input.kind !== undefined && reference.kind !== input.kind)) continue;
     try {
-      const content = await personalFileAt(context, source.path);
+      const content = await personalFileAt(context, source.path, personalRoot(surfaces, reference), reference);
       if (content !== null) records.push(personalRecord(reference, content));
     } catch (error) { if (!permissionFailure(error)) throw error; diagnostics.push(unreadable(source.path)); }
   }
