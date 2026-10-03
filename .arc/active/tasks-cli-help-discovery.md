@@ -90,21 +90,16 @@ inventory exactly; all ten example pages and the human/agent discovery exercises
         - Added schema/file hosted-request examples with the emitted-action continuation, and the message-file commit
           example with validation, forwarded arguments, and required approval. Payload validity remains contextual.
 
-### `[ ]` **2.3 Validate complete discovery coverage** — validate exit criterion at segment scope
+### `[x]` **2.3 Validate complete discovery coverage** — validate exit criterion at segment scope
 
 - _Goal:_ The completed presentation exhausts the registered inventory and helps a reader construct the specified
   human and agent invocations without reading implementation source.
 
-- _Context:_ `spec-cli-help-discovery.md` § Success Criteria; § Initial example coverage.
-
-    - Run the coverage guards and focused built-CLI help suite over the completed root, namespaces, representative
-      pages, and all ten example pages. Inspect representative 80-column output, including long syntax.
-    - Start from root help and record help paths and valid resulting invocations for project inspection, current-task
-      display, session-init JSON, and review schema/file/stdin use, with valid contextual inputs supplied.
-    - Save discovery evidence in `notes-cli-help-discovery.md` § Discovery evidence so terminal verification can
-      assess it. Discovery exercises need not execute mutating operations to demonstrate a valid invocation.
-    - Record the phase exit result, including any remaining usability gap, and run the applicable quality checkpoint.
-      Route corrections to the producing tasks; retain the spec's presentation-only scope.
+- _Outcome:_ The complete discovery exit scenario passed: registered inventory, ordered groups, all ten example
+  pages, and representative 80-column output are covered. A fresh help-only reader constructed the specified project,
+  current-task, session-init JSON, and review schema/file/stdin invocations without material navigation ambiguity.
+  Paths, context assumptions, invocations, and validation witnesses are recorded in `notes-cli-help-discovery.md`
+  § Discovery evidence.
 
 ## **Phase 3:** Verification
 

@@ -275,4 +275,45 @@ The file and stdin examples retain the registered optional `input` operand, whos
 request source or schema selection. No request execution or fabricated review-authority payload was needed for the
 pilot. The CLI loading-boundary checks continue to show implementation handlers loaded only when their actions run.
 
+## Discovery evidence
+
+The complete discovery scenario passed. Source-derived guards cover all 184 visible registered command paths,
+excluding the hidden registration. Built-CLI checks cover the 47 root registrations plus generated help and the
+65 immediate children of review/user/errand/release/delivery plus each namespace's generated help. Every entry appears
+once in its settled group and order. The ten initial example pages preserve supported spellings, context assumptions,
+effects, and continuation guidance; representative long syntax and quoted examples fit the default 80-column width.
+
+A fresh reader followed help and schema output only, without opening repository files. The supplied context was an
+initialized ARC project with an active task list; `request.json` denotes a schema-valid request describing the actual
+review target and state. Development probes used `npx arc`; displayed invocations use the installed CLI spelling.
+
+- **Project work:** `arc --help` → `arc status --help` yielded `arc status --project`. The reader identified live-ref
+  refresh as the default and `--local`/`--no-fetch` as the local alternatives.
+- **Current task for a person:** root help → `arc view --help` yielded `arc view tasks --current`. The reader identified
+  the work-context/task-list assumption and human-facing artifact display.
+- **Session initialization JSON:** root help → status help yielded `arc status --session-init --json`. The reader
+  distinguished selecting session context from selecting JSON and identified status mode exclusivity.
+- **Review schema and submission:** root help → `arc review --help` → `arc review resolve --help` yielded
+  `arc review resolve --schema`, then `arc review resolve request.json` or `cat request.json | arc review resolve -`.
+  The reader inspected schema discovery, identified exactly one request source or schema selection, automatic result
+  JSON, unsupported `--json`, and the need for request facts to match actual review state.
+
+The discovery exercise executed help and schema discovery; it constructed the operational invocations above without
+executing them. No material navigation ambiguity was reported. The complete root listing remains long, with useful
+task groups and immediately available examples; status and review-resolve help supply the necessary mode and input
+constraints.
+
+Validation witnesses for the completed implementation:
+
+- The focused built-CLI help suites passed all 27 tests, including the ten example pages, namespace inventory,
+  channels, exit codes, inherited flags, schema discovery, and 80-column rendering. Pilot entry paths, schema discovery,
+  and root/namespace inventories also passed outside an initialized project.
+- Focused formatter, coverage, and loading-boundary checks passed all 29 tests. The coverage guards derive registered
+  paths and fail on new visible commands without summaries or group membership, while excluding hidden commands.
+- The routine unit/unit-mock/integration lane passed 13,283 tests with two skips. Both type checks,
+  whole-project TypeScript/Markdown/shell lint, ARC contract checks, and the full ESM/declaration build passed.
+- A read-only working change review covered the complete implementation diff from `2ba56ec7e`, including the example
+  suite before staging, and reported no material findings. Completion and discovery-record edits receive Markdown
+  and ARC contract checks separately. This evidence supports the segment exit; terminal criteria remain for verification.
+
 ---
