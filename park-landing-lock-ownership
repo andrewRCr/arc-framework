@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "park-landing-lock-ownership",
+  "claimId": "d37bb983a45d86dd978ec87036f2b227",
+  "createdAt": "2026-10-03T13:36:43.859Z",
+  "updatedAt": "2026-10-03T13:36:43.859Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Preserve foreign Git index locks during park landing cleanup",
+  "branch": "chore/park-landing-lock-ownership",
+  "origin": "inbox",
+  "originEntry": "Stop park landing's cleanup from removing another process's `index.lock`",
+  "originEntrySourceDigest": "sha256:e0ef02179809e96a3b2f581a58abaf5d6a216d97ba9fba634de80b34696e6027",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
