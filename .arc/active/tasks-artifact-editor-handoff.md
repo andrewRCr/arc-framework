@@ -29,38 +29,20 @@ command; forbidden and failed invocations return diagnostics, and ordinary view 
           reading or formatting. Conflicting destinations and missing interaction permission refuse before
           resolution; absence and failed handoffs return diagnostics, and repaired commands can retry.
 
-### `[ ]` **1.2 Expose guarded editor handoff through the CLI — Decisions 1, 3, 4**
+### `[x]` **1.2 Expose guarded editor handoff through the CLI — Decisions 1, 3, 4**
 
 - _Goal:_ `arc view [kind] --editor` and `-e` reach the launcher only when interaction is allowed, while preserving
   all existing artifact selection and destination behavior.
 
-    - `[ ]` **1.2.a Register and validate the editor destination**
-        - Add `--editor` / `-e` in `src/cli.ts`; extend `ViewCliOptions`, `ViewCommandInputSchema`, and
-          `viewCommandInputRegistration` in `src/handlers/view.ts`.
-        - Build `test-first` (one behavior at a time):
-            - Both spellings map to the same editor option; omitted kind remains omitted for lifecycle selection.
-            - `--editor --path` and `--editor --current` fail before resolution/launch. Existing kind, `--current`,
-              `--project`, slug, and identity-global `--for` validation remains effective.
-            - Command-input inventory accounts for the new option/schema field and every editor subprocess site.
+    - `[x]` **1.2.a Register and validate the editor destination**
+        - Registered `--editor` / `-e`, normalized the editor schema field, and declared its interaction policy.
+          Schema validation preserves omitted-kind selection and existing selector restrictions while refusing
+          conflicting editor destinations before resolution.
 
-    - `[ ]` **1.2.b Wire interaction policy and prove selection compatibility**
-        - In `handleView`, refuse editor mode using the supplied `InteractionContext` before editor selection;
-          carry permission into orchestration explicitly. Wire the real adapter through the injectable launcher.
-        - `handleView` currently resolves `resolveViewClock` eagerly: bypass that presentation setup for editor
-          mode as well as rendering. Preserve the existing clock and renderer behavior for ordinary viewing.
-        - Extend `viewCommandInputPolicyDeclarations` for the editor effect with `subprocess: "editor"` and
-          `automation.noInput: "refuse"`; retain the presenter's existing direct-render policy.
-        - Build `test-first` (one behavior at a time), using injected launchers and the real artifact resolver:
-            - Bare rendering and editor mode select the same file for each tasks → spec → draft → meta fallback;
-              reuse the cases in `__tests__/unit/view/artifact.test.ts` without changing `resolveFurthestPresent`.
-            - Explicit kinds, permitted `--for` targets, identity-scoped artifacts, and `inbox --project` hand off
-              exactly the path from matching `--path` invocations. Leave `VIEW_KINDS` and resolution untouched.
-            - Allowed interaction reaches the adapter; `--no-input`, CI, piped stdin, and piped stdout refuse before
-              editor selection/launch. The synthetic `GIT_EDITOR=true` from `applyInteractionEnvironment` is unused.
-            - Existing rendering, path output, absence messages, and current-task excerpts remain compatible;
-              editor mode does not invoke clock/formatting/renderer dependencies.
-        - Cover actual CLI parsing and noninteractive refusal in `__tests__/e2e/view.e2e.test.ts`; accepted handoff
-          scenarios use an injected adapter or harmless recorder, never the person's configured editor.
+    - `[x]` **1.2.b Wire interaction policy and prove selection compatibility**
+        - Wired the editor adapter after explicit interaction checks, bypassed presentation clock setup, and
+          declared the editor process boundary. Recorder-based CLI coverage compares bare fallback, explicit,
+          identity-scoped, and project-inbox paths with `--path`, and exercises refusal and repair/retry behavior.
 
 ### `[ ]` **1.3 Document the editor destination — Decision 4**
 

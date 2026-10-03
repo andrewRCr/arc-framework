@@ -1,5 +1,5 @@
 /**
- * Read-once `arc view` orchestration.
+ * Artifact destination orchestration for `arc view`.
  */
 
 import { resolve as resolvePath } from "node:path";
@@ -30,7 +30,7 @@ export interface ViewDependencies {
   clock?: ResolvedViewClock;
 }
 
-/** Resolve one semantic kind and emit its plain, read-only representation. */
+/** Resolve one semantic artifact and route it to the requested destination. */
 export async function runView(
   options: RunViewOptions,
   dependencies: ViewDependencies,
