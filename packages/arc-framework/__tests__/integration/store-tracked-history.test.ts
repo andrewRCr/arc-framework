@@ -143,7 +143,7 @@ describe("tracked state and history", () => {
       { reference: reference("renamed"), version: version(content), content: content, provenance: { message: "before rename\n" } },
     ]);
   });
-  it.each(["all", "meta", "notes"] as const)("reports chronological provenance for endpoint changes restricted to %s", async (restriction) => {
+  it.each(["all", "meta", "notes"] as const)("reports chronological landed mutations restricted to %s", async (restriction) => {
     const repo = await repository();
     const path = ".arc/active/meta-example.md";
     const initial = makeMetaFixture("example");
@@ -162,9 +162,37 @@ describe("tracked state and history", () => {
     const to = await repo.commit("unrelated code");
     const notes = recordReferences["work-item/notes"](reference().owner);
     const references = restriction === "all" ? undefined : [restriction === "meta" ? reference() : notes];
-    expect(success(await repo.store.changes({ from, to, references }))).toEqual(restriction === "notes" ? [] : [
+    const expected = [
       { reference: reference(), version: version(middle), content: middle, provenance: { message: "first mutation\n" } },
+      { reference: notes, version: version("temporary notes\n"), content: "temporary notes\n", provenance: { message: "first mutation\n" } },
       { reference: reference(), version: version(final), content: final, provenance: { message: "second mutation\n" } },
+      { reference: notes, version: version("original notes\n"), content: "original notes\n", provenance: { message: "second mutation\n" } },
+    ].filter((entry) => restriction === "all" || entry.reference.kind === (restriction === "meta" ? "work-item/meta" : "work-item/notes"));
+    expect(success(await repo.store.changes({ from, to, references }))).toEqual(expected);
+  });
+
+  it.each(["all", "meta", "notes", "transition"] as const)("keeps creation and removal inside an empty-ended interval restricted to %s", async (restriction) => {
+    const repo = await repository();
+    const from = await repo.commit("empty baseline");
+    const content = makeMetaFixture("example", { branch: "main" });
+    const notes = "temporary notes\n";
+    const transition = serializeTransitionRecord({ schemaVersion: 1, origin: "retired", kind: "abandon", successors: [], edges: [] });
+    const records = [
+      { name: "meta", reference: reference(), content, path: ".arc/active/meta-example.md" },
+      { name: "notes", reference: recordReferences["work-item/notes"](reference().owner), content: notes, path: ".arc/active/notes-example.md" },
+      { name: "transition", reference: recordReferences["lineage/transition"](reference("retired").owner), content: transition, path: ".arc/system/.internal/transitions/retired.json" },
+    ];
+    for (const record of records) await repo.put(record.path, record.content);
+    await repo.commit("temporary creation");
+    await repo.exec("git", ["rm", ...records.map((record) => record.path)]);
+    const to = await repo.commit("temporary removal");
+    const selected = records.filter((record) => restriction === "all" || record.name === restriction);
+    const changes = success(await repo.store.changes({ from, to,
+      ...(restriction === "all" ? {} : { references: selected.map((record) => record.reference) }) }));
+    expect(changes).toHaveLength(selected.length * 2);
+    for (const record of selected) expect(changes.filter((entry) => entry.reference.kind === record.reference.kind)).toEqual([
+      { reference: record.reference, content: record.content, version: version(record.content), provenance: { message: "temporary creation\n" } },
+      { reference: record.reference, content: null, version: null, provenance: { message: "temporary removal\n" } },
     ]);
   });
   it.each(["foreign", "missing"] as const)("distinguishes a %s record outside the saved branch states", async (name) => {
@@ -182,6 +210,24 @@ describe("tracked state and history", () => {
       const live = success(await repo.store.read({ reference: reference(name) }));
       expect(success(await repo.store.read({ reference: reference(name) }))).toMatchObject({ version: live.version, content: makeMetaFixture("foreign") });
     }
+  });
+  it("does not invent a mutation for a merge that retains its first parent's record", async () => {
+    const repo = await repository();
+    const initial = makeMetaFixture("example", { branch: "main" });
+    await repo.put(".arc/active/meta-example.md", initial);
+    const from = await repo.commit("baseline");
+    await repo.exec("git", ["checkout", "-b", "side"]);
+    await repo.put("README.md", "side code\n");
+    await repo.commit("side code only");
+    await repo.exec("git", ["checkout", "main"]);
+    const content = `${initial}\nmain progress\n`;
+    await repo.put(".arc/active/meta-example.md", content);
+    await repo.commit("main record edit");
+    await repo.exec("git", ["merge", "--no-ff", "side", "-m", "merge code"]);
+    const to = success(await repo.store.version());
+    expect(success(await repo.store.changes({ from, to, references: [reference()] }))).toEqual([
+      { reference: reference(), content, version: version(content), provenance: { message: "main record edit\n" } },
+    ]);
   });
   it("names companion additions and terminal records through the tracked listing inventory", async () => {
     const repo = await repository();

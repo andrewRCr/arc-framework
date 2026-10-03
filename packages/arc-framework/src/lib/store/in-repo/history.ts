@@ -52,42 +52,57 @@ async function historicalMeta(context: InRepoContext, slug: string, revision: st
   }
   return undefined;
 }
-/** Read interval provenance for records with differing endpoint bytes.
+/** Read every landed record mutation inside a saved-state interval.
  * @param context - Explicit repository dependencies.
  * @param input - Saved-state interval and optional record restriction.
  * @returns Changes in chronological commit order.
  */
 export async function trackedChanges(context: InRepoContext, input: ChangesInput): Promise<HistoryEntry[]> {
-  const references = input.references ?? await endpointReferences(context, input);
-  const changed = await changedEndpoints(context, input, references);
-  const commits = (await git(context, ["rev-list", "--reverse", "--topo-order", input.to, "--not", input.from])).trim().split("\n").filter(Boolean);
+  const commits = await intervalCommits(context, input);
+  const revisions = [...new Set([input.from, input.to, ...commits.flatMap((commit) => [commit.revision, ...commit.parents])])];
+  const references = input.references ?? await intervalReferences(context, revisions);
+  const records = await intervalRecords(context, input, references, revisions);
   const entries: HistoryEntry[] = [];
   for (const commit of commits) {
-    const paths = new Set((await git(context, ["diff-tree", "--root", "-m", "--no-commit-id", "-r", "--name-only", "-z", commit])).split("\0").filter(Boolean));
-    for (const item of changed) {
-      const path = await pathAt(context, item.reference, commit);
-      if (item.paths.some((endpoint) => paths.has(endpoint)) || (path !== undefined && paths.has(path))) {
-        const changedPath = path ?? item.paths[0];
-        if (changedPath === undefined) throw new Error("A changed record has no endpoint path");
-        entries.push(await historyEntry(context, item.reference, changedPath, commit));
-      }
+    const parent = commit.parents[0];
+    const args = parent === undefined ? ["diff-tree", "--root", "--no-commit-id", "-r", "--name-only", "-z", commit.revision]
+      : ["diff", "--name-only", "-z", parent, commit.revision];
+    const paths = new Set((await git(context, args)).split("\0").filter(Boolean));
+    for (const item of records) {
+      const path = await pathAt(context, item.reference, commit.revision);
+      const changedPath = path !== undefined && paths.has(path) ? path : item.paths.find((candidate) => paths.has(candidate));
+      if (changedPath !== undefined) entries.push(await historyEntry(context, item.reference, changedPath, commit.revision));
     }
   }
   return entries;
 }
 
-async function changedEndpoints(context: InRepoContext, input: ChangesInput, references: RecordReference[]): Promise<{ reference: RecordReference; paths: string[] }[]> {
-  const changed: { reference: RecordReference; paths: string[] }[] = [];
+async function intervalCommits(context: InRepoContext, input: ChangesInput): Promise<{ revision: string; parents: string[] }[]> {
+  const revisions = (await git(context, ["rev-list", "--reverse", "--topo-order", input.to, "--not", input.from])).trim().split("\n").filter(Boolean);
+  const commits: { revision: string; parents: string[] }[] = [];
+  for (const revision of revisions) {
+    const parents = (await git(context, ["rev-list", "--parents", "-n", "1", revision])).trim().split(" ").slice(1);
+    commits.push({ revision, parents });
+  }
+  return commits;
+}
+
+async function intervalRecords(context: InRepoContext, input: ChangesInput, references: RecordReference[], revisions: string[]): Promise<{ reference: RecordReference; paths: string[] }[]> {
+  const records: { reference: RecordReference; paths: string[] }[] = [];
   for (const reference of references) {
     changesAdmission(context, reference);
-    const fromPath = await pathAt(context, reference, input.from);
-    const toPath = await pathAt(context, reference, input.to);
-    const before = fromPath === undefined ? null : await readFileAt(context, fromPath, input.from);
-    const after = toPath === undefined ? null : await readFileAt(context, toPath, input.to);
-    if (before === null && after === null && input.references !== undefined) await uncoveredOrMissing(context, reference);
-    if (before !== after || fromPath !== toPath) changed.push({ reference, paths: [...new Set([fromPath, toPath].filter((path): path is string => path !== undefined))] });
+    const paths = new Set<string>();
+    let present = false;
+    for (const revision of revisions) {
+      const path = await pathAt(context, reference, revision);
+      if (path === undefined) continue;
+      paths.add(path);
+      if (await readFileAt(context, path, revision) !== null) present = true;
+    }
+    if (!present && input.references !== undefined) await uncoveredOrMissing(context, reference);
+    records.push({ reference, paths: [...paths] });
   }
-  return changed;
+  return records;
 }
 
 function changesAdmission(context: InRepoContext, reference: RecordReference): void {
@@ -112,10 +127,10 @@ async function uncoveredOrMissing(context: InRepoContext, reference: RecordRefer
   return notFound(reference, "Check the record name or create its meta and file together before retrying changes.");
 }
 
-async function endpointReferences(context: InRepoContext, input: ChangesInput): Promise<RecordReference[]> {
+async function intervalReferences(context: InRepoContext, revisions: string[]): Promise<RecordReference[]> {
   const references = new Map<string, RecordReference>();
-  for (const revision of [input.from, input.to]) {
-    for (const reference of await trackedReferences(context,revision)) references.set(JSON.stringify(reference),reference);
+  for (const revision of revisions) {
+    for (const reference of await trackedReferences(context,StateVersionSchema.parse(revision))) references.set(JSON.stringify(reference),reference);
   }
   return [...references.values()];
 }
