@@ -9,6 +9,7 @@ import { setupMultiClone } from "../helpers/multi-clone.js";
 import { makeGitExec, makeGitExecInput } from "../helpers/integration.js";
 import { testStorePorts } from "../helpers/store/in-repo-ports.js";
 import { errandsRef, hashBlob, readRefTip, writeTreeCommit } from "../../src/lib/errand/ref-tree.js";
+import { readTransientIdentitySnapshotAtRef } from "../../src/lib/errand/identity-snapshot.js";
 
 const reference = recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: "alpha" }));
 const content = serializeTransientIdentityRecord(TransientIdentityRecordSchema.parse({ version: 3, kind: "errand", slug: "alpha", claimId: "a".repeat(32), purpose: "errand", origin: "description", originEntry: null, intent: "alpha", branch: "chore/alpha", state: "open", savedHead: null, changeRequest: null, createdAt: "2026-07-18T00:00:00.000Z", updatedAt: "2026-07-18T00:00:00.000Z" }));
@@ -55,4 +56,57 @@ it.each(["fetch", "push"])("classifies an actual %s timeout as unreachable with 
   ports.identity = async () => SlugSchema.parse("andrew"); ports.remote = async () => "origin";
   ports.exec = async (command, args, options) => { if (args[0] === stage) throw new GitProcessError({ kind: "timed-out", timedOut: true, command, args, stderr: "Git operation timed out" }); return exec(command, args, options); };
   expect(await createStore(ports).write({ action: "put", reference, content, expected: null, placement: { kind: "active" }, provenance: { verb: "arc errand", lifecycleAction: "create" } })).toMatchObject({ status: "refused", refusal: { code: "unreachable", cause: "timeout" } });
+});
+
+const lookupFailures = (["show-ref", "rev-parse"] as const).flatMap((stage) =>
+  (["plain-error", "canceled", "unexpected", "spawn-failure", "nonzero-exit"] as const).map((kind) => ({ stage, kind })));
+
+it.each(lookupFailures)("preserves an absent-looking $kind at $stage and reads after repair", async ({ stage, kind }) => {
+  const clones = await setupMultiClone(); onTestFinished(clones.cleanup);
+  const exec = makeGitExec(clones.cloneA);
+  const execInput = makeGitExecInput(clones.cloneA);
+  const io = { identity: "andrew", exec, execInput };
+  const oid = await hashBlob(execInput, content);
+  await writeTreeCommit(io, new Map([["alpha", oid]]), "Create identity", [], null);
+  const ports = testStorePorts(clones.cloneA, exec, execInput);
+  ports.identity = async () => SlugSchema.parse("andrew");
+  const args = stage === "show-ref" ? [stage, "--exists", errandsRef(io.identity)]
+    : [stage, "--verify", "--end-of-options", `${errandsRef(io.identity)}^{commit}`];
+  const original = kind === "plain-error" ? new Error("Needed a single revision")
+    : new GitProcessError({ kind, command: "git", args,
+      ...(kind === "nonzero-exit" ? { exitCode: stage === "show-ref" ? 1 : 2 } : {}),
+      stderr: "Needed a single revision", isCanceled: kind === "canceled" });
+  let fail = true;
+  ports.exec = async (command, requested, options) => {
+    if (fail && requested[0] === stage) throw original;
+    return exec(command, requested, options);
+  };
+  const store = createStore(ports);
+  await expect(store.read({ reference })).rejects.toMatchObject({ code: "store.operation-failed", cause: { cause: original } });
+  expect(await store.list({ family: "work-item", kind: "work-item/record" })).toMatchObject({ status: "ok", result: { status: "unreadable" } });
+  await expect(store.history({ reference })).rejects.toMatchObject({ code: "store.operation-failed", cause: { cause: original } });
+  fail = false;
+  expect(await store.read({ reference })).toMatchObject({ status: "ok", result: { content } });
+  expect(await store.list({ family: "work-item", kind: "work-item/record" })).toMatchObject({ status: "ok", result: { status: "complete", records: [{ content }] } });
+  expect(await store.history({ reference })).toMatchObject({ status: "ok", result: [{ content }] });
+});
+
+it("keeps clean named absence distinct from invalid objects and immutable snapshot failures", async () => {
+  const clones = await setupMultiClone(); onTestFinished(clones.cleanup);
+  const exec = makeGitExec(clones.cloneA);
+  const execInput = makeGitExecInput(clones.cloneA);
+  const io = { identity: "andrew", exec, execInput };
+  const ref = errandsRef(io.identity);
+  expect(await readTransientIdentitySnapshotAtRef(io, ref)).toEqual({ kind: "absent" });
+  const blob = await hashBlob(execInput, content);
+  await exec("git", ["update-ref", ref, blob]);
+  expect(await readTransientIdentitySnapshotAtRef(io, ref)).toMatchObject({ kind: "error", stage: "tip" });
+  await exec("git", ["update-ref", "-d", ref]);
+  await exec("git", ["symbolic-ref", ref, "refs/arc/missing-target"]);
+  expect(await readTransientIdentitySnapshotAtRef(io, ref)).toMatchObject({ kind: "error", stage: "tip" });
+  await exec("git", ["symbolic-ref", "--delete", ref]);
+  const tip = await writeTreeCommit(io, new Map([["alpha", blob]]), "Repair identity", [], null);
+  expect(await readTransientIdentitySnapshotAtRef(io, ref)).toMatchObject({ kind: "complete", tip });
+  expect(await readTransientIdentitySnapshotAtRef(io, tip)).toMatchObject({ kind: "complete", tip });
+  expect(await readTransientIdentitySnapshotAtRef(io, "e".repeat(40))).toMatchObject({ kind: "error", stage: "tip" });
 });

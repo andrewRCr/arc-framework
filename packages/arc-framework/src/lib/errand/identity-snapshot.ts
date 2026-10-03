@@ -1,7 +1,7 @@
 /** Complete, tip-pinned reads of the transient identity tree. */
 
 import type { GitExec } from "../git/exec.js";
-import { gitFailureText } from "../git/process-error.js";
+import { isGitProcessError } from "../git/process-error.js";
 import { MAX_LOCUS_JSON_BYTES, type LocusIdentityV1 } from "../locus/schema/index.js";
 import {
   deserializeTransientIdentityRecord,
@@ -68,10 +68,10 @@ export async function readTransientIdentitySnapshotAtRef(
 ): Promise<TransientIdentitySnapshot> {
   let tip: string;
   try {
+    if (!isGitOid(ref) && !await namedRefPresent(io, ref)) return { kind: "absent" };
     const result = await io.exec("git", ["rev-parse", "--verify", "--end-of-options", `${ref}^{commit}`]);
     tip = result.stdout.trim();
   } catch (error) {
-    if (isAbsentRefFailure(gitFailureText(error))) return { kind: "absent" };
     return { kind: "error", stage: "tip", message: errorMessage(error), error };
   }
   if (!isGitOid(tip)) {
@@ -145,8 +145,18 @@ function isGitOid(value: string): boolean {
   return /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(value);
 }
 
-function isAbsentRefFailure(message: string): boolean {
-  return /Needed a single revision|unknown revision|ambiguous argument|Not a valid object name/iu.test(message);
+async function namedRefPresent(io: IdentitySnapshotIO, ref: string): Promise<boolean> {
+  try {
+    await io.exec("git", ["show-ref", "--exists", ref]);
+    return true;
+  } catch (error) {
+    if (!isGitProcessError(error)) throw error;
+    const args = error.args[0] === "--no-lazy-fetch" ? error.args.slice(1) : error.args;
+    if (error.kind === "nonzero-exit" && error.exitCode === 2
+      && error.command === "git" && args.length === 3
+      && args[0] === "show-ref" && args[1] === "--exists" && args[2] === ref) return false;
+    throw error;
+  }
 }
 
 function errorMessage(error: unknown): string {

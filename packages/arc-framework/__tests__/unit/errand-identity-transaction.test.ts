@@ -77,8 +77,8 @@ function transactionIO(options: {
       { match: { prefix: ["fetch"] }, responses: [{ failure: {
         exitCode: 128, stderr: "couldn't find remote ref",
       } }] },
-      { match: { prefix: ["rev-parse"] }, responses: [{ failure: {
-        exitCode: 128, stderr: "Needed a single revision",
+      { match: { prefix: ["show-ref", "--exists"] }, responses: [{ failure: {
+        exitCode: 2, stderr: "reference does not exist",
       } }] },
       { match: { prefix: ["commit-tree"] }, responses: [{ stdout: oid }] },
       { match: { prefix: ["update-ref", "-d"] }, responses: [{ stdout: "" }] },
