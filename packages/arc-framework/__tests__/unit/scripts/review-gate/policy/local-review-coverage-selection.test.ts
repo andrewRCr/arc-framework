@@ -294,7 +294,7 @@ describe("local review coverage selection", () => {
     expect(selected.state).toBe("decision-required");
     if (selected.state !== "decision-required") return;
     const candidate = (choice: "covered" | "review-required") => ({
-      attestation: { candidateId: lineage.candidateId },
+      attestation: { candidateId: lineage.candidateId, workUnit: "example" },
       transitions: [{
         transitionKind: "review-applicability-selection",
         schemaVersion: 1,

@@ -1188,6 +1188,88 @@ describe("earlier review attempt query", () => {
     });
   });
 
+  it("carries a covered selection across only the commit that records it", async () => {
+    const state = laneState();
+    const recordPath = ".arc/system/.internal/candidates/example.json";
+    const decisionWith = (
+      applicabilitySelector: Parameters<typeof classifyReviewContributionApplicability>[0],
+      paths: string[],
+    ) => classifyReviewContributionApplicability(applicabilitySelector, {
+      endpoints: {
+        before: {
+          predecessor: { head: applicabilitySelector.priorBase, tree: oid("3") },
+          member: { head: applicabilitySelector.priorHead, tree: oid("4") },
+        },
+        after: {
+          predecessor: { head: applicabilitySelector.currentBase, tree: oid("5") },
+          member: { head: applicabilitySelector.currentHead, tree: oid("6") },
+        },
+      },
+      proof: { status: "refused", reason: "contribution-diverged", paths },
+    });
+    const selectedProjection = decisionWith({
+      schemaVersion: 1,
+      repositoryId: "repository-1",
+      repository: "owner/repository",
+      pullRequest: 42,
+      lane: "standard",
+      sourceId: "codex-pr",
+      priorAttemptId: state.attempts[0]!.attemptId,
+      priorHead: oid("a"),
+      currentHead: oid("b"),
+      priorBase: oid("1"),
+      currentBase: oid("2"),
+    }, ["src/example.ts"]);
+    if (selectedProjection.state !== "decision-required") throw new Error("expected selected decision");
+    const selection: CandidateLineageTransitionV1 = {
+      transitionKind: "review-applicability-selection",
+      schemaVersion: 1,
+      semanticsVersion: "candidate-attestation/v1",
+      candidateId: candidateRecord().attestation.candidateId,
+      selector: selectedProjection.selector,
+      projectionDigest: selectedProjection.projectionDigest,
+      residualDigest: selectedProjection.residualDigest,
+      selectedBy: "andrew",
+      selectedAt: "2026-08-23T12:00:00.000Z",
+      choice: "covered",
+    };
+    // B carries the record as reviewed; C commits the selection the CLI appended to it.
+    const committed = new Map([
+      [oid("b"), candidateRecord()],
+      [oid("c"), candidateRecord([selection])],
+    ]);
+    const readEarlier = (segmentPaths: string[]) => projectEarlierReviewApplicability({
+      query: selector(),
+      currentBase: oid("2"),
+      snapshot: { status: "complete", records: [{ version: 1, state }] },
+      candidate: candidateRecord([selection]),
+      exec: async (args) => {
+        const [head, path] = (args[1] ?? "").split(":");
+        const record = args[0] === "show" && path === recordPath ? committed.get(head ?? "") : undefined;
+        if (record === undefined) throw new Error(`unexpected git ${args.join(" ")}`);
+        return { stdout: new TextEncoder().encode(JSON.stringify(record)) };
+      },
+      observeEndpoints: stableEndpoints,
+      projectApplicability: async (projectedSelector) => decisionWith(
+        projectedSelector,
+        projectedSelector.priorHead === oid("b")
+          ? segmentPaths
+          : projectedSelector.currentHead === oid("b")
+            ? ["src/example.ts"]
+            : [recordPath, "src/example.ts"],
+      ),
+    });
+
+    await expect(readEarlier([recordPath])).resolves.toMatchObject({
+      status: "complete",
+      attempts: [{ applicability: "retain-prior-attempt" }],
+    });
+    await expect(readEarlier([recordPath, "src/example.ts"])).resolves.toMatchObject({
+      status: "complete",
+      attempts: [{ applicability: "stop", authorityState: "decision-required" }],
+    });
+  });
+
   it("composes the exact query, factual projection, and Candidate selection for both consumers", async () => {
     const query = { ...selector(), repository: "Owner/Repository" };
     const state = laneState();

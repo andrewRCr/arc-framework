@@ -45,11 +45,25 @@ export type ReviewApplicabilityConsumerAction =
   | "request-review"
   | "stop";
 
-export interface MechanicallyCarriedReviewApplicabilitySelection {
-  readonly selection: CandidateReviewApplicabilitySelectionV1;
-  readonly selectedProjection: DecisionProjection;
-  readonly mechanicalProjection: ApplicableProjection;
-}
+/**
+ * One Owner selection with the segment from its selected head to the current one.
+ *
+ * The segment either leaves the contribution unchanged, or is the commit recording the work unit's own
+ * Candidate selection, which adds only that record's path to the residual.
+ */
+export type MechanicallyCarriedReviewApplicabilitySelection =
+  | {
+    readonly selection: CandidateReviewApplicabilitySelectionV1;
+    readonly selectedProjection: DecisionProjection;
+    readonly mechanicalProjection: ApplicableProjection;
+    readonly ownRecordPath?: undefined;
+  }
+  | {
+    readonly selection: CandidateReviewApplicabilitySelectionV1;
+    readonly selectedProjection: DecisionProjection;
+    readonly mechanicalProjection: DecisionProjection;
+    readonly ownRecordPath: string;
+  };
 
 /** Collapse the authority result identically for request and discharge consumers. */
 export function reviewApplicabilityConsumerAction(
@@ -87,6 +101,24 @@ export function reduceReviewApplicabilityAuthority(
     : { state: "review-required", authority: "owner-review-required", projection, selection };
 }
 
+/** Whether the carried segment leaves the current residual exactly what the Owner selected over. */
+function carriedSegmentPreservesResidual(
+  carried: MechanicallyCarriedReviewApplicabilitySelection,
+  projection: DecisionProjection,
+): boolean {
+  const { selectedProjection, mechanicalProjection, ownRecordPath } = carried;
+  if (ownRecordPath === undefined) {
+    return mechanicalProjection.contributionChanged === false
+      && mechanicalProjection.proof !== "head-unchanged"
+      && canonicalize(selectedProjection.paths) === canonicalize(projection.paths);
+  }
+  // The selection's own record commit adds only the Candidate record to the residual.
+  const residual = [...new Set([...selectedProjection.paths, ownRecordPath])].sort();
+  return mechanicalProjection.verdict === "clean-divergence"
+    && canonicalize(mechanicalProjection.paths) === canonicalize([ownRecordPath])
+    && canonicalize(residual) === canonicalize(projection.paths);
+}
+
 /** Reduce authority while preserving an exact Owner selection across a separately proved mechanical segment. */
 export function reduceReviewApplicabilityAuthorityWithMechanicalCarry(
   candidateId: string,
@@ -97,7 +129,8 @@ export function reduceReviewApplicabilityAuthorityWithMechanicalCarry(
   const exact = reduceReviewApplicabilityAuthority(candidateId, projection, selections);
   if (projection.state !== "decision-required") return exact;
   if (exact.state !== "decision-required") return exact;
-  const matches = carried.filter(({ selection, selectedProjection, mechanicalProjection }) => {
+  const matches = carried.filter((entry) => {
+    const { selection, selectedProjection, mechanicalProjection } = entry;
     const selected = selection.selector;
     const current = projection.selector;
     const mechanical = mechanicalProjection.selector;
@@ -107,7 +140,6 @@ export function reduceReviewApplicabilityAuthorityWithMechanicalCarry(
       && selectedProjection.projectionDigest === selection.projectionDigest
       && selectedProjection.residualDigest === selection.residualDigest
       && selectedProjection.verdict === projection.verdict
-      && canonicalize(selectedProjection.paths) === canonicalize(projection.paths)
       && selected.repositoryId === current.repositoryId
       && selected.repository === current.repository
       && selected.pullRequest === current.pullRequest
@@ -119,8 +151,7 @@ export function reduceReviewApplicabilityAuthorityWithMechanicalCarry(
       && selected.currentBase === mechanical.priorBase
       && mechanical.currentHead === current.currentHead
       && mechanical.currentBase === current.currentBase
-      && mechanicalProjection.contributionChanged === false
-      && mechanicalProjection.proof !== "head-unchanged";
+      && carriedSegmentPreservesResidual(entry, projection);
   });
   if (matches.length === 0) return exact;
   if (matches.length > 1) {
