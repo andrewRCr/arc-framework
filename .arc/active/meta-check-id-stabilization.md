@@ -1,8 +1,8 @@
 # Metadata: Check ID Stabilization
 
-| **State**  | **Owner** | **Branch**                    | **Class** | **Priority** |
-| ---------- | --------- | ----------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/check-id-stabilization` | `Light`   | `P2`         |
+| **State** | **Owner** | **Branch**                        | **Class** | **Priority** |
+| --------- | --------- | --------------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `refactor/check-id-stabilization` | `Light`   | `P2`         |
 
 - **Cohort:** `architecture-remediation`
 - **Depends On:** [none]
@@ -12,13 +12,13 @@
 - **Task List:** `tasks-check-id-stabilization.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** `process-task-loop`
 - **Last Completed:** Stub created from a USER-INBOX capture at the `single-owner-wu-model` housekeep drain
   (2026-06-24).
-- **Next Task:** [none]
+- **Next Task:** Task 1.1 — Add exact-ID source-block selection (line ~17)
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 — Add exact-ID source-block selection
 
 - **PR URL:** [none]
 - **Completed:** [none]
