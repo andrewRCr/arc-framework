@@ -14,43 +14,18 @@ _Mode:_ `slice` — closes on root help, bare introduction, status help, and rev
 _Exit criterion:_ The built CLI renders all four representative surfaces with correct syntax, grouping, examples,
 inherited options, channels, and exit codes outside an initialized ARC project.
 
-### `[ ]` **1.1 Root help and bare introduction**
+### `[x]` **1.1 Root help and bare introduction**
 
 - _Goal:_ A reader can orient quickly at bare invocation and find every root operation through complete explicit
   help, without triggering operational work.
 
-- _Context:_ `spec-cli-help-discovery.md` § Entry help and root navigation; § Command pages and summaries.
+    - `[x]` **1.1.a Complete grouped root help**
+        - Added a shared native-Commander formatter with ordered task groups, concise root summaries, purpose,
+          examples, and documentation pointers. Registrations, hidden visibility, and lazy loading are preserved.
 
-- _Note:_ See `notes-cli-help-discovery.md` § Root help and § Bare invocation for the representative renderings.
-
-- _Note:_ `Command.copyInheritedSettings` copies help configuration when children are created; install shared
-  configuration before child registrations to preserve inheritance and registration order.
-
-    - Add a cohesive presentation helper under `packages/arc-framework/src/lib/` (new module) and wire it into
-      `program` in `packages/arc-framework/src/cli.ts`. Keep command registrations in place and implementation
-      modules lazy, as checked by `cli-loading-boundary.test.ts`.
-    - Reuse `Command.summary`, `Command.helpGroup`, and native `Help` formatting/visibility helpers. Keep syntax,
-      option defaults, and command routing owned by the registered tree.
-
-    - `[ ]` **1.1.a Complete grouped root help**
-        - Build `test-first` (one behavior at a time):
-            - Explicit `-h`, `--help`, and `arc help` show the orchestration purpose, three examples, existing
-              options, all six task groups in the chosen order, final Help placement, and documentation pointers.
-            - Every visible root command appears once with a concise summary; hidden entries stay hidden, and
-              command terms still come from Commander registrations.
-            - Rendering at 80 columns preserves syntax and meaningful qualifiers through native wrapping.
-        - Use focused helper tests plus built-CLI assertions through `runCli` to prove the helper is wired into
-          the real entry point; avoid whole-output snapshots that make harmless wrapping changes brittle.
-
-    - `[ ]` **1.1.b Concise bare introduction and help contexts**
-        - Build `test-first` (one behavior at a time):
-            - True bare root invocation reuses the purpose, examples, and global options, displays help pointers,
-              and omits the command inventory with stderr/exit 1.
-            - Explicit root help retains complete stdout/exit-0 output; child help and ordinary parser errors keep
-              their existing help behavior.
-            - Help paths work outside an initialized project and reach no operational action hooks or prompts.
-        - Preserve `Command._parseCommand` / `Command.help` semantics; use presentation hooks rather than install
-          a root operational action to produce the introduction.
+    - `[x]` **1.1.b Concise bare introduction and help contexts**
+        - Bare invocation shows the shared introduction and help pointers on stderr with exit 1. Explicit root and
+          child help retain stdout/exit 0, with inherited options and ordinary parser errors preserved.
 
 ### `[ ]` **1.2 Status and review-resolution command pages**
 

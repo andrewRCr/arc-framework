@@ -16,10 +16,68 @@ import { describe, it, expect } from "vitest";
 import { runCli } from "../helpers/run-cli.js";
 
 describe("runCli", () => {
+  it("renders complete task-grouped root help through every explicit help entry", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "arc-root-help-"));
+    const groups = [
+      "Inspect work and context:", "Plan and organize work:", "Run and resume work:",
+      "Review and land work:", "Run errands and synchronize:", "Set up and maintain ARC:", "Help:",
+    ];
+    try {
+      for (const args of [["-h"], ["--help"], ["help"]]) {
+        const result = await runCli(args, { cwd });
+        expect(result.exitCode).toBe(0);
+        expect(result.stderr).toBe("");
+        expect(result.stdout).toContain("Plan, run, review, and land development work with ARC.");
+        expect(result.stdout).toContain("arc status --project");
+        expect(result.stdout).toContain("arc start my-work");
+        expect(result.stdout).toContain("arc view tasks --current");
+        expect(result.stdout).toContain("--no-input");
+        expect(result.stdout).toContain("--version");
+        let previous = -1;
+        for (const heading of groups) {
+          const position = result.stdout.indexOf(heading);
+          expect(position, heading).toBeGreaterThan(previous);
+          previous = position;
+        }
+        expect(result.stdout).toContain("arc <command> --help");
+        expect(result.stdout).toContain("arc review <command> --help");
+        expect(result.stdout).toContain("https://github.com/andrewRCr/arc-framework#readme");
+        expect(result.stdout).toContain("https://github.com/andrewRCr/arc-framework/issues");
+        expect(result.stdout).not.toContain("hook-remedy-roadmap-conflict");
+      }
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   it("returns exit 0 and stdout containing the program name for --help", async () => {
     const result = await runCli(["--help"]);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("arc");
+  });
+
+  it("keeps bare introduction, child help, and parser errors on their native channels outside a project", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "arc-help-context-"));
+    try {
+      const bare = await runCli([], { cwd });
+      expect(bare.exitCode).toBe(1);
+      expect(bare.stdout).toBe("");
+      expect(bare.stderr).toContain("More help:");
+      expect(bare.stderr).toContain("arc --help");
+      expect(bare.stderr).not.toContain("Inspect work and context:");
+      const child = await runCli(["start", "--help"], { cwd });
+      expect(child.exitCode).toBe(0);
+      expect(child.stderr).toBe("");
+      expect(child.stdout).toContain("Usage: arc start");
+      expect(child.stdout).toContain("commits and pushes");
+      const error = await runCli(["--unknown"], { cwd });
+      expect(error.exitCode).toBe(1);
+      expect(error.stdout).toBe("");
+      expect(error.stderr).toContain("unknown option '--unknown'");
+      expect(error.stderr).not.toContain("More help:");
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
   });
 
   it("documents the slug-query --fetch upgrade separately from live-default views", async () => {

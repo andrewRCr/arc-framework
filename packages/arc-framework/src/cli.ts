@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { Command, Option } from "commander";
 
 import { getFrameworkVersion } from "./lib/version.js";
+import { applyArcHelp, configureArcHelp } from "./lib/cli-help.js";
 import { formatUnexpectedError } from "./lib/errors.js";
 import {
   checkDevBuildStaleness,
@@ -117,6 +118,7 @@ import type {
 } from "./commands/release.js";
 
 const program = new Command();
+configureArcHelp(program);
 
 program
   .name("arc")
@@ -2188,6 +2190,7 @@ function formatAge(seconds: number): string {
 
 // --- Entry ---
 
+applyArcHelp(program);
 program.parseAsync().catch((err: unknown) => {
   console.error(formatUnexpectedError(err));
   process.exitCode = 1;
