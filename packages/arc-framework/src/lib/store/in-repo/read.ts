@@ -41,8 +41,8 @@ async function requiredMeta(context: InRepoContext, input: ReadInput): Promise<M
 async function missingTracked(context:InRepoContext,input:ReadInput): Promise<never> {
   const live = input.asOf !== undefined && input.reference.kind.startsWith("work-item/")
     ? await selectMeta(context,input.reference.owner.name) : undefined;
-  if (live?.revision !== undefined && await readFileAt(context,await recordPath(context,input.reference,live),live.revision) !== null) {
-    return unsupported("uncovered-state-version", "The requested saved tree does not hold this record from another branch",
+  if (live !== undefined && await readFileAt(context,await recordPath(context,input.reference,live),live.revision) !== null) {
+    return unsupported("uncovered-state-version", "The requested saved tree does not cover this live record",
       "Read the record using its own per-record version instead.");
   }
   return notFound(input.reference, "Create the work unit's meta with its companions in one batch, then retry.");
