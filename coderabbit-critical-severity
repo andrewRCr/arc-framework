@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "coderabbit-critical-severity",
+  "claimId": "3cd6dd90e7d87ac50cb6c298b45f19e6",
+  "createdAt": "2026-10-03T14:08:57.259Z",
+  "updatedAt": "2026-10-03T14:08:57.259Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Accept critical CodeRabbit agent findings without losing the frontline result",
+  "branch": "chore/coderabbit-critical-severity",
+  "origin": "inbox",
+  "originEntry": "Accept a `critical` CodeRabbit CLI finding instead of failing the whole frontline pass",
+  "originEntrySourceDigest": "sha256:d98ac00b3d66488a8c57479f58ec51aa9ac7f99fd303e5aa93aa8ca516e28ba1",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
