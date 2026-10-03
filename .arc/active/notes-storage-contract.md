@@ -962,3 +962,17 @@ already acquire the version's blob. The in-repo personal-history exception remai
 The review fix propagates the shared entry shape through both operations and their supported backends, with update,
 removal, rename and publication coverage. Original completion criteria and verification evidence remain preserved;
 the appended criterion closes through the review-fix verification.
+
+## A3 — Retained branch links
+
+D3's superseded base-link declaration named “a branch (repository and ref name)”; D5's base summary named
+“links: branch, change request, landing commit, and task captures”. Promotion already required the new work-unit
+branch link beside the Errand's, so one branch could not preserve both reverse lookups.
+
+The optional `branches` collection holds unique repository/ref pairs. Ref lookup considers every retained pair;
+whole-value replacement, omission retaining the current links, and empty clearing keep their existing meaning.
+The unpublished singular field changes in place. The review fix reaches the shared links schema, reference lookup,
+all affected metadata and conflict values, and their fixtures; the in-repo limitations remain unchanged.
+
+This satisfies the two existing work-item types without implementing promotion or changing the remaining captures.
+The appended criterion proves that either retained branch resolves to the same UID and duplicates are rejected.

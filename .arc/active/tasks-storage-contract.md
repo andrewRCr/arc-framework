@@ -673,3 +673,6 @@ as stated.
 
 - `[ ]` Historical entries expose bytes matching each non-removal record version after later updates or removals;
   removal entries carry null content and version (A2).
+
+- `[ ]` Two distinct repository-qualified branches on one work-item UID both resolve to that UID; duplicate branch
+  pairs are refused (A3).

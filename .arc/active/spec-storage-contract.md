@@ -322,15 +322,16 @@ ref commit's, which `history` and `changes` return as they are.
 
 - A task's captures hold its increment's commits — a list, possibly empty, since a decision or research task may produce
   none. A work unit's integration and an Errand's close capture the landing commit.
-- **Links are base fields the contract itself defines,** read without a kind's parser: a branch (repository and ref
-  name), a change request (repository and number), a landing commit, and task captures, keyed by task ID. Each commit is
-  held as its SHA and, where it has one, its patch-id: a merge commit has none, so a landing commit made by merge is
-  matched by its SHA alone. They travel beside a work item's primary record as its placement does (D1): a write to that
-  record may carry a links value, which replaces them whole, an empty value clearing them, and one carrying no links
-  value keeps them.
+- **Links are base fields the contract itself defines,** read without a kind's parser: an optional collection of
+  branches (A3), each a repository and ref name, unique by that pair; a change request (repository and number), a
+  landing commit, and task captures, keyed by task ID. Each commit is held as its SHA and, where it has one, its
+  patch-id: a merge commit has none, so a landing commit made by merge is matched by its SHA alone. They travel beside a
+  work item's primary record as its placement does (D1): a write to that record may carry a links value, which replaces
+  them whole, an empty value clearing them, and one carrying no links value keeps them.
 - `lookup` by commit matches captured SHAs and, only where none matches, the patch-id the caller computes and passes
-  with a commit that has one; by ref, branch links. So every backend answers it from stored fields, a rebase that leaves
-  a commit's diff alone keeps the link, and ARC's own rewrites remap captures from the rewrite's old-to-new mapping.
+  with a commit that has one; by ref, every retained branch link (A3). So every backend answers it from stored fields, a
+  rebase that leaves a commit's diff alone keeps the link, and ARC's own rewrites remap captures from the rewrite's
+  old-to-new mapping.
 - **Reverse lookup** answers from a repository plus a commit or ref to the owning work item, across renames, since
   records key by UID, and from a commit to every task that captured it: `lookup` returns a reference to the work item's
   primary record and the IDs of the tasks whose captures hold the commit, several where one increment closed several
@@ -535,15 +536,15 @@ names are presentation, mapped from a kind and its scope in one place — the la
 surface edits that mapping and no caller. Where this spec names a file, it names today's file.
 
 **Work items.** Work units and Errands are two types of one family. Every work item has the same base — its identity,
-owner, type, lifecycle location (backlog, in flight, or completed), origin, and links: branch, change request, landing
-commit, and task captures. Everything that spans types reads only the base: the ref layout, slug uniqueness, `lookup`
-and checkout claims, archive and history movement, sync, and the delivery and review records that ride a work item's
-ref. A type adds the rest — its companions, its writer rules, and its own lifecycle states, which refine the base's
-location and are never merged into one machine. Promotion is a field write on one record: the type changes, and the
-UID, links, and history stay; naming the work unit differently is a rename in the same verb, and its branch is a new
-branch link beside the Errand's. The base's exact field schema is set with its parser, except the links (D3) and the
-placement the contract defines; a further type would be one more type over the same base, so nothing that spans types
-changes. How an external tracker's items compose with work items is left to that design.
+owner, type, lifecycle location (backlog, in flight, or completed), origin, and links: branches (A3), change request,
+landing commit, and task captures. Everything that spans types reads only the base: the ref layout, slug uniqueness,
+`lookup` and checkout claims, archive and history movement, sync, and the delivery and review records that ride a work
+item's ref. A type adds the rest — its companions, its writer rules, and its own lifecycle states, which refine the
+base's location and are never merged into one machine. Promotion is a field write on one record: the type changes, and
+the UID, links, and history stay; naming the work unit differently is a rename in the same verb, and its branch is a new
+branch link beside the Errand's in the same collection (A3). The base's exact field schema is set with its parser,
+except the links (D3) and the placement the contract defines; a further type would be one more type over the same base,
+so nothing that spans types changes. How an external tracker's items compose with work items is left to that design.
 
 - Grooming and housekeeping claims share today's transient-identity ref, but each claims a sweep rather than landing
   work: both stay at identity scope, and their branches retire at the flip (D15).
@@ -2089,6 +2090,9 @@ Validated at this change's completion, over Part A:
 17. **Historical content (A2).** Historical entries expose bytes matching each non-removal record version after later
     updates or removals; removal entries carry null content and version.
 
+18. **Retained branch links (A3).** Two distinct repository-qualified branches on one work-item UID both resolve to
+    that UID; duplicate branch pairs are refused.
+
 ## Open Questions
 
 None blocks building Part A.
@@ -2125,3 +2129,5 @@ operations and outcomes, and which test tier each conformance fixture runs in.
   _Supersedes:_ tasks §7.4.a complete list. _Trigger:_ 7.4 must-stop. _Work:_ 7.4.R. _Revalidated:_ 7.4.R.b.
 - **A2** — 2026-10-02 — design: history returns recoverable bytes. _Supersedes:_ D1 history and changes results; D2.
   _Trigger:_ storage-standard-1-F08 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A3** — 2026-10-02 — design: retain all work-item branch links. _Supersedes:_ D3 links cardinality; D5 base.
+  _Trigger:_ storage-standard-1-F09 review. _Work:_ review-fix. _Revalidated:_ review-fix.
