@@ -3,12 +3,24 @@
 import { expect } from "vitest";
 import { FAMILY_REGISTRY, KIND_REGISTRY, RecordReferenceSchema, type KindId, type ListingDiagnostic } from "../../../src/lib/store/index.js";
 import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
-import { assertion, everyKind, seed, success, update, type SuiteContext } from "./suite-tools.js";
+import { assertion, everyKind, seed, success, testProvenance, update, type SuiteContext } from "./suite-tools.js";
 
 /** Register missing, unreadable and complete families without erasing bad entries.
  * @param context - item 9 context.
  */
 export function registerListingAssertions(context: SuiteContext): void {
+  assertion(context, "personal", "derived-status-root-excluded-and-nested-basename-stored", async (fixture) => {
+    const original = fixture.reference("personal/document");
+    const derived = RecordReferenceSchema.parse({ ...original, key: "STATUS.USER.md" });
+    expect(await fixture.store.write({ action: "put", reference: derived, expected: null,
+      content: "derived status", provenance: testProvenance })).toMatchObject({ status: "refused" });
+    const nested = await seed(fixture, RecordReferenceSchema.parse({ ...original, key: "scratch/STATUS.USER.md" }));
+    await fixture.settle();
+    const listed = success(await fixture.store.list({ family: "personal", kind: "personal/document" }));
+    expect(listed).toMatchObject({ status: "complete", records: [nested] });
+    expect(success(await fixture.store.read({ reference: nested.reference }))).toEqual(nested);
+    expect(await fixture.store.read({ reference: derived })).toMatchObject({ status: "refused" });
+  });
   for (const family of context.registration.declarations.families) {
     assertion(context, family, "empty-family-is-absent", async (fixture) => {
       expect(success(await fixture.store.list({ family, ...(family === "work-item" ? { kind: "work-item/meta" as const } : {}) }))).toMatchObject({ status: "absent" });

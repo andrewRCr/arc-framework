@@ -1,6 +1,7 @@
 /** Genuine failure conditions shared by the test-only reference operations. */
 
 import { type RecordReference, type StoreRefusal, type StoreResult, type LookupInput } from "../../../src/lib/store/index.js";
+import { IDENTITY_STATUS_FILENAME } from "../../../src/lib/user-surfaces.js";
 import { MACHINE_LOCAL_PATHS } from "../../../src/lib/store/registry.js";
 import { canonicalReference, ownerNameKey, recordKey, type MemoryState } from "./model.js";
 
@@ -80,6 +81,10 @@ export function recordAdmission(state: MemoryState, reference: RecordReference, 
   const namespace = namespaceAdmission(state);
   if (namespace) return namespace;
   if (reference.owner.type === "person" && identity === undefined) return missingRecord(reference, identity);
+  if (reference.kind === "personal/document" && reference.key === IDENTITY_STATUS_FILENAME) return {
+    ...malformed(reference, "The identity-root STATUS.USER.md address is a derived status view."),
+    remedy: { text: "Use the status producer to regenerate the derived view, or choose a stored personal path and retry." },
+  };
   if (machineLocalPersonalPath(reference)) return {
     ...malformed(reference, "This personal path names excluded machine-local state."),
     remedy: { text: "Choose a stored personal path outside the machine-local directories, then retry with that reference." },

@@ -22,7 +22,7 @@ export async function syncInRepo(context: InRepoContext): Promise<SyncResult> {
     import("../../../commands/user/save-load.js"), import("../../../commands/user/types.js"),
     import("../../../commands/user/push-fetch.js"), import("../../errand/merge.js"),
   ]);
-  const io = notesIO(context);
+  const io = notesIO(context, identity);
   const started = context.ports.clock().getTime();
   let noEligibleFiles = false;
   try { await runUserSave({ cwd: context.ports.checkoutRoot, io, identity, withNotesLock: context.ports.locks.notes }); }

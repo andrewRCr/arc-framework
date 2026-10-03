@@ -37,7 +37,7 @@ export async function personalSurfaces(context: InRepoContext, identity: Slug): 
  */
 export function personalFileReference(identity: Slug, key: string): RecordReference | undefined {
   const segments = key.split("/");
-  if (segments.some((segment) => segment.startsWith(".")) || basename(key) === IDENTITY_STATUS_FILENAME) return undefined;
+  if (segments.some((segment) => segment.startsWith(".")) || key === IDENTITY_STATUS_FILENAME) return undefined;
   const owner = OwnerIdentitySchema.parse({ type: "person", name: identity });
   if (key === personalSingletonKey(identity, "personal/inbox")) return recordReferences["personal/inbox"](owner);
   if (key === personalSingletonKey(identity, "personal/working-memory")) return recordReferences["personal/working-memory"](owner);

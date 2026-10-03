@@ -1,7 +1,7 @@
 /** atomic batches, record-bound freshness, saved states and provenance history. */
 
 import { expect } from "vitest";
-import { KIND_REGISTRY, type KindId, type Mutation } from "../../../src/lib/store/index.js";
+import { KIND_REGISTRY, RecordReferenceSchema, type KindId, type Mutation } from "../../../src/lib/store/index.js";
 import { assertion, everyKind, seed, success, testProvenance, update, type SuiteContext } from "./suite-tools.js";
 
 function mutable(kind: KindId): boolean { return !["create-only", "write-once"].includes(KIND_REGISTRY[kind].writerRule); }
@@ -10,6 +10,18 @@ function mutable(kind: KindId): boolean { return !["create-only", "write-once"].
  * @param context - item 4 context.
  */
 export function registerBatchAssertions(context: SuiteContext): void {
+  assertion(context, "personal", "derived-status-root-write-and-batch-refusal", async (fixture) => {
+    const existing = await seed(fixture, fixture.reference("personal/document"));
+    const derived = RecordReferenceSchema.parse({ ...existing.reference, key: "STATUS.USER.md" });
+    const before = await fixture.settle();
+    const put = { action: "put" as const, reference: derived, expected: null, content: "derived status", provenance: testProvenance };
+    expect(await fixture.store.write(put)).toMatchObject({ status: "refused", refusal: { remedy: { text: expect.any(String) } } });
+    expect(await fixture.store.batch({ writes: [update(fixture, existing), put], provenance: testProvenance })).toMatchObject({ status: "refused" });
+    expect(await fixture.settle()).toBe(before);
+    expect(success(await fixture.store.read({ reference: existing.reference }))).toEqual(existing);
+    expect(await fixture.store.read({ reference: derived })).toMatchObject({ status: "refused" });
+    success(await fixture.store.write(update(fixture, existing)));
+  });
   everyKind(context, "batch-stale-all-or-nothing", async (fixture, reference) => {
     const first = await seed(fixture, reference);
     const second = await seed(fixture, fixture.reference(reference.kind, "two"));

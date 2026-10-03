@@ -31,3 +31,22 @@ it.each([".internal/request.json", "work-unit/.internal/checkpoint.json"])("neve
   expect(remoteList.status === "complete" && remoteList.records).toHaveLength(1);
   expect(success(await remote.read({ reference: record.reference })).content).toBe(record.content);
 });
+
+it("reserves only the derived identity-root STATUS.USER.md address", async () => {
+  const fixture = createReferenceFixture();
+  const remote = fixture.remote(true)!;
+  const base = fixture.reference("personal/document");
+  const derived = RecordReferenceSchema.parse({ ...base, key: "STATUS.USER.md" });
+  const before = success(await fixture.store.version());
+  const put = { action: "put" as const, reference: derived, expected: null, content: "derived", provenance: testProvenance };
+  expect(await fixture.store.write(put)).toMatchObject({ status: "refused", refusal: { class: "recoverable", condition: expect.stringContaining("derived"), remedy: { text: expect.any(String) } } });
+  expect(await fixture.store.batch({ writes: [{ ...put, reference: base }, put], provenance: testProvenance })).toMatchObject({ status: "refused" });
+  expect(success(await fixture.store.version())).toBe(before);
+  for (const key of ["scratch/STATUS.USER.md", "work-unit/one/STATUS.USER.md", "STATUS.USER"]) await seed(fixture, RecordReferenceSchema.parse({ ...base, key }));
+  success(await fixture.store.sync());
+  for (const store of [fixture.reopen(), remote]) {
+    expect(await store.read({ reference: derived })).toMatchObject({ status: "refused" });
+    const listed = success(await store.list({ family: "personal", kind: "personal/document" }));
+    expect(listed).toMatchObject({ status: "complete", records: [{ reference: { key: "scratch/STATUS.USER.md" } }, { reference: { key: "work-unit/one/STATUS.USER.md" } }, { reference: { key: "STATUS.USER" } }] });
+  }
+});
