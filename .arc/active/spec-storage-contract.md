@@ -151,17 +151,17 @@ it knows which backend is active, with one interim exception (D15); the target n
 
 **Operations.**
 
-| Operation | Input                                                                                                    | Result                                                                                                      |
-| --------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `read`    | a record reference (D2); optionally a state version                                                      | the record's content, its record version, its format version, and the IDs of its open conflict records (D6) |
-| `list`    | a family, optionally a kind, an owner, and a filter; optionally a state version                          | a listing outcome (D4): parsed fields per record where the kind has a parser, never a path                  |
-| `write`   | one record's reference, its new content or its removal, its expected record version, and provenance (D3) | the new record version, or none for a removal, plus any conflict records the write created (D3)             |
-| `batch`   | several writes, each with its own expected version, under one provenance                                 | every write applied, or none (D3)                                                                           |
-| `version` | none                                                                                                     | the current state version (D2)                                                                              |
-| `history` | a record reference                                                                                       | the record's versions, newest first, each with its write's provenance (D3)                                  |
-| `changes` | two state versions, optionally restricted to named record references                                     | the records that changed between them, with their provenance                                                |
-| `lookup`  | a slug, a lineage origin, a checkout claim, or a repository plus a commit or ref (D3)                    | a reference to the record it resolves to, with the tasks a commit resolves to (D3), or a typed refusal (D4) |
-| `sync`    | none                                                                                                     | one outcome per publish, and no remote or no identity as states (D4)                                        |
+| Operation | Input                                                                                                    | Result                                                                                                                 |
+| --------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `read`    | a record reference (D2); optionally a state version                                                      | the record's content, its record version, its format version, and the IDs of its open conflict records (D6)            |
+| `list`    | a family, optionally a kind, an owner, and a filter; optionally a state version                          | a listing outcome (D4): parsed fields per record where the kind has a parser, never a path                             |
+| `write`   | one record's reference, its new content or its removal, its expected record version, and provenance (D3) | the new record version, or none for a removal, plus any conflict records the write created (D3)                        |
+| `batch`   | several writes, each with its own expected version, under one provenance                                 | every write applied, or none (D3)                                                                                      |
+| `version` | none                                                                                                     | the current state version (D2)                                                                                         |
+| `history` | a record reference                                                                                       | the record's versions and exact content, newest first, with provenance (D3); null version and content for removal (A2) |
+| `changes` | two state versions, optionally restricted to named record references                                     | the landed record mutations between them, each with its version, exact content and provenance; nulls for removal (A2)  |
+| `lookup`  | a slug, a lineage origin, a checkout claim, or a repository plus a commit or ref (D3)                    | a reference to the record it resolves to, with the tasks a commit resolves to (D3), or a typed refusal (D4)            |
+| `sync`    | none                                                                                                     | one outcome per publish, and no remote or no identity as states (D4)                                                   |
 
 A **checkout claim** is what a registered checkout's marker names — a work unit, an Errand, a grooming set, a
 housekeeping sweep, or a partial-protection Errand — passed to `lookup` as the marker carries it, by the marker's kind
@@ -257,6 +257,12 @@ its write returns — so compare-and-swap and bound checks never wait on anythin
 the record's content digest on every substrate — for an Errand record, its blob's object ID in its ref's tree, never
 the ref's tip, which moves with every Errand on the ref and serves only as the basis that ref's write serialization
 checks (D1). The reference and ref backends assign it as the write lands.
+
+**Historical content (A2).** Each `history` and `changes` entry carries the exact content for its landed record
+version, without requiring the caller to interpret an opaque token or retain a state anchor. A removal carries null
+content and a null record version; a non-removal carries both its version and content. Later updates or removals do
+not change earlier entries. The same content-bearing entry shape serves both operations; personal history remains
+unsupported by the in-repo implementation as D8 states.
 
 **State version.** The store exposes one opaque version naming a saved state of the whole store. `version` returns the
 current one, `read` and `list` take one to read as of it, and `changes` reports what changed between two. A record that
@@ -2080,6 +2086,9 @@ Validated at this change's completion, over Part A:
     tests verify repeated publish outcomes, same-key transient conflicts, disjoint reconciliation, and merged notes
     with unchanged personal working files.
 
+17. **Historical content (A2).** Historical entries expose bytes matching each non-removal record version after later
+    updates or removals; removal entries carry null content and version.
+
 ## Open Questions
 
 None blocks building Part A.
@@ -2114,3 +2123,5 @@ operations and outcomes, and which test tier each conformance fixture runs in.
 
 - **A1** — 2026-10-02 — design: preserve existing sync in the fixture's exceptions.
   _Supersedes:_ tasks §7.4.a complete list. _Trigger:_ 7.4 must-stop. _Work:_ 7.4.R. _Revalidated:_ 7.4.R.b.
+- **A2** — 2026-10-02 — design: history returns recoverable bytes. _Supersedes:_ D1 history and changes results; D2.
+  _Trigger:_ storage-standard-1-F08 review. _Work:_ review-fix. _Revalidated:_ review-fix.

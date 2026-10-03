@@ -670,3 +670,6 @@ as stated.
   working files.
 
 - `[x]` Ready for integration
+
+- `[ ]` Historical entries expose bytes matching each non-removal record version after later updates or removals;
+  removal entries carry null content and version (A2).

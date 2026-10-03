@@ -947,3 +947,18 @@ save and push producers: repeated notes saves create another note commit, `recon
 an existing ref, its two-way tree merge conflicts on unequal same-key blobs, and notes reconcile never loads files.
 Amendment A1 preserves those producers and names the three fixture exceptions. Direct tests verified their actual
 outcomes, disjoint transient reconciliation, and merged remote notes bytes beside unchanged personal files.
+
+## A2 — Recoverable historical content
+
+D1's superseded history result was “the record's versions, newest first, each with its write's provenance (D3)”.
+Its changes result was “the records that changed between them, with their provenance”. Record versions are opaque
+and distinct from state versions, so neither result gave a caller access to old bytes after update or removal.
+
+History and changes now carry exact version/content pairs, with both null on removal. This composes with the existing
+operations and their saved event streams without adding a historical-read operation or requiring callers to retain
+anchors. The reference backend can recover content from each event's saved snapshot; tracked and transient history
+already acquire the version's blob. The in-repo personal-history exception remains in place.
+
+The review fix propagates the shared entry shape through both operations and their supported backends, with update,
+removal, rename and publication coverage. Original completion criteria and verification evidence remain preserved;
+the appended criterion closes through the review-fix verification.
