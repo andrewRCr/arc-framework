@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "singleton-convergence-progress",
+  "claimId": "c126a08e8475a26fea76f5e2f8543847",
+  "createdAt": "2026-10-04T19:01:48.533Z",
+  "updatedAt": "2026-10-04T19:01:48.533Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Preserve an already-published singleton boundary and carried review authority when same-Candidate, same-subject convergence attestation succeeds, through existing recovery and lifecycle guards.",
+  "branch": "chore/singleton-convergence-progress",
+  "origin": "inbox",
+  "originEntry": "Preserve published singleton progress during convergence attestation",
+  "originEntrySourceDigest": "sha256:eb011c8de8b491fb426e319ee55593981594a680d4966c6fa306cf8a80528c14",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
