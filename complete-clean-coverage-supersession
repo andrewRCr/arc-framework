@@ -3,7 +3,7 @@
   "slug": "complete-clean-coverage-supersession",
   "claimId": "63d96f7d0a9c79ffb785f76bd8745f81",
   "createdAt": "2026-10-04T20:05:23.066Z",
-  "updatedAt": "2026-10-04T20:05:23.066Z",
+  "updatedAt": "2026-10-04T21:02:53.019Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "complete-clean-coverage-supersession",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Let a later complete clean review supersede earlier coverage decisions",
   "originEntrySourceDigest": "sha256:4ff9c233f00c3e607e235a4125268288951dba5fc6960a28a75ad277347c540d",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/complete-clean-coverage-supersession",
+    "headSha": "41ae68ebb1c89ede7f0b7a8df959688d60caeaa1"
+  }
 }
