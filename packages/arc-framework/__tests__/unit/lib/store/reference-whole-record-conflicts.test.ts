@@ -28,6 +28,30 @@ async function clash(fixture: ConformanceFixture, subject: RecordReference) {
 
 const label = (actor: string) => ({ actor, time: new Date(0).toISOString() });
 
+it("adopts a remote named resolution without resurrecting the local conflict", async () => {
+  const fixture = createReferenceFixture();
+  const remote = fixture.remote(true)!;
+  const base = await seed(fixture, fixture.reference("project-registry/counter"));
+  success(await fixture.store.sync());
+  success(await fixture.store.write(update(fixture, base)));
+  success(await remote.write(update(fixture, base, fixture.content(base.reference, "changed-again"))));
+  success(await fixture.store.sync());
+  const { record } = await clash(fixture, base.reference);
+  const before = success(await fixture.store.version());
+  const current = success(await remote.read({ reference: base.reference }));
+  success(await remote.write({ ...update(fixture, current), resolves: [record.reference],
+    provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
+  success(await fixture.store.sync());
+  for (const store of [fixture.reopen(), remote]) {
+    expect(await store.read({ reference: record.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    expect(success(await store.read({ reference: base.reference })).conflicts).toEqual([]);
+    expect(success(await store.history({ reference: record.reference }))[0]).toMatchObject({ version: null });
+  }
+  expect(success(await fixture.reopen().read({ reference: record.reference, asOf: before })).content).toBe(record.content);
+  expect(success(await remote.history({ reference: record.reference }))[0]).toMatchObject({ provenance: { verb: "resolve" } });
+  expect(success(await fixture.store.sync()).publishes[0]?.status).toBe("noop");
+});
+
 describe.each(["work-item/meta", "project-registry/counter"] as const)("%s removal conflict", (kind) => {
   it.each(["remote", "local"] as const)("keeps remote state and the %s removal as labelled data", async (removing) => {
     const fixture = createReferenceFixture();

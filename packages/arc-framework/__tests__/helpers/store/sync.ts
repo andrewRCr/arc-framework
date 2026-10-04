@@ -88,6 +88,7 @@ function reconciledRecords(context: ReferenceContext, publication: ReferencePubl
   const records = structuredClone(remote.state.records);
   const incomingRecords: ReadonlyMap<string, MemoryRecord> = structuredClone(context.state.records);
   const keys = new Set([...incomingRecords.keys(), ...remote.state.records.keys(), ...publication.base.keys()]);
+  const generatedConflicts = new Set<string>();
   let remoteMoved = false;
   for (const key of keys) {
     const base = publication.base.get(key), local = incomingRecords.get(key), current = remote.state.records.get(key);
@@ -102,19 +103,19 @@ function reconciledRecords(context: ReferenceContext, publication: ReferencePubl
       const conflict = wholeRecordConflict(context, remote, key, reference, publication.base, incomingRecords);
       merged = current;
       adopt(context, key, merged, remote.state);
-      storeConflicts(context, [conflict], { verb: "sync", lifecycleAction: "reconcile" });
+      for (const created of storeConflicts(context, [conflict], { verb: "sync", lifecycleAction: "reconcile" })) generatedConflicts.add(recordKey(created));
     } else if (changedRemote && !equal(local, current) && local && current) {
       const result = mergeContents({ ...context, environment: { ...context.environment, actor: local.label.actor, now: () => Date.parse(local.label.time) } }, reference,
           base ?? { ...current, content: "" }, current, local.content);
       merged = { ...current, content: result.content };
       if (merged.content !== current.content) merged.version = RecordVersionSchema.parse(`record:sync:${randomUUID()}`);
       adopt(context, key, merged, context.state);
-      storeConflicts(context, result.conflicts, { verb: "sync", lifecycleAction: "reconcile" });
+      for (const created of storeConflicts(context, result.conflicts, { verb: "sync", lifecycleAction: "reconcile" })) generatedConflicts.add(recordKey(created));
     } else if (changedRemote && !local && current) merged = current;
     if (merged === undefined) records.delete(key); else records.set(key, structuredClone(merged));
   }
   // Conflicts created by reconciliation are part of the same publish, rather than side-channel state.
-  for (const [key, record] of context.state.records) if (record.conflict && selected.has(familyOf(record.reference.kind))) records.set(key, structuredClone(record));
+  for (const key of generatedConflicts) records.set(key, structuredClone(context.state.records.get(key)!));
   const archiveSequences = reconcileArchivePositions(records, remote.state);
   for (const [quarter, highWater] of archiveSequences) context.state.archiveSequences.set(quarter,
     Math.max(context.state.archiveSequences.get(quarter) ?? 0, highWater));
