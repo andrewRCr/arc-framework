@@ -31,39 +31,24 @@ invalidation, resolver-control invalidation, and rejection of observed changes d
         - Declared `bundle-require` and `esbuild` at the package development boundary with matching lockfile entries;
           compiler/loader imports remain outside the production freshness reader.
 
-### `[ ]` **1.2 Qualify runtime and runtime-plus-schema input identities — D6, D7**
+### `[x]` **1.2 Qualify runtime and runtime-plus-schema input identities — D6, D7**
 
 - _Goal:_ CLI freshness and test reuse distinguish their source closures while both detect relevant configuration,
   installation, tool, and runtime changes; malformed evidence never supplies qualification.
 
-    - `[ ]` **1.2.a Compose the two selective content identities**
-        - Use the recorded producer sets, repository-relative keys, and shared controls in one regenerated local record.
-        - Build `test-first` (one behavior at a time):
-            - Ordinary schema-only source edits invalidate test reuse while preserving CLI freshness.
-            - Dependencies shared by schema and CLI/control producers remain runtime inputs; graph overlap never removes
-              a CLI or shared-control dependency.
-            - Unrelated existing ordinary source-content edits retain reuse; equivalent roots and timestamp-only
-              changes do not alter content identity.
+    - `[x]` **1.2.a Compose the two selective content identities**
+        - Repository-relative producer closures distinguish runtime and runtime-plus-schema content; shared inputs
+          remain in both identities, while unrelated ordinary content and ordering do not alter qualification.
 
-    - `[ ]` **1.2.b Include configuration, installation, and tool/runtime context**
-        - Resolve TypeScript config/extends through `readConfigFile` and `parseJsonConfigFileContent`; include both
-          manifests, the root lockfile, npm installed resolution metadata, and actual Node/platform/tool identities.
-        - Read workspace installation metadata from the root and resolve tool identity at its actual consuming package
-          boundary, including tsup's loader/compiler dependencies; do not assume exported `/package.json` subpaths.
-        - Build `test-first` (one behavior at a time):
-            - Relevant config/extends, managed installation, tool, Node, platform, or architecture changes invalidate.
-            - Inherited config content and changed extends targets contribute; fixtures retain package-local and nested
-              tool resolution, blocked manifest exports, and installed-metadata changes with an unchanged root lockfile.
-            - Missing or unusable installation evidence yields the concrete installation/build remedy; output location and
-              unrelated ambient environment do not become semantic inputs under `baseOptions`.
+    - `[x]` **1.2.b Include configuration, installation, and tool/runtime context**
+        - Native TypeScript config parsing retains inherited inputs. Shared controls include workspace manifests,
+          committed/installed npm metadata, actual consuming tool boundaries, and Node/platform/architecture.
+          Missing or unusable installation evidence names installation and build repair commands.
 
-    - `[ ]` **1.2.c Validate disposable cache evidence and artifact qualification**
-        - Keep format, dependency sets, both identities, and published qualification distinguishable; regenerate old,
-          malformed, or unusable evidence without compatibility readers.
-        - Build `test-first` (one behavior at a time):
-            - Invalid record fields or unusable graph paths prevent qualification and permit repair by a fresh build.
-            - Runtime qualification, including qualifying full-build output, never substitutes for the declaration gate.
-        - Keep unmanaged installed-byte edits and external source links outside automatic invalidation coverage.
+    - `[x]` **1.2.c Validate disposable cache evidence and artifact qualification**
+        - Current-format evidence validates producer paths, distinct identities, and published qualification;
+          malformed/legacy records refuse and regenerated records recover. Declaration qualification remains
+          explicit and separate from runtime identity.
 
 ### `[ ]` **1.3 Account for source membership, links, and resolver manifests — D7**
 
