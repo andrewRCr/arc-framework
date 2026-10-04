@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "checkpoint-regenerable-reconcile",
+  "claimId": "c201bcaf7a27134b613e9fb38e6fd333",
+  "createdAt": "2026-10-04T22:10:19.218Z",
+  "updatedAt": "2026-10-04T22:10:19.218Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Let proven generated-conflict base reconciliation precede final host merge admission",
+  "branch": "chore/checkpoint-regenerable-reconcile",
+  "origin": "inbox",
+  "originEntry": "Let base reconciliation repair generated ROADMAP conflicts before host merge admission",
+  "originEntrySourceDigest": "sha256:c6c7db69a9068d0dfc9d0897e41815dcb9b88c929e5252451a3728e1fa61a8a6",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
