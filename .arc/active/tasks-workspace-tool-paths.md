@@ -201,19 +201,16 @@ a compiler child that publishes. Stable repaired inputs restore successful prepa
           failures and remain non-passing even with native ignored-error options; real teardown and worker fixtures
           exercise the shared discovery and execution closing paths.
 
-### `[ ]` **3.4 Validate owned integration — D2, D3, D4, D5, D8** — validate exit criterion at segment scope
+### `[x]` **3.4 Validate owned integration — D2, D3, D4, D5, D8** — validate exit criterion at segment scope
 
 - _Goal:_ An executable supported integration path demonstrates qualified preparation, test/build exclusion through
   cleanup, loss-safe compiler behavior, and successful repaired continuation.
 
-    - Run disposable controller/compiler fixtures with readiness and release barriers, using the production
-      integration adapter and coordinator; observe the actual CLI entry/schema consumed by the passing test.
-    - Queue a supported manual build during execution and during closing; confirm it publishes only after release.
-      Confirm another worktree's build progresses independently and CPU bypass leaves artifact exclusion enforced.
-    - Kill or replace ownership while compilation is blocked; allow the surviving child to complete and prove it
-      cannot publish. Exercise compile, invalid-output, input-change, and incomplete-promotion refusals plus repair.
-    - Include clean closing, swallowed/logged teardown, and final worker-state failures; record outcomes at this segment.
-      Complete the routine lane, both type checks, and the full declaration build at the coherent checkpoint.
+- _Outcome:_ Native integration barriers queued public builders through execution and closing under both CPU
+  bypasses, while an independent checkout built successfully. Killed and ownership-replaced controllers left
+  surviving compilers confined to staging; repaired qualified output restored prebuilt integration execution.
+  Native compile, invalid-output, input-drift, and incomplete-promotion fixtures retained refusal and repair behavior.
+  Real swallowed teardown and final worker errors remained non-passing; the full live generation qualified declarations.
 
 ## **Phase 4:** Focused repository-root interfaces
 
