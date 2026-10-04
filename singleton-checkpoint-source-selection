@@ -3,7 +3,7 @@
   "slug": "singleton-checkpoint-source-selection",
   "claimId": "441497e22cdfe0317487b4e1378eb8dd",
   "createdAt": "2026-10-04T21:05:03.157Z",
-  "updatedAt": "2026-10-04T21:05:03.157Z",
+  "updatedAt": "2026-10-04T21:59:58.604Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Carry admitted review-source selection through retained evidence and singleton checkpoints",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Carry admitted review-source selection through singleton checkpoints",
   "originEntrySourceDigest": "sha256:31fef3f08cbfa6a2b8656273c371cb6c99b1f4d67ca991948c068e8efa0fc886",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/singleton-checkpoint-source-selection",
+    "headSha": "5a24c5c6ec2bebf9a203d08ee5c28aea60a0a4a3"
+  }
 }
