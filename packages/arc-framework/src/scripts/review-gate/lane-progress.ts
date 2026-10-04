@@ -29,6 +29,7 @@ import type { FrontlineExecutionOutcome } from "./policy/frontline-outcome.js";
 import { completeHostedAttemptIfReady } from "./hosted-response-completion.js";
 export { completeHostedAttemptIfReady } from "./hosted-response-completion.js";
 import type { ConfirmResponseHeadContinuation } from "./core/response-head-continuation.js";
+import { projectLocalRetryAttempts } from "./lane-progress-local-retry.js";
 
 type LaneAttempt = LaneProgressState["attempts"][number];
 type LaneAttemptOutcome = LaneAttempt["outcome"];
@@ -1015,7 +1016,7 @@ export async function readLaneProgress(
     completePasses: countCompleteLogicalPasses(state.attempts),
     attempts: state.lane === "frontline"
       ? projectFrontlineAttempts(state.attempts.filter((attempt) => attempt.headSha === input.headSha))
-      : state.attempts.filter((attempt) => attempt.headSha === input.headSha),
+      : projectLocalRetryAttempts(state.attempts).filter((attempt) => attempt.headSha === input.headSha),
   };
 }
 
@@ -1059,7 +1060,7 @@ export async function readLaneProgressAcrossLineage(
       ...(historicalAttempt === undefined ? {} : { historicalAttempt }),
       attempts: owner.lane === "frontline"
         ? projectFrontlineAttempts(currentAttempts)
-        : currentAttempts,
+        : projectLocalRetryAttempts(owner.attempts).filter((attempt) => attempt.headSha === input.headSha),
     };
   }
   const current = records.find(({ headSha }) => headSha === input.headSha)?.progress;
