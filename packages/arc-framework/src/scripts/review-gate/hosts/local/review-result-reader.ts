@@ -283,7 +283,7 @@ export class LocalReviewResultReader implements ReviewResultReader {
       }));
       const candidates = findProducerCandidates(records, producerId);
       if (candidates.length === 0) {
-        throw new LocalReviewResultReaderError("missing-result");
+        throw new LocalReviewResultReaderError("missing-result", `No review producer matches '${producerId}'.`);
       }
       if (candidates.length !== 1) {
         throw new LocalReviewResultReaderError("ambiguous-result");

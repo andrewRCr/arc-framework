@@ -20,9 +20,11 @@ import {
   HostedRequestHandleSchema,
   HostedTargetSchema,
   hostedAwaitAction,
+  hostedLaneAttemptId,
   type HostedProviderId,
   type HostedRequestHandle,
 } from "./request.js";
+import { ReviewAttemptSchema } from "../policy/review-policy-attempt.js";
 
 const HostedFindingNavigationShape = {
   sourceOrdinal: ReviewFindingSourceOrdinalSchema,
@@ -260,6 +262,7 @@ export const HostedAwaitResultSchema = z.union([
     ...HostedTerminalCoverageShape,
     responseSourceRef: z.string().trim().min(1).optional(),
     hostedResultId: CanonicalDigestSchema.optional(),
+    attempt: ReviewAttemptSchema.optional(),
   }),
   z.strictObject({
     ...HostedAwaitResultBaseShape,
@@ -270,6 +273,7 @@ export const HostedAwaitResultSchema = z.union([
     ...HostedTerminalCoverageShape,
     responseSourceRef: z.string().trim().min(1).optional(),
     hostedResultId: CanonicalDigestSchema.optional(),
+    attempt: ReviewAttemptSchema.optional(),
   }),
   z.strictObject({
     ...HostedAwaitResultBaseShape,
@@ -332,6 +336,19 @@ export const HostedAwaitResultSchema = z.union([
   }
 });
 export type HostedAwaitResult = z.infer<typeof HostedAwaitResultSchema>;
+
+/** Public terminal output carries the sealed producer reference accepted by the policy command. */
+export const HostedAwaitCommandResultSchema = HostedAwaitResultSchema.superRefine((result, context) => {
+  if (result.state !== "clean" && result.state !== "findings") return;
+  const attempt = result.attempt;
+  if (attempt === undefined || attempt.outcome !== result.state
+    || attempt.sourceId !== result.handle.provider
+    || !("reviewOperationId" in attempt)
+    || attempt.reviewOperationId !== hostedLaneAttemptId(result.handle)) {
+    context.addIssue({ code: "custom", path: ["attempt"],
+      message: "terminal hosted output requires its exact policy attempt" });
+  }
+});
 
 interface HostedAwaitBase {
   schemaVersion: 1;

@@ -367,8 +367,9 @@ through private policy. For the ordinary singleton continuation, retain `policy.
 completed-pass input. A completed attempt consumes that pass; pending chunk series and non-pass outcomes retain the
 prior count.
 
-- `clean / complete` — a delivery member re-enters status; an ordinary singleton feeds a `clean` attempt to
-  `arc review resolve -`.
+- `clean / complete` — a delivery member re-enters status; an ordinary singleton feeds the returned `attempt`
+  unchanged to `arc review resolve -`. Its `reviewOperationId` identifies the producer, while `hostedResultId`
+  identifies the result content.
 - `findings / triage` — run [`review-triage`][review-triage], submit its complete proposal through the first
   `arc review respond -` call, emit `payload.dispositionReportText`, obtain complete-set approval, submit the exact
   approved set through the second `arc review respond -` call, and perform only its returned action through

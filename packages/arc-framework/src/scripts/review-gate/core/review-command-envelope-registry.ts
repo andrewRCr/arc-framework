@@ -5,7 +5,7 @@ import { ReviewReadinessEnvelopeSchema } from "../readiness.js";
 import { ReviewResolveEnvelopeSchema } from "../policy/review-policy-driver.js";
 import { PrePublicationReviewEnvelopeSchema } from "../policy/pre-publication-procedure.js";
 import { HostedRequestResultSchema } from "../hosted/request.js";
-import { HostedAwaitResultSchema } from "../hosted/await.js";
+import { HostedAwaitCommandResultSchema } from "../hosted/await.js";
 import { HostedSettleResultSchema } from "../hosted/settle.js";
 import {
   FrontlineResolveEnvelopeSchema, ReviewChunkingResolveEnvelopeSchema,
@@ -29,7 +29,7 @@ export function registerReviewCommandEnvelopeSchemas(registry: KernelRegistry): 
     ["review-reduce-envelope", ReduceEnvelopeSchema],
     ["review-local-resume-envelope", LocalResumeEnvelopeSchema],
     ["review-hosted-request-envelope", HostedRequestResultSchema],
-    ["review-hosted-await-envelope", HostedAwaitResultSchema],
+    ["review-hosted-await-envelope", HostedAwaitCommandResultSchema],
     ["review-hosted-settle-envelope", HostedSettleResultSchema],
     ["review-pre-publication-envelope", PrePublicationReviewEnvelopeSchema],
     ["review-command-error-envelope", ReviewCommandErrorEnvelopeSchema],

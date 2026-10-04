@@ -13,6 +13,8 @@
 import { spineRemedy, type SpineRemedy } from "../../integration/spine-refusal.js";
 import type { ChangeRequestTargetRef } from "../change-request.js";
 import { ReviewDriverAdmissionError } from "../policy/review-execution-admission.js";
+import { LocalReviewResultReaderError } from "../hosts/local/review-result-reader.js";
+import { ReviewPolicyCommandRequestSchema } from "../policy/review-policy-driver.js";
 
 const RESOLVE_ARGV = ["arc", "review", "resolve", "-"] as const;
 
@@ -99,6 +101,28 @@ export function staleLaneAttemptsRemedy(error: unknown, request: unknown): Spine
     "Drop the attempts bound to the earlier head, keep the completed-pass count, and re-resolve the lane",
     RESOLVE_ARGV,
     { ...request, attempts: [] },
+  );
+}
+
+/**
+ * Recover a caller's missing hosted producer reference without requesting another review.
+ *
+ * @param error - Failure raised while resolving the submitted lane.
+ * @param request - Original command input retaining the selected source.
+ * @returns The owning await continuation for missing hosted evidence, or the existing stale-head remedy.
+ */
+export function reviewResolveRemedy(error: unknown, request: unknown): SpineRemedy | undefined {
+  const stale = staleLaneAttemptsRemedy(error, request);
+  if (stale !== undefined) return stale;
+  if (!(error instanceof LocalReviewResultReaderError) || error.code !== "missing-result") return undefined;
+  const parsed = ReviewPolicyCommandRequestSchema.safeParse(request);
+  const attempt = parsed.success ? parsed.data.attempts.at(-1) : undefined;
+  if (attempt?.sourceId !== "coderabbit-pr" && attempt?.sourceId !== "codex-pr") return undefined;
+  return spineRemedy(
+    "A terminal hosted policy attempt references the sealed producer, not the result digest.",
+    "Re-run hosted await with the original acknowledged action, then feed its returned attempt to review resolve; "
+      + "do not request another review or substitute hostedResultId",
+    ["arc", "review", "hosted", "await", "-"],
   );
 }
 

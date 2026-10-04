@@ -176,6 +176,8 @@ import {
   "../scripts/review-gate/policy/local-review-coverage-selection.js";
 import { readLocalReviewLiveContext } from
   "../scripts/review-gate/hosts/local/live-context.js";
+import { LocalReviewResultReaderError } from
+  "../scripts/review-gate/hosts/local/review-result-reader.js";
 import {
   projectReviewPolicyAttempt,
   resolveReviewPolicy,
@@ -253,7 +255,7 @@ import {
 } from "../scripts/review-gate/hosted/request.js";
 import {
   HostedAwaitEnvelopeSchema,
-  HostedAwaitResultSchema,
+  HostedAwaitCommandResultSchema,
   awaitHostedReview,
   type HostedReviewObserver,
 } from "../scripts/review-gate/hosted/await.js";
@@ -354,7 +356,7 @@ import {
   StaleLaneAttemptsError,
   hostedRequestAdmissionRemedy,
   localPrepareAdmissionRemedy,
-  staleLaneAttemptsRemedy,
+  reviewResolveRemedy,
 } from "../scripts/review-gate/runtime/review-policy-remedy.js";
 import { ReviewDriverAdmissionError } from "../scripts/review-gate/policy/review-execution-admission.js";
 import { createReduceDependencies } from "../scripts/review-gate/runtime/reduce-composition.js";
@@ -1978,7 +1980,7 @@ export async function handleReviewResolve(
       ReviewPolicyCommandRequestSchema.parse(request),
       root,
     ),
-    remedyFor: staleLaneAttemptsRemedy,
+    remedyFor: reviewResolveRemedy,
   });
 }
 
@@ -2019,6 +2021,13 @@ function errorCode(error: unknown): string | null {
     && typeof error.code === "string"
     ? error.code
     : null;
+}
+
+function reviewErrorCode(mode: ReviewFamilyMode, error: unknown): string | null {
+  return mode === "review-resolve" && error instanceof LocalReviewResultReaderError
+    && error.code === "missing-result"
+    ? "invalid-input"
+    : errorCode(error);
 }
 
 async function executeReviewHandler(input: {
@@ -3017,7 +3026,7 @@ function reviewCommandError(
   remedyFor?: (code: ReviewCommandErrorCode) => SpineRemedy,
 ) {
   const message = error instanceof Error ? error.message : String(error);
-  const stableCode = errorCode(error);
+  const stableCode = reviewErrorCode(mode, error);
   const code = error instanceof LocalTargetDerivationError
     ? "invalid-input"
     : phase === "request" && (error instanceof ZodError || error instanceof SyntaxError)
@@ -3939,6 +3948,11 @@ function defaultHostedAwaitDependencies(context: InteractionContext): ReviewHost
               durableRef: hostedLaneAttemptId(result.handle),
             }),
             hostedResultId: resolved.hostedResultId,
+            attempt: projectReviewPolicyAttempt({
+              attemptId: hostedLaneAttemptId(result.handle),
+              sourceId: result.handle.provider,
+              outcome: result.state,
+            }),
           }
         : result;
     },
@@ -3960,7 +3974,7 @@ export async function handleReviewHostedAwait(
     mode: "review-hosted-await",
     source,
     requestSchema: HostedAwaitEnvelopeSchema,
-    resultSchema: HostedAwaitResultSchema,
+    resultSchema: HostedAwaitCommandResultSchema,
     dependencies,
     execute: dependencies.awaitResult,
   });
