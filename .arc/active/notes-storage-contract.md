@@ -40,16 +40,19 @@ decision in `spec-storage-contract.md`.
   (`composable-workflows`) will replace; and every file two partitions both touch names the other under Shared with
   (`handlers/status.ts` among them), so parallel members neither collide nor rework.
 - **What the map raises, never settles:** a file two partitions both rewrite, a member whose rewrite needs another's
-  first, a consumer needing an operation outside D1's set, and which readers must read the store. Every operation the
-  map needs is in D1's set.
-- **Inputs from `coupling-blast-radius-audit`** (2026-07-18), each ranked abstract and high-volatility:
+  first, a consumer needing an operation outside D1's set, and which readers must read the store. Every underlying
+  Store operation the map needs is in D1's set; composed verbs and projection queries are labelled separately.
+- **Inputs from `coupling-blast-radius-audit`** (2026-07-18): the address/artifact-family classes and
+  `active-placement`, `completed-placement`, and `planned-placement` are ranked abstract and high-volatility.
+  `provisional-placement` is high-volatility but ranked change-with-mover (rank 27, ratio 0.5, `highFanOut: false`):
     - address and artifact-family assumptions — `arc-root`, `draft-prefix`, `meta-prefix`, `notes-prefix`,
       `spec-prefix`, `tasks-prefix`, and `typed-branch-prefixes`: packet `packet-edfd7344100348f1f6b6659c`, content
       digest `27b88f2bb84fff4f90e0618c018c76fb64f8ad9c4031e2f957b7cd38da609f7a`, `scan-result.json#class-*` anchors;
     - placement readers — `active-placement`, `completed-placement`, `planned-placement`, and `provisional-placement`,
-      reaching 55 code reader and parser files that the extract's `reportInputs.placementReaders` enumerates: packet
-      `packet-188c5fab90090e83fdbc4591`, content digest
-      `528515469ff26c720e1d7a0643eaebbebf81d4c99b7c9b640b75479d0da38ae5`.
+      packet `packet-188c5fab90090e83fdbc4591`, content digest
+      `528515469ff26c720e1d7a0643eaebbebf81d4c99b7c9b640b75479d0da38ae5`, retains a 55-reader narrative.
+      The exact `coupling-blast-radius/scan-result.json` source at `f96cf4991`, under
+      `reportInputs.placementReaders`, contains 56 reader records; that extract is the enumerated source.
 
 ### Sweep and verification
 
@@ -107,11 +110,12 @@ decision in `spec-storage-contract.md`.
   per-work-unit personal workspace, which retires at the flip (D5): session context moves into the meta (`wu.meta`),
   every other file into the person's `scratch/` (`personal`), and adversarial passes run from the flip are review
   records under `delivery-review`.
-- **Operations** — D1's `read`, `list`, `write` (compare-and-swap), `batch` (several records, all or nothing),
-  `history`, `version` (the store-wide state version), `at` (read or list as of a version), `changes` (between two
-  versions), `sync`, `lookup` (reverse lookup), and `migrate`; and two projection queries, `path` (a record's
-  projected path, through the layout resolver) and `pending` (unpersisted edits in the projection). `batch`,
-  `version`, `at`, and `changes` are tagged on the consumers the sweep's findings named; others may need them too.
+- **Operations** — D1's nine Store methods: `read`, `list`, `write` (compare-and-swap), `batch` (several records,
+  all or nothing), `history`, `version` (the store-wide state version), `changes` (between two versions), `sync`,
+  and `lookup` (reverse lookup). `at` abbreviates `read` or `list` as of a version. `migrate` tags D14's composed
+  import verb over the contract. `path` (a record's projected path, through the layout resolver) and `pending`
+  (unpersisted projection edits) are projection queries. `batch`, `version`, `at`, and `changes` are tagged on
+  consumers the sweep's findings named; others may need them too.
 - **Reads** — `store` for a deciding consumer (a transition, guard, refusal, claim, or merge), which must read the
   store; `projection` for a browse, render, or advisory reader; `both` where a consumer does each.
 - **Becomes** — what it turns into through the contract, as the sweep read it; `?` marks a guess. It is the end
@@ -120,8 +124,10 @@ decision in `spec-storage-contract.md`.
 
 ### Register keys
 
-Keys number the rows of the storage-coupling register in `cohort-state-storage.md` as of `main` at `f1abf9664`. Later
-batches append rows at the table's end, so a key keeps its row.
+The 81 keys below identify the mechanisms in the storage-coupling register at `f1abf9664`; they remain frozen to
+that snapshot. The current register has 86 rows and includes insertions: its artifact-kind-list mechanism at ordinal
+14 puts frozen key 14's lifecycle-ref mechanism at current ordinal 15. Match a key's named mechanism to the current
+register rather than treating the key as a current row number.
 
 | Key | Owner                                                          | State  | Mechanism                                                                                                       |
 | --- | -------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------- |
