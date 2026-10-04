@@ -64,7 +64,7 @@ async function listedRecord(context: InRepoContext, source: KindSource, input: L
       remedy: { text: `Repair ${source.path}, then list the records again.` } };
   }
   const placement = source.meta?.placement ?? (kind.startsWith("review/") ? { kind: "active" as const } : undefined);
-  if (kind.startsWith("work-item/") && placement === undefined) return undefined;
+  if (kind.startsWith("work-item/") && placement === undefined) return invalidCompanionPlacement(source.path);
   return { reference: source.reference, content, version: RecordVersionSchema.parse(digestBytes(Buffer.from(content))),
     formatVersion: 1, conflicts: [], ...(placement === undefined ? {} : { placement }),
     ...(decoded.fields === undefined ? {} : { fields: decoded.fields }) };
@@ -124,6 +124,11 @@ async function kindSources(context: InRepoContext, kind: KindId, input: ListInpu
     const owner = OwnerIdentitySchema.safeParse({ type: "work-item", name: meta.slug });
     if (!owner.success) {
       if (strictOwner) throw new Error(`The tracked meta filename cannot be addressed: ${meta.path}`);
+      acquisition.push(invalidTrackedCoordinate(meta.path));
+      continue;
+    }
+    if (meta.placement === undefined) {
+      acquisition.push(invalidCompanionPlacement(meta.path));
       continue;
     }
     const keys = kind === "work-item/companion" ? await companionNames(context, meta, acquisition) : [undefined];
@@ -172,4 +177,9 @@ function metaDiagnostic(source: MetaSource): ListingDiagnostic | undefined {
   if (condition === undefined) return undefined;
   return { kind: source.content === null ? "unreadable" : "malformed", key: source.path,
     condition: `${condition}: ${source.path}`, remedy: { text: `Repair ${source.path}, then list the records again.` } };
+}
+
+function invalidCompanionPlacement(path: string): ListingDiagnostic {
+  return { kind: "malformed", key: path, condition: `The layout cannot place this companion's meta: ${path}`,
+    remedy: { text: `Repair the meta placement at ${path}, then list the records again.` } };
 }
