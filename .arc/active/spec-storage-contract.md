@@ -79,6 +79,10 @@ changes build.
    the store behind the integration checkpoint's lifecycle port land here, over the contract, serving their existing
    call sites, so parallel rerouting work shares nothing but the landed contract.
 
+**Goal 3 amendment (A10).** Failed authoritative observations at the existing Errand-tree reconcile and notes
+reconcile boundaries fail closed, with the original cause retained. Normal producer behavior and ceremony remain
+unchanged; SC25 qualifies the inherited failure cases and their process-metadata fixtures in SC7.
+
 ## Non-Goals
 
 _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
@@ -1069,7 +1073,13 @@ subdirectories such as `archive/` and `drafts/` are outside that save. A persona
 these producers do not publish; it leaves their eligibility and selection behavior unchanged until the flip.
 
 The Errand transaction and both pushes gain the detail D4's mapping needs — the records they name and a failure's cause,
-set where Git fails — with their kinds and messages unchanged.
+set where Git fails — with their normal kinds and messages unchanged. At the mutating boundaries only,
+`readErrandReconcileTree` requires successful enumeration of captured non-null tips, `reconcileNotesPush` and
+`reconcileRepushFailureOutcome` require completed process evidence before non-fast-forward classification, and
+`mergeNotesUnderLock` distinguishes absent, present and failed pre/post tip captures (A10). An incomplete observation
+retains its cause and supplies no absence, reconciliation, rollback or publication authority. Preflight failures
+preserve local authority; post-merge uncertainty stops publication and reports certified CAS restoration or a manual
+repair using the known pre-merge anchor. Advisory save/load bookkeeping remains best effort.
 
 **Entries.** The inbox writer stays keyed on an entry's title and source digest and stamps no `_Id:_`, so every
 unrelated byte stays as today; once rerouted it computes the file's new content, which the contract writes whole
@@ -2236,6 +2246,15 @@ Validated at this change's completion, over Part A:
     target summary before refusal, the current explicit refusal on incomplete inventory, and successful current
     continuation after repair. Identity-index omission behavior and session-init isolation remain unchanged.
 
+25. **Authoritative observation failures (A10).** The Errand-tree reconcile and notes reconcile boundaries retain
+    the original cause of canceled, output-limited or unclassified execution failures. A failed read of a captured
+    non-null tip is never empty state; an incomplete push failure never authorizes non-fast-forward reconciliation
+    or re-push. Failed pre-merge capture preserves authority; failed post-merge capture prevents publication, never
+    claims unproved restoration and supplies a certified CAS restoration or actionable manual repair with the known
+    pre-merge anchor. Regressions cover pending-record preservation, conflicting valid manifests, restoration failure
+    and successful continuation after repair. SC7's unchanged ceremony-test requirement is qualified only for these
+    inherited defects and faithful completed-process metadata in their fixtures; normal behavior remains unchanged.
+
 ## Open Questions
 
 None blocks building Part A.
@@ -2287,4 +2306,8 @@ operations and outcomes, and which test tier each conformance fixture runs in.
   _Supersedes:_ D8 paired notes publication-boundary sentence. _Trigger:_ storage-standard-3-whole-aggregate-3-F33 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 - **A9** — 2026-10-04 — design: qualify lifecycle summary parity on complete deciding inventory.
   _Supersedes:_ D9 summary parity; SC6 default-port clause. _Trigger:_ design-adapter-F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+<!-- markdownlint-enable MD013 -->
+<!-- markdownlint-disable MD013 -->
+- **A10** — 2026-10-04 — design: fail closed on incomplete mutating observations.
+  _Supersedes:_ Goal 3 parity; D8 unchanged failures; SC7 failed-observation cases. _Trigger:_ P5-AGG-004/P5-AGG-005/P5-AGG-009 review. _Work:_ review-fix. _Revalidated:_ pending → review-fix.
 <!-- markdownlint-enable MD013 -->

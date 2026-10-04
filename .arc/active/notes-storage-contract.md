@@ -17,6 +17,8 @@
 - [A8 — Paired notes publication through live origin heads](#a8--paired-notes-publication-through-live-origin-heads)
 - [A9 — Complete deciding lifecycle inventory](#a9--complete-deciding-lifecycle-inventory)
 
+- [A10 — Authoritative observation failures](#a10--authoritative-observation-failures)
+
 ## Consumer map
 
 Every ARC reader and writer of operational and planning state, one row per module, command, workflow, method, extension,
@@ -1141,3 +1143,17 @@ The determinate amendment qualifies D9 and SC6's default-port promise rather tha
 task criterion append; original criteria, marks, Goals and historical verification remain intact. The identity-index
 omissions and unrelated session-init isolation remain separate behaviors. This changes the design account of the
 existing adapter, with no runtime change or new storage primitive; row, body and criteria ride the approved review fix.
+
+## A10 — Authoritative observation failures
+
+Goal 3 originally required “changing nothing observable”; D8 required producer failure “kinds and messages unchanged”;
+SC7 required existing ceremony tests to “pass unchanged”. The approved exception covers three inherited mutating
+failure paths only: `readErrandReconcileTree` currently maps a failed captured-tip enumeration to an empty tree;
+`reconcileNotesPush` and `reconcileRepushFailureOutcome` classify diagnostic text without completed-process evidence;
+`mergeNotesUnderLock` uses `readRefTip`'s catch-all null for rollback pre/post captures. Strict observations correct
+these paths without changing eligibility, ordinary publication proof, locks, record formats or lifecycle ceremony.
+
+The repairs preserve causes and preflight state. Post-merge uncertainty prevents publication and requires certified
+CAS restoration or explicit manual repair with the known pre-merge anchor; it cannot claim preservation without proof.
+Ordinary failure fixtures acquire faithful completed-process metadata. Advisory save/load baseline stamping remains
+best effort. SC25 covers these exceptions and continuation after repair; original reviewed versions remain retained.

@@ -709,3 +709,9 @@ as stated.
   missed, unreadable or diagnostic-bearing inventory, including an unrelated parser-rejected meta, with diagnostics
   and actionable repair/retry. The legacy target summary, current deciding refusal, and successful continuation after
   repair are compared; identity-index omissions and unrelated session-init isolation remain unchanged (A9; SC24).
+
+- `[ ]` Errand-tree and notes reconcile retain original causes for canceled, output-limited and unclassified
+  observations, infer no empty captured tree or non-fast-forward retry, preserve authority on failed preflight, and
+  prevent publication after uncertain post-merge capture with certified restoration or explicit manual repair using
+  the known pre-merge anchor. Pending records, conflicting valid manifests, rollback failure and repaired continuation
+  are covered; only these inherited failure cases and faithful process-metadata fixtures qualify SC7 (A10; SC25).
