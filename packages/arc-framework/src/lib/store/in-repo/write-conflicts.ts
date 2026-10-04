@@ -35,7 +35,7 @@ export async function isWriterVersionConflict(error: unknown, reference: RecordR
 export async function withTrackedRefusal<T>(operation: () => Promise<T>): Promise<T> {
   try { return await operation(); }
   catch (error) {
-    if (!(error instanceof AdvisoryLockTimeoutError)) throw error;
+    if (!(error instanceof AdvisoryLockTimeoutError) || error.phase !== "acquire") throw error;
     return refuse({ code: "lock-held", class: "recoverable", lock: error.lockPath,
       condition: `The lock remained held for ${error.waitedMs}ms.`,
       remedy: { text: "Wait for the holder to finish or release its lock, then retry the write." } });

@@ -154,11 +154,12 @@ export type AdvisoryLockReleaseOptions = Pick<
   | "breakLockTtlMs"
 >;
 
-/** Thrown when a held-and-live lock could not be acquired within the bounded wait. */
+/** Thrown when acquisition or release cannot obtain its required lock within the bounded wait. */
 export class AdvisoryLockTimeoutError extends Error {
   constructor(
     public readonly lockPath: string,
     public readonly waitedMs: number,
+    public readonly phase: "acquire" | "release" = "acquire",
   ) {
     super(`Timed out after ${waitedMs}ms waiting for advisory lock: ${lockPath}`);
     this.name = "AdvisoryLockTimeoutError";
@@ -490,7 +491,7 @@ async function acquireBreakLockForRelease(
     const handle = await tryAcquireBreakLock(context);
     if (handle !== null) return handle;
     if (context.now() >= deadline) {
-      throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
+      throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs, "release");
     }
     await context.sleep(backoff);
     backoff = Math.min(backoff * 2, BACKOFF_CAP_MS);
