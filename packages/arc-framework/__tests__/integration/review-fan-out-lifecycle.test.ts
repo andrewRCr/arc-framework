@@ -126,6 +126,10 @@ import { LocalReviewOperationStateStore } from
   "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
 import { HostedRequestOwnerIndex } from
   "../../src/scripts/review-gate/hosts/local/hosted-request-owner-index.js";
+import { createRepositoryReviewResultReader } from
+  "../../src/scripts/review-gate/hosts/local/review-result-reader-composition.js";
+import { resolveEvidenceBoundReviewPolicy } from
+  "../../src/scripts/review-gate/policy/review-policy-evidence.js";
 import { LocalApprovedDispositionRecordStore } from
   "../../src/scripts/review-gate/hosts/local/disposition-record-store.js";
 import { RepositoryDeliveryMemberLookup } from
@@ -466,33 +470,22 @@ async function requestThroughHandler(
   return HostedRequestResultSchema.parse(JSON.parse(output.join("")));
 }
 
-async function awaitThroughHandler(handle: unknown, observation: unknown) {
-  const output: string[] = [];
-  const exitCodes: number[] = [];
-  await handleReviewHostedAwait("-", {
-    readText: async () => JSON.stringify({ schemaVersion: 1, handle }),
-    awaitResult: (input) => {
-      const parsed = HostedAwaitEnvelopeSchema.parse(input);
-      return awaitHostedReview({
-        schemaVersion: 1,
-        handle: parsed.handle,
-        timeoutMs: 100,
-        pollIntervalMs: 10,
-      }, {
-        observers: [{
-          id: parsed.handle.provider,
-          readHead: async () => parsed.handle.target.headSha,
-          observe: async () => observation,
-        }],
-        clock: { now: () => 0, sleep: async () => undefined },
-        attentionAfterMs: 1_000,
-      });
-    },
-    write: (text) => output.push(text),
-    setExitCode: (code) => exitCodes.push(code),
+async function awaitThroughObserver(handle: unknown, observation: unknown) {
+  const parsed = HostedAwaitEnvelopeSchema.parse({ schemaVersion: 1, handle });
+  return awaitHostedReview({
+    schemaVersion: 1,
+    handle: parsed.handle,
+    timeoutMs: 100,
+    pollIntervalMs: 10,
+  }, {
+    observers: [{
+      id: parsed.handle.provider,
+      readHead: async () => parsed.handle.target.headSha,
+      observe: async () => observation,
+    }],
+    clock: { now: () => 0, sleep: async () => undefined },
+    attentionAfterMs: 1_000,
   });
-  expect(exitCodes).toEqual([]);
-  return HostedAwaitResultSchema.parse(JSON.parse(output.join("")));
 }
 
 async function respondThroughHandler(harness: FanOutHarness, request: unknown) {
@@ -1405,6 +1398,7 @@ async function installHostedRequestTestHost(
   singletonRef = "prior-top",
   firstHead = harness.oldFirst,
   firstRef = "delivery/delivery-plan-record/first",
+  terminalOutcome: "clean" | "findings" = "clean",
 ) {
   const fakeBin = join(harness.root, "fake-bin");
   const fakeGh = join(fakeBin, "gh");
@@ -1457,14 +1451,25 @@ async function installHostedRequestTestHost(
     user: { id: 136622811 },
     state: "APPROVED",
     commit_id: harness.oldFirst,
-    body: "",
+    body: terminalOutcome === "findings" ? "**Actionable comments posted: 1**" : "",
     submitted_at: "2026-08-30T12:01:00.000Z",
   }]]);
   const emptyThreads = JSON.stringify({
     data: {
       repository: {
         pullRequest: {
-          reviewThreads: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } },
+          reviewThreads: {
+            nodes: terminalOutcome === "clean" ? [] : [{
+              id: "PRRT_finding", isResolved: false, comments: {
+                nodes: [{ fullDatabaseId: 123, body: "_🟠 Major_ broken boundary",
+                  url: "https://example.test/finding", path: "first.txt", line: 1,
+                  commit: { oid: firstHead }, pullRequestReview: { id: "PRR_clean" },
+                  replyTo: null, author: { databaseId: 136622811 } }],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
         },
       },
     },
@@ -1720,7 +1725,7 @@ describe("hosted review fan-out lifecycle", () => {
       url: "https://example.test/finding-production-settlement",
       sourceOrdinal: 1,
     };
-    const awaited = await awaitThroughHandler(requested.handle, {
+    const awaited = await awaitThroughObserver(requested.handle, {
       kind: "findings",
       reviewUrl: "https://example.test/review-production-settlement",
       findings: [finding],
@@ -1818,7 +1823,7 @@ describe("hosted review fan-out lifecycle", () => {
       url: "https://example.test/finding-unperformed-fix-settlement",
       sourceOrdinal: 1,
     };
-    const awaited = await awaitThroughHandler(requested.handle, {
+    const awaited = await awaitThroughObserver(requested.handle, {
       kind: "findings",
       reviewUrl: "https://example.test/review-unperformed-fix-settlement",
       findings: [finding],
@@ -1940,7 +1945,7 @@ describe("hosted review fan-out lifecycle", () => {
       url: "https://example.test/finding-before-owner-terminus",
       sourceOrdinal: 1,
     };
-    const awaited = await awaitThroughHandler(requested.handle, {
+    const awaited = await awaitThroughObserver(requested.handle, {
       kind: "findings",
       reviewUrl: "https://example.test/review-before-owner-terminus",
       findings: [finding],
@@ -2217,7 +2222,7 @@ describe("hosted review fan-out lifecycle", () => {
       effectiveCoverage: "complete",
     }, harness.root, harness.exec);
     if (firstRequested.nextAction !== "await") throw new Error("expected first member review handle");
-    const firstAwaited = await awaitThroughHandler(firstRequested.handle, {
+    const firstAwaited = await awaitThroughObserver(firstRequested.handle, {
       kind: "clean",
       reviewUrl: "https://example.test/review-before-final-terminus",
     });
@@ -2258,7 +2263,7 @@ describe("hosted review fan-out lifecycle", () => {
       url: "https://example.test/finding-before-final-terminus",
       sourceOrdinal: 1,
     };
-    const finalAwaited = await awaitThroughHandler(finalRequested.handle, {
+    const finalAwaited = await awaitThroughObserver(finalRequested.handle, {
       kind: "findings",
       reviewUrl: "https://example.test/review-final-terminus",
       findings: [finding],
@@ -2405,7 +2410,7 @@ describe("hosted review fan-out lifecycle", () => {
         effectiveCoverage: "complete",
       }, harness.root, harness.exec);
       if (requested.nextAction !== "await") throw new Error("expected eight-member hosted handle");
-      const awaited = await awaitThroughHandler(requested.handle, {
+      const awaited = await awaitThroughObserver(requested.handle, {
         kind: "clean",
         reviewUrl: `https://example.test/review-eight-${String(index + 1)}`,
       });
@@ -3567,7 +3572,7 @@ describe("hosted review fan-out lifecycle", () => {
       effectiveCoverage: "complete",
     }, harness.root, harness.exec);
     if (first.nextAction !== "await") throw new Error("expected first shared-head await action");
-    const firstAwait = await awaitThroughHandler(first.handle, {
+    const firstAwait = await awaitThroughObserver(first.handle, {
       kind: "clean",
       reviewUrl: "https://example.test/review-shared-head-first",
     });
@@ -3671,9 +3676,11 @@ describe("hosted review fan-out lifecycle", () => {
     });
   });
 
-  it("preserves one production hosted request through restart, pending await, and terminal await", async () => {
+  it.each(["clean", "findings"] as const)("returns a policy attempt for fresh and replayed production %s results", async (outcome) => {
     const harness = await createHarness();
-    const { fakeBin, providerCalled, providerVerdict } = await installHostedRequestTestHost(harness);
+    const { fakeBin, providerCalled, providerVerdict } = await installHostedRequestTestHost(
+      harness, undefined, "prior-top", harness.oldFirst, "delivery/delivery-plan-record/first", outcome,
+    );
     const statusTarget = {
       repository,
       headRef: "delivery/delivery-plan-record/first",
@@ -3719,11 +3726,35 @@ describe("hosted review fan-out lifecycle", () => {
     const terminal = await awaitThroughProductionHandler(harness, fakeBin, resumed.action);
     expect(terminal.exitCodes).toEqual([]);
     expect(terminal.output).toMatchObject({
-      state: "clean",
+      state: outcome,
       handle: requested.handle,
+      attempt: { sourceId: requested.handle.provider, outcome,
+        reviewOperationId: hostedLaneAttemptId(requested.handle) },
       responseSourceRef: expect.stringMatching(/^arc-review-source:v1:hosted:/u),
       hostedResultId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
     });
+    const awaited = HostedAwaitResultSchema.parse(terminal.output);
+    if ((awaited.state !== "clean" && awaited.state !== "findings")
+      || awaited.attempt === undefined || awaited.responseSourceRef === undefined) {
+      throw new Error("expected a terminal policy attempt");
+    }
+    const policy = await responsePolicyRequest(harness.root, {
+      kind: "hosted", attemptRef: awaited.responseSourceRef,
+    }, repository);
+    const publisher = new RepositoryGitCommonStatePublisher(harness.exec, harness.root);
+    const boundPolicy = resolveEvidenceBoundReviewPolicy({ ...policy, attempts: [awaited.attempt] }, {
+      sources: harness.standardSources, maxPasses: 5,
+      resultReader: createRepositoryReviewResultReader(publisher),
+      dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+      confirmTarget: async () => requested.handle.admission.reviewTarget,
+    });
+    if (outcome === "clean") {
+      await expect(boundPolicy).resolves.toMatchObject({
+        state: "pass-complete", nextAction: "none", payload: { attemptedSources: [awaited.attempt] },
+      });
+    } else {
+      await expect(boundPolicy).rejects.toThrow("terminal findings producer has no approved disposition record");
+    }
     await writeFile(
       join(harness.root, ".arc", "system", "arc-config.yml"),
       "branch:\n  base: main\nreview.hosted_await_timeout_seconds: not-a-number\n",
@@ -3732,11 +3763,11 @@ describe("hosted review fan-out lifecycle", () => {
     const replay = await awaitThroughProductionHandler(harness, fakeBin, resumed.action);
     expect(replay.exitCodes).toEqual([]);
     expect(replay.output).toEqual(terminal.output);
-    await expect(statusThroughHandler(harness, statusTarget)).resolves.toMatchObject({
-      state: "member-discharged",
-      nextAction: "continue-reconcile",
-      deliveryCursor: { completedMemberCount: 1 },
-    });
+    await expect(statusThroughHandler(harness, statusTarget)).resolves.toMatchObject(
+      outcome === "clean"
+        ? { state: "member-discharged", nextAction: "continue-reconcile", deliveryCursor: { completedMemberCount: 1 } }
+        : { state: "review-required", nextAction: "respond-to-findings" },
+    );
     await expect(access(providerCalled)).resolves.toBeUndefined();
     await expect(readFile(providerCalled, "utf8")).resolves.toBe("request\n");
   });
@@ -4061,7 +4092,7 @@ describe("hosted review fan-out lifecycle", () => {
       commentId: "errand-comment", threadId: "errand-thread", settlement: "reply-and-resolve" as const,
       severity: "major" as const, locus: "second.txt:1", url: "https://example.test/errand-finding",
       sourceOrdinal: 1 };
-    const awaited = await awaitThroughHandler(requested.handle, {
+    const awaited = await awaitThroughObserver(requested.handle, {
       kind: "findings", reviewUrl: "https://example.test/errand-finding", findings: [finding],
     });
     const progress = await recordHostedAwaitAttempt(harness.store, {
@@ -4466,7 +4497,7 @@ describe("hosted review fan-out lifecycle", () => {
       effectiveCoverage: "complete",
     }, harness.root, harness.exec);
     if (firstRequested.nextAction !== "await") throw new Error("expected first member await");
-    const firstAwaited = await awaitThroughHandler(firstRequested.handle, {
+    const firstAwaited = await awaitThroughObserver(firstRequested.handle, {
       kind: "clean",
       reviewUrl: "https://example.test/review-clean-sibling",
     });
@@ -4532,7 +4563,7 @@ describe("hosted review fan-out lifecycle", () => {
         effectiveCoverage: "complete",
       }, harness.root, harness.exec);
       if (requested.nextAction !== "await") throw new Error("expected material member await");
-      const awaited = await awaitThroughHandler(requested.handle, {
+      const awaited = await awaitThroughObserver(requested.handle, {
         kind: "findings",
         reviewUrl: `https://example.test/review-material-${String(pass)}`,
         findings,
@@ -4696,7 +4727,7 @@ describe("hosted review fan-out lifecycle", () => {
       url: "https://example.test/finding-member-fix",
       sourceOrdinal: 1,
     };
-    const awaited = await awaitThroughHandler(requested.handle, {
+    const awaited = await awaitThroughObserver(requested.handle, {
       kind: "findings",
       reviewUrl: "https://example.test/review-member-fix",
       findings: [finding],
@@ -5187,7 +5218,7 @@ describe("hosted review fan-out lifecycle", () => {
       effectiveCoverage: "complete",
     }, harness.root, harness.exec);
     if (secondRequested.nextAction !== "await") throw new Error("expected second hosted review handle");
-    const secondAwait = await awaitThroughHandler(secondRequested.handle, {
+    const secondAwait = await awaitThroughObserver(secondRequested.handle, {
       kind: "clean",
       reviewUrl: "https://example.test/review-second-after-member-fix",
     });
@@ -5489,7 +5520,7 @@ describe("hosted review fan-out lifecycle", () => {
     }, harness.root, harness.exec);
     expect(requested).toMatchObject({ state: "requested", handle: { vehicle: first } });
     if (requested.nextAction !== "await") throw new Error("expected requested review handle");
-    const firstAwait = await awaitThroughHandler(requested.handle, {
+    const firstAwait = await awaitThroughObserver(requested.handle, {
       kind: "clean",
       reviewUrl: "https://example.test/review-first",
     });
@@ -5535,7 +5566,7 @@ describe("hosted review fan-out lifecycle", () => {
       url: "https://example.test/finding-prior",
       sourceOrdinal: 1,
     };
-    const priorSecondAwait = await awaitThroughHandler(priorSecondRequested.handle, {
+    const priorSecondAwait = await awaitThroughObserver(priorSecondRequested.handle, {
       kind: "findings",
       reviewUrl: "https://example.test/review-second-prior",
       findings: [priorFinding],
@@ -5668,7 +5699,7 @@ describe("hosted review fan-out lifecycle", () => {
       url: "https://example.test/finding-1",
       sourceOrdinal: 1,
     };
-    const secondAwait = await awaitThroughHandler(secondRequested.handle, {
+    const secondAwait = await awaitThroughObserver(secondRequested.handle, {
       kind: "findings",
       reviewUrl: "https://example.test/review-second",
       findings: [finding],
@@ -5829,7 +5860,7 @@ describe("hosted review fan-out lifecycle", () => {
     expect(result).toMatchObject({ state: "requested" });
     if (result.nextAction !== "await") throw new Error("expected singleton review handle");
     expect(result.handle).not.toHaveProperty("vehicle");
-    await expect(awaitThroughHandler(result.handle, {
+    await expect(awaitThroughObserver(result.handle, {
       kind: "clean",
       reviewUrl: "https://example.test/review-singleton",
     })).resolves.toMatchObject({ state: "clean" });

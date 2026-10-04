@@ -371,7 +371,8 @@ remote base all name the same exact head. Any tracked change continues through t
    the `pass` from the driver envelope that authorized it. A completed attempt consumes that pass; pending chunk
    series and non-pass outcomes retain the prior count.
 
-   - `clean / complete` — feed a `clean` attempt to `arc review resolve -`.
+   - `clean / complete` — feed the returned `attempt` unchanged to `arc review resolve -`; its
+     `reviewOperationId` identifies the producer, while `hostedResultId` identifies the result content.
    - `findings / triage` — run [`review-triage`][review-triage], include the effective policy as
      `proposal.severityGatingPolicy`, submit the proposal through the first `arc review respond -` call, emit
      `payload.dispositionReportText`, obtain complete-set approval, submit the exact

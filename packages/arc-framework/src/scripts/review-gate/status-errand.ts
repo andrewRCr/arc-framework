@@ -283,7 +283,8 @@ async function readUnreviewedErrandHead(input: {
     headSha: target.headSha };
   const resultReader = createRepositoryReviewResultReader(input.publisher);
   const result = await resultReader.readResult(historical.attemptId).catch((error: unknown) => {
-    if (error instanceof LocalReviewResultReaderError && error.code === "missing-result") return null;
+    if (error instanceof LocalReviewResultReaderError
+      && (error.code === "missing-producer" || error.code === "missing-result")) return null;
     throw error;
   });
   if (result === null) {
