@@ -222,7 +222,7 @@ _Exit criterion:_ One ordinary npm separator selects exact files/cases, rejects 
 unit, integration, E2E, and mixed targets with configured defaults and deliberate native overrides. Root TypeScript
 lint and its staged-file caller preserve package-cwd suppression and option-value semantics; literal Markdown remains.
 
-### `[ ]` **4.1 Validate focused test operands and native execution flags — D1, D2**
+### `[x]` **4.1 Validate focused test operands and native execution flags — D1, D2**
 
 - _Goal:_ The root helper resolves explicit repository-relative targets and native values unambiguously, and each
   target contributes eligible configured specifications before any build or heavy ownership is requested.
@@ -233,12 +233,10 @@ lint and its staged-file caller preserve package-cwd suppression and option-valu
           Long spellings are checked before public parsing can discard unknown fields; parsed aliases, value types,
           and inherited option names are validated before discovery.
 
-    - `[ ]` **4.1.b Constrain discovery to exact operands and eligible configured projects**
-        - Restrict to named files or directory descendants; require each operand to contribute after native project
-          filtering and before optional pre-parsing, while leaving broad tier filters under their native semantics.
-        - Build `test-first` (one behavior at a time):
-            - Substring-adjacent files are not selected; valid operands cannot mask invalid, excluded, or empty operands.
-            - Native project filters restrict configured membership, and rejected/empty requests neither build nor admit.
+    - `[x]` **4.1.b Constrain discovery to exact operands and eligible configured projects**
+        - Focused discovery selects exact files and directory descendants from native configured specifications,
+          requires every operand to contribute after project filtering, and preserves native specification identity.
+          The exact-selection boundary precedes optional pre-parsing; broad tier discovery retains native filters.
 
 ### `[ ]` **4.2 Execute exact focused selections through the root npm interface — D1, D2, D3, D8, D9**
 
