@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "local-continuation-policy-replay",
+  "claimId": "51885cb4985e794a2222995e58b45479",
+  "createdAt": "2026-10-04T23:19:02.981Z",
+  "updatedAt": "2026-10-04T23:19:02.981Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Reconcile exact same-pass local continuations before pre-publication policy replay",
+  "branch": "chore/local-continuation-policy-replay",
+  "origin": "inbox",
+  "originEntry": "Reconcile same-pass local continuations before pre-publication policy replay",
+  "originEntrySourceDigest": "sha256:36336a94b5c1a554a564f4ad15ce063c55f9fd390c6ecea3924a42ddc6264fdf",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
