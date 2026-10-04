@@ -260,6 +260,85 @@ describe("tracked state and history", () => {
       { reference: reference(), version: version(content), content: content, provenance: { message: "create work unit\n" } },
     ]);
   });
+  for (const sameBytes of [false, true]) it.each(["meta", "notes"] as const)(`keeps selected %s history across coexisting copies with identical bytes ${sameBytes}`, async (kind) => {
+    const repo = await repository();
+    const active = ".arc/active";
+    const archive = ".arc/completed/2026-q4/01_example";
+    const content = kind === "meta" ? makeMetaFixture("example", { branch: "main" }) : "active notes\n";
+    const archived = sameBytes ? content : kind === "meta" ? makeMetaFixture("example", { state: "Shipped", branch: "main" }) : "archived notes\n";
+    const selected = kind === "meta" ? reference() : recordReferences["work-item/notes"](reference().owner);
+    await repo.put(`${active}/meta-example.md`, makeMetaFixture("example", { branch: "main" }));
+    await repo.put(`${archive}/meta-example.md`, makeMetaFixture("example", { state: "Shipped", branch: "main" }));
+    await repo.put(`${active}/${kind}-example.md`, content);
+    await repo.put(`${archive}/${kind}-example.md`, archived);
+    await repo.commit("coexisting records");
+    await repo.put(`${archive}/${kind}-example.md`, `${archived}\nunselected edit\n`);
+    await repo.commit("edit unselected record");
+    await repo.put(`${archive}/${kind}-example.md`, archived);
+    await repo.commit("restore unselected record");
+    await repo.exec("git", ["rm", `${active}/meta-example.md`, ...(kind === "notes" ? [`${active}/notes-example.md`] : [])]);
+    await repo.commit("select surviving record");
+    await repo.exec("git", ["rm", `${archive}/meta-example.md`, ...(kind === "notes" ? [`${archive}/notes-example.md`] : [])]);
+    await repo.commit("remove selected record");
+    expect(success(await repo.store.history({ reference: selected }))).toEqual([
+      { reference: selected, content: null, version: null, provenance: { message: "remove selected record\n" } },
+      { reference: selected, content: archived, version: version(archived), provenance: { message: "select surviving record\n" } },
+      { reference: selected, content, version: version(content), provenance: { message: "coexisting records\n" } },
+    ]);
+  });
+
+  it("keeps logical history across a dissimilar placement replacement", async () => {
+    const repo = await repository();
+    const content = makeMetaFixture("example", { branch: "main" });
+    await repo.put(".arc/active/meta-example.md", content);
+    await repo.commit("before placement change");
+    await repo.exec("git", ["rm", ".arc/active/meta-example.md"]);
+    const landed = `${makeMetaFixture("example", { state: "Shipped", branch: "main" })}\n${"Completely new archived progress\n".repeat(100)}`;
+    await repo.put(".arc/completed/2026-q4/01_example/meta-example.md", landed);
+    await repo.commit("replacement placement");
+    expect(success(await repo.store.history({ reference: reference() }))).toEqual([
+      { reference: reference(), content: landed, version: version(landed), provenance: { message: "replacement placement\n" } },
+      { reference: reference(), content, version: version(content), provenance: { message: "before placement change\n" } },
+    ]);
+  });
+
+  it.each(["meta", "notes"] as const)("retains saved %s history during a staged lifecycle move", async (kind) => {
+    const repo = await repository();
+    const meta = makeMetaFixture("example", { branch: "main" });
+    await repo.put(".arc/active/meta-example.md", meta);
+    await repo.put(".arc/active/notes-example.md", "saved notes\n");
+    await repo.commit("saved active record");
+    const selected = kind === "meta" ? reference() : recordReferences["work-item/notes"](reference().owner);
+    const before = success(await repo.store.history({ reference: selected }));
+    const destination = ".arc/completed/2026-q4/01_example";
+    await mkdir(join(repo.root, destination), { recursive: true });
+    for (const role of ["meta", "notes"]) await repo.exec("git", ["mv", `.arc/active/${role}-example.md`, `${destination}/${role}-example.md`]);
+    expect(success(await repo.store.history({ reference: selected }))).toEqual(before);
+    await repo.put(`${destination}/${kind}-example.md`, `${kind === "meta" ? meta : "saved notes\n"}\nunsaved progress\n`);
+    expect(success(await repo.store.history({ reference: selected }))).toEqual(before);
+    await repo.commit("saved archive move");
+    expect(success(await repo.store.history({ reference: selected }))).toEqual([
+      { reference: selected, content: `${kind === "meta" ? meta : "saved notes\n"}\nunsaved progress\n`,
+        version: version(`${kind === "meta" ? meta : "saved notes\n"}\nunsaved progress\n`), provenance: { message: "saved archive move\n" } },
+      ...before,
+    ]);
+  });
+
+  it("retains a companion's landed history across a real owner rename", async () => {
+    const repo = await repository();
+    await repo.put(".arc/active/meta-example.md", makeMetaFixture("example", { branch: "main" }));
+    await repo.put(".arc/active/notes-example.md", "notes before rename\n");
+    await repo.commit("owner and notes creation");
+    for (const role of ["meta", "notes"]) await repo.exec("git", ["mv", `.arc/active/${role}-example.md`, `.arc/active/${role}-renamed.md`]);
+    await repo.put(".arc/active/meta-renamed.md", makeMetaFixture("renamed", { branch: "main" }));
+    await repo.commit("rename owner and notes");
+    const selected = recordReferences["work-item/notes"](reference("renamed").owner);
+    expect(success(await repo.store.history({ reference: selected })).map(({ content, provenance }) => ({ content, provenance }))).toEqual([
+      { content: "notes before rename\n", provenance: { message: "rename owner and notes\n" } },
+      { content: "notes before rename\n", provenance: { message: "owner and notes creation\n" } },
+    ]);
+  });
+
   it("reports a selected file's placement move even when its bytes are identical", async () => {
     const repo = await repository();
     const content = makeMetaFixture("example");

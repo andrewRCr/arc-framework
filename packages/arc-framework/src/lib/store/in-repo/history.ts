@@ -1,9 +1,9 @@
 /** Saved branch anchors and provenance over tracked records. */
-import { StateVersionSchema, RecordVersionSchema, type StateVersion, type RecordReference } from "../identity.js";
+import { StateVersionSchema, RecordVersionSchema, RecordReferenceSchema, type StateVersion, type RecordReference } from "../identity.js";
 import { digestBytes } from "../../kernel/canonical/canonical-json.js";
 import type { ChangesInput, HistoryEntry } from "../contract.js";
 import type { InRepoContext } from "./context.js";
-import { selectMeta, type MetaSource } from "./meta.js";
+import { selectMeta } from "./meta.js";
 import { recordPath } from "./paths.js";
 import { readFileAt } from "./files.js";
 import { notFound, unsupported } from "./refusals.js";
@@ -33,10 +33,9 @@ export async function trackedHistory(context: InRepoContext, input: { reference:
   const needsMeta = home.address?.kind === "work-unit-artifact" || home.finder === "companions";
   const liveMeta = needsMeta ? await selectMeta(context, reference.owner.name) : undefined;
   const revision = liveMeta?.revision ?? "HEAD";
-  const meta = liveMeta ?? (needsMeta ? await historicalMeta(context, reference.owner.name, revision) : undefined);
-  if (needsMeta && meta === undefined) return notFound(reference, "Check the record name or commit its file before asking for history.");
-  let path = await recordPath(context, reference, meta, revision);
-  const commits = (await git(context, ["log", "--follow", "--format=%H", revision, "--", `:(literal)${path}`])).trim().split("\n").filter(Boolean);
+  if (needsMeta) return logicalHistory(context, reference, revision);
+  let path = await recordPath(context, reference, undefined, revision);
+  const commits = (await git(context, ["log", "--follow", "--topo-order", "--format=%H", revision, "--", `:(literal)${path}`])).trim().split("\n").filter(Boolean);
   if (commits.length === 0) return notFound(reference, "Check the record name or commit its file before asking for history.");
   const entries: HistoryEntry[] = [];
   for (const commit of commits) {
@@ -46,13 +45,37 @@ export async function trackedHistory(context: InRepoContext, input: { reference:
   return entries;
 }
 
-async function historicalMeta(context: InRepoContext, slug: string, revision: string): Promise<MetaSource | undefined> {
-  const commits = (await git(context, ["log", "--format=%H", revision, "--", `:(glob).arc/**/meta-${slug}.md`])).trim().split("\n").filter(Boolean);
-  for (const commit of commits) {
-    const meta = await selectMeta(context, slug, commit);
-    if (meta !== undefined) return meta;
+async function logicalHistory(context: InRepoContext, reference: RecordReference, revision: string): Promise<HistoryEntry[]> {
+  const rows = (await git(context, ["rev-list", "--topo-order", "--parents", revision])).trim().split("\n").filter(Boolean);
+  const names = new Map<string, RecordReference>();
+  const entries: HistoryEntry[] = [];
+  for (const row of rows) {
+    const [commit, ...parents] = row.split(" ");
+    if (commit === undefined) throw new Error("Git returned a revision without an object ID");
+    const selected = names.get(commit) ?? reference;
+    for (const parent of parents) {
+      if (!names.has(parent)) names.set(parent, await previousReference(context, selected, commit, parent));
+    }
+    const parent = parents[0];
+    const before = parent === undefined ? { path: undefined, content: null }
+      : await recordAt(context, names.get(parent) ?? selected, parent);
+    const after = await recordAt(context, selected, commit);
+    if (before.content === after.content && (after.content === null || before.path === after.path)) continue;
+    entries.push(await historyEntry(context, reference, after.content, commit));
   }
-  return undefined;
+  if (entries.length === 0) return notFound(reference, "Check the record name or commit its file before asking for history.");
+  return entries;
+}
+
+async function previousReference(context: InRepoContext, reference: RecordReference, commit: string, parent: string): Promise<RecordReference> {
+  if (await selectMeta(context, reference.owner.name, parent) !== undefined) return reference;
+  const meta = await selectMeta(context, reference.owner.name, commit);
+  if (meta === undefined) return reference;
+  const path = await previousPath(context, meta.path, commit, parent);
+  if (path === meta.path) return reference;
+  const name = /(?:^|\/)meta-(.+)\.md$/u.exec(path)?.[1];
+  if (name === undefined || (await selectMeta(context, name, parent))?.path !== path) return reference;
+  return RecordReferenceSchema.parse({ ...reference, owner: { ...reference.owner, name } });
 }
 /** Read every landed record mutation inside a saved-state interval.
  * @param context - Explicit repository dependencies.
@@ -165,8 +188,8 @@ async function historyEntry(context: InRepoContext, reference: RecordReference, 
     provenance: { message: object.slice(separator + 2) } };
 }
 
-async function previousPath(context: InRepoContext, path: string, commit: string): Promise<string> {
-  const output = await git(context, ["diff-tree", "--root", "--no-commit-id", "-r", "-M", "--name-status", "-z", commit]);
+async function previousPath(context: InRepoContext, path: string, commit: string, parent?: string): Promise<string> {
+  const output = await git(context, ["diff-tree", "--root", "--no-commit-id", "-r", "-M", "--name-status", "-z", ...(parent === undefined ? [] : [parent]), commit]);
   const fields = output.split("\0");
   for (let index = 0; index < fields.length;) {
     const status = fields[index++];
