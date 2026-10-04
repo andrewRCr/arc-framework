@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "local-review-stale-target-recovery",
+  "claimId": "3372759c8435df35b496fc46c0d60202",
+  "createdAt": "2026-10-04T11:50:15.501Z",
+  "updatedAt": "2026-10-04T11:50:15.501Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Recover owned pending local review admissions after head or comparison-target movement using existing lane transitions, preserving evidence, retry and pass authority, and exact ownership checks.",
+  "branch": "chore/local-review-stale-target-recovery",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
