@@ -62,7 +62,9 @@ export function reconcileIdentityObjects(
 
 /** Caller decision over one freshly reconciled complete identity basis. */
 export type IdentityTransformDecision<T> =
-  | { kind: "applied"; records: ReadonlyMap<string, TransientIdentityRecord>; value: T }
+  | { kind: "applied"; records: ReadonlyMap<string, TransientIdentityRecord>; value: T;
+      /** Explicit intended puts/removals; omission retains the existing whole-record producer behavior. */
+      mutationKeys?: ReadonlySet<string> }
   | { kind: "idempotent"; value: T }
   | { kind: "refused"; reason: string };
 
@@ -212,10 +214,9 @@ async function applyAndPublish<T>(
     return { kind: "error", stage: "transform", message: errorMessage(error), error };
   }
   if (decision.kind === "refused") return decision;
-  const finalRecords = decision.kind === "applied" ? new Map(decision.records) : new Map(basis.records);
   let objects: Map<string, string>;
   try {
-    objects = await hashIdentityRecords(io, finalRecords);
+    objects = await decisionObjects(io, basis, decision);
   } catch (error) {
     return { kind: "error", stage: "transform", message: errorMessage(error), error };
   }
@@ -289,6 +290,25 @@ async function readCommonBasis(
     return { kind: "error", stage: "basis", message: errorMessage(error), error };
   }
   return commonTip === "" ? emptyBasis() : readCompleteBasis(io, commonTip);
+}
+
+async function decisionObjects<T>(io: ErrandRecordIO, basis: CompleteBasis,
+  decision: Exclude<IdentityTransformDecision<T>, { kind: "refused" }>): Promise<Map<string, string>> {
+  if (decision.kind === "idempotent") return new Map(basis.objects);
+  const keys = decision.mutationKeys;
+  if (keys === undefined) return hashIdentityRecords(io, decision.records);
+  const objects = new Map(basis.objects);
+  for (const key of new Set([...basis.objects.keys(), ...decision.records.keys()])) {
+    if (!keys.has(key) && basis.objects.has(key) !== decision.records.has(key))
+      throw new Error(`Identity transform omitted mutation key: ${key}`);
+  }
+  const replacements = new Map([...decision.records].filter(([key]) => keys.has(key)));
+  const hashed = await hashIdentityRecords(io, replacements);
+  for (const key of keys) {
+    const oid = hashed.get(key);
+    if (oid === undefined) objects.delete(key); else objects.set(key, oid);
+  }
+  return objects;
 }
 
 async function hashIdentityRecords(

@@ -58,7 +58,8 @@ export async function batchTransient(context: InRepoContext, input: BatchInput):
         updated.set(key, replacement);
         return { reference: write.reference, version: RecordVersionSchema.parse(version), conflicts: [] };
       });
-      return { kind: "applied", records: updated, value: { stale: [], writes } };
+      return { kind: "applied", records: updated, mutationKeys: new Set(input.writes.map((write) => transientKey(write.reference))),
+        value: { stale: [], writes } };
     } });
   const value = transactionValue(outcome, input.writes, io.identity, Math.max(0, context.ports.clock().getTime() - started));
   return { batchId: randomUUID(), writes: value.writes };
