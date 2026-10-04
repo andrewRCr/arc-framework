@@ -253,8 +253,11 @@ any write anywhere in the store, which makes every other session's capture a rea
 ### 14. Git is the storage engine, never the schema
 
 Git stores the records; it does not define what they mean. Records carry their own identities, versions, and links, and
-the contract is implementable without Git — its conformance suite runs against a non-Git reference backend. The Git
-notes lesson is the cautionary case: SHA-keyed attachment became the semantic model, and a rewrite orphaned state.
+the contract is implementable without Git. `registerStoreConformanceSuite` registers assertions for
+`referenceRegistration`, whose factory constructs the in-memory `ReferenceBackend`; its record operations and sync use
+memory state rather than Git.
+The Git notes lesson is the cautionary case: SHA-keyed attachment became the semantic model, and a rewrite orphaned
+state.
 
 ### 15. The final shape over today's
 
@@ -305,12 +308,16 @@ direction. Each item is tagged core or deferred in the `state-storage` cohort.
 - **Protection and forks** — protected state is an opt-in mode, deferred behind its tripwire; fork contributors run
   local-only and read the upstream's state as a read-only source.
 
-**Beyond the contract: tracked-tier delivery projection retirement.** Native delivery currently reconstructs filtered
-member refs because lifecycle artifacts ride the WU's code history and the published top remains append-only. Once
-state leaves code branches and `history.policy` permits rewrite, replace that projection with ordinary interior-ref
-members, register the complete stack including the top, and permit native restacking end to end. Preserve the
-delivery-typed terminal-authorization arm and member-boundary verification; those are substrate-independent contracts,
-not tracked-tier residue.
+**Beyond the contract: tracked-tier delivery projection retirement.** `deriveDeliveryMaterialization` composes member
+refs from private candidate coordinates, `compareNormalizedDeliveryTree` checks the lifecycle/regenerable-path
+normalization, and `materializeBoundDeliveryChain` materializes interior refs while leaving the terminal unchanged.
+`deriveDeliveryNativeRegistrationInput` and `planDeliverySuffixRefresh` exclude the terminal from provider registration
+and refresh; `adoptGitDeliveryChain` preserves append-only top advancement. Those boundaries accommodate lifecycle
+artifacts riding code history. Once state leaves code branches and `history.policy` permits rewrite, replace that
+projection with ordinary interior-ref members, register the complete stack including the top, and permit native
+restacking end to end. Preserve the delivery-typed terminal-authorization arm and member-boundary verification; those
+are substrate-independent contracts. This future retirement is a policy change, not an automatic consequence of the
+current construction.
 
 ---
 
