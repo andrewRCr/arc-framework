@@ -93,11 +93,10 @@ _Mode:_ `slice` through Phase 3 — closes on a supported integration run retain
 - _Approach:_ Factor the lifetime composed by `withLocalHeavyTestAdmission` around existing advisory-lock primitives;
   keep metadata diagnostic and the artifact lease beside output, outside compiler-cleaned directories.
 
-    - `[ ]` **2.1.a Preserve existing CPU admission through shared lifetime handling**
-        - Retain process scope/instance, renewal deadlines, exit cleanup, cancellation, and contention diagnostics.
-        - Build `test-first` (one behavior at a time):
-            - Existing `local-test-admission` and `advisory-lock` renewal, ownership-loss, and release cases remain valid.
-            - Action failure and asynchronous release preserve cleanup until ownership is actually released.
+    - `[x]` **2.1.a Preserve existing CPU admission through shared lifetime handling**
+        - Shared renewable ownership retains process identity, deadlines, exit cleanup, and contention behavior.
+          Checked release refuses silent removal failures; renewal and exit protection remain through pending or failed
+          release, and the existing CPU-admission cases retain their behavior.
 
     - `[ ]` **2.1.b Add checkout-scoped artifact ownership using the same primitive**
         - Compose CPU-then-artifact acquisition for heavy controllers; keep artifact ownership enforced under CI and

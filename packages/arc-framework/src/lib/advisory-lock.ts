@@ -564,6 +564,21 @@ export async function releaseAdvisoryLock(
 }
 
 /**
+ * Release ownership and require observable absence or replacement before returning.
+ * @param handle - The exact acquired owner
+ * @param options - Filesystem and waiting boundaries used by native release
+ * @returns Only after this owner no longer holds the lockfile
+ */
+export async function releaseAdvisoryLockConfirmed(
+  handle: AdvisoryLockHandle, options: AdvisoryLockReleaseOptions = {},
+): Promise<void> {
+  await releaseAdvisoryLock(handle, options);
+  const holder = await readHolder(options.readFile ?? defaultReadFile, handle.path);
+  if (holder === "absent" || typeof holder === "object" && !isReleasableHolder(holder, handle, true)) return;
+  throw new Error(`Unable to confirm release of lock ${handle.path}; repair filesystem access and rerun the operation.`);
+}
+
+/**
  * Best-effort token-verified release for a process `exit` listener.
  *
  * Async cleanup cannot run once Node enters its exit event. This narrow sibling

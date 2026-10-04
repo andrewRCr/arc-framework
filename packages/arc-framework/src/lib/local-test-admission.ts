@@ -16,7 +16,7 @@ import type { GitExec } from "./git/exec.js";
 import {
   acquireAdvisoryLock,
   renewAdvisoryLock,
-  releaseAdvisoryLock,
+  releaseAdvisoryLockConfirmed,
   releaseAdvisoryLockSync,
   type AdvisoryLockContention,
   type AdvisoryLockHandle,
@@ -25,6 +25,7 @@ import {
 } from "./advisory-lock.js";
 import { resolveGitCommonDir } from "./git/exec.js";
 import { retryTransientFileSystemRefusal } from "./fs.js";
+import { withRenewableLease } from "./renewable-lease.js";
 
 /** Explicit opt-out used only for deliberate local contention experiments. */
 export const LOCAL_TEST_CONCURRENCY_OVERRIDE = "ARC_TEST_ALLOW_CONCURRENCY";
@@ -125,7 +126,7 @@ const DEFAULT_DEPENDENCIES: LocalTestAdmissionDependencies = {
       process.off("exit", listener);
     };
   },
-  releaseLock: releaseAdvisoryLock,
+  releaseLock: releaseAdvisoryLockConfirmed,
   renewLock: renewAdvisoryLock,
   resolveProcessScope: async () => await resolveProcessVisibilityScope(process.platform, PROCESS_INSTANCE),
   scheduleEvery: (callback, intervalMs) => {
@@ -147,7 +148,6 @@ const LOCK_ROOT = join("arc", "test-suite");
 const LOCK_FILENAME = ".local-heavy-tests.lock";
 const HEARTBEAT_MS = 60_000;
 const LEASE_DURATION_MS = 120_000;
-const LEASE_RENEW_INTERVAL_MS = 10_000;
 
 /**
  * Run one heavy local test action while holding the repository-common slot.
@@ -227,78 +227,9 @@ export async function withLocalHeavyTestAdmission<T>(
     dependencies.writeLine(`Local heavy-test slot acquired after waiting; starting ${tierLabel(input.tier)} tests.`);
   }
 
-  const unregisterExitCleanup = dependencies.registerExitCleanup(handle);
-  let heartbeatActive = true;
-  let terminationRequested = false;
-  let leaseConfirmedUntil = handle.leaseUntil ?? admissionStartedAt + LEASE_DURATION_MS;
-  const terminateController = (message: string): void => {
-    if (!heartbeatActive || terminationRequested) return;
-    terminationRequested = true;
-    dependencies.writeLine(message);
-    dependencies.terminateProcess();
-  };
-  const cannotSafelyRetry = (): boolean => (
-    dependencies.now() + LEASE_RENEW_INTERVAL_MS >= leaseConfirmedUntil
-  );
-  const terminateBeforeLeaseExpiry = (): void => {
-    terminateController(
-      "Local heavy-test lock could not be renewed before its last confirmed lease deadline; "
-      + "stopping the admitted test controller.",
-    );
-  };
-  const cancelHeartbeat = dependencies.scheduleEvery(() => {
-    if (!heartbeatActive) return;
-    if (cannotSafelyRetry()) {
-      terminateBeforeLeaseExpiry();
-      return;
-    }
-    const renewalStartedAt = dependencies.now();
-    void dependencies.renewLock(handle, LEASE_DURATION_MS)
-      .then((result) => {
-        if (!heartbeatActive) return;
-        if (result === "renewed") {
-          leaseConfirmedUntil = Math.max(
-            leaseConfirmedUntil,
-            renewalStartedAt + LEASE_DURATION_MS,
-          );
-          return;
-        }
-        if (result === "ownership-lost") {
-          terminateController(
-            "Local heavy-test lock ownership was lost; stopping the admitted test controller.",
-          );
-          return;
-        }
-        if (cannotSafelyRetry()) {
-          terminateBeforeLeaseExpiry();
-        }
-      })
-      .catch((error: unknown) => {
-        if (!heartbeatActive) return;
-        const detail = error instanceof Error ? error.message : String(error);
-        if (cannotSafelyRetry()) {
-          terminateController(
-            `Unable to renew the local heavy-test lock before its last confirmed lease deadline: ${detail}; `
-            + "stopping the admitted test controller.",
-          );
-          return;
-        }
-        dependencies.writeLine(`Unable to renew the local heavy-test lock heartbeat: ${detail}`);
-      });
-  }, LEASE_RENEW_INTERVAL_MS);
-
-  let result: T;
-  try {
-    result = await action();
-  } finally {
-    heartbeatActive = false;
-    cancelHeartbeat();
-    try {
-      await dependencies.releaseLock(handle);
-    } finally {
-      unregisterExitCleanup();
-    }
-  }
+  const result = await withRenewableLease(handle, admissionStartedAt, async () => await action(), dependencies, {
+    lock: "Local heavy-test lock", controller: "the admitted test controller",
+  });
   return {
     result,
     ...(admissionWaitMs === undefined ? {} : { waitMs: admissionWaitMs }),
