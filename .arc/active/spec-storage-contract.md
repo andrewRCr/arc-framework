@@ -1890,8 +1890,10 @@ unit, Errand, Candidate, terminus, cohort, Owner acceptance, task IDs, lifecycle
 artifact, and no ARC process concern, by default and not only under ghost mode; a project opts in to ARC vocabulary on
 its own surfaces.
 
-- Leaks come from both sides: ARC's code composes some — delivery's pull-request body names the design by its draft
-  filename (`lib/delivery/materialization.ts`) — and agents compose the rest, often in well-meant prose.
+- Leaks can come from code and agent-composed prose. `describeDeliveryMemberPresentation`
+  (`lib/delivery/materialization.ts`) conditionally renders the caller-supplied `designReference`: absent input emits
+  no Design block; a supplied draft/spec reference renders as supplied. It does not construct a draft filename.
+  The surface inventory includes those supplied references and agent-composed text.
 - Subject matter is not a leak: a change to ARC's own Errand code says "Errand" in this repository, as any project
   names its own domain. The boundary governs ARC's process, not a project's vocabulary.
 - Making it true means inventorying every trace ARC leaves in a repository or on a host, fixing each code path at the
