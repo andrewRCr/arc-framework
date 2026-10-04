@@ -29,6 +29,7 @@ import { join as configurationCounterPath } from "node:path";
 appendFileSync(configurationCounterPath(import.meta.dirname, ".config-loads"), "loaded\\n");
 ` + configuration);
   await symlink(join(sourceRoot, "node_modules"), join(root, "node_modules"), "junction");
+  await symlink(join(sourcePackage, "node_modules"), join(packageRoot, "node_modules"), "junction");
   await writeFile(join(packageRoot, "tsconfig.json"), JSON.stringify({
     compilerOptions: { target: "ESNext", module: "NodeNext", moduleResolution: "NodeNext", strict: true,
       skipLibCheck: true, ignoreDeprecations: "6.0" }, include: ["src/cli.ts"],

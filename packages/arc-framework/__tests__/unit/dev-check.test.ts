@@ -15,12 +15,11 @@ import {
   hashSourceInputs,
   isBuiltBundleEntry,
   isDevBuildRefreshCommandPath,
-  refreshDevBuildAfterAction,
   refreshStaleDevBuild,
   selectBundleInputs,
   type DevCheckDeps,
 } from "../../src/lib/dev-check.js";
-import { mkdtempSync, writeFileSync, mkdirSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -29,6 +28,7 @@ function deps(overrides: Partial<DevCheckDeps>): DevCheckDeps {
     newestSrc: () => null,
     distMtimeMs: () => null,
     now: () => 1_000_000_000_000,
+    runtimeQualified: () => false,
     ...overrides,
   };
 }
@@ -66,7 +66,7 @@ describe("checkDevBuildStaleness", () => {
     });
   });
 
-  it("returns stale with computed ages when src is newer than dist (mtime fallback)", () => {
+  it("retains age diagnostics when runtime qualification fails", () => {
     const result = checkDevBuildStaleness(
       deps({
         newestSrc: () => ({ mtimeMs: NOW - 12_000, path: "src/lib/foo.ts" }),
@@ -77,14 +77,14 @@ describe("checkDevBuildStaleness", () => {
 
     expect(result).toEqual({
       kind: "stale",
-      basis: "mtime",
+      basis: "content-hash",
       srcAge: 12,
       distAge: 7200,
       newestSrc: "src/lib/foo.ts",
     });
   });
 
-  it("returns fresh when dist is newer than every src file (mtime fallback)", () => {
+  it("refuses unqualified output even when dist is newer", () => {
     const result = checkDevBuildStaleness(
       deps({
         newestSrc: () => ({ mtimeMs: NOW - 600_000, path: "src/cli.ts" }),
@@ -93,7 +93,7 @@ describe("checkDevBuildStaleness", () => {
       }),
     );
 
-    expect(result).toEqual({ kind: "fresh" });
+    expect(result.kind).toBe("stale");
   });
 
   it("returns fresh on mtime-only bump when content stamps match", () => {
@@ -104,8 +104,7 @@ describe("checkDevBuildStaleness", () => {
         newestSrc: () => ({ mtimeMs: NOW - 1_000, path: "src/lib/foo.ts" }),
         distMtimeMs: () => NOW - 7_200_000,
         now: () => NOW,
-        currentInputsHash: () => "abc123",
-        stampedInputsHash: () => "abc123",
+        runtimeQualified: () => true,
       }),
     );
 
@@ -120,8 +119,7 @@ describe("checkDevBuildStaleness", () => {
         newestSrc: () => ({ mtimeMs: NOW - 600_000, path: "src/cli.ts" }),
         distMtimeMs: () => NOW - 60_000,
         now: () => NOW,
-        currentInputsHash: () => "new-content",
-        stampedInputsHash: () => "old-content",
+        runtimeQualified: () => false,
       }),
     );
 
@@ -134,28 +132,12 @@ describe("checkDevBuildStaleness", () => {
     });
   });
 
-  it("falls back to mtime when only one side of the stamp pair is available", () => {
-    const mtimeStale = checkDevBuildStaleness(
-      deps({
-        newestSrc: () => ({ mtimeMs: NOW - 1_000, path: "src/cli.ts" }),
-        distMtimeMs: () => NOW - 7_200_000,
-        now: () => NOW,
-        currentInputsHash: () => "abc",
-        stampedInputsHash: () => null,
-      }),
-    );
-    expect(mtimeStale.kind).toBe("stale");
-
-    const mtimeFresh = checkDevBuildStaleness(
-      deps({
-        newestSrc: () => ({ mtimeMs: NOW - 600_000, path: "src/cli.ts" }),
-        distMtimeMs: () => NOW - 60_000,
-        now: () => NOW,
-        currentInputsHash: () => null,
-        stampedInputsHash: () => "abc",
-      }),
-    );
-    expect(mtimeFresh).toEqual({ kind: "fresh" });
+  it("accepts qualified runtime independently of source timestamp ordering", () => {
+    expect(checkDevBuildStaleness(deps({
+      newestSrc: () => ({ mtimeMs: NOW + 10_000, path: "src/cli.ts" }),
+      distMtimeMs: () => NOW - 60_000,
+      runtimeQualified: () => true,
+    }))).toEqual({ kind: "fresh" });
   });
 });
 
@@ -223,164 +205,6 @@ describe("refreshStaleDevBuild", () => {
       command: "npm run build:fast",
       message: "the rebuilt bundle is still stale",
     });
-  });
-});
-
-describe("refreshDevBuildAfterAction", () => {
-  it("builds beside the live bundle, promotes it, and rechecks the package bundle", async () => {
-    const repositoryRoot = mkdtempSync(join(tmpdir(), "arc-dev-refresh-"));
-    try {
-      const packageRoot = join(repositoryRoot, "packages", "arc-framework");
-      const sourceDir = join(packageRoot, "src");
-      const distDir = join(packageRoot, "dist");
-      mkdirSync(sourceDir, { recursive: true });
-      mkdirSync(distDir, { recursive: true });
-
-      const sourcePath = join(sourceDir, "cli.ts");
-      const cliPath = join(distDir, "cli.js");
-      const stampPath = join(distDir, "dev-build-stamp.json");
-      writeFileSync(sourcePath, "export const current = true;\n");
-      writeFileSync(cliPath, "#!/usr/bin/env node\n");
-      writeFileSync(join(distDir, "cli.d.ts"), "old declaration\n");
-      writeFileSync(join(distDir, "metafile-esm.json"), JSON.stringify({
-        inputs: { "src/cli.ts": { bytes: 1 } },
-      }));
-      writeFileSync(stampPath, `${JSON.stringify({ schemaVersion: 1, inputsHash: "stale" })}\n`);
-
-      const inputsHash = hashSourceInputs([sourcePath], packageRoot);
-      writeFileSync(join(repositoryRoot, "refresh.cjs"), [
-        'const { mkdirSync, readFileSync, writeFileSync } = require("node:fs");',
-        'const outDir = process.env.ARC_DEV_BUILD_OUT_DIR;',
-        'if (!outDir) throw new Error("missing staged output directory");',
-        `if (readFileSync(${JSON.stringify(cliPath)}, "utf8") !== "#!/usr/bin/env node\\n") {`,
-        '  throw new Error("live CLI disappeared during refresh");',
-        '}',
-        'mkdirSync(outDir, { recursive: true });',
-        'writeFileSync(require("node:path").join(outDir, "cli.js"), "#!/usr/bin/env node\\nnew bundle\\n");',
-        `writeFileSync(require("node:path").join(outDir, "metafile-esm.json"), ${JSON.stringify(
-          `${JSON.stringify({ inputs: { "src/cli.ts": { bytes: 1 } } })}\n`,
-        )});`,
-        `writeFileSync(require("node:path").join(outDir, "dev-build-stamp.json"), ${JSON.stringify(
-          `${JSON.stringify({ schemaVersion: 1, inputsHash })}\n`,
-        )});`,
-        "",
-      ].join("\n"));
-      writeFileSync(join(repositoryRoot, "package.json"), JSON.stringify({
-        private: true,
-        scripts: { "build:fast": "node refresh.cjs" },
-      }));
-
-      await expect(refreshDevBuildAfterAction(cliPath)).resolves.toEqual({ kind: "refreshed" });
-      expect(readFileSync(cliPath, "utf8")).toBe("#!/usr/bin/env node\nnew bundle\n");
-      expect(readdirSync(distDir)).not.toContain("cli.d.ts");
-      expect(readdirSync(packageRoot).filter((entry) => entry.startsWith(".arc-dev-build-"))).toEqual([]);
-    } finally {
-      rmSync(repositoryRoot, { recursive: true, force: true });
-    }
-  });
-
-  it("keeps the previous runnable bundle live when the staged fast build fails", async () => {
-    const repositoryRoot = mkdtempSync(join(tmpdir(), "arc-dev-refresh-"));
-    try {
-      const packageRoot = join(repositoryRoot, "packages", "arc-framework");
-      const sourceDir = join(packageRoot, "src");
-      const distDir = join(packageRoot, "dist");
-      mkdirSync(sourceDir, { recursive: true });
-      mkdirSync(distDir, { recursive: true });
-
-      const sourcePath = join(sourceDir, "cli.ts");
-      const cliPath = join(distDir, "cli.js");
-      writeFileSync(sourcePath, "export const current = true;\n");
-      writeFileSync(cliPath, "known-good-bundle\n");
-      writeFileSync(join(distDir, "metafile-esm.json"), JSON.stringify({
-        inputs: { "src/cli.ts": { bytes: 1 } },
-      }));
-      writeFileSync(
-        join(distDir, "dev-build-stamp.json"),
-        `${JSON.stringify({ schemaVersion: 1, inputsHash: "stale" })}\n`,
-      );
-
-      writeFileSync(join(repositoryRoot, "fail-refresh.cjs"), [
-        'const { mkdirSync, readFileSync, writeFileSync } = require("node:fs");',
-        'const outDir = process.env.ARC_DEV_BUILD_OUT_DIR;',
-        'if (!outDir) throw new Error("missing staged output directory");',
-        `if (readFileSync(${JSON.stringify(cliPath)}, "utf8") !== "known-good-bundle\\n") {`,
-        '  throw new Error("live CLI disappeared during refresh");',
-        '}',
-        'mkdirSync(outDir, { recursive: true });',
-        'writeFileSync(require("node:path").join(outDir, "cli.js"), "partial-bundle\\n");',
-        "process.exitCode = 1;",
-        "",
-      ].join("\n"));
-      writeFileSync(join(repositoryRoot, "package.json"), JSON.stringify({
-        private: true,
-        scripts: { "build:fast": "node fail-refresh.cjs" },
-      }));
-
-      await expect(refreshDevBuildAfterAction(cliPath)).resolves.toMatchObject({
-        kind: "failed",
-        command: "npm run build:fast",
-      });
-      expect(readFileSync(cliPath, "utf8")).toBe("known-good-bundle\n");
-      expect(readdirSync(packageRoot).filter((entry) => entry.startsWith(".arc-dev-build-"))).toEqual([]);
-    } finally {
-      rmSync(repositoryRoot, { recursive: true, force: true });
-    }
-  });
-
-  it("keeps the previous freshness stamp when promotion fails before replacing the CLI", async () => {
-    const repositoryRoot = mkdtempSync(join(tmpdir(), "arc-dev-refresh-"));
-    try {
-      const packageRoot = join(repositoryRoot, "packages", "arc-framework");
-      const sourceDir = join(packageRoot, "src");
-      const distDir = join(packageRoot, "dist");
-      mkdirSync(sourceDir, { recursive: true });
-      mkdirSync(distDir, { recursive: true });
-
-      const sourcePath = join(sourceDir, "cli.ts");
-      const cliPath = join(distDir, "cli.js");
-      const stampPath = join(distDir, "dev-build-stamp.json");
-      const oldStamp = `${JSON.stringify({ schemaVersion: 1, inputsHash: "stale" })}\n`;
-      writeFileSync(sourcePath, "export const current = true;\n");
-      writeFileSync(cliPath, "known-good-bundle\n");
-      writeFileSync(join(distDir, "metafile-esm.json"), JSON.stringify({
-        inputs: { "src/cli.ts": { bytes: 1 } },
-      }));
-      writeFileSync(stampPath, oldStamp);
-      writeFileSync(join(distDir, "z-blocked"), "not a directory\n");
-
-      const inputsHash = hashSourceInputs([sourcePath], packageRoot);
-      writeFileSync(join(repositoryRoot, "promotion-failure.cjs"), [
-        'const { mkdirSync, writeFileSync } = require("node:fs");',
-        'const { join } = require("node:path");',
-        'const outDir = process.env.ARC_DEV_BUILD_OUT_DIR;',
-        'if (!outDir) throw new Error("missing staged output directory");',
-        'mkdirSync(join(outDir, "z-blocked"), { recursive: true });',
-        'writeFileSync(join(outDir, "cli.js"), "new-bundle\\n");',
-        `writeFileSync(join(outDir, "metafile-esm.json"), ${JSON.stringify(
-          `${JSON.stringify({ inputs: { "src/cli.ts": { bytes: 1 } } })}\n`,
-        )});`,
-        `writeFileSync(join(outDir, "dev-build-stamp.json"), ${JSON.stringify(
-          `${JSON.stringify({ schemaVersion: 1, inputsHash })}\n`,
-        )});`,
-        'writeFileSync(join(outDir, "z-blocked", "file"), "blocked\\n");',
-        "",
-      ].join("\n"));
-      writeFileSync(join(repositoryRoot, "package.json"), JSON.stringify({
-        private: true,
-        scripts: { "build:fast": "node promotion-failure.cjs" },
-      }));
-
-      await expect(refreshDevBuildAfterAction(cliPath)).resolves.toMatchObject({
-        kind: "failed",
-        command: "npm run build:fast",
-      });
-      expect(readFileSync(cliPath, "utf8")).toBe("known-good-bundle\n");
-      expect(readFileSync(stampPath, "utf8")).toBe(oldStamp);
-      expect(readdirSync(packageRoot).filter((entry) => entry.startsWith(".arc-dev-build-"))).toEqual([]);
-    } finally {
-      rmSync(repositoryRoot, { recursive: true, force: true });
-    }
   });
 });
 

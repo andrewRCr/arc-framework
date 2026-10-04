@@ -7,8 +7,8 @@
     "arc": "dist/cli.js"
   },
   "scripts": {
-    "build": "tsup",
-    "build:fast": "tsup --config tsup.fast.config.ts",
+    "build": "node --import tsx src/scripts/run-build.ts full",
+    "build:fast": "node --import tsx src/scripts/run-build.ts fast",
     "benchmark:session-envelope": "npm run build && node --import tsx __tests__/benchmarks/session-envelope-validation.ts",
     "benchmark:test-cost": "node --import tsx src/scripts/measure-test-cost.ts",
     "benchmark:test-cost:compare": "node --import tsx src/scripts/compare-test-cost.ts",

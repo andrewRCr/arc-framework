@@ -58,7 +58,7 @@ export async function buildOwnedArtifacts(
     lease: BuildArtifactLease, mode: BuildMode, before: BuildBaseline, controls: readonly string[],
     overrides: Partial<BuildCoordinatorDependencies>,
   ) => Promise<BuildEvidence> }>({
-    filepath: join(lease.packageRoot, "src/lib/build-coordinator.ts"), cwd: lease.packageRoot, format: "esm",
+    filepath: join(lease.packageRoot, "src/lib/build-command.ts"), cwd: lease.packageRoot, format: "esm",
   });
   return await loaded.mod.runOwnedBuild(lease, mode, before,
     repositoryInputKeys(loaded.dependencies, lease.packageRoot), overrides);

@@ -3,7 +3,6 @@ import { build, type Options } from "tsup";
 import { bundleRequire } from "bundle-require";
 import { selectFirstPartyInputs } from "./build-inputs.js";
 import { join } from "node:path";
-import { writeDevBuildStamp } from "./dev-check.js";
 
 /** Captured compiler configuration and its native first-party dependencies. */
 export interface LoadedBuildConfiguration {
@@ -36,12 +35,11 @@ export async function loadSchemaProducer(packageRoot: string): Promise<LoadedSch
  * Generate ancillary runtime artifacts after compilation.
  * @param outDir - Compiler output directory
  * @param packageRoot - Package containing the producer
- * @returns Resolves after schema and runtime freshness output are written
+ * @returns Resolves after the schema artifact is written
  */
 export async function writeBuildArtifacts(outDir: string, packageRoot: string): Promise<void> {
   const schema = await loadSchemaProducer(packageRoot);
   await schema.generate(outDir);
-  writeDevBuildStamp(outDir, packageRoot);
 }
 
 /**

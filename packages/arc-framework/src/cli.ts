@@ -2132,7 +2132,7 @@ program.hook("preAction", (_thisCommand, actionCommand) => {
     ? "dist/cli.js missing"
     : `dist/cli.js built ${formatAge(verdict.distAge)} ago`;
   const staleCause = verdict.basis === "content-hash"
-    ? "source content differs from the build stamp"
+    ? "runtime inputs or build qualification differ from the build stamp"
     : `${verdict.newestSrc} changed ${formatAge(verdict.srcAge)} ago`;
   const baseMsg = `arc dev build is stale (${staleCause}; ${distAgeText}).`;
 

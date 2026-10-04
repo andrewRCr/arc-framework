@@ -130,27 +130,20 @@ _Mode:_ `slice` through Phase 3 — closes on a supported integration run retain
           output serves runtime reuse, while explicit requests regenerate. Interrupted publication removes prior authority
           and repaired invocations qualify anew; private staging-disposal failures warn without revoking successful reuse.
 
-### `[ ]` **2.4 Route explicit builds and self-hosting refresh through one coordinator — D4, D9**
+### `[x]` **2.4 Route explicit builds and self-hosting refresh through one coordinator — D4, D9**
 
 - _Goal:_ Root/package builders and post-command self-hosting refresh use one non-recursive ownership boundary,
   and CLI freshness retains runtime-only selectivity and actionable refusal/retry behavior.
 
-    - `[ ]` **2.4.a Wire explicit full/fast builders and staged self-refresh to the coordinator**
-        - Update both manifests and `refreshDevBuildAfterAction`/`runFastDevBuild` composition together; invoke the
-          internal compiler under already-owned actions and retain the prior entry on failed compilation.
-        - Build `test-first` (one behavior at a time):
-            - Explicit root/package full and fast commands always build, including over qualifying unchanged inputs.
-            - Root/package builders establish their first qualified generation when live output is absent.
-            - Refresh and preparation avoid public-wrapper reacquisition; same-checkout builds wait behind test ownership.
-            - A different checkout's build has independent artifact ownership and can make progress.
+    - `[x]` **2.4.a Wire explicit full/fast builders and staged self-refresh to the coordinator**
+        - Root/package full and fast scripts use the owning Node adapter and always generate explicitly requested
+          output. Self-refresh uses that same non-recursive coordinator, retains the prior entry on failed compilation,
+          queues behind same-checkout consumers, and preserves independent progress in another checkout.
 
-    - `[ ]` **2.4.b Read runtime identity in the self-hosting freshness guard and refresh proof**
-        - Adapt `createDevCheckDeps` and stamp-reading consumers; preserve published-install skipping and the complete
-          stale-build refusal/remedy. Update existing unit and disposable stale-guard fixtures for the new format.
-        - Build `test-first` (one behavior at a time):
-            - Schema-only ordinary source edits retain CLI freshness; runtime/shared-control edits refuse stale output.
-            - Old or unusable evidence cannot claim qualification; explicit repair restores freshness.
-            - A failed or still-stale refresh remains unsuccessful with its actionable retry command.
+    - `[x]` **2.4.b Read runtime identity in the self-hosting freshness guard and refresh proof**
+        - The compiler-free runtime reader determines CLI freshness; mtimes supply diagnostic ages only. Schema-only
+          edits remain selective, unusable evidence refuses with the complete repair command, and successful refresh
+          proves the published runtime identity. Disposable stale-guard fixtures retain native dependency resolution.
 
 ## **Phase 3:** Prepared controller execution and cleanup
 
