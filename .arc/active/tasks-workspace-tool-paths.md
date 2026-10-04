@@ -348,18 +348,16 @@ skip-build without generation. The full declaration gate and documented root/nat
           direct native generation-only convenience while retaining declarations and both type checks. Package
           development tooling now declares `tsx` directly with the existing range and locked version.
 
-### `[ ]` **5.5 Validate supported routes — D2, D3, D4, D8, D9** — validate exit criterion at segment scope
+### `[x]` **5.5 Validate supported routes — D2, D3, D4, D8, D9** — validate exit criterion at segment scope
 
 - _Goal:_ The enumerated supported writer/consumer and CI routes are exhausted with executable evidence that
   coverage, runtime qualification, ownership, and final failure handling remain coherent.
 
-    - Walk both manifests, supported controller callers, global setups, self-refresh, the staged-lint caller, and CI
-      artifact/local-build routes; exercise representative disposable scenarios for each command/consumer batch.
-    - Confirm changed/arc-contract/portability selections, explicit full/fast build behavior, retained-cost failure
-      gating, skip-build repair, and independent worktree artifacts; no supported build script bypasses the coordinator.
-    - Complete the routine local gate including both type checks, shell lint, ARC checks, and full declaration build;
-      run changed E2E coverage locally and consume required CI portability/E2E results at their normal boundaries.
-    - Record the segment scenario results; route any correction to its owning task rather than implementing it here.
+- _Outcome:_ Both manifests, managed controllers, setups, self-refresh, staged lint, and CI routes compose the shared
+  boundaries. Native tier, changed-test, retained-cost, and artifact-transfer/recovery scenarios preserve selections,
+  failure handling, and owned generations. The full declaration build qualifies; changed stale-build-guard E2E
+  execution reuses that generation with skip-build enabled and releases ownership after closing. Required remote
+  E2E/portability enforcement remains at the CI/merge boundaries.
 
 ## **Phase 6:** Verification
 
