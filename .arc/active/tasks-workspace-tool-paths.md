@@ -85,25 +85,20 @@ _Purpose:_ Compose existing renewable ownership and staging into the writer boun
 
 _Mode:_ `slice` through Phase 3 — closes on a supported integration run retaining qualified artifacts through cleanup.
 
-### `[ ]` **2.1 Share renewable lease lifetime with checkout artifact ownership — D4**
+### `[x]` **2.1 Share renewable lease lifetime with checkout artifact ownership — D4**
 
 - _Goal:_ CPU admission and checkout artifact ownership share reliable renewal/release handling while retaining
   distinct scopes; loss of confirmed ownership prevents continued owned work.
-
-- _Approach:_ Factor the lifetime composed by `withLocalHeavyTestAdmission` around existing advisory-lock primitives;
-  keep metadata diagnostic and the artifact lease beside output, outside compiler-cleaned directories.
 
     - `[x]` **2.1.a Preserve existing CPU admission through shared lifetime handling**
         - Shared renewable ownership retains process identity, deadlines, exit cleanup, and contention behavior.
           Checked release refuses silent removal failures; renewal and exit protection remain through pending or failed
           release, and the existing CPU-admission cases retain their behavior.
 
-    - `[ ]` **2.1.b Add checkout-scoped artifact ownership using the same primitive**
-        - Compose CPU-then-artifact acquisition for heavy controllers; keep artifact ownership enforced under CI and
-          `ARC_TEST_ALLOW_CONCURRENCY=1`. Owning actions use their existing lease instead of reacquiring it.
-        - Build `test-first` (one behavior at a time):
-            - Same-checkout owners contend with useful cancellable diagnostics; separate checkouts have separate leases.
-            - Renewal loss or confirmed-dead ownership prevents publication, while repaired ownership can be acquired.
+    - `[x]` **2.1.b Add checkout-scoped artifact ownership using the same primitive**
+        - Checkout-local leases exclude builders through consuming actions and retain useful cancellable diagnostics.
+          Heavy ownership acquires CPU first and artifacts second; CPU bypasses retain artifact exclusion, native-loaded
+          controls share one process identity, and replaced ownership cannot authorize publication.
 
 ### `[ ]` **2.2 Compile full and fast builds into owned asynchronous staging — D4, D5**
 

@@ -7,17 +7,13 @@
  * @module
  */
 
-import { randomUUID } from "node:crypto";
-import { mkdir as fsMkdir, readlink as fsReadlink } from "node:fs/promises";
+import { mkdir as fsMkdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import { createGitExec } from "./io-context.js";
 import type { GitExec } from "./git/exec.js";
 import {
   acquireAdvisoryLock,
-  renewAdvisoryLock,
-  releaseAdvisoryLockConfirmed,
-  releaseAdvisoryLockSync,
   type AdvisoryLockContention,
   type AdvisoryLockHandle,
   type AdvisoryLockOptions,
@@ -26,6 +22,8 @@ import {
 import { resolveGitCommonDir } from "./git/exec.js";
 import { retryTransientFileSystemRefusal } from "./fs.js";
 import { withRenewableLease } from "./renewable-lease.js";
+import { NATIVE_LEASE_PROCESS } from "./lease-process.js";
+export { resolveProcessVisibilityScope } from "./lease-process.js";
 
 /** Explicit opt-out used only for deliberate local contention experiments. */
 export const LOCAL_TEST_CONCURRENCY_OVERRIDE = "ARC_TEST_ALLOW_CONCURRENCY";
@@ -85,63 +83,11 @@ interface LocalTestAdmissionDependencies {
   readonly writeLine: (line: string) => void;
 }
 
-const PROCESS_INSTANCE = randomUUID();
-
-/**
- * Resolve the process-visibility scope used to interpret recorded holder PIDs.
- *
- * @param platform - Runtime operating-system platform.
- * @param processInstance - Stable identity for this exact runtime process.
- * @param readPidNamespace - Linux procfs namespace reader.
- * @returns A scope shared only by runtimes whose PIDs are mutually observable.
- */
-export async function resolveProcessVisibilityScope(
-  platform: NodeJS.Platform,
-  processInstance: string,
-  readPidNamespace: () => Promise<string> = async () => await fsReadlink("/proc/self/ns/pid"),
-): Promise<string> {
-  if (platform !== "linux") return `${platform}:host`;
-  try {
-    return await readPidNamespace();
-  } catch {
-    return `linux:unknown:${processInstance}`;
-  }
-}
-
 const DEFAULT_DEPENDENCIES: LocalTestAdmissionDependencies = {
+  ...NATIVE_LEASE_PROCESS,
   acquireLock: acquireAdvisoryLock,
   git: createGitExec(),
-  mkdir: async (path) => {
-    await fsMkdir(path, { recursive: true, mode: 0o700 });
-  },
-  now: Date.now,
-  pid: process.pid,
-  processInstance: PROCESS_INSTANCE,
-  registerExitCleanup: (handle) => {
-    const listener = () => {
-      releaseAdvisoryLockSync(handle);
-    };
-    process.once("exit", listener);
-    return () => {
-      process.off("exit", listener);
-    };
-  },
-  releaseLock: releaseAdvisoryLockConfirmed,
-  renewLock: renewAdvisoryLock,
-  resolveProcessScope: async () => await resolveProcessVisibilityScope(process.platform, PROCESS_INSTANCE),
-  scheduleEvery: (callback, intervalMs) => {
-    const timer = setInterval(callback, intervalMs);
-    timer.unref();
-    return () => {
-      clearInterval(timer);
-    };
-  },
-  terminateProcess: () => {
-    process.kill(process.pid, "SIGTERM");
-  },
-  writeLine: (line) => {
-    process.stderr.write(`${line}\n`);
-  },
+  mkdir: async (path) => { await fsMkdir(path, { recursive: true, mode: 0o700 }); },
 };
 
 const LOCK_ROOT = join("arc", "test-suite");
