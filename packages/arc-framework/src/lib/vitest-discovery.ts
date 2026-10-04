@@ -1,4 +1,5 @@
 /** Native configured specification discovery before test admission or runtime preparation. */
+import { closeVitestController } from "./vitest-closing.js";
 import { createVitest, type TestSpecification, type Vitest, type CliOptions } from "vitest/node";
 
 /** One initialized controller and its configured native selection. */
@@ -36,7 +37,7 @@ export async function discoverVitestSelection(filters: string[], options: CliOpt
     return { controller, specifications, requiresRuntime: specifications.some(({ project }) =>
       project.name !== "unit" && project.name !== "unit-mocks") };
   } catch (error) {
-    await controller.close();
+    await closeVitestController(controller);
     throw error;
   }
 }

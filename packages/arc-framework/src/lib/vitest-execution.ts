@@ -1,4 +1,6 @@
 /** Selected native execution and controller closing inside CPU/artifact ownership. */
+import { closeVitestController } from "./vitest-closing.js";
+import { checkVitestCompletion } from "./vitest-completion.js";
 import { ensureOwnedRuntimeArtifacts } from "./build-entry.js";
 import { withTestArtifactOwnership } from "./build-ownership.js";
 import { PREPARED_RUNTIME_BUILD_KEY, requirePreparedRuntimeBuild, validateRuntimeBuildEvidence } from "./build-runtime-setup.js";
@@ -15,7 +17,7 @@ export async function executeVitestSelection(
   selection: VitestSelection, input: LocalTestAdmissionInput & { readonly packageRoot: string },
 ): Promise<void> {
   const lifetime = { closed: false };
-  const close = async (): Promise<void> => { lifetime.closed = true; await selection.controller.close(); };
+  const close = async (): Promise<void> => { lifetime.closed = true; await closeVitestController(selection.controller); };
   try {
     if (selection.requiresRuntime) {
       await withTestArtifactOwnership(input, async (lease) => {
@@ -24,11 +26,13 @@ export async function executeVitestSelection(
           selection.controller.provide(PREPARED_RUNTIME_BUILD_KEY, evidence);
           requirePreparedRuntimeBuild(input.packageRoot, selection.controller.getProvidedContext());
           await lease.confirmOwnership();
-          await selection.controller.runTestSpecifications(selection.specifications, true);
+          checkVitestCompletion(await selection.controller.runTestSpecifications(selection.specifications, true),
+            selection.controller.logger);
         } finally { await close(); }
       });
     } else {
-      try { await selection.controller.runTestSpecifications(selection.specifications, true); }
+      try { checkVitestCompletion(await selection.controller.runTestSpecifications(selection.specifications, true),
+            selection.controller.logger); }
       finally { await close(); }
     }
   } finally { if (!lifetime.closed) await close(); }

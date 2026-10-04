@@ -185,33 +185,21 @@ a compiler child that publishes. Stable repaired inputs restore successful prepa
           Every preparation path forbids generation with skip-build enabled; qualified prebuilt reuse and repaired
           continuation preserve that flag and avoid native compiler configuration loading.
 
-### `[ ]` **3.3 Preserve execution and final cleanup failure status — D8**
+### `[x]` **3.3 Preserve execution and final cleanup failure status — D8**
 
 - _Goal:_ Passing cases cannot hide empty completion or closing failures, and later cleanup handling never clears
   an existing native failure or replaces setup/collection diagnostics.
 
-    - `[ ]` **3.3.a Interpret completion through public reports and case results**
-        - Distinguish successful collection with zero completed cases from native setup, collection, and execution
-          failure. Optional pre-parsing can eliminate specifications before preparation; ordinary runtime name
-          filtering occurs after required preparation. Preserve native pre-parsing failure diagnostics as well.
-        - Enumerate nested cases through `TestModule.children.allTests`; count only `passed` and `failed` states from
-          `TestCase.result`, keeping skipped/pending cases separate from collection size and `ok` status.
-        - Build `test-first` (one behavior at a time):
-            - Unmatched names and all-skipped selections fail even when native empty-run options would allow success.
-            - Todo, dynamic skips, nested skipped suites, and pending cases contribute no completed cases; a mixed
-              passed/skipped selection establishes completion, while a completed failed case retains native failure.
-            - Collection/setup errors retain their diagnostics/status; passing and failed completed cases stay distinct.
+    - `[x]` **3.3.a Interpret completion through public reports and case results**
+        - Public module reports and nested case results count only passed or failed execution. Unmatched names,
+          skips, todos, and pending cases cannot establish completion; native parsing, setup, collection, and
+          completed failures retain their status and diagnostics.
 
-    - `[ ]` **3.3.b Observe close errors and final unhandled state in a shared scoped adapter**
-        - Forward every public `logger.error` call during `close`, restore the method in `finally`, then read
-          `state.getUnhandledErrors` before releasing ownership. Preserve any existing nonzero status.
-        - Build `test-first` (one behavior at a time):
-            - Rejected close, swallowed/logged teardown errors, and worker errors recorded only during closing fail.
-            - A prior execution/setup/collection failure remains primary when close also fails; final unhandled state
-              is still checked after a rejected close and its diagnostic is retained alongside the original failure.
-            - Clean closing permits success; logger restoration and lease release still occur on failures.
-            - Native ignored-unhandled-error options do not relax the adapter's final error checks.
-        - Pair faithful public-boundary fakes with disposable real-controller teardown/worker fixtures.
+    - `[x]` **3.3.b Observe close errors and final unhandled state in a shared scoped adapter**
+        - `closeVitestController` forwards public error logging during closing, restores the logger, and checks
+          final unhandled state before ownership release. Rejected or swallowed closing errors preserve prior
+          failures and remain non-passing even with native ignored-error options; real teardown and worker fixtures
+          exercise the shared discovery and execution closing paths.
 
 ### `[ ]` **3.4 Validate owned integration — D2, D3, D4, D5, D8** — validate exit criterion at segment scope
 
