@@ -356,7 +356,8 @@ import {
   StaleLaneAttemptsError,
   hostedRequestAdmissionRemedy,
   localPrepareAdmissionRemedy,
-  reviewResolveRemedy,
+  reviewResolveError,
+  staleLaneAttemptsRemedy,
 } from "../scripts/review-gate/runtime/review-policy-remedy.js";
 import { ReviewDriverAdmissionError } from "../scripts/review-gate/policy/review-execution-admission.js";
 import { createReduceDependencies } from "../scripts/review-gate/runtime/reduce-composition.js";
@@ -1979,8 +1980,8 @@ export async function handleReviewResolve(
     execute: (request, root) => dependencies.resolve(
       ReviewPolicyCommandRequestSchema.parse(request),
       root,
-    ),
-    remedyFor: reviewResolveRemedy,
+    ).catch((error: unknown) => { throw reviewResolveError(error, request); }),
+    remedyFor: staleLaneAttemptsRemedy,
   });
 }
 

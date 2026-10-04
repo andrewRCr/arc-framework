@@ -75,11 +75,11 @@ describe("hosted producer reference refusals", () => {
       const refusal = await resolve(request);
       expect(refusal).toMatchObject({
         exitCodes: [1], result: {
-          mode: "review-resolve", error: { code: "invalid-input" },
-          remedy: { argv: ["arc", "review", "hosted", "await", "-"],
-            text: expect.stringContaining("attempt") },
+          mode: "review-resolve", error: { code: "invalid-input",
+            message: expect.stringContaining("original acknowledged action") },
         },
       });
+      expect(refusal.result).not.toHaveProperty("remedy");
       await expect(resolve({
         ...request,
         attempts: [{ sourceId: handle.provider, outcome: "clean", reviewOperationId: terminal.attemptId }],

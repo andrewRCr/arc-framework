@@ -238,7 +238,30 @@ const HostedAwaitResultBaseShape = {
   handle: HostedRequestHandleSchema,
 };
 
-export const HostedAwaitResultSchema = z.union([
+const HostedAwaitCleanResultSchema = z.strictObject({
+  ...HostedAwaitResultBaseShape,
+  state: z.literal("clean"),
+  nextAction: z.literal("complete"),
+  reviewUrl: z.url(),
+  ...HostedTerminalCoverageShape,
+  responseSourceRef: z.string().trim().min(1).optional(),
+  hostedResultId: CanonicalDigestSchema.optional(),
+  attempt: ReviewAttemptSchema.optional(),
+});
+
+const HostedAwaitFindingsResultSchema = z.strictObject({
+  ...HostedAwaitResultBaseShape,
+  state: z.literal("findings"),
+  nextAction: z.literal("triage"),
+  reviewUrl: z.url(),
+  findings: NonEmptyHostedFindingsSchema,
+  ...HostedTerminalCoverageShape,
+  responseSourceRef: z.string().trim().min(1).optional(),
+  hostedResultId: CanonicalDigestSchema.optional(),
+  attempt: ReviewAttemptSchema.optional(),
+});
+
+const HostedAwaitNonTerminalResultSchema = z.union([
   z.strictObject({
     ...HostedAwaitResultBaseShape,
     state: z.literal("pending"),
@@ -253,27 +276,6 @@ export const HostedAwaitResultSchema = z.union([
     action: HostedAwaitActionSchema,
     ageMs: z.number().nonnegative(),
     attentionAfterMs: z.number().int().positive(),
-  }),
-  z.strictObject({
-    ...HostedAwaitResultBaseShape,
-    state: z.literal("clean"),
-    nextAction: z.literal("complete"),
-    reviewUrl: z.url(),
-    ...HostedTerminalCoverageShape,
-    responseSourceRef: z.string().trim().min(1).optional(),
-    hostedResultId: CanonicalDigestSchema.optional(),
-    attempt: ReviewAttemptSchema.optional(),
-  }),
-  z.strictObject({
-    ...HostedAwaitResultBaseShape,
-    state: z.literal("findings"),
-    nextAction: z.literal("triage"),
-    reviewUrl: z.url(),
-    findings: NonEmptyHostedFindingsSchema,
-    ...HostedTerminalCoverageShape,
-    responseSourceRef: z.string().trim().min(1).optional(),
-    hostedResultId: CanonicalDigestSchema.optional(),
-    attempt: ReviewAttemptSchema.optional(),
   }),
   z.strictObject({
     ...HostedAwaitResultBaseShape,
@@ -298,7 +300,16 @@ export const HostedAwaitResultSchema = z.union([
     nextAction: z.literal("stop"),
     reason: z.string().min(1),
   }),
-]).superRefine((result, context) => {
+]);
+
+const HostedAwaitObservedResultSchema = z.union([
+  HostedAwaitNonTerminalResultSchema, HostedAwaitCleanResultSchema, HostedAwaitFindingsResultSchema,
+]);
+
+function validateHostedTerminalCoverage(
+  result: z.infer<typeof HostedAwaitObservedResultSchema>,
+  context: z.RefinementCtx,
+): void {
   if (result.state !== "clean" && result.state !== "findings") return;
   const nativeIncremental = result.handle.provider === "coderabbit-pr"
     && result.handle.requestedCoverage === "incremental";
@@ -334,14 +345,20 @@ export const HostedAwaitResultSchema = z.union([
       });
     }
   }
-});
+}
+
+export const HostedAwaitResultSchema = HostedAwaitObservedResultSchema.superRefine(validateHostedTerminalCoverage);
 export type HostedAwaitResult = z.infer<typeof HostedAwaitResultSchema>;
 
 /** Public terminal output carries the sealed producer reference accepted by the policy command. */
-export const HostedAwaitCommandResultSchema = HostedAwaitResultSchema.superRefine((result, context) => {
+export const HostedAwaitCommandResultSchema = z.union([
+  HostedAwaitNonTerminalResultSchema,
+  HostedAwaitCleanResultSchema.extend({ attempt: ReviewAttemptSchema }),
+  HostedAwaitFindingsResultSchema.extend({ attempt: ReviewAttemptSchema }),
+]).superRefine(validateHostedTerminalCoverage).superRefine((result, context) => {
   if (result.state !== "clean" && result.state !== "findings") return;
   const attempt = result.attempt;
-  if (attempt === undefined || attempt.outcome !== result.state
+  if (attempt.outcome !== result.state
     || attempt.sourceId !== result.handle.provider
     || !("reviewOperationId" in attempt)
     || attempt.reviewOperationId !== hostedLaneAttemptId(result.handle)) {
