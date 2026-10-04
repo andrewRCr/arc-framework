@@ -3,7 +3,7 @@
 import { expect, it } from "vitest";
 import { StoreRefusalSchema, SyncResultSchema, sameReference, type StoreRefusal, type StoreResult } from "../../../src/lib/store/index.js";
 import { refusalRecoveryTable } from "./recovery.js";
-import { assertion, success, type SuiteContext } from "./suite-tools.js";
+import { assertion, recordAssertion, success, type SuiteContext } from "./suite-tools.js";
 
 function observedRefusal(result: StoreResult<unknown>): StoreRefusal {
   if (result.status === "refused") return StoreRefusalSchema.parse(result.refusal);
@@ -21,7 +21,16 @@ export function registerRecoveryAssertions(context: SuiteContext): void {
   for (const [code, cases] of Object.entries(refusalRecoveryTable)) for (const scenario of cases) {
     const reason = context.registration.declarations.refusalExclusions[scenario.id];
     const name = `${scenario.id}: ${scenario.produce} Remedy: ${scenario.repair}`;
+    let eligible = false;
+    for (const family of context.registration.declarations.families) {
+      recordAssertion(context, family, scenario.id);
+      const exclusion = context.registration.declarations.familyExclusions[family];
+      const familyReason = exclusion?.items?.[context.item] ?? exclusion?.assertions?.[scenario.id];
+      if (familyReason) it.skip(`${family}: ${name} — ${familyReason}`, () => {});
+      else eligible = true;
+    }
     if (reason) { it.skip(`${name} — ${reason}`, () => {}); continue; }
+    if (!eligible) continue;
     it(name, async () => {
       const fixture = await context.registration.create();
       const operation = await fixture.produce(scenario.id);
