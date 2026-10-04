@@ -58,10 +58,13 @@ repository-relative files or directories beneath the package's unit, integration
 execution flags follow through the ordinary npm separator. Resolve target operands from the checkout root to
 absolute paths before entering package cwd; never guess between repository-relative and package-relative spellings.
 
-Use Vitest's public `parseCLI` for flag arity and values. Fix the package configuration and run mode. Reject
-config/root overrides, alternate commands, source-related operands, and watch/browser/UI modes with an actionable
-diagnostic. Native project filters may restrict the configured project set. Do not interpret arbitrary option
-values as target paths.
+Use Vitest's public `parseCLI` for native argument parsing, then validate supported option fields and values before
+discovery. `parseCLI` returns parsed unknown fields and malformed values without running native command validation.
+Fix the package configuration, configured runtime membership, and run mode. Reject unknown or malformed options,
+config/root overrides, alternate commands, discovery/source overrides such as `changed`, `related`, `dir`, `include`,
+and `typecheck`, and watch/browser/UI modes with an actionable diagnostic. Reject an additional literal `--` in the
+adapter's arguments so operands cannot disappear into the parser's separate tail. Native project filters may restrict
+the configured project set. Do not interpret arbitrary option values as target paths.
 
 Project configuration supplies isolation and worker defaults. Explicit supported native execution settings use
 Vitest's native precedence, including `--isolate`/`--no-isolate`, pool, file parallelism, and worker-count options.
@@ -70,10 +73,12 @@ relax project membership, exact-target validation, admission/artifact ownership,
 rules. Preserve those adapter constraints even when a native option would otherwise permit a successful empty run
 or ignored unhandled errors.
 
-Adapt root `lint:ts:file` with explicit repository-relative targets before an optional adapter `--` delimiter.
-Forward the following ESLint tokens unchanged to the installed ESLint CLI, executing in package cwd with normalized
-targets. Option values retain native package-cwd semantics. Preserve package-local `lint:ts:file` and its suppression
-behavior; preserve root `lint:md:file` and the existing Markdown fix helpers.
+Adapt root `lint:ts:file` with at least one explicit repository-relative file, directory, or glob target before an
+optional adapter `--` delimiter. Normalize those target bases while preserving native glob syntax. Forward the following
+ESLint tokens unchanged to the installed ESLint CLI, executing in package cwd: option values and any explicitly forwarded
+positional patterns retain native package-cwd semantics. Document both bases. Preserve package-local `lint:ts:file` and
+its suppression behavior; preserve root `lint:md:file` and the existing Markdown fix helpers. The staged-file caller reads
+NUL-delimited Git paths and passes literal repository-relative targets, including names Git would otherwise quote.
 
 ```bash
 npm run -s test:file -- packages/arc-framework/__tests__/unit/template/recipe.test.ts -t "accepts a valid recipe"
@@ -85,26 +90,45 @@ npm run -s lint:md:file -- .arc/active/meta-workspace-tool-paths.md
 
 ### D2 — Discovery and controller lifetime
 
+Before configuration loading or controller creation, mirror `prepareVitest`'s native environment initialization:
+set `process.env.TEST` and `process.env.VITEST` to `"true"`, and apply `process.env.NODE_ENV ??= "test"`. This shared
+bootstrap preserves native handling of an explicitly supplied `NODE_ENV` for tier, focused, and retained-cost runs.
+
 Create a public `createVitest` controller in package cwd and discover with `getRelevantTestSpecifications` before
 requesting admission or a build. For `test:file`, constrain discovery to each exact named file or descendants of
-each named directory. Every target must contribute an eligible selected specification; a valid target cannot mask
-an invalid, excluded, or empty one. Empty discovery fails before admission or preparation.
+each named directory. Before optional pre-parsing, every target must contribute an eligible specification to this
+filename/project discovery; a valid target cannot mask an invalid, excluded, or empty one. Empty discovery fails
+before admission or preparation.
 
-Use discovered specification projects as the authority for unit/unit-mocks placement and heavy admission. Retain
+Initialize reporting and coverage once through `standalone` before optional pre-parsing. When configured
+`experimental.preParse` is enabled, invoke public `experimental_parseSpecifications` on the discovered set, then
+apply `Vitest.start`'s predicate: retain specifications with no `testModule` or with `testModule.task.mode` other
+than `skip`. This preserves native cross-file `.only` and early name selection without executing test modules or
+global setups. An empty refined selection fails before admission or preparation; preserve native parsing failures
+and their diagnostics rather than replacing them with an empty-selection explanation.
+
+Use the refined specification projects as the authority for unit/unit-mocks placement and heavy admission. Retain
 configured project membership and isolation/worker defaults; apply explicit execution overrides under D1. Unit-only
 selection takes neither the heavy CPU slot nor the artifact lease and requests no build. Any integration/E2E
 selection takes the heavy slot, then the checkout artifact lease, and prepares runtime/schema output under that
 ownership.
 
-Supply qualified build evidence with the public controller `provide` API before global setup. Initialize reporting
-through `standalone`, then execute the discovered specifications with `runTestSpecifications`. Close the same
-controller in `finally` through D8 before releasing ownership. The controller process owns the leases throughout;
-a parent wrapper around a separate controller process does not establish the required lifetime.
+For artifact-requiring selections, validate the preparation result and supply qualified build evidence with the public
+controller `provide` API before global setup or execution. Execute the refined specifications with
+`runTestSpecifications(specifications, true)`, preserving `Vitest.start`'s initial-run coverage semantics without
+reinitializing reporting/coverage. Close the same controller in `finally` through D8 before releasing ownership. The
+controller process owns the leases throughout; a parent wrapper around a separate controller process does not establish
+the required lifetime.
 
 Existing run-mode tier scripts compose the same lifetime and preparation boundary while retaining their native
-package-relative filters, project sets, excludes, and sharding. The exact-target/per-operand rule is specific to
-`test:file`; broad tier commands retain their existing coverage. Explicit native watch invocation remains outside
-this run-mode contract.
+package-relative filters, project sets, excludes, and sharding. Normalize CLI excludes to `cliExclude` before discovery.
+For native tier filters containing a colon, mirror native `normalizeCliOptions` before controller creation/discovery:
+default `includeTaskLocation` to `true` only when unset, retaining explicit values and native line-filter diagnostics.
+The focused root helper continues to accept D1's literal existing targets rather than filename-and-line suffixes.
+Ownership follows the refined projects before sharding: `Vitest.runFiles` initializes their global setups before
+`createPool` applies native sharding. Pass the refined set to native execution once; do not pre-shard it and then
+shard again. The exact-target/per-operand rule is specific to `test:file`; broad tier commands retain their existing
+coverage. Explicit native watch invocation remains outside this run-mode contract.
 
 ### D3 — Runtime preparation and setup evidence
 
@@ -115,10 +139,12 @@ does not depend on the outer npm lifecycle name.
 
 Both global setups read controller evidence through `getProvidedContext`, validate it against the checkout's
 current runtime/schema evidence and required files, and use it without reacquiring ownership or invoking a nested
-build. Invalid evidence prevents execution. Multiple heavy projects in one controller share the prepared generation.
+build. Use own-key presence to identify provided evidence: any present invalid value, including `undefined`, `null`,
+or missing record fields, prevents execution without a nested repair build. Multiple heavy projects in one controller
+share the prepared generation.
 
-Without controller evidence, direct Vitest setup may ensure runtime/schema output through the coordinator's build
-ownership. That lease covers generation only and does not pin an unmanaged test run. Keep this limitation explicit
+Only when the evidence key is absent, direct Vitest setup may ensure runtime/schema output through the coordinator's
+build ownership. That lease covers generation only and does not pin an unmanaged test run. Keep this limitation explicit
 in developer command guidance.
 
 `ARC_E2E_SKIP_BUILD=1` forbids generation in every preparation path. Require matching prebuilt evidence and required
@@ -157,9 +183,12 @@ require their inputs to have been present in the baseline, and compare pre/post 
 Use baseline digests and inventory in the generated evidence. Observed changes discard staging and ask for a rerun
 once inputs settle; do not publish the mixed-input result or retry indefinitely.
 
+Treat absent live output as initial publication: create the output root and regard a missing live inventory as empty.
 Validate required staged output, promote ancillary files and the complete CLI entry using the per-file machinery,
-finish required output cleanup, and publish freshness evidence last. This is not an atomic transaction over the
-whole output set. Excluding supported artifact consumers during publication supplies the required consistency.
+finish required live-output cleanup, and publish freshness evidence last. Required live-output cleanup failure prevents
+qualification. After publication, remove only the owning generation's leftover staging on a best-effort basis and report
+disposal failures without revoking qualification or failing the completed request. This is not an atomic transaction
+over the whole output set. Excluding supported artifact consumers during publication supplies the required consistency.
 Do not admit tests after failed compilation, output validation, or promotion. A failed compile leaves the prior
 live entry available; incomplete publication provides an actionable retry route. A later invocation rechecks live
 evidence and required files before reuse or rebuilding.
@@ -177,9 +206,14 @@ an otherwise current CLI stale. Shared resolver controls in D7 conservatively co
 Capture producer graphs from actual native bundler/loader metadata. CLI inputs come from its native compiler
 metadata. Schema/build-control roots cover `createProductionSchemaRegistry`, `writeKernelSchemaArtifact`, both
 tsup configs, and the new build adapter/coordinator. `bundleRequire`, used by tsup's `loadTsupConfig`, returns
-resolved input paths through `dependencies`; the config loader itself discards that field, so collection must
-retain it at the producer seam. Scope shared compilation controls to both identities and schema-only producer
-source inputs to the test identity.
+resolved input paths through `dependencies`; `loadTsupConfig` discards that field and supplies no public capture
+hook. The build adapter loads the selected configuration with `bundleRequire`, retains its dependencies, and
+passes the captured options to public `tsup.build` with `config: false` under the package's native working-directory
+contract. Keep schema producer imports outside that shared configuration/control graph; load the schema producer
+separately through `bundleRequire` and retain the dependencies of the producer that actually generates the schema.
+Native metadata also covers the adapter/coordinator's first-party control graph. Scope shared compilation controls
+to both identities and schema-only source inputs to the test identity. A schema dependency also consumed by the CLI
+or shared controls remains a runtime input; do not subtract overlapping dependencies from the runtime graph.
 
 Retain actual first-party JS, TS, and JSON inputs and exclude installed-library inputs from that source set.
 Use TypeScript's `readConfigFile` and `parseJsonConfigFileContent` for configuration and extends chains; its
@@ -216,16 +250,17 @@ Include these controls in D5's baseline, pre/post comparison, and published evid
 nor native input metadata alone supplies complete loader-control identity.
 
 The dependency contract is normal npm-managed installed contents. Lockfile plus installed resolution/tool identity
-does not identify arbitrary hand-edited installed bytes. Missing install evidence prevents reuse and names the
-installation/build repair. In-place dependency edits or external source links without an identity change require
-an explicit build and remain outside automatic reuse; do not hash all of `node_modules` to support them.
+does not identify arbitrary hand-edited installed bytes. Missing or unusable install evidence prevents reuse and
+names the installation/build repair. In-place dependency edits or external source links without an identity change
+require an explicit build and remain outside automatic reuse; do not hash all of `node_modules` to support them.
 
 ### D8 — Completion and failure policy
 
-Preserve native setup, collection, and execution failures and their diagnostics. After successful collection,
-zero completed cases is non-passing, including an unmatched name filter or an all-skipped selection. Do not replace
-an existing failure with an empty-filter explanation. Name filtering occurs after artifact preparation, so an
-empty case result does not establish that no build was required.
+Preserve native pre-parsing, setup, collection, and execution failures and their diagnostics. After successful
+collection, zero completed cases is non-passing, including an unmatched name filter or an all-skipped selection.
+Do not replace an existing failure with an empty-filter explanation. D2's optional pre-parsing can eliminate
+specifications before artifact preparation; ordinary runtime name filtering occurs afterward, so an empty executed
+case result does not establish that no build was required.
 
 All supported controllers close through a scoped adapter. Observe public `logger.error` during `close`, forward
 every call unchanged, and restore the method in `finally`. A rejected close or an error logged during closing makes
@@ -243,10 +278,21 @@ filters remain intact. Supported root/package run-mode scripts use the controlle
 root helper supplies D1/D2's stricter target contract. Preserve the native watch convenience outside this boundary.
 Keep direct compiler entry internal to the coordinator to avoid recursive public-wrapper acquisition.
 
+Retained cost runs use the same discovery, preparation, and completion boundary. `runTestCostMeasurement` currently
+times its `startVitest` call, which closes the native controller before returning, followed by `captureTestCost`.
+Preserve that measured purpose: include controller creation/discovery and optional pre-parsing, artifact waiting and
+qualification/generation, execution, closing, and capture. Pause measurement during CPU admission wait and report that
+wait separately; exclude lease release and persistence. Capture and finish timing after common closing/status checks
+and before ownership release, then retain successful output only after release. Keep the existing record format,
+budgets, and reporting.
+
 CI artifact upload/download must retain the regenerated evidence with runtime/schema output. A prebuilt consumer
-must have matching input and installation/tool/runtime context; prepare artifacts in a matching context when the
-existing route cannot supply them. Keep the existing full-build/declaration gate. `ARC_E2E_SKIP_BUILD=1` remains
-a prohibition on generation and never relaxes qualification or artifact ownership.
+must have matching input and installation/tool/runtime context. After installation and artifact download, run the
+coordinator's runtime/schema preparation as a consumer-local preflight with `ARC_E2E_SKIP_BUILD` unset. Reuse matching
+output; generate matching output in that consumer's context when qualification fails. Missing or unusable installation
+evidence requires installation repair before preparation can succeed. Then run tests with `ARC_E2E_SKIP_BUILD=1`;
+they revalidate under artifact ownership and never generate. Keep the producer's full-build/declaration gate and
+platform-local full builds. Preserve existing CI triggers; skip-build never relaxes qualification or artifact ownership.
 
 Update focused examples and operand guidance in `QUICK-REFERENCE.md` and `DEV-RULES.PROJECT.md`. Distinguish root
 target operands, package cwd, forwarded option values, supported controller lifetime, and direct native convenience.
