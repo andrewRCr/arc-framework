@@ -1,7 +1,8 @@
 /** atomic batches, record-bound freshness, saved states and provenance history. */
 
 import { expect } from "vitest";
-import { KIND_REGISTRY, RecordReferenceSchema, type KindId, type Mutation } from "../../../src/lib/store/index.js";
+import { KIND_REGISTRY, RecordReferenceSchema, sameReference, type KindId, type Mutation, type RecordReference } from "../../../src/lib/store/index.js";
+import type { ConformanceFixture } from "./fixture-contract.js";
 import { assertion, everyKind, seed, success, testProvenance, update, type SuiteContext } from "./suite-tools.js";
 
 function mutable(kind: KindId): boolean { return !["create-only", "write-once"].includes(KIND_REGISTRY[kind].writerRule); }
@@ -70,16 +71,30 @@ export function registerBatchAssertions(context: SuiteContext): void {
 export function registerFreshnessAssertions(context: SuiteContext): void {
   everyKind(context, "unrelated-write-keeps-record-bound", async (fixture, reference) => {
     const record = await seed(fixture, reference);
-    await seed(fixture, fixture.reference("work-item/meta", "unrelated"));
+    await seed(fixture, unrelatedReference(context, fixture, reference));
     expect(success(await fixture.store.read({ reference: record.reference })).version).toBe(record.version);
     if (mutable(reference.kind)) success(await fixture.store.write(update(fixture, record)));
   });
   everyKind(context, "unrelated-write-keeps-scoped-changes", async (fixture, reference) => {
     const record = await seed(fixture, reference);
     const anchor = await fixture.settle();
-    await seed(fixture, fixture.reference("work-item/meta", "unrelated"));
+    await seed(fixture, unrelatedReference(context, fixture, reference));
     expect(success(await fixture.store.changes({ from: anchor, to: await fixture.settle(), references: [record.reference] }))).toEqual([]);
   });
+}
+
+function unrelatedReference(context: SuiteContext, fixture: ConformanceFixture, reference: RecordReference): RecordReference {
+  const declarations = context.registration.declarations;
+  const kinds = (Object.keys(KIND_REGISTRY) as KindId[]).filter((kind) => {
+    const family = KIND_REGISTRY[kind].family;
+    return declarations.families.includes(family) && !declarations.familyExclusions[family]?.items?.[context.item];
+  });
+  const candidates = [reference.kind, ...kinds.filter((kind) => !kind.endsWith("/conflict-record")), ...kinds];
+  for (const kind of candidates) {
+    const unrelated = fixture.reference(kind, "unrelated");
+    if (!sameReference(unrelated, reference)) return unrelated;
+  }
+  throw new Error("Freshness requires a distinct record in a served, applicable family");
 }
 
 /** Register current anchors, historical snapshots, restrictions and exact state advancement.
