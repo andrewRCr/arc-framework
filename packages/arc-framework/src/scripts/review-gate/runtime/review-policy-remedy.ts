@@ -114,7 +114,7 @@ export function staleLaneAttemptsRemedy(error: unknown, request: unknown): Spine
 export function reviewResolveRemedy(error: unknown, request: unknown): SpineRemedy | undefined {
   const stale = staleLaneAttemptsRemedy(error, request);
   if (stale !== undefined) return stale;
-  if (!(error instanceof LocalReviewResultReaderError) || error.code !== "missing-result") return undefined;
+  if (!(error instanceof LocalReviewResultReaderError) || error.code !== "missing-producer") return undefined;
   const parsed = ReviewPolicyCommandRequestSchema.safeParse(request);
   const attempt = parsed.success ? parsed.data.attempts.at(-1) : undefined;
   if (attempt?.sourceId !== "coderabbit-pr" && attempt?.sourceId !== "codex-pr") return undefined;

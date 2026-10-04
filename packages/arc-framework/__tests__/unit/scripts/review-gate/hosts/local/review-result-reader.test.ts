@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { handleReviewResolve } from "../../../../../../src/handlers/review.js";
 
 import {
   createHostedHandleFixture,
@@ -59,9 +60,38 @@ import { normalizeFrontlineOutcome } from
   "../../../../../../src/scripts/review-gate/policy/frontline-outcome.js";
 import { reduceReviewRouting } from
   "../../../../../../src/scripts/review-gate/policy/routing.js";
+import { resolveEvidenceBoundReviewPolicy } from
+  "../../../../../../src/scripts/review-gate/policy/review-policy-evidence.js";
 
 const oid = (character: string): string => character.repeat(40);
 const digest = (value: string): `sha256:${string}` => canonicalDigest({ value });
+
+async function expectOperationalRefusal(
+  reader: LocalReviewResultReader,
+  request: ReturnType<typeof responsePolicyRequestFixture>,
+) {
+  const output: string[] = [];
+  const exitCodes: number[] = [];
+  await handleReviewResolve("-", {
+    resolveRoot: () => "/trusted-repository",
+    readText: async () => JSON.stringify(request),
+    resolve: (parsed) => resolveEvidenceBoundReviewPolicy(parsed, {
+      sources: parsed.attempts.map((attempt) => attempt.sourceId), maxPasses: 2,
+      resultReader: reader, confirmTarget: async (target) => target,
+      dispositionStore: {
+        readDispositionRecord: async () => null,
+        appendDispositionRecord: async () => { throw new Error("not used"); },
+      },
+    }),
+    write: (text) => output.push(text), setExitCode: (code) => exitCodes.push(code),
+  });
+  const result = JSON.parse(output.join("")) as unknown;
+  expect(exitCodes).toEqual([1]);
+  expect(result).toMatchObject({
+    mode: "review-resolve", error: { code: "unexpected-failure", message: expect.stringContaining("unavailable") },
+  });
+  expect(result).not.toHaveProperty("remedy");
+}
 
 function localFixture(options: {
   findings?: Parameters<typeof createReviewReceipt>[0]["findings"];
@@ -213,6 +243,7 @@ function localFixture(options: {
 
 function readerForLocalFixture(options: {
   exactReceiptMissing?: boolean;
+  missingArtifact?: "receipt" | "source" | "admission";
   findings?: Parameters<typeof createReviewReceipt>[0]["findings"];
   findingSourceLabel?: string;
   scopeMode?: "whole-target" | "chunked";
@@ -240,19 +271,19 @@ function readerForLocalFixture(options: {
       status: "complete",
       records: [
         { version: 1, state: fixture.state },
-        { version: 2, state: lane },
+        ...(options.missingArtifact === "admission" ? [] : [{ version: 2, state: lane }]),
       ],
     }),
   };
   const receiptIndex: ForwardReviewReceiptIndex = {
-    readReceiptEntries: async () => [{
+    readReceiptEntries: async () => options.missingArtifact === "receipt" ? [] : [{
       receipt: fixture.receipt,
       durableEvidenceRef: "git-common:review-gate/evidence/receipts-v2.json#1",
     }],
     readReceiptReference: async () => options.exactReceiptMissing ? null : fixture.receipt,
   };
   const sourceStore: LocalReviewSourceStore = {
-    readSource: async () => fixture.source,
+    readSource: async () => options.missingArtifact === "source" ? null : fixture.source,
     appendSource: async () => ({ sourceRef: fixture.state.sourceRef }),
   };
   const outcomeStore: FrontlineOutcomeStore = {
@@ -268,6 +299,7 @@ function readerForLocalFixture(options: {
 function readerForFrontlineFixture(options: {
   settled?: boolean;
   runOutcome?: "findings" | "failed";
+  outcomeMissing?: boolean;
 } = {}) {
   const target = createReviewTarget({
     schemaVersion: 2,
@@ -392,11 +424,13 @@ function readerForFrontlineFixture(options: {
     }),
   };
   const outcomeStore: FrontlineOutcomeStore = {
-    readOutcome: async () => ({
-      version: 1,
-      record: outcomeRecord,
-      outcomeRef: "git-common:review-gate/outcomes/frontline.json#1",
-    }),
+    readOutcome: async () => options.outcomeMissing === true
+      ? { version: 0, record: null, outcomeRef: null }
+      : {
+          version: 1,
+          record: outcomeRecord,
+          outcomeRef: "git-common:review-gate/outcomes/frontline.json#1",
+        },
     appendOutcome: async () => { throw new Error("not used"); },
   };
   const receiptIndex: ForwardReviewReceiptIndex = {
@@ -763,8 +797,47 @@ describe("local review result reader", () => {
     const fixture = readerForHostedFixture();
 
     await expect(fixture.reader.readResult("hosted/missing")).rejects.toMatchObject({
-      code: "missing-result",
+      code: "missing-producer",
     });
+  });
+
+  it.each(["receipt", "source", "admission"] as const)(
+    "keeps a missing local %s artifact an operational refusal until repaired",
+    async (missingArtifact) => {
+      const options: Parameters<typeof readerForLocalFixture>[0] = { missingArtifact };
+      const { fixture, reader } = readerForLocalFixture(options);
+      const request = responsePolicyRequestFixture({
+        headSha: fixture.target.headSha, reviewOperationId: fixture.state.operationId,
+      });
+      await expectOperationalRefusal(reader, request);
+      delete options.missingArtifact;
+      await expect(reader.readResult(fixture.state.operationId)).resolves.toMatchObject({
+        kind: "attested-local", producerId: fixture.state.operationId,
+      });
+    },
+  );
+
+  it("keeps a missing frontline outcome an operational refusal until repaired", async () => {
+    const options = { outcomeMissing: true };
+    const { run, reader, outcome } = readerForFrontlineFixture(options);
+    const request = responsePolicyRequestFixture({
+      headSha: outcome.target.headSha, reviewOperationId: run.operationId,
+      lane: "frontline", sourceId: run.sourceIdentity,
+    });
+    await expectOperationalRefusal(reader, request);
+    options.outcomeMissing = false;
+    await expect(reader.readResult(run.operationId)).resolves.toMatchObject({
+      kind: "frontline", producerId: run.operationId,
+    });
+  });
+
+  it("does not prescribe hosted await for an existing producer with missing artifacts", async () => {
+    const { fixture, reader } = readerForLocalFixture({ missingArtifact: "receipt" });
+    const request = responsePolicyRequestFixture({
+      headSha: fixture.target.headSha, reviewOperationId: fixture.state.operationId,
+      sourceId: "codex-pr", pullRequest: 42,
+    });
+    await expectOperationalRefusal(reader, request);
   });
 
   it("rejects a producer identity admitted by more than one native record", async () => {

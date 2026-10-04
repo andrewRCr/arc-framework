@@ -2025,7 +2025,7 @@ function errorCode(error: unknown): string | null {
 
 function reviewErrorCode(mode: ReviewFamilyMode, error: unknown): string | null {
   return mode === "review-resolve" && error instanceof LocalReviewResultReaderError
-    && error.code === "missing-result"
+    && error.code === "missing-producer"
     ? "invalid-input"
     : errorCode(error);
 }
