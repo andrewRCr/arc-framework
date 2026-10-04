@@ -1,86 +1,26 @@
-/** Unit tests for the in-process Vitest adapter used by local heavy-test admission. */
+/** Supported tier execution observes native environment defaults before configuration. */
+import { readFile, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { expect, it } from "vitest";
+import { makeVitestControllerFixture, runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
 
-import { describe, expect, it, vi } from "vitest";
-
-import { runLocalVitestTier } from "../../src/lib/local-vitest-runner.js";
-
-describe("runLocalVitestTier", () => {
-  it.each([
-    ["full", []],
-    ["unit", ["--project", "unit", "--project", "unit-mocks"]],
-    ["lane", [
-      "--project",
-      "unit",
-      "--project",
-      "unit-mocks",
-      "--project",
-      "integration",
-    ]],
-    ["integration", ["--project", "integration"]],
-    ["arc-contracts", [
-      "--project",
-      "integration",
-      "framework-sync",
-      "live-transition-records",
-      "pr-open-extensions",
-      "review-gate-workflows",
-    ]],
-    ["e2e", ["--project", "e2e"]],
-    ["e2e-focused", ["--project", "e2e"]],
-    ["portability", [
-      "fs.test.ts",
-      "local-test-admission.test.ts",
-      "worktree-marker.test.ts",
-      "commit-message-retry-store.test.ts",
-      "advisory-lock",
-      "user-sync-notes-lock",
-      "ref-tree-cas",
-      "state-ref-race.e2e",
-      "git-executor",
-      "delivery-transfer.e2e",
-    ]],
-  ] as const)("runs the %s tier through the current Vitest controller process", async (tier, tierArgs) => {
-    const exit = vi.fn(async () => {});
-    const parseCli = vi.fn(() => ({ filter: ["filtered.test.ts"], options: { run: true } }));
-    const start = vi.fn(async () => ({ shouldKeepServer: () => false, exit }));
-
-    await runLocalVitestTier(tier, ["filtered.test.ts", "--passWithNoTests=false"], { parseCli, start });
-
-    expect(parseCli).toHaveBeenCalledWith([
-      "vitest",
-      "run",
-      ...tierArgs,
-      "filtered.test.ts",
-      "--passWithNoTests=false",
-    ]);
-    expect(start).toHaveBeenCalledWith("test", ["filtered.test.ts"], { run: true });
-    expect(exit).toHaveBeenCalledOnce();
-  });
-
-  it("does not terminate a controller that intentionally keeps its server", async () => {
-    const exit = vi.fn(async () => {});
-
-    await runLocalVitestTier("full", [], {
-      parseCli: () => ({ filter: [], options: { run: true } }),
-      start: async () => ({ shouldKeepServer: () => true, exit }),
-    });
-
-    expect(exit).not.toHaveBeenCalled();
-  });
-
-  it("normalizes forwarded excludes for Vitest's programmatic API", async () => {
-    const exit = vi.fn(async () => {});
-    const excludes = ["**/anchor-one.test.ts", "**/anchor-two.test.ts"];
-
-    await runLocalVitestTier("e2e", [], {
-      parseCli: () => ({ filter: [], options: { exclude: excludes } }),
-      start: async (_mode, _filters, options) => {
-        expect(options.cliExclude).toEqual(excludes);
-        expect(options.exclude).toBeUndefined();
-        return { shouldKeepServer: () => false, exit };
-      },
-    });
-
-    expect(exit).toHaveBeenCalledOnce();
-  });
-});
+it.each([undefined, "explicit-native-environment"])("bootstraps config, setup, and workers with NODE_ENV=%s", async (nodeEnv) => {
+  const fixture = await makeVitestControllerFixture();
+  const expected = nodeEnv ?? "test";
+  try {
+    await writeFile(join(fixture.packageRoot, "tests/unit-environment.test.mjs"), `
+import { it } from "vitest";
+import { appendFileSync } from "node:fs";
+it("worker environment", () => appendFileSync(${JSON.stringify(fixture.events)}, "worker:" +
+  [process.env.TEST, process.env.VITEST, process.env.NODE_ENV].join(":") + "\\n"));
+`);
+    const result = await runVitestControllerFixture(fixture.packageRoot, ["full"],
+      { TEST: undefined, VITEST: undefined, NODE_ENV: nodeEnv, CI: "", ARC_TEST_ALLOW_CONCURRENCY: "" });
+    expect(result.code, result.stderr).toBe(0);
+    const events = await readFile(fixture.events, "utf8");
+    for (const stage of ["config", "unit-setup", "worker"]) expect(events).toContain(`${stage}:true:true:${expected}`);
+    expect(events).toContain("closed");
+    expect(events).not.toContain("integration-setup");
+    expect(events.split("\n").filter((event) => event === "initialized")).toHaveLength(1);
+  } finally { await rm(fixture.root, { recursive: true, force: true }); }
+}, 30_000);

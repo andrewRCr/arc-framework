@@ -1,20 +1,9 @@
 /** In-process Vitest adapter for repository-wide local test admission. */
 
-import { parseCLI, startVitest } from "vitest/node";
+import { parseCLI } from "vitest/node";
 
-import type { LocalHeavyTestTier } from "./local-test-admission.js";
-
-type ParsedVitestOptions = ReturnType<typeof parseCLI>["options"];
-
-interface VitestController {
-  shouldKeepServer(): boolean;
-  exit(): Promise<void>;
-}
-
-interface LocalVitestRunnerDependencies {
-  parseCli(argv: string[]): { filter: string[]; options: ParsedVitestOptions };
-  start(mode: "test", filters: string[], options: ParsedVitestOptions): Promise<VitestController>;
-}
+import { withLocalHeavyTestAdmission, type LocalHeavyTestTier } from "./local-test-admission.js";
+import { discoverVitestSelection } from "./vitest-discovery.js";
 
 /**
  * Integration suites that read this repository's own tracked content rather than temporary fixtures, so a
@@ -27,38 +16,34 @@ export const ARC_CONTRACT_SUITES = [
   "review-gate-workflows",
 ] as const;
 
-const DEFAULT_DEPENDENCIES: LocalVitestRunnerDependencies = {
-  parseCli: parseCLI,
-  start: async (mode, filters, options) => await startVitest(mode, filters, options),
-};
-
 /**
  * Execute one configured tier through Vitest's supported in-process API.
  *
  * @param tier - Logical package-script tier.
  * @param forwardedArguments - User-supplied Vitest filters and flags.
- * @param dependencies - Injectable parser and controller startup seams.
  * @returns Completion after Vitest has closed its controller resources.
  */
 export async function runLocalVitestTier(
   tier: LocalHeavyTestTier,
   forwardedArguments: string[],
-  dependencies: LocalVitestRunnerDependencies = DEFAULT_DEPENDENCIES,
 ): Promise<void> {
-  const { filter, options } = dependencies.parseCli([
+  const { filter, options } = parseCLI([
     "vitest",
     "run",
     ...localVitestTierArguments(tier),
     ...forwardedArguments,
   ]);
-  const context = await dependencies.start("test", filter, normalizeCliOptions(options));
-  if (!context.shouldKeepServer()) await context.exit();
-}
-
-function normalizeCliOptions(options: ParsedVitestOptions): ParsedVitestOptions {
-  if (options.exclude === undefined) return options;
-  const { exclude, ...normalized } = options;
-  return { ...normalized, cliExclude: exclude };
+  const selection = await discoverVitestSelection(filter, options);
+  const lifetime = { closed: false };
+  const execute = async (): Promise<void> => {
+    try { await selection.controller.runTestSpecifications(selection.specifications, true); }
+    finally { lifetime.closed = true; await selection.controller.close(); }
+  };
+  try {
+    if (selection.requiresRuntime) {
+      await withLocalHeavyTestAdmission({ cwd: process.cwd(), env: process.env, tier }, execute);
+    } else await execute();
+  } finally { if (!lifetime.closed) await selection.controller.close(); }
 }
 
 function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {

@@ -158,25 +158,11 @@ a compiler child that publishes. Stable repaired inputs restore successful prepa
 - _Goal:_ Actual discovered projects determine build/admission needs, and the same controller owns each heavy
   run's qualified generation until its closing path finishes.
 
-    - `[ ]` **3.1.a Discover configured specifications before admission or preparation**
-        - Replace run-mode startup composition with public `createVitest` and `getRelevantTestSpecifications` in package
-          cwd; preserve configured membership/defaults and explicit native execution precedence.
-        - Mirror `prepareVitest`'s environment bootstrap before configuration/controller creation: set `TEST` and
-          `VITEST` to `"true"` and apply `NODE_ENV ??= "test"` in the owning process.
-        - Initialize reporting/coverage once through `standalone`; when configured `experimental.preParse` is enabled,
-          call public `experimental_parseSpecifications` and apply `Vitest.start`'s skip predicate. Retain specs with
-          no `testModule` or with `testModule.task.mode` other than `skip`; classify this refined set before ownership.
-          Preserve native parsing diagnostics and leave native sharding to execution.
-        - Build `test-first` (one behavior at a time):
-            - Disposable config, global-setup, and worker fixtures observe native test-environment defaults and native
-              handling of explicitly supplied `NODE_ENV`; the shared bootstrap runs before configuration is evaluated.
-            - Empty discovery fails without CPU/artifact acquisition or building, and its controller is still closed.
-            - Cross-file `.only` matches native `startVitest`; optional pre-parsing can refine mixed discovery to unit
-              only without heavy/artifact acquisition, building, or excluded integration setup/module execution.
-            - Disabled pre-parsing preserves the discovered set; an empty refined set fails before ownership/building.
-              Native parsing failures retain their diagnostics rather than becoming an empty-selection explanation.
-            - Unit/unit-mocks-only refined selection takes no heavy/artifact lease and requests no build regardless of
-              tier label. Integration/E2E and mixed refined selections determine the heavy path from their projects.
+    - `[x]` **3.1.a Discover configured specifications before admission or preparation**
+        - Public controller discovery bootstraps the native environment before configuration, initializes reporting
+          once, and optionally applies the validated native pre-parse skip predicate. Refined project membership
+          determines CPU admission; empty selection and native parsing failure close before setup or admission.
+          Disposable controller/worker fixtures retain explicit environment values and match native cross-file `.only`.
 
     - `[ ]` **3.1.b Prepare and execute selected specifications under the controller's ownership**
         - Acquire CPU then artifacts for heavy selections, ensure qualified runtime/schema, `provide` evidence before
