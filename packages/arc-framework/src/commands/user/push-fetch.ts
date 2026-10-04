@@ -26,7 +26,7 @@ import {
 } from "../../lib/user-sync/branch-bounded-notes-export.js";
 import { serializeNotesCompactionManifest } from "../../lib/user-sync/compaction-manifest.js";
 import { classifyPublicationFailure, type RemotePublicationFailure } from "../../lib/git/publication-failure.js";
-import { gitFailureText, isGitProcessError, isCompletedGitFailure } from "../../lib/git/process-error.js";
+import { gitFailureText, isGitProcessError, isCompletedGitFailure, normalizeGitRejection } from "../../lib/git/process-error.js";
 import { notesRef } from "./shared.js";
 import { runUserLoad } from "./save-load.js";
 import {
@@ -419,7 +419,8 @@ async function mergeNotesUnderLock(options: ReconcileNotesPushOptions): Promise<
   const fullRef = `refs/notes/${shortRef}`;
   const incoming = incomingNotesRef(fullRef);
   try {
-    const preMergeTip = await readRefTip(io, fullRef);
+    const preMergeTip = await readMutatingNotesTip(io, fullRef);
+    if (preMergeTip === null) return { kind: "no-local-notes" };
     try {
       await io.exec("git", ["fetch", "--refmap=", "origin", incomingFetchRefspec(fullRef, incoming)]);
     } catch (err) {
@@ -435,7 +436,13 @@ async function mergeNotesUnderLock(options: ReconcileNotesPushOptions): Promise<
       const detail = err instanceof Error ? err.message : String(err);
       return { kind: "conflict", message: `Concurrent notes could not be merged (git notes merge failed): ${detail}` };
     }
-    const postMergeTip = await readRefTip(io, fullRef);
+    let postMergeTip: string | null;
+    try {
+      postMergeTip = await readMutatingNotesTip(io, fullRef);
+      if (postMergeTip === null) throw new Error("The merged notes ref is unexpectedly absent");
+    } catch (error) {
+      return { kind: "failed", error: notesRepairError(fullRef, preMergeTip, error) };
+    }
     return await validateMergedNotes(io, shortRef, fullRef, preMergeTip, postMergeTip);
   } catch (err) {
     return { kind: "failed", error: err instanceof Error ? err : new Error(String(err)) };
@@ -446,50 +453,36 @@ async function mergeNotesUnderLock(options: ReconcileNotesPushOptions): Promise<
 
 async function validateMergedNotes(io: UserIOContext, shortRef: string, fullRef: string, preMergeTip: string | null,
   postMergeTip: string | null): Promise<NotesPushOutcome | null> {
-    const scan = await findCorruptMergedNote(io, shortRef);
-    if (scan.kind === "corrupt") {
-      const rollback = await rollbackCorruptMerge({ io, fullRef, preMergeTip, postMergeTip });
-      if (rollback.kind === "failed") {
-        return {
-          kind: "conflict",
-          message:
-            `Concurrent notes on commit ${scan.commit.slice(0, 8)} disagree on the same file at the same annotated commit, `
-            + "and the rollback could not be applied safely. Nothing was pushed; inspect the local "
-            + "notes ref and retry after resolving the conflict.",
-        };
-      }
-      return {
-        kind: "conflict",
-        message:
-          `Concurrent notes on commit ${scan.commit.slice(0, 8)} contain different content for the same file `
-          + "at the same annotated commit. Your local notes are preserved, and no lossless automatic repair "
-          + "exists yet. On one chosen machine, manually combine the contested user file and run "
-          + "`arc user save`; then coordinate `arc user push --force`. Preserve other machines' local-only "
-          + "content before they adopt the chosen result.",
-      };
-    }
-    if (scan.kind === "failed") {
-      const rollback = await rollbackCorruptMerge({ io, fullRef, preMergeTip, postMergeTip });
-      const scope = scan.commit === undefined
-        ? "Concurrent notes merge"
-        : `Concurrent notes on commit ${scan.commit.slice(0, 8)}`;
-      if (rollback.kind === "failed") {
-        return {
-          kind: "conflict",
-          message:
-            `${scope} could not be verified after merge (${scan.error.message}), and the rollback could not `
-            + "be applied safely. Nothing was pushed; inspect the local notes ref and retry after resolving "
-            + "the conflict.",
-        };
-      }
-      return {
-        kind: "conflict",
-        message:
-          `${scope} could not be verified after merge (${scan.error.message}). Your local notes are `
-          + "preserved; resolve the notes-ref read failure and retry.",
-      };
-    }
-  return null;
+  const scan = await findCorruptMergedNote(io, shortRef);
+  if (scan.kind === "clean") return null;
+  const rollback = await rollbackCorruptMerge({ io, fullRef, preMergeTip, postMergeTip });
+  if (rollback.kind === "failed") return { kind: "failed", error: notesRepairError(fullRef, preMergeTip, rollback.error) };
+  if (scan.kind === "corrupt") return {
+    kind: "conflict",
+    message:
+      `Concurrent notes on commit ${scan.commit.slice(0, 8)} contain different content for the same file `
+      + "at the same annotated commit. Your local notes are preserved, and no lossless automatic repair "
+      + "exists yet. On one chosen machine, manually combine the contested user file and run "
+      + "`arc user save`; then coordinate `arc user push --force`. Preserve other machines' local-only "
+      + "content before they adopt the chosen result.",
+  };
+  const scope = scan.commit === undefined ? "Concurrent notes merge" : `Concurrent notes on commit ${scan.commit.slice(0, 8)}`;
+  return {
+    kind: "conflict",
+    message: `${scope} could not be verified after merge (${scan.error.message}). Your local notes are `
+      + "preserved; resolve the notes-ref read failure and retry.",
+  };
+}
+
+function notesRepairError(fullRef: string, preMergeTip: string | null, cause: unknown): Error {
+  const detail = cause instanceof Error ? cause.message : String(cause);
+  const anchor = preMergeTip ?? "absence";
+  const restore = preMergeTip === null ? `git update-ref -d ${fullRef} <verified-current-tip>`
+    : `git update-ref ${fullRef} ${preMergeTip} <verified-current-tip>`;
+  return new Error(`Notes merge restoration is unverified for ${fullRef}: ${detail}. Nothing was pushed. `
+    + `Known pre-merge anchor: ${anchor}. Before retry, coordinate notes writers, inspect and preserve the current tip, `
+    + `then restore the anchor with a freshly verified expected value: ${restore}. `
+    + "Retry arc user push or arc sync only after repairing and verifying the notes ref.", { cause });
 }
 
 function isRemotePublicationError(error: unknown): boolean {
@@ -593,14 +586,19 @@ function reconcileRepushFailureOutcome(err: unknown): NotesPushOutcome {
   return notesFailure(error, isRemotePublicationError(err));
 }
 
-/** Current tip of a ref, or `null` when it does not resolve. */
-async function readRefTip(io: UserIOContext, ref: string): Promise<string | null> {
-  try {
-    const { stdout } = await io.exec("git", ["rev-parse", "--verify", ref]);
-    return stdout.trim() || null;
-  } catch {
-    return null;
+/** Observe the mutating notes basis; only a completed quiet lookup establishes absence. */
+async function readMutatingNotesTip(io: UserIOContext, ref: string): Promise<string | null> {
+  const args = ["rev-parse", "--verify", "--quiet", ref];
+  let stdout: string;
+  try { ({ stdout } = await io.exec("git", args)); }
+  catch (error) {
+    const failure = normalizeGitRejection(error, { command: "git", args });
+    if (failure.kind === "nonzero-exit" && failure.exitCode === 1 && failure.signal === undefined) return null;
+    throw error;
   }
+  const tip = stdout.trim();
+  if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(tip)) throw new Error(`Notes ref returned a malformed object id: ${ref}`);
+  return tip;
 }
 
 /** Best-effort git invocation for cleanup steps; swallows failures. */

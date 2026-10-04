@@ -2315,7 +2315,7 @@ operations and outcomes, and which test tier each conformance fixture runs in.
 <!-- markdownlint-enable MD013 -->
 <!-- markdownlint-disable MD013 -->
 - **A10** — 2026-10-04 — design: fail closed on incomplete mutating observations.
-  _Supersedes:_ Goal 3 parity; D8 unchanged failures; SC7 failed-observation cases. _Trigger:_ P5-AGG-004/P5-AGG-005/P5-AGG-009 review. _Work:_ review-fix. _Revalidated:_ pending → review-fix.
+  _Supersedes:_ Goal 3 parity; D8 unchanged failures; SC7 failed-observation cases. _Trigger:_ P5-AGG-004/P5-AGG-005/P5-AGG-009 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 <!-- markdownlint-enable MD013 -->
 <!-- markdownlint-disable MD013 -->
 - **A11** — 2026-10-04 — design: clarify owner-level import identity.
