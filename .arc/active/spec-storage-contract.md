@@ -1831,9 +1831,11 @@ it off does.
 only through the export.
 
 **The integration-time record is never tracked.** The stored meta in its quarter's archive ref, with its `history`, is
-the durable record, and the landing-commit link (D3) is its anchor. The readiness facts
-(`scripts/review-gate/readiness.ts`) and the integration checkpoint read Completion Notes and the Release Notes Entry
-from the stored meta under every export option; they decide, so they never read the export.
+the durable record, and the landing-commit link (D3) is its anchor. Today `lifecycleArtifactFacts` in
+`scripts/review-gate/readiness.ts` collects Completion Notes and Release Notes facts from supplied meta bytes;
+`readLifecycleArtifactFacts` and `readLifecycleSummary` in `scripts/integration/checkpoint-composition.ts` acquire
+and compose those facts for the checkpoint. At the cutover these deciding reads use the stored meta under every
+export option, never the export.
 
 **Keeping shipped specs in the repository is deferred** and never precluded. Tripwire: a team asks to read shipped specs
 in the repository. If built, the spec moves into the repository at publication rather than being copied, since a lasting
@@ -2030,9 +2032,11 @@ whatever two or more of them share or whatever defines their boundary, and build
 - **Per-work-unit scratch inside the work unit** (`active/current/scratch/`). It would be shared and owned by the work
   unit, losing what scratch is for: a person's own space, where anything goes.
 - **Adversarial-pass evidence as a file** — a companion beside the artifact, a section of its notes, or one entry per
-  pass in an entry list. The review gate already stores the same facts — a disposition set, its approval, the rubric's
-  identity, and the lineage from one pass to the next — so a file would keep a second shape of them that hand edits can
-  pull out of step with the pass it records, and each later pass would recover its prior findings by reading prose.
+  pass in an entry list. The review gate's `ApprovedDispositionSetSchema`, `DispositionApprovalSchema` and
+  `dispositionSetMatchesSourceContext` (`scripts/review-gate/core/disposition-records.ts`) already bind the exact
+  disposition set, approval and rubric/source context; `ApprovedDispositionLineageNodeSchema`
+  (`core/advisory-records.ts`) binds predecessor/successor disposition lineage. D5's future adversarial-pass fields
+  extend those facts rather than duplicating them in a hand-edited file, whose state could drift from its pass.
 
 ## Cross-cutting Considerations
 

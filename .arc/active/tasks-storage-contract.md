@@ -111,7 +111,9 @@ dependencies; its seam is the conflict-record type from Phase 1 and the merge ca
   keyed by a stable `_Id:_` — eight hex characters in `_Created:_`'s grammar, re-drawn on a clash within the file, and
   given at first persist to an entry without one — so entry merge keys on identity and a retitle stays an edit.
 
-- _Outcome:_ Added lossless heading and field-header splitting, comment masking, and injected ID stamping.
+- _Outcome:_ Added lossless heading and field-header splitting and comment masking through `splitEntryList`/
+  `rejoinEntryList` (`concurrency/entries.ts`), and injected ID stamping through `stampEntryIds`
+  (`concurrency/stamp.ts`).
   Parser correspondence, managed field placement, mixed line endings, collision redraws, and existing ID preservation
   are exercised through the public functions.
 
@@ -122,7 +124,8 @@ dependencies; its seam is the conflict-record type from Phase 1 and the merge ca
   incoming side, through one module that passes `node-diff3`'s `diff3Merge` arrays of lines and exposes none of its
   types.
 
-- _Outcome:_ Added a line-array adapter with explicit merge options and separate final newline reconciliation.
+- _Outcome:_ Added a line-array adapter through `mergeLineText` (`concurrency/line-merge.ts`), with explicit merge
+  options and separate final newline reconciliation.
   Conflicts keep current text and carry base hunk coordinates and labeled sides; generated unchanged-side cases and
   emitted declaration checks protect byte preservation and the dependency boundary.
 
@@ -134,11 +137,12 @@ dependencies; its seam is the conflict-record type from Phase 1 and the merge ca
 
     - `[x]` **2.4.a Insertions, edits, and placement**
         - Added ID-anchored insertion ordering, whole-entry and section comparison, retitle handling, and separate
-          surrounding prose merges. Entry clashes retain current bytes with labeled conflict records.
+          surrounding prose merges through `mergeEntryText` (`concurrency/entry-merge.ts`). Entry clashes retain current
+          bytes with labeled conflict records.
 
     - `[x]` **2.4.b Removals as an observed-remove set**
-        - Added observed removals that preserve concurrent edits, remove mutually deleted entries, and ignore
-          wall-clock recency.
+        - Added observed removals through `mergeEntryText` that preserve concurrent edits, remove mutually deleted
+          entries, and ignore wall-clock recency.
 
     - `[x]` **2.4.c Properties**
         - Generated entry-list cases exercise role symmetry, entry conservation, unchanged-side merging, and
@@ -150,9 +154,10 @@ dependencies; its seam is the conflict-record type from Phase 1 and the merge ca
   stubs on both sides of the position share a rank, the moved stub and the tied stubs above it in one batch — by
   ARC's own adaptation of the public-domain `fractional-indexing` algorithm with its default base-62 alphabet.
 
-- _Outcome:_ Adapted the attributed CC0 base-62 arithmetic with strict neighbor ordering. Atomic placement
-  returns the moved stub and only tied successors; generated open-bound and tied-list cases plus stored-format
-  checks protect ordering and the persisted key grammar.
+- _Outcome:_ Adapted the attributed CC0 base-62 arithmetic through `generateRankBetween`
+  (`concurrency/rank-arithmetic.ts`, re-exported by `concurrency/rank.ts`) with strict neighbor ordering.
+  `placeRankedStub` (`concurrency/rank.ts`) returns the moved stub and only tied successors atomically; generated
+  open-bound and tied-list cases plus stored-format checks protect ordering and the persisted key grammar.
 
 ## **Phase 3:** Reference backend and conformance suite
 
