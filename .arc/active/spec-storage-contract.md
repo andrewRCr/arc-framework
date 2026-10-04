@@ -721,8 +721,10 @@ neither builds it for the other.
 - **An entry's section is part of the entry,** so moving it between sections is an edit. The bytes outside entries — a
   file's opening, section headings, comments — merge as prose, by three-way line merge.
 - **A same-entry clash** — two differing edits to one entry — lands as a conflict record keeping both sides. Lists
-  conflict per whole entry, with no line merge inside an entry: line merge inside entries was silently wrong in 0.2–2.2%
-  of measured pairs.
+  conflict per whole entry, with no line merge inside an entry. The historical entry-merge spike reported silent errors
+  in 0.2–2.2% of 500 random pairs per real-inbox/working-memory row under line merge
+  (`analysis-storage-substrate-direction.md` §11.4). This is a transcribed sample with the provenance and one-setup
+  limits stated under Performance below, not a newly reproduced result or a population error rate.
 - **A removal racing an edit is not a clash; the edit survives.** A removal takes out only the version of the entry it
   observed, as in an observed-remove set where add wins: an edit the removal never saw was concurrent, not later.
   Recency never decides anything.
@@ -1235,8 +1237,10 @@ failure. This state-leg requirement is separate from code/state-leg ordering and
 
 **The fetch refspec** lists these namespaces and the person's own identity rather than `refs/arc/*` wholesale, so no one
 fetches teammates' personal refs or history by default. Every clone does fetch each in-flight work unit's session
-context with its meta: today's session notes measure 0.4–6 KB each, against the 5.5–5.7 MB a person-year of personal
-history measures, and archive clears it. ARC fetches into a remote-tracking namespace, never straight into `refs/arc/*`,
+context with its meta, and archive clears it. The historical sample reported 0.4–6 KB per session note versus
+5.5–5.7 MB for a person-year of personal history (`analysis-storage-substrate-direction.md` §11.6); those transcribed
+figures carry the one-setup limits under Performance below. ARC fetches into a remote-tracking namespace, never
+straight into `refs/arc/*`,
 where a forced fetch would overwrite unpushed local writes; that namespace stays out of `refs/remotes/`, where it would
 show as remote branches.
 
@@ -1385,14 +1389,17 @@ through the owner, since a capture waiting for the owner would rest in a capture
   against editing another work unit's tracked buffers.
 - Until the flip, routing keeps today's hold-and-route.
 
-**The design envelope** — about ten people running about six sessions each — holds with margin by arithmetic rather than
-a team-scale test. State pushes alone only at handoff, lifecycle steps, and explicit sync, and otherwise rides a code
-push (D12): this repository averaged about six such firing points a day and 31 on its busiest, so ten people at that
-busiest rate push state alone about 30–40 times an hour, well under GitHub's guidance of six pushes a minute per
-repository. Few refs are shared across people. The busiest is a quarter's archive ref, which every Errand close writes
-too — at most about six a day in this repository in September, so about 60 a day, or a few an hour, for ten people — and
-on shared refs two pushes meet within a push time for a fraction of a percent of pushes; the measured worst case, twenty
-machines pushing one ref at once, settled in 25–60 s. Nothing ran at team scale, so the residual stays named.
+**The design envelope** — about ten people running about six sessions each — is supported by arithmetic rather than a
+team-scale test, using historical repository-rate estimates and transcribed push trials from `analysis-storage-
+substrate-direction.md` §11.3–11.4. The Performance provenance/one-setup limits below apply. State pushes alone only
+at handoff, lifecycle steps, and explicit sync, and otherwise rides a code push (D12): this repository averaged about
+six such firing points a day and 31 on its busiest, so ten people at that busiest rate push state alone about 30–40
+times an hour, well under the then-cited GitHub guidance of six pushes a minute per repository. Few refs are shared
+across people. The busiest is a quarter's archive ref, which every Errand close writes too — at most about six a day
+in this repository in September, so about 60 a day, or a few an hour, for ten people — and the workload model
+estimates that shared-ref pushes overlap within a push time for a fraction of a percent of pushes. The recorded worst-
+case trial, twenty machines pushing one ref at once, settled in 25–60 s; distinct-ref contention on GitHub rests on a
+single run. These samples do not establish team-scale behavior, so the residual stays named.
 **Contention tripwire:** the push loop's result carries its retry count and time waited, and handoff's report shows them
 past a bound.
 
@@ -1949,6 +1956,10 @@ whatever two or more of them share or whatever defines their boundary, and build
 
 **Rejected alternatives:**
 
+The empirical ratios, timings and worktree counts used below are historical inputs from
+`analysis-storage-substrate-direction.md` §11.4, transcribed from external spike records under the Performance limits
+below. They explain the choices without establishing current provider performance or general workload rates.
+
 - **The in-repo implementation over tracked records alone.** Rerouting the personal-file writers and the Errand readers
   would then wait on the ref store. Serving every substrate where it lives keeps every rerouting unblocked.
 - **An in-repo save path that commits** — a contract write that also commits on the checkout's branch, with its own
@@ -1970,15 +1981,15 @@ whatever two or more of them share or whatever defines their boundary, and build
   for IDs minted close together; sequential numbers collide across offline machines. A name plus a random UID keeps the
   human handle and a stable key.
 - **Resolving clashes by recency, or holding back a conflicted file.** Recency drops an edit silently; holding back the
-  whole file stopped 43 of 60 worktrees syncing the inbox in measurement. Write-then-gate keeps both sides and
-  refreshes the rest of the file.
+  whole file stopped 43 of 60 worktrees syncing the inbox in the recorded burst sample. Write-then-gate keeps both
+  sides and refreshes the rest of the file.
 - **Entry merge keyed on the title, or line merge inside entries.** A retitle reads as delete plus insert; line merge
-  inside entries was silently wrong in 0.2–2.2% of measured pairs.
-- **A conflict record for a removal racing an edit.** Almost every conflict left under entry merge was a drain racing a
-  note, so ordinary housekeeping would become hand-resolved conflicts. Observed-remove keeps the edit.
+  inside entries was silently wrong in 0.2–2.2% of the historical sample's pairs.
+- **A conflict record for a removal racing an edit.** Almost every conflict in the recorded entry-merge sample was
+  a drain racing a note, so ordinary housekeeping would become hand-resolved conflicts. Observed-remove keeps the edit.
 - **One projected copy per machine.** An editor opened on a worktree cannot find files in the primary, and pull refresh
-  left another session's capture up to half an hour stale; an agent read stale shared state 5–8% of the time. Writer
-  push into every worktree closes that locally in under 0.2 s for twenty worktrees.
+  left another session's capture up to half an hour stale in the recorded sample; an agent read stale shared state
+  5–8% of the time in that model. The writer-push trial reached twenty local worktrees in under 0.2 s on that setup.
 - **Flat `active/` for everything.** It cannot show other in-flight work units beside the checkout's own. It stays the
   one-setting revert.
 - **The store always in a separate Git directory, or always in the code repository's refs.** The first loses the atomic
@@ -2059,12 +2070,21 @@ whatever two or more of them share or whatever defines their boundary, and build
 
 **Performance.**
 
-- Every work unit's meta at its ref tip, 601 of them, reads in one 17 ms batch; history depth never enters the read
-  path (flat to 20,197 commits).
-- A no-change fetch costs 0.7–0.9 s on GitHub, so fetches happen only at coarse points (D12).
-- Projection refresh across twenty worktrees on one machine takes under 0.2 s, with a stat re-check.
-- A person-year of personal history pushed commit by commit is 5.5–5.7 MB, 26.6 MB where a host repacks at the default
-  window; a rotated year for ten people fetched 8–19 MB.
+The figures below are historical, transcribed inputs from `analysis-storage-substrate-direction.md` §11, whose
+§13 records their limits. The research/spikes ran on 2026-09-24 and 2026-09-25, and the GHES trial on 2026-09-29.
+Scripts and raw results remained outside this repository and were unavailable to this source-grounding review; they
+have not been reproduced here. The campaign was measured once on one setup: one Linux machine under WSL2, one
+Windows 11 machine and one scratch repository per host. Distinct-ref GitHub contention used one run; Zed/VS Code
+checks used WSL remotes, not native or SSH sessions. These timings, sizes and sample rates are design inputs, not
+current-backend guarantees or team-scale verification. Current mechanism traces and this WU's local tests remain
+separate evidence; no historical/provider test is replaced by a local Git probe.
+
+- The recorded 601-meta tip read took one 17 ms batch, with reads flat to 20,197 commits in the trial. The ref layout
+  keeps tip reads independent of history depth; the timing is specific to that setup.
+- The recorded no-change GitHub fetch took 0.7–0.9 s; fetches happen at coarse points (D12).
+- The recorded projection refresh across twenty local worktrees took under 0.2 s, with a stat re-check.
+- The modeled person-year of personal history pushed commit by commit packed to 5.5–5.7 MB, or 26.6 MB with the
+  trial's default-window repack; a modeled rotated year for ten people fetched 8–19 MB.
 - The in-repo implementation adds a layer of indirection over today's reads and writes, and Git invocations beyond what
   today's code paths make in three places only: the composition a read, or a write's admission, runs for a work unit
   this checkout holds no flat-active meta for (D8), where a reader of the working tree alone runs none today; a
@@ -2101,7 +2121,11 @@ from the public-domain (CC0) `fractional-indexing`, so it adds no dependency.
 automatic write-back, protected-file notices, conflicts shown in files, the `active/` layout, the task close verb,
 session context in the meta, and `scratch/` for personal files; the documentation says so at that point.
 
-**Host evidence.** A GitHub Enterprise Server 3.22.1 trial matched GitHub.com on every check:
+**Host evidence (historical).** `analysis-storage-substrate-direction.md` §11.3 records that the 2026-09-29
+GitHub Enterprise Server 3.22.1 trial matched the earlier GitHub.com scratch trial on the checks below. These are
+transcribed observations from one scratch repository per host; the external scripts/raw results were unavailable to
+this review and were not rerun. They establish those recorded trials, not current provider behavior or universal
+permission guarantees; backend implementation must verify its actual host. The Performance limitations above apply:
 
 - push, fetch, delete, and lease of `refs/arc/*`; a default clone fetches none, and ARC's refspec fetches them;
 - `--atomic` with a stale state ref held the code branch back; a losing push reads `cannot lock ref` or `fetch first`;
