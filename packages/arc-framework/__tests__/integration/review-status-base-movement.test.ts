@@ -261,6 +261,76 @@ describe("review status over a base advanced under the work unit", () => {
 });
 
 describe("singleton hosted review after publication", () => {
+  it("retains the public next action through unreserved convergence and retry", async () => {
+    const fixture = await singletonUnderReview();
+    const reviewed = await runHandlerAt(fixture.root, async () => {
+      await handleReviewPrePublication(WORK_UNIT, { selfReview: "settled" }, {}, machineContext());
+    });
+    expect(reviewed.exitCode, reviewed.stdout + reviewed.stderr).toBe(0);
+    const published = await runHandlerAt(fixture.root, async () => {
+      await handlePublish(WORK_UNIT, {
+        json: true, lastCompleted: "verification", action: "push and open the PR",
+      }, machineContext());
+    });
+    expect(published.exitCode, published.stdout + published.stderr).toBe(0);
+    expect((await readSubmissionBoundaryVersioned(fixture.root, WORK_UNIT)).boundary)
+      .toMatchObject({ locus: "publication-pending", reservation: null });
+    await git(fixture.root, ["add", "-A"]);
+    await git(fixture.root, ["commit", "-m", "publish unreserved singleton"]);
+    await git(fixture.root, ["push", "origin", HEAD_REF]);
+    const exec = makeGitExec(fixture.root);
+    const oldTarget = await collectCandidateSubjectTarget({
+      cwd: fixture.root, name: WORK_UNIT, baseBranch: "main", exec,
+    });
+    await writeFile(join(fixture.root, "src", "example.ts"), "export const example = false;\n");
+    await git(fixture.root, ["add", "src/example.ts"]);
+    await git(fixture.root, ["commit", "-m", "apply unreserved correction"]);
+    const newTarget = await collectCandidateSubjectTarget({
+      cwd: fixture.root, name: WORK_UNIT, baseBranch: "main", exec,
+    });
+    const current = await readCandidateRecordVersioned(fixture.root, WORK_UNIT);
+    if (current.record === null) throw new Error("missing Candidate response fixture");
+    const correction = createCandidateReviewResponseEvidence({
+      candidateId: current.record.attestation.candidateId, oldTarget, newTarget,
+      dispositionId: canonicalDigest({ unreservedCorrection: 1 }),
+      approvedBy: "test-user", appliedBy: "test-user", applicability: "focused",
+      approvedVerification: "focused", verificationEvidenceRefs: ["verification://unreserved-correction"],
+      implementationChanged: true,
+    });
+    await writeCandidateRecord(fixture.root, WORK_UNIT, {
+      ...current.record, transitions: [...current.record.transitions, correction],
+    }, current.version);
+    await stageSingletonPublicationResponse({
+      cwd: fixture.root, exec, workUnit: WORK_UNIT, response: correction, requirePublished: true,
+    });
+    const before = (await readSubmissionBoundaryVersioned(fixture.root, WORK_UNIT)).boundary;
+    if (before === null) throw new Error("missing published boundary");
+    const converged = await runHandlerAt(fixture.root, async () => {
+      await handleAttest(WORK_UNIT, {
+        json: true, scope: "focused", verificationEvidenceRef: "verification://unreserved-convergence",
+      }, machineContext());
+    });
+    expect(converged.exitCode, converged.stdout + converged.stderr).toBe(0);
+    expect(JSON.parse(converged.stdout)).toMatchObject({ status: "attested", operation: "convergence", locus: before });
+    const metaPath = join(fixture.root, ".arc", "active", `meta-${WORK_UNIT}.md`);
+    const expectedMeta = {
+      state: "Integrating", currentWorkflow: "integrate-work-unit", nextAction: before.nextAction.interactionText,
+    };
+    expect(parseMetaRecord(await readFile(metaPath, "utf8"))).toMatchObject(expectedMeta);
+    const retried = await runHandlerAt(fixture.root, async () => {
+      await handleAttest(WORK_UNIT, { json: true }, machineContext());
+    });
+    expect(retried.exitCode, retried.stdout + retried.stderr).toBe(0);
+    expect(JSON.parse(retried.stdout)).toMatchObject({ status: "unchanged", locus: before });
+    expect(parseMetaRecord(await readFile(metaPath, "utf8"))).toMatchObject(expectedMeta);
+    await git(fixture.root, ["add", "-A"]);
+    await git(fixture.root, ["commit", "-m", "attest unreserved convergence"]);
+    await git(fixture.root, ["push", "origin", HEAD_REF]);
+    fixture.headSha = await git(fixture.root, ["rev-parse", "HEAD"]);
+    fixture.bin = await installHost(fixture.root);
+    expect(await statusThroughPort(fixture)).toMatchObject({ state: "settled", nextAction: "continue-reconcile" });
+  });
+
   it.each([
     [undefined, "focused"],
     ["codex-pr", "focused"],
@@ -448,6 +518,7 @@ describe("singleton hosted review after publication", () => {
         fixture.headSha = await git(fixture.root, ["rev-parse", "HEAD"]);
         fixture.bin = await installHost(fixture.root);
         const beforeConvergence = (await readSubmissionBoundaryVersioned(fixture.root, WORK_UNIT)).boundary;
+        if (beforeConvergence === null) throw new Error("missing published boundary");
         expect(beforeConvergence).toMatchObject({ locus: "publication-pending", reservation });
         const converged = await runHandlerAt(fixture.root, async () => {
           await handleAttest(WORK_UNIT, {
@@ -462,15 +533,19 @@ describe("singleton hosted review after publication", () => {
           locus: beforeConvergence,
         });
         expect((await readSubmissionBoundaryVersioned(fixture.root, WORK_UNIT)).boundary).toEqual(beforeConvergence);
+        const metaPath = join(fixture.root, ".arc", "active", `meta-${WORK_UNIT}.md`);
+        const expectedMeta = {
+          state: "Integrating", currentWorkflow: "integrate-work-unit",
+          nextAction: beforeConvergence.nextAction.interactionText,
+        };
+        expect(parseMetaRecord(await readFile(metaPath, "utf8"))).toMatchObject(expectedMeta);
         const retried = await runHandlerAt(fixture.root, async () => {
           await handleAttest(WORK_UNIT, { json: true }, machineContext());
         });
         expect(retried.exitCode, retried.stdout + retried.stderr).toBe(0);
         expect(JSON.parse(retried.stdout)).toMatchObject({ status: "unchanged", locus: beforeConvergence });
         expect((await readSubmissionBoundaryVersioned(fixture.root, WORK_UNIT)).boundary).toEqual(beforeConvergence);
-        expect(parseMetaRecord(await readFile(
-          join(fixture.root, ".arc", "active", `meta-${WORK_UNIT}.md`), "utf8",
-        ))).toMatchObject({ state: "Integrating", currentWorkflow: "integrate-work-unit" });
+        expect(parseMetaRecord(await readFile(metaPath, "utf8"))).toMatchObject(expectedMeta);
         await git(fixture.root, ["add", "-A"]);
         await git(fixture.root, ["commit", "-m", "attest published convergence"]);
         await git(fixture.root, ["push", "origin", HEAD_REF]);

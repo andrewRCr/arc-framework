@@ -3070,7 +3070,9 @@ export async function handleAttest(
         if (!publication.repairCurrent || priorMeta.currentWorkflow !== publication.currentWorkflow) {
           orientation["Current Workflow"] = formatValue(publication.currentWorkflow, "identifier");
         }
-        const nextAction = boundaryMatches || priorMeta.state === "Shipped" ? publication.nextAction : locus.nextAction.interactionText;
+        const nextAction = locus === singletonPublication
+          ? locus.nextAction.interactionText
+          : boundaryMatches || priorMeta.state === "Shipped" ? publication.nextAction : locus.nextAction.interactionText;
         if (!publication.repairCurrent || !boundaryMatches || priorMeta.nextAction === null) {
           orientation["Next Action"] = formatValue(nextAction, "narrative");
         }
