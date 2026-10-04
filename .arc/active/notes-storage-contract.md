@@ -20,6 +20,7 @@
 - [A10 — Authoritative observation failures](#a10--authoritative-observation-failures)
 
 - [A11 — Owner-level import identity](#a11--owner-level-import-identity)
+- [A12 — Uncertain notes-merge execution](#a12--uncertain-notes-merge-execution)
 
 ## Consumer map
 
@@ -1168,3 +1169,18 @@ storage strategy. `OwnerIdentitySchema` in `lib/store/identity.ts` attaches a UI
 owner, and `RecordReferenceSchema` combines that owner with a kind and optional key. Person owners have no UID field.
 The corrected import wording mints once per owner and reuses the identity across its records; SC26 checks that
 agreement. No import implementation is part of this correction, and the original reviewed version remains retained.
+
+## A12 — Uncertain notes-merge execution
+
+A10 limited its approval to “three inherited mutating failure paths only”. Goal 3 originally promised “changing
+nothing observable”, D8 promised failure “kinds and messages unchanged”, and SC7 required ceremony tests to “pass
+unchanged”. The merge-command catch is a fourth boundary: `mergeNotesUnderLock` could complete the merge on disk,
+then lose its original incomplete-execution cause and pre-merge anchor while returning an ordinary conflict.
+An un-repaired sync save could overwrite the invalid concatenated manifest and publish only local contested bytes.
+
+A12 extends the exception explicitly. `isCompletedGitFailure` gates ordinary abort/conflict handling; otherwise
+`notesRepairError` retains the original cause and known anchor and supplies the existing expected-old repair route.
+The caller must coordinate writers, inspect and preserve the current tip, repair and verify the notes ref, then retry.
+Completed failures, normal producer behavior, locking, record formats and advisory bookkeeping stay unchanged. There
+is no new persisted marker or automated authority choice. SC27 and its task criterion cover uncertain execution both
+before and after actual merge effects, remote preservation, guarded repair and successful ordinary continuation.

@@ -719,3 +719,9 @@ as stated.
 - `[x]` D14, D2, the storage strategy and contract identity types agree on one UID per work-item, cohort or project
   owner, reused across every owned record kind/key, and name-qualified person owners without UIDs. This is
   document/type coherence, without implementing the deferred import (A11; SC26).
+
+- `[x]` `mergeNotesUnderLock` retains the original cause and known pre-merge anchor after canceled, output-limited
+  or unclassified merge execution, whether effects reached disk or not. Publication stops with a guarded manual
+  repair route, preserving the remote during the failed call; explicit expected-old repair restores successful
+  ordinary publication. Completed merge-failure behavior stays unchanged; this fourth inherited boundary additionally
+  qualifies SC7 (A12; SC27).

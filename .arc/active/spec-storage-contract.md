@@ -83,6 +83,10 @@ changes build.
 reconcile boundaries fail closed, with the original cause retained. Normal producer behavior and ceremony remain
 unchanged; SC25 qualifies the inherited failure cases and their process-metadata fixtures in SC7.
 
+**Goal 3 amendment (A12).** Uncertain execution of the notes merge also fails closed. `mergeNotesUnderLock` retains
+the original cause and known pre-merge anchor, prevents re-push and requires explicit repair before retry. SC27
+qualifies SC7 for this fourth inherited failure boundary; completed merge failures and ordinary ceremony stay unchanged.
+
 ## Non-Goals
 
 _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
@@ -1080,6 +1084,12 @@ set where Git fails — with their normal kinds and messages unchanged. At the m
 retains its cause and supplies no absence, reconciliation, rollback or publication authority. Preflight failures
 preserve local authority; post-merge uncertainty stops publication and reports certified CAS restoration or a manual
 repair using the known pre-merge anchor. Advisory save/load bookkeeping remains best effort.
+
+At the merge-command catch, `mergeNotesUnderLock` also requires completed process evidence before ordinary
+abort/conflict handling (A12). Canceled, output-limited or unclassified merge execution instead returns `failed`
+through `notesRepairError`, conserving the original cause and known pre-merge anchor. No incomplete observation
+authorizes re-push or claims restoration. The remedy requires coordinating writers, preserving the observed tip,
+and restoring with a freshly verified expected-old value before retry; no new persisted recovery state is introduced.
 
 **Entries.** The inbox writer stays keyed on an entry's title and source digest and stamps no `_Id:_`, so every
 unrelated byte stays as today; once rerouted it computes the file's new content, which the contract writes whole
@@ -2261,6 +2271,13 @@ Validated at this change's completion, over Part A:
     work-item, cohort or project owner and shared across that owner's record kinds and keys. Person owners remain
     name-qualified without UIDs. Verification establishes document/type coherence; no import implementation is claimed.
 
+27. **Uncertain notes-merge execution (A12).** `mergeNotesUnderLock` retains the original cause and known pre-merge
+    anchor when the merge executor rejects without completed-process evidence, whether effects reached disk or not.
+    Publication stops with an actionable guarded repair route and no claim of unproved preservation. Regressions
+    cover canceled, output-limited and unclassified failures, remote preservation during the failed call, explicit
+    expected-old repair and subsequent successful ordinary publication. Completed merge-failure behavior stays
+    unchanged. SC7 is additionally qualified for this inherited merge-execution defect and its faithful fixtures.
+
 ## Open Questions
 
 None blocks building Part A.
@@ -2320,4 +2337,9 @@ operations and outcomes, and which test tier each conformance fixture runs in.
 <!-- markdownlint-disable MD013 -->
 - **A11** — 2026-10-04 — design: clarify owner-level import identity.
   _Supersedes:_ D14 per-record UID minting. _Trigger:_ P5-AGG-008 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+<!-- markdownlint-enable MD013 -->
+
+<!-- markdownlint-disable MD013 -->
+- **A12** — 2026-10-04 — design: preserve recovery after uncertain notes-merge execution.
+  _Supersedes:_ A10 three-path scope; Goal 3 parity; D8 unchanged merge failures; SC7 merge-execution cases. _Trigger:_ FC1-F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 <!-- markdownlint-enable MD013 -->

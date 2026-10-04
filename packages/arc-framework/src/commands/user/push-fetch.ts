@@ -386,7 +386,9 @@ export async function reconcileNotesPush(
  * manifest-validity scan rather than git's exit signal. On conflict the local
  * ref is rolled back to its pre-merge tip (nothing corrupt persists or is
  * pushed) and the conflict is surfaced; a failed merge command is aborted and
- * surfaced the same way.
+ * surfaced the same way when the executor certifies a completed failure.
+ * Uncertain merge execution instead preserves the cause and pre-merge anchor
+ * for explicit repair before any retry.
  */
 async function reconcileAndRepush(options: ReconcileNotesPushOptions): Promise<NotesPushOutcome> {
   let merged: NotesPushOutcome | null;
@@ -432,6 +434,7 @@ async function mergeNotesUnderLock(options: ReconcileNotesPushOptions): Promise<
     try {
       await io.exec("git", notesMergeArgs(shortRef, incoming));
     } catch (err) {
+      if (!isCompletedGitFailure(err)) return { kind: "failed", error: notesRepairError(fullRef, preMergeTip, err) };
       await tryExec(io, ["notes", "--ref", shortRef, "merge", "--abort"]);
       const detail = err instanceof Error ? err.message : String(err);
       return { kind: "conflict", message: `Concurrent notes could not be merged (git notes merge failed): ${detail}` };
