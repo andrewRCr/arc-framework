@@ -13,7 +13,9 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { handleCandidateApplicabilityResolve } from "../../src/handlers/candidate.js";
+import { handleIntegrationCheckpoint } from "../../src/handlers/integration.js";
 import { handleAttest, handlePublish } from "../../src/handlers/lifecycle.js";
+import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
 import {
   handleReviewHostedAwait,
   handleReviewHostedRequest,
@@ -124,6 +126,7 @@ async function installHost(root: string): Promise<string> {
     // advance would invalidate.
     `base=$(git --git-dir='${join(root, ".arc-fixture", "origin.git")}' rev-parse refs/heads/main)`,
     'case "$1:$2" in',
+    `  repo:view) printf '%s\\n' '{"nameWithOwner":"${REPOSITORY}"}' ;;`,
     '  api:user) printf \'%s\\n\' \'{"id":123}\' ;;',
     `  api:repos/${REPOSITORY}/issues/${String(PULL_REQUEST)}/comments)`,
     '    if test "$6" = "body=@coderabbitai full review"; then echo "HTTP 429 rate limited" >&2; exit 1; fi',
@@ -258,8 +261,24 @@ describe("review status over a base advanced under the work unit", () => {
 });
 
 describe("singleton hosted review after publication", () => {
-  it.each([undefined, "codex-pr", "coderabbit-pr"] as const)("admits selected source %s", async (sourceId) => {
-    const fixture = await singletonUnderReview();
+  it.each([
+    [undefined, "focused"],
+    ["codex-pr", "focused"],
+    ["codex-pr", "full"],
+    ["coderabbit-pr", "focused"],
+  ] as const)("retains source %s with verification scope %s", async (sourceId, convergenceScope) => {
+    const fixture = await singletonUnderReview(sourceId === "codex-pr" ? async (root) => {
+      const configPath = join(root, ".arc", "system", "arc-config.yml");
+      const config = await readFile(configPath, "utf8");
+      await writeFile(configPath, config.replace(/^archive\.cadence:.*$/mu, "archive.cadence: manual"));
+      const metaPath = join(root, ".arc", "active", `meta-${WORK_UNIT}.md`);
+      await writeFile(metaPath, [
+        await readFile(metaPath, "utf8"), "## Completion Notes", "",
+        "Delivered the example implementation and completed verification.", "",
+      ].join("\n"));
+      await git(root, ["add", "-A"]);
+      await git(root, ["commit", "-m", "complete singleton lifecycle artifacts"]);
+    } : undefined);
     const reviewed = await runHandlerAt(fixture.root, async () => {
       await handleReviewPrePublication(WORK_UNIT, { selfReview: "settled" }, {}, machineContext());
     });
@@ -428,6 +447,43 @@ describe("singleton hosted review after publication", () => {
         await git(fixture.root, ["push", "origin", HEAD_REF]);
         fixture.headSha = await git(fixture.root, ["rev-parse", "HEAD"]);
         fixture.bin = await installHost(fixture.root);
+        const beforeConvergence = (await readSubmissionBoundaryVersioned(fixture.root, WORK_UNIT)).boundary;
+        expect(beforeConvergence).toMatchObject({ locus: "publication-pending", reservation });
+        const converged = await runHandlerAt(fixture.root, async () => {
+          await handleAttest(WORK_UNIT, {
+            json: true,
+            scope: convergenceScope,
+            verificationEvidenceRef: `verification://singleton-${convergenceScope}-convergence`,
+          }, machineContext());
+        });
+        expect(converged.exitCode, converged.stdout + converged.stderr).toBe(0);
+        expect(JSON.parse(converged.stdout)).toMatchObject({
+          status: "attested", operation: "convergence", scope: convergenceScope,
+          locus: beforeConvergence,
+        });
+        expect((await readSubmissionBoundaryVersioned(fixture.root, WORK_UNIT)).boundary).toEqual(beforeConvergence);
+        const retried = await runHandlerAt(fixture.root, async () => {
+          await handleAttest(WORK_UNIT, { json: true }, machineContext());
+        });
+        expect(retried.exitCode, retried.stdout + retried.stderr).toBe(0);
+        expect(JSON.parse(retried.stdout)).toMatchObject({ status: "unchanged", locus: beforeConvergence });
+        expect((await readSubmissionBoundaryVersioned(fixture.root, WORK_UNIT)).boundary).toEqual(beforeConvergence);
+        expect(parseMetaRecord(await readFile(
+          join(fixture.root, ".arc", "active", `meta-${WORK_UNIT}.md`), "utf8",
+        ))).toMatchObject({ state: "Integrating", currentWorkflow: "integrate-work-unit" });
+        await git(fixture.root, ["add", "-A"]);
+        await git(fixture.root, ["commit", "-m", "attest published convergence"]);
+        await git(fixture.root, ["push", "origin", HEAD_REF]);
+        fixture.headSha = await git(fixture.root, ["rev-parse", "HEAD"]);
+        fixture.bin = await installHost(fixture.root);
+        const checkpoint = await withHost(fixture.bin, async () => runHandlerAt(fixture.root, async () => {
+          await handleIntegrationCheckpoint(WORK_UNIT, {}, machineContext());
+        }));
+        expect(checkpoint.exitCode, checkpoint.stdout + checkpoint.stderr).toBe(0);
+        expect(JSON.parse(checkpoint.stdout)).toMatchObject({
+          state: "blocked", nextAction: "stop", reason: "hosted-reservation-pending",
+          payload: { requirement: { id: "hosted-review-reservation", state: "pending" } },
+        });
         const applicability = await withHost(fixture.bin, async () => resolveReviewStatus({
           target: { repository: REPOSITORY, headRef: HEAD_REF, headSha: fixture.headSha },
           sourceId,

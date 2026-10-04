@@ -190,6 +190,7 @@ import {
   projectCandidateReviewResumeBoundary,
   projectCorrectiveDeliveryStatusBoundary,
   recoverAttestedOwnerTerminusBoundary,
+  recoverAttestedSingletonPublicationBoundary,
   type IntegrationBoundaryLocus,
 } from "../scripts/review-gate/policy/integration-boundary-locus.js";
 import { runRepointDesign, type RepointDesignEvent } from "../lib/work-unit/verbs/repoint-design.js";
@@ -3048,7 +3049,15 @@ export async function handleAttest(
           candidateSubjectDigest: publication.candidateSubjectDigest,
           repairCurrent: publication.repairCurrent,
         });
+        const singletonPublication = recoverAttestedSingletonPublicationBoundary({
+          stored: existingBoundary,
+          workUnit: publication.name,
+          candidateId: publication.candidateId,
+          candidateSubjectDigest: publication.candidateSubjectDigest,
+          integrating: priorMeta.state === "Integrating",
+        });
         const locus = deliveryLocus ?? ownerTerminusContinuation ?? convergenceResume
+          ?? singletonPublication
           ?? (publication.repairCurrent && boundaryMatches
             ? existingBoundary
             : projectCandidateReviewBoundary({
