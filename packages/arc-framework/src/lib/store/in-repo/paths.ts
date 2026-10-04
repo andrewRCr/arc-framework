@@ -80,7 +80,18 @@ async function filesUnder(context: InRepoContext, root: string, revision?: strin
 export async function cohortPaths(context: InRepoContext, revision?: string, diagnostics?: ListingDiagnostic[]): Promise<string[]> {
   const roots = [resolveArcPath({ kind: "placement-root", tier: "planned" }), resolveArcPath({ kind: "placement-root", tier: "completed" })];
   const paths = (await Promise.all(roots.map((root) => filesUnder(context, root, revision, diagnostics)))).flat();
-  return paths.filter((path) => /^cohort-.*\.md$/u.test(basename(path)));
+  const selected: string[] = [];
+  const names = new Set<string>();
+  for (const path of paths) {
+    const match = /^cohort-(.*)\.md$/u.exec(basename(path));
+    if (match === null) continue;
+    const slug = SlugSchema.safeParse(match[1]);
+    if (!slug.success) { selected.push(path); continue; }
+    if (names.has(slug.data)) continue;
+    names.add(slug.data);
+    selected.push(path);
+  }
+  return selected;
 }
 /** Discover references for a tracked kind with a fixed internal namespace.
  * @param context - Backend dependencies.
