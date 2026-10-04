@@ -253,30 +253,20 @@ lint and its staged-file caller preserve package-cwd suppression and option-valu
           one reusable qualified generation through controller closing. Empty runtime case selection remains non-passing;
           native pre-parsing refines runtime needs without invalidating initially eligible operands.
 
-### `[ ]` **4.3 Normalize focused TypeScript lint and staged-hook targets — D1, D9**
+### `[x]` **4.3 Normalize focused TypeScript lint and staged-hook targets — D1, D9**
 
 - _Goal:_ Root focused TypeScript lint and the staged-file hook select their intended files while retaining native
   package-cwd suppression, option-value, and exit semantics.
 
-    - `[ ]` **4.3.a Add explicit root-target normalization at the focused ESLint boundary**
-        - Require at least one file, directory, or glob target before the optional adapter `--`; normalize its base
-          from the checkout root while preserving native glob syntax, then run installed ESLint in package cwd.
-        - Forward later tokens unchanged, including any additional native positional patterns with package-cwd bases;
-          retain the package-local helper and native option/value, glob, ignore, and failure semantics.
-        - Build `test-first` (one behavior at a time):
-            - Native ESLint fixtures establish targeted-file selection and the package-relative suppression baseline.
-            - Root file/directory/glob targets select their intended native matches; an empty root-target span fails
-              before ESLint can default to whole-package linting.
-            - Literal option values and explicit extra patterns retain package-cwd interpretation; native failures
-              propagate and the adapter adds no implicit targets.
+    - `[x]` **4.3.a Add explicit root-target normalization at the focused ESLint boundary**
+        - The direct root lint entry requires explicit repository-relative targets, normalizes file/directory/glob
+          bases, and executes installed ESLint in package cwd. Tokens after the optional delimiter retain native
+          option-value and positional-pattern bases, suppression behavior, and exit status.
 
-    - `[ ]` **4.3.b Update the staged-file caller with the root operand contract**
-        - Stop `scripts/check-ts-quality.sh` from stripping `packages/arc-framework/`; adjust its invocation commentary
-          while preserving staged-file selection, quoted argv, both type checks, and failure aggregation.
-        - Read `git diff --cached --name-only --diff-filter=ACMR -z` with a NUL-delimited loop and select TypeScript
-          paths from literal records. Preserve Unicode, tabs, newlines, and spaces through the root helper's argv.
-        - Use real staged-file fixtures to verify literal paths reach the helper and existing suppression behavior remains.
-          Run shell lint for the touched script; retain the Markdown literal/fix helper definitions unchanged.
+    - `[x]` **4.3.b Update the staged-file caller with the root operand contract**
+        - The staged hook reads NUL-delimited Git records and forwards literal repository-relative paths, preserving
+          spaces, Unicode, tabs, and newlines through native lint and suppression lookup. Native lint failure still
+          rejects the check, and both type checks report after earlier failures.
 
 ### `[ ]` **4.4 Validate focused root invocations — D1, D2, D3, D8** — validate exit criterion at segment scope
 

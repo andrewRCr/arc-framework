@@ -22,8 +22,8 @@
 # eslint goes through the npm script rather than a bare npx call, because the
 # recorded size/complexity floor in eslint-suppressions.json is keyed relative to
 # the directory eslint runs in. lint:ts:file runs with the package as its working
-# directory, so staged paths are made package-relative before they are passed; a
-# root-cwd run resolves no baseline and reports every recorded violation as new.
+# directory. Its root adapter accepts literal repository-relative staged paths;
+# a root-cwd ESLint run resolves no baseline and reports recorded violations as new.
 #
 # This is narrower than `npm run lint:ts` in one direction: a per-file run cannot
 # prune, so a suppression the change made stale passes here and fails the
@@ -43,12 +43,13 @@ RED="$ARC_RED"
 NC="$ARC_NC"
 
 staged_ts=()
-while IFS= read -r staged_file; do
-    if [ -n "$staged_file" ]; then
-        staged_ts+=("${staged_file#packages/arc-framework/}")
-    fi
-done < <(git diff --cached --name-only --diff-filter=ACMR | \
-    grep -E '^packages/arc-framework/(src|__tests__)/.*\.ts$' || true)
+while IFS= read -r -d '' staged_file; do
+    case "$staged_file" in
+        packages/arc-framework/src/*.ts|packages/arc-framework/__tests__/*.ts)
+            staged_ts+=("$staged_file")
+            ;;
+    esac
+done < <(git diff --cached --name-only --diff-filter=ACMR -z)
 
 if [ ${#staged_ts[@]} -eq 0 ]; then
     exit 0
