@@ -2,8 +2,10 @@
 
 import { parseCLI } from "vitest/node";
 
-import { withLocalHeavyTestAdmission, type LocalHeavyTestTier } from "./local-test-admission.js";
+import type { LocalHeavyTestTier } from "./local-test-admission.js";
 import { discoverVitestSelection } from "./vitest-discovery.js";
+import { executeVitestSelection } from "./vitest-execution.js";
+import { resolve } from "node:path";
 
 /**
  * Integration suites that read this repository's own tracked content rather than temporary fixtures, so a
@@ -34,16 +36,8 @@ export async function runLocalVitestTier(
     ...forwardedArguments,
   ]);
   const selection = await discoverVitestSelection(filter, options);
-  const lifetime = { closed: false };
-  const execute = async (): Promise<void> => {
-    try { await selection.controller.runTestSpecifications(selection.specifications, true); }
-    finally { lifetime.closed = true; await selection.controller.close(); }
-  };
-  try {
-    if (selection.requiresRuntime) {
-      await withLocalHeavyTestAdmission({ cwd: process.cwd(), env: process.env, tier }, execute);
-    } else await execute();
-  } finally { if (!lifetime.closed) await selection.controller.close(); }
+  await executeVitestSelection(selection, { cwd: process.cwd(), env: process.env, tier,
+    packageRoot: resolve(import.meta.dirname, "../..") });
 }
 
 function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {

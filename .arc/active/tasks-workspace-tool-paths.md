@@ -153,7 +153,7 @@ _Exit criterion:_ A supported integration command uses one qualified runtime/sch
 acquisition. A manual build waits through controller closing, and an ownership-losing or dead controller cannot leave
 a compiler child that publishes. Stable repaired inputs restore successful preparation and execution.
 
-### `[ ]` **3.1 Discover projects before admission and owned runtime preparation — D2, D3, D4**
+### `[x]` **3.1 Discover projects before admission and owned runtime preparation — D2, D3, D4**
 
 - _Goal:_ Actual discovered projects determine build/admission needs, and the same controller owns each heavy
   run's qualified generation until its closing path finishes.
@@ -164,39 +164,26 @@ a compiler child that publishes. Stable repaired inputs restore successful prepa
           determines CPU admission; empty selection and native parsing failure close before setup or admission.
           Disposable controller/worker fixtures retain explicit environment values and match native cross-file `.only`.
 
-    - `[ ]` **3.1.b Prepare and execute selected specifications under the controller's ownership**
-        - Acquire CPU then artifacts for heavy selections, ensure qualified runtime/schema, `provide` evidence before
-          setup, and execute refined specs with `runTestSpecifications(specifications, true)` to preserve native
-          initial-run coverage semantics. Do not repeat the reporting/coverage initialization from discovery.
-        - Validate the preparation result and require the supported heavy runner to provide valid evidence before
-          execution; its setup cannot enter the direct-native fallback through an omitted evidence key.
-        - Build `test-first` (one behavior at a time):
-            - Qualified unchanged output is reused; required generation occurs under the already-held artifact lease.
-            - Native setup/collection/execution failure still closes the controller before releasing either lease.
-            - CI/concurrency bypasses affect CPU admission only.
+    - `[x]` **3.1.b Prepare and execute selected specifications under the controller's ownership**
+        - `executeVitestSelection` acquires CPU then artifacts for heavy selections, validates and provides the
+          qualified runtime/schema generation, and executes refined specifications with native initial-run semantics.
+          Closing remains inside both leases on preparation, setup, collection, and execution failures; CPU bypass
+          retains artifact ownership.
 
-### `[ ]` **3.2 Wire prepared tier execution and evidence-aware global setups — D2, D3, D9**
+### `[x]` **3.2 Wire prepared tier execution and evidence-aware global setups — D2, D3, D9**
 
 - _Goal:_ Global setups consume validated controller evidence without nested ownership/building; direct native
   setup can ensure a generation, and skip-build always forbids generation.
 
-    - `[ ]` **3.2.a Wire prepared tier execution and controller-provided setup evidence together**
-        - Update `run-local-test-tier.ts`, the runner, and both integration/E2E `setup` functions coherently;
-          read evidence with `getProvidedContext` and validate current runtime/schema qualification and required files.
-        - Select the provided-evidence branch by own-key presence; reject any present malformed or mismatched value.
-        - Build `test-first` (one behavior at a time):
-            - Multiple heavy projects share the provided generation without reacquiring leases or invoking builds.
-            - Present `undefined`, `null`, missing record fields, or mismatched evidence prevents execution without a
-              nested repair build; supported-runner preparation establishes the key before setup.
-            - Ordinary E2E no longer selects full/fast preparation through its outer npm lifecycle name.
+    - `[x]` **3.2.a Wire prepared tier execution and controller-provided setup evidence together**
+        - Integration and E2E setups validate the exact current generation through public provided context. Own-key
+          presence rejects malformed and mismatched values without nested repair; multiple heavy projects share
+          the controller's prepared generation. Ordinary E2E preparation no longer depends on the lifecycle name.
 
-    - `[ ]` **3.2.b Compose direct native preparation and the prebuilt-only route**
-        - Only when the evidence key is absent, ensure runtime/schema through build ownership only; with
-          `ARC_E2E_SKIP_BUILD=1`, require qualified prebuilt evidence and files in every preparation path.
-        - Build `test-first` (one behavior at a time):
-            - Direct setup can generate qualifying runtime but claims no artifact pin through an unmanaged run.
-            - Matching prebuilt output executes without generation; mismatch fails with a build/download/install remedy.
-            - Repair restores execution while skip-build remains enabled and still generates nothing.
+    - `[x]` **3.2.b Compose direct native preparation and the prebuilt-only route**
+        - Absent context uses artifact ownership for direct preparation, without pinning unmanaged execution.
+          Every preparation path forbids generation with skip-build enabled; qualified prebuilt reuse and repaired
+          continuation preserve that flag and avoid native compiler configuration loading.
 
 ### `[ ]` **3.3 Preserve execution and final cleanup failure status — D8**
 
