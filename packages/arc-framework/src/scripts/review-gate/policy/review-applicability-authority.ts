@@ -116,7 +116,10 @@ function carriedSegmentPreservesResidual(
   const residual = [...new Set([...selectedProjection.paths, ownRecordPath])].sort();
   return mechanicalProjection.verdict === "clean-divergence"
     && canonicalize(mechanicalProjection.paths) === canonicalize([ownRecordPath])
-    && canonicalize(residual) === canonicalize(projection.paths);
+    && (canonicalize(residual) === canonicalize(projection.paths)
+      // Interaction projections list conflict paths; a selection-only commit may leave that list unchanged.
+      || (projection.verdict === "interaction"
+        && canonicalize(selectedProjection.paths) === canonicalize(projection.paths)));
 }
 
 /** Reduce authority while preserving an exact Owner selection across a separately proved mechanical segment. */

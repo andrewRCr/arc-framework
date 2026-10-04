@@ -602,6 +602,92 @@ describe("singleton hosted review after publication", () => {
         expect(resumed.exitCode, resumed.stdout + resumed.stderr).toBe(0);
         expect(JSON.parse(resumed.stdout)).toMatchObject({ state: "requested", nextAction: "await" });
         expect((await readSubmissionBoundaryVersioned(fixture.root, WORK_UNIT)).boundary?.reservation).toEqual(reservation);
+        const secondRequest = HostedRequestResultSchema.parse(JSON.parse(resumed.stdout));
+        if (secondRequest.nextAction !== "await") throw new Error("expected second review handle");
+        const secondReviewedHead = fixture.headSha;
+        await writeFile(join(fixture.root, ".arc-fixture", "codex-result.json"), JSON.stringify([[{
+          node_id: "codex-clean-2", html_url: "https://example.test/codex-clean-2",
+          user: { id: 199175422 }, performed_via_github_app: { id: 1144995 },
+          body: `Codex Review: didn't find any major issues\nReviewed commit: ${secondReviewedHead}`,
+          created_at: "2026-10-03T00:03:00Z", updated_at: "2026-10-03T00:03:00Z",
+        }]]));
+        const secondAwaited = await withHost(fixture.bin, async () => runHandlerAt(fixture.root, async () => {
+          await handleReviewHostedAwait("-", { readText: async () => JSON.stringify(secondRequest.action) });
+        }));
+        expect(secondAwaited.exitCode, secondAwaited.stdout + secondAwaited.stderr).toBe(0);
+        expect(JSON.parse(secondAwaited.stdout)).toMatchObject({
+          state: "clean", nextAction: "complete", handle: { admission: { logicalPass: 2 } },
+        });
+        await writeFile(metaPath, [
+          await readFile(metaPath, "utf8"), "- Completed the final integration verification.", "",
+        ].join("\n"));
+        await git(fixture.root, ["add", metaPath]);
+        await git(fixture.root, ["commit", "-m", "record checked completion"]);
+        await git(fixture.root, ["push", "origin", HEAD_REF]);
+        fixture.headSha = await git(fixture.root, ["rev-parse", "HEAD"]);
+        fixture.bin = await installHost(fixture.root);
+        const latestCoverage = await withHost(fixture.bin, async () => resolveReviewStatus({
+          target: { repository: REPOSITORY, headRef: HEAD_REF, headSha: fixture.headSha }, sourceId,
+        }, createReviewStatusPort({ cwd: fixture.root, exec })));
+        expect(latestCoverage).toMatchObject({
+          state: "review-required", nextAction: "resolve-review-applicability",
+          selectionAction: { projection: { selector: { priorHead: secondReviewedHead } } },
+        });
+        if (latestCoverage.nextAction !== "resolve-review-applicability") throw new Error("expected latest coverage offer");
+        const covered = await runHandlerAt(fixture.root, async () => {
+          await handleCandidateApplicabilityResolve(WORK_UNIT, "-", machineContext(), {
+            readText: async () => JSON.stringify({
+              kind: latestCoverage.selectionAction.kind, offer: latestCoverage.selectionAction,
+              selection: { selectedBy: "test-user", selectedAt: "2026-10-03T00:04:00Z", choice: "covered" },
+            }),
+          });
+        });
+        expect(covered.exitCode, covered.stdout + covered.stderr).toBe(0);
+        expect(JSON.parse(covered.stdout)).toMatchObject({ state: "resolved", nextAction: "commit-selection" });
+        await git(fixture.root, ["commit", "-m", "retain complete latest review"]);
+        await git(fixture.root, ["push", "origin", HEAD_REF]);
+        fixture.headSha = await git(fixture.root, ["rev-parse", "HEAD"]);
+        fixture.bin = await installHost(fixture.root);
+        const retained = await withHost(fixture.bin, async () => resolveReviewStatus({
+          target: { repository: REPOSITORY, headRef: HEAD_REF, headSha: fixture.headSha }, sourceId,
+        }, createReviewStatusPort({ cwd: fixture.root, exec })));
+        expect(retained).toMatchObject({ state: "settled", nextAction: "continue-reconcile" });
+        await advanceBase({
+          cwd: fixture.root, paths: [".arc/backlog/ROADMAP.md"], landing: "merge",
+        });
+        await git(fixture.root, ["merge", "--no-ff", "--no-edit", "-X", "theirs", "origin/main"]);
+        await git(fixture.root, ["update-ref", "refs/heads/main", "origin/main"]);
+        await git(fixture.root, ["push", "origin", HEAD_REF]);
+        fixture.headSha = await git(fixture.root, ["rev-parse", "HEAD"]);
+        fixture.bin = await installHost(fixture.root);
+        const roadmapCoverage = await withHost(fixture.bin, async () => resolveReviewStatus({
+          target: { repository: REPOSITORY, headRef: HEAD_REF, headSha: fixture.headSha }, sourceId,
+        }, createReviewStatusPort({ cwd: fixture.root, exec })));
+        expect(roadmapCoverage).toMatchObject({
+          state: "review-required", nextAction: "resolve-review-applicability",
+          selectionAction: { projection: { selector: { priorHead: secondReviewedHead } } },
+        });
+        if (roadmapCoverage.nextAction !== "resolve-review-applicability") throw new Error("expected ROADMAP coverage offer");
+        const roadmapCovered = await runHandlerAt(fixture.root, async () => {
+          await handleCandidateApplicabilityResolve(WORK_UNIT, "-", machineContext(), {
+            readText: async () => JSON.stringify({
+              kind: roadmapCoverage.selectionAction.kind, offer: roadmapCoverage.selectionAction,
+              selection: { selectedBy: "test-user", selectedAt: "2026-10-03T00:05:00Z", choice: "covered" },
+            }),
+          });
+        });
+        expect(roadmapCovered.exitCode, roadmapCovered.stdout + roadmapCovered.stderr).toBe(0);
+        expect(JSON.parse(roadmapCovered.stdout)).toMatchObject({ state: "resolved", nextAction: "commit-selection" });
+        await git(fixture.root, ["commit", "-m", "retain review after generated base repair"]);
+        await git(fixture.root, ["push", "origin", HEAD_REF]);
+        fixture.headSha = await git(fixture.root, ["rev-parse", "HEAD"]);
+        fixture.bin = await installHost(fixture.root);
+        const roadmapRetained = await withHost(fixture.bin, async () => resolveReviewStatus({
+          target: { repository: REPOSITORY, headRef: HEAD_REF, headSha: fixture.headSha }, sourceId,
+        }, createReviewStatusPort({ cwd: fixture.root, exec })));
+        expect(roadmapRetained, JSON.stringify(roadmapRetained)).toMatchObject({
+          state: "settled", nextAction: "continue-reconcile",
+        });
       }
     }
 

@@ -256,7 +256,7 @@ describe("review contribution applicability against Git", () => {
 describe("singleton review applicability through the selection command", () => {
   // A reviewed feature commit, then an unreviewed notes commit, on a branch whose configured base has since
   // advanced past work the branch never touched.
-  async function singletonBehindBase() {
+  async function singletonBehindBase(reviewNotes = false) {
     const root = await createTempRepoCore({ prefix: "arc-singleton-applicability-" });
     roots.push(root);
     const run = async (args: string[]): Promise<string> => (
@@ -295,8 +295,9 @@ describe("singleton review applicability through the selection command", () => {
       lineageAttestations: [],
     }, null);
     await run(["add", resolveCandidateRecordRelativePath("example")]);
-    const reviewedHead = await commit("feature.txt", "feature\n", "reviewed feature");
+    const featureHead = await commit("feature.txt", "feature\n", "reviewed feature");
     const notesHead = await commit("notes.md", "# Notes\n", "add notes");
+    const reviewedHead = reviewNotes ? notesHead : featureHead;
     await run(["checkout", "main"]);
     const baseTip = await commit("base.txt", "unrelated\n", "unrelated base movement");
     await run(["update-ref", "refs/remotes/origin/main", baseTip]);
@@ -432,6 +433,32 @@ describe("singleton review applicability through the selection command", () => {
       paths: [resolveCandidateRecordRelativePath("example"), "notes.md"],
     });
 
+    const changedHead = await fixture.commit("feature.txt", "feature changed\n", "change reviewed feature");
+    await expect(fixture.authorityAt(changedHead)).resolves.toMatchObject({ state: "decision-required" });
+  });
+
+  it("keeps an interaction selection across its record commit without covering later content changes", async () => {
+    const fixture = await singletonBehindBase(true);
+    await fixture.run(["checkout", "main"]);
+    const movedBase = await fixture.commit("notes.md", "# Base notes\n", "change base notes");
+    await fixture.run(["update-ref", "refs/remotes/origin/main", movedBase]);
+    await fixture.run(["checkout", "feat/example"]);
+    await fixture.run(["merge", "--no-ff", "--no-edit", "-X", "theirs", "main"]);
+    const mergedHead = await fixture.run(["rev-parse", "HEAD"]);
+    const selected = await fixture.offer(mergedHead);
+    expect(selected.projection).toMatchObject({
+      state: "decision-required", verdict: "interaction", paths: ["notes.md"],
+    });
+    await expect(fixture.select(selected, "2026-10-02T12:01:00.000Z")).resolves.toEqual({
+      result: expect.objectContaining({ state: "resolved", nextAction: "commit-selection", choice: "covered" }),
+      exitCodes: [],
+    });
+    await fixture.run(["commit", "-m", "record interaction selection"]);
+    const recordedHead = await fixture.run(["rev-parse", "HEAD"]);
+    await expect(fixture.authorityAt(recordedHead)).resolves.toMatchObject({
+      state: "applicable", authority: "owner-covered",
+      projection: { verdict: "interaction", paths: ["notes.md"] },
+    });
     const changedHead = await fixture.commit("feature.txt", "feature changed\n", "change reviewed feature");
     await expect(fixture.authorityAt(changedHead)).resolves.toMatchObject({ state: "decision-required" });
   });
