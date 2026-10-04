@@ -6,6 +6,7 @@ import { personalSurfaces } from "./personal-paths.js";
 import type { UserIOContext } from "../../../commands/user/types.js";
 import type { DirEntry } from "../../git/user-sync.js";
 import { isGitProcessError } from "../../git/process-error.js";
+import type { GitExecInput } from "../../git/exec.js";
 import type { InRepoContext } from "./context.js";
 import { isMissing } from "./refusals.js";
 
@@ -14,7 +15,7 @@ import { isMissing } from "./refusals.js";
  * @param identity - Configured owner of the notes namespace.
  * @returns The existing notes command's complete I/O boundary.
  */
-export function notesIO(context: InRepoContext, identity: Slug): UserIOContext {
+export function notesIO(context: InRepoContext, identity: Slug): UserIOContext & { execInput: GitExecInput } {
   const { fs, exec, execInput, checkoutRoot } = context.ports;
   let identityRoot: Promise<string> | undefined;
   return {

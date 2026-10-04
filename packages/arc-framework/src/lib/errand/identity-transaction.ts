@@ -2,11 +2,11 @@
 
 import {
   isCasRejectionError,
-  isRemoteUnavailableError,
+  isNonFastForwardError,
   MAX_RECONCILE_ATTEMPTS,
   uniqueRefToken,
 } from "../git/ref-tree.js";
-import { gitFailureText, normalizeGitRejection } from "../git/process-error.js";
+import { gitFailureText, isCompletedGitFailure, normalizeGitRejection } from "../git/process-error.js";
 import { classifyPublicationFailure, type RemotePublicationFailure } from "../git/publication-failure.js";
 import {
   serializeTransientIdentityRecord,
@@ -80,6 +80,8 @@ export interface IdentityTransactionParams<T> {
   readonly message: string;
   /** Idempotent expected-state transform. */
   readonly transform: IdentityTransform<T>;
+  /** Observe this caller's applied decision only after its local compare-and-swap completes. */
+  readonly onLocalCommit?: (value: T) => void;
 }
 
 /** The step of an identity transaction a failure reached. */
@@ -228,8 +230,9 @@ async function applyAndPublish<T>(
   try {
     const parents = [...new Set([local.tip, basis.tip].filter((value): value is string => value !== null))];
     tip = await writeTreeCommit(io, objects, params.message, parents, local.tip);
+    if (decision.kind === "applied") params.onLocalCommit?.(decision.value);
   } catch (error) {
-    return isCasRejectionError(gitFailureText(error))
+    return isCompletedGitFailure(error) && isCasRejectionError(gitFailureText(error))
       ? { kind: "retry", stage: "write" }
       : { kind: "error", stage: "write", message: errorMessage(error), error };
   }
@@ -237,10 +240,9 @@ async function applyAndPublish<T>(
     try {
       await io.exec("git", ["push", params.remote, `${ref}:${ref}`]);
     } catch (error) {
-      if (isRemoteUnavailableError(gitFailureText(error))) {
-        return { kind: "error", stage: "push", message: errorMessage(error), remoteFailure: classifyPublicationFailure(error), error };
-      }
-      return { kind: "retry", stage: "push", message: errorMessage(error), error };
+      if (isCompletedGitFailure(error) && isNonFastForwardError(gitFailureText(error)))
+        return { kind: "retry", stage: "push", message: errorMessage(error), error };
+      return { kind: "error", stage: "push", message: errorMessage(error), remoteFailure: classifyPublicationFailure(error), error };
     }
   }
   return decision.kind === "applied"

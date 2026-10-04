@@ -216,25 +216,29 @@ describe("identity transactions", () => {
     expect(invoked).toBe(false);
   });
 
-  it("re-enters idempotently after an ambiguous push that actually landed", async () => {
+  it("preserves an ambiguous push failure and re-enters idempotently on explicit retry", async () => {
     remoteDir = await addBareRemote(dir);
     const real = ioFor(dir);
     let ambiguous = true;
+    let original: Error | undefined;
     const exec: GitExec = async (command, args, options) => {
       const result = await real.exec(command, args, options);
       if (ambiguous && args[0] === "push" && args.at(-1)?.includes("refs/arc/user/andrew/errands") === true) {
         ambiguous = false;
-        throw makeGitProcessError({ command, args, exitCode: 128,
+        original = makeGitProcessError({ command, args, exitCode: 128,
           stderr: "connection reset after remote accepted the update" });
+        throw original;
       }
       return result;
     };
     const outcome = await addRecord({ ...real, exec }, "alpha", "origin");
 
-    expect(outcome).toMatchObject({ kind: "idempotent", value: "alpha" });
+    expect(outcome).toMatchObject({ kind: "error", stage: "push", error: original,
+      remoteFailure: { code: "unreachable", cause: "network" } });
     const snapshot = await readTransientIdentitySnapshot(real);
     if (snapshot.kind !== "complete") throw new Error("expected complete snapshot");
     expect(snapshot.records.has("alpha")).toBe(true);
+    await expect(addRecord(real, "alpha", "origin")).resolves.toMatchObject({ kind: "idempotent", value: "alpha" });
   });
 
   it("reports the repeated push failure that exhausts reconciliation", async () => {

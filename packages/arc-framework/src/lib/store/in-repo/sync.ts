@@ -34,7 +34,7 @@ export async function syncInRepo(context: InRepoContext): Promise<SyncResult> {
     access: async (path) => { await context.ports.fs.lstat(isAbsolute(path) ? path : join(context.ports.checkoutRoot, path)); }, withNotesLock: context.ports.locks.notes });
   const personal = notesPublish(notes, elapsed(context, started));
   const transientStarted = context.ports.clock().getTime();
-  const transient = transientPublish(await reconcileErrandPush({ exec: io.exec, execInput: context.ports.execInput, identity }), elapsed(context, transientStarted));
+  const transient = transientPublish(await reconcileErrandPush({ exec: io.exec, execInput: io.execInput, identity }), elapsed(context, transientStarted));
   return SyncResultSchema.parse({ states, publishes: [personal, transient] });
 }
 function elapsed(context: InRepoContext, started: number): number { return Math.max(0, context.ports.clock().getTime() - started); }

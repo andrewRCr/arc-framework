@@ -39,9 +39,13 @@ export async function batchTransient(context: InRepoContext, input: BatchInput):
   const versions = new Map<string, string>();
   for (const [key, record] of replacements) versions.set(key, await hashBlob(io.execInput, serializeTransientIdentityRecord(record)));
   const started = context.ports.clock().getTime();
+  let accepted: TransactionValue | undefined;
   const outcome = await transactTransientIdentities<TransactionValue>(io, { remote: await context.ports.remote(),
-    message: `${input.provenance.verb}: ${input.provenance.lifecycleAction}`, transform: (records, objects) => {
+    message: `${input.provenance.verb}: ${input.provenance.lifecycleAction}`,
+    onLocalCommit: (value) => { accepted = value; }, transform: (records, objects) => {
       if (objects === undefined) throw new Error("Identity transaction omitted blob version basis");
+      if (accepted !== undefined && acceptedMutationsMatch(input.writes, records, objects, versions))
+        return { kind: "idempotent", value: accepted };
       const stale = input.writes.filter((write) => staleMutation(write, records, objects)).map((write) => write.reference);
       if (stale.length > 0) return { kind: "idempotent", value: { stale, writes: [] } };
       const updated = new Map(records);
@@ -58,6 +62,14 @@ export async function batchTransient(context: InRepoContext, input: BatchInput):
     } });
   const value = transactionValue(outcome, input.writes, io.identity, Math.max(0, context.ports.clock().getTime() - started));
   return { batchId: randomUUID(), writes: value.writes };
+}
+function acceptedMutationsMatch(writes: Mutation[], records: ReadonlyMap<string, TransientIdentityRecord>,
+  objects: ReadonlyMap<string, string>, versions: ReadonlyMap<string, string>): boolean {
+  return writes.every((write) => {
+    const key = transientKey(write.reference), record = records.get(key);
+    if (write.action === "remove") return record === undefined && !objects.has(key);
+    return objects.get(key) === versions.get(key) && record !== undefined && transientKind(record) === write.reference.kind;
+  });
 }
 function admitTargets(writes: Mutation[], identity: string | null): void {
   const targets = new Map<string, RecordReference>();
