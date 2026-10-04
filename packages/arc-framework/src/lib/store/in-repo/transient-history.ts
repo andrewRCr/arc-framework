@@ -19,7 +19,7 @@ export async function transientHistory(context: InRepoContext, input: { referenc
   if (snapshot.kind === "error") throw new Error(snapshot.message,{cause:snapshot.error});
   if (snapshot.kind === "absent") return notFound(input.reference);
   const key = transientKey(input.reference);
-  const { stdout } = await io.exec("git", ["log", "--full-history", "--format=%H", snapshot.tip, "--", `:(literal)${key}`]);
+  const { stdout } = await io.exec("git", ["log", "--full-history", "--topo-order", "--format=%H", snapshot.tip, "--", `:(literal)${key}`]);
   const entries: HistoryEntry[] = [];
   for (const commit of stdout.trim().split("\n").filter(Boolean)) {
     const value = await historicalValue(io,commit,key,input.reference.kind);
