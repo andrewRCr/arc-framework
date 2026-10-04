@@ -24,6 +24,7 @@ describe("change-request merge admission", () => {
   it.each([
     { state: "mergeable" as const },
     { state: "base-currentness-required" as const, detail: "The target requires a current base." },
+    { state: "unresolved" as const, condition: "stale-base-test-merge" as const, detail: "Different test-merge base." },
   ])("retains exact coordinates for $state", async (observation) => {
     await expect(observeChangeRequestMergeAdmission(coordinates, port({
       ...coordinates,
@@ -36,7 +37,9 @@ describe("change-request merge admission", () => {
     await expect(observeChangeRequestMergeAdmission(coordinates, port({
       ...coordinates,
       baseRef: "release",
-      state: "mergeable",
+      state: "unresolved",
+      condition: "stale-base-test-merge",
+      detail: "Different test-merge base.",
     }))).resolves.toEqual({
       ...coordinates,
       state: "unresolved",
@@ -48,6 +51,7 @@ describe("change-request merge admission", () => {
     { state: "refused", ...coordinates },
     { state: "unresolved", ...coordinates, detail: "", statusCode: 409 },
     { state: "mergeable", ...coordinates, mergeStateStatus: "CLEAN" },
+    { state: "unresolved", ...coordinates, detail: "Unavailable.", condition: "api-unavailable" },
   ])("conservatively normalizes malformed or provider-shaped evidence %#", async (observation) => {
     const result = await observeChangeRequestMergeAdmission(coordinates, port(observation));
     expect(result).toEqual({

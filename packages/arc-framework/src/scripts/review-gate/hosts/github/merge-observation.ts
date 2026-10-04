@@ -96,6 +96,34 @@ function failureDetail(error: unknown): string {
   return value.replace(/\s+/gu, " ").trim().slice(0, 1_024) || "Host evidence was unavailable.";
 }
 
+function testMergeObservation(
+  coordinates: ChangeRequestMergeCoordinates,
+  parents: readonly string[],
+  mergeCommit: string,
+  baseContained: boolean | undefined,
+): ChangeRequestMergeObservation {
+  const evidenceRef = `github:test-merge:${mergeCommit}`;
+  if (parents.length === 2 && parents[0] === coordinates.base && parents[1] === coordinates.head) {
+    return ChangeRequestMergeObservationSchema.parse({ ...coordinates, state: "mergeable", evidenceRef });
+  }
+  if (baseContained === false && parents.length === 2
+    && parents[1] === coordinates.head && parents[0] !== coordinates.head) {
+    return ChangeRequestMergeObservationSchema.parse({
+      ...coordinates,
+      state: "unresolved",
+      condition: "stale-base-test-merge",
+      detail: "GitHub's test merge covers the exact head but a different base; reconcile the current base "
+        + "before observing final merge admission again.",
+      evidenceRef,
+    });
+  }
+  return unresolved(
+    coordinates,
+    "GitHub test-merge parents did not match the requested coordinates; GitHub may still be recomputing "
+      + "its test merge after a base or head movement.",
+  );
+}
+
 /** Build the supported GitHub merge-observation adapter. */
 export function createGhChangeRequestMergeObservationPort(
   runner: HostedProcessRunner,
@@ -160,18 +188,7 @@ export function createGhChangeRequestMergeObservationPort(
             const parents = commitParents(parse((await runner.run([
               "api", `repos/${coordinates.repository}/commits/${pull.mergeCommit}`,
             ], { signal })).stdout, "test-merge-commit"));
-            if (parents.length === 2 && parents[0] === coordinates.base && parents[1] === coordinates.head) {
-              return ChangeRequestMergeObservationSchema.parse({
-                ...coordinates,
-                state: "mergeable",
-                evidenceRef: `github:test-merge:${pull.mergeCommit}`,
-              });
-            }
-            return unresolved(
-              coordinates,
-              "GitHub test-merge parents did not match the requested coordinates; GitHub may still be recomputing "
-                + "its test merge after a base or head movement.",
-            );
+            return testMergeObservation(coordinates, parents, pull.mergeCommit, options?.baseContained);
           } catch (error) {
             if (signal.aborted) signal.throwIfAborted();
             lastDetail = `GitHub test-merge evidence was unavailable: ${failureDetail(error)}`;
