@@ -238,30 +238,20 @@ lint and its staged-file caller preserve package-cwd suppression and option-valu
           requires every operand to contribute after project filtering, and preserves native specification identity.
           The exact-selection boundary precedes optional pre-parsing; broad tier discovery retains native filters.
 
-### `[ ]` **4.2 Execute exact focused selections through the root npm interface — D1, D2, D3, D8, D9**
+### `[x]` **4.2 Execute exact focused selections through the root npm interface — D1, D2, D3, D8, D9**
 
 - _Goal:_ One ordinary root npm separator runs exactly the requested tests through the shared controller boundary,
   with native execution defaults/overrides and correct runtime needs for unit, heavy, and mixed selections.
 
-    - `[ ]` **4.2.a Add the direct Node root entry and compose the prepared runner**
-        - Add root `test:file` without workspace npm reparsing; keep fixed package config/cwd and the validated
-          specification set through execution. Preserve native project placement and explicit execution precedence.
-        - Compose the shared native environment bootstrap before the focused entry loads configuration.
-        - Validate each target's initial filename/project contribution before shared optional pre-parsing; use the
-          refined selection for preparation/execution without treating a natively skipped file as an invalid operand.
-        - Build `test-first` (one behavior at a time):
-            - A real npm invocation forwards a root file plus literal `-t` value and runs only its selected case.
-            - Default mock isolation and explicit isolation/pool/parallelism/worker overrides retain native precedence
-              while target, preparation, ownership, and completion guards remain authoritative.
+    - `[x]` **4.2.a Add the direct Node root entry and compose the prepared runner**
+        - Root `test:file` resolves literal operands before entering fixed package cwd and composes exact discovery
+          with the prepared controller. Native isolation, pool, file-parallelism, and worker overrides retain precedence;
+          focused ownership has its own diagnostic label without becoming a broad tier command.
 
-    - `[ ]` **4.2.b Prove focused unit/heavy/mixed execution and preparation outcomes**
-        - Exercise the new entry through disposable root/workspace fixtures and the actual controller/coordinator.
-        - Build `test-first` (one behavior at a time):
-            - Unit-only selection uses neither build nor heavy/artifact lease; integration/E2E and mixed selections
-              use one qualified generation and retain ownership through closing.
-            - Repeated qualifying requests reuse output; unmatched runtime names after preparation remain non-passing
-              without being reported as pre-build empty discovery. Optional pre-parsing can reject a refined empty
-              selection before ownership/building while each exact operand's initial eligibility still holds.
+    - `[x]` **4.2.b Prove focused unit/heavy/mixed execution and preparation outcomes**
+        - Real root npm fixtures prove unit execution without preparation or leases and heavy/mixed execution against
+          one reusable qualified generation through controller closing. Empty runtime case selection remains non-passing;
+          native pre-parsing refines runtime needs without invalidating initially eligible operands.
 
 ### `[ ]` **4.3 Normalize focused TypeScript lint and staged-hook targets — D1, D9**
 

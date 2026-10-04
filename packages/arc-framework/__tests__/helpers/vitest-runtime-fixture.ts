@@ -5,10 +5,11 @@ import { makeVitestControllerFixture } from "./vitest-controller-fixture.js";
 
 /**
  * Compose the actual global setups with two disposable artifact-consuming projects.
+ * @param preParse - Configured native pre-parsing switch
  * @returns Caller-owned checkout and semantic event log
  */
-export async function makeVitestRuntimeFixture(): Promise<Awaited<ReturnType<typeof makeVitestControllerFixture>>> {
-  const fixture = await makeVitestControllerFixture();
+export async function makeVitestRuntimeFixture(preParse = false): Promise<Awaited<ReturnType<typeof makeVitestControllerFixture>>> {
+  const fixture = await makeVitestControllerFixture(preParse);
   const sourcePackage = resolve(import.meta.dirname, "../..");
   const configurationPath = join(fixture.packageRoot, "vitest.config.mjs");
   const configuration = await readFile(configurationPath, "utf8");

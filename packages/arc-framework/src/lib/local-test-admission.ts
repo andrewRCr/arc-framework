@@ -39,11 +39,14 @@ export type LocalHeavyTestTier =
   | "e2e-focused"
   | "portability";
 
+/** Operator label for a broad tier or an exact focused selection. */
+export type LocalTestRunLabel = LocalHeavyTestTier | "focused";
+
 /** Inputs resolved by the package-script adapter. */
 export interface LocalTestAdmissionInput {
   readonly cwd: string;
   readonly env: Readonly<Record<string, string | undefined>>;
-  readonly tier: LocalHeavyTestTier;
+  readonly tier: LocalTestRunLabel;
 }
 
 /** Result of an admitted action, with queue latency present only when contention was observed. */
@@ -56,7 +59,7 @@ export interface LocalTestAdmissionResult<T> {
 interface LocalTestHolderMetadata {
   readonly schemaVersion: 1;
   readonly branch: string;
-  readonly tier: LocalHeavyTestTier;
+  readonly tier: LocalTestRunLabel;
   readonly worktree: string;
   readonly startedAt: string;
 }
@@ -205,7 +208,7 @@ function parseHolderMetadata(value: unknown): LocalTestHolderMetadata | null {
   if (
     candidate.schemaVersion !== 1
     || typeof candidate.branch !== "string"
-    || !isLocalHeavyTestTier(candidate.tier)
+    || !(candidate.tier === "focused" || isLocalHeavyTestTier(candidate.tier))
     || typeof candidate.worktree !== "string"
     || typeof candidate.startedAt !== "string"
   ) {
@@ -231,7 +234,7 @@ export function isLocalHeavyTestTier(value: unknown): value is LocalHeavyTestTie
     || value === "portability";
 }
 
-function tierLabel(tier: LocalHeavyTestTier): string {
+function tierLabel(tier: LocalTestRunLabel): string {
   if (tier === "e2e-focused") return "focused E2E";
   if (tier === "e2e") return "E2E";
   if (tier === "arc-contracts") return "ARC contract";

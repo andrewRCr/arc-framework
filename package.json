@@ -28,6 +28,7 @@
     "test:full": "npm run test:full -w packages/arc-framework",
     "test:changed": "npm run test:changed -w packages/arc-framework",
     "test:unit": "npm run test:unit -w packages/arc-framework",
+    "test:file": "node --import tsx packages/arc-framework/src/scripts/run-focused-tests.ts",
     "test:integration": "npm run test:integration -w packages/arc-framework",
     "test:arc-contracts": "npm run test:arc-contracts -w packages/arc-framework",
     "test:e2e": "npm run test:e2e -w packages/arc-framework",

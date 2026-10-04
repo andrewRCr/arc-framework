@@ -55,6 +55,25 @@ describe("isLocalHeavyTestTier", () => {
 });
 
 describe("withLocalHeavyTestAdmission", () => {
+  it("renders a focused holder's diagnostic label without adding a broad tier command", async () => {
+    const lines: string[] = [];
+    const result = await withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "focused" }, async () => "complete",
+      { git: admissionGit(), mkdir: async () => {}, resolveProcessScope: async () => "pid:[test]",
+        acquireLock: async (_path, options) => {
+          options?.onWait?.({ holder: { pid: 41, token: "holder", acquiredAt: 0,
+            metadata: options.metadata }, waitedMs: 0 });
+          return { path: "/repo/.git/arc/test-suite/.local-heavy-tests.lock", pid: 42, token: "ours" };
+        },
+        releaseLock: async () => {}, writeLine: (line) => lines.push(line),
+      },
+    );
+    expect(result.result).toBe("complete");
+    expect(lines[0]).toContain("queued behind focused tests (PID 41");
+    expect(lines[1]).toContain("starting focused tests");
+    expect(isLocalHeavyTestTier("focused")).toBe(false);
+  });
+
   it("enters the shared slot after a delete-pending lock directory clears", async () => {
     let mkdirAttempts = 0;
     const result = await withLocalHeavyTestAdmission(
