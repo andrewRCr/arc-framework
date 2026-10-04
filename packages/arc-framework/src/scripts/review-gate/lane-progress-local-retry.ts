@@ -14,6 +14,7 @@ function localRetryBinding(binding: LocalBinding): unknown {
     scopeMode: binding.scopeMode,
     coverageAdmission: localAttemptCoverageAdmission(binding),
     rubricIdentity: binding.rubricIdentity,
+    deliveryAdmission: binding.deliveryAdmission ?? null,
     target: {
       kind: target.kind, repositoryId: target.repositoryId, baseRef: target.baseRef,
       headSha: target.headSha, headTree: target.headTree,
