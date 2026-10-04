@@ -16,3 +16,14 @@ export function selectFirstPartyInputs(inputs: readonly string[], packageRoot: s
       && /\.(?:[cm]?[jt]sx?|json)$/u.test(key);
   }))].sort();
 }
+
+/**
+ * Turn actual native producer paths into checkout-independent evidence keys.
+ * @param inputs - Actual native compiler or loader dependencies
+ * @param packageRoot - Native consuming package boundary
+ * @returns Sorted repository-relative first-party keys
+ */
+export function repositoryInputKeys(inputs: readonly string[], packageRoot: string): string[] {
+  const root = resolve(packageRoot, "../..");
+  return selectFirstPartyInputs(inputs, packageRoot).map((file) => relative(root, file).split(sep).join("/"));
+}

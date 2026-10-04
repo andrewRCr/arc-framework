@@ -57,6 +57,7 @@ export function captureBuildContext(packageRoot: string, runtime: BuildRuntimeCo
     const tsup = tool(consumer, "tsup");
     const loader = tool(consumer, "bundle-require");
     tool(consumer, "typescript");
+    tool(consumer, "tsx");
     tool(tsup, "esbuild");
     tool(tsup, "bundle-require");
     tool(loader, "esbuild");

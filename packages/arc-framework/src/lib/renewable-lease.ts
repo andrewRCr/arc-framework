@@ -59,6 +59,8 @@ function createMonitor(
   let active = true;
   let releasing = false;
   let lost = false;
+  let pending: Promise<AdvisoryLockRenewalResult> | undefined;
+  let repeat = false;
   let confirmedUntil = handle.leaseUntil ?? startedAt + ADVISORY_LEASE_DURATION_MS;
   const cannotRetry = () => deps.now() + ADVISORY_LEASE_RENEW_INTERVAL_MS >= confirmedUntil;
   const terminate = (message: string) => {
@@ -69,7 +71,7 @@ function createMonitor(
   };
   const expiredMessage = `${labels.lock} could not be renewed before its last confirmed lease deadline; `
     + `stopping ${labels.controller}.`;
-  const renew = async (): Promise<AdvisoryLockRenewalResult> => {
+  const renewOnce = async (): Promise<AdvisoryLockRenewalResult> => {
     const start = deps.now();
     try {
       const result = await deps.renewLock(handle, ADVISORY_LEASE_DURATION_MS);
@@ -90,14 +92,30 @@ function createMonitor(
       return "retry";
     }
   };
+  const renew = (queueAgain = false): Promise<AdvisoryLockRenewalResult> => {
+    if (pending !== undefined) {
+      if (queueAgain) repeat = true;
+      return pending;
+    }
+    const operation = renewOnce();
+    pending = operation;
+    const clear = () => {
+      if (pending !== operation) return;
+      pending = undefined;
+      if (repeat && active && !lost) { repeat = false; void renew(); }
+    };
+    void operation.then(clear, clear);
+    return operation;
+  };
   return {
     tick: () => {
       if (!active) return;
       if (!releasing && cannotRetry()) terminate(expiredMessage);
-      else void renew();
+      else void renew(true);
     },
     confirmOwnership: async () => {
-      if (!active || releasing || lost || await renew() !== "renewed") {
+      const result = active && !releasing && !lost ? await renew() : "ownership-lost";
+      if (!active || releasing || lost || result !== "renewed") {
         throw new Error(`${labels.lock} ownership cannot be confirmed; rerun the operation after ownership repair.`);
       }
     },

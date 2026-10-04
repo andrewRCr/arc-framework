@@ -14,7 +14,7 @@ export function makeBuildFixture(): { root: string; packageRoot: string } {
   writeBuildFixtureFile(join(root, "package.json"), '{"private":true,"workspaces":["packages/cli"]}');
   writeBuildFixtureFile(join(packageRoot, "package.json"), '{"name":"@fixture/cli","type":"module"}');
   const packages: Record<string, unknown> = {};
-  for (const name of ["tsup", "bundle-require", "typescript", "esbuild", "load-tsconfig"]) {
+  for (const name of ["tsup", "bundle-require", "typescript", "esbuild", "load-tsconfig", "tsx"]) {
     const location = `node_modules/${name}`;
     writeBuildFixtureFile(join(root, location, "package.json"), JSON.stringify({
       name, version: "1.0.0", main: "dist/index.js", exports: { ".": "./dist/index.js" },

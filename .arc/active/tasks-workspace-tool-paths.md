@@ -100,24 +100,20 @@ _Mode:_ `slice` through Phase 3 — closes on a supported integration run retain
           Heavy ownership acquires CPU first and artifacts second; CPU bypasses retain artifact exclusion, native-loaded
           controls share one process identity, and replaced ownership cannot authorize publication.
 
-### `[ ]` **2.2 Compile full and fast builds into owned asynchronous staging — D4, D5**
+### `[x]` **2.2 Compile full and fast builds into owned asynchronous staging — D4, D5**
 
 - _Goal:_ Full and fast compilation can complete without blocking the owning process's renewal, and compiler
   children can write only unique staging output.
 
-    - `[ ]` **2.2.a Invoke an internal asynchronous compiler route under existing ownership**
-        - Compose `DEV_BUILD_OUTPUT_DIRECTORY_ENV` and unique staging with actual producer capture; public npm build
-          wrappers are not invoked recursively from the coordinator or self-refresh build action.
-        - Build `test-first` (one behavior at a time):
-            - A running compiler leaves live `dist` untouched and permits lease renewal and cancellation handling.
-            - A surviving child after owner death/replacement can finish staging but cannot promote live files.
+    - `[x]` **2.2.a Invoke an internal asynchronous compiler route under existing ownership**
+        - A native-loaded parent invokes a staging-only Node compiler asynchronously under its existing lease.
+          Compiler blocking leaves renewal active; owner death permits staging completion without live publication.
+          Ownership confirmation shares pending renewal and never revives authority after a stopping decision.
 
-    - `[ ]` **2.2.b Complete requested full/fast artifacts before reporting generation success**
-        - Preserve `baseOptions`/`fastOptions` composition, runtime/schema output, and the full declaration requirement.
-        - Build `test-first` (one behavior at a time):
-            - Fast generation produces runtime/schema evidence without declaration proof.
-            - A full declaration failure leaves the requested generation unsuccessful and prevents promotion.
-            - Failed compilation retains the previous live entry and gives the concrete rebuild remedy.
+    - `[x]` **2.2.b Complete requested full/fast artifacts before reporting generation success**
+        - Both native configuration roots load once and feed captured options; schema generation remains isolated.
+          Fast output supplies runtime/schema graphs, while full output awaits declarations. A real declaration failure
+          rejects the request, cleans its staging, preserves the previous live entry, and supplies the rebuild remedy.
 
 ### `[ ]` **2.3 Publish qualified generations with failure and recovery handling — D3, D4, D5**
 

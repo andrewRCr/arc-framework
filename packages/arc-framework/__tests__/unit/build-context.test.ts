@@ -9,6 +9,14 @@ const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
 describe("build installation context", () => {
+  it("identifies the installed Node source loader consumed by compiler children", () => {
+    const { root, packageRoot } = makeBuildFixture();
+    roots.push(root);
+    const manifest = join(root, "node_modules/tsx/package.json");
+    const before = captureBuildContext(packageRoot);
+    writeFileSync(manifest, readFileSync(manifest, "utf8").replace("1.0.0", "1.0.1"));
+    expect(captureBuildContext(packageRoot).identity).not.toBe(before.identity);
+  });
   it("detects installed metadata changes with the committed lock unchanged", () => {
     const fixture = makeBuildFixture();
     roots.push(fixture.root);

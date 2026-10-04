@@ -9,6 +9,51 @@ import {
 import { withRenewableLease, type RenewableLeaseDependencies } from "../../src/lib/renewable-lease.js";
 
 describe("withRenewableLease", () => {
+  it("never restores an owning capability after a late renewal crosses a stopping decision", async () => {
+    let clock = 0;
+    let tick: (() => void) | undefined;
+    let finish: ((result: "renewed") => void) | undefined;
+    let stopped = false;
+    const deps: RenewableLeaseDependencies = {
+      now: () => clock, registerExitCleanup: () => () => {}, releaseLock: async () => {},
+      renewLock: async () => await new Promise<"renewed">((resolve) => { finish = resolve; }),
+      scheduleEvery: (callback) => { tick = callback; return () => {}; },
+      terminateProcess: () => { stopped = true; }, writeLine: () => {},
+    };
+    await withRenewableLease({ path: "/lock", pid: 42, token: "ours", leaseUntil: 120_000 }, 0,
+      async (lease) => {
+        const confirmation = lease.confirmOwnership().then(() => "owned", () => "refused");
+        clock = 110_000;
+        tick?.();
+        expect(stopped).toBe(true);
+        finish?.("renewed");
+        expect(await confirmation).toBe("refused");
+      }, deps, { lock: "Artifact lock", controller: "the build controller" });
+  });
+
+  it("confirms ownership through an already-pending native heartbeat", async () => {
+    let tick: (() => void) | undefined;
+    let finish: ((result: "renewed") => void) | undefined;
+    let busy = false;
+    const deps: RenewableLeaseDependencies = {
+      now: () => 1_000, registerExitCleanup: () => () => {}, releaseLock: async () => {},
+      renewLock: async () => {
+        if (busy) return "retry";
+        busy = true;
+        return await new Promise<"renewed">((resolve) => { finish = resolve; });
+      },
+      scheduleEvery: (callback) => { tick = callback; return () => {}; },
+      terminateProcess: () => {}, writeLine: () => {},
+    };
+    await withRenewableLease({ path: "/lock", pid: 42, token: "ours", leaseUntil: 121_000 }, 1_000,
+      async (lease) => {
+        tick?.();
+        const confirmation = lease.confirmOwnership().then(() => "owned", () => "refused");
+        finish?.("renewed");
+        expect(await confirmation).toBe("owned");
+      }, deps, { lock: "Artifact lock", controller: "the build controller" });
+  });
+
   it.each(["no-op", "denied"])("refuses an unconfirmed %s native release and permits repair", async (mode) => {
     const root = await mkdtemp(join(tmpdir(), "arc-confirmed-release-"));
     const handle = await acquireAdvisoryLock(join(root, ".lock"));
