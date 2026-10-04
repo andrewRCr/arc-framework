@@ -22,12 +22,12 @@ import {
   isRemoteUnavailableError,
   MAX_RECONCILE_ATTEMPTS,
   uniqueRefToken,
+  readTreeEntriesStrict,
 } from "../git/ref-tree.js";
 import { gitFailureText, isCompletedGitFailure, normalizeGitRejection } from "../git/process-error.js";
 import { classifyPublicationFailure, type RemotePublicationFailure } from "../git/publication-failure.js";
 import {
   errandsRef,
-  readTreeEntriesDiscriminating,
   writeTreeCommit,
   type ErrandRecordIO,
 } from "./ref-tree.js";
@@ -192,19 +192,9 @@ async function readMutatingTip(exec: GitExec, ref: string): Promise<string | nul
   }
 }
 
-/**
- * Read a reconcile input, treating a legitimately absent ref as empty but a genuine
- * read failure as fatal. The fail-open `readTreeEntries` would collapse an errored
- * `ls-tree` to an empty map, so a transient read of `localTip` / `incomingTip` could
- * commit a merge built from an artificially empty side — dropping the other side's
- * slugs under the compare-and-swap bound to `localTip`. Throwing aborts the reconcile,
- * which {@link reconcileErrandPush} surfaces through its single `failed` channel; an
- * absent ref still unions normally as empty. Mirrors the sync-state reconcile reader.
- */
+/** Enumerate a captured non-null commit; any failed observation aborts reconciliation. */
 async function readErrandReconcileTree(exec: GitExec, ref: string): Promise<Map<string, string>> {
-  const result = await readTreeEntriesDiscriminating(exec, ref);
-  if (result.kind === "error") throw result.error;
-  return result.kind === "entries" ? result.entries : new Map();
+  return readTreeEntriesStrict(exec, ref);
 }
 
 /** Best-effort delete of the temp tracking ref; a failed cleanup never masks the outcome. */
