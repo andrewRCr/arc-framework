@@ -49,7 +49,18 @@ function prepareGenerations(context: ReferenceContext, writes: WriteInput[]): Wr
   });
 }
 
-function preflight(context: ReferenceContext, write: WriteInput): StoreRefusal | undefined {
+function parseConflict(write: Extract<WriteInput, { action: "put" }>): StoreResult<ConflictRecord> {
+  let value: unknown;
+  try { value = JSON.parse(write.content); }
+  catch (error) {
+    if (!(error instanceof SyntaxError)) throw error;
+    return refused(malformed(write.reference, `conflict JSON: ${error.message}`));
+  }
+  const parsed = ConflictRecordSchema.safeParse(value);
+  return parsed.success ? ok(parsed.data) : refused(malformed(write.reference, `conflict shape: ${parsed.error.message}`));
+}
+
+function preflight(context: ReferenceContext, write: WriteInput, validatedConflicts: Map<WriteInput, ConflictRecord>): StoreRefusal | undefined {
   const admission = recordAdmission(context.state, write.reference, context.environment.identity);
   if (admission) return admission;
   const lock = surfaceLock(write.reference);
@@ -72,6 +83,11 @@ function preflight(context: ReferenceContext, write: WriteInput): StoreRefusal |
     if (links?.success === false) return malformed(write.reference,`links: ${links.error.message}`);
     const parsed = definition.parser?.(write.content);
     if (parsed?.success === false) return malformed(write.reference, parsed.error);
+    if (write.reference.kind.endsWith("/conflict-record")) {
+      const conflict = parseConflict(write);
+      if (conflict.status === "refused") return conflict.refusal;
+      validatedConflicts.set(write, conflict.result);
+    }
   }
   return undefined;
 }
@@ -99,7 +115,7 @@ function placement(context: ReferenceContext, write: Extract<Mutation, { action:
   return { ...write.placement, sequence: ArchiveSequenceSchema.parse(String(next).padStart(2, "0")) };
 }
 
-function land(context: ReferenceContext, write: WriteInput, batchId?: string): WriteResult {
+function land(context: ReferenceContext, write: WriteInput, batchId?: string, validatedConflict?: ConflictRecord): WriteResult {
   let reference = canonicalReference(context.state, write.reference, true);
   const key = recordKey(reference);
   const prior = context.state.records.get(key);
@@ -145,7 +161,7 @@ function land(context: ReferenceContext, write: WriteInput, batchId?: string): W
       label,
       ...(selectedPlacement === undefined ? {} : { placement: selectedPlacement }),
       ...(write.links === undefined ? prior?.links === undefined ? {} : { links: prior.links } : { links: write.links }),
-      ...(reference.kind.endsWith("/conflict-record") ? { conflict: ConflictRecordSchema.parse({ ...JSON.parse(content!), record: canonicalReference(context.state, JSON.parse(content!).record) }) } : {}),
+      ...(validatedConflict === undefined ? {} : { conflict: { ...validatedConflict, record: canonicalReference(context.state, validatedConflict.record) } }),
     });
   }
   for (const conflict of write.resolves ?? []) {
@@ -192,10 +208,11 @@ function validatePlacement(context: ReferenceContext, since: number): StoreRefus
 export function writeReference(context: ReferenceContext, write: WriteInput): StoreResult<WriteResult> {
   const prepared = { ...context, state: structuredClone(context.state) };
   const mutation = prepareGenerations(prepared, [detachedWrite(write)])[0]!;
-  const refusal = preflight(prepared, mutation);
+  const validatedConflicts = new Map<WriteInput, ConflictRecord>();
+  const refusal = preflight(prepared, mutation, validatedConflicts);
   if (refusal) return refused(refusal);
   if (stale(prepared, mutation)) return refused(versionConflict([write.reference]));
-  const result = land(prepared, mutation);
+  const result = land(prepared, mutation, undefined, validatedConflicts.get(mutation));
   const placementRefusal = validatePlacement(prepared, context.state.counter);
   if (placementRefusal) return refused(placementRefusal);
   const identities = indexIdentities(prepared.state.records);
@@ -222,11 +239,12 @@ export function batchReference(context: ReferenceContext, input: BatchInput): St
     if (keys.has(key)) return refused(malformed(write.reference,"An atomic batch must name each canonical record at most once."));
     keys.add(key);
   }
-  for (const write of mutations) { const refusal = preflight(prepared, write); if (refusal) return refused(refusal); }
+  const validatedConflicts = new Map<WriteInput, ConflictRecord>();
+  for (const write of mutations) { const refusal = preflight(prepared, write, validatedConflicts); if (refusal) return refused(refusal); }
   const conflicts = mutations.flatMap((write, index) => stale(prepared, write) ? [writes[index]!.reference] : []);
   if (conflicts.length > 0) return refused(versionConflict(conflicts));
   const batchId = randomUUID();
-  const results = mutations.map((write) => land(prepared, write, batchId));
+  const results = mutations.map((write) => land(prepared, write, batchId, validatedConflicts.get(write)));
   const placementRefusal = validatePlacement(prepared, context.state.counter);
   if (placementRefusal) return refused(placementRefusal);
   const identities = indexIdentities(prepared.state.records);
