@@ -50,26 +50,20 @@ invalidation, resolver-control invalidation, and rejection of observed changes d
           malformed/legacy records refuse and regenerated records recover. Declaration qualification remains
           explicit and separate from runtime identity.
 
-### `[ ]` **1.3 Account for source membership, links, and resolver manifests — D7**
+### `[x]` **1.3 Account for source membership, links, and resolver manifests — D7**
 
 - _Goal:_ Resolver-changing membership, filesystem entry kinds, link targets, and first-party manifests invalidate
   reuse even when previously consumed source digests remain equal.
 
-    - `[ ]` **1.3.a Inventory first-party source/config membership and link identity**
-        - Cover package `src`, repository/package source-config roots, and producer configuration-source locations;
-          record sorted keys, `lstat` kinds, and raw `readlink` targets before following file or directory links.
-        - Build `test-first` (one behavior at a time):
-            - Additions/removals and resolution-changing JS siblings require graph refresh.
-            - Internal file/directory link retargeting and same-content entry-kind replacement change identity.
-            - Live/staged output, leases, and installed dependency contents do not enter the source inventory.
+    - `[x]` **1.3.a Inventory first-party source/config membership and link identity**
+        - Sorted entries retain filesystem kinds and raw link targets before traversal; source directories remain
+          distinct from package output exclusions. Internal file/directory retargeting and same-content link
+          replacement invalidate, while live/staged output, leases, and installed contents stay outside the inventory.
 
-    - `[ ]` **1.3.b Hash inventoried first-party resolver manifests as shared controls**
-        - Include nested `package.json` content even when native input metadata omits it; retain source-content
-          selectivity outside the shared resolver controls.
-        - Build `test-first` (one behavior at a time):
-            - A native `sideEffects` fixture changes output and invalidates both identities despite unchanged old inputs.
-            - Unused manifest edits may conservatively invalidate; unrelated ordinary source-content edits retain reuse.
-        - Exercise link cases where the platform permits creating the required links.
+    - `[x]` **1.3.b Hash inventoried first-party resolver manifests as shared controls**
+        - Nested and unused manifests contribute shared identity even when compiler metadata omits them. A native
+          side-effects fixture proves resolver invalidation with unchanged old input digests; ordinary contents and
+          timestamps remain selective, and normal qualification reads only resolver contents from this inventory.
 
 ### `[ ]` **1.4 Check baseline inputs before certifying generated output — D5, D6, D7**
 
