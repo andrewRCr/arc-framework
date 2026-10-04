@@ -10,7 +10,10 @@ import {
   ReviewRequirementV2Schema,
   ReviewTargetSchema,
 } from "../core/gate-contract-v2-schema.js";
-import { HostedReviewCoverageSchema, HostedTargetSchema } from "../hosted/request.js";
+import {
+  HostedAdmissionSchema, HostedRequestHandleSchema,
+  HostedReviewCoverageSchema, HostedTargetSchema,
+} from "../hosted/request.js";
 import { HostedFindingsSchema } from "../hosted/await.js";
 import {
   LaneSubjectLineageSchema,
@@ -69,6 +72,11 @@ const EarlierReviewAttemptCandidateSchema = z.strictObject({
   reviewTarget: ReviewTargetSchema,
   requirement: ReviewRequirementV2Schema.optional(),
   findings: HostedFindingsSchema,
+  /** Read-only acknowledged request and its independent owning progress binding. */
+  hosted: z.strictObject({
+    handle: HostedRequestHandleSchema,
+    admission: HostedAdmissionSchema,
+  }).optional(),
 });
 export type EarlierReviewAttemptCandidate = z.infer<typeof EarlierReviewAttemptCandidateSchema>;
 
@@ -160,6 +168,9 @@ export function queryEarlierReviewAttempts(
           reviewTarget: hosted.reviewTarget,
           requirement: hosted.requirement,
           findings: hosted.sealedResult?.findings ?? [],
+          ...(hosted.handle === undefined ? {} : {
+            hosted: { handle: hosted.handle, admission: hosted.admission },
+          }),
         }));
         continue;
       }

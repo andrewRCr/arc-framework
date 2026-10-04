@@ -30,6 +30,8 @@ import {
   hostedRequestHandleMatchesProgress,
   type HostedReviewCoverage,
   type HostedRequestEnvelope,
+  type HostedAdmission,
+  type HostedRequestHandle,
 } from "../hosted/request.js";
 import { hostedProviderAdmitsCoverage } from "../hosted/correction-review-capability.js";
 import { laneSubjectOwnerMatches, type LaneSubjectLineage } from "../core/lane-admission.js";
@@ -233,10 +235,14 @@ export function isCompleteStandardVerdict(attempt: ProjectedLaneAttempt): boolea
 }
 
 /** A complete exact-member clean attempt whose source was explicitly selected by the Owner. */
-export function selectedOwnerCleanAttempt(
-  attempts: readonly ProjectedLaneAttempt[],
+export function selectedOwnerCleanAttempt<T extends {
+  readonly sourceId: string;
+  readonly outcome: string;
+  readonly hosted?: { readonly admission: HostedAdmission; readonly handle?: HostedRequestHandle };
+}>(
+  attempts: readonly T[],
   reservation: StandardReviewReservationV1,
-): ProjectedLaneAttempt | undefined {
+): T | undefined {
   return attempts.find((attempt) => {
     const hosted = attempt.hosted;
     const handle = hosted?.handle;
@@ -248,6 +254,67 @@ export function selectedOwnerCleanAttempt(
       && handle.effectiveCoverage === "complete"
       && hostedRequestHandleMatchesProgress(handle, { admission: hosted.admission });
   });
+}
+
+/**
+ * Recover source authority from the latest retained complete clean request, without deciding applicability.
+ *
+ * @param attempts - All retained sources, including unresolved and pending attempts.
+ * @param currentAttempts - Current-target evidence that may supersede the retained selection.
+ * @param reservation - The unchanged review obligation and configured source order.
+ * @returns The admitted selected attempt, leaving coverage and terminal policy to the discharge consumer.
+ */
+export function retainedOwnerCleanAttempt(
+  attempts: readonly EarlierApplicableAttempt[],
+  currentAttempts: readonly ProjectedLaneAttempt[],
+  reservation: StandardReviewReservationV1,
+): EarlierApplicableAttempt | undefined {
+  const latestPass = Math.max(0, ...attempts.map(({ logicalPass }) => logicalPass),
+    ...currentAttempts.map(({ logicalPass }) => logicalPass));
+  const latest = attempts.filter((attempt) => attempt.logicalPass === latestPass
+    && (attempt.outcome === "clean" || attempt.outcome === "settled-findings"));
+  if (latest.length !== 1 || currentAttempts.some(({ logicalPass }) => logicalPass >= latestPass)) return undefined;
+  const selected = selectedOwnerCleanAttempt(latest, reservation);
+  return selected !== undefined && isCompleteCleanCoverage(selected) ? selected : undefined;
+}
+
+/**
+ * Preserve a pending request across source selection and head movement.
+ *
+ * @param attempts - Unfiltered current or earlier evidence for the complete reservation.
+ * @param reservation - Sources whose pending requests remain binding.
+ * @param position - The request's position relative to the current target.
+ * @returns The exact await continuation, an ambiguous-progress stop, or no pending request.
+ */
+export function pendingHostedReservationReview(
+  attempts: readonly {
+    readonly sourceId: string;
+    readonly outcome: string;
+    readonly hosted?: { readonly admission: HostedAdmission; readonly handle?: HostedRequestHandle };
+  }[],
+  reservation: StandardReviewReservationV1,
+  position: "current" | "retained",
+): HostedReservationDischarge | null {
+  const pending = attempts.filter((attempt) => attempt.outcome === "pending"
+    && reservation.sources.includes(attempt.sourceId));
+  if (pending.length === 0) return null;
+  const attempt = pending.length === 1 ? pending[0] : undefined;
+  const hosted = attempt?.hosted;
+  const handle = hosted?.handle;
+  if (attempt === undefined || hosted === undefined || handle === undefined
+    || !hostedRequestHandleMatchesProgress(handle, hosted)) return {
+    discharged: false,
+    detail: `The ${position === "current" ? "reserved hosted" : "retained reserved"} sources have pending request `
+      + "progress without one exact durable handle.",
+    nextSource: null,
+  };
+  return {
+    discharged: false,
+    detail: `Hosted source \`${attempt.sourceId}\` has one ${position === "retained" ? "retained " : ""}`
+      + "pending request awaiting a verdict.",
+    nextSource: null,
+    awaitAction: { schemaVersion: 1, handle },
+  };
 }
 
 export function projectSelectedOwnerDischarge(
@@ -406,6 +473,8 @@ export interface HostedReservationDischarge {
   awaitAction?: HostedAwaitEnvelope;
   localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string };
   requestAttempts?: readonly HostedReservationRequestAttempt[];
+  /** Existing admitted source choice carried into a native request continuation. */
+  invocation?: HostedRequestEnvelope["invocation"];
   completedPasses?: number;
   requestCoverage?: HostedReviewCoverage;
   correctionScope?: IncrementalReviewScope;
