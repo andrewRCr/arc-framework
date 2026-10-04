@@ -227,18 +227,11 @@ lint and its staged-file caller preserve package-cwd suppression and option-valu
 - _Goal:_ The root helper resolves explicit repository-relative targets and native values unambiguously, and each
   target contributes eligible configured specifications before any build or heavy ownership is requested.
 
-    - `[ ]` **4.1.a Normalize root targets and enforce the fixed native run interface**
-        - Use public `parseCLI` for native parsing, then validate supported option fields/values for the focused
-          interface; resolve targets before package cwd and validate test-tree containment.
-        - Reject unknown/malformed options, config/root overrides, alternate commands, discovery/source overrides
-          including `changed`, `related`, `dir`, `include`, and `typecheck`, and watch/browser/UI modes.
-        - Reject an additional literal `--` in adapter arguments before discovery; retain every explicit operand in
-          target validation. This focused interface does not restrict broad tiers' existing changed/source filtering.
-        - Build `test-first` (one behavior at a time):
-            - Repository-relative files/directories and multiple operands resolve without package-base guessing.
-            - Native option values remain literal; unsupported interface controls fail with actionable diagnostics.
-            - Unknown parsed fields, malformed required values, override aliases and `--config=false`, and targets
-              following an extra separator fail before discovery, admission, or building.
+    - `[x]` **4.1.a Normalize root targets and enforce the fixed native run interface**
+        - The root input helper retains every explicit file/directory operand and native literal execution value,
+          validates existing test-tree targets, and rejects configuration/source/mode overrides and extra separators.
+          Long spellings are checked before public parsing can discard unknown fields; parsed aliases, value types,
+          and inherited option names are validated before discovery.
 
     - `[ ]` **4.1.b Constrain discovery to exact operands and eligible configured projects**
         - Restrict to named files or directory descendants; require each operand to contribute after native project
