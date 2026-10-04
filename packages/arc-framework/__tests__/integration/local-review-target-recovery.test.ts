@@ -5,11 +5,12 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
-import { handleReviewLocalAttest, handleReviewLocalPrepare } from "../../src/handlers/review.js";
-import { LocalAttestEnvelopeSchema, LocalPrepareEnvelopeSchema } from
+import { handleReviewLocalAttest, handleReviewLocalPrepare, handleReviewLocalResume } from "../../src/handlers/review.js";
+import { LocalAttestEnvelopeSchema, LocalPrepareEnvelopeSchema, LocalResumeEnvelopeSchema } from
   "../../src/scripts/review-gate/core/review-command-envelope.js";
 import { attestLocalReviewCommand } from "../../src/scripts/review-gate/runtime/local-attest-command.js";
 import { prepareLocalReview } from "../../src/scripts/review-gate/runtime/local-prepare.js";
+import { resumeLocalReviewCommand } from "../../src/scripts/review-gate/runtime/local-resume-command.js";
 import { readLaneProgressOwner } from "../../src/scripts/review-gate/lane-progress.js";
 
 // Only ambient session identity is supplied: Git, target derivation, policy, stores,
@@ -29,6 +30,9 @@ const { createLocalPrepareDependencies } = await import(
 );
 const { createLocalAttestDependencies } = await import(
   "../../src/scripts/review-gate/runtime/local-attest-composition.js"
+);
+const { createLocalResumeDependencies } = await import(
+  "../../src/scripts/review-gate/runtime/local-resume-composition.js"
 );
 
 const exec = createExecaGitExec();
@@ -104,6 +108,20 @@ async function attest(root: string, operationId: string) {
   return LocalAttestEnvelopeSchema.parse(JSON.parse(output.join("")));
 }
 
+async function resume(root: string, operationId: string) {
+  const output: string[] = [];
+  const exitCodes: number[] = [];
+  await handleReviewLocalResume("-", {
+    resolveRoot: () => root,
+    readText: async () => JSON.stringify({ schemaVersion: 1, operationId }),
+    resume: (input) => resumeLocalReviewCommand(input, createLocalResumeDependencies({ exec, cwd: root })),
+    write: (text) => output.push(text),
+    setExitCode: (code) => exitCodes.push(code),
+  });
+  expect(exitCodes, output.join("")).toEqual([]);
+  return LocalResumeEnvelopeSchema.parse(JSON.parse(output.join("")));
+}
+
 describe("local review recovery through command handlers and repository stores", () => {
   it.each(["base", "head"] as const)("replaces a pending %s target and attests only its current replacement", async (movement) => {
     const { root, foundation } = await repository();
@@ -129,6 +147,7 @@ describe("local review recovery through command handlers and repository stores",
     expect(recovered.payload.target.targetId).not.toBe(first.payload.target.targetId);
     expect(await store.readOperation(firstId)).toEqual(original);
     expect(await sourceStore.readSource(original.state.sourceRef)).toEqual(originalSource);
+    expect(await resume(root, firstId)).toMatchObject({ state: "terminal-operation", nextAction: "rerun-review" });
     expect(await attest(root, firstId)).toMatchObject({ state: "terminal-operation", nextAction: "rerun-review" });
     expect(await attest(root, recovered.payload.operationId)).toMatchObject({
       state: "attested-current", nextAction: "reduce", payload: { receiptRecorded: true },

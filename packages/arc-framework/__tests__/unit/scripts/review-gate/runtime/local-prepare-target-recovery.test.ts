@@ -5,6 +5,7 @@ import { createLocalReviewPreparationFixture, createDeliveryLocalReviewAdmission
 import { createReviewReceipt, createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import type { ReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2-schema.js";
 import { LaneProgressStateSchema } from "../../../../../src/scripts/review-gate/core/operation-state-schema.js";
+import { REVIEW_VERSION_RETRY_ATTEMPTS } from "../../../../../src/scripts/review-gate/core/version-conflict.js";
 import { assertStandardReviewExecutionAdmission } from
   "../../../../../src/scripts/review-gate/policy/review-execution-admission.js";
 import { prepareLocalReview } from "../../../../../src/scripts/review-gate/runtime/local-prepare.js";
@@ -258,6 +259,48 @@ describe("local pending target recovery", () => {
       { attemptId: first.payload.operationId, outcome: "stale-target", retryGeneration: 0 },
       { outcome: "pending", retryGeneration: 1 },
     ] });
+  });
+
+  it.each(["base", "head"] as const)(
+    "stops after exhausted %s retirement conflicts and recovers after writes quiesce", async (movement) => {
+    const context = scenario(false, movement === "head");
+    const first = await prepareLocalReview(context.input, context.dependencies);
+    if (first.state !== "ready") throw new Error("initial admission was not ready");
+    const original = context.operations.get(first.payload.operationId);
+    context.current.target = changedTarget(context.current.target, movement);
+    const publish = context.dependencies.operationStore.publishOperation;
+    let conflictsRemaining = REVIEW_VERSION_RETRY_ATTEMPTS;
+    context.dependencies.operationStore.publishOperation = async (state, version) => {
+      if (conflictsRemaining > 0 && state.kind === "lane-progress"
+        && state.attempts.at(-1)?.outcome === "stale-target") {
+        conflictsRemaining -= 1;
+        const current = context.operations.get(state.operationId);
+        if (current === undefined) throw new Error("owner was not published");
+        context.operations.set(state.operationId, { ...current, version: current.version + 1 });
+        throw Object.assign(new Error("version-conflict"), { code: "version-conflict" });
+      }
+      return publish(state, version);
+    };
+    await expect(prepareLocalReview(context.input, context.dependencies)).rejects.toThrow(
+      /exceeded version-conflict retry attempts.*retry the same prepare request/u,
+    );
+    expect(context.laneProgress()).toMatchObject({ completedPasses: 0, attempts: [
+      { attemptId: first.payload.operationId, outcome: "pending", retryGeneration: 0 },
+    ] });
+    expect([...context.operations.values()].filter(({ state }) => state.kind === "local-review")).toHaveLength(1);
+    expect(context.operations.get(first.payload.operationId)).toEqual(original);
+
+    const recovered = await prepareLocalReview(context.input, context.dependencies);
+    expect(recovered).toMatchObject({ state: "ready", payload: { request: { logicalPass: 1, generation: 1 } } });
+    if (recovered.state !== "ready") throw new Error("replacement admission was not ready");
+    expect(recovered.payload.target).toEqual(context.current.target);
+    expect(context.laneProgress()).toMatchObject({ completedPasses: 0, attempts: [
+      { attemptId: first.payload.operationId, outcome: "stale-target", retryGeneration: 0 },
+      { attemptId: recovered.payload.operationId, outcome: "pending", retryGeneration: 1 },
+    ] });
+    expect(await prepareLocalReview(context.input, context.dependencies)).toMatchObject({
+      state: "ready", payload: { operationId: recovered.payload.operationId },
+    });
   });
 
   it("preserves a fourth-pass override and three completed passes during replacement", async () => {
