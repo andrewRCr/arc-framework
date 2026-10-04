@@ -1,4 +1,5 @@
 /** Tracked work-unit writes follow the same selected copy as reads and lifecycle listings. */
+import { admitTrackedOwner } from "./tracked-identity.js";
 import { parseMetaProjectionRecord } from "../../active/meta-reader.js";
 import { resolveArcPath } from "../../layout/index.js";
 import { SlugSchema } from "../../kernel/schema/slug.js";
@@ -36,8 +37,7 @@ export function creationMeta(input: WriteInput): MetaSource {
  * @returns Nothing for an eligible tracked request.
  */
 export function admitTrackedRole(context: InRepoContext, input: WriteInput): void {
-  const owner = input.reference.owner;
-  if (owner.type !== "person" && owner.uid !== undefined) unsupported("rename", "This layout has no work-item generation UIDs.", "Use arc rename to rename a work unit.");
+  admitTrackedOwner(input.reference.owner);
   if (input.action === "put" && input.links !== undefined) unsupported("links-write", "Tracked records store no links value.", "Use today's lifecycle or code-link verb until links are stored.");
   if (context.registry[input.reference.kind].inRepo.substrate !== "tracked") unsupported("unhomed-kind", "This kind has no home before the flip.", "Use the backend that serves this record kind.");
 }

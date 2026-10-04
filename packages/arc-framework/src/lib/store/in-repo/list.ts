@@ -1,5 +1,6 @@
 /** Complete tracked listings, retaining malformed records as explicit diagnostics. */
 import { SlugSchema } from "../../kernel/schema/slug.js";
+import { admitTrackedOwner } from "./tracked-identity.js";
 import { digestBytes } from "../../kernel/canonical/canonical-json.js";
 import { OwnerIdentitySchema, RecordVersionSchema, RecordReferenceSchema, recordReferences, sameOwner, type RecordReference } from "../identity.js";
 import type { KindId } from "../catalog.js";
@@ -36,6 +37,7 @@ export async function trackedReferences(context:InRepoContext,revision:NonNullab
  * @returns Complete records and diagnostics, or established absence.
  */
 export async function listTracked(context: InRepoContext, input: ListInput): Promise<ListingOutcome> {
+  if (input.owner !== undefined) admitTrackedOwner(input.owner);
   if (input.kind === "work-item/meta") return listMetas(context, input);
   const kinds = input.kind === undefined ? Object.values(context.registry)
     .filter((kind) => kind.family === input.family && kind.inRepo.substrate === "tracked").map((kind) => kind.id) : [input.kind];

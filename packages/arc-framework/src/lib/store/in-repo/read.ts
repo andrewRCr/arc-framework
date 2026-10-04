@@ -1,4 +1,5 @@
 /** Content-preserving tracked reads, with parsed fields supplied independently. */
+import { admitTrackedOwner } from "./tracked-identity.js";
 import { digestBytes } from "../../kernel/canonical/canonical-json.js";
 import { RecordVersionSchema, RecordReferenceSchema, OwnerIdentitySchema, type RecordReference } from "../identity.js";
 import type { ReadInput, StoreRecord } from "../read.js";
@@ -15,6 +16,7 @@ import { decodeTrackedContent } from "./read-codec.js";
  * @returns Bytes, digest, format, and fields from the selected record.
  */
 export async function readTracked(context: InRepoContext, input: ReadInput): Promise<StoreRecord> {
+  admitTrackedOwner(input.reference.owner);
   const unit = input.reference.kind.startsWith("work-item/");
   const source = unit ? await requiredMeta(context, input) : undefined;
   const path = await recordPath(context, input.reference, source, input.asOf);

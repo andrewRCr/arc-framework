@@ -9,6 +9,7 @@ import { readFileAt } from "./files.js";
 import { notFound, unsupported } from "./refusals.js";
 import { trackedReferences } from "./list.js";
 import { personalIdentity } from "./personal-paths.js";
+import { admitTrackedOwner } from "./tracked-identity.js";
 import { admitTransient } from "./transient-common.js";
 
 /** Return the branch's saved state anchor.
@@ -170,6 +171,7 @@ async function historyAdmission(context: InRepoContext, reference: RecordReferen
 
 async function identityAdmission(context: InRepoContext, reference: RecordReference): Promise<void> {
   const substrate = context.registry[reference.kind].inRepo.substrate;
+  if (substrate === "tracked") admitTrackedOwner(reference.owner);
   if (substrate === "personal") await personalIdentity(context, reference);
   if (substrate === "transient-identity") admitTransient(reference, await context.ports.identity());
 }
