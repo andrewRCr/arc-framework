@@ -361,66 +361,69 @@ skip-build without generation. The full declaration gate and documented root/nat
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Goal:_ Complete quality-gate and success-criterion evidence supports integration of the finished work unit.
 
-    - Load and follow `verify-work-unit.md`; walk the saved criteria and complete the designated quality gates.
-    - Record the required quality-gate and success-criterion completion evidence through that workflow.
+- _Quality gates:_ 13,496 tests passed; both type checks, TypeScript/Markdown/shell lint, all three ARC contract
+  checks, the full declaration build, and all three changed E2E cases passed.
+
+- _Success criteria:_ All 14 met, none superseded or unresolved. Author review and fresh criteria review found
+  no findings; Pass 1 of 2 converged. Complete evidence is retained with the personal work-unit criteria report.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Exact root files/directories and native name filters work through one npm separator; every operand contributes
+- `[x]` Exact root files/directories and native name filters work through one npm separator; every operand contributes
   an eligible specification, and invalid/excluded/empty operands fail before admission or build. Tasks `4.1`, `4.2`.
 
-- `[ ]` Configured project placement and isolation/worker defaults hold; explicit native execution overrides retain
+- `[x]` Configured project placement and isolation/worker defaults hold; explicit native execution overrides retain
   precedence without relaxing adapter guards. Unit-only runs acquire no heavy/artifact lease and request no build;
   heavy/mixed runs retain ordered ownership through closing. Tasks `3.1`, `3.4`, `4.2`.
 
-- `[ ]` Root TypeScript targets and the staged-file hook preserve package-cwd suppressions, literal option values,
+- `[x]` Root TypeScript targets and the staged-file hook preserve package-cwd suppressions, literal option values,
   and the optional delimiter. The retained Markdown helper lints only its named file. Tasks `4.3`, `4.4`.
 
-- `[ ]` Integration and E2E require runtime/schema artifacts regardless of outer lifecycle name; qualifying full
+- `[x]` Integration and E2E require runtime/schema artifacts regardless of outer lifecycle name; qualifying full
   output is reusable. Full declaration failure prevents publication, and fast output never satisfies that separate
   gate. Tasks `2.2`, `2.3`, `3.2`, `5.4`.
 
-- `[ ]` Qualified unchanged inputs reuse runtime/schema output; selected inputs, config, installation/tool/runtime
+- `[x]` Qualified unchanged inputs reuse runtime/schema output; selected inputs, config, installation/tool/runtime
   identity, or membership changes invalidate it. Ordinary schema-only content changes retain CLI freshness, and
   unrelated ordinary source-content edits retain selective reuse. Tasks `1.1`, `1.2`, `1.4`, `2.3`.
 
-- `[ ]` Native resolution-changing siblings refresh the graph. Internal file/directory link retargeting, entry-kind
+- `[x]` Native resolution-changing siblings refresh the graph. Internal file/directory link retargeting, entry-kind
   replacement, and nested resolver-manifest edits invalidate even with unchanged old input digests; unused manifest
   edits may conservatively invalidate both identities. Tasks `1.1`, `1.3`, `2.3`.
 
-- `[ ]` Observed source/config/install or rich-inventory changes during generation discard staging; missing baseline
+- `[x]` Observed source/config/install or rich-inventory changes during generation discard staging; missing baseline
   dependency inputs prevent certification. Stable repaired inputs build successfully using baseline evidence.
   Tasks `1.4`, `2.3`.
 
-- `[ ]` Supported manual builds queue through heavy-controller closing in the same checkout; other worktrees have
+- `[x]` Supported manual builds queue through heavy-controller closing in the same checkout; other worktrees have
   independent artifact ownership. CI and concurrency bypasses skip only CPU admission. Tasks `2.4`, `3.4`, `5.5`.
 
-- `[ ]` Dead or ownership-losing controllers cannot leave publishing compiler children. Failed compilation retains
+- `[x]` Dead or ownership-losing controllers cannot leave publishing compiler children. Failed compilation retains
   the prior entry; invalid output or incomplete promotion prevents tests, and repaired preparation succeeds with
   qualified live evidence. Tasks `2.3`, `3.4`.
 
-- `[ ]` Controller evidence is validated and shared without nested acquisition/building. Skip-build permits only
+- `[x]` Controller evidence is validated and shared without nested acquisition/building. Skip-build permits only
   matching prebuilt evidence and required files; mismatch names a concrete remedy, and repair restores execution
   while generation remains forbidden. Direct native preparation retains its generation-only boundary.
   Tasks `3.2`, `5.3`, `5.4`.
 
-- `[ ]` Rejected/logged close errors and errors appearing only in final worker state make passing cases non-passing;
+- `[x]` Rejected/logged close errors and errors appearing only in final worker state make passing cases non-passing;
   clean closing preserves success and any existing failure status. Zero completed cases fail without replacing
   native setup/collection diagnostics. Cost runs retain successful output only after clean closing.
   Tasks `3.3`, `3.4`, `4.4`, `5.2`.
 
-- `[ ]` Existing broad/changed/portability and cost-measurement routes preserve their selections and purposes while
+- `[x]` Existing broad/changed/portability and cost-measurement routes preserve their selections and purposes while
   using the shared execution contract. CI retains qualified artifacts, and guidance accurately distinguishes root
   targets, native values, supported lifetime, direct convenience, and declaration gates. Tasks `5.1`–`5.5`.
 
-- `[ ]` All required quality gates pass.
+- `[x]` All required quality gates pass.
 
-- `[ ]` Ready for integration.
+- `[x]` Ready for integration.
 
 ---
