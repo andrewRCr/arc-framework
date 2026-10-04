@@ -63,6 +63,17 @@ function isCoverageDecision(attempt: EarlierApplicableAttempt): boolean {
       || (attempt.applicability === "stop" && attempt.authorityState === "decision-required"));
 }
 
+function isSafeUnavailableAttempt(attempt: EarlierApplicableAttempt): boolean {
+  return attempt.outcome === "rate-limited" || attempt.outcome === "transient-unavailable";
+}
+
+function precedesWithinPass(previous: EarlierApplicableAttempt, later: EarlierApplicableAttempt): boolean {
+  return previous.operationId === later.operationId
+    ? previous.attemptIndex !== undefined && later.attemptIndex !== undefined
+      && previous.attemptIndex < later.attemptIndex
+    : Date.parse(previous.updatedAt) < Date.parse(later.updatedAt);
+}
+
 /**
  * Keep findings and blocked evidence while a later complete clean pass replaces older coverage decisions.
  *
@@ -76,12 +87,18 @@ export async function selectRetainedCoverageAttempts(
 ): Promise<readonly EarlierApplicableAttempt[]> {
   const latestPass = Math.max(0, ...attempts.map((attempt) => attempt.logicalPass));
   const latest = attempts.filter((attempt) => attempt.logicalPass === latestPass);
-  const coverage = latest.length === 1 ? latest[0] : undefined;
+  const terminal = latest.filter((attempt) => !isSafeUnavailableAttempt(attempt));
+  const coverage = terminal.length === 1 ? terminal[0] : undefined;
   if (coverage === undefined || !isCompleteCleanCoverage(coverage)
-    || !(coverage.applicability === "retain-prior-attempt" || isCoverageDecision(coverage))
-    || !attempts.some((attempt) => attempt.logicalPass < latestPass && isCoverageDecision(attempt))) return attempts;
+    || !(coverage.applicability === "retain-prior-attempt" || isCoverageDecision(coverage))) return attempts;
+  if (latest.some((attempt) => attempt !== coverage && !precedesWithinPass(attempt, coverage))) return attempts;
+  const superseded = (attempt: EarlierApplicableAttempt): boolean => isCoverageDecision(attempt)
+    && (attempt.logicalPass < latestPass
+      || (attempt.logicalPass === latestPass && isSafeUnavailableAttempt(attempt)
+        && precedesWithinPass(attempt, coverage)));
+  if (!attempts.some(superseded)) return attempts;
   if ((await resolveTerminalPolicy(coverage)).state !== "pass-complete") return attempts;
-  return attempts.filter((attempt) => attempt.logicalPass >= latestPass || !isCoverageDecision(attempt));
+  return attempts.filter((attempt) => !superseded(attempt));
 }
 
 /** Require the retained producer to cover the same standard-review policy as this reservation. */

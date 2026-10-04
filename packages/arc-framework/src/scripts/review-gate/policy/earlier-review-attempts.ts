@@ -53,6 +53,8 @@ const EarlierReviewAttemptCandidateSchema = z.strictObject({
   version: z.number().int().positive(),
   updatedAt: z.iso.datetime({ offset: true }),
   attemptId: ReviewIdentifierSchema,
+  /** Append order in the owning durable progress record, independent of query sorting. */
+  attemptIndex: z.int().nonnegative(),
   logicalPass: z.int().positive(),
   sourceId: SourceIdSchema,
   sourceKind: z.enum(["hosted", "local"]),
@@ -121,7 +123,7 @@ export function queryEarlierReviewAttempts(
       || state.lane !== selector.lane
       || state.repositoryId !== selector.repositoryId
       || laneSubjectLineageId(state.lineage) !== laneSubjectLineageId(selector.lineage)) continue;
-    for (const attempt of state.attempts) {
+    for (const [attemptIndex, attempt] of state.attempts.entries()) {
       if (attempt.headSha === selector.currentHead
         && (selector.currentBase === undefined
           || (attempt.hosted?.reviewTarget.diffBaseSha
@@ -141,6 +143,7 @@ export function queryEarlierReviewAttempts(
           version: record.version,
           updatedAt: state.updatedAt,
           attemptId: attempt.attemptId,
+          attemptIndex,
           logicalPass: attempt.logicalPass,
           sourceId: attempt.sourceId,
           sourceKind: "hosted",
@@ -177,6 +180,7 @@ export function queryEarlierReviewAttempts(
         version: record.version,
         updatedAt: state.updatedAt,
         attemptId: attempt.attemptId,
+        attemptIndex,
         logicalPass: attempt.logicalPass,
         sourceId: attempt.sourceId,
         sourceKind: "local",

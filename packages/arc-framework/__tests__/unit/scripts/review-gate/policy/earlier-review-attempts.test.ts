@@ -928,6 +928,40 @@ describe("earlier review attempt query", () => {
       discharged: true, nextSource: null,
     });
 
+    const successfulRetry = settledSuccess.attempts.at(-1);
+    if (successfulRetry === undefined) throw new Error("expected successful retry");
+    const failedBase = olderClean.attempts[0]!;
+    const { admissionId: _failedId, ...failedPreimage } = failedBase.hosted!.admission;
+    if (_failedId === "") throw new Error("expected failed admission identity");
+    const failedAdmission = createHostedAdmission({ ...failedPreimage, logicalPass: 3 });
+    const { sealedResult: _sealed, handle: _handle, ...failedHosted } = failedBase.hosted!;
+    if (_sealed === undefined || _handle === undefined) throw new Error("expected clean producer fixture");
+    for (const outcome of ["rate-limited", "transient-unavailable"] as const) {
+      const failedRetry = LaneProgressStateSchema.parse({
+        ...settledSuccess, operationId: `lane-progress/${outcome}`,
+        updatedAt: "2026-08-23T09:00:00Z", completedPasses: 0,
+        attempts: [{ ...failedBase, logicalPass: 3, attemptId: failedAdmission.admissionId, outcome,
+          terminalProducer: false, hosted: { ...failedHosted, admission: failedAdmission, effectiveCoverage: null } }],
+      });
+      const retryHistory = LaneProgressStateSchema.parse({
+        ...settledSuccess, completedPasses: 1, attempts: [failedRetry.attempts[0], successfulRetry],
+      });
+      for (const states of [[failedRetry, settledSuccess], [retryHistory]]) {
+        expect.soft(await discharge(states, latestOnlyApplicable), outcome)
+          .toMatchObject({ discharged: true, nextSource: null });
+        expect.soft(await discharge(states, applicabilityDecision), outcome)
+          .toMatchObject({ applicability: { selector: { priorAttemptId: successTerminal.attemptId } } });
+      }
+      const reversed = LaneProgressStateSchema.parse({
+        ...retryHistory, attempts: [successfulRetry, failedRetry.attempts[0]],
+      });
+      expect.soft(await discharge([reversed], latestOnlyApplicable), "later unavailable attempt")
+        .toMatchObject({ discharged: false, applicabilityAuthority: "decision-required" });
+      const tied = LaneProgressStateSchema.parse({ ...failedRetry, updatedAt: settledSuccess.updatedAt });
+      expect.soft(await discharge([tied, settledSuccess], latestOnlyApplicable), "ambiguous records")
+        .toMatchObject({ discharged: false, applicabilityAuthority: "decision-required" });
+    }
+
     const pending = await discharge([olderClean, settledSuccess], applicabilityDecision);
     expect(pending).toMatchObject({
       discharged: false, nextSource: null,
