@@ -45,7 +45,9 @@ interface InventoryState {
 }
 
 const ROOT_ARTIFACT_DIRECTORIES = new Set([".git", ".arc", ".codex", ".claude", ".agents", "dist", ".cache"]);
-const PACKAGE_ARTIFACT_DIRECTORIES = new Set(["dist", "__tests__", "arc", "audits", "changelog", "templates", ".cache"]);
+const PACKAGE_ARTIFACT_DIRECTORIES = new Set([
+  "dist", "__tests__", "arc", "audits", "changelog", "templates", ".cache", ".test-cost-runs",
+]);
 
 function walkInventory(state: InventoryState, path: string, ancestors: ReadonlySet<string>): void {
   const name = basename(path);

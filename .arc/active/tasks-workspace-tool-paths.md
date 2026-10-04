@@ -303,35 +303,20 @@ skip-build without generation. The full declaration gate and documented root/nat
           Parsed exclusions reach each project's public configuration before native discovery, preserving its defaults.
           Mixed shards retain prepared heavy setup and shared ownership; shared refinement and failure fixtures remain.
 
-### `[ ]` **5.2 Share prepared execution and closing with retained cost runs — D2, D3, D8, D9**
+### `[x]` **5.2 Share prepared execution and closing with retained cost runs — D2, D3, D8, D9**
 
 - _Goal:_ Retained cost runs keep their configured selections, timing capture, record format, and reporting purpose,
   while preparation or final cleanup failure cannot leave a successful retained run.
 
-    - `[ ]` **5.2.a Compose cost measurement with the prepared controller lifetime**
-        - Update `runTestCostMeasurement` and its script caller to use shared discovery, refinement, admission,
-          preparation, and closing; retain requested/effective worker sizing, project sets, and `captureTestCost`'s
-          public-module diagnostics.
-        - Compose the shared native environment bootstrap within the timed controller-creation interval, before
-          measurement configuration is loaded.
-        - Measure controller creation/discovery, optional pre-parsing, and the admitted artifact wait,
-          qualification/generation, execution, closing, and capture; pause for CPU admission wait and exclude lease
-          release and persistence. Capture and finish timing after common closing/status checks while ownership
-          remains held; retain the existing format, budgets, and reporting without new metrics or record fields.
-        - Build `test-first` (one behavior at a time):
-            - Unit and heavy measurement modes use the same selection/build ownership rules as their ordinary runs.
-              Optional pre-parsing uses the shared native predicate and determines ownership from the refined projects.
-            - A deterministic clock fixture assigns distinct elapsed periods to discovery, CPU/artifact waits,
-              preparation, execution, closing, capture, release, and persistence; only CPU wait is separately reported.
-            - A real-controller run establishes that closing contributes to measured wall time.
+    - `[x]` **5.2.a Compose cost measurement with the prepared controller lifetime**
+        - Measurements share discovery, refinement, prepared execution, and closing; capture runs before owned release.
+          Timing includes creation through capture, subtracts reported CPU queue time, and excludes release/persistence.
+          The script preserves output-path bases before entering package cwd; native metadata and record axes remain.
 
-    - `[ ]` **5.2.b Retain measured output only after common completion succeeds**
-        - Preserve existing atomic retention and budget/report consumers; defer successful persistence until closing,
-          final error status, and ownership release have completed.
-        - Build `test-first` (one behavior at a time):
-            - Failed, empty, missing-timing, logged-close, and late-worker-error runs retain no passed measurement record.
-            - All-skipped modules containing test cases retain no successful record, even when public timing is present.
-            - A clean real-controller run retains the existing timing/test/spawn metadata and feeds existing consumers.
+    - `[x]` **5.2.b Retain measured output only after common completion succeeds**
+        - Failed, empty, missing-timing, all-skipped, logged-close, and late-worker-error runs retain no passed record.
+          Public module diagnostics and native timing/spawn metadata remain usable by existing retained-run consumers.
+          Default cost output is excluded from build inventory, so successful retention preserves qualified reuse.
 
 ### `[ ]` **5.3 Qualify CI artifacts and prebuilt consumer recovery — D3, D6, D7, D9**
 

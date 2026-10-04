@@ -14,17 +14,19 @@ export interface VitestSelection {
  * @param filters - Native package-relative filename filters
  * @param options - Parsed native options
  * @param selectInitial - Optional exact selection before configured native pre-parsing
+ * @param createController - Native controller creation boundary
  * @returns Controller and configured selection for the caller's owning execution
  */
 export async function discoverVitestSelection(
   filters: string[], options: CliOptions,
   selectInitial?: (specifications: TestSpecification[]) => TestSpecification[],
+  createController: typeof createVitest = createVitest,
 ): Promise<VitestSelection> {
   process.env.TEST = "true";
   process.env.VITEST = "true";
   process.env.NODE_ENV ??= "test";
   const normalized = normalizeVitestOptions(filters, options);
-  const controller = await createVitest("test", normalized);
+  const controller = await createController("test", normalized);
   try {
     applyProjectCliExclusions(controller, normalized.cliExclude ?? []);
     await controller.standalone();

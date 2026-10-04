@@ -5,10 +5,12 @@ import { mkdir, rename, writeFile } from "node:fs/promises";
 import { availableParallelism } from "node:os";
 import { dirname, join } from "node:path";
 
-import { parseCLI, startVitest, type TestModule } from "vitest/node";
+import { createVitest, parseCLI } from "vitest/node";
 
-import { withLocalHeavyTestAdmission } from "../local-test-admission.js";
 import type { LocalHeavyTestTier } from "../local-test-admission.js";
+import type { TestOwnershipOverrides } from "../build-ownership.js";
+import { discoverVitestSelection } from "../vitest-discovery.js";
+import { executeVitestSelection } from "../vitest-execution.js";
 import { retryTransientFileSystemRefusal } from "../fs.js";
 import { captureTestCost, type TestCostFile } from "./capture.js";
 import { summarizeSubstrateShare, type SubstrateShare } from "./metrics.js";
@@ -16,26 +18,13 @@ import type { MeasurementMode, MeasurementProjectSet } from "./mode.js";
 
 type ParsedVitestOptions = ReturnType<typeof parseCLI>["options"];
 
-interface MeasurementController {
-  readonly state: {
-    getTestModules(): TestModule[];
-    getUnhandledErrors(): unknown[];
-  };
-  shouldKeepServer(): boolean;
-  exit(): Promise<void>;
-}
-
 export interface TestCostRunDependencies {
-  readonly admit: typeof withLocalHeavyTestAdmission;
   readonly availableParallelism?: () => number;
+  readonly create: typeof createVitest;
   readonly now: () => number;
+  readonly ownership?: TestOwnershipOverrides;
   readonly parseCli: (argv: string[]) => { filter: string[]; options: ParsedVitestOptions };
   readonly persist: (path: string, content: string) => Promise<void>;
-  readonly start: (
-    mode: "test",
-    filters: string[],
-    options: ParsedVitestOptions,
-  ) => Promise<MeasurementController>;
 }
 
 export interface RetainedTestCostRun {
@@ -63,14 +52,19 @@ export interface RunTestCostInput {
 }
 
 export const DEFAULT_TEST_COST_RUN_DEPENDENCIES: TestCostRunDependencies = {
-  admit: withLocalHeavyTestAdmission,
   availableParallelism,
+  create: createVitest,
   now: Date.now,
   parseCli: parseCLI,
   persist: persistAtomically,
-  start: async (mode, filters, options) => await startVitest(mode, filters, options),
 };
 
+/**
+ * Capture a prepared native run through closing, retaining output only after release.
+ * @param input - Package cwd, mode axes, and retained output destination
+ * @param dependencies - Native controller, clock, ownership, and persistence boundaries
+ * @returns The successful retained record with CPU queue latency separated from elapsed time
+ */
 export async function runTestCostMeasurement(
   input: RunTestCostInput,
   dependencies: TestCostRunDependencies = DEFAULT_TEST_COST_RUN_DEPENDENCIES,
@@ -91,41 +85,25 @@ export async function runTestCostMeasurement(
     "--maxWorkers",
     effectiveWorkerSizing,
   ]);
-  const admitted = await dependencies.admit(
-    {
-      cwd: input.cwd,
-      env: input.env,
-      tier: projectSetAdmissionTier(input.mode.projectSet),
-    },
-    async () => {
-      const startedAtMs = dependencies.now();
-      const context = await dependencies.start("test", filter, options);
-      try {
-        const unhandledErrorCount = context.state.getUnhandledErrors().length;
-        if (unhandledErrorCount > 0) {
-          throw new Error(`Vitest reported ${unhandledErrorCount} unhandled run error(s)`);
-        }
-        const captured = captureTestCost(context.state.getTestModules());
-        return {
-          captured,
-          startedAtMs,
-          unhandledErrorCount: 0 as const,
-          wallClockMs: dependencies.now() - startedAtMs,
-        };
-      } finally {
-        if (!context.shouldKeepServer()) await context.exit();
-      }
-    },
+  const startedAtMs = dependencies.now();
+  const selection = await discoverVitestSelection(filter, options, undefined, dependencies.create);
+  const admitted = await executeVitestSelection(selection,
+    { cwd: input.cwd, packageRoot: input.cwd, env: input.env, tier: projectSetAdmissionTier(input.mode.projectSet) },
+    () => {
+      const captured = captureTestCost(selection.controller.state.getTestModules());
+      if (process.exitCode) throw new Error("Vitest measurement did not complete successfully; no passed run retained");
+      return { captured, elapsedMs: dependencies.now() - startedAtMs };
+    }, dependencies.ownership,
   );
-  const { captured, startedAtMs, unhandledErrorCount, wallClockMs } = admitted.result;
+  const { captured, elapsedMs } = admitted.result;
   const run: RetainedTestCostRun = {
     schemaVersion: 4,
     outcome: "passed",
-    unhandledErrorCount,
+    unhandledErrorCount: 0,
     capturedAt: new Date(startedAtMs).toISOString(),
     mode: effectiveMode,
     requestedWorkerSizing,
-    wallClockMs,
+    wallClockMs: elapsedMs - (admitted.waitMs ?? 0),
     summedFileTimeMs: captured.summedFileTimeMs,
     fileCount: captured.files.length,
     testCount: captured.files.reduce((total, file) => total + file.tests.length, 0),
