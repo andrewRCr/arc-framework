@@ -24,7 +24,8 @@ import { NO_HOSTED_REVIEW_RESERVATION_DETAIL, type StandardReviewReservationV1 }
 import type { EarlierHostedAttemptApplicabilityRead } from "./earlier-review-applicability.js";
 import type { ReviewResult } from "../core/review-result.js";
 import { projectHostedFinding } from "../hosted/await.js";
-import type { HostedReviewCoverage } from "../hosted/request.js";
+import type { HostedRequestEnvelope, HostedReviewCoverage } from "../hosted/request.js";
+import { configuredSourceSuffix } from "./hosted-reservation-admission.js";
 import { bindReviewSourceReference } from "../core/review-source-reference.js";
 import {
   candidateExpectsEarlierReviewAttempt,
@@ -69,6 +70,7 @@ import {
   applicabilityEquivalenceKey,
   allHostedReservationTargetsDischarged,
   resolveHostedReservationTargets,
+  predecessorMatchesHostedReservationPolicy,
 } from "./hosted-reservation-support.js";
 export * from "./hosted-reservation-support.js";
 
@@ -89,6 +91,7 @@ export * from "./hosted-reservation-support.js";
  */
 export async function projectHostedReservationDischarge(input: {
   reservation: StandardReviewReservationV1 | null;
+  invocation?: HostedRequestEnvelope["invocation"];
   span: readonly string[];
   target: {
     repository: string;
@@ -114,11 +117,15 @@ export async function projectHostedReservationDischarge(input: {
   if (reservation === null) {
     return { discharged: true, detail: NO_HOSTED_REVIEW_RESERVATION_DETAIL, nextSource: null };
   }
+  // The selected suffix governs request traversal; the full reservation governs evidence and settlement.
+  const requestSources = input.invocation === undefined
+    ? reservation.sources
+    : configuredSourceSuffix(reservation.sources, input.invocation.sourceId);
   if (input.target === null) {
     return {
       discharged: false,
       detail: "The reserved hosted review has no exact open change-request target.",
-      nextSource: reservation.sources[0] ?? null,
+      nextSource: requestSources[0] ?? null,
     };
   }
   const target = input.target;
@@ -406,7 +413,7 @@ export async function projectHostedReservationDischarge(input: {
     return projectSelectedOwnerDischarge(selectedClean, await retainedFindingsBeforeRequest());
   }
   const orderedLogicalPass = Math.max(latestTerminal?.logicalPass ?? 0, retainedTerminalLogicalPass) || activeLogicalPass;
-  for (const sourceId of reservation.sources) {
+  for (const sourceId of requestSources) {
     const orderedSourceAttempts = currentAttemptHistory.filter((attempt) => (
       attempt.sourceId === sourceId && attempt.logicalPass === orderedLogicalPass
     ));
@@ -439,7 +446,7 @@ export async function projectHostedReservationDischarge(input: {
         if (retainedFindings !== null) return retainedFindings;
         return {
           discharged: false,
-          detail: `The reserved standard-review source order beginning at \`${reservation.sources[0]}\` has not produced `
+          detail: `The reserved standard-review source order beginning at \`${requestSources[0]}\` has not produced `
             + "a settled review across the Candidate span.",
           nextSource: sourceId,
           ...requestContext(),
@@ -552,7 +559,7 @@ export async function projectHostedReservationDischarge(input: {
     if (retainedFindings !== null) return retainedFindings;
     return {
       discharged: false,
-      detail: `The reserved standard-review source order beginning at \`${reservation.sources[0]}\` has not produced `
+      detail: `The reserved standard-review source order beginning at \`${requestSources[0]}\` has not produced `
         + "a settled review across the Candidate span.",
       nextSource: sourceId,
       ...requestContext(),
@@ -561,26 +568,10 @@ export async function projectHostedReservationDischarge(input: {
   }
   return {
     discharged: false,
-    detail: `The reserved standard-review source order beginning at \`${reservation.sources[0]}\` has not produced `
+    detail: `The reserved standard-review source order beginning at \`${requestSources[0]}\` has not produced `
       + "a settled review across the Candidate span.",
     nextSource: null,
   };
-}
-
-/** Require the retained producer to cover the same standard-review policy as this reservation. */
-export function predecessorMatchesHostedReservationPolicy(
-  predecessor: Exclude<ReviewResult, { kind: "frontline" }>,
-  reservation: StandardReviewReservationV1,
-): boolean {
-  const predecessorPolicy = {
-    obligation: predecessor.requirement.obligation,
-    reasons: [...predecessor.requirement.reasons].sort(),
-    rubricVersion: predecessor.requirement.rubricVersion, rubricDigest: predecessor.requirement.rubricDigest,
-    retrigger: predecessor.requirement.retrigger, count: predecessor.requirement.count,
-  };
-  return canonicalize(predecessorPolicy) === canonicalize({
-    ...reservation.obligation, reasons: [...reservation.obligation.reasons].sort(),
-  });
 }
 
 /**
@@ -710,6 +701,7 @@ export function createHostedReservationDischargeReader(input: {
 
   const readTarget = async ({
     reservation,
+    invocation,
     baseRevision,
     approvedHead,
     changeRequest,
@@ -855,6 +847,7 @@ export function createHostedReservationDischargeReader(input: {
     };
     return projectHostedReservationDischarge({
       reservation,
+      ...(invocation === undefined ? {} : { invocation }),
       span,
       target: changeRequest === null
         ? null

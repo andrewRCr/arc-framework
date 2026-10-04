@@ -28,6 +28,7 @@ import {
   HostedProviderIdSchema,
   hostedRequestHandleMatchesProgress,
   type HostedReviewCoverage,
+  type HostedRequestEnvelope,
 } from "../hosted/request.js";
 import { hostedProviderAdmitsCoverage } from "../hosted/correction-review-capability.js";
 import { laneSubjectOwnerMatches, type LaneSubjectLineage } from "../core/lane-admission.js";
@@ -47,6 +48,22 @@ export type EarlierApplicableAttempt = Extract<
   EarlierHostedAttemptApplicabilityRead,
   { status: "complete" }
 >["attempts"][number];
+
+/** Require the retained producer to cover the same standard-review policy as this reservation. */
+export function predecessorMatchesHostedReservationPolicy(
+  predecessor: Exclude<ReviewResult, { kind: "frontline" }>,
+  reservation: StandardReviewReservationV1,
+): boolean {
+  const predecessorPolicy = {
+    obligation: predecessor.requirement.obligation,
+    reasons: [...predecessor.requirement.reasons].sort(),
+    rubricVersion: predecessor.requirement.rubricVersion, rubricDigest: predecessor.requirement.rubricDigest,
+    retrigger: predecessor.requirement.retrigger, count: predecessor.requirement.count,
+  };
+  return canonicalize(predecessorPolicy) === canonicalize({
+    ...reservation.obligation, reasons: [...reservation.obligation.reasons].sort(),
+  });
+}
 
 /** Minimal immutable producer identity eligible to seed one exact correction scope. */
 export interface IncrementalCorrectionScopeCandidate {
@@ -352,6 +369,7 @@ export interface HostedReservationDischargeReaderArgs {
   changeRequest: { repository: string; pullRequest: number } | null;
   vehicle?: DeliveryReviewMemberVehicle;
   candidate?: CandidateManagedRecordV1;
+  invocation?: HostedRequestEnvelope["invocation"];
 }
 
 /** Discharge projection plus its fresh predecessor-applicability boundary. */

@@ -104,6 +104,28 @@
   inherit audit-specific volatility, fan-out ranking, corpus boundaries, or hard-consumer views; treat this as
   coordination evidence, not a pre-committed composition edge.
 
+### `[ ]` **Narrow knowledge-lint's planning pointer rule to resolving named symbols**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- _WU_Target:_ `knowledge-lint`
+
+- _Observation:_ the fold-in consumes "`planning-iteration-mechanics`' source-pointer convention" and enforces
+  "absence/shape rules". The convention moved to `grounded-planning-review` (draft D2): a claim that states what
+  shipped code does names that code in the existing backticked symbol form, with no marker syntax. Whether a claim
+  states shipped behavior is not mechanically decidable, so lint can check that a named symbol resolves but cannot
+  detect a missing one. The draft splits the two: resolution is lint's; whether the code does what the claim says is
+  the new `source-grounding` method's.
+
+- _Approach:_ repoint the inbound owner to `grounded-planning-review` and narrow the rule to symbol resolution over
+  eligible planning artifacts.
+
+- _Captured during:_ `grounded-planning-review` draft-design close, 2026-10-01 (draft at `725ddeaa9`).
+
+- _Integration relation:_ this amends the existing inbound item "Detect planning claims that lack their required
+  source grounding": its convention owner is `grounded-planning-review`, and the mechanically decidable rule is
+  resolution of named symbols. Preserve the semantic absence check with the author-run grounding method.
+
 ---
 
 ## Problem / Motivation

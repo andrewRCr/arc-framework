@@ -52,6 +52,24 @@
   which owns the retention-line semantics) reaches the inbox flag schema this WU codifies — sequence the schema
   after that call.
 
+### `[ ]` **Derive `VECTOR.USER`'s queued Errands from the Errand queue**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- _WU_Target:_ `goal-aware-direction`
+
+- _Observation:_ The draft derives `VECTOR.USER`'s "queued inbox commitments" from the `_Hold:_` (proposed
+  `_Queued:_`) set on `INBOX.USER`. `spec-storage-contract.md` adds each person's Errand queue — an ordered list of
+  references to entries in either inbox, at identity scope, replacing the execute-bound marks from the flip — and
+  states it is the one ordered list of a person's Errands: a personal view that sequences them reads it rather than
+  keeping an order of its own.
+
+- _Approach:_ derive the vector's queued Errands, and their order, from the Errand queue (`arc errand queue`), keeping
+  sequencing intents as references that position them; the retained set stays a separate, unordered input if the
+  view still wants it.
+
+- _Captured during:_ `storage-contract` create-spec, 2026-09-30.
+
 ---
 
 ## Problem / Motivation

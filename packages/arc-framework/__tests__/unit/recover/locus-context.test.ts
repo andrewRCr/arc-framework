@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { resolveLoadSetManifest } from "../../../src/lib/load-set/projection.js";
 import type { LoadSetManifest } from "../../../src/lib/load-set/types.js";
 import type { DerivedCheckoutRow } from "../../../src/lib/locus/derived-roster.js";
 import type { DerivedLocusFrame } from "../../../src/lib/locus/derived-reader.js";
@@ -153,6 +154,42 @@ describe("deriveRecoveryLocusContext", () => {
       readMode: { kind: "full" },
     });
     expect(result.taskCursor).toBe(TASK_CURSOR);
+  });
+
+  it.each(["work unit", "warm Errand"])("omits a written Planning task-list cursor for a %s", (kind) => {
+    const row = workUnit();
+    const planning: DerivedCheckoutRow = {
+      ...row,
+      checkout: { ...row.checkout, branch: "plan/demo" },
+      context: {
+        ...row.context!,
+        branch: "plan/demo",
+        sessionType: "planning",
+        workflow: "planning",
+        stage: "generate-tasks",
+        loadSet: resolveLoadSetManifest({
+          identity: "andrew",
+          activeWorkUnit: "demo",
+          metaPath: ".arc/active/meta-demo.md",
+          sessionType: "planning",
+          planningStage: "generate-tasks",
+          taskListPath: ".arc/active/tasks-demo.md",
+          activeExtensions: [],
+          cohortDocPath: null,
+        }),
+      },
+    };
+    const state = kind === "work unit" ? frame(planning) : frame(transient(), [planning]);
+
+    const result = derive(state);
+
+    expect(result.frame).toMatchObject({
+      sessionType: "planning",
+      workflow: kind === "work unit" ? "generate-tasks" : "run-errand",
+    });
+    expect(result.taskCursor).toBeNull();
+    expect(result.loadSet.entries.some((entry) => entry.readMode.kind === "partial-strategic")).toBe(false);
+    expect(planning.context?.taskCursor).toBe(TASK_CURSOR);
   });
 
   it("degrades a missing marker parent to base context without losing the parent fact", () => {

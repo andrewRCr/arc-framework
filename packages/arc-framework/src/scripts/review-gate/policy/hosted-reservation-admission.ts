@@ -9,7 +9,9 @@ import { canonicalize } from "../../../lib/kernel/index.js";
 import type { ReviewOperationStateSnapshot } from "../core/ports.js";
 import type { IncrementalReviewScope } from "../core/incremental-review-scope.js";
 import { hostedProviderAdmitsCoverage } from "../hosted/correction-review-capability.js";
-import { HostedProviderIdSchema, type HostedReviewCoverage } from "../hosted/request.js";
+import {
+  HostedProviderIdSchema, type HostedRequestEnvelope, type HostedReviewCoverage,
+} from "../hosted/request.js";
 import {
   projectReviewPolicyAttempt,
   resolveReviewPolicy,
@@ -313,6 +315,7 @@ export async function resolveEvidenceBoundSingletonHostedReservationPolicy(
     readonly target: { readonly repository: string; readonly pullRequest: number; readonly headSha: string };
     readonly maxPasses: number;
     readonly coverageSelected?: boolean;
+    readonly invocation?: HostedRequestEnvelope["invocation"];
     readonly ceilingOverride?: ReviewPolicyCommandRequest["ceilingOverride"];
     readonly additionalPassAuthorization?: ReviewPolicyCommandRequest["additionalPassAuthorization"];
   },
@@ -330,6 +333,7 @@ export async function resolveEvidenceBoundSingletonHostedReservationPolicy(
     standardReview: input.reservation.obligation,
     completedPasses: input.discharge.completedPasses,
     attempts: input.discharge.requestAttempts,
+    ...(input.invocation === undefined ? {} : { invocation: input.invocation }),
     ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
     ...(input.additionalPassAuthorization === undefined ? {}
       : { additionalPassAuthorization: input.additionalPassAuthorization }),
@@ -827,7 +831,7 @@ export function assertHostedReservationBindingAuthority(input: {
   }
 }
 
-/** Refuse a hosted provider that would skip an earlier source in the durable reservation. */
+/** Admit the ordered source or an explicit selection within the current reservation. */
 export function assertHostedReservationAdmission(input: {
   reservation: StandardReviewReservationV1;
   provider: string;
@@ -839,6 +843,7 @@ export function assertHostedReservationAdmission(input: {
   candidate: { candidateId: string; subjectDigest: string; headSha: string };
   attempts: readonly ReservationAttempt[];
   applicabilityAction?: ReviewApplicabilityConsumerAction;
+  invocation?: HostedRequestEnvelope["invocation"];
 }): void {
   if (input.applicabilityAction === "retain-prior-attempt") {
     throw new Error("Hosted review capacity is not admissible while the prior attempt remains applicable.");
@@ -847,7 +852,10 @@ export function assertHostedReservationAdmission(input: {
     throw new Error("Hosted review capacity is not admissible while contribution applicability is unresolved.");
   }
   assertHostedReservationBindingAuthority(input);
-  const expected = firstAdmissibleHostedSource(input.reservation, input.attempts);
+  if (input.invocation !== undefined) {
+    configuredSourceSuffix(input.reservation.sources, input.invocation.sourceId);
+  }
+  const expected = input.invocation?.sourceId ?? firstAdmissibleHostedSource(input.reservation, input.attempts);
   if (expected === null) {
     throw new Error("Every source in the carried standard-review reservation is safely unavailable.");
   }

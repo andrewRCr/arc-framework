@@ -14,6 +14,7 @@ import {
   type HostedAwaitClock,
 } from "../../../../../src/scripts/review-gate/hosted/await.js";
 import type { HostedTarget } from "../../../../../src/scripts/review-gate/hosted/request.js";
+import { settleHostedFinding } from "../../../../../src/scripts/review-gate/hosted/settle.js";
 import { createHostedHandleFixture } from "../../../../fixtures/hosted-review.js";
 
 const HEAD = "a".repeat(40);
@@ -45,7 +46,7 @@ function review(state: string) {
 function comment(id: number) {
   return {
     id: `PRRC_${id}`,
-    databaseId: id,
+    fullDatabaseId: id,
     body: `comment ${id}`,
     url: `https://github.com/owner/repo/pull/42#discussion_r${id}`,
     path: "src/a.ts",
@@ -174,7 +175,7 @@ describe("hosted GitHub process boundary", () => {
                 comments: {
                   nodes: [{
                     id: "PRRC_1",
-                    databaseId: 1,
+                    fullDatabaseId: 1,
                     body: "comment",
                     url: "https://github.com/owner/repo/pull/42#discussion_r1",
                     path: "src/a.ts",
@@ -269,6 +270,163 @@ describe("hosted GitHub process boundary", () => {
       "-F",
       "commentCursor=COMMENTS_1",
     ]));
+  });
+
+  it("preserves full-width comment identities on initial and paginated reads", async () => {
+    const firstId = "4169384475";
+    const nextId = "9223372036854775807";
+    const boundary: HostedProcessRunner = {
+      run: (args) => {
+        const query = args.find((arg) => arg.startsWith("query=")) ?? "";
+        const paged = args.includes("commentCursor=COMMENTS_1");
+        const commentId = paged ? nextId : firstId;
+        const node = {
+          ...comment(paged ? 2 : 1),
+          id: `PRRC_${commentId}`,
+          url: `https://github.com/owner/repo/pull/42#discussion_r${commentId}`,
+          ...(query.includes("fullDatabaseId")
+            ? { fullDatabaseId: commentId }
+            : { fullDatabaseId: undefined, databaseId: null }),
+        };
+        const comments = {
+          nodes: [node],
+          pageInfo: { hasNextPage: !paged, endCursor: paged ? null : "COMMENTS_1" },
+        };
+        const data = paged
+          ? { node: { id: "PRRT_1", comments } }
+          : { repository: { pullRequest: { reviewThreads: {
+              nodes: [{ id: "PRRT_1", isResolved: false, comments }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            } } } };
+        return Promise.resolve({ stdout: JSON.stringify({ data }), stderr: "" });
+      },
+    };
+
+    await expect(new GhHostedReviewPort(boundary).readThreads(target)).resolves.toMatchObject([{
+      id: "PRRT_1",
+      comments: [{ id: firstId, actorIdentity: "123" }, { id: nextId, actorIdentity: "123" }],
+    }]);
+  });
+
+  it.each([null, 0, -1, 1.5, "1e3", "01"])("refuses an invalid full-width comment identity: %s", async (id) => {
+    const mock = runner([{ data: { repository: { pullRequest: { reviewThreads: {
+      nodes: [{
+        id: "PRRT_1",
+        isResolved: false,
+        comments: {
+          nodes: [{ ...comment(1), fullDatabaseId: id }],
+          pageInfo: { hasNextPage: false, endCursor: null },
+        },
+      }],
+      pageInfo: { hasNextPage: false, endCursor: null },
+    } } } } }]);
+
+    await expect(new GhHostedReviewPort(mock.boundary).readThreads(target)).rejects.toMatchObject({
+      message: "threads[0].comments[0].fullDatabaseId: expected a positive integer identity",
+    });
+  });
+
+  it.each([
+    ["9007199254740992", "9007199254740995"],
+    ["9007199254740993", "9007199254740997"],
+  ])("matches only replies to the exact REST parent %s", async (commentId, replyId) => {
+    const boundary: HostedProcessRunner = {
+      run: async () => ({
+        stdout: '[[{"id":9007199254740995,"in_reply_to_id":9007199254740992,'
+          + '"user":{"id":123},"body":"Approved disposition"},'
+          + '{"id":9007199254740997,"in_reply_to_id":9007199254740993,'
+          + '"user":{"id":123},"body":"Approved disposition"}]]',
+        stderr: "",
+      }),
+    };
+
+    await expect(new GhHostedReviewPort(boundary).findReplies({
+      target, commentId, actorIdentity: "123", body: "Approved disposition",
+    })).resolves.toEqual([{
+      id: replyId, actorIdentity: "123", body: "Approved disposition", inReplyToId: commentId,
+    }]);
+  });
+
+  it("preserves a newly posted REST reply identity above the safe integer limit", async () => {
+    const boundary: HostedProcessRunner = {
+      run: async () => ({ stdout: '{"id":9223372036854775807}', stderr: "" }),
+    };
+
+    await expect(new GhHostedReviewPort(boundary).postReply({
+      target, commentId: "9007199254740993", body: "Approved disposition",
+    })).resolves.toEqual({ kind: "created", id: "9223372036854775807" });
+  });
+
+  it("reuses an existing REST reply across settlement and its retry for a large comment identity", async () => {
+    const commentId = "9007199254740993";
+    const replyId = "9007199254740995";
+    const replyBody = "Approved disposition";
+    let resolved = false;
+    const replies = [replyId];
+    const boundary: HostedProcessRunner = {
+      run: async (args) => {
+        const route = args[1];
+        let output: unknown;
+        if (route === "user") output = { id: 123 };
+        else if (route === "repos/owner/repo/pulls/42") output = { head: { sha: HEAD } };
+        else if (route === "repos/owner/repo/pulls/42/comments?per_page=100") {
+          return {
+            stdout: `[[${replies.map((id) => `{"id":${id},"in_reply_to_id":${commentId},`
+              + `"user":{"id":123},"body":${JSON.stringify(replyBody)}}`).join(",")}]]`,
+            stderr: "",
+          };
+        } else if (route === `repos/owner/repo/pulls/42/comments/${commentId}/replies`) {
+          replies.push("9007199254740997");
+          return { stdout: '{"id":9007199254740997}', stderr: "" };
+        } else if (route === "graphql") {
+          const query = args.find((arg) => arg.startsWith("query=")) ?? "";
+          if (query.includes("resolveReviewThread")) {
+            resolved = true;
+            output = { data: { resolveReviewThread: { thread: { id: "PRRT_1", isResolved: true } } } };
+          } else {
+            output = { data: { repository: { pullRequest: { reviewThreads: {
+              nodes: [{ id: "PRRT_1", isResolved: resolved, comments: {
+                nodes: [
+                  { ...comment(1), fullDatabaseId: commentId, id: `PRRC_${commentId}`,
+                    url: `https://github.com/owner/repo/pull/42#discussion_r${commentId}` },
+                  ...replies.map((id, index) => ({
+                    ...comment(index + 2), fullDatabaseId: id, id: `PRRC_${id}`, body: replyBody,
+                    url: `https://github.com/owner/repo/pull/42#discussion_r${id}`,
+                    replyTo: { pullRequestReview: { id: "PRR_1" } },
+                  })),
+                ],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              } }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            } } } } };
+          }
+        } else throw new Error(`Unexpected hosted route: ${route}`);
+        return { stdout: JSON.stringify(output), stderr: "" };
+      },
+    };
+    const request = {
+      schemaVersion: 1,
+      response: {
+        attemptRef: "arc-review-source:v1:hosted:lane-progress%2F1:hosted%2F1",
+        dispositionSetId: `sha256:${"d".repeat(64)}`,
+        findingId: "finding-1",
+      },
+      target,
+      fixTarget: null,
+      actorIdentity: "123",
+      finding: { commentId, threadId: "PRRT_1" },
+      disposition: "reject",
+      reply: replyBody,
+    };
+    const port = new GhHostedReviewPort(boundary);
+
+    await expect(settleHostedFinding(request, { port })).resolves.toMatchObject({
+      state: "settled", nextAction: "complete", replyId,
+    });
+    await expect(settleHostedFinding(request, { port })).resolves.toMatchObject({
+      state: "already-settled", nextAction: "complete", replyId,
+    });
+    expect(replies).toEqual([replyId]);
   });
 
   it("passes caller cancellation into the gh runner", async () => {

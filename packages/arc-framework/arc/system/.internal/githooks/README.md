@@ -173,8 +173,8 @@ related keys there; `commit.custom_pattern` is ECMAScript pattern source consume
 
 Edit the scripts directly only for project-specific checks that remain shell-owned. Common additions:
 
-- Project-specific sensitive file patterns (pre-commit, Check 3)
-- Additional debug statement patterns (pre-commit, Check 5)
+- Project-specific sensitive file patterns (pre-commit, `CHECK[sensitive-files]`)
+- Additional debug statement patterns (pre-commit, `CHECK[debug-statements]`)
 
 ## Hook Manager Compatibility
 

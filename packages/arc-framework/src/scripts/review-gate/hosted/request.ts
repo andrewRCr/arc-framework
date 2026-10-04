@@ -221,7 +221,7 @@ export const HostedRequestHandleSchema = z.strictObject({
       path: ["effectiveCoverage"],
     });
   }
-  if (handle.invocation !== undefined && handle.vehicle?.kind !== "delivery-member") {
+  if (handle.invocation !== undefined && handle.vehicle?.kind === "errand") {
     context.addIssue({
       code: "custom",
       path: ["invocation"],
@@ -327,7 +327,7 @@ export const HostedRequestEnvelopeSchema: z.ZodType<HostedRequestEnvelope> = z.s
       message: "hosted source invocation must select the request provider",
     });
   }
-  if (request.invocation !== undefined && request.vehicle?.kind !== "delivery-member") {
+  if (request.invocation !== undefined && request.vehicle?.kind === "errand") {
     context.addIssue({
       code: "custom",
       path: ["invocation"],

@@ -1,5 +1,5 @@
 /**
- * Integration tests for validate-links.sh — pre-commit CHECK 13.
+ * Integration tests for validate-links.sh — pre-commit CHECK[markdown-links].
  *
  * The script validates markdown link targets in staged files. Tests exercise
  * it via subprocess against fixture markdown files in a temp directory.

@@ -1,5 +1,5 @@
 /**
- * Unit tests for the validate-extension-points CLI dispatcher (CHECK 16).
+ * Unit tests for the validate-extension-points CLI dispatcher (CHECK[extension-point-references]).
  *
  * Covers workflow-path classification (.arc/ vs package-source vs other),
  * extension-point reference resolution against per-copy listings, orphan

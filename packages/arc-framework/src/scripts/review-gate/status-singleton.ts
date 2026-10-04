@@ -46,6 +46,8 @@ export async function composePublishedSingletonReview(input: PublishedSingletonI
     approvedHead: target.headSha,
     changeRequest: { repository: target.repository, pullRequest: target.pullRequest },
     candidate: input.record,
+    ...(input.judgment?.sourceId === undefined ? {}
+      : { invocation: { mode: "force" as const, sourceId: input.judgment.sourceId } }),
   };
   const discharge = await readDischarge(dischargeInput);
   const applicabilityContext = {
@@ -53,9 +55,6 @@ export async function composePublishedSingletonReview(input: PublishedSingletonI
     expectedRecordVersion: input.recordVersion,
     candidateId: input.record.attestation.candidateId,
   };
-  if (input.judgment?.sourceId !== undefined && input.judgment.sourceId !== discharge.nextSource) {
-    return composeSingletonReviewObligation({ discharge, applicabilityContext });
-  }
   const request = !discharge.discharged && discharge.nextSource !== null
     ? await resolveSingletonRequest(input, discharge, dischargeInput)
     : undefined;
@@ -90,6 +89,8 @@ async function resolveSingletonRequest(
     coverageSelected: input.judgment?.coverage !== undefined,
     ceilingOverride: input.judgment?.ceilingOverride,
     additionalPassAuthorization: input.judgment?.additionalPassAuthorization,
+    ...(input.judgment?.sourceId === undefined ? {}
+      : { invocation: { mode: "force", sourceId: input.judgment.sourceId } }),
   }, {
     resultReader: createRepositoryReviewResultReader(publisher),
     dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
@@ -99,13 +100,16 @@ async function resolveSingletonRequest(
       input.readDischarge.confirmIncrementalApplicability(dischargeInput, predecessor, current)
     ),
   });
+  const sourceId = admission.state === "ready" ? admission.payload.sourceId : discharge.nextSource;
   return {
     target: input.target,
     admission,
-    sourceId: admission.state === "ready" ? admission.payload.sourceId : discharge.nextSource,
+    sourceId,
     coverage: input.judgment?.coverage ?? discharge.requestCoverage ?? "complete",
     correctionScope: discharge.correctionScope,
     ceilingOverride: input.judgment?.ceilingOverride,
     additionalPassAuthorization: input.judgment?.additionalPassAuthorization,
+    ...(input.judgment?.sourceId === undefined ? {}
+      : { invocation: { mode: "force", sourceId } }),
   };
 }

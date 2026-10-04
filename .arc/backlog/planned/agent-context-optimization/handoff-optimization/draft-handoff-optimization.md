@@ -75,6 +75,25 @@ Optimization WU.
   with nothing to write; (3) a **boundary-marker family** — typed terminal blocks for each exit locus (WU shipped,
   errand closed, drain complete), symmetric with the session-init orientation marker.
 
+### `[ ]` **Decide which handoff fields the meta's session context keeps**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-03).
+
+- _WU_Target:_ `handoff-optimization`
+
+- _Observation:_ `spec-storage-contract.md` D5 folds `SESSION-NOTES.md` into the work unit's meta at the storage flip:
+  a free-prose session-context section the handoff writes for whoever resumes the work unit next, beside a field
+  holding the state version at handoff, and cleared at archive. Which of today's handoff fields survive is left open
+  there. "Working On" restates the meta, and "Uncommitted Work" has no meaning once state persists without a commit;
+  "Commit at Handoff" becomes the state-version anchor field; "Remaining Work Before Returning to Task List" and
+  "Additional Context" are the section's substance.
+
+- _Approach:_ at the next planning pass, settle the section's shape — likely free prose covering context and remaining
+  work, with the anchor as the only field — and design the handoff step that writes it and the session-init read of
+  it.
+
+- _Captured during:_ `storage-contract` create-spec, 2026-10-01.
+
 ---
 
 ## Problem / Motivation

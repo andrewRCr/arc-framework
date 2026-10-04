@@ -178,10 +178,16 @@ function refusalReason(body: string): string | null {
   const refusalSummaries = [...body.matchAll(
     /<summary>\s*⚠️\s*Action not completed\s*<\/summary>/giu,
   )];
-  const reasons = [...body.matchAll(/^[ \t]*(Review skipped:[^\r\n]+?)[ \t]*$/gimu)];
+  const reasons = [...body.matchAll(/^[ \t]*(Review skipped:[^\r\n]+?|Review rate limited\.)[ \t]*$/gimu)];
   return hasSingleCommandInvocationMarker(body) && refusalSummaries.length === 1 && reasons.length === 1
     ? reasons[0]?.[1]?.trim() ?? null
     : null;
+}
+
+function commandRefusalObservation(reason: string): HostedObservation {
+  return /^Review rate limited\.$/iu.test(reason)
+    ? { kind: "rate-limited" }
+    : { kind: "terminal-failure", reason: `provider-request-refused: ${reason}` };
 }
 
 function isRequestCommand(comment: HostedGitHubIssueComment): boolean {
@@ -453,7 +459,7 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
         ? null
         : correlatedRefusalReason(comments, requestArtifact, coverage);
       if (refusal !== null) {
-        return { kind: "terminal-failure", reason: `provider-request-refused: ${refusal}` };
+        return commandRefusalObservation(refusal);
       }
       const providerChecks = checks.filter((check) =>
         check.name === "CodeRabbit" && check.appOwnerIdentity === APP_OWNER_ID);
