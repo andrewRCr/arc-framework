@@ -96,9 +96,12 @@ composition rather than inheriting the prior authorization.
 
 Disjoint protected-base movement proceeds without a reconcile commit when Git feasibility is exact and the configured
 host policy admits the current head into the named target. Overlapping movement enters one typed base reconcile and
-then a fresh checkpoint and approval; unknown movement, incomplete evidence, conflict, or unresolved host admission
-stops. Strict current-base requirements come only from authoritative host-policy evidence, never distance or provider
-guesswork.
+then a fresh checkpoint and approval. Complete exact-coordinate evidence may offer local repair before final host
+admission when Git proves only generated conflicts and the host reports non-mergeability, or when the host test merge
+covers the exact head but a stale base, and the head lacks the requested current base. Repair grants no merge authority:
+fresh host admission, review applicability, and exact-head approval still follow. Unknown movement, incomplete evidence,
+substantive conflict, and other unresolved or refused host admission stop. Strict current-base requirements come only
+from authoritative host-policy evidence, never distance or provider guesswork.
 
 Authorization binds the exact Candidate head and change request into the named target ref, not a base object ID. The
 approval surface discloses the last observed base and the residual race between observation and merge. Required-check

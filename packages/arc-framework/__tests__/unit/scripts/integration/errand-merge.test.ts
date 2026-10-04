@@ -14,6 +14,7 @@ import { IntegrationBindingChangedError } from
   "../../../../src/scripts/integration/merge.js";
 import { RequiredChecksObservationResultSchema } from
   "../../../../src/scripts/review-gate/checks-await.js";
+import { composeErrandFinalPlan } from "../../../../src/scripts/integration/errand-merge-composition.js";
 
 const oid = (character: string): string => character.repeat(40);
 const digest = (character: string): `sha256:${string}` => `sha256:${character.repeat(64)}`;
@@ -644,21 +645,30 @@ describe("Errand merge operation", () => {
     ["reconcile-regenerable", "reconcile-regenerable", "regenerable-reconcile-required", ["--regenerate-roadmap"]],
   ] as const)("returns %s from the shared final plan", async (stateName, nextAction, reason, extraArgv) => {
     const { value, state } = dependencies();
-    value.readFinalPlan = async () => ({
-      ...directPlan(),
-      observation: {
-        ...directPlan().observation,
-        movement: "overlapping",
-        feasibility: stateName === "reconcile-regenerable"
-          ? {
-              state: "regenerable-conflict",
-              base: oid("b"),
-              head: approvedTarget.headSha,
-              paths: [".arc/README.md"],
-            }
-          : directPlan().observation.feasibility,
+    value.readFinalPlan = async () => composeErrandFinalPlan({
+      target: approvedTarget,
+      drift: {
+        verdict: "reconcile", baseOid: oid("b"), headOid: approvedTarget.headSha, movement: "disjoint",
+        integrationEvidence: {
+          coverage: "complete", scannedCommitCount: 1, events: [], unclassifiedCommitCount: 0,
+          truncated: false, limitations: [],
+        },
+        overlap: { status: "available", substantivePaths: [], regenerablePaths: [".arc/backlog/ROADMAP.md"] },
       },
-      plan: { state: "reconcile", nextAction },
+      feasibility: stateName === "reconcile-regenerable"
+        ? {
+            state: "regenerable-conflict", base: oid("b"), head: approvedTarget.headSha,
+            paths: [".arc/backlog/ROADMAP.md"],
+          }
+        : directPlan().observation.feasibility,
+      admission: stateName === "reconcile-regenerable"
+        ? {
+            ...directPlan().observation.admission, state: "refused", condition: "not-mergeable", detail: "Conflicted.",
+          }
+        : {
+            ...directPlan().observation.admission, state: "unresolved", condition: "stale-base-test-merge",
+            detail: "The test merge covers a different base.",
+          },
     });
 
     await expect(mergeErrand(request, value)).resolves.toMatchObject({
@@ -753,7 +763,11 @@ describe("Errand merge operation", () => {
       observation: {
         ...directPlan().observation,
         admission: {
-          ...directPlan().observation.admission,
+          repository: approvedTarget.repository,
+          changeRequest: approvedTarget.pullRequest,
+          baseRef: approvedTarget.baseRef,
+          base: oid("b"),
+          head: approvedTarget.headSha,
           state: "refused",
           detail: "The host refused the merge.",
           ...(condition === undefined ? {} : { condition }),

@@ -62,6 +62,71 @@ describe("GitHub merge-observation port", () => {
     });
   });
 
+  it("distinguishes a stale test-merge base for an exact head that lacks the requested base", async () => {
+    const port = createGhChangeRequestMergeObservationPort({
+      run: async (args) => {
+        const endpoint = args.at(-1) ?? "";
+        if (endpoint.endsWith("/pulls/42")) return output(pull());
+        if (endpoint.endsWith("/branches/main")) return output({ protection: null });
+        if (endpoint.includes("/rules/branches/main")) return output([[]]);
+        if (endpoint.includes("/commits/")) {
+          return output({ parents: [{ sha: oid("d") }, { sha: coordinates.head }] });
+        }
+        throw new Error(`unexpected endpoint: ${endpoint}`);
+      },
+    });
+
+    await expect(port.observe(coordinates, { baseContained: false })).resolves.toMatchObject({
+      ...coordinates,
+      state: "unresolved",
+      condition: "stale-base-test-merge",
+      evidenceRef: `github:test-merge:${oid("c")}`,
+    });
+  });
+
+  it.each([
+    ["contained base", true, [oid("d"), coordinates.head]],
+    ["unknown containment", undefined, [oid("d"), coordinates.head]],
+    ["different head", false, [oid("d"), oid("e")]],
+    ["reversed parents", false, [coordinates.head, oid("d")]],
+    ["duplicate parents", false, [coordinates.head, coordinates.head]],
+    ["missing parent", false, [coordinates.head]],
+    ["extra parent", false, [oid("d"), coordinates.head, coordinates.base]],
+  ] as const)("does not classify %s as stale-base-only evidence", async (_label, baseContained, parents) => {
+    const port = createGhChangeRequestMergeObservationPort({
+      run: async (args) => {
+        const endpoint = args.at(-1) ?? "";
+        if (endpoint.endsWith("/pulls/42")) return output(pull());
+        if (endpoint.endsWith("/branches/main")) return output({ protection: null });
+        if (endpoint.includes("/rules/branches/main")) return output([[]]);
+        if (endpoint.includes("/commits/")) return output({ parents: parents.map((sha) => ({ sha })) });
+        throw new Error(`unexpected endpoint: ${endpoint}`);
+      },
+    });
+    const result = await port.observe(coordinates, { baseContained });
+    expect(result).toMatchObject({ ...coordinates, state: "unresolved" });
+    expect(result).not.toHaveProperty("condition");
+  });
+
+  it.each(["/pulls/42", "/branches/main", "/rules/branches/main", "/commits/"])(
+    "keeps %s read failures distinct from stale-base-only evidence", async (failedEndpoint) => {
+      const port = createGhChangeRequestMergeObservationPort({
+        run: async (args) => {
+          const endpoint = args.at(-1) ?? "";
+          if (endpoint.includes(failedEndpoint)) throw new Error("Host unavailable.");
+          if (endpoint.endsWith("/pulls/42")) return output(pull());
+          if (endpoint.endsWith("/branches/main")) return output({ protection: null });
+          if (endpoint.includes("/rules/branches/main")) return output([[]]);
+          if (endpoint.includes("/commits/")) return output({ parents: [{ sha: oid("d") }, { sha: coordinates.head }] });
+          throw new Error(`unexpected endpoint: ${endpoint}`);
+        },
+      });
+      const result = await port.observe(coordinates, { baseContained: false });
+      expect(result).toMatchObject({ state: "unresolved", detail: expect.stringContaining("unavailable") });
+      expect(result).not.toHaveProperty("condition");
+    },
+  );
+
   it.each(["classic", "ruleset"] as const)("establishes strict currentness from explicit %s policy", async (kind) => {
     const run = vi.fn(async (args: string[]) => {
       const endpoint = args.at(-1) ?? "";
