@@ -333,24 +333,20 @@ skip-build without generation. The full declaration gate and documented root/nat
           evidence without compilation. Real Node mismatch, builder cancellation/retry, and CI-owned setup/teardown
           are covered; portability selects installation, owner loss, link inventory, and file-replacement scenarios.
 
-### `[ ]` **5.4 Align developer command guidance and declaration gates — D1, D3, D4, D9**
+### `[x]` **5.4 Align developer command guidance and declaration gates — D1, D3, D4, D9**
 
 - _Goal:_ Developer examples accurately describe root operands, native option-value bases, supported artifact
   lifetime, direct native convenience, and the separate declaration gate.
 
-- _Approach:_ Update project-specific sections of configurable `QUICK-REFERENCE.md` and `DEV-RULES.PROJECT.md`;
-  preserve their package/project classifications and avoid replacing template defaults with repository-specific prose.
+    - `[x]` **5.4.a Align focused and native command examples with the implemented interfaces**
+        - Project command guidance documents exact root operands, native option bases and execution overrides,
+          literal lint/fix helpers, and mandatory selection/completion guards. Executed examples cover one-case
+          selection, project/worker overrides, quoted lint globs, and the optional lint delimiter.
 
-    - `[ ]` **5.4.a Align focused and native command examples with the implemented interfaces**
-        - Document one-separator `test:file`, TypeScript targets before optional `--`, package-local/native bases,
-          literal Markdown/fix helpers, and actionable fixed-interface diagnostics.
-        - Describe configured defaults versus explicit native execution overrides and their mandatory adapter guards.
-
-    - `[ ]` **5.4.b Align preparation, ownership, CI, and quality-gate guidance**
-        - Explain runtime/schema reuse, explicit-build behavior, same-checkout queuing through cleanup, independent
-          worktree artifacts, CI preflight versus prebuilt-only execution, and generation-only direct native preparation.
-        - Retain the full declaration build and both type checks; verify development-tool dependency declarations at
-          their owning boundaries and examples against the implemented scripts. Run Markdown and ARC contract checks.
+    - `[x]` **5.4.b Align preparation, ownership, CI, and quality-gate guidance**
+        - Guidance distinguishes owned runtime/schema reuse, queued explicit builds, CI preflight/skip-build, and
+          direct native generation-only convenience while retaining declarations and both type checks. Package
+          development tooling now declares `tsx` directly with the existing range and locked version.
 
 ### `[ ]` **5.5 Validate supported routes — D2, D3, D4, D8, D9** — validate exit criterion at segment scope
 

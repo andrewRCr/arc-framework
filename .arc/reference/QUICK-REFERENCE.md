@@ -106,9 +106,21 @@ npx --yes prettier --prose-wrap always --print-width 120 --parser markdown "file
 # Lint TypeScript source (recommended-type-checked rules)
 npm run lint:ts
 
+# Focused root targets: repository-relative files, directories, or quoted globs
+npm run -s lint:ts:file -- packages/arc-framework/src/lib/dev-check.ts
+npm run -s lint:ts:file -- 'packages/arc-framework/src/lib/*.ts'
+
+# Optional adapter delimiter: following ESLint options and values stay native
+npm run -s lint:ts:file -- packages/arc-framework/src/lib/dev-check.ts -- --fix
+
 # Lint shell scripts (githooks and system scripts)
 npm run lint:sh
 ```
+
+Root TypeScript targets precede the optional adapter `--`. ESLint runs in package cwd so suppression keys remain
+package-relative; option values and explicitly forwarded positional patterns after that delimiter use the same
+native base. Package-local `lint:ts:file` also retains package-relative paths. Markdown lint/fix helpers accept
+literal repository-relative filenames through their existing `--no-globs` scripts.
 
 ### Type Checking
 
@@ -132,9 +144,35 @@ npm run test:full
 # Run unit tests only
 npm run test:unit
 
+# Exact repository-relative file, with a native name filter through one npm separator
+npm run -s test:file -- packages/arc-framework/__tests__/unit/dev-check.test.ts -t "returns skip when src/ is absent"
+
+# Exact directory selection; each named operand must contribute an eligible specification
+npm run -s test:file -- packages/arc-framework/__tests__/integration
+
+# Explicit native execution options override configured defaults
+npm run -s test:file -- packages/arc-framework/__tests__/unit/dev-check.test.ts --project unit --maxWorkers 1
+
+# Broad tiers retain native package-relative filename filters
+npm run -s test:unit -- __tests__/unit/dev-check.test.ts
+
 # Run tests in watch mode (during development)
 npm run -w packages/arc-framework test:watch
 ```
+
+`test:file` accepts existing files or directories under the configured unit, integration, and E2E test trees.
+It selects exact files or directory descendants; every operand must contribute before optional native pre-parsing.
+Project filters can restrict that selection. Name filters, pool, isolation, file parallelism, and worker settings
+retain native precedence and literal option values; unit-mocks keeps configured isolation unless explicitly
+overridden. Invalid/excluded/empty targets, unknown or malformed flags, extra separators, config/root overrides,
+and watch/browser/UI or alternate discovery modes receive actionable diagnostics. Zero completed cases is
+non-passing even when native empty-run or ignored-error options are supplied.
+
+Supported run-mode scripts, including retained cost measurements, discover first and retain one controller through
+closing. Unit-only selections request no heavy admission or build. Integration/E2E selections acquire CPU admission,
+then checkout artifact ownership, and prepare qualified runtime/schema output before setup. Artifact ownership lasts
+through test execution and cleanup; logged closing errors and final worker errors fail the run. Native watch remains
+the separate package convenience shown above.
 
 ### Building
 
@@ -142,10 +180,20 @@ npm run -w packages/arc-framework test:watch
 # Build CLI package (ESM output with shebang and declarations) — the build-verification gate
 npm run build
 
-# Runtime-only build: bundle, esbuild metafile, freshness stamp, and kernel schema, no
-# declarations. The one-second fix when the dev-build guard refuses a command.
+# Runtime-only build: bundle, qualified input evidence, and kernel schema, without declarations
 npm run build:fast
 ```
+
+Explicit `build` and `build:fast` always generate the requested output. Test preparation reuses unchanged qualified
+runtime/schema output, including output from a full build; fast preparation supplies no declaration proof. Supported
+builders wait behind an owning controller in the same checkout and remain interruptible. Other worktrees have
+independent artifact ownership. CI and `ARC_TEST_ALLOW_CONCURRENCY=1` bypass CPU admission only.
+
+CI downloads the evidence with `dist`, then runs consumer-local preparation with generation enabled before tests
+set `ARC_E2E_SKIP_BUILD=1`. Skip-build revalidates matching inputs, installation/tools, Node/platform/architecture,
+and required files under artifact ownership; it never generates. Repair unavailable installation evidence with
+`npm ci`, then run preparation or `npm run build:fast` before retrying. Direct native Vitest setup may prepare only
+when controller evidence is absent; that convenience owns generation alone and does not pin an unmanaged run.
 
 ---
 
@@ -195,10 +243,10 @@ npm run -s lint:arc:triggers
 npm run -s lint:arc:domain-rules
 npm run -s lint:arc:section-refs
 
-# TypeScript lint — per changed file or directory; paths are package-relative
+# TypeScript lint — repository-relative files, directories, or quoted globs
 # (`npm run lint:ts -- <path>` appends to the full set rather than narrowing it. Run eslint by hand only
 # from the package directory: the size/complexity baseline is keyed to that working directory.)
-npm run -s lint:ts:file -- src/path/to/file.ts
+npm run -s lint:ts:file -- packages/arc-framework/src/lib/dev-check.ts
 
 # Affected unit tests — resolves committed and uncommitted changes against main...HEAD
 # Empty selection is a non-passing outcome
@@ -208,7 +256,7 @@ npm run -s test:changed
 npm run -s test:arc-contracts
 
 # Types — whole-program, not narrowable; run when TypeScript changed
-npm run typecheck
+npm run typecheck:all
 
 # Shell — fixed hook/script set; run when a hook or script changed
 npm run lint:sh
@@ -250,7 +298,8 @@ git --no-pager diff --stat
 ```
 
 `npm test` runs the routine unit + integration lane. `npm run test:full` is the explicit local whole-project
-command; required CI remains authoritative for E2E and portability enforcement before merge.
+command; required CI remains authoritative for E2E and portability enforcement before merge. Runtime preparation
+does not replace the full `npm run build` declaration gate or either type check.
 
 ---
 
@@ -262,7 +311,7 @@ command; required CI remains authoritative for E2E and portability enforcement b
 > CLI command in the sections below; npm workspaces symlinks the local package binary into
 > `node_modules/.bin/arc` automatically, and `npx` picks it up. Requires a current build (the
 > binary points at `packages/arc-framework/dist/cli.js`); the guard refuses against a stale one,
-> and `npm run build:fast` refreshes it in about a second. This guidance applies only
+> and `npm run build:fast` regenerates qualified runtime output. This guidance applies only
 > to the self-hosting repo; adopter projects install the published CLI globally and use `arc`
 > directly.
 

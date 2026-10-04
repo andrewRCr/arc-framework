@@ -15,7 +15,7 @@ For ARC methodology rules (commit discipline, task execution, session management
 **Tiered approach** — T1 per-task, T2 per-unit, T3 pre-PR. See [Quality Gates Strategy][quality-gates].
 Commands, config, and their measured cost: [QUICK-REFERENCE][quick-ref] § Quality Gate Commands.
 
-Four gate behaviors that reference does not carry, each of which fails quietly:
+These gate behaviors prevent misleading results:
 
 - `lint:md:staged` certifies the **git index**, not the worktree — the false-green trap is index-versus-worktree
   bytes, not a second rule set; **re-stage after every fix**, or findings target already-corrected lines.
@@ -25,6 +25,8 @@ Four gate behaviors that reference does not carry, each of which fails quietly:
   test-only type error passes a source-only check and surfaces only at commit.
 - `test:changed` must select at least one affected unit test. An empty selection is its own non-passing outcome,
   not evidence that the changed code passed.
+- All supported run-mode tier and focused commands require completed cases. All-skipped selections and unmatched
+  name filters are non-passing, and closing or final worker errors retain failure status.
 
 ### Size and complexity baseline
 
@@ -40,7 +42,9 @@ Four behaviors decide whether the gate tells the truth:
 
 - **Run it through the npm scripts.** Baseline keys are relative to the directory ESLint runs in, so a bare
   `npx eslint <path>` from the repository root finds no baseline and reports every recorded violation as new.
-  `lint:ts` and `lint:ts:file` both run with the package as their working directory.
+  `lint:ts` and `lint:ts:file` both run with the package as their working directory. Root `lint:ts:file` normalizes
+  repository-relative targets before the optional adapter `--`; forwarded options, values, and patterns keep native
+  package-cwd semantics. Package-local invocation remains package-relative.
 - **Only a whole-project run can shrink the record.** Pruning examines just the files in the current run, so a
   per-file run can never notice that a violation was fixed. After reducing one, run `lint:ts` — it exits 2 and
   names the unused suppression — then re-run it with `--prune-suppressions` and commit the shrunk record.
@@ -86,6 +90,23 @@ tooling changes reach every tier through the routine local lane plus required CI
 `npm test` is the routine local lane: unit, unit-mocks, and integration in one admitted run. E2E is enforced by
 the heavy CI lane before merge; run it locally only when E2E files changed or when explicitly requested. Run
 `npm run test:full` when a deliberate whole-project local test pass is useful.
+
+For incremental checks, root `test:file` selects exact existing repository-relative files/directories through one
+npm separator; each operand must contribute an eligible specification. Broad tier and package-local filters remain
+native and package-relative. Focused execution supports explicit native execution overrides while retaining project
+membership, target, ownership, and completion checks; it does not replace the complete selected quality gate.
+
+Unit-only selections take no heavy CPU slot or artifact lease and request no build. Supported integration/E2E
+controllers acquire CPU admission before checkout artifact ownership, prepare qualified runtime/schema output, and
+hold artifacts through closing. Same-checkout builders queue until cleanup ends; other worktrees remain independent.
+CI and `ARC_TEST_ALLOW_CONCURRENCY=1` bypass only CPU admission. Direct native setup without controller evidence owns
+generation alone and does not pin the unmanaged run.
+
+Preparation may reuse a qualifying full build or fast runtime/schema build. Explicit builds always generate, and
+the full `npm run build` declaration gate and both type checks remain required. CI retains evidence with artifacts
+and qualifies or repairs them in a consumer-local preflight before setting `ARC_E2E_SKIP_BUILD=1`. Skip-build requires
+matching context and files and forbids generation; repair installation with `npm ci` when required, then prepare
+outside that prohibited run before retrying.
 
 The ARC contract checks (`lint:arc:triggers`, `lint:arc:domain-rules`, `lint:arc:section-refs`) validate
 methodology artifacts rather than code, are corpus-wide by design, and cost ~0.7s combined — so they ride with
