@@ -34,7 +34,7 @@ export async function trackedHistory(context: InRepoContext, input: { reference:
   const needsMeta = home.address?.kind === "work-unit-artifact" || home.finder === "companions";
   const liveMeta = needsMeta ? await selectMeta(context, reference.owner.name) : undefined;
   const revision = liveMeta?.revision ?? "HEAD";
-  if (needsMeta) return logicalHistory(context, reference, revision);
+  if (needsMeta || home.address?.kind === "cohort-document") return logicalHistory(context, reference, revision);
   let path = await recordPath(context, reference, undefined, revision);
   const commits = (await git(context, ["log", "--follow", "--topo-order", "--format=%H", revision, "--", `:(literal)${path}`])).trim().split("\n").filter(Boolean);
   if (commits.length === 0) return notFound(reference, "Check the record name or commit its file before asking for history.");
@@ -69,6 +69,7 @@ async function logicalHistory(context: InRepoContext, reference: RecordReference
 }
 
 async function previousReference(context: InRepoContext, reference: RecordReference, commit: string, parent: string): Promise<RecordReference> {
+  if (reference.owner.type !== "work-item") return reference;
   if (await selectMeta(context, reference.owner.name, parent) !== undefined) return reference;
   const meta = await selectMeta(context, reference.owner.name, commit);
   if (meta === undefined) return reference;
