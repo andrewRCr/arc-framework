@@ -36,6 +36,16 @@ export function parseBuildEvidence(value: unknown): BuildEvidence | null {
   return parsed.success ? parsed.data : null;
 }
 
+/**
+ * Combine concrete installation/runtime and resolver-control identities.
+ * @param context - Managed installation and runtime identity
+ * @param inventory - Membership, links, and first-party manifest identity
+ * @returns Shared control identity used by both producer closures
+ */
+export function sharedBuildIdentity(context: string, inventory: string): string {
+  return createHash("sha256").update(context).update("\0").update(inventory).digest("hex");
+}
+
 /** Baseline and producer facts supplied by an owning generation coordinator. */
 export interface BuildEvidenceInput {
   readonly graphs: BuildInputGraphs;

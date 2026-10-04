@@ -65,28 +65,19 @@ invalidation, resolver-control invalidation, and rejection of observed changes d
           side-effects fixture proves resolver invalidation with unchanged old input digests; ordinary contents and
           timestamps remain selective, and normal qualification reads only resolver contents from this inventory.
 
-### `[ ]` **1.4 Check baseline inputs before certifying generated output — D5, D6, D7**
+### `[x]` **1.4 Check baseline inputs before certifying generated output — D5, D6, D7**
 
 - _Goal:_ A generated record certifies baseline inputs that remained stable during generation, rather than source
   read retrospectively after compilation.
 
-- _Approach:_ The interval check observes pre/post state under the stable-input assumption; it creates no source
-  snapshot, editor lock, change-and-revert detector, or automatic retry loop.
+    - `[x]` **1.4.a Capture baseline source/config/install maps before compiler startup**
+        - Baselines retain broad first-party contents, native configuration reads, installation/runtime context, and
+          rich inventory before producer startup; eventual dependency inputs absent from that baseline cannot certify.
 
-    - `[ ]` **1.4.a Capture baseline source/config/install maps before compiler startup**
-        - Snapshot the rich inventory and all first-party source plus configuration/install inputs before the compiler
-          child can load producers. Require its eventual dependency inputs to have been present in that baseline.
-        - Build `test-first` (one behavior at a time):
-            - Baseline digests supply the evidence even when producer metadata arrives only after compilation.
-            - A newly observed dependency absent from the baseline prevents certification.
-
-    - `[ ]` **1.4.b Reject unstable generations and support a subsequent stable build**
-        - Compare complete pre/post maps and inventories before promotion; discard staging with an actionable rerun
-          diagnostic when changes are observed.
-        - Build `test-first` (one behavior at a time):
-            - Source, config/install, membership, kind/link, and metadata-omitted manifest changes prevent certification.
-            - A subsequent stable invocation succeeds; the failed attempt publishes neither mixed output nor new evidence.
-        - Run the coherent producer/evidence fixtures and both type checks before closing the layer.
+    - `[x]` **1.4.b Reject unstable generations and support a subsequent stable build**
+        - Complete interval comparisons reject observed input/control/inventory changes with a rerun remedy. A native
+          compiler fixture reads old source before an edit and late metadata cannot certify that mixed generation;
+          stable retry returns evidence derived from its new baseline.
 
 ## **Phase 2:** Owned build generation and publication
 
