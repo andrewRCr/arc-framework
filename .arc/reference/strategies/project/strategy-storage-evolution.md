@@ -224,13 +224,14 @@ a commit SHA it expects to stay reachable — the defect that made Git-notes use
 name a commit, such as a task's captured commits, carries the commit's patch-id beside its SHA and is remapped by ARC's
 own rewrites.
 
-### 12. Identity is a name plus a UID
+### 12. Identity belongs to owners
 
-A record's slug is its human handle — unique among live records sharing its namespace, reusable once its record
-completes — and a random UID minted at creation is its identity, never reused and never changed. Machine records
-reference each other by UID; prose, filenames, and projected paths keep names. Don't key durable state on a slug that a
-rename or a recreated work unit would change, and don't mint time-ordered or sequential IDs that collide across
-machines.
+Work-item, cohort and project owners have a human name plus a random UID minted at creation, never reused or changed.
+Their names are unique among live owners in their namespace and reusable after completion. Person owners use the
+configured identity name without a UID. A record is addressed by its owner, kind and only the within-owner key its
+kind declares; records have no separate UID. Machine references retain that owner identity; prose, filenames and
+projected paths keep names. Don't key durable work-item, cohort or project state on a name a rename or recreation
+would change, and don't mint time-ordered or sequential IDs that collide across machines.
 
 Work units and Errands are two types of one work-item family over one base — identity, owner, type, lifecycle location,
 origin, and links — sharing one slug namespace. Anything that spans types reads only the base, so promotion is a field
