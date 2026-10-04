@@ -15,6 +15,7 @@
 - [Existing sync behavior in the conformance fixture](#existing-sync-behavior-in-the-conformance-fixture)
 - [A7 — Atomic capability for state publication](#a7--atomic-capability-for-state-publication)
 - [A8 — Paired notes publication through live origin heads](#a8--paired-notes-publication-through-live-origin-heads)
+- [A9 — Complete deciding lifecycle inventory](#a9--complete-deciding-lifecycle-inventory)
 
 ## Consumer map
 
@@ -1109,3 +1110,26 @@ remain as shipped.
 D8, the paired-push row and Implementation pointers now agree with those actors; SC23 and the task completion
 projection append. Original criteria/Goals/Non-Goals and historical evidence remain unchanged. This is a source-
 agreement correction with no runtime rerouting; its row/body/criteria ride the review-fix commit.
+
+## A9 — Complete deciding lifecycle inventory
+
+The superseded D9 summary promise was:
+
+> They list records only — no README, no archive folder without a meta, and no meta the layout cannot place (D8) — so
+> the store answers as the default ports do in the lifecycle summary the checkpoint reads, not in every directory
+> listing, but for the two metas the index drops (above): the summary omits them, where the default ports give an
+> unplaceable meta at its tier and a rejected flat-active meta's slug at its other copy.
+
+At the approved review site, entry step 4 selects the design arm at low depth. Keep the complete-inventory guard
+already required by deciding-consumer failure handling. `createStoreLifecycleStorage` calls `requireCompleteInventory`
+(`lib/store/lifecycle-storage.ts`) before returning a snapshot. An unreadable listing refuses with
+`store.lifecycle-unreadable`; a missed signal or non-placement diagnostic refuses with `store.lifecycle-incomplete`.
+`placementOmission` permits only the two established layout/index omissions. A parser-rejected unrelated meta is
+therefore a deciding refusal even when the requested meta is readable: the old `readLifecycleSummary` could evaluate
+the target after silently omitting that other meta. The refusal preserves diagnostics and a repair/retry route;
+repairing the inventory restores evaluation through the default checkpoint and merge ports.
+
+The determinate amendment qualifies D9 and SC6's default-port promise rather than removing the guard. SC24 and the
+task criterion append; original criteria, marks, Goals and historical verification remain intact. The identity-index
+omissions and unrelated session-init isolation remain separate behaviors. This changes the design account of the
+existing adapter, with no runtime change or new storage primitive; row, body and criteria ride the approved review fix.

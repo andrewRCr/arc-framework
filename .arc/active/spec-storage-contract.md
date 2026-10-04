@@ -1163,9 +1163,16 @@ index entry (A5).
   version; its directory listings, which the lifecycle index walks, come from the contract's listings, each work item at
   the path its placement and, in the backlog, its `Cohort` field give. They list records only — no README, no archive
   folder without a meta, and no meta the layout cannot place (D8) — so the store answers as the default ports do in the
-  lifecycle summary the checkpoint reads, not in every directory listing, but for the two metas the index drops (above):
-  the summary omits them, where the default ports give an unplaceable meta at its tier and a rejected flat-active meta's
-  slug at its other copy. Over the in-repo implementation that is `HEAD` and the tree at `HEAD`, exactly as the default
+  lifecycle summary the checkpoint reads on complete deciding inventory (A9), not in every directory listing, but for
+  the two metas the index drops (above): the summary omits them, where the default ports give an unplaceable meta at its
+  tier and a rejected flat-active meta's slug at its other copy. `requireCompleteInventory` in
+  `lib/store/lifecycle-storage.ts` preserves those placement omissions and otherwise refuses an unreadable inventory
+  with `store.lifecycle-unreadable`, or missed records and non-placement diagnostics with `store.lifecycle-incomplete`,
+  before checkpoint or merge deciding evaluation. An unrelated parser-rejected meta therefore refuses the snapshot
+  even when the requested work unit's meta is readable; the observed diagnostics and repair/retry remedy remain
+  available, and repairing the inventory restores normal evaluation. This completeness requirement qualifies D9's
+  summary parity and SC6's default-port clause; it does not change the identity-index omissions or session-init
+  isolation. Over the in-repo implementation that is `HEAD` and the tree at `HEAD`, exactly as the default
   ports in `checkpoint-composition.ts` and `merge-composition.ts` build today, and those defaults become this store. The
   checkpoint's binding moves onto its lifecycle records and code head (D2) before the flip: from the flip the state
   version covers every record, and `merge.ts` compares the port's version whole, so an unrelated write would invalidate
@@ -2189,6 +2196,12 @@ Validated at this change's completion, over Part A:
     two retries, distinguish strict failed plans from refusals, and keep notes-only reconciliation separate. Current
     runtime stays unchanged.
 
+24. **Deciding lifecycle completeness (A9).** Default checkpoint and merge storage preserve the two authorized
+    placement omissions and otherwise refuse missed, unreadable or diagnostic-bearing inventory, including an unrelated
+    parser-rejected meta, with observed diagnostics and actionable repair/retry. Direct comparisons establish the legacy
+    target summary before refusal, the current explicit refusal on incomplete inventory, and successful current
+    continuation after repair. Identity-index omission behavior and session-init isolation remain unchanged.
+
 ## Open Questions
 
 None blocks building Part A.
@@ -2238,4 +2251,6 @@ operations and outcomes, and which test tier each conformance fixture runs in.
   _Supersedes:_ D12 Without --atomic state-leg admission. _Trigger:_ storage-standard-3-whole-aggregate-3-F10 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 - **A8** — 2026-10-03 — design: describe paired notes export through all live origin heads.
   _Supersedes:_ D8 paired notes publication-boundary sentence. _Trigger:_ storage-standard-3-whole-aggregate-3-F33 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A9** — 2026-10-04 — design: qualify lifecycle summary parity on complete deciding inventory.
+  _Supersedes:_ D9 summary parity; SC6 default-port clause. _Trigger:_ design-adapter-F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 <!-- markdownlint-enable MD013 -->

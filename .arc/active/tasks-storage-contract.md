@@ -699,3 +699,8 @@ as stated.
   of all live origin heads, including cross-live-branch proof; branch-first canonical pairing and two retries remain,
   failed plans stay distinct from refusals, notes-only reconciliation stays separate, and current runtime is unchanged
   (A8; SC23).
+
+- `[x]` Default checkpoint and merge storage preserve the two authorized placement omissions and otherwise refuse
+  missed, unreadable or diagnostic-bearing inventory, including an unrelated parser-rejected meta, with diagnostics
+  and actionable repair/retry. The legacy target summary, current deciding refusal, and successful continuation after
+  repair are compared; identity-index omissions and unrelated session-init isolation remain unchanged (A9; SC24).
