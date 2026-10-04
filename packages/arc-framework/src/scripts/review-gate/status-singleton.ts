@@ -46,6 +46,8 @@ export async function composePublishedSingletonReview(input: PublishedSingletonI
     approvedHead: target.headSha,
     changeRequest: { repository: target.repository, pullRequest: target.pullRequest },
     candidate: input.record,
+    ...(input.judgment?.sourceId === undefined ? {}
+      : { invocation: { mode: "force" as const, sourceId: input.judgment.sourceId } }),
   };
   const discharge = await readDischarge(dischargeInput);
   const applicabilityContext = {

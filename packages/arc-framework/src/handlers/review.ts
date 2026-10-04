@@ -3675,6 +3675,7 @@ async function executeDefaultHostedRequest(
               pullRequest: request.target.pullRequest,
             },
             candidate: context.candidateRecord,
+            ...(request.invocation === undefined ? {} : { invocation: request.invocation }),
           };
           const discharge = await dischargeReader(dischargeInput);
           await assertEvidenceBoundCandidateHostedReservationPolicyAdmission({
