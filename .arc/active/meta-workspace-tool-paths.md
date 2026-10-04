@@ -1,8 +1,8 @@
 # Metadata: workspace-tool-paths
 
-| **State**  | **Owner** | **Branch**                  | **Class** | **Priority** |
-| ---------- | --------- | --------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/workspace-tool-paths` | `Heavy`   | `P2`         |
+| **State** | **Owner** | **Branch**                  | **Class** | **Priority** |
+| --------- | --------- | --------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/workspace-tool-paths` | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-workspace-tool-paths.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** `process-task-loop`
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Task 1.1.a — Retain the CLI compiler's actual first-party input graph (line ~26)
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1.a — Retain the CLI compiler's actual first-party input graph
 
 - **PR URL:** [none]
 - **Completed:** [none]
