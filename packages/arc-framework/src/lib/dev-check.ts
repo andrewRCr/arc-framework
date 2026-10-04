@@ -42,9 +42,10 @@ import { mkdir, mkdtemp, readdir, rename, rm } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { retryTransientFileSystemRefusal } from "./fs.js";
 import { selectFirstPartyInputs } from "./build-inputs.js";
+import { DEV_BUILD_STAMP_NAME } from "./build-evidence.js";
 
 /** Filename of the content-hash stamp written beside `dist/cli.js` at build time. */
-export const DEV_BUILD_STAMP_NAME = "dev-build-stamp.json";
+export { DEV_BUILD_STAMP_NAME };
 
 /**
  * Whether the running entry is the built bundle rather than TypeScript source.

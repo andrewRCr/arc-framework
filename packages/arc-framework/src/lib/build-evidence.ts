@@ -2,6 +2,20 @@
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 
+/** Qualification record published beside the completed CLI entry. */
+export const DEV_BUILD_STAMP_NAME = "dev-build-stamp.json";
+
+/**
+ * Recognize the required nonempty schema collection emitted by the schema producer.
+ * @param value - Parsed staged or live schema artifact
+ * @returns Whether the artifact supplies a usable schema collection
+ */
+export function hasKernelSchemas(value: unknown): boolean {
+  return typeof value === "object" && value !== null && "schemas" in value
+    && typeof value.schemas === "object" && value.schemas !== null && !Array.isArray(value.schemas)
+    && Object.keys(value.schemas).length > 0;
+}
+
 const sourceKey = z.string().regex(/^(?!\/|[A-Za-z]:|.*(?:^|\/)\.\.(?:\/|$)|.*\\).+$/u);
 const digest = z.string().regex(/^[a-f0-9]{64}$/u);
 const sourceSet = z.array(sourceKey).min(1).refine((keys) => new Set(keys).size === keys.length);

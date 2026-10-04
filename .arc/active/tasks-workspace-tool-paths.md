@@ -115,34 +115,20 @@ _Mode:_ `slice` through Phase 3 — closes on a supported integration run retain
           Fast output supplies runtime/schema graphs, while full output awaits declarations. A real declaration failure
           rejects the request, cleans its staging, preserves the previous live entry, and supplies the rebuild remedy.
 
-### `[ ]` **2.3 Publish qualified generations with failure and recovery handling — D3, D4, D5**
+### `[x]` **2.3 Publish qualified generations with failure and recovery handling — D3, D4, D5**
 
 - _Goal:_ Only stable, validated output owned by the coordinator becomes a qualified live generation; publication
   failures prevent test execution and retain a usable repair route.
 
-- _Approach:_ Reuse `promoteStagedDevBuild`'s per-file replacement substrate. Consumer exclusion supplies consistency;
-  the output set is not a directory-wide atomic transaction.
+    - `[x]` **2.3.a Validate and publish staged output with evidence last**
+        - Native parent controls certify the complete generation interval and validate staged CLI/schema/declarations.
+          Initial publication creates absent output; confirmed ownership covers ancillary/entry replacement and required
+          old-output cleanup before evidence becomes live. Invalid output, input drift, and owner loss refuse publication.
 
-    - `[ ]` **2.3.a Validate and publish staged output with evidence last**
-        - Support initial publication with no live `dist`: create the output root and treat its missing inventory as empty.
-        - Check baseline stability, required runtime/schema output, and confirmed ownership; promote ancillary files and
-          the complete CLI entry, finish required live-output cleanup, then publish qualification evidence.
-        - Build `test-first` (one behavior at a time):
-            - A first build with absent live output publishes complete qualified artifacts; missing-output repair can
-              establish a generation without requiring an existing CLI entry or stamp.
-            - Successful publication exposes complete required output before its new evidence.
-            - Invalid staged output, observed input changes, or ownership loss prevents publication and test admission.
-
-    - `[ ]` **2.3.b Recover safely from compilation or partial publication failure**
-        - Recheck live evidence and required files on the next invocation; clean only the owning staging output and
-          avoid certifying an interrupted promotion.
-        - After successful publication, dispose of leftover owned staging best-effort; report disposal failures without
-          failing the completed request, revoking qualification, or rebuilding otherwise reusable output.
-        - Build `test-first` (one behavior at a time):
-            - Ancillary/entry replacement or required live-output cleanup failures do not publish a successful new stamp.
-            - Post-publication staging-disposal failure retains successful qualification and permits normal test reuse.
-            - The failed requesting run cannot execute tests; a repaired subsequent build/preparation qualifies live output.
-            - Reusable qualified full output serves runtime preparation, while explicit build requests still rebuild.
+    - `[x]` **2.3.b Recover safely from compilation or partial publication failure**
+        - Preparation rechecks recorded inputs and complete required files without loading a compiler; qualified full
+          output serves runtime reuse, while explicit requests regenerate. Interrupted publication removes prior authority
+          and repaired invocations qualify anew; private staging-disposal failures warn without revoking successful reuse.
 
 ### `[ ]` **2.4 Route explicit builds and self-hosting refresh through one coordinator — D4, D9**
 
