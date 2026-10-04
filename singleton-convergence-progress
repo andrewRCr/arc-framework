@@ -3,7 +3,7 @@
   "slug": "singleton-convergence-progress",
   "claimId": "c126a08e8475a26fea76f5e2f8543847",
   "createdAt": "2026-10-04T19:01:48.533Z",
-  "updatedAt": "2026-10-04T19:01:48.533Z",
+  "updatedAt": "2026-10-04T20:04:18.423Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Preserve an already-published singleton boundary and carried review authority when same-Candidate, same-subject convergence attestation succeeds, through existing recovery and lifecycle guards.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Preserve published singleton progress during convergence attestation",
   "originEntrySourceDigest": "sha256:eb011c8de8b491fb426e319ee55593981594a680d4966c6fa306cf8a80528c14",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/singleton-convergence-progress",
+    "headSha": "8d74cc9015e6cd0573e972a5e9ef9437339119a8"
+  }
 }
