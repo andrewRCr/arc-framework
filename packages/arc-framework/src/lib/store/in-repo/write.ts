@@ -5,12 +5,18 @@ import type { InRepoContext } from "./context.js";
 import { admitTrackedRole } from "./write-admission.js";
 import { writeContent, type WriteContent } from "./write-codec.js";
 import { withTrackedRefusal } from "./write-conflicts.js";
-import { captureTrackedWrites, applyTrackedWrites } from "./write-transaction.js";
+import { resolveTrackedWrites, captureTrackedWrites, applyTrackedWrites } from "./write-transaction.js";
+
+import { withCanonicalRecordLocks } from "./write-stores.js";
 
 async function writeAll(context: InRepoContext, writes: WriteInput[]): Promise<WriteResult[]> {
   const inputs: { input: WriteInput; content?: WriteContent }[] = [];
   for (const input of writes) { admitTrackedRole(context, input); inputs.push({ input, content: await writeContent(input) }); }
-  return withTrackedRefusal(() => context.ports.locks.tracked(async () => applyTrackedWrites(context, await captureTrackedWrites(context, inputs))));
+  return withTrackedRefusal(() => context.ports.locks.tracked(async () => {
+    const targets = await resolveTrackedWrites(context, inputs);
+    return withCanonicalRecordLocks(context, targets, async (heldLocks) =>
+      applyTrackedWrites(context, await captureTrackedWrites(context, targets), heldLocks));
+  }));
 }
 /** Write one tracked record without staging its bytes.
  * @param context - Explicit checkout I/O and locks.
