@@ -153,6 +153,44 @@ describe("local pending target recovery", () => {
     expect(replay).toMatchObject({ state: "ready", payload: { operationId: recovered.payload.operationId } });
   });
 
+  it.each([
+    ["comparison base", "base", false, false],
+    ["Errand head", "head", false, true],
+    ["base reference", "base-ref", false, false],
+    ["pinned member base reference", "base-ref", true, false],
+  ] as const)("preserves a pending admission when its %s moves away and returns", async (_label, movement, member, headBound) => {
+    const context = scenario(member, headBound);
+    const first = await prepareLocalReview(context.input, context.dependencies);
+    if (first.state !== "ready") throw new Error("initial admission was not ready");
+    const original = context.current.target;
+    const originalOperation = context.operations.get(first.payload.operationId);
+    let moved = false;
+    context.deriveTarget.mockImplementation(async () => {
+      if (!moved) {
+        moved = true;
+        context.current.target = changedTarget(original, movement);
+      }
+      return context.current.target;
+    });
+    context.dependencies.confirmTarget = async (target) => {
+      context.current.target = original;
+      return target.targetId === original.targetId
+        ? { state: "current", target }
+        : { state: "stale-target", attemptedTarget: target, currentTarget: original };
+    };
+
+    expect(await prepareLocalReview(context.input, context.dependencies)).toMatchObject({
+      state: "ready", payload: {
+        operationId: first.payload.operationId, target: original,
+        request: { logicalPass: 1, generation: 0 },
+      },
+    });
+    expect(context.operations.get(first.payload.operationId)).toEqual(originalOperation);
+    expect(context.laneProgress()).toMatchObject({ completedPasses: 0, attempts: [
+      { attemptId: first.payload.operationId, outcome: "pending", retryGeneration: 0 },
+    ] });
+  });
+
   it("rechecks authority before retiring a stale admission", async () => {
     const context = scenario();
     const first = await prepareLocalReview(context.input, context.dependencies);

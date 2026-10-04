@@ -74,13 +74,13 @@ async function repository() {
   return { root, foundation };
 }
 
-async function prepare(root: string) {
+async function prepare(root: string, dependencies = createLocalPrepareDependencies({ exec, cwd: root })) {
   const output: string[] = [];
   const exitCodes: number[] = [];
   await handleReviewLocalPrepare("-", {
     resolveRoot: () => root,
     readText: async () => JSON.stringify(request),
-    prepare: (input) => prepareLocalReview(input, createLocalPrepareDependencies({ exec, cwd: root })),
+    prepare: (input) => prepareLocalReview(input, dependencies),
     write: (text) => output.push(text),
     setExitCode: (code) => exitCodes.push(code),
   });
@@ -123,6 +123,49 @@ async function resume(root: string, operationId: string) {
 }
 
 describe("local review recovery through command handlers and repository stores", () => {
+  it.each(["base", "head"] as const)("keeps and attests a pending admission after transient %s movement", async (movement) => {
+    const { root, foundation } = await repository();
+    const first = await prepare(root);
+    if (first.state !== "ready") throw new Error("initial operation was not ready");
+    const ref = movement === "base" ? "refs/heads/main" : "refs/heads/feature";
+    const originalRef = await git(root, "rev-parse", ref);
+    let transientRef = foundation;
+    if (movement === "head") {
+      await writeFile(join(root, "feature.ts"), "export const feature = 3;\n");
+      await git(root, "commit", "-am", "advance feature");
+      transientRef = await git(root, "rev-parse", "HEAD");
+      await git(root, "reset", "--hard", originalRef);
+    }
+    const dependencies = createLocalPrepareDependencies({ exec, cwd: root });
+    const deriveTarget = dependencies.deriveTarget;
+    const moveTarget = (head: string) => movement === "head"
+      ? git(root, "reset", "--hard", head)
+      : git(root, "update-ref", ref, head);
+    let moved = false;
+    dependencies.deriveTarget = async (repositoryId, member) => {
+      if (moved) return deriveTarget(repositoryId, member);
+      moved = true;
+      await moveTarget(transientRef);
+      try {
+        return await deriveTarget(repositoryId, member);
+      } finally {
+        await moveTarget(originalRef);
+      }
+    };
+    const original = await dependencies.operationStore.readOperation(first.payload.operationId);
+    expect(await prepare(root, dependencies)).toMatchObject({
+      state: "ready", payload: {
+        operationId: first.payload.operationId, target: first.payload.target,
+        request: { logicalPass: 1, generation: 0 },
+      },
+    });
+    expect(await dependencies.operationStore.readOperation(first.payload.operationId)).toEqual(original);
+    expect(await attest(root, first.payload.operationId)).toMatchObject({
+      state: "attested-current", nextAction: "reduce", payload: { receiptRecorded: true },
+    });
+    expect(await prepare(root)).toMatchObject({ state: "review-complete", payload: { operationId: first.payload.operationId } });
+  });
+
   it.each(["base", "head"] as const)("replaces a pending %s target and attests only its current replacement", async (movement) => {
     const { root, foundation } = await repository();
     const first = await prepare(root);

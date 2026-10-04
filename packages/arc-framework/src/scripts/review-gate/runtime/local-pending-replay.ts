@@ -72,11 +72,16 @@ async function retireStalePendingAdmission(
   state: LocalReviewState,
   attempt: PendingAttempt,
   ownerVersion: number,
-  currentTarget: ReviewTarget,
+  readCurrentTarget: () => Promise<ReviewTarget>,
   dependencies: LocalPrepareDependencies,
 ): Promise<boolean> {
+  const currentTarget = await readCurrentTarget();
   const confirmation = await dependencies.confirmTarget(state.target);
-  if (state.targetId === currentTarget.targetId && confirmation.state === "current") return false;
+  if (confirmation.state === "current") {
+    const selectedTarget = state.targetId === currentTarget.targetId
+      ? currentTarget : await readCurrentTarget();
+    if (state.targetId === selectedTarget.targetId) return false;
+  }
   const receipts = (await dependencies.readReceipts(state.targetId)).receipts
     .filter((receipt) => receipt.requestId === state.requestId);
   if (receipts.length > 1) throw new LocalPrepareCommandError("local review operation has multiple terminal receipts");
@@ -167,8 +172,8 @@ export async function resolveStablePendingLocalReplay<T>(
       throw new LocalPrepareCommandError("local pending admission does not match its live owner and operation");
     }
     assertLocalReviewClaimBinding(state);
-    const currentTarget = await dependencies.deriveTarget(repositoryId, subject.member ?? undefined);
-    if (await retireStalePendingAdmission(state, attempt, ownerVersion, currentTarget, dependencies)) return null;
+    if (await retireStalePendingAdmission(state, attempt, ownerVersion,
+      () => dependencies.deriveTarget(repositoryId, subject.member ?? undefined), dependencies)) return null;
     const result = await replay({
       request: replayRequestFromState(request, state),
       repositoryId,
