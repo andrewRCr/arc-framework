@@ -287,7 +287,7 @@ describe("trusted review-gate workflows", () => {
       "node --import tsx src/scripts/run-local-test-tier.ts arc-contracts",
     );
     expect(rootManifest.scripts["test:arc-contracts"]).toBe(
-      "npm run test:arc-contracts -w packages/arc-framework",
+      "npm run test:arc-contracts -w packages/arc-framework --",
     );
 
     const workflow = await read("ci.yml");

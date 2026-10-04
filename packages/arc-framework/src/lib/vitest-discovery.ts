@@ -23,8 +23,10 @@ export async function discoverVitestSelection(
   process.env.TEST = "true";
   process.env.VITEST = "true";
   process.env.NODE_ENV ??= "test";
-  const controller = await createVitest("test", normalizeVitestOptions(filters, options));
+  const normalized = normalizeVitestOptions(filters, options);
+  const controller = await createVitest("test", normalized);
   try {
+    applyProjectCliExclusions(controller, normalized.cliExclude ?? []);
     await controller.standalone();
     let specifications = await controller.getRelevantTestSpecifications(filters);
     if (selectInitial !== undefined) specifications = selectInitial(specifications);
@@ -44,6 +46,14 @@ export async function discoverVitestSelection(
   } catch (error) {
     await closeVitestController(controller);
     throw error;
+  }
+}
+
+function applyProjectCliExclusions(controller: Vitest, exclusions: readonly string[]): void {
+  // Inline projects omit cliExclude from native CLI inheritance. Preserve their
+  // configured exclusions and let the native globber apply the requested patterns.
+  for (const project of controller.projects) for (const exclusion of exclusions) {
+    if (!project.config.exclude.includes(exclusion)) project.config.exclude.push(exclusion);
   }
 }
 

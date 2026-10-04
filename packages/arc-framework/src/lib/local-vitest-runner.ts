@@ -46,6 +46,8 @@ function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
       return [];
     case "unit":
       return ["--project", "unit", "--project", "unit-mocks"];
+    case "changed":
+      return ["--changed=main", "--project", "unit", "--project", "unit-mocks", "--passWithNoTests=false"];
     case "lane":
       return [
         "--project",
@@ -75,5 +77,7 @@ function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
         "git-executor",
         "delivery-transfer.e2e",
       ];
+    case "portability-macos":
+      return ["anchored-sequence", "git-identity", "locus-errand-roundtrip", "rename"];
   }
 }

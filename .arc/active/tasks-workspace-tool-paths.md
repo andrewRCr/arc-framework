@@ -288,37 +288,20 @@ _Exit criterion:_ Broad tier, changed-test, portability, and retained cost-measu
 contract while preserving their selections and purposes. CI prebuilt consumers retain qualified evidence and obey
 skip-build without generation. The full declaration gate and documented root/native command boundaries remain intact.
 
-### `[ ]` **5.1 Compose all remaining run-mode tier entry points — D2, D3, D8, D9**
+### `[x]` **5.1 Compose all remaining run-mode tier entry points — D2, D3, D8, D9**
 
 - _Goal:_ Every remaining supported tier entry preserves its native coverage, filtering, exclusion, and sharding
   while using discovery-driven preparation and common completion handling.
 
-    - `[ ]` **5.1.a Migrate remaining direct run-mode entries and tier argument composition**
-        - Enumerate both manifests and `run-local-test-tier.ts`; cover lane/full, unit/changed, arc-contracts,
-          integration/E2E/focused E2E, portability, and the direct macOS portability route.
-        - Retain `localVitestTierArguments`/`ARC_CONTRACT_SUITES` semantics and native package-relative forwarding;
-          preserve the native watch convenience outside this run-mode boundary.
-        - Normalize repeated excludes to `cliExclude` before discovery and preserve native initial-run coverage semantics.
-          Compose shared configured pre-parsing and native skip filtering; classify ownership from refined projects
-          before native sharding, then pass specs to native execution once.
-        - Mirror native `normalizeCliOptions` for package-native filters containing a colon before controller
-          creation/discovery: default unset `includeTaskLocation` to `true` while retaining explicit option values.
-        - Update `e2e-global-setup.test.ts` assertions tied to the migrated unit/changed script strings. Keep
-          `deriveEffectiveE2EShards` on native collecting-list calls with qualified prebuilt output, preserving collection.
-        - Verify the argument/project/exclude/shard table and representative disposable npm invocations for each batch.
+    - `[x]` **5.1.a Migrate remaining direct run-mode entries and tier argument composition**
+        - Unit, changed-unit, and macOS portability scripts now use the shared controller with their native selections.
+          Root tier wrappers preserve literal options through one separator; configured refinement, repeated excludes,
+          line filters, and pre-shard ownership remain shared. The direct native watch and collecting-list routes remain.
 
-    - `[ ]` **5.1.b Verify route-wide ownership and completion behavior**
-        - Reuse the shared runner's behavioral fixtures instead of duplicating lifetime implementations.
-        - Verify a migrated package invocation with `file:line` selects the requested case; explicit disabled location
-          support retains the native rejection diagnostic. Root `test:file` keeps its literal existing-target contract.
-        - Verify unit-only bypass, actual heavy/mixed discovery, shared generations, empty results, native failures,
-          and common closing status under ordinary, CI, and concurrency-override entry points.
-        - Verify cross-file `.only` parity with native pre-parsing enabled, disabled-mode behavior, heavy-to-unit
-          refinement without preparation/setup, refined-empty refusal, and preserved native parsing diagnostics.
-        - Prove repeated excludes remain effective with sharding, native too-many-shards diagnostics survive, and an
-          empty executed shard is non-passing. A mixed refined set retains heavy ownership even for a unit-only shard,
-          because `Vitest.runFiles` initializes global setup before `createPool` shards. Verify the initial-run coverage
-          flag through the shared API.
+    - `[x]` **5.1.b Verify route-wide ownership and completion behavior**
+        - Real npm routes retain tier membership, literal flags, native line selection, sharding, and initial coverage.
+          Parsed exclusions reach each project's public configuration before native discovery, preserving its defaults.
+          Mixed shards retain prepared heavy setup and shared ownership; shared refinement and failure fixtures remain.
 
 ### `[ ]` **5.2 Share prepared execution and closing with retained cost runs — D2, D3, D8, D9**
 

@@ -32,12 +32,14 @@ export const LOCAL_TEST_CONCURRENCY_OVERRIDE = "ARC_TEST_ALLOW_CONCURRENCY";
 export type LocalHeavyTestTier =
   | "full"
   | "unit"
+  | "changed"
   | "lane"
   | "integration"
   | "arc-contracts"
   | "e2e"
   | "e2e-focused"
-  | "portability";
+  | "portability"
+  | "portability-macos";
 
 /** Operator label for a broad tier or an exact focused selection. */
 export type LocalTestRunLabel = LocalHeavyTestTier | "focused";
@@ -226,12 +228,14 @@ function parseHolderMetadata(value: unknown): LocalTestHolderMetadata | null {
 export function isLocalHeavyTestTier(value: unknown): value is LocalHeavyTestTier {
   return value === "full"
     || value === "unit"
+    || value === "changed"
     || value === "lane"
     || value === "integration"
     || value === "arc-contracts"
     || value === "e2e"
     || value === "e2e-focused"
-    || value === "portability";
+    || value === "portability"
+    || value === "portability-macos";
 }
 
 function tierLabel(tier: LocalTestRunLabel): string {
