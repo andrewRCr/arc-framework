@@ -1652,7 +1652,9 @@ hold it. Every work item, whatever its type, shares one namespace, and work-unit
 **Moving state.** A migrate verb moves state between backends, generic over the contract (D1), and carries every
 assurance chain forward: no live query can rebuild one, so no adapter retires before its chains are carried. The
 one-time move from today's substrates imports Git notes as one snapshot and never resolves differing entries with `ours`
-or `theirs`; it mints a UID for every existing record, re-homes each person's Errands into work-item refs, each open
+or `theirs`; it mints one UID per existing work-item, cohort or project owner and reuses that UID across all of the
+owner's record kinds and keys (A11). Person owners stay name-qualified, without UIDs. It re-homes each person's
+Errands into work-item refs, each open
 one's origin entry moving into its description and each person's execute-bound marks into their Errand queue (D11), and
 their grooming and housekeeping claims into their claims ref (D10), stamps every remaining inbox entry's `_Id:_`, puts
 each person's files in their place (D5), maps the review gate's repository ID onto the project ID, and derives task
@@ -2255,6 +2257,10 @@ Validated at this change's completion, over Part A:
     and successful continuation after repair. SC7's unchanged ceremony-test requirement is qualified only for these
     inherited defects and faithful completed-process metadata in their fixtures; normal behavior remains unchanged.
 
+26. **Owner identity in import (A11).** D14 agrees with D2 and the storage strategy: one UID is minted per existing
+    work-item, cohort or project owner and shared across that owner's record kinds and keys. Person owners remain
+    name-qualified without UIDs. Verification establishes document/type coherence; no import implementation is claimed.
+
 ## Open Questions
 
 None blocks building Part A.
@@ -2310,4 +2316,8 @@ operations and outcomes, and which test tier each conformance fixture runs in.
 <!-- markdownlint-disable MD013 -->
 - **A10** — 2026-10-04 — design: fail closed on incomplete mutating observations.
   _Supersedes:_ Goal 3 parity; D8 unchanged failures; SC7 failed-observation cases. _Trigger:_ P5-AGG-004/P5-AGG-005/P5-AGG-009 review. _Work:_ review-fix. _Revalidated:_ pending → review-fix.
+<!-- markdownlint-enable MD013 -->
+<!-- markdownlint-disable MD013 -->
+- **A11** — 2026-10-04 — design: clarify owner-level import identity.
+  _Supersedes:_ D14 per-record UID minting. _Trigger:_ P5-AGG-008 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 <!-- markdownlint-enable MD013 -->

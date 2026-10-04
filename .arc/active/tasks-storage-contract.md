@@ -715,3 +715,7 @@ as stated.
   prevent publication after uncertain post-merge capture with certified restoration or explicit manual repair using
   the known pre-merge anchor. Pending records, conflicting valid manifests, rollback failure and repaired continuation
   are covered; only these inherited failure cases and faithful process-metadata fixtures qualify SC7 (A10; SC25).
+
+- `[x]` D14, D2, the storage strategy and contract identity types agree on one UID per work-item, cohort or project
+  owner, reused across every owned record kind/key, and name-qualified person owners without UIDs. This is
+  document/type coherence, without implementing the deferred import (A11; SC26).

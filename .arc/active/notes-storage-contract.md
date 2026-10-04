@@ -19,6 +19,8 @@
 
 - [A10 — Authoritative observation failures](#a10--authoritative-observation-failures)
 
+- [A11 — Owner-level import identity](#a11--owner-level-import-identity)
+
 ## Consumer map
 
 Every ARC reader and writer of operational and planning state, one row per module, command, workflow, method, extension,
@@ -1157,3 +1159,11 @@ The repairs preserve causes and preflight state. Post-merge uncertainty prevents
 CAS restoration or explicit manual repair with the known pre-merge anchor; it cannot claim preservation without proof.
 Ordinary failure fixtures acquire faithful completed-process metadata. Advisory save/load baseline stamping remains
 best effort. SC25 covers these exceptions and continuation after repair; original reviewed versions remain retained.
+
+## A11 — Owner-level import identity
+
+D14's original instruction, “mints a UID for every existing record”, conflicted with D2's owner identity and the
+storage strategy. `OwnerIdentitySchema` in `lib/store/identity.ts` attaches a UID to a work-item, cohort or project
+owner, and `RecordReferenceSchema` combines that owner with a kind and optional key. Person owners have no UID field.
+The corrected import wording mints once per owner and reuses the identity across its records; SC26 checks that
+agreement. No import implementation is part of this correction, and the original reviewed version remains retained.
