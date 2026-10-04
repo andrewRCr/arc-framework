@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "singleton-checkpoint-source-selection",
+  "claimId": "441497e22cdfe0317487b4e1378eb8dd",
+  "createdAt": "2026-10-04T21:05:03.157Z",
+  "updatedAt": "2026-10-04T21:05:03.157Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Carry admitted review-source selection through retained evidence and singleton checkpoints",
+  "branch": "chore/singleton-checkpoint-source-selection",
+  "origin": "inbox",
+  "originEntry": "Carry admitted review-source selection through singleton checkpoints",
+  "originEntrySourceDigest": "sha256:31fef3f08cbfa6a2b8656273c371cb6c99b1f4d67ca991948c068e8efa0fc886",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
