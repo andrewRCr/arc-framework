@@ -1483,10 +1483,10 @@ reconcile, the stale sweep, and branch-gone recovery merge up or refuse a linked
 - `active/current/` holds the work item this checkout's marker names, while the marker carries no husk stamp and the
   work item is in flight. For a work unit, that is its files flat as `active/` holds them today, plus a copy of each
   cohort document its `Cohort` field names; for an Errand, its description, `errand-<slug>.md`, in whichever checkout
-  the Errand occupies, the primary included. `active/in-flight/<slug>/` holds other in-flight work items, read-only — an
-  Errand while it is open elsewhere, paused, or awaiting merge; the checkout's own never appears there. Which ones is a
-  personal setting — `mine` (the default), `cohort`, or `all`, plus named pins — so paths stay stable and only
-  membership varies.
+  the Errand occupies, the primary included. `active/in-flight/<slug>/` holds other in-flight work items, with each
+  file's writability governed by the lifecycle/owner/kind edit-rights rule below — an Errand while it is open elsewhere,
+  paused, or awaiting merge; the checkout's own never appears there. Which ones is a personal setting — `mine`
+  (the default), `cohort`, or `all`, plus named pins — so paths stay stable and only membership varies.
 - Folders exist only when they have members: no `current/` in a checkout without a work item, and no empty
   `in-flight/`. A file created at `active/`'s top level has no owner, so persist refuses it with a remedy naming
   `current/`. Both inboxes always project, empty or not.
@@ -1510,10 +1510,11 @@ reconcile, the stale sweep, and branch-gone recovery merge up or refuse a linked
 **Edit rights follow lifecycle state and kind of file,** not the projected folder:
 
 - Provisional and planned stubs are groomed by anyone.
-- For planning, active, integrating, and parked work units, the owner edits the work unit's prose — the draft, the
-  inbound list, the spec, notes, and other companions — from any checkout, through compare-and-swap and
-  three-way line merge. The meta and the task list stay with the owning checkout: their verb-owned fields — the meta's
-  `State`, a task's completion — change only through verbs behind ceremony and task gates.
+- For planning, active, integrating, and parked work units, the owner edits the work unit's regular prose — draft,
+  spec, notes, and other prose companions — from any checkout, through compare-and-swap and three-way line merge.
+  Inbound entries use compare-and-swap with whole-entry merge (D6, D11), keeping both sides of a same-entry clash,
+  concurrent insertions and observed-removal semantics. The meta and task list stay with the owning checkout: their
+  verb-owned fields — the meta's `State`, a task's completion — change only through verbs behind ceremony and task gates.
 - An Errand's owner edits its description from any checkout.
 - Another person's work items are read-only, except that anyone inserts into a work unit's inbound list or an Errand's
   description through the routing verb (D11).
@@ -1522,7 +1523,9 @@ reconcile, the stale sweep, and branch-gone recovery merge up or refuse a linked
 - An open cohort's document keeps one home, `backlog/planned/<cohort>/`, from creation until the cohort closes and joins
   its quarter's archive ref, whatever state its members are in.
 
-**A protected file says so where it is read,** in three layers, each an existing idiom:
+**A protected file says so where it is read,** in three layers, each an existing idiom. Protection is determined by
+the edit-rights rule, including in-flight views: the owner's permitted prose and Errand-description edits remain
+writable there. Only files protected under that rule carry the notice, mode and persist refusal:
 
 - a notice line beside the base stamp in the generated-file idiom (`Code generated … DO NOT EDIT.`), naming where to
   edit — the owning checkout's path on this machine, that the work unit is in flight on another, or `arc resume` for a
@@ -1770,8 +1773,9 @@ has no hook, so firing-point frequency bounds what it can lose.
 **Lifecycle work anchors; edits do not.** Every lifecycle workflow for a started work unit — draft-design after start,
 create-spec, generate-tasks, the task loop, verify, and integrate — checks at entry that it runs in the work unit's own
 locus and, from anywhere else, offers the remedy rather than letting a session drift into lifecycle work. Captures,
-inbound entries, and the owner's prose touch-ups stay open from any checkout. The write rule already places the hard
-wall: the meta and task list write only from the owning checkout.
+inbound entries, the owner's prose touch-ups and Errand-description edits stay open from any checkout, including
+in-flight views under D13's kind-specific rules. The write rule already places the hard wall: the meta and task list
+write only from the owning checkout.
 
 - Spawning a dedicated worktree stays `arc start`'s default: a workspace named for its work unit tells a session what
   it is doing. Anchoring in place is the cheap explicit choice — `arc start --here` writes only the marker — so a
