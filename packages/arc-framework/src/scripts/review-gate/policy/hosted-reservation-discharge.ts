@@ -60,6 +60,8 @@ import {
   projectPendingFindings,
   projectSelectedOwnerDischarge,
   selectedOwnerCleanAttempt,
+  retainedOwnerCleanAttempt,
+  pendingHostedReservationReview,
   retainedSafeUnavailableAttempt,
   HostedReservationDischarge,
   HostedReservationDischargeReaderArgs,
@@ -119,7 +121,8 @@ export async function projectHostedReservationDischarge(input: {
     return { discharged: true, detail: NO_HOSTED_REVIEW_RESERVATION_DETAIL, nextSource: null };
   }
   // The selected suffix governs request traversal; the full reservation governs evidence and settlement.
-  const requestSources = input.invocation === undefined
+  let requestInvocation = input.invocation;
+  let requestSources = input.invocation === undefined
     ? reservation.sources
     : configuredSourceSuffix(reservation.sources, input.invocation.sourceId);
   if (input.target === null) {
@@ -160,6 +163,7 @@ export async function projectHostedReservationDischarge(input: {
   const requestAttempts: HostedReservationRequestAttempt[] = [];
   const requestContext = () => ({
     requestAttempts, completedPasses,
+    ...(requestInvocation === undefined ? {} : { invocation: requestInvocation }),
     ...(requestCoverage === null ? {} : { requestCoverage }),
   });
   const currentFindingRoutes = reservation.sources.flatMap((sourceId) => (
@@ -191,31 +195,22 @@ export async function projectHostedReservationDischarge(input: {
   ));
   const currentFindings = projectPendingFindings(currentFindingRoutes, "current");
   if (currentFindings !== null) return currentFindings;
-  const pendingAttempts = currentAttempts.filter((attempt) => (
-    attempt.outcome === "pending" && reservation.sources.includes(attempt.sourceId)
-  ));
-  if (pendingAttempts.length > 0) {
-    const pending = pendingAttempts.length === 1 ? pendingAttempts[0] : undefined;
-    if (pending?.hosted?.handle === undefined) {
-      return {
-        discharged: false,
-        detail: "The reserved hosted sources have pending request progress without one exact durable handle.",
-        nextSource: null,
-      };
-    }
-    return {
-      discharged: false,
-      detail: `Hosted source \`${pending.sourceId}\` has one pending request awaiting a verdict.`,
-      nextSource: null,
-      awaitAction: { schemaVersion: 1, handle: pending.hosted.handle },
-    };
-  }
+  const pending = pendingHostedReservationReview(currentAttempts, reservation, "current");
+  if (pending !== null) return pending;
   const earlierReader = input.readEarlierAttemptApplicability;
   const activeEarlierBySource = earlierReader === undefined ? null : new Map(await Promise.all(
     reservation.sources.map(async (sourceId) => [sourceId, await earlierReader(sourceId)] as const),
   ));
   const readActiveEarlier = (sourceId: string): Promise<EarlierHostedAttemptApplicabilityRead | null> =>
     Promise.resolve(activeEarlierBySource?.get(sourceId) ?? null);
+  const retainedAttempts = [...(activeEarlierBySource?.values() ?? [])]
+    .flatMap((earlier) => earlier.status === "complete" ? earlier.attempts : []);
+  const selectedRetained = input.invocation === undefined
+    ? retainedOwnerCleanAttempt(retainedAttempts, currentAttempts, reservation) : undefined;
+  requestInvocation ??= selectedRetained?.hosted?.handle.invocation;
+  if (requestInvocation !== undefined) {
+    requestSources = configuredSourceSuffix(reservation.sources, requestInvocation.sourceId);
+  }
   let retainedTerminalLogicalPass = 0;
   let retainedTerminals: EarlierApplicableAttempt[] = [];
   if (input.readEarlierAttemptApplicability !== undefined) {
@@ -288,7 +283,8 @@ export async function projectHostedReservationDischarge(input: {
             : { localResumeAction: attempt.localResumeAction }),
         })));
     }
-    return projectPendingFindings(routes, "retained");
+    return projectPendingFindings(routes, "retained")
+      ?? pendingHostedReservationReview(retainedAttempts, reservation, "retained");
   };
   const dischargeAfterRetained = async (detail: string): Promise<HostedReservationDischarge> =>
     await retainedFindingsBeforeRequest() ?? { discharged: true, detail, nextSource: null };
