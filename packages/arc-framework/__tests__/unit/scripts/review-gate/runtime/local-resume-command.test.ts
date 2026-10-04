@@ -323,9 +323,10 @@ describe("local resume command", () => {
     expect(materialize).toHaveBeenCalledWith(records.source);
   });
 
-  it("routes a failed old operation to a new review without restoring its source", async () => {
+  it.each(["terminal-failure", "stale-target"] as const)(
+    "routes a %s old operation to a new review without restoring its source", async (outcome) => {
     const records = fixture();
-    records.laneProgress.attempts[0]!.outcome = "terminal-failure";
+    records.laneProgress.attempts[0]!.outcome = outcome;
     const materialize = vi.fn();
     const appendReceipt = vi.fn();
     const readSource = vi.fn();

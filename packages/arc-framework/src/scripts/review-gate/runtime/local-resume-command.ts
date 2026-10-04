@@ -127,7 +127,8 @@ async function resumeLocalReviewWithinLocalReviewLock(
   }
   if (receipts.length === 0 && admittedAttempt.outcome !== "pending") {
     if (admittedAttempt.outcome !== "terminal-failure"
-      && admittedAttempt.outcome !== "transient-unavailable") {
+      && admittedAttempt.outcome !== "transient-unavailable"
+      && admittedAttempt.outcome !== "stale-target") {
       throw new LocalResumeCommandError("terminal local review operation has no durable receipt");
     }
     return LocalResumeEnvelopeSchema.parse({
