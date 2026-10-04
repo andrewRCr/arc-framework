@@ -268,19 +268,15 @@ lint and its staged-file caller preserve package-cwd suppression and option-valu
           spaces, Unicode, tabs, and newlines through native lint and suppression lookup. Native lint failure still
           rejects the check, and both type checks report after earlier failures.
 
-### `[ ]` **4.4 Validate focused root invocations — D1, D2, D3, D8** — validate exit criterion at segment scope
+### `[x]` **4.4 Validate focused root invocations — D1, D2, D3, D8** — validate exit criterion at segment scope
 
 - _Goal:_ Real root npm invocations prove exact focused execution and lint selection with native values/defaults,
   while invalid targets, empty cases, and cleanup failures yield non-passing results.
 
-    - Run the focused test adapter against file, directory, multiple-target, unit-mock, integration/E2E, and mixed
-      fixtures; inspect actual selected cases, generation/build counters, and lease lifetime.
-    - Exercise one ordinary separator with `-t`, project filters, isolation/pool/worker options, and unsupported mode
-      controls. Confirm ignored-error or empty-success options cannot relax target/admission/preparation/closing guards.
-    - Run the focused ESLint entry and staged-hook fixture with optional delimiter, root glob targets, package-relative
-      option values/extra patterns, and literal Git filenames; confirm native suppression behavior. Check the retained
-      Markdown literal helper on exactly one named file.
-    - Record the segment outcomes and complete the relevant code, shell, Markdown, and contract checks.
+- _Outcome:_ Real root npm invocations established exact focused execution, native defaults and overrides, owned
+  runtime reuse, and package-cwd lint semantics including literal staged filenames. Each ineligible operand and
+  fixed-interface override refused before preparation; empty and cleanup outcomes remained non-passing despite
+  native success/ignore permissions. The retained Markdown helper linted exactly its named file.
 
 ## **Phase 5:** Supported command and CI composition
 
