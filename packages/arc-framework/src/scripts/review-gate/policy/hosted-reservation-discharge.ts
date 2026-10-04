@@ -71,6 +71,7 @@ import {
   allHostedReservationTargetsDischarged,
   resolveHostedReservationTargets,
   predecessorMatchesHostedReservationPolicy,
+  selectRetainedCoverageAttempts,
 } from "./hosted-reservation-support.js";
 export * from "./hosted-reservation-support.js";
 
@@ -463,7 +464,8 @@ export async function projectHostedReservationDischarge(input: {
         };
       }
       const selected = earlier.attempts.filter((attempt) => attempt.sourceId === sourceId);
-      const standardAttempts = selected.filter(({ requestedCoverage, effectiveCoverage, outcome }) => (
+      const coverageAttempts = await selectRetainedCoverageAttempts(selected, input.resolveEarlierTerminalPolicy);
+      const standardAttempts = coverageAttempts.filter(({ requestedCoverage, effectiveCoverage, outcome }) => (
         requestedCoverage === "complete"
         || effectiveCoverage === "complete"
         || outcome === "clean"
