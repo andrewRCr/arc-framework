@@ -246,6 +246,9 @@ describe("trusted review-gate workflows", () => {
 
   it("keeps the public review CLI inside the published graph", async () => {
     const tsup = await readFile(resolve(root, "packages/arc-framework/tsup.config.ts"), "utf8");
+    const schemaProducer = await readFile(
+      resolve(root, "packages/arc-framework/src/scripts/build-schema.ts"), "utf8",
+    );
     const productionRegistry = await readFile(
       resolve(root, "packages/arc-framework/src/production-schema-registry.ts"),
       "utf8",
@@ -255,7 +258,8 @@ describe("trusted review-gate workflows", () => {
       scripts?: Record<string, string>;
     };
     expect(tsup).toContain('entry: ["src/cli.ts"]');
-    expect(tsup).toContain("createProductionSchemaRegistry");
+    expect(tsup).toContain("writeBuildArtifacts");
+    expect(schemaProducer).toContain("createProductionSchemaRegistry");
     expect(productionRegistry).toContain("registerReviewDomainSchemas");
     expect(productionRegistry).toContain("registerDeliveryDomainSchemas");
     expect(productionRegistry).toContain("registerDeliveryAuthoringSchemas");

@@ -13,37 +13,23 @@ _Mode:_ `layer` — closes on actual producer graphs, selective input identities
 _Exit criterion:_ Disposable native-producer fixtures establish both input identities, selective ordinary-content
 invalidation, resolver-control invalidation, and rejection of observed changes during generation.
 
-### `[ ]` **1.1 Capture actual CLI, schema, and build-control graphs — D6, D7, D9**
+### `[x]` **1.1 Capture actual CLI, schema, and build-control graphs — D6, D7, D9**
 
 - _Goal:_ Recorded dependency sets identify the first-party files the actual CLI, schema, and build-control producers
   consume, including runtime-resolved JavaScript and JSON.
 
-- **Additional Context:** `notes-workspace-tool-paths.md` § Baseline Observations — 2026-10-03.
+    - `[x]` **1.1.a Retain the CLI compiler's actual first-party input graph**
+        - Native input selection retains normalized first-party TS, JS, and JSON paths while excluding installed and
+          external sources. A real compiler fixture captures a resolving JS sibling and its later content changes.
 
-- _Approach:_ Keep native graph capture in repository build tooling; runtime freshness reads its recorded evidence.
-  Declare new development-tool imports at the owning package boundary without adding repository-only production deps.
+    - `[x]` **1.1.b Retain schema and build-control loader graphs at their producer seams**
+        - Config capture retains native loader dependencies and executes captured options with `config: false`.
+          Both configs keep schema sources outside their shared graph; an isolated native producer generates the
+          production schema and retains its actual registry/writer dependencies.
 
-    - `[ ]` **1.1.a Retain the CLI compiler's actual first-party input graph**
-        - Compose the existing tsup metafile output and `selectBundleInputs` replacement with normalized source keys.
-        - Build `test-first` (one behavior at a time):
-            - Actual TS, JS, and JSON inputs are retained; installed-library inputs are excluded.
-            - A runtime-resolved JS sibling changes the recorded graph, and later edits affect the selected digest.
-
-    - `[ ]` **1.1.b Retain schema and build-control loader graphs at their producer seams**
-        - Make the build adapter load the selected config with `bundleRequire`, retain `dependencies`, and pass the
-          captured options to public `tsup.build` with `config: false` under the package-cwd contract.
-        - Keep schema imports out of shared config/control roots; load the actual schema producer separately with
-          `bundleRequire`. Cover both configs, `createProductionSchemaRegistry`, `writeKernelSchemaArtifact`, and
-          adapter control roots; Phase 2 adds the coordinator's control graph when wiring its production entry.
-        - Build `test-first` (one behavior at a time):
-            - Native-producer fixtures expose schema-only inputs absent from the CLI metafile.
-            - Config capture feeds the actual public compiler invocation without a second private config-loader path.
-            - Shared compilation controls and schema-only sources reach their required identities without substituting
-              TypeScript's type-oriented module graph for native runtime resolution.
-
-    - `[ ]` **1.1.c Declare and verify the development-tool dependency boundary**
-        - Update the owning manifest and lockfile for directly imported tools; keep compiler/loader imports out of the
-          production freshness-reading path. Verify source/test types and a real producer fixture.
+    - `[x]` **1.1.c Declare and verify the development-tool dependency boundary**
+        - Declared `bundle-require` and `esbuild` at the package development boundary with matching lockfile entries;
+          compiler/loader imports remain outside the production freshness reader.
 
 ### `[ ]` **1.2 Qualify runtime and runtime-plus-schema input identities — D6, D7**
 

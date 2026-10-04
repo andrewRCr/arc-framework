@@ -449,6 +449,22 @@ describe("createDevCheckDeps", () => {
 describe("selectBundleInputs", () => {
   const PKG = "/repo/packages/arc-framework";
 
+  it("retains normalized first-party JavaScript and JSON compiler inputs", () => {
+    expect(selectBundleInputs({ inputs: {
+      "./src/cli.ts": {},
+      "src/dep.js": {},
+      "src/data.json": {},
+      "../../build-control.mjs": {},
+      "../../node_modules/library/index.js": {},
+      "../../../external.js": {},
+    } }, PKG)).toEqual([
+      "/repo/build-control.mjs",
+      `${PKG}/src/cli.ts`,
+      `${PKG}/src/data.json`,
+      `${PKG}/src/dep.js`,
+    ]);
+  });
+
   it("returns only src/*.ts inputs as absolute paths, excluding deps and non-ts", () => {
     const metafile = {
       inputs: {

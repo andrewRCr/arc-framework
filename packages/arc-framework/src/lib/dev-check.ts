@@ -41,6 +41,7 @@ import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "
 import { mkdir, mkdtemp, readdir, rename, rm } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { retryTransientFileSystemRefusal } from "./fs.js";
+import { selectFirstPartyInputs } from "./build-inputs.js";
 
 /** Filename of the content-hash stamp written beside `dist/cli.js` at build time. */
 export const DEV_BUILD_STAMP_NAME = "dev-build-stamp.json";
@@ -470,25 +471,16 @@ function walkTsFiles(dir: string, visit: (file: string) => void): void {
 }
 
 /**
- * Select the `src/**\/*.ts` inputs of the bundle from a parsed esbuild
- * metafile, returned as absolute paths under `pkgDir`. Returns `null` when the
- * metafile shape is unusable or lists no src inputs, signalling the caller to
- * fall back to a full src walk. Non-src inputs (node_modules, generated files)
- * are excluded — only first-party sources can make dist stale.
+ * Select first-party TS, JS, and JSON inputs from actual compiler metadata.
+ * @param metafile - Parsed esbuild metadata
+ * @param pkgDir - Compiler working directory
+ * @returns Normalized absolute inputs, or null for unusable or empty metadata
  */
 export function selectBundleInputs(metafile: unknown, pkgDir: string): string[] | null {
   if (metafile === null || typeof metafile !== "object" || !("inputs" in metafile)) return null;
   const inputs: unknown = metafile.inputs;
-  if (inputs === null || typeof inputs !== "object") return null;
-
-  const paths: string[] = [];
-  for (const key of Object.keys(inputs)) {
-    // esbuild keys are forward-slash paths relative to the build cwd (the
-    // package dir); first-party sources live under `src/`.
-    if (key.startsWith("src/") && key.endsWith(".ts")) {
-      paths.push(join(pkgDir, key));
-    }
-  }
+  if (inputs === null || typeof inputs !== "object" || Array.isArray(inputs)) return null;
+  const paths = selectFirstPartyInputs(Object.keys(inputs), pkgDir);
   return paths.length > 0 ? paths : null;
 }
 
