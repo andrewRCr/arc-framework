@@ -26,7 +26,7 @@ import {
 } from "../../lib/user-sync/branch-bounded-notes-export.js";
 import { serializeNotesCompactionManifest } from "../../lib/user-sync/compaction-manifest.js";
 import { classifyPublicationFailure, type RemotePublicationFailure } from "../../lib/git/publication-failure.js";
-import { gitFailureText, isGitProcessError } from "../../lib/git/process-error.js";
+import { gitFailureText, isGitProcessError, isCompletedGitFailure } from "../../lib/git/process-error.js";
 import { notesRef } from "./shared.js";
 import { runUserLoad } from "./save-load.js";
 import {
@@ -365,6 +365,7 @@ export async function reconcileNotesPush(
       return { kind: "blocked", conditions: err.conditions };
     }
     const error = err instanceof Error ? err : new Error(String(err));
+    if (!isCompletedGitFailure(err)) return incompleteNotesPushFailure(error);
     const detail = gitFailureText(err);
     if (isRemoteUnavailableError(detail)) return notesFailure(error, isRemotePublicationError(err));
     if (!isNonFastForwardError(detail)) {
@@ -502,6 +503,11 @@ function isRemotePublicationError(error: unknown): boolean {
   }
   return false;
 }
+function incompleteNotesPushFailure(error: Error): NotesPushOutcome {
+  const remoteFailure = isGitProcessError(error) && error.kind === "timed-out" && isRemotePublicationError(error)
+    ? classifyPublicationFailure(error) : undefined;
+  return { kind: "failed", error, ...(remoteFailure === undefined ? {} : { remoteFailure }) };
+}
 function notesFailure(error: unknown, remote: boolean): NotesPushOutcome {
   const normalized = error instanceof Error ? error : new Error(String(error));
   const detail = remote ? { remoteFailure: classifyPublicationFailure(error) } : {};
@@ -573,6 +579,7 @@ function reconcileRepushFailureOutcome(err: unknown): NotesPushOutcome {
     return { kind: "blocked", conditions: err.conditions };
   }
   const error = err instanceof Error ? err : new Error(String(err));
+  if (!isCompletedGitFailure(err)) return incompleteNotesPushFailure(error);
   const detail = gitFailureText(err);
   if (isRemoteUnavailableError(detail)) return notesFailure(error, isRemotePublicationError(err));
   if (isNonFastForwardError(detail)) {
