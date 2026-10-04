@@ -14,6 +14,7 @@ interface SurfaceRule {
 
 const PACKAGE_ROOT_CONFIG = new Set([
   "packages/arc-framework/.gitignore",
+  "packages/arc-framework/build-compiler.config.ts",
   "packages/arc-framework/eslint.config.js",
   "packages/arc-framework/init-recipe.json",
   "packages/arc-framework/package.json",
