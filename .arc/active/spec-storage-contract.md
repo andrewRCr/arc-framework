@@ -1612,7 +1612,7 @@ back to a backing repository where it does not; Gitea and Forgejo are best effor
 fetches it or reports its absence, never fails on it.
 
 **Project identity** is an ID minted at `arc init` and kept as a record in the store. Every clone fetches it, so it
-survives new machines, moved remotes, and re-clones, where today's remote-URL-first fallback does not. Fork copying of
+survives new machines, moved remotes, and re-clones. Fork copying of
 state refs is host-dependent: `analysis-storage-substrate-direction.md` records no copying on most tested hosts and
 an Azure DevOps full-fork exception; current provider behavior remains an implementation verification input. An
 independently initialized fork has its own identity, while explicitly adopted upstream state retains the upstream ID.
