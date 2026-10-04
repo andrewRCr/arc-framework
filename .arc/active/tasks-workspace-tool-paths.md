@@ -318,29 +318,20 @@ skip-build without generation. The full declaration gate and documented root/nat
           Public module diagnostics and native timing/spawn metadata remain usable by existing retained-run consumers.
           Default cost output is excluded from build inventory, so successful retention preserves qualified reuse.
 
-### `[ ]` **5.3 Qualify CI artifacts and prebuilt consumer recovery — D3, D6, D7, D9**
+### `[x]` **5.3 Qualify CI artifacts and prebuilt consumer recovery — D3, D6, D7, D9**
 
 - _Goal:_ CI consumers execute only matching qualified prebuilt runtime/schema output, and recovery does not
   silently generate artifacts while skip-build is enabled.
 
-    - `[ ]` **5.3.a Carry evidence through producer upload and consumer download contexts**
-        - Review `.github/workflows/ci.yml` setup and every artifact/local-build consumer; retain the regenerated record
-          with required output and verify matching source, installation/tool, Node/platform/architecture context.
-        - After each consumer's installation/download, invoke shared coordinator preparation as a local preflight
-          with `ARC_E2E_SKIP_BUILD` unset. Reuse matching runtime/schema output; regenerate mismatches under artifact
-          ownership in the actual consumer context before its skip-build test command.
-        - Preserve the producer's full-build declaration gate and platform-local full builds; preflight does not
-          replace that gate. Retain existing CI triggers and cross-platform scheduling.
-        - Verify the downloaded record and required outputs against actual generated fixture evidence, including
-          matching reuse and consumer-local repair; workflow directory-path assertions alone do not prove retention.
+    - `[x]` **5.3.a Carry evidence through producer upload and consumer download contexts**
+        - Every downloaded-artifact and platform-local consumer prepares qualified runtime/schema output before
+          skip-build execution. Native full-build transfer proves matching reuse and consumer-local repair while
+          retaining producer/platform declaration gates and existing CI scheduling.
 
-    - `[ ]` **5.3.b Verify prebuilt mismatch remedies and repaired consumer success**
-        - Exercise skip-build consumers with missing files, malformed evidence, and mismatched input/install/runtime
-          context, then repair through the consumer-local preflight outside the generation-prohibited run. Missing or
-          unusable installation evidence refuses until installation repair; a subsequent preflight and skip-build run pass.
-        - Confirm retries execute without generation or nested acquisition; CI/CPU bypass still retains artifact
-          ownership. Ensure portability CI selects the required installation, cancellation, and file-replacement
-          scenarios alongside its existing coverage.
+    - `[x]` **5.3.b Verify prebuilt mismatch remedies and repaired consumer success**
+        - Native prebuilt refusals retain output until artifact/installation repair; repaired retries share qualified
+          evidence without compilation. Real Node mismatch, builder cancellation/retry, and CI-owned setup/teardown
+          are covered; portability selects installation, owner loss, link inventory, and file-replacement scenarios.
 
 ### `[ ]` **5.4 Align developer command guidance and declaration gates — D1, D3, D4, D9**
 

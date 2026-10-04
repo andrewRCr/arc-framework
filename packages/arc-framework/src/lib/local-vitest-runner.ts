@@ -67,6 +67,15 @@ function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
     case "portability":
       return [
         "fs.test.ts",
+        "build-context.test.ts",
+        "build-cancellation.test.ts",
+        "build-generation-lifetime.test.ts",
+        "build-coordinator.test.ts",
+        "build-publication.test.ts",
+        "build-inventory.test.ts",
+        "build-ownership.test.ts",
+        "ci-build-transfer.test.ts",
+        "ci-build-recovery.test.ts",
         "local-test-admission.test.ts",
         "worktree-marker.test.ts",
         "commit-message-retry-store.test.ts",
