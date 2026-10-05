@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "sync-fetch-timeout",
+  "claimId": "3d44b26677d75badf87498f977fabbbc",
+  "createdAt": "2026-10-05T01:31:19.138Z",
+  "updatedAt": "2026-10-05T01:31:19.138Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Give materializing sync and push fetches an appropriate bound and recoverable timeout results",
+  "branch": "chore/sync-fetch-timeout",
+  "origin": "inbox",
+  "originEntry": "Let `arc sync` survive a slow remote-tip fetch, and report a timeout in its envelope",
+  "originEntrySourceDigest": "sha256:50fee3858e561eb9e0dc1ee4042c57139f9623061c89173ae0b12a65ae4fe4e9",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
