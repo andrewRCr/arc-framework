@@ -1,8 +1,8 @@
 # Metadata: artifact-editor-handoff
 
-| **State**     | **Owner** | **Branch**                     | **Class** | **Priority** |
-| ------------- | --------- | ------------------------------ | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/artifact-editor-handoff` | `Light`   | `P3`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Light`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -13,15 +13,15 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:c2bea9008e29757c9371e2a29679ee684ca3a0e28c093853c0722ee5fb5b71ad`
 
-- **Current Workflow:** `integrate-work-unit`
+- **Current Workflow:** [none]
 - **Last Completed:** Task 2.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/813>
+- **Completed:** 2026-10-05
 
 ## Release Notes Entry
 
