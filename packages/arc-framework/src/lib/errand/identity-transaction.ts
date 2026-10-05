@@ -286,10 +286,14 @@ async function readCommonBasis(
       command: "git",
       args: ["merge-base", localTip, remoteTip],
     });
-    if (normalized.exitCode === 1) return emptyBasis();
+    if (isCompletedGitFailure(normalized) && normalized.exitCode === 1) return emptyBasis();
     return { kind: "error", stage: "basis", message: errorMessage(error), error };
   }
-  return commonTip === "" ? emptyBasis() : readCompleteBasis(io, commonTip);
+  if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(commonTip)) {
+    const error = new Error("Git merge-base returned a malformed common-ancestor object id");
+    return { kind: "error", stage: "basis", message: error.message, error };
+  }
+  return readCompleteBasis(io, commonTip);
 }
 
 async function decisionObjects<T>(io: ErrandRecordIO, basis: CompleteBasis,

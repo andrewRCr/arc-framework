@@ -730,3 +730,9 @@ as stated.
   even with exit 1. Public producer and Store regressions cover canceled, output-limited, timed-out, signaled and
   unclassified failures, original causes, saved local and remote authority, completed absence and successful
   publication after repair; SC7 is qualified only for these observations and faithful fixtures (A13; SC28).
+
+- `[x]` Incomplete or blank Errand common-basis observations cannot authorize empty ancestry, transformation,
+  canonical mutation or publication. Public producer and Store regressions retain accepted local removal and remote
+  insertion; cover canceled, output-limited, timed-out, signaled and unclassified exit-1 failures, malformed successful
+  output, original causes and genuine no-common-ancestor behavior; repaired retry publishes without resurrection.
+  SC7 is qualified only for this inherited boundary and faithful fixtures (A14; SC29).

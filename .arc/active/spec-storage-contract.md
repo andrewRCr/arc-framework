@@ -92,6 +92,11 @@ execution. `readStrictLocalRefTip` establishes absence only from a completed Git
 All other failures retain their original cause through the existing failed publication plan and sync outcome. SC28
 qualifies SC7 for these inherited observations; genuine absence and ordinary publication ceremony stay unchanged.
 
+**Goal 3 amendment (A14).** Errand identity reconciliation also fails closed when common-ancestor observation is
+incomplete. `readCommonBasis` establishes no common ancestor only from a completed, unsignaled Git exit 1; empty
+successful output does not establish absence. Other failures retain their original cause before transformation or
+publication. SC29 qualifies SC7 for this inherited boundary; ordinary reconciliation and publication stay unchanged.
+
 ## Non-Goals
 
 _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
@@ -1103,6 +1108,12 @@ unclassified executor failure cannot establish no-local-notes, noop or publicati
 transports through paired sync. The force path in `runUserPush` uses the same strict helper and propagates its original
 error. The failed observation preserves saved local notes and the remote; removing the fault permits the existing
 publication retry. This qualification adds no publication policy or ceremony.
+
+`readCommonBasis` in `lib/errand/identity-transaction.ts` uses completed process evidence before interpreting
+`merge-base` exit 1 as an empty common basis (A14). Canceled, timed-out, output-limited, signaled, unclassified or
+malformed-output observations stop the transaction through its existing basis error outcome. They cannot resurrect
+an accepted local removal or authorize a new canonical write/publication. Established null-tip and completed
+no-common-ancestor cases keep their ordinary behavior. Repair permits the existing transaction retry.
 
 **Entries.** The inbox writer stays keyed on an entry's title and source digest and stamps no `_Id:_`, so every
 unrelated byte stays as today; once rerouted it computes the file's new content, which the contract writes whole
@@ -2297,6 +2308,13 @@ Validated at this change's completion, over Part A:
     retention, saved local and remote authority, completed absent-ref behavior and successful publication after repair.
     SC7 is qualified only for these inherited observations and faithful fixtures; normal ceremony stays unchanged.
 
+29. **Strict Errand common-ancestor observations (A14).** Incomplete or blank common-basis observations cannot
+    authorize empty ancestry, transformation, canonical mutation or publication. Public producer and Store regressions
+    retain an accepted local removal and independent remote insertion; cover canceled, output-limited, timed-out,
+    signaled and unclassified exit-1 failures, malformed successful output, original-cause transport and a genuine
+    no-common-ancestor control; removing the fault restores ordinary reconciliation and publication without
+    resurrection. SC7 is qualified only for this inherited boundary and faithful fixtures.
+
 ## Open Questions
 
 None blocks building Part A.
@@ -2364,4 +2382,7 @@ operations and outcomes, and which test tier each conformance fixture runs in.
 
 - **A13** — 2026-10-05 — design: require completed publication-tip observations before treating notes as absent.
   _Supersedes:_ Goal 3 parity; D8 unchanged failures; A10/A12 bounded scope; SC7 tip-observation cases. _Trigger:_ personal-transient-F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A14** — 2026-10-05 — design: require completed Errand common-ancestor observations before treating ancestry as absent.
+  _Supersedes:_ Goal 3 parity; D8 unchanged failures; A10/A12 bounded scope; SC7 common-basis cases. _Trigger:_ aggregate-F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 <!-- markdownlint-enable MD013 -->

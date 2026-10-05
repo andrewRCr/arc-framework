@@ -1203,3 +1203,22 @@ its retained draft and original reviewed source remain unchanged.
 The producer and Store matrices cover all five compound failures, preserved saved local and remote authority,
 completed absence, and successful publication after fault removal. SC28 and task criterion 32 append without changing
 prior criteria or marks. This adds no record, lock, recovery marker, backend capability or publication ceremony.
+
+## A14 — Strict Errand common-ancestor observations
+
+Goal 3 promised “changing nothing observable”, D8 promised failure “kinds and messages unchanged”, and SC7 required
+ceremony tests to “pass unchanged”. A10 and A12 bounded their inherited-failure exceptions. A14 explicitly extends
+those exceptions to `readCommonBasis` in `lib/errand/identity-transaction.ts`, whose exit-1 and blank-success fallbacks
+could turn failed ancestry observation into an empty basis, resurrect an accepted removal, then publish it.
+
+`readCommonBasis` composes `normalizeGitRejection` and `isCompletedGitFailure` before accepting exit 1 as no common
+ancestor. A successful observation must name a valid object id; blank or malformed output returns the existing basis
+error. `transactRemoteAttempt` returns that failure before the transform and canonical mutation; `transactionError`
+retains the original rejection as the cause of the Store write or batch error, wrapped by `runOperation` in
+`store.operation-failed`. Established null tips, equal tips and completed no-common-ancestor outcomes retain their
+behavior. There is no persisted repair marker or new ceremony.
+
+Public producer, write and batch matrices preserve local removal and independent remote insertion through all five
+compound exit-1 failures and both malformed-success cases, and repaired retry publishes only the retained records.
+The genuinely unrelated-history control still reconciles ordinary inserts. SC29 and task criterion 33 append; prior
+criteria, marks, reviewed source and verification evidence remain intact. This is a determinate amendment at low depth.
