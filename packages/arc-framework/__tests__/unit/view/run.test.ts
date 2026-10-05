@@ -2,10 +2,13 @@
  * Unit tests for the `arc view` orchestrator.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { runView } from "../../../src/commands/view.js";
-import type { ViewArtifactResolver } from "../../../src/commands/view.js";
+import type { RunViewOptions, ViewArtifactResolver, ViewDependencies } from "../../../src/commands/view.js";
 
 describe("runView", () => {
   it("passes an omitted kind through as bare lifecycle-aware view", async () => {
@@ -299,5 +302,74 @@ describe("runView", () => {
       anchor: { line: 4, id: "1.1" },
     }));
     expect(result.stderr).toBe("");
+  });
+});
+
+describe("runView editor destination", () => {
+  let cwd: string;
+  let path: string;
+  let openedContent: string | undefined;
+  let options: RunViewOptions;
+  let dependencies: ViewDependencies;
+
+  beforeEach(async () => {
+    cwd = await mkdtemp(join(tmpdir(), "arc-view-editor-"));
+    path = join(cwd, "artifact with spaces.md");
+    await writeFile(path, "# Original file\n");
+    openedContent = undefined;
+    options = { cwd, project: false, identity: "andrew", editor: true, editorAllowed: true };
+    dependencies = {
+      resolveArtifact: async () => ({
+        status: "resolved", kind: "spec", path: "artifact with spaces.md", workUnit: "feature",
+      }),
+      readFile: async () => { throw new Error("Presentation read must be unused"); },
+      resolveRenderer: async () => { throw new Error("Renderer must be unused"); },
+      renderWithPager: async () => { throw new Error("Pager must be unused"); },
+      now: () => { throw new Error("Formatting clock must be unused"); },
+      launchEditor: async (file) => { openedContent = await readFile(file, "utf8"); },
+    };
+  });
+
+  afterEach(async () => { await rm(cwd, { recursive: true, force: true }); });
+
+  it("opens the real absolute file before presentation and leaves its bytes unchanged", async () => {
+    expect(await runView(options, dependencies)).toEqual({ stdout: "", stderr: "", exitCode: 0 });
+    expect(openedContent).toBe("# Original file\n");
+    expect(await readFile(path, "utf8")).toBe("# Original file\n");
+  });
+
+  it.each(["path", "current"] as const)("rejects editor with %s before resolution", async (destination) => {
+    dependencies.resolveArtifact = async () => { throw new Error("Resolution must be unused"); };
+    const result = await runView({ ...options, [destination]: true }, dependencies);
+    expect(result).toMatchObject({ stdout: "", exitCode: 1 });
+    expect(result.stderr).toContain(`--editor cannot be combined with --${destination}`);
+    expect(openedContent).toBeUndefined();
+  });
+
+  it.each([false, undefined])("refuses editor without explicit interaction permission (%s)", async (editorAllowed) => {
+    dependencies.resolveArtifact = async () => { throw new Error("Resolution must be unused"); };
+    const result = await runView({ ...options, editorAllowed }, dependencies);
+    expect(result).toMatchObject({ stdout: "", exitCode: 1 });
+    expect(result.stderr).toMatch(/--editor requires.*interactive/);
+    expect(openedContent).toBeUndefined();
+  });
+
+  it("fails absence without opening a file", async () => {
+    dependencies.resolveArtifact = async () => ({ status: "absent", kind: "spec" });
+    expect(await runView(options, dependencies)).toEqual({
+      stdout: "", stderr: "spec is not present.\n", exitCode: 1,
+    });
+    expect(openedContent).toBeUndefined();
+  });
+
+  it("reports a failed handoff with an override remedy and permits a later retry", async () => {
+    const launchEditor = dependencies.launchEditor;
+    dependencies.launchEditor = async () => { throw new Error("Editor exited unsuccessfully"); };
+    const result = await runView(options, dependencies);
+    expect(result).toMatchObject({ stdout: "", exitCode: 1 });
+    expect(result.stderr).toMatch(/Editor exited unsuccessfully.*ARC_EDITOR/);
+    dependencies.launchEditor = launchEditor;
+    expect(await runView(options, dependencies)).toEqual({ stdout: "", stderr: "", exitCode: 0 });
+    expect(openedContent).toBe("# Original file\n");
   });
 });

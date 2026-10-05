@@ -41,6 +41,8 @@ export interface GitExecOptions {
   diagnosticLocale?: "stable";
   /** Forbid Git from lazily fetching missing objects during passive inspection. */
   objectAccess?: "local-only";
+  /** Preserve captured stdout exactly instead of trimming trailing whitespace. */
+  preserveOutput?: boolean;
 }
 
 /** Plain-Promise, argument-array Git execution seam. */
