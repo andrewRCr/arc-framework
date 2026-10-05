@@ -84,15 +84,20 @@ describe("reference publication history", () => {
     const remote = fixture.remote(true)!;
     const first = await seed(fixture, fixture.reference("personal/document"), "opening\nbase\nclosing\n");
     success(await fixture.store.sync());
-    success(await fixture.store.write(WriteInputSchema.parse(update(fixture, first, "local opening\nbase\nclosing\n"))));
+    const localWrite = success(await fixture.store.write(WriteInputSchema.parse(update(fixture, first, "local opening\nbase\nclosing\n"))));
     const remoteWrite = success(await remote.write(WriteInputSchema.parse(update(fixture, first, "opening\nbase\nremote closing\n"))));
     const from = success(await remote.version());
     expect(success(await fixture.store.sync()).publishes[0]?.status).toBe("reconciled");
     const merged = success(await remote.read({ reference: first.reference }));
     expect(merged.content).toBe("local opening\nbase\nremote closing\n");
+    expect(success(await fixture.store.history({ reference: first.reference }))).toMatchObject([
+      { version: merged.version, provenance: { verb: "sync", lifecycleAction: "reconcile" } },
+      { version: remoteWrite.version }, { version: localWrite.version }, { version: first.version },
+    ]);
     const history = success(await remote.history({ reference: first.reference }));
-    expect(history).toMatchObject([{ version: merged.version, provenance: { verb: "sync", lifecycleAction: "reconcile", reference: first.reference } }, { version: remoteWrite.version, provenance: testProvenance }, { version: first.version }]);
-    expect(success(await remote.changes({ from, to: success(await remote.version()), references: [first.reference] }))).toEqual([history[0]]);
+    expect(history).toMatchObject([{ version: merged.version, provenance: { verb: "sync", lifecycleAction: "reconcile", reference: first.reference } },
+      { version: localWrite.version }, { version: remoteWrite.version, provenance: testProvenance }, { version: first.version }]);
+    expect(success(await remote.changes({ from, to: success(await remote.version()), references: [first.reference] }))).toEqual([history[1], history[0]]);
   });
 
   it.each([false, true])("records a named conflict's implicit removal locally and remotely, batch: %s", async (batch) => {

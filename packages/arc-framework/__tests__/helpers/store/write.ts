@@ -178,13 +178,13 @@ function land(context: ReferenceContext, write: WriteInput, batchId?: string, va
   }
   for (const conflict of write.resolves ?? []) {
     const resolved = canonicalReference(context.state, conflict);
-    if (context.state.records.delete(recordKey(resolved))) context.state.events.push({ reference: resolved, stateVersion: allocated.stateVersion,
+    if (context.state.records.delete(recordKey(resolved))) context.state.events.push({ id: randomUUID(), reference: resolved, stateVersion: allocated.stateVersion,
       label,
       provenance: { ...write.provenance, reference: resolved,
         ...(resolved.owner.type === "person" || resolved.owner.uid === undefined ? {} : { ownerUid: resolved.owner.uid }),
         ...(batchId === undefined ? {} : { batchId }) } });
   }
-  context.state.events.push({ reference, ...(write.action === "remove" ? {} : { version: allocated.version }), stateVersion: allocated.stateVersion, provenance, label });
+  context.state.events.push({ id: randomUUID(), reference, ...(write.action === "remove" ? {} : { version: allocated.version }), stateVersion: allocated.stateVersion, provenance, label });
   context.state.snapshots.set(allocated.stateVersion, structuredClone(context.state.records));
   const storedConflicts = storeConflicts(context, conflicts, write.provenance, batchId);
   return { reference, ...(write.action === "remove" ? {} : { version: allocated.version }), conflicts: storedConflicts };

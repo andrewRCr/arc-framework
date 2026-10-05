@@ -24,6 +24,7 @@ export interface MemoryRecord {
 
 /** One landed write in the event stream, removals included. */
 export interface MemoryEvent {
+  id: string;
   reference: RecordReference;
   version?: RecordVersion;
   stateVersion: StateVersion;

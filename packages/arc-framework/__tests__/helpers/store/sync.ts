@@ -2,11 +2,11 @@
 
 import {
   FAMILY_IDS, FAMILY_REGISTRY, familyOf, sameOwner, sameReference, type WholeRecordConflict, type ConflictRecordValue, type FamilyId, type SideLabel, type RecordReference,
-  type StoreRefusal, type StoreResult, type SyncResult, type StateVersion,
+  type StoreRefusal, type StoreResult, type SyncResult,
 } from "../../../src/lib/store/index.js";
 import { ArchiveSequenceSchema } from "../../../src/lib/kernel/index.js";
 import type { ReferenceContext } from "./context.js";
-import { advanceMemoryState, observeArchivePlacement, recordKey, type MemoryEvent, type MemoryRecord, type MemoryState } from "./model.js";
+import { advanceMemoryState, observeArchivePlacement, recordKey, type MemoryRecord, type MemoryState } from "./model.js";
 import { createMemoryState } from "./model.js";
 import { randomUUID } from "node:crypto";
 import { RecordVersionSchema } from "../../../src/lib/store/index.js";
@@ -14,6 +14,7 @@ import { mergeContents, storeConflicts } from "./merge.js";
 import { namespaceAdmission, refused, ok } from "./refusals.js";
 import { indexIdentities } from "./identities.js";
 import { publicRecord } from "./read.js";
+import { checkpointMemoryState, transferMemoryHistory } from "./history-transfer.js";
 
 /** Remote transport condition is injected separately from its durable records. */
 export interface MemoryRemote { state: MemoryState; condition: "available" | "down" | "contended" | "refusing"; message: string; beforePublish?: () => void }
@@ -63,7 +64,8 @@ function adopt(context: ReferenceContext, key: string, record: MemoryRecord | un
     observeArchivePlacement(context.state, record);
   }
   const reference = record?.reference ?? prior!.reference;
-  context.state.events.push({ reference, ...(record ? { version: record.version } : {}), stateVersion: allocation.stateVersion,
+  const accepted = source.events.some((event) => recordKey(event.reference) === key && event.version === record?.version);
+  if (!accepted) context.state.events.push({ id: randomUUID(), reference, ...(record ? { version: record.version } : {}), stateVersion: allocation.stateVersion,
     label: sideLabel(source, key, record),
     provenance: { verb: "sync", lifecycleAction: "reconcile", reference,
       ...(reference.owner.type === "person" || reference.owner.uid === undefined ? {} : { ownerUid: reference.owner.uid }) } });
@@ -186,7 +188,7 @@ export function syncReference(context: ReferenceContext, publication: ReferenceP
     publication.remote.beforePublish?.();
     if (publication.remote.state.counter !== observedRemoteVersion) { context.environment.wait(10); continue; }
     Object.assign(context.state, prepared.result.state);
-    return finishPublish(context, publication, states, families, prepared.result);
+    return finishPublish(publication, states, families, prepared.result);
   }
   return ok({ states, publishes: [{ status: "failed", families, failure: {
     code: "retries-exhausted", class: "recoverable", retryCount: 3, waitedMs: context.environment.now() - started,
@@ -195,45 +197,43 @@ export function syncReference(context: ReferenceContext, publication: ReferenceP
   } }] });
 }
 
-interface Reconciliation extends ReturnType<typeof reconciledRecords> { state: MemoryState; identities: MemoryState["identities"] }
+interface Reconciliation extends ReturnType<typeof reconciledRecords> {
+  state: MemoryState; remoteState: MemoryState; imported: number; exported: number; changed: boolean;
+}
 function prepareReconciliation(context: ReferenceContext, publication: ReferencePublication, families: FamilyId[]): StoreResult<Reconciliation> {
   const prepared = { ...context, state: structuredClone(context.state) };
+  const originalEventCount = prepared.state.events.length;
   const result = reconciledRecords(prepared,publication,families);
   const localIndex = indexIdentities(prepared.state.records);
   if (localIndex.status === "refused") return localIndex;
   const remoteIndex = indexIdentities(result.records);
   if (remoteIndex.status === "refused") return remoteIndex;
   prepared.state.identities = localIndex.result;
-  return ok({...result,state:prepared.state,identities:remoteIndex.result});
+  const remoteState = structuredClone(publication.remote!.state);
+  const changed = [...new Set([...remoteState.records.keys(), ...result.records.keys()])]
+    .some((key) => !equal(remoteState.records.get(key), result.records.get(key)));
+  const generated = structuredClone(prepared.state);
+  generated.events = prepared.state.events.splice(originalEventCount);
+  const imported = transferMemoryHistory(remoteState, prepared.state, families);
+  // Newly derived versions follow the accepted remote history they reconcile.
+  transferMemoryHistory(generated, prepared.state, families);
+  const exported = transferMemoryHistory(prepared.state, remoteState, families);
+  remoteState.records = result.records;
+  remoteState.identities = remoteIndex.result;
+  remoteState.archiveSequences = result.archiveSequences;
+  for (const record of result.records.values()) observeArchivePlacement(remoteState, record);
+  if (imported > 0 || generated.events.length > 0) checkpointMemoryState(prepared.state);
+  if (exported > 0 || changed) checkpointMemoryState(remoteState);
+  return ok({...result,state:prepared.state,remoteState,imported,exported,changed});
 }
 
-function finishPublish(context: ReferenceContext, publication: ReferencePublication, states: SyncResult["states"], families: FamilyId[], result: Reconciliation): StoreResult<SyncResult> {
+function finishPublish(publication: ReferencePublication, states: SyncResult["states"], families: FamilyId[], result: Reconciliation): StoreResult<SyncResult> {
   const remote = publication.remote!;
-  const before = structuredClone(remote.state.records);
-  const changedKeys = [...new Set([...before.keys(), ...result.records.keys()])].filter((key) => !equal(before.get(key), result.records.get(key)));
-  const changed = changedKeys.length > 0;
-  remote.state.records = result.records;
-  remote.state.identities = result.identities;
-  remote.state.archiveSequences = result.archiveSequences;
-  for (const record of result.records.values()) observeArchivePlacement(remote.state, record);
-  if (changed) {
-    const remoteAllocation = advanceMemoryState(remote.state);
-    for (const key of changedKeys) remote.state.events.push(publicationEvent(context, key, before.get(key), result.records.get(key), remoteAllocation.stateVersion));
-    remote.state.snapshots.set(remoteAllocation.stateVersion, structuredClone(result.records));
-  }
+  Object.assign(remote.state, result.remoteState);
   for (const family of families) {
     for (const [key, record] of publication.base) if (familyOf(record.reference.kind) === family) publication.base.delete(key);
     for (const [key, record] of result.records) if (familyOf(record.reference.kind) === family) publication.base.set(key, structuredClone(record));
   }
-  return ok({ states, publishes: [{ status: result.remoteMoved ? "reconciled" : changed ? "pushed" : "noop", families }] });
-}
-
-function publicationEvent(context: ReferenceContext, key: string, before: MemoryRecord | undefined, after: MemoryRecord | undefined, stateVersion: StateVersion): MemoryEvent {
-  const source = [...context.state.events].reverse().find((event) => recordKey(event.reference) === key && event.version === after?.version
-    && (after === undefined || JSON.stringify(event.reference) === JSON.stringify(after.reference)));
-  const reference = after?.reference ?? source?.reference ?? before!.reference;
-  return { reference, ...(after === undefined ? {} : { version: after.version }), stateVersion,
-    label: source?.label ?? sideLabel(context.state, key, after),
-    provenance: { ...(source === undefined ? { verb: "sync", lifecycleAction: "reconcile" } : structuredClone(source.provenance)), reference,
-      ...(reference.owner.type === "person" || reference.owner.uid === undefined ? {} : { ownerUid: reference.owner.uid }) } };
+  return ok({ states, publishes: [{ status: result.remoteMoved || result.imported > 0 ? "reconciled"
+    : result.changed || result.exported > 0 ? "pushed" : "noop", families }] });
 }

@@ -74,7 +74,7 @@ export function storeConflicts(context: ReferenceContext, conflicts: ConflictRec
       reference, content: JSON.stringify(conflict), conflict, version: allocated.version,
       formatVersion: context.registry[kind].formatVersion, formerSlugs: generationAliases(context.state, conflict.record), label: conflict.incoming.label,
     });
-    context.state.events.push({ reference, version: allocated.version, stateVersion: allocated.stateVersion,
+    context.state.events.push({ id: randomUUID(), reference, version: allocated.version, stateVersion: allocated.stateVersion,
       label: conflict.incoming.label,
       provenance: { ...provenance, verb: "merge", reference,
         ...(reference.owner.type === "person" || reference.owner.uid === undefined ? {} : { ownerUid: reference.owner.uid }),
