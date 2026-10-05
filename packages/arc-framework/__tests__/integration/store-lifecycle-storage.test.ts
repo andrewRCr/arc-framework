@@ -34,6 +34,54 @@ function changeRequestPort(head: string) {
 }
 
 describe("store lifecycle snapshot", () => {
+  it.each([true, false])("uses original omission evidence only for an in-repo store (%s)", async (stateOffBranch) => {
+    const h = await fixture();
+    await h.put("README.md", "Repository fixture\n");
+    await h.save();
+    let reads = 0;
+    const storage = createStoreLifecycleStorage({ checkoutRoot: h.root, store: { ...h.store,
+      capabilities: { stateOffBranch }, read: async () => { reads++; throw new Error("An omission is not reclassified by rereading"); },
+      list: async () => ({ status: "ok", result: { status: "complete", records: [], missed: true,
+        diagnostics: [{ kind: "malformed", key: ".arc/completed/2026-Q4/01_example/meta-example.md", rule: "placement",
+          condition: "Unplaceable valid meta", remedy: { text: "Repair placement, then retry." } }] } }) } });
+    if (stateOffBranch) await expect(storage.readSnapshot()).rejects.toMatchObject({ code: "store.lifecycle-incomplete" });
+    else await expect(storage.readSnapshot()).resolves.toBeDefined();
+    expect(reads).toBe(0);
+  });
+  for (const surface of ["archive", "planning"] as const) {
+    it.each(["parser", "placement", "compound"] as const)(`preserves ${surface} %s diagnostic evidence in deciding ports and repairs`, async (fault) => {
+      const h = await fixture();
+      await h.put(".arc/system/arc-config.yml", "archive.cadence: with-integration\n");
+      await h.put(".arc/completed/2026-q4/01_example/meta-example.md", makeMetaFixture("example", { state: "Shipped" }) + completion);
+      const valid = surface === "archive" ? ".arc/completed/2026-q4/02_broken/meta-broken.md"
+        : ".arc/backlog/planned/broken/meta-broken.md";
+      const misplaced = surface === "archive" ? ".arc/completed/2026-Q4/02_broken/meta-broken.md"
+        : ".arc/backlog/planned/other/meta-broken.md";
+      const path = fault === "parser" ? valid : misplaced;
+      const content = makeMetaFixture("broken", { state: surface === "archive" ? "Shipped" : "Planning" }) + completion;
+      await h.put(path, fault === "placement" ? content : content.replace("- **Design:** [none]", "- **Design:** [TBD]"));
+      const head = await h.save();
+      const listing = await h.store.list({ family: "work-item", kind: "work-item/meta", asOf: StateVersionSchema.parse(head) });
+      expect(listing).toMatchObject({ status: "ok", result: { status: "complete", missed: true,
+        diagnostics: [expect.objectContaining({ key: path, kind: "malformed" })] } });
+      if (listing.status !== "ok" || listing.result.status !== "complete") throw new Error("Expected diagnostic evidence");
+      const diagnostic = listing.result.diagnostics[0];
+      if (fault === "placement") expect(diagnostic).toHaveProperty("rule", "placement");
+      else expect(diagnostic).not.toHaveProperty("rule");
+      const checkpoint = createIntegrationCheckpointDependencies({ cwd: h.root, exec: h.exec });
+      const merge = createIntegrationMergeDependencies({ cwd: h.root, exec: h.exec, workUnit: "example", changeRequestPort: changeRequestPort(head) });
+      const reads = [() => h.storage.readSnapshot(), () => checkpoint.readLifecycle("example"), () => merge.readStatus("example")];
+      for (const read of reads) {
+        if (fault === "placement") await expect(read()).resolves.toBeDefined();
+        else await expect(read()).rejects.toMatchObject({ code: "store.lifecycle-incomplete", message: expect.stringContaining(path) });
+      }
+      await h.put(path, content);
+      const repaired = await h.save();
+      expect((await h.storage.readSnapshot()).version).toBe(repaired);
+      expect(await checkpoint.readLifecycle("example")).toMatchObject({ complete: true, storageVersion: repaired });
+      expect(await merge.readStatus("example")).toMatchObject({ lifecycleComplete: true, lifecycleVersion: repaired });
+    });
+  }
   it("matches the legacy lifecycle summary and bytes at a pinned state across every placement", async () => {
     const h = await fixture();
     const cases = [

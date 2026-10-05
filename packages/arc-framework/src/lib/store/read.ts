@@ -42,7 +42,9 @@ export const ListingDiagnosticSchema = z.strictObject({
   key: z.string().min(1),
   condition: z.string().min(1),
   remedy: RemedySchema,
-});
+  /** Producer evidence that placement is the sole failure after content and coordinates validated. */
+  rule: z.literal("placement").optional(),
+}).refine((value) => value.rule === undefined || value.kind === "malformed", "Placement evidence requires a malformed diagnostic");
 /** An entry the family listing could not read safely. */
 export type ListingDiagnostic = z.infer<typeof ListingDiagnosticSchema>;
 /** Complete means enumeration completed, including every unreadable-entry diagnostic. */

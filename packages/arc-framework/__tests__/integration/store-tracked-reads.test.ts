@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { onTestFinished, describe, expect, it } from "vitest";
 import { createStore } from "../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
-import { OwnerIdentitySchema, RecordReferenceSchema } from "../../src/lib/store/identity.js";
+import { OwnerIdentitySchema, RecordReferenceSchema, StateVersionSchema } from "../../src/lib/store/identity.js";
 import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
 import { buildLifecycleIndex } from "../../src/lib/work-unit/lifecycle-index.js";
 import { resolveComposedLifecycleIndex } from "../../src/lib/work-unit/composed-lifecycle-index.js";
@@ -37,6 +37,20 @@ async function fixture() {
   return { root, exec, ports, store, reference, put, commit };
 }
 describe("tracked meta and companion reads", () => {
+  it.each([true, false])("adds companion placement-only evidence after validating the meta (%s)", async (validContent) => {
+    const h = await fixture();
+    const path = ".arc/completed/2026-Q4/01_example/meta-example.md";
+    const content = makeMetaFixture("example", { state: "Shipped" });
+    await h.put(path, validContent ? content : content.replace("- **Design:** [none]", "- **Design:** [TBD]"));
+    await h.put(".arc/completed/2026-Q4/01_example/draft-example.md", "draft bytes\n");
+    const head = await h.commit();
+    const listed = success(await h.store.list({ family: "work-item", kind: "work-item/draft", asOf: StateVersionSchema.parse(head) }));
+    expect(listed).toMatchObject({ status: "complete", records: [], missed: true,
+      diagnostics: [expect.objectContaining({ key: path, kind: "malformed" })] });
+    if (listed.status !== "complete") throw new Error("Expected a diagnostic-bearing inventory");
+    if (validContent) expect(listed.diagnostics[0]).toHaveProperty("rule", "placement");
+    else expect(listed.diagnostics[0]).not.toHaveProperty("rule");
+  });
   it.each([
     [".arc/active/meta-example.md", "Active", { kind: "active" }],
     [".arc/backlog/planned/example/meta-example.md", "Planning", { kind: "backlog", commitment: "planned" }],

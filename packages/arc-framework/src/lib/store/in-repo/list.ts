@@ -130,7 +130,7 @@ async function kindSources(context: InRepoContext, kind: KindId, input: ListInpu
       continue;
     }
     if (meta.placement === undefined) {
-      acquisition.push(invalidCompanionPlacement(meta.path));
+      acquisition.push(invalidCompanionPlacement(meta.path, meta));
       continue;
     }
     const keys = kind === "work-item/companion" ? await companionNames(context, meta, acquisition) : [undefined];
@@ -178,10 +178,14 @@ function metaDiagnostic(source: MetaSource): ListingDiagnostic | undefined {
   else if (source.placement === undefined) condition = "The layout cannot place this meta path";
   if (condition === undefined) return undefined;
   return { kind: source.content === null ? "unreadable" : "malformed", key: source.path,
+    ...(source.content !== null && source.fields !== undefined && SlugSchema.safeParse(source.slug).success
+      && source.placement === undefined ? { rule: "placement" as const } : {}),
     condition: `${condition}: ${source.path}`, remedy: { text: `Repair ${source.path}, then list the records again.` } };
 }
 
-function invalidCompanionPlacement(path: string): ListingDiagnostic {
-  return { kind: "malformed", key: path, condition: `The layout cannot place this companion's meta: ${path}`,
+function invalidCompanionPlacement(path: string, meta?: MetaSource): ListingDiagnostic {
+  const diagnostic = meta === undefined ? undefined : metaDiagnostic(meta);
+  if (diagnostic !== undefined) return diagnostic;
+  return { kind: "malformed", rule: "placement", key: path, condition: `The layout cannot place this companion's meta: ${path}`,
     remedy: { text: `Repair the meta placement at ${path}, then list the records again.` } };
 }

@@ -175,6 +175,13 @@ describe("whole-record conflict values", () => {
 });
 
 describe("refusals and outcomes", () => {
+  it("retains typed placement-only diagnostic evidence and rejects incompatible claims", () => {
+    const value = { kind: "malformed", key: "meta", condition: "Invalid placement", remedy, rule: "placement" };
+    expect(ListingDiagnosticSchema.parse(value)).toEqual(value);
+    expect(ListingDiagnosticSchema.safeParse({ ...value, rule: "parser" }).success).toBe(false);
+    expect(ListingDiagnosticSchema.safeParse({ ...value, kind: "unreadable" }).success).toBe(false);
+    expect(ListingDiagnosticSchema.parse({ ...value, rule: undefined }).rule).toBeUndefined();
+  });
   it.each(["malformed", "oversized", "unreadable", "unknown-format-version", "key-mismatch"])("names the entry of a %s diagnostic", (kind) => {
     expect(ListingDiagnosticSchema.safeParse({ kind, key: "entry", condition: "Observed", remedy }).success).toBe(true);
     expect(ListingDiagnosticSchema.safeParse({ kind, condition: "Observed", remedy }).success).toBe(false);
