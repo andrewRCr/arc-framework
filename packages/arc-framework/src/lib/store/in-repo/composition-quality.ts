@@ -1,9 +1,16 @@
 /** Preserve native lifecycle acquisition quality at the Store selection boundary. */
 import { ArcError } from "../../kernel/errors.js";
-import { INDETERMINATE_IN_FLIGHT_WARNING_CODES, type ComposedLifecycleIndexResult, type ComposedLifecycleSlugQuality } from "../../work-unit/composed-lifecycle-index.js";
+import type { ComposedLifecycleIndexResult, ComposedLifecycleSlugQuality } from "../../work-unit/composed-lifecycle-index.js";
+import type { InFlightWarningCode } from "../../git/in-flight-derivation.js";
 import { OwnerIdentitySchema, recordReferences } from "../identity.js";
 import type { ListingDiagnostic } from "../read.js";
 import { refuse } from "./refusals.js";
+
+// Branch-minting quality also includes advisory branch and location metadata.
+// Store acquisition depends on readable parsed records and a stable input view.
+const ACQUISITION_WARNING_CODES: ReadonlySet<InFlightWarningCode> = new Set([
+  "meta-enumeration-failed", "meta-read-failed", "meta-malformed", "state-unrecognized", "input-snapshot-disagreement",
+]);
 
 /** One unsafe named selection, or uncertainty about the complete namespace. */
 export interface ComposedMetaFailure { slug?: string; diagnostic: ListingDiagnostic }
@@ -11,17 +18,17 @@ export interface ComposedMetaFailure { slug?: string; diagnostic: ListingDiagnos
 /** Project native quality channels without treating omitted entries as absence.
  * @param composition - Completed local oracle composition, including its quality facts.
  * @param authoritative - Flat-active owners whose existing copy supplies independent authority.
- * @returns Original warning conditions and uncovered degraded/global selection facts.
+ * @returns Original warning conditions and uncovered indeterminate/global selection facts.
  */
 export function composedMetaFailures(composition: ComposedLifecycleIndexResult,
   authoritative: ReadonlySet<string> = new Set()): ComposedMetaFailure[] {
   const failures: ComposedMetaFailure[] = [];
   for (const warning of composition.qualityFacts.warnings) {
-    if (!INDETERMINATE_IN_FLIGHT_WARNING_CODES.has(warning.code)
+    if (!ACQUISITION_WARNING_CODES.has(warning.code)
       || (warning.workUnit !== undefined && authoritative.has(warning.workUnit))) continue;
     const key = warning.workUnit === undefined ? `branch:${warning.branch ?? "in-flight"}` : `work-item:${warning.workUnit}`;
     failures.push({ ...(warning.workUnit === undefined ? {} : { slug: warning.workUnit }), diagnostic: {
-      kind: warning.code === "meta-enumeration-failed" || warning.code === "meta-read-failed" ? "unreadable" : "malformed",
+      kind: warning.code === "meta-malformed" || warning.code === "state-unrecognized" ? "malformed" : "unreadable",
       key, condition: warning.rendered, remedy: { text: `Restore readable valid lifecycle metadata for ${key}, then retry the operation.` },
     } });
   }
@@ -53,7 +60,7 @@ function mergeDuplicateFailures(failures: readonly ComposedMetaFailure[]): Compo
 function hasUnreportedSlugFailure(slug: string, quality: ComposedLifecycleSlugQuality,
   authoritative: ReadonlySet<string>, failures: readonly ComposedMetaFailure[]): boolean {
   return !authoritative.has(slug) && !failures.some((failure) => failure.slug === slug)
-    && (quality.marks.includes("degraded") || quality.marks.includes("indeterminate"));
+    && quality.marks.includes("indeterminate");
 }
 
 /** Refuse malformed selected metadata and preserve failed acquisition as an environment error.
