@@ -1,8 +1,8 @@
 # Metadata: cli-help-discovery
 
-| **State** | **Owner** | **Branch**                | **Class** | **Priority** |
-| --------- | --------- | ------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/cli-help-discovery` | `Light`   | `P3`         |
+| **State**     | **Owner** | **Branch**                | **Class** | **Priority** |
+| ------------- | --------- | ------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/cli-help-discovery` | `Light`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:763d3da7a3ebec82dcad885859530eab4b5e965d86a0efc601c3c52e3f56fcb8`
 
-- **Current Workflow:** `prepare-work-unit`
+- **Current Workflow:** `integrate-work-unit`
 - **Last Completed:** Task 3.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run or resume the typed pre-publication review procedure.
+- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
 
 - **PR URL:** [none]
 - **Completed:** [none]
