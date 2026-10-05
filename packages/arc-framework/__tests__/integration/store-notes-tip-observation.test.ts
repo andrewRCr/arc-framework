@@ -104,3 +104,37 @@ it.each(["pre", "post"] as const)("distinguishes certified %s absence during not
   h.a.ports.exec = exec;
   h.a.ports.locks.notes = lock;
 });
+
+it.each(["canceled", "output-limit", "timed-out", "signaled", "unclassified"] as const)("preserves %s exit-1 tip failure through Store sync and repairs publication", async (kind) => {
+  const h = await syncFixture();
+  await h.a.inbox("saved personal bytes\n");
+  const remote = (await h.a.exec("git", ["ls-remote", "origin", syncNotesRef])).stdout;
+  const actual = h.a.ports.exec;
+  let original: GitProcessError | undefined;
+  let savedTip: string | undefined;
+  const afterFailure: string[][] = [];
+  h.a.ports.exec = async (command, args, options) => {
+    if (original !== undefined) afterFailure.push(args);
+    if (args[0] === "rev-parse" && args.includes("--quiet") && args.at(-1) === syncNotesRef) {
+      savedTip = (await h.a.exec("git", ["rev-parse", syncNotesRef])).stdout;
+      original = new GitProcessError({ command, args, exitCode: 1,
+        kind: kind === "signaled" ? "nonzero-exit" : kind === "unclassified" ? "unexpected" : kind,
+        ...(kind === "signaled" ? { signal: "SIGTERM" } : {}) });
+      throw original;
+    }
+    return actual(command, args, options);
+  };
+  let failure: unknown;
+  try { await h.a.store.sync(); } catch (error) { failure = error; }
+  expect(original).toBeDefined();
+  expect(failure).toMatchObject({ code: "store.sync-failed", cause: original });
+  expect(afterFailure.filter((args) => args[0] === "fetch" || args[0] === "push"
+    || (args[0] === "notes" && args.includes("merge")))).toEqual([]);
+  expect(savedTip).toBeDefined();
+  expect((await h.a.exec("git", ["rev-parse", syncNotesRef])).stdout).toBe(savedTip);
+  expect((await h.a.exec("git", ["ls-remote", "origin", syncNotesRef])).stdout).toBe(remote);
+  h.a.ports.exec = actual;
+  expect(success(await h.a.store.sync()).publishes[0]?.status).toBe("pushed");
+  const repairedTip = (await h.a.exec("git", ["rev-parse", syncNotesRef])).stdout.trim();
+  expect((await h.a.exec("git", ["ls-remote", "origin", syncNotesRef])).stdout.trim()).toBe(`${repairedTip}\t${syncNotesRef}`);
+});

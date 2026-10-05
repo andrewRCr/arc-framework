@@ -1186,3 +1186,20 @@ The caller must coordinate writers, inspect and preserve the current tip, repair
 Completed failures, normal producer behavior, locking, record formats and advisory bookkeeping stay unchanged. There
 is no new persisted marker or automated authority choice. SC27 and its task criterion cover uncertain execution both
 before and after actual merge effects, remote preservation, guarded repair and successful ordinary continuation.
+
+## A13 — Strict publication-tip observations
+
+Goal 3 originally promised “changing nothing observable”, D8 promised failure “kinds and messages unchanged”, and
+SC7 required ceremony tests to “pass unchanged”. A10 bounded its exception to three inherited paths; A12 added the
+merge-command boundary. A13 explicitly adds the strict local-tip helper's observations to those exceptions.
+
+`readStrictLocalRefTip` composes `normalizeGitRejection` and `isCompletedGitFailure` before interpreting exit 1 as
+absence. Cancellation, timeout, output limit, a termination signal or unclassified executor failure retains the
+original rejection. `planBranchBoundedNotesExport` calls it for the initial canonical tip and fetched temporary tip;
+`runUserPush` calls it directly in its force path. `planNotesExport` transports the planner result through paired
+sync rather than directly capturing a tip. The proposed amendment's third-call-site attribution is corrected here;
+its retained draft and original reviewed source remain unchanged.
+
+The producer and Store matrices cover all five compound failures, preserved saved local and remote authority,
+completed absence, and successful publication after fault removal. SC28 and task criterion 32 append without changing
+prior criteria or marks. This adds no record, lock, recovery marker, backend capability or publication ceremony.

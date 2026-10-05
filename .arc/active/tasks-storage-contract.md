@@ -725,3 +725,8 @@ as stated.
   repair route, preserving the remote during the failed call; explicit expected-old repair restores successful
   ordinary publication. Completed merge-failure behavior stays unchanged; this fourth inherited boundary additionally
   qualifies SC7 (A12; SC27).
+
+- `[x]` Initial and fetched local notes-tip observations distinguish genuinely absent refs from incomplete execution,
+  even with exit 1. Public producer and Store regressions cover canceled, output-limited, timed-out, signaled and
+  unclassified failures, original causes, saved local and remote authority, completed absence and successful
+  publication after repair; SC7 is qualified only for these observations and faithful fixtures (A13; SC28).

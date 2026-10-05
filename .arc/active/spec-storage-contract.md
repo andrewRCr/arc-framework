@@ -87,6 +87,11 @@ unchanged; SC25 qualifies the inherited failure cases and their process-metadata
 the original cause and known pre-merge anchor, prevents re-push and requires explicit repair before retry. SC27
 qualifies SC7 for this fourth inherited failure boundary; completed merge failures and ordinary ceremony stay unchanged.
 
+**Goal 3 amendment (A13).** Initial and fetched local notes-tip observations also fail closed on incomplete process
+execution. `readStrictLocalRefTip` establishes absence only from a completed Git exit 1 without a termination signal.
+All other failures retain their original cause through the existing failed publication plan and sync outcome. SC28
+qualifies SC7 for these inherited observations; genuine absence and ordinary publication ceremony stay unchanged.
+
 ## Non-Goals
 
 _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
@@ -1090,6 +1095,14 @@ abort/conflict handling (A12). Canceled, output-limited or unclassified merge ex
 through `notesRepairError`, conserving the original cause and known pre-merge anchor. No incomplete observation
 authorizes re-push or claims restoration. The remedy requires coordinating writers, preserving the observed tip,
 and restoring with a freshly verified expected-old value before retry; no new persisted recovery state is introduced.
+
+At publication planning's initial and fetched local-tip captures, `readStrictLocalRefTip` requires completed process
+evidence before interpreting exit 1 as absent (A13). Cancellation, timeout, output limit, termination signal and
+unclassified executor failure cannot establish no-local-notes, noop or publication authority.
+`planBranchBoundedNotesExport` retains the original cause in its existing failed outcome, which `planNotesExport`
+transports through paired sync. The force path in `runUserPush` uses the same strict helper and propagates its original
+error. The failed observation preserves saved local notes and the remote; removing the fault permits the existing
+publication retry. This qualification adds no publication policy or ceremony.
 
 **Entries.** The inbox writer stays keyed on an entry's title and source digest and stamps no `_Id:_`, so every
 unrelated byte stays as today; once rerouted it computes the file's new content, which the contract writes whole
@@ -2278,6 +2291,12 @@ Validated at this change's completion, over Part A:
     expected-old repair and subsequent successful ordinary publication. Completed merge-failure behavior stays
     unchanged. SC7 is additionally qualified for this inherited merge-execution defect and its faithful fixtures.
 
+28. **Strict publication-tip observations (A13).** Initial and fetched local notes-tip observations distinguish a
+    genuinely absent ref from incomplete execution, even when the failure also carries exit 1. Public producer and
+    store regressions cover canceled, output-limited, timed-out, signaled and unclassified failures, original-cause
+    retention, saved local and remote authority, completed absent-ref behavior and successful publication after repair.
+    SC7 is qualified only for these inherited observations and faithful fixtures; normal ceremony stays unchanged.
+
 ## Open Questions
 
 None blocks building Part A.
@@ -2342,4 +2361,7 @@ operations and outcomes, and which test tier each conformance fixture runs in.
 <!-- markdownlint-disable MD013 -->
 - **A12** — 2026-10-04 — design: preserve recovery after uncertain notes-merge execution.
   _Supersedes:_ A10 three-path scope; Goal 3 parity; D8 unchanged merge failures; SC7 merge-execution cases. _Trigger:_ FC1-F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A13** — 2026-10-05 — design: require completed publication-tip observations before treating notes as absent.
+  _Supersedes:_ Goal 3 parity; D8 unchanged failures; A10/A12 bounded scope; SC7 tip-observation cases. _Trigger:_ personal-transient-F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 <!-- markdownlint-enable MD013 -->
