@@ -1,7 +1,7 @@
 /** Whole-file personal records rooted by the existing user-surface resolver. */
 import { dirname, join, relative, sep } from "node:path";
 import { digestBytes } from "../../kernel/canonical/canonical-json.js";
-import { RecordVersionSchema, type RecordReference } from "../identity.js";
+import { OwnerIdentitySchema, RecordVersionSchema, sameOwner, type RecordReference } from "../identity.js";
 import type { ReadInput, StoreRecord, ListInput, ListingOutcome, ListingDiagnostic } from "../read.js";
 import type { InRepoContext } from "./context.js";
 import { isMissing, notFound, unsupported, refuse } from "./refusals.js";
@@ -63,7 +63,7 @@ export async function readPersonal(context: InRepoContext, input: ReadInput): Pr
  */
 export async function listPersonal(context: InRepoContext, input: ListInput): Promise<ListingOutcome> {
   const identity = await context.ports.identity();
-  if (identity === null || (input.owner !== undefined && input.owner.name !== identity)) return { status: "absent" };
+  if (identity === null || (input.owner !== undefined && !sameOwner(input.owner, OwnerIdentitySchema.parse({ type: "person", name: identity })))) return { status: "absent" };
   if (input.asOf !== undefined) return unsupported("uncovered-state-version", "Personal files are outside the branch's saved state", "List their current records instead.");
   const surfaces = await personalSurfaces(context, identity);
   const sources = await personalSources(context, surfaces, input);

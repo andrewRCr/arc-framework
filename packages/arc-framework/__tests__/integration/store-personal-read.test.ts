@@ -9,6 +9,7 @@ import { createStore } from "../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
 import { makeGitExec, makeGitExecInput } from "../helpers/integration.js";
 import { holdPersonalLockInProcess } from "../helpers/store/personal-lock-holder.js";
+import { OwnerIdentitySchema } from "../../src/lib/store/identity.js";
 
 describe("personal reads", () => {
   it("reads inbox bytes and entries exactly as the existing file reader", async () => {
@@ -110,6 +111,16 @@ describe("personal reads", () => {
     expect(await h.store.write({ action: "put", reference: other, expected: null, content: "other", provenance: personalProvenance }))
       .toMatchObject({ status: "refused", refusal: { code: "not-found", reference: other } });
     expect(success(await h.store.list({ family: "personal", owner: other.owner }))).toEqual({ status: "absent" });
+    expect(await readFile(h.path("USER-INBOX.md"), "utf8")).toBe(inboxBytes);
+  });
+
+  it.each(["person", "work-item", "project", "cohort"] as const)("filters the complete %s owner identity even when the name matches", async (type) => {
+    const h = await personalFixture();
+    await h.plant("USER-INBOX.md", inboxBytes);
+    const owner = OwnerIdentitySchema.parse({ type, name: "andrew" });
+    const listing = success(await h.store.list({ family: "personal", kind: "personal/inbox", owner }));
+    if (type === "person") expect(listing).toMatchObject({ status: "complete", records: [{ reference: { owner }, content: inboxBytes }], missed: false });
+    else expect(listing).toEqual({ status: "absent" });
     expect(await readFile(h.path("USER-INBOX.md"), "utf8")).toBe(inboxBytes);
   });
 
