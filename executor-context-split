@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "executor-context-split",
+  "claimId": "69325d337eaa7c619ef0f256ff70cea8",
+  "createdAt": "2026-10-05T21:32:43.227Z",
+  "updatedAt": "2026-10-05T21:32:43.227Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Split executor-context.ts so the status side-effect bindings and the current-WU reconcile seam leave as sibling modules, with no behavior change",
+  "branch": "chore/executor-context-split",
+  "origin": "inbox",
+  "originEntry": "Split `executor-context.ts` along the storage-seam consumer partitions",
+  "originEntrySourceDigest": "sha256:4e0e010bb0c1e11f36d8a17962cd756851b5d7e2bffcd078ff41ce7e9c0d44d6",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
