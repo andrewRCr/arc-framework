@@ -545,6 +545,7 @@ export async function readRoutedObligation(
     const readDischarge = createHostedReservationDischargeReader({
       cwd,
       exec,
+      ...(options.remote === undefined ? {} : { remote: options.remote }),
       delivery: memberLookup,
       host,
     });

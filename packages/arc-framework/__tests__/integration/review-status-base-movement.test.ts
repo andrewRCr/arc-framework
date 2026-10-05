@@ -762,6 +762,18 @@ describe("singleton hosted review after publication", () => {
         expect(defaultRetained, JSON.stringify(defaultRetained)).toMatchObject({
           state: "settled", nextAction: "continue-reconcile",
         });
+        if (convergenceScope === "full") {
+          const staleOriginBase = await git(fixture.root, ["rev-list", "--max-parents=0", "HEAD"]);
+          await git(fixture.root, ["remote", "rename", "origin", "upstream"]);
+          await git(fixture.root, ["remote", "add", "origin", HOST_URL]);
+          await git(fixture.root, ["update-ref", "refs/remotes/origin/main", staleOriginBase]);
+          const customRemoteRetained = await withHost(fixture.bin, async () => resolveReviewStatus({
+            target: { repository: REPOSITORY, headRef: HEAD_REF, headSha: fixture.headSha }, sourceId,
+          }, createReviewStatusPort({ cwd: fixture.root, exec, remote: "upstream" })));
+          expect(customRemoteRetained, JSON.stringify(customRemoteRetained)).toMatchObject({
+            state: "settled", nextAction: "continue-reconcile",
+          });
+        }
       }
     }
 
