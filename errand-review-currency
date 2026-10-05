@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "errand-review-currency",
+  "claimId": "08acebde9084a3e8475de6ce4d7934e9",
+  "createdAt": "2026-10-05T00:11:24.978Z",
+  "updatedAt": "2026-10-05T00:11:24.978Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "errand-review-currency",
+  "branch": "chore/errand-review-currency",
+  "origin": "inbox",
+  "originEntry": "Keep Errand review currency separate from base containment",
+  "originEntrySourceDigest": "sha256:2eea400880ea14a59e2dd256ef5b1fb4ea0e2b48b785aad3095597e139356eb8",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
