@@ -122,6 +122,9 @@ async function kindSources(context: InRepoContext, kind: KindId, input: ListInpu
     return [{ path, reference: recordReferences[kind](OwnerIdentitySchema.parse({ type: "cohort", name: slug.data })) }];
   });
   if (!kind.startsWith("work-item/")) return [];
+  return workItemSources(context, kind, input, acquisition, strictOwner);
+}
+async function workItemSources(context: InRepoContext, kind: KindId, input: ListInput, acquisition: ListingDiagnostic[], strictOwner: boolean): Promise<KindSource[]> {
   const sources: KindSource[] = [];
   for (const meta of await metaListingSources(context, input, acquisition)) {
     const owner = OwnerIdentitySchema.safeParse({ type: "work-item", name: meta.slug });
@@ -130,6 +133,7 @@ async function kindSources(context: InRepoContext, kind: KindId, input: ListInpu
       acquisition.push(invalidTrackedCoordinate(meta.path));
       continue;
     }
+    if (input.owner !== undefined && !sameOwner(owner.data, input.owner)) continue;
     if (meta.placement === undefined) {
       acquisition.push(invalidCompanionPlacement(meta.path, meta));
       continue;
