@@ -377,7 +377,7 @@ async function advanceFor(
 
 describe("the window between a minted handle and the merge that consumes it", () => {
   it.each(["overlapping-regenerable-only", "disjoint"] as const)(
-    "returns local %s repair before terminal host merge", async (kind) => {
+    "preserves the continuation for local %s movement before terminal host merge", async (kind) => {
       const paths = movementPaths(kind, WORK_UNIT);
       const fixture = await publishedAtLanding({ branchPaths: paths.branch });
       const handle = await mintHandle(fixture);
@@ -389,18 +389,38 @@ describe("the window between a minted handle and the merge that consumes it", ()
       }
       const remote = join(fixture.repository, ".arc-fixture", "origin.git");
       const baseBefore = await git(fixture.repository, ["--git-dir", remote, "rev-parse", "refs/heads/main"]);
+      const headBefore = await git(fixture.repository, ["rev-parse", "HEAD"]);
       const result = await runMerge(fixture, handle);
+      if (kind === "disjoint") {
+        expect(result, JSON.stringify(result)).toMatchObject({
+          state: "blocked", nextAction: "retry", reason: "host-pending",
+          payload: { checkpointHandle: handle, observation: {
+            movement: "disjoint",
+            admission: { state: "unresolved", condition: "stale-base-test-merge" },
+          } },
+        });
+        expect(await git(fixture.repository, ["--git-dir", remote, "rev-parse", "refs/heads/main"]))
+          .toBe(baseBefore);
+        expect(await git(fixture.repository, ["rev-parse", "HEAD"])).toBe(headBefore);
+        expect(await git(fixture.repository, ["status", "--porcelain"])).toBe("");
+        await writeFile(join(fixture.repository, ".arc-fixture", "test-base"), baseBefore);
+        expect(await takeContinuation(fixture, result)).toMatchObject({ state: "merged" });
+        expect(await git(fixture.repository, ["--git-dir", remote, "rev-parse", "refs/heads/main"]))
+          .toBe(headBefore);
+        expect(await git(fixture.repository, ["rev-parse", "HEAD"])).toBe(headBefore);
+        return;
+      }
       expect(result, JSON.stringify(result)).toMatchObject({
         state: "invalidated", nextAction: "checkpoint",
         payload: { final: { plan: {
-          state: "reconcile", nextAction: kind === "disjoint" ? "reconcile-base" : "reconcile-regenerable",
+          state: "reconcile", nextAction: "reconcile-regenerable", rule: "regenerable-conflict",
         } } },
       });
       expect(await git(fixture.repository, ["--git-dir", remote, "rev-parse", "refs/heads/main"]))
         .toBe(baseBefore);
       expect(await git(fixture.repository, ["status", "--porcelain"])).toBe("");
       expect(await takeContinuation(fixture, result)).toMatchObject({
-        state: "reconcile", nextAction: kind === "disjoint" ? "reconcile-base" : "reconcile-regenerable",
+        state: "reconcile", nextAction: "reconcile-regenerable",
       });
     },
   );
@@ -488,32 +508,32 @@ describe("the checkpoint's own base read", () => {
     expect(refreshed, JSON.stringify(refreshed)).toMatchObject({ state: "ready", nextAction: "request-approval" });
   });
 
-  it("repairs a clean local merge when the host test merge still covers the previous base", async () => {
+  it("retries a disjoint stale test merge without changing the head before admission recovers", async () => {
     const fixture = await publishedAtLanding();
     const oldBase = await git(fixture.repository, ["rev-parse", "origin/main"]);
     await writeFile(join(fixture.repository, ".arc-fixture", "test-base"), oldBase);
     await advanceFor(fixture, "disjoint");
     const oldHead = await git(fixture.repository, ["rev-parse", "HEAD"]);
+    const remote = join(fixture.repository, ".arc-fixture", "origin.git");
+    const baseBefore = await git(fixture.repository, ["--git-dir", remote, "rev-parse", "refs/heads/main"]);
 
     const result = await runCheckpoint(fixture);
     expect(result, JSON.stringify(result)).toMatchObject({
-      state: "reconcile", nextAction: "reconcile-base",
+      state: "blocked", nextAction: "stop", reason: "host-pending",
       payload: { observation: { admission: { state: "unresolved", condition: "stale-base-test-merge" } } },
     });
     const coordinates = result["coordinates"] as { observedBaseOid: string };
-    expect(await takeContinuation(fixture, result)).toMatchObject({ state: "merged", nextAction: "run-quality-gates" });
-    const repairedHead = await git(fixture.repository, ["rev-parse", "HEAD"]);
-    expect(await git(fixture.repository, ["rev-list", "--parents", "-n", "1", "HEAD"]))
-      .toBe(`${repairedHead} ${oldHead} ${coordinates.observedBaseOid}`);
+    expect(result["payload"]).not.toHaveProperty("checkpointHandle");
+    expect(await git(fixture.repository, ["rev-parse", "HEAD"])).toBe(oldHead);
+    expect(await git(fixture.repository, ["--git-dir", remote, "rev-parse", "refs/heads/main"]))
+      .toBe(baseBefore);
     expect(await git(fixture.repository, ["status", "--porcelain"])).toBe("");
-    await git(fixture.repository, ["push", "origin", HEAD_REF]);
-    await writeFile(join(fixture.repository, ".arc-fixture", "head-sha"), repairedHead);
-    const stillPending = await runCheckpoint(fixture);
-    expect(stillPending).toMatchObject({ state: "blocked", reason: "host-pending" });
-    expect(stillPending["payload"]).not.toHaveProperty("checkpointHandle");
     await writeFile(join(fixture.repository, ".arc-fixture", "test-base"), coordinates.observedBaseOid);
-    const refreshed = await runCheckpoint(fixture);
+    const refreshed = await takeContinuation(fixture, result);
     expect(refreshed, JSON.stringify(refreshed)).toMatchObject({ state: "ready", nextAction: "request-approval" });
+    expect(await git(fixture.repository, ["rev-parse", "HEAD"])).toBe(oldHead);
+    expect(await git(fixture.repository, ["--git-dir", remote, "rev-parse", "refs/heads/main"]))
+      .toBe(baseBefore);
   });
 
   it("refuses when the base read goes unavailable under it", async () => {
