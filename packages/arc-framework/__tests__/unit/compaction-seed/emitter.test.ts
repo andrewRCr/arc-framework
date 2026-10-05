@@ -13,6 +13,7 @@ import {
   type CompactionSeed,
 } from "../../../src/lib/compaction-seed/schema.js";
 import { buildDeliveryTaskInventory } from "../../../src/lib/delivery/task-inventory.js";
+import { resolveLoadSetManifest } from "../../../src/lib/load-set/projection.js";
 import {
   LOAD_SET_MANIFEST_VERSION,
   type LoadSetManifest,
@@ -163,7 +164,7 @@ function derivedWorkUnitFrame(options: {
       workflow: sessionType === "planning" ? "planning" : workflow,
       stage: sessionType === "planning" ? planningStage : null,
       taskListPath: ".arc/active/tasks-compaction-recovery.md",
-      taskCursor: sessionType === "planning" ? null : options.taskCursor ?? CURSOR,
+      taskCursor: options.taskCursor ?? (sessionType === "planning" ? null : CURSOR),
       cohortDocPath: null,
       loadSet,
       integrationBoundary: null,
@@ -497,19 +498,32 @@ describe("emitCompactionSeed", () => {
     if (result.status === "written") expect(result.seed.taskCursor).toEqual(analysis.cursor);
   });
 
-  it("sets taskCursor to null in planning sessions", async () => {
+  it("omits a written Planning task-list cursor from the seed", async () => {
+    const loadSet = resolveLoadSetManifest({
+      identity: "andrew",
+      activeWorkUnit: "compaction-recovery",
+      metaPath: ".arc/active/meta-compaction-recovery.md",
+      sessionType: "planning",
+      planningStage: "generate-tasks",
+      taskListPath: ".arc/active/tasks-compaction-recovery.md",
+      activeExtensions: [],
+      cohortDocPath: null,
+    });
     const result = await emit({
       envelope: {
         derivedLocusState: { ok: true, value: derivedWorkUnitFrame({
           sessionType: "planning",
-          workflow: "create-spec",
+          workflow: "generate-tasks",
+          taskCursor: CURSOR,
+          loadSet,
         }) },
+        loadSet: { ok: true, value: loadSet },
         active: {
           ok: true,
           value: {
             path: ".arc/active/meta-compaction-recovery.md",
             sessionType: "planning",
-            currentWorkflow: "create-spec",
+            currentWorkflow: "generate-tasks",
           },
         },
       },

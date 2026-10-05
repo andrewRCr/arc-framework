@@ -2,11 +2,14 @@
 
 import { canonicalize } from "../../../lib/kernel/index.js";
 import { GitObjectIdSchema, type ReviewTarget } from "../core/gate-contract-v2-schema.js";
-import type { LaneSubjectLineage } from "../core/lane-admission.js";
+import { laneSubjectOwnerMatches, type LaneSubjectLineage } from "../core/lane-admission.js";
+import { assertLocalReviewClaimBinding } from "../core/local-operation.js";
 import type { LocalReviewCoverageAdmission } from "../core/local-review-coverage.js";
 import type { LocalReviewState } from "../core/operation-state-schema.js";
 import type { ReviewScopeMode } from "../core/review-primitives.js";
-import { readLaneProgressOwner } from "../lane-progress.js";
+import {
+  readAdmittedLocalLaneAttempt, readLaneProgressOwner, readLaneProgressOwnerVersioned, recordLaneAttempt,
+} from "../lane-progress.js";
 import type { LocalPrepareDependencies, LocalPrepareRequest } from "./local-prepare.js";
 import { LocalPrepareCommandError } from "./local-prepare-error.js";
 
@@ -49,26 +52,63 @@ export function completedReplayAttemptMatches(
     && attempt.local.target.targetId === input.target.targetId;
 }
 
-function pendingOperationMatches(
+async function pendingAdmissionMatches(
   state: LocalReviewState,
-  attempt: PendingAttempt,
   subject: Awaited<ReturnType<LocalPrepareDependencies["resolveVehicle"]>>,
   lineage: LaneSubjectLineage,
   request: LocalPrepareRequest,
-  headSha: string,
-): boolean {
-  const binding = attempt.local;
-  if (binding === undefined) return false;
-  const sameOwner = state.operationId === attempt.attemptId
-    && state.operationId === binding.operationId
-    && state.requestId === binding.requestId;
-  const sameTarget = state.targetId === binding.target.targetId
-    && state.target.headSha === headSha;
-  const sameContext = canonicalize(state.vehicle) === canonicalize(subject.vehicle)
-    && canonicalize(state.lineage) === canonicalize(lineage);
+  dependencies: LocalPrepareDependencies,
+): Promise<boolean> {
   const sameDelivery = request.deliveryAdmission === undefined
     || canonicalize(request.deliveryAdmission) === canonicalize(state.deliveryAdmission ?? null);
-  return sameOwner && sameTarget && sameContext && sameDelivery;
+  return canonicalize(state.vehicle) === canonicalize(subject.vehicle)
+    && state.request.authorIdentity === subject.authorIdentity
+    && laneSubjectOwnerMatches(state.lineage, lineage)
+    && sameDelivery
+    && await readAdmittedLocalLaneAttempt(dependencies.operationStore, state) !== null;
+}
+
+async function retireStalePendingAdmission(
+  state: LocalReviewState,
+  attempt: PendingAttempt,
+  ownerVersion: number,
+  readCurrentTarget: () => Promise<ReviewTarget>,
+  dependencies: LocalPrepareDependencies,
+): Promise<boolean> {
+  const currentTarget = await readCurrentTarget();
+  const confirmation = await dependencies.confirmTarget(state.target);
+  if (confirmation.state === "current") {
+    const selectedTarget = state.targetId === currentTarget.targetId
+      ? currentTarget : await readCurrentTarget();
+    if (state.targetId === selectedTarget.targetId) return false;
+  }
+  const receipts = (await dependencies.readReceipts(state.targetId)).receipts
+    .filter((receipt) => receipt.requestId === state.requestId);
+  if (receipts.length > 1) throw new LocalPrepareCommandError("local review operation has multiple terminal receipts");
+  if (receipts.length === 1) return false;
+  const source = await dependencies.sourceStore.readSource(state.sourceRef);
+  if (source === null || source.sourceDigest !== state.sourceDigest || source.targetId !== state.targetId) {
+    throw new LocalPrepareCommandError("local review source reference mismatch");
+  }
+  const memberHead = state.vehicle.kind === "delivery-member" ? state.target.headSha : undefined;
+  const { authority } = await dependencies.resolveAuthority(
+    state.request.evaluatorIdentity, memberHead, state.deliveryAdmission,
+  );
+  if (canonicalize(authority.vehicle) !== canonicalize(state.vehicle)
+    || authority.authorIdentity !== state.request.authorIdentity
+    || authority.evaluatorIdentity !== state.request.evaluatorIdentity
+    || authority.attestationRuntimeKind !== state.attestationRuntimeKind
+    || authority.attestationMechanism !== state.attestation.mechanism) {
+    throw new LocalPrepareCommandError("local pending admission authority mismatch");
+  }
+  await recordLaneAttempt(dependencies.operationStore, {
+    lane: "standard", repositoryId: state.repositoryId, changeRequestId: attempt.changeRequestId,
+    headSha: state.target.headSha, lineage: state.lineage, attemptId: state.operationId,
+    sourceId: state.laneSourceId, logicalPass: state.logicalPass, retryGeneration: state.retryGeneration,
+    outcome: "stale-target", consumedPass: false, advancePendingAttempt: true,
+    local: attempt.local, expectedOwnerVersion: ownerVersion, now: dependencies.now(),
+  });
+  return true;
 }
 
 function replayRequestFromState(
@@ -92,7 +132,7 @@ function replayRequestFromState(
 }
 
 /**
- * Replay only the durable exact-head pending operation; otherwise enter fresh preparation.
+ * Replay a current owned pending operation, or retire its stale target before fresh preparation.
  *
  * @param request - Caller request, which may contain stale fresh-only selections.
  * @param dependencies - Live repository and operation readers.
@@ -114,12 +154,12 @@ export async function resolveStablePendingLocalReplay<T>(
   );
   const lock = { lane: "standard" as const, repositoryId, headSha, lineage };
   return dependencies.withLaneOperationLock(lock, () => dependencies.withLocalReviewLock(async () => {
-    const owner = await readLaneProgressOwner(dependencies.operationStore, lock);
+    const { state: owner, version: ownerVersion } = await readLaneProgressOwnerVersioned(dependencies.operationStore, lock);
     const pending = owner?.attempts.filter((attempt) => attempt.outcome === "pending"
-      && attempt.headSha === headSha && attempt.local !== undefined) ?? [];
+      && attempt.local !== undefined) ?? [];
     if (pending.length === 0) return null;
     if (pending.length !== 1) {
-      throw new LocalPrepareCommandError("multiple pending local admissions claim the exact review head");
+      throw new LocalPrepareCommandError("multiple pending local admissions claim the same review owner");
     }
     const attempt = pending[0];
     const binding = attempt?.local;
@@ -128,14 +168,17 @@ export async function resolveStablePendingLocalReplay<T>(
     }
     const state = (await dependencies.operationStore.readOperation(binding.operationId)).state;
     if (state?.kind !== "local-review"
-      || !pendingOperationMatches(state, attempt, subject, lineage, request, headSha)) {
+      || !await pendingAdmissionMatches(state, subject, lineage, request, dependencies)) {
       throw new LocalPrepareCommandError("local pending admission does not match its live owner and operation");
     }
+    assertLocalReviewClaimBinding(state);
+    if (await retireStalePendingAdmission(state, attempt, ownerVersion,
+      () => dependencies.deriveTarget(repositoryId, subject.member ?? undefined), dependencies)) return null;
     const result = await replay({
       request: replayRequestFromState(request, state),
       repositoryId,
       target: state.target,
-      lineage,
+      lineage: state.lineage,
       scopeMode: state.scopeMode,
       coverageAdmission: state.coverageAdmission,
       cleanupTtlMs: request.freshnessMs ?? state.cleanupTtlMs,

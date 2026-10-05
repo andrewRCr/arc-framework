@@ -1,3 +1,6 @@
+/** Prepare exact local review operations and enforce lane admission. */
+
+import type { ConfirmResponseHeadContinuation } from "../core/response-head-continuation.js";
 import { z } from "zod";
 
 import { canonicalize } from "../../../lib/kernel/index.js";
@@ -208,6 +211,7 @@ export interface LocalPrepareDependencies {
   validateDeliveryAdmission(
     admission: DeliveryLocalReviewAdmission,
   ): Promise<StandardReviewObligationProjection | undefined>;
+  confirmResponseHeadContinuation?: ConfirmResponseHeadContinuation;
   confirmDispositionSetCurrent: (
     producerId: string,
     dispositionSetId: string,
@@ -269,7 +273,8 @@ async function selectLocalReplayAttempt(input: PendingLocalReplayInput) {
     lineage: input.lineage,
   });
   const pending = selectPendingLocalReplayAttempt(
-    owner?.attempts ?? [], input.scopeMode, input.coverageAdmission,
+    owner?.attempts.filter((attempt) => attempt.local?.target.targetId === input.target.targetId) ?? [],
+    input.scopeMode, input.coverageAdmission,
   );
   if (pending.error !== null) throw new LocalPrepareCommandError(pending.error);
   const completed = owner?.attempts
@@ -469,12 +474,12 @@ interface LocalAdmissionSettlementInput {
 type LocalLaneOwner = NonNullable<Awaited<ReturnType<typeof readLaneProgressOwnerVersioned>>["state"]>;
 type LocalLaneAttempt = LocalLaneOwner["attempts"][number];
 
-function retryingLocalFailureFor(
+function retryingLocalAttemptFor(
   attempts: LocalLaneAttempt[],
   input: LocalAdmissionSettlementInput,
 ): LocalLaneAttempt | undefined {
   const last = attempts.at(-1);
-  return last?.outcome === "terminal-failure"
+  return (last?.outcome === "terminal-failure" || last?.outcome === "stale-target")
     && last.local !== undefined
     && last.sourceId === input.dependencies.laneSourceId
     && last.local.scopeMode === input.scopeMode
@@ -487,18 +492,18 @@ async function resolveSettlementPolicyAdmission(
   input: LocalAdmissionSettlementInput,
   owner: LocalLaneOwner | null,
   currentAttempts: LocalLaneAttempt[],
-  retryingLocalFailure: LocalLaneAttempt | undefined,
+  retryingLocalAttempt: LocalLaneAttempt | undefined,
 ) {
   const { request, dependencies, repositoryId, target, lineage, projection } = input;
   if (request.deliveryAdmission !== undefined) {
     return { state: "ready" as const, pass: request.deliveryAdmission.pass };
   }
   const policyAttempts = currentAttempts.filter((attempt) => (
-    retryingLocalFailure === undefined
+    retryingLocalAttempt === undefined
     || attempt.outcome !== "terminal-failure"
     || attempt.local === undefined
     || attempt.sourceId !== dependencies.laneSourceId
-    || attempt.logicalPass !== retryingLocalFailure.logicalPass
+    || attempt.logicalPass !== retryingLocalAttempt.logicalPass
   )).map(projectReviewPolicyAttempt);
   const predecessorOperationId = [...(owner?.attempts ?? [])].reverse().find((attempt) => (
     attempt.terminalProducer
@@ -709,10 +714,16 @@ async function recordPreparedLocalAdmission(
             admissionId: admitted.preparation.state.operationId,
             now: dependencies.now(),
             confirmDispositionSetCurrent: dependencies.confirmDispositionSetCurrent,
+            confirmResponseHeadContinuation: dependencies.confirmResponseHeadContinuation,
           },
         }),
       });
     }
+}
+
+function currentLocalPolicyAttempts(owner: LocalLaneOwner | null, target: ReviewTarget): LocalLaneAttempt[] {
+  return owner?.attempts.filter((attempt) => attempt.headSha === target.headSha && attempt.outcome !== "pending"
+    && !(attempt.outcome === "stale-target" && attempt.local !== undefined && !attempt.terminalProducer)) ?? [];
 }
 
 async function settleLocalPreparation(input: LocalAdmissionSettlementInput) {
@@ -750,20 +761,18 @@ async function settleLocalPreparation(input: LocalAdmissionSettlementInput) {
         throw new LocalPrepareCommandError("local delivery review policy changed before preparation");
       }
     }
-    const currentAttempts = owner?.attempts.filter((attempt): attempt is typeof attempt & {
-      outcome: Exclude<typeof attempt.outcome, "pending">;
-    } => attempt.headSha === target.headSha && attempt.outcome !== "pending") ?? [];
-    const retryingLocalFailure = retryingLocalFailureFor(currentAttempts, input);
+    const currentAttempts = currentLocalPolicyAttempts(owner, target);
+    const retryingLocalAttempt = retryingLocalAttemptFor(owner?.attempts ?? [], input);
     const policyAdmission = await resolveSettlementPolicyAdmission(
-      input, owner, currentAttempts, retryingLocalFailure,
+      input, owner, currentAttempts, retryingLocalAttempt,
     );
     if (policyAdmission.state === "coverage-required") {
       return { state: "coverage-required" as const, action: policyAdmission.action };
     }
     const logicalPass = policyAdmission.pass;
     requireSharedLogicalPassCoverage(owner?.attempts ?? [], logicalPass, coverageAdmission);
-    if (retryingLocalFailure !== undefined
-      && logicalPass !== retryingLocalFailure.logicalPass) {
+    if (retryingLocalAttempt !== undefined
+      && logicalPass !== retryingLocalAttempt.logicalPass) {
       throw new LocalPrepareCommandError("local review retry changed its admitted logical pass");
     }
     const retryGeneration = nextLocalRetryGeneration(owner, logicalPass, input);
@@ -908,8 +917,9 @@ export async function prepareLocalReview(
   dependencies: LocalPrepareDependencies,
 ): Promise<z.infer<typeof LocalPrepareEnvelopeSchema>> {
   const request = LocalPrepareRequestSchema.parse(requestInput);
-  const stableReplay = await resolveStablePendingLocalReplay(request, dependencies, (context) =>
-    replayPendingLocalAdmission({ ...context, dependencies }));
+  const stableReplay = await retryLaneOwnerConflicts(() => resolveStablePendingLocalReplay(
+    request, dependencies, (context) => replayPendingLocalAdmission({ ...context, dependencies }),
+  ));
   if (stableReplay !== null) return stableReplay;
   const { repositoryId, authority, target, cleanupTtlMs, lineage, scopeMode, coverageAdmission } =
     await resolveLocalPreparationContext(request, dependencies);

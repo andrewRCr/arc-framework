@@ -37,6 +37,12 @@ function projectContainer(placement: WorkUnitPlacement, slug: Slug): string {
 
 function projectAddress(address: ArcLayoutAddress): string {
   switch (address.kind) {
+    case "candidate-record":
+    case "integration-boundary-record":
+    case "transition-record":
+      return projectInternalRecord(address);
+    case "inbox":
+      return projectInbox(address);
     case "arc-root":
       return ".arc";
     case "placement-root":
@@ -45,18 +51,8 @@ function projectAddress(address: ArcLayoutAddress): string {
       return projectContainer(address.placement, address.slug);
     case "work-unit-artifact":
       return `${projectContainer(address.placement, address.slug)}/${address.artifact}-${address.slug}.md`;
-    case "cohort-document": {
-      const leaf = address.cohort[address.cohort.length - 1];
-      if (leaf === undefined) {
-        throw new LayoutError(`Unsupported layout address: ${JSON.stringify(address)}`, "layout.invalid-address");
-      }
-      if (address.placement.kind === "planned") {
-        return `.arc/backlog/planned/${address.cohort.join("/")}/cohort-${leaf}.md`;
-      }
-      const suffix = address.placement.closeout === "leaf" ? "a" : "b";
-      const directory = `${address.placement.sequence}${suffix}_cohort-${leaf}`;
-      return `.arc/completed/${address.placement.quarter}/${directory}/cohort-${leaf}.md`;
-    }
+    case "cohort-document":
+      return projectCohort(address);
     case "procedure-root":
       return `.arc/system/${address.family}`;
     case "project-document":
@@ -90,4 +86,34 @@ export function resolveArcPath(address: ArcLayoutAddress): ManagedPath {
       cause: error,
     });
   }
+}
+
+function projectInternalRecord(address: Extract<ArcLayoutAddress, { kind: "candidate-record" | "integration-boundary-record" | "transition-record" }>): string {
+  switch (address.kind) {
+    case "candidate-record":
+      return `.arc/system/.internal/candidates/${address.slug}.json`;
+    case "integration-boundary-record":
+      return `.arc/system/.internal/candidates/${address.slug}.boundary.json`;
+    case "transition-record":
+      return `.arc/system/.internal/transitions/${address.origin}.json`;
+    default:
+      return assertNever(address);
+  }
+}
+
+function projectCohort(address: Extract<ArcLayoutAddress, { kind: "cohort-document" }>): string {
+  const leaf = address.cohort[address.cohort.length - 1];
+  if (leaf === undefined) {
+    throw new LayoutError(`Unsupported layout address: ${JSON.stringify(address)}`, "layout.invalid-address");
+  }
+  if (address.placement.kind === "planned") {
+    return `.arc/backlog/planned/${address.cohort.join("/")}/cohort-${leaf}.md`;
+  }
+  const suffix = address.placement.closeout === "leaf" ? "a" : "b";
+  const directory = `${address.placement.sequence}${suffix}_cohort-${leaf}`;
+  return `.arc/completed/${address.placement.quarter}/${directory}/cohort-${leaf}.md`;
+}
+
+function projectInbox(address: Extract<ArcLayoutAddress, { kind: "inbox" }>): string {
+  return address.scope.kind === "project" ? ".arc/backlog/ATOMIC-INBOX.md" : `.arc/user/${address.scope.identity}/USER-INBOX.md`;
 }

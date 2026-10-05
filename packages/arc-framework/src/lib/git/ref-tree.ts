@@ -96,6 +96,16 @@ export async function readTreeEntries(exec: GitExec, ref: string): Promise<Map<s
   }
 }
 
+/** Enumerate a captured tree; every executor failure retains its original cause.
+ * @param exec - Repository-bound Git executor.
+ * @param ref - Non-null immutable commit whose existence was captured by the caller.
+ * @returns Its entries after successful enumeration; absence is handled before capture.
+ */
+export async function readTreeEntriesStrict(exec: GitExec, ref: string): Promise<Map<string, string>> {
+  const { stdout } = await exec("git", ["ls-tree", "--full-tree", ref]);
+  return parseTreeEntries(stdout);
+}
+
 /**
  * A discriminating tree read — present entries, a legitimately absent ref, or a
  * genuine git read failure — as opposed to {@link readTreeEntries}, which collapses

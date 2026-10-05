@@ -322,11 +322,23 @@ function assertResponsePerformanceTransitions(
   if (performedAttempts.length === 0) return;
   if (next.kind !== "lane-progress") refuseResponsePerformanceTransition();
   for (const previous of performedAttempts) {
-    assertResponsePerformanceAttemptTransition(previous, next.attempts);
+    assertResponsePerformanceAttemptTransition(previous, next.attempts, current.lineage.kind === "candidate");
   }
 }
 
-function assertResponsePerformanceAttemptTransition(previous: LaneAttempt, next: LaneAttempt[]): void {
+function isCandidateResponseBindingAdvance(
+  previous: NonNullable<LaneAttempt["responsePerformance"]>,
+  next: NonNullable<LaneAttempt["responsePerformance"]>,
+  candidateOwner: boolean,
+): boolean {
+  const { candidateResponseId, ...withoutDigest } = next;
+  return candidateOwner && previous.candidateResponseId === undefined && candidateResponseId !== undefined
+    && canonicalize(withoutDigest) === canonicalize(previous);
+}
+
+function assertResponsePerformanceAttemptTransition(
+  previous: LaneAttempt, next: LaneAttempt[], candidateOwner: boolean,
+): void {
   const candidates = next.filter(({ attemptId }) => attemptId === previous.attemptId);
   const candidate = candidates[0];
   const previousPerformance = previous.responsePerformance;
@@ -340,7 +352,8 @@ function assertResponsePerformanceAttemptTransition(previous: LaneAttempt, next:
   const previousHistory = previous.responsePerformanceHistory ?? [];
   const nextHistory = candidate.responsePerformanceHistory ?? [];
   if (nextPerformance.dispositionSetId === previousPerformance.dispositionSetId) {
-    if (canonicalize(nextPerformance) !== canonicalize(previousPerformance)
+    const boundOnce = isCandidateResponseBindingAdvance(previousPerformance, nextPerformance, candidateOwner);
+    if ((!boundOnce && canonicalize(nextPerformance) !== canonicalize(previousPerformance))
       || canonicalize(nextHistory) !== canonicalize(previousHistory)) {
       refuseResponsePerformanceTransition();
     }

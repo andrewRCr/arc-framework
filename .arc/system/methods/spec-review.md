@@ -1,6 +1,6 @@
 ---
 name: spec-review
-description: Self-review of a just-written spec — coherence and behavior-grade grounding, scaled to the form.
+description: Review new or revised specifications for reader independence, binding completeness, coherence, and grounding.
 arc:
   methods:
     - source-grounding
@@ -11,14 +11,15 @@ override-active: false
 
 # Method: spec-review
 
-> - **Workflow:** [create-spec.md][create-spec], [amend-design.md][amend-design]
-> - **When:** A spec has just been written, at create-spec's finalization review gate — before the spec is
->   approved and committed.
+> - **Workflow:** [create-spec.md][create-spec], [generate-tasks.md][generate-tasks],
+>   [decompose-work-unit.md][decompose-work-unit], [amend-design.md][amend-design]
+> - **When:** A new specification set or a bounded batch of substantive changes to any existing specification is
+>   ready for its existing approval or release boundary.
 >
-> - **Contract:** Given the just-written spec and its resolved form, run a two-slice self-review — **coherence**
->   and **grounding** — scaled to the form; fold fixes in inline and surface anything that needs a decision at the
->   finalization stop. Reviews the written artifact, not the design decisions (settled in discovery) — and adds no
->   new interlock; it feeds the existing one.
+> - **Contract:** Check reader independence and binding completeness for the selected scope, with coherence and
+>   grounding scaled to the form and caller-selected depth. Fold corrections into the existing iteration flow;
+>   surface anything needing a decision at its existing stop. Review the written contract without reopening
+>   settled design or adding an interlock.
 
 ## spec-review.override
 
@@ -26,10 +27,42 @@ override-active: false
 
 ## spec-review.default
 
-A final pass over the spec you just wrote, before it is surfaced for approval. Two slices, each scaled to the
-form. This is not a re-litigation of the design (discovery settled that) nor a repeat of the alignment checks
-(those ran against PROJECT-PRD / TECHNICAL-OVERVIEW earlier) — it reviews whether the written artifact holds
-together and grounds its claims in source behavior.
+Review every new specification as a complete set. For every substantive edit to an existing specification, regardless
+of when it was authored, review the changed footprint, including removals and affected surrounding obligations and
+definitions. A local correction does not expand review to unrelated content. Unchanged existing specifications need
+no retrofit.
+
+**Common reader checks — required for either slice**, including grounding-only calls and coherence-only rereads:
+
+- **Reader independence:** Desired behavior, scope, required concepts, and observable success conditions stand
+  without planning history. Work-unit names, register rows, drafts, notes, and another work unit's specification
+  cannot supply missing meaning. Replace dependence on them with the substance they supplied; exclusions state
+  behavior rather than another change's ownership.
+- **Binding completeness:** The form's enumerable design supports complete task coverage, and its criteria
+  distinguish correct behavior. Retain every requirement, settled decision, interface, invariant, precondition,
+  failure case, exclusion, acceptance condition, and decisive rationale. Notes may carry supplemental execution
+  context, exploration history, and provenance, but never the sole definition of an obligation or decision.
+
+**Reference boundaries:**
+
+- Use accessible established project code and documentation, and internal specification references, for defined
+  concepts and existing behavior. State the desired behavior and changes in the specification itself; define
+  unfamiliar required concepts locally or reference their established definition.
+- Keep symbols, schema fields, examples, requirement identifiers, and section references precise and usable.
+  Judge what supplies meaning, not tokens. ARC terms and artifact names are valid subject matter when their
+  required meaning is established or defined locally.
+- Treat an accessible complementary PRD/RFC pair by distinct product and engineering authors as one specification
+  set, preserving its division of content. An unavailable companion cannot supply context or binding design;
+  another work unit's specification cannot substitute for it.
+- Preserve title identity, `Origin`, and `Purpose` where present, and existing pre-activation `State` and
+  `Related Work` tracking. The substantive thesis stands without tracking fields; they supply no missing design.
+- Preserve amendment records, boundary carriers, and task locators. Each binding amendment states its behavior
+  independently of process anchors and satisfies the common checks over its affected contract.
+- Define an unshipped prerequisite as an expected contract with its availability condition, rather than asserting
+  shipped behavior or borrowing its definition from a sibling plan.
+
+The remaining coherence and grounding work follows the caller's depth selection and the resolved form. Preserve
+existing alignment checks and design re-entry routing.
 
 **Coherence — the spec hangs together.**
 
@@ -43,14 +76,15 @@ together and grounds its claims in source behavior.
 
 **Grounding — the spec's claims hold at source.**
 
-Run [source-grounding][source-grounding] at `artifact` scope over the spec and its upstream chain, or the affected
-spec elements when amending it. The runner label follows that method's rule; caller inputs stay unchanged. Its
+Run [source-grounding][source-grounding] at `artifact` scope over the selected specification scope and its upstream
+evidence chain. Upstream evidence grounds claims; it cannot supply otherwise missing binding design. The runner label
+follows that method's rule; caller inputs stay unchanged. Its
 behavior check and propagation sweep ground claims in what named code, tools, configuration, and shipped rules
 actually do, with its severity interpretation.
 
 ```yaml
 source-grounding:
-  artifacts:  # spec (or amendment footprint) + upstream chain
+  artifacts:  # specification set or changed footprint + upstream evidence chain
   scope: artifact
 ```
 
@@ -65,7 +99,7 @@ claims about shipped behavior.**
   exhaustive and unambiguous; the cross-cutting surface present; every claim about shipped behavior grounded.
 
 **Posture.** Corrective: fix what you can inline as you go, and surface anything that needs a
-decision at the finalization stop rather than adding a gate. A finding that reopens _design_ — a masked decision,
+decision at the caller's existing stop rather than adding a gate. A finding that reopens _design_ — a masked decision,
 an unsettled fundamental — is a derivation signal: route it back to the design (draft / spec), never paper over it
 in the spec.
 
@@ -77,5 +111,7 @@ the finalization stop, never a gate.
 ---
 
 [create-spec]: ../workflows/arc/create-spec.md
+[generate-tasks]: ../workflows/arc/generate-tasks.md
+[decompose-work-unit]: ../workflows/arc/work-unit-lifecycle/decompose-work-unit.md
 [amend-design]: ../workflows/arc/supplemental/amend-design.md
 [source-grounding]: source-grounding.md

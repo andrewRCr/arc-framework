@@ -26,6 +26,11 @@ import {
 export { hostedLaneAttemptId } from "./hosted/request.js";
 import type { FrontlineExecutionOutcome } from "./policy/frontline-outcome.js";
 
+import { completeHostedAttemptIfReady } from "./hosted-response-completion.js";
+export { completeHostedAttemptIfReady } from "./hosted-response-completion.js";
+import type { ConfirmResponseHeadContinuation } from "./core/response-head-continuation.js";
+import { projectLocalRetryAttempts } from "./lane-progress-local-retry.js";
+
 type LaneAttempt = LaneProgressState["attempts"][number];
 type LaneAttemptOutcome = LaneAttempt["outcome"];
 import { currentConditionalPassAuthorization, bindCompletedConditionalPassAuthorization,
@@ -55,6 +60,7 @@ function recordResponsePerformanceOnAttempt(
     dispositionSetId: CanonicalDigest;
     predecessorDispositionSetId?: CanonicalDigest;
     producedHeadSha: string;
+    candidateResponseId?: CanonicalDigest;
     now: string;
   },
 ): LaneAttempt {
@@ -64,7 +70,14 @@ function recordResponsePerformanceOnAttempt(
       if (!responsePerformanceReplayMatches(attempt, input)) {
         throw new Error("lane response performance replay conflicts");
       }
-      return attempt;
+      if (input.candidateResponseId === undefined) return attempt;
+      if (current.candidateResponseId !== undefined) {
+        if (current.candidateResponseId !== input.candidateResponseId) {
+          throw new Error("lane Candidate response digest replay conflicts");
+        }
+        return attempt;
+      }
+      return { ...attempt, responsePerformance: { ...current, candidateResponseId: input.candidateResponseId } };
     }
     const hostedSuccessor = attempt.hosted === undefined
       || attempt.hosted.dispositionSetLineage.some((node) =>
@@ -85,6 +98,7 @@ function recordResponsePerformanceOnAttempt(
         dispositionSetId: input.dispositionSetId,
         originatingHeadSha: attempt.headSha,
         producedHeadSha: input.producedHeadSha,
+        ...(input.candidateResponseId === undefined ? {} : { candidateResponseId: input.candidateResponseId }),
         performedAt: input.now,
       },
     };
@@ -97,65 +111,10 @@ function recordResponsePerformanceOnAttempt(
       dispositionSetId: input.dispositionSetId,
       originatingHeadSha: attempt.headSha,
       producedHeadSha: input.producedHeadSha,
+      ...(input.candidateResponseId === undefined ? {} : { candidateResponseId: input.candidateResponseId }),
       performedAt: input.now,
     },
   };
-}
-
-function hostedDispositionHasFix(attempt: LaneAttempt): boolean {
-  return attempt.hosted?.dispositionSetLineage.at(-1)?.findingActions
-    .some(({ disposition }) => disposition === "fix") ?? false;
-}
-
-function hostedSettlementComplete(attempt: LaneAttempt): boolean {
-  const findingCount = attempt.hosted?.sealedResult?.findings.length ?? 0;
-  return findingCount > 0 && attempt.hosted?.settledFindingIds.length === findingCount;
-}
-
-function confirmHostedFixSettlementHeads(attempt: LaneAttempt): void {
-  const hosted = attempt.hosted;
-  const performance = attempt.responsePerformance;
-  if (hosted === undefined || performance === undefined) {
-    throw new Error("hosted fix settlement lacks durable response-head evidence");
-  }
-  const hostFixFindingIds = hosted.dispositionSetLineage.at(-1)?.findingActions
-    .filter(({ disposition, channelAction }) =>
-      disposition === "fix" && channelAction === "reply-and-resolve")
-    .map(({ findingId }) => findingId) ?? [];
-  const fixEvidence = hosted.settlementEvidence.filter((evidence) =>
-    evidence.dispositionSetId === hosted.dispositionSetId
-    && hostFixFindingIds.includes(evidence.findingId));
-  if (fixEvidence.length !== hostFixFindingIds.length
-    || fixEvidence.some((evidence) =>
-      evidence.channelAction !== "reply-and-resolve"
-      || evidence.fixTarget?.headSha !== performance.producedHeadSha)) {
-    throw new Error("hosted fix settlement does not match durable response-head evidence");
-  }
-}
-
-export function completeHostedAttemptIfReady(attempt: LaneAttempt, now: string): LaneAttempt {
-  if (attempt.hosted === undefined || !hostedSettlementComplete(attempt)) {
-    return { ...attempt, outcome: "findings" };
-  }
-  const dispositionHasFix = hostedDispositionHasFix(attempt);
-  if (dispositionHasFix) {
-    if (attempt.responsePerformance?.dispositionSetId !== attempt.hosted.dispositionSetId) {
-      return { ...attempt, outcome: "findings" };
-    }
-    confirmHostedFixSettlementHeads(attempt);
-  }
-  const dispositionSetId = attempt.hosted.dispositionSetId;
-  if (dispositionSetId === null) {
-    throw new Error("hosted settlement lacks an approved disposition set");
-  }
-  const settled = { ...attempt, outcome: "settled-findings" as const };
-  return bindCompletedConditionalPassAuthorization(settled, {
-    dispositionSetId,
-    producedHeadSha: dispositionHasFix
-      ? attempt.responsePerformance?.producedHeadSha ?? attempt.headSha
-      : attempt.headSha,
-    now,
-  });
 }
 
 function pendingAttemptCanAdvance(pending: LaneAttempt, next: LaneAttempt): boolean {
@@ -850,6 +809,14 @@ function responsePerformanceAttemptMatches(
     && (attempt.outcome === "findings" || attempt.outcome === "settled-findings");
 }
 
+function validateCandidateResponseBinding(input: {
+  candidateResponseId?: CanonicalDigest; lineage: LaneSubjectLineage;
+}): void {
+  if (input.candidateResponseId !== undefined && input.lineage.kind !== "candidate") {
+    throw new Error("Candidate response digest requires its Candidate lineage");
+  }
+}
+
 export async function recordLaneResponsePerformance(
   store: ReviewOperationStateStore,
   input: {
@@ -861,9 +828,12 @@ export async function recordLaneResponsePerformance(
     dispositionSetId: CanonicalDigest;
     predecessorDispositionSetId?: CanonicalDigest;
     producedHeadSha: string;
+    candidateResponseId?: CanonicalDigest;
+    confirmResponseHeadContinuation?: ConfirmResponseHeadContinuation;
     now: string;
   },
 ): Promise<LaneProgressState> {
+  validateCandidateResponseBinding(input);
   const operationId = laneProgressOperationId(input);
   for (let writeAttempt = 0; writeAttempt < REVIEW_VERSION_RETRY_ATTEMPTS; writeAttempt += 1) {
     const { version, state } = await store.readOperation(operationId);
@@ -892,7 +862,10 @@ export async function recordLaneResponsePerformance(
         outcome: "settled-findings",
       }, input);
     } else {
-      performedAttempt = completeHostedAttemptIfReady(performedAttempt, input.now);
+      performedAttempt = await completeHostedAttemptIfReady(performedAttempt, input.now, {
+        repositoryId: state.repositoryId, lineage: state.lineage,
+        confirmResponseHeadContinuation: input.confirmResponseHeadContinuation,
+      });
     }
     if (canonicalize(performedAttempt) === canonicalize(attempt)) return state;
     const attempts = [...state.attempts];
@@ -1043,7 +1016,7 @@ export async function readLaneProgress(
     completePasses: countCompleteLogicalPasses(state.attempts),
     attempts: state.lane === "frontline"
       ? projectFrontlineAttempts(state.attempts.filter((attempt) => attempt.headSha === input.headSha))
-      : state.attempts.filter((attempt) => attempt.headSha === input.headSha),
+      : projectLocalRetryAttempts(state.attempts).filter((attempt) => attempt.headSha === input.headSha),
   };
 }
 
@@ -1087,7 +1060,7 @@ export async function readLaneProgressAcrossLineage(
       ...(historicalAttempt === undefined ? {} : { historicalAttempt }),
       attempts: owner.lane === "frontline"
         ? projectFrontlineAttempts(currentAttempts)
-        : currentAttempts,
+        : projectLocalRetryAttempts(owner.attempts).filter((attempt) => attempt.headSha === input.headSha),
     };
   }
   const current = records.find(({ headSha }) => headSha === input.headSha)?.progress;

@@ -3,6 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { HostedProcessRunner } from "../../../../../../src/scripts/review-gate/hosted/gh-process.js";
 import { createGhChangeRequestMergeObservationPort } from "../../../../../../src/scripts/review-gate/hosts/github/merge-observation.js";
 
+function createPort(runner: HostedProcessRunner) {
+  return createGhChangeRequestMergeObservationPort(runner, { wait: async () => undefined });
+}
+
 const oid = (character: string): string => character.repeat(40);
 const coordinates = {
   repository: "owner/repo",
@@ -32,7 +36,7 @@ describe("GitHub merge-observation port", () => {
     const run = vi.fn(async (args: string[]) => args.at(-1)?.includes("/commits/") === true
       ? output({ parents: [{ sha: coordinates.base }, { sha: coordinates.head }] })
       : output(pull()));
-    const port = createGhChangeRequestMergeObservationPort({ run } satisfies HostedProcessRunner);
+    const port = createPort({ run } satisfies HostedProcessRunner);
     await expect(port.observe(coordinates, { baseContained: true })).resolves.toEqual({
       ...coordinates,
       state: "mergeable",
@@ -54,13 +58,146 @@ describe("GitHub merge-observation port", () => {
       }
       throw new Error(`unexpected command: ${args.join(" ")}`);
     });
-    const port = createGhChangeRequestMergeObservationPort({ run } satisfies HostedProcessRunner);
+    const port = createPort({ run } satisfies HostedProcessRunner);
 
     await expect(port.observe(coordinates, { baseContained: false })).resolves.toMatchObject({
       ...coordinates,
       state: "mergeable",
     });
   });
+
+  it("distinguishes a stale test-merge base for an exact head that lacks the requested base", async () => {
+    let reads = 0;
+    const port = createPort({
+      run: async (args) => {
+        const endpoint = args.at(-1) ?? "";
+        if (endpoint.endsWith("/pulls/42")) { reads += 1; return output(pull()); }
+        if (endpoint.endsWith("/branches/main")) return output({ protection: null });
+        if (endpoint.includes("/rules/branches/main")) return output([[]]);
+        if (endpoint.includes("/commits/")) {
+          return output({ parents: [{ sha: oid("d") }, { sha: coordinates.head }] });
+        }
+        throw new Error(`unexpected endpoint: ${endpoint}`);
+      },
+    });
+
+    await expect(port.observe(coordinates, { baseContained: false })).resolves.toMatchObject({
+      ...coordinates,
+      state: "unresolved",
+      condition: "stale-base-test-merge",
+      evidenceRef: `github:test-merge:${oid("c")}`,
+      detail: expect.stringMatching(/three-read observation limit.*Retry/u),
+    });
+    expect(reads).toBe(3);
+  });
+
+  it.each([
+    ["current test merge", {}, "mergeable", undefined],
+    ["different pull request", { number: 43 }, "unresolved", undefined],
+    ["unavailable policy", {}, "unresolved", undefined],
+    ["head movement", { head: { sha: oid("e") } }, "refused", "head-moved"],
+    ["base retarget", { base: { ref: "release" } }, "refused", "base-ref-mismatch"],
+    ["host conflict", { mergeable: false }, "refused", "not-mergeable"],
+    ["strict policy", {}, "base-currentness-required", undefined],
+    ["pending computation", { mergeable: null, merge_commit_sha: null }, "unresolved", undefined],
+    ["unavailable commit", {}, "unresolved", undefined],
+  ] as const)("reobserves %s after a stale test merge without inheriting stale authority",
+    async (label, overrides, state, condition) => {
+      let reads = 0;
+      const port = createPort({
+        run: async (args) => {
+          const endpoint = args.at(-1) ?? "";
+          if (endpoint.endsWith("/pulls/42")) {
+            reads += 1;
+            return output(pull(reads === 1 ? {} : { merge_commit_sha: oid("f"), ...overrides }));
+          }
+          if (endpoint.endsWith("/branches/main")) {
+            if (label === "unavailable policy" && reads > 1) throw new Error("Policy unavailable.");
+            return output({ protection: null });
+          }
+          if (endpoint.includes("/rules/branches/main")) return output([[...(label === "strict policy" && reads > 1
+            ? [{ type: "required_status_checks", parameters: {
+                required_status_checks: [], strict_required_status_checks_policy: true,
+              } }] : [])]]);
+          if (endpoint.endsWith(`/commits/${oid("c")}`)) {
+            return output({ parents: [{ sha: oid("d") }, { sha: coordinates.head }] });
+          }
+          if (endpoint.endsWith(`/commits/${oid("f")}`)) {
+            if (label === "unavailable commit") throw new Error("Host unavailable.");
+            return output({ parents: [{ sha: coordinates.base }, { sha: coordinates.head }] });
+          }
+          throw new Error(`unexpected endpoint: ${endpoint}`);
+        },
+      });
+      const result = await port.observe(coordinates, { baseContained: false });
+      expect(result).toMatchObject({ ...coordinates, state });
+      if (condition === undefined) expect(result).not.toHaveProperty("condition");
+      else expect(result).toHaveProperty("condition", condition);
+      if (state === "mergeable") expect(result).toHaveProperty("evidenceRef", `github:test-merge:${oid("f")}`);
+    },
+  );
+
+  it("honors cancellation between stale test-merge reads", async () => {
+    const controller = new AbortController();
+    const port = createPort({
+      run: async (args) => {
+        const endpoint = args.at(-1) ?? "";
+        if (endpoint.endsWith("/pulls/42")) return output(pull());
+        if (endpoint.endsWith("/branches/main")) return output({ protection: null });
+        if (endpoint.includes("/rules/branches/main")) return output([[]]);
+        if (endpoint.includes("/commits/")) {
+          controller.abort(new DOMException("stop", "AbortError"));
+          return output({ parents: [{ sha: oid("d") }, { sha: coordinates.head }] });
+        }
+        throw new Error(`unexpected endpoint: ${endpoint}`);
+      },
+    });
+    await expect(port.observe(coordinates, { baseContained: false, signal: controller.signal }))
+      .rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it.each([
+    ["contained base", true, [oid("d"), coordinates.head]],
+    ["unknown containment", undefined, [oid("d"), coordinates.head]],
+    ["different head", false, [oid("d"), oid("e")]],
+    ["reversed parents", false, [coordinates.head, oid("d")]],
+    ["duplicate parents", false, [coordinates.head, coordinates.head]],
+    ["missing parent", false, [coordinates.head]],
+    ["extra parent", false, [oid("d"), coordinates.head, coordinates.base]],
+  ] as const)("does not classify %s as stale-base-only evidence", async (_label, baseContained, parents) => {
+    const port = createPort({
+      run: async (args) => {
+        const endpoint = args.at(-1) ?? "";
+        if (endpoint.endsWith("/pulls/42")) return output(pull());
+        if (endpoint.endsWith("/branches/main")) return output({ protection: null });
+        if (endpoint.includes("/rules/branches/main")) return output([[]]);
+        if (endpoint.includes("/commits/")) return output({ parents: parents.map((sha) => ({ sha })) });
+        throw new Error(`unexpected endpoint: ${endpoint}`);
+      },
+    });
+    const result = await port.observe(coordinates, { baseContained });
+    expect(result).toMatchObject({ ...coordinates, state: "unresolved" });
+    expect(result).not.toHaveProperty("condition");
+  });
+
+  it.each(["/pulls/42", "/branches/main", "/rules/branches/main", "/commits/"])(
+    "keeps %s read failures distinct from stale-base-only evidence", async (failedEndpoint) => {
+      const port = createPort({
+        run: async (args) => {
+          const endpoint = args.at(-1) ?? "";
+          if (endpoint.includes(failedEndpoint)) throw new Error("Host unavailable.");
+          if (endpoint.endsWith("/pulls/42")) return output(pull());
+          if (endpoint.endsWith("/branches/main")) return output({ protection: null });
+          if (endpoint.includes("/rules/branches/main")) return output([[]]);
+          if (endpoint.includes("/commits/")) return output({ parents: [{ sha: oid("d") }, { sha: coordinates.head }] });
+          throw new Error(`unexpected endpoint: ${endpoint}`);
+        },
+      });
+      const result = await port.observe(coordinates, { baseContained: false });
+      expect(result).toMatchObject({ state: "unresolved", detail: expect.stringContaining("unavailable") });
+      expect(result).not.toHaveProperty("condition");
+    },
+  );
 
   it.each(["classic", "ruleset"] as const)("establishes strict currentness from explicit %s policy", async (kind) => {
     const run = vi.fn(async (args: string[]) => {
@@ -77,7 +214,7 @@ describe("GitHub merge-observation port", () => {
       }] : []]);
       throw new Error(`unexpected command: ${args.join(" ")}`);
     });
-    const port = createGhChangeRequestMergeObservationPort({ run } satisfies HostedProcessRunner);
+    const port = createPort({ run } satisfies HostedProcessRunner);
     await expect(port.observe(coordinates, { baseContained: false })).resolves.toMatchObject({
       ...coordinates,
       state: "base-currentness-required",
@@ -99,7 +236,7 @@ describe("GitHub merge-observation port", () => {
       });
       throw new Error(`unexpected command: ${args.join(" ")}`);
     });
-    const port = createGhChangeRequestMergeObservationPort({ run } satisfies HostedProcessRunner);
+    const port = createPort({ run } satisfies HostedProcessRunner);
     await expect(port.observe(coordinates, { baseContained: false })).resolves.toMatchObject({
       ...coordinates,
       state: "base-currentness-required",
@@ -116,7 +253,7 @@ describe("GitHub merge-observation port", () => {
       if (endpoint.includes("/rules/branches/main")) return output([[]]);
       throw new Error(`unexpected command: ${args.join(" ")}`);
     });
-    const port = createGhChangeRequestMergeObservationPort({ run } satisfies HostedProcessRunner);
+    const port = createPort({ run } satisfies HostedProcessRunner);
     await expect(port.observe(coordinates)).resolves.toMatchObject({
       state: "refused",
       condition: "not-mergeable",
@@ -125,7 +262,7 @@ describe("GitHub merge-observation port", () => {
 
   it("refuses a pull request GitHub cannot merge cleanly without reading it again", async () => {
     const run = vi.fn(async () => output(pull({ mergeable: false, merge_commit_sha: null })));
-    const port = createGhChangeRequestMergeObservationPort({ run } satisfies HostedProcessRunner);
+    const port = createPort({ run } satisfies HostedProcessRunner);
 
     await expect(port.observe(coordinates, { baseContained: true })).resolves.toEqual({
       ...coordinates,
@@ -145,7 +282,7 @@ describe("GitHub merge-observation port", () => {
     ["head-moved", pull({ head: { sha: oid("e") } }), `head is ${oid("e")}, not ${oid("b")}`],
   ] as const)("refuses %s as a stable condition naming both values", async (condition, observed, detail) => {
     const run = vi.fn(async () => output(observed));
-    const port = createGhChangeRequestMergeObservationPort({ run } satisfies HostedProcessRunner);
+    const port = createPort({ run } satisfies HostedProcessRunner);
 
     await expect(port.observe(coordinates, { baseContained: true })).resolves.toMatchObject({
       ...coordinates,
@@ -157,14 +294,14 @@ describe("GitHub merge-observation port", () => {
   });
 
   it("keeps a different pull-request number and malformed test-merge parents pending", async () => {
-    const renumbered = createGhChangeRequestMergeObservationPort({
+    const renumbered = createPort({
       run: async () => output(pull({ number: 43 })),
     });
     await expect(renumbered.observe(coordinates, { baseContained: true })).resolves.toMatchObject({
       state: "unresolved", detail: expect.stringContaining("different pull request"),
     });
 
-    const malformed = createGhChangeRequestMergeObservationPort({
+    const malformed = createPort({
       run: async (args) => args.at(-1)?.includes("/commits/") === true
         ? output({ parents: [{ sha: coordinates.base }] })
         : output(pull()),
@@ -175,7 +312,7 @@ describe("GitHub merge-observation port", () => {
   });
 
   it("rejects reversed test-merge parents", async () => {
-    const port = createGhChangeRequestMergeObservationPort({
+    const port = createPort({
       run: async (args) => args.at(-1)?.includes("/commits/") === true
         ? output({ parents: [{ sha: coordinates.head }, { sha: coordinates.base }] })
         : output(pull()),
@@ -195,7 +332,7 @@ describe("GitHub merge-observation port", () => {
       if (endpoint.includes("/rules/branches/main")) return output([[]]);
       throw new Error(`unexpected command: ${args.join(" ")}`);
     });
-    const port = createGhChangeRequestMergeObservationPort({ run } satisfies HostedProcessRunner);
+    const port = createPort({ run } satisfies HostedProcessRunner);
     await expect(port.observe(coordinates)).resolves.toMatchObject({
       state: "unresolved", detail: expect.stringContaining("three-read observation limit"),
     });
@@ -206,7 +343,7 @@ describe("GitHub merge-observation port", () => {
     const run = vi.fn(async () => output(pull()));
     const controller = new AbortController();
     controller.abort(new DOMException("stop", "AbortError"));
-    const port = createGhChangeRequestMergeObservationPort({ run } satisfies HostedProcessRunner);
+    const port = createPort({ run } satisfies HostedProcessRunner);
     await expect(port.observe(coordinates, { signal: controller.signal })).rejects.toMatchObject({
       name: "AbortError",
     });

@@ -1,5 +1,6 @@
 /** Durable hosted request admission and await transitions. */
 
+import type { ConfirmResponseHeadContinuation } from "./core/response-head-continuation.js";
 import { canonicalize } from "../../lib/kernel/index.js";
 import { createHostedSealedResult, LaneProgressStateSchema, type LaneProgressState } from "./core/operation-state-schema.js";
 import { isReviewVersionConflict, REVIEW_VERSION_RETRY_ATTEMPTS } from "./core/version-conflict.js";
@@ -260,6 +261,7 @@ async function publishHostedPendingAdmission(
         nextPass: admission.logicalPass,
         admissionId: admission.admissionId,
         now: input.now,
+        confirmResponseHeadContinuation: input.confirmResponseHeadContinuation,
         confirmDispositionSetCurrent: input.confirmDispositionSetCurrent ?? (() => {
           throw new Error("conditional pass authorization disposition reader is unavailable");
         }),
@@ -291,6 +293,7 @@ export async function recordHostedRequestAdmission(
       progress: LaneProgressState | null;
       logicalPass: number;
     }): Promise<void>;
+    confirmResponseHeadContinuation?: ConfirmResponseHeadContinuation;
     confirmDispositionSetCurrent?: (
       producerId: string,
       dispositionSetId: string,

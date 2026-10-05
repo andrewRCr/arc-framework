@@ -41,6 +41,8 @@ export interface GitExecOptions {
   diagnosticLocale?: "stable";
   /** Forbid Git from lazily fetching missing objects during passive inspection. */
   objectAccess?: "local-only";
+  /** Preserve captured stdout exactly instead of trimming trailing whitespace. */
+  preserveOutput?: boolean;
 }
 
 /** Plain-Promise, argument-array Git execution seam. */
@@ -58,6 +60,19 @@ export async function resolveGitCommonDir(exec: GitExec, cwd: string): Promise<s
     throw new Error("git rev-parse --git-common-dir returned an empty path");
   }
   return isAbsolute(commonDir) ? commonDir : resolve(cwd, commonDir);
+}
+
+/** Resolve the checkout's own Git directory, keeping linked working trees independent.
+ * @param exec - Injectable Git executor.
+ * @param cwd - Checkout root whose private Git directory is required.
+ * @returns The absolute path Git reports for that checkout.
+ * @throws Git execution failures or an empty Git directory response.
+ */
+export async function resolveCheckoutGitDir(exec: GitExec, cwd: string): Promise<string> {
+  const { stdout } = await exec("git", ["rev-parse", "--absolute-git-dir"], { cwd });
+  const gitDir = stdout.trim();
+  if (gitDir.length === 0) throw new Error("git rev-parse --absolute-git-dir returned an empty path");
+  return isAbsolute(gitDir) ? gitDir : resolve(cwd, gitDir);
 }
 
 /**

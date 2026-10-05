@@ -1,9 +1,32 @@
 import { describe, expect, it } from "vitest";
 
 import type { ActiveSessionInitInternalResult, ActiveSessionInitResult } from "../../../src/commands/active.js";
-import { adaptActiveViewTarget, resolveExplicitViewTarget } from "../../../src/handlers/view.js";
+import { adaptActiveViewTarget, resolveExplicitViewTarget, ViewCommandInputSchema } from "../../../src/handlers/view.js";
+import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import { buildLifecycleIndexFromRecords } from "../../../src/lib/work-unit/lifecycle-index.js";
+
+describe("view editor command input", () => {
+  const input = { project: false, current: false, path: false, editor: true };
+
+  it("preserves an omitted kind for editor selection", () => {
+    expect(assertSchemaAccepts(ViewCommandInputSchema, input)).toEqual(input);
+  });
+
+  it.each(["path", "current"] as const)("refuses editor with %s", (destination) => {
+    assertSchemaRefuses(ViewCommandInputSchema, { ...input, [destination]: true }, ["editor"]);
+  });
+
+  it("keeps existing kind, project, current, and explicit-target restrictions", () => {
+    assertSchemaRefuses(ViewCommandInputSchema, { ...input, kind: "unknown" }, ["kind"]);
+    assertSchemaRefuses(ViewCommandInputSchema, { ...input, project: true }, ["project"]);
+    assertSchemaRefuses(ViewCommandInputSchema, { ...input, editor: false, current: true, kind: "spec" }, ["current"]);
+    assertSchemaRefuses(ViewCommandInputSchema, { ...input, forSlug: "../invalid" }, ["forSlug"]);
+    for (const kind of ["inbox", "working-memory"] as const) {
+      assertSchemaRefuses(ViewCommandInputSchema, { ...input, kind, forSlug: "feature" }, ["forSlug"]);
+    }
+  });
+});
 
 function active(overrides: Partial<ActiveSessionInitResult> = {}): ActiveSessionInitResult {
   return {

@@ -1,5 +1,6 @@
 /** Production assembly for approved review dispositions. */
 
+import { createCandidateResponseHeadContinuationReader, confirmCandidateResponseHeadContinuation } from "./candidate-response-head-continuation.js";
 import { readFile } from "node:fs/promises";
 
 import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
@@ -315,6 +316,7 @@ export function createRespondDependencies(input: {
   const rawGit = createRawGitExec(input.cwd);
   const prepare = createLocalPrepareDependencies(input);
   const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
+  const confirmResponseHeadContinuation = createCandidateResponseHeadContinuationReader({ ...input, dispositionStore, operationStore: prepare.operationStore });
   const deliveryMembers = new RepositoryDeliveryMemberLookup(input);
   const privateDeliveryTargets = createPreBindingDeliveryReviewTargetDependencies(input);
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
@@ -585,6 +587,19 @@ export function createRespondDependencies(input: {
         unstagedReviewablePaths,
       };
     },
+    readCandidateResponseTarget: async ({ workUnit, revision }) => {
+      const collected = await collectGitCandidateSubject({
+        cwd: input.cwd, name: workUnit, revision,
+        baseBranch: (await settings())["branch.base"], exec: input.exec,
+      });
+      if (collected.status !== "collected") {
+        throw new LocalTargetDerivationError(
+          "ambiguous-merge-base",
+          "The verified Candidate response target's subject could not be collected.",
+        );
+      }
+      return collected.target;
+    },
     // Staged like the record `attest` publishes: the Candidate's own projection never enters the
     // reviewable subject, so staging it advances the lineage without disturbing what review sees.
     appendCandidateResponse: async ({ workUnit, record, expectedRecordVersion }) => {
@@ -609,6 +624,11 @@ export function createRespondDependencies(input: {
         requirePublished,
       });
     },
+    confirmCandidateResponseCommit: ({ workUnit, response, fromHeadSha, toHeadSha }) =>
+      confirmCandidateResponseHeadContinuation({ ...input, workUnit, candidateId: response.candidateId,
+        dispositionSetId: response.dispositionId, expectedResponseId: response.responseId,
+        originatingHeadSha: response.oldTarget.revision, verifiedHeadSha: fromHeadSha, fromHeadSha, toHeadSha,
+        approvedBy: response.approvedBy, appliedBy: response.appliedBy }),
     settleLaneFindings: async (settlement) => {
       await settleLaneAttempt(prepare.operationStore, {
         ...settlement,
@@ -618,6 +638,7 @@ export function createRespondDependencies(input: {
     recordResponsePerformance: async (performance) => {
       await recordLaneResponsePerformance(prepare.operationStore, {
         ...performance,
+        confirmResponseHeadContinuation,
         now: new Date().toISOString(),
       });
     },
@@ -625,6 +646,7 @@ export function createRespondDependencies(input: {
     bindHostedDisposition: async (binding) => {
       await bindHostedAttemptDisposition(prepare.operationStore, {
         ...binding,
+        confirmResponseHeadContinuation,
         now: new Date().toISOString(),
       });
     },
@@ -769,6 +791,7 @@ export function createRespondDependencies(input: {
       try {
         const result = await supersedeHostedAttemptDisposition(prepare.operationStore, {
           ...supersession,
+          confirmResponseHeadContinuation,
           now: new Date().toISOString(),
         });
         return {

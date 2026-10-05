@@ -133,8 +133,12 @@ The arm says what changes and who decides; **depth** says how much must be deriv
 Run [`resolve-planning-depth`][resolve-planning-depth] over the finding and the gap — not over the work unit — and
 take the level it returns. The work unit's `Class` does not govern here.
 
-At every depth, `low` included, run [`spec-review`][spec-review]'s grounding slice over the affected spec elements.
-At `medium` / `high`, run it beside the coherence slice below.
+At every depth, `low` included, retain [`spec-review`][spec-review]'s grounding slice. Run the selected review on
+the written amendment before release, as directed in § The capture commit below.
+Apply both common reader-independence and binding-completeness checks to specification amendments, regardless of when
+the specification was authored, even when grounding is the only selected slice. Cover the amendment footprint,
+including removals and affected surrounding obligations and definitions, without expanding to unrelated content.
+At `medium` / `high`, retain the coherence slice below alongside grounding; unchanged specifications need no retrofit.
 
 - **`low`** — a determinate correction. The Owner's approval at the existing stop is the gate and no adversarial
   pass runs. Run [`task-audit`][task-audit] at grounding-only depth over the revision tasks.
@@ -163,8 +167,10 @@ work unit's `ADVERSARIAL-PASSES.md` through `adversarial-review`'s `prior-findin
 never re-attacked. Append the amendment's pass to that record following [adversarial-review § Pass
 record][pass-record], as the planning passes do. Closure re-runs the detecting check (§ Closure).
 
-**Post-settle coherence re-read** (always-on, in-context): when its pass folded anything, re-read the amended
-footprint for coherence as the last step before the amendment lands, on every arm.
+**Post-settle coherence re-read** (always-on, in-context): when its pass folded anything, re-fire
+[`spec-review`][spec-review]'s coherence slice over the amended footprint as the last step before the amendment
+lands, on every arm. Retain both common reader checks and the affected surrounding contract at this reread, without
+expanding to unrelated content.
 
 ### The accretion guard
 
@@ -251,6 +257,13 @@ The task list carries the revision work, citing the row id in the corrective par
 forward-amendment paragraphs and no provenance in task bodies — the list stays a coherent forward artifact.
 
 ## The capture commit
+
+After the amendment record's bounded writes, run [`spec-review`][spec-review]'s grounding slice at every depth,
+`low` included, over the written specification delta and affected surrounding obligations and definitions. When
+the specification body is unchanged, retain the existing affected-element grounding scope. Apply the common reader
+checks to specifications and retain the other slices selected by § Depth and rigor. Complete this review
+before the existing capture, task, or review-fix commit; route findings through the existing iteration and approval
+flow.
 
 On the **spec-depth and design arms** the capture — log row, revision tasks, body edit, criterion, notes entry,
 and the `Class` ratchet where the depth read requires one — lands as **one commit before corrective work begins**,

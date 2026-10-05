@@ -13,20 +13,16 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State         | Work unit                       | Priority | Owner  | Depends on       | Cohort                   |
-| ------------- | ------------------------------- | -------- | ------ | ---------------- | ------------------------ |
-| `Active`      | storage-contract                | P1       | andrew | —                | state-storage            |
-| `Planning`    | storage-seam                    | P1       | andrew | storage-contract | state-storage            |
-| `Planning`    | candidate-reroot-recovery-frame | P1       | andrew | —                | —                        |
-| `Planning`    | decomposition-doctrine          | P1       | andrew | —                | —                        |
-| `Planning`    | delivery-rebuild-continuity     | P1       | andrew | —                | —                        |
-| `Planning`    | review-checkout-lifecycle       | P1       | andrew | —                | —                        |
-| `Planning`    | stub-mint-to-launch             | P1       | andrew | —                | —                        |
-| `Integrating` | check-id-stabilization          | P2       | andrew | —                | architecture-remediation |
-| `Active`      | spec-reader-standard            | P2       | andrew | —                | doc-conventions          |
-| `Planning`    | workspace-tool-paths            | P2       | andrew | —                | —                        |
-| `Planning`    | artifact-editor-handoff         | P3       | andrew | —                | —                        |
-| `Active`      | cli-help-discovery              | P3       | andrew | —                | —                        |
+| State      | Work unit                       | Priority | Owner  | Depends on | Cohort        |
+| ---------- | ------------------------------- | -------- | ------ | ---------- | ------------- |
+| `Planning` | storage-seam                    | P1       | andrew | —          | state-storage |
+| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —          | —             |
+| `Planning` | decomposition-doctrine          | P1       | andrew | —          | —             |
+| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —          | —             |
+| `Planning` | review-checkout-lifecycle       | P1       | andrew | —          | —             |
+| `Planning` | stub-mint-to-launch             | P1       | andrew | —          | —             |
+| `Active`   | workspace-tool-paths            | P2       | andrew | —          | —             |
+| `Active`   | cli-help-discovery              | P3       | andrew | —          | —             |
 
 ## Ready
 
@@ -75,6 +71,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | sync-handler-decomposition          | P3       | andrew | —          | architecture-remediation   |
 | user-sync-module-split              | P3       | andrew | —          | architecture-remediation   |
 | config-migration-registry           | P3       | andrew | —          | configuration              |
+| config-storage-architecture         | P3       | andrew | —          | configuration              |
 | customization-arch-realign          | P3       | andrew | —          | configuration              |
 | task-list-conventions               | P3       | andrew | —          | doc-conventions            |
 | traceability-identifiers            | P3       | andrew | —          | doc-conventions            |
@@ -118,7 +115,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | unit-scoped-review            | P2       | andrew | commit-increments                                     | approval-flow-refinement   |
 | documentation-surface-routing | P3       | andrew | handoff-optimization                                  | agent-context-optimization |
 | instruction-optimization      | P3       | andrew | composable-workflows                                  | agent-context-optimization |
-| config-storage-architecture   | P3       | andrew | storage-contract                                      | configuration              |
 | workflow-template-loads       | P3       | andrew | composable-workflows                                  | principle-anchored-core    |
 | docs-content-sweep            | P3       | andrew | docs-site-refresh                                     | release-readiness          |
 | comprehension-preservation    | P3       | andrew | execution-delegation-doctrine                         | —                          |

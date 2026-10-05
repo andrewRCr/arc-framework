@@ -1,5 +1,7 @@
 /** GitHub adapter for provider-neutral exact-coordinate merge admission. */
 
+import { setTimeout as delay } from "node:timers/promises";
+
 import {
   ChangeRequestMergeObservationSchema,
   type ChangeRequestMergeCoordinates,
@@ -12,6 +14,7 @@ import { GitObjectIdSchema } from "../../core/gate-contract-v2-schema.js";
 import { readGhRequiredStatusPolicy } from "./checks-await.js";
 
 const MAX_PULL_READS = 3;
+const RECOMPUTATION_PAUSE_MS = 2_000;
 
 function parse(text: string, path: string): unknown {
   try {
@@ -96,16 +99,73 @@ function failureDetail(error: unknown): string {
   return value.replace(/\s+/gu, " ").trim().slice(0, 1_024) || "Host evidence was unavailable.";
 }
 
-/** Build the supported GitHub merge-observation adapter. */
+function testMergeObservation(
+  coordinates: ChangeRequestMergeCoordinates,
+  parents: readonly string[],
+  mergeCommit: string,
+  baseContained: boolean | undefined,
+): ChangeRequestMergeObservation {
+  const evidenceRef = `github:test-merge:${mergeCommit}`;
+  if (parents.length === 2 && parents[0] === coordinates.base && parents[1] === coordinates.head) {
+    return ChangeRequestMergeObservationSchema.parse({ ...coordinates, state: "mergeable", evidenceRef });
+  }
+  if (baseContained === false && parents.length === 2
+    && parents[1] === coordinates.head && parents[0] !== coordinates.head) {
+    return ChangeRequestMergeObservationSchema.parse({
+      ...coordinates,
+      state: "unresolved",
+      condition: "stale-base-test-merge",
+      detail: "GitHub's test merge covers the exact head but a different base; GitHub may still be recomputing "
+        + "its test merge after base movement.",
+      evidenceRef,
+    });
+  }
+  return unresolved(
+    coordinates,
+    "GitHub test-merge parents did not match the requested coordinates; GitHub may still be recomputing "
+      + "its test merge after a base or head movement.",
+  );
+}
+
+function observationLimitResult(
+  coordinates: ChangeRequestMergeCoordinates,
+  lastObservation: ChangeRequestMergeObservation | null,
+  lastDetail: string,
+): ChangeRequestMergeObservation {
+  if (lastObservation?.state === "unresolved") {
+    return {
+      ...lastObservation,
+      detail: `${lastObservation.detail} The three-read observation limit was reached. `
+        + "Retry exact merge admission after GitHub recomputes the test merge.",
+    };
+  }
+  return unresolved(coordinates, `${lastDetail} The three-read observation limit was reached.`);
+}
+
+/**
+ * Build the supported GitHub merge-observation adapter.
+ *
+ * @param runner - GitHub process boundary.
+ * @param overrides - Optional abort-aware time boundary for recomputation waits.
+ * @returns The exact-coordinate host admission port.
+ */
 export function createGhChangeRequestMergeObservationPort(
   runner: HostedProcessRunner,
+  overrides: { wait?: (milliseconds: number, signal: AbortSignal) => Promise<void> } = {},
 ): ChangeRequestMergeObservationPort {
+  const wait = overrides.wait ?? ((milliseconds, signal) => delay(milliseconds, undefined, { signal }));
   return {
     async observe(coordinates, options) {
       const signal = options?.signal ?? AbortSignal.timeout(60_000);
       let lastDetail = "GitHub did not finish computing exact merge admission.";
+      let lastObservation: ChangeRequestMergeObservation | null = null;
+      let recomputing = false;
       for (let attempt = 0; attempt < MAX_PULL_READS; attempt += 1) {
         signal.throwIfAborted();
+        if (recomputing) await wait(RECOMPUTATION_PAUSE_MS, signal);
+        signal.throwIfAborted();
+        recomputing = false;
+        lastObservation = null;
         let pull: PullObservation;
         try {
           pull = pullObservation(parse((await runner.run([
@@ -160,18 +220,13 @@ export function createGhChangeRequestMergeObservationPort(
             const parents = commitParents(parse((await runner.run([
               "api", `repos/${coordinates.repository}/commits/${pull.mergeCommit}`,
             ], { signal })).stdout, "test-merge-commit"));
-            if (parents.length === 2 && parents[0] === coordinates.base && parents[1] === coordinates.head) {
-              return ChangeRequestMergeObservationSchema.parse({
-                ...coordinates,
-                state: "mergeable",
-                evidenceRef: `github:test-merge:${pull.mergeCommit}`,
-              });
+            const observation = testMergeObservation(coordinates, parents, pull.mergeCommit, options?.baseContained);
+            if (observation.state !== "unresolved" || observation.condition !== "stale-base-test-merge") {
+              return observation;
             }
-            return unresolved(
-              coordinates,
-              "GitHub test-merge parents did not match the requested coordinates; GitHub may still be recomputing "
-                + "its test merge after a base or head movement.",
-            );
+            lastObservation = observation;
+            recomputing = true;
+            continue;
           } catch (error) {
             if (signal.aborted) signal.throwIfAborted();
             lastDetail = `GitHub test-merge evidence was unavailable: ${failureDetail(error)}`;
@@ -186,8 +241,9 @@ export function createGhChangeRequestMergeObservationPort(
           );
         }
         lastDetail = "GitHub is still computing exact merge admission.";
+        recomputing = true;
       }
-      return unresolved(coordinates, `${lastDetail} The three-read observation limit was reached.`);
+      return observationLimitResult(coordinates, lastObservation, lastDetail);
     },
   };
 }

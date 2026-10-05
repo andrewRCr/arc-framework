@@ -18,7 +18,8 @@ const TransitionEdgeSchema = z.strictObject({
   dependent: TransitionSlugSchema,
   disposition: z.discriminatedUnion("kind", [ReplaceDispositionSchema, DropDispositionSchema]),
 });
-const TransitionRecordSchema = z.strictObject({
+/** Validated terminal transition shape, including its origin and successor invariants. */
+export const TransitionRecordSchema = z.strictObject({
   schemaVersion: z.literal(1),
   origin: TransitionSlugSchema,
   kind: z.enum(["decompose", "rename", "abandon"]),

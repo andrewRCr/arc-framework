@@ -142,7 +142,7 @@ function workUnitContext(
       sessionType: context.sessionType,
     }),
     loadSet: context.loadSet,
-    taskCursor: context.taskCursor,
+    taskCursor: context.sessionType === "planning" ? null : context.taskCursor,
   };
 }
 
@@ -168,7 +168,7 @@ function transientContext(
       sessionType: parent?.sessionType ?? null,
     }),
     loadSet: appendRecoveryWorkflow(parent?.loadSet ?? baseLoadSet(options), workflow.path),
-    taskCursor: parent?.taskCursor ?? null,
+    taskCursor: parent?.sessionType === "planning" ? null : parent?.taskCursor ?? null,
   };
 }
 

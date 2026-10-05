@@ -29,7 +29,7 @@
 import { basename, join } from "node:path";
 
 import { parseSpecInput } from "../lib/active/spec-input-parser.js";
-import { validateMetaFieldBlockShape, type MetaFieldName } from "../lib/active/meta-reader.js";
+import { readActiveMetaCandidates, validateMetaFieldBlockShape, type MetaFieldName } from "../lib/active/meta-reader.js";
 import {
   BEGIN_CURRENT_WORKFLOW_SENTINEL,
 } from "../lib/active/current-workflow-consistency.js";
@@ -544,6 +544,19 @@ export function deriveColdStartWuName(
   return parsed.success ? parsed.data : null;
 }
 
+async function coldStartOccupancyRefusal(worktreePath: string): Promise<string | null> {
+  const active = await resolveActiveWu({ cwd: worktreePath });
+  if (active.status === "none") return null;
+  const existing = active.status === "resolved"
+    ? active.name || active.path
+    : (await readActiveMetaCandidates(worktreePath)).candidates.map((candidate) => candidate.path).join(", ")
+      || active.hint;
+  const occupancy = active.status === "resolved" ? "an active work unit" : "multiple active work units";
+  return `worktree already has ${occupancy} (${existing}); `
+    + "resolve the existing work-unit occupancy before retrying; "
+    + "cold-start is for a worktree with no ARC work unit";
+}
+
 /**
  * Scaffold a Planning meta + SESSION-NOTES into the current worktree
  * (use-existing / cold-start). Refuses, without writing, when the WU name
@@ -580,16 +593,8 @@ export async function runColdStart(
   // Guard: cold-start is for a worktree with no ARC work unit. Refuse rather
   // than clobber an existing meta — the agent's dispatch decides resume vs.
   // cold-start, and this keeps the command safe under any caller.
-  const active = await resolveActiveWu({ cwd: params.worktreePath });
-  if (active.status === "resolved") {
-    const existing = active.name || active.path;
-    return {
-      ok: false,
-      reason:
-        `worktree already has an active work unit (${existing}); `
-        + "cold-start is for a worktree with no ARC work unit",
-    };
-  }
+  const occupancyRefusal = await coldStartOccupancyRefusal(params.worktreePath);
+  if (occupancyRefusal !== null) return { ok: false, reason: occupancyRefusal };
 
   let origin: string | undefined;
   let design: string | undefined;

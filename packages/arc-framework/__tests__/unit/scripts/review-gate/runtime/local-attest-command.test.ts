@@ -431,11 +431,14 @@ describe("local attest command", () => {
     expect(readReceipts).not.toHaveBeenCalled();
   });
 
-  it.each(["clean", "findings"] as const)(
-    "refuses late %s attestation after a failed attempt before appending a receipt",
-    async (verdict) => {
+  it.each([
+    ["terminal-failure", "clean"], ["terminal-failure", "findings"],
+    ["stale-target", "clean"], ["stale-target", "findings"],
+  ] as const)(
+    "refuses late %s / %s attestation before appending a receipt",
+    async (outcome, verdict) => {
       const records = fixture();
-      records.laneProgress.attempts[0]!.outcome = "terminal-failure";
+      records.laneProgress.attempts[0]!.outcome = outcome;
       const appendReceipt = vi.fn();
       const inspectMaterialization = vi.fn();
       const readSource = vi.fn();

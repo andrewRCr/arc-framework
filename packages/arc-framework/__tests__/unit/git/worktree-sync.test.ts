@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
@@ -728,6 +728,34 @@ describe("runPassiveWorktreeInspection", () => {
 });
 
 describe("runMaterializingWorktreeInspection", () => {
+  it("allows a materializing fetch to finish beyond the passive probe deadline", async () => {
+    vi.useFakeTimers();
+    try {
+      const oid = "a".repeat(40);
+      const { exec } = buildExec({
+        [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
+        "for-each-ref *": { stdout: "origin/main", stderr: "" },
+        [FETCH_BRANCH]: (args, options) => new Promise((resolve, reject) => {
+          const timer = setTimeout(() => resolve({ stdout: "", stderr: "" }), 4000);
+          options?.signal?.addEventListener("abort", () => {
+            clearTimeout(timer);
+            reject(makeGitProcessError({ command: "git", args, isCanceled: true }));
+          });
+        }),
+        "rev-parse origin/main": { stdout: oid, stderr: "" },
+        "rev-parse --verify *": { stdout: oid, stderr: "" },
+        "rev-parse --is-shallow-repository": { stdout: "false", stderr: "" },
+        "rev-parse HEAD": { stdout: oid, stderr: "" },
+      });
+      const result = expect(runMaterializingWorktreeInspection({ exec })).resolves.toMatchObject({
+        state: "clean", remoteEvidence: "exact",
+      });
+      await Promise.all([result, vi.advanceTimersByTimeAsync(4000)]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("materializes the renamed branch configured on origin", async () => {
     const oid = "9".repeat(40);
     const { exec } = buildExec({
@@ -845,7 +873,9 @@ describe("runMaterializingWorktreeInspection", () => {
     await expect(runMaterializingWorktreeInspection({
       exec,
       fetchTimeoutMs: 25,
-    })).rejects.toThrow(/timed out/u);
+    })).rejects.toMatchObject({
+      name: "WorktreeFetchTimeoutError", branch: "main", remoteBranch: "main", timeoutMs: 25,
+    });
   });
 
   it.each([

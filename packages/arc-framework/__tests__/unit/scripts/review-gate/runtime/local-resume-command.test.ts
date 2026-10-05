@@ -323,9 +323,19 @@ describe("local resume command", () => {
     expect(materialize).toHaveBeenCalledWith(records.source);
   });
 
-  it("routes a failed old operation to a new review without restoring its source", async () => {
+  it.each([
+    ["terminal-failure", "current"], ["stale-target", "current"],
+    ["terminal-failure", "stale"], ["stale-target", "stale"],
+  ] as const)(
+    "routes a %s old operation at a %s target to a new review without restoring its source", async (outcome, currency) => {
     const records = fixture();
-    records.laneProgress.attempts[0]!.outcome = "terminal-failure";
+    const currentTarget = createReviewTarget({
+      schemaVersion: 2, semanticsVersion: "review-gate/v2", kind: records.operation.target.kind,
+      repositoryId: records.operation.repositoryId, baseRef: records.operation.target.baseRef,
+      diffBaseSha: records.operation.target.diffBaseSha, diffBaseTree: records.operation.target.diffBaseTree,
+      headSha: objectId("e"), headTree: objectId("f"),
+    });
+    records.laneProgress.attempts[0]!.outcome = outcome;
     const materialize = vi.fn();
     const appendReceipt = vi.fn();
     const readSource = vi.fn();
@@ -353,7 +363,10 @@ describe("local resume command", () => {
         readDispositionRecord: vi.fn(),
         appendDispositionRecord: vi.fn(),
       },
-      confirmTarget: async () => ({ state: "current", target: records.operation.target }),
+      confirmTarget: async () => currency === "current"
+        ? { state: "current", target: records.operation.target }
+        : { state: "stale-target", attemptedTarget: records.operation.target,
+          currentTarget },
       materialize,
       now: () => "2026-07-23T17:00:30Z",
     })).resolves.toMatchObject({

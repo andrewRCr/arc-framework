@@ -10,6 +10,11 @@ now), the **scope boundary** (what is deliberately _not_ in scope), and **one fa
 where the design is settled coming in. Revise the paragraph in place as understanding sharpens — it is a
 living record, not a one-time pitch.}
 
+{Make the intent, boundary, and signal understandable without planning history, retaining every binding obligation
+and required definition when replacing a planning reference. Preserve technical precision and permitted references;
+describe unshipped prerequisites as expected contracts with availability conditions. Apply
+[spec-review][spec-review]'s common reader checks; metadata and amendment anchors supply tracking, not missing design.}
+
 _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`. The freeze governs
 the **scope boundary** clause alone — intent and the success signal keep revising in place, and amendment lines
 append below this paragraph._
@@ -29,3 +34,4 @@ sets are defined once, in [`amend-design`][amend-design]. Replace the example ro
 ---
 
 [amend-design]: ../../../../../system/workflows/arc/supplemental/amend-design.md
+[spec-review]: ../../../../../system/methods/spec-review.md
