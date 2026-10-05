@@ -11,14 +11,14 @@
 - **Design:** `spec-cli-help-discovery.md`
 - **Task List:** `tasks-cli-help-discovery.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:763d3da7a3ebec82dcad885859530eab4b5e965d86a0efc601c3c52e3f56fcb8`
+- **Candidate:** `sha256:3d5aea9b80daa938450a9aec71a6d3a3a0b110c53acf0eb44534bd331ff9d90d`
 
 - **Current Workflow:** `integrate-work-unit`
 - **Last Completed:** Task 3.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]

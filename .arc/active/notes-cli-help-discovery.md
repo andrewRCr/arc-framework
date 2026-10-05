@@ -22,6 +22,7 @@ request, schema-discovery, and input-exclusivity behavior. `resolveCommandIntera
 - [Discovery evidence](#discovery-evidence)
 - [Verification evidence](#verification-evidence)
 - [Base reconciliation](#base-reconciliation)
+- [CI assertion correction](#ci-assertion-correction)
 
 ## Navigation alternatives
 
@@ -488,6 +489,84 @@ criteria:
       No implementation criterion, scope gap or deferred original intent remains. The merged subject has fresh
       full verification for Candidate preparation; exact review authority is composed by the subsequent typed
       procedure.
+    state: "[x]"
+summary: { met: 8, superseded: 0, unresolved: 0 }
+```
+
+## CI assertion correction
+
+Hosted Codex returned clean for publication head `701d9df400221da95fdf0813cee7faa2e62c3945` on PR #817.
+CI then exposed 15 failures in one review-surface assertion: it prohibited any help mention of `--json`, including
+accurate unsupported-flag guidance. Commit `50273170cfc5662b3a6de997ccd4ae102e85d97a` checks option rows instead,
+including the matching guard on automatic-output pages. All 42 cases in that file now pass, including existing parser
+rejection checks. The old CI result remains failed; the new head requires its own CI result.
+
+The full work-unit criteria were re-walked against the complete current diff and reachable tree. All criterion
+identities are unchanged. Runtime source, dependency, build, routine-test and shell inputs match the reconciled tree,
+so their completed green checks remain valid under the unchanged-input rule. Fresh whole TypeScript lint, both type
+checks, affected E2E checks, Markdown lint and ARC contracts cover the changed inputs. The aggregate self-review found
+no additional issue. Earlier independent reports retain their original subjects; the advisory one-pass allowance is
+exhausted and no additional pass was invoked.
+
+```yaml
+criteria-slice: Success Criteria
+span:
+  diff:
+    baseSha: 68e321a0f8fcbf056cea86baefbd5237ffb13bb4
+    headSha: 50273170cfc5662b3a6de997ccd4ae102e85d97a
+    kind: complete-work-unit
+  reachability: complete current tree plus this verification record
+  boundary-order-deviation: null
+criteria:
+  - locus: Success Criteria > 1
+    criterion-digest: sha256:e350da1f38f73a042bb49e099e1a1c63b2d8cfd94bd81bec01a922d3d04164a1
+    evidence: >-
+      Registration, grouping and inventory inputs are identical to the reconciled source; source-derived
+      guards and the 68-test help/editor result remain valid.
+    state: "[x]"
+  - locus: Success Criteria > 2
+    criterion-digest: sha256:4ccae37f7ab2be7ca2eaafb994def87b01d0ae9787c3a319088bdcf4e532ac7f
+    evidence: >-
+      Entry, channel, visibility, loading and native-syntax inputs are unchanged; the corresponding
+      built-CLI and isolation witnesses remain valid.
+    state: "[x]"
+  - locus: Success Criteria > 3
+    criterion-digest: sha256:30f2603448be1154762a58094225c9923ba24c6e15f3155af07c8009e5cb2641
+    evidence: >-
+      All 184 summaries, purposes, inherited options, section ordering and width behavior remain present
+      in the unchanged runtime tree.
+    state: "[x]"
+  - locus: Success Criteria > 4
+    criterion-digest: sha256:f06be541b5c1ee8ec27c06ea52fedd3953b8e6b582a052899af57b0a390ec8e3
+    evidence: >-
+      The ten example sets, assumptions and continuation guidance retain their checked source and built-
+      CLI witnesses.
+    state: "[x]"
+  - locus: Success Criteria > 5
+    criterion-digest: sha256:d9a99fdd8dca98ca0f87bc1c75f084d7afa95af083c4f3f825479699d26873bf
+    evidence: >-
+      The corrected review-surface file passes all 42 cases, including schema bundles, unsupported JSON
+      rejection and input exclusivity; status inputs and witnesses are unchanged.
+    state: "[x]"
+  - locus: Success Criteria > 6
+    criterion-digest: sha256:f11198a01770fdc764a210c95fef0c130f4587888b489b81db33daa34d4560da
+    evidence: >-
+      Tracked help-only discovery paths still yield the same supported invocations and contextual inputs
+      against the unchanged registration tree.
+    state: "[x]"
+  - locus: Success Criteria > 7
+    criterion-digest: sha256:1ea4d51faae9eee4e2e26241f5c53a09252e4072cac5af386bf483ae843fc588
+    evidence: >-
+      Fresh whole TypeScript lint, both type checks, 42 affected E2E cases, Markdown lint and ARC
+      contracts passed. Unchanged routine-test, shell and build inputs retain the reconciled green
+      results.
+    state: "[x]"
+  - locus: Success Criteria > 8
+    criterion-digest: sha256:58db93fe39223454b81347ff1a639f8238086deb7e85ae3c3f70a2bbbc6c04d1
+    evidence: >-
+      All implementation work is closed with no superseded requirement or deferred intent. Readiness is
+      for Candidate preparation and integration review; new-head CI and exact review remain protocol-
+      owned.
     state: "[x]"
 summary: { met: 8, superseded: 0, unresolved: 0 }
 ```
