@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "self-teardown-husk-projection",
+  "claimId": "66d1e93f7a0471061b6be41b84814512",
+  "createdAt": "2026-10-05T12:46:27.119Z",
+  "updatedAt": "2026-10-05T12:46:27.119Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Exclude only the proven retiring husk projection from teardown competitor detection while preserving genuine conflicts and safe replay.",
+  "branch": "chore/self-teardown-husk-projection",
+  "origin": "inbox",
+  "originEntry": "Keep a self-teardown husk's stale meta out of competing-projection detection",
+  "originEntrySourceDigest": "sha256:f021495e330fc715cfaf782e8dd92d8ce59cc0560cf269c1294bed704b0d10a8",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
