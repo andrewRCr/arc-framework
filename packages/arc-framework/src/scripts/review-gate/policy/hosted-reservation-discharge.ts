@@ -7,6 +7,7 @@ import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import type { GitExec } from "../../../lib/git/index.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
+import { readGitCandidateTargetBase } from "../../../lib/work-unit/git-candidate-effective-target.js";
 import type { DeliveryDischargeTargetLookup } from "../core/delivery-member-lookup.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { LocalApprovedDispositionRecordStore } from
@@ -660,12 +661,14 @@ export function createHostedReservationDischargeReader(input: {
         || observed.request.repository.toLowerCase() !== changeRequest.repository.toLowerCase()) {
         throw new Error("Fresh hosted-review request coordinates are unavailable.");
       }
-      const { stdout: observedBase } = await input.exec(
-        "git",
-        ["merge-base", observed.request.headSha, observed.request.baseRef],
-        { cwd: input.cwd, objectAccess: "local-only" },
-      );
-      return { head: observed.request.headSha, base: observedBase.trim() };
+      const observedBase = await readGitCandidateTargetBase({
+        cwd: input.cwd,
+        revision: observed.request.headSha,
+        baseBranch: observed.request.baseRef,
+        exec: input.exec,
+      });
+      if (observedBase.status !== "resolved") throw new Error(observedBase.detail);
+      return { head: observed.request.headSha, base: observedBase.base };
     };
     const readEarlierAttemptApplicability = snapshot === null
       || changeRequest === null
