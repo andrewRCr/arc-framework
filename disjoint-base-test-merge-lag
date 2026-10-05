@@ -3,7 +3,7 @@
   "slug": "disjoint-base-test-merge-lag",
   "claimId": "dcf7c4df51ca95d61e549fa8508fc0b2",
   "createdAt": "2026-10-05T19:58:44.148Z",
-  "updatedAt": "2026-10-05T19:58:44.148Z",
+  "updatedAt": "2026-10-05T21:14:14.402Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Retry lagging GitHub test-merge observations within the existing bounded loop without forcing reconciliation on proven disjoint movement.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Proceed on disjoint base movement while GitHub's test merge lags, instead of forcing a reconcile",
   "originEntrySourceDigest": "sha256:871a041a69bacf02a30c65e16baa64dd023c8f563030d386f40e066c63cc10f6",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/disjoint-base-test-merge-lag",
+    "headSha": "28ff565a7c06607d24bce3d48b17b81b16e643e6"
+  }
 }
