@@ -1,8 +1,8 @@
 # Metadata: Storage Contract
 
-| **State**     | **Owner** | **Branch**              | **Class** | **Priority** |
-| ------------- | --------- | ----------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/storage-contract` | `Novel`   | `P1`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Novel`   | `P1`         |
 
 - **Cohort:** `state-storage`
 - **Depends On:** [none]
@@ -14,15 +14,15 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:69b9660eec916aac7c0168c8b15490e4c57f8f415a37dfb8c5250632c780d97c`
 
-- **Current Workflow:** `integrate-work-unit`
+- **Current Workflow:** [none]
 - **Last Completed:** Task 8.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/810>
+- **Completed:** 2026-10-05
 
 ---
 
