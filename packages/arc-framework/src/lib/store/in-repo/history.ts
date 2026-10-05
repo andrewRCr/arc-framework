@@ -20,7 +20,9 @@ export async function stateVersion(context: InRepoContext): Promise<StateVersion
   const result = await context.ports.exec("git", ["rev-parse", "HEAD"], {
     cwd: context.ports.checkoutRoot, objectAccess: "local-only",
   });
-  return StateVersionSchema.parse(result.stdout.trim());
+  const version = StateVersionSchema.parse(result.stdout.trim());
+  context.savedObjectIdLength = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(version) ? version.length : undefined;
+  return version;
 }
 /** Read tracked versions newest first, conserving commit messages.
  * @param context - Explicit repository dependencies.

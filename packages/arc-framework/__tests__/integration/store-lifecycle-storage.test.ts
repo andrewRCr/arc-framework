@@ -5,24 +5,26 @@ import { describe, expect, it, onTestFinished } from "vitest";
 import { createStore } from "../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
 import { createStoreLifecycleStorage } from "../../src/lib/store/lifecycle-storage.js";
-import { StateVersionSchema } from "../../src/lib/store/identity.js";
+import { StateVersionSchema, RecordReferenceSchema } from "../../src/lib/store/identity.js";
 import { createGitTreeReadFs } from "../../src/scripts/review-gate/hosts/local/git-tree-fs.js";
 import { readLifecycleSummary, createIntegrationCheckpointDependencies } from "../../src/scripts/integration/checkpoint-composition.js";
 import { createIntegrationMergeDependencies } from "../../src/scripts/integration/merge-composition.js";
 import { createTempRepo, cleanupTempDir, makeGitExec, makeGitExecInput, makeCommit } from "../helpers/integration.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { success } from "../helpers/store/suite-tools.js";
 
 async function fixture() {
   const root = await createTempRepo("arc-lifecycle-storage-");
   onTestFinished(async () => cleanupTempDir(root));
   const exec = makeGitExec(root);
-  const store = createStore(createDefaultStorePorts({ checkoutRoot: root, exec, execInput: makeGitExecInput(root) }));
+  const ports = createDefaultStorePorts({ checkoutRoot: root, exec, execInput: makeGitExecInput(root) });
+  const store = createStore(ports);
   const storage = createStoreLifecycleStorage({ store, checkoutRoot: root });
   const put = async (path: string, content: string) => {
     await mkdir(dirname(join(root, path)), { recursive: true }); await writeFile(join(root, path), content);
   };
   const save = async () => { await exec("git", ["add", "."]); return makeCommit(root, "Save lifecycle records"); };
-  return { root, exec, store, storage, put, save };
+  return { root, exec, ports, store, storage, put, save };
 }
 const completion = "\n## Completion Notes\n\nDelivered the work unit.\n";
 function changeRequestPort(head: string) {
@@ -34,6 +36,120 @@ function changeRequestPort(head: string) {
 }
 
 describe("store lifecycle snapshot", () => {
+  it("bounds saved inventory acquisition independently of snapshot record reads", async () => {
+    const h = await fixture();
+    const paths = [".arc/active", ".arc/backlog/planned/planned", ".arc/backlog/provisional/group/nested",
+      ".arc/completed/2026-q4/01_shipped"];
+    const names = ["active", "planned", "nested", "shipped"];
+    for (const [i, path] of paths.entries()) {
+      const name = names[i]!;
+      await h.put(`${path}/meta-${name}.md`, makeMetaFixture(name, { state: i === 0 ? "Active" : i === 3 ? "Shipped" : "Planning",
+        cohort: i === 2 ? "group" : null }));
+      await h.put(`${path}/notes-${name}.md`, `# ${name}\n\nSaved companion\n`);
+    }
+    await h.save();
+    const actual = h.ports.exec;
+    const actualInput = h.ports.execInput;
+    let inventoryReads = 0;
+    let gitCalls = 0;
+    h.ports.exec = async (command, args, options) => {
+      gitCalls++;
+      if (args[0] === "ls-tree" && args.includes("-t")) inventoryReads++;
+      return actual(command, args, options);
+    };
+    h.ports.execInput = async (args, input, options) => {
+      gitCalls++; return actualInput(args, input, options);
+    };
+    const snapshot = await h.storage.readSnapshot();
+    const acquired = inventoryReads;
+    const before = gitCalls;
+    expect(acquired).toBeGreaterThan(0);
+    for (let repeat = 0; repeat < 2; repeat++) for (const [i, path] of paths.entries()) {
+      const name = names[i]!;
+      expect(await snapshot.fs.readFile(join(h.root, `${path}/meta-${name}.md`))).toContain(`# Metadata: ${name}`);
+      expect(await snapshot.fs.readFile(join(h.root, `${path}/notes-${name}.md`))).toBe(`# ${name}\n\nSaved companion`);
+    }
+    expect(inventoryReads).toBe(acquired);
+    expect(gitCalls - before).toBeLessThanOrEqual(32);
+  });
+  it("isolates saved revisions, live changes, moving refs, and caller-owned listing fields", async () => {
+    const h = await fixture();
+    const path = ".arc/active/meta-example.md";
+    const moved = ".arc/backlog/planned/example/meta-example.md";
+    const original = makeMetaFixture("example");
+    const updated = makeMetaFixture("example", { state: "Planning", priority: "P1" });
+    await h.put(path, original);
+    await h.put(".arc/active/notes-example.md", "First companion\n");
+    await h.save();
+    const movingHexRef = "a".repeat(64);
+    await h.exec("git", ["update-ref", `refs/heads/${movingHexRef}`, "HEAD"]);
+    const old = await h.storage.readSnapshot();
+    const reference = RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "example" } });
+    const listing = success(await h.store.list({ family: "work-item", kind: "work-item/meta", asOf: old.version }));
+    if (listing.status !== "complete") throw new Error("Expected saved records");
+    const fields = listing.records[0]!.fields as { priority: string };
+    fields.priority = "P0";
+    Object.assign(listing.records[0]!.placement!, { kind: "backlog", commitment: "planned" });
+    const again = success(await h.store.list({ family: "work-item", kind: "work-item/meta", asOf: old.version }));
+    expect(again).toMatchObject({ status: "complete", records: [{ fields: { priority: "P3" }, placement: { kind: "active" } }] });
+    await h.put(path, updated);
+    await h.put(".arc/active/notes-example.md", "Second companion\n");
+    expect(success(await h.store.read({ reference })).content).toBe(updated);
+    expect(await old.fs.readFile(join(h.root, path))).toBe(original.trimEnd());
+    expect(success(await h.store.read({ reference, asOf: StateVersionSchema.parse("HEAD") })).content).toBe(original);
+    expect(success(await h.store.read({ reference, asOf: StateVersionSchema.parse(movingHexRef) })).content).toBe(original);
+    await mkdir(join(h.root, ".arc/backlog/planned/example"), { recursive: true });
+    await h.exec("git", ["mv", path, moved]);
+    await h.exec("git", ["mv", ".arc/active/notes-example.md", ".arc/backlog/planned/example/notes-example.md"]);
+    await h.save();
+    await h.exec("git", ["update-ref", `refs/heads/${movingHexRef}`, "HEAD"]);
+    expect(success(await h.store.read({ reference, asOf: StateVersionSchema.parse("HEAD") })).content).toBe(updated);
+    expect(success(await h.store.read({ reference, asOf: StateVersionSchema.parse(movingHexRef) })).content).toBe(updated);
+    const next = await h.storage.readSnapshot();
+    expect(next.version).not.toBe(old.version);
+    for (const snapshot of [old, next, old, next]) {
+      const isOld = snapshot.version === old.version;
+      expect(await snapshot.fs.readFile(join(h.root, isOld ? path : moved))).toBe((isOld ? original : updated).trimEnd());
+      expect(await snapshot.fs.readFile(join(h.root, isOld ? ".arc/active/notes-example.md"
+        : ".arc/backlog/planned/example/notes-example.md"))).toBe(isOld ? "First companion" : "Second companion");
+    }
+    expect(success(await h.store.read({ reference, asOf: StateVersionSchema.parse("HEAD") })).content).toBe(updated);
+    await expect(next.fs.readFile(join(h.root, ".arc/backlog/planned/example/spec-example.md"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+  it("keeps filtered duplicate selection separate from the full saved inventory", async () => {
+    const h = await fixture();
+    await h.put(".arc/active/meta-example.md", makeMetaFixture("example"));
+    await h.put(".arc/backlog/planned/example/meta-example.md", makeMetaFixture("example", { state: "Planning" }));
+    const asOf = StateVersionSchema.parse(await h.save());
+    await h.store.version();
+    const input = { family: "work-item" as const, kind: "work-item/meta" as const, asOf };
+    for (const filter of [undefined, { heldHere: true, locations: ["planned" as const] }, undefined]) {
+      expect(success(await h.store.list({ ...input, filter }))).toMatchObject({ status: "complete", records: [{
+        placement: filter === undefined ? { kind: "active" } : { kind: "backlog", commitment: "planned" },
+      }] });
+    }
+  });
+  it("reconsiders duplicate selection after a denied saved meta is repaired", async () => {
+    const h = await fixture();
+    const completed = ".arc/completed/2026-q4/01_example/meta-example.md";
+    await h.put(completed, makeMetaFixture("example", { state: "Shipped" }));
+    await h.put(".arc/backlog/planned/example/meta-example.md", makeMetaFixture("example", { state: "Planning" }));
+    await h.save();
+    const actual = h.ports.exec;
+    const failure = Object.assign(new Error("Read access denied"), { code: "EACCES" });
+    const target = ":(literal).arc/backlog/planned/example/meta-example.md";
+    h.ports.exec = async (command, args, options) => {
+      if (args[0] === "ls-tree" && args.includes(target)) throw failure;
+      return actual(command, args, options);
+    };
+    const denied = await h.storage.readSnapshot();
+    expect(await denied.fs.readFile(join(h.root, completed))).toContain("`Shipped`");
+    h.ports.exec = actual;
+    const restored = await h.storage.readSnapshot();
+    expect(restored.version).toBe(denied.version);
+    expect(await restored.fs.readFile(join(h.root, ".arc/backlog/planned/example/meta-example.md"))).toContain("`Planning`");
+    await expect(restored.fs.readFile(join(h.root, completed))).rejects.toMatchObject({ code: "ENOENT" });
+  });
   it.each([true, false])("uses original omission evidence only for an in-repo store (%s)", async (stateOffBranch) => {
     const h = await fixture();
     await h.put("README.md", "Repository fixture\n");
