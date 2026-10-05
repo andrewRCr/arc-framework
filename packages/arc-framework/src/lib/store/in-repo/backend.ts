@@ -5,7 +5,7 @@ import type { Store } from "../contract.js";
 import type { StorePorts } from "../ports.js";
 import { createInRepoContext } from "./context.js";
 import { readTracked } from "./read.js";
-import { runOperation, notFound, unsupported } from "./refusals.js";
+import { runOperation, notFound, unsupported, refuse } from "./refusals.js";
 import { stateVersion, trackedHistory, trackedChanges } from "./history.js";
 import { lookupTracked } from "./lookup.js";
 import { listTracked } from "./list.js";
@@ -15,7 +15,7 @@ import type { WriteInput, WriteResult, BatchInput, BatchResult } from "../write.
 import type { InRepoContext } from "./context.js";
 import type { ReadInput, StoreRecord } from "../read.js";
 import type { LookupInput, LookupResult } from "../lookup.js";
-import type { RecordReference } from "../identity.js";
+import { sameReference, type RecordReference } from "../identity.js";
 import type { HistoryEntry } from "../contract.js";
 
 /** Assemble the substrate operations without observing their dependencies.
@@ -82,9 +82,27 @@ async function dispatchedHistory(context: InRepoContext, input: { reference: Rec
   return trackedHistory(context, input);
 }
 async function dispatchedLookup(context: InRepoContext, input: LookupInput): Promise<LookupResult> {
-  if ((input.kind === "claim" && input.claim.kind !== "work-unit") || input.kind === "ref" || input.kind === "slug") {
+  if (input.kind === "slug") return lookupSlugAcrossSubstrates(context, input);
+  if ((input.kind === "claim" && input.claim.kind !== "work-unit") || input.kind === "ref") {
     const found = await (await import("./transient-lookup.js")).lookupTransient(context, input);
     if (found !== null) return found;
   }
   return lookupTracked(context, input);
+}
+
+async function lookupSlugAcrossSubstrates(context: InRepoContext, input: Extract<LookupInput, { kind: "slug" }>): Promise<LookupResult> {
+  const transient = await (await import("./transient-lookup.js")).lookupTransient(context, input);
+  if (transient === null) return lookupTracked(context, input);
+  const tracked = await runOperation(() => lookupTracked(context, input));
+  const candidates = [transient.reference];
+  if (tracked.status === "ok") candidates.push(tracked.result.reference);
+  else if (tracked.refusal.code === "ambiguous-match") candidates.push(...tracked.refusal.candidates);
+  else if (tracked.refusal.code === "not-found") return transient;
+  else return refuse(tracked.refusal);
+  const distinct = candidates.filter((candidate, index) => !candidates.slice(0, index)
+    .some((previous) => sameReference(previous, candidate)));
+  if (distinct.length === 1) return transient;
+  return refuse({ code: "ambiguous-match", class: "recoverable", candidates: distinct,
+    condition: "The slug identifies distinct work-item records across local substrates.",
+    remedy: { text: "Use a kind-specific checkout claim or branch ref, then retry lookup." } });
 }
