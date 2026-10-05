@@ -1359,7 +1359,7 @@ activeCmd
 
 program
   .command("view")
-  .description("Render an artifact from the current ARC work context")
+  .description("View an artifact from the current ARC work context")
   .argument(
     "[kind]",
     "Artifact kind: tasks | spec | draft | meta | notes | cohort | session-notes | working-memory | inbox",
@@ -1367,7 +1367,22 @@ program
   .option("--project", "With inbox: render the shared project inbox")
   .option("--current", "With tasks: render only the current task region")
   .option("--path", "Print the artifact's absolute path instead of rendering it")
+  .option("-e, --editor", "Open the artifact's real file in the configured editor")
   .option("--for <slug>", "Override ambient context with the named work-unit slug")
+  .addHelpText("after", [
+    "",
+    "Bare selection: tasks -> spec -> draft -> meta. Ordinary view renders the file.",
+    "Editor handoff:",
+    "  --editor / -e opens the same real absolute file as --path.",
+    "  Use non-empty ARC_EDITOR; otherwise Git selects GIT_EDITOR, core.editor,",
+    "  VISUAL, EDITOR, then its compile-time default (usually vi).",
+    "  Requires interactive stdin/stdout; --no-input, CI, and piped streams refuse.",
+    "  Cannot combine --editor with --path or --current.",
+    "  Inherits terminal streams and waits for the command, preserving wait flags.",
+    "  Command success confirms handoff; buffer opening and saving depend on the editor.",
+    "  Example: ARC_EDITOR='code --wait' arc view -e",
+    "",
+  ].join("\n"))
   .action(withInteractionContext(
     {},
     async (context, kind: string | undefined, opts: ViewCliOptions) => {

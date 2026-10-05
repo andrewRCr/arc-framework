@@ -4,7 +4,7 @@
 
 import { access, chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 import {
@@ -51,7 +51,10 @@ describe("arc view", () => {
     ].join("\n"));
   });
 
-  afterEach(async () => cleanupTempDir(cwd));
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    await cleanupTempDir(cwd);
+  });
 
   it("writes the plain artifact body with no ANSI decoration", async () => {
     await writePresentationMeta(cwd);
@@ -309,7 +312,153 @@ describe("arc view", () => {
     expect(result.exitCode).toBe(1);
     expect(`${result.stdout}${result.stderr}`).toContain("Unknown view kind");
   });
+
+  it.each(["--editor", "-e"])("recognizes %s and refuses noninteractive handoff", async (flag) => {
+    const result = await runArcNoTty(["view", flag], cwd, { env: { ARC_EDITOR: "editor-must-not-run" } });
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("--editor requires an interactive terminal");
+  });
+
+  it.each(["--path", "--current"])("refuses editor with %s before resolution", async (destination) => {
+    const result = await runArcNoTty(["view", "--editor", destination], cwd);
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain(`--editor cannot be combined with ${destination}`);
+  });
+
+  it.runIf(process.platform === "linux").each([
+    { args: ["--no-input", "view", "--editor"], ci: "false" },
+    { args: ["view", "--editor"], ci: "true" },
+  ])("refuses interaction policy $args with CI=$ci even under a TTY", async ({ args, ci }) => {
+    const result = await runArc(args, cwd, { env: { CI: ci, ARC_EDITOR: "editor-must-not-run" } });
+    expect(result.exitCode).toBe(1);
+    expect(`${result.stdout}${result.stderr}`).toContain("--editor requires an interactive terminal");
+    expect(`${result.stdout}${result.stderr}`).not.toContain("editor-must-not-run");
+  });
+
+  it("refuses editor when stdin is piped", async () => {
+    const result = await runArcWithStdin(["view", "--editor"], cwd, "ignored\n");
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("--editor requires an interactive terminal");
+  });
+
+  it.runIf(process.platform === "linux")("refuses editor when only stdout is piped", async () => {
+    const result = await runArcWithStdoutPipe(["view", "--editor"], cwd);
+    expect(result.exitCode).toBe(1);
+    expect(`${result.stdout}${result.stderr}`).toContain("--editor requires an interactive terminal");
+  });
+
+  it.runIf(process.platform === "linux")("hands off the real file with inherited streams and no presentation", async () => {
+    const { command, logPath } = await installFakeEditor(cwd);
+    const { binDir, logPath: rendererLog } = await installFakeGlow(cwd);
+    await git(cwd, ["config", "arc.viewClock", "invalid-clock"]);
+    const before = await readFile(join(cwd, ".arc/active/tasks-feature.md"), "utf8");
+    const result = await runArc(["view", "-e"], cwd, {
+      env: {
+        CI: "false", ARC_EDITOR: `${command} --wait`, ARC_TEST_EDITOR_LOG: logPath,
+        PATH: `${binDir}:${process.env.PATH ?? ""}`, ARC_VIEW_RENDER_LOG: rendererLog,
+      },
+    });
+    expect(result).toEqual({ stdout: "", stderr: "", exitCode: 0 });
+    expect(JSON.parse(await readFile(logPath, "utf8"))).toEqual({
+      args: ["--wait", join(cwd, ".arc/active/tasks-feature.md")], body: before,
+      stdinTTY: true, stdoutTTY: true,
+    });
+    expect(await readFile(join(cwd, ".arc/active/tasks-feature.md"), "utf8")).toBe(before);
+    await expect(access(rendererLog)).rejects.toThrow();
+  });
+
+  it.runIf(process.platform === "linux").each(["tasks", "spec", "draft", "meta"])(
+    "preserves bare %s fallback for editor and path destinations", async (selectedKind) => {
+    const { command, logPath } = await installFakeEditor(cwd);
+    const env = { CI: "false", ARC_EDITOR: command, ARC_TEST_EDITOR_LOG: logPath };
+    await writeFile(join(cwd, ".arc/active/spec-feature.md"), "# Spec\n");
+    await writeFile(join(cwd, ".arc/active/draft-feature.md"), "# Draft\n");
+    for (const kind of ["tasks", "spec", "draft", "meta"]) {
+      if (kind === selectedKind) break;
+      await rm(join(cwd, `.arc/active/${kind}-feature.md`));
+    }
+    const pathResult = await runArcNoTty(["view", "--path"], cwd);
+    expect(pathResult.stdout.trim()).toBe(join(cwd, `.arc/active/${selectedKind}-feature.md`));
+    const result = await runArc(["view", "--editor"], cwd, { env });
+    expect(result).toEqual({ stdout: "", stderr: "", exitCode: 0 });
+    const record = JSON.parse(await readFile(logPath, "utf8")) as { args: string[]; body: string };
+    expect(record.args).toEqual([pathResult.stdout.trim()]);
+    expect(record.body).toBe(await readFile(pathResult.stdout.trim(), "utf8"));
+  });
+
+  it.runIf(process.platform === "linux")("delegates empty ARC_EDITOR to Git and retries failed commands", async () => {
+    const { command, logPath } = await installFakeEditor(cwd);
+    vi.stubEnv("GIT_EDITOR", undefined);
+    await git(cwd, ["config", "core.editor", `${command} --wait`]);
+    const env = { CI: "false", ARC_EDITOR: "", ARC_TEST_EDITOR_LOG: logPath };
+    const selected = await runArc(["view", "--editor"], cwd, { env });
+    expect(selected).toEqual({ stdout: "", stderr: "", exitCode: 0 });
+    const failed = await runArc(["view", "--editor"], cwd, {
+      env: { ...env, ARC_EDITOR: `${command} --wait`, ARC_TEST_EDITOR_EXIT: "7" },
+    });
+    expect(failed.exitCode).toBe(1);
+    expect(`${failed.stdout}${failed.stderr}`).toContain("ARC_EDITOR");
+    const repaired = await runArc(["view", "--editor"], cwd, { env: { ...env, ARC_EDITOR: command } });
+    expect(repaired).toEqual({ stdout: "", stderr: "", exitCode: 0 });
+  });
+
+  it.runIf(process.platform === "linux").each([
+    ["meta", "--for", "feature"], ["tasks", "--for", "feature"], ["spec", "--for", "feature"],
+    ["draft"], ["notes"], ["session-notes"], ["working-memory"], ["inbox"], ["inbox", "--project"],
+  ])("opens the same explicit file as path output for %j", async (...selectors) => {
+    const { command, logPath } = await installFakeEditor(cwd);
+    await git(cwd, ["config", "arc.identity", "andrew"]);
+    for (const kind of ["spec", "draft", "notes"]) {
+      await writeFile(join(cwd, `.arc/active/${kind}-feature.md`), `# ${kind}\n`);
+    }
+    const userRoot = join(cwd, ".arc/user/andrew");
+    await mkdir(join(userRoot, "feature"), { recursive: true });
+    await writeFile(join(userRoot, "feature/SESSION-NOTES.md"), "# Session Notes\n");
+    await writeFile(join(userRoot, "WORKING-MEMORY.md"), "# Working Memory\n");
+    await writeFile(join(userRoot, "USER-INBOX.md"), "# Inbox\n");
+    await mkdir(join(cwd, ".arc/backlog"), { recursive: true });
+    await writeFile(join(cwd, ".arc/backlog/ATOMIC-INBOX.md"), "# Shared Inbox\n");
+    const pathResult = await runArcNoTty(["view", ...selectors, "--path"], cwd);
+    expect(pathResult.exitCode).toBe(0);
+    const result = await runArc(["view", ...selectors, "--editor"], cwd, {
+      env: { CI: "false", ARC_EDITOR: command, ARC_TEST_EDITOR_LOG: logPath },
+    });
+    expect(result).toEqual({ stdout: "", stderr: "", exitCode: 0 });
+    const record = JSON.parse(await readFile(logPath, "utf8")) as { args: string[]; body: string };
+    expect(record.args).toEqual([pathResult.stdout.trim()]);
+    expect(record.body).toBe(await readFile(pathResult.stdout.trim(), "utf8"));
+  });
+
+  it.runIf(process.platform === "linux")("fails a missing artifact without handing off to the editor", async () => {
+    const { command, logPath } = await installFakeEditor(cwd);
+    const result = await runArc(["view", "notes", "--editor"], cwd, {
+      env: { CI: "false", ARC_EDITOR: command, ARC_TEST_EDITOR_LOG: logPath },
+    });
+    expect(result.exitCode).toBe(1);
+    expect(`${result.stdout}${result.stderr}`).toContain("notes is not present");
+    await expect(access(logPath)).rejects.toThrow();
+  });
 });
+
+async function installFakeEditor(cwd: string): Promise<{ command: string; logPath: string }> {
+  const { binDir, logPath: rendererLog } = await installFakeGlow(cwd);
+  vi.stubEnv("PATH", `${binDir}:${process.env.PATH ?? ""}`);
+  vi.stubEnv("ARC_VIEW_RENDER_LOG", rendererLog);
+  const scriptPath = join(cwd, "editor recorder.cjs");
+  const logPath = join(cwd, "editor.json");
+  await writeFile(scriptPath, [
+    "const fs = require('node:fs');",
+    "const args = process.argv.slice(2);",
+    "fs.writeFileSync(process.env.ARC_TEST_EDITOR_LOG, JSON.stringify({",
+    "  args, body: fs.readFileSync(args.at(-1), 'utf8'),",
+    "  stdinTTY: process.stdin.isTTY, stdoutTTY: process.stdout.isTTY,",
+    "}));",
+    "process.exit(Number(process.env.ARC_TEST_EDITOR_EXIT || 0));",
+  ].join("\n"));
+  return { command: `'${process.execPath}' '${scriptPath}'`, logPath };
+}
 
 async function installFakeGlow(cwd: string): Promise<{ binDir: string; logPath: string }> {
   const binDir = join(cwd, "fake-bin");
