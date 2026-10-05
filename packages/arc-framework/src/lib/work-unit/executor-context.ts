@@ -11,22 +11,16 @@
  * root — a relocation `git mv` and a worktree `add` stay correct regardless of
  * `process.cwd()`.
  *
- * Scope: this binder wires the four encoding mutators, the foot-gun guards, and the
- * `reconcile-roadmap` / `reconcile-status-user` / `user-workspace` side-effects the
- * `start` dispatch's executor-routed arms (graduate / resume) declare, plus the
- * prepared current-WU reconcile seam used by dependent-owned write ceremonies and
- * the `withdraw-pr` side-effect the `reopen` edge fires
- * (a `gh` write — close or draft the open PR, degrading to an advisory when `gh` is
- * unavailable so the applied phase flip is never left mid-transition). The
- * destructive `scaffold` / `remove` artifact runner is left to the verbs that build
- * their own runner (`stub` / `abandon`).
- *
- * `reconcile-status-user` renders for real here: it composes the per-developer
- * view through the shared `STATUS.USER` assembly (the same one `arc status --user`
- * uses) in local-only mode and writes `STATUS.USER.md`, degrading to an advisory
- * rather than failing the transition if the render or write throws.
- * `reconcile-roadmap` writes and stages the project readiness view through the
- * shared status renderer.
+ * Scope: this binder wires the four encoding mutators, the foot-gun guards, the
+ * `user-workspace` side-effect the `start` dispatch's executor-routed arms (graduate /
+ * resume) declare, and the `withdraw-pr` side-effect the `reopen` edge fires (a `gh`
+ * write — close or draft the open PR, degrading to an advisory when `gh` is
+ * unavailable so the applied phase flip is never left mid-transition). It composes
+ * two sibling bindings over the same seams: the status-view side-effects
+ * (`reconcile-roadmap` / `reconcile-status-user`, {@link buildStatusSideEffects}) and
+ * the prepared current-WU reconcile seam used by dependent-owned write ceremonies
+ * ({@link buildCurrentWuReconcile}). The destructive `scaffold` / `remove` artifact
+ * runner is left to the verbs that build their own runner (`stub` / `abandon`).
  *
  * @module
  */
@@ -56,10 +50,7 @@ import {
 } from "../active/meta-reader.js";
 import { readActiveMetaCandidates } from "../active/meta-reader.js";
 import { checkCurrentWorkflowConsistency } from "../active/current-workflow-consistency.js";
-import { captureGitIndexState, getCurrentBranch, type GitExec } from "../git/exec.js";
-import { assembleStatusUserView } from "../status/assemble-user-view.js";
-import { renderRoadmapFromIndexViewResult } from "../status/roadmap-regeneration-assert.js";
-import { resolveUserSurfaceResolver } from "../user-surfaces.js";
+import type { GitExec } from "../git/exec.js";
 import { SlugSchema } from "../kernel/index.js";
 import { resolveArcPath } from "../layout/index.js";
 import type { UserIOContext } from "../../commands/user/types.js";
@@ -67,13 +58,9 @@ import type { RawGitExec } from "../git/exec.js";
 import { createExecaRawGitExec } from "../git/process-executor.js";
 import { runUserOpen } from "../../commands/user/open.js";
 import { runUserClose } from "../../commands/user/close.js";
-import {
-  enumerateGitTransitionRecords,
-  queryGitTransitionDisposition,
-} from "./git-transition-record-enumeration.js";
-import { buildLifecycleIndex, type LifecycleIndexFs } from "./lifecycle-index.js";
-import { listParkedSlugs } from "./lifecycle-resolver.js";
-import { listCurrentWuArtifactPaths } from "./reference-reconcile.js";
+import { buildCurrentWuReconcile } from "./executor-context-current-wu.js";
+import { buildStatusSideEffects } from "./executor-context-status.js";
+import type { LifecycleIndexFs } from "./lifecycle-index.js";
 import type { ExecuteTransitionContext, SideEffectHandler } from "./lifecycle-executor.js";
 import { buildFootgunGuards } from "./lifecycle-guards.js";
 import { reconcileBranch } from "./mutators/reconcile-branch.js";
@@ -84,14 +71,8 @@ import {
 } from "./mutators/reconcile-work-unit-worktree.js";
 import { relocateArtifacts } from "./mutators/relocate-artifacts.js";
 import { setPhase } from "./mutators/set-phase.js";
-import {
-  applyPreparedCurrentWuReconcile,
-  prepareCurrentWuReconcile,
-  type CurrentWuReconcileHost,
-} from "./side-effects/discharge-dep-edges.js";
-import { reconcileRoadmap, reconcileStatusUserSideEffect } from "./side-effects/readiness-regen.js";
+import type { CurrentWuReconcileHost } from "./side-effects/discharge-dep-edges.js";
 import { withdrawPr } from "./side-effects/withdraw-pr.js";
-import { transitionOverlayCompositionInput } from "./transition-overlay.js";
 import { atomicGraduate } from "./atomic-graduation.js";
 import { createNodeTeardownSelectionReader } from "./teardown-selection.js";
 import { createNodeTeardownWorktreeTransactionDriver } from "./teardown-worktree-transaction.js";
@@ -304,92 +285,20 @@ export function buildExecutorContext(
       await exec("git", ["add", at(metaPath)]);
     },
 
-    currentWuReconcile: {
-      prepare: async (op) =>
-        prepareCurrentWuReconcile(
-          {
-            index: await buildLifecycleIndex({ cwd, fs: indexFs }),
-            queryDisposition: (input) =>
-              queryGitTransitionDisposition(transitionExec, "HEAD", input),
-            enumerateTransitionRecords: () => enumerateGitTransitionRecords(transitionExec, "HEAD"),
-            listArtifactPaths: (slug, ownedMetaPath) =>
-              listCurrentWuArtifactPaths(slug, ownedMetaPath, (path) => readdir(at(path))),
-            readFile: (path) => io.readFile(at(path)),
-          },
-          op,
-        ),
-      apply: (prepared) =>
-        applyPreparedCurrentWuReconcile(
-          {
-            readFile: (path) => io.readFile(at(path)),
-            writeFile: (path, content) => io.writeFile(at(path), content),
-            stagePaths: async (paths, indexFile) => {
-              if (paths.length > 0) await exec("git", ["add", "--", ...paths], { indexFile });
-            },
-            captureIndexState: () => captureGitIndexState(exec, cwd),
-          },
-          prepared,
-        ),
-    },
+    currentWuReconcile: buildCurrentWuReconcile({ cwd, io, exec, transitionExec, indexFs, at }),
 
     guardValidators: buildFootgunGuards({ cwd, readActiveMetaCandidates, exec }),
 
     sideEffects: {
-      "reconcile-roadmap": ({ slug, from, to, inputs }) =>
-        reconcileRoadmap(
-          {
-            composeView: async () => {
-              const currentBranch = await getCurrentBranch(exec);
-              const { result } = await renderRoadmapFromIndexViewResult({
-                cwd,
-                exec,
-                ...(baseBranch !== undefined ? { baseBranch } : {}),
-                currentBranch,
-                ...(inputs.transitionOverlay === undefined
-                  ? {}
-                  : {
-                      transitionOverlays: [transitionOverlayCompositionInput(inputs.transitionOverlay)],
-                    }),
-              });
-              return {
-                content: result.markdown,
-                advisories: result.warnings.map((warning) => warning.rendered),
-              };
-            },
-            mkdir: io.mkdir,
-            writeFile: io.writeFile,
-            stageFile: async (path) => {
-              await exec("git", ["add", path]);
-            },
-          },
-          { cwd, slug, from, to },
-        ),
-      "reconcile-status-user": ({ slug, from, to }) =>
-        reconcileStatusUserSideEffect(
-          {
-            composeView: async () =>
-              (
-                await assembleStatusUserView({
-                  cwd,
-                  exec,
-                  identity,
-                  teamMode,
-                  localOnly: true,
-                  parkedSlugs: listParkedSlugs(await buildLifecycleIndex({ cwd, fs: indexFs })),
-                  readFile: io.readFile,
-                })
-              ).output,
-            mkdir: io.mkdir,
-            writeFile: io.writeFile,
-            resolveIdentityGlobalRoot: async (resolvedIdentity) =>
-              (await resolveUserSurfaceResolver({
-                cwd,
-                identity: SlugSchema.parse(resolvedIdentity),
-                exec,
-              })).identityGlobalRoot,
-          },
-          { cwd, identity, slug, from, to },
-        ),
+      ...buildStatusSideEffects({
+        cwd,
+        io,
+        exec,
+        identity,
+        teamMode,
+        ...(baseBranch !== undefined ? { baseBranch } : {}),
+        indexFs,
+      }),
       "user-workspace": userWorkspaceHandler,
       "withdraw-pr": withdrawPrHandler,
     },
