@@ -3,10 +3,8 @@
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { workUnitPathTreatmentContext } from "../../lib/base-drift/current-adapters.js";
 import type { DeliveryHostPort } from "../../lib/delivery/host.js";
-import {
-  BaseMovementObservationSchema,
-  type EvidenceOverlapObservation,
-} from "../../lib/evidence-applicability/index.js";
+import { BaseMovementObservationSchema, type BaseMovementObservation, type EvidenceOverlapObservation } from
+  "../../lib/evidence-applicability/index.js";
 import { analyzeRevisionOverlap, type RevisionOverlapResult } from "../../lib/git/base-overlap.js";
 import type { GitExec } from "../../lib/git/exec.js";
 import { isGitProcessError } from "../../lib/git/process-error.js";
@@ -344,6 +342,7 @@ export async function readRoutedObligation(
   judgment?: ReviewStatusPolicyJudgment,
   host: Pick<DeliveryHostPort, "readRequest"> = new GhDeliveryHostPort(hostedGhRunner),
   options: {
+    readonly baseMovement?: BaseMovementObservation | null;
     readonly remote?: string;
     readonly changeRequestCandidate?: Pick<ChangeRequestCandidate, "baseRefName" | "url">;
     readonly preparedNativeLanding?: {
@@ -365,6 +364,7 @@ export async function readRoutedObligation(
     ...(judgment?.additionalPassAuthorization === undefined ? {}
       : { additionalPassAuthorization: judgment.additionalPassAuthorization }),
     ...(currentBaseRevision === undefined ? {} : { currentBaseOid: currentBaseRevision }),
+    ...(options.baseMovement === undefined ? {} : { baseMovement: options.baseMovement }),
     ...(options.remote === undefined ? {} : { remote: options.remote }),
     ...(options.changeRequestCandidate === undefined
       ? {}
@@ -889,12 +889,11 @@ export function createReviewStatusPort(
               resolution.candidate.number,
               memberLookup,
               base.currentBaseOid ?? undefined,
-              optionalReviewStatusJudgment({
-                ceilingOverride, additionalPassAuthorization, coverage, sourceId,
-              }),
+              optionalReviewStatusJudgment({ ceilingOverride, additionalPassAuthorization, coverage, sourceId }),
               undefined,
               {
                 remote,
+                baseMovement: base.baseMovement,
                 changeRequestCandidate: resolution.candidate,
                 ...(input.preparedNativeLanding === undefined
                   ? {}
