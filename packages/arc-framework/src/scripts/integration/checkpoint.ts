@@ -1,6 +1,7 @@
 /** Typed integration checkpoint reduction over canonical boundary evidence. */
 
 import { z } from "zod";
+import { describeCheckpointReconciliation } from "./checkpoint-reconciliation-detail.js";
 
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { CanonicalDigestSchema, WorkUnitStateSchema } from "../../lib/kernel/schema/vocabulary.js";
@@ -121,9 +122,13 @@ export type CheckpointMovementObservation = z.infer<typeof CheckpointMovementObs
  */
 export type DeliveryClassifierCommand = "rerun-checkpoint" | "reconcile-base" | "rebaseline" | "merge-unrelated";
 
+export type CheckpointReconciliationRule =
+  | "ambiguous-merge-base" | "regenerable-conflict" | "base-currentness-required" | "overlapping";
+
 export type CheckpointMovementPlan =
   | { state: "proceed" }
-  | { state: "reconcile"; nextAction: "reconcile-base" | "reconcile-regenerable" }
+  | { state: "reconcile"; nextAction: "reconcile-base"; rule: Exclude<CheckpointReconciliationRule, "regenerable-conflict"> }
+  | { state: "reconcile"; nextAction: "reconcile-regenerable"; rule: "regenerable-conflict" }
   | {
       state: "blocked";
       reason: "unsafe-reconcile" | "host-pending" | "host-refused" | "conflict" | "base-unrelated";
@@ -167,7 +172,8 @@ function mutatingReconciliationBar(observation: CheckpointMovementObservation): 
   }
   if (observation.movement !== "unknown" && (
     (observation.admission.state === "unresolved"
-      && observation.admission.condition === "stale-base-test-merge")
+      && observation.admission.condition === "stale-base-test-merge"
+      && (observation.movement === "overlapping" || observation.feasibility.state === "regenerable-conflict"))
     || (observation.admission.state === "refused" && observation.admission.condition === "not-mergeable"
       && observation.feasibility.state === "regenerable-conflict")
   )) return null;
@@ -213,23 +219,23 @@ export function composeCheckpointMovementPlan(input: {
     // The pair has no provable overlap to reconcile against, so the merge is the whole remedy — and it meets
     // the evidence bar every other mutating reconciliation meets before it is allowed to run.
     return observation.integrationEvidenceComplete
-      ? { state: "reconcile", nextAction: "reconcile-base" }
+      ? { state: "reconcile", nextAction: "reconcile-base", rule: "ambiguous-merge-base" }
       : {
           state: "blocked",
           reason: "unsafe-reconcile",
           detail: "A mutating reconciliation requires complete integration evidence.",
         };
   }
-  const reconcileAction = observation.feasibility.state === "regenerable-conflict"
-    ? "reconcile-regenerable"
-    : observation.admission.state === "base-currentness-required" || observation.movement === "overlapping"
-      || (observation.admission.state === "unresolved"
-        && observation.admission.condition === "stale-base-test-merge")
-      ? "reconcile-base"
-      : null;
-  if (reconcileAction === null) return { state: "proceed" };
+  const reconcilePlan = observation.feasibility.state === "regenerable-conflict"
+    ? { state: "reconcile", nextAction: "reconcile-regenerable", rule: "regenerable-conflict" } as const
+    : observation.admission.state === "base-currentness-required"
+      ? { state: "reconcile", nextAction: "reconcile-base", rule: "base-currentness-required" } as const
+      : observation.movement === "overlapping"
+        ? { state: "reconcile", nextAction: "reconcile-base", rule: "overlapping" } as const
+        : null;
+  if (reconcilePlan === null) return { state: "proceed" };
   return observation.integrationEvidenceComplete
-    ? { state: "reconcile", nextAction: reconcileAction }
+    ? reconcilePlan
     : {
         state: "blocked",
         reason: "unsafe-reconcile",
@@ -1366,9 +1372,7 @@ export async function checkpointIntegration(
       reason: movementPlan.nextAction === "reconcile-regenerable"
         ? "regenerable-reconcile-required"
         : "base-reconcile-required",
-      detail: movementPlan.nextAction === "reconcile-regenerable"
-        ? "Exact evidence authorizes the determinate regenerable base reconciliation."
-        : "Exact evidence authorizes an ordinary base reconciliation.",
+      detail: describeCheckpointReconciliation(movementPlan.rule),
       coordinates,
       remedy: spineRemedy(
         "The base reconcile must preserve the checkpoint's exact observed base and Candidate head.",

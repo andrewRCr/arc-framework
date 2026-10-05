@@ -2699,7 +2699,7 @@ function registerReviewBearingIntegration(it: typeof vitestIt): void {
             head: finalTarget.headSha,
           },
         },
-        plan: { state: "reconcile", nextAction: "reconcile-base" },
+        plan: { state: "reconcile", nextAction: "reconcile-base", rule: "overlapping" },
       }),
       mergePinned: () => Promise.reject(new Error("unexpected merge")),
     };

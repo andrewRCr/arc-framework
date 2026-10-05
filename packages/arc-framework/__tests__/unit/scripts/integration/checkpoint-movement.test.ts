@@ -28,7 +28,7 @@ describe("checkpoint movement plan", () => {
 
   it("requires complete evidence before overlapping base reconciliation", () => {
     expect(plan({ movement: "overlapping" })).toEqual({
-      state: "reconcile", nextAction: "reconcile-base",
+      state: "reconcile", nextAction: "reconcile-base", rule: "overlapping",
     });
     expect(plan({ movement: "overlapping", integrationEvidenceComplete: false })).toMatchObject({
       state: "blocked", reason: "unsafe-reconcile",
@@ -38,7 +38,7 @@ describe("checkpoint movement plan", () => {
   it("routes an exact regenerable-only conflict to its distinct remedy", () => {
     expect(plan({
       feasibility: { state: "regenerable-conflict", ...coordinates, paths: ["ROADMAP.md"] },
-    })).toEqual({ state: "reconcile", nextAction: "reconcile-regenerable" });
+    })).toEqual({ state: "reconcile", nextAction: "reconcile-regenerable", rule: "regenerable-conflict" });
   });
 
   it("offers generated-conflict repair before the host can merge the conflicted head", () => {
@@ -48,7 +48,7 @@ describe("checkpoint movement plan", () => {
         state: "refused", ...admissionCoordinates, condition: "not-mergeable",
         detail: "GitHub reports the pull request cannot merge cleanly into its base.",
       },
-    })).toEqual({ state: "reconcile", nextAction: "reconcile-regenerable" });
+    })).toEqual({ state: "reconcile", nextAction: "reconcile-regenerable", rule: "regenerable-conflict" });
   });
 
   it("maps strict-currentness policy to the applicable reconcile arm", () => {
@@ -57,24 +57,38 @@ describe("checkpoint movement plan", () => {
       ...admissionCoordinates,
       detail: "Current base required.",
     };
-    expect(plan({ admission })).toEqual({ state: "reconcile", nextAction: "reconcile-base" });
+    expect(plan({ admission })).toEqual({ state: "reconcile", nextAction: "reconcile-base", rule: "base-currentness-required" });
     expect(plan({
       admission,
       feasibility: { state: "regenerable-conflict", ...coordinates, paths: ["ROADMAP.md"] },
-    })).toEqual({ state: "reconcile", nextAction: "reconcile-regenerable" });
+    })).toEqual({ state: "reconcile", nextAction: "reconcile-regenerable", rule: "regenerable-conflict" });
   });
 
-  it.each(["clean", "regenerable-conflict"] as const)(
-    "repairs %s feasibility when only the host test-merge base is stale", (state) => {
+  it("keeps disjoint clean movement unavailable when the host test merge remains stale", () => {
+    for (const integrationEvidenceComplete of [true, false]) {
       expect(plan({
-        feasibility: state === "clean" ? { state, ...coordinates }
-          : { state, ...coordinates, paths: ["ROADMAP.md"] },
+        integrationEvidenceComplete,
+        admission: {
+          state: "unresolved", ...admissionCoordinates, condition: "stale-base-test-merge",
+          detail: "Observation expired; retry exact admission.",
+        },
+      })).toEqual({ state: "blocked", reason: "host-pending", detail: "Observation expired; retry exact admission." });
+    }
+  });
+
+  it.each(["overlap", "regenerable-conflict"] as const)(
+    "preserves %s reconciliation when the host test-merge base is stale", (cause) => {
+      expect(plan({
+        movement: cause === "overlap" ? "overlapping" : "disjoint",
+        feasibility: cause === "overlap" ? { state: "clean", ...coordinates }
+          : { state: "regenerable-conflict", ...coordinates, paths: ["ROADMAP.md"] },
         admission: {
           state: "unresolved", ...admissionCoordinates, condition: "stale-base-test-merge",
           detail: "The test merge covers an earlier base.", evidenceRef: "github:test-merge:stale",
         },
       })).toEqual({
-        state: "reconcile", nextAction: state === "clean" ? "reconcile-base" : "reconcile-regenerable",
+        state: "reconcile", nextAction: cause === "overlap" ? "reconcile-base" : "reconcile-regenerable",
+        rule: cause === "overlap" ? "overlapping" : "regenerable-conflict",
       });
     },
   );
@@ -102,6 +116,7 @@ describe("checkpoint movement plan", () => {
     "requires complete integration evidence for %s stale-base repair", (state) => {
       expect(plan({
         integrationEvidenceComplete: false,
+        movement: "overlapping",
         feasibility: state === "clean" ? { state, ...coordinates }
           : { state, ...coordinates, paths: ["ROADMAP.md"] },
         admission: {
@@ -155,6 +170,7 @@ describe("checkpoint movement plan", () => {
     expect(plan({ movement: "unknown", movementCause: "ambiguous" })).toEqual({
       state: "reconcile",
       nextAction: "reconcile-base",
+      rule: "ambiguous-merge-base",
     });
   });
 
