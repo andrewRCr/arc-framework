@@ -392,10 +392,18 @@ export async function reconcileNotesPush(
  */
 async function reconcileAndRepush(options: ReconcileNotesPushOptions): Promise<NotesPushOutcome> {
   let merged: NotesPushOutcome | null;
+  const failure: { error?: Error } = {};
   try {
-    merged = await withReconcileLock(options, () => mergeNotesUnderLock(options));
+    merged = await withReconcileLock(options, async () => {
+      const result = await mergeNotesUnderLock(options);
+      // Retain the producer's failure before lock release can reject its result.
+      if (result?.kind === "failed") failure.error = result.error;
+      return result;
+    });
   } catch (err) {
-    return { kind: "failed", error: err instanceof Error ? err : new Error(String(err)) };
+    const error = err instanceof Error ? err : new Error(String(err));
+    if (failure.error === undefined) return { kind: "failed", error };
+    return { kind: "failed", error: new AggregateError([failure.error, error], failure.error.message, { cause: failure.error }) };
   }
   if (merged !== null) return merged;
   let repush: UserPushResult;
