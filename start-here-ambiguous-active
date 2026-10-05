@@ -3,7 +3,7 @@
   "slug": "start-here-ambiguous-active",
   "claimId": "941a4c031bde369254d9c79953e02349",
   "createdAt": "2026-10-05T04:25:10.871Z",
-  "updatedAt": "2026-10-05T04:25:10.871Z",
+  "updatedAt": "2026-10-05T12:04:11.346Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "start-here-ambiguous-active",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Refuse `arc start --here` cold start when the checkout's active work unit is ambiguous",
   "originEntrySourceDigest": "sha256:7b65431890506ba93cbe4c86b3c956635fda7cf7298c91485fa17c6d94fc372e",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/start-here-ambiguous-active",
+    "headSha": "ac1e2180f2a5ce260702b57116091e870d78b969"
+  }
 }
