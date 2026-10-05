@@ -22,12 +22,12 @@ import {
   isRemoteUnavailableError,
   MAX_RECONCILE_ATTEMPTS,
   uniqueRefToken,
+  readTreeEntriesStrict,
 } from "../git/ref-tree.js";
-import { gitFailureText } from "../git/process-error.js";
+import { gitFailureText, isCompletedGitFailure, normalizeGitRejection } from "../git/process-error.js";
+import { classifyPublicationFailure, type RemotePublicationFailure } from "../git/publication-failure.js";
 import {
   errandsRef,
-  readRefTip,
-  readTreeEntriesDiscriminating,
   writeTreeCommit,
   type ErrandRecordIO,
 } from "./ref-tree.js";
@@ -77,8 +77,12 @@ export type ErrandPushOutcome =
   | { kind: "noop" }
   | { kind: "reconciled" }
   | { kind: "conflict"; slugs: string[] }
-  | { kind: "no-remote" }
-  | { kind: "failed"; error: Error };
+  | { kind: "no-remote"; error?: Error; remoteFailure?: RemotePublicationFailure }
+  | { kind: "failed"; error: Error; remoteFailure?: RemotePublicationFailure };
+
+class RemoteReconcileError extends Error {
+  constructor(readonly original: Error, readonly remoteFailure: RemotePublicationFailure | undefined) { super(original.message); }
+}
 
 /**
  * Push the errand ref, reconciling a concurrent-remote non-fast-forward.
@@ -95,7 +99,8 @@ export type ErrandPushOutcome =
  */
 export async function reconcileErrandPush(io: ErrandRecordIO): Promise<ErrandPushOutcome> {
   const ref = errandsRef(io.identity);
-  if ((await readRefTip(io.exec, ref)) === null) return { kind: "noop" };
+  try { if ((await readMutatingTip(io.exec, ref)) === null) return { kind: "noop" }; }
+  catch (error) { return { kind: "failed", error: error instanceof Error ? error : new Error(String(error), { cause: error }) }; }
 
   let reconciledOnce = false;
   // Up to MAX_RECONCILE_ATTEMPTS reconciles, each followed by a retry push — so the
@@ -106,13 +111,8 @@ export async function reconcileErrandPush(io: ErrandRecordIO): Promise<ErrandPus
       await io.exec("git", ["push", "origin", ref]);
       return reconciledOnce ? { kind: "reconciled" } : { kind: "pushed" };
     } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      const detail = gitFailureText(err);
-      if (isRemoteUnavailableError(detail)) return { kind: "no-remote" };
-      if (!isNonFastForwardError(detail)) return { kind: "failed", error };
-      if (attempt === MAX_RECONCILE_ATTEMPTS) {
-        return { kind: "failed", error: new Error("errand push: exceeded reconcile attempts") };
-      }
+      const failure = terminalPushFailure(err, attempt);
+      if (failure !== undefined) return failure;
 
       // Keep the outcome single-channel: a fetch/read/commit failure inside the
       // reconcile — including a same-machine CAS rejection in the local-commit leg
@@ -121,6 +121,7 @@ export async function reconcileErrandPush(io: ErrandRecordIO): Promise<ErrandPus
       try {
         reconcile = await reconcileTrees(io, ref);
       } catch (reconcileErr) {
+        if (reconcileErr instanceof RemoteReconcileError) return { kind: "failed", error: reconcileErr.original, remoteFailure: reconcileErr.remoteFailure };
         return {
           kind: "failed",
           error: reconcileErr instanceof Error ? reconcileErr : new Error(String(reconcileErr)),
@@ -135,6 +136,18 @@ export async function reconcileErrandPush(io: ErrandRecordIO): Promise<ErrandPus
   return { kind: "failed", error: new Error("errand push: exceeded reconcile attempts") };
 }
 
+function terminalPushFailure(error: unknown, attempt: number): ErrandPushOutcome | undefined {
+  const original = error instanceof Error ? error : new Error(String(error));
+  const remoteFailure = classifyPublicationFailure(error);
+  if (!isCompletedGitFailure(error)) return { kind: "failed", error: original, remoteFailure };
+  const detail = gitFailureText(error);
+  if (isRemoteUnavailableError(detail)) return { kind: "no-remote", error: original, remoteFailure };
+  if (!isNonFastForwardError(detail)) return { kind: "failed", error: original, remoteFailure };
+  if (attempt !== MAX_RECONCILE_ATTEMPTS) return undefined;
+  return { kind: "failed", error: new Error("errand push: exceeded reconcile attempts"),
+    remoteFailure: classifyPublicationFailure(error, attempt + 1) };
+}
+
 /**
  * Fetch the remote ref, merge it into the local tree, and (when clean) commit
  * the union onto both tips so the next push fast-forwards. Leaves the local ref
@@ -145,7 +158,8 @@ async function reconcileTrees(io: ErrandRecordIO, ref: string): Promise<ErrandTr
   // same-machine reconcile's cleanup delete it before this one resolves incomingTip,
   // which would then read the remote side as empty and CAS-write a narrowed tree.
   const incoming = `${incomingErrandRef(ref)}__${uniqueRefToken()}`;
-  await io.exec("git", ["fetch", "origin", `+${ref}:${incoming}`]);
+  try { await io.exec("git", ["fetch", "origin", `+${ref}:${incoming}`]); }
+  catch (error) { throw new RemoteReconcileError(error instanceof Error ? error : new Error(String(error)), classifyPublicationFailure(error)); }
   try {
     // Resolve both tips first and read each tree at that exact commit, so the merge
     // input and the compare-and-swap base are bound to one snapshot. Reading the
@@ -153,8 +167,8 @@ async function reconcileTrees(io: ErrandRecordIO, ref: string): Promise<ErrandTr
     // writer advance `ref` in between — the CAS would then pass against the fresher
     // tip while committing a merge built on the stale tree, silently dropping the
     // racer's slug.
-    const localTip = await readRefTip(io.exec, ref);
-    const incomingTip = await readRefTip(io.exec, incoming);
+    const localTip = await readMutatingTip(io.exec, ref);
+    const incomingTip = await readMutatingTip(io.exec, incoming);
     const local = localTip ? await readErrandReconcileTree(io.exec, localTip) : new Map<string, string>();
     const remote = incomingTip ? await readErrandReconcileTree(io.exec, incomingTip) : new Map<string, string>();
     const result = mergeErrandTrees(local, remote);
@@ -168,19 +182,19 @@ async function reconcileTrees(io: ErrandRecordIO, ref: string): Promise<ErrandTr
   }
 }
 
-/**
- * Read a reconcile input, treating a legitimately absent ref as empty but a genuine
- * read failure as fatal. The fail-open `readTreeEntries` would collapse an errored
- * `ls-tree` to an empty map, so a transient read of `localTip` / `incomingTip` could
- * commit a merge built from an artificially empty side — dropping the other side's
- * slugs under the compare-and-swap bound to `localTip`. Throwing aborts the reconcile,
- * which {@link reconcileErrandPush} surfaces through its single `failed` channel; an
- * absent ref still unions normally as empty. Mirrors the sync-state reconcile reader.
- */
+async function readMutatingTip(exec: GitExec, ref: string): Promise<string | null> {
+  const args = ["rev-parse", "--verify", "--quiet", ref];
+  try { return (await exec("git", args)).stdout.trim() || null; }
+  catch (error) {
+    const failure = normalizeGitRejection(error, { command: "git", args });
+    if (failure.kind === "nonzero-exit" && failure.exitCode === 1 && failure.signal === undefined) return null;
+    throw error;
+  }
+}
+
+/** Enumerate a captured non-null commit; any failed observation aborts reconciliation. */
 async function readErrandReconcileTree(exec: GitExec, ref: string): Promise<Map<string, string>> {
-  const result = await readTreeEntriesDiscriminating(exec, ref);
-  if (result.kind === "error") throw result.error;
-  return result.kind === "entries" ? result.entries : new Map();
+  return readTreeEntriesStrict(exec, ref);
 }
 
 /** Best-effort delete of the temp tracking ref; a failed cleanup never masks the outcome. */

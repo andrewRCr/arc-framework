@@ -7,7 +7,7 @@ import { digestBytes, type CanonicalDigest } from "../kernel/canonical/canonical
 import { atomicWriteFile } from "../fs.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 import type { GitExec } from "../git/index.js";
-import { acquireAdvisoryLock, releaseAdvisoryLock } from "../advisory-lock.js";
+import { withAdvisoryLock } from "../advisory-lock.js";
 import {
   parseCandidateManagedRecord,
   resolveCandidateSupersessionAncestors,
@@ -28,14 +28,7 @@ export interface CandidateRecordStoreFs {
 const nodeCandidateRecordStoreFs: CandidateRecordStoreFs = {
   readFile: (path) => readFile(path, "utf8"),
   writeFile: atomicWriteFile,
-  withLock: async (path, action) => {
-    const handle = await acquireAdvisoryLock(path);
-    try {
-      return await action();
-    } finally {
-      await releaseAdvisoryLock(handle);
-    }
-  },
+  withLock: (path, action) => withAdvisoryLock(path, action),
 };
 
 export interface VersionedCandidateRecord {

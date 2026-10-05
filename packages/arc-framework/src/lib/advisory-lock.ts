@@ -154,11 +154,12 @@ export type AdvisoryLockReleaseOptions = Pick<
   | "breakLockTtlMs"
 >;
 
-/** Thrown when a held-and-live lock could not be acquired within the bounded wait. */
+/** Thrown when acquisition or release cannot obtain its required lock within the bounded wait. */
 export class AdvisoryLockTimeoutError extends Error {
   constructor(
     public readonly lockPath: string,
     public readonly waitedMs: number,
+    public readonly phase: "acquire" | "release" = "acquire",
   ) {
     super(`Timed out after ${waitedMs}ms waiting for advisory lock: ${lockPath}`);
     this.name = "AdvisoryLockTimeoutError";
@@ -278,6 +279,48 @@ export async function acquireAdvisoryLock(
     await sleep(backoff);
     backoff = Math.min(backoff * 2, BACKOFF_CAP_MS);
   }
+}
+
+/** Run an operation while holding an advisory lock and release it before returning.
+ * @param lockPath - Absolute path of the lock guarding the operation.
+ * @param operation - Critical section receiving its held lock path.
+ * @param options - Optional filesystem, clock and bounded-wait dependencies.
+ * @returns The critical section's result after release succeeds.
+ * @throws Acquisition, operation or release errors; simultaneous operation/release errors are aggregated.
+ */
+export async function withAdvisoryLock<T>(
+  lockPath: string,
+  operation: (lockPath: string) => Promise<T>,
+  options: AdvisoryLockOptions = {},
+): Promise<T> {
+  const handle = await acquireAdvisoryLock(lockPath, options);
+  let result: { readonly kind: "success"; readonly value: T } | { readonly kind: "failure"; readonly error: unknown };
+  try {
+    result = { kind: "success", value: await operation(lockPath) };
+  } catch (error) {
+    result = { kind: "failure", error };
+  }
+
+  let releaseError: unknown;
+  try {
+    await releaseAdvisoryLock(handle, options);
+  } catch (error) {
+    releaseError = error;
+  }
+
+  if (result.kind === "failure") {
+    const primary = normalizeError(result.error);
+    if (releaseError !== undefined) {
+      throw new AggregateError([primary, normalizeError(releaseError)], primary.message, { cause: primary });
+    }
+    throw primary;
+  }
+  if (releaseError !== undefined) throw normalizeError(releaseError);
+  return result.value;
+}
+
+function normalizeError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
 }
 
 /**
@@ -448,7 +491,7 @@ async function acquireBreakLockForRelease(
     const handle = await tryAcquireBreakLock(context);
     if (handle !== null) return handle;
     if (context.now() >= deadline) {
-      throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
+      throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs, "release");
     }
     await context.sleep(backoff);
     backoff = Math.min(backoff * 2, BACKOFF_CAP_MS);

@@ -174,6 +174,16 @@ export function gitFailureText(value: unknown): string {
   return streamField(record, "stderr") ?? stringField(record, "message") ?? "";
 }
 
+/** Distinguish a completed failed command from cancellation or incomplete execution.
+ * @param value - Original executor rejection.
+ * @returns Whether its diagnostic text can describe a completed nonzero operation.
+ */
+export function isCompletedGitFailure(value: unknown): boolean {
+  const failure = normalizeGitRejection(value, { command: "git", args: [] });
+  return failure.kind === "nonzero-exit" && failure.exitCode !== undefined && failure.exitCode !== 0
+    && failure.signal === undefined;
+}
+
 function classifyExpectedOutcome(
   invocation: GitInvocation,
   exitCode: number | undefined,

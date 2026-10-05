@@ -2,6 +2,9 @@
 
 import { z } from "zod";
 
+import { createStore } from "../../lib/store/create.js";
+import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
+import { createStoreLifecycleStorage } from "../../lib/store/lifecycle-storage.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import {
   createCurrentBaseDriftAdapters,
@@ -170,18 +173,10 @@ export function createIntegrationMergeDependencies(input: {
   const archiveCadence = async () => (await settings()).settings["archive.cadence"] === "manual"
     ? "manual" as const
     : "with-integration" as const;
-  const lifecycleStorage = input.lifecycleStorage ?? {
-    readSnapshot: async () => {
-      const head = (await input.exec("git", ["rev-parse", "HEAD"], {
-        cwd: input.cwd,
-        objectAccess: "local-only",
-      })).stdout.trim();
-      return {
-        version: head,
-        fs: createGitTreeReadFs({ cwd: input.cwd, revision: head, exec: input.exec }),
-      };
-    },
-  };
+  const lifecycleStorage = input.lifecycleStorage ?? createStoreLifecycleStorage({
+    store: createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec })),
+    checkoutRoot: input.cwd,
+  });
 
   const currentTarget = async (): Promise<IntegrationMergeTarget> => {
     const branch = await getCurrentBranch(input.exec);
