@@ -12,7 +12,7 @@
 - **Design:** `spec-storage-contract.md`
 - **Task List:** `tasks-storage-contract.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:fb1c8194db1732b064f54d34aaad1485625cd6464f811b6b26fbe6aa0d20d7da`
+- **Candidate:** `sha256:4d0484d9077f01b65101e2ada0d2141fc524a263823bb9ff49e623c0fe122814`
 
 - **Current Workflow:** `prepare-work-unit`
 - **Last Completed:** Task 8.1 — Complete verification
