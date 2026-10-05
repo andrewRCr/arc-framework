@@ -3,7 +3,7 @@
   "slug": "local-review-checkout",
   "claimId": "c10e49dc024a1362e0f27327077e263c",
   "createdAt": "2026-10-05T01:07:54.547Z",
-  "updatedAt": "2026-10-05T01:07:54.547Z",
+  "updatedAt": "2026-10-05T01:30:54.365Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "local-review-checkout",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Read Errand identities from the checkout `readLocalReviewLiveContext` is given, not the process directory",
   "originEntrySourceDigest": "sha256:3b174029d815bb2265f254ca184db535e19094e3094415877625caf8b5caf2d2",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/local-review-checkout",
+    "headSha": "a6c362f9975f4ad4ad06ba3325de78b739c9a433"
+  }
 }
