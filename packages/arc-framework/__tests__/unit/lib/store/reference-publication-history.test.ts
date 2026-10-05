@@ -90,6 +90,8 @@ describe("reference publication history", () => {
     expect(success(await fixture.store.sync()).publishes[0]?.status).toBe("reconciled");
     const merged = success(await remote.read({ reference: first.reference }));
     expect(merged.content).toBe("local opening\nbase\nremote closing\n");
+    expect(merged.version).not.toBe(localWrite.version);
+    expect(merged.version).not.toBe(remoteWrite.version);
     expect(success(await fixture.store.history({ reference: first.reference }))).toMatchObject([
       { version: merged.version, provenance: { verb: "sync", lifecycleAction: "reconcile" } },
       { version: remoteWrite.version }, { version: localWrite.version }, { version: first.version },
@@ -98,6 +100,47 @@ describe("reference publication history", () => {
     expect(history).toMatchObject([{ version: merged.version, provenance: { verb: "sync", lifecycleAction: "reconcile", reference: first.reference } },
       { version: localWrite.version }, { version: remoteWrite.version, provenance: testProvenance }, { version: first.version }]);
     expect(success(await remote.changes({ from, to: success(await remote.version()), references: [first.reference] }))).toEqual([history[1], history[0]]);
+  });
+
+  it.each(["identical", "conflicting"] as const)("retains accepted remote provenance once for %s concurrent prose", async (mode) => {
+    const fixture = createReferenceFixture();
+    const remote = fixture.remote(true)!;
+    const first = await seed(fixture, fixture.reference("personal/document"), "opening\nbase\nclosing\n");
+    success(await fixture.store.sync());
+    const localFrom = success(await fixture.store.version()), remoteFrom = success(await remote.version());
+    success(await fixture.store.write(WriteInputSchema.parse({
+      ...update(fixture, first, "opening\nlocal\nclosing\n"), provenance: { verb: "local-edit", lifecycleAction: "edit" },
+    })));
+    const remoteWrite = success(await remote.write(WriteInputSchema.parse({
+      ...update(fixture, first, mode === "identical" ? "opening\nlocal\nclosing\n" : "opening\nremote\nclosing\n"),
+      provenance: { verb: "remote-edit", lifecycleAction: "edit", codeHead: "d".repeat(40) },
+    })));
+    const original = success(await remote.history({ reference: first.reference })).find((entry) => entry.version === remoteWrite.version)!;
+    const remoteWritten = success(await remote.version());
+    expect(success(await fixture.store.sync()).publishes[0]?.status).toBe("reconciled");
+    const localTo = success(await fixture.store.version()), remoteTo = success(await remote.version());
+    const localHistory = success(await fixture.store.history({ reference: first.reference }));
+    const remoteHistory = success(await remote.history({ reference: first.reference }));
+    const localChanges = success(await fixture.store.changes({ from: localFrom, to: localTo, references: [first.reference] }));
+    const remoteChanges = success(await remote.changes({ from: remoteFrom, to: remoteTo, references: [first.reference] }));
+    for (const store of [fixture.store, remote]) {
+      expect(success(await store.read({ reference: first.reference })).version).toBe(remoteWrite.version);
+    }
+    for (const entries of [localHistory, remoteHistory, localChanges, remoteChanges]) {
+      expect(entries.filter((entry) => entry.version === remoteWrite.version)).toEqual([original]);
+    }
+    expect(success(await remote.changes({ from: remoteWritten, to: remoteTo, references: [first.reference] }))
+      .filter((entry) => entry.version === remoteWrite.version)).toEqual([]);
+    for (let replay = 0; replay < 2; replay++) {
+      const reopened = fixture.reopen();
+      expect(success(await reopened.sync()).publishes[0]?.status).toBe("noop");
+      expect(success(await reopened.version())).toBe(localTo);
+      expect(success(await remote.version())).toBe(remoteTo);
+      expect(success(await reopened.history({ reference: first.reference }))).toEqual(localHistory);
+      expect(success(await remote.history({ reference: first.reference }))).toEqual(remoteHistory);
+      expect(success(await reopened.changes({ from: localFrom, to: localTo, references: [first.reference] }))).toEqual(localChanges);
+      expect(success(await remote.changes({ from: remoteFrom, to: remoteTo, references: [first.reference] }))).toEqual(remoteChanges);
+    }
   });
 
   it.each([false, true])("records a named conflict's implicit removal locally and remotely, batch: %s", async (batch) => {

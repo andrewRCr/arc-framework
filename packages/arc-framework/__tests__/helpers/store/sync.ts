@@ -111,7 +111,7 @@ function reconciledRecords(context: ReferenceContext, publication: ReferencePubl
           base ?? { ...current, content: "" }, current, local.content);
       merged = { ...current, content: result.content };
       if (merged.content !== current.content) merged.version = RecordVersionSchema.parse(`record:sync:${randomUUID()}`);
-      adopt(context, key, merged, context.state);
+      adopt(context, key, merged, remote.state);
       for (const created of storeConflicts(context, result.conflicts, { verb: "sync", lifecycleAction: "reconcile" })) generatedConflicts.add(recordKey(created));
     } else if (changedRemote && !local && current) merged = current;
     if (merged === undefined) records.delete(key); else records.set(key, structuredClone(merged));
