@@ -54,38 +54,43 @@ command; forbidden and failed invocations return diagnostics, and ordinary view 
 
 ## **Phase 2:** Verification
 
-### `[ ]` **2.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **2.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Goal:_ The completed viewer satisfies the editor-handoff contract and compatibility checks, with quality gates
   and evidence sufficient for integration.
+
+- _Quality gates:_ Full Markdown, TypeScript, and shell lint, both type checks, ARC contract checks, 13,294 routine
+  tests, 41 view E2E checks, and the production build passed.
+- _Success criteria:_ All ten met, with none superseded or deferred. The fresh-context follow-up returned no findings
+  after the command-preservation and helper-collision fixes in `8729b64e9`.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` With kind omitted, bare rendering and editor handoff select the same real artifact for all four defaults
+- `[x]` With kind omitted, bare rendering and editor handoff select the same real artifact for all four defaults
   in tasks → spec → draft → meta order.
 
-- `[ ]` Explicit kinds and permitted `--for` / `--project` selections send exactly the matching `--path` absolute
+- `[x]` Explicit kinds and permitted `--for` / `--project` selections send exactly the matching `--path` absolute
   filename to the injected launcher, without ARC presentation content, temporary copies, or artifact rewrites.
 
-- `[ ]` Non-empty `ARC_EDITOR` takes precedence; otherwise editor selection delegates to `git var GIT_EDITOR`,
+- `[x]` Non-empty `ARC_EDITOR` takes precedence; otherwise editor selection delegates to `git var GIT_EDITOR`,
   including its fallback. Selection failures report `ARC_EDITOR` as a remedy and never silently switch editors.
 
-- `[ ]` Executable/argument checks prove quoted commands and command-side expansion while filenames containing
+- `[x]` Executable/argument checks prove quoted commands and command-side expansion while filenames containing
   spaces, quotes, and shell metacharacters remain literal arguments on supported platforms.
 
-- `[ ]` Process checks prove inherited streams, waiting for completion, and unchanged configured wait flags;
+- `[x]` Process checks prove inherited streams, waiting for completion, and unchanged configured wait flags;
   launch errors, signals, and unsuccessful exits return nonzero stderr diagnostics and allow retry after repair.
 
-- `[ ]` Conflicting editor flags, forbidden interaction, and missing/error artifacts return nonzero diagnostics
+- `[x]` Conflicting editor flags, forbidden interaction, and missing/error artifacts return nonzero diagnostics
   without launching; interaction refusal occurs before selecting an editor.
 
-- `[ ]` Existing rendering, `--path`, and `--current` checks pass. Editor mode skips presentation setup and effects;
+- `[x]` Existing rendering, `--path`, and `--current` checks pass. Editor mode skips presentation setup and effects;
   automated checks exercise CLI wiring and use injected launchers or harmless recorders rather than real editors.
 
-- `[ ]` Command help and the synced quick reference describe the option, short form, editor override, Git fallback,
+- `[x]` Command help and the synced quick reference describe the option, short form, editor override, Git fallback,
   interaction requirements, and command-wait semantics with a GUI example.
 
-- `[ ]` All quality gates pass (tests, linting, type checking).
-- `[ ]` Ready for integration.
+- `[x]` All quality gates pass (tests, linting, type checking).
+- `[x]` Ready for integration.
