@@ -74,7 +74,7 @@ describe("Errand final-plan composition", () => {
   });
 
   it.each([
-    ["complete", { state: "reconcile", nextAction: "reconcile-base" }],
+    ["complete", { state: "reconcile", nextAction: "reconcile-base", rule: "base-currentness-required" }],
     ["partial", { state: "blocked", reason: "unsafe-reconcile" }],
   ] as const)("admits strict-host reconciliation only with %s integration evidence", (coverage, plan) => {
     expect(composeErrandFinalPlan({
@@ -129,7 +129,7 @@ describe("Errand final-plan composition", () => {
       admission,
     })).toMatchObject({
       status: "available",
-      plan: { state: "reconcile", nextAction: "reconcile-regenerable" },
+      plan: { state: "reconcile", nextAction: "reconcile-regenerable", rule: "regenerable-conflict" },
     });
   });
 });

@@ -146,7 +146,7 @@ function dependencies() {
         observation,
         plan: admissionOverride.state === "refused"
           ? { state: "blocked", reason: "host-refused", detail: admissionOverride.detail }
-          : { state: "reconcile", nextAction: "reconcile-base" },
+          : { state: "reconcile", nextAction: "reconcile-base", rule: "base-currentness-required" },
       } as IntegrationFinalPlan;
     },
     mergePinned: async (target) => {
@@ -430,7 +430,7 @@ describe("integration merge", () => {
       return {
         ...direct,
         observation,
-        plan: { state: "reconcile" as const, nextAction: "reconcile-base" as const },
+        plan: { state: "reconcile" as const, nextAction: "reconcile-base" as const, rule: "base-currentness-required" as const },
       };
     };
     value.mergePinned = async (target) => ({
@@ -493,7 +493,7 @@ describe("integration merge", () => {
           },
           plan: admissionOverride.state === "refused"
             ? { state: "blocked", reason: "host-refused", detail: admissionOverride.detail }
-            : { state: "reconcile", nextAction: "reconcile-base" },
+            : { state: "reconcile", nextAction: "reconcile-base", rule: "base-currentness-required" },
         } as IntegrationFinalPlan;
       };
 
@@ -528,7 +528,7 @@ describe("integration merge", () => {
             detail: admissionOverride.detail,
           },
         },
-        plan: { state: "reconcile", nextAction: "reconcile-base" },
+        plan: { state: "reconcile", nextAction: "reconcile-base", rule: "base-currentness-required" },
       };
     };
     value.mergePinned = async (target) => ({
@@ -839,7 +839,8 @@ describe("integration merge", () => {
     ["drift-reconcile", (deps: IntegrationMergeDependencies) => {
       deps.readFinalPlan = async (target) => ({
         ...directFinalPlan(target),
-        plan: { state: "reconcile", nextAction: "reconcile-base" },
+        observation: { ...directFinalPlan(target).observation, movement: "overlapping" },
+        plan: { state: "reconcile", nextAction: "reconcile-base", rule: "overlapping" },
       });
     }],
   ] as const)("re-locks before returning %s", async (reason, arrange) => {
