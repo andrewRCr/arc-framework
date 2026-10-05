@@ -117,7 +117,9 @@ export async function composedMetas(context: InRepoContext, diagnostics?: Listin
     import("../../errand/record.js"),
   ]);
   const { ports } = context;
-  const exec: typeof ports.exec = (command, args, options) => ports.exec(command, args, { cwd: ports.checkoutRoot, ...options });
+  const exec: typeof ports.exec = (command, args, options) => ports.exec(command, args, {
+    cwd: ports.checkoutRoot, ...options, objectAccess: "local-only",
+  });
   const identity = await ports.identity();
   const read = transient.projectTransientInFlightRead(await transient.readTransientInFlightIndexes({ exec, identity }));
   const { settings } = await readConfigSettings(ports.checkoutRoot);
