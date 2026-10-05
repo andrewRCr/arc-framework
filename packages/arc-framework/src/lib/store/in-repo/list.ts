@@ -160,7 +160,8 @@ async function metaListingSources(context: InRepoContext, input: ListInput, acqu
   const composition = await composedMetas(context, acquisition);
   const authoritative = new Set(held.filter((source) => source.location === "active").map((source) => source.slug));
   const failures = composedMetaFailures(composition, authoritative);
-  acquisition.push(...failures.map((failure) => failure.diagnostic));
+  acquisition.push(...failures.filter((failure) => failureMatchesOwner(failure.slug, input.owner))
+    .map((failure) => failure.diagnostic));
   const unavailable = new Set(failures.flatMap((failure) => failure.slug === undefined ? [] : [failure.slug]));
   const sources = new Map<string, MetaSource>();
   for (const slug of composition.recordsBySlug.keys()) {
@@ -172,6 +173,11 @@ async function metaListingSources(context: InRepoContext, input: ListInput, acqu
     if (source.location === "active" || !sources.has(source.slug)) sources.set(source.slug || source.path, source);
   }
   return filterLocations([...sources.values()], input);
+}
+function failureMatchesOwner(slug: string | undefined, owner: ListInput["owner"]): boolean {
+  const parsed = SlugSchema.safeParse(slug);
+  return owner === undefined || !parsed.success
+    || sameOwner(OwnerIdentitySchema.parse({ type: "work-item", name: parsed.data }), owner);
 }
 function filterLocations(sources: MetaSource[], input: ListInput): MetaSource[] {
   return sources.filter((source) => input.filter?.locations === undefined || input.filter.locations.includes(source.location));

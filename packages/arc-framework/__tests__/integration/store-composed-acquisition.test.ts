@@ -93,3 +93,85 @@ it.each(["unknown", "canceled", "output-limit", "timed-out", "signaled"] as cons
   h.ports.exec = actual;
   expect(success(await h.store.list({ family: "work-item", kind: "work-item/meta" }))).toMatchObject({ status: "complete", missed: false });
 });
+
+it.each(["malformed", "read"] as const)("isolates named %s acquisition from unrelated owner queries and repairs", async (fault) => {
+  const h = await fixture(true);
+  const kinds = ["work-item/meta", "work-item/notes", "work-item/companion"] as const;
+  const owners = ["neighbor", "missing"] as const;
+  const healthy = await Promise.all(owners.flatMap((name) => kinds.map((kind) =>
+    h.store.list({ family: "work-item", kind, owner: h.reference("work-item/meta", name).owner }))));
+  const actual = h.ports.exec;
+  h.ports.exec = async (command, args, options) => {
+    if (args[0] === "show" && args.some((arg) => arg.includes(":.arc/active/meta-foreign.md"))) {
+      if (fault === "malformed") return { stdout: "# Invalid foreign meta\n" };
+      throw new GitProcessError({ kind: "nonzero-exit", command, args, exitCode: 128, stderr: "Object acquisition failed" });
+    }
+    return actual(command, args, options);
+  };
+  expect(await Promise.all(owners.flatMap((name) => kinds.map((kind) =>
+    h.store.list({ family: "work-item", kind, owner: h.reference("work-item/meta", name).owner }))))).toEqual(healthy);
+  for (const kind of kinds) {
+    const affected = success(await h.store.list({ family: "work-item", kind, owner: h.reference("work-item/meta", "foreign").owner }));
+    if (fault === "read") expect(affected.status).toBe("unreadable");
+    else expect(affected).toMatchObject({ status: "complete", records: [], missed: true,
+      diagnostics: [expect.objectContaining({ kind: "malformed", key: "work-item:foreign" })] });
+    const unrestricted = success(await h.store.list({ family: "work-item", kind }));
+    expect(unrestricted).toMatchObject({ status: "complete", missed: true });
+    if (unrestricted.status === "complete") {
+      expect(unrestricted.records.map((record) => record.reference.owner.name)).toEqual(["neighbor"]);
+      expect(unrestricted.diagnostics.some((diagnostic) => diagnostic.key === "work-item:foreign")).toBe(true);
+    }
+  }
+  h.ports.exec = actual;
+  for (const kind of kinds) {
+    const repaired = success(await h.store.list({ family: "work-item", kind, owner: h.reference("work-item/meta", "foreign").owner }));
+    expect(repaired).toMatchObject({ status: "complete", missed: false, diagnostics: [] });
+    if (repaired.status === "complete") expect(repaired.records.map((record) => record.reference.owner.name)).toEqual(["foreign"]);
+  }
+});
+
+it("retains global enumeration uncertainty for every requested owner and repairs", async () => {
+  const h = await fixture(true);
+  const actual = h.ports.exec;
+  h.ports.exec = async (command, args, options) => {
+    if (args[0] === "ls-tree" && args.includes("--full-tree") && args.some((arg) => arg.includes("feat/foreign"))) {
+      throw new GitProcessError({ kind: "nonzero-exit", command, args, exitCode: 128, stderr: "Object acquisition failed" });
+    }
+    return actual(command, args, options);
+  };
+  for (const name of ["neighbor", "missing", "foreign"]) {
+    for (const kind of ["work-item/meta", "work-item/notes", "work-item/companion"] as const) {
+      const result = success(await h.store.list({ family: "work-item", kind, owner: h.reference("work-item/meta", name).owner }));
+      if (name === "neighbor") expect(result).toMatchObject({ status: "complete", missed: true,
+        diagnostics: [expect.objectContaining({ kind: "unreadable", key: expect.stringMatching(/^branch:/u) })] });
+      else expect(result.status).toBe("unreadable");
+    }
+  }
+  h.ports.exec = actual;
+  expect(success(await h.store.list({ family: "work-item", kind: "work-item/meta", owner: h.reference("work-item/meta", "neighbor").owner })))
+    .toMatchObject({ status: "complete", missed: false });
+  expect(success(await h.store.list({ family: "work-item", kind: "work-item/meta", owner: h.reference("work-item/meta", "missing").owner })))
+    .toEqual({ status: "absent" });
+});
+
+it("retains invalid foreign owner coordinates in scoped listings and repairs", async () => {
+  const h = await fixture(true);
+  await h.exec("git", ["checkout", "feat/foreign"]);
+  await h.put(".arc/active/meta-Bad_Name.md", "# Invalid foreign owner\n");
+  await h.exec("git", ["add", "."]); await h.exec("git", ["commit", "-m", "invalid owner coordinate"]);
+  await h.exec("git", ["checkout", "main"]);
+  for (const name of ["neighbor", "missing"]) {
+    for (const kind of ["work-item/meta", "work-item/notes", "work-item/companion"] as const) {
+      const result = success(await h.store.list({ family: "work-item", kind, owner: h.reference("work-item/meta", name).owner }));
+      expect(result).toMatchObject({ status: "complete", missed: true,
+        diagnostics: [expect.objectContaining({ kind: "malformed", key: "work-item:Bad_Name" })] });
+    }
+  }
+  await h.exec("git", ["checkout", "feat/foreign"]);
+  await h.exec("git", ["rm", ".arc/active/meta-Bad_Name.md"]); await h.exec("git", ["commit", "-m", "remove invalid coordinate"]);
+  await h.exec("git", ["checkout", "main"]);
+  expect(success(await h.store.list({ family: "work-item", kind: "work-item/meta", owner: h.reference("work-item/meta", "neighbor").owner })))
+    .toMatchObject({ status: "complete", missed: false });
+  expect(success(await h.store.list({ family: "work-item", kind: "work-item/meta", owner: h.reference("work-item/meta", "missing").owner })))
+    .toEqual({ status: "absent" });
+});
