@@ -83,7 +83,6 @@ import { pushWorktreeBranch } from "../lib/git/push-worktree.js";
 import { pushBranchBoundedNotesExport } from "../lib/user-sync/branch-bounded-notes-export.js";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
-  runMaterializingWorktreeInspection,
   type WorktreeSyncState,
 } from "../lib/git/worktree-sync.js";
 import { inferRecommendedSummaryLine } from "../lib/handoff/recommended-summary-line.js";
@@ -109,6 +108,7 @@ import {
   ARC_PROJECT_ROOT_ERROR,
   resolveUserIdentity,
 } from "./shared.js";
+import { inspectSyncWorktree } from "./sync-worktree-inspection.js";
 
 export interface SyncOptions {
   yes?: boolean;
@@ -477,7 +477,8 @@ export async function handleSync(
   const syncInterlock = resolvedSettings.resolved.syncInterlock;
   const notesPushResolved = resolvedSettings.resolved.notesPush;
 
-  const worktree = await runMaterializingWorktreeInspection({ exec: io.exec, cwd });
+  const worktree = await inspectSyncWorktree({ exec: io.exec, cwd, opts, output });
+  if (worktree === null) return;
   const branch = worktree.branch;
 
   let notesPush = notesPushResolved.value;

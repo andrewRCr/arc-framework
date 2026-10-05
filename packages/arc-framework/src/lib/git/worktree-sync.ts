@@ -99,7 +99,7 @@ export interface RunPassiveWorktreeInspectionOptions {
 /** Inputs for one explicit materializing worktree inspection. */
 export interface RunMaterializingWorktreeInspectionOptions {
   exec: GitExec;
-  /** Bounded fetch timeout in milliseconds. */
+  /** Bounded fetch timeout in milliseconds. Defaults to {@link MATERIALIZING_FETCH_TIMEOUT_MS}. */
   fetchTimeoutMs?: number;
   /** Repository root whose tracking refs may be materialized. */
   cwd?: string;
@@ -132,6 +132,19 @@ export type WorktreeMaterializingInspectionResult = Omit<
   state: Exclude<WorktreeSyncState, "skipped" | "remote-unavailable">;
   remoteEvidence: "exact" | "not-applicable";
 };
+
+/** A bounded materializing fetch stopped before exact remote evidence was acquired. */
+export class WorktreeFetchTimeoutError extends Error {
+  constructor(
+    readonly branch: string,
+    readonly remoteBranch: string,
+    readonly timeoutMs: number,
+  ) {
+    super(`Materializing the worktree remote tip timed out after ${timeoutMs}ms. `
+      + "Retry the command when the remote responds.");
+    this.name = "WorktreeFetchTimeoutError";
+  }
+}
 
 /** Analyze a tracked worktree against supplied remote evidence without acquiring it. */
 export async function analyzeWorktreeSnapshot(
@@ -244,6 +257,9 @@ export async function analyzeWorktreeSnapshot(
 
 /** Default bounded timeout for the worktree-sync fetch. */
 export const DEFAULT_FETCH_TIMEOUT_MS = 3000;
+
+/** Explicit materialization serves a requested operation rather than a quick status probe. */
+export const MATERIALIZING_FETCH_TIMEOUT_MS = 30_000;
 /**
  * Inspect one tracked worktree through a bounded exact-ref read without materializing objects.
  *
@@ -376,7 +392,7 @@ export async function runMaterializingWorktreeInspection(
   const fetch = await boundedFetch(
     exec,
     upstreamBranch,
-    options.fetchTimeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS,
+    options.fetchTimeoutMs ?? MATERIALIZING_FETCH_TIMEOUT_MS,
   );
   if (fetch.outcome === "error"
     && isGitProcessError(fetch.error)
@@ -391,7 +407,9 @@ export async function runMaterializingWorktreeInspection(
     });
   }
   if (fetch.outcome === "timeout") {
-    throw new Error("Materializing the worktree remote tip timed out.");
+    throw new WorktreeFetchTimeoutError(
+      branch, upstreamBranch, options.fetchTimeoutMs ?? MATERIALIZING_FETCH_TIMEOUT_MS,
+    );
   }
   if (fetch.outcome === "error") {
     if (fetch.error instanceof Error) throw fetch.error;
