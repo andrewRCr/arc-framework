@@ -142,11 +142,6 @@
       "count": 1
     }
   },
-  "src/commands/start.ts": {
-    "complexity": {
-      "count": 1
-    }
-  },
   "src/commands/status/run.ts": {
     "complexity": {
       "count": 1

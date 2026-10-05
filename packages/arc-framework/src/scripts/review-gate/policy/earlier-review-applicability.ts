@@ -43,6 +43,7 @@ export type EarlierHostedAttemptApplicabilityRead =
     readonly attempts: readonly {
       readonly operationId: string;
       readonly attemptId: string;
+      readonly attemptIndex?: number;
       readonly logicalPass: number;
       readonly updatedAt: string;
       readonly sourceId: string;
@@ -52,6 +53,7 @@ export type EarlierHostedAttemptApplicabilityRead =
       readonly scopeMode: "whole-target" | "chunked";
       readonly chunkSeriesComplete?: boolean;
       readonly producerTarget?: EarlierReviewAttemptCandidate["reviewTarget"];
+      readonly hosted?: EarlierReviewAttemptCandidate["hosted"];
       readonly applicability: ReviewApplicabilityConsumerAction;
       readonly retentionBasis?: "verified-fix-response";
       readonly projection?: ReviewContributionApplicabilityResult;
@@ -252,6 +254,7 @@ export async function projectEarlierReviewApplicability(
     return {
       operationId: candidate.operationId,
       attemptId: candidate.attemptId,
+      attemptIndex: candidate.attemptIndex,
       logicalPass: candidate.logicalPass,
       updatedAt: candidate.updatedAt,
       sourceId: candidate.sourceId,
@@ -263,6 +266,7 @@ export async function projectEarlierReviewApplicability(
         ? {}
         : { chunkSeriesComplete: candidate.chunkSeriesComplete }),
       producerTarget: candidate.reviewTarget,
+      ...(candidate.hosted === undefined ? {} : { hosted: candidate.hosted }),
       applicability: authority === null
         ? "retain-prior-attempt" as const
         : reviewApplicabilityConsumerAction(authority),

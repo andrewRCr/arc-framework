@@ -12,7 +12,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { execFile } from "node:child_process";
-import { lstat, mkdir, writeFile, stat, readFile, readdir, symlink } from "node:fs/promises";
+import { lstat, mkdir, writeFile, stat, readFile, readdir, symlink, unlink } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { promisify } from "node:util";
 
@@ -380,6 +380,53 @@ describe("arc start dispatch — against real worktrees", () => {
     const { stdout } = await execFileAsync("git", ["status", "--short", "--untracked-files=all"], { cwd: wt });
     expect(stdout).not.toContain(".arc/system/.internal/worktree-marker.json");
   });
+
+  it.each([
+    ["partial", "explicit"], ["full", "explicit"],
+    ["partial", "derived"], ["full", "derived"],
+  ] as const)(
+    "cold-start refuses ambiguous occupancy before writes and succeeds after repair (%s, %s)",
+    async (protection, naming) => {
+      const name = naming === "explicit" ? "widget" : undefined;
+      const wuName = name ?? "main";
+      const opts = { ...(name === undefined ? {} : { new: true }), here: true, yes: true };
+      const remote = `${h.repo}-origin.git`;
+      h.cleanupPaths.push(remote);
+      await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+      await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: h.repo });
+      await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: h.repo });
+      await execFileAsync("git", ["config", "arc.identity", IDENTITY], { cwd: h.repo });
+      await writeFile(join(h.repo, ".arc", "system", "arc-config.yml"),
+        `branch.base: main\nbranch.protection: ${protection}\n`);
+      const active = join(h.repo, ".arc", "active");
+      const first = join(active, "meta-first.md");
+      const second = join(active, "meta-second.md");
+      const firstContent = metaFor("first", "Planning", "plan/first");
+      const secondContent = metaFor("second", "Active", "feat/second");
+      await writeFile(first, firstContent);
+      await writeFile(second, secondContent);
+      const refused = await runHandlerAt(h.repo, () => handleStart(name, opts));
+      expect(refused.exitCode, refused.stdout + refused.stderr).toBe(1);
+      expect(refused.stdout + refused.stderr).toMatch(/multiple|ambiguous/i);
+      expect(refused.stdout + refused.stderr).toContain("meta-first.md");
+      expect(refused.stdout + refused.stderr).toContain("meta-second.md");
+      expect(await readFile(first, "utf8")).toBe(firstContent);
+      expect(await readFile(second, "utf8")).toBe(secondContent);
+      expect(await pathExists(join(active, `meta-${wuName}.md`))).toBe(false);
+      expect(await pathExists(join(h.repo, ".arc", "user", IDENTITY, wuName))).toBe(false);
+      expect(await readWorktreeMarker(h.repo)).toMatchObject({ kind: "absent" });
+      expect((await execFileAsync("git", ["branch", "--show-current"], { cwd: h.repo })).stdout.trim()).toBe("main");
+      expect((await execFileAsync("git", ["branch", "--list", `plan/${wuName}`], { cwd: h.repo })).stdout.trim()).toBe("");
+
+      await unlink(first);
+      await unlink(second);
+      const retried = await runHandlerAt(h.repo, () => handleStart(name, opts));
+      expect(retried.exitCode, retried.stdout + retried.stderr).toBe(0);
+      const meta = parseMetaProjectionRecord(await readFile(join(active, `meta-${wuName}.md`), "utf8"));
+      expect(meta).toMatchObject({ State: "Planning", Branch: protection === "full" ? `plan/${wuName}` : "main" });
+      expect(await pathExists(join(h.repo, ".arc", "user", IDENTITY, wuName, "SESSION-NOTES.md"))).toBe(true);
+    },
+  );
 
   it("cold-start accepts an aliased checkout path without minting a locus record", async () => {
     const alias = `${h.repo}-alias`;

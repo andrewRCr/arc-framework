@@ -89,7 +89,7 @@ describe("node provisioning runtime", () => {
     state: { branch: string; head: string },
     calls: string[][],
     failures: { probe?: boolean; restore?: boolean } = {},
-    synchronizePrimaryBase?: () => Promise<BaseSyncResult>,
+    synchronizeBase?: () => Promise<BaseSyncResult>,
   ) {
     let mutated = false;
     const exec: GitExec = async (command, args) => {
@@ -123,7 +123,7 @@ describe("node provisioning runtime", () => {
       exec,
       base: "main",
       branch: "chore/sample",
-      ...(synchronizePrimaryBase === undefined ? {} : { synchronizePrimaryBase }),
+      ...(synchronizeBase === undefined ? {} : { synchronizeBase }),
       postCreateScript: "",
       registeredHarnessDirs: "",
     });

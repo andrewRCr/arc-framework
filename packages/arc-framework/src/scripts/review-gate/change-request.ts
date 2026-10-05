@@ -64,6 +64,7 @@ export const ChangeRequestMergeObservationSchema = z.discriminatedUnion("state",
     ...MergeObservationEvidenceShape,
     state: z.literal("unresolved"),
     detail: z.string().trim().min(1),
+    condition: z.literal("stale-base-test-merge").optional(),
   }),
 ]);
 export type ChangeRequestMergeObservation = z.infer<typeof ChangeRequestMergeObservationSchema>;

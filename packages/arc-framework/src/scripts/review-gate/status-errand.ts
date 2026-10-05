@@ -35,6 +35,10 @@ import {
 import { confirmErrandFixResponseApplicability } from "./policy/local-review-coverage-selection.js";
 import type { IncrementalPredecessorApplicability } from "./policy/incremental-coverage-basis.js";
 import type { RoutedReviewObligation } from "./status.js";
+import {
+  BaseMovementObservationSchema, composeEvidenceDelta, reduceEvidenceApplicability,
+  type BaseMovementObservation,
+} from "../../lib/evidence-applicability/index.js";
 
 interface ExactErrandStatusTarget {
   readonly repository: string;
@@ -82,11 +86,28 @@ async function reviewCoversCurrentBase(
   reviewed: ReviewTarget,
   currentBaseOid: string | undefined,
   currentBaseRef: string | undefined,
+  context: {
+    readonly target: ExactErrandStatusTarget;
+    readonly pullRequest: number;
+    readonly baseMovement?: BaseMovementObservation | null;
+  },
 ): Promise<boolean> {
   if (currentBaseOid === undefined || !GitObjectIdSchema.safeParse(currentBaseOid).success
     || (currentBaseRef !== undefined && reviewed.baseRef !== currentBaseRef)) return false;
-  return await isAncestor(exec, reviewed.diffBaseSha, currentBaseOid)
-    && await isAncestor(exec, currentBaseOid, reviewed.headSha);
+  if (!await isAncestor(exec, reviewed.diffBaseSha, currentBaseOid)) return false;
+  if (await isAncestor(exec, currentBaseOid, reviewed.headSha)) return true;
+  if (!await isAncestor(exec, reviewed.diffBaseSha, reviewed.headSha)) return false;
+  const movement = BaseMovementObservationSchema.safeParse(context.baseMovement);
+  if (!movement.success) return false;
+  const coordinates = movement.data.coordinates;
+  if (coordinates.repository.toLowerCase() !== context.target.repository.toLowerCase()
+    || coordinates.changeRequest !== context.pullRequest
+    || coordinates.base !== currentBaseOid
+    || coordinates.head !== reviewed.headSha) return false;
+  return reduceEvidenceApplicability(
+    composeEvidenceDelta({ cause: "base-movement", observation: movement.data }),
+    "review-clearance",
+  ).verdict === "carries";
 }
 
 function matchingOrdinaryErrand(
@@ -283,7 +304,8 @@ async function readUnreviewedErrandHead(input: {
     headSha: target.headSha };
   const resultReader = createRepositoryReviewResultReader(input.publisher);
   const result = await resultReader.readResult(historical.attemptId).catch((error: unknown) => {
-    if (error instanceof LocalReviewResultReaderError && error.code === "missing-result") return null;
+    if (error instanceof LocalReviewResultReaderError
+      && (error.code === "missing-producer" || error.code === "missing-result")) return null;
     throw error;
   });
   if (result === null) {
@@ -341,6 +363,7 @@ export async function readErrandRoutedObligation(input: {
   readonly remote?: string;
   readonly changeRequestCandidate?: Pick<ChangeRequestCandidate, "baseRefName" | "url">;
   readonly currentBaseOid?: string;
+  readonly baseMovement?: BaseMovementObservation | null;
   readonly ceilingOverride?: ReviewCeilingOverride;
   readonly additionalPassAuthorization?: ReviewAdditionalPassAuthorization;
 }): Promise<RoutedReviewObligation | null> {
@@ -444,6 +467,7 @@ export async function readErrandRoutedObligation(input: {
               hosted.reviewTarget,
               input.currentBaseOid,
               input.changeRequestCandidate?.baseRefName,
+              input,
             ),
         };
       } else if (hosted !== undefined) {
@@ -473,6 +497,7 @@ export async function readErrandRoutedObligation(input: {
               attempt.local.target,
               input.currentBaseOid,
               input.changeRequestCandidate?.baseRefName,
+              input,
             ),
         };
       } else {

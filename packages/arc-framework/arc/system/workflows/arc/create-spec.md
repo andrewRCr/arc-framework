@@ -243,9 +243,10 @@ Re-run [`assess-design-proportionality`][assess-design-proportionality] over the
 Handle `revise` through the same in-place correction or `draft-design` re-entry routing as the discovery guard;
 the finalization boundary proceeds only on `proportionate`.
 
-Before surfacing the spec for approval, run the [spec-review][spec-review] self-review on what you just wrote —
-a coherence + grounding pass scaled to the form (it collapses to a single minimal check at `brief`). Fold in the
-fixes it surfaces; carry anything that needs a decision into the review below. A finding that reopens design is
+Before surfacing the spec for approval, run [spec-review][spec-review] over the complete new specification or
+accessible complementary PRD/RFC set. Apply its common reader-independence and binding-completeness checks, with
+coherence and grounding scaled to the form (one minimal pass at `brief`). Fold in corrections through the existing
+iteration flow; carry anything needing a decision into the review below. A finding that reopens design is
 a derivation signal — fire the re-entry valve per [resolve-planning-depth][resolve-planning-depth] § Mid-stage
 re-entry (route it to the design, never patch it into the spec).
 
@@ -298,11 +299,13 @@ If a `draft-*.md` document fed into this spec, retire it now. Drafts are ephemer
 are deleted once the spec captures the conclusions (see [Work Planning Strategy][work-planning] § Draft
 Documents).
 
-1. **Audit for reference content**: Scan the draft for implementation detail, design rationale, or context the
-   spec doesn't capture but would be valuable during task generation or execution. Migrate this to a
-   `notes-*.md` file alongside the spec (same directory). Keep the notes header minimal (title + contents only)
-   — no purpose block, no provenance to the draft, no commit metadata. See [DEV-RULES.ARC][dev-rules-arc] §
-   Documentation Boundaries.
+1. **Audit for reference content**: Distinguish binding obligations, settled decisions, and their decisive rationale
+   from supplemental execution context. If binding content is missing, absorb it into the specification and return
+   to [spec-review][spec-review] and the existing review/iteration and finalization approvals before migrating content
+   or deleting the draft. Route unsettled design through the existing design re-entry. Only supplemental context
+   valuable during task generation or execution may migrate to a `notes-*.md` file alongside the spec; notes cannot
+   become the sole home of binding design. Keep the notes header minimal (title + contents only) — no purpose block,
+   no provenance to the draft, no commit metadata. See [DEV-RULES.ARC][dev-rules-arc] § Documentation Boundaries.
 2. **Delete the draft**: `git rm` the `draft-*.md` file (and any supplemental files that fed into it, unless
    they have independent archival value — e.g., research files may belong in
    `reference/supplemental/research/`).

@@ -19,6 +19,7 @@ import {
 } from "../lane-progress.js";
 import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
 import type { EarlierHostedAttemptApplicabilityRead } from "./earlier-review-applicability.js";
+import type { ReviewResolveEnvelope } from "./review-policy-driver.js";
 import type { ReviewContributionApplicabilityResult } from
   "./review-contribution-applicability.js";
 import type { HostedFindingsResponsePlan } from "../core/response-plan-schema.js";
@@ -28,6 +29,9 @@ import {
   HostedProviderIdSchema,
   hostedRequestHandleMatchesProgress,
   type HostedReviewCoverage,
+  type HostedRequestEnvelope,
+  type HostedAdmission,
+  type HostedRequestHandle,
 } from "../hosted/request.js";
 import { hostedProviderAdmitsCoverage } from "../hosted/correction-review-capability.js";
 import { laneSubjectOwnerMatches, type LaneSubjectLineage } from "../core/lane-admission.js";
@@ -47,6 +51,73 @@ export type EarlierApplicableAttempt = Extract<
   EarlierHostedAttemptApplicabilityRead,
   { status: "complete" }
 >["attempts"][number];
+
+function isCompleteCleanCoverage(attempt: EarlierApplicableAttempt): boolean {
+  return attempt.outcome === "clean"
+    && attempt.effectiveCoverage === "complete"
+    && attempt.producerTarget !== undefined
+    && (attempt.scopeMode === "whole-target" || attempt.chunkSeriesComplete === true);
+}
+
+function isCoverageDecision(attempt: EarlierApplicableAttempt): boolean {
+  return attempt.outcome !== "findings" && attempt.outcome !== "pending"
+    && (attempt.applicability === "request-review"
+      || (attempt.applicability === "stop" && attempt.authorityState === "decision-required"));
+}
+
+function isSafeUnavailableAttempt(attempt: EarlierApplicableAttempt): boolean {
+  return attempt.outcome === "rate-limited" || attempt.outcome === "transient-unavailable";
+}
+
+function precedesWithinPass(previous: EarlierApplicableAttempt, later: EarlierApplicableAttempt): boolean {
+  return previous.operationId === later.operationId
+    ? previous.attemptIndex !== undefined && later.attemptIndex !== undefined
+      && previous.attemptIndex < later.attemptIndex
+    : Date.parse(previous.updatedAt) < Date.parse(later.updatedAt);
+}
+
+/**
+ * Keep findings and blocked evidence while a later complete clean pass replaces older coverage decisions.
+ *
+ * @param attempts - Complete earlier attempts for one exact Candidate, source, and review vehicle.
+ * @param resolveTerminalPolicy - Evidence-bound convergence policy for the immutable review producer.
+ * @returns Coverage attempts to consider without changing the retained audit or response history.
+ */
+export async function selectRetainedCoverageAttempts(
+  attempts: readonly EarlierApplicableAttempt[],
+  resolveTerminalPolicy: (attempt: EarlierApplicableAttempt) => Promise<ReviewResolveEnvelope>,
+): Promise<readonly EarlierApplicableAttempt[]> {
+  const latestPass = Math.max(0, ...attempts.map((attempt) => attempt.logicalPass));
+  const latest = attempts.filter((attempt) => attempt.logicalPass === latestPass);
+  const terminal = latest.filter((attempt) => !isSafeUnavailableAttempt(attempt));
+  const coverage = terminal.length === 1 ? terminal[0] : undefined;
+  if (coverage === undefined || !isCompleteCleanCoverage(coverage)
+    || !(coverage.applicability === "retain-prior-attempt" || isCoverageDecision(coverage))) return attempts;
+  if (latest.some((attempt) => attempt !== coverage && !precedesWithinPass(attempt, coverage))) return attempts;
+  const superseded = (attempt: EarlierApplicableAttempt): boolean => isCoverageDecision(attempt)
+    && (attempt.logicalPass < latestPass
+      || (attempt.logicalPass === latestPass && isSafeUnavailableAttempt(attempt)
+        && precedesWithinPass(attempt, coverage)));
+  if (!attempts.some(superseded)) return attempts;
+  if ((await resolveTerminalPolicy(coverage)).state !== "pass-complete") return attempts;
+  return attempts.filter((attempt) => !superseded(attempt));
+}
+
+/** Require the retained producer to cover the same standard-review policy as this reservation. */
+export function predecessorMatchesHostedReservationPolicy(
+  predecessor: Exclude<ReviewResult, { kind: "frontline" }>,
+  reservation: StandardReviewReservationV1,
+): boolean {
+  const predecessorPolicy = {
+    obligation: predecessor.requirement.obligation,
+    reasons: [...predecessor.requirement.reasons].sort(),
+    rubricVersion: predecessor.requirement.rubricVersion, rubricDigest: predecessor.requirement.rubricDigest,
+    retrigger: predecessor.requirement.retrigger, count: predecessor.requirement.count,
+  };
+  return canonicalize(predecessorPolicy) === canonicalize({
+    ...reservation.obligation, reasons: [...reservation.obligation.reasons].sort(),
+  });
+}
 
 /** Minimal immutable producer identity eligible to seed one exact correction scope. */
 export interface IncrementalCorrectionScopeCandidate {
@@ -164,10 +235,14 @@ export function isCompleteStandardVerdict(attempt: ProjectedLaneAttempt): boolea
 }
 
 /** A complete exact-member clean attempt whose source was explicitly selected by the Owner. */
-export function selectedOwnerCleanAttempt(
-  attempts: readonly ProjectedLaneAttempt[],
+export function selectedOwnerCleanAttempt<T extends {
+  readonly sourceId: string;
+  readonly outcome: string;
+  readonly hosted?: { readonly admission: HostedAdmission; readonly handle?: HostedRequestHandle };
+}>(
+  attempts: readonly T[],
   reservation: StandardReviewReservationV1,
-): ProjectedLaneAttempt | undefined {
+): T | undefined {
   return attempts.find((attempt) => {
     const hosted = attempt.hosted;
     const handle = hosted?.handle;
@@ -179,6 +254,67 @@ export function selectedOwnerCleanAttempt(
       && handle.effectiveCoverage === "complete"
       && hostedRequestHandleMatchesProgress(handle, { admission: hosted.admission });
   });
+}
+
+/**
+ * Recover source authority from the latest retained complete clean request, without deciding applicability.
+ *
+ * @param attempts - All retained sources, including unresolved and pending attempts.
+ * @param currentAttempts - Current-target evidence that may supersede the retained selection.
+ * @param reservation - The unchanged review obligation and configured source order.
+ * @returns The admitted selected attempt, leaving coverage and terminal policy to the discharge consumer.
+ */
+export function retainedOwnerCleanAttempt(
+  attempts: readonly EarlierApplicableAttempt[],
+  currentAttempts: readonly ProjectedLaneAttempt[],
+  reservation: StandardReviewReservationV1,
+): EarlierApplicableAttempt | undefined {
+  const latestPass = Math.max(0, ...attempts.map(({ logicalPass }) => logicalPass),
+    ...currentAttempts.map(({ logicalPass }) => logicalPass));
+  const latest = attempts.filter((attempt) => attempt.logicalPass === latestPass
+    && (attempt.outcome === "clean" || attempt.outcome === "settled-findings"));
+  if (latest.length !== 1 || currentAttempts.some(({ logicalPass }) => logicalPass >= latestPass)) return undefined;
+  const selected = selectedOwnerCleanAttempt(latest, reservation);
+  return selected !== undefined && isCompleteCleanCoverage(selected) ? selected : undefined;
+}
+
+/**
+ * Preserve a pending request across source selection and head movement.
+ *
+ * @param attempts - Unfiltered current or earlier evidence for the complete reservation.
+ * @param reservation - Sources whose pending requests remain binding.
+ * @param position - The request's position relative to the current target.
+ * @returns The exact await continuation, an ambiguous-progress stop, or no pending request.
+ */
+export function pendingHostedReservationReview(
+  attempts: readonly {
+    readonly sourceId: string;
+    readonly outcome: string;
+    readonly hosted?: { readonly admission: HostedAdmission; readonly handle?: HostedRequestHandle };
+  }[],
+  reservation: StandardReviewReservationV1,
+  position: "current" | "retained",
+): HostedReservationDischarge | null {
+  const pending = attempts.filter((attempt) => attempt.outcome === "pending"
+    && reservation.sources.includes(attempt.sourceId));
+  if (pending.length === 0) return null;
+  const attempt = pending.length === 1 ? pending[0] : undefined;
+  const hosted = attempt?.hosted;
+  const handle = hosted?.handle;
+  if (attempt === undefined || hosted === undefined || handle === undefined
+    || !hostedRequestHandleMatchesProgress(handle, hosted)) return {
+    discharged: false,
+    detail: `The ${position === "current" ? "reserved hosted" : "retained reserved"} sources have pending request `
+      + "progress without one exact durable handle.",
+    nextSource: null,
+  };
+  return {
+    discharged: false,
+    detail: `Hosted source \`${attempt.sourceId}\` has one ${position === "retained" ? "retained " : ""}`
+      + "pending request awaiting a verdict.",
+    nextSource: null,
+    awaitAction: { schemaVersion: 1, handle },
+  };
 }
 
 export function projectSelectedOwnerDischarge(
@@ -337,6 +473,8 @@ export interface HostedReservationDischarge {
   awaitAction?: HostedAwaitEnvelope;
   localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string };
   requestAttempts?: readonly HostedReservationRequestAttempt[];
+  /** Existing admitted source choice carried into a native request continuation. */
+  invocation?: HostedRequestEnvelope["invocation"];
   completedPasses?: number;
   requestCoverage?: HostedReviewCoverage;
   correctionScope?: IncrementalReviewScope;
@@ -352,6 +490,7 @@ export interface HostedReservationDischargeReaderArgs {
   changeRequest: { repository: string; pullRequest: number } | null;
   vehicle?: DeliveryReviewMemberVehicle;
   candidate?: CandidateManagedRecordV1;
+  invocation?: HostedRequestEnvelope["invocation"];
 }
 
 /** Discharge projection plus its fresh predecessor-applicability boundary. */

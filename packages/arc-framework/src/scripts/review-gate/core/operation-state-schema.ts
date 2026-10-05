@@ -379,6 +379,8 @@ export const LaneResponsePerformanceSchema = z.strictObject({
   dispositionSetId: CanonicalDigestSchema,
   originatingHeadSha: GitObjectIdSchema,
   producedHeadSha: GitObjectIdSchema,
+  /** Immutable digest of the complete performed Candidate response, when the owner is a Candidate. */
+  candidateResponseId: CanonicalDigestSchema.optional(),
   performedAt: z.iso.datetime({ offset: true }),
 });
 export type LaneResponsePerformance = z.infer<typeof LaneResponsePerformanceSchema>;

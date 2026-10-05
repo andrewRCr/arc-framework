@@ -46,6 +46,8 @@ export async function composePublishedSingletonReview(input: PublishedSingletonI
     approvedHead: target.headSha,
     changeRequest: { repository: target.repository, pullRequest: target.pullRequest },
     candidate: input.record,
+    ...(input.judgment?.sourceId === undefined ? {}
+      : { invocation: { mode: "force" as const, sourceId: input.judgment.sourceId } }),
   };
   const discharge = await readDischarge(dischargeInput);
   const applicabilityContext = {
@@ -79,6 +81,8 @@ async function resolveSingletonRequest(
       readProjectSourceIds: () => Promise.resolve([]),
     },
   });
+  const invocation = input.judgment?.sourceId === undefined
+    ? discharge.invocation : { mode: "force" as const, sourceId: input.judgment.sourceId };
   const admission = await resolveEvidenceBoundSingletonHostedReservationPolicy({
     reservation: input.reservation,
     discharge,
@@ -87,8 +91,7 @@ async function resolveSingletonRequest(
     coverageSelected: input.judgment?.coverage !== undefined,
     ceilingOverride: input.judgment?.ceilingOverride,
     additionalPassAuthorization: input.judgment?.additionalPassAuthorization,
-    ...(input.judgment?.sourceId === undefined ? {}
-      : { invocation: { mode: "force", sourceId: input.judgment.sourceId } }),
+    ...(invocation === undefined ? {} : { invocation }),
   }, {
     resultReader: createRepositoryReviewResultReader(publisher),
     dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
@@ -107,7 +110,6 @@ async function resolveSingletonRequest(
     correctionScope: discharge.correctionScope,
     ceilingOverride: input.judgment?.ceilingOverride,
     additionalPassAuthorization: input.judgment?.additionalPassAuthorization,
-    ...(input.judgment?.sourceId === undefined ? {}
-      : { invocation: { mode: "force", sourceId } }),
+    ...(invocation === undefined ? {} : { invocation: { ...invocation, sourceId } }),
   };
 }

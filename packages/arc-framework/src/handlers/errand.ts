@@ -691,7 +691,7 @@ async function runErrandOpenHandler(
       inbox,
       protection,
       base,
-      syncPrimaryBase: settings["session.remote_sync"] === "enabled"
+      syncBase: settings["session.remote_sync"] === "enabled"
         && settings["session.init_pull.base"] === "always",
       createdAt,
       identity,
@@ -1043,7 +1043,7 @@ export async function handleErrandMaterialize(
             executeBound: false,
           },
           protection: "full",
-          syncPrimaryBase: false,
+          syncBase: false,
           isolation: "require-isolation",
           changeRequestReentry: "strict",
           pausedHeadReentry: "exact",

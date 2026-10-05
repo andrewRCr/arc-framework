@@ -771,7 +771,8 @@ export async function composePrePublicationReviewRequest(
       schemaVersion: 1,
       target: policyTarget,
       lane,
-      frontlineActive: assurance.activity.frontlineReview,
+      frontlineActive: assurance.activity.frontlineReview
+        && routing.decision.frontlineAction !== "skip",
       standardReview,
       completedPasses,
       attempts: policyAttempts(progress, historicalAttempt),

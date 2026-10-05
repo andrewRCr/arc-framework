@@ -52,7 +52,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | decompose-scaling                   | P2       | andrew | —          | decompose-core-hardening   |
 | method-conventions                  | P2       | andrew | —          | doc-conventions            |
 | pull-request-surface-policy         | P2       | andrew | —          | doc-conventions            |
-| spec-reader-standard                | P2       | andrew | —          | doc-conventions            |
 | cli-output-contract                 | P2       | andrew | —          | —                          |
 | cross-wu-coordination               | P2       | andrew | —          | —                          |
 | execution-delegation-doctrine       | P2       | andrew | —          | —                          |
