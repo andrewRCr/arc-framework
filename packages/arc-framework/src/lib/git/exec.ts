@@ -62,6 +62,19 @@ export async function resolveGitCommonDir(exec: GitExec, cwd: string): Promise<s
   return isAbsolute(commonDir) ? commonDir : resolve(cwd, commonDir);
 }
 
+/** Resolve the checkout's own Git directory, keeping linked working trees independent.
+ * @param exec - Injectable Git executor.
+ * @param cwd - Checkout root whose private Git directory is required.
+ * @returns The absolute path Git reports for that checkout.
+ * @throws Git execution failures or an empty Git directory response.
+ */
+export async function resolveCheckoutGitDir(exec: GitExec, cwd: string): Promise<string> {
+  const { stdout } = await exec("git", ["rev-parse", "--absolute-git-dir"], { cwd });
+  const gitDir = stdout.trim();
+  if (gitDir.length === 0) throw new Error("git rev-parse --absolute-git-dir returned an empty path");
+  return isAbsolute(gitDir) ? gitDir : resolve(cwd, gitDir);
+}
+
 /**
  * A git invocation that pipes `input` to the subprocess stdin and resolves with
  * its stdout. The stdin-fed counterpart to {@link GitExec}, for plumbing that

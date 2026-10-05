@@ -1,5 +1,5 @@
 /**
- * Integration tests for pre-commit CHECK 9 (meta-project references).
+ * Integration tests for pre-commit CHECK[meta-project-references] (meta-project references).
  *
  * The check scans staged production-code added lines for planning IDs.
  * A merge commit stages parent content as if it were author-added
@@ -65,7 +65,7 @@ async function writeArcConfig(cwd: string): Promise<void> {
   );
 }
 
-describe("pre-commit CHECK 9 (meta-project references)", () => {
+describe("pre-commit CHECK[meta-project-references] (meta-project references)", () => {
   const fixtures: string[] = [];
 
   afterEach(async () => {

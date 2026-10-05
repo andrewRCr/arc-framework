@@ -31,6 +31,7 @@ import {
   HostedProviderIdSchema,
   HostedReviewCoverageSchema,
   HostedRequestEnvelopeSchema,
+  type HostedRequestEnvelope,
   HostedTargetSchema,
   type HostedReviewCoverage,
 } from "./hosted/request.js";
@@ -594,6 +595,7 @@ interface SingletonReviewRequest {
   readonly correctionScope?: IncrementalReviewScope;
   readonly ceilingOverride?: ReviewCeilingOverride;
   readonly additionalPassAuthorization?: ReviewAdditionalPassAuthorization;
+  readonly invocation?: HostedRequestEnvelope["invocation"];
 }
 
 /** Preserve the typed review intervention projected for one ordinary change-request target. */
@@ -653,6 +655,7 @@ function composeSingletonRequest(
         ? {} : { correctionScope: request.correctionScope }),
       ceilingOverride: request.ceilingOverride,
       additionalPassAuthorization: request.additionalPassAuthorization,
+      ...(request.invocation === undefined ? {} : { invocation: request.invocation }),
     },
   });
 }

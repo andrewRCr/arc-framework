@@ -12,6 +12,7 @@ import { scriptRawGitExec } from "../../../../helpers/git-exec-fake.js";
 import {
   createCandidateAttestation,
   createCandidateSubjectSnapshot,
+  CandidateReviewApplicabilitySelectionV1Schema,
   type CandidateLineageTransitionV1,
 } from "../../../../../src/lib/work-unit/candidate-attestation.js";
 import { LaneProgressStateSchema } from
@@ -851,7 +852,11 @@ describe("earlier review attempt query", () => {
         count: 1,
       },
     });
-    const readEarlier = (states: readonly ReturnType<typeof laneState>[]) =>
+    const readEarlier = (
+      states: readonly ReturnType<typeof laneState>[],
+      projectApplicability = mechanicalApplicability,
+      transitions: readonly CandidateLineageTransitionV1[] = [],
+    ) =>
       projectEarlierReviewApplicability({
         query: selector(),
         currentBase: oid("2"),
@@ -859,10 +864,10 @@ describe("earlier review attempt query", () => {
           status: "complete",
           records: states.map((state) => ({ version: 1, state })),
         },
-        candidate: candidateRecord(),
+        candidate: candidateRecord(transitions),
         exec: async () => { throw new Error("injected projection must own Git"); },
         observeEndpoints: stableEndpoints,
-        projectApplicability: async (applicabilitySelector) => mechanicalApplicability(applicabilitySelector),
+        projectApplicability: async (applicabilitySelector) => projectApplicability(applicabilitySelector),
       });
     const resolveTerminal = async (attempt: {
       readonly attemptId: string;
@@ -890,13 +895,17 @@ describe("earlier review attempt query", () => {
         coverageAdequate: true,
       },
     });
-    const discharge = async (states: readonly ReturnType<typeof laneState>[]) =>
+    const discharge = async (
+      states: readonly ReturnType<typeof laneState>[],
+      projectApplicability = mechanicalApplicability,
+      transitions: readonly CandidateLineageTransitionV1[] = [],
+    ) =>
       projectHostedReservationDischarge({
         reservation,
         span: [oid("c")],
         target: { repository: "owner/repository", pullRequest: 42, headSha: oid("c") },
         readLaneProgress: async () => ({ status: "unrecorded" }),
-        readEarlierAttemptApplicability: async () => readEarlier(states),
+        readEarlierAttemptApplicability: async () => readEarlier(states, projectApplicability, transitions),
         resolveTerminalPolicy: resolveTerminal,
         resolveEarlierTerminalPolicy: resolveTerminal,
       });
@@ -912,6 +921,93 @@ describe("earlier review attempt query", () => {
       discharged: true,
       nextSource: null,
     });
+    const latestOnlyApplicable = (value: Parameters<typeof mechanicalApplicability>[0]) =>
+      value.priorAttemptId === successTerminal.attemptId
+        ? mechanicalApplicability(value) : applicabilityDecision(value);
+    await expect(discharge([olderClean, settledSuccess], latestOnlyApplicable)).resolves.toMatchObject({
+      discharged: true, nextSource: null,
+    });
+
+    const successfulRetry = settledSuccess.attempts.at(-1);
+    if (successfulRetry === undefined) throw new Error("expected successful retry");
+    const failedBase = olderClean.attempts[0]!;
+    const { admissionId: _failedId, ...failedPreimage } = failedBase.hosted!.admission;
+    if (_failedId === "") throw new Error("expected failed admission identity");
+    const failedAdmission = createHostedAdmission({ ...failedPreimage, logicalPass: 3 });
+    const { sealedResult: _sealed, handle: _handle, ...failedHosted } = failedBase.hosted!;
+    if (_sealed === undefined || _handle === undefined) throw new Error("expected clean producer fixture");
+    for (const outcome of ["rate-limited", "transient-unavailable"] as const) {
+      const failedRetry = LaneProgressStateSchema.parse({
+        ...settledSuccess, operationId: `lane-progress/${outcome}`,
+        updatedAt: "2026-08-23T09:00:00Z", completedPasses: 0,
+        attempts: [{ ...failedBase, logicalPass: 3, attemptId: failedAdmission.admissionId, outcome,
+          terminalProducer: false, hosted: { ...failedHosted, admission: failedAdmission, effectiveCoverage: null } }],
+      });
+      const retryHistory = LaneProgressStateSchema.parse({
+        ...settledSuccess, completedPasses: 1, attempts: [failedRetry.attempts[0], successfulRetry],
+      });
+      for (const states of [[failedRetry, settledSuccess], [retryHistory]]) {
+        expect.soft(await discharge(states, latestOnlyApplicable), outcome)
+          .toMatchObject({ discharged: true, nextSource: null });
+        expect.soft(await discharge(states, applicabilityDecision), outcome)
+          .toMatchObject({ applicability: { selector: { priorAttemptId: successTerminal.attemptId } } });
+      }
+      const reversed = LaneProgressStateSchema.parse({
+        ...retryHistory, attempts: [successfulRetry, failedRetry.attempts[0]],
+      });
+      expect.soft(await discharge([reversed], latestOnlyApplicable), "later unavailable attempt")
+        .toMatchObject({ discharged: false, applicabilityAuthority: "decision-required" });
+      const tied = LaneProgressStateSchema.parse({ ...failedRetry, updatedAt: settledSuccess.updatedAt });
+      expect.soft(await discharge([tied, settledSuccess], latestOnlyApplicable), "ambiguous records")
+        .toMatchObject({ discharged: false, applicabilityAuthority: "decision-required" });
+    }
+
+    const pending = await discharge([olderClean, settledSuccess], applicabilityDecision);
+    expect(pending).toMatchObject({
+      discharged: false, nextSource: null,
+      applicability: { selector: { priorAttemptId: successTerminal.attemptId } },
+      applicabilityAuthority: "decision-required",
+    });
+    const latestProjection = pending.applicability;
+    if (latestProjection?.state !== "decision-required") throw new Error("expected latest coverage decision");
+    const selection = CandidateReviewApplicabilitySelectionV1Schema.parse({
+      transitionKind: "review-applicability-selection",
+      schemaVersion: 1, semanticsVersion: "candidate-attestation/v1",
+      candidateId: candidateRecord().attestation.candidateId,
+      selector: latestProjection.selector,
+      projectionDigest: latestProjection.projectionDigest,
+      residualDigest: latestProjection.residualDigest,
+      choice: "covered", selectedBy: "owner", selectedAt: "2026-08-23T13:00:00Z",
+    });
+    await expect(discharge([olderClean, settledSuccess], applicabilityDecision, [selection]))
+      .resolves.toMatchObject({ discharged: true, nextSource: null });
+    const successAttempt = settledSuccess.attempts.at(-1);
+    if (successAttempt === undefined) throw new Error("expected later clean attempt");
+    for (const approved of [false, true]) {
+      const unsettled = createHostedTerminalAttemptFixture({
+        admission: materialAdmission, artifact: prior.hosted.handle.artifact,
+        outcome: "findings", findings: [finding],
+        ...(approved ? {
+          dispositionSetId,
+          findingActions: [{
+            findingId: finding.findingId, disposition: "reject" as const,
+            channelAction: "reply-and-resolve" as const,
+          }],
+        } : {}),
+      });
+      const pendingResponse = LaneProgressStateSchema.parse({
+        ...settledSuccess,
+        attempts: [...olderClean.attempts, {
+          ...prior, attemptId: unsettled.attemptId, logicalPass: 2,
+          outcome: "findings", hosted: unsettled.hosted,
+        }, successAttempt],
+      });
+      expect.soft(await discharge([olderClean, pendingResponse]), approved ? "settlement pending" : "response pending")
+        .toMatchObject({
+        discharged: false, nextSource: null,
+        responsePlan: { findings: [expect.objectContaining({ findingId: finding.findingId })] },
+      });
+    }
   });
 
   it("projects an exact hosted response plan for an earlier findings attempt", async () => {

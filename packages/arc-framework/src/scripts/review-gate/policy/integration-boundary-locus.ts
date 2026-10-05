@@ -554,6 +554,30 @@ export function recoverAttestedOwnerTerminusBoundary(input: {
 }
 
 /**
+ * Recover exact singleton publication progress after attestation in the public lifecycle.
+ *
+ * @param input - Stored boundary, exact Candidate coordinates, and the observed integration lifecycle.
+ * @returns The unchanged public boundary, or null when existing publication authority cannot carry.
+ */
+export function recoverAttestedSingletonPublicationBoundary(input: {
+  stored: IntegrationBoundaryLocus | null;
+  workUnit: string;
+  candidateId: string;
+  candidateSubjectDigest: string;
+  integrating: boolean;
+}): IntegrationBoundaryLocus | null {
+  const stored = input.stored;
+  if (!input.integrating
+    || stored === null
+    || stored.workUnit !== input.workUnit
+    || stored.candidateId !== input.candidateId
+    || stored.candidateSubjectDigest !== input.candidateSubjectDigest
+    || (stored.locus !== "publication-pending" && stored.locus !== "hosted-review-pending")
+    || stored.reservation?.target.kind === "delivery") return null;
+  return IntegrationBoundaryLocusSchema.parse(stored);
+}
+
+/**
  * Carry a verified Candidate response into its published singleton boundary.
  *
  * @param input - Stored boundary, exact work unit and response, and whether publication must exist.

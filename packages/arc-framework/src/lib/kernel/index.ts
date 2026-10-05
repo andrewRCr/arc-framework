@@ -71,3 +71,7 @@ export {
   type MigrationPosture,
   type SchemaErrorCode,
 } from "./schema/registry.js";
+
+export { ArchiveQuarterSchema, ArchiveSequenceSchema, type ArchiveQuarter, type ArchiveSequence } from "./schema/archive.js";
+
+export { LocusTokenSchema } from "./schema/token.js";

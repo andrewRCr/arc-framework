@@ -13,6 +13,8 @@
 import { spineRemedy, type SpineRemedy } from "../../integration/spine-refusal.js";
 import type { ChangeRequestTargetRef } from "../change-request.js";
 import { ReviewDriverAdmissionError } from "../policy/review-execution-admission.js";
+import { LocalReviewResultReaderError } from "../hosts/local/review-result-reader.js";
+import { ReviewPolicyCommandRequestSchema } from "../policy/review-policy-driver.js";
 
 const RESOLVE_ARGV = ["arc", "review", "resolve", "-"] as const;
 
@@ -99,6 +101,26 @@ export function staleLaneAttemptsRemedy(error: unknown, request: unknown): Spine
     "Drop the attempts bound to the earlier head, keep the completed-pass count, and re-resolve the lane",
     RESOLVE_ARGV,
     { ...request, attempts: [] },
+  );
+}
+
+/**
+ * Explain a missing hosted producer reference without inventing the caller's acknowledged action.
+ *
+ * @param error - Failure raised while resolving the submitted lane.
+ * @param request - Original command input retaining the selected source.
+ * @returns The refusal with caller recovery guidance, or the original failure unchanged.
+ */
+export function reviewResolveError(error: unknown, request: unknown): unknown {
+  if (!(error instanceof LocalReviewResultReaderError) || error.code !== "missing-producer") return error;
+  const parsed = ReviewPolicyCommandRequestSchema.safeParse(request);
+  const attempt = parsed.success ? parsed.data.attempts.at(-1) : undefined;
+  if (attempt?.sourceId !== "coderabbit-pr" && attempt?.sourceId !== "codex-pr") return error;
+  return new LocalReviewResultReaderError(
+    error.code,
+    `${error.message} A terminal hosted policy attempt references the sealed producer, not the result digest. `
+      + "Re-run arc review hosted await with the original acknowledged action as JSON input, then feed its "
+      + "returned attempt to review resolve; do not request another review or substitute hostedResultId.",
   );
 }
 

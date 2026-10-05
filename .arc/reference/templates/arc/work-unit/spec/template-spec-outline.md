@@ -13,6 +13,12 @@ of a `detailed` spec. It firmly settles its Decisions and Scope while omitting r
 success-criteria matrix (those belong to a `detailed` spec). It is structurally its own form — not "a PRD
 with sections removed."}
 
+{Record the complete settled decisions, decisive rationale, boundaries, consequences, and checkable criteria without
+relying on planning history. Replace planning references with their required substance; supplemental notes carry no
+otherwise missing obligation or decision. Preserve technical precision and permitted references, and define unshipped
+prerequisites as expected contracts with availability conditions. Apply [spec-review][spec-review]'s common reader
+checks; tracking and amendment anchors cannot supply missing design.}
+
 ## Problem / Context
 
 What's the situation, and why act now? Enough context for a reader to understand the decisions below without
@@ -61,3 +67,4 @@ defined once, in [`amend-design`][amend-design]. Replace the example row with th
 ---
 
 [amend-design]: ../../../../../system/workflows/arc/supplemental/amend-design.md
+[spec-review]: ../../../../../system/methods/spec-review.md

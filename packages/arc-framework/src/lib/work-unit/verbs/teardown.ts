@@ -72,7 +72,6 @@ import {
 } from "../completed-index.js";
 import {
   describeTeardownAuthorizationRefusal,
-  gitTransitionExpectedLifecycle,
   type RetirementAuthorityPort,
   type TeardownAuthorizationDecision,
   type TeardownAuthorizationRequest,
@@ -88,8 +87,8 @@ import {
   type ReconcileWorkUnitWorktreeFs,
 } from "../mutators/reconcile-work-unit-worktree.js";
 import { isSlugSafe } from "../../kernel/schema/slug.js";
-import { isAbsolute, join } from "node:path";
-import { parseMetaRecord } from "../../active/meta-reader.js";
+import { isAbsolute } from "node:path";
+import { hasCompetingLifecycleProjection } from "../teardown-lifecycle-projection.js";
 import { readRemoteBranchOid } from "../rename-identity.js";
 import { isDecomposeCandidateBranch } from "../decompose-candidate.js";
 import { cleanupGitOwnedDecomposeCandidate } from "../git-owned-decompose-candidate-cleanup.js";
@@ -304,35 +303,6 @@ async function hasCompetingWorktreeProjection(
     if (entry.branch === branch && !(await localPathsEqual(entry.path, retiringPath))) return true;
   }
   return false;
-}
-
-async function hasCompetingLifecycleProjection(
-  ctx: TeardownContext,
-  branch: string,
-  proof: Extract<TeardownAuthorizationDecision, { status: "authorized" }>,
-  retiringPath: string,
-): Promise<boolean> {
-  const index = await buildLifecycleIndex({ cwd: ctx.cwd, fs: ctx.indexFs });
-  const slug = branchToWorkUnitSlug(branch);
-  if (slug === null) return false;
-  const entry = index.get(slug);
-  if (entry === undefined) return false;
-  try {
-    const content = await ctx.indexFs.readFile(join(ctx.cwd, entry.path));
-    const declaredBranch = parseMetaRecord(content).branch;
-    const expectedLifecycle = proof.evidence.kind === "shipped"
-      ? "completed"
-      : gitTransitionExpectedLifecycle(proof.evidence.transition);
-    if (
-      (expectedLifecycle === "completed" && entry.location === "completed")
-      || (expectedLifecycle === "planned" && entry.location === "planned")
-    ) {
-      return declaredBranch === branch && !(await isSelfTeardown(retiringPath, ctx.cwd));
-    }
-    return declaredBranch === branch;
-  } catch {
-    return true;
-  }
 }
 
 interface TeardownBranchProjectionParams {

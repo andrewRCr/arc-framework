@@ -77,8 +77,8 @@ function transactionIO(options: {
       { match: { prefix: ["fetch"] }, responses: [{ failure: {
         exitCode: 128, stderr: "couldn't find remote ref",
       } }] },
-      { match: { prefix: ["rev-parse"] }, responses: [{ failure: {
-        exitCode: 128, stderr: "Needed a single revision",
+      { match: { prefix: ["show-ref", "--exists"] }, responses: [{ failure: {
+        exitCode: 2, stderr: "reference does not exist",
       } }] },
       { match: { prefix: ["commit-tree"] }, responses: [{ stdout: oid }] },
       { match: { prefix: ["update-ref", "-d"] }, responses: [{ stdout: "" }] },
@@ -108,6 +108,14 @@ function addAlpha(io: ErrandRecordIO, remote: string | null) {
 }
 
 describe("identity transaction Git failure classification", () => {
+  it("retains the original error thrown by the caller transform", async () => {
+    const original = Object.assign(new Error("Local transform failed"),{code:"EIO"});
+    const result = await transactTransientIdentities(transactionIO(),{remote:null,message:"Fail transform",transform:()=>{throw original;}});
+    expect(result).toMatchObject({kind:"error",stage:"transform",message:original.message});
+    if (result.kind !== "error") throw new Error("Expected transform failure");
+    expect(result.error).toBe(original);
+  });
+
   const beyondMessage = "x".repeat(1_100);
 
   it("retries a CAS rejection beyond the bounded message", async () => {

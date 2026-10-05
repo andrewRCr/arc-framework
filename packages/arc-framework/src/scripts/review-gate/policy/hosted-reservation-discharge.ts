@@ -7,6 +7,7 @@ import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import type { GitExec } from "../../../lib/git/index.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
+import { readGitCandidateTargetBase } from "../../../lib/work-unit/git-candidate-effective-target.js";
 import type { DeliveryDischargeTargetLookup } from "../core/delivery-member-lookup.js";
 import { resolveRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { LocalApprovedDispositionRecordStore } from
@@ -24,7 +25,8 @@ import { NO_HOSTED_REVIEW_RESERVATION_DETAIL, type StandardReviewReservationV1 }
 import type { EarlierHostedAttemptApplicabilityRead } from "./earlier-review-applicability.js";
 import type { ReviewResult } from "../core/review-result.js";
 import { projectHostedFinding } from "../hosted/await.js";
-import type { HostedReviewCoverage } from "../hosted/request.js";
+import type { HostedRequestEnvelope, HostedReviewCoverage } from "../hosted/request.js";
+import { configuredSourceSuffix } from "./hosted-reservation-admission.js";
 import { bindReviewSourceReference } from "../core/review-source-reference.js";
 import {
   candidateExpectsEarlierReviewAttempt,
@@ -59,6 +61,8 @@ import {
   projectPendingFindings,
   projectSelectedOwnerDischarge,
   selectedOwnerCleanAttempt,
+  retainedOwnerCleanAttempt,
+  pendingHostedReservationReview,
   retainedSafeUnavailableAttempt,
   HostedReservationDischarge,
   HostedReservationDischargeReaderArgs,
@@ -69,6 +73,8 @@ import {
   applicabilityEquivalenceKey,
   allHostedReservationTargetsDischarged,
   resolveHostedReservationTargets,
+  predecessorMatchesHostedReservationPolicy,
+  selectRetainedCoverageAttempts,
 } from "./hosted-reservation-support.js";
 export * from "./hosted-reservation-support.js";
 
@@ -89,6 +95,7 @@ export * from "./hosted-reservation-support.js";
  */
 export async function projectHostedReservationDischarge(input: {
   reservation: StandardReviewReservationV1 | null;
+  invocation?: HostedRequestEnvelope["invocation"];
   span: readonly string[];
   target: {
     repository: string;
@@ -114,11 +121,16 @@ export async function projectHostedReservationDischarge(input: {
   if (reservation === null) {
     return { discharged: true, detail: NO_HOSTED_REVIEW_RESERVATION_DETAIL, nextSource: null };
   }
+  // The selected suffix governs request traversal; the full reservation governs evidence and settlement.
+  let requestInvocation = input.invocation;
+  let requestSources = input.invocation === undefined
+    ? reservation.sources
+    : configuredSourceSuffix(reservation.sources, input.invocation.sourceId);
   if (input.target === null) {
     return {
       discharged: false,
       detail: "The reserved hosted review has no exact open change-request target.",
-      nextSource: reservation.sources[0] ?? null,
+      nextSource: requestSources[0] ?? null,
     };
   }
   const target = input.target;
@@ -152,6 +164,7 @@ export async function projectHostedReservationDischarge(input: {
   const requestAttempts: HostedReservationRequestAttempt[] = [];
   const requestContext = () => ({
     requestAttempts, completedPasses,
+    ...(requestInvocation === undefined ? {} : { invocation: requestInvocation }),
     ...(requestCoverage === null ? {} : { requestCoverage }),
   });
   const currentFindingRoutes = reservation.sources.flatMap((sourceId) => (
@@ -183,31 +196,22 @@ export async function projectHostedReservationDischarge(input: {
   ));
   const currentFindings = projectPendingFindings(currentFindingRoutes, "current");
   if (currentFindings !== null) return currentFindings;
-  const pendingAttempts = currentAttempts.filter((attempt) => (
-    attempt.outcome === "pending" && reservation.sources.includes(attempt.sourceId)
-  ));
-  if (pendingAttempts.length > 0) {
-    const pending = pendingAttempts.length === 1 ? pendingAttempts[0] : undefined;
-    if (pending?.hosted?.handle === undefined) {
-      return {
-        discharged: false,
-        detail: "The reserved hosted sources have pending request progress without one exact durable handle.",
-        nextSource: null,
-      };
-    }
-    return {
-      discharged: false,
-      detail: `Hosted source \`${pending.sourceId}\` has one pending request awaiting a verdict.`,
-      nextSource: null,
-      awaitAction: { schemaVersion: 1, handle: pending.hosted.handle },
-    };
-  }
+  const pending = pendingHostedReservationReview(currentAttempts, reservation, "current");
+  if (pending !== null) return pending;
   const earlierReader = input.readEarlierAttemptApplicability;
   const activeEarlierBySource = earlierReader === undefined ? null : new Map(await Promise.all(
     reservation.sources.map(async (sourceId) => [sourceId, await earlierReader(sourceId)] as const),
   ));
   const readActiveEarlier = (sourceId: string): Promise<EarlierHostedAttemptApplicabilityRead | null> =>
     Promise.resolve(activeEarlierBySource?.get(sourceId) ?? null);
+  const retainedAttempts = [...(activeEarlierBySource?.values() ?? [])]
+    .flatMap((earlier) => earlier.status === "complete" ? earlier.attempts : []);
+  const selectedRetained = input.invocation === undefined
+    ? retainedOwnerCleanAttempt(retainedAttempts, currentAttempts, reservation) : undefined;
+  requestInvocation ??= selectedRetained?.hosted?.handle.invocation;
+  if (requestInvocation !== undefined) {
+    requestSources = configuredSourceSuffix(reservation.sources, requestInvocation.sourceId);
+  }
   let retainedTerminalLogicalPass = 0;
   let retainedTerminals: EarlierApplicableAttempt[] = [];
   if (input.readEarlierAttemptApplicability !== undefined) {
@@ -280,7 +284,8 @@ export async function projectHostedReservationDischarge(input: {
             : { localResumeAction: attempt.localResumeAction }),
         })));
     }
-    return projectPendingFindings(routes, "retained");
+    return projectPendingFindings(routes, "retained")
+      ?? pendingHostedReservationReview(retainedAttempts, reservation, "retained");
   };
   const dischargeAfterRetained = async (detail: string): Promise<HostedReservationDischarge> =>
     await retainedFindingsBeforeRequest() ?? { discharged: true, detail, nextSource: null };
@@ -406,7 +411,7 @@ export async function projectHostedReservationDischarge(input: {
     return projectSelectedOwnerDischarge(selectedClean, await retainedFindingsBeforeRequest());
   }
   const orderedLogicalPass = Math.max(latestTerminal?.logicalPass ?? 0, retainedTerminalLogicalPass) || activeLogicalPass;
-  for (const sourceId of reservation.sources) {
+  for (const sourceId of requestSources) {
     const orderedSourceAttempts = currentAttemptHistory.filter((attempt) => (
       attempt.sourceId === sourceId && attempt.logicalPass === orderedLogicalPass
     ));
@@ -439,7 +444,7 @@ export async function projectHostedReservationDischarge(input: {
         if (retainedFindings !== null) return retainedFindings;
         return {
           discharged: false,
-          detail: `The reserved standard-review source order beginning at \`${reservation.sources[0]}\` has not produced `
+          detail: `The reserved standard-review source order beginning at \`${requestSources[0]}\` has not produced `
             + "a settled review across the Candidate span.",
           nextSource: sourceId,
           ...requestContext(),
@@ -456,7 +461,8 @@ export async function projectHostedReservationDischarge(input: {
         };
       }
       const selected = earlier.attempts.filter((attempt) => attempt.sourceId === sourceId);
-      const standardAttempts = selected.filter(({ requestedCoverage, effectiveCoverage, outcome }) => (
+      const coverageAttempts = await selectRetainedCoverageAttempts(selected, input.resolveEarlierTerminalPolicy);
+      const standardAttempts = coverageAttempts.filter(({ requestedCoverage, effectiveCoverage, outcome }) => (
         requestedCoverage === "complete"
         || effectiveCoverage === "complete"
         || outcome === "clean"
@@ -552,7 +558,7 @@ export async function projectHostedReservationDischarge(input: {
     if (retainedFindings !== null) return retainedFindings;
     return {
       discharged: false,
-      detail: `The reserved standard-review source order beginning at \`${reservation.sources[0]}\` has not produced `
+      detail: `The reserved standard-review source order beginning at \`${requestSources[0]}\` has not produced `
         + "a settled review across the Candidate span.",
       nextSource: sourceId,
       ...requestContext(),
@@ -561,26 +567,10 @@ export async function projectHostedReservationDischarge(input: {
   }
   return {
     discharged: false,
-    detail: `The reserved standard-review source order beginning at \`${reservation.sources[0]}\` has not produced `
+    detail: `The reserved standard-review source order beginning at \`${requestSources[0]}\` has not produced `
       + "a settled review across the Candidate span.",
     nextSource: null,
   };
-}
-
-/** Require the retained producer to cover the same standard-review policy as this reservation. */
-export function predecessorMatchesHostedReservationPolicy(
-  predecessor: Exclude<ReviewResult, { kind: "frontline" }>,
-  reservation: StandardReviewReservationV1,
-): boolean {
-  const predecessorPolicy = {
-    obligation: predecessor.requirement.obligation,
-    reasons: [...predecessor.requirement.reasons].sort(),
-    rubricVersion: predecessor.requirement.rubricVersion, rubricDigest: predecessor.requirement.rubricDigest,
-    retrigger: predecessor.requirement.retrigger, count: predecessor.requirement.count,
-  };
-  return canonicalize(predecessorPolicy) === canonicalize({
-    ...reservation.obligation, reasons: [...reservation.obligation.reasons].sort(),
-  });
 }
 
 /**
@@ -592,6 +582,8 @@ export function predecessorMatchesHostedReservationPolicy(
 export function createHostedReservationDischargeReader(input: {
   cwd: string;
   exec: GitExec;
+  /** Selected remote for singleton base freshness; defaults to origin. */
+  remote?: string;
   delivery?: DeliveryDischargeTargetLookup;
   host?: Pick<DeliveryHostPort, "readRequest">;
 }): HostedReservationDischargeReader {
@@ -671,12 +663,15 @@ export function createHostedReservationDischargeReader(input: {
         || observed.request.repository.toLowerCase() !== changeRequest.repository.toLowerCase()) {
         throw new Error("Fresh hosted-review request coordinates are unavailable.");
       }
-      const { stdout: observedBase } = await input.exec(
-        "git",
-        ["merge-base", observed.request.headSha, observed.request.baseRef],
-        { cwd: input.cwd, objectAccess: "local-only" },
-      );
-      return { head: observed.request.headSha, base: observedBase.trim() };
+      const observedBase = await readGitCandidateTargetBase({
+        cwd: input.cwd,
+        revision: observed.request.headSha,
+        baseBranch: observed.request.baseRef,
+        ...(input.remote === undefined ? {} : { remote: input.remote }),
+        exec: input.exec,
+      });
+      if (observedBase.status !== "resolved") throw new Error(observedBase.detail);
+      return { head: observed.request.headSha, base: observedBase.base };
     };
     const readEarlierAttemptApplicability = snapshot === null
       || changeRequest === null
@@ -710,6 +705,7 @@ export function createHostedReservationDischargeReader(input: {
 
   const readTarget = async ({
     reservation,
+    invocation,
     baseRevision,
     approvedHead,
     changeRequest,
@@ -855,6 +851,7 @@ export function createHostedReservationDischargeReader(input: {
     };
     return projectHostedReservationDischarge({
       reservation,
+      ...(invocation === undefined ? {} : { invocation }),
       span,
       target: changeRequest === null
         ? null

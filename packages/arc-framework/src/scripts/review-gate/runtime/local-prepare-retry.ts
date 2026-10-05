@@ -17,7 +17,7 @@ export function cleanupExpired(state: LocalReviewState, nowInput: string): boole
 
 export async function retryLaneOwnerConflicts<T>(
   action: (attempt: number) => Promise<T>,
-): Promise<T | null> {
+): Promise<T> {
   for (let attempt = 0; attempt < REVIEW_VERSION_RETRY_ATTEMPTS; attempt += 1) {
     try {
       return await action(attempt);
@@ -25,5 +25,8 @@ export async function retryLaneOwnerConflicts<T>(
       if (!isReviewVersionConflict(error)) throw error;
     }
   }
-  return null;
+  throw new Error(
+    "local review preparation exceeded version-conflict retry attempts; "
+    + "retry the same prepare request after concurrent review writes quiesce",
+  );
 }

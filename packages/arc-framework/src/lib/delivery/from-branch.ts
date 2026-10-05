@@ -18,8 +18,7 @@ import { parseCommitMessage } from "../commit-check/parser.js";
 import {
   isTaskNonReferenceContext,
   parseTaskReference,
-  type ParsedTaskReference,
-  type ParsedTaskReferenceItem,
+  expandTaskReference,
 } from "../commit-check/task-reference.js";
 import { scanTaskListStructure } from "../task-list/scanner.js";
 import {
@@ -661,26 +660,6 @@ function taskListIds(content: string): string[] {
   return scan.events.flatMap((event) => (
     event.type === "parent" || event.type === "subtask" ? [event.item.id] : []
   ));
-}
-
-function expandTaskReference(
-  reference: ParsedTaskReference,
-  orderedTaskIds: readonly string[],
-): string[] {
-  const expanded = reference.items.flatMap((item) => expandTaskReferenceItem(item, orderedTaskIds));
-  return [...new Set(expanded)];
-}
-
-function expandTaskReferenceItem(
-  item: ParsedTaskReferenceItem,
-  orderedTaskIds: readonly string[],
-): string[] {
-  if (item.kind === "single") return [item.taskId];
-  const start = orderedTaskIds.indexOf(item.startTaskId);
-  const end = orderedTaskIds.indexOf(item.endTaskId);
-  return start !== -1 && end >= start
-    ? orderedTaskIds.slice(start, end + 1)
-    : [item.startTaskId, item.endTaskId];
 }
 
 function resolveToParentInventory(

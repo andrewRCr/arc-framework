@@ -2,11 +2,12 @@
 
 import {
   isCasRejectionError,
-  isRemoteUnavailableError,
+  isNonFastForwardError,
   MAX_RECONCILE_ATTEMPTS,
   uniqueRefToken,
 } from "../git/ref-tree.js";
-import { gitFailureText, isGitProcessError, normalizeGitRejection } from "../git/process-error.js";
+import { gitFailureText, isCompletedGitFailure, normalizeGitRejection } from "../git/process-error.js";
+import { classifyPublicationFailure, type RemotePublicationFailure } from "../git/publication-failure.js";
 import {
   serializeTransientIdentityRecord,
   type TransientIdentityRecord,
@@ -61,13 +62,16 @@ export function reconcileIdentityObjects(
 
 /** Caller decision over one freshly reconciled complete identity basis. */
 export type IdentityTransformDecision<T> =
-  | { kind: "applied"; records: ReadonlyMap<string, TransientIdentityRecord>; value: T }
+  | { kind: "applied"; records: ReadonlyMap<string, TransientIdentityRecord>; value: T;
+      /** Explicit intended puts/removals; omission retains the existing whole-record producer behavior. */
+      mutationKeys?: ReadonlySet<string> }
   | { kind: "idempotent"; value: T }
   | { kind: "refused"; reason: string };
 
 /** Pure expected-state transform re-entered after every bounded retry. */
 export type IdentityTransform<T> = (
   records: ReadonlyMap<string, TransientIdentityRecord>,
+  objects?: ReadonlyMap<string, string>,
 ) => IdentityTransformDecision<T> | Promise<IdentityTransformDecision<T>>;
 
 /** Inputs for a complete-basis identity transaction. */
@@ -78,6 +82,8 @@ export interface IdentityTransactionParams<T> {
   readonly message: string;
   /** Idempotent expected-state transform. */
   readonly transform: IdentityTransform<T>;
+  /** Observe this caller's applied decision only after its local compare-and-swap completes. */
+  readonly onLocalCommit?: (value: T) => void;
 }
 
 /** The step of an identity transaction a failure reached. */
@@ -87,8 +93,8 @@ export type IdentityTransactionStage = "fetch" | "basis" | "transform" | "write"
 export type IdentityTransactionOutcome<T> =
   | { kind: "applied"; value: T; tip: string }
   | { kind: "idempotent"; value: T; tip: string | null }
-  | { kind: "refused"; reason: string }
-  | { kind: "error"; stage: IdentityTransactionStage; message: string };
+  | { kind: "refused"; reason: string; divergentKeys?: string[]; divergentRecords?: ReadonlyMap<string, TransientIdentityRecord> }
+  | { kind: "error"; stage: IdentityTransactionStage; message: string; remoteFailure?: RemotePublicationFailure; invalidKeys?: string[]; retriesExhausted?: boolean; retryCount?: number; error?: unknown };
 
 interface CompleteBasis {
   readonly kind: "complete";
@@ -99,7 +105,7 @@ interface CompleteBasis {
 
 type RetryResult =
   | { kind: "retry"; stage: "write" }
-  | { kind: "retry"; stage: "push"; message: string };
+  | { kind: "retry"; stage: "push"; message: string; error: unknown };
 
 type AttemptResult<T> = IdentityTransactionOutcome<T> | RetryResult;
 
@@ -133,9 +139,9 @@ export async function transactTransientIdentities<T>(
     lastRetry = result;
   }
   if (lastRetry?.stage === "push") {
-    return { kind: "error", stage: "push", message: lastRetry.message };
+    return { kind: "error", stage: "push", message: lastRetry.message, remoteFailure: classifyPublicationFailure(lastRetry.error, MAX_RECONCILE_ATTEMPTS), error: lastRetry.error };
   }
-  return { kind: "error", stage: "write", message: "Identity transaction exceeded retry attempts" };
+  return { kind: "error", stage: "write", message: "Identity transaction exceeded retry attempts", retriesExhausted: true, retryCount: MAX_RECONCILE_ATTEMPTS };
 }
 
 async function transactLocalAttempt<T>(
@@ -159,9 +165,11 @@ async function transactRemoteAttempt<T>(
   try {
     await io.exec("git", fetchArgs);
   } catch (error) {
-    const absent = isGitProcessError(error) && error.expectedOutcome === "absent-remote-ref";
-    if (absent || /(?:could(?:n't| not)|cannot) find remote ref/iu.test(gitFailureText(error))) remoteAbsent = true;
-    else return { kind: "error", stage: "fetch", message: errorMessage(error) };
+    const normalized = normalizeGitRejection(error, { command: "git", args: fetchArgs });
+    const absent = normalized.kind === "nonzero-exit" && normalized.exitCode === 128
+      && (normalized.expectedOutcome === "absent-remote-ref" || /(?:could(?:n't| not)|cannot) find remote ref/iu.test(gitFailureText(error)));
+    if (absent) remoteAbsent = true;
+    else return { kind: "error", stage: "fetch", message: errorMessage(error), remoteFailure: classifyPublicationFailure(error), error };
   }
 
   const local = await readCompleteBasis(io, ref);
@@ -172,7 +180,8 @@ async function transactRemoteAttempt<T>(
   if (base.kind === "error") return base;
   const reconciled = reconcileIdentityObjects(base.objects, local.objects, remote.objects);
   if (reconciled.kind === "conflict") {
-    return { kind: "refused", reason: `Divergent identity keys: ${reconciled.keys.join(", ")}` };
+    return { kind: "refused", reason: `Divergent identity keys: ${reconciled.keys.join(", ")}`, divergentKeys: reconciled.keys,
+      divergentRecords: new Map([...remote.records, ...local.records]) };
   }
   const records = materializeReconciledRecords(reconciled.objects, base, local, remote);
   if (records === null) {
@@ -200,17 +209,16 @@ async function applyAndPublish<T>(
 ): Promise<AttemptResult<T>> {
   let decision: IdentityTransformDecision<T>;
   try {
-    decision = await params.transform(new Map(basis.records));
+    decision = await params.transform(new Map(basis.records), new Map(basis.objects));
   } catch (error) {
-    return { kind: "error", stage: "transform", message: errorMessage(error) };
+    return { kind: "error", stage: "transform", message: errorMessage(error), error };
   }
   if (decision.kind === "refused") return decision;
-  const finalRecords = decision.kind === "applied" ? new Map(decision.records) : new Map(basis.records);
   let objects: Map<string, string>;
   try {
-    objects = await hashIdentityRecords(io, finalRecords);
+    objects = await decisionObjects(io, basis, decision);
   } catch (error) {
-    return { kind: "error", stage: "transform", message: errorMessage(error) };
+    return { kind: "error", stage: "transform", message: errorMessage(error), error };
   }
   const localAlreadyExact = equalObjects(objects, local.objects);
   const basisAlreadyExact = equalObjects(objects, basis.objects);
@@ -223,19 +231,19 @@ async function applyAndPublish<T>(
   try {
     const parents = [...new Set([local.tip, basis.tip].filter((value): value is string => value !== null))];
     tip = await writeTreeCommit(io, objects, params.message, parents, local.tip);
+    if (decision.kind === "applied") params.onLocalCommit?.(decision.value);
   } catch (error) {
-    return isCasRejectionError(gitFailureText(error))
+    return isCompletedGitFailure(error) && isCasRejectionError(gitFailureText(error))
       ? { kind: "retry", stage: "write" }
-      : { kind: "error", stage: "write", message: errorMessage(error) };
+      : { kind: "error", stage: "write", message: errorMessage(error), error };
   }
   if (push && params.remote !== null) {
     try {
       await io.exec("git", ["push", params.remote, `${ref}:${ref}`]);
     } catch (error) {
-      if (isRemoteUnavailableError(gitFailureText(error))) {
-        return { kind: "error", stage: "push", message: errorMessage(error) };
-      }
-      return { kind: "retry", stage: "push", message: errorMessage(error) };
+      if (isCompletedGitFailure(error) && isNonFastForwardError(gitFailureText(error)))
+        return { kind: "retry", stage: "push", message: errorMessage(error), error };
+      return { kind: "error", stage: "push", message: errorMessage(error), remoteFailure: classifyPublicationFailure(error), error };
     }
   }
   return decision.kind === "applied"
@@ -249,12 +257,15 @@ async function readCompleteBasis(
 ): Promise<CompleteBasis | Extract<IdentityTransactionOutcome<never>, { kind: "error" }>> {
   const snapshot = await readTransientIdentitySnapshotAtRef(io, ref);
   if (snapshot.kind === "absent") return emptyBasis();
-  if (snapshot.kind === "error") return { kind: "error", stage: "basis", message: snapshot.message };
+  if (snapshot.kind === "error") return { kind: "error", stage: "basis", message: snapshot.message, error:snapshot.error };
+  const unreadable = snapshot.diagnostics.find((item)=>item.kind === "unreadable");
+  if (unreadable !== undefined) return { kind:"error",stage:"basis",message:unreadable.message,error:unreadable.error };
   if (snapshot.diagnostics.length > 0) {
     return {
       kind: "error",
       stage: "basis",
       message: `Identity basis contains invalid entries: ${snapshot.diagnostics.map((item) => item.key).join(", ")}`,
+      invalidKeys: snapshot.diagnostics.map((item) => item.key),
     };
   }
   return { kind: "complete", tip: snapshot.tip, objects: snapshot.objects, records: snapshot.records };
@@ -275,10 +286,33 @@ async function readCommonBasis(
       command: "git",
       args: ["merge-base", localTip, remoteTip],
     });
-    if (normalized.exitCode === 1) return emptyBasis();
-    return { kind: "error", stage: "basis", message: errorMessage(error) };
+    if (isCompletedGitFailure(normalized) && normalized.exitCode === 1) return emptyBasis();
+    return { kind: "error", stage: "basis", message: errorMessage(error), error };
   }
-  return commonTip === "" ? emptyBasis() : readCompleteBasis(io, commonTip);
+  if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(commonTip)) {
+    const error = new Error("Git merge-base returned a malformed common-ancestor object id");
+    return { kind: "error", stage: "basis", message: error.message, error };
+  }
+  return readCompleteBasis(io, commonTip);
+}
+
+async function decisionObjects<T>(io: ErrandRecordIO, basis: CompleteBasis,
+  decision: Exclude<IdentityTransformDecision<T>, { kind: "refused" }>): Promise<Map<string, string>> {
+  if (decision.kind === "idempotent") return new Map(basis.objects);
+  const keys = decision.mutationKeys;
+  if (keys === undefined) return hashIdentityRecords(io, decision.records);
+  const objects = new Map(basis.objects);
+  for (const key of new Set([...basis.objects.keys(), ...decision.records.keys()])) {
+    if (!keys.has(key) && basis.objects.has(key) !== decision.records.has(key))
+      throw new Error(`Identity transform omitted mutation key: ${key}`);
+  }
+  const replacements = new Map([...decision.records].filter(([key]) => keys.has(key)));
+  const hashed = await hashIdentityRecords(io, replacements);
+  for (const key of keys) {
+    const oid = hashed.get(key);
+    if (oid === undefined) objects.delete(key); else objects.set(key, oid);
+  }
+  return objects;
 }
 
 async function hashIdentityRecords(
@@ -323,7 +357,7 @@ async function deleteTemporaryRef(
     await io.exec("git", ["update-ref", "-d", ref]);
     return null;
   } catch (error) {
-    return { kind: "error", stage: "cleanup", message: errorMessage(error) };
+    return { kind: "error", stage: "cleanup", message: errorMessage(error), error };
   }
 }
 

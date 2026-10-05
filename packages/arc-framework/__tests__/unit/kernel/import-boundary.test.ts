@@ -50,7 +50,8 @@ describe("kernel import boundary", () => {
     }
 
     expect(values.sort()).toEqual([
-      "ArcError", "CanonicalDigestSchema", "PrioritySchema", "RemoteEvidenceSchema", "RemoteFailureReasonSchema", "ResultAsync",
+      "ArcError", "ArchiveQuarterSchema", "ArchiveSequenceSchema", "CanonicalDigestSchema", "LocusTokenSchema",
+      "PrioritySchema", "RemoteEvidenceSchema", "RemoteFailureReasonSchema", "ResultAsync",
       "SLUG_PATTERN", "SchemaError", "SlugSchema",
       "WORK_UNIT_STATE_ORDER", "WorkClassSchema", "WorkUnitStateSchema", "assertCanonicalDigest", "assertNever",
       "canonicalDigest", "canonicalize", "createKernelRegistry", "createRegistry", "digestBytes", "err",
@@ -60,7 +61,7 @@ describe("kernel import boundary", () => {
       "validateState", "withRemoteEvidence",
     ].sort());
     expect(types.sort()).toEqual([
-      "ArcErrorCode", "CanonicalDigest", "KernelJSONSchema", "KernelJSONSchemaBundle", "KernelRegistry",
+      "ArcErrorCode", "ArchiveQuarter", "ArchiveSequence", "CanonicalDigest", "KernelJSONSchema", "KernelJSONSchemaBundle", "KernelRegistry",
       "KernelSchemaMeta", "ManagedPath", "MigrationPosture", "Priority", "RemoteEvidence",
       "RemoteFailureReason", "Result", "SchemaErrorCode", "Slug", "WorkClass", "WorkUnitState",
     ].sort());

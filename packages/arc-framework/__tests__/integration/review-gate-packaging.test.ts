@@ -56,7 +56,7 @@ describe("review-gate package boundary", () => {
     expect(packagePreMerge).toContain("[No extension configured]");
   });
 
-  it("adds no production dependency, CLI command, or provider registry", async () => {
+  it("keeps declared dependencies and excludes review-only entry points", async () => {
     const [manifestText, rootManifestText, tsup] = await Promise.all([
       readFile(resolve(root, "packages/arc-framework/package.json"), "utf8"),
       readFile(resolve(root, "package.json"), "utf8"),
@@ -74,6 +74,7 @@ describe("review-gate package boundary", () => {
       "execa",
       "js-yaml",
       "neverthrow",
+      "node-diff3",
       "semver",
       "string-width",
       "which-command",

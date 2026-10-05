@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { handleCandidateApplicabilityResolve } from "../../src/handlers/candidate.js";
 import type { RawGitExec } from "../../src/lib/git/exec.js";
 import { createRawGitExec, gitExec } from "../../src/lib/io-context.js";
+import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { canonicalDigest } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { CanonicalDigestSchema } from "../../src/lib/kernel/schema/vocabulary.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
@@ -24,8 +25,18 @@ import {
   writeCandidateRecord,
 } from "../../src/lib/work-unit/candidate-record-store.js";
 import { readGitCandidateTargetBase } from "../../src/lib/work-unit/git-candidate-effective-target.js";
-import { createReviewRequest, createReviewRequirement } from
+import { createReviewRequest, createReviewRequirement, createReviewTarget } from
   "../../src/scripts/review-gate/core/gate-contract-v2.js";
+import { LocalReviewOperationStateStore } from
+  "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
+import { resolveRepositoryIdentity } from "../../src/scripts/review-gate/hosts/local/git-common-state.js";
+import { acknowledgeHostedRequest, recordHostedAwaitAttempt, recordHostedRequestAdmission } from
+  "../../src/scripts/review-gate/lane-progress.js";
+import { createStandardReviewReservation } from
+  "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { createHostedReservationDischargeReader } from
+  "../../src/scripts/review-gate/policy/hosted-reservation-discharge.js";
+import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../../src/scripts/review-gate/policy/standard-review.js";
 import { projectGitReviewContributionApplicability } from
   "../../src/scripts/review-gate/policy/git-review-contribution-applicability.js";
 import {
@@ -256,7 +267,7 @@ describe("review contribution applicability against Git", () => {
 describe("singleton review applicability through the selection command", () => {
   // A reviewed feature commit, then an unreviewed notes commit, on a branch whose configured base has since
   // advanced past work the branch never touched.
-  async function singletonBehindBase() {
+  async function singletonBehindBase(reviewNotes = false) {
     const root = await createTempRepoCore({ prefix: "arc-singleton-applicability-" });
     roots.push(root);
     const run = async (args: string[]): Promise<string> => (
@@ -295,8 +306,9 @@ describe("singleton review applicability through the selection command", () => {
       lineageAttestations: [],
     }, null);
     await run(["add", resolveCandidateRecordRelativePath("example")]);
-    const reviewedHead = await commit("feature.txt", "feature\n", "reviewed feature");
+    const featureHead = await commit("feature.txt", "feature\n", "reviewed feature");
     const notesHead = await commit("notes.md", "# Notes\n", "add notes");
+    const reviewedHead = reviewNotes ? notesHead : featureHead;
     await run(["checkout", "main"]);
     const baseTip = await commit("base.txt", "unrelated\n", "unrelated base movement");
     await run(["update-ref", "refs/remotes/origin/main", baseTip]);
@@ -385,6 +397,150 @@ describe("singleton review applicability through the selection command", () => {
     return { root, run, commit, mergeBase, reviewedHead, notesHead, baseTip, offer, select, authorityAt };
   }
 
+  async function recordCleanHostedReview(fixture: Awaited<ReturnType<typeof singletonBehindBase>>) {
+    const publisher = new RepositoryGitCommonStatePublisher(gitExec, fixture.root);
+    const repositoryId = await resolveRepositoryIdentity(publisher);
+    const store = new LocalReviewOperationStateStore(publisher);
+    const { record } = await readCandidateRecordVersioned(fixture.root, "example");
+    if (record === null) throw new Error("expected Candidate record");
+    const target = { repository: "owner/repository", pullRequest: 42, headSha: fixture.reviewedHead };
+    const reviewTarget = createReviewTarget({
+      schemaVersion: 2, semanticsVersion: "review-gate/v2", kind: "change-set", repositoryId,
+      baseRef: "main", diffBaseSha: fixture.mergeBase,
+      diffBaseTree: await fixture.run(["rev-parse", `${fixture.mergeBase}^{tree}`]),
+      headSha: fixture.reviewedHead,
+      headTree: await fixture.run(["rev-parse", `${fixture.reviewedHead}^{tree}`]),
+    });
+    const obligation = {
+      obligation: "required" as const, reasons: ["sensitive-change-set" as const],
+      rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
+      rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest,
+      retrigger: "full-final" as const, count: 1 as const,
+    };
+    const requirement = createReviewRequirement({
+      target: reviewTarget, projection: obligation,
+      acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }], initialAdmission: "automatic",
+    });
+    if (requirement === null) throw new Error("expected review requirement");
+    const admitted = await recordHostedRequestAdmission(store, {
+      repositoryId, lineage: { kind: "candidate", candidateId: record.attestation.candidateId },
+      request: { schemaVersion: 1, target, provider: "codex-pr", coverage: "complete" },
+      reviewTarget, requirement, actorIdentity: "test-reviewer",
+      authorizeCapacity: async () => undefined, now: "2026-10-02T12:00:00.000Z",
+    });
+    if (admitted.state !== "admitted") throw new Error("expected hosted admission");
+    const handle = {
+      schemaVersion: 1 as const, provider: "codex-pr" as const,
+      requestedCoverage: "complete" as const, effectiveCoverage: "complete" as const, target,
+      artifact: { kind: "issue-comment" as const, id: "request-1", url: "https://example.test/request-1",
+        createdAt: "2026-10-02T12:00:00.000Z" },
+      admission: admitted.admission,
+    };
+    await acknowledgeHostedRequest(store, { admission: admitted.admission, handle, now: handle.artifact.createdAt });
+    await recordHostedAwaitAttempt(store, {
+      repositoryId,
+      result: { schemaVersion: 1, mode: "review-hosted-await", handle, state: "clean", nextAction: "complete",
+        reviewUrl: "https://example.test/clean-1" },
+      now: "2026-10-02T12:00:30.000Z",
+    });
+    return createStandardReviewReservation({
+      candidateId: record.attestation.candidateId, sourceId: "codex-pr", sources: ["codex-pr"],
+      repository: target.repository, headSha: fixture.reviewedHead, obligation,
+    });
+  }
+
+  it.each(["lagging local branch", "local-only base"] as const)(
+    "keeps hosted freshness aligned after the base absorbs review (%s)",
+    async (baseMode) => {
+      const fixture = await singletonBehindBase();
+      const reservation = await recordCleanHostedReview(fixture);
+      await fixture.run(["checkout", "main"]);
+      await fixture.run(["merge", "--no-ff", "--no-edit", fixture.reviewedHead]);
+      const absorbingBase = await fixture.run(["rev-parse", "HEAD"]);
+      await fixture.run(["update-ref", "refs/remotes/origin/main", absorbingBase]);
+      await fixture.run(["checkout", "feat/example"]);
+      if (baseMode === "lagging local branch") {
+        await fixture.run(["update-ref", "refs/heads/main", fixture.mergeBase]);
+        expect(await fixture.run(["merge-base", fixture.notesHead, "main"])).toBe(fixture.mergeBase);
+      } else {
+        await fixture.run(["update-ref", "-d", "refs/remotes/origin/main"]);
+      }
+      const reader = createHostedReservationDischargeReader({
+        cwd: fixture.root, exec: gitExec,
+        host: { readRequest: async (repository, binding) => ({
+          status: "observed", request: { repository, binding, headRepository: repository,
+            headRef: "feat/example", headSha: await fixture.run(["rev-parse", "HEAD"]),
+            baseRef: "main", state: "open", draft: false },
+        }) },
+      });
+      const read = async () => {
+        const head = await fixture.run(["rev-parse", "HEAD"]);
+        const base = await readGitCandidateTargetBase({
+          cwd: fixture.root, revision: head, baseBranch: "main", exec: gitExec,
+        });
+        if (base.status !== "resolved") throw new Error("expected sole base");
+        expect(base.base).toBe(fixture.reviewedHead);
+        const { record } = await readCandidateRecordVersioned(fixture.root, "example");
+        if (record === null) throw new Error("expected Candidate record");
+        return reader({ reservation, approvedHead: head, baseRevision: base.base,
+          changeRequest: { repository: "owner/repository", pullRequest: 42 }, candidate: record });
+      };
+      const residual = await read();
+      expect(residual, JSON.stringify(residual)).toMatchObject({
+        discharged: false, nextSource: null, applicabilityAuthority: "decision-required",
+        applicability: { state: "decision-required", paths: ["notes.md"],
+          selector: { currentHead: fixture.notesHead, currentBase: fixture.reviewedHead } },
+      });
+      const offer = { ...await fixture.offer(fixture.notesHead), projection: residual.applicability };
+      await expect(fixture.select(offer, "2026-10-02T12:01:00.000Z")).resolves.toEqual({
+        result: expect.objectContaining({ state: "resolved", nextAction: "commit-selection", choice: "covered" }),
+        exitCodes: [],
+      });
+      await fixture.run(["commit", "-m", "retain residual review"]);
+      await expect(read()).resolves.toMatchObject({ discharged: true, nextSource: null });
+    },
+  );
+
+  it.each(["materialized upstream", "local fallback"] as const)(
+    "retains covered singleton review against a selected custom remote (%s)",
+    async (baseMode) => {
+      const fixture = await singletonBehindBase(true);
+      const reservation = await recordCleanHostedReview(fixture);
+      const absorbedHead = await fixture.run(["rev-parse", `${fixture.notesHead}^`]);
+      await fixture.run(["checkout", "main"]);
+      await fixture.run(["merge", "--no-ff", "--no-edit", absorbedHead]);
+      const absorbingBase = await fixture.run(["rev-parse", "HEAD"]);
+      if (baseMode === "materialized upstream") {
+        await fixture.run(["update-ref", "refs/remotes/upstream/main", absorbingBase]);
+        await fixture.run(["update-ref", "refs/heads/main", fixture.mergeBase]);
+      }
+      await fixture.run(["checkout", "feat/example"]);
+      const reader = createHostedReservationDischargeReader({
+        cwd: fixture.root, exec: gitExec, remote: "upstream",
+        host: { readRequest: async (repository, binding) => ({
+          status: "observed", request: { repository, binding, headRepository: repository,
+            headRef: "feat/example", headSha: fixture.notesHead,
+            baseRef: "main", state: "open", draft: false },
+        }) },
+      });
+      const { record } = await readCandidateRecordVersioned(fixture.root, "example");
+      if (record === null) throw new Error("expected Candidate record");
+      const read = () => reader({ reservation, approvedHead: fixture.notesHead,
+        baseRevision: absorbedHead, changeRequest: { repository: "owner/repository", pullRequest: 42 },
+        candidate: record });
+      const retained = await read();
+      expect(retained, JSON.stringify(retained)).toMatchObject({ discharged: true, nextSource: null });
+      if (baseMode === "materialized upstream") {
+        await fixture.run(["update-ref", "refs/remotes/upstream/main", fixture.mergeBase]);
+        await expect(read()).resolves.toMatchObject({
+          discharged: false, applicability: { state: "rerun-checkpoint", reason: "base-moved" },
+        });
+        await fixture.run(["update-ref", "refs/remotes/upstream/main", absorbingBase]);
+        await expect(read()).resolves.toMatchObject({ discharged: true, nextSource: null });
+      }
+    },
+  );
+
   it("binds a covered residual while the base moves past unrelated work, after refusing a moved head", async () => {
     const fixture = await singletonBehindBase();
     const earlier = await fixture.offer(fixture.notesHead);
@@ -432,6 +588,32 @@ describe("singleton review applicability through the selection command", () => {
       paths: [resolveCandidateRecordRelativePath("example"), "notes.md"],
     });
 
+    const changedHead = await fixture.commit("feature.txt", "feature changed\n", "change reviewed feature");
+    await expect(fixture.authorityAt(changedHead)).resolves.toMatchObject({ state: "decision-required" });
+  });
+
+  it("keeps an interaction selection across its record commit without covering later content changes", async () => {
+    const fixture = await singletonBehindBase(true);
+    await fixture.run(["checkout", "main"]);
+    const movedBase = await fixture.commit("notes.md", "# Base notes\n", "change base notes");
+    await fixture.run(["update-ref", "refs/remotes/origin/main", movedBase]);
+    await fixture.run(["checkout", "feat/example"]);
+    await fixture.run(["merge", "--no-ff", "--no-edit", "-X", "theirs", "main"]);
+    const mergedHead = await fixture.run(["rev-parse", "HEAD"]);
+    const selected = await fixture.offer(mergedHead);
+    expect(selected.projection).toMatchObject({
+      state: "decision-required", verdict: "interaction", paths: ["notes.md"],
+    });
+    await expect(fixture.select(selected, "2026-10-02T12:01:00.000Z")).resolves.toEqual({
+      result: expect.objectContaining({ state: "resolved", nextAction: "commit-selection", choice: "covered" }),
+      exitCodes: [],
+    });
+    await fixture.run(["commit", "-m", "record interaction selection"]);
+    const recordedHead = await fixture.run(["rev-parse", "HEAD"]);
+    await expect(fixture.authorityAt(recordedHead)).resolves.toMatchObject({
+      state: "applicable", authority: "owner-covered",
+      projection: { verdict: "interaction", paths: ["notes.md"] },
+    });
     const changedHead = await fixture.commit("feature.txt", "feature changed\n", "change reviewed feature");
     await expect(fixture.authorityAt(changedHead)).resolves.toMatchObject({ state: "decision-required" });
   });

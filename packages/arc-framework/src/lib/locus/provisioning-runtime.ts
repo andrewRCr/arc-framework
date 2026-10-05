@@ -30,8 +30,8 @@ export interface NodeProvisioningRuntimeOptions {
   readonly exec: GitExec;
   readonly base: string;
   readonly branch: string | null;
-  /** Synchronize the configured base immediately before a new primary branch is cut. */
-  readonly synchronizePrimaryBase?: () => Promise<BaseSyncResult>;
+  /** Synchronize the configured base immediately before a new branch is cut. */
+  readonly synchronizeBase?: () => Promise<BaseSyncResult>;
   readonly postCreateScript: string;
   readonly registeredHarnessDirs: string;
 }
@@ -41,10 +41,15 @@ export function createNodeProvisioningDependencies(
   options: NodeProvisioningRuntimeOptions,
 ): ProvisionTransientLocusDependencies {
   return {
-    createLinkedWorktree: (request) => createLinkedWorktree({
-      exec: options.exec,
-      pathExists: async (path) => access(path).then(() => true, () => false),
-    }, request),
+    createLinkedWorktree: async (request) => {
+      if (request.createBranch && options.synchronizeBase !== undefined) {
+        await synchronizeBaseBeforeCreation(options.synchronizeBase, "Spawned");
+      }
+      return createLinkedWorktree({
+        exec: options.exec,
+        pathExists: async (path) => access(path).then(() => true, () => false),
+      }, request);
+    },
     scanWorktrees: () => scanRegisteredWorktrees(options.exec),
     readMarker: async (worktreePath) => {
       const result = await readWorktreeMarkerGeneration(worktreePath);
@@ -107,7 +112,7 @@ export function createNodeProvisioningDependencies(
         checkoutPath,
         branch,
         expectedBranchHead,
-        options.synchronizePrimaryBase,
+        options.synchronizeBase,
       ),
     rollbackPrimary: (checkoutPath, receipt) => rollbackPrimary(options.exec, checkoutPath, receipt),
     rollbackSpawned: (receipt, rosterHead, primaryWorktreePath) =>
@@ -115,23 +120,34 @@ export function createNodeProvisioningDependencies(
   };
 }
 
+async function synchronizeBaseBeforeCreation(
+  synchronizeBase: () => Promise<BaseSyncResult>,
+  allocation: "Primary" | "Spawned",
+): Promise<void> {
+  const synchronized = await synchronizeBase();
+  if (synchronized.status === "cleanup-required") {
+    throw new Error(
+      `${allocation} base synchronization requires cleanup at '${synchronized.worktreePath}'; `
+        + "reconcile the temporary base checkout, then retry Errand open.",
+    );
+  }
+  if (synchronized.status === "refused" && synchronized.reason !== "local-ahead") {
+    throw new Error(
+      `${allocation} base synchronization refused (${synchronized.reason}); `
+        + "repair base synchronization, then retry Errand open.",
+    );
+  }
+}
+
 async function checkoutPrimary(
   exec: GitExec,
   checkoutPath: string,
   branch: string | null,
   expectedBranchHead: string | null,
-  synchronizePrimaryBase: (() => Promise<BaseSyncResult>) | undefined,
+  synchronizeBase: (() => Promise<BaseSyncResult>) | undefined,
 ): Promise<PrimaryCheckoutReceipt> {
-  if (branch !== null && expectedBranchHead === null && synchronizePrimaryBase !== undefined) {
-    const synchronized = await synchronizePrimaryBase();
-    if (synchronized.status === "cleanup-required") {
-      throw new Error(
-        `Primary base synchronization requires cleanup at '${synchronized.worktreePath}'.`,
-      );
-    }
-    if (synchronized.status === "refused" && synchronized.reason !== "local-ahead") {
-      throw new Error(`Primary base synchronization refused (${synchronized.reason}).`);
-    }
+  if (branch !== null && expectedBranchHead === null && synchronizeBase !== undefined) {
+    await synchronizeBaseBeforeCreation(synchronizeBase, "Primary");
   }
   const previousBranch = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: checkoutPath }))
     .stdout.trim();

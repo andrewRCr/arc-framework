@@ -213,7 +213,8 @@ async function attestLocalReviewWithinLocalReviewLock(
   const existing = terminalReceipts[0];
   if (existing === undefined && admittedAttempt.outcome !== "pending") {
     if (admittedAttempt.outcome !== "terminal-failure"
-      && admittedAttempt.outcome !== "transient-unavailable") {
+      && admittedAttempt.outcome !== "transient-unavailable"
+      && admittedAttempt.outcome !== "stale-target") {
       throw new LocalAttestCommandError("corrupt-state", "terminal local review operation has no durable receipt");
     }
     return terminalOperation();

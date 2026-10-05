@@ -153,6 +153,7 @@ export function checkpointMovementCause(
  * The merge that collapses two best ancestors to one is an ordinary merge: it conflicts, and it is admitted
  * or refused, on the same terms as the reconciliation an overlapping base gets. Reading them in one place
  * ahead of any reconcile is what keeps a history that proves no overlap from buying a route past them.
+ * A typed, locally repairable host condition permits only reconciliation; final admission is read again afterwards.
  *
  * @param observation - The parsed movement observation, whose coordinates the caller has already agreed.
  * @returns The refusal the readings require, or `null` when none of them stops this pair.
@@ -164,6 +165,12 @@ function mutatingReconciliationBar(observation: CheckpointMovementObservation): 
   if (observation.feasibility.state === "substantive-conflict") {
     return { state: "blocked", reason: "conflict", paths: observation.feasibility.paths };
   }
+  if (observation.movement !== "unknown" && (
+    (observation.admission.state === "unresolved"
+      && observation.admission.condition === "stale-base-test-merge")
+    || (observation.admission.state === "refused" && observation.admission.condition === "not-mergeable"
+      && observation.feasibility.state === "regenerable-conflict")
+  )) return null;
   if (observation.admission.state === "unresolved") {
     return { state: "blocked", reason: "host-pending", detail: observation.admission.detail };
   }
@@ -216,6 +223,8 @@ export function composeCheckpointMovementPlan(input: {
   const reconcileAction = observation.feasibility.state === "regenerable-conflict"
     ? "reconcile-regenerable"
     : observation.admission.state === "base-currentness-required" || observation.movement === "overlapping"
+      || (observation.admission.state === "unresolved"
+        && observation.admission.condition === "stale-base-test-merge")
       ? "reconcile-base"
       : null;
   if (reconcileAction === null) return { state: "proceed" };
