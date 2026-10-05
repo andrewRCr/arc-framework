@@ -58,5 +58,3 @@ Git observations or work-unit inventories are incomplete.
   require a safe repair before publication.
 - Integration checks refuse incomplete or unreadable work-unit inventory while unrelated work units' session
   initialization remains isolated.
-
----
