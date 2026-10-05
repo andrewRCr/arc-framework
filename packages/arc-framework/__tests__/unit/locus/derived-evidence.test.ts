@@ -2,6 +2,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
+import { GitProcessError } from "../../../src/lib/git/process-error.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import {
   acquireDerivedLocusEvidence,
@@ -108,8 +109,8 @@ describe("derived locus evidence", () => {
           ].join("\0"),
         };
       }
-      if (args[0] === "rev-parse" && args[1] === "--verify") {
-        throw new Error("Needed a single revision");
+      if (args[0] === "show-ref" && args[1] === "--exists") {
+        throw new GitProcessError({ kind: "nonzero-exit", command: "git", args, exitCode: 2 });
       }
       if (args[0] === "ls-tree") return { stdout: "" };
       if (rendered === "status --porcelain=v1 --untracked-files=normal") return { stdout: "" };

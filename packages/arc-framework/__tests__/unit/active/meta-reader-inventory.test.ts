@@ -10,6 +10,8 @@ import { META_FIELDS } from "../../../src/lib/active/meta-reader.js";
 const testDirectory = fileURLToPath(new URL(".", import.meta.url));
 const sourceRoot = resolve(testDirectory, "../../../src");
 const projectionAuthority = "lib/active/meta-reader.ts";
+// Creation admission reads only placement fields and preserves unrelated raw meta content.
+const placementCreationReader = "lib/store/in-repo/write-admission.ts";
 const rawListPolicyReader = "scripts/validate-meta-spec.ts";
 
 function typescriptFiles(directory: string): string[] {
@@ -54,6 +56,7 @@ describe("semantic meta reader boundary", () => {
           if (
             node.expression.text === "parseMetaProjectionRecord"
             && relativePath !== projectionAuthority
+            && relativePath !== placementCreationReader
           ) {
             violations.push(`${relativePath}: projection record parse`);
           }

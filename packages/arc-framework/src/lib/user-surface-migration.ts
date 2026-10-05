@@ -15,6 +15,7 @@ import { join } from "node:path";
 
 import { localPathsEqual } from "./local-path-identity.js";
 import { classifyUserSyncPath } from "./user-sync/classifier.js";
+import { IDENTITY_STATUS_FILENAME } from "./user-surfaces.js";
 import { mergeCrossWuFile } from "./user-sync/merge.js";
 import { shapeForFile } from "./user-sync/parser.js";
 
@@ -68,7 +69,7 @@ export interface ReconcileLinkedIdentityGlobalUserSurfacesOptions {
 }
 
 const LEGACY_ROOT_SESSION_NOTES = "SESSION-NOTES.md";
-const DISCARDABLE_GENERATED_CACHES = new Set(["STATUS.USER.md"]);
+const DISCARDABLE_GENERATED_CACHES = new Set([IDENTITY_STATUS_FILENAME]);
 
 /** First-line marker identifying a retired identity-global surface stub. */
 const SIGNPOST_SENTINEL = "<!-- arc:signpost";

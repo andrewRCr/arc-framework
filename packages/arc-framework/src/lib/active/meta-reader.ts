@@ -1,7 +1,7 @@
 /**
- * Reader for `arc active status` — scans `.arc/active/` for meta files,
- * detects Full vs Lite layout, and parses per-WU fields into structured
- * candidates.
+ * Reader for `arc active status` — resolves checkout-held meta identities,
+ * detects Full vs Lite layout, and parses exact record bytes into structured
+ * candidates. Lite and contributor roots retain their filesystem scans.
  *
  * Also home to the canonical meta field set (`META_FIELDS`) and the projection
  * between a meta's structured field record and its markdown form: a hoisted
@@ -18,6 +18,7 @@
  * @module
  */
 
+import { resolveArcPath } from "../layout/index.js";
 import { join, relative, sep } from "node:path";
 import { readdir, readFile, stat } from "node:fs/promises";
 
@@ -102,6 +103,8 @@ export async function readActiveMetaCandidates(
     return { layout: "lite", candidates: candidate ? [candidate] : [], warnings };
   }
 
+  if (activeDir === join(cwd, ...DEFAULT_ROOT_SEGMENTS)) return readHeldCandidates(cwd);
+
   const paths = await findMetaFiles(activeDir);
   paths.sort();
 
@@ -155,6 +158,10 @@ async function parseCandidate(
     return null;
   }
 
+  return candidateFromContent(cwd, absPath, content, warnings);
+}
+
+function candidateFromContent(cwd: string, absPath: string, content: string, warnings: string[]): MetaFileCandidate | null {
   let parsed: ParsedMetaFields;
   try {
     parsed = parseMetaFile(content);
@@ -182,6 +189,27 @@ async function parseCandidate(
     nextAction: parsed.nextAction,
     currentWorkflow: parsed.currentWorkflow,
   };
+}
+
+async function readHeldCandidates(cwd: string): Promise<ReaderResult> {
+  const [{ resolveCurrentWorkUnit }, { createStore }, { createDefaultStorePorts }] = await Promise.all([
+    import("../store/current-work-unit.js"), import("../store/create.js"), import("../store/default-ports.js"),
+  ]);
+  const store = createStore(createDefaultStorePorts({ checkoutRoot: cwd }));
+  const resolved = await resolveCurrentWorkUnit({ cwd, store });
+  const warnings = [...resolved.warnings];
+  const candidates: MetaFileCandidate[] = [];
+  for (const current of resolved.candidates) {
+    const path = resolveArcPath({ kind: "work-unit-artifact", artifact: "meta", slug: current.reference.owner.name,
+      placement: { kind: "active", scope: { kind: "project" } } });
+    try {
+      const read = await store.read({ reference: current.reference });
+      if (read.status === "refused") { warnings.push(`Unable to read ${path}: ${read.refusal.condition}`); continue; }
+      const candidate = candidateFromContent(cwd, join(cwd, path), read.result.content, warnings);
+      if (candidate !== null) candidates.push(candidate);
+    } catch (error) { warnings.push(`Unable to read ${path}: ${error instanceof Error ? error.message : String(error)}`); }
+  }
+  return { layout: "full", candidates, warnings };
 }
 
 export interface ParsedMetaFields {

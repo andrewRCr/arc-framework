@@ -174,11 +174,6 @@
       "count": 1
     }
   },
-  "src/commands/user/push-fetch.ts": {
-    "complexity": {
-      "count": 1
-    }
-  },
   "src/commands/user/save-load.ts": {
     "max-lines": {
       "count": 1
