@@ -21,6 +21,7 @@ request, schema-discovery, and input-exclusivity behavior. `resolveCommandIntera
 - [Representative validation](#representative-validation)
 - [Discovery evidence](#discovery-evidence)
 - [Verification evidence](#verification-evidence)
+- [Base reconciliation](#base-reconciliation)
 
 ## Navigation alternatives
 
@@ -417,5 +418,78 @@ its source/test witnesses. The zero-finding pass converged; its one-pass allowan
 The built-CLI discovery suites supply executable checks of the top-level intent: removing grouped navigation,
 summaries, or the specified examples makes their assertions fail. No original intent remains deferred or unowned.
 This verification establishes implementation readiness for Candidate preparation and integration review.
+
+## Base reconciliation
+
+Base revision `68e321a0f8fcbf056cea86baefbd5237ffb13bb4` was merged append-only at
+`1c1de34c6edaed6131213e02bbf953554c5e98c5`. The sole conflict was generated ROADMAP; the ARC remedy regenerated
+and staged it. The CLI merged cleanly, retaining the editor option and handoff guidance. A focused check caught
+an 83-column editor-guidance line; wrapping that sentence preserves its wording and the 80-column contract.
+
+The complete flat criteria were re-walked against the merged work-unit diff and reachable tree. Criterion text and
+digests are unchanged. Each source/behavior entry below supplements the original verification evidence; the earlier
+adversarial report remains scoped to its recorded pre-reconciliation subject.
+
+```yaml
+criteria-slice: Success Criteria
+span:
+  diff:
+    baseSha: 68e321a0f8fcbf056cea86baefbd5237ffb13bb4
+    headSha: 1c1de34c6edaed6131213e02bbf953554c5e98c5
+    kind: complete-work-unit
+  reachability: complete merged tree plus this verification record
+  boundary-order-deviation: null
+criteria:
+  - locus: Success Criteria > 1
+    criterion-digest: sha256:e350da1f38f73a042bb49e099e1a1c63b2d8cfd94bd81bec01a922d3d04164a1
+    evidence: >-
+      Source-derived guards still cover all visible registrations and exact root/five-namespace membership and
+      order; the built-CLI navigation suite passed.
+    state: "[x]"
+  - locus: Success Criteria > 2
+    criterion-digest: sha256:4ccae37f7ab2be7ca2eaafb994def87b01d0ae9787c3a319088bdcf4e532ac7f
+    evidence: >-
+      Built-CLI entry/channel/error checks, formatter isolation, visibility, native-syntax and loading-boundary
+      checks passed in the merged tree.
+    state: "[x]"
+  - locus: Success Criteria > 3
+    criterion-digest: sha256:30f2603448be1154762a58094225c9923ba24c6e15f3155af07c8009e5cb2641
+    evidence: >-
+      All visible summaries and precise purposes remain present. Native flags include the new view editor
+      option; inherited flags, defaults, section order and 80-column output passed.
+    state: "[x]"
+  - locus: Success Criteria > 4
+    criterion-digest: sha256:f06be541b5c1ee8ec27c06ea52fedd3953b8e6b582a052899af57b0a390ec8e3
+    evidence: >-
+      All ten example sets and assumptions passed. The imported editor continuation remains intact and now wraps
+      at 80 columns; hosted/schema continuation contracts are preserved.
+    state: "[x]"
+  - locus: Success Criteria > 5
+    criterion-digest: sha256:d9a99fdd8dca98ca0f87bc1c75f084d7afa95af083c4f3f825479699d26873bf
+    evidence: >-
+      Status and review-resolve flags, exclusivity, refresh/JSON/write/input contracts remain unchanged and
+      passed their current source and built-CLI checks.
+    state: "[x]"
+  - locus: Success Criteria > 6
+    criterion-digest: sha256:f11198a01770fdc764a210c95fef0c130f4587888b489b81db33daa34d4560da
+    evidence: >-
+      Recorded help-only discovery paths still construct the same valid invocations; base added an optional
+      editor flag without changing those forms or their required context.
+    state: "[x]"
+  - locus: Success Criteria > 7
+    criterion-digest: sha256:1ea4d51faae9eee4e2e26241f5c53a09252e4072cac5af386bf483ae843fc588
+    evidence: >-
+      Whole Markdown/TypeScript/shell lint, both type checks, ARC contracts, 16135 routine tests with 1187
+      skipped, all 68 focused help/editor E2E tests, and full ESM/declaration build passed.
+    state: "[x]"
+  - locus: Success Criteria > 8
+    criterion-digest: sha256:58db93fe39223454b81347ff1a639f8238086deb7e85ae3c3f70a2bbbc6c04d1
+    evidence: >-
+      No implementation criterion, scope gap or deferred original intent remains. The merged subject has fresh
+      full verification for Candidate preparation; exact review authority is composed by the subsequent typed
+      procedure.
+    state: "[x]"
+summary: { met: 8, superseded: 0, unresolved: 0 }
+```
 
 ---

@@ -11,7 +11,7 @@
 - **Design:** `spec-cli-help-discovery.md`
 - **Task List:** `tasks-cli-help-discovery.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:d06763f311f3dbeeb733e5b8ce12006b79cc8f28bb6717df5f27d30a03af0caf`
+- **Candidate:** `sha256:763d3da7a3ebec82dcad885859530eab4b5e965d86a0efc601c3c52e3f56fcb8`
 
 - **Current Workflow:** `prepare-work-unit`
 - **Last Completed:** Task 3.1 — Complete verification
