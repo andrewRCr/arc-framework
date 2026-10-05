@@ -6,7 +6,8 @@ import { SlugSchema } from "../../kernel/schema/slug.js";
 import type { ReadPlacement, WritePlacement } from "../placement.js";
 import type { WriteInput } from "../write.js";
 import type { InRepoContext } from "./context.js";
-import { heldMetaSources, selectMeta, type MetaSource } from "./meta.js";
+import { composedMetas, heldMetaSources, selectMeta, type MetaSource } from "./meta.js";
+import { requireComposedMetaSelection } from "./composition-quality.js";
 import { recordPath } from "./paths.js";
 import { notFound, refuse, unsupported } from "./refusals.js";
 import { malformedWrite } from "./write-codec.js";
@@ -63,7 +64,10 @@ export async function admittedWritePath(context: InRepoContext, input: WriteInpu
 async function writeMeta(context: InRepoContext, input: WriteInput, creations: ReadonlyMap<string, MetaSource>): Promise<MetaSource | undefined> {
   const slug = input.reference.owner.name;
   if (input.reference.kind === "work-item/meta" && input.action === "put" && input.expected === null) {
-    return (await heldMetaSources(context)).find((source) => source.slug === slug) ?? creations.get(slug);
+    const held = (await heldMetaSources(context)).find((source) => source.slug === slug);
+    if (held?.location === "active") return held;
+    requireComposedMetaSelection(await composedMetas(context), slug);
+    return held ?? creations.get(slug);
   }
   return creations.get(slug) ?? await selectMeta(context, slug);
 }

@@ -11,6 +11,7 @@ import { cohortPaths, internalReferences, companionNames, recordPath, invalidTra
 import { readFileAt } from "./files.js";
 import { decodeTrackedContent } from "./read-codec.js";
 import { basename } from "node:path";
+import { composedMetaFailures } from "./composition-quality.js";
 
 /** Discover raw tracked references without requiring successful field parsing.
  * @param context - Backend dependencies and registered physical homes.
@@ -157,12 +158,17 @@ async function metaListingSources(context: InRepoContext, input: ListInput, acqu
   const held = await heldMetaSources(context, input.asOf, input.filter?.heldHere === true ? input.filter.locations : undefined, acquisition);
   if (input.asOf !== undefined || input.filter?.heldHere === true) return filterLocations(held, input);
   const composition = await composedMetas(context, acquisition);
+  const authoritative = new Set(held.filter((source) => source.location === "active").map((source) => source.slug));
+  const failures = composedMetaFailures(composition, authoritative);
+  acquisition.push(...failures.map((failure) => failure.diagnostic));
+  const unavailable = new Set(failures.flatMap((failure) => failure.slug === undefined ? [] : [failure.slug]));
   const sources = new Map<string, MetaSource>();
   for (const slug of composition.recordsBySlug.keys()) {
+    if (authoritative.has(slug) || unavailable.has(slug)) continue;
     const source = await composedMetaSource(context, slug, composition);
     if (source !== undefined) sources.set(slug, source);
   }
-  for (const source of held) {
+  for (const source of held.filter((source) => source.location === "active" || !unavailable.has(source.slug))) {
     if (source.location === "active" || !sources.has(source.slug)) sources.set(source.slug || source.path, source);
   }
   return filterLocations([...sources.values()], input);

@@ -37,7 +37,11 @@ it("leaves a missing promised meta local during passive listing and reads after 
   await writeFile(tracePath, "");
   const previousTrace = process.env.GIT_TRACE;
   process.env.GIT_TRACE = tracePath;
-  try { success(await store.list({ family: "work-item", kind: "work-item/meta" })); }
+  try {
+    expect(success(await store.list({ family: "work-item", kind: "work-item/meta" }))).toMatchObject({
+      status: "unreadable", condition: expect.stringContaining("foreign"), remedy: { text: expect.stringContaining("retry") },
+    });
+  }
   finally {
     if (previousTrace === undefined) delete process.env.GIT_TRACE;
     else process.env.GIT_TRACE = previousTrace;

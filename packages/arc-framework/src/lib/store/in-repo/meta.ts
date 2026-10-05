@@ -11,6 +11,8 @@ import { readFileAt } from "./files.js";
 import { discoverDirectory, isAccessDenied } from "./discovery.js";
 import type { ListingDiagnostic } from "../read.js";
 import type { ComposedLifecycleIndexResult } from "../../work-unit/composed-lifecycle-index.js";
+import { isCompletedGitFailure } from "../../git/process-error.js";
+import { requireComposedMetaSelection } from "./composition-quality.js";
 
 /** One selected copy and the tree where its bytes live. */
 export interface MetaSource {
@@ -117,9 +119,11 @@ export async function composedMetas(context: InRepoContext, diagnostics?: Listin
     import("../../errand/record.js"),
   ]);
   const { ports } = context;
-  const exec: typeof ports.exec = (command, args, options) => ports.exec(command, args, {
-    cwd: ports.checkoutRoot, ...options, objectAccess: "local-only",
-  });
+  const failures: unknown[] = [];
+  const exec: typeof ports.exec = async (command, args, options) => {
+    try { return await ports.exec(command, args, { cwd: ports.checkoutRoot, ...options, objectAccess: "local-only" }); }
+    catch (error) { if (!isCompletedGitFailure(error)) failures.push(error); throw error; }
+  };
   const identity = await ports.identity();
   const read = transient.projectTransientInFlightRead(await transient.readTransientInFlightIndexes({ exec, identity }));
   const { settings } = await readConfigSettings(ports.checkoutRoot);
@@ -128,6 +132,7 @@ export async function composedMetas(context: InRepoContext, diagnostics?: Listin
     exec, acquisitionPolicy: "local", baseBranch: settings["branch.base"],
     errandSlugByBranch: read.indexes.slugByBranch, errandRecordsComplete: read.complete,
   } });
+  if (failures.length > 0) throw failures[0];
   acquisition.requireReadable();
   return composition;
 }
@@ -168,5 +173,7 @@ export async function selectMeta(context: InRepoContext, slug: string, revision?
   if (revision !== undefined) return (await heldMetaSources(context, revision)).find((source) => source.slug === slug);
   const flat = await flatActiveMeta(context, slug);
   if (flat !== undefined) return flat;
-  return composedMetaSource(context, slug, await composedMetas(context));
+  const composition = await composedMetas(context);
+  requireComposedMetaSelection(composition, slug);
+  return composedMetaSource(context, slug, composition);
 }
