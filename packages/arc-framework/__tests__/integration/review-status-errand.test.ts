@@ -938,12 +938,10 @@ describe("Errand review status", () => {
       await git(root, ["commit", "-m", `change ${content.trim()}`]);
       return git(root, ["rev-parse", "HEAD"]);
     };
-    // The CLI runs from the checkout, whose identity refs carry the Errand claim.
+    // The explicit handler root selects the Errand claim without changing the process directory.
     const resolveFrontline = async (headSha: string): Promise<unknown> => {
       const output: string[] = [];
       const exitCodes: number[] = [];
-      const previous = process.cwd();
-      process.chdir(root);
       await handleReviewResolve("-", {
         resolveRoot: () => root,
         readText: async () => JSON.stringify({
@@ -957,7 +955,7 @@ describe("Errand review status", () => {
         }),
         write: (text) => output.push(text),
         setExitCode: (code) => exitCodes.push(code),
-      }).finally(() => process.chdir(previous));
+      });
       expect(exitCodes).toEqual([]);
       return JSON.parse(output.join(""));
     };
