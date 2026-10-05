@@ -62,11 +62,13 @@ export interface UserSaveOptions {
    * it from active-meta / branch before serializing per-WU SESSION-NOTES.
    */
   currentWuName?: string;
+  /** Complete notes-lock scope supplied by a composing caller. */
+  withNotesLock?: <T>(operation: () => Promise<T>) => Promise<T>;
 }
 
 /** Error specific to user save operations. */
 export class UserSaveError extends Error {
-  constructor(message: string) {
+  constructor(message: string, readonly reason?: "no-eligible-files") {
     super(message);
     this.name = "UserSaveError";
   }
@@ -283,7 +285,7 @@ export type UserPushResult =
   | { kind: "pushed" }
   | { kind: "noop" }
   | { kind: "no-local-notes" }
-  | { kind: "no-remote" }
+  | { kind: "no-remote"; error?: Error }
   | { kind: "refused"; reason: BranchBoundedNotesExportRefusalReason; message: string };
 
 /** Reason a paired-push leg was skipped without firing. */

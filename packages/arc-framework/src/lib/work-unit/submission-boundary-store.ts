@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { canonicalize, digestBytes } from "../kernel/canonical/canonical-json.js";
 import { atomicWriteFile } from "../fs.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
-import { acquireAdvisoryLock, releaseAdvisoryLock } from "../advisory-lock.js";
+import { withAdvisoryLock } from "../advisory-lock.js";
 import {
   parseIntegrationBoundaryLocus,
   type IntegrationBoundaryLocus,
@@ -24,14 +24,7 @@ export interface SubmissionBoundaryStoreFs extends SubmissionBoundaryReader {
 const nodeFs: SubmissionBoundaryStoreFs = {
   readFile: (path) => readFile(path, "utf8"),
   writeFile: atomicWriteFile,
-  withLock: async (path, action) => {
-    const handle = await acquireAdvisoryLock(path);
-    try {
-      return await action();
-    } finally {
-      await releaseAdvisoryLock(handle);
-    }
-  },
+  withLock: (path, action) => withAdvisoryLock(path, action),
 };
 
 export interface VersionedSubmissionBoundary {

@@ -1,5 +1,5 @@
 /**
- * I/O boundary for the read-only `arc view` command.
+ * I/O boundary for ARC artifact viewing and editor handoff.
  *
  * @module
  */
@@ -40,10 +40,13 @@ import {
   type InteractionContext,
 } from "../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
-import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import {
+  declareCliOptionSite, declareInteractionSite, type CommandInputDeclaration,
+} from "../lib/command-input/declaration.js";
 import { resolveViewClock } from "../lib/view/clock.js";
 import { buildLifecycleIndex, type LifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { requireArcProjectRoot } from "./shared.js";
+import { launchViewEditor } from "./view-editor.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -51,6 +54,7 @@ export interface ViewCliOptions {
   project?: boolean;
   current?: boolean;
   path?: boolean;
+  editor?: boolean;
   for?: string;
 }
 
@@ -62,11 +66,16 @@ export const ViewCommandInputSchema = z.object({
   project: z.boolean(),
   current: z.boolean(),
   path: z.boolean(),
+  editor: z.boolean(),
   forSlug: z.string().refine(
     (value) => SlugSchema.safeParse(value).success,
     { message: "Invalid work-unit slug" },
   ).optional(),
 }).strict().superRefine((value, refinement) => {
+  if (value.editor && (value.path || value.current)) {
+    const conflict = value.path ? "--path" : "--current";
+    refinement.addIssue({ code: "custom", path: ["editor"], message: `--editor cannot be combined with ${conflict}` });
+  }
   if (value.current && value.kind !== undefined && value.kind !== "tasks") {
     refinement.addIssue({ code: "custom", path: ["current"], message: "--current is only valid with tasks" });
   }
@@ -94,22 +103,34 @@ export const viewCommandInputRegistration = {
     "option.project": "project",
     "option.current": "current",
     "option.path": "path",
+    "option.editor": "editor",
     "option.for": "forSlug",
   },
 } satisfies CommandInputRegistration;
 
-/** Presenter-process policies owned by the view adapter. */
+/** Presentation and editor-process policies owned by the view adapter. */
 export const viewCommandInputPolicyDeclarations = [{
   commandPath: "view",
   aliases: [],
-  sites: (["execFileAsync", "spawn"] as const).map((callee) => declareInteractionSite(
+  sites: [declareCliOptionSite("editor", {
+    acquisition: "interactive-only-override", schemaOwnership: "owned", schemaField: "editor",
+    cancellation: "not-applicable", automation: { noInput: "refuse", flags: ["--editor", "-e"], acceptedSyntax: [] },
+    mutationBoundary: "editor handoff", subprocess: "editor",
+  }), ...(["execFileAsync", "spawn"] as const).map((callee) => declareInteractionSite(
     { file: "handlers/view.ts", kind: "subprocess", callee, occurrence: 1 },
     {
       acquisition: "presenter", schemaOwnership: "none", cancellation: "not-applicable",
       automation: { noInput: "render-directly", flags: [], acceptedSyntax: [] },
       mutationBoundary: "view subprocess boundary", subprocess: "presenter",
     },
-  )),
+  )), declareInteractionSite(
+    { file: "handlers/view-editor.ts", kind: "subprocess", callee: "spawn", occurrence: 1 },
+    {
+      acquisition: "interactive-only-override", schemaOwnership: "none", cancellation: "not-applicable",
+      automation: { noInput: "refuse", flags: ["--editor", "-e"], acceptedSyntax: [] },
+      mutationBoundary: "editor handoff", subprocess: "editor",
+    },
+  )],
 }] satisfies readonly CommandInputDeclaration[];
 
 /** Convert the command-owned active envelope into the neutral viewer target. */
@@ -164,6 +185,7 @@ export async function handleView(
     project: options.project === true,
     current: options.current === true,
     path: options.path === true,
+    editor: options.editor === true,
     ...(options.for === undefined ? {} : { forSlug: options.for }),
   });
   if (!parsed.success) {
@@ -174,13 +196,18 @@ export async function handleView(
   const context = suppliedContext ?? resolveProcessInteractionContext({
     noInput: false, machineReadable: false, yes: "absent",
   });
+  if (parsed.data.editor && context.interaction === "forbidden") {
+    process.stderr.write("--editor requires an interactive terminal and allowed interaction.\n");
+    process.exitCode = 1;
+    return;
+  }
   const cwd = requireArcProjectRoot();
   if (cwd === null) return;
   const io = createUserIOContext(context.subprocess);
   const exec = io.exec;
   const identity = await resolveIdentity({ exec });
   const dependencies = createViewDependencies(cwd, io.readFile, exec);
-  const clock = await resolveViewClock({
+  const clock = parsed.data.editor ? undefined : await resolveViewClock({
     cwd,
     exec: (command, args, execOptions) => exec(command, args, { ...execOptions, cwd }),
     readFile: io.readFile,
@@ -192,11 +219,14 @@ export async function handleView(
     identity,
     current: parsed.data.current,
     path: parsed.data.path,
+    editor: parsed.data.editor,
+    editorAllowed: context.interaction === "allowed",
     ...(parsed.data.forSlug === undefined ? {} : { forSlug: parsed.data.forSlug }),
     nonInteractive: context.subprocess.presenters === "forbidden",
   }, {
     resolveArtifact: (input) => resolveViewArtifact(input, dependencies),
     readFile: io.readFile,
+    launchEditor: (path) => launchViewEditor(path, cwd, { exec }),
     resolveRenderer: () => resolveViewRenderer({
       cwd,
       exec: (command, args, execOptions) => exec(command, args, { ...execOptions, cwd }),

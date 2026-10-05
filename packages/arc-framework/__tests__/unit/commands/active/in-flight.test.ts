@@ -15,6 +15,7 @@ import {
   runActiveInFlightExpansion,
   runActiveInFlight,
 } from "../../../../src/commands/active/in-flight.js";
+import { GitProcessError } from "../../../../src/lib/git/process-error.js";
 import type { ExecResult, GitExec, GitExecInput } from "../../../../src/lib/git/exec.js";
 
 const LIVE_REMOTE_TIP = "deadbeef".padEnd(40, "0");
@@ -80,8 +81,11 @@ function makeExec(opts: {
       };
     }
     if (args[0] === "worktree" && args[1] === "list") return { stdout: "", stderr: "" };
+    if (args[0] === "show-ref") {
+      if (errandRecords.length === 0) throw new GitProcessError({ kind: "nonzero-exit", command: "git", args, exitCode: 2 });
+      return { stdout: "", stderr: "" };
+    }
     if (args[0] === "rev-parse") {
-      if (errandRecords.length === 0) throw new Error("Needed a single revision");
       return { stdout: `${DUMMY_SHA}\n`, stderr: "" };
     }
     if (args[0] === "ls-tree" && args.includes("--name-only")) {

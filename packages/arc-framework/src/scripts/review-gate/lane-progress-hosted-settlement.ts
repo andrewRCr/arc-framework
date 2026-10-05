@@ -1,5 +1,6 @@
 /** Hosted disposition and finding settlement transitions. */
 
+import type { ConfirmResponseHeadContinuation } from "./core/response-head-continuation.js";
 import { canonicalize, type CanonicalDigest } from "../../lib/kernel/index.js";
 import { LaneProgressStateSchema, type LaneProgressState } from "./core/operation-state-schema.js";
 import type { ReviewOperationStateStore } from "./core/ports.js";
@@ -152,6 +153,7 @@ export async function bindHostedAttemptDisposition(
       disposition: "fix" | "defer" | "reject";
       channelAction: "record-only" | "reply-and-resolve";
     }[];
+    confirmResponseHeadContinuation?: ConfirmResponseHeadContinuation;
     now: string;
   },
 ): Promise<LaneProgressState> {
@@ -205,7 +207,10 @@ export async function bindHostedAttemptDisposition(
       settlementEvidence,
     },
   };
-  attempts[index] = completeHostedAttemptIfReady(boundAttempt, input.now);
+  attempts[index] = await completeHostedAttemptIfReady(boundAttempt, input.now, {
+    repositoryId: state.repositoryId, lineage: state.lineage,
+    confirmResponseHeadContinuation: input.confirmResponseHeadContinuation,
+  });
   const next = LaneProgressStateSchema.parse({ ...state, updatedAt: input.now, attempts });
   await store.publishOperation(next, version);
   return next;
@@ -239,6 +244,7 @@ export async function settleHostedAttemptFinding(
     threadId: string;
     replyDigest: CanonicalDigest;
     replyId: string;
+    confirmResponseHeadContinuation?: ConfirmResponseHeadContinuation;
     now: string;
   },
 ): Promise<LaneProgressState> {
@@ -292,7 +298,10 @@ export async function settleHostedAttemptFinding(
       settlementEvidence: [...attempt.hosted.settlementEvidence, evidence],
     },
   };
-  attempts[index] = completeHostedAttemptIfReady(settledAttempt, input.now);
+  attempts[index] = await completeHostedAttemptIfReady(settledAttempt, input.now, {
+    repositoryId: state.repositoryId, lineage: state.lineage,
+    confirmResponseHeadContinuation: input.confirmResponseHeadContinuation,
+  });
   const next = LaneProgressStateSchema.parse({ ...state, updatedAt: input.now, attempts });
   await store.publishOperation(next, version);
   return next;
@@ -314,6 +323,7 @@ export interface HostedDispositionSupersessionInput {
     readonly disposition: "fix" | "defer" | "reject";
     readonly channelAction: "record-only" | "reply-and-resolve";
   }[];
+  readonly confirmResponseHeadContinuation?: ConfirmResponseHeadContinuation;
   readonly now: string;
 }
 
@@ -475,7 +485,7 @@ export async function supersedeHostedAttemptDisposition(
     },
   ];
   const attempts = [...state.attempts];
-  attempts[index] = completeHostedAttemptIfReady({
+  attempts[index] = await completeHostedAttemptIfReady({
     ...attempt,
     outcome: "findings",
     hosted: {
@@ -485,7 +495,8 @@ export async function supersedeHostedAttemptDisposition(
       settledFindingIds: carriedFindingIds,
       settlementEvidence: [...hosted.settlementEvidence, ...carriedEvidence],
     },
-  }, input.now);
+  }, input.now, { repositoryId: state.repositoryId, lineage: state.lineage,
+    confirmResponseHeadContinuation: input.confirmResponseHeadContinuation });
   const progress = LaneProgressStateSchema.parse({ ...state, updatedAt: input.now, attempts });
   await store.publishOperation(progress, version);
   return { progress, carriedFindingIds, reopenedFindingIds };

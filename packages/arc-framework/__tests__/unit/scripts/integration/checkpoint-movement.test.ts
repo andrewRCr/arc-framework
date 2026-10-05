@@ -28,7 +28,7 @@ describe("checkpoint movement plan", () => {
 
   it("requires complete evidence before overlapping base reconciliation", () => {
     expect(plan({ movement: "overlapping" })).toEqual({
-      state: "reconcile", nextAction: "reconcile-base",
+      state: "reconcile", nextAction: "reconcile-base", rule: "overlapping",
     });
     expect(plan({ movement: "overlapping", integrationEvidenceComplete: false })).toMatchObject({
       state: "blocked", reason: "unsafe-reconcile",
@@ -38,7 +38,17 @@ describe("checkpoint movement plan", () => {
   it("routes an exact regenerable-only conflict to its distinct remedy", () => {
     expect(plan({
       feasibility: { state: "regenerable-conflict", ...coordinates, paths: ["ROADMAP.md"] },
-    })).toEqual({ state: "reconcile", nextAction: "reconcile-regenerable" });
+    })).toEqual({ state: "reconcile", nextAction: "reconcile-regenerable", rule: "regenerable-conflict" });
+  });
+
+  it("offers generated-conflict repair before the host can merge the conflicted head", () => {
+    expect(plan({
+      feasibility: { state: "regenerable-conflict", ...coordinates, paths: ["ROADMAP.md"] },
+      admission: {
+        state: "refused", ...admissionCoordinates, condition: "not-mergeable",
+        detail: "GitHub reports the pull request cannot merge cleanly into its base.",
+      },
+    })).toEqual({ state: "reconcile", nextAction: "reconcile-regenerable", rule: "regenerable-conflict" });
   });
 
   it("maps strict-currentness policy to the applicable reconcile arm", () => {
@@ -47,12 +57,97 @@ describe("checkpoint movement plan", () => {
       ...admissionCoordinates,
       detail: "Current base required.",
     };
-    expect(plan({ admission })).toEqual({ state: "reconcile", nextAction: "reconcile-base" });
+    expect(plan({ admission })).toEqual({ state: "reconcile", nextAction: "reconcile-base", rule: "base-currentness-required" });
     expect(plan({
       admission,
       feasibility: { state: "regenerable-conflict", ...coordinates, paths: ["ROADMAP.md"] },
-    })).toEqual({ state: "reconcile", nextAction: "reconcile-regenerable" });
+    })).toEqual({ state: "reconcile", nextAction: "reconcile-regenerable", rule: "regenerable-conflict" });
   });
+
+  it("keeps disjoint clean movement unavailable when the host test merge remains stale", () => {
+    for (const integrationEvidenceComplete of [true, false]) {
+      expect(plan({
+        integrationEvidenceComplete,
+        admission: {
+          state: "unresolved", ...admissionCoordinates, condition: "stale-base-test-merge",
+          detail: "Observation expired; retry exact admission.",
+        },
+      })).toEqual({ state: "blocked", reason: "host-pending", detail: "Observation expired; retry exact admission." });
+    }
+  });
+
+  it.each(["overlap", "regenerable-conflict"] as const)(
+    "preserves %s reconciliation when the host test-merge base is stale", (cause) => {
+      expect(plan({
+        movement: cause === "overlap" ? "overlapping" : "disjoint",
+        feasibility: cause === "overlap" ? { state: "clean", ...coordinates }
+          : { state: "regenerable-conflict", ...coordinates, paths: ["ROADMAP.md"] },
+        admission: {
+          state: "unresolved", ...admissionCoordinates, condition: "stale-base-test-merge",
+          detail: "The test merge covers an earlier base.", evidenceRef: "github:test-merge:stale",
+        },
+      })).toEqual({
+        state: "reconcile", nextAction: cause === "overlap" ? "reconcile-base" : "reconcile-regenerable",
+        rule: cause === "overlap" ? "overlapping" : "regenerable-conflict",
+      });
+    },
+  );
+
+  it.each([undefined, "head-moved", "base-ref-mismatch"] as const)(
+    "keeps generated conflicts behind unrelated host refusal %s", (condition) => {
+      expect(plan({
+        feasibility: { state: "regenerable-conflict", ...coordinates, paths: ["ROADMAP.md"] },
+        admission: {
+          state: "refused", ...admissionCoordinates, detail: "Host refused.",
+          ...(condition === undefined ? {} : { condition }),
+        },
+      })).toMatchObject({ state: "blocked", reason: "host-refused" });
+    },
+  );
+
+  it("keeps generated conflicts blocked when pending host evidence has no repair condition", () => {
+    expect(plan({
+      feasibility: { state: "regenerable-conflict", ...coordinates, paths: ["ROADMAP.md"] },
+      admission: { state: "unresolved", ...admissionCoordinates, detail: "Host evidence unavailable." },
+    })).toMatchObject({ state: "blocked", reason: "host-pending" });
+  });
+
+  it.each(["clean", "regenerable-conflict"] as const)(
+    "requires complete integration evidence for %s stale-base repair", (state) => {
+      expect(plan({
+        integrationEvidenceComplete: false,
+        movement: "overlapping",
+        feasibility: state === "clean" ? { state, ...coordinates }
+          : { state, ...coordinates, paths: ["ROADMAP.md"] },
+        admission: {
+          state: "unresolved", ...admissionCoordinates, condition: "stale-base-test-merge", detail: "Stale base.",
+        },
+      })).toMatchObject({ state: "blocked", reason: "unsafe-reconcile" });
+    },
+  );
+
+  it("requires complete integration evidence for host-refused generated-conflict repair", () => {
+    expect(plan({
+      integrationEvidenceComplete: false,
+      feasibility: { state: "regenerable-conflict", ...coordinates, paths: ["ROADMAP.md"] },
+      admission: {
+        state: "refused", ...admissionCoordinates, condition: "not-mergeable", detail: "Conflicted.",
+      },
+    })).toMatchObject({ state: "blocked", reason: "unsafe-reconcile" });
+  });
+
+  it.each(["stale-base-test-merge", "not-mergeable"] as const)(
+    "retains conservative ambiguous-movement admission for %s", (condition) => {
+      expect(plan({
+        movement: "unknown", movementCause: "ambiguous",
+        feasibility: { state: "regenerable-conflict", ...coordinates, paths: ["ROADMAP.md"] },
+        admission: {
+          state: condition === "not-mergeable" ? "refused" : "unresolved",
+          ...admissionCoordinates, condition, detail: "Host admission requires repair.",
+        },
+      })).toMatchObject({ state: "blocked", reason: condition === "not-mergeable" ? "host-refused" : "host-pending" });
+    },
+  );
 
   it("preserves conflict, host-pending, and host-refusal causes", () => {
     expect(plan({
@@ -75,6 +170,7 @@ describe("checkpoint movement plan", () => {
     expect(plan({ movement: "unknown", movementCause: "ambiguous" })).toEqual({
       state: "reconcile",
       nextAction: "reconcile-base",
+      rule: "ambiguous-merge-base",
     });
   });
 

@@ -36,8 +36,8 @@ export interface OpenOrdinaryErrandRuntimeOptions {
   readonly inbox: InspectedInboxEntry | null;
   readonly protection: "full" | "partial";
   readonly base: string;
-  /** Whether a new primary branch must first synchronize the configured local base. */
-  readonly syncPrimaryBase: boolean;
+  /** Whether a new Errand branch must first synchronize the configured local base. */
+  readonly syncBase: boolean;
   readonly createdAt: string;
   readonly identity: string;
   readonly locationTemplate: string;
@@ -193,8 +193,8 @@ export async function openOrdinaryErrandAtRuntimeWithDisposition(
             exec: options.exec,
             base: options.base,
             branch: request.branch,
-            ...(options.syncPrimaryBase ? {
-              synchronizePrimaryBase: () => syncLocalBase({ exec: options.exec, baseBranch: options.base }),
+            ...(options.syncBase ? {
+              synchronizeBase: () => syncLocalBase({ exec: options.exec, baseBranch: options.base }),
             } : {}),
             postCreateScript: options.postCreateScript,
             registeredHarnessDirs: options.registeredHarnessDirs,

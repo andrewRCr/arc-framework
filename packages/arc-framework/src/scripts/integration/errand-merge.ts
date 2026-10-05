@@ -1,6 +1,7 @@
 /** Exact-effect Errand terminal merge contracts and operation. */
 
 import { z } from "zod";
+import { describeCheckpointReconciliation } from "./checkpoint-reconciliation-detail.js";
 
 import {
   BoundedEvidenceResidualSchema,
@@ -456,8 +457,9 @@ async function withReheldTarget(
 function reconcileResult(
   request: ErrandMergeRequest,
   final: Extract<ErrandMergeFinalPlan, { status: "available" }>,
-  nextAction: "reconcile-base" | "reconcile-regenerable",
+  plan: Extract<CheckpointMovementPlan, { state: "reconcile" }>,
 ): ErrandMergeResult {
+  const { nextAction } = plan;
   const regenerable = nextAction === "reconcile-regenerable";
   const argv = [
     "arc", "base", "merge",
@@ -471,9 +473,7 @@ function reconcileResult(
     state: regenerable ? "reconcile-regenerable" : "reconcile-base",
     nextAction,
     reason: regenerable ? "regenerable-reconcile-required" : "base-reconcile-required",
-    detail: regenerable
-      ? "The exact plan admits only the determinate regenerable reconcile."
-      : "The exact plan requires an ordinary base reconcile.",
+    detail: describeCheckpointReconciliation(plan.rule),
     identity: request.identity,
     approvedTarget: request.approvedTarget,
     lane: request.lane,
@@ -668,7 +668,7 @@ export async function mergeErrand(
     );
   }
   if (final.reviewApplicability.verdict === "carries" && final.plan.state === "reconcile") {
-    return reconcileResult(request, final, final.plan.nextAction);
+    return reconcileResult(request, final, final.plan);
   }
   if (final.plan.state === "blocked") {
     const common = {
@@ -1058,7 +1058,7 @@ export async function mergeErrand(
         dependencies,
         currentnessPlan.target,
         currentnessPlan.baseOid,
-        reconcileResult(request, currentnessPlan, currentnessPlan.plan.nextAction),
+        reconcileResult(request, currentnessPlan, currentnessPlan.plan),
       );
     }
     return withReheldTarget(

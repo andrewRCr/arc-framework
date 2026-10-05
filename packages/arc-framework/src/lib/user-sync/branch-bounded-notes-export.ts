@@ -5,7 +5,7 @@
  */
 
 import type { GitExec, GitExecInput } from "../git/exec.js";
-import { gitFailureText, normalizeGitRejection } from "../git/process-error.js";
+import { gitFailureText, isCompletedGitFailure, normalizeGitRejection } from "../git/process-error.js";
 import { uniqueRefToken } from "../git/ref-tree.js";
 import {
   NOTES_COMPACTION_MANIFEST_PATH,
@@ -49,7 +49,7 @@ export type PlanBranchBoundedNotesExportResult =
 export type PushBranchBoundedNotesExportResult =
   | { kind: "pushed" }
   | { kind: "noop" }
-  | { kind: "no-remote" }
+  | { kind: "no-remote"; error?: Error }
   | { kind: "failed"; error: Error };
 
 /** Inputs for {@link planBranchBoundedNotesExport}. */
@@ -170,7 +170,7 @@ export async function pushBranchBoundedNotesExport(
     return { kind: "pushed" };
   } catch (error) {
     const normalized = toError(error);
-    if (isRemoteUnavailableError(gitFailureText(error))) return { kind: "no-remote" };
+    if (isRemoteUnavailableError(gitFailureText(error))) return { kind: "no-remote", error: normalized };
     return { kind: "failed", error: normalized };
   }
 }
@@ -181,9 +181,10 @@ export async function readStrictLocalRefTip(exec: GitExec, ref: string): Promise
   try {
     ({ stdout } = await exec("git", ["rev-parse", "--verify", "--quiet", ref]));
   } catch (error) {
-    if (normalizeGitRejection(error, {
+    const failure = normalizeGitRejection(error, {
       command: "git", args: ["rev-parse", "--verify", "--quiet", ref],
-    }).exitCode === 1) return null;
+    });
+    if (isCompletedGitFailure(failure) && failure.exitCode === 1) return null;
     throw error;
   }
   const tip = stdout.trim();

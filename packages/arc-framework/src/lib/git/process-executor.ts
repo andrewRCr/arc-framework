@@ -139,7 +139,10 @@ export function createExecaGitExec(maxBuffer = MAX_GIT_OUTPUT_BYTES): GitExec {
         stripFinalNewline: false,
         ...(options?.interaction?.ambientStdin === "closed" ? { stdin: "ignore" as const } : {}),
       });
-      return { stdout: result.stdout.trimEnd(), stderr: result.stderr };
+      return {
+        stdout: options?.preserveOutput === true ? result.stdout : result.stdout.trimEnd(),
+        stderr: result.stderr,
+      };
     } catch (error) {
       throw normalizeGitRejection(error, { command, args: effectiveArgs });
     }

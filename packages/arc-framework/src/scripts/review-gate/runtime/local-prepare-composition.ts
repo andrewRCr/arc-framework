@@ -1,5 +1,6 @@
 /** Production adapters for the local review prepare command. */
 
+import { createCandidateResponseHeadContinuationReader } from "./candidate-response-head-continuation.js";
 import { readFile } from "node:fs/promises";
 
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
@@ -371,6 +372,7 @@ export function createLocalPrepareDependencies(input: {
       10_000,
       action,
     ),
+    confirmResponseHeadContinuation: createCandidateResponseHeadContinuationReader({ ...input, dispositionStore, operationStore }),
     confirmDispositionSetCurrent: (producerId, dispositionSetId) => confirmCurrentDispositionSet(
       dispositionStore,
       producerId,

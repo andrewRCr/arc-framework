@@ -18,6 +18,16 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+describe("captured command output", () => {
+  it("preserves stdout whitespace when the caller requests exact output", async () => {
+    execaMock.mockResolvedValue({ stdout: "command\\ \t\n", stderr: "" });
+    await expect(createExecaGitExec()("git", ["var", "GIT_EDITOR"], { preserveOutput: true }))
+      .resolves.toEqual({ stdout: "command\\ \t\n", stderr: "" });
+    await expect(createExecaGitExec()("git", ["var", "GIT_EDITOR"]))
+      .resolves.toEqual({ stdout: "command\\", stderr: "" });
+  });
+});
+
 describe("local-only object access", () => {
   it("keeps byte-preserving Git reads noninteractive without invocation-specific policy", async () => {
     vi.stubEnv("GIT_SSH_COMMAND", undefined);

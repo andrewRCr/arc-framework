@@ -2,11 +2,13 @@
 
 import { canonicalize, type CanonicalDigest } from "../../lib/kernel/index.js";
 import { computeConditionalPassAuthorizationId, LaneProgressStateSchema, type LaneProgressState,
-  type ReviewOperationState } from "./core/operation-state-schema.js";
+  type LocalReviewState, type ReviewOperationState } from "./core/operation-state-schema.js";
 import { laneSubjectOwnerMatches, type LaneSubjectLineage } from "./core/lane-admission.js";
 import type { ReviewOperationStateSnapshotIndex, ReviewOperationStateStore } from "./core/ports.js";
 import { isReviewVersionConflict, REVIEW_VERSION_RETRY_ATTEMPTS } from "./core/version-conflict.js";
 import { laneProgressOperationId } from "./lane-progress.js";
+
+import type { ConfirmResponseHeadContinuation } from "./core/response-head-continuation.js";
 
 type LaneAttempt = LaneProgressState["attempts"][number];
 type ConditionalPassAuthorization = NonNullable<LaneAttempt["conditionalPassAuthorizations"]>["authorizations"][number];
@@ -20,6 +22,7 @@ export interface ConditionalPendingAdmission {
   nextPass: number;
   admissionId: string;
   now: string;
+  confirmResponseHeadContinuation?: ConfirmResponseHeadContinuation;
   confirmDispositionSetCurrent(producerId: string, dispositionSetId: CanonicalDigest): Promise<boolean>;
 }
 
@@ -546,10 +549,87 @@ function terminalContinuationAttemptIds(
     && state.repositoryId === input.repositoryId
     && state.lane === input.lane
     && conditionalContinuationLineageMatches(state.lineage, input.lineage)
-    ? state.attempts.filter((attempt) => attempt.headSha === input.producedHeadSha
-      && attempt.logicalPass === input.nextPass && attempt.terminalProducer)
+    ? state.attempts.filter((attempt) => attempt.logicalPass === input.nextPass && attempt.terminalProducer)
       .map((attempt) => attempt.attemptId)
     : []);
+}
+
+function localRetryContract(attempt: LaneAttempt): unknown {
+  const local = attempt.local;
+  if (local === undefined) return null;
+  return {
+    logicalPass: attempt.logicalPass, sourceId: attempt.sourceId,
+    vehicle: local.vehicle, scopeMode: local.scopeMode, requestedCoverage: local.requestedCoverage,
+    correctionScope: local.correctionScope ?? null, rubricIdentity: local.rubricIdentity,
+    deliveryAdmission: local.deliveryAdmission ?? null,
+  };
+}
+
+function retryOperation(snapshot: CompleteOperationSnapshot, attempt: LaneAttempt): LocalReviewState | null {
+  const matches = snapshot.records.map(({ state }) => state).filter((state) =>
+    state.kind === "local-review" && state.operationId === attempt.attemptId);
+  const state = matches[0];
+  const local = attempt.local;
+  return matches.length === 1 && state?.kind === "local-review" && local !== undefined
+    && state.operationId === local.operationId && state.requestId === local.requestId
+    && state.logicalPass === attempt.logicalPass && state.retryGeneration === attempt.retryGeneration
+    && state.laneSourceId === attempt.sourceId && canonicalize(state.target) === canonicalize(local.target)
+    ? state : null;
+}
+
+function retryOperationContract(state: LocalReviewState): unknown {
+  return {
+    authorIdentity: state.request.authorIdentity, evaluatorIdentity: state.request.evaluatorIdentity,
+    policyBindingDigest: state.policyBindingDigest, requestMechanism: state.request.requestMechanism,
+    attestationRuntimeKind: state.attestationRuntimeKind, attestationMechanism: state.attestation.mechanism,
+  };
+}
+
+function requireConsumedRetryAttempts(
+  match: ReturnType<typeof uniqueAuthorizationSnapshotMatch>,
+  input: ConditionalPendingAdmission,
+  next: LaneProgressState,
+): { original: LaneAttempt; replacement: LaneAttempt } {
+  const authorization = match.authorization;
+  if (authorization.status !== "consumed") throw new Error("conditional pass authorization is not consumed");
+  const original = match.progress.attempts.find((attempt) => attempt.attemptId === authorization.admissionId);
+  const previous = match.progress.attempts.filter((attempt) => attempt.logicalPass === input.nextPass).at(-1);
+  const replacement = next.attempts.find((attempt) => attempt.attemptId === input.admissionId);
+  const retryable = (attempt: LaneAttempt | undefined) => attempt !== undefined && !attempt.terminalProducer
+    && (attempt.outcome === "stale-target" || attempt.outcome === "terminal-failure");
+  if (original === undefined || previous === undefined || replacement === undefined
+    || !retryable(original) || !retryable(previous)
+    || replacement.outcome !== "pending" || replacement.terminalProducer
+    || replacement.retryGeneration !== previous.retryGeneration + 1
+    || localRetryContract(original) === null
+    || canonicalize(localRetryContract(original)) !== canonicalize(localRetryContract(previous))
+    || canonicalize(localRetryContract(original)) !== canonicalize(localRetryContract(replacement))) {
+    throw new Error("conditional pass authorization retry must retain its original admission's source, scope and coverage");
+  }
+  return { original, replacement };
+}
+
+function assertConsumedLocalRetry(
+  snapshot: CompleteOperationSnapshot,
+  match: ReturnType<typeof uniqueAuthorizationSnapshotMatch>,
+  input: ConditionalPendingAdmission,
+  next: LaneProgressState,
+): void {
+  const { original, replacement } = requireConsumedRetryAttempts(match, input, next);
+  const originalOperation = retryOperation(snapshot, original);
+  const replacementOperation = retryOperation(snapshot, replacement);
+  if (originalOperation === null || replacementOperation === null
+    || canonicalize(retryOperationContract(originalOperation)) !== canonicalize(retryOperationContract(replacementOperation))) {
+    throw new Error("conditional pass authorization retry must retain its original admission's actors and policy");
+  }
+}
+
+function requirePendingAuthorization(
+  authorization: ConditionalPassAuthorization,
+): asserts authorization is Extract<ConditionalPassAuthorization, { status: "bound" | "consumed" }> {
+  if (authorization.status !== "bound" && authorization.status !== "consumed") {
+    throw new Error(`conditional pass authorization is ${authorization.status}`);
+  }
 }
 
 /** Fold consumption into the pending attempt's one versioned lane-owner publication. */
@@ -576,10 +656,13 @@ export async function bindConditionalPendingAdmission(
   if (!namedContinuationMatches(authorization, input)) {
     throw new Error("conditional pass authorization does not match the named admission");
   }
-  if (authorization.status !== "bound") {
-    throw new Error(`conditional pass authorization is ${authorization.status}`);
-  }
-  if (authorization.producedHeadSha !== input.producedHeadSha) {
+  requirePendingAuthorization(authorization);
+  if (authorization.producedHeadSha !== input.producedHeadSha
+    && !await input.confirmResponseHeadContinuation?.({
+      repositoryId: input.repositoryId, lineage: input.lineage, producerId: authorization.producerId,
+      dispositionSetId: authorization.dispositionSetId, originatingHeadSha: authorization.originatingHeadSha,
+      fromHeadSha: authorization.producedHeadSha, toHeadSha: input.producedHeadSha,
+    })) {
     throw new Error("conditional pass authorization does not match the produced head");
   }
   if (terminalContinuationAttemptIds(snapshot, input).length > 0) {
@@ -596,6 +679,10 @@ export async function bindConditionalPendingAdmission(
     candidate.attemptId === input.admissionId && candidate.outcome === "pending"
       && candidate.logicalPass === input.nextPass && candidate.headSha === input.producedHeadSha)) {
     throw new Error("conditional pass authorization pending admission is unavailable");
+  }
+  if (authorization.status === "consumed") {
+    assertConsumedLocalRetry(snapshot, match, input, next);
+    return next;
   }
   const attempts = [...next.attempts];
   const producer = attempts[attemptIndex];

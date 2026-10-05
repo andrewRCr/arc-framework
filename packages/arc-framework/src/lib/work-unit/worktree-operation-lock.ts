@@ -4,8 +4,7 @@ import { join } from "node:path";
 
 import type { GitExec } from "../git/exec.js";
 import {
-  acquireAdvisoryLock,
-  releaseAdvisoryLock,
+  withAdvisoryLock,
   type AdvisoryLockOptions,
 } from "../advisory-lock.js";
 import { resolveGitCommonDir } from "../git/exec.js";
@@ -26,32 +25,5 @@ export async function withWorktreeOperationLock<T>(options: {
   readonly operation: (lockPath: string) => Promise<T>;
 }): Promise<T> {
   const lockPath = await resolveWorktreeOperationLockPath(options.exec, options.cwd);
-  const handle = await acquireAdvisoryLock(lockPath, options.lockOptions);
-  let result: { readonly kind: "success"; readonly value: T } | { readonly kind: "failure"; readonly error: unknown };
-  try {
-    result = { kind: "success", value: await options.operation(lockPath) };
-  } catch (error) {
-    result = { kind: "failure", error };
-  }
-
-  let releaseError: unknown;
-  try {
-    await releaseAdvisoryLock(handle, options.lockOptions);
-  } catch (error) {
-    releaseError = error;
-  }
-
-  if (result.kind === "failure") {
-    const primary = normalizeError(result.error);
-    if (releaseError !== undefined) {
-      throw new AggregateError([primary, normalizeError(releaseError)], primary.message, { cause: primary });
-    }
-    throw primary;
-  }
-  if (releaseError !== undefined) throw normalizeError(releaseError);
-  return result.value;
-}
-
-function normalizeError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error));
+  return withAdvisoryLock(lockPath, options.operation, options.lockOptions);
 }

@@ -4129,34 +4129,32 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       resumedWithRetainedAttempts.exitCode,
       `${resumedWithRetainedAttempts.stderr}\n${resumedWithRetainedAttempts.stdout}`,
     ).toBe(0);
-    const aggregatedStop = JSON.parse(resumedWithRetainedAttempts.stdout) as {
+    const latestCoverageStop = JSON.parse(resumedWithRetainedAttempts.stdout) as {
       reviewStatus: {
         selectionAction: {
           kind: string;
-          projections: readonly { selector: { priorAttemptId: string } }[];
+          projection: { selector: { priorAttemptId: string } };
         };
       };
     };
-    expect(aggregatedStop, resumedWithRetainedAttempts.stdout).toMatchObject({
+    expect(latestCoverageStop, resumedWithRetainedAttempts.stdout).toMatchObject({
       command: "delivery review-fix continue",
       status: "review-status-required",
       nextAction: "resolve-review-applicability",
       reviewStatus: {
         selectionAction: {
-          kind: "review-applicability-selection-batch",
-          projections: [
-            ...retainedProducerIds.map((priorAttemptId) => ({ selector: { priorAttemptId } })),
-          ],
+          kind: "review-applicability-selection",
+          projection: { selector: { priorAttemptId: retainedProducerIds.at(-1) } },
         },
       },
     });
 
-    const resolvedBatch = await runArcWithStdin(
+    const resolvedCoverage = await runArcWithStdin(
       ["candidate", "applicability", "resolve", fixture.plan.workUnitId, "-"],
       fixture.repository,
       `${JSON.stringify({
-        kind: "review-applicability-selection-batch",
-        offer: aggregatedStop.reviewStatus.selectionAction,
+        kind: "review-applicability-selection",
+        offer: latestCoverageStop.reviewStatus.selectionAction,
         selection: {
           selectedBy: "maintainer-1",
           selectedAt: "2026-08-31T12:30:00Z",
@@ -4165,14 +4163,14 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       })}\n`,
       { env: fixture.env },
     );
-    expect(resolvedBatch.exitCode, `${resolvedBatch.stderr}\n${resolvedBatch.stdout}`).toBe(0);
-    expect(JSON.parse(resolvedBatch.stdout), resolvedBatch.stdout).toMatchObject({
+    expect(resolvedCoverage.exitCode, `${resolvedCoverage.stderr}\n${resolvedCoverage.stdout}`).toBe(0);
+    expect(JSON.parse(resolvedCoverage.stdout), resolvedCoverage.stdout).toMatchObject({
       mode: "review-applicability-resolve",
       state: "resolved",
       nextAction: "commit-selection",
       choice: "covered",
     });
-    const resolvedBatchEffect = JSON.parse(resolvedBatch.stdout) as {
+    const resolvedCoverageEffect = JSON.parse(resolvedCoverage.stdout) as {
       recordEffect: { path: string; digest: string };
     };
     const selectedCandidate = await readCandidateRecord(fixture.repository, fixture.plan.workUnitId);
@@ -4181,21 +4179,21 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       ({ selector }) => selector.priorAttemptId,
     )).toEqual([
       replayAttemptId,
-      ...retainedProducerIds,
+      retainedProducerIds.at(-1),
     ]);
 
-    const continuedAfterBatch = await runArcWithStdin(
+    const continuedAfterCoverage = await runArcWithStdin(
       ["delivery", "review-fix", "continue", "-"],
       fixture.repository,
       `${JSON.stringify({
         repository: "owner/repo",
         remote: "origin",
-        recordEffects: [resolvedBatchEffect.recordEffect],
+        recordEffects: [resolvedCoverageEffect.recordEffect],
       })}\n`,
       { env: fixture.env },
     );
-    expect(continuedAfterBatch.exitCode, `${continuedAfterBatch.stderr}\n${continuedAfterBatch.stdout}`).toBe(0);
-    const afterBatch = JSON.parse(continuedAfterBatch.stdout) as {
+    expect(continuedAfterCoverage.exitCode, `${continuedAfterCoverage.stderr}\n${continuedAfterCoverage.stdout}`).toBe(0);
+    const afterCoverage = JSON.parse(continuedAfterCoverage.stdout) as {
       status: string;
       nextAction: string;
       reviewStatus: {
@@ -4203,7 +4201,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       };
       effectLog: readonly { kind: string; actionKind?: string; recordClass?: string }[];
     };
-    expect(afterBatch).toMatchObject({
+    expect(afterCoverage).toMatchObject({
       status: "review-status-required",
       nextAction: "review-local-prepare",
       reviewStatus: {
@@ -4219,12 +4217,12 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         { kind: "dispatch", actionKind: "delivery-reconcile", resultStatus: "rebound" },
       ],
     });
-    expect(afterBatch.effectLog.filter(({ kind }) => kind === "commit")).toEqual([
+    expect(afterCoverage.effectLog.filter(({ kind }) => kind === "commit")).toEqual([
       expect.objectContaining({ kind: "commit", recordClass: "review-applicability-selection" }),
     ]);
-    expect(afterBatch.effectLog.filter(({ kind }) => kind === "push")).toHaveLength(1);
+    expect(afterCoverage.effectLog.filter(({ kind }) => kind === "push")).toHaveLength(1);
 
-    const localAdmission = afterBatch.reviewStatus.action;
+    const localAdmission = afterCoverage.reviewStatus.action;
     expect(localAdmission.scopeSelection?.target).toEqual(localAdmission.target);
     const preparedLocal = await runArcWithStdin(
       ["review", "local", "prepare", "-"],

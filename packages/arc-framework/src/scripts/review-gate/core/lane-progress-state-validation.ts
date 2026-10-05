@@ -100,6 +100,16 @@ function validateAttemptAdmission(
   }
 }
 
+function validateResponseDigestLineage(
+  state: LaneProgressState, attempt: Attempt, index: number, context: z.RefinementCtx,
+): void {
+  const responses = [...(attempt.responsePerformanceHistory ?? []),
+    ...(attempt.responsePerformance === undefined ? [] : [attempt.responsePerformance])];
+  if (state.lineage.kind !== "candidate" && responses.some(({ candidateResponseId }) => candidateResponseId !== undefined)) {
+    issue(context, ["attempts", index, "responsePerformance"], "Candidate response digest requires its Candidate lineage");
+  }
+}
+
 function validatePassCounts(state: LaneProgressState, context: z.RefinementCtx): void {
   const pendingPasses = state.attempts.filter(({ outcome }) => outcome === "pending")
     .map(({ logicalPass }) => logicalPass);
@@ -129,6 +139,7 @@ export function validateLaneProgressState(state: LaneProgressState, context: z.R
   state.attempts.forEach((attempt, index) => {
     validateAuthorizations(state, attempt, index, context);
     validateAttemptLineage(state, attempt, index, context);
+    validateResponseDigestLineage(state, attempt, index, context);
     validateAttemptCoverage(attempt, index, context);
     validateAttemptAdmission(state, attempt, index, context);
   });

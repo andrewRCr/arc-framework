@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   affectedPaths,
   classifyPlanningLane,
+  isPortabilitySurfacePath,
   parseRawDiff,
   resolveChangeSet,
   type ChangeSet,
@@ -11,6 +12,20 @@ import {
 const HASH = "a".repeat(40);
 const ZERO_HASH = "0".repeat(40);
 const COMPLETE_RENAME = `R${100}`;
+
+describe("status portability surface", () => {
+  it.each([
+    "status.ts",
+    "status/input.ts",
+    "status/lifecycle.ts",
+    "status/views.ts",
+    "status/session-context.ts",
+    "status/session-evidence.ts",
+    "status/session.ts",
+  ])("retains portability checks for the status implementation at %s", (path) => {
+    expect(isPortabilitySurfacePath(`packages/arc-framework/src/handlers/${path}`)).toBe(true);
+  });
+});
 
 function raw(...fields: string[]): Uint8Array {
   return new TextEncoder().encode(`${fields.join("\0")}\0`);

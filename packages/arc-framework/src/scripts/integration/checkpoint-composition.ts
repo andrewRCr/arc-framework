@@ -9,6 +9,9 @@ import {
   workUnitPathTreatmentContext,
 } from "../../lib/base-drift/current-adapters.js";
 import type { RawGitExec } from "../../lib/git/exec.js";
+import { createStore } from "../../lib/store/create.js";
+import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
+import { createStoreLifecycleStorage } from "../../lib/store/lifecycle-storage.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { runBaseDrift } from "../../lib/git/base-distance.js";
 import {
@@ -528,15 +531,10 @@ export function createIntegrationCheckpointDependencies(input: {
     openChangeRequestPromise ??= resolveOpenChangeRequest(input.exec, input.cwd);
     return openChangeRequestPromise;
   };
-  const lifecycleStorage = input.lifecycleStorage ?? {
-    readSnapshot: async () => {
-      const { head } = await currentHead(input.exec, input.cwd);
-      return {
-        version: head,
-        fs: createGitTreeReadFs({ cwd: input.cwd, revision: head, exec: input.exec }),
-      };
-    },
-  };
+  const lifecycleStorage = input.lifecycleStorage ?? createStoreLifecycleStorage({
+    store: createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec })),
+    checkoutRoot: input.cwd,
+  });
   const candidate = (workUnit: string, baseRevision: string): Promise<CachedCandidate | null> =>
     candidateContext.readEffective(workUnit, baseRevision);
   const boundaries = new Map<string, ReturnType<typeof readSubmissionBoundary>>();

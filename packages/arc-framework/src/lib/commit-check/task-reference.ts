@@ -12,6 +12,31 @@ export interface ParsedTaskReference {
   readonly qualifier: "planning" | "maintenance" | null;
 }
 
+/** Expand task ranges against their source list, conserving endpoints when unavailable.
+ * @param reference - Accepted task-reference expression.
+ * @param orderedTaskIds - Task IDs in their document order.
+ * @returns Unique referenced IDs in first occurrence order.
+ */
+export function expandTaskReference(
+  reference: ParsedTaskReference,
+  orderedTaskIds: readonly string[],
+): string[] {
+  const expanded = reference.items.flatMap((item) => expandTaskReferenceItem(item, orderedTaskIds));
+  return [...new Set(expanded)];
+}
+
+function expandTaskReferenceItem(
+  item: ParsedTaskReferenceItem,
+  orderedTaskIds: readonly string[],
+): string[] {
+  if (item.kind === "single") return [item.taskId];
+  const start = orderedTaskIds.indexOf(item.startTaskId);
+  const end = orderedTaskIds.indexOf(item.endTaskId);
+  return start !== -1 && end >= start
+    ? orderedTaskIds.slice(start, end + 1)
+    : [item.startTaskId, item.endTaskId];
+}
+
 const TASK_ID_SOURCE = "[0-9]+(?:\\.[0-9A-Za-z]+)+";
 const TASK_RANGE_SOURCE = `${TASK_ID_SOURCE}-[0-9A-Za-z]+(?:\\.[0-9A-Za-z]+)*`;
 const TASK_ITEM_SOURCE = `(?:${TASK_ID_SOURCE}|${TASK_RANGE_SOURCE})`;

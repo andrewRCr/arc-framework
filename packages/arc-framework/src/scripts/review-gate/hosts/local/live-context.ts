@@ -52,8 +52,9 @@ export async function readLocalReviewLiveContext(input: {
       meta,
     };
   }
+  const exec: GitExec = (command, args, options) => input.exec(command, args, { ...options, cwd: input.cwd });
   const transient = projectTransientInFlightRead(
-    await readTransientInFlightIndexes({ exec: input.exec, identity: activeIdentity }),
+    await readTransientInFlightIndexes({ exec, identity: activeIdentity }),
   );
   if (!transient.complete) throw new Error(transient.degraded ?? "Transient identity is incomplete.");
   const claims = transient.indexes.records.filter((record) => record.branch === branch);

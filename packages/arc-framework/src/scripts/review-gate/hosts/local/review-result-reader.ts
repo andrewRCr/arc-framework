@@ -248,7 +248,7 @@ function producerLaneMatchesOwner(
 /** Stable read failure for unavailable, ambiguous, or corrupt producer evidence. */
 export class LocalReviewResultReaderError extends Error {
   constructor(
-    public readonly code: "missing-result" | "ambiguous-result" | "corrupt-result",
+    public readonly code: "missing-producer" | "missing-result" | "ambiguous-result" | "corrupt-result",
     message: string = code,
   ) {
     super(message);
@@ -283,7 +283,7 @@ export class LocalReviewResultReader implements ReviewResultReader {
       }));
       const candidates = findProducerCandidates(records, producerId);
       if (candidates.length === 0) {
-        throw new LocalReviewResultReaderError("missing-result");
+        throw new LocalReviewResultReaderError("missing-producer", `No review producer matches '${producerId}'.`);
       }
       if (candidates.length !== 1) {
         throw new LocalReviewResultReaderError("ambiguous-result");

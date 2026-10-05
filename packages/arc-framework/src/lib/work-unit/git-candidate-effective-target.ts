@@ -67,6 +67,8 @@ export interface GitCandidateTargetBaseInput {
   readonly cwd: string;
   readonly revision: string;
   readonly baseBranch: string;
+  /** Materialized remote to observe when no exact base revision is supplied; defaults to origin. */
+  readonly remote?: string;
   readonly baseRevision?: string;
   readonly exec: GitExec;
 }

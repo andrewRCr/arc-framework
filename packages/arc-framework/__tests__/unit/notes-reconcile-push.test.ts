@@ -2,6 +2,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { GitProcessError } from "../../src/lib/git/process-error.js";
 import type { UserIOContext } from "../../src/commands/user/types.js";
 import type { ReconcileNotesLock } from "../../src/commands/user/push-fetch.js";
 import type { GitExec } from "../../src/lib/git/index.js";
@@ -36,6 +37,7 @@ interface ReconcileGitOptions {
   corruptMergedNote?: boolean;
   rejectRollback?: boolean;
   rejectRepush?: boolean;
+  pushFailure?: Error;
 }
 
 interface ReconcileGit {
@@ -121,6 +123,7 @@ function buildReconcileGit(options: ReconcileGitOptions = {}): ReconcileGit {
         throw new Error(`unexpected notes command: ${args.join(" ")}`);
       case "push":
         events.push("push");
+        if (options.pushFailure !== undefined) throw options.pushFailure;
         if (options.rejectRepush === true) throw nonFastForward();
         remoteTip = (args[2] ?? "").split(":")[0] ?? remoteTip;
         return success();
@@ -182,7 +185,8 @@ function gitError(message: string, code: number): Error {
 }
 
 function nonFastForward(): Error {
-  return new Error("error: failed to push some refs\n ! [rejected] (non-fast-forward)");
+  return new GitProcessError({ kind: "nonzero-exit", command: "git", args: ["push", "origin"], exitCode: 1,
+    stderr: "error: failed to push some refs\n ! [rejected] (non-fast-forward)" });
 }
 
 function incomingLifecycle(calls: string[][]): { fetched: string; deleted: string[] } {
@@ -315,3 +319,19 @@ describe("reconcileNotesPush", () => {
     expect(git.remoteTip()).toBe(REMOTE_TIP);
   });
 });
+
+ it.each(["canceled", "output-limit", "unknown"] as const)("preserves incomplete %s reconcile re-push cause and permits repair", async (kind) => {
+  const detail = "[rejected] non-fast-forward";
+  const original = kind === "unknown" ? new Error(detail) : new GitProcessError({ kind, command: "git", args: ["push", "origin"],
+    stderr: detail, exitCode: 1, ...(kind === "canceled" ? { isCanceled: true } : { isMaxBuffer: true }) });
+  const options: ReconcileGitOptions = { pushFailure: original };
+  const git = buildReconcileGit(options);
+  const input = { io: buildIo(git.exec), identity: "andrew", cwd: "/repo", lock: buildLock(git.events) };
+  expect(await reconcileNotesPush(input)).toEqual({ kind: "failed", error: original });
+  expect(git.remoteTip()).toBe(REMOTE_TIP);
+  expect(git.events.filter((event) => event === "push")).toHaveLength(1);
+  expect(git.events.filter((event) => event === "merge")).toHaveLength(1);
+  delete options.pushFailure;
+  expect(await reconcileNotesPush(input)).toEqual({ kind: "pushed" });
+  expect(git.remoteTip()).toBe(MERGED_TIP);
+ });

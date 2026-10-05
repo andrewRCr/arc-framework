@@ -61,6 +61,10 @@ export interface RunViewOptions {
   current?: boolean;
   /** Print the resolved artifact's absolute path instead of its content. */
   path?: boolean;
+  /** Open the actual resolved file in the configured editor. */
+  editor?: boolean;
+  /** Explicit adapter-bound permission to hand off terminal interaction. */
+  editorAllowed?: boolean;
   forSlug?: string;
   nonInteractive?: boolean;
 }

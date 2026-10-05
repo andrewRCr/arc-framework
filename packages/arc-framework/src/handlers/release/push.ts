@@ -52,6 +52,7 @@ import type {
   PushabilityResult,
 } from "../../lib/git/pushability.js";
 import type { PushInterlock, ResolvedSettingsResult } from "../../lib/config/resolved-settings.js";
+import type { WorktreeFetchTimeoutError } from "../../lib/git/worktree-sync.js";
 
 const SET_UPSTREAM_FLAGS: ReadonlySet<string> = new Set(["-u", "--set-upstream"]);
 
@@ -162,6 +163,32 @@ export type AppendAudit = (opts: {
   identity: string;
   entry: AuditEntry;
 }) => Promise<{ ok: true } | { ok: false; error: Error }>;
+
+type ReleasePushAuditDeps = Pick<ReleasePushDeps,
+  "cwd" | "identity" | "argv" | "settings" | "writeStderr" | "appendAudit">;
+
+/**
+ * Audit a fetch timeout that prevented admission to the pushability matrix.
+ * @param deps - Resolved invocation and audit boundary.
+ * @param error - Observed materializing-fetch timeout, including retry guidance.
+ * @returns The existing pushability-precheck refusal code without attempting publication.
+ */
+export async function refuseReleasePushFetchTimeout(
+  deps: ReleasePushAuditDeps,
+  error: WorktreeFetchTimeoutError,
+): Promise<ReleasePushResult> {
+  const wu = await resolveActiveWu({ cwd: deps.cwd });
+  return refuse(
+    { kind: "refuse", code: 14, identifier: "pushability-precheck-failed", conditions: [] },
+    {
+      wu: wu.status === "resolved" ? toAuditWorkUnit(wu) : null, deps,
+      writeStderr: deps.writeStderr ?? ((msg) => { process.stderr.write(msg); }),
+      appendAudit: deps.appendAudit ?? appendAuditEntry,
+    },
+    // No matrix conditions exist when inspection itself fails; report its actual diagnostic.
+    error.message,
+  );
+}
 
 /**
  * Run the release-push cascade and return the resulting exit code.
@@ -368,7 +395,7 @@ function filterRefusalConditions(
 
 interface RefuseContext {
   wu: AuditWorkUnit | null;
-  deps: ReleasePushDeps;
+  deps: ReleasePushAuditDeps;
   writeStderr: (msg: string) => void;
   appendAudit: AppendAudit;
 }
@@ -376,8 +403,9 @@ interface RefuseContext {
 async function refuse(
   decision: Extract<AuthorizationDecision, { kind: "refuse" }>,
   ctx: RefuseContext,
+  diagnostic?: string,
 ): Promise<ReleasePushResult> {
-  ctx.writeStderr(`${formatRefusal(decision)}\n`);
+  ctx.writeStderr(`${diagnostic ?? formatRefusal(decision)}\n`);
 
   const entry = buildAuditEntry({
     deps: ctx.deps,
@@ -393,7 +421,7 @@ async function refuse(
 }
 
 interface BuildEntryOptions {
-  deps: ReleasePushDeps;
+  deps: ReleasePushAuditDeps;
   wu: AuditWorkUnit | null;
   decision: "proceeded" | "refused";
   refusalCode: RefusalCode | null;
