@@ -501,6 +501,46 @@ describe("singleton review applicability through the selection command", () => {
     },
   );
 
+  it.each(["materialized upstream", "local fallback"] as const)(
+    "retains covered singleton review against a selected custom remote (%s)",
+    async (baseMode) => {
+      const fixture = await singletonBehindBase(true);
+      const reservation = await recordCleanHostedReview(fixture);
+      const absorbedHead = await fixture.run(["rev-parse", `${fixture.notesHead}^`]);
+      await fixture.run(["checkout", "main"]);
+      await fixture.run(["merge", "--no-ff", "--no-edit", absorbedHead]);
+      const absorbingBase = await fixture.run(["rev-parse", "HEAD"]);
+      if (baseMode === "materialized upstream") {
+        await fixture.run(["update-ref", "refs/remotes/upstream/main", absorbingBase]);
+        await fixture.run(["update-ref", "refs/heads/main", fixture.mergeBase]);
+      }
+      await fixture.run(["checkout", "feat/example"]);
+      const reader = createHostedReservationDischargeReader({
+        cwd: fixture.root, exec: gitExec, remote: "upstream",
+        host: { readRequest: async (repository, binding) => ({
+          status: "observed", request: { repository, binding, headRepository: repository,
+            headRef: "feat/example", headSha: fixture.notesHead,
+            baseRef: "main", state: "open", draft: false },
+        }) },
+      });
+      const { record } = await readCandidateRecordVersioned(fixture.root, "example");
+      if (record === null) throw new Error("expected Candidate record");
+      const read = () => reader({ reservation, approvedHead: fixture.notesHead,
+        baseRevision: absorbedHead, changeRequest: { repository: "owner/repository", pullRequest: 42 },
+        candidate: record });
+      const retained = await read();
+      expect(retained, JSON.stringify(retained)).toMatchObject({ discharged: true, nextSource: null });
+      if (baseMode === "materialized upstream") {
+        await fixture.run(["update-ref", "refs/remotes/upstream/main", fixture.mergeBase]);
+        await expect(read()).resolves.toMatchObject({
+          discharged: false, applicability: { state: "rerun-checkpoint", reason: "base-moved" },
+        });
+        await fixture.run(["update-ref", "refs/remotes/upstream/main", absorbingBase]);
+        await expect(read()).resolves.toMatchObject({ discharged: true, nextSource: null });
+      }
+    },
+  );
+
   it("binds a covered residual while the base moves past unrelated work, after refusing a moved head", async () => {
     const fixture = await singletonBehindBase();
     const earlier = await fixture.offer(fixture.notesHead);

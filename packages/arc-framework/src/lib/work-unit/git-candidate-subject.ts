@@ -67,12 +67,13 @@ export type CandidateSubjectCollection =
 export async function resolveGitCandidateBaseRevision(input: {
   readonly cwd: string;
   readonly baseBranch: string;
+  readonly remote?: string;
   readonly exec: GitExec;
 }): Promise<string> {
   const baseBranch = input.baseBranch.trim();
   if (baseBranch === "") throw new Error("Candidate subject collection requires a configured base branch");
   const options = { cwd: input.cwd, objectAccess: "local-only" as const };
-  const remoteBaseRef = `refs/remotes/origin/${baseBranch}`;
+  const remoteBaseRef = `refs/remotes/${input.remote ?? "origin"}/${baseBranch}`;
   const remote = (await input.exec(
     "git",
     ["for-each-ref", "--format=%(objectname)", remoteBaseRef],

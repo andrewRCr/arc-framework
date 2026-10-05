@@ -582,6 +582,8 @@ export async function projectHostedReservationDischarge(input: {
 export function createHostedReservationDischargeReader(input: {
   cwd: string;
   exec: GitExec;
+  /** Selected remote for singleton base freshness; defaults to origin. */
+  remote?: string;
   delivery?: DeliveryDischargeTargetLookup;
   host?: Pick<DeliveryHostPort, "readRequest">;
 }): HostedReservationDischargeReader {
@@ -665,6 +667,7 @@ export function createHostedReservationDischargeReader(input: {
         cwd: input.cwd,
         revision: observed.request.headSha,
         baseBranch: observed.request.baseRef,
+        ...(input.remote === undefined ? {} : { remote: input.remote }),
         exec: input.exec,
       });
       if (observedBase.status !== "resolved") throw new Error(observedBase.detail);
