@@ -68,6 +68,7 @@ describe("review-gate canonical serializer inventory", () => {
       "lane-progress-conditional.ts",
       "lane-progress-hosted-request.ts",
       "lane-progress-hosted-settlement.ts",
+      "lane-progress-local-retry.ts",
       "lane-progress-seal-recovery.ts",
       "lane-progress.ts",
       "policy/candidate-review-fix-continuation.ts",
