@@ -63,6 +63,20 @@ export async function flatActiveMeta(context: InRepoContext, slug: string): Prom
  */
 export async function heldMetaSources(context: InRepoContext, revision?: string,
   locations?: readonly MetaSource["location"][], diagnostics?: ListingDiagnostic[]): Promise<MetaSource[]> {
+  // Filtered acquisition changes duplicate selection; only the full immutable inventory can be shared.
+  const reusable = revision !== undefined && revision.length === context.savedObjectIdLength
+    && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(revision) && locations === undefined;
+  // Returned parsed fields and placement belong to callers, independently of the retained inventory.
+  if (reusable && context.savedMetaInventory?.revision === revision) return structuredClone(context.savedMetaInventory.sources);
+  const before = diagnostics?.length ?? 0;
+  const { sources, complete } = await collectHeldMetaSources(context, revision, locations, diagnostics);
+  if (reusable && complete && (diagnostics?.length ?? 0) === before) {
+    context.savedMetaInventory = { revision, sources: structuredClone(sources) };
+  }
+  return sources;
+}
+async function collectHeldMetaSources(context: InRepoContext, revision?: string,
+  locations?: readonly MetaSource["location"][], diagnostics?: ListingDiagnostic[]): Promise<{ sources: MetaSource[]; complete: boolean }> {
   const root = context.ports.checkoutRoot;
   const acquisition = metaDiscovery(context, revision, locations, diagnostics);
   const files = await collectLifecycleMetaFiles(root, acquisition.fs);
@@ -80,7 +94,7 @@ export async function heldMetaSources(context: InRepoContext, revision?: string,
     candidates.push({ slug, path, content, location: file.location, revision,
       placement: placementFromPath(path), fields: parsedFields(content), writable: revision === undefined });
   }
-  return preferredCopies(candidates);
+  return { sources: preferredCopies(candidates), complete: candidates.every((source) => source.content !== null) };
 }
 function metaDiscovery(context: InRepoContext, revision?: string, locations?: readonly MetaSource["location"][], diagnostics?: ListingDiagnostic[]) {
   const roots = locations?.map((tier) => resolveArcPath({ kind: "placement-root", tier }));
