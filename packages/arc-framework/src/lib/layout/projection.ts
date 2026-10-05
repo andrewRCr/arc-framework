@@ -115,5 +115,5 @@ function projectCohort(address: Extract<ArcLayoutAddress, { kind: "cohort-docume
 }
 
 function projectInbox(address: Extract<ArcLayoutAddress, { kind: "inbox" }>): string {
-  return address.scope.kind === "project" ? ".arc/ATOMIC-INBOX.md" : `.arc/user/${address.scope.identity}/USER-INBOX.md`;
+  return address.scope.kind === "project" ? ".arc/backlog/ATOMIC-INBOX.md" : `.arc/user/${address.scope.identity}/USER-INBOX.md`;
 }

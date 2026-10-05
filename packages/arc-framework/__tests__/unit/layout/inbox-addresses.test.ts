@@ -15,7 +15,7 @@ const exec: GitExec = async () => ({ stderr: "", stdout:
 
 describe("inbox addresses", () => {
   it("projects the project inbox to its existing repository-relative surface", () => {
-    expect(resolveArcPath({ kind: "inbox", scope: { kind: "project"}})).toBe(".arc/ATOMIC-INBOX.md");
+    expect(resolveArcPath({ kind: "inbox", scope: { kind: "project"}})).toBe(".arc/backlog/ATOMIC-INBOX.md");
   });
 
   it.each([primary, linked])("materializes the identity inbox under the selected global root from %s", async (cwd) => {
