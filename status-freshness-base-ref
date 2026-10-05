@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "status-freshness-base-ref",
+  "claimId": "5360788f4b9f75777a0a462ac336fb0d",
+  "createdAt": "2026-10-05T03:00:49.042Z",
+  "updatedAt": "2026-10-05T03:00:49.042Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Use the canonical candidate target base for singleton hosted-review freshness, matching status applicability offers when the local base branch lags.",
+  "branch": "chore/status-freshness-base-ref",
+  "origin": "inbox",
+  "originEntry": "Read status's singleton freshness merge base against the same base ref as its offer",
+  "originEntrySourceDigest": "sha256:2ae9e9f8c77866055036764476d41d2047bc8d9653754863cc9001d953d836e4",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
