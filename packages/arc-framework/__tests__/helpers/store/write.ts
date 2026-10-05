@@ -60,15 +60,27 @@ function parseConflict(write: Extract<WriteInput, { action: "put" }>): StoreResu
   return parsed.success ? ok(parsed.data) : refused(malformed(write.reference, `conflict shape: ${parsed.error.message}`));
 }
 
-function preflight(context: ReferenceContext, write: WriteInput, validatedConflicts: Map<WriteInput, ConflictRecord>): StoreRefusal | undefined {
-  const admission = recordAdmission(context.state, write.reference, context.environment.identity);
+function targetAdmission(context: ReferenceContext, reference: WriteInput["reference"]): StoreRefusal | undefined {
+  const admission = recordAdmission(context.state, reference, context.environment.identity);
   if (admission) return admission;
-  const lock = surfaceLock(write.reference);
+  const lock = surfaceLock(reference);
   if (context.state.locks.has(lock)) return {
     code: "lock-held", class: "recoverable", lock,
     condition: "Another process holds this surface's write lock past its wait.",
     remedy: { text: "Wait for the holder to release the write lock, then retry." },
   };
+  return undefined;
+}
+
+function preflight(context: ReferenceContext, write: WriteInput, validatedConflicts: Map<WriteInput, ConflictRecord>): StoreRefusal | undefined {
+  const admission = targetAdmission(context, write.reference);
+  if (admission) return admission;
+  for (const reference of write.resolves ?? []) {
+    const canonical = canonicalReference(context.state, reference);
+    const target = context.state.records.get(recordKey(canonical))?.reference ?? canonical;
+    const refusal = targetAdmission(context, target);
+    if (refusal) return refusal;
+  }
   const definition = context.registry[write.reference.kind];
   if (write.action === "remove" && write.reference.kind.endsWith("/conflict-record")
     && !write.resolves?.some((conflict) => sameReference(canonicalReference(context.state, conflict), canonicalReference(context.state, write.reference)))) {
