@@ -23,6 +23,8 @@ import {
   runMaterializingWorktreeInspection,
 } from "../../lib/git/index.js";
 import type { GitExec } from "../../lib/git/exec.js";
+import { WorktreeFetchTimeoutError, type WorktreeMaterializingInspectionResult } from "../../lib/git/worktree-sync.js";
+import type { ResolvedSettingsResult } from "../../lib/config/resolved-settings.js";
 import { pushWorktreeBranch } from "../../lib/git/push-worktree.js";
 import { normalizeGitRejection } from "../../lib/git/process-error.js";
 import { ARC_PROJECT_ROOT_ERROR, resolveUserIdentity } from "../shared.js";
@@ -32,7 +34,7 @@ import {
 } from "../../lib/command-input/interaction-context.js";
 import type { CommandInputDeclaration } from "../../lib/command-input/declaration.js";
 
-import { runReleasePush, type SpawnPush } from "./push.js";
+import { refuseReleasePushFetchTimeout, runReleasePush, type SpawnPush } from "./push.js";
 
 export interface HandleReleasePushOptions {
   args: readonly string[];
@@ -90,7 +92,8 @@ export async function handleReleasePush(
     readFile: (path) => readFile(path, "utf-8"),
   });
 
-  const worktreeSync = await runMaterializingWorktreeInspection({ exec, cwd });
+  const worktreeSync = await inspectReleasePushWorktree({ exec, cwd, identity, argv: opts.args, settings });
+  if (worktreeSync === null) return;
   const currentBranch = worktreeSync.branch ?? "";
 
   const result = await runReleasePush({
@@ -112,6 +115,23 @@ export async function handleReleasePush(
 
   if (result.exitCode !== 0) {
     process.exitCode = result.exitCode;
+  }
+}
+
+async function inspectReleasePushWorktree(input: {
+  exec: GitExec;
+  cwd: string;
+  identity: string;
+  argv: readonly string[];
+  settings: ResolvedSettingsResult;
+}): Promise<WorktreeMaterializingInspectionResult | null> {
+  try {
+    return await runMaterializingWorktreeInspection({ exec: input.exec, cwd: input.cwd });
+  } catch (error) {
+    if (!(error instanceof WorktreeFetchTimeoutError)) throw error;
+    const result = await refuseReleasePushFetchTimeout(input, error);
+    process.exitCode = result.exitCode;
+    return null;
   }
 }
 

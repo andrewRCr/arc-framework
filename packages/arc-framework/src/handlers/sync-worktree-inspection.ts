@@ -6,7 +6,8 @@ import {
   type WorktreeMaterializingInspectionResult,
 } from "../lib/git/worktree-sync.js";
 import type { SyncOutput } from "../lib/sync-output.js";
-import type { SyncOptions } from "./sync.js";
+import type { InterlockState, SyncOptions } from "./sync.js";
+import { writeSyncAuditEntry } from "./sync-audit.js";
 
 /**
  * Acquire exact worktree evidence or report the fetch deadline without starting sync legs.
@@ -18,12 +19,24 @@ export async function inspectSyncWorktree(input: {
   cwd: string;
   opts: SyncOptions;
   output: SyncOutput;
+  identity: string;
+  interlockState: InterlockState;
 }): Promise<WorktreeMaterializingInspectionResult | null> {
   const { exec, cwd, opts, output } = input;
   try {
     return await runMaterializingWorktreeInspection({ exec, cwd });
   } catch (error) {
     if (!(error instanceof WorktreeFetchTimeoutError)) throw error;
+    if (!opts.dryRun) {
+      await writeSyncAuditEntry({
+        cwd, identity: input.identity, interlockState: input.interlockState,
+        outcome: {
+          cell: "worktree-fetch-timeout", exitCode: 1,
+          worktree: { action: "fetch", result: "failed", detail: "timeout" },
+          notes: { action: "skip", result: "skipped", detail: "worktree-fetch-timeout" },
+        },
+      });
+    }
     output.log.error(error.message);
     process.exitCode = 1;
     if (opts.json === true) {

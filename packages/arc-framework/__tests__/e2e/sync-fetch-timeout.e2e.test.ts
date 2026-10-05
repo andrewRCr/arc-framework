@@ -10,6 +10,16 @@ import { git } from "./helpers.js";
 const commands = [["sync", "--json"], ["release", "push"], ["user", "sync"]]
   .map(args => ({ label: args.join(" "), args }));
 
+async function auditEntries(root: string): Promise<unknown[]> {
+  try {
+    const text = await readFile(join(root, ".arc", "user", "test-user", ".internal", ".audit-log.jsonl"), "utf8");
+    return text.trim().split("\n").filter(Boolean).map(line => JSON.parse(line) as unknown);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+}
+
 async function fixture() {
   const harness = await setupMultiClone({ cloneA: { config: { "arc.identity": "test-user" } } });
   const root = harness.cloneA;
@@ -81,16 +91,31 @@ describe("materializing command fetch", () => {
       const f = await fixture();
       try {
         const before = await git(f.origin, ["for-each-ref", "--format=%(refname) %(objectname)"]);
+        const auditBefore = await auditEntries(f.root);
         const result = await runCli(args, {
           cwd: f.root,
           env: { ...f.env, NODE_OPTIONS: `--import=${pathToFileURL(f.clock).href}` },
           timeout: 20_000,
         });
-        expect(result.exitCode).toBe(1);
+        expect(result.exitCode).toBe(args[0] === "release" ? 14 : 1);
         const diagnostic = args.includes("--json") ? result.stderr : result.stdout + result.stderr;
         expect(diagnostic).toContain("timed out");
         expect(diagnostic).toContain("Retry");
         expect(await git(f.origin, ["for-each-ref", "--format=%(refname) %(objectname)"])).toBe(before);
+        const audited = args[0] === "release" || (args[0] === "sync" && !args.includes("--dry-run"));
+        const audit = await auditEntries(f.root);
+        expect(audit).toHaveLength(auditBefore.length + (audited ? 1 : 0));
+        if (audited) {
+          expect(audit.at(-1)).toMatchObject(args[0] === "release" ? {
+            schemaVersion: 2, command: "release-push", decision: "refused", refusalCode: 14,
+            outcome: { kind: "refused" },
+          } : {
+            schemaVersion: 2, command: "sync", decision: "proceeded", refusalCode: null,
+            interlockState: { command: "sync", pushInterlock: { value: "on-workflow", source: "git-config" } },
+            outcome: { kind: "sync", cell: "worktree-fetch-timeout",
+              worktree: "fetch:failed:timeout", notes: "skip:skipped:worktree-fetch-timeout", exitCode: 1 },
+          });
+        }
         if (args.includes("--json")) {
           expect(JSON.parse(result.stdout)).toMatchObject({
             cell: "none", reason: "worktree-fetch-timeout", exitCode: 1,
@@ -105,4 +130,19 @@ describe("materializing command fetch", () => {
       }
     },
   );
+
+  it("an unwritable audit log preserves the recoverable sync failure", async () => {
+    const f = await fixture();
+    try {
+      await mkdir(join(f.root, ".arc", "user", "test-user", ".internal", ".audit-log.jsonl"), { recursive: true });
+      const result = await runCli(["sync", "--json"], {
+        cwd: f.root, env: { ...f.env, NODE_OPTIONS: `--import=${pathToFileURL(f.clock).href}` }, timeout: 20_000,
+      });
+      expect(result.exitCode).toBe(1);
+      expect(JSON.parse(result.stdout)).toMatchObject({ reason: "worktree-fetch-timeout", exitCode: 1 });
+      expect(result.stderr).toContain("Retry");
+    } finally {
+      await f.cleanup();
+    }
+  });
 });

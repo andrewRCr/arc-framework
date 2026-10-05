@@ -98,10 +98,6 @@ import {
 } from "../lib/command-input/declaration.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import type { ResolvedConfigOverride } from "../lib/config/resolve-override.js";
-import { appendAuditEntry, toAuditWorkUnit } from "../lib/release/audit-log.js";
-import type { AuditEntry, AuditOutcome } from "../lib/release/schema.js";
-import { AuditEntrySchema } from "../lib/release/schema.js";
-import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";
 import { pushNotesWithReconcile } from "./push-recovery.js";
 import {
@@ -109,6 +105,7 @@ import {
   resolveUserIdentity,
 } from "./shared.js";
 import { inspectSyncWorktree } from "./sync-worktree-inspection.js";
+import { writeSyncAuditEntry } from "./sync-audit.js";
 
 export interface SyncOptions {
   yes?: boolean;
@@ -223,29 +220,6 @@ interface MatrixInput {
   /** `sync.auto_pull` — opts a non-TTY into the inbound fast-forward. */
   autoPull: boolean;
 }
-
-/**
- * Sync cells that map to a refused audit decision. All are pushability
- * pre-check failures — `pushability-precheck-failed` (refusal code 14)
- * covers the full set per the release-wrapper refusal taxonomy. The
- * `notes-blocked` cell is intentionally absent: its worktree leg fires
- * (proceeded), with the per-leg notes record carrying the partial state.
- * `blocked-no-upstream` is intentionally absent — sync auto-resolves
- * no-upstream when `pushInterlock !== "manual"` (cell is
- * `paired-push-with-upstream-init` and friends); under `manual`, sync
- * short-circuits to `skip-not-configured` before the block-state check,
- * so the `blocked-no-upstream` cell label is structurally unreachable.
- */
-const REFUSED_SYNC_CELLS: ReadonlySet<string> = new Set([
-  "blocked-diverged",
-  "blocked-remote-ahead",
-  "blocked-detached-head",
-  "blocked-no-remote",
-  "blocked-branch-gone",
-  "blocked-remote-unavailable",
-]);
-
-const SYNC_REFUSAL_CODE_PUSHABILITY = 14 as const;
 
 /**
  * Worktree states that block notes push when notes auto-push runs under a
@@ -386,7 +360,8 @@ interface LegOutcomeRecord {
   detail?: string;
 }
 
-interface SyncOutcome {
+/** Observable sync result, including the effective policy and individual leg outcomes. */
+export interface SyncOutcome {
   cell: string;
   interlockState: InterlockState;
   worktree: LegOutcomeRecord;
@@ -477,10 +452,6 @@ export async function handleSync(
   const syncInterlock = resolvedSettings.resolved.syncInterlock;
   const notesPushResolved = resolvedSettings.resolved.notesPush;
 
-  const worktree = await inspectSyncWorktree({ exec: io.exec, cwd, opts, output });
-  if (worktree === null) return;
-  const branch = worktree.branch;
-
   let notesPush = notesPushResolved.value;
   if (notesPush === "prompt" && context.confirmation === "accept") {
     output.log.info(
@@ -500,6 +471,10 @@ export async function handleSync(
     notesPush: { value: notesPush, source: notesPushResolved.source },
     syncInterlock,
   };
+
+  const worktree = await inspectSyncWorktree({ exec: io.exec, cwd, opts, output, identity, interlockState });
+  if (worktree === null) return;
+  const branch = worktree.branch;
 
   const isTty = context.terminal === "interactive";
   const autoPull = resolvedSettings.settings["sync.auto_pull"] === "true";
@@ -1336,61 +1311,6 @@ async function pushNotesLeg(ctx: ExecuteContext): Promise<LegOutcomeRecord> {
       ctx.output.log.error(`Notes push failed: ${outcome.error.message}`);
       return { action: "push", result: "failed" };
   }
-}
-
-/**
- * Write one audit-log entry for a completed sync execution. Sidecar to the
- * orchestrator: per the release-wrapper failure-mode split, schema
- * violations throw (programmer error surfaced at test time) and I/O
- * failures swallow into `{ ok: false }` inside `appendAuditEntry` — neither
- * propagates back to the caller, so an unwritable audit log can never
- * mask a successful or refused sync. Identity-absent / no-arc-project /
- * dry-run paths skip this write upstream.
- */
-async function writeSyncAuditEntry(args: {
-  cwd: string;
-  identity: string;
-  outcome: SyncOutcome;
-  interlockState: InterlockState;
-}): Promise<void> {
-  const wu = await resolveActiveWu({ cwd: args.cwd });
-  const wuAudit = wu.status === "resolved" ? toAuditWorkUnit(wu) : null;
-  const refused = REFUSED_SYNC_CELLS.has(args.outcome.cell);
-
-  const auditOutcome: AuditOutcome = {
-    kind: "sync",
-    cell: args.outcome.cell,
-    worktree: encodeLegToken(args.outcome.worktree),
-    notes: encodeLegToken(args.outcome.notes),
-    exitCode: args.outcome.exitCode,
-  };
-
-  const entry: AuditEntry = AuditEntrySchema.parse({
-    schemaVersion: 2,
-    timestamp: new Date().toISOString(),
-    command: "sync",
-    args: [],
-    wu: wuAudit,
-    interlockState: { command: "sync", ...args.interlockState },
-    decision: refused ? "refused" : "proceeded",
-    refusalCode: refused ? SYNC_REFUSAL_CODE_PUSHABILITY : null,
-    outcome: auditOutcome,
-  });
-
-  await appendAuditEntry({ cwd: args.cwd, identity: args.identity, entry });
-}
-
-/**
- * Compress a `LegOutcomeRecord` into the audit-entry string-token shape:
- * `action:result` when no detail, `action:result:detail` when set. Detail
- * may itself contain colons (e.g., `notes-blocked-by-worktree:diverged`);
- * readers split on the first two colons and treat the remainder as
- * detail payload.
- */
-function encodeLegToken(record: LegOutcomeRecord): string {
-  return record.detail !== undefined
-    ? `${record.action}:${record.result}:${record.detail}`
-    : `${record.action}:${record.result}`;
 }
 
 /**
