@@ -1,8 +1,8 @@
 # Metadata: Storage Contract
 
-| **State** | **Owner** | **Branch**              | **Class** | **Priority** |
-| --------- | --------- | ----------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/storage-contract` | `Novel`   | `P1`         |
+| **State**     | **Owner** | **Branch**              | **Class** | **Priority** |
+| ------------- | --------- | ----------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/storage-contract` | `Novel`   | `P1`         |
 
 - **Cohort:** `state-storage`
 - **Depends On:** [none]
@@ -14,12 +14,12 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:69b9660eec916aac7c0168c8b15490e4c57f8f415a37dfb8c5250632c780d97c`
 
-- **Current Workflow:** `prepare-work-unit`
+- **Current Workflow:** `integrate-work-unit`
 - **Last Completed:** Task 8.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run or resume the typed pre-publication review procedure.
+- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
 
 - **PR URL:** [none]
 - **Completed:** [none]
