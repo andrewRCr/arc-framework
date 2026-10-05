@@ -14,7 +14,7 @@ const cases = [
   ["work-item/notes", ".arc/active/notes-example.md", "work-item"],
   ["work-item/companion", ".arc/active/research-example.md", "work-item"],
   ["cohort/document", ".arc/backlog/planned/example/cohort-example.md", "cohort"],
-  ["project-inbox/inbox", ".arc/ATOMIC-INBOX.md", "project"],
+  ["project-inbox/inbox", ".arc/backlog/ATOMIC-INBOX.md", "project"],
   ["review/candidate", ".arc/system/.internal/candidates/example.json", "work-item"],
   ["lineage/transition", ".arc/system/.internal/transitions/example.json", "work-item"],
 ] as const;
