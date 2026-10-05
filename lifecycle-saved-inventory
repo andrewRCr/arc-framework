@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "lifecycle-saved-inventory",
+  "claimId": "4612f945922235c5e2d3353b82c35db4",
+  "createdAt": "2026-10-05T19:07:52.289Z",
+  "updatedAt": "2026-10-05T19:07:52.289Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "lifecycle-saved-inventory",
+  "branch": "chore/lifecycle-saved-inventory",
+  "origin": "inbox",
+  "originEntry": "Reuse the saved lifecycle inventory instead of rescanning it for every record read",
+  "originEntrySourceDigest": "sha256:c83679e2c0a6b7b0b67041f6959c08265aa94ad7771469cb39ef6dce0fadac2a",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
