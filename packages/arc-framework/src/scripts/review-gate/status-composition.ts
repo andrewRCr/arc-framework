@@ -6,11 +6,10 @@ import type { DeliveryHostPort } from "../../lib/delivery/host.js";
 import { BaseMovementObservationSchema, type BaseMovementObservation, type EvidenceOverlapObservation } from
   "../../lib/evidence-applicability/index.js";
 import { analyzeRevisionOverlap, type RevisionOverlapResult } from "../../lib/git/base-overlap.js";
-import type { GitExec } from "../../lib/git/exec.js";
+import type { GitExec, RawGitExec } from "../../lib/git/exec.js";
 import { isGitProcessError } from "../../lib/git/process-error.js";
 import { isGitObjectId } from "../../lib/git/object-id.js";
 import { createRawGitExec } from "../../lib/io-context.js";
-import { resolveChangeStats } from "../../lib/change-stats.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { readCandidateRecordVersioned } from "../../lib/work-unit/candidate-record-store.js";
 import {
@@ -43,6 +42,7 @@ import { resolveReviewSubject } from "./core/review-subject.js";
 import { readErrandRoutedObligation } from "./status-errand.js";
 import { optionalReviewStatusJudgment, type ReviewStatusPolicyJudgment } from "./status-judgment.js";
 import { deliveryHeadRef, selectDeliveryReviewStatusTarget } from "./status-delivery-target.js";
+import { resolveDeliveryMemberScopeSelection } from "./status-delivery-scope.js";
 import {
   createHostedReservationDischargeReader,
   resolveHostedReservationTargets,
@@ -67,23 +67,14 @@ import { createRepositoryReviewResultReader } from
   "./hosts/local/review-result-reader-composition.js";
 import { readLaneResponsePerformance } from "./lane-progress.js";
 import { hostedGhRunner } from "./hosted/gh-process.js";
-import {
-  HostedProviderIdSchema,
-  type HostedReviewCoverage,
-} from "./hosted/request.js";
+import type { HostedReviewCoverage } from "./hosted/request.js";
 import { resolveConfiguredLanePolicy } from "./policy/lane-policy-config.js";
 import {
   projectHostedReservationPolicyProgress,
   resolveEvidenceBoundHostedReservationPolicy,
 } from "./policy/hosted-reservation-admission.js";
-import type { DeliveryLocalReviewScopeSelection } from
-  "./policy/delivery-local-review-admission.js";
 import { selectReviewCoverageChoice } from "./policy/review-coverage-selection.js";
 import { composePublishedSingletonReview } from "./status-singleton.js";
-import {
-  parseReviewChunkingThresholds,
-  resolveReviewChunkingPolicy,
-} from "./policy/review-chunking.js";
 import {
   bindDeliveryReviewTerminusOffer,
   composeDeliveryReviewObligation,
@@ -96,60 +87,6 @@ import {
   type ReviewStatusTargetInput,
   type RoutedReviewObligation,
 } from "./status.js";
-
-async function resolveDeliveryMemberScopeSelection(input: {
-  readonly cwd: string;
-  readonly settings: Awaited<ReturnType<typeof readConfigSettings>>["settings"];
-  readonly planId: string;
-  readonly sourceId?: string;
-  readonly target: {
-    readonly repository: string;
-    readonly pullRequest: number;
-    readonly baseRevision: string;
-    readonly headSha: string;
-  };
-}): Promise<DeliveryLocalReviewScopeSelection | undefined> {
-  const parsed = parseReviewChunkingThresholds({
-    "changeset.advisory_threshold_lines": input.settings["changeset.advisory_threshold_lines"],
-    "changeset.advisory_threshold_files": input.settings["changeset.advisory_threshold_files"],
-  });
-  if (parsed.kind === "invalid") {
-    throw new Error(`Invalid review chunking threshold ${parsed.key}: ${parsed.value}`);
-  }
-  if (parsed.thresholds.lines === 0 && parsed.thresholds.files === 0) return undefined;
-  const stats = await resolveChangeStats(
-    createRawGitExec(input.cwd),
-    input.target.baseRevision,
-    input.target.headSha,
-  );
-  if (stats.kind === "unknown") {
-    throw new Error(`Unable to measure exact delivery-member review target: ${stats.reason}`);
-  }
-  const resolution = resolveReviewChunkingPolicy({
-    thresholds: parsed.thresholds,
-    metrics: stats.metrics,
-    deliveryBinding: {
-      status: "bound",
-      planId: input.planId,
-      targetKind: "delivery-member",
-    },
-  });
-  if (resolution.disposition === "consider-chunks") {
-    if (HostedProviderIdSchema.safeParse(input.sourceId).success) return undefined;
-    return {
-      mode: "chunked",
-      target: {
-        repository: input.target.repository,
-        pullRequest: input.target.pullRequest,
-        headSha: input.target.headSha,
-      },
-    };
-  }
-  if (resolution.disposition === "below-threshold" || resolution.disposition === "disabled") {
-    return undefined;
-  }
-  throw new Error(`Delivery-member review chunking returned ${resolution.disposition}.`);
-}
 
 /**
  * Carry one overlap analysis across into the observation the review status records.
@@ -352,11 +289,14 @@ export async function readRoutedObligation(
     readonly captureTerminalAdvance?: (
       advance: { readonly stateHead: string; readonly currentHead: string },
     ) => void;
+    readonly rawExec?: RawGitExec;
   } = {},
 ): Promise<RoutedReviewObligation> {
+  const rawExec = options.rawExec ?? createRawGitExec(cwd);
   const errand = await readErrandRoutedObligation({
     cwd,
     exec,
+    rawExec,
     target,
     pullRequest,
     ...(judgment?.ceilingOverride === undefined ? {}
@@ -461,7 +401,7 @@ export async function readRoutedObligation(
           : {}),
         record,
         exec,
-        rawExec: createRawGitExec(cwd),
+        rawExec,
         ...(historicalTarget === undefined ? {} : { target: historicalTarget }),
       });
       if (!projectedHistorical.ok) return { state: "blocked", detail: projectedHistorical.detail };
@@ -520,7 +460,7 @@ export async function readRoutedObligation(
         baseBranch,
         record,
         exec,
-        rawExec: createRawGitExec(cwd),
+        rawExec,
         target: { revision: candidateHead, currentBase: targetBase.base },
       });
       if (!projectedCurrent.ok) return { state: "blocked", detail: projectedCurrent.detail };
@@ -545,6 +485,7 @@ export async function readRoutedObligation(
     const readDischarge = createHostedReservationDischargeReader({
       cwd,
       exec,
+      rawExec,
       ...(options.remote === undefined ? {} : { remote: options.remote }),
       delivery: memberLookup,
       host,
@@ -699,7 +640,7 @@ export async function readRoutedObligation(
         && firstOutstanding?.nextSource !== undefined
         && firstTarget !== undefined) {
         const scopeSelection = await resolveDeliveryMemberScopeSelection({
-          cwd,
+          rawExec,
           settings,
           planId: reservation.target.planId,
           target: firstTarget,
@@ -807,6 +748,7 @@ export function createReviewStatusPort(
   input: {
     cwd: string;
     exec: GitExec;
+    rawExec?: RawGitExec;
     remote?: string;
     sourceId?: string;
     preparedNativeLanding?: {
@@ -821,6 +763,7 @@ export function createReviewStatusPort(
     readonly deliveryLookupHeadSha: string;
   },
 ): ReviewStatusPort {
+  const rawExec = input.rawExec ?? createRawGitExec(input.cwd);
   return {
     observe: async (target, ceilingOverride, coverage, sourceId, additionalPassAuthorization) => {
       try {
@@ -894,6 +837,7 @@ export function createReviewStatusPort(
               undefined,
               {
                 remote,
+                rawExec,
                 baseMovement: base.baseMovement,
                 changeRequestCandidate: resolution.candidate,
                 ...(input.preparedNativeLanding === undefined
@@ -998,6 +942,7 @@ export async function resolveReviewStatusForWorkUnit(input: {
     headSha: terminalStateMember.coordinates.head,
   };
   let terminalAdvance: { readonly stateHead: string; readonly currentHead: string } | undefined;
+  const rawExec = createRawGitExec(input.cwd);
   const routed = await readRoutedObligation(
     input.cwd,
     input.exec,
@@ -1009,6 +954,7 @@ export async function resolveReviewStatusForWorkUnit(input: {
     undefined,
     {
       ...(input.remote === undefined ? {} : { remote: input.remote }),
+      rawExec,
       captureTerminalAdvance: (advance) => {
         terminalAdvance = advance;
       },
@@ -1036,7 +982,7 @@ export async function resolveReviewStatusForWorkUnit(input: {
     ...(input.additionalPassAuthorization === undefined ? {}
       : { additionalPassAuthorization: input.additionalPassAuthorization }),
     ...(input.coverage === undefined ? {} : { coverage: input.coverage }),
-  }, createReviewStatusPort(input, {
+  }, createReviewStatusPort({ ...input, rawExec }, {
     target: selectedTarget,
     pullRequest: selectedPullRequest,
     routedObligation: routed,

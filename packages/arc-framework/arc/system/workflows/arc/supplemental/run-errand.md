@@ -434,6 +434,11 @@ remote base all name the same exact head. Any tracked change continues through t
    upgrade. Under an Owner-directed review stop, any changed target or base requires a new exact offer describing
    the changed delta and the returned review-applicability result; never carry the prior acceptance forward.
 
+   After an approved base reconcile (Step 6's `merged / run-quality-gates`), read the new head's
+   `arc review status --target <targetRef>` before resolving review. A `settled` routed obligation completes the
+   standard lane at that head, carried from the earlier reviewed head; skip its `arc review resolve -`. Any other
+   state resolves the lane as usual.
+
    Re-run Tier 1 gates after every review-driven change. A new target invalidates clearance and integration
    authority. After the routed review settles or the exact Owner-directed review stop above is approved, run
    `arc review planning-lane <base-sha> <head-sha>` over the exact PR delta. Only literal `planning` is eligible

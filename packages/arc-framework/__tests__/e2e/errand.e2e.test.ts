@@ -25,6 +25,7 @@ import {
 } from "./helpers.js";
 import { advanceBaseStep, movementPaths } from "../helpers/base-advance.js";
 import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
+import { createRawGitExec } from "../../src/lib/io-context.js";
 import { responsePolicyRequest } from "../fixtures/review-response-policy.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { readErrandRoutedObligation } from "../../src/scripts/review-gate/status-errand.js";
@@ -550,6 +551,7 @@ describe("arc review respond for an Errand", () => {
       await expect(readErrandRoutedObligation({
         cwd: repository,
         exec: makeGitExec(repository),
+        rawExec: createRawGitExec(repository),
         target: {
           repository: policyRequest.target.repository,
           headRef: (await git(repository, ["symbolic-ref", "--short", "HEAD"])).trim(),

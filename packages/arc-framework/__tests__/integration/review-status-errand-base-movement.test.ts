@@ -1,7 +1,7 @@
 /** Exact Errand review clearance across real base movement and native status composition. */
 
 import { chmod, mkdir, writeFile } from "node:fs/promises";
-import { delimiter, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { handleReviewLocalAttest, handleReviewLocalPrepare, handleReviewStatus } from "../../src/handlers/review.js";
 import { TransientIdentityRecordV3Schema, serializeTransientIdentityRecord } from "../../src/lib/errand/identity-record.js";
@@ -10,8 +10,11 @@ import { createReviewRequirement, createReviewTarget } from "../../src/scripts/r
 import { LocalPrepareEnvelopeSchema, LocalAttestEnvelopeSchema } from "../../src/scripts/review-gate/core/review-command-envelope.js";
 import { LocalReviewOperationStateStore } from "../../src/scripts/review-gate/hosts/local/operation-state-store.js";
 import { resolveRepositoryIdentity } from "../../src/scripts/review-gate/hosts/local/git-common-state.js";
-import { recordHostedRequestAdmission, acknowledgeHostedRequest, recordHostedAwaitAttempt } from
+import { recordHostedRequestAdmission, acknowledgeHostedRequest, recordHostedAwaitAttempt, readLaneProgress } from
   "../../src/scripts/review-gate/lane-progress.js";
+import { createRawGitExec } from "../../src/lib/io-context.js";
+import { projectGitReviewContributionApplicability } from
+  "../../src/scripts/review-gate/policy/git-review-contribution-applicability.js";
 import type { HostedRequestHandle } from "../../src/scripts/review-gate/hosted/request.js";
 import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../../src/scripts/review-gate/policy/standard-review.js";
 import { createLocalPrepareDependencies } from "../../src/scripts/review-gate/runtime/local-prepare-composition.js";
@@ -89,7 +92,7 @@ async function installHost(root: string, headSha: string, remote: string): Promi
   return bin;
 }
 
-async function recordHostedReview(root: string, base: string, head: string) {
+async function recordHostedReview(root: string, base: string, head: string, outcome: ReviewOutcome) {
   const exec = makeGitExec(root);
   const publisher = new RepositoryGitCommonStatePublisher(exec, root);
   const repositoryId = await resolveRepositoryIdentity(publisher);
@@ -126,9 +129,17 @@ async function recordHostedReview(root: string, base: string, head: string) {
       createdAt: "2026-10-01T00:00:00Z" },
   };
   await acknowledgeHostedRequest(store, { admission: admitted.admission, handle, now: "2026-10-01T00:00:01Z" });
+  const reviewUrl = "https://example.test/review";
   await recordHostedAwaitAttempt(store, {
-    repositoryId, result: { schemaVersion: 1, mode: "review-hosted-await", handle,
-      state: "clean", nextAction: "complete", reviewUrl: "https://example.test/review" },
+    repositoryId,
+    result: outcome === "clean"
+      ? { schemaVersion: 1, mode: "review-hosted-await", handle, state: "clean", nextAction: "complete", reviewUrl }
+      : { schemaVersion: 1, mode: "review-hosted-await", handle, state: "findings", nextAction: "triage", reviewUrl,
+        findings: [{
+          findingId: "finding-1", origin: "review-body", reviewId: "review-1", fingerprint: "fingerprint-1",
+          settlement: "not-applicable", severity: "major", locus: "src/branch-only-surface.ts:1", url: reviewUrl,
+          body: "The reviewed change needs a correction.", sourceOrdinal: 1,
+        }] },
     now: "2026-10-01T00:00:02Z",
   });
 }
@@ -143,7 +154,7 @@ async function recordLocalReview(root: string) {
     ...boundary,
     prepare: (input) => prepareLocalReview(input, createLocalPrepareDependencies({ cwd: root, exec: makeGitExec(root) })),
     readText: async () => JSON.stringify({
-      schemaVersion: 1, evaluatorIdentity: "independent-reviewer",
+      schemaVersion: 1, evaluatorIdentity: "fresh-subagent/independent-reviewer",
       routingFacts: { contentKind: "code-bearing", reviewRisk: "sensitive", changeDeterminacy: "atomic",
         ownership: "self", surfaceAuthority: "ordinary" },
       policyJudgment: { invocation: { mode: "force", sourceId: "delegated-agent" } },
@@ -158,7 +169,7 @@ async function recordLocalReview(root: string) {
     attest: (input) => attestLocalReviewCommand(input, createLocalAttestDependencies({ cwd: root, exec: makeGitExec(root) })),
     readText: async () => JSON.stringify({
       schemaVersion: 1, operationId: prepared.payload.operationId,
-      result: { status: "complete", result: "clean", evaluatorIdentity: "independent-reviewer",
+      result: { status: "complete", result: "clean", evaluatorIdentity: "fresh-subagent/independent-reviewer",
         reviewRunId: "integration-run", applicabilityId: null, findings: [] },
     }),
   });
@@ -166,10 +177,22 @@ async function recordLocalReview(root: string) {
   expect(LocalAttestEnvelopeSchema.parse(JSON.parse(output.join("")))).toMatchObject({ state: "attested-current" });
 }
 
+type ReviewOutcome = "clean" | "findings";
+
+interface ReviewedErrandOptions {
+  /** Further branch-side history, returning a deferred base publication when one is needed. */
+  readonly arrange?: (root: string) => Promise<(() => Promise<void>) | undefined>;
+  /** Files the base carries before the branch forks, keyed by repository path. */
+  readonly seed?: Readonly<Record<string, string>>;
+  readonly outcome?: ReviewOutcome;
+  /** Configuration lines appended after the base branch setting. */
+  readonly config?: string;
+}
+
 async function reviewedErrand(
   carrier: "hosted" | "local",
   kind: BaseMovementKind,
-  arrange?: (root: string) => Promise<() => Promise<void>>,
+  options: ReviewedErrandOptions = {},
 ) {
   const root = await createTempRepoCore({ prefix: "arc-errand-currency-", identity: "andrew" });
   roots.push(root);
@@ -183,8 +206,12 @@ async function reviewedErrand(
   await git(root, ["commit", "-m", "base and identity"]);
   await git(root, ["update-ref", "refs/arc/user/andrew/errands", "HEAD"]);
   await mkdir(join(root, ".arc", "system"), { recursive: true });
-  await writeFile(join(root, ".arc", "system", "arc-config.yml"), "branch.base: main\n");
-  await git(root, ["add", ".arc/system/arc-config.yml"]);
+  for (const [path, content] of Object.entries(options.seed ?? {})) {
+    await mkdir(join(root, dirname(path)), { recursive: true });
+    await writeFile(join(root, path), content);
+  }
+  await writeFile(join(root, ".arc", "system", "arc-config.yml"), `branch.base: main\n${options.config ?? ""}`);
+  await git(root, ["add", "."]);
   await git(root, ["commit", "-m", "configure base"]);
   const base = await git(root, ["rev-parse", "HEAD"]);
   const remote = join(root, ".arc-fixture", "origin.git");
@@ -198,19 +225,23 @@ async function reviewedErrand(
   await git(root, ["switch", "-c", branch]);
   const paths = movementPaths(kind, slug);
   await arrangeBranchSide({ cwd: root, paths: paths.branch });
-  const publish = await arrange?.(root);
+  const publish = await options.arrange?.(root);
   const headSha = await git(root, ["rev-parse", "HEAD"]);
   await git(root, ["push", "origin", branch]);
   const bin = await installHost(root, headSha, remote);
   await withHost(bin, async () => {
-    if (carrier === "hosted") await recordHostedReview(root, base, headSha);
+    if (carrier === "hosted") await recordHostedReview(root, base, headSha, options.outcome ?? "clean");
     else await recordLocalReview(root);
   });
   const target = { repository, headRef: branch, headSha };
-  const status = async (wrap: (exec: GitExecLike) => GitExecLike = (exec) => exec) => withHost(bin, async () => {
+  const status = async (
+    wrap: (exec: GitExecLike) => GitExecLike = (exec) => exec,
+    current: typeof target = target,
+    options: { additionalPass?: string } = {},
+  ) => withHost(bin, async () => {
     const output: string[] = [];
     const exits: number[] = [];
-    await handleReviewStatus({ target: JSON.stringify(target) }, undefined, {
+    await handleReviewStatus({ target: JSON.stringify(current), ...options }, undefined, {
       resolveRoot: () => root,
       resolve: (_root, request) => resolveReviewStatus(request, createReviewStatusPort({ cwd: root, exec: wrap(makeGitExec(root)) })),
       write: (text) => output.push(text), setExitCode: (code) => exits.push(code),
@@ -218,7 +249,16 @@ async function reviewedErrand(
     expect(exits, output.join("")).toEqual([]);
     return ReviewStatusCommandResultSchema.parse(JSON.parse(output.join("")));
   });
-  return { root, base, target, paths, status, publish };
+  /** Merge the published base into the branch, as the approved append-only reconcile does, and publish it. */
+  const reconcile = async (): Promise<typeof target> => {
+    await git(root, ["fetch", "origin", "main"]);
+    await git(root, ["-c", "core.hooksPath=/dev/null", "merge", "--no-edit", "refs/remotes/origin/main"]);
+    const reconciled = await git(root, ["rev-parse", "HEAD"]);
+    await git(root, ["push", "origin", branch]);
+    await installHost(root, reconciled, remote);
+    return { ...target, headSha: reconciled };
+  };
+  return { root, base, target, paths, status, publish, reconcile };
 }
 
 describe("Errand review currency across base movement", () => {
@@ -264,10 +304,10 @@ describe("Errand review currency across base movement", () => {
   });
 
   it("refuses to carry review over ambiguous comparison ancestry", async () => {
-    const fixture = await reviewedErrand("hosted", "disjoint", async (root) => {
+    const fixture = await reviewedErrand("hosted", "disjoint", { arrange: async (root) => {
       const arranged = await arrangeAmbiguousMergeBase({ cwd: root, publishBase: "on-request" });
       return arranged.publish;
-    });
+    } });
     if (fixture.publish === undefined) throw new Error("base publication missing");
     expect(await fixture.status()).toMatchObject({ routedObligation: { state: "settled" } });
     await fixture.publish();
@@ -291,9 +331,145 @@ describe("Errand review currency across base movement", () => {
         ...(mismatch === "head" ? { head: fixture.base } : {}),
       } });
       expect(await readErrandRoutedObligation({
-        cwd: fixture.root, exec: makeGitExec(fixture.root), target: fixture.target, pullRequest,
+        cwd: fixture.root, exec: makeGitExec(fixture.root), rawExec: createRawGitExec(fixture.root),
+        target: fixture.target, pullRequest,
         currentBaseOid: advanced.head, ...(mismatch === "absent" ? {} : { baseMovement: movement }),
       })).toMatchObject({ state: "review-required" });
     },
   );
+});
+
+/** Read the claim's standard-review progress as projected onto one head. */
+async function standardProgress(root: string, headSha: string) {
+  const exec = makeGitExec(root);
+  const publisher = new RepositoryGitCommonStatePublisher(exec, root);
+  return readLaneProgress(new LocalReviewOperationStateStore(publisher), {
+    lane: "standard", repositoryId: await resolveRepositoryIdentity(publisher), headSha,
+    lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: claimId, headSha },
+  });
+}
+
+/** Publish one base-side edit to an existing file through a scratch worktree, leaving the checkout untouched. */
+async function advanceBaseFile(root: string, path: string, content: string): Promise<string> {
+  const scratch = join(root, ".arc-fixture", "base-edit");
+  await git(root, ["fetch", "origin", "main"]);
+  await git(root, ["worktree", "add", "--detach", scratch, "refs/remotes/origin/main"]);
+  try {
+    await writeFile(join(scratch, path), content);
+    await git(scratch, ["add", "--", path]);
+    await git(scratch, ["-c", "core.hooksPath=/dev/null", "commit", "-m", "edit the base side"]);
+    await git(scratch, ["push", "origin", "HEAD:refs/heads/main"]);
+    return await git(scratch, ["rev-parse", "HEAD"]);
+  } finally {
+    await git(root, ["worktree", "remove", "--force", scratch]);
+  }
+}
+
+describe("Errand review carry across an approved base merge", () => {
+  it.each(["hosted", "local"] as const)("carries settled %s review onto a mechanical base merge", async (carrier) => {
+    const fixture = await reviewedErrand(carrier, "disjoint");
+    const advanced = await advanceBase({ cwd: fixture.root, paths: fixture.paths.base });
+    const reconciled = await fixture.reconcile();
+    const status = await fixture.status(undefined, reconciled);
+    expect(status, JSON.stringify(status)).toMatchObject({
+      routedObligation: {
+        state: "settled",
+        detail: expect.stringContaining(`review of ${fixture.target.headSha} carries to this head`),
+      },
+      currentBaseOid: advanced.head,
+    });
+    expect(await standardProgress(fixture.root, reconciled.headSha))
+      .toMatchObject({ status: "recorded", completedPasses: 1, attempts: [] });
+  });
+
+  it("withholds the carry when an additional pass is authorized at the reconciled head", async () => {
+    const fixture = await reviewedErrand("hosted", "disjoint");
+    await advanceBase({ cwd: fixture.root, paths: fixture.paths.base });
+    const reconciled = await fixture.reconcile();
+    expect(await fixture.status(undefined, reconciled)).toMatchObject({ routedObligation: { state: "settled" } });
+    const prior = await standardProgress(fixture.root, fixture.target.headSha);
+    const producer = prior.status === "recorded" ? prior.attempts.at(-1)?.attemptId : undefined;
+    expect(producer).toBeDefined();
+    const additionalPass = JSON.stringify({
+      target: { repository, pullRequest, headSha: reconciled.headSha }, lane: "standard",
+      precedingProducerId: producer, completedPasses: 1, nextPass: 2,
+    });
+    const authorized = await fixture.status(undefined, reconciled, { additionalPass });
+    expect(authorized, JSON.stringify(authorized)).toMatchObject({ routedObligation: { state: "review-required" } });
+  });
+
+  it("settles a carried head after the claim spends its pass ceiling", async () => {
+    const fixture = await reviewedErrand("hosted", "disjoint", { config: "review.standard_max_passes: 1\n" });
+    await advanceBase({ cwd: fixture.root, paths: fixture.paths.base });
+    const reconciled = await fixture.reconcile();
+    expect(await fixture.status(undefined, reconciled)).toMatchObject({ routedObligation: { state: "settled" } });
+  });
+
+  it("keeps a merge that combined edits to one reviewed file on the review path", async () => {
+    const path = "lint-baseline.json";
+    const lines = Array.from({ length: 12 }, (_, line) => `entry ${String(line)}`);
+    const edit = (line: number, side: string) =>
+      `${lines.map((entry, index) => index === line ? `${entry} removed by ${side}` : entry).join("\n")}\n`;
+    const fixture = await reviewedErrand("hosted", "disjoint", {
+      seed: { [path]: `${lines.join("\n")}\n` },
+      arrange: async (root) => {
+        await writeFile(join(root, path), edit(1, "branch"));
+        await git(root, ["add", "--", path]);
+        await git(root, ["-c", "core.hooksPath=/dev/null", "commit", "-m", "remove a branch-side baseline entry"]);
+        return undefined;
+      },
+    });
+    const advanced = await advanceBaseFile(fixture.root, path, edit(10, "base"));
+    const reconciled = await fixture.reconcile();
+    // The merge reapplies the reviewed change exactly; only the overlapping base movement withholds the carry.
+    const contribution = await projectGitReviewContributionApplicability({
+      selector: {
+        schemaVersion: 1, repositoryId: "repository-1", repository, pullRequest, lane: "standard",
+        sourceId: "codex-pr", priorAttemptId: "attempt-1", priorHead: fixture.target.headSha,
+        currentHead: reconciled.headSha, priorBase: fixture.base, currentBase: advanced,
+      },
+      exec: createRawGitExec(fixture.root),
+      observeEndpoints: () => Promise.resolve({ head: reconciled.headSha, base: advanced }),
+    });
+    expect(contribution).toMatchObject({ state: "applicable" });
+    expect(await fixture.status(undefined, reconciled)).toMatchObject({
+      routedObligation: { state: "review-required" },
+    });
+  });
+
+  it("does not carry review onto a change that moved after review", async () => {
+    const fixture = await reviewedErrand("hosted", "disjoint");
+    await writeFile(join(fixture.root, fixture.paths.branch[0] ?? ""), "corrected after review\n");
+    await git(fixture.root, ["add", "--", ...fixture.paths.branch]);
+    await git(fixture.root, ["-c", "core.hooksPath=/dev/null", "commit", "-m", "correct the change after review"]);
+    await advanceBase({ cwd: fixture.root, paths: fixture.paths.base });
+    const reconciled = await fixture.reconcile();
+    expect(await fixture.status(undefined, reconciled)).toMatchObject({
+      routedObligation: { state: "review-required" },
+    });
+  });
+
+  it("does not carry an earlier review that left findings", async () => {
+    const fixture = await reviewedErrand("hosted", "disjoint", { outcome: "findings" });
+    await advanceBase({ cwd: fixture.root, paths: fixture.paths.base });
+    const reconciled = await fixture.reconcile();
+    expect(await fixture.status(undefined, reconciled)).toMatchObject({
+      routedObligation: { state: "review-required" },
+    });
+  });
+
+  it.each([
+    ["disjoint", "settled"], ["overlapping", "review-required"],
+  ] as const)("judges %s base movement since the merge against the reconciled head", async (shape, state) => {
+    const fixture = await reviewedErrand("hosted", "disjoint");
+    await advanceBase({ cwd: fixture.root, paths: fixture.paths.base });
+    const reconciled = await fixture.reconcile();
+    const later = await advanceBase({
+      cwd: fixture.root, generation: 1,
+      paths: shape === "disjoint" ? ["src/later-base-surface.ts"] : fixture.paths.branch,
+    });
+    expect(await fixture.status(undefined, reconciled)).toMatchObject({
+      routedObligation: { state }, currentBaseOid: later.head,
+    });
+  });
 });
