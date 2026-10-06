@@ -11,6 +11,8 @@
 
 import { describe, it, expect, afterEach } from "vitest";
 import { chmod, symlink } from "node:fs/promises";
+import { load } from "js-yaml";
+import { z } from "zod";
 
 import { ARC_CONTRACT_SUITES } from "../../src/lib/local-vitest-runner.js";
 import { CLASSIFY_SCRIPT, runScript } from "../helpers/run-script.js";
@@ -1188,13 +1190,72 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
   const HEAVY_CHECKS = [
     "Lint & Typecheck",
     "Unit Tests",
-    "Integration Tests",
+    "Integration Tests (1)",
+    "Integration Tests (2)",
     "E2E Tests (1)",
     "E2E Tests (2)",
     "E2E Tests (3)",
     "E2E Tests (4)",
     "Portability (concurrency guards) (linux)",
   ];
+
+  it("keeps the classifier and check fixtures equal to CI's heavy verification checks", async () => {
+    const value = z.union([z.string(), z.number(), z.boolean()]);
+    const leg = z.record(z.string(), value);
+    const workflow = z.object({
+      jobs: z.record(z.string(), z.object({
+        name: z.string(),
+        if: z.string().optional(),
+        strategy: z.object({ matrix: z.record(z.string(), z.unknown()) }).optional(),
+        steps: z.array(z.object({ if: z.string().optional(), run: z.string().optional() })),
+      })),
+    }).parse(load(await readFile(join(dirname(CLASSIFY_SCRIPT), "../.github/workflows/ci.yml"), "utf-8")));
+    const heavyCondition = /needs\.classify\.outputs\.weight\s*!=\s*['"]light['"]/u;
+    const verificationCommand = /\bnpm\s+(?:run\s+(?:-s\s+)?)?(?:test|lint|typecheck)(?:[:\s]|$)/u;
+    const names: string[] = [];
+    for (const job of Object.values(workflow.jobs)) {
+      // Select verification work skipped by light runs, including code-only
+      // steps in the always-running lint job. Shared setup only builds artifacts.
+      if (!job.steps.some((step) => verificationCommand.test(step.run ?? "")
+        && (heavyCondition.test(job.if ?? "") || heavyCondition.test(step.if ?? "")))) continue;
+      const matrix = job.strategy?.matrix ?? {};
+      const axes = Object.entries(matrix).filter(([key]) => key !== "include" && key !== "exclude");
+      let combinations: z.infer<typeof leg>[] = axes.length === 0 && matrix.include !== undefined ? [] : [{}];
+      for (const [key, values] of axes) {
+        combinations = combinations.flatMap((combination) =>
+          z.array(value).parse(values).map((entry) => ({ ...combination, [key]: entry })));
+      }
+      const exclusions = z.array(leg).parse(matrix.exclude ?? []);
+      combinations = combinations.filter((combination) => !exclusions.some((excluded) =>
+        Object.entries(excluded).every(([key, entry]) => combination[key] === entry)));
+      const originals = combinations.map((combination) => ({ ...combination }));
+      for (const included of z.array(leg).parse(matrix.include ?? [])) {
+        let matched = false;
+        for (const [index, original] of originals.entries()) {
+          if (axes.every(([key]) => included[key] === undefined || included[key] === original[key])) {
+            Object.assign(combinations[index]!, included);
+            matched = true;
+          }
+        }
+        if (!matched) combinations.push(included);
+      }
+      for (const combination of combinations) {
+        const name = job.name.replace(/\$\{\{\s*matrix\.([\w-]+)\s*\}\}/gu, (_expression, key: string) => {
+          expect(combination[key], `missing matrix.${key} in ${job.name}`).toBeDefined();
+          return String(combination[key]);
+        });
+        expect(name, "unsupported expression in heavy check name").not.toContain("${{");
+        names.push(name);
+      }
+    }
+    expect(names.length).toBeGreaterThan(0);
+    const script = await readFile(CLASSIFY_SCRIPT, "utf-8");
+    const declared = /readonly HEAVY_CHECK_NAMES=\(([\s\S]*?)\n\)/u.exec(script)?.[1];
+    expect(declared, "missing classifier heavy-check declaration").toBeDefined();
+    const scriptNames = [...declared!.matchAll(/^\s*"([^"]+)"\s*$/gmu)].map((match) => match[1]);
+    expect(scriptNames.sort()).toEqual([...names].sort());
+    expect([...HEAVY_CHECKS].sort()).toEqual([...names].sort());
+  });
 
   /** Render [name, conclusion] pairs as the normalized "<name>\t<conclusion>" lines the seam returns. */
   function checkLines(runs: Array<[string, string]>): string {
@@ -1398,6 +1459,20 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
   });
 
   const TARGET = "E2E Tests (2)";
+
+  it.each(["Integration Tests (1)", "Integration Tests (2)"].flatMap((name) => [
+    [name, "failed", greenExcept(name, "failure")],
+    [name, "in-progress", greenExcept(name, "")],
+    [name, "absent", greenOmitting(name)],
+  ]))("is heavy/unverified when %s is %s even with the old unsharded check green", async (_name, _state, tsv) => {
+    const { repo, checksDir, base, code, head } = await layeredRepo();
+    await injectChecks(checksDir, code, tsv + "Integration Tests\tsuccess\n");
+
+    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+  });
 
   it("uses the latest duplicate check run when reruns share a display name", async () => {
     const { repo, checksDir, base, code, head } = await layeredRepo();
