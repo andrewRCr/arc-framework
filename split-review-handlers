@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "split-review-handlers",
+  "claimId": "a4dd3235152e000f55b108e93a98a066",
+  "createdAt": "2026-10-06T13:03:07.474Z",
+  "updatedAt": "2026-10-06T13:03:07.474Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Extract locus lookups from review.ts along the settled storage-seam member boundaries, preserving behavior and keeping delivery and review together",
+  "branch": "chore/split-review-handlers",
+  "origin": "inbox",
+  "originEntry": "Split `handlers/review.ts` along the storage-seam consumer partitions",
+  "originEntrySourceDigest": "sha256:7a4b0bb73d941ec8c0328911a4b867ece35f94a8221c1d6d0b63c780506879e1",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
