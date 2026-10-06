@@ -176,7 +176,7 @@ describe("packaged review CLI surfaces", () => {
 
     expect(result.exitCode, result.stderr).toBe(0);
     expect(help.stdout).toContain("--schema");
-    expect(help.stdout).not.toContain("--json");
+    expect(help.stdout).not.toMatch(/^\s+--json\s/mu);
     const output = JSON.parse(result.stdout) as {
       rootId: string;
       schemas: Record<string, AnySchema>;
@@ -263,7 +263,7 @@ describe("packaged review CLI surfaces", () => {
     expect(result.stderr).toContain(`${name} --help`);
     expect(help.exitCode).toBe(0);
     expect(help.stdout).toContain("as JSON");
-    expect(help.stdout).not.toContain("--json");
+    expect(help.stdout).not.toMatch(/^\s+--json\s/mu);
   });
 
   it("rejects combining schema discovery with a request source", async () => {

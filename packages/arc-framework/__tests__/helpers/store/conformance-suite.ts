@@ -48,7 +48,7 @@ export function registerStoreConformanceSuite(name: string, registration: Confor
       for (const { family, reason } of emptyItemExclusions(context)) it.skip(`${family}: item ${number} — ${reason}`, () => {});
     });
   }
-  describe(`${name} — declaration inventory`, () => { validateUsedAssertionExclusions(registration, coverage); });
+  it(`${name} — declaration inventory`, () => { validateUsedAssertionExclusions(registration, coverage); });
 }
 
 
