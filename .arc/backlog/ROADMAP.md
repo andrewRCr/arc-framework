@@ -21,8 +21,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Planning`    | delivery-rebuild-continuity     | P1       | andrew | —          | —             |
 | `Planning`    | review-checkout-lifecycle       | P1       | andrew | —          | —             |
 | `Planning`    | stub-mint-to-launch             | P1       | andrew | —          | —             |
-| `Active`      | workspace-tool-paths            | P2       | andrew | —          | —             |
-| `Integrating` | cli-help-discovery              | P3       | andrew | —          | —             |
+| `Integrating` | workspace-tool-paths            | P2       | andrew | —          | —             |
 
 ## Ready
 
