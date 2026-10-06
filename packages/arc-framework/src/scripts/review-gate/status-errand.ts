@@ -7,10 +7,9 @@ import type { TransientIdentityRecord } from "../../lib/errand/identity-record.j
 import { isErrandBranchType } from "../../lib/errand/branch-type.js";
 import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
 import { analyzeRevisionOverlap, resolveSoleMergeBase } from "../../lib/git/base-overlap.js";
-import type { GitExec } from "../../lib/git/exec.js";
+import type { GitExec, RawGitExec } from "../../lib/git/exec.js";
 import { isGitProcessError } from "../../lib/git/process-error.js";
 import { resolveIdentity } from "../../lib/git/index.js";
-import { createRawGitExec } from "../../lib/io-context.js";
 import { canonicalize } from "../../lib/kernel/index.js";
 import type { ReviewResultReader } from "./core/ports.js";
 import { LocalReviewOperationStateStore } from "./hosts/local/operation-state-store.js";
@@ -373,6 +372,7 @@ async function resolveErrandLaneAtHead(input: {
 async function readCarriedErrandReview(input: {
   readonly cwd: string;
   readonly exec: GitExec;
+  readonly rawExec: RawGitExec;
   readonly publisher: RepositoryGitCommonStatePublisher;
   readonly store: LocalReviewOperationStateStore;
   readonly resultReader: ReviewResultReader;
@@ -412,7 +412,7 @@ async function readCarriedErrandReview(input: {
   if (!selector.success) return null;
   const contribution = await projectGitReviewContributionApplicability({
     selector: selector.data,
-    exec: createRawGitExec(input.cwd),
+    exec: input.rawExec,
     // Both endpoints are pinned commits; the caller re-reads the branch before reporting.
     observeEndpoints: () => Promise.resolve({ head: target.headSha, base: diffBase.mergeBase }),
   });
@@ -450,6 +450,7 @@ async function readCarriedErrandReview(input: {
 async function readUnreviewedErrandHead(input: {
   cwd: string;
   exec: GitExec;
+  rawExec: RawGitExec;
   publisher: RepositoryGitCommonStatePublisher;
   store: LocalReviewOperationStateStore;
   repositoryId: string;
@@ -504,8 +505,8 @@ async function readUnreviewedErrandHead(input: {
   // A requested additional pass asks about this head's own review, which a carry would hide.
   if (input.currentBaseOid !== undefined && input.additionalPassAuthorization === undefined) {
     const carried = await readCarriedErrandReview({
-      cwd: input.cwd, exec: input.exec, publisher: input.publisher, store, resultReader, repositoryId, errand,
-      target, pullRequest: input.pullRequest, completedPasses, prior: historical, result,
+      cwd: input.cwd, exec: input.exec, rawExec: input.rawExec, publisher: input.publisher, store, resultReader,
+      repositoryId, errand, target, pullRequest: input.pullRequest, completedPasses, prior: historical, result,
       currentBaseOid: input.currentBaseOid, currentBaseRef: input.currentBaseRef, baseMovement: input.baseMovement,
     });
     if (carried !== null) return carried;
@@ -572,6 +573,7 @@ async function nextErrandPassObligation(input: {
 export async function readErrandRoutedObligation(input: {
   readonly cwd: string;
   readonly exec: GitExec;
+  readonly rawExec: RawGitExec;
   readonly target: ExactErrandStatusTarget;
   readonly pullRequest: number;
   readonly remote?: string;
@@ -634,7 +636,7 @@ export async function readErrandRoutedObligation(input: {
     }
     if (progress.attempts.length === 0 && progress.completedPasses > 0) {
       const continuation = await readUnreviewedErrandHead({
-        cwd: input.cwd, exec, publisher, store, repositoryId, errand: selected.record,
+        cwd: input.cwd, exec, rawExec: input.rawExec, publisher, store, repositoryId, errand: selected.record,
         target: input.target, pullRequest: input.pullRequest,
         completedPasses: progress.completedPasses,
         ...(input.currentBaseOid === undefined ? {} : { currentBaseOid: input.currentBaseOid }),

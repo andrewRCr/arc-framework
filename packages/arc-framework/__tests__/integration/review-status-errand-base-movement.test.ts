@@ -330,7 +330,8 @@ describe("Errand review currency across base movement", () => {
         ...(mismatch === "head" ? { head: fixture.base } : {}),
       } });
       expect(await readErrandRoutedObligation({
-        cwd: fixture.root, exec: makeGitExec(fixture.root), target: fixture.target, pullRequest,
+        cwd: fixture.root, exec: makeGitExec(fixture.root), rawExec: createRawGitExec(fixture.root),
+        target: fixture.target, pullRequest,
         currentBaseOid: advanced.head, ...(mismatch === "absent" ? {} : { baseMovement: movement }),
       })).toMatchObject({ state: "review-required" });
     },
