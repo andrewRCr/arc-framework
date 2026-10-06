@@ -14,7 +14,8 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { handleCandidateApplicabilityResolve } from "../../src/handlers/candidate.js";
 import { handleIntegrationCheckpoint } from "../../src/handlers/integration.js";
-import { handleAttest, handlePublish } from "../../src/handlers/lifecycle.js";
+import { handleAttest } from "../../src/handlers/lifecycle-delivery-review.js";
+import { handlePublish } from "../../src/handlers/lifecycle.js";
 import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
 import {
   handleReviewHostedAwait,

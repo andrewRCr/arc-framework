@@ -68,9 +68,9 @@ import type {
   AbandonOptions,
   ArchiveOptions,
   TeardownOptions,
-  DecomposeOptions,
-  AttestOptions,
 } from "./handlers/lifecycle.js";
+import type { DecomposeOptions } from "./handlers/decompose.js";
+import type { AttestOptions } from "./handlers/lifecycle-delivery-review.js";
 import type {
   UserInboxRemoveOptions,
   UserReconcileReferencesOptions,
@@ -292,7 +292,7 @@ program
       machineReadable: isDecomposeMachineReadableInvocation,
     },
     async (context, origin: string | undefined, opts: DecomposeOptions) => {
-      await (await import("./handlers/lifecycle.js")).handleDecompose(origin, opts, context);
+      await (await import("./handlers/decompose.js")).handleDecompose(origin, opts, context);
     },
   ));
 
@@ -546,7 +546,7 @@ program
   .action(withInteractionContext(
     { machineReadable: (opts) => opts.json === true },
     async (context, name: string, opts: AttestOptions) => {
-      await (await import("./handlers/lifecycle.js")).handleAttest(name, opts, context);
+      await (await import("./handlers/lifecycle-delivery-review.js")).handleAttest(name, opts, context);
     },
   ));
 

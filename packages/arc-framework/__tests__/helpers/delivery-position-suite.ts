@@ -24,7 +24,7 @@ import {
   type DeliveryExecutionCommand,
 } from "../../src/handlers/delivery-execution.js";
 import { handleInit } from "../../src/handlers/init.js";
-import { handleAttest } from "../../src/handlers/lifecycle.js";
+import { handleAttest } from "../../src/handlers/lifecycle-delivery-review.js";
 import { handleLocus } from "../../src/handlers/locus.js";
 import {
   handleReviewLocalAttest,

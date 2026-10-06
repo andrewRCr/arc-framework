@@ -33,6 +33,11 @@ import {
   lifecycleCommandInputPolicyDeclarations,
   lifecycleCommandInputRegistrations,
 } from "./handlers/lifecycle.js";
+import { decomposeCommandInputRegistration } from "./handlers/decompose.js";
+import {
+  attestCommandInputRegistration,
+  attestCommandInputPolicyDeclarations,
+} from "./handlers/lifecycle-delivery-review.js";
 import { logStandaloneInputRegistration } from "./handlers/log.js";
 import { planCheckInputRegistration, planCommandInputPolicyDeclarations } from "./handlers/plan.js";
 import {
@@ -103,6 +108,8 @@ export const commandInputRegistrations = [
   configValidateCommandInputRegistration,
   startCommandInputRegistration,
   ...lifecycleCommandInputRegistrations,
+  decomposeCommandInputRegistration,
+  attestCommandInputRegistration,
   ...errandCommandInputRegistrations,
   errandMergeCommandInputRegistration,
   ...locusCommandInputRegistrations,
@@ -143,6 +150,7 @@ export const commandInputPolicyDeclarations = [
   ...integrationCommandInputPolicyDeclarations,
   ...joinCommandInputPolicyDeclarations,
   ...lifecycleCommandInputPolicyDeclarations,
+  ...attestCommandInputPolicyDeclarations,
   ...locusCommandInputPolicyDeclarations,
   ...planCommandInputPolicyDeclarations,
   ...deliveryCommandInputPolicyDeclarations,

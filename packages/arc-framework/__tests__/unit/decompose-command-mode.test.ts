@@ -6,7 +6,7 @@ import {
   DECOMPOSE_MODE_KEYS,
   DecomposeCommandInputSchema,
   isDecomposeMachineReadableInvocation,
-} from "../../src/handlers/lifecycle.js";
+} from "../../src/handlers/decompose.js";
 
 const origin = "origin";
 const authority = `sha256:${"a".repeat(64)}`;
