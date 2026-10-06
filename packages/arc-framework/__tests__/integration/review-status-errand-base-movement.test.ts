@@ -154,7 +154,7 @@ async function recordLocalReview(root: string) {
     ...boundary,
     prepare: (input) => prepareLocalReview(input, createLocalPrepareDependencies({ cwd: root, exec: makeGitExec(root) })),
     readText: async () => JSON.stringify({
-      schemaVersion: 1, evaluatorIdentity: "independent-reviewer",
+      schemaVersion: 1, evaluatorIdentity: "fresh-subagent/independent-reviewer",
       routingFacts: { contentKind: "code-bearing", reviewRisk: "sensitive", changeDeterminacy: "atomic",
         ownership: "self", surfaceAuthority: "ordinary" },
       policyJudgment: { invocation: { mode: "force", sourceId: "delegated-agent" } },
@@ -169,7 +169,7 @@ async function recordLocalReview(root: string) {
     attest: (input) => attestLocalReviewCommand(input, createLocalAttestDependencies({ cwd: root, exec: makeGitExec(root) })),
     readText: async () => JSON.stringify({
       schemaVersion: 1, operationId: prepared.payload.operationId,
-      result: { status: "complete", result: "clean", evaluatorIdentity: "independent-reviewer",
+      result: { status: "complete", result: "clean", evaluatorIdentity: "fresh-subagent/independent-reviewer",
         reviewRunId: "integration-run", applicabilityId: null, findings: [] },
     }),
   });

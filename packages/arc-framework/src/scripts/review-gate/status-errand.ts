@@ -405,7 +405,8 @@ async function readCarriedErrandReview(input: {
     schemaVersion: 1, repositoryId: input.repositoryId,
     // Origin preserves the host's owner casing; selectors carry the canonical lowercase form.
     repository: target.repository.toLowerCase(), pullRequest, lane: "standard",
-    sourceId: result.sourceIdentity, priorAttemptId: result.producerId,
+    // The lane's source, not a local evaluator's identity, which admits a wider grammar.
+    sourceId: terminal.sourceId, priorAttemptId: result.producerId,
     priorHead, currentHead: target.headSha,
     priorBase: result.target.diffBaseSha, currentBase: diffBase.mergeBase,
   });
