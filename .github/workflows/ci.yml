@@ -321,12 +321,16 @@ jobs:
         --ci-job "unit" --started-at-seconds "$TEST_COST_STARTED_AT_SECONDS"
 
   integration:
-    name: Integration Tests
+    name: Integration Tests (${{ matrix.shard }})
     permissions:
       contents: read
       actions: read # download-artifact of shared dist
     needs: [classify, setup]
     if: ${{ !cancelled() && needs.setup.result == 'success' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - name: Start test budget clock
@@ -356,14 +360,14 @@ jobs:
       run: node --import tsx packages/arc-framework/src/scripts/run-build.ts prepare
       env:
         ARC_E2E_SKIP_BUILD: ''
-    - run: npm run test:integration
+    - run: npm run test:integration -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}
       env:
         ARC_E2E_SKIP_BUILD: '1'
     - name: Report test budget
       run: >-
         npm run -s benchmark:test-cost:ci-budget -w packages/arc-framework --
         --tier integration --project-set integration --workers "${VITEST_MAX_WORKERS:-native}"
-        --ci-job "integration" --started-at-seconds "$TEST_COST_STARTED_AT_SECONDS"
+        --ci-job "integration-${{ matrix.shard }}" --started-at-seconds "$TEST_COST_STARTED_AT_SECONDS"
 
   e2e:
     name: E2E Tests (${{ matrix.shard }})

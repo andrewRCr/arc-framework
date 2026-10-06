@@ -117,7 +117,7 @@ describe("trusted review-gate workflows", () => {
     const workflow = await read("ci.yml");
     const jobs = [
       ["unit", "unit", "unit", "unit"],
-      ["integration", "integration", "integration", "integration"],
+      ["integration", "integration", "integration", "integration-${{ matrix.shard }}"],
       ["e2e", "e2e", "e2e", "e2e-${{ matrix.shard }}"],
     ] as const;
 
@@ -170,6 +170,21 @@ describe("trusted review-gate workflows", () => {
       expect(remainderStep?.run).toContain(`--exclude='**/${anchor}'`);
       await expect(readRepositoryFile(`packages/arc-framework/__tests__/e2e/${anchor}`)).resolves.toBeTruthy();
     }
+  });
+
+  it("runs two integration shards with a denominator derived from the matrix", async () => {
+    const workflow = await read("ci.yml");
+    const integration = jobValue(workflow, "integration");
+
+    expect(integration.name).toBe("Integration Tests (${{ matrix.shard }})");
+    expect(integration.strategy).toEqual({ "fail-fast": false, matrix: { shard: [1, 2] } });
+
+    const steps = integration.steps;
+    expect(Array.isArray(steps)).toBe(true);
+    const runs = (steps as Array<Record<string, unknown>>)
+      .map((step) => step.run)
+      .filter((run): run is string => typeof run === "string" && run.includes("npm run test:"));
+    expect(runs).toEqual(["npm run test:integration -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}"]);
   });
 
   it("provisions Node before the classifier hashes the code tree", async () => {
