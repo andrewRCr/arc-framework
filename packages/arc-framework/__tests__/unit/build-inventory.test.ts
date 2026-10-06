@@ -12,6 +12,21 @@ const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
 describe("rich build inventory", () => {
+  it("keeps an inert pull-request checkout under the root cache out of the build identity", () => {
+    const { root, packageRoot } = makeBuildFixture();
+    roots.push(root);
+    const before = captureBuildInventory(packageRoot).identity;
+    const materialize = (directory: string) => {
+      writeBuildFixtureFile(join(root, directory, "package.json"), '{"private":true,"workspaces":["packages/cli"]}');
+      writeBuildFixtureFile(join(root, directory, "packages/cli/package.json"), '{"name":"@fixture/changed"}');
+      writeBuildFixtureFile(join(root, directory, "packages/cli/src/cli.ts"), "export const marker = 2;");
+    };
+    materialize(".cache/arc-lane-change-data");
+    expect(captureBuildInventory(packageRoot).identity).toBe(before);
+    materialize("_arc_change_data");
+    expect(captureBuildInventory(packageRoot).identity).not.toBe(before);
+  });
+
   it("invalidates membership when a resolution-changing JS sibling is added", () => {
     const { root, packageRoot } = makeBuildFixture();
     roots.push(root);

@@ -65,12 +65,13 @@ jobs:
             -f state=pending -f context=arc-lane \
             -f description='ARC is reclassifying this exact head' -f target_url="$target"
       # Pull-request content is inert classification data; no command executes from this checkout.
+      # It lives under the root `.cache`, which the build inventory excludes, so the trusted build stays qualified.
       - id: lane-data
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
         with:
           repository: ${{ steps.lane-target.outputs.head_repository }}
           ref: ${{ steps.lane-target.outputs.head_sha }}
-          path: _arc_change_data
+          path: .cache/arc-lane-change-data
           fetch-depth: 0
           persist-credentials: false
       - id: lane-status
@@ -83,7 +84,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           lane="$(node packages/arc-framework/dist/cli.js review planning-lane "$BASE_SHA" "$HEAD_SHA" \
-            --repository "$GITHUB_WORKSPACE/_arc_change_data")"
+            --repository "$GITHUB_WORKSPACE/.cache/arc-lane-change-data")"
           test "$lane" = planning || test "$lane" = reviewed
           if [ "$lane" = planning ]; then
             bash .arc/system/.internal/scripts/confirm-live-change-pair.sh "$GITHUB_REPOSITORY" \

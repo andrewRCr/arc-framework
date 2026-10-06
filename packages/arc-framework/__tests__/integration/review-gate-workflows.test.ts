@@ -1379,7 +1379,7 @@ describe("trusted review-gate workflows", () => {
     expect(dataCheckout.with).toMatchObject({
       repository: "${{ steps.lane-target.outputs.head_repository }}",
       ref: "${{ steps.lane-target.outputs.head_sha }}",
-      path: "_arc_change_data",
+      path: ".cache/arc-lane-change-data",
       "fetch-depth": 0,
       "persist-credentials": false,
     });
@@ -1391,6 +1391,7 @@ describe("trusted review-gate workflows", () => {
     expect(publish.run).toContain(
       'lane="$(node packages/arc-framework/dist/cli.js review planning-lane "$BASE_SHA" "$HEAD_SHA"',
     );
+    expect(publish.run).toContain('--repository "$GITHUB_WORKSPACE/.cache/arc-lane-change-data")"');
     expect(publish.run).not.toContain("npx arc");
     expect(publish.run).toContain('test "$lane" = planning || test "$lane" = reviewed');
     expect(publish.run).toContain('gh api "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA"');
@@ -1400,8 +1401,8 @@ describe("trusted review-gate workflows", () => {
     );
 
     for (const step of steps.filter((candidate) => typeof candidate.run === "string")) {
-      expect(step["working-directory"]).not.toBe("_arc_change_data");
-      expect(step.run).not.toMatch(/(?:bash|node|npm|npx|tsx)\s+_arc_change_data\//u);
+      expect(step["working-directory"]).not.toBe(".cache/arc-lane-change-data");
+      expect(step.run).not.toMatch(/(?:bash|node|npm|npx|tsx)\s+\.cache\/arc-lane-change-data\//u);
     }
   });
 
