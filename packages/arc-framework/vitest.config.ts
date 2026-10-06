@@ -4,6 +4,7 @@ import { dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
+import { HeavyFirstSequencer } from "./__tests__/helpers/heavy-first-sequencer.js";
 import { ISOLATED_UNIT_MOCK_FILES } from "./__tests__/helpers/isolated-unit-mock-files.js";
 import { selectIntegrationTempRoot } from "./__tests__/helpers/integration-temp-root.js";
 import { resolveVitestMaxWorkers } from "./__tests__/helpers/vitest-worker-policy.js";
@@ -57,6 +58,7 @@ const maxWorkers = resolveVitestMaxWorkers(process.env);
 export default defineConfig({
   test: {
     ...(maxWorkers === undefined ? {} : { maxWorkers }),
+    sequence: { sequencer: HeavyFirstSequencer },
     projects: [
       {
         test: {

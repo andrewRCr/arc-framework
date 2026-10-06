@@ -1,4 +1,4 @@
-/** Print the effective E2E remainder membership for every CI shard leg. */
+/** Print the effective E2E membership for every CI shard leg. */
 
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
