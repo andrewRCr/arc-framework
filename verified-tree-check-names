@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "verified-tree-check-names",
+  "claimId": "08d5d3e048f0c475c42c572ad3a48800",
+  "createdAt": "2026-10-06T20:56:06.907Z",
+  "updatedAt": "2026-10-06T20:56:06.907Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Match the verified-tree heavy-check names to CI shards and verify the list against ci.yml",
+  "branch": "chore/verified-tree-check-names",
+  "origin": "inbox",
+  "originEntry": "Match the verified-tree check list to CI's sharded check names, and test it against `ci.yml`",
+  "originEntrySourceDigest": "sha256:f6f9993b37ad292e7b1d9f4f9779a0c4117393f666279e47acc3532ace6f598d",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
