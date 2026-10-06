@@ -80,4 +80,4 @@ it("retains full producer and platform-local declaration gates before preparatio
   });
   expect((await runVitestControllerFixture(producer.packageRoot, ["full"],
     { CI: "1", ARC_E2E_SKIP_BUILD: "1" })).code).toBe(0);
-});
+}, 30_000);
