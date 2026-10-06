@@ -146,18 +146,30 @@ function guidanceInvocations(content: string): GuidanceInvocation[] {
 }
 
 /** Resolve a documented invocation to the registered command it names. */
-function resolveCommandPath(words: readonly string[], registered: ReadonlySet<string>): string | null {
+function resolveCommandPath(
+  words: readonly string[],
+  registered: ReadonlySet<string>,
+  operandCommands: ReadonlySet<string> = new Set(),
+): string | null {
   const path = words.join(" ");
-  return registered.has(path) ? path : null;
+  if (registered.has(path)) return path;
+  for (let length = words.length - 1; length > 0; length -= 1) {
+    const prefix = words.slice(0, length).join(" ");
+    if (registered.has(prefix) && operandCommands.has(prefix)) return prefix;
+  }
+  return null;
 }
 
 describe("documented command surface", () => {
   let registered!: ReadonlySet<string>;
+  let operandCommands!: ReadonlySet<string>;
   let declaresJson!: ReadonlySet<string>;
   let sourceFiles!: Readonly<Record<string, string>>;
 
   beforeAll(async () => {
     const snapshot = await loadRepositoryCommandInputSnapshot(sourceRoot);
+    operandCommands = new Set(snapshot.source.commands.filter((command) => command.operands.length > 0)
+      .map((command) => command.path));
     sourceFiles = snapshot.sourceFiles;
     const paths = new Set<string>();
     for (const command of snapshot.source.commands) {
@@ -181,7 +193,7 @@ describe("documented command surface", () => {
     expect(invocations.length).toBeGreaterThan(0);
 
     const unregistered = invocations
-      .filter((invocation) => resolveCommandPath(invocation.words, registered) === null)
+      .filter((invocation) => resolveCommandPath(invocation.words, registered, operandCommands) === null)
       .map((invocation) => invocation.line);
 
     expect(unregistered).toEqual([]);
@@ -196,7 +208,7 @@ describe("documented command surface", () => {
       .toEqual(expect.arrayContaining(["arc review pre-publication", "arc publish", "arc attest"]));
 
     const unregistered = emitted
-      .filter(({ invocation }) => resolveCommandPath(invocation.words, registered) === null)
+      .filter(({ invocation }) => resolveCommandPath(invocation.words, registered, operandCommands) === null)
       .map(({ file, invocation }) => `${file}: ${invocation.line}`);
 
     expect(unregistered).toEqual([]);
@@ -226,6 +238,16 @@ describe("documented command surface", () => {
     expect(documented?.words).toEqual(["errand", "open"]);
     expect(resolveCommandPath(documented?.words ?? [], new Set(["errand", "errand close"]))).toBeNull();
     expect(resolveCommandPath(documented?.words ?? [], new Set(["errand", "errand open"]))).toBe("errand open");
+  });
+
+  it("accepts named operands in examples only when the registered command declares operands", () => {
+    const paths = new Set(["start", "view", "review", "review resolve"]);
+    const operands = new Set(["start", "view", "review resolve"]);
+    expect(resolveCommandPath(["start", "my-work"], paths, operands)).toBe("start");
+    expect(resolveCommandPath(["view", "tasks"], paths, operands)).toBe("view");
+    expect(resolveCommandPath(["review", "resolve", "request"], paths, operands)).toBe("review resolve");
+    expect(resolveCommandPath(["review", "missing"], paths, operands)).toBeNull();
+    expect(resolveCommandPath(["missing", "my-work"], paths, operands)).toBeNull();
   });
 
   it("passes `--json` only to commands that declare it, across every guidance tree", async () => {

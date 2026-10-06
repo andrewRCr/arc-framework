@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { Command, Option } from "commander";
 
 import { getFrameworkVersion } from "./lib/version.js";
+import { applyArcHelp, configureArcHelp } from "./lib/cli-help.js";
 import { formatUnexpectedError } from "./lib/errors.js";
 import {
   checkDevBuildStaleness,
@@ -117,6 +118,7 @@ import type {
 } from "./commands/release.js";
 
 const program = new Command();
+configureArcHelp(program);
 
 program
   .name("arc")
@@ -1379,7 +1381,8 @@ program
     "  Requires interactive stdin/stdout; --no-input, CI, and piped streams refuse.",
     "  Cannot combine --editor with --path or --current.",
     "  Inherits terminal streams and waits for the command, preserving wait flags.",
-    "  Command success confirms handoff; buffer opening and saving depend on the editor.",
+    "  Command success confirms handoff; buffer opening and saving depend on",
+    "  the editor.",
     "  Example: ARC_EDITOR='code --wait' arc view -e",
     "",
   ].join("\n"))
@@ -1397,24 +1400,24 @@ program
   .description("Composite probe: identity + user-sync + extensions + config + active state")
   .argument(
     "[slug]",
-    "Resolve one work unit's lifecycle state — (phase, location), derived enum, predicates, and dep-edge states",
+    "Work unit to inspect; omit for composite status",
   )
   .addOption(
     new Option(
       "--session-init",
-      "Emit the session-init-scoped subset for harness consumption",
+      "Select session initialization context; add --json for JSON output",
     ).conflicts("session-handoff"),
   )
   .addOption(
     new Option(
       "--session-handoff",
-      "Emit the session-handoff envelope for arc-handoff",
+      "Select handoff context; requires --json",
     ).conflicts(["session-init", "recover"]),
   )
   .addOption(
     new Option(
       "--recover",
-      "Emit the lean recover envelope for compaction recovery",
+      "Select recovery context; requires --json",
     ).conflicts(["session-init", "session-handoff", "user"]),
   )
   .addOption(
@@ -1433,7 +1436,7 @@ program
   .option("--local", "With --user/--project: skip the live-default network read (slug queries are local by default)")
   .option("--no-fetch", "With --user/--project: skip the live-default network read (slug queries are local by default)")
   .option("--staged", "With --project: render tree inputs from the git index (matches the pre-commit ROADMAP regen check)")
-  .option("--write", "With --project --staged: write the rendered view to the tracked ROADMAP atomically")
+  .option("--write", "With --project --staged: write ROADMAP atomically; requires omitting --json")
   .addOption(
     new Option(
       "--write-compaction-seed",
@@ -1897,8 +1900,8 @@ reviewCmd
   .command("resolve")
   .description("Resolve the next configured review-policy action as JSON")
   .usage("[file | -] [--schema]")
-  .argument("[input]", "Versioned JSON request file, or - for stdin")
-  .option("--schema", "Print the registered public request schema bundle")
+  .argument("[input]", "Versioned JSON request file, or - for stdin; required unless --schema is selected")
+  .option("--schema", "Print the request schema and referenced definitions; use without request input")
   .addOption(new Option("--json").hideHelp())
   .hook("preAction", rejectUnsupportedReviewJson)
   .action(withInteractionContext({ machineReadable: () => true }, async (context, input: string | undefined, opts: { schema?: boolean }) => {
@@ -2203,6 +2206,7 @@ function formatAge(seconds: number): string {
 
 // --- Entry ---
 
+applyArcHelp(program);
 program.parseAsync().catch((err: unknown) => {
   console.error(formatUnexpectedError(err));
   process.exitCode = 1;
