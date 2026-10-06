@@ -7,17 +7,13 @@
  * @module
  */
 
-import { randomUUID } from "node:crypto";
-import { mkdir as fsMkdir, readlink as fsReadlink } from "node:fs/promises";
+import { mkdir as fsMkdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import { createGitExec } from "./io-context.js";
 import type { GitExec } from "./git/exec.js";
 import {
   acquireAdvisoryLock,
-  renewAdvisoryLock,
-  releaseAdvisoryLock,
-  releaseAdvisoryLockSync,
   type AdvisoryLockContention,
   type AdvisoryLockHandle,
   type AdvisoryLockOptions,
@@ -25,6 +21,9 @@ import {
 } from "./advisory-lock.js";
 import { resolveGitCommonDir } from "./git/exec.js";
 import { retryTransientFileSystemRefusal } from "./fs.js";
+import { withRenewableLease } from "./renewable-lease.js";
+import { NATIVE_LEASE_PROCESS } from "./lease-process.js";
+export { resolveProcessVisibilityScope } from "./lease-process.js";
 
 /** Explicit opt-out used only for deliberate local contention experiments. */
 export const LOCAL_TEST_CONCURRENCY_OVERRIDE = "ARC_TEST_ALLOW_CONCURRENCY";
@@ -33,18 +32,23 @@ export const LOCAL_TEST_CONCURRENCY_OVERRIDE = "ARC_TEST_ALLOW_CONCURRENCY";
 export type LocalHeavyTestTier =
   | "full"
   | "unit"
+  | "changed"
   | "lane"
   | "integration"
   | "arc-contracts"
   | "e2e"
   | "e2e-focused"
-  | "portability";
+  | "portability"
+  | "portability-macos";
+
+/** Operator label for a broad tier or an exact focused selection. */
+export type LocalTestRunLabel = LocalHeavyTestTier | "focused";
 
 /** Inputs resolved by the package-script adapter. */
 export interface LocalTestAdmissionInput {
   readonly cwd: string;
   readonly env: Readonly<Record<string, string | undefined>>;
-  readonly tier: LocalHeavyTestTier;
+  readonly tier: LocalTestRunLabel;
 }
 
 /** Result of an admitted action, with queue latency present only when contention was observed. */
@@ -57,7 +61,7 @@ export interface LocalTestAdmissionResult<T> {
 interface LocalTestHolderMetadata {
   readonly schemaVersion: 1;
   readonly branch: string;
-  readonly tier: LocalHeavyTestTier;
+  readonly tier: LocalTestRunLabel;
   readonly worktree: string;
   readonly startedAt: string;
 }
@@ -84,70 +88,17 @@ interface LocalTestAdmissionDependencies {
   readonly writeLine: (line: string) => void;
 }
 
-const PROCESS_INSTANCE = randomUUID();
-
-/**
- * Resolve the process-visibility scope used to interpret recorded holder PIDs.
- *
- * @param platform - Runtime operating-system platform.
- * @param processInstance - Stable identity for this exact runtime process.
- * @param readPidNamespace - Linux procfs namespace reader.
- * @returns A scope shared only by runtimes whose PIDs are mutually observable.
- */
-export async function resolveProcessVisibilityScope(
-  platform: NodeJS.Platform,
-  processInstance: string,
-  readPidNamespace: () => Promise<string> = async () => await fsReadlink("/proc/self/ns/pid"),
-): Promise<string> {
-  if (platform !== "linux") return `${platform}:host`;
-  try {
-    return await readPidNamespace();
-  } catch {
-    return `linux:unknown:${processInstance}`;
-  }
-}
-
 const DEFAULT_DEPENDENCIES: LocalTestAdmissionDependencies = {
+  ...NATIVE_LEASE_PROCESS,
   acquireLock: acquireAdvisoryLock,
   git: createGitExec(),
-  mkdir: async (path) => {
-    await fsMkdir(path, { recursive: true, mode: 0o700 });
-  },
-  now: Date.now,
-  pid: process.pid,
-  processInstance: PROCESS_INSTANCE,
-  registerExitCleanup: (handle) => {
-    const listener = () => {
-      releaseAdvisoryLockSync(handle);
-    };
-    process.once("exit", listener);
-    return () => {
-      process.off("exit", listener);
-    };
-  },
-  releaseLock: releaseAdvisoryLock,
-  renewLock: renewAdvisoryLock,
-  resolveProcessScope: async () => await resolveProcessVisibilityScope(process.platform, PROCESS_INSTANCE),
-  scheduleEvery: (callback, intervalMs) => {
-    const timer = setInterval(callback, intervalMs);
-    timer.unref();
-    return () => {
-      clearInterval(timer);
-    };
-  },
-  terminateProcess: () => {
-    process.kill(process.pid, "SIGTERM");
-  },
-  writeLine: (line) => {
-    process.stderr.write(`${line}\n`);
-  },
+  mkdir: async (path) => { await fsMkdir(path, { recursive: true, mode: 0o700 }); },
 };
 
 const LOCK_ROOT = join("arc", "test-suite");
 const LOCK_FILENAME = ".local-heavy-tests.lock";
 const HEARTBEAT_MS = 60_000;
 const LEASE_DURATION_MS = 120_000;
-const LEASE_RENEW_INTERVAL_MS = 10_000;
 
 /**
  * Run one heavy local test action while holding the repository-common slot.
@@ -227,78 +178,9 @@ export async function withLocalHeavyTestAdmission<T>(
     dependencies.writeLine(`Local heavy-test slot acquired after waiting; starting ${tierLabel(input.tier)} tests.`);
   }
 
-  const unregisterExitCleanup = dependencies.registerExitCleanup(handle);
-  let heartbeatActive = true;
-  let terminationRequested = false;
-  let leaseConfirmedUntil = handle.leaseUntil ?? admissionStartedAt + LEASE_DURATION_MS;
-  const terminateController = (message: string): void => {
-    if (!heartbeatActive || terminationRequested) return;
-    terminationRequested = true;
-    dependencies.writeLine(message);
-    dependencies.terminateProcess();
-  };
-  const cannotSafelyRetry = (): boolean => (
-    dependencies.now() + LEASE_RENEW_INTERVAL_MS >= leaseConfirmedUntil
-  );
-  const terminateBeforeLeaseExpiry = (): void => {
-    terminateController(
-      "Local heavy-test lock could not be renewed before its last confirmed lease deadline; "
-      + "stopping the admitted test controller.",
-    );
-  };
-  const cancelHeartbeat = dependencies.scheduleEvery(() => {
-    if (!heartbeatActive) return;
-    if (cannotSafelyRetry()) {
-      terminateBeforeLeaseExpiry();
-      return;
-    }
-    const renewalStartedAt = dependencies.now();
-    void dependencies.renewLock(handle, LEASE_DURATION_MS)
-      .then((result) => {
-        if (!heartbeatActive) return;
-        if (result === "renewed") {
-          leaseConfirmedUntil = Math.max(
-            leaseConfirmedUntil,
-            renewalStartedAt + LEASE_DURATION_MS,
-          );
-          return;
-        }
-        if (result === "ownership-lost") {
-          terminateController(
-            "Local heavy-test lock ownership was lost; stopping the admitted test controller.",
-          );
-          return;
-        }
-        if (cannotSafelyRetry()) {
-          terminateBeforeLeaseExpiry();
-        }
-      })
-      .catch((error: unknown) => {
-        if (!heartbeatActive) return;
-        const detail = error instanceof Error ? error.message : String(error);
-        if (cannotSafelyRetry()) {
-          terminateController(
-            `Unable to renew the local heavy-test lock before its last confirmed lease deadline: ${detail}; `
-            + "stopping the admitted test controller.",
-          );
-          return;
-        }
-        dependencies.writeLine(`Unable to renew the local heavy-test lock heartbeat: ${detail}`);
-      });
-  }, LEASE_RENEW_INTERVAL_MS);
-
-  let result: T;
-  try {
-    result = await action();
-  } finally {
-    heartbeatActive = false;
-    cancelHeartbeat();
-    try {
-      await dependencies.releaseLock(handle);
-    } finally {
-      unregisterExitCleanup();
-    }
-  }
+  const result = await withRenewableLease(handle, admissionStartedAt, async () => await action(), dependencies, {
+    lock: "Local heavy-test lock", controller: "the admitted test controller",
+  });
   return {
     result,
     ...(admissionWaitMs === undefined ? {} : { waitMs: admissionWaitMs }),
@@ -328,7 +210,7 @@ function parseHolderMetadata(value: unknown): LocalTestHolderMetadata | null {
   if (
     candidate.schemaVersion !== 1
     || typeof candidate.branch !== "string"
-    || !isLocalHeavyTestTier(candidate.tier)
+    || !(candidate.tier === "focused" || isLocalHeavyTestTier(candidate.tier))
     || typeof candidate.worktree !== "string"
     || typeof candidate.startedAt !== "string"
   ) {
@@ -346,15 +228,17 @@ function parseHolderMetadata(value: unknown): LocalTestHolderMetadata | null {
 export function isLocalHeavyTestTier(value: unknown): value is LocalHeavyTestTier {
   return value === "full"
     || value === "unit"
+    || value === "changed"
     || value === "lane"
     || value === "integration"
     || value === "arc-contracts"
     || value === "e2e"
     || value === "e2e-focused"
-    || value === "portability";
+    || value === "portability"
+    || value === "portability-macos";
 }
 
-function tierLabel(tier: LocalHeavyTestTier): string {
+function tierLabel(tier: LocalTestRunLabel): string {
   if (tier === "e2e-focused") return "focused E2E";
   if (tier === "e2e") return "E2E";
   if (tier === "arc-contracts") return "ARC contract";

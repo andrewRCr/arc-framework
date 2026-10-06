@@ -184,8 +184,8 @@ jobs:
           echo "lane=$lane" >> "$GITHUB_OUTPUT"
           echo "classified lane=$lane (event=$event action=$action); see decide log above for weight"
 
-  # Shared install + build for heavy runs. One npm ci / build per workflow; consumer
-  # legs restore node_modules from cache and download dist (no per-leg rebuild).
+  # Shared full build for heavy runs. Consumers restore the installation and dist,
+  # then qualify or repair runtime/schema output in their own execution context.
   # Light / schedule / duplicate-push runs skip this job entirely.
   setup:
     name: Shared setup
@@ -267,6 +267,11 @@ jobs:
         path: packages/arc-framework/dist
     - if: ${{ needs.classify.outputs.weight != 'light' && needs.setup.result != 'success' }}
       run: npm run build
+    - id: runtime-preflight
+      if: ${{ needs.classify.outputs.weight != 'light' }}
+      run: node --import tsx packages/arc-framework/src/scripts/run-build.ts prepare
+      env:
+        ARC_E2E_SKIP_BUILD: ''
     - if: ${{ needs.classify.outputs.weight != 'light' }}
       run: npm run lint:ts
     - if: ${{ needs.classify.outputs.weight != 'light' }}
@@ -347,6 +352,10 @@ jobs:
       with:
         name: arc-framework-dist
         path: packages/arc-framework/dist
+    - id: runtime-preflight
+      run: node --import tsx packages/arc-framework/src/scripts/run-build.ts prepare
+      env:
+        ARC_E2E_SKIP_BUILD: ''
     - run: npm run test:integration
       env:
         ARC_E2E_SKIP_BUILD: '1'
@@ -402,6 +411,10 @@ jobs:
       with:
         name: arc-framework-dist
         path: packages/arc-framework/dist
+    - id: runtime-preflight
+      run: node --import tsx packages/arc-framework/src/scripts/run-build.ts prepare
+      env:
+        ARC_E2E_SKIP_BUILD: ''
     - name: Run E2E anchor
       run: npm run test:e2e -w packages/arc-framework -- __tests__/e2e/${{ matrix.anchor }} --passWithNoTests=false
       env:
@@ -457,6 +470,10 @@ jobs:
       with:
         name: arc-framework-dist
         path: packages/arc-framework/dist
+    - id: runtime-preflight
+      run: node --import tsx packages/arc-framework/src/scripts/run-build.ts prepare
+      env:
+        ARC_E2E_SKIP_BUILD: ''
     - run: npm run test:portability
       env:
         ARC_E2E_SKIP_BUILD: '1'
@@ -490,6 +507,10 @@ jobs:
         cache: 'npm'
     - run: npm ci
     - run: npm run build
+    - id: runtime-preflight
+      run: node --import tsx packages/arc-framework/src/scripts/run-build.ts prepare
+      env:
+        ARC_E2E_SKIP_BUILD: ''
     - run: npm run test:portability
       env:
         ARC_E2E_SKIP_BUILD: '1'

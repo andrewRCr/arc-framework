@@ -17,6 +17,7 @@ describe("classifySurface", () => {
     ["AGENTS.md", "prose"],
     ["packages/arc-framework/init-recipe.json", "config"],
     ["packages/arc-framework/vitest.config.ts", "config"],
+    ["packages/arc-framework/build-compiler.config.ts", "config"],
     [".github/CODEOWNERS", "config"],
   ] as const)("classifies %s as %s", (path, expected) => {
     expect(classifySurface(path)).toBe(expected);

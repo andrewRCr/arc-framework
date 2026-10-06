@@ -11,23 +11,13 @@
 import {
   isLocalHeavyTestTier,
   type LocalHeavyTestTier,
-  withLocalHeavyTestAdmission,
 } from "../lib/local-test-admission.js";
 import { runLocalVitestTier } from "../lib/local-vitest-runner.js";
 
 const [tierArgument, ...forwardedArguments] = process.argv.slice(2);
 const tier = parseTier(tierArgument);
 
-await withLocalHeavyTestAdmission(
-  {
-    cwd: process.cwd(),
-    env: process.env,
-    tier,
-  },
-  async () => {
-    await runLocalVitestTier(tier, forwardedArguments);
-  },
-);
+await runLocalVitestTier(tier, forwardedArguments);
 
 function parseTier(value: string | undefined): LocalHeavyTestTier {
   if (isLocalHeavyTestTier(value)) return value;

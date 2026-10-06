@@ -55,6 +55,25 @@ describe("isLocalHeavyTestTier", () => {
 });
 
 describe("withLocalHeavyTestAdmission", () => {
+  it("renders a focused holder's diagnostic label without adding a broad tier command", async () => {
+    const lines: string[] = [];
+    const result = await withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "focused" }, async () => "complete",
+      { git: admissionGit(), mkdir: async () => {}, resolveProcessScope: async () => "pid:[test]",
+        acquireLock: async (_path, options) => {
+          options?.onWait?.({ holder: { pid: 41, token: "holder", acquiredAt: 0,
+            metadata: options.metadata }, waitedMs: 0 });
+          return { path: "/repo/.git/arc/test-suite/.local-heavy-tests.lock", pid: 42, token: "ours" };
+        },
+        releaseLock: async () => {}, writeLine: (line) => lines.push(line),
+      },
+    );
+    expect(result.result).toBe("complete");
+    expect(lines[0]).toContain("queued behind focused tests (PID 41");
+    expect(lines[1]).toContain("starting focused tests");
+    expect(isLocalHeavyTestTier("focused")).toBe(false);
+  });
+
   it("enters the shared slot after a delete-pending lock directory clears", async () => {
     let mkdirAttempts = 0;
     const result = await withLocalHeavyTestAdmission(
@@ -508,5 +527,29 @@ describe("withLocalHeavyTestAdmission", () => {
     finishRelease?.();
     await run;
     expect(unregisterExitCleanup).toHaveBeenCalledOnce();
+  });
+
+  it("retains a renewable lease while asynchronous release is pending", async () => {
+    let clock = 1_000;
+    let deadline = clock + 120_000;
+    let heartbeat: (() => void) | undefined;
+    let finishRelease: (() => void) | undefined;
+    const run = withLocalHeavyTestAdmission(
+      { cwd: "/repo/worktree-a", env: {}, tier: "integration" }, async () => "complete",
+      {
+        acquireLock: async () => ({ path: "/repo/.git/lock", pid: 42, token: "ours", leaseUntil: deadline }),
+        git: admissionGit(), mkdir: async () => {}, pid: 42, now: () => clock,
+        registerExitCleanup: () => () => {}, resolveProcessScope: async () => "pid:[test]",
+        releaseLock: async () => await new Promise<void>((resolve) => { finishRelease = resolve; }),
+        renewLock: async () => { deadline = clock + 120_000; return "renewed"; },
+        scheduleEvery: (callback) => { heartbeat = callback; return () => {}; },
+      },
+    );
+    await vi.waitFor(() => expect(finishRelease).toBeDefined());
+    clock += 60_000;
+    heartbeat?.();
+    await vi.waitFor(() => expect(deadline).toBe(clock + 120_000));
+    finishRelease?.();
+    await expect(run).resolves.toEqual({ result: "complete" });
   });
 });

@@ -11,6 +11,6 @@
     // every build.
     "tsBuildInfoFile": "node_modules/.cache/tsc/test.tsbuildinfo"
   },
-  "include": ["src", "__tests__"],
+  "include": ["src", "__tests__", "build-compiler.config.ts"],
   "exclude": ["node_modules", "dist"]
 }

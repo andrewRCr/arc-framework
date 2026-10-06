@@ -12,6 +12,7 @@ const input = parseTestCostCli(process.argv.slice(2));
 const outputPath = input.outputPath === undefined
   ? defaultRetainedRunPath(packageRoot)
   : resolve(process.cwd(), input.outputPath);
+process.chdir(packageRoot);
 const run = await runTestCostMeasurement({
   cwd: packageRoot,
   env: process.env,
