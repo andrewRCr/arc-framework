@@ -1,8 +1,8 @@
 # Metadata: cli-help-discovery
 
-| **State**     | **Owner** | **Branch**                | **Class** | **Priority** |
-| ------------- | --------- | ------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/cli-help-discovery` | `Light`   | `P3`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Light`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -13,15 +13,15 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:3d5aea9b80daa938450a9aec71a6d3a3a0b110c53acf0eb44534bd331ff9d90d`
 
-- **Current Workflow:** `integrate-work-unit`
+- **Current Workflow:** [none]
 - **Last Completed:** Task 3.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run or resume the typed pre-publication review procedure.
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/817>
+- **Completed:** 2026-10-05
 
 ## Release Notes Entry
 
