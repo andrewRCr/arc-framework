@@ -19,7 +19,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it as vitestIt } from
 
 import { handleDeliveryEntryInspect } from "../../src/handlers/delivery-entry.js";
 import { handleInit } from "../../src/handlers/init.js";
-import { handleAttest } from "../../src/handlers/lifecycle.js";
+import { handleAttest } from "../../src/handlers/lifecycle-delivery-review.js";
 import { handleLocus } from "../../src/handlers/locus.js";
 import {
   handleReviewFrontlineResolve,

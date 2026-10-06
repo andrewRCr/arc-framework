@@ -203,6 +203,14 @@
       "count": 1
     }
   },
+  "src/handlers/decompose.ts": {
+    "complexity": {
+      "count": 1
+    },
+    "max-lines-per-function": {
+      "count": 1
+    }
+  },
   "src/handlers/delivery-execution.ts": {
     "complexity": {
       "count": 18
@@ -267,15 +275,23 @@
       "count": 1
     }
   },
+  "src/handlers/lifecycle-delivery-review.ts": {
+    "complexity": {
+      "count": 2
+    },
+    "max-lines-per-function": {
+      "count": 2
+    }
+  },
   "src/handlers/lifecycle.ts": {
     "complexity": {
-      "count": 9
+      "count": 5
     },
     "max-lines": {
       "count": 1
     },
     "max-lines-per-function": {
-      "count": 4
+      "count": 1
     }
   },
   "src/handlers/recover.ts": {

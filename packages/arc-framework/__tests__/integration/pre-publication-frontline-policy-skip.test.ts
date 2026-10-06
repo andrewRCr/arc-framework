@@ -3,11 +3,13 @@
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { handleAttest } from "../../src/handlers/lifecycle.js";
+import { handleAttest } from "../../src/handlers/lifecycle-delivery-review.js";
 import { handleReviewFrontlineResolve, handleReviewPrePublication } from "../../src/handlers/review.js";
 import { resolveProcessInteractionContext } from "../../src/lib/command-input/interaction-context.js";
 import { readSubmissionBoundaryVersioned } from "../../src/lib/work-unit/submission-boundary-store.js";
-import { createPrePublicationCompositionDependencies } from "../../src/scripts/review-gate/policy/pre-publication-composition.js";
+import {
+  createPrePublicationCompositionDependencies,
+} from "../../src/scripts/review-gate/policy/pre-publication-composition.js";
 import { composePrePublicationReviewRequest } from "../../src/scripts/review-gate/policy/pre-publication-request.js";
 import { PrePublicationReviewEnvelopeSchema } from "../../src/scripts/review-gate/policy/pre-publication-procedure.js";
 import { runHandlerAt } from "../helpers/handler.js";
