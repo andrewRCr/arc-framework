@@ -285,7 +285,7 @@ jobs:
       run: npm run typecheck:test
 
   unit:
-    name: Unit Tests (${{ matrix.shard }})
+    name: Unit Tests
     permissions:
       contents: read
     needs: [classify, setup]
@@ -293,10 +293,6 @@ jobs:
     # entirely, mirroring the integration/e2e legs. Requires setup success so a
     # failed shared install cannot leave this leg skipped-and-green.
     if: ${{ !cancelled() && github.event_name != 'schedule' && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && needs.classify.outputs.weight != 'light' && needs.setup.result == 'success' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2]
     runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - name: Start test budget clock
@@ -317,12 +313,12 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
-    - run: npm run test:unit -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+    - run: npm run test:unit
     - name: Report test budget
       run: >-
         npm run -s benchmark:test-cost:ci-budget -w packages/arc-framework --
         --tier unit --project-set unit --workers "${VITEST_MAX_WORKERS:-native}"
-        --ci-job "unit-${{ matrix.shard }}" --started-at-seconds "$TEST_COST_STARTED_AT_SECONDS"
+        --ci-job "unit" --started-at-seconds "$TEST_COST_STARTED_AT_SECONDS"
 
   integration:
     name: Integration Tests (${{ matrix.shard }})
@@ -384,6 +380,17 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4]
+        # Keep one stable heavyweight on each leg, then let native sharding cover
+        # every remaining file (including newly added files) without a manifest.
+        include:
+        - shard: 1
+          anchor: errand.e2e.test.ts
+        - shard: 2
+          anchor: candidate-lineage.e2e.test.ts
+        - shard: 3
+          anchor: command-input-no-input.e2e.test.ts
+        - shard: 4
+          anchor: lifecycle-exit.e2e.test.ts
     runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - name: Start test budget clock
@@ -412,7 +419,18 @@ jobs:
       run: node --import tsx packages/arc-framework/src/scripts/run-build.ts prepare
       env:
         ARC_E2E_SKIP_BUILD: ''
-    - run: npm run test:e2e -w packages/arc-framework -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+    - name: Run E2E anchor
+      run: npm run test:e2e -w packages/arc-framework -- __tests__/e2e/${{ matrix.anchor }} --passWithNoTests=false
+      env:
+        ARC_E2E_SKIP_BUILD: '1'
+    - name: Run E2E remainder shard
+      run: >-
+        npm run test:e2e -w packages/arc-framework --
+        --exclude='**/errand.e2e.test.ts'
+        --exclude='**/candidate-lineage.e2e.test.ts'
+        --exclude='**/command-input-no-input.e2e.test.ts'
+        --exclude='**/lifecycle-exit.e2e.test.ts'
+        --shard=${{ matrix.shard }}/${{ strategy.job-total }}
       env:
         ARC_E2E_SKIP_BUILD: '1'
     - name: Report test budget

@@ -6,7 +6,8 @@ import { relative } from "node:path";
 import { execa } from "execa";
 
 import {
-  parseWorkflowE2EShardCount,
+  parseWorkflowE2EAnchors,
+  parseWorkflowE2EExclusions,
   validateE2EShardMembership,
   type E2EShardMembership,
 } from "./shards.js";
@@ -24,14 +25,32 @@ export interface E2EShardRunInput {
   readonly packageRoot: string;
   readonly workflowPath: string;
   readonly env: Readonly<Record<string, string | undefined>>;
+  readonly shardCount?: number;
 }
 
 export async function deriveEffectiveE2EShards(
   input: E2EShardRunInput,
   dependencies: E2EShardRunDependencies = DEFAULT_DEPENDENCIES,
 ): Promise<E2EShardMembership> {
-  const shardCount = parseWorkflowE2EShardCount(await dependencies.readWorkflow(input.workflowPath));
-  const tierArgs = ["list", "--project", "e2e"];
+  const workflow = await dependencies.readWorkflow(input.workflowPath);
+  const exclusions = parseWorkflowE2EExclusions(workflow);
+  const anchorsByLeg = parseWorkflowE2EAnchors(workflow);
+  const shardCount = input.shardCount ?? 4;
+  if (!Number.isInteger(shardCount) || shardCount < 2) {
+    throw new Error("E2E shard count must be an integer of at least two");
+  }
+  if (anchorsByLeg.length !== shardCount) {
+    throw new Error(`CI workflow declares ${anchorsByLeg.length} E2E anchors for ${shardCount} shard legs`);
+  }
+  const tierArgs = [
+    "list",
+    "--project",
+    "e2e",
+  ];
+  const commonArgs = [
+    ...tierArgs,
+    ...exclusions.flatMap((exclusion) => ["--exclude", exclusion]),
+  ];
   const env = { ...input.env, ARC_E2E_SKIP_BUILD: "1" };
   const readMembership = async (args: readonly string[]): Promise<string[]> => {
     const result = await dependencies.execute(
@@ -41,14 +60,15 @@ export async function deriveEffectiveE2EShards(
     );
     return parseListedFiles(result.stdout, input.packageRoot);
   };
-  const wholeTier = await readMembership(tierArgs);
+  const discoveredTier = await readMembership(tierArgs);
+  const wholeTier = await readMembership(commonArgs);
   const legs = await Promise.all(
     Array.from({ length: shardCount }, async (_, index) => await readMembership([
-      ...tierArgs,
+      ...commonArgs,
       `--shard=${index + 1}/${shardCount}`,
     ])),
   );
-  return validateE2EShardMembership(wholeTier, legs);
+  return validateE2EShardMembership(discoveredTier, wholeTier, exclusions, legs, anchorsByLeg);
 }
 
 const DEFAULT_DEPENDENCIES: E2EShardRunDependencies = {
