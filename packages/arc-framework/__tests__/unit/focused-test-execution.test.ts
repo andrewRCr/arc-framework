@@ -66,7 +66,7 @@ it("runs concurrently in native threads", async () => {
 });
 `);
   const result = await runFocusedTestFixture(fixture.root, ["packages/arc-framework/__tests__/unit/parallel",
-    "--pool", "threads", "--maxWorkers", "2", "--fileParallelism"]);
+    "--pool", "threads", "--maxWorkers", "2", "--fileParallelism"], { VITEST_MAX_WORKERS: undefined });
   expect(result, result.stderr).toMatchObject({ code: 0 });
   expect(result.stdout).toContain("2 passed");
 }, 30_000);

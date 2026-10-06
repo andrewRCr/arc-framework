@@ -96,6 +96,9 @@ it("uses refined projects for ownership when full measurement pre-parsing retain
   try {
     await execa("git", ["init", "-q", "-b", "main"], { cwd: fixture.root });
     await cp(resolve(import.meta.dirname, "../../test-cost-budgets.json"), join(fixture.packageRoot, "test-cost-budgets.json"));
+    const configuration = join(fixture.packageRoot, "vitest.config.ts");
+    await writeFile(configuration, (await readFile(configuration, "utf8"))
+      .replace('name: "unit",', 'name: "unit", allowOnly: true,'));
     await writeFile(join(fixture.packageRoot, "__tests__/unit/named.test.mjs"),
       'import { it } from "vitest"; it.only("refined native measurement", () => {});');
     const output = join(fixture.packageRoot, "retained.json");

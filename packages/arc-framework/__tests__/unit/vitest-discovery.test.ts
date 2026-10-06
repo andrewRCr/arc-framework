@@ -61,7 +61,7 @@ import { appendFileSync } from "node:fs";
 appendFileSync(${JSON.stringify(fixture.events)}, "integration-module\\n");
 it("excluded integration", () => appendFileSync(${JSON.stringify(fixture.events)}, "integration-worker\\n"));
 `);
-    const result = await runVitestControllerFixture(fixture.packageRoot, ["full"],
+    const result = await runVitestControllerFixture(fixture.packageRoot, ["full", "--allowOnly"],
       { CI: "", ARC_TEST_ALLOW_CONCURRENCY: "" });
     expect(result.code, result.stderr).toBe(0);
     const events = await readFile(fixture.events, "utf8");
@@ -69,7 +69,7 @@ it("excluded integration", () => appendFileSync(${JSON.stringify(fixture.events)
     expect(events).not.toContain("integration-");
     expect(events).toContain("closed");
     await writeFile(fixture.events, "");
-    const native = await runVitestControllerFixture(fixture.packageRoot, ["run"], { CI: "" }, "native");
+    const native = await runVitestControllerFixture(fixture.packageRoot, ["run", "--allowOnly"], { CI: "" }, "native");
     expect(native.code, native.stderr).toBe(0);
     const nativeEvents = await readFile(fixture.events, "utf8");
     expect(nativeEvents).toContain("unit-worker");
