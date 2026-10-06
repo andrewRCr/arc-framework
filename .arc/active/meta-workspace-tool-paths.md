@@ -18,7 +18,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run or resume the typed pre-publication review procedure.
+- **Next Action:** Candidate review pending — resume integration review
 
 - **PR URL:** [none]
 - **Completed:** [none]
