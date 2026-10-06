@@ -1,11 +1,12 @@
 /** Shared assertions await fixture construction before observing its public contract. */
-import { describe } from "vitest";
+import { describe, expect, it } from "vitest";
 import { createReferenceFixture, referenceDeclarations } from "../../../helpers/store/reference-fixture.js";
 import { registerLookupAssertions } from "../../../helpers/store/suite-lookup.js";
 import { registerMergeAssertions } from "../../../helpers/store/suite-merges.js";
 import { registerCapabilityAssertions } from "../../../helpers/store/suite-records.js";
 import { registerFreshnessAssertions } from "../../../helpers/store/suite-versions.js";
 import { familyOf } from "../../../../src/lib/store/index.js";
+import { createAssertionCoverage } from "../../../helpers/store/suite-tools.js";
 
 describe("asynchronous conformance registration", () => {
   registerCapabilityAssertions({ item: 15, registration: {
@@ -16,10 +17,14 @@ describe("asynchronous conformance registration", () => {
 
 // A subset fixture must never open an unrelated hardcoded family assertion.
 describe("served-family subset with asynchronous creation", () => {
-  registerLookupAssertions({ item: 12, registration: {
+  const coverage = createAssertionCoverage();
+  registerLookupAssertions({ item: 12, coverage, registration: {
     declarations: { ...referenceDeclarations, families: ["cohort"] },
     create() { throw new Error("No work-item, lineage, or claim assertion belongs to this subset"); },
   } });
+  it("registers no lookup assertions for an unserved family", () => {
+    expect(coverage.registered.size).toBe(0);
+  });
 });
 
 describe("entry persistence independent of stale-base merging", () => {
