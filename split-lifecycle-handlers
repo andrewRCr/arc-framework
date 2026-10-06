@@ -3,7 +3,7 @@
   "slug": "split-lifecycle-handlers",
   "claimId": "40515439985f52caf1ffc031c7ae2ff7",
   "createdAt": "2026-10-06T12:16:15.442Z",
-  "updatedAt": "2026-10-06T12:16:15.442Z",
+  "updatedAt": "2026-10-06T13:02:36.168Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Extract decomposition and delivery/review handlers from lifecycle.ts along the settled storage-seam member boundaries, preserving behavior",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Split `handlers/lifecycle.ts` along the storage-seam consumer partitions",
   "originEntrySourceDigest": "sha256:1e45f0786d404a2990073bf11298575422ae6c35aabd9b016fcdb5c382114b6d",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/split-lifecycle-handlers",
+    "headSha": "5213333a9649f6735cb253c4e9fdff2b38828066"
+  }
 }
