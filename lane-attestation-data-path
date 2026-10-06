@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "lane-attestation-data-path",
+  "claimId": "7ff733f8ecac7ee51813b66cb0f3ff65",
+  "createdAt": "2026-10-06T15:40:26.830Z",
+  "updatedAt": "2026-10-06T15:40:26.830Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Check the lane-attestation pull-request data out under the build inventory's excluded .cache directory so the staleness check stops refusing the trusted build",
+  "branch": "chore/lane-attestation-data-path",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
