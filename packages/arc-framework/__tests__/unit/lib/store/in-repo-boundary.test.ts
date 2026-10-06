@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 const sourceRoot = resolve("src");
 const testRoot = resolve("__tests__");
+const REPOSITORY_SCAN_TIMEOUT = 15_000;
 async function sourceFiles(root: string): Promise<string[]> {
   const files: string[] = [];
   for (const entry of await readdir(root, { withFileTypes: true })) {
@@ -59,7 +60,7 @@ describe("repository store import boundaries", () => {
       }
     }
     expect(violations).toEqual([]);
-  });
+  }, REPOSITORY_SCAN_TIMEOUT);
   it("keeps tests on the public composition and fixture boundaries", async () => {
     const violations: string[] = [];
     for (const path of await sourceFiles(testRoot)) {
@@ -68,7 +69,7 @@ describe("repository store import boundaries", () => {
       }
     }
     expect(violations).toEqual([]);
-  });
+  }, REPOSITORY_SCAN_TIMEOUT);
   it("defers every heavy active projection until a kind or operation needs it", async () => {
     const closure = await staticClosure(join(sourceRoot, "lib/store/in-repo/backend.ts"));
     const deferred = ["lib/config/status-reader.ts", "lib/work-unit/submission-boundary-store.ts",
