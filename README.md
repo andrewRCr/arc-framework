@@ -11,6 +11,11 @@
 
 </div>
 
+> [!NOTE]
+> **Pre-1.0 and in active development.** ARC changes often, and this README and the
+> [documentation site](https://andrewrcr.github.io/arc-framework/) lag the current design in places. ARC is also
+> built with ARC, so this repository is a working example: its pull requests show the methodology in daily use.
+
 ARC is a structured methodology for spec-directed development with AI agents, emphasizing
 disciplined collaboration over automation. Implemented as portable markdown documents and a
 CLI, it's built on the premise that better outcomes come from deliberately coupling human
@@ -26,7 +31,7 @@ works with any conversational AI coding agent and any tech stack.
 
 ARC is grounded in cognitive science research on sustained attention and emerging AI research on
 context quality degradation.
-[More on design&nbsp;→](https://andrewrcr.github.io/arc-framework/philosophy/)
+[More on design&nbsp;→](https://andrewrcr.github.io/arc-framework/methodology/rationale/)
 
 ## Overview
 
@@ -97,7 +102,7 @@ ARC optimizes for quality and maintainability over raw throughput. It's slower t
 autonomous approaches, requires active developer engagement, and adds structure that pays
 off proportional to project complexity, not over a weekend prototype. These are deliberate
 design choices, not limitations.
-[More on design&nbsp;→](https://andrewrcr.github.io/arc-framework/philosophy/)
+[More on design&nbsp;→](https://andrewrcr.github.io/arc-framework/methodology/rationale/)
 
 ## Getting Started
 

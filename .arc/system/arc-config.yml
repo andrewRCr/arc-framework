@@ -301,7 +301,7 @@ session.init_load.notes: prompt
 #   prompt  - Ask whether to push user notes when `arc sync` runs.
 #   on-sync - Push user notes whenever `arc sync` runs. (default)
 # Per-developer override: `git config arc.notesPush <value>`
-user.notes_push: on-sync
+user.notes_push: manual
 
 # --- Sync ---
 

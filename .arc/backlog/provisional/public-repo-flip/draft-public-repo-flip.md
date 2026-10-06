@@ -29,3 +29,26 @@ Presentation mitigations (placeholder WIP README, unlinked docs) are cheap and n
 
 `arc-backend` / `local-mode` are deliberately queued behind substantial backlog clearing, so this evaluation is
 not actionable until that work is near; this stub holds the analysis, not a schedule.
+
+## Flip decision (2026-10-06)
+
+The repository goes public in place, keeping its full history, ahead of the backends the notes gate waited on.
+
+- **Notes gate (1)** is held by an interim rather than a backend. `user.notes_push` is `manual` in tracked config,
+  so `arc sync` and handoff keep user notes local in every clone, and the remote notes, notes-backup, and sync-state
+  refs are deleted before the flip. This is a configuration posture, not an enforced barrier: an explicit
+  `arc user push` still publishes the notes ref, `arc user compact` pushes its pre-compaction backup ref, and a
+  git-config override back to `on-sync` re-enables automatic pushes. Neither command is run until a backend ships.
+  Objects behind deleted refs stay fetchable by SHA until GitHub garbage-collects them; that residue is accepted.
+  Cross-machine notes sync stays off until a backing-repository or local-only backend ships.
+- **Still published:** the Errand identity ref (`refs/arc/user/<identity>/errands`), which every Errand open, close,
+  and abandon pushes. It holds Errand intents and inbox entry titles.
+- **`pull_request_target` audit (2)** and **full-history secret scan (3)** are discharged by a pre-flip audit: no
+  secrets in any ref (gitleaks over every branch, tag, pull-request, notes, and backup ref), and the one
+  `pull_request_target` workflow (`arc-lane-attestation.yml`) skips fork pull requests at the job level. Any edit to
+  that workflow needs the fork threat model re-checked.
+- **Self-hosted runners** are deregistered before the flip, per `.github/self-hosted-ci.md`; CI runs on
+  GitHub-hosted runners.
+
+What remains here is the coupling the storage register row names: user-scoped state stays off the public remote, and
+private notes sync returns with a backing-repository or local-only backend.
