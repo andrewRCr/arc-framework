@@ -237,10 +237,11 @@ async function reviewedErrand(
   const status = async (
     wrap: (exec: GitExecLike) => GitExecLike = (exec) => exec,
     current: typeof target = target,
+    options: { additionalPass?: string } = {},
   ) => withHost(bin, async () => {
     const output: string[] = [];
     const exits: number[] = [];
-    await handleReviewStatus({ target: JSON.stringify(current) }, undefined, {
+    await handleReviewStatus({ target: JSON.stringify(current), ...options }, undefined, {
       resolveRoot: () => root,
       resolve: (_root, request) => resolveReviewStatus(request, createReviewStatusPort({ cwd: root, exec: wrap(makeGitExec(root)) })),
       write: (text) => output.push(text), setExitCode: (code) => exits.push(code),
@@ -379,6 +380,22 @@ describe("Errand review carry across an approved base merge", () => {
     });
     expect(await standardProgress(fixture.root, reconciled.headSha))
       .toMatchObject({ status: "recorded", completedPasses: 1, attempts: [] });
+  });
+
+  it("withholds the carry when an additional pass is authorized at the reconciled head", async () => {
+    const fixture = await reviewedErrand("hosted", "disjoint");
+    await advanceBase({ cwd: fixture.root, paths: fixture.paths.base });
+    const reconciled = await fixture.reconcile();
+    expect(await fixture.status(undefined, reconciled)).toMatchObject({ routedObligation: { state: "settled" } });
+    const prior = await standardProgress(fixture.root, fixture.target.headSha);
+    const producer = prior.status === "recorded" ? prior.attempts.at(-1)?.attemptId : undefined;
+    expect(producer).toBeDefined();
+    const additionalPass = JSON.stringify({
+      target: { repository, pullRequest, headSha: reconciled.headSha }, lane: "standard",
+      precedingProducerId: producer, completedPasses: 1, nextPass: 2,
+    });
+    const authorized = await fixture.status(undefined, reconciled, { additionalPass });
+    expect(authorized, JSON.stringify(authorized)).toMatchObject({ routedObligation: { state: "review-required" } });
   });
 
   it("settles a carried head after the claim spends its pass ceiling", async () => {

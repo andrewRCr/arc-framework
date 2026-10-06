@@ -6,6 +6,7 @@ import type { DeliveryHostPort } from "../../../lib/delivery/host.js";
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import type { GitExec } from "../../../lib/git/index.js";
+import type { RawGitExec } from "../../../lib/git/exec.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
 import { readGitCandidateTargetBase } from "../../../lib/work-unit/git-candidate-effective-target.js";
 import type { DeliveryDischargeTargetLookup } from "../core/delivery-member-lookup.js";
@@ -576,12 +577,13 @@ export async function projectHostedReservationDischarge(input: {
 /**
  * Bind the repository's durable lane progress and Candidate span to the discharge projection.
  *
- * @param input - The repository root and its Git boundary.
+ * @param input - The repository root, its Git boundary, and an optional byte-level executor to share.
  * @returns A reader resolving discharge and fresh incremental applicability for one Candidate target.
  */
 export function createHostedReservationDischargeReader(input: {
   cwd: string;
   exec: GitExec;
+  rawExec?: RawGitExec;
   /** Selected remote for singleton base freshness; defaults to origin. */
   remote?: string;
   delivery?: DeliveryDischargeTargetLookup;
@@ -603,7 +605,7 @@ export function createHostedReservationDischargeReader(input: {
     repositoryIdPromise ??= resolveRepositoryIdentity(publisher);
     return repositoryIdPromise;
   };
-  const rawExec = createRawGitExec(input.cwd);
+  const rawExec = input.rawExec ?? createRawGitExec(input.cwd);
 
   const createApplicabilityContext = async ({
     baseRevision,
