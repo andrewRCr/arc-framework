@@ -1,11 +1,12 @@
 /** Runtime preparation reuses a qualified full generation through its actual owned boundary. */
-import { readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { buildOwnedArtifacts, ensureOwnedRuntimeArtifacts } from "../../src/lib/build-entry.js";
 import { withBuildArtifactOwnership } from "../../src/lib/build-ownership.js";
 import { makeNativeBuildFixture } from "../helpers/native-build-fixture.js";
 import { DEV_BUILD_STAMP_NAME } from "../../src/lib/build-evidence.js";
+import { readBuildQualification } from "../../src/lib/build-qualification.js";
 
 it("reuses full runtime output while explicit requests still generate anew", async () => {
   const { root, packageRoot } = await makeNativeBuildFixture();
@@ -56,6 +57,32 @@ it.each(["missing CLI", "missing schema", "old evidence", "edited runtime"])("re
       expect(JSON.parse(await readFile(join(packageRoot, "dist/schemas/kernel.json"), "utf8"))).toHaveProperty("schemas");
       expect(await readFile(join(packageRoot, "dist/cli.js"), "utf8"))
         .toContain(fault === "edited runtime" ? "repaired-native-runtime" : "new-native-runtime");
+    });
+  } finally { await rm(root, { recursive: true, force: true }); }
+}, 30_000);
+
+it.each(["missing", "empty", "directory"])("refuses and repairs %s build metadata before test preparation", async (fault) => {
+  const { root, packageRoot } = await makeNativeBuildFixture();
+  try {
+    await withBuildArtifactOwnership({ packageRoot, operation: "metadata repair" }, async (lease) => {
+      const built = await buildOwnedArtifacts(lease, "full");
+      const metafile = join(packageRoot, "dist/metafile-esm.json");
+      if (fault === "empty") await writeFile(metafile, "");
+      else {
+        await rm(metafile);
+        if (fault === "directory") await mkdir(metafile);
+      }
+      expect(readBuildQualification(packageRoot, "runtime").status).toBe("qualified");
+      expect(readBuildQualification(packageRoot, "runtimeSchema").status).toBe("unqualified");
+      expect(readBuildQualification(packageRoot, "full").status).toBe("unqualified");
+      await expect(ensureOwnedRuntimeArtifacts(lease, { ARC_E2E_SKIP_BUILD: "1" }))
+        .rejects.toThrow("metafile-esm.json");
+      expect(JSON.parse(await readFile(join(packageRoot, "dist", DEV_BUILD_STAMP_NAME), "utf8"))).toEqual(built);
+      if (fault === "directory") await rm(metafile, { recursive: true });
+      const prepared = await ensureOwnedRuntimeArtifacts(lease, {});
+      expect(prepared.generation).not.toBe(built.generation);
+      expect(JSON.parse(await readFile(metafile, "utf8"))).toHaveProperty("inputs");
+      expect(await ensureOwnedRuntimeArtifacts(lease, { ARC_E2E_SKIP_BUILD: "1" })).toEqual(prepared);
     });
   } finally { await rm(root, { recursive: true, force: true }); }
 }, 30_000);

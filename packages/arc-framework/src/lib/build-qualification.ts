@@ -49,7 +49,7 @@ export function readBuildQualification(packageRoot: string, requirement: BuildRe
 }
 
 function requireLiveArtifacts(packageRoot: string, requirement: BuildRequirement, evidence: BuildEvidence): void {
-  const files = ["cli.js", ...(requirement === "runtime" ? [] : ["schemas/kernel.json"]),
+  const files = ["cli.js", ...(requirement === "runtime" ? [] : ["schemas/kernel.json", "metafile-esm.json"]),
     ...(requirement === "full" ? ["cli.d.ts"] : [])];
   if (requirement === "full" && !evidence.qualification.declarations) {
     throw new Error("Build evidence does not establish declaration generation.");

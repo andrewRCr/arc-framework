@@ -53,7 +53,7 @@ it("refuses a lost native owner before any live mutation and permits a repaired 
   } finally { await rm(root, { recursive: true, force: true }); }
 }, 30_000);
 
-it.each(["missing schema", "empty CLI", "invalid CLI", "invalid schema"])(
+it.each(["missing schema", "missing metafile", "empty metafile", "empty CLI", "invalid CLI", "invalid schema"])(
   "refuses %s before changing live output", async (fault) => {
     const { root, packageRoot } = await makeNativeBuildFixture();
     try {
@@ -61,6 +61,8 @@ it.each(["missing schema", "empty CLI", "invalid CLI", "invalid schema"])(
         const staged = await generateOwnedBuildStaging(lease, "fast");
         const evidence = certifyBuildGeneration(staged.before, captureBuildBaseline(packageRoot), staged.graphs, false);
         if (fault === "missing schema") await rm(join(staged.directory, "schemas/kernel.json"));
+        if (fault === "missing metafile") await rm(join(staged.directory, "metafile-esm.json"));
+        if (fault === "empty metafile") await writeFile(join(staged.directory, "metafile-esm.json"), "");
         if (fault === "empty CLI") await writeFile(join(staged.directory, "cli.js"), "");
         if (fault === "invalid CLI") await writeFile(join(staged.directory, "cli.js"), "export const =");
         if (fault === "invalid schema") await writeFile(join(staged.directory, "schemas/kernel.json"), "{}");

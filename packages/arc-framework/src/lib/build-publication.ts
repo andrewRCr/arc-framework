@@ -89,7 +89,7 @@ async function validateStagedOutput(
   staged: StagedBuildGeneration, packageRoot: string, io: BuildPublicationDependencies,
 ): Promise<readonly string[]> {
   const files = await io.listFiles(staged.directory);
-  const required = ["cli.js", "schemas/kernel.json", ...(staged.mode === "full" ? ["cli.d.ts"] : [])];
+  const required = ["cli.js", "schemas/kernel.json", "metafile-esm.json", ...(staged.mode === "full" ? ["cli.d.ts"] : [])];
   for (const file of required) {
     if (!files.includes(file)) throw new Error(`Required staged artifact ${file} is missing.`);
   }
