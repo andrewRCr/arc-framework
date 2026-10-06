@@ -11,14 +11,14 @@
 - **Design:** `spec-workspace-tool-paths.md`
 - **Task List:** `tasks-workspace-tool-paths.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:e4357892d7e77aafb52e3cc813bdb40fdb075c2aa39cb0d86f611fd39eccaca9`
+- **Candidate:** `sha256:cbc60ddbc3a8fbd81eaf30413893ad6e6cc269816761fc4b9aaeb262de121917`
 
 - **Current Workflow:** `integrate-work-unit`
 - **Last Completed:** Task 6.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]
