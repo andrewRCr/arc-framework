@@ -3,7 +3,7 @@
   "slug": "ci-runner-pool-layout",
   "claimId": "9bd59f736eca9c0466d1607d157805a8",
   "createdAt": "2026-10-06T03:58:50.837Z",
-  "updatedAt": "2026-10-06T03:58:50.837Z",
+  "updatedAt": "2026-10-06T05:34:13.346Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Fit the CI job layout to GitHub-hosted 4-core runners now the repository is public: shard integration, rebalance E2E, expose worker and shard knobs",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Fit the CI job layout to the selected runner pool",
   "originEntrySourceDigest": "sha256:d3fee44893ea3aab65776e7d044e400d5b4681d827e49eec351981a7f28b7800",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/ci-runner-pool-layout",
+    "headSha": "21fe2502238c68c61364058f92b13a922855eda5"
+  }
 }
