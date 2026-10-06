@@ -28,11 +28,7 @@ vi.mock("../../../src/lib/work-unit/lifecycle-index.js", () => ({
   buildLifecycleIndex: (...args: unknown[]) => mockBuildLifecycleIndex(...args),
 }));
 
-const {
-  resolveVerbTargetOrReport,
-  TeardownCommandInputSchema,
-  FinalizeCommandInputSchema,
-} = await import("../../../src/handlers/lifecycle.js");
+const { resolveVerbTargetOrReport, TeardownCommandInputSchema, FinalizeCommandInputSchema } = await import("../../../src/handlers/lifecycle.js");
 
 function entry(slug: string, phase: Phase, location: Location): LifecycleIndexEntry {
   return { slug, phase, location, cohort: null, dependsOn: [], path: `.arc/${location}/meta-${slug}.md` };

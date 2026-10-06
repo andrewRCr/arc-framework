@@ -34,7 +34,7 @@ vi.mock("../../src/lib/work-unit/git-decompose-v3-preflight.js", () => ({
   createGitV3DecomposePreflight: (...args: unknown[]) => mockCreateGitV3DecomposePreflight(...args),
 }));
 
-const { handleDecompose } = await import("../../src/handlers/lifecycle.js");
+const { handleDecompose } = await import("../../src/handlers/decompose.js");
 
 let stdout = "";
 let stderr = "";

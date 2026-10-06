@@ -340,7 +340,6 @@ vi.mock("../../../src/lib/work-unit/lifecycle-resolver.js", async (orig) => ({
 
 const {
   handleStub,
-  handleDecompose,
   handlePromote,
   handleDemote,
   handlePark,
@@ -351,10 +350,10 @@ const {
   handlePublish,
   handleAbandon,
   handleReopen,
-  handleAttest,
-  AttestCommandInputSchema,
-  LifecycleCommandRefusalSchema,
 } = await import("../../../src/handlers/lifecycle.js");
+const { handleDecompose } = await import("../../../src/handlers/decompose.js");
+const { handleAttest, AttestCommandInputSchema } = await import("../../../src/handlers/lifecycle-delivery-review.js");
+const { LifecycleCommandRefusalSchema } = await import("../../../src/handlers/lifecycle-shared.js");
 
 const okOutcome = { status: "ok", advisories: [] as string[] };
 const pendingRetirementLifecycle = {
