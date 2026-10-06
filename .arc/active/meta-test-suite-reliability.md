@@ -8,12 +8,12 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-test-suite-reliability.md`
+- **Design:** `spec-test-suite-reliability.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 - **Promotion Receipt:** `errand-v1/hosted-test-reliability/ce773f5407a570d786450435b6657f92`
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** Errand promoted to work unit
 - **Next Task:** [none]
 - **Blockers:** [none]
