@@ -11,6 +11,8 @@
 
 import { describe, it, expect, afterEach } from "vitest";
 import { chmod, symlink } from "node:fs/promises";
+import { load } from "js-yaml";
+import { z } from "zod";
 
 import { ARC_CONTRACT_SUITES } from "../../src/lib/local-vitest-runner.js";
 import { CLASSIFY_SCRIPT, runScript } from "../helpers/run-script.js";
@@ -1188,13 +1190,122 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
   const HEAVY_CHECKS = [
     "Lint & Typecheck",
     "Unit Tests",
-    "Integration Tests",
+    "Integration Tests (1)",
+    "Integration Tests (2)",
     "E2E Tests (1)",
     "E2E Tests (2)",
     "E2E Tests (3)",
     "E2E Tests (4)",
     "Portability (concurrency guards) (linux)",
   ];
+
+  function workflowHeavyCheckNames(workflowSource: string): string[] {
+    const value = z.union([z.string(), z.number(), z.boolean()]);
+    const leg = z.record(z.string(), value);
+    const workflow = z.object({
+      jobs: z.record(z.string(), z.object({
+        name: z.string(),
+        if: z.string().optional(),
+        strategy: z.object({ matrix: z.record(z.string(), z.unknown()) }).optional(),
+        steps: z.array(z.object({
+          if: z.string().optional(), run: z.string().optional(), uses: z.string().optional(),
+        })),
+      })),
+    }).parse(load(workflowSource));
+    const heavyCondition = /needs\.classify\.outputs\.weight\s*!=\s*['"]light['"]/u;
+    const preparationCommand = /^npm (?:ci|run build)$/u;
+    const preparationAction = /^actions\/(?:checkout|setup-node|cache|upload-artifact)@/u;
+    const names: string[] = [];
+    for (const [jobId, job] of Object.entries(workflow.jobs)) {
+      // Light runs omit these jobs or steps regardless of their verification command.
+      if (!heavyCondition.test(job.if ?? "")
+        && !job.steps.some((step) => heavyCondition.test(step.if ?? ""))) continue;
+      // Shared setup publishes artifacts, so it is the sole non-verification exception.
+      // Fail closed if that job acquires any verification command or action.
+      if (jobId === "setup") {
+        expect(job.steps.every((step) => step.run !== undefined
+          ? preparationCommand.test(step.run.trim())
+          : preparationAction.test(step.uses ?? "")), "Shared setup must remain artifact preparation only").toBe(true);
+        continue;
+      }
+      const matrix = job.strategy?.matrix ?? {};
+      const axes = Object.entries(matrix).filter(([key]) => key !== "include" && key !== "exclude");
+      let combinations: z.infer<typeof leg>[] = axes.length === 0 && matrix.include !== undefined ? [] : [{}];
+      for (const [key, values] of axes) {
+        combinations = combinations.flatMap((combination) =>
+          z.array(value).parse(values).map((entry) => ({ ...combination, [key]: entry })));
+      }
+      const exclusions = z.array(leg).parse(matrix.exclude ?? []);
+      combinations = combinations.filter((combination) => !exclusions.some((excluded) =>
+        Object.entries(excluded).every(([key, entry]) => combination[key] === entry)));
+      const originals = combinations.map((combination) => ({ ...combination }));
+      for (const included of z.array(leg).parse(matrix.include ?? [])) {
+        let matched = false;
+        for (const [index, original] of originals.entries()) {
+          if (axes.every(([key]) => included[key] === undefined || included[key] === original[key])) {
+            Object.assign(combinations[index]!, included);
+            matched = true;
+          }
+        }
+        if (!matched) combinations.push(included);
+      }
+      for (const combination of combinations) {
+        const name = job.name.replace(/\$\{\{\s*matrix\.([\w-]+)\s*\}\}/gu, (_expression, key: string) => {
+          expect(combination[key], `missing matrix.${key} in ${job.name}`).toBeDefined();
+          return String(combination[key]);
+        });
+        expect(name, "unsupported expression in heavy check name").not.toContain("${{");
+        names.push(name);
+      }
+    }
+    return names;
+  }
+
+  it("keeps the classifier and check fixtures equal to CI's heavy verification checks", async () => {
+    const names = workflowHeavyCheckNames(await readFile(
+      join(dirname(CLASSIFY_SCRIPT), "../.github/workflows/ci.yml"), "utf-8",
+    ));
+    expect(names.length).toBeGreaterThan(0);
+    const script = await readFile(CLASSIFY_SCRIPT, "utf-8");
+    const declared = /readonly HEAVY_CHECK_NAMES=\(([\s\S]*?)\n\)/u.exec(script)?.[1];
+    expect(declared, "missing classifier heavy-check declaration").toBeDefined();
+    const scriptNames = [...declared!.matchAll(/^\s*"([^"]+)"\s*$/gmu)].map((match) => match[1]);
+    expect(scriptNames.sort()).toEqual([...names].sort());
+    expect([...HEAVY_CHECKS].sort()).toEqual([...names].sort());
+  });
+
+  const verificationSteps = [
+    ["node", "run: node scripts/verify.mjs"],
+    ["npx", "run: npx verify-tool"],
+    ["arbitrary npm script", "run: npm run verify:custom"],
+    ["action", "uses: example/verification@v1"],
+  ];
+  it.each(verificationSteps.flatMap(([label, step]) => [
+    [label, "job", step], [label, "step", step],
+  ]))("includes %s verification under a heavy %s condition", async (_label, conditionAt, step) => {
+    const workflow = await readFile(join(dirname(CLASSIFY_SCRIPT), "../.github/workflows/ci.yml"), "utf-8");
+    const condition = "${{ needs.classify.outputs.weight != 'light' }}";
+    const addedJob = [
+      "", "  future-verification:", "    name: Future Heavy Verification",
+      ...(conditionAt === "job" ? [`    if: ${condition}`] : []),
+      "    steps:", `    - ${step}`,
+      ...(conditionAt === "step" ? [`      if: ${condition}`] : []),
+      "",
+    ].join("\n");
+
+    expect(workflowHeavyCheckNames(workflow + addedJob)).toContain("Future Heavy Verification");
+  });
+
+  it.each([
+    ["command", /- run: npm run build/u, "- run: node scripts/verify.mjs"],
+    ["action", /uses: actions\/upload-artifact@[^\n]+/u, "uses: example/verification@v1"],
+  ] as const)("rejects a verification %s in the shared setup exception", async (_label, pattern, replacement) => {
+    const workflow = await readFile(join(dirname(CLASSIFY_SCRIPT), "../.github/workflows/ci.yml"), "utf-8");
+    expect(workflow).toMatch(pattern);
+
+    expect(() => workflowHeavyCheckNames(workflow.replace(pattern, replacement)))
+      .toThrow("Shared setup must remain artifact preparation only");
+  });
 
   /** Render [name, conclusion] pairs as the normalized "<name>\t<conclusion>" lines the seam returns. */
   function checkLines(runs: Array<[string, string]>): string {
@@ -1398,6 +1509,20 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
   });
 
   const TARGET = "E2E Tests (2)";
+
+  it.each(["Integration Tests (1)", "Integration Tests (2)"].flatMap((name) => [
+    [name, "failed", greenExcept(name, "failure")],
+    [name, "in-progress", greenExcept(name, "")],
+    [name, "absent", greenOmitting(name)],
+  ]))("is heavy/unverified when %s is %s even with the old unsharded check green", async (_name, _state, tsv) => {
+    const { repo, checksDir, base, code, head } = await layeredRepo();
+    await injectChecks(checksDir, code, tsv + "Integration Tests\tsuccess\n");
+
+    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+  });
 
   it("uses the latest duplicate check run when reruns share a display name", async () => {
     const { repo, checksDir, base, code, head } = await layeredRepo();

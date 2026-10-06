@@ -34,14 +34,15 @@ readonly ARC_PLANNING_CLI="${ARC_PLANNING_CLI:-}"
 # The check-run display names that together prove a code tree was fully verified.
 # The verified-tree lookback skips the heavy suite for a pull request only when
 # every one of these concluded `success` for a commit carrying HEAD's exact code
-# tree. These strings are the source of truth for the corresponding job `name:`
-# fields in .github/workflows/ci.yml — they must stay byte-identical. Matrix legs
-# include the `(<matrix value>)` suffix the runner appends to the job name. A drift
-# fails safe to heavy but silently defeats the skip, so the two surfaces move together.
+# tree. These strings must match the heavy verification jobs' expanded `name:`
+# fields in .github/workflows/ci.yml, including every matrix leg. Contract tests
+# compare this list and the check-run fixtures with the workflow: a stale name
+# defeats reuse, while an omitted new leg could wrongly skip verification.
 readonly HEAVY_CHECK_NAMES=(
   "Lint & Typecheck"
   "Unit Tests"
-  "Integration Tests"
+  "Integration Tests (1)"
+  "Integration Tests (2)"
   "E2E Tests (1)"
   "E2E Tests (2)"
   "E2E Tests (3)"
