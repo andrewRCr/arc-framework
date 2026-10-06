@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "hosted-unit-test-timeouts",
+  "claimId": "23d787fd2787a5344f926226e1a8fabd",
+  "createdAt": "2026-10-06T15:20:51.436Z",
+  "updatedAt": "2026-10-06T15:20:51.436Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Give the three unit tests that time out on hosted runners explicit named timeouts so main CI goes green",
+  "branch": "chore/hosted-unit-test-timeouts",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
