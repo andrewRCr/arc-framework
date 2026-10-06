@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "ci-runner-pool-layout",
+  "claimId": "9bd59f736eca9c0466d1607d157805a8",
+  "createdAt": "2026-10-06T03:58:50.837Z",
+  "updatedAt": "2026-10-06T03:58:50.837Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Fit the CI job layout to GitHub-hosted 4-core runners now the repository is public: shard integration, rebalance E2E, expose worker and shard knobs",
+  "branch": "chore/ci-runner-pool-layout",
+  "origin": "inbox",
+  "originEntry": "Fit the CI job layout to the selected runner pool",
+  "originEntrySourceDigest": "sha256:d3fee44893ea3aab65776e7d044e400d5b4681d827e49eec351981a7f28b7800",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
