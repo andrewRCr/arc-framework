@@ -44,8 +44,11 @@ import type {
 } from "../lib/work-unit/candidate-attestation.js";
 import { readAncestry } from "../lib/work-unit/git-decomposition-object-readers.js";
 import { resolveArcRoot } from "../lib/paths.js";
-import { resolveUserIdentity } from "./shared.js";
-import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
+import {
+  readCompletedReviewTerminusOwner,
+  readIndexedHostedReviewErrand,
+  resolveCurrentHostedReviewErrand,
+} from "./review-locus-context.js";
 import type { SpineRemedy } from "../scripts/integration/spine-refusal.js";
 import {
   REVIEW_FRONTLINE_RESOLVE_REQUEST_SCHEMA_ID,
@@ -324,7 +327,6 @@ import {
 } from "../scripts/review-gate/hosted/gh-process.js";
 import { CodeRabbitHostedAdapter } from "../scripts/review-gate/hosted/coderabbit.js";
 import { CodexHostedAdapter } from "../scripts/review-gate/hosted/codex.js";
-import { resolveActiveHostedReviewErrand } from "../scripts/review-gate/hosted/errand-authority.js";
 import { createFrontlineRunDependencies } from "../scripts/review-gate/runtime/frontline-run-composition.js";
 import {
   FrontlineRunCommandError,
@@ -1074,22 +1076,6 @@ export async function stageDeliveryReviewTerminusBoundary(input: {
   });
 }
 
-function completedReviewTerminusContext(
-  frame: Awaited<ReturnType<typeof runDerivedLocusStateProbe>>,
-  workUnitId: string,
-) {
-  const row = frame.entering.kind === "selected" ? frame.entering.row : null;
-  return row?.kind === "work-unit"
-    && row.lifecycleLocation === "completed"
-    && row.subject.kind === "work-unit"
-    && row.subject.key === workUnitId
-    && row.context !== null
-    && frame.active?.checkoutPath === row.checkout.path
-    && frame.active.subject.key === workUnitId
-    ? row.context
-    : null;
-}
-
 async function acceptDeliveryReviewTerminus(
   request: DeliveryReviewTerminusAcceptanceInput,
   root: string,
@@ -1101,22 +1087,12 @@ async function acceptDeliveryReviewTerminus(
     const direct = await ownerDependencies.readOwnerTerminusAuthority(workUnitId);
     if (direct.status === "authorized") return direct;
     try {
-      const [{ settings }, identity] = await Promise.all([
-        readConfigSettings(root),
-        resolveUserIdentity(exec),
-      ]);
-      const frame = await runDerivedLocusStateProbe({
-        cwd: root,
-        identity,
-        baseBranch: settings["branch.base"],
-        exec,
-      });
-      const completed = completedReviewTerminusContext(frame, workUnitId);
+      const completed = await readCompletedReviewTerminusOwner(root, workUnitId, exec);
       if (completed === null) return direct;
       if (completed.owner === null) {
         return { status: "refused" as const, reason: "The completed Work Unit has no Owner." };
       }
-      if (completed.owner !== identity) {
+      if (completed.owner !== completed.identity) {
         return {
           status: "refused" as const,
           reason: "The active identity does not match the completed Work Unit Owner.",
@@ -2252,14 +2228,7 @@ async function resolveHostedProgressContext(input: {
   }
   const store = new LocalReviewOperationStateStore(input.publisher);
   if (input.vehicle?.kind === "errand") {
-    const identity = await resolveUserIdentity(input.exec);
-    const frame = await runDerivedLocusStateProbe({
-      cwd: input.root,
-      identity,
-      baseBranch: baseRef,
-      exec: input.exec,
-    });
-    const current = resolveActiveHostedReviewErrand(frame, branch);
+    const current = await resolveCurrentHostedReviewErrand(input.root, branch, baseRef, input.exec);
     const lineage = LaneSubjectLineageSchema.parse({
       kind: "head-bound",
       vehicleKind: "errand",
@@ -3292,14 +3261,7 @@ async function hostedCandidateSupersessionAncestors(input: {
 
 async function indexedErrandClaimIsCurrent(root: string, expectedClaimId: string, exec: GitExec): Promise<boolean> {
   try {
-    const branch = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: root })).stdout.trim();
-    const frame = await runDerivedLocusStateProbe({
-      cwd: root,
-      identity: await resolveUserIdentity(exec),
-      baseBranch: (await readConfigSettings(root)).settings["branch.base"],
-      exec,
-    });
-    return resolveActiveHostedReviewErrand(frame, branch).claimId === expectedClaimId;
+    return (await readIndexedHostedReviewErrand(root, exec)).claimId === expectedClaimId;
   } catch {
     return false;
   }
