@@ -34,9 +34,12 @@ not actionable until that work is near; this stub holds the analysis, not a sche
 
 The repository goes public in place, keeping its full history, ahead of the backends the notes gate waited on.
 
-- **Notes gate (1)** is held by an interim rather than a backend. `arc.notesPush` is `manual` in repository git config,
-  so `arc sync` keeps user notes local, and the remote notes, notes-backup, and sync-state refs are deleted before the
-  flip. Objects behind deleted refs stay fetchable by SHA until GitHub garbage-collects them; that residue is accepted.
+- **Notes gate (1)** is held by an interim rather than a backend. `user.notes_push` is `manual` in tracked config,
+  so `arc sync` and handoff keep user notes local in every clone, and the remote notes, notes-backup, and sync-state
+  refs are deleted before the flip. This is a configuration posture, not an enforced barrier: an explicit
+  `arc user push` still publishes the notes ref, `arc user compact` pushes its pre-compaction backup ref, and a
+  git-config override back to `on-sync` re-enables automatic pushes. Neither command is run until a backend ships.
+  Objects behind deleted refs stay fetchable by SHA until GitHub garbage-collects them; that residue is accepted.
   Cross-machine notes sync stays off until a backing-repository or local-only backend ships.
 - **Still published:** the Errand identity ref (`refs/arc/user/<identity>/errands`), which every Errand open, close,
   and abandon pushes. It holds Errand intents and inbox entry titles.
