@@ -326,12 +326,17 @@ is measured against the baseline.
           launcher and workflow reader; comparison/retained import the run record only as a type. Notes records
           the source-grounded dispositions.
 
-### `[ ]` **3.8 Native-tooling conversion complete** — validate exit criterion at segment scope
+### `[x]` **3.8 Native-tooling conversion complete** — validate exit criterion at segment scope
 
 - _Goal:_ Evidence that all 59 files are converted or recorded as running no native work, that every class in
   `notes-test-suite-reliability.md` § Portability outcome classes has a portability-selected real run, and that
   native-tooling cost, from the local instrument's `unit` and `integration` project sets as three-run medians, is
   measured against `notes-test-suite-reliability.md` § Baseline.
+
+- _Outcome:_ All 59 baseline basenames have recorded dispositions and current locations; all nine portability
+  basenames retain their real outcome classes. Three successful paired native-family samples yield a 656,069.528 ms
+  median, a 41.92% reduction against the frozen baseline. Notes § Native conversion measurement retains the exact
+  head, raw captures, sample spread, and inventory reconciliation.
 
 ## **Phase 4:** Source-scan tests
 

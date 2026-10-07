@@ -631,3 +631,32 @@ primary production source, shell script, and derived CLI were untouched by eithe
   in-memory policy/capture data; the run-record imports in comparison/retained are type-only. `shard-run` supplies
   both `execute` and `readWorkflow`, so its default execa/filesystem boundary is never invoked. Timeout helpers only
   annotate injected current-test metadata. Source inspection and the targeted file set establish their dispositions.
+
+## Native conversion measurement
+
+Conversion head: `a7ce5626ebbc5b0b91ae145e08858e5656fa7cfc`. All six ordinary schema-v4 captures passed at
+`tier-isolated`, 12 workers, against the unchanged committed tree. The frozen head and instruments match § Baseline.
+
+| Project     | Wall median, ms | Summed file median, ms | Files | Cases |
+| ----------- | --------------- | ---------------------- | ----- | ----- |
+| unit        | 16,702          | 178,512.159            | 826   | 13549 |
+| integration | 162,377         | 1,887,502.322          | 275   | 2925  |
+
+Native-family paired sums (unit + integration): **651,914.156, 656,069.528, 663,304.402 ms**.
+Their median is **656,069.528 ms**, down **41.92%** from 1,129,643.991 ms, exceeding the required 40% reduction.
+The after-sample range is 1.74% of its median; the baseline range is 2.01%. The 10% noise band remains the
+comparison convention. Complete file duration includes fixed setup/preparation/collection cost, and every retained
+native run follows its prefix into integration; relocation alone receives no saving credit.
+
+The inventory reconciles all 59 frozen unit basenames to existing unit/integration files and the dispositions above.
+The current prefix set includes the added `vitest-controller-logic` basename: 39 unit files and 38 integration files,
+with 60 distinct basenames in their union. All nine portability basenames remain literal tier selectors, and every
+baseline real class retains the real filesystem or native scenario recorded in § Portability outcome classes.
+No class is replaced by a fake-only portability assertion.
+
+Capture paths are relative to `packages/arc-framework/.test-cost-runs/`:
+`native-conversion-{unit,integration}-{1,2,3}.json` and `.log`, `native-conversion-manifest.json`, and
+`native-conversion-summary.json`. The summary retains baseline and after samples, medians, exact configuration,
+threshold result, and each baseline basename's current locations. No failed attempt or diagnostic substitutes for
+an ordinary sample. Full code checks and the full declaration build already cover this unchanged conversion tree;
+this closure adds only the measurement record.
