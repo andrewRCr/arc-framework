@@ -1,6 +1,7 @@
 /** Canonical acquisition and schema contract for `arc init`. */
 
 import { z } from "zod";
+import { initIdentityPromptSite } from "../prompts/identity-prompt-sites.js";
 import { initToolsPromptSite, initNamePromptSite, initPmPromptSite, initTeamPromptSite } from "../prompts/init-prompts.js";
 import { reconfigureNamePromptSite, reconfigurePmPromptSite, reconfigureTeamPromptSite } from "../prompts/reconfigure-prompts.js";
 import { bulkRemovalPromptSite, fileRemovalPromptSite } from "../prompts/removal-prompts.js";
@@ -70,21 +71,7 @@ export const initCommandInputPolicyDeclarations = [{
   commandPath: "init",
   aliases: [],
   sites: [
-    {
-      id: "interaction.handlers-shared.ts-prompt-p.text-1",
-      source: {
-        file: "handlers/shared.ts",
-        interaction: { kind: "prompt", callee: "p.text", occurrence: 1 },
-      },
-      origin: "declaration",
-      acquisition: "handler-required",
-      schemaOwnership: "owned",
-      schemaField: "identity",
-      cancellation: "stop",
-      automation: { noInput: "require-explicit", flags: ["--identity"], acceptedSyntax: ["--identity <name>"] },
-      mutationBoundary: "installation identity resolution",
-      subprocess: "none",
-    },
+    initIdentityPromptSite,
     initToolsPromptSite,
     initNamePromptSite,
     initPmPromptSite,

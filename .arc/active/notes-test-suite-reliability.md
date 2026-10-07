@@ -1784,3 +1784,36 @@ file shrinks overall, and its question logic removes the old interaction branch 
 The full declaration build qualifies (`/tmp/arc-lifecycle-prompts-full-build.log`). The unchanged shell surface retains
 its adoption gate, and the native refusal capture already covers the final restored source. The completed batch
 preserves all accepted value validation while recording the three visible report-placeholder corrections.
+
+## Start and identity prompt wrappers
+
+Seven caller-owned start declarations now pass through `confirmStep`: six courtesy confirmations use `proceed`, and
+`safety.indeterminate-lifecycle` uses `refuse`. `skipConfirm` and `courtesyAccepted` retire. The safety refusal keeps
+its existing reason and failing exit; declined or cancelled confirmations retain their caller's cancellation text.
+The declarations live beside the handler in `start-prompt-sites.ts`, avoiding growth of the previously oversized
+handler. The full lint prune removes its obsolete file-length suppression without adding or widening any debt.
+
+Fresh init and join each own a text site passed through `resolveIdentityWithPrompt`. The wrapper always supplies
+`resolveIdentity` a prompter callback and maps refusal/cancellation to an empty acquisition, which resolves to null.
+Configured identity still wins before acquisition. The nine Errand and two active callers that never prompt use
+`resolveIdentity({ exec })` directly; join reconfiguration no longer supplies an unused identity callback. Identity
+constants live in `prompts/identity-prompt-sites.ts`, keeping command-input registration free of a handler import cycle.
+The settled declaration drift resolves toward existing behavior: both sites declare `use-default` with the Git user-name
+slug rather than `require-explicit`, retaining the existing missing-identity report when there is no usable default.
+
+The seven-site inventory join fails against the old caller map (`/tmp/arc-start-sites-red.log`). A signature-preserving
+reconstruction of the old identity callback bypass incorrectly returns `alice-smith` for a caller requiring explicit
+input; the regression fails behaviorally (`/tmp/arc-identity-policy-red.log`) before the shared prompter path passes.
+The identity test uses the shared argument-scripted Git boundary with a typed absent-config failure. Existing Errand
+and active handler fixtures now provide configured identity through their Git seam rather than mocking the retired
+wrapper. All 88 focused cases pass (`/tmp/arc-start-identity-focused.log`). Both type programs and focused typed lint
+pass (`/tmp/arc-start-identity-types.log`, `/tmp/arc-start-identity-lint.log`).
+The complete routine gate passes 1,119 files and 16,703 cases, with one file and 1,188 cases skipped
+(`/tmp/arc-start-identity-routine.log`, 191.15 s). The initial prune invocation through the root script does not forward
+its option and remains failed; the corrected workspace invocation passes
+(`/tmp/arc-start-sites-corrected-prune.log`), removing only the obsolete start file-length suppression. Markdown,
+all three ARC contract checks and shell lint pass; the full build and final typed lint run after test artifact ownership
+ends, retaining the established ordering mitigation for disposable loader siblings.
+The full build qualifies (`/tmp/arc-start-identity-build.log`) and whole-project typed lint passes
+(`/tmp/arc-start-identity-full-lint.log`). The finalized task record preserves its Goal and records both caller-owned
+wrapper migrations without advancing the verification phase.

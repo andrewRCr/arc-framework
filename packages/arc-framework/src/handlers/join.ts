@@ -5,6 +5,7 @@
  */
 
 import * as p from "@clack/prompts";
+import { joinIdentityPromptSite } from "../prompts/identity-prompt-sites.js";
 import { unlink, rmdir } from "node:fs/promises";
 
 import { runJoin, runJoinReconfigure, buildPostJoinMessage } from "../commands/join.js";
@@ -52,7 +53,7 @@ export async function handleJoin(opts: JoinOptions, suppliedContext?: Interactio
       suppliedRole: supplied.role,
       suppliedTools: supplied.tools,
     }),
-    resolveIdentity: (interactive) => resolveIdentityWithPrompt(interactive, io.exec),
+    resolveIdentity: () => resolveIdentityWithPrompt(joinIdentityPromptSite, context, io.exec),
   });
   if (input.kind !== "resolved") {
     reportJoinInputFailure(input);
@@ -143,7 +144,6 @@ async function handleJoinReconfigure(opts: JoinOptions, context: InteractionCont
       currentRole,
       currentTools,
     }),
-    resolveIdentity: (interactive) => resolveIdentityWithPrompt(interactive, io.exec),
   });
   if (input.kind !== "resolved") {
     reportJoinInputFailure(input);

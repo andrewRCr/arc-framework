@@ -1,6 +1,7 @@
 /** Canonical acquisition and schema contract for `arc join`. */
 
 import { z } from "zod";
+import { joinIdentityPromptSite } from "../prompts/identity-prompt-sites.js";
 import { joinRolePromptSite, joinToolsPromptSite } from "../prompts/join-prompts.js";
 
 import { CommandToolListSchema } from "./init-input.js";
@@ -49,18 +50,7 @@ export const joinCommandInputPolicyDeclarations = [{
   sites: [
     joinRolePromptSite,
     joinToolsPromptSite,
-    {
-      id: "semantic.identity",
-      source: { file: "commands/join-input.ts", symbol: "resolveJoinCommandInput" },
-      origin: "declaration",
-      acquisition: "handler-required",
-      schemaOwnership: "owned",
-      schemaField: "identity",
-      cancellation: "stop",
-      automation: { noInput: "require-explicit", flags: ["--identity"], acceptedSyntax: ["--identity <name>"] },
-      mutationBoundary: "workspace identity resolution",
-      subprocess: "none",
-    },
+    joinIdentityPromptSite,
   ],
 }] satisfies readonly CommandInputDeclaration[];
 
@@ -81,7 +71,7 @@ export async function resolveJoinCommandInput(input: {
     readonly role?: "maintainer" | "contributor";
     readonly tools?: readonly string[];
   }) => Promise<{ readonly role: string; readonly tools: readonly string[] } | null>;
-  readonly resolveIdentity: (interactive: boolean) => Promise<string | null>;
+  readonly resolveIdentity?: (interactive: boolean) => Promise<string | null>;
 }): Promise<InputResolution<JoinCommandInput>> {
   const reconfigure = input.options.reconfigure ?? false;
   if (reconfigure && input.options.identity !== undefined) {
@@ -110,7 +100,7 @@ export async function resolveJoinCommandInput(input: {
     : suppliedRole !== undefined || suppliedTools !== undefined ? "argument" as const : "default" as const;
   const identity = reconfigure
     ? undefined
-    : explicitIdentity ?? await input.resolveIdentity(input.context.interaction === "allowed");
+    : explicitIdentity ?? await input.resolveIdentity?.(input.context.interaction === "allowed") ?? null;
   if (!reconfigure && identity === null) {
     return { kind: "unavailable", missing: [{ name: "identity", acceptedSyntax: ["--identity <name>"] }] };
   }

@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { initIdentityPromptSite } from "../../src/prompts/identity-prompt-sites.js";
+import { resolveInteractionContext } from "../../src/lib/command-input/interaction-context.js";
 import type { UserFetchResult } from "../../src/commands/user.js";
 import type { SyncOutput } from "../../src/lib/sync-output.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
@@ -30,7 +32,9 @@ describe("shared handler Git boundaries", () => {
 
   it("resolves user identity through the supplied executor", async () => {
     expect(await resolveUserIdentity(identityExec)).toBe("bound-identity");
-    expect(await resolveIdentityWithPrompt(false, identityExec)).toBe("bound-identity");
+    expect(await resolveIdentityWithPrompt(initIdentityPromptSite, resolveInteractionContext({
+      noInput: true, machineReadable: false, ci: false, promptInputIsTTY: false, promptOutputIsTTY: false, yes: "absent",
+    }), identityExec)).toBe("bound-identity");
   });
 
   it("refuses a repository when the supplied executor reports none", async () => {

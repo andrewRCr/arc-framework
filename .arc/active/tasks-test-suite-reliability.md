@@ -847,36 +847,21 @@ prompter, every prompting handler takes a required interaction context, and each
   the same outcome path for unresolved class. Missing-input placeholders now match the declarations; Notes § Lifecycle
   prompt migration records all three drift corrections and native refusal proofs.
 
-### `[ ]` **9.3 Migrate the start and identity wrappers — D7**
+### `[x]` **9.3 Migrate the start and identity wrappers — D7**
 
 - _Goal:_ Each call that passes a site to `confirmStep` (`handlers/start.ts`) or `resolveIdentityWithPrompt`
   (`handlers/shared.ts`) is its own prompt site, with the wrapper passing its caller's site and context through, and
   nothing outside the prompter answers either question.
 
-    - `[ ]` **9.3.a `confirmStep` and its seven callers**
-        - `confirmStep` takes the site and context from its caller, and its seven callers in `start.ts` are seven
-          sites.
-        - Start's indeterminate-lifecycle gate (`safety.indeterminate-lifecycle`) declares `interactive-only-override`
-          with `refuse`. A refusal keeps `p.log.error(reason)` and exit status 1, and a decline or cancellation still
-          logs `Start cancelled.`.
-        - The other six are courtesy confirmations declaring `proceed`. `skipConfirm` and `courtesyAccepted` retire:
-          start declares `--yes` as `compatibility`, which already forbids interaction, so the prompter's `proceed`
-          answers wherever they skipped the question.
-        - `repository-inventory.test.ts`'s fixed list of semantic sites loses `start:safety.indeterminate-lifecycle`.
+    - `[x]` **9.3.a `confirmStep` and its seven callers**
+        - Seven caller-owned declarations pass site/context through `confirmStep`; courtesy skip state retires.
+          Safety refusals and all cancellation reports retain their behavior. The inventory joins each caller by id;
+          Notes § Start and identity prompt wrappers records declaration placement and the shrunk size baseline.
 
-    - `[ ]` **9.3.b The identity prompt**
-        - Only `handlers/init.ts` and the fresh path of `handlers/join.ts` pass sites. The wrapper's `interactive` flag
-          gives way to the site and context, and it hands `resolveIdentity` a prompt function that always asks the
-          prompter, mapping `refused` and `cancelled` to no identity so the caller's present `--identity <name>`
-          report stands.
-        - Join's reconfigure path, which never resolves an identity, stops passing an identity callback.
-        - The callers that pass `false` and never prompt (nine in `handlers/errand.ts`, two in `handlers/active.ts`)
-          call `resolveIdentity({ exec })` directly.
-        - The identity sites declare `use-default` (acquisition `safe-default`, `defaultSource` the slug of
-          `git config user.name`) with `--identity <name>` as accepted syntax, replacing the `require-explicit`
-          declarations in `commands/init-input.ts` and `commands/join-input.ts`. The declaration was the wrong one, so
-          this drift resolves toward today's behavior.
-        - `repository-inventory.test.ts`'s fixed list of semantic sites loses `join:semantic.identity`.
+    - `[x]` **9.3.b The identity prompt**
+        - Fresh init/join pass their own text site and context; non-prompting callers use the plain identity resolver,
+          and join reconfiguration drops its identity callback. Both sites declare the settled Git-name default,
+          replacing the incorrect explicit-only policies. Notes § Start and identity prompt wrappers retains proof.
 
 ### `[ ]` **9.4 Migrate the sync and user prompts — D7**
 

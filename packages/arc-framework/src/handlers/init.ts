@@ -5,6 +5,7 @@
  */
 
 import * as p from "@clack/prompts";
+import { initIdentityPromptSite } from "../prompts/identity-prompt-sites.js";
 import { readFile } from "node:fs/promises";
 
 import { runInit, buildPostInitMessage, isArcInstalled } from "../commands/init.js";
@@ -77,7 +78,7 @@ export async function handleInit(
         teamMode: result.team_mode,
       };
     },
-    resolveIdentity: (interactive) => resolveIdentityWithPrompt(interactive, io.exec),
+    resolveIdentity: () => resolveIdentityWithPrompt(initIdentityPromptSite, context, io.exec),
   });
   if (input.kind !== "resolved") {
     reportInputFailure(input);

@@ -50,8 +50,6 @@ describe("repository command-input inventory", () => {
       syntaxCount + declaredInteractionCount + declaredSemanticSites.length,
     );
     expect(declaredSemanticSites).toEqual([
-      "join:semantic.identity",
-      "start:safety.indeterminate-lifecycle",
       "status:semantic.interaction-context",
     ]);
     expect(inventory.entries).toEqual(expect.arrayContaining([
@@ -144,6 +142,20 @@ describe("repository command-input inventory", () => {
       expect(command?.options.some((option) => option.flags === "--json"), path).toBe(false);
       expect(inventory.entries.some((entry) => entry.identity === `${path}:option.json`), path).toBe(false);
     }
+  });
+
+  it("joins all seven start confirmations to their own declared callers", () => {
+    const questions = inventory.entries.filter((entry) => entry.commandPath === "start" && entry.origin === "prompt");
+    expect(questions.map((entry) => ({ id: entry.siteId, noInput: entry.noInput, callee: "callee" in entry.liveSource ? entry.liveSource.callee : undefined })))
+      .toEqual([
+        { id: "safety.indeterminate-lifecycle", noInput: "refuse", callee: "confirmStep" },
+        { id: "prompt.start.create-new", noInput: "proceed", callee: "confirmStep" },
+        { id: "prompt.start.graduate-here", noInput: "proceed", callee: "confirmStep" },
+        { id: "prompt.start.graduate-worktree", noInput: "proceed", callee: "confirmStep" },
+        { id: "prompt.start.resume-here", noInput: "proceed", callee: "confirmStep" },
+        { id: "prompt.start.resume-worktree", noInput: "proceed", callee: "confirmStep" },
+        { id: "prompt.start.cold-start", noInput: "proceed", callee: "confirmStep" },
+      ].sort((left, right) => left.id.localeCompare(right.id)));
   });
 
   it("requires every discovered interaction policy to come from a command-owned declaration", () => {

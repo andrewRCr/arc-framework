@@ -47,7 +47,12 @@ import {
 } from "../lib/io-context.js";
 import { SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
 import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
-import { declareInteractionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import type { PromptSite, CommandInputDeclaration } from "../lib/command-input/declaration.js";
+import { prompt, type PromptOutcome } from "../lib/command-input/prompter.js";
+import {
+  indeterminateLifecyclePromptSite, createNewPromptSite, graduateHerePromptSite, graduateWorktreePromptSite,
+  resumeHerePromptSite, resumeWorktreePromptSite, coldStartPromptSite,
+} from "./start-prompt-sites.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import {
   resolveProcessInteractionContext,
@@ -127,45 +132,19 @@ export const startCommandInputRegistration = {
   },
 } satisfies CommandInputRegistration;
 
-/** Command-owned interaction and safety policies for start. */
+/** Command-owned confirmation policies for start. */
 export const startCommandInputPolicyDeclarations = [{
-  commandPath: "start",
-  aliases: [],
+  commandPath: "start", aliases: [],
   sites: [
-    declareInteractionSite(
-      { file: "handlers/start.ts", kind: "prompt", callee: "p.confirm", occurrence: 1 },
-      {
-        acquisition: "courtesy-confirmation",
-        schemaOwnership: "none",
-        cancellation: "stop",
-        automation: { noInput: "proceed", flags: ["--yes"], acceptedSyntax: ["--yes"] },
-        mutationBoundary: "start dispatch",
-        subprocess: "none",
-      },
-    ),
-    {
-      id: "safety.indeterminate-lifecycle",
-      source: { file: "handlers/start.ts", symbol: "handleStart" },
-      origin: "declaration",
-      acquisition: "interactive-only-override",
-      schemaOwnership: "none",
-      cancellation: "stop",
-      automation: { noInput: "refuse", flags: [], acceptedSyntax: [] },
-      mutationBoundary: "start lifecycle safety gate",
-      subprocess: "none",
-    },
+    indeterminateLifecyclePromptSite, createNewPromptSite, graduateHerePromptSite, graduateWorktreePromptSite,
+    resumeHerePromptSite, resumeWorktreePromptSite, coldStartPromptSite,
   ],
 }] satisfies readonly CommandInputDeclaration[];
 
-/** Whether courtesy confirmation is unavailable for this invocation. */
-function skipConfirm(context: InteractionContext, courtesyAccepted = false): boolean {
-  return context.interaction === "forbidden" || courtesyAccepted;
-}
-
-/** Ask the operator to confirm; returns `true` to proceed, `false` to abort. */
-async function confirmStep(message: string): Promise<boolean> {
-  const proceed = await p.confirm({ message, initialValue: true });
-  return !p.isCancel(proceed) && proceed;
+/** Forward one caller-owned question without choosing its policy. */
+async function confirmStep(site: PromptSite<"confirm">, context: InteractionContext,
+  message: string): Promise<PromptOutcome<boolean>> {
+  return prompt(site, context, { message, initialValue: true });
 }
 
 export async function handleStart(
@@ -209,7 +188,7 @@ export async function handleStart(
   const wuName = input.name;
   if (input.here && !wuName) {
     await coldStart(name, input, {
-      io, cwd, identity, interaction: context, courtesyAccepted: input.yes === true,
+      io, cwd, identity, interaction: context,
     });
     return;
   }
@@ -290,12 +269,14 @@ export async function handleStart(
     const reason =
       `Cannot safely start \`${wuName}\`: live lifecycle truth is indeterminate. ` +
       `Retry with a reachable origin or inspect \`arc status ${wuName} --fetch\` before starting.`;
-    if (skipConfirm(context)) {
+    const confirmation = await confirmStep(indeterminateLifecyclePromptSite, context,
+      `${reason} Proceed with the start anyway?`);
+    if (confirmation.kind === "refused") {
       p.log.error(reason);
       process.exitCode = 1;
       return;
     }
-    if (!(await confirmStep(`${reason} Proceed with the start anyway?`))) {
+    if (confirmation.kind !== "answered" || !confirmation.value) {
       p.log.info("Start cancelled.");
       return;
     }
@@ -312,7 +293,7 @@ export async function handleStart(
     case "create-new":
       if (input.here) {
         await coldStart(name, input, {
-          io, cwd, identity, interaction: context, courtesyAccepted: input.yes === true,
+          io, cwd, identity, interaction: context,
         });
       }
       else {
@@ -323,7 +304,7 @@ export async function handleStart(
           baseRef,
         );
         await createNew(wuName, {
-          io, cwd, identity, interaction: context, courtesyAccepted: input.yes === true,
+          io, cwd, identity, interaction: context,
         }, provenance);
       }
       return;
@@ -333,7 +314,7 @@ export async function handleStart(
         cwd,
         identity,
         interaction: context,
-        courtesyAccepted: input.yes === true,
+
         baseRef,
         baseBranch: settings["branch.base"],
         refreshedBase,
@@ -343,7 +324,7 @@ export async function handleStart(
       return;
     case "resume":
       await resume(wuName, input, {
-        io, cwd, identity, interaction: context, courtesyAccepted: input.yes === true,
+        io, cwd, identity, interaction: context,
       });
       return;
   }
@@ -355,7 +336,6 @@ interface ArmContext {
   cwd: string;
   identity: string;
   interaction: InteractionContext;
-  courtesyAccepted: boolean;
 }
 
 interface StartBaseProvenance {
@@ -429,15 +409,11 @@ async function createNew(
   ctx: ArmContext,
   provenance: StartBaseProvenance,
 ): Promise<void> {
-  if (!skipConfirm(ctx.interaction, ctx.courtesyAccepted)) {
-    if (!(
-      await confirmStep(
-        `Spawn a new worktree for work unit "${wuName}" on plan/${wuName}, then commit and push the start ceremony?`,
-      )
-    )) {
-      p.log.info("Create-new cancelled.");
-      return;
-    }
+  const confirmation = await confirmStep(createNewPromptSite, ctx.interaction,
+    `Spawn a new worktree for work unit "${wuName}" on plan/${wuName}, then commit and push the start ceremony?`);
+  if (confirmation.kind !== "answered" || !confirmation.value) {
+    p.log.info("Create-new cancelled.");
+    return;
   }
 
   const outcome = await runWithInteractionProgress(ctx.interaction,
@@ -645,11 +621,11 @@ async function graduate(
   // side-effect. The branch is cut off current HEAD in this checkout.
   if (opts.here) {
     const { settings } = await readConfigSettings(ctx.cwd);
-    if (!skipConfirm(ctx.interaction, ctx.courtesyAccepted)) {
-      if (!(await confirmStep(`Graduate "${wuName}" onto a new plan/${wuName} branch in this worktree (no spawn)?`))) {
-        p.log.info("Graduate cancelled.");
-        return;
-      }
+    const confirmation = await confirmStep(graduateHerePromptSite, ctx.interaction,
+      `Graduate "${wuName}" onto a new plan/${wuName} branch in this worktree (no spawn)?`);
+    if (confirmation.kind !== "answered" || !confirmation.value) {
+      p.log.info("Graduate cancelled.");
+      return;
     }
     const result = await runWithInteractionProgress(ctx.interaction,
       "Graduating onto plan branch...",
@@ -710,15 +686,11 @@ async function graduate(
     ? templatedWorktreePath
     : resolve(config.primaryWorktreePath, templatedWorktreePath);
 
-  if (!skipConfirm(ctx.interaction, ctx.courtesyAccepted)) {
-    if (!(
-      await confirmStep(
-        `Graduate "${wuName}" into a spawned plan/${wuName} worktree, then commit and push the start ceremony?`,
-      )
-    )) {
-      p.log.info("Graduate cancelled.");
-      return;
-    }
+  const confirmation = await confirmStep(graduateWorktreePromptSite, ctx.interaction,
+    `Graduate "${wuName}" into a spawned plan/${wuName} worktree, then commit and push the start ceremony?`);
+  if (confirmation.kind !== "answered" || !confirmation.value) {
+    p.log.info("Graduate cancelled.");
+    return;
   }
 
   const result = await runWithInteractionProgress(ctx.interaction,
@@ -834,11 +806,11 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
   // only `team.mode` for the executor's status side-effect.
   if (opts.here) {
     const { settings } = await readConfigSettings(ctx.cwd);
-    if (!skipConfirm(ctx.interaction, ctx.courtesyAccepted)) {
-      if (!(await confirmStep(`Resume parked work unit "${wuName}" — re-attach its branch in this worktree (no spawn)?`))) {
-        p.log.info("Resume cancelled.");
-        return;
-      }
+    const confirmation = await confirmStep(resumeHerePromptSite, ctx.interaction,
+      `Resume parked work unit "${wuName}" — re-attach its branch in this worktree (no spawn)?`);
+    if (confirmation.kind !== "answered" || !confirmation.value) {
+      p.log.info("Resume cancelled.");
+      return;
     }
     const result = await runWithInteractionProgress(ctx.interaction,
       "Resuming parked work unit...",
@@ -884,11 +856,11 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
   const config = await resolveSpawnConfig(ctx);
   if (config === null) return;
 
-  if (!skipConfirm(ctx.interaction, ctx.courtesyAccepted)) {
-    if (!(await confirmStep(`Resume parked work unit "${wuName}" — re-attach its branch in a fresh worktree?`))) {
-      p.log.info("Resume cancelled.");
-      return;
-    }
+  const confirmation = await confirmStep(resumeWorktreePromptSite, ctx.interaction,
+    `Resume parked work unit "${wuName}" — re-attach its branch in a fresh worktree?`);
+  if (confirmation.kind !== "answered" || !confirmation.value) {
+    p.log.info("Resume cancelled.");
+    return;
   }
 
   const result = await runWithInteractionProgress(ctx.interaction,
@@ -954,17 +926,14 @@ async function coldStart(
   const { settings } = await readConfigSettings(ctx.cwd);
   const onProtectedBase = isProtectedBranch(settings, branch);
 
-  // The arc-session skill confirms the gathered context before invoking, so its
-  // non-interactive (no-TTY) call skips this prompt; a direct human run still gets it.
-  if (!skipConfirm(ctx.interaction, ctx.courtesyAccepted)) {
-    const previewName = deriveColdStartWuName(name, branch) ?? "(name from branch)";
-    const prompt = onProtectedBase
-      ? `Protected base '${branch}' — cut plan/${previewName} and cold-start "${previewName}" onto it?`
-      : `Cold-start work unit "${previewName}" on branch ${branch} in this worktree?`;
-    if (!(await confirmStep(prompt))) {
-      p.log.info("Cold-start cancelled.");
-      return;
-    }
+  const previewName = deriveColdStartWuName(name, branch) ?? "(name from branch)";
+  const prompt = onProtectedBase
+    ? `Protected base '${branch}' — cut plan/${previewName} and cold-start "${previewName}" onto it?`
+    : `Cold-start work unit "${previewName}" on branch ${branch} in this worktree?`;
+  const confirmation = await confirmStep(coldStartPromptSite, ctx.interaction, prompt);
+  if (confirmation.kind !== "answered" || !confirmation.value) {
+    p.log.info("Cold-start cancelled.");
+    return;
   }
 
   const outcome = await runWithInteractionProgress(ctx.interaction,
