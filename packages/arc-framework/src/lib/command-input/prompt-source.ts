@@ -36,7 +36,9 @@ function importedBindings(file: ts.SourceFile, sources: Readonly<Record<string, 
 }
 function canonicalImport(module: ModuleBindings, expression: ts.Expression, symbol: "declarePromptSite" | "prompt"): boolean {
   const owner = ts.isPropertyAccessExpression(expression) && expression.name.text === symbol
-    ? expression.expression : undefined;
+    ? expression.expression : ts.isElementAccessExpression(expression)
+      && ts.isStringLiteralLike(expression.argumentExpression) && expression.argumentExpression.text === symbol
+      ? expression.expression : undefined;
   const binding = ts.isIdentifier(expression) ? module.imports.get(expression.text)
     : owner !== undefined && ts.isIdentifier(owner) ? module.imports.get(owner.text) : undefined;
   return binding !== undefined && binding.exported === (owner === undefined ? symbol : "*")

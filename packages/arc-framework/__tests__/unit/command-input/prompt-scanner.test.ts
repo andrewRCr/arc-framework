@@ -30,21 +30,45 @@ describe("declared-value prompt discovery", () => {
     expect(scan(source).sites).toMatchObject([{ declaredId: "own", line: 4 }]);
   });
   it("discovers a namespace factory and prompter with declaration provenance", () => {
-    const source = ['import * as input from "../lib/command-input/index.js";',
+    const source = ['import * as input from "../lib/command-input/declaration.js";',
+      'import * as prompter from "../lib/command-input/prompter.js";',
       declare("ownSite", "own", "handlers/caller.ts").replace("declarePromptSite(", "input.declarePromptSite("),
-      'async function run(context) { return input.prompt(ownSite, context, { message: "Value?" }); }'].join("\n");
+      'async function run(context) { return prompter.prompt(ownSite, context, { message: "Value?" }); }'].join("\n");
     expect(scan(source).sites).toMatchObject([{ declaredId: "own",
       declaredSource: { file: "handlers/caller.ts", symbol: "ownSite" } }]);
   });
   it("refuses a non-exported namespace factory site", () => {
-    const source = ['import * as input from "../lib/command-input/index.js";',
+    const source = ['import * as input from "../lib/command-input/declaration.js";',
+      'import * as prompter from "../lib/command-input/prompter.js";',
       declare("localSite", "local", "handlers/caller.ts").replace("export const", "const")
         .replace("declarePromptSite(", "input.declarePromptSite("),
-      'async function run(context) { return input.prompt(localSite, context, { message: "Value?" }); }'].join("\n");
+      'async function run(context) { return prompter.prompt(localSite, context, { message: "Value?" }); }'].join("\n");
     expect(() => scan(source)).toThrow(/exported constant initializer/u);
   });
   it("refuses a namespace prompter's unresolved site", () => {
     expect(() => scan('import * as input from "../lib/command-input/prompter.js"; input.prompt(unknown, context, {});'))
+      .toThrow(/Unresolved prompt site/u);
+  });
+  it.each(['"', '`'])("discovers literal namespace elements delimited by %s", (quote) => {
+    const source = ['import * as declarations from "../lib/command-input/declaration.js";',
+      'import * as prompter from "../lib/command-input/prompter.js";',
+      declare("ownSite", "own", "handlers/caller.ts").replace("declarePromptSite(",
+        `declarations[${quote}declarePromptSite${quote}](`),
+      `async function run(context) { return prompter[${quote}prompt${quote}](ownSite, context, {}); }`].join("\n");
+    expect(scan(source).sites).toMatchObject([{ declaredId: "own",
+      declaredSource: { file: "handlers/caller.ts", symbol: "ownSite" } }]);
+  });
+  it.each([
+    `prompter["prompt"](declarations["declarePromptSite"]("inline", "text", { file: "handlers/caller.ts", symbol: "inline" }, ${policy}), context, {});`,
+    declare("local", "local", "handlers/caller.ts").replace("export const", "const")
+      .replace("declarePromptSite(", 'declarations["declarePromptSite"]('),
+  ])("refuses a literal element factory outside an exported constant: %s", (body) => {
+    expect(() => scan(['import * as declarations from "../lib/command-input/declaration.js";',
+      'import * as prompter from "../lib/command-input/prompter.js";', body].join("\n")))
+      .toThrow(/exported constant initializer/u);
+  });
+  it("refuses a literal element prompter's unresolved argument", () => {
+    expect(() => scan('import * as prompter from "../lib/command-input/prompter.js"; prompter["prompt"](unknown, context, {});'))
       .toThrow(/Unresolved prompt site/u);
   });
   it("refuses distinct declarations sharing an id even when only one is passed", () => {
