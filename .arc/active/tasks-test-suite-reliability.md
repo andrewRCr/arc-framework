@@ -89,16 +89,13 @@ _Mode:_ `layer` — closes on a hermetic unit tier.
 _Exit criterion:_ `npm test` passes with `FORCE_COLOR=3`, the shared copy helper skips a transient while copying an
 untracked module, and every test that reads a renewing lock retries an empty or unparsable read.
 
-### `[ ]` **2.1 Clear `FORCE_COLOR` from the lint-staged test's child environment — D1**
+### `[x]` **2.1 Clear `FORCE_COLOR` from the lint-staged test's child environment — D1**
 
 - _Goal:_ `focused-lint-staged.test.ts` passes in a shell that sets `FORCE_COLOR`, while
   `scripts/check-ts-quality.sh` prints unchanged output for developers.
 
-    - Each `execa` call that runs `scripts/check-ts-quality.sh` passes a child environment without `FORCE_COLOR`.
-      TypeScript's `defaultIsPretty` switches `tsc` to its pretty diagnostic form whenever `FORCE_COLOR` is set and
-      `NO_COLOR` is not, and this is the only unit or integration file asserting the plain `error TS` form.
-    - `FORCE_COLOR=3 npm test` passes. Any other assertion that fails under it gets the same child-environment
-      treatment in this task.
+- _Outcome:_ All three staged-check child commands clear `FORCE_COLOR`; plain TypeScript diagnostics remain stable
+  when the calling shell enables color. Developer-facing script output is unchanged.
 
 ### `[ ]` **2.2 Copy live source trees through one helper that skips bundle-require transients — D1**
 

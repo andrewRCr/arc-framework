@@ -35,7 +35,7 @@ it.each(names.filter(({ label }) => process.platform !== "win32" || label === "s
       [relativePath]: { "no-unused-vars": { count: 1 } },
     }));
     await execa("git", ["add", "--", `packages/arc-framework/${relativePath}`], { cwd: fixture.root });
-    const result = await execa("bash", ["scripts/check-ts-quality.sh"], { cwd: fixture.root, reject: false, timeout: 30_000 });
+    const result = await execa("bash", ["scripts/check-ts-quality.sh"], { cwd: fixture.root, reject: false, timeout: 30_000, env: { FORCE_COLOR: undefined } });
     expect(result, result.stderr).toMatchObject({ exitCode: 0 });
     expect(await readFile(fixture.counter, "utf8")).toBe("loaded\n");
   }, 30_000,
@@ -44,7 +44,7 @@ it.each(names.filter(({ label }) => process.platform !== "win32" || label === "s
 it("rejects native staged lint failure even when both type checks pass", async () => {
   const fixture = await makeStagedFixture();
   await execa("git", ["add", "--", "packages/arc-framework/src/targets/failing.ts"], { cwd: fixture.root });
-  const result = await execa("bash", ["scripts/check-ts-quality.sh"], { cwd: fixture.root, reject: false, timeout: 30_000 });
+  const result = await execa("bash", ["scripts/check-ts-quality.sh"], { cwd: fixture.root, reject: false, timeout: 30_000, env: { FORCE_COLOR: undefined } });
   expect(result.exitCode).toBe(1);
   expect(result.stdout).toContain("no-unused-vars");
   expect(result.stdout).toContain("   lint:ts:file");
@@ -60,7 +60,7 @@ it("collects native lint, source-type, and test-type failures in one staged chec
   configuration.include = ["__tests__/unit/**/*.ts"];
   await writeFile(testConfig, JSON.stringify(configuration));
   await execa("git", ["add", "--", "packages/arc-framework/src/targets/failing.ts"], { cwd: fixture.root });
-  const result = await execa("bash", ["scripts/check-ts-quality.sh"], { cwd: fixture.root, reject: false, timeout: 30_000 });
+  const result = await execa("bash", ["scripts/check-ts-quality.sh"], { cwd: fixture.root, reject: false, timeout: 30_000, env: { FORCE_COLOR: undefined } });
   expect(result.exitCode).toBe(1);
   expect(result.stdout).toContain("source-type.ts(1,14): error TS2322");
   expect(result.stdout).toContain("test-type.ts(1,14): error TS2322");
