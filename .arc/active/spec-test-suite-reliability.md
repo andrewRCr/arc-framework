@@ -686,6 +686,14 @@ Windows and macOS legs, and the budgets are re-recorded by § 5's rule. Results 
 is adopted, one `workflow_dispatch` run on `main` seeds it, because the branch's trial caches are not readable from
 `main`.
 
+**Deadline-only continuation (A14).** For A13 alone, the twelve local captures and five hosted first-attempt
+full-suite passes at `9b3856d4d` retain their cost and outcome evidence. The original fifth-run half-timeout failure
+stays recorded. `ESLINT_CONFIG_LOAD_TIMEOUT` changes only the first resolved-configuration case's deadline;
+`architectureOptions`, assertions and all executed work remain identical. Do not recollect these measurements.
+Use their unchanged medians for every cost bar and budget row. One full-suite dispatch at the budget-recording head
+combines correction confirmation, current unit half-timeout headroom, budget confirmation and the Windows/macOS
+portability pair. Any change to work, assertions, other deadlines or scheduling lies outside this bounded exception.
+
 ### Delivery and boundary
 
 The work lands as one pull request, with review chunked by phase. Boundary fit: **stays one WU + delivery-plan
@@ -857,6 +865,14 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
     of one and ceiling of eight; explicit numeric/percentage and CLI overrides work, CI retains native sizing,
     and the ordinary default routine lane passes with admission and isolation contracts preserved.
 
+22. **Deadline-only closing confirmation (A14; supersedes criterion 2).** Retain the five consecutive
+    first-attempt full-suite passes and twelve local captures at `9b3856d4d`, with their measured cost medians and
+    the fifth run's original half-timeout violation explicit. The only subsequent test change is A13's named
+    first-case ESLint deadline; all work, assertions, other deadlines, scheduling and production behavior remain
+    identical. One full-suite dispatch at the budget-recording head passes every job on its first attempt, every
+    completed unit case retains half its effective timeout as recorded by that run, and Windows/macOS portability
+    both pass. The retained observations determine the unchanged cost bars and fourteen budget rows.
+
 ## Open Questions
 
 - **Calibration of the native-tooling cut.** The 55–60% projection comes from a per-file read, not a prototype; the
@@ -904,3 +920,9 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
 
 - **A12** — 2026-10-07 — task: partition native Candidate cases to reclaim the observed shard tail.
   _Supersedes:_ none. _Trigger:_ 10.1 must-stop. _Work:_ 10.R10. _Revalidated:_ pending → 10.1.
+
+- **A13** — 2026-10-07 — task: name the retained cold ESLint configuration-load deadline.
+  _Supersedes:_ none. _Trigger:_ 10.1 must-stop. _Work:_ 10.R11. _Revalidated:_ pending → 10.1.
+
+- **A14** — 2026-10-07 — design: retain A13's closing evidence. _Supersedes:_ § Closing measurement; criterion 2.
+  _Trigger:_ 10.1 door. _Work:_ 10.R12. _Revalidated:_ pending → 10.3.

@@ -1056,12 +1056,30 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
   integration retains eighteen cases. All bodies and deadlines are unchanged, with unclassified native cases
   refused; `notes-test-suite-reliability.md` § Amendment A12 records the observed tail and union proof.
 
+### `[ ]` **10.R11 Name the cold ESLint configuration-load deadline — A13**
+
+- _Goal:_ A13 gives the retained real ESLint configuration load an explicit deadline while preserving its measured
+  duration, complete architecture scope assertions, remaining case deadlines and every tier default.
+
+    - Name the deadline on the first full-file configuration-loading case; keep its real load and assertion inside
+      the measured case, and retain all other test bodies and deadlines.
+
+### `[ ]` **10.R12 Bind retained closing evidence to deadline-only confirmation — A14**
+
+- _Goal:_ A14 preserves the measured cost and outcomes at `9b3856d4d` while binding one recording-head dispatch
+  to the corrected ESLint deadline, all unit half-timeout headroom, budget confirmation and both portability legs.
+
+    - Record the twelve local captures, five hosted passes and original headroom failure without replacement;
+      retain all cost bars and require the combined confirmation at the budget-recording head.
+
 ### `[ ]` **10.1 Run the closing hosted runs**
 
 - _Goal:_ Five consecutive first-attempt passes at the final head show the suite reliable on hosted runners, give the
   hosted cost medians, and confirm the Windows and macOS legs.
 
     - _Amended in:_ 10.1.R (A5)
+
+    - _Amended in:_ 10.R12 (A14)
 
     - `[ ]` **10.1.a Five consecutive dispatch runs**
         - Full-suite `workflow_dispatch` runs at the final head, dispatched one at a time as in Task 1.2.b, every
@@ -1080,6 +1098,8 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
 
 - _Goal:_ Native-tooling cost and E2E summed file time at the head the closing runs passed on are measured with the
   baseline's instrument and settings, for comparison with the 40% and 20% bars.
+
+    - _Amended in:_ 10.R12 (A14)
 
     - Three `npm run benchmark:test-cost` runs each for the `unit`, `integration`, and `e2e` project sets, with the
       baseline's settings, and three for `lane`, which only the budget file's `lane` row reads. Three-run medians are
@@ -1197,3 +1217,9 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
 
 - `[ ]` Default local worker sizing follows the half-parallelism rule with a one-worker floor and eight-worker
   ceiling; capacity overrides and CI native sizing remain available, and the ordinary routine gate passes (A7).
+
+- `[ ]` A14 preserves the five hosted first-attempt passes and twelve local captures at `9b3856d4d`, records the
+  original fifth-run headroom violation, and uses their medians for unchanged cost bars and budgets. Only A13's
+  named first-case deadline changes; one full-suite recording-head dispatch passes every job on attempt one,
+  every completed unit case remains below half its effective timeout, and both Windows/macOS portability legs
+  pass (supersedes the original five-run final-head/headroom criterion).

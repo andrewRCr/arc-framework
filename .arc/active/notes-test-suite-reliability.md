@@ -2688,3 +2688,66 @@ inputs retain their prior passing witnesses. Fresh closing evidence remains requ
 The ordinary E2E gate passes all sixty-nine files and 686 cases in 177.72 s (`/tmp/arc-a12-e2e.log`). The
 completed-case union stays unchanged. The corrective parent closes on its own gates and coverage, while A12
 revalidation stays pending at the fresh hosted cost measurement; no Success Criteria marker changes.
+
+## Amendment A13: Cold ESLint configuration-load deadline
+
+At `9b3856d4d`, all five hosted runs pass every CI job on attempt one: 37671294422, 37672118170,
+37672791138, 37673602736 and 37674420368. Wall times excluding the cache-save tail are
+324/285/301/328/295 s; the median 301 s is 44.25925926% below baseline. Summed test-job times are
+1,705/1,645/1,736/1,768/1,550 s; the median 1,705 s is 20.36431574% below baseline. The unchanged
+hosted cost criteria pass, but the fifth run has one unit half-timeout violation. Its first resolved architecture
+configuration case takes 2,716.278498 ms against the 5,000 ms default, exceeding the 2,500 ms headroom boundary.
+All 13,695 cases complete in each run; the first four have no violation. Portability is not dispatched.
+
+All twelve local captures pass at that head. Native paired samples are
+632,008.633577/627,704.585094/635,671.620851 ms; the median gives 44.05240602% reduction. E2E summed
+median is 1,728,540.790237 ms, 37.99938710% below the frozen single ordinary sample; its limited baseline
+remains explicit. Unit/integration/E2E/lane wall medians are 14,662/167,261/147,402/182,047 ms. Counts are
+13,695/3,037/686/16,732; each E2E sample records 1,738 CLI launches. Complete captures and failed headroom
+observations remain under `.test-cost-runs/closing-local-a12/` and `closing-hosted-a12/`; none is replaced.
+
+The amend-design gate takes the task arm at low depth. The retained-heavy-work statement in § 1 already requires
+named explicit deadlines. `architectureOptions` calls `ESLint#calculateConfigForFile` on the shared native ESLint
+instance. Installed `ConfigLoader#calculateConfigArray` caches the array after the initial dynamic configuration
+load; `eslint.config.js` imports `typescript-eslint` and the local architecture implementation, which imports
+TypeScript. The first full-file case pays this cold initialization, though source inspection alone does not assign
+all observed elapsed time to imports. Its prior four observations are 1,379.987922/1,054.970909/805.232808/
+634.349975 ms. This remains the spec's required resolved-native-configuration proof, not a redundant lint pass.
+
+Only this case receives `ESLINT_CONFIG_LOAD_TIMEOUT = 10_000`. Its real load, measured duration and assertion stay
+inside the case; no work moves into a hook or outside measurement. Every other body and deadline, the 5 s tier
+default, assertion set and outcome stays unchanged. `unit-setup.ts` retains the explicit `task.timeout` in its
+artifact metadata. This is a deadline correction, not a performance improvement. A filtered later case can still
+pay cold loading; the first-case distinction concerns the required full-file runs. No scheduler, tier or acceptance
+criterion changes, and fresh closing evidence remains required at the correction head.
+
+Author grounding over the A13 row, corrective parent and immediate neighbors confirms the native loader path,
+metadata projection and existing named-deadline requirement. Reader independence and binding completeness retain
+the full architecture composition proof and all closing checks. Forward and backward sweep finds no changed
+production behavior, delivery plan or segment. All Success Criteria markers remain unchanged; the advisor's
+source-read consultation is advisory, not an independent review verdict. Static comparison at
+`/tmp/arc-a13-body-check.json` confirms only the named first-case deadline changes.
+
+## Amendment A14: Retain evidence through a deadline-only correction
+
+The closing data at `9b3856d4d` establish all four unchanged cost bars and five consecutive first-attempt CI
+passes. Only the fifth report's first resolved ESLint case exceeds half its old default timeout. Repeating the
+five hosted runs and twelve local captures after a deadline-only correction would discard unaffected evidence
+without measuring changed work. Direction at the existing stop accepts the correction and retains the evidence,
+with one combined confirmation rather than restarting collection. The design arm is determinate at low depth.
+
+The bounded exception names exactly A13: `ESLINT_CONFIG_LOAD_TIMEOUT` changes a deadline argument, while
+`architectureOptions`, its native load, every assertion and all other work/deadlines remain identical. The
+original violation remains explicit and is never reported as a headroom pass. A14's appended criterion supersedes
+only the original final-head/repeated-headroom reliability obligation; cost targets, instruments, settings and
+all other criteria remain. One full-suite dispatch at the budget-recording head must pass every job on attempt
+one, retain all completed unit cases below half their recorded effective timeouts and pass both Windows/macOS
+portability legs. It also confirms the re-recorded budgets. Any further workload change requires new evidence.
+
+Author grounding compares the deadline-only diff with the byte-identical body witness and the retained artifacts;
+`unit-setup.ts` projects the current explicit deadline. Reader independence and binding completeness retain the
+missing headroom check as a required live confirmation, instead of inheriting it from the old reports. The sweep
+covers closing measurement, criterion 2, Tasks 10.1–10.3 and the additive task criterion. The earlier cost
+reductions and outcome witnesses are unaffected; no delivery plan or new segment appears. All original Goal and
+criterion text and every Success Criteria marker remain untouched. The capture precedes budget recording and
+combined confirmation; A14 revalidation stays pending at Task 10.3.
