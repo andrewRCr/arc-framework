@@ -1705,3 +1705,52 @@ The coherent migration passes the full routine gate: 1,116 files and 16,688 case
 skipped (`/tmp/arc-stale-subdir-routine.log`, 201.63 s). Full typed lint passes
 (`/tmp/arc-stale-subdir-full-lint.log`); Markdown and all ARC contracts pass. The unchanged shell surface retains its
 adoption gate. The full declaration build is retained in `/tmp/arc-stale-subdir-full-build.log`.
+
+## Installer prompt migration
+
+The ten physical calls in init, reconfigure, join and removal prompts now use exported branded declarations, with
+separate init/join caller-owned tools sites passed through `promptTools`. Existing policies move without reinterpretation
+from command-input declarations into prompt modules. The init/join input resolvers invoke their callbacks in every
+context; their forbidden-value branches and unused current-value fields retire. Handler callbacks supply current
+configuration, role and tools to the prompt sequence, while removal always reaches one declaration-bound resolver.
+
+Presentation stays interaction-dependent: init's name/PM notes, the tools note and selection message, reconfigure's
+opening line/team warning, join's contributor line, removal summary and reconfigure's file-change/apply spinner messages
+remain interactive-only. Explicit empty tools and false team settings remain values rather than absent inputs.
+Cancellation still returns null and preserves the existing setup/reconfigure messages and silent removal cancellation.
+Identity acquisition and its existing reports remain the later identity-wrapper task's concern.
+
+The planned project-name drift resolves toward the declaration: fresh interactive init now defaults to the bare
+`basename(cwd)` just as forbidden init does, rather than title-casing it. This changes the interactive default display
+name (`example-project` rather than `Example Project`); explicit names and current reconfigure names retain their values.
+The runtime default is executable data; `defaultSource` stays descriptive. Reconfigure carries its current tools through
+the callback, retaining the final installed configuration rather than the old intermediate resolver's empty tools list.
+
+Four forbidden-sequence scenarios fail against the old callbacks/prompts (`/tmp/arc-install-sequences-red.log`) before
+passing with the new declarations. Two resolver tests fail when forbidden interaction bypasses the prompt callback
+(`/tmp/arc-install-resolver-red.log`) and pass after that bypass is removed. Existing handler/config/removal checks pass
+114 cases (`/tmp/arc-install-existing-green.log`). The first inventory run finds the retired `join:semantic.tools`
+expectation; the fixed semantic inventory follows its prompt origin.
+
+A narrow renderer reconstruction that treats cancellation as an answer fails all four installer cancellation scenarios
+(`/tmp/arc-install-cancellation-red.log`), then the renderer is restored byte-for-byte. The title-cased name reconstruction
+fails the declared-default case (`/tmp/arc-init-name-drift-red.log`) before byte-for-byte restoration. All nine sequence
+cases and the resolver/inventory contracts pass in `/tmp/arc-install-focused-final.log`. The real init/reconfigure E2E
+suites pass 22 cases (`/tmp/arc-install-e2e-green.log`).
+The first routine run completes with one isolation-list failure: the new Clack-mocking sequence test is absent from
+`ISOLATED_UNIT_MOCK_FILES` (`/tmp/arc-install-routine.log`: 1,116 files pass, one fails; 16,698 cases pass). Adding the
+file to the isolated tier is the mechanical same-concern correction; the corrected routine log is
+`/tmp/arc-install-routine-corrected.log`. The concurrently started lint attempt encounters a schema loader's disappearing
+`build-schema.bundled_*.mjs` file (`/tmp/arc-install-full-lint.log`) and produces no lint verdict. The final full lint is
+scheduled after artifact generation; the first attempt is retained as an operational failure, never reported green.
+The corrected routine gate passes 1,117 files and 16,699 cases, with one file and 1,188 cases skipped
+(`/tmp/arc-install-routine-corrected.log`, 194.73 s). The corrected isolated-tier/sequence check passes all ten cases
+(`/tmp/arc-install-isolation-green.log`). Both corrected type programs pass (`/tmp/arc-install-types-corrected.log`);
+Markdown passes after removing one extra trailing blank line. The final lint retry waits for test preparation to finish.
+The full lint retry passes (`/tmp/arc-install-full-lint-corrected.log`) after preparation ends. No lint violation was
+waived, and the earlier loader failure remains recorded. The unchanged shell surface retains the adoption gate.
+The full declaration build qualifies (`/tmp/arc-install-full-build.log`). The lint-loader race is captured separately
+as a held tooling Errand in the personal inbox, alongside the existing loader-transient build-input capture; its
+ordering mitigation preserves every required gate and changes no installer policy.
+The final source head also passes both native E2E files and all 22 cases (`/tmp/arc-install-e2e-final.log`, 9.62 s),
+retaining the first capture and confirming the final declaration-bound installer runtime.

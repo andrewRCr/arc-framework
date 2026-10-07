@@ -814,49 +814,28 @@ _Exit criterion:_ No `@clack/prompts` prompt call remains outside the prompter, 
 an answer a prompt site declares, `no-restricted-imports` confines `@clack/prompts` to the terminal module and the
 prompter, every prompting handler takes a required interaction context, and each drift found is recorded in its task.
 
-### `[ ]` **9.1 Migrate the init, join, reconfigure, and removal prompts — D7**
+### `[x]` **9.1 Migrate the init, join, reconfigure, and removal prompts — D7**
 
 - _Goal:_ The ten prompts in `prompts/` reach the prompter only through their declarations, each command keeping its
   output and exit status in every interaction context.
 
-- _Shape:_ Every batch in this phase follows the same rule. Each site is declared with the prompt-site function as an
-  exported constant and passed by name. The declared `cancellation` replaces the site's `p.isCancel` handling. The
-  caller keeps its output and exits, reading `context.interaction` only to choose what it presents. A branch on
-  `context.interaction` that chooses an acquired value goes: the prompt is asked in every context, the value the branch
-  chose becomes the call's runtime default at a `use-default` site, and a missing input becomes a refusal the caller
-  gathers into its present report. A refusal keeps the caller's present report and exit status. Each drift found is
-  fixed toward the declaration, unless the declaration is the wrong one, and recorded in its task.
+    - `[x]` **9.1.a `prompts/init-prompts.ts`**
+        - Four exported declarations reach the prompter with explicit values and runtime defaults. The resolver
+          invokes its callback in every context, and presentation notes remain interactive-only.
+          The directory-name drift resolves to the declared bare name; Notes § Installer prompt migration records it.
 
-    - `[ ]` **9.1.a `prompts/init-prompts.ts`**
-        - Four calls. The prompt sites written as plain objects in `commands/init-input.ts` move to the prompt-site
-          function.
-        - The tools prompt sits in `promptTools`, which init's and join's prompts both call, so it takes its caller's
-          site and context, and `runInitPrompts` passes init's tools site.
-        - `resolveInitCommandInput` (`commands/init-input.ts`) calls its prompt callback in every context, and the
-          values its forbidden branch builds today (`basename(cwd)`, `[]`, `"none"`, `false`) become the calls'
-          runtime defaults. The interactive project-name default is the title-cased directory name
-          (`titleCase(basename(cwd))`) and the forbidden one the bare name: a known drift candidate, resolved and
-          recorded here.
-        - The "Project name" and "Project Management options" notes (`runInitPrompts`) and `promptTools`'s "Skill
-          installation" note print only when interaction is allowed, as they do today.
+    - `[x]` **9.1.b `prompts/reconfigure-prompts.ts`**
+        - Three exported declarations use current settings as runtime defaults; opening and team-mode warning
+          messages remain interactive-only. Reconfigure always reaches the common acquisition callback.
 
-    - `[ ]` **9.1.b `prompts/reconfigure-prompts.ts`**
-        - Three calls. The opening line and the team-mode warning still print only when interaction is allowed.
-        - `handleReconfigure` (`handlers/init.ts`) reaches the same resolver, whose forbidden branch answers from the
-          current configuration today; those current values become the reconfigure prompts' runtime defaults.
+    - `[x]` **9.1.c `prompts/join-prompts.ts` and `prompts/removal-prompts.ts`**
+        - Join passes its own tools site through the shared wrapper, replacing `semantic.tools`. Both removal
+          declarations use classification defaults through one resolver; presentation and spinner messages retain
+          their interactive gates. Join's callback runs in every context with current role/tools defaults.
 
-    - `[ ]` **9.1.c `prompts/join-prompts.ts` and `prompts/removal-prompts.ts`**
-        - One call and two calls.
-        - `runJoinPrompts` passes join's own tools site to `promptTools`. It replaces the `semantic.tools` declaration
-          in `commands/join-input.ts`, and `repository-inventory.test.ts`'s fixed list of semantic sites loses
-          `join:semantic.tools`.
-        - `resolveJoinCommandInput` calls its prompt callback in every context, and its forbidden-branch values (the
-          role `maintainer` or the current role, the current tools or `[]`) become the calls' runtime defaults.
-        - `handleReconfigure`'s `resolveRemovalsNonInteractive` branch goes: the bulk removal select's runtime default
-          is the classification defaults, the answer that branch gives today.
-        - Join's "Role: contributor (via --contributor flag)" line, the removal summary (`resolveRemovalsInteractive`),
-          and `handleReconfigure`'s "File changes detected." and "Applying changes..." spinner messages around it print
-          only when interaction is allowed, as they do today.
+- _Outcome:_ Every installer prompt now answers from declared policy instead of a forbidden-context value branch.
+  Existing cancellation/reporting contracts remain, and the shared tools wrapper preserves caller-owned sites.
+  Notes § Installer prompt migration retains the behavior proofs and the project-name drift correction.
 
 ### `[ ]` **9.2 Migrate the stub and work-class prompts — D7**
 

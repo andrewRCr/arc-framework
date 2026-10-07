@@ -1,7 +1,7 @@
 /**
  * Interactive prompts for `arc join`.
  *
- * Two-prompt sequence using @clack/prompts:
+ * Two declared questions:
  * 1. role — select between Team member (maintainer) and Contributor
  * 2. tools — autocomplete multiselect of AI development tools (shared with init)
  *
@@ -9,6 +9,10 @@
  */
 
 import * as p from "@clack/prompts";
+import { declarePromptSite } from "../lib/command-input/declaration.js";
+import { prompt } from "../lib/command-input/prompter.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
+
 import { promptTools } from "./init-prompts.js";
 import type { JoinPromptResult } from "../commands/join.js";
 
@@ -35,40 +39,34 @@ export interface JoinPromptOptions {
 /**
  * Run the interactive join prompt sequence.
  *
+ * @param context - Invocation interaction and authority
  * @param options - Optional overrides (e.g., --contributor flag)
  * @returns Prompt results, or `null` if the user cancelled
  */
 export async function runJoinPrompts(
-  options?: JoinPromptOptions,
+  context: InteractionContext,
+  options: JoinPromptOptions = {},
 ): Promise<JoinPromptResult | null> {
   const sentinel = Symbol("prompt-cancelled");
 
   try {
-    // 1. Role selection — skip if --contributor flag was passed
-    let role: string;
-    if (options?.suppliedRole !== undefined) {
-      role = options.suppliedRole;
-    } else if (options?.contributor) {
-      role = "contributor";
-      p.log.info("Role: contributor (via --contributor flag)");
-    } else {
-      const selected = await p.select({
-        message: "What's your role in this project?",
-        options: ROLE_OPTIONS,
-        initialValue: options?.currentRole ?? "maintainer",
-      });
-      if (p.isCancel(selected)) {
-        p.cancel("Setup cancelled.");
-        // eslint-disable-next-line @typescript-eslint/only-throw-error -- sentinel for clack cancellation flow
-        throw sentinel;
-      }
-      role = selected;
+    const answer = await prompt(joinRolePromptSite, context, {
+      message: "What's your role in this project?",
+      options: ROLE_OPTIONS,
+      initialValue: options.currentRole ?? "maintainer",
+      runtimeDefault: options.currentRole ?? "maintainer",
+      explicitAnswer: options.suppliedRole ?? (options.contributor ? "contributor" : undefined),
+    });
+    if (answer.kind !== "answered") {
+      p.cancel("Setup cancelled.");
+      return null;
     }
-
-    // 2. Tools selection (shared prompt, with current values as defaults for reconfigure)
-    const tools = options?.suppliedTools === undefined
-      ? await promptTools(sentinel, options?.currentTools)
-      : [...options.suppliedTools];
+    const role = answer.value;
+    if (context.interaction === "allowed" && options.contributor && options.suppliedRole === undefined) {
+      p.log.info("Role: contributor (via --contributor flag)");
+    }
+    const tools = await promptTools(joinToolsPromptSite, context, sentinel, options.currentTools ?? [],
+      options.suppliedTools === undefined ? undefined : [...options.suppliedTools]);
 
     return {
       role: role as "maintainer" | "contributor",
@@ -79,3 +77,37 @@ export async function runJoinPrompts(
     throw err;
   }
 }
+
+/** Declared acquisition policy for join role selection. */
+export const joinRolePromptSite = declarePromptSite("prompt.join.role", "select",
+  { file: "prompts/join-prompts.ts", symbol: "joinRolePromptSite" }, {
+    acquisition: "safe-default",
+    schemaOwnership: "owned",
+    schemaField: "role",
+    defaultSource: "current role or maintainer",
+    cancellation: "stop",
+    automation: {
+      noInput: "use-default",
+      flags: ["--contributor"],
+      acceptedSyntax: ["--contributor"]
+    },
+    mutationBoundary: "workspace role selection",
+    subprocess: "none"
+  });
+
+/** Declared acquisition policy for join tools selection. */
+export const joinToolsPromptSite = declarePromptSite("prompt.join.tools", "multiselect",
+  { file: "prompts/join-prompts.ts", symbol: "joinToolsPromptSite" }, {
+    acquisition: "safe-default",
+    schemaOwnership: "owned",
+    schemaField: "tools",
+    defaultSource: "empty or current tool list",
+    cancellation: "stop",
+    automation: {
+      noInput: "use-default",
+      flags: ["--tools"],
+      acceptedSyntax: ["--tools <list>"]
+    },
+    mutationBoundary: "workspace tool selection",
+    subprocess: "none"
+  });

@@ -1,8 +1,9 @@
 /** Canonical acquisition and schema contract for `arc init`. */
 
-import { basename } from "node:path";
-
 import { z } from "zod";
+import { initToolsPromptSite, initNamePromptSite, initPmPromptSite, initTeamPromptSite } from "../prompts/init-prompts.js";
+import { reconfigureNamePromptSite, reconfigurePmPromptSite, reconfigureTeamPromptSite } from "../prompts/reconfigure-prompts.js";
+import { bulkRemovalPromptSite, fileRemovalPromptSite } from "../prompts/removal-prompts.js";
 
 import { VALID_TOOL_IDS } from "../lib/skills/index.js";
 import { normalizeCommandIdentity } from "../lib/command-input/identity.js";
@@ -84,148 +85,15 @@ export const initCommandInputPolicyDeclarations = [{
       mutationBoundary: "installation identity resolution",
       subprocess: "none",
     },
-    {
-      id: "interaction.prompts-init-prompts.ts-prompt-p.autocompletemultiselect-1",
-      source: {
-        file: "prompts/init-prompts.ts",
-        interaction: { kind: "prompt", callee: "p.autocompleteMultiselect", occurrence: 1 },
-      },
-      origin: "declaration",
-      acquisition: "safe-default",
-      schemaOwnership: "owned",
-      schemaField: "tools",
-      defaultSource: "empty or current tool list",
-      cancellation: "stop",
-      automation: { noInput: "use-default", flags: ["--tools"], acceptedSyntax: ["--tools <list>"] },
-      mutationBoundary: "installation tool selection",
-      subprocess: "none",
-    },
-    {
-      id: "interaction.prompts-init-prompts.ts-prompt-p.text-1",
-      source: {
-        file: "prompts/init-prompts.ts",
-        interaction: { kind: "prompt", callee: "p.text", occurrence: 1 },
-      },
-      origin: "declaration",
-      acquisition: "safe-default",
-      schemaOwnership: "owned",
-      schemaField: "projectName",
-      defaultSource: "current directory name",
-      cancellation: "stop",
-      automation: { noInput: "use-default", flags: ["--name"], acceptedSyntax: ["--name <name>"] },
-      mutationBoundary: "installation project configuration",
-      subprocess: "none",
-    },
-    {
-      id: "interaction.prompts-init-prompts.ts-prompt-p.select-1",
-      source: {
-        file: "prompts/init-prompts.ts",
-        interaction: { kind: "prompt", callee: "p.select", occurrence: 1 },
-      },
-      origin: "declaration",
-      acquisition: "safe-default",
-      schemaOwnership: "owned",
-      schemaField: "pmMode",
-      defaultSource: "none",
-      cancellation: "stop",
-      automation: { noInput: "use-default", flags: ["--pm-mode"], acceptedSyntax: ["--pm-mode <mode>"] },
-      mutationBoundary: "installation project configuration",
-      subprocess: "none",
-    },
-    {
-      id: "interaction.prompts-init-prompts.ts-prompt-p.confirm-1",
-      source: {
-        file: "prompts/init-prompts.ts",
-        interaction: { kind: "prompt", callee: "p.confirm", occurrence: 1 },
-      },
-      origin: "declaration",
-      acquisition: "safe-default",
-      schemaOwnership: "owned",
-      schemaField: "teamMode",
-      defaultSource: "disabled",
-      cancellation: "stop",
-      automation: { noInput: "use-default", flags: ["--team"], acceptedSyntax: ["--team"] },
-      mutationBoundary: "installation project configuration",
-      subprocess: "none",
-    },
-    {
-      id: "interaction.prompts-reconfigure-prompts.ts-prompt-p.text-1",
-      source: {
-        file: "prompts/reconfigure-prompts.ts",
-        interaction: { kind: "prompt", callee: "p.text", occurrence: 1 },
-      },
-      origin: "declaration",
-      acquisition: "safe-default",
-      schemaOwnership: "owned",
-      schemaField: "projectName",
-      defaultSource: "current project name",
-      cancellation: "stop",
-      automation: { noInput: "use-default", flags: ["--name"], acceptedSyntax: ["--name <name>"] },
-      mutationBoundary: "reconfiguration project settings",
-      subprocess: "none",
-    },
-    {
-      id: "interaction.prompts-reconfigure-prompts.ts-prompt-p.select-1",
-      source: {
-        file: "prompts/reconfigure-prompts.ts",
-        interaction: { kind: "prompt", callee: "p.select", occurrence: 1 },
-      },
-      origin: "declaration",
-      acquisition: "safe-default",
-      schemaOwnership: "owned",
-      schemaField: "pmMode",
-      defaultSource: "current project-management mode",
-      cancellation: "stop",
-      automation: { noInput: "use-default", flags: ["--pm-mode"], acceptedSyntax: ["--pm-mode <mode>"] },
-      mutationBoundary: "reconfiguration project settings",
-      subprocess: "none",
-    },
-    {
-      id: "interaction.prompts-reconfigure-prompts.ts-prompt-p.confirm-1",
-      source: {
-        file: "prompts/reconfigure-prompts.ts",
-        interaction: { kind: "prompt", callee: "p.confirm", occurrence: 1 },
-      },
-      origin: "declaration",
-      acquisition: "safe-default",
-      schemaOwnership: "owned",
-      schemaField: "teamMode",
-      defaultSource: "current team mode",
-      cancellation: "stop",
-      automation: { noInput: "use-default", flags: ["--team"], acceptedSyntax: ["--team"] },
-      mutationBoundary: "reconfiguration project settings",
-      subprocess: "none",
-    },
-    {
-      id: "interaction.prompts-removal-prompts.ts-prompt-p.select-1",
-      source: {
-        file: "prompts/removal-prompts.ts",
-        interaction: { kind: "prompt", callee: "p.select", occurrence: 1 },
-      },
-      origin: "declaration",
-      acquisition: "safe-default",
-      schemaOwnership: "none",
-      defaultSource: "classification-derived bulk removal action",
-      cancellation: "stop",
-      automation: { noInput: "use-default", flags: [], acceptedSyntax: [] },
-      mutationBoundary: "reconfiguration removal plan",
-      subprocess: "none",
-    },
-    {
-      id: "interaction.prompts-removal-prompts.ts-prompt-p.select-2",
-      source: {
-        file: "prompts/removal-prompts.ts",
-        interaction: { kind: "prompt", callee: "p.select", occurrence: 2 },
-      },
-      origin: "declaration",
-      acquisition: "safe-default",
-      schemaOwnership: "none",
-      defaultSource: "classification-derived per-file removal action",
-      cancellation: "stop",
-      automation: { noInput: "use-default", flags: [], acceptedSyntax: [] },
-      mutationBoundary: "reconfiguration removal plan",
-      subprocess: "none",
-    },
+    initToolsPromptSite,
+    initNamePromptSite,
+    initPmPromptSite,
+    initTeamPromptSite,
+    reconfigureNamePromptSite,
+    reconfigurePmPromptSite,
+    reconfigureTeamPromptSite,
+    bulkRemovalPromptSite,
+    fileRemovalPromptSite,
   ],
 }] satisfies readonly CommandInputDeclaration[];
 
@@ -262,11 +130,6 @@ export async function resolveInitCommandInput(input: {
   readonly options: InitCommandOptions;
   readonly cwd: string;
   readonly context: { readonly interaction: "allowed" | "forbidden" };
-  readonly current?: {
-    readonly projectName: string;
-    readonly pmMode: string;
-    readonly teamMode: boolean;
-  };
   readonly prompt?: (
     supplied: Partial<InitAcquiredValues>,
   ) => Promise<InitAcquiredValues | null>;
@@ -286,25 +149,13 @@ export async function resolveInitCommandInput(input: {
     ...(input.options.pmMode === undefined ? {} : { pmMode: input.options.pmMode }),
     ...(input.options.team === undefined ? {} : { teamMode: input.options.team }),
   };
-  let acquired: InitAcquiredValues;
-  let source: "argument" | "prompt" | "default";
-  if (input.context.interaction === "allowed") {
-    if (input.prompt === undefined) {
-      return { kind: "unavailable", missing: [{ name: "interactive init values", acceptedSyntax: [] }] };
-    }
-    const prompted = await input.prompt(supplied);
-    if (prompted === null) return { kind: "cancelled" };
-    acquired = prompted;
-    source = "prompt";
-  } else {
-    acquired = {
-      projectName: supplied.projectName ?? input.current?.projectName ?? basename(input.cwd),
-      tools: supplied.tools ?? [],
-      pmMode: supplied.pmMode ?? input.current?.pmMode ?? "none",
-      teamMode: supplied.teamMode ?? input.current?.teamMode ?? false,
-    };
-    source = Object.keys(supplied).length > 0 ? "argument" : "default";
+  if (input.prompt === undefined) {
+    return { kind: "unavailable", missing: [{ name: "interactive init values", acceptedSyntax: [] }] };
   }
+  const acquired = await input.prompt(supplied);
+  if (acquired === null) return { kind: "cancelled" };
+  const source = input.context.interaction === "allowed" ? "prompt" as const
+    : Object.keys(supplied).length > 0 ? "argument" as const : "default" as const;
 
   const identity = reconfigure
     ? undefined

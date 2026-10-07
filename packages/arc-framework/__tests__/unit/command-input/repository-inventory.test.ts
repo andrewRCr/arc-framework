@@ -51,7 +51,6 @@ describe("repository command-input inventory", () => {
     );
     expect(declaredSemanticSites).toEqual([
       "join:semantic.identity",
-      "join:semantic.tools",
       "start:safety.indeterminate-lifecycle",
       "status:semantic.interaction-context",
     ]);

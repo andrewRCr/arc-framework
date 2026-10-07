@@ -48,7 +48,7 @@ export async function handleJoin(opts: JoinOptions, suppliedContext?: Interactio
   const input = await resolveJoinCommandInput({
     options: opts,
     context,
-    prompt: async (supplied) => runJoinPrompts({
+    prompt: async (supplied) => runJoinPrompts(context, {
       suppliedRole: supplied.role,
       suppliedTools: supplied.tools,
     }),
@@ -137,8 +137,7 @@ async function handleJoinReconfigure(opts: JoinOptions, context: InteractionCont
   const input = await resolveJoinCommandInput({
     options: opts,
     context,
-    current: { role: currentRole, tools: currentTools },
-    prompt: async (supplied) => runJoinPrompts({
+    prompt: async (supplied) => runJoinPrompts(context, {
       suppliedRole: supplied.role,
       suppliedTools: supplied.tools,
       currentRole,
