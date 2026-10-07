@@ -2,7 +2,7 @@
 import type { BuildEvidence } from "./build-evidence.js";
 import { createHash } from "node:crypto";
 import { lstatSync, readFileSync, readlinkSync, readdirSync, realpathSync, statSync } from "node:fs";
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
 
 /** Entry inventory, broad baseline contents, and selective shared resolver identity. */
 export interface BuildInventory {
@@ -29,11 +29,24 @@ export function captureBuildInventory(
     if (!isContained(root, directory)) throw new Error(`Build inventory root ${key} escapes the checkout.`);
     walkInventory(state, directory, new Set());
   }
-  const entries = [...state.entries.values()].sort((a, b) => a.path.localeCompare(b.path));
+  const entries = retainInputDirectories([...state.entries.values()]).sort((a, b) => a.path.localeCompare(b.path));
   const manifests = Object.entries(state.contents).filter(([key]) => basename(key) === "package.json")
     .sort(([a], [b]) => a.localeCompare(b));
   return { entries, contents: state.contents,
     identity: createHash("sha256").update(JSON.stringify({ entries, manifests })).digest("hex") };
+}
+
+/** Keep directory membership only when it supports an inventoried file or link. */
+function retainInputDirectories(entries: BuildEvidence["inventory"]): BuildEvidence["inventory"] {
+  const parents = new Set<string>();
+  for (const entry of entries) {
+    if (entry.kind === "directory") continue;
+    for (let parent = posix.dirname(entry.path); !parents.has(parent); parent = posix.dirname(parent)) {
+      parents.add(parent);
+      if (parent === ".") break;
+    }
+  }
+  return entries.filter((entry) => entry.kind !== "directory" || parents.has(entry.path));
 }
 
 interface InventoryState {
