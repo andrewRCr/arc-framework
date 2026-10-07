@@ -15,6 +15,8 @@ import ts from "typescript";
 
 import { loadRepositoryCommandInputSnapshot } from "../../src/lib/command-input/repository-inventory.js";
 
+const REPOSITORY_SCAN_TIMEOUT_MS = 30_000;
+
 const root = resolve(import.meta.dirname, "../../../..");
 const sourceRoot = resolve(root, "packages/arc-framework/src");
 
@@ -186,7 +188,7 @@ describe("documented command surface", () => {
     declaresJson = new Set(snapshot.source.commands
       .filter((command) => command.options.some((option) => option.flags.split(/[ ,|]+/u).includes("--json")))
       .map((command) => command.path));
-  });
+  }, REPOSITORY_SCAN_TIMEOUT_MS);
 
   it.each(REFERENCES)("publishes only registered commands in the $label quick reference", async ({ path }) => {
     const invocations = documentedInvocations(await readFile(path, "utf8"));

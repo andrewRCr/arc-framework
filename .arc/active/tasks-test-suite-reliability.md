@@ -977,13 +977,13 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
   edges and omit unrelated/transient files. The installed compiler, controller and artifact-recovery proofs retain
   their outcomes; copy/inventory calibration and native proof evidence are recorded in `notes-test-suite-reliability.md`.
 
-### `[ ]` **10.R2 Size the observed repository-inventory deadlines**
+### `[x]` **10.R2 Size the observed repository-inventory deadlines**
 
 - _Goal:_ The one-shot inventory-output case and documentation setup complete their real repository scan under the
   routine lane's concurrency, preserving listener, output, documentation and reconciliation assertions.
 
-    - Use a named case/hook deadline for these two measured scans; retain all other process deadlines and tier
-      defaults. The failed closing lane capture remains recorded, and its result does not enter a success median.
+- _Outcome:_ Only the measured repository inventory case and documentation setup use named 30 s deadlines;
+  listener/output/reconciliation assertions and all tier defaults remain intact. Both scans complete in the routine lane.
 
 ### `[ ]` **10.R3 Isolate fixture worker controls from the parent run**
 
