@@ -3246,3 +3246,54 @@ recorded under Layout trial remains an operational follow-up at integration, not
 Integration readiness here means execution verified for Candidate preparation. Independent review, publication,
 host admission and explicit exact-head integration authorization are still required. Verification grants no merge
 authority and is not a satisfying independent-review result.
+
+## Amendment A16: review-correction confirmation
+
+The approved six-finding review response changes Linux guard/scanner behavior and the native refusal fixture, so
+A15's unchanged-Linux exception cannot describe this correction. The design arm is limited to closing evidence,
+with low derivation depth: retain measured historical improvements and confirm the corrected workload once.
+Superseded closing-measurement text:
+
+> **Windows fixture continuation (A15).** The Linux closing observations and recording-head unit headroom remain
+> valid through platform-native fixture corrections and Windows-only failure diagnostics. Preserve their exact heads
+> and outcomes; Linux workload, assertions, deadlines, shard layout and worker policy remain unchanged. A failed
+> Windows leg is never counted as a portability pass. Repair the actual Windows fixture failure and confirm both
+> portability legs with current native assertions; a further full-suite dispatch may also confirm unchanged Linux
+> outcomes, but does not restart the five-run cost sample or twelve local captures.
+
+The twelve local captures and five first-attempt hosted passes at `9b3856d4d`, original headroom violation,
+recording-head witness at `f0285502c` and pre-review portability run 37686035937 at `a916d0e1a` remain historical
+exact-head evidence. They do not measure the corrected workload. Acceptance bars, medians, fourteen budgets,
+worker/shard policy, budget formulas and deadlines remain unchanged. A16 appends spec criterion 24 and task
+criterion 32; the original criterion 23/31 text remains intact and is superseded. Current local gates and the
+single corrected-head hosted confirmation remain pending until their actual results are recorded.
+
+### Approved review corrections
+
+Complete disposition set: `sha256:3ec1dd18e899c16498b710693f696b86cbc794f3079ff8139a91df652579e7ae`.
+All six findings were approved FIX with full verification; one incremental local delegated standard pass 2 was
+separately authorized. No hosted review or repeat five-run/twelve-capture measurement batch is authorized here.
+
+- `cc0f52386`: explicit tools arguments preserve note/Selected presentation; four initial regression failures,
+  then all sixteen presentation cases pass.
+- `410c049b6`: missing fixture-local origin removes DNS/proxy timing; all 81 native no-input cases pass with
+  existing diagnostics and repository-preservation assertions.
+- `25ca8079a`: actual ESLint rejects dynamic Clack imports outside both owners; two initial failures, then 97
+  selected config/lint cases pass, including exceptions and overlapping architecture restrictions.
+- `e17055960`: namespace discovery and concrete declaration provenance close inventory gaps; five initial
+  failures, then all 128 selected command-input cases pass, preserving aliases, wrappers and shared commands.
+- `21530ff27`: native runner finalization covers returned beforeAll cleanups, file fixtures, aroundAll and
+  afterAll. All six new native regression cases fail before correction and pass afterward across both unit
+  projects and list/stack/parallel hook ordering; fifteen selected guard cases pass, including existing esbuild
+  service ownership. Final metadata is published before native task updates flush.
+
+Each correction passed targeted TypeScript lint and both whole-program type checks, then normal commit hooks.
+
+### Corrected implementation local gates
+
+At code head `21530ff27`, full Markdown lint, all three ARC contract checks, whole-package TypeScript lint,
+shell checks, both whole-program type checks, the ordinary routine lane and full declaration build pass. The
+routine lane completes 1,121 passing files and 16,757 passing cases, with one file and 1,188 cases intentionally
+skipped, in 226.66 seconds using the unchanged local worker policy. Build artifacts qualify. Hosted confirmation
+and task criterion 32 remain pending. Targeted logs and full gate output are retained under
+`/tmp/arc-test-suite-review`; this local result supplies no independent review conclusion.

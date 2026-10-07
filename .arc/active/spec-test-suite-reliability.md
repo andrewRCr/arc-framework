@@ -694,12 +694,19 @@ Use their unchanged medians for every cost bar and budget row. One full-suite di
 combines correction confirmation, current unit half-timeout headroom, budget confirmation and the Windows/macOS
 portability pair. Any change to work, assertions, other deadlines or scheduling lies outside this bounded exception.
 
-**Windows fixture continuation (A15).** The Linux closing observations and recording-head unit headroom remain
-valid through platform-native fixture corrections and Windows-only failure diagnostics. Preserve their exact heads
-and outcomes; Linux workload, assertions, deadlines, shard layout and worker policy remain unchanged. A failed
-Windows leg is never counted as a portability pass. Repair the actual Windows fixture failure and confirm both
-portability legs with current native assertions; a further full-suite dispatch may also confirm unchanged Linux
-outcomes, but does not restart the five-run cost sample or twelve local captures.
+**Review-correction continuation (A16).** Preserve the twelve local captures and five first-attempt full-suite
+hosted passes at `9b3856d4d` as historical cost and reliability evidence for that measured implementation. Preserve
+its fifth-run headroom violation, the `f0285502c` recording-head unit headroom witness and the pre-review native
+Windows/macOS confirmation at `a916d0e1a`, with their exact heads and outcomes. Review corrections may finalize unit
+launch accounting after file teardown, close prompt namespace/declaration-identity discovery and dynamic Clack
+confinement, restore explicit-tools presentation, and isolate the native upstream-refusal fixture from networking.
+These corrections change the measured workload; older captures must not be presented as measurements of the revised
+implementation. Retain their cost medians, acceptance bars and fourteen budget rows without restarting the five-run
+hosted sample or twelve local captures. Require focused regression proofs, all ordinary full local quality gates,
+and one first-attempt full-suite hosted dispatch including Windows/macOS portability, current unit zero-spawn and
+half-timeout reports, and budget confirmation. Record every failure explicitly and route its actual cause. A
+material regression in cost, scheduling or reliability reopens only the evidence it affects; worker sizing, shard
+layout, budget formulas and existing deadlines remain unchanged.
 
 ### Delivery and boundary
 
@@ -889,6 +896,13 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
     unchanged. Both Windows/macOS portability legs must pass current native assertions; the failed Windows attempt
     remains recorded and never substitutes for that proof.
 
+24. **Review-correction confirmation (A16; supersedes criterion 23).** Retain exact-head historical measurements,
+    their explicit failures and the unchanged acceptance bars and fourteen budgets without claiming that old
+    captures measure the revised workload. Focused enforcement, presentation and native-fixture regression proofs,
+    ordinary full local quality gates, and one current first-attempt full-suite hosted dispatch including both
+    Windows/macOS legs pass. Retain current unit zero-spawn and half-timeout reports; any material regression
+    reopens only the evidence it affects, without restarting five hosted samples or twelve local captures.
+
 ## Open Questions
 
 - **Calibration of the native-tooling cut.** The 55–60% projection comes from a per-file read, not a prototype; the
@@ -945,3 +959,6 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
 
 - **A15** — 2026-10-07 — design: preserve Linux evidence through Windows fixture repair. _Supersedes:_ criterion 22.
   _Trigger:_ 10.1 must-stop. _Work:_ 10.R13. _Revalidated:_ 10.1.b.
+
+- **A16** — 2026-10-07 — design: bounded review confirmation. _Supersedes:_ § Closing measurement A15; criterion 23.
+  _Trigger:_ SR-AGG-001-unit-final-teardown review. _Work:_ review-fix. _Revalidated:_ review-fix.

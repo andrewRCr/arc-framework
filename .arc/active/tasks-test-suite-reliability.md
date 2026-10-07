@@ -1251,8 +1251,17 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
     - **Superseded:** A15 replaces the deadline-only continuation with criterion 31 after native Windows fixture
       failures.
 
-- `[x]` A15 preserves prior Linux cost observations and the `f0285502c` recording-head unit reports with all
+- `[~]` A15 preserves prior Linux cost observations and the `f0285502c` recording-head unit reports with all
   13,695 completed cases below half their effective timeouts. Only platform-native fixture representation,
   Windows-only failure diagnostics and the source-grounded Windows fixture repair may follow without replacing
   Linux samples; both current Windows/macOS portability legs pass native assertions and the failed attempt stays
   recorded (supersedes A14's deadline-only confirmation criterion).
+
+    - **Superseded:** A16 permits the approved review corrections while retaining exact-head historical evidence.
+
+- `[ ]` A16 retains exact-head historical measurements, their explicit failures and unchanged acceptance bars and
+  fourteen budgets without claiming that old captures measure the revised workload. Focused enforcement,
+  presentation and native-fixture regression proofs, ordinary full local quality gates, and one current
+  first-attempt full-suite hosted dispatch including both Windows/macOS legs pass. Current unit zero-spawn and
+  half-timeout reports are retained; a material regression reopens only affected evidence without restarting
+  five hosted samples or twelve local captures (supersedes A15's unchanged-Linux confirmation criterion).
