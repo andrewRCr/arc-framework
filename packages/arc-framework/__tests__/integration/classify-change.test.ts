@@ -1189,9 +1189,12 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
   /** Heavy check-run display names — must mirror HEAVY_CHECK_NAMES in classify-change.sh. */
   const HEAVY_CHECKS = [
     "Lint & Typecheck",
-    "Unit Tests",
+    "Unit Tests (1)",
+    "Unit Tests (2)",
     "Integration Tests (1)",
     "Integration Tests (2)",
+    "Integration Tests (3)",
+    "Integration Tests (4)",
     "E2E Tests (1)",
     "E2E Tests (2)",
     "E2E Tests (3)",

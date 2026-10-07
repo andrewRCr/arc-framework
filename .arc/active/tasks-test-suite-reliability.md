@@ -682,62 +682,41 @@ and a test proves an `over` budget reading emits a `::warning` annotation naming
           reports; ordinary jobs use the opposite gate. Portability conditions remain intact.
             - _Retired in:_ Phase 7
 
-### `[ ]` **7.4 Run the source runs and record the verdict — D5**
+### `[x]` **7.4 Run the source runs and record the verdict — D5**
 
 - _Goal:_ The layout that lands, or none, is chosen by the adoption bar on hosted evidence, with every counted run,
   source, and verdict recorded.
 
-    - `[ ]` **7.4.a Source runs**
-        - At least two counted runs per source, dispatched one at a time, at the head that carries the trial's
-          wiring. Between it and the
-          reference head, only the sequencer, its data, and the workflow change.
-        - A source clears the bar when every counted run that uses it finishes at least 10% below the reference. A
-          run's duration for the bar ends when its last job other than the merge-and-save job finishes.
-        - A cache run that restored no saved file seeds the cache and does not count.
-        - In each counted run, no integration shard is the last test job to finish. If one is, the trial adds an
-          integration shard and that source's runs start over.
-        - Pushes these runs need are approved with this task list and take no separate approval.
+    - `[x]` **7.4.a Source runs**
+        - Four sequential counted dispatches at `8c3404c11` finish below the measured adoption ceiling;
+          both cache runs restore a saved input and every last test job is E2E. Raw evidence retains each run.
 
-    - `[ ]` **7.4.b The verdict**
-        - If both sources clear, the cache wins unless the hand-kept list's median run duration is more than 10%
-          below the cache's. If one clears, it wins. If neither clears, no layout change lands.
-        - `notes-test-suite-reliability.md` § Layout trial records the runs, their sources, their durations, and the
-          verdict.
+    - `[x]` **7.4.b The verdict**
+        - Both sources clear. Cache wins the specified median comparison; Notes § Counted source runs and adoption
+          retains the exact heads, timings, cache keys, critical paths and verdict.
 
-### `[ ]` **7.5 Land the winning layout, or none — D5**
+### `[x]` **7.5 Land the winning layout, or none — D5**
 
 - _Goal:_ Only the winning duration source remains, with the anchors, every reader of them, and the classifier's
   check list replaced; or, when neither cleared, the current layout, anchors, and single unit job stand with no
   sequencer.
 
-    - `[ ]` **7.5.a Replace the anchors and their readers**
-        - When a source won: the balanced layout replaces the anchor matrix and the current jobs in `ci.yml`, and
-          `ci_ok`'s `needs` follows the job IDs.
-        - `parseWorkflowE2EAnchors`, `parseWorkflowE2EExclusions`, and `validateE2EShardMembership`
-          (`src/lib/test-cost/shards.ts`) and their tests in `test-cost-shards.test.ts` are replaced.
-        - `deriveEffectiveE2EShards` (`shard-run.ts`) computes membership from the same duration input CI uses, for
-          `benchmark:test-cost:shards`; for the cache, that is a run's handed file, passed as an argument.
-          `test-cost-shard-run.test.ts` follows.
-        - The adopted layout's shard matrices are literal, so `workflowHeavyCheckNames` expands them, and
-          `HEAVY_CHECK_NAMES` (`scripts/classify-change.sh`) and its copy in `classify-change.test.ts` name every
-          leg.
-        - The anchor step assertions in `review-gate-workflows.test.ts` are replaced.
+    - `[x]` **7.5.a Replace the anchors and their readers**
+        - Canonical jobs use literal balanced matrices: two unit, four integration and four E2E legs.
+          Native collection uses the handed duration file; partition readers, workflow contracts and classifier
+          check names follow the matrices, with `ci_ok` retaining the canonical job IDs.
 
-    - `[ ]` **7.5.b Remove the losing source and the selector**
-        - Either way, the sequencer then registers on every run.
-        - If the cache won, the hand-kept list and the selector go. The weekly scheduled run widens from
-          portability alone to every test tier and becomes the cache's standing writer beside `workflow_dispatch`:
-          `setup`'s and `unit`'s `github.event_name != 'schedule'` and the pull-request-or-dispatch condition on
-          `integration` and `e2e` admit it, and the `unitCondition` and `broadSuiteCondition` assertions in
-          `review-gate-workflows.test.ts` follow.
-        - If the hand-kept list won, the cache's restore, results-directory removal, upload, merge, and save steps and
-          the selector go, and the restore and handoff leave `workflowHeavyCheckNames`'s admitted setup steps.
-        - _Note:_ When the cache won, pull request runs restore nothing until a writer run on `main` saves a file;
-          one `workflow_dispatch` on `main` right after the merge seeds it.
+    - `[x]` **7.5.b Remove the losing source and the selector**
+        - The unconditional sequencer reads only the handed native cache and measured project fallback weights.
+          Dispatch and weekly schedules write complete tier caches; pull requests only consume shared inputs.
+          The hand-kept list, source selector and trial jobs are removed.
 
-    - `[ ]` **7.5.c Remove the trial when neither source won**
-        - The sequencer, both sources, the selector, and the trial jobs go, the cache's steps leaving
-          `workflowHeavyCheckNames`'s admitted setup steps; the anchors, their readers, and the single unit job stay.
+    - `[~]` **7.5.c Remove the trial when neither source won**
+        - Inapplicable because the cache source won; the balanced layout remains.
+
+- _Outcome:_ The adopted collector exactly reproduces all four hosted E2E memberships from the winning run's
+  handed file. Writer triggers admit every tier even for a light classification; after merge, one dispatch on `main`
+  seeds its pull-request cache. Notes § Counted source runs and adoption retains the evidence and trigger adjustment.
 
 ### `[x]` **7.6 Annotate budget overage on the pull request's checks — D5**
 

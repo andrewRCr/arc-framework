@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { BaseSequencer, type TestSpecification, type Vitest } from "vitest/node";
 import { z } from "zod";
-import { HAND_KEPT_DURATIONS, PROJECT_DURATION_ESTIMATES } from "./heavy-first-durations.js";
+import { PROJECT_DURATION_ESTIMATES } from "./heavy-first-durations.js";
 
 const packageRoot = fileURLToPath(new URL("../..", import.meta.url));
 
@@ -52,10 +52,7 @@ export function readResultsDurations(content: string): ReadonlyMap<string, unkno
 }
 
 function loadDurationSource(env: NodeJS.ProcessEnv): DurationSource {
-  if (env.ARC_TEST_DURATION_SOURCE !== "results-cache") {
-    return { recorded: new Map(Object.entries(HAND_KEPT_DURATIONS)), estimates: PROJECT_DURATION_ESTIMATES };
-  }
-  if (!env.ARC_TEST_DURATION_FILE) throw new Error("Results-cache duration source requires ARC_TEST_DURATION_FILE.");
+  if (!env.ARC_TEST_DURATION_FILE) return { recorded: new Map(), estimates: PROJECT_DURATION_ESTIMATES };
   return { recorded: readResultsDurations(readFileSync(env.ARC_TEST_DURATION_FILE, "utf8")), estimates: PROJECT_DURATION_ESTIMATES };
 }
 
@@ -84,16 +81,6 @@ export function assignDurationShards<T>(files: readonly T[], count: number, sour
   }
   return shards;
 }
-
-/** Package-relative files to start first, slowest first, as measured on a 4-vCPU hosted CI runner. */
-export const HEAVY_FIRST_FILES = [
-  "__tests__/e2e/candidate-lineage.e2e.test.ts",
-  "__tests__/e2e/publication-spine.e2e.test.ts",
-  "__tests__/e2e/errand.e2e.test.ts",
-  "__tests__/e2e/command-input-no-input.e2e.test.ts",
-  "__tests__/e2e/lifecycle-exit.e2e.test.ts",
-  "__tests__/e2e/integrate-base-movement.e2e.test.ts",
-] as const;
 
 /** Assign and start files from one immutable duration source per native controller. */
 export class HeavyFirstSequencer extends BaseSequencer {

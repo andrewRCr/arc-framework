@@ -1,9 +1,8 @@
 /** Duration-weighted assignment partitions discovery independently of input order. */
 import { expect, it } from "vitest";
-import { existsSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { TestSpecification, Vitest } from "vitest/node";
-import { assignDurationShards, sortDurationFiles, readResultsDurations, HEAVY_FIRST_FILES, HeavyFirstSequencer } from "../helpers/heavy-first-sequencer.js";
+import { assignDurationShards, sortDurationFiles, readResultsDurations, HeavyFirstSequencer } from "../helpers/heavy-first-sequencer.js";
 
 const identify = (entry: { project: string; file: string }) => entry;
 it("orders equal weights by project and path independently of discovery order", () => {
@@ -42,9 +41,7 @@ it("keeps native base ordering for unrecorded files after recorded files", async
     .toEqual(["heavy.test.ts", "unknown-large.test.ts", "small.test.ts"]);
 });
 
-it("lists only files that exist", () => {
-  for (const file of HEAVY_FIRST_FILES) expect(existsSync(join(packageRoot, file)), file).toBe(true);
-});
+
 
 it("fills the least-loaded shard and partitions every file exactly once", () => {
   const files = [3, 6, 9, 4, 8, 5, 7].map((duration) => ({ project: "unit", file: `${duration}.ts` }));

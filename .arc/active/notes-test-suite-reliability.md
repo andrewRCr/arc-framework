@@ -1554,6 +1554,50 @@ comparison decides whether any of this layout remains. Deferred review now cover
 needed pushes and hosted runs preapproved; phase 11 remains outside that scope. Intent-preserving adjustments are
 recorded here and in task outcomes rather than introducing additional approval stops.
 
+### Counted source runs and adoption
+
+The immutable trial head is `8c3404c115f832d3872747ff02012423855a6797`. Four dispatches run sequentially with
+portability pairing off. All finish successfully at that exact head, below the 467.1-second ceiling, and no integration
+shard finishes last among test jobs. Durations end at the last non-merge job, using complete API job timestamps.
+
+| Source         | Run         | Duration (s) | Last test job       | Restored duration key                |
+| -------------- | ----------- | ------------ | ------------------- | ------------------------------------ |
+| Hand-kept list | 37600975918 | 367          | E2E Trial Tests (1) | —                                    |
+| Hand-kept list | 37601774469 | 336          | E2E Trial Tests (4) | —                                    |
+| Results cache  | 37602468936 | 301          | E2E Trial Tests (1) | arc-test-durations-Linux-37601774469 |
+| Results cache  | 37603107755 | 399          | E2E Trial Tests (1) | arc-test-durations-Linux-37602468936 |
+
+Both cache runs restore saved inputs and count; neither is a seed-only run. The hand-kept median is **351.5 seconds**,
+the cache median **350 seconds**. Both sources clear, and the hand-kept list is not more than 10% faster, so **cache
+wins**. Raw run/job/log data, per-shard unit artifacts and observations remain under `.test-cost-runs/layout-trial/` in
+source-and-run-ID directories. `layout-trial/verdict.json` retains the derivation; `/tmp/arc-duration-trials.log` retains
+the coordinator output. Independent budget and prompter implementation stayed unpushed until this comparison ended.
+
+The winning layout replaces the canonical jobs with literal two-unit/four-integration/four-E2E matrices. Every shard
+reads one handed artifact outside its cleared native results directory. Successful dispatch/schedule writers merge all
+tiers and save a unique cache key; pull requests never write. The source selector, trial jobs, heavy-file list and
+anchor/exclusion readers are removed. With no handed file, local runs use measured project fallback weights. Writer
+triggers also override light classification for unit jobs, ensuring a complete cache; this intent-preserving adjustment
+keeps dispatch/schedule writers coherent. After merge, one `main` dispatch must seed the cache visible to pull requests.
+
+Native collection with `results-cache-2-37603107755/duration-input/e2e.json` produces disjoint memberships of
+16, 17, 17 and 17 files, whose union is all 67 E2E files. Every leg exactly matches that run's hosted file log.
+`/tmp/arc-adopted-native-membership.log` retains native JSON. The first comparison script stripped only real ANSI bytes;
+correcting it to also strip the log's literal `^[[` encoding resolves the capture mismatch without rerunning tests.
+
+Partition/parser, native-collector and adopted-workflow behaviors first fail in
+`/tmp/arc-balanced-membership-red.log`, `/tmp/arc-balanced-collector-red.log` and
+`/tmp/arc-adopted-workflow-red.log`. Corrected focused unit checks pass 19 cases and workflow/classifier checks pass
+198 cases. The type gate identified array table rows being spread into callback arguments; wrapping each row in an
+object fixes the fixture shape. The corrected ten partition cases pass in
+`/tmp/arc-adopted-membership-final-green.log`; earlier wrong-shape successes are not partition proof.
+
+The coherent adoption passes 1,116 routine files and 16,688 cases, with one file and 1,188 cases skipped
+(`/tmp/arc-adopted-routine.log`, 201.54 s). Full typed lint, both type programs and changed shell checks pass, with logs
+`/tmp/arc-adopted-full-lint.log`, `/tmp/arc-adopted-types-corrected.log` and `/tmp/arc-adopted-shell.log`.
+The full declaration build qualifies (`/tmp/arc-adopted-full-build.log`); Markdown and all ARC contracts pass
+after mechanically aligning the recorded timing table. Runtime checks remain valid after the comment-only header fix.
+
 ### Budget annotation evidence
 
 The independent budget annotation change is prepared while the source-run sequence stays on the published trial head;

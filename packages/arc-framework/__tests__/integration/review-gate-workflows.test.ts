@@ -116,7 +116,7 @@ describe("trusted review-gate workflows", () => {
   it("times each CI test job and reports its advisory budget after the tests", async () => {
     const workflow = await read("ci.yml");
     const jobs = [
-      ["unit", "unit", "unit", "unit"],
+      ["unit", "unit", "unit", "unit-${{ matrix.shard }}"],
       ["integration", "integration", "integration", "integration-${{ matrix.shard }}"],
       ["e2e", "e2e", "e2e", "e2e-${{ matrix.shard }}"],
     ] as const;
@@ -146,11 +146,11 @@ describe("trusted review-gate workflows", () => {
     expect(test?.run).toContain("--reporter=github-actions");
     expect(test?.run).toContain("--reporter=json");
     expect(test?.run).toContain("--outputFile=unit-test-report.json");
-    const upload = steps.at(-2);
+    const upload = steps.find((step) => step.name === "Upload unit test report");
     expect(upload?.uses).toMatch(/^actions\/upload-artifact@/u);
     expect(upload?.if).toBe("${{ !cancelled() }}");
     expect(upload?.with).toMatchObject({
-      name: "unit-test-report",
+      name: "unit-test-report-${{ matrix.shard }}",
       path: "packages/arc-framework/unit-test-report.json",
       "if-no-files-found": "error",
     });
@@ -160,44 +160,21 @@ describe("trusted review-gate workflows", () => {
   it("runs four E2E shards with a denominator derived from the matrix", async () => {
     const workflow = await read("ci.yml");
     const e2e = jobValue(workflow, "e2e");
-    const anchors = [
-      "errand.e2e.test.ts",
-      "candidate-lineage.e2e.test.ts",
-      "command-input-no-input.e2e.test.ts",
-      "lifecycle-exit.e2e.test.ts",
-    ];
-
     expect(e2e.name).toBe("E2E Tests (${{ matrix.shard }})");
-    expect(e2e.strategy).toMatchObject({
-      "fail-fast": false,
-      matrix: {
-        shard: [1, 2, 3, 4],
-        include: anchors.map((anchor, index) => ({ shard: index + 1, anchor })),
-      },
-    });
-
-    const steps = e2e.steps;
-    expect(Array.isArray(steps)).toBe(true);
-    const anchorStep = (steps as Array<Record<string, unknown>>).find((step) => step.name === "Run E2E anchor");
-    expect(anchorStep?.run).toBe(
-      "npm run test:e2e -w packages/arc-framework -- __tests__/e2e/${{ matrix.anchor }} --passWithNoTests=false",
-    );
-
-    const remainderStep = (steps as Array<Record<string, unknown>>)
-      .find((step) => step.name === "Run E2E remainder shard");
-    expect(remainderStep?.run).toContain("--shard=${{ matrix.shard }}/${{ strategy.job-total }}");
-    for (const anchor of anchors) {
-      expect(remainderStep?.run).toContain(`--exclude='**/${anchor}'`);
-      await expect(readRepositoryFile(`packages/arc-framework/__tests__/e2e/${anchor}`)).resolves.toBeTruthy();
-    }
+    expect(e2e.strategy).toEqual({ "fail-fast": false, matrix: { shard: [1, 2, 3, 4] } });
+    const steps = e2e.steps as Array<Record<string, unknown>>;
+    const runs = steps.map((step) => step.run)
+      .filter((run): run is string => typeof run === "string" && run.includes("npm run test:e2e"));
+    expect(runs).toEqual(["npm run test:e2e -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}"]);
+    expect(steps.some((step) => typeof step.run === "string" && step.run.includes("--exclude"))).toBe(false);
   });
 
-  it("runs two integration shards with a denominator derived from the matrix", async () => {
+  it("runs four integration shards with a denominator derived from the matrix", async () => {
     const workflow = await read("ci.yml");
     const integration = jobValue(workflow, "integration");
 
     expect(integration.name).toBe("Integration Tests (${{ matrix.shard }})");
-    expect(integration.strategy).toEqual({ "fail-fast": false, matrix: { shard: [1, 2] } });
+    expect(integration.strategy).toEqual({ "fail-fast": false, matrix: { shard: [1, 2, 3, 4] } });
 
     const steps = integration.steps;
     expect(Array.isArray(steps)).toBe(true);
@@ -332,21 +309,15 @@ describe("trusted review-gate workflows", () => {
       .filter((step) => step.run === "npm run test:arc-contracts");
     expect(focused).toEqual([{ if: "${{ needs.classify.outputs.weight == 'light' }}", run: "npm run test:arc-contracts" }]);
 
-    const unitCondition = "${{ !cancelled() && github.event_name != 'schedule' && " +
-      "needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && " +
-      "needs.classify.outputs.weight != 'light' && needs.setup.result == 'success' " +
-      "&& !(github.event_name == 'workflow_dispatch' && inputs.duration_source != 'none') }}";
+    const unitCondition = "${{ !cancelled() && needs.classify.result == 'success' && " +
+      "needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || " +
+      "github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && needs.setup.result == 'success' }}";
     expect(jobValue(workflow, "unit").if).toBe(unitCondition);
-
     const broadSuiteCondition = "${{ !cancelled() && needs.setup.result == 'success' && " +
-      "((github.event_name == 'pull_request' && " +
-      "needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || " +
-      "github.event_name == 'workflow_dispatch') }}";
-    for (const jobName of ["integration", "e2e"]) {
-      expect(jobValue(workflow, jobName).if).toBe(broadSuiteCondition.replace(" }}",
-        " && !(github.event_name == 'workflow_dispatch' && inputs.duration_source != 'none') }}"));
-    }
-    expect(jobValue(workflow, "portability").if).toBe(broadSuiteCondition);
+      "((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && " +
+      "needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}";
+    for (const jobName of ["integration", "e2e"]) expect(jobValue(workflow, jobName).if).toBe(broadSuiteCondition);
+    expect(jobValue(workflow, "portability").if).toBe(broadSuiteCondition.replace(" || github.event_name == 'schedule'", ""));
   });
 
   it("parses every workflow and pins every external action", async () => {

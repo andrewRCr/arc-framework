@@ -57,8 +57,7 @@ const maxWorkers = resolveVitestMaxWorkers(process.env);
 // import-cost win without their hoisted mocks leaking across file boundaries.
 export default defineConfig({
   test: {
-    ...(["hand-kept-list", "results-cache"].includes(process.env.ARC_TEST_DURATION_SOURCE ?? "")
-      ? { sequence: { sequencer: HeavyFirstSequencer } } : {}),
+    sequence: { sequencer: HeavyFirstSequencer },
     ...(maxWorkers === undefined ? {} : { maxWorkers }),
     projects: [
       {

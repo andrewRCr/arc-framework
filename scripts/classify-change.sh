@@ -40,9 +40,12 @@ readonly ARC_PLANNING_CLI="${ARC_PLANNING_CLI:-}"
 # defeats reuse, while an omitted new leg could wrongly skip verification.
 readonly HEAVY_CHECK_NAMES=(
   "Lint & Typecheck"
-  "Unit Tests"
+  "Unit Tests (1)"
+  "Unit Tests (2)"
   "Integration Tests (1)"
   "Integration Tests (2)"
+  "Integration Tests (3)"
+  "Integration Tests (4)"
   "E2E Tests (1)"
   "E2E Tests (2)"
   "E2E Tests (3)"
