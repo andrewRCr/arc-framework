@@ -388,11 +388,38 @@ recorded.
   synchronization checks survive; historical vocabulary/prose pins are removed. The same rule removes the
   inventoried `core/ports` retired-interface pin. Notes § Change-detector dispositions records each verdict.
 
+### `[ ]` **4.R Provide faithful binding-aware and filename-relative lint predicates — A3**
+
+- _Goal:_ A3's local ESLint rule can enforce existing one-hop boundaries using each module's parsed syntax,
+  filename, and binding/resolution data, with equivalent native forbidden/allowed proofs before case deletion.
+
+    - `[ ]` **4.R.a Define the local rule and its composed policy contract**
+        - Register a local rule accepting unique predicate IDs; Task 4.3.b supplies the matching-row union.
+          Unknown IDs refuse configuration. Keep simple bans in the built-in rules; consume the linter's parsed
+          module instead of reparsing or walking source trees. Preserve each existing source-extension scope.
+          Preserve existing lexical/TypeScript resolution
+          and type-only/eager semantics; retain resolver-dependent residual checks until equivalence is proved.
+
+    - `[ ]` **4.R.b Prove loader-binding and relative-target fidelity**
+        - Build `test-first` through native ESLint on one shared fixture:
+            - Every existing alias/returned-loader/inline-factory reference refuses the forbidden package.
+            - An unrelated call with that package string remains allowed; the permitted Result seam remains allowed.
+            - Forbidden relative targets refuse at different filename depths; valid nested imports remain allowed.
+            - Store privacy preserves its type-only/eager exceptions and permitted factory seam.
+        - The original one-hop migration uses these predicates as rows in the same table; native per-row proofs
+          and resolved configuration overlap checks remain required before source-scan cases are deleted.
+
 ### `[ ]` **4.3 Move one-hop import and syntax bans to ESLint — D3**
 
 - _Goal:_ Every ban that reads only one module's own imports or syntax is a row of one composed ban table in
   `eslint.config.js`, each file's resolved configuration carries every ban that applies to it, and the source-scan
   case each row replaces is gone.
+
+- _Amended in:_ 4.R (A3)
+
+**Additional Context:** `spec-test-suite-reliability.md` § 3 step 3 (A3), and
+`notes-test-suite-reliability.md` § Amendment A3: faithful one-hop lint predicates. The effective mechanism includes
+local predicate IDs where built-in selectors cannot preserve the existing boundary.
 
 - _Note:_ When several flat-config entries set one rule for the same file, the last entry's options replace the
   others', so overlapping entries silently drop bans. The table composes them into one option set per rule for each
@@ -1299,3 +1326,7 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
 
 - `[ ]` A2 changes only the two measured refusal-source-totality cases' named timeout; their assertions and scan
   behavior stay intact, and the timeout exceeds 3.4 times their frozen hosted maximum
+
+- `[ ]` A3's native ESLint proofs preserve loader aliases, inline factories, relative-target resolution, and
+  type-only/eager exceptions while accepting valid lookalikes and Result/store seams; resolved configuration
+  composes every matching predicate ID, and equivalent native lint proof precedes each source-scan replacement

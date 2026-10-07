@@ -255,14 +255,27 @@ repeated parsing. In order:
    its own. Every
    candidate in this step and step 1 is classified by one rule: **a test survives if it would fail on a plausible
    future regression, not only on an edit to its own list.** Each deletion records the rule's verdict in its task.
-3. **Move one-hop bans to ESLint.** Import and syntax bans that look at one module's own imports become
-   `no-restricted-imports` plus `no-restricted-syntax` (for `ImportExpression`, `TSImportType`, and `require()` calls,
-   which a selector matches whatever binds `require`) entries scoped by `files` globs in `eslint.config.js`. The
-   measured marginal lint cost is about 0.3%. When several flat-config entries set one rule for the same file, the last
-   entry's options replace the others', so overlapping bans would silently drop each other. The bans are therefore one
-   table that `eslint.config.js` composes, so that each file receives one option set holding every ban that applies to
-   it, and a unit test resolves the configuration (`ESLint#calculateConfigForFile`) for a file in each scope and checks
-   its ban set. § 7's confinement of `@clack/prompts` is a row of the same table.
+3. **Move one-hop bans to ESLint (A3).** Simple import and syntax bans become `no-restricted-imports` and
+   `no-restricted-syntax` entries. Checks requiring loader-binding relationships or filename-relative targets use
+   a bounded local ESLint rule: each such row names a predicate, and its rule options carry predicate IDs.
+   Predicates inspect only the current module's parsed syntax, filename, and binding/resolution data; they never
+   walk the source tree or follow a transitive dependency graph. Unknown predicate IDs refuse configuration.
+   The existing `literalReferences` follows `createRequire` aliases and returned loader bindings;
+   `auditKernelBoundary` resolves kernel-relative modules through TypeScript. Those checks retain their existing
+   reference forms, scope exceptions, and resolution semantics. The `imports` helper in
+   `lib/store/in-repo-boundary.test.ts` excludes type-only edges and distinguishes eager edges; its replacement
+   preserves those distinctions. Lexical path normalization replaces only predicates already using lexical paths.
+   A resolver-dependent residual check remains until an equivalent native rule proof establishes its replacement.
+   Each migrated predicate is demonstrated through ESLint on forbidden references and allowed lookalikes before
+   deleting its source-scan case; neither a repository-wide `createRequire` prohibition nor a ban on arbitrary
+   calls containing a forbidden package name substitutes for the established boundary.
+   All bans remain rows of one table in `eslint.config.js`. Its composition gives each matching file one union
+   of import bans, one union of syntax bans, and one union of local predicate IDs, because later flat-config rule
+   options otherwise replace earlier ones. A unit test uses `ESLint#calculateConfigForFile` without a lint pass
+   to prove each scope's complete ban set and overlapping scopes' unions. The local rule reuses the linter's
+   parsed module; no additional whole-source parse or cache is introduced. The earlier 0.3% marginal-cost estimate
+   covered the built-in rules only; Task 4.3 records actual lint cost for the adopted union. Transitive graph,
+   export-surface, and runtime-loading checks remain tests. § 7's `@clack/prompts` confinement joins the same table.
 4. **Narrow over-broad scans.** `registry.test.ts`'s "registers every command-owned schema" reads only
    `source.commands`, so it runs `scanCommanderSource` on `cli.ts`, as `cli-help-coverage.test.ts` already does,
    instead of the full `scanCommandInputSources`.
@@ -795,6 +808,12 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
     assertions and scanning behavior and receive a named timeout above 3.4 times their frozen hosted maximum.
     This exception permits no decomposition implementation change.
 
+18. **Faithful one-hop lint predicates (A3).** Native ESLint checks reject aliased and inline `createRequire`
+    references to forbidden packages and forbidden filename-relative imports while accepting unrelated calls,
+    valid nested imports, and the permitted Result/store seams. Module-resolution predicates and type-only/eager
+    exceptions retain their original semantics. Each matching file resolves every applicable predicate ID in the
+    same composed ban table, and no source-scan replacement is deleted before its equivalent native lint proof.
+
 ## Open Questions
 
 - **Calibration of the native-tooling cut.** The 55–60% projection comes from a per-file read, not a prototype; the
@@ -813,3 +832,6 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
 
 - **A2** — 2026-10-06 — design: permit timeout sizing for the two measured refusal-source-totality cases.
   _Supersedes:_ § Non-Goals ¶3. _Trigger:_ 2.4 must-stop. _Work:_ 2.4.R. _Revalidated:_ 2.4.R.
+
+- **A3** — 2026-10-07 — design: preserve binding-aware and filename-relative bans through local lint predicates.
+  _Supersedes:_ § 3 step 3. _Trigger:_ 4.3 door. _Work:_ 4.R. _Revalidated:_ pending → 4.3.c.

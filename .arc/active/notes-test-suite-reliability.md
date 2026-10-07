@@ -957,3 +957,24 @@ implementation is changed.
 The same survival rule removes `core/ports`' retired host-controller interface-name pin. This bounded extension to
 Task 4.2 applies its existing deletion rule to an additional inventoried change-detector; live port contract tests
 and the core dependency/vocabulary boundary remain. Re-declaring one old name does not itself violate those contracts.
+
+## Amendment A3: faithful one-hop lint predicates
+
+The superseded mechanism selected “`no-restricted-imports` plus `no-restricted-syntax` … entries scoped by `files`
+globs.” Source inspection of `literalReferences` and `auditKernelBoundary` establishes arbitrary aliased factory,
+returned loader, and inline factory forms that fixed selectors cannot relate across declarations. Kernel resolution
+uses TypeScript; store privacy uses importer-relative lexical paths and type-only/eager distinctions. Replacing
+these with string includes or callee-name selectors would weaken the established boundaries.
+
+A bounded local rule carries those predicates in the same composed table; built-in rules retain the simple bans.
+The adjustment changes the lint mechanism and preserves all architecture, coverage, performance, and CLI intent.
+It uses the existing preauthorization for intent-preserving adjustments. The narrow advisor consultation supported
+this route after primary verification; it is implementation advice, not an independent review result.
+
+Author grounding and task audit cover the rule contract, existing alias fixtures, lexical versus TypeScript
+resolution, store type-only/eager semantics, configuration composition, and migration ordering. Source-probe
+claims name the actual helpers; desired rule behavior is stated as a future contract. The revision produces the
+native rule and equivalent forbidden/allowed proofs before the original migration deletes any affected case.
+The footprint reaches Task 4.3, its resolved-config proof, Task 4.5's fixed-set measurement, and the later Clack
+row. Native-file conversion, managed staleness, CI design, prompter behavior, and acceptance cost thresholds are
+unaffected. Criterion 11 still requires toolchain-held architecture; criterion 18 makes fidelity checkable.
