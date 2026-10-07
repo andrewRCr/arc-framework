@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createProductionSchemaRegistry } from "../../src/production-schema-registry.js";
-import { copyLiveTree } from "./copy-live-tree.js";
+import { copyLiveDependencies } from "./copy-live-dependencies.js";
 import { projectKernelSchemas } from "../../src/lib/kernel/schema/generate.js";
 
 /**
@@ -16,11 +16,17 @@ export async function makeNativeBuildFixture(): Promise<{ root: string; packageR
   const root = await mkdtemp(join(tmpdir(), "arc-native-build-"));
   const packageRoot = join(root, "packages/arc-framework");
   await mkdir(packageRoot, { recursive: true });
-  await copyLiveTree(join(sourcePackage, "src"), join(packageRoot, "src"));
+  await copyLiveDependencies(sourcePackage, packageRoot, [
+    "tsup.config.ts", "tsup.fast.config.ts", "build-compiler.config.ts",
+    "src/scripts/run-build.ts", "src/scripts/build-compiler.ts",
+    "src/lib/build-command.ts", "src/lib/build-generation.ts",
+    "src/scripts/run-local-test-tier.ts", "src/scripts/run-focused-tests.ts",
+    "src/scripts/measure-test-cost.ts", "src/lib/unit-process-metadata.ts",
+  ]);
   for (const file of ["package.json", "package-lock.json"]) {
     await writeFile(join(root, file), await readFile(join(sourceRoot, file)));
   }
-  for (const file of ["package.json", "tsup.config.ts", "tsup.fast.config.ts", "build-compiler.config.ts"]) {
+  for (const file of ["package.json"]) {
     await writeFile(join(packageRoot, file), await readFile(join(sourcePackage, file)));
   }
   const configPath = join(packageRoot, "tsup.config.ts");

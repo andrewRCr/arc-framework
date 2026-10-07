@@ -968,19 +968,14 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
   callers clear it too. Plain output and failure contracts survive a forced-color parent, with every assertion retained.
   See `notes-test-suite-reliability.md` § Inherited subprocess formatting.
 
-### `[ ]` **10.R Bound synthetic native fixture sources — A6**
+### `[x]` **10.R Bound synthetic native fixture sources — A6**
 
 - _Goal:_ A6 removes unrelated production sources from each independent native fixture while preserving live
   reachable modules, explicit loader roots and every real compiler, controller and artifact-recovery outcome.
 
-    - Build `test-first` (one behavior at a time):
-        - Copy a reachable new on-disk module and its type/re-export dependencies while excluding unrelated sources
-          and transient loader files; copied modules remain independently writable.
-        - Reject an unresolved relative dependency before producing a misleading fixture.
-    - Keep the synthetic CLI/projected-schema writer, real manifests, lockfile, compiler configurations and installed
-      tools; include every path-loaded generation/controller entrypoint. Production inventories stay unchanged.
-    - Run existing native build and transferred-artifact recovery proofs, then compare the affected native family
-      before final-head closing measurements. Retain all earlier captures as historical evidence.
+- _Outcome:_ Independent native fixtures copy reachable dirty-tree source and loader roots, reject missing relative
+  edges and omit unrelated/transient files. The installed compiler, controller and artifact-recovery proofs retain
+  their outcomes; copy/inventory calibration and native proof evidence are recorded in `notes-test-suite-reliability.md`.
 
 ### `[ ]` **10.R2 Size the observed repository-inventory deadlines**
 
