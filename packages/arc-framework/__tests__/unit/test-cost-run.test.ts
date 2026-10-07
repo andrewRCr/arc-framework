@@ -1,13 +1,6 @@
 /** Public native-controller boundary fixtures for retained timing and failure policy. */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createVitest, parseCLI } from "vitest/node";
-import { execa } from "execa";
-import { existsSync } from "node:fs";
-import { mkdir, rm } from "node:fs/promises";
-import { join } from "node:path";
-import { acquireAdvisoryLock, releaseAdvisoryLock, renewAdvisoryLock } from "../../src/lib/advisory-lock.js";
-import { makeFocusedVitestFixture } from "../helpers/focused-vitest-fixture.js";
-import { scriptGitExec } from "../helpers/git-exec-fake.js";
+import { type createVitest, type TestResult, parseCLI } from "vitest/node";
 import { runTestCostMeasurement } from "../../src/lib/test-cost/run.js";
 
 const mode = { condition: "tier-isolated", projectSet: "unit", workerSizing: "12" } as const;
@@ -15,13 +8,16 @@ let previousExitCode: typeof process.exitCode;
 beforeEach(() => { previousExitCode = process.exitCode; process.exitCode = undefined; });
 afterEach(() => { process.exitCode = previousExitCode; });
 
-function nativeBoundary(failure: "none" | "module" | "unhandled" | "missing-timing" = "none", project = "unit") {
+function nativeBoundary(failure: "none" | "module" | "unhandled" | "missing-timing" | "empty" = "none", project = "unit") {
   let clock = 1_000;
   const events: string[] = [];
   let retained: string | undefined;
   const advance = (stage: string, elapsed: number) => { events.push(stage); clock += elapsed; };
   const test = { id: "case-a", fullName: "suite > case a", options: { timeout: 5_000 },
-    result: () => ({ state: failure === "module" ? "failed" : "passed" }),
+    result: (): TestResult => failure === "module"
+      ? { state: "failed", errors: [{ name: "Error", message: "completed failure" }] }
+      : failure === "empty" ? { state: "skipped", errors: undefined, note: undefined }
+        : { state: "passed", errors: undefined },
     diagnostic: () => failure === "missing-timing" ? undefined : ({ duration: 30 }) };
   const module = { relativeModuleId: "cost.test.ts", project: { name: project }, errors: () => [],
     state: () => failure === "module" ? "failed" : "passed", ok: () => failure !== "module",
@@ -62,7 +58,7 @@ describe("runTestCostMeasurement", () => {
     expect(JSON.parse(fixture.retained() ?? "null")).toEqual(run);
   });
 
-  it.each(["module", "unhandled", "missing-timing"] as const)("refuses a passed record for %s failure", async (failure) => {
+  it.each(["module", "unhandled", "missing-timing", "empty"] as const)("refuses a passed record for %s failure", async (failure) => {
     const fixture = nativeBoundary(failure);
     await expect(runTestCostMeasurement(input, fixture.dependencies)).rejects.toThrow(failure === "module"
       ? /cost\.test\.ts.*failed/u : failure === "missing-timing"
@@ -80,61 +76,4 @@ describe("runTestCostMeasurement", () => {
     expect(JSON.parse(fixture.retained() ?? "null")).toEqual(run);
   });
 
-  it("excludes CPU queue, releases and persistence while including artifact wait and qualification", async () => {
-    const checkout = await makeFocusedVitestFixture();
-    const fixture = nativeBoundary("none", "integration");
-    const cpuPath = join(checkout.root, ".git/arc/test-suite/.local-heavy-tests.lock");
-    const artifactPath = join(checkout.packageRoot, ".arc-build.lock");
-    await mkdir(join(cpuPath, ".."), { recursive: true });
-    let cpuHolder: Awaited<ReturnType<typeof acquireAdvisoryLock>> | undefined;
-    let artifactHolder: Awaited<ReturnType<typeof acquireAdvisoryLock>> | undefined;
-    try {
-      await execa(process.execPath, ["--import", "tsx", "src/scripts/run-build.ts", "prepare"],
-        { cwd: checkout.packageRoot, env: { ARC_E2E_SKIP_BUILD: "" } });
-      cpuHolder = await acquireAdvisoryLock(cpuPath);
-      artifactHolder = await acquireAdvisoryLock(artifactPath);
-      let cpuWait = false;
-      let artifactWait = false;
-      let preparing = true;
-      const run = await runTestCostMeasurement({ ...input, cwd: checkout.packageRoot,
-        mode: { ...mode, projectSet: "integration" } }, { ...fixture.dependencies,
-        ownership: {
-          admission: { now: fixture.dependencies.now, writeLine() {}, git: scriptGitExec([
-            { match: ["rev-parse", "--show-toplevel"], responses: [{ stdout: `${checkout.root}\n`, stderr: "" }] },
-            { match: ["rev-parse", "--git-common-dir"], responses: [{ stdout: `${join(checkout.root, ".git")}\n`, stderr: "" }] },
-            { match: ["branch", "--show-current"], responses: [{ stdout: "feat/fixture\n", stderr: "" }] },
-          ]).exec,
-          acquireLock: async (path, options) => await acquireAdvisoryLock(path, { ...options, onWait: (contention) => {
-            options?.onWait?.(contention);
-            if (!cpuWait && cpuHolder !== undefined) { cpuWait = true; fixture.advance("cpu-wait", 43); void releaseAdvisoryLock(cpuHolder); }
-          } }),
-          releaseLock: async (handle) => { fixture.advance("cpu-release", 59); await releaseAdvisoryLock(handle); } },
-          artifacts: { now: fixture.dependencies.now, writeLine() {},
-            acquireLock: async (path, options) => await acquireAdvisoryLock(path, { ...options, onWait: (contention) => {
-              options?.onWait?.(contention);
-              if (!artifactWait && artifactHolder !== undefined) {
-                artifactWait = true; fixture.advance("artifact-wait", 47); void releaseAdvisoryLock(artifactHolder);
-              }
-            } }),
-            renewLock: async (handle, duration) => {
-              if (preparing) { preparing = false; fixture.advance("qualification", 53); }
-              return await renewAdvisoryLock(handle, duration);
-            },
-            releaseLock: async (handle) => { fixture.advance("artifact-release", 59); await releaseAdvisoryLock(handle); } },
-        },
-        persist: async (path, content) => {
-          expect(existsSync(cpuPath)).toBe(false); expect(existsSync(artifactPath)).toBe(false);
-          await fixture.dependencies.persist(path, content);
-        },
-      });
-      expect(run).toMatchObject({ wallClockMs: 243, admissionWaitMs: 43 });
-      expect(fixture.events).toEqual(["creation", "reporting", "discovery", "pre-parsing", "cpu-wait", "artifact-wait",
-        "qualification", "execution", "closing", "capture", "artifact-release", "cpu-release", "persistence"]);
-      expect(JSON.parse(fixture.retained() ?? "null")).toEqual(run);
-    } finally {
-      if (cpuHolder !== undefined) await releaseAdvisoryLock(cpuHolder);
-      if (artifactHolder !== undefined) await releaseAdvisoryLock(artifactHolder);
-      await rm(checkout.root, { recursive: true, force: true });
-    }
-  }, 60_000);
 });

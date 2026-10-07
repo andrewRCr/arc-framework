@@ -21,7 +21,7 @@ it("retains no passed measurement after native global teardown logs a failure", 
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
 }, 60_000);
 
-it.each(["name-filter", "all-skipped"])("retains no passed measurement for zero completed %s cases", async (fault) => {
+it.each(["name-filter"])("retains no passed measurement for zero completed %s cases", async (fault) => {
   const fixture = await makeNativeTestCostFixture();
   try {
     if (fault === "name-filter") {

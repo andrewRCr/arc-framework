@@ -300,7 +300,7 @@ is measured against the baseline.
           coverage. The repeated full-tier literal-option row has named narrower routing/forwarding proofs in Notes.
           Final class inspection also folds skipped discovery and execution-failure replays from earlier leaves.
 
-### `[ ]` **3.7 Convert the focused-test, focused-lint, and test-cost files — D2**
+### `[x]` **3.7 Convert the focused-test, focused-lint, and test-cost files — D2**
 
 - _Goal:_ The focused controllers and the cost instrument are proved below the real stack, with their real runs
   folded to one per outcome class in integration.
@@ -316,13 +316,15 @@ is measured against the baseline.
           integration. Staged lint uses one combined fixture scenario with clean and collected-failure invocations,
           retaining every supported literal filename and both compiler failures. Notes records the bounded run shape.
 
-    - `[ ]` **3.7.c Test-cost native runs**
-        - `test-cost-native`, `test-cost-native-failure`, and `test-cost-run`.
+    - `[x]` **3.7.c Test-cost native runs**
+        - Native capture/closing/failure families and the real admission/artifact timing case move to integration.
+          The unit run matrix retains fake controller, clock, and persistence boundaries and directly refuses empty
+          completion; that proof replaces the all-skipped native replay. Other real outcome classes remain intact.
 
-    - `[ ]` **3.7.d The remaining thirteen test-cost files**
-        - `budget`, `capture`, `ci-budget`, `cli`, `comparison-request`, `comparison`, `metrics`, `mode`,
-          `normalize`, `retained`, `shard-run`, `shards`, and `timeout` are recorded as running no native work;
-          `shard-run` injects its process launcher.
+    - `[x]` **3.7.d The remaining thirteen test-cost files**
+        - All thirteen remain process-free policy/capture/metadata checks. `shard-run` injects both its process
+          launcher and workflow reader; comparison/retained import the run record only as a type. Notes records
+          the source-grounded dispositions.
 
 ### `[ ]` **3.8 Native-tooling conversion complete** — validate exit criterion at segment scope
 

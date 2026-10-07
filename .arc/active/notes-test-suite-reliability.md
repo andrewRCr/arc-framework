@@ -611,3 +611,23 @@ All twelve normalization behaviors failed against an empty-result reconstruction
 The combined staged case failed when its copied real hook forwarded only the first staged filename, then passed with
 original hook bytes. The obsolete ESLint observer method was corrected before these retained native red/green runs;
 primary production source, shell script, and derived CLI were untouched by either reconstruction.
+
+- **`test-cost-native`:** the complete file moves unchanged to integration, retaining actual prepared setup/teardown
+  and closing before retention, generation reuse across default output, wall-clock closing endpoint and native case
+  metadata, unit-only refinement without runtime ownership, and repository-root script configuration.
+- **`test-cost-native-failure`:** native teardown logging, zero-completion name filtering, failed execution, and late
+  worker cleanup still refuse a passed record and release ownership. `refuses a passed record for empty failure` in
+  unit `test-cost-run` replaces the repeated all-skipped native row: it runs the actual measurement function with a
+  faithful skipped result, proves closing, and proves neither persistence nor a passed record occurs. The native
+  dynamic-skip completion class also remains in integration `vitest-completion`.
+- **`test-cost-run`:** six unit controller/clock/persistence cases request no native work. The complete actual
+  preparation plus CPU/artifact waiting, renewal, release-before-persistence, and clock-accounting case moves to its
+  integration basename. The new empty-completion retention refusal failed when the actual completion policy's zero
+  count branch was removed, then passed after restoration in temporary module/test copies. Primary source and
+  derived CLI were untouched by that reconstruction.
+
+- **Remaining thirteen `test-cost` files:** `budget`, `capture`, `ci-budget`, `cli`, `comparison-request`, `comparison`,
+  `metrics`, `mode`, `normalize`, `retained`, `shard-run`, `shards`, and `timeout` remain process-free. They construct
+  in-memory policy/capture data; the run-record imports in comparison/retained are type-only. `shard-run` supplies
+  both `execute` and `readWorkflow`, so its default execa/filesystem boundary is never invoked. Timeout helpers only
+  annotate injected current-test metadata. Source inspection and the targeted file set establish their dispositions.
