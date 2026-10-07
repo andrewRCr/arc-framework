@@ -30,10 +30,6 @@ function importSpecifiers(source: ts.SourceFile): string[] {
       const argument = node.arguments[0]!;
       if (ts.isStringLiteralLike(argument)) values.push(argument.text);
     }
-    if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)
-      && node.moduleReference.expression && ts.isStringLiteralLike(node.moduleReference.expression)) {
-      values.push(node.moduleReference.expression.text);
-    }
     if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument) && ts.isStringLiteralLike(node.argument.literal)) values.push(node.argument.literal.text);
     ts.forEachChild(node, visit);
   };

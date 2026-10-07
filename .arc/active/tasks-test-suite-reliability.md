@@ -349,47 +349,34 @@ _Exit criterion:_ Each deleted case records its survival-rule verdict, the one-h
 ban table that a test proves each file carries, and the remaining scan cost and the shared-parse decision are
 recorded.
 
-### `[ ]` **4.1 Record the source-scan set and delete cases the toolchain already enforces — D3**
+### `[x]` **4.1 Record the source-scan set and delete cases the toolchain already enforces — D3**
 
 - _Goal:_ The source-scan files and cases are on record with their baseline cost, and no source-scan case
   re-asserts what `tsc` or ESLint already fails on, each deletion recording its verdict under the survival rule.
-
-- _Shape:_ A test survives if it would fail on a plausible future regression, not only on an edit to its own list.
-  Each deleted case records that verdict in this task.
 
     - `[x]` **4.1.a Record the source-scan set**
         - Notes § Source-scan cost records 26 live-code scan files and 123 expanded cases, with three-sample
           file/case medians reconciled against the frozen captures. The raw inventory retains every sample and
           source locus; shared setup cost is counted once per file. Complete-file baseline median is 49,744.319 ms.
 
-    - `[ ]` **4.1.b `lib/store/ship-guard.test.ts`**
-        - The import cases re-assert `tsc`'s `rootDir: "src"` (the reference backend lives under
-          `__tests__/helpers/store`): `tsc --noEmit` rejects a static, re-exported, dynamic, or type-only import of it
-          from `src` (TS6059). Neither `tsc` nor `@typescript-eslint/no-require-imports` reports a `require()` of it:
-          the rule skips a `require` bound in scope, and `createRequire` binds the only `require` that runs in this
-          ES-module package. That ban joins Task 4.3.a's inventory, and the import cases and
-          `referenceImportViolations` go when Task 4.3.c lands its row.
-        - The build-output cases prove `referenceBundleInputs`, which
-          `__tests__/integration/store-reference-packaging.test.ts` applies to the real `dist/metafile-esm.json`. That
-          check is classified here under the survival rule; the build-output cases go only if it goes, and
-          `__tests__/helpers/store/ship-guard.ts` goes with its last consumer.
+    - `[x]` **4.1.b `lib/store/ship-guard.test.ts`**
+        - The real bundle-metadata check and its raw/output/multiple-output proofs survive: native inclusion and
+          traversal regressions are independent of list edits. Static/re-export/dynamic/type reference imports
+          produce TS6059; their scan stays until Task 4.3.c proves the remaining bound-loader lint ban.
 
-    - `[ ]` **4.1.c Display-label checks in the meta inventories**
-        - In `meta-reader-inventory.test.ts`, the display-label index and property checks are branches of a case
-          that also checks projection-record and identifier-list parses, which stay; only the branches go.
-        - In `meta-writer-inventory.test.ts`, the `renderMetaFile` override-object check re-asserts the
-          excess-property error on `MetaRenderOverrides` (`Partial<MetaRecord>`). The same case's retired
-          `MetaFieldOverrides` text check is classified on its own, since `tsc` does not fail a re-declared retired
-          name.
+    - `[x]` **4.1.c Display-label checks in the meta inventories**
+        - Reader display-label indexing/property branches and writer override-object checks are removed; the
+          actual semantic exports and compiler options refuse them. Projection/identifier-list calls and producer
+          contracts remain. The retired `MetaFieldOverrides` name pin fails the survival rule and is removed.
 
-    - `[ ]` **4.1.d CommonJS `require` detection**
-        - Scan branches that detect `import x = require()` go: `@typescript-eslint/no-require-imports` reports it as
-          an error.
-        - The same rule skips a `require()` call whenever `require` is bound in scope, as `createRequire` binds it.
-          A branch that detects `require()` calls, as `lib/store/concurrency/import-boundary.test.ts` does for any
-          `require` identifier, joins Task 4.3.a's inventory as a ban instead of going.
-        - The rule does not report `module.require()`, so a branch detecting that form, such as
-          `kernel/import-boundary.test.ts`'s planted case, is classified under the survival rule.
+    - `[x]` **4.1.d CommonJS `require` detection**
+        - Kernel/reference helper import-equals branches and kernel planted rows are removed: the resolved lint
+          rule already reports them. Bound `require` and `module.require` remain until lint migration; their
+          probes confirm the existing rule's gap, and their live boundary checks pass the survival rule.
+
+- _Outcome:_ Notes § Source-scan deletion dispositions records each verdict and actual compiler/linter evidence.
+  Packaging coverage and live boundary checks remain while compiler-owned branches and a retired-name pin are
+  removed; the full-strength loader migration stays separately scoped to Task 4.3.
 
 ### `[ ]` **4.2 Delete change-detectors that pin removed code — D3**
 

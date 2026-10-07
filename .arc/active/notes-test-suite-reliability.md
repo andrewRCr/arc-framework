@@ -912,3 +912,31 @@ Every case duration below is its three-sample median in milliseconds; each file 
 
 - decomposition refusal source totality > maps every production refusal literal to a specific remedy — 1,967.978 ms.
 - decomposition refusal source totality > admits only stable outward reason producers — 1,370.701 ms.
+
+## Source-scan deletion dispositions
+
+- **Reference packaging survives.** `referenceBundleInputs` inspects raw inputs and every output attribution;
+  the real `store-reference-packaging` case applies it to native build metadata. A future bundle/plugin inclusion
+  or metadata traversal regression is observable independently of an edit to the expected list. Its synthetic
+  raw/output/multiple-output cases and the helper therefore remain. The production import scan is redundant for
+  static, re-exported, dynamic, and type imports: the actual TypeScript config's `rootDir` refuses the reference
+  source with TS6059. Its bound-loader gap remains pending the lint row, so the import cases are retained until
+  that row is demonstrated in Task 4.3.c.
+- **Meta display-label branches go.** A virtual source probe against the real compiler options and actual
+  `MetaRecord`/`MetaRenderOverrides` exports produces TS2551 for both indexing and property access to `State`,
+  and TS2561 for `renderMetaFile`'s inline `State` override. The reader retains projection-record and repeated
+  identifier-list call checks. The writer retains full-record producers' projection-contract boundary.
+- **Retired `MetaFieldOverrides` pin goes.** Re-declaring that arbitrary retired name says nothing about whether
+  the live semantic contract regressed. Only changing the retired-name list changes its intended target, so it
+  fails the survival rule; deleting the combined writer case removes both this pin and the compiler-owned branch.
+- **Import-equals branches go.** The configured `@typescript-eslint/no-require-imports` rule resolves to error,
+  and native rule probes report global `require` and `import x = require()`. Kernel and reference helper branches
+  duplicating import-equals detection are removed, along with the kernel's planted import-equals rows. Bound
+  `require` and `module.require` probes produce no such diagnostic, so their existing checks remain pending lint
+  migration. A module loader can violate the live dependency boundary independently of any expected-list edit;
+  its detector survives until that boundary is proved by lint.
+
+The compiler probe uses a virtual compiler-host input and leaves primary source/build bytes untouched. Native lint
+probes use the resolved rule and parser without a whole-project lint pass. Logs are
+`/tmp/arc-source-toolchain-proof.log` and `/tmp/arc-require-toolchain-proof.log`. These are enforcement observations,
+not newly added regression tests; no fail-first claim is made for test deletion.

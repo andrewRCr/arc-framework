@@ -13,7 +13,6 @@ export interface KernelBoundaryFinding {
   readonly reason:
     | "CommonJS require loader"
     | "createRequire loader acquisition"
-    | "external import-equals declaration"
     | "neverthrow import outside kernel Result seam"
     | "non-literal dynamic import"
     | "source import escapes kernel"
@@ -115,8 +114,6 @@ function literalReferences(sourceFile: ts.SourceFile): string[] {
     let specifier: string | undefined;
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
       specifier = stringLiteralText(node.moduleSpecifier);
-    } else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) {
-      specifier = stringLiteralText(node.moduleReference.expression);
     } else if (ts.isImportTypeNode(node)) {
       specifier = importTypeSpecifier(node);
     } else if (ts.isCallExpression(node)) {
@@ -176,10 +173,7 @@ export function auditKernelBoundary(options: AuditOptions): KernelBoundaryFindin
       }
     };
     const visit = (node: ts.Node): void => {
-      if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) {
-        report(stringLiteralText(node.moduleReference.expression) ?? "<non-literal>",
-          "external import-equals declaration");
-      } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+      if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
         const specifier = stringLiteralText(node.arguments[0]);
         if (specifier === undefined) report("<non-literal>", "non-literal dynamic import");
         else inspectSpecifier(specifier);

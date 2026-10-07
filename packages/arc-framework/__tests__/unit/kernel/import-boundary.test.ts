@@ -138,18 +138,15 @@ describe("kernel import boundary", () => {
       "lib/kernel/escape.ts": [
         "declare const target: string;",
         "void import(target);",
-        'import legacy = require("node:fs");',
         'void require("zod");',
         'void module.require("zod");',
         'import { createRequire as acquire } from "node:module";',
         "void acquire(import.meta.url);",
-        "void legacy;",
       ].join("\n"),
     });
 
     expect(auditKernelBoundary(roots).map(({ reason }) => reason)).toEqual([
       "non-literal dynamic import",
-      "external import-equals declaration",
       "CommonJS require loader",
       "CommonJS require loader",
       "createRequire loader acquisition",
@@ -177,19 +174,17 @@ describe("kernel import boundary", () => {
         'export { err } from "neverthrow";',
         'type Result = import("neverthrow").Result<unknown, unknown>;',
         'void import("neverthrow");',
-        'import legacy = require("neverthrow");',
         'void require("neverthrow");',
         'void module.require("neverthrow");',
         'import { createRequire as makeRequire } from "node:module";',
         'const load = makeRequire(import.meta.url);',
         'void load("neverthrow");',
         'void makeRequire(import.meta.url)("neverthrow");',
-        'void legacy;',
       ].join("\n"),
     });
 
     const findings = auditKernelBoundary(roots);
-    expect(findings).toHaveLength(9);
+    expect(findings).toHaveLength(8);
     expect(findings.every(({ reason }) => reason === "neverthrow import outside kernel Result seam")).toBe(true);
   });
 

@@ -5,8 +5,6 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
-import { META_FIELDS } from "../../../src/lib/active/meta-reader.js";
-
 const testDirectory = fileURLToPath(new URL(".", import.meta.url));
 const sourceRoot = resolve(testDirectory, "../../../src");
 const projectionAuthority = "lib/active/meta-reader.ts";
@@ -30,28 +28,11 @@ function sourcePath(path: string): string {
 describe("semantic meta reader boundary", () => {
   it("keeps first-party consumers on semantic fields and normalized identifier arrays", () => {
     const violations: string[] = [];
-    const displayLabels = new Set<string>(META_FIELDS.map(({ name }) => name));
 
     for (const path of typescriptFiles(sourceRoot)) {
       const relativePath = sourcePath(path);
       const sourceText = readFileSync(path, "utf8");
       const sourceFile = ts.createSourceFile(path, sourceText, ts.ScriptTarget.Latest, true);
-      const semanticRecords = new Set<string>();
-      const collectSemanticRecords = (node: ts.Node): void => {
-        if (
-          ts.isVariableDeclaration(node)
-          && ts.isIdentifier(node.name)
-          && node.initializer !== undefined
-          && ts.isCallExpression(node.initializer)
-          && ts.isIdentifier(node.initializer.expression)
-          && node.initializer.expression.text === "parseMetaRecord"
-        ) {
-          semanticRecords.add(node.name.text);
-        }
-        ts.forEachChild(node, collectSemanticRecords);
-      };
-      collectSemanticRecords(sourceFile);
-
       const visit = (node: ts.Node): void => {
         if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
           if (
@@ -68,24 +49,6 @@ describe("semantic meta reader boundary", () => {
           ) {
             violations.push(`${relativePath}: repeated identifier-list parse`);
           }
-        }
-        if (
-          ts.isElementAccessExpression(node)
-          && ts.isIdentifier(node.expression)
-          && semanticRecords.has(node.expression.text)
-          && node.argumentExpression !== undefined
-          && ts.isStringLiteral(node.argumentExpression)
-          && displayLabels.has(node.argumentExpression.text)
-        ) {
-          violations.push(`${relativePath}: semantic record display-label index ${node.argumentExpression.text}`);
-        }
-        if (
-          ts.isPropertyAccessExpression(node)
-          && ts.isIdentifier(node.expression)
-          && semanticRecords.has(node.expression.text)
-          && displayLabels.has(node.name.text)
-        ) {
-          violations.push(`${relativePath}: semantic record display-label property ${node.name.text}`);
         }
         ts.forEachChild(node, visit);
       };
