@@ -898,3 +898,6 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
 
 - **A10** — 2026-10-07 — task: move Candidate decision variants to the existing faithful handler tier.
   _Supersedes:_ none. _Trigger:_ 10.1 must-stop. _Work:_ 10.R8. _Revalidated:_ pending → 10.1.
+
+- **A11** — 2026-10-07 — task: give the repository inventory setup scan its named heavy-work deadline.
+  _Supersedes:_ none. _Trigger:_ 10.1 must-stop. _Work:_ 10.R9. _Revalidated:_ pending → 10.1.

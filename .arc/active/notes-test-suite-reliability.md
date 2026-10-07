@@ -2581,3 +2581,57 @@ The ordinary E2E gate passes all 67 files and 686 cases in 177.35 s (`/tmp/arc-a
 integration additions, the overall completed-case union is unchanged. The corrective parent closes on its own
 coverage and quality evidence; hosted cost closure remains open at Task 10.1 and all local final-head captures
 remain required at Task 10.2. A10's revalidation stays pending, and no Success Criteria marker changes.
+
+## Closing measurement at 6284a12a6
+
+Fresh collection binds to `6284a12a6eb6f4b436a4fb0eb769795654363f5f`, with local schema-v4 tier-isolated
+captures at twelve workers and hosted dispatch attempt one. All three unit captures pass 13,695 cases, with
+wall times 14,737/15,010/14,704 ms. Integration samples 1 and 2 pass; the third and all E2E/lane triplets remain
+pending. Artifacts live under `closing-local-a10/` and `closing-hosted-a10/`.
+
+Hosted sample 1, run 37659999690, passes with 13,695 completed unit cases and no half-timeout violation.
+Summed test-job time is 1,562 s, below the unchanged 1,712.8 s limit. Sample 2, run 37660822741, is underway;
+no five-run median, portability result or final closing acceptance is claimed before collection completes.
+
+## Amendment A11: Repository inventory setup deadline
+
+Hosted sample 4, run 37662415404, fails `Unit Tests (1)` at `6284a12a6`: the `beforeAll` hook in
+`command-input/repository-inventory.test.ts` times out at Vitest's 10,000 ms hook default, leaving all twenty-six
+cases skipped. Every other required job passes. The complete log, run/job/artifact records and both unit reports
+remain under `closing-hosted-a10/4-37662415404/`; no fifth or portability-pair run is dispatched. Samples 1–3
+remain three first-attempt passes, with wall times 346/299/331 s and summed job times 1,562/1,748/1,650 s.
+They cannot stand for the required five consecutive passes after the failure.
+
+All twelve local captures complete before corrective source changes. Their native paired median is
+619,665.218093 ms (45.14508792% below baseline); the E2E summed median is 1,696,340.325063 ms
+(39.15437782% below baseline), with wall times 161,620/162,188/162,923 ms and exactly 1,738 CLI launches each.
+Those captures remain historical after the timeout-only corrective commit, with no final-head substitution claimed.
+
+The amend-design gate takes the task arm at low depth. § 1 requires named deadlines for heavy real repository work;
+the shared `beforeAll` setup was missed. `loadRepositoryCommandInputSnapshot` invokes
+`loadCommandInputSourceSnapshot`, which reads the TypeScript tree, traverses CLI-reachable imports, constructs the
+prompt index and scans interactions. `buildRepositoryCommandInputInventoryFromSnapshot` then reconciles the actual
+command registrations and declarations. The operation is finite source discovery, not an external-host wait.
+The equivalent one-shot inventory and documentation scans already use named 30-second deadlines.
+
+Only this hook receives `REPOSITORY_SCAN_TIMEOUT = 30_000`. Its body, immutable snapshot, twenty-six test bodies,
+assertions, test deadlines and all tier defaults stay unchanged. Increasing a ceiling adds no fixed wait to a
+successful scan. Production source discovery and prompt behavior do not change. The footprint is the unit hook,
+its selected coverage and the closing reliability check; local measurement settings and all acceptance targets
+remain unchanged. No new behavior or independent review is claimed; this is determinate configuration correction.
+
+Author grounding over A11, `10.R9` and the affected heavy-work statement confirms the actual scanner path and the
+existing thirty-second precedent. Reader independence and binding completeness retain the complete inventory proof
+and the unchanged reliability/cost criteria. Task neighbors keep the corrective parent before closing measurement;
+no delivery plan, segment or other design element changes. All Success Criteria markers remain unchanged.
+
+Static comparison (`/tmp/arc-a11-body-check.json`) proves only the named hook limit changes; setup and all
+cases remain byte-identical. Affected unit coverage passes 404 files and 7,800 cases in 9.14 s
+(`/tmp/arc-a11-unit.log`), and the direct inventory run passes all twenty-six cases in 8.35 s
+(`/tmp/arc-a11-inventory.log`). Both type checks and Markdown/ARC checks pass. The unit-only selection rule applies;
+unchanged integration, E2E, full-build and shell inputs retain their preceding passing witnesses. No tier default,
+assertion, source-scanning behavior or timeout metadata for ordinary cases changes.
+
+Whole-package typed lint passes without suppression changes (`/tmp/arc-a11-lint.log`). The corrective parent closes
+on its own selected coverage; A11 revalidation remains pending at the fresh five-run reliability check. The failed
+fourth run is retained, never replaced or counted green, and all final-head measurements remain required.

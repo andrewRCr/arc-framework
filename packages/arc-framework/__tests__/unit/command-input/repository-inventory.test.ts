@@ -16,6 +16,8 @@ import {
 } from "../../../src/command-input-registrations.js";
 import type { CommandInputDeclaration } from "../../../src/lib/command-input/declaration.js";
 
+const REPOSITORY_SCAN_TIMEOUT = 30_000;
+
 const sourceRoot = resolve(import.meta.dirname, "../../../src");
 
 describe("repository command-input inventory", () => {
@@ -29,7 +31,7 @@ describe("repository command-input inventory", () => {
       commandInputRegistrations,
       commandInputPolicyDeclarations,
     );
-  });
+  }, REPOSITORY_SCAN_TIMEOUT);
 
   it("reconciles every live syntax site and declared interaction use", () => {
     const syntaxCount = snapshot.source.commands.reduce(

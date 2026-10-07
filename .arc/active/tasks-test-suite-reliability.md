@@ -1038,6 +1038,15 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
   exact eighteen-integration/twenty-E2E partition without growing the shared suite. Every body and timeout is
   unchanged; `notes-test-suite-reliability.md` § Amendment A10 retains the union proof and native outcome mapping.
 
+### `[x]` **10.R9 Name the repository inventory setup deadline — A11**
+
+- _Goal:_ A11 lets the real repository inventory setup scan finish on a loaded hosted runner, preserving its
+  immutable snapshot, all twenty-six inventory assertions and every tier timeout default.
+
+- _Outcome:_ Only the shared repository inventory setup hook uses a named 30-second deadline. Its snapshot,
+  twenty-six cases and all tier defaults stay unchanged; the retained hosted failure and exact body comparison are
+  recorded in `notes-test-suite-reliability.md` § Amendment A11.
+
 ### `[ ]` **10.1 Run the closing hosted runs**
 
 - _Goal:_ Five consecutive first-attempt passes at the final head show the suite reliable on hosted runners, give the
