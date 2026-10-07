@@ -267,3 +267,150 @@ unaffected. The 5-second unit default and numerical cost targets stand.
 Phases 1–10 run under deferred review with atomic commits where viable; pushes and hosted runs required for
 implementation are preapproved. Bounded adjustments preserving the specification's intent are recorded in the task
 record and completion report. Phase 11 remains outside that scope.
+
+## Portability outcome classes
+
+Recorded from source at frozen head `88fefb20c43ac580855c5a4d0e6f0232a21e1361` before converting native files.
+A filesystem run is real even when it launches no child. Each basename remains selected by the portability tier.
+The existing integration inventory case is included alongside the original unit file.
+
+- **`build-context`:** installed source-loader manifest and npm metadata invalidate context; nested tool resolution
+  works without manifest subpath exports; missing, malformed, or empty installation metadata refuses and repairs;
+  equivalent roots agree; Node, platform, and architecture change identity. Locations: original unit file, pending.
+- **`build-cancellation`:** queued public builder cancellation preserves entry, owner, and unloaded configuration;
+  a fresh public retry qualifies and releases ownership. Location: integration relocation, pending.
+- **`build-generation-lifetime`:** asynchronous ownership renewal during a blocked compiler; owner death allows a
+  surviving child to finish staging without publication, with repaired acquisition. Location: integration, pending.
+- **`build-coordinator`:** stable native generation publishes actual control graphs; failed publication removes
+  qualification and a repaired generation succeeds (ancillary, entry, obsolete cleanup variants); changed compiler
+  inputs refuse before publication and a stable retry qualifies. Locations: unit matrix and integration classes, pending.
+- **`build-publication`:** absent live output is established and qualified; replaced native owner refuses before live
+  mutation and repaired ownership publishes; malformed filesystem artifacts refuse before mutation; invalid CLI syntax
+  refuses through the native parser; required output and obsolete cleanup precede evidence. All five real classes land
+  in `__tests__/integration/build-publication.test.ts`; the full nine-case matrix remains in the unit basename.
+- **`build-inventory`:** cache exclusion; non-input directory exclusion during baseline and qualification; preferred JS
+  sibling membership; raw dangling/external/empty-directory links and supporting controls; file and directory retargeting;
+  same-content replacement by link; derived output exclusion; source artifact-directory names remain inputs; timestamp
+  independence and content selectivity; resolver-only qualification reads; unused first-party manifest invalidation;
+  native metadata-omitted resolver manifests change both identities; native preferred-source resolution agrees with
+  membership while irrelevant directories do not change output. Locations: filesystem unit and native integration, pending.
+- **`build-ownership`:** CPU admission precedes artifact acquisition and both release; same-checkout builders queue;
+  CI and explicit concurrency bypass CPU alone; same-process exclusion survives a native-loaded control module;
+  another checkout progresses; replaced ownership stops publication and repaired acquisition succeeds.
+  Locations: filesystem unit and native integration, pending.
+- **`ci-build-transfer`:** producer builds full declarations; transferred qualified output is reused without generation;
+  source-changed output is repaired before skip-build consumption; prepared integration/E2E setup and teardown retain
+  the repaired generation and ownership; a second controller reuses output; platform-local install/full/preflight/
+  consumption ordering retains declarations. Locations: direct matrices and real integration classes, pending.
+- **`ci-build-recovery`:** missing runtime/schema, malformed evidence, source/manifest/installation identity changes
+  refuse without generation and resume after local preflight; missing/malformed/empty npm evidence refuses both
+  controller and preflight without mutation, then repaired installation permits reuse; optional alternate-Node producer
+  mismatch refuses, rebuilds locally, and resumes (baseline conditional skip retained). Locations: pending.
+
+## Native-tooling calibration
+
+Publication calibration uses the existing local instrument with `single-file / lane / 12` and the exact basename
+`build-publication.test.ts`. The injected CLI parser adds only that file selector; admission, runtime preparation,
+closing, and schema-4 capture remain unchanged. Three focused before/after samples include both unit and integration
+membership. These samples calibrate the conversion; they are not substitutes for the frozen whole-tier baseline or
+Task 3.8's native-tooling acceptance measurement. Raw captures retain their complete file and test metrics.
+
+### Publication result and conservative forecast
+
+Focused summed medians: **24,123.348 ms before**,
+**13,891.872 ms after**; the paired unit/integration file conversion cuts
+**42.41%**. Focused wall medians are 24,301 and 15,011 ms.
+The compiler-free nine-case file costs 547.815 ms including import/setup; case-only median cost is
+14.964 ms. Five real integration cases retain every publication class listed above.
+
+Captures: `publication-calibration-before-{1,2,3}.json` and `publication-calibration-after-{1,2,3}.json`, all in
+`packages/arc-framework/.test-cost-runs/`. The fixture carries valid captured baseline/evidence and registry-projected
+schemas; filesystem faults and a parser-boundary refusal are direct. All nine unit cases failed against a temporary
+no-publication reconstruction and passed after byte-for-byte source restoration. The relocation retains the native
+owner replacement/repair and actual `node --check` refusal.
+
+The table preserves baseline timing for each real representative, all import/setup costs, and execution overhead
+(including shared producer hooks), then adds the measured helper-file cost for each selected conversion. Unsettled
+representatives receive their entire original file cost, so unknown work never scores as zero. Existing integration
+`build-inventory.test.ts` cost is also retained. This is an upper-cost forecast, not achieved savings or a commitment
+to delete the unselected cases; each later task must name its narrower proof and record its actual outcome mapping.
+
+Paired whole-prefix baseline median: **1,129,643.991 ms**; conservative forecast median: **839,480.304 ms**
+(**25.69%** projected reduction). Raw per-sample calculations and selected title fragments are retained in
+`native-tooling-calibration-projection.json`.
+
+**Bounded execution adjustment:** the preliminary forecast is informational while conversion representatives remain
+unsettled. Task 3.2.d's projection-stop direction is satisfied by the expanded authority to use judgment through
+Phases 1–10; execution continues without claiming that the forecast met 40%. This changes the early stop cadence,
+not the specification's 40% native-tooling acceptance criterion, portability outcome coverage, unit spawn prohibition,
+or Task 3.8's three-run whole-tier measurement. No success criterion is marked by this calibration.
+
+| Baseline unit file                     | Baseline median ms | Forecast median ms | Basis                           |
+| -------------------------------------- | -----------------: | -----------------: | ------------------------------- |
+| `build-baseline.test.ts`               |            202.495 |            202.495 | Full cost retained              |
+| `build-cancellation.test.ts`           |          8,034.715 |          8,034.715 | Full cost retained              |
+| `build-command.test.ts`                |         68,374.895 |         68,374.895 | Full cost retained              |
+| `build-config.test.ts`                 |            392.337 |            392.337 | Full cost retained              |
+| `build-configuration.test.ts`          |             35.759 |             35.759 | Full cost retained              |
+| `build-context.test.ts`                |             86.217 |             86.217 | Full cost retained              |
+| `build-coordinator.test.ts`            |         43,902.284 |         25,151.971 | Retained cases + hooks + helper |
+| `build-evidence.test.ts`               |             25.205 |             25.205 | Full cost retained              |
+| `build-generation-lifetime.test.ts`    |         12,634.209 |         12,634.209 | Full cost retained              |
+| `build-generation.test.ts`             |         17,271.956 |         17,271.956 | Full cost retained              |
+| `build-inputs.test.ts`                 |          2,529.190 |          2,529.190 | Full cost retained              |
+| `build-inventory.test.ts`              |            168.824 |            168.824 | Full cost retained              |
+| `build-ownership.test.ts`              |            555.005 |            555.005 | Full cost retained              |
+| `build-preparation.test.ts`            |         79,226.547 |         39,315.247 | Retained cases + hooks + helper |
+| `build-publication.test.ts`            |         47,617.704 |         29,963.049 | Retained cases + hooks + helper |
+| `ci-build-recovery.test.ts`            |        119,599.440 |         30,329.408 | Retained cases + hooks + helper |
+| `ci-build-transfer.test.ts`            |         83,481.685 |         83,481.685 | Full cost retained              |
+| `dev-build-qualification.test.ts`      |         30,303.634 |         15,990.970 | Retained cases + hooks + helper |
+| `dev-build-refresh.test.ts`            |         18,313.002 |         18,313.002 | Full cost retained              |
+| `dev-check.test.ts`                    |             40.215 |             40.215 | Full cost retained              |
+| `focused-lint-staged.test.ts`          |         19,606.667 |          3,726.928 | Retained cases + hooks + helper |
+| `focused-lint.test.ts`                 |         11,903.942 |         11,903.942 | Full cost retained              |
+| `focused-test-execution.test.ts`       |         23,986.958 |         23,986.958 | Full cost retained              |
+| `focused-test-input.test.ts`           |            409.006 |            409.006 | Full cost retained              |
+| `focused-test-runtime.test.ts`         |         66,847.971 |         41,687.789 | Retained cases + hooks + helper |
+| `focused-test-selection.test.ts`       |         26,504.253 |          8,281.975 | Retained cases + hooks + helper |
+| `local-vitest-entry.test.ts`           |         27,279.392 |         27,279.392 | Full cost retained              |
+| `local-vitest-routes.test.ts`          |         61,209.088 |         61,209.088 | Full cost retained              |
+| `local-vitest-runner.test.ts`          |         10,217.476 |         10,217.476 | Full cost retained              |
+| `local-vitest-selection.test.ts`       |         28,497.883 |         28,497.883 | Full cost retained              |
+| `test-cost-budget.test.ts`             |             27.240 |             27.240 | Full cost retained              |
+| `test-cost-capture.test.ts`            |             28.491 |             28.491 | Full cost retained              |
+| `test-cost-ci-budget.test.ts`          |             54.683 |             54.683 | Full cost retained              |
+| `test-cost-cli.test.ts`                |             31.535 |             31.535 | Full cost retained              |
+| `test-cost-comparison-request.test.ts` |             28.400 |             28.400 | Full cost retained              |
+| `test-cost-comparison.test.ts`         |             51.190 |             51.190 | Full cost retained              |
+| `test-cost-metrics.test.ts`            |             21.473 |             21.473 | Full cost retained              |
+| `test-cost-mode.test.ts`               |             24.705 |             24.705 | Full cost retained              |
+| `test-cost-native-failure.test.ts`     |         35,198.624 |         35,198.624 | Full cost retained              |
+| `test-cost-native.test.ts`             |         43,365.704 |         43,365.704 | Full cost retained              |
+| `test-cost-normalize.test.ts`          |             19.453 |             19.453 | Full cost retained              |
+| `test-cost-retained.test.ts`           |             33.488 |             33.488 | Full cost retained              |
+| `test-cost-run.test.ts`                |          7,167.266 |          7,167.266 | Full cost retained              |
+| `test-cost-shard-run.test.ts`          |             50.171 |             50.171 | Full cost retained              |
+| `test-cost-shards.test.ts`             |             44.529 |             44.529 | Full cost retained              |
+| `test-cost-timeout.test.ts`            |             37.211 |             37.211 | Full cost retained              |
+| `vitest-closing.test.ts`               |             26.490 |             26.490 | Full cost retained              |
+| `vitest-completion-results.test.ts`    |             52.123 |             52.123 | Full cost retained              |
+| `vitest-completion.test.ts`            |         47,417.200 |         17,676.340 | Retained cases + hooks + helper |
+| `vitest-direct-runtime.test.ts`        |          7,681.297 |          7,681.297 | Full cost retained              |
+| `vitest-discovery.test.ts`             |         25,696.398 |         25,696.398 | Full cost retained              |
+| `vitest-failure-ownership.test.ts`     |         25,159.575 |         25,159.575 | Full cost retained              |
+| `vitest-initial-coverage.test.ts`      |          6,956.859 |          6,956.859 | Full cost retained              |
+| `vitest-mixed-shard.test.ts`           |         11,998.765 |         11,998.765 | Full cost retained              |
+| `vitest-native-closing.test.ts`        |         25,203.745 |         25,203.745 | Full cost retained              |
+| `vitest-prebuilt-runtime.test.ts`      |         39,366.548 |         39,366.548 | Full cost retained              |
+| `vitest-runtime-context.test.ts`       |         21,987.399 |         12,569.003 | Retained cases + hooks + helper |
+| `vitest-runtime-ownership.test.ts`     |         26,587.012 |         13,732.113 | Retained cases + hooks + helper |
+| `vitest-worker-policy.test.ts`         |             28.642 |             28.642 | Full cost retained              |
+
+Real integration case medians in the focused mode:
+
+- `establishes required output and qualification when live dist is absent`: 2,203.871 ms.
+- `refuses a lost native owner before any live mutation and permits a repaired build`: 3,201.861 ms.
+- `refuses missing schema before changing live output`: 1,795.572 ms.
+- `refuses invalid CLI before changing live output`: 1,970.217 ms.
+- `exposes complete required output and removes obsolete output before evidence`: 1,902.735 ms.

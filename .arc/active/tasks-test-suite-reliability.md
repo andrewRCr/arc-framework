@@ -185,54 +185,29 @@ is measured against the baseline.
     - `[x]` **3.1.c Runtime-evidence refusals before the build read**
         - Direct tests preserve malformed-evidence and missing-controller-key refusals before qualification reads.
 
-### `[ ]` **3.2 Convert `build-publication.test.ts` and calibrate the projected cut — D2**
+### `[x]` **3.2 Convert `build-publication.test.ts` and calibrate the projected cut — D2**
 
 - _Goal:_ The real outcome classes the portability tier proves are on record before any file changes,
   `build-publication.test.ts` proves its matrix at `publishStagedBuild` with one real run per outcome class left in
   integration, and its measured costs rebuild the phase's projection file by file.
 
-- _Shape:_ Every file in this phase follows the same rules. A case that varies only what a seam decides runs against
-  a fake at that seam, and a matrix a function decides from files runs against that function on a filesystem fixture.
-  The seams cannot fake native generation or runtime preparation (`runOwnedBuild` calls `runOwnedGeneration`
-  directly, and `executeVitestSelection` calls `ensureOwnedRuntimeArtifacts` whenever a selection needs the runtime),
-  so a case that needs either is its outcome class's real run or is dropped. One real run per distinct outcome class
-  moves to `__tests__/integration/` under the file's basename. A fixture the tests only read is built once per file.
-  A case or table row is dropped only when a named narrower test proves the same outcome class, and its task records
-  that test. A converted unit file launches no process, including a library's esbuild service, builds nothing, and
-  creates no git repository; a file that already does none of these is recorded as running no native work. A
-  portability-selected file keeps a real run of every outcome class it proves for real today, under a basename the
-  portability tier still selects, or the tier's list changes in the same commit.
+    - `[x]` **3.2.a Record the portability tier's real outcome classes**
+        - Recorded all nine basenames' baseline native and filesystem classes in `notes-test-suite-reliability.md`
+          § Portability outcome classes, including the existing integration inventory probe.
 
-- **Additional Context:** `notes-test-suite-reliability.md` § Measurement and probe record
+    - `[x]` **3.2.b Publication without a compiler**
+        - `staged-build-fixture.ts` creates completed staging, baseline-derived evidence, projected registry schemas,
+          and a refusing or accepting artifact capability without launching a compiler or parser.
 
-    - `[ ]` **3.2.a Record the portability tier's real outcome classes**
-        - For each of the nine portability-selected files in this phase (`build-context`, `build-cancellation`,
-          `build-generation-lifetime`, `build-coordinator`, `build-publication`, `build-inventory`,
-          `build-ownership`, `ci-build-transfer`, `ci-build-recovery`), `notes-test-suite-reliability.md`
-          § Portability outcome classes lists the outcome classes it proves for real at the baseline head.
-        - Each later batch marks there where each listed class's real run lands.
+    - `[x]` **3.2.c Split the file by outcome class**
+        - The nine-case unit matrix uses completed staging and the parser boundary; five integration cases preserve
+          absent-output publication, actual owner loss/repair, one filesystem-validation refusal, native syntax
+          refusal, and publication ordering. Their basename remains portability-selected.
 
-    - `[ ]` **3.2.b Publication without a compiler**
-        - A helper in `__tests__/helpers/` hand-builds a staging directory and its `StagedBuildGeneration`
-          (`build-entry.ts`) and supplies a fake `BuildArtifactLease` (`build-ownership.ts`) whose
-          `confirmOwnership` can refuse, so `publishStagedBuild` runs with no compiler child. Faults inject through
-          its `BuildPublicationDependencies` overrides. Later batches reuse it.
-
-    - `[ ]` **3.2.c Split the file by outcome class**
-        - Of the six malformed-staged-artifact rows at `:56`, the five that `validateStagedOutput` refuses through
-          filesystem checks are one class: one stays real and the helper proves the rest. The invalid-CLI row is
-          refused by its `checkCli` dependency, `checkStagedCli` (`build-entry.ts`), through a real `node --check`
-          child, so it is its own class and stays real.
-        - The remaining cases sort into helper-proven cases and real outcome-class runs; the lost-owner refusal is
-          decided by the lock. The real runs move to `__tests__/integration/build-publication.test.ts`.
-
-    - `[ ]` **3.2.d Measure the file and rebuild the projection**
-        - The local instrument's three-run medians give the file's cost across the unit and integration projects,
-          before and after, and from them the cost of a real run and of the helper-proven cases.
-        - `notes-test-suite-reliability.md` § Native-tooling calibration records those costs and projects the phase
-          file by file from the baseline durations of the real runs each file keeps, plus the fake cost measured
-          here, rather than by applying this file's percentage. A projection below the 40% criterion stops the
-          phase for direction before Task 3.3.
+    - `[x]` **3.2.d Measure the file and rebuild the projection**
+        - Three focused before/after medians and the 59-file conservative projection are recorded in the notes.
+          The early projection remains below 40%; under the expanded execution direction it is informational,
+          with the deviation recorded. Task 3.8 retains the unchanged measured 40% acceptance requirement.
 
 ### `[ ]` **3.3 Convert the remaining build files — D2**
 
