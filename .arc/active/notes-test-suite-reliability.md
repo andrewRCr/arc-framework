@@ -1615,6 +1615,15 @@ pass; the full declaration build qualifies. The unchanged shell surface retains 
 commit stays local until the four trial dispatches finish, keeping their remote head fixed. Implementing this independent
 visibility change during hosted layout waiting preserves the design and avoids idle execution time.
 
+### Layout segment scenario
+
+`/tmp/arc-layout-segment-scenario.log` confirms four counted exact-head runs, restored cache evidence, E2E critical
+paths, the cache winner, recorded run IDs and removal of losing selectors/trial jobs/anchors. The focused budget
+scenario passes all four cases (`/tmp/arc-layout-segment-budget.log`), including the exact Actions warning with job,
+overage, budget, baseline and observation, quiet within-budget behavior and advisory success. The existing native
+reporter proof retained under Budget annotation evidence covers matching stdout and step summary. Adoption is committed
+as `4f26a0413`; the segment closes on that implementation and the retained native shard-membership proof.
+
 ## Declared prompt policy substrate
 
 Independent declaration/prompter work proceeds locally while the hosted layout comparison stays fixed at `8c3404c11`;

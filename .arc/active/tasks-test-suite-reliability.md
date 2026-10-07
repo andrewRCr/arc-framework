@@ -727,10 +727,14 @@ and a test proves an `over` budget reading emits a `::warning` annotation naming
   the native reporter writes the warning to stdout and preserves advisory success. Within-budget results stay quiet.
   `notes-test-suite-reliability.md` § Budget annotation evidence retains the policy and native-output proofs.
 
-### `[ ]` **7.7 Layout decided** — validate exit criterion at segment scope
+### `[x]` **7.7 Layout decided** — validate exit criterion at segment scope
 
 - _Goal:_ Evidence that the trial's runs and verdict are recorded, that only the winning layout (or none) remains on
   the branch, and that a test proves an `over` reading's annotation.
+
+- _Outcome:_ The segment scenario confirms four counted runs, the cache verdict and only its adopted layout.
+  The budget contract proves the baseline-bearing warning and advisory outcome; Notes § Layout segment scenario
+  records the executable checks.
 
 ## **Phase 8:** Declaration-bound prompter
 
