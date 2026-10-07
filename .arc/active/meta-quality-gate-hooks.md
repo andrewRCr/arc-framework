@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | `plan/quality-gate-hooks` | `Heavy`   | `P3`         |
 
 - **Cohort:** [none]
-- **Depends On:** `class-model-foundation`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `draft-quality-gate-hooks.md`
