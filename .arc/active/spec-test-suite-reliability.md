@@ -74,8 +74,8 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
 - **Decomposition tests and machinery**, including the 120 s `integration/decompose-v3-repository-plan.test.ts` and
   `decompose-v3-refusal-source-totality.test.ts`, which stay as they are. § 3's survival rule still classifies
   `decompose-v3-authority-boundary.test.ts`, a source-scan test.
-  _Amended (A2):_ The two measured near-timeout cases in `decompose-v3-refusal-source-totality.test.ts` may receive
-  a named timeout; their assertions, scanning behavior, and decomposition machinery remain unchanged.
+  Amended 2026-10-06 — A2: permit named timeout sizing for the two measured refusal-source-totality cases, preserving
+  every assertion, scan, and decomposition behavior — bounded implementation adjustment.
 - **Which tests a change selects when it touches Markdown**, and **rewrapping prose pins**. They concern selection
   and pin matching, not suite cost or reliability.
 - **Failing a pull request on its test budget.** Budget overage becomes visible only.
@@ -812,4 +812,4 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
   _Supersedes:_ § 0 ¶2–3. _Trigger:_ 1.2 must-stop. _Work:_ 1.2.R. _Revalidated:_ 1.2.R.b.
 
 - **A2** — 2026-10-06 — design: permit timeout sizing for the two measured refusal-source-totality cases.
-  _Supersedes:_ § Non-Goals ¶3. _Trigger:_ 2.4 must-stop. _Work:_ 2.4.R. _Revalidated:_ pending → 2.4.R.
+  _Supersedes:_ § Non-Goals ¶3. _Trigger:_ 2.4 must-stop. _Work:_ 2.4.R. _Revalidated:_ 2.4.R.

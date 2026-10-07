@@ -146,14 +146,15 @@ untracked module, and every test that reads a renewing lock retries an empty or 
           elapsed and admission wait with the observed closing endpoint, so startup overhead cannot hide omission
           of the shorter closing interval.
 
-### `[ ]` **2.4.R Size the excluded scan cases' timeouts — D1**
+### `[x]` **2.4.R Size the excluded scan cases' timeouts — D1**
 
 - _Goal:_ Realize A2 by giving the two measured near-timeout cases in
   `decompose-v3-refusal-source-totality.test.ts` a named timeout above 3.4 times their hosted maximum, preserving
   every assertion and scan behavior.
 
-    - Use the retained 2,550.469 ms and 2,284.781 ms maxima; 10,000 ms leaves the scaled maximum below half.
-    - Compare the file diff to prove the timeout is its only behavioral change, and run both cases unchanged.
+- _Outcome:_ Both scan cases keep every assertion and scanning operation and use the same 10-second named
+  timeout. The file diff changes only the constant and its two timeout arguments; the frozen 1.7× maxima remain
+  below half the timeout.
 
 ## **Phase 3:** Native-tooling unit files
 
