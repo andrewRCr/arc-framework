@@ -103,13 +103,18 @@ re-enumerates them against the success criteria.
 Before any phase that changes test cost or CI layout, the work records a baseline on its own branch, and every cost
 criterion scores against it.
 
-- **Local:** the `benchmark:test-cost` instrument, with the discipline of `analysis-test-suite-cost-baseline.md`:
-  schema v4 captures, tier-isolated, 12 workers, three runs per tier, medians, and a 10% noise band. It records
-  per-file and summed file time for the unit, integration, and E2E tiers.
-- **Hosted:** at least three full-suite `workflow_dispatch` runs of `ci.yml` on the current layout (unit one job,
-  integration two shards, E2E four anchored shards). They record each run's duration, each test job's elapsed time,
-  per-file durations, and per-test unit durations. They leave `run_portability_pair` off, as every measured run
-  does, so the Windows and macOS legs never enter a duration.
+- **Frozen baseline (A1):** retain the observations already collected at
+  `88fefb20c43ac580855c5a4d0e6f0232a21e1361`, including failed attempts. No further pre-fix sampling is required.
+  Failures remain failures, and diagnostic runs never substitute for ordinary samples.
+- **Local:** schema v4 `benchmark:test-cost` captures, tier-isolated, 12 workers, and a 10% noise band. Unit and
+  integration use their three successful runs and medians. E2E uses its one successful ordinary run as a
+  single-sample reference; retain the failed second attempt separately. Record per-file and summed file time,
+  sample counts, and uncertainty. Every later local measurement retains the same instrument and settings (A1).
+- **Hosted:** retain the three completed full-suite `workflow_dispatch` attempts at the frozen head, with their
+  conclusions, first-attempt status, job elapsed times, file durations, and unit test durations and timeouts.
+  The baseline medians include all three attempts, including the failed unit job; do not replace it with a retry.
+  The layout is one unit job, two integration shards, and four anchored E2E shards, with `run_portability_pair`
+  off so Windows and macOS legs never enter a duration (A1).
 - **Per-test unit durations** are incomplete on hosted runs today: the unit job's default reporter prints per-test
   lines only for slow tests, as log text that carries no timeouts. The unit job (and each unit shard, if § 5 shards
   it) adds Vitest's built-in `json` reporter and uploads the report as a run artifact, so every test's duration is
@@ -132,7 +137,7 @@ Terms used by the criteria:
 - **Native-tooling cost** is the summed file time, across the `unit`, `unit-mocks`, and `integration` projects, of
   test files whose names begin `build-`, `ci-build-`, `dev-build-`, `dev-check`, `vitest-`, `local-vitest-`,
   `focused-`, or `test-cost-`. A real run relocated from unit keeps its family prefix, so the measure follows it into
-  integration and relocation alone saves nothing. Integration has no file with these prefixes today.
+  integration and relocation alone saves nothing. At the frozen head, integration includes `build-inventory` (A1).
 
 ### 1. Flakes and hermeticity
 
@@ -626,6 +631,11 @@ unknown until migration.
 
 ### Closing measurement
 
+Pre-fix baseline collection is closed (A1). Further measurements serve a named improvement decision, calibration,
+layout verdict, or final acceptance criterion; repeating a known flaky baseline to obtain a cleaner record is not
+required. The native-tooling 40% and E2E/hosted 20% targets and final reliability checks remain unchanged. E2E's
+comparison uses the frozen single ordinary sample as its baseline and reports that limitation explicitly.
+
 After the final phase, at the final head: the local instrument re-measures every tier, five consecutive full-suite
 `workflow_dispatch` runs measure reliability and hosted cost, one further run with `run_portability_pair` on proves the
 Windows and macOS legs, and the budgets are re-recorded by § 5's rule. Results are recorded in
@@ -771,6 +781,14 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
 14. **Policy stated.** The `testing-standards` override and `strategy-testing-methodology.md` carry § 6's rules and
     tier lines, and `TECHNICAL-OVERVIEW.md` § 4 agrees with them.
 
+15. **Frozen evidence before fixes (A1; supersedes criterion 1's sampling obligation).** The baseline records the
+    frozen head, all three local unit and integration samples, the one successful ordinary local E2E sample,
+    failed attempts, all three hosted attempts and their conclusions, capture paths, settings, and sample limits
+    before the first optimizing commit. Every hosted unit job retains each test's duration and effective timeout.
+16. **E2E comparison with a single baseline sample (A1; supersedes criterion 5).** Closing E2E summed file time,
+    measured with the same local instrument and settings using three-run medians, is at least 20% below the frozen
+    single ordinary baseline sample; the result explicitly states that the baseline has no measured noise estimate.
+
 ## Open Questions
 
 - **Calibration of the native-tooling cut.** The 55–60% projection comes from a per-file read, not a prototype; the
@@ -784,4 +802,5 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
 
 ## Amendments
 
-None.
+- **A1** — 2026-10-06 — design: freeze existing baseline evidence and begin fixes without further pre-fix sampling.
+  _Supersedes:_ § 0 ¶2–3. _Trigger:_ 1.2 must-stop. _Work:_ 1.2.R. _Revalidated:_ pending → 1.2.R.b.

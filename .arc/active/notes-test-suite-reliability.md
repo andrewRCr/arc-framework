@@ -79,3 +79,35 @@ baseline is what the criteria score against.
 - **Class `Heavy`, on both triggers.** Scale: about 60 test files across three tiers, the CI workflow, and 12
   prompt-bearing modules. Derivation: the prompter's design. Both compose existing declarations, seams, and helpers
   with established practice, so derivation does not reach `Novel`.
+
+## Amendment A1: freeze evidence and begin fixes
+
+Baseline collection encountered the failures this work is meant to remove: an ordinary local E2E attempt refused a
+build as stale, and the third hosted attempt timed out in `ship-guard`. The one instrumented E2E diagnosis passed
+without reproducing an unqualified read; the derived CLI was restored byte-for-byte. Further clean pre-fix samples
+would delay the fixes without resolving either cause. Freeze the collected evidence, retaining failures honestly.
+
+Superseded § 0 sampling text:
+
+> - **Local:** the `benchmark:test-cost` instrument, with the discipline of `analysis-test-suite-cost-baseline.md`:
+>   schema v4 captures, tier-isolated, 12 workers, three runs per tier, medians, and a 10% noise band. It records
+>   per-file and summed file time for the unit, integration, and E2E tiers.
+> - **Hosted:** at least three full-suite `workflow_dispatch` runs of `ci.yml` on the current layout (unit one job,
+>   integration two shards, E2E four anchored shards). They record each run's duration, each test job's elapsed time,
+>   per-file durations, and per-test unit durations. They leave `run_portability_pair` off, as every measured run
+>   does, so the Windows and macOS legs never enter a duration.
+
+Superseded criterion 5:
+
+> **E2E summed file time** is at least 20% below its baseline (local instrument, three-run medians).
+
+Original criteria 1 and 5 remain verbatim; appended criteria 15 and 16 define their replacement obligations.
+The E2E baseline is one ordinary success, so there is no three-sample estimate of its noise. Hosted baseline medians
+include all three attempts, including the failed unit job. Targets remain native cost −40% and E2E/hosted cost −20%.
+Final reliability, native calibration, and the layout trial retain their evidence requirements: they decide whether
+the fixes work, while further pre-fix baseline repetitions are closed.
+
+Propagation checked: § 0, the closing measurement, baseline/E2E criteria, Task 1.2 and its replacement 1.2.R, and
+Task 5.4's baseline interpretation change together. Native calibration (3.2), native exit measurement (3.8), source-scan
+cost inventory (4.1), post-CPU layout reference (7.1), final acceptance measurements (10.1–10.3), and their criteria
+are unaffected: they can consume the frozen references and remain required decision or acceptance evidence.

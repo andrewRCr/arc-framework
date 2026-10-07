@@ -28,21 +28,23 @@ hosted unit run's artifact carries every unit test's duration and effective time
         - The unit job names all three reporters and uploads `unit-test-report.json` under `!cancelled()` with
           `actions: write`. Its workflow contract checks the fixed report path and upload before the final budget step.
 
-### `[ ]` **1.2 Record the pre-change baseline — D0**
+### `[~]` **1.2 Record the pre-change baseline — D0**
 
 - _Goal:_ A baseline taken before any optimizing commit fixes every figure the cost criteria score against,
   together with the instruments and settings every later measurement reuses.
 
+    - _Amended in:_ 1.2.R (A1)
+
 - **Additional Context:** `analysis-test-suite-cost-baseline.md` § Method and its limits
 
-    - `[ ]` **1.2.a Capture the local baseline**
+    - `[~]` **1.2.a Capture the local baseline**
         - From `packages/arc-framework/`, three `npm run -s benchmark:test-cost -- --condition tier-isolated
           --project-set <unit|integration|e2e> --workers 12` runs per tier. Raw captures stay in the instrument's
           gitignored `.test-cost-runs/`, and `benchmark:test-cost:normalize` gives the medians.
         - Three-run medians of each tier's per-file and summed file time, and of native-tooling cost as the spec's
           § 0 defines it.
 
-    - `[ ]` **1.2.b Capture the hosted baseline**
+    - `[~]` **1.2.b Capture the hosted baseline**
         - At least three full-suite `workflow_dispatch` runs of `ci.yml` at one pushed head on the current layout,
           with `run_portability_pair` off. A dispatch run has no `before` commit, so the classifier
           (`scripts/classify-change.sh`, `cmd_decide`) runs it heavy and every test job runs.
@@ -53,11 +55,30 @@ hosted unit run's artifact carries every unit test's duration and effective time
           project from each test job's log lines; and per-test unit durations from the artifact.
         - Pushes these runs need are approved with this task list and take no separate approval.
 
-    - `[ ]` **1.2.c List the near-timeout unit tests and write the baseline down**
+    - `[~]` **1.2.c List the near-timeout unit tests and write the baseline down**
         - List the unit tests whose hosted duration, scaled by the spec's observed 1.7× runner variance, reaches half
           their effective timeout (Task 2.4).
         - `notes-test-suite-reliability.md` § Baseline records the head, run IDs, capture paths, medians, and the
           instruments' settings.
+
+### `[ ]` **1.2.R Freeze the baseline evidence — D0**
+
+- _Goal:_ Realize A1 by recording the already collected successful and failed observations before fixes, with
+  comparable metrics, provenance, settings, and the single-sample E2E limitation.
+
+    - `[ ]` **1.2.R.a Derive and record the frozen observations**
+        - Reuse retained captures at `88fefb20c43ac580855c5a4d0e6f0232a21e1361`; run no new baseline samples.
+        - Record local unit and integration three-run medians, the one ordinary E2E success, the failed E2E attempt,
+          and the instrumented diagnostic separately. Compute native cost by pairing unit/integration samples and
+          taking the median of each pair's summed family cost.
+        - Record all three hosted attempts, their conclusions, job durations, and all-attempt medians. Verify the
+          timing/timeout metadata in both unit projects, and derive near-timeout maxima including the failed case.
+
+    - `[ ]` **1.2.R.b Verify the frozen baseline is usable for fixes**
+        - Reconcile the notes with raw captures and the A1 contract: no failed run is labeled passed, no diagnostic
+          is counted as an ordinary sample, and all baseline metrics and limits are explicit.
+        - Check remaining measurement tasks use this reference. Preserve the performance targets, calibration,
+          layout decision, and final reliability evidence; repeat measurements only for those decisions.
 
 ## **Phase 2:** Flakes and hermeticity
 
@@ -588,6 +609,10 @@ template; and E2E summed file time is measured against the baseline.
   that the `--no-input` matrix runs each distinct invocation once from a template, and that E2E summed file time,
   from the local instrument's `e2e` project set as three-run medians, is measured against
   `notes-test-suite-reliability.md` § Baseline.
+
+- **Additional Context:** `spec-test-suite-reliability.md` § 0
+
+    - Closing three-run medians compare with the frozen single ordinary E2E sample; state its uncertainty (A1).
 
 ## **Phase 6:** Testing policy and the unit spawn guard
 
@@ -1312,3 +1337,10 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
 - `[ ]` All quality gates pass (tests, linting, type checking)
 
 - `[ ]` Ready for integration
+
+- `[ ]` A1's frozen baseline records the head, retained local and hosted attempts, conclusions, settings, capture
+  paths, and sample limits before fixes; no diagnostic substitutes for an ordinary sample (supersedes the original
+  baseline sampling criterion)
+
+- `[ ]` Closing E2E summed file time's three-run median is at least 20% below the frozen single ordinary baseline
+  sample with its missing noise estimate explicit (A1; supersedes the original E2E comparison criterion)
