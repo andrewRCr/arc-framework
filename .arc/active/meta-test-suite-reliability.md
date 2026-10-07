@@ -14,11 +14,11 @@
 - **Promotion Receipt:** `errand-v1/hosted-test-reliability/ce773f5407a570d786450435b6657f92`
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** Errand promoted to work unit
-- **Next Task:** Begin Task 1.1 — Retain per-test unit durations and effective timeouts on hosted runs
+- **Last Completed:** Task list generated and work unit activated
+- **Next Task:** Task 1.1 — Retain per-test unit durations and effective timeouts on hosted runs (line ~17)
 - **Blockers:** [none]
 
-- **Next Action:** Execute tasks via process-task-loop, starting at Task 1.1
+- **Next Action:** Start Task 1.1 — record each unit test's effective timeout from one shared setup file
 
 - **PR URL:** [none]
 - **Completed:** [none]
