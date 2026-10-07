@@ -53,6 +53,29 @@ describe("installer prompt runtime defaults", () => {
 
 const interactive = resolveInteractionContext({ noInput: false, machineReadable: false, ci: false,
   promptInputIsTTY: true, promptOutputIsTTY: true, yes: "absent" });
+describe("explicit installer tools presentation", () => {
+  it.each([{ tools: [] }, { tools: ["codex"] }])("keeps init tools $tools without tools presentation", async ({ tools }) => {
+    expect((await runInitPrompts("/tmp/example-project", interactive, { tools }))?.tools).toEqual(tools);
+    expect(boundary.tools).not.toHaveBeenCalled();
+    expect(boundary.note.mock.calls.some((call) => call[1] === "Skill installation")).toBe(false);
+    expect(boundary.message.mock.calls.some((call) => String(call[0]).startsWith("Selected:"))).toBe(false);
+  });
+  it.each([
+    { tools: [], currentTools: [] }, { tools: ["codex"], currentTools: [] },
+    { tools: [], currentTools: ["claude"] }, { tools: ["codex"], currentTools: ["claude"] },
+  ])("keeps explicit join tools $tools over $currentTools without tools presentation", async ({ tools, currentTools }) => {
+    expect((await runJoinPrompts(interactive, { suppliedTools: tools, currentTools }))?.tools).toEqual(tools);
+    expect(boundary.tools).not.toHaveBeenCalled();
+    expect(boundary.note).not.toHaveBeenCalled();
+    expect(boundary.message.mock.calls.some((call) => String(call[0]).startsWith("Selected:"))).toBe(false);
+  });
+  it("retains tools question presentation when no tools were supplied", async () => {
+    expect((await runJoinPrompts(interactive))?.tools).toEqual(["codex"]);
+    expect(boundary.tools).toHaveBeenCalledOnce();
+    expect(boundary.note).toHaveBeenCalledWith(expect.any(String), "Skill installation");
+    expect(boundary.message).toHaveBeenCalledWith("Selected: Codex");
+  });
+});
 describe("installer prompt cancellation", () => {
   it.each([
     { name: "init", run: () => runInitPrompts("/tmp/example-project", interactive) },

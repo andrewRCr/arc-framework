@@ -76,7 +76,7 @@ function cancelAndThrow(sentinel: symbol): never {
  */
 export async function promptTools(site: PromptSite<"multiselect">, context: InteractionContext,
   sentinel: symbol, initialValues: string[] = [], explicitAnswer?: string[]): Promise<string[]> {
-  if (context.interaction === "allowed") {
+  if (context.interaction === "allowed" && explicitAnswer === undefined) {
     p.note(
       "ARC installs Skills as triggers for common workflows (commits,\n" +
         "handoffs, etc.) into your tools' skill directories.\n" +
@@ -100,7 +100,7 @@ export async function promptTools(site: PromptSite<"multiselect">, context: Inte
   if (answer.kind !== "answered") cancelAndThrow(sentinel);
   const selected = answer.value;
 
-  if (context.interaction === "allowed" && selected.length > 0) {
+  if (context.interaction === "allowed" && explicitAnswer === undefined && selected.length > 0) {
     const labels = selected.map(
       (v) => TOOL_OPTIONS.find((o) => o.value === v)?.label ?? v,
     );
