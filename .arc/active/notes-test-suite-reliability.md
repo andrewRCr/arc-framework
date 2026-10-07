@@ -311,7 +311,8 @@ The existing integration inventory case is included alongside the original unit 
 - **`ci-build-recovery`:** missing runtime/schema, malformed evidence, source/manifest/installation identity changes
   refuse without generation and resume after local preflight; missing/malformed/empty npm evidence refuses both
   controller and preflight without mutation, then repaired installation permits reuse; optional alternate-Node producer
-  mismatch refuses, rebuilds locally, and resumes (baseline conditional skip retained). Locations: pending.
+  mismatch refuses, rebuilds locally, and resumes (baseline conditional skip retained). All matrices and real
+  refusal/repair representatives now run in `__tests__/integration/ci-build-recovery.test.ts`, portability-selected.
 
 ## Native-tooling calibration
 
@@ -468,3 +469,14 @@ Real integration case medians in the focused mode:
   bundling case moves unchanged to integration.
 - **`build-configuration`:** inherited configuration content and target changes remain process-free filesystem
   checks. No compiler work, child process, or Git repository is requested.
+
+- **`ci-build-recovery`:** one actual producer is shared by all direct qualification and installation fault rows.
+  `refuses missing CLI without generation and resumes after local preflight` retains the real skip-build refusal,
+  preservation, authorized generation, and repaired controller class. `requires installation repair for missing npm
+  evidence before preflight can resume` retains the real terminal installation refusal and repaired reuse class.
+  `qualification refuses missing schema/malformed evidence/CLI input/schema input/manifest/installation metadata
+  without generating or mutating transferred output` are the narrower direct matrix proofs replacing those native
+  replays; the installation matrix directly proves malformed and empty metadata with restored qualification.
+  The alternate-Node producer scenario moves unchanged with its conditional skip. All ten direct fault behaviors
+  failed against an always-qualified reconstruction of the public reader and passed after restoration in a temporary
+  module/test copy. Primary source and derived CLI were untouched by that reconstruction.

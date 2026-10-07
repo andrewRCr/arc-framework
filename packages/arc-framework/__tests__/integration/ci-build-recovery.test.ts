@@ -19,6 +19,51 @@ afterAll(async () => { await rm(producer.root, { recursive: true, force: true })
 const skip = { CI: "1", ARC_E2E_SKIP_BUILD: "1" };
 
 it.each(["missing CLI", "missing schema", "malformed evidence", "CLI input", "schema input", "manifest", "installation metadata"])(
+  "qualification refuses %s without generating or mutating transferred output", async (fault) => {
+    const consumer = await downloadCiBuild(producer.packageRoot, "integration");
+    try {
+      const installation = await isolateCiInstallation(consumer.root);
+      expect(readBuildQualification(consumer.packageRoot, "runtimeSchema").status).toBe("qualified");
+      if (fault === "missing CLI") await rm(join(consumer.packageRoot, "dist/cli.js"));
+      if (fault === "missing schema") await rm(join(consumer.packageRoot, "dist/schemas/kernel.json"));
+      if (fault === "malformed evidence") await writeFile(join(consumer.packageRoot, "dist/dev-build-stamp.json"), "broken");
+      if (fault === "CLI input" || fault === "schema input") {
+        const input = join(consumer.packageRoot, fault === "CLI input" ? "src/cli.ts" : "src/fixture-schema.json");
+        await writeFile(input, await readFile(input, "utf8") + "\n");
+      }
+      if (fault === "manifest") {
+        const file = join(consumer.root, "package.json");
+        await writeFile(file, await readFile(file, "utf8") + "\n");
+      }
+      if (fault === "installation metadata") await writeFile(installation.file, installation.original + "\n");
+      const stamp = await readFile(join(consumer.packageRoot, "dist/dev-build-stamp.json"), "utf8");
+      const refused = readBuildQualification(consumer.packageRoot, "runtimeSchema");
+      expect(refused).toMatchObject({ status: "unqualified", reason: expect.any(String) });
+      expect(await readFile(join(consumer.packageRoot, "dist/dev-build-stamp.json"), "utf8")).toBe(stamp);
+      await expect(readFile(join(consumer.packageRoot, ".config-loads"))).rejects.toMatchObject({ code: "ENOENT" });
+    } finally { await rm(consumer.root, { recursive: true, force: true }); }
+  }, 60_000,
+);
+
+it.each(["missing", "malformed", "empty"])("qualification requires installation repair for %s npm evidence", async (fault) => {
+  const consumer = await downloadCiBuild(producer.packageRoot, "integration");
+  try {
+    const installation = await isolateCiInstallation(consumer.root);
+    if (fault === "missing") await rm(installation.file);
+    else await writeFile(installation.file, fault === "malformed" ? "broken" : '{"lockfileVersion":3,"packages":{}}');
+    const stamp = await readFile(join(consumer.packageRoot, "dist/dev-build-stamp.json"), "utf8");
+    const refused = readBuildQualification(consumer.packageRoot, "runtimeSchema");
+    expect(refused).toMatchObject({ status: "unqualified" });
+    if (refused.status !== "unqualified") throw new Error("Invalid installation unexpectedly qualified");
+    expect(refused.reason).toContain("npm ci");
+    expect(await readFile(join(consumer.packageRoot, "dist/dev-build-stamp.json"), "utf8")).toBe(stamp);
+    await expect(readFile(join(consumer.packageRoot, ".config-loads"))).rejects.toMatchObject({ code: "ENOENT" });
+    await writeFile(installation.file, installation.original);
+    expect(readBuildQualification(consumer.packageRoot, "runtimeSchema").status).toBe("qualified");
+  } finally { await rm(consumer.root, { recursive: true, force: true }); }
+}, 60_000);
+
+it.each(["missing CLI"])(
   "refuses %s without generation and resumes after local preflight", async (fault) => {
     const consumer = await downloadCiBuild(producer.packageRoot, "integration");
     try {
@@ -56,7 +101,7 @@ it.each(["missing CLI", "missing schema", "malformed evidence", "CLI input", "sc
   }, 60_000,
 );
 
-it.each(["missing", "malformed", "empty"])("requires installation repair for %s npm evidence before preflight can resume", async (fault) => {
+it.each(["missing"])("requires installation repair for %s npm evidence before preflight can resume", async (fault) => {
   const consumer = await downloadCiBuild(producer.packageRoot, "integration");
   try {
     const installation = await isolateCiInstallation(consumer.root);

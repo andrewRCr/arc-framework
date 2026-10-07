@@ -253,14 +253,10 @@ is measured against the baseline.
   matrices run as direct calls, and each real outcome class runs once in integration under a basename the
   portability tier still selects.
 
-    - `[ ]` **3.4.a `ci-build-recovery.test.ts`**
-        - The largest native-tooling file (75.6 s on the base run), which alone bounds any unit shard today.
-        - Each of the seven faults in its first table is decided by `readBuildQualification`
-          (`build-qualification.ts`), so they run as direct calls against copies of one qualified build, and one
-          real refused, preflight, and repaired controller run keeps the refusal class. The installation-evidence
-          table's three faults run the same way, with one real run for its preflight refusal.
-        - A qualified starting state takes a real build, so the file moves to integration whole, beside that one
-          build per file.
+    - `[x]` **3.4.a `ci-build-recovery.test.ts`**
+        - The complete qualification and installation fault matrices run directly over transferred output from one
+          real producer. One native controller refusal/preflight/repaired run per class remains, and the alternate
+          Node scenario retains its original conditional skip. All classes stay portability-selected in integration.
 
     - `[ ]` **3.4.b `ci-build-transfer.test.ts`**
         - Includes the retained-producer case at `:65`, which carries a 30 s explicit timeout today.
