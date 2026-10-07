@@ -851,3 +851,6 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
 
 - **A4** — 2026-10-07 — design: distinguish unreachable start-prompt proof from its stricter native safety refusal.
   _Supersedes:_ § 7 Tests follow the policy rule. _Trigger:_ 9.8 must-stop. _Work:_ 9.8.R. _Revalidated:_ 9.9.
+
+- **A5** — 2026-10-07 — task: normalize native publication keys so Windows can publish required nested artifacts.
+  _Supersedes:_ none. _Trigger:_ 10.1 must-stop. _Work:_ 10.1.R. _Revalidated:_ pending → 10.1.b.

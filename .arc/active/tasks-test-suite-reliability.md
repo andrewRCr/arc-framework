@@ -949,10 +949,30 @@ _Mode:_ `layer` — closes on the recorded closing measurement.
 _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-reliability.md` beside the baseline, and
 `test-cost-budgets.json` holds rows re-recorded by the spec's budget rule.
 
+### `[x]` **10.1.R Normalize native publication artifact keys — A5**
+
+- _Goal:_ A5's Windows publication correction keeps required and obsolete artifact comparisons on one portable key
+  representation, so the full build and existing portability cases can publish valid nested schema output.
+
+- _Outcome:_ The native enumerator emits portable artifact keys for staged and prior-live inventories. The real
+  Windows path boundary reproduces the old missing-schema refusal and now publishes schema, runtime and qualification
+  while removing obsolete output. Guards remain intact; Notes § Amendment A5 records the failed hosted attempt.
+
+### `[ ]` **10.1.R2 Isolate inherited child-process output formatting**
+
+- _Goal:_ CLI and script subprocess fixtures keep their output contracts when the parent sets `FORCE_COLOR=3`, while
+  explicit per-invocation environment overrides remain available and every behavioral assertion stays intact.
+
+    - Clear inherited `FORCE_COLOR` in shared pipe CLI/script helpers and the four direct Node/npm fixture callers
+      exposed by the forced-color run. Preserve CLI, script, decomposition and validator behavior.
+    - Re-run the failed cases and the complete routine lane with `FORCE_COLOR=3`; retain the failing capture as evidence.
+
 ### `[ ]` **10.1 Run the closing hosted runs**
 
 - _Goal:_ Five consecutive first-attempt passes at the final head show the suite reliable on hosted runners, give the
   hosted cost medians, and confirm the Windows and macOS legs.
+
+    - _Amended in:_ 10.1.R (A5)
 
     - `[ ]` **10.1.a Five consecutive dispatch runs**
         - Full-suite `workflow_dispatch` runs at the final head, dispatched one at a time as in Task 1.2.b, every

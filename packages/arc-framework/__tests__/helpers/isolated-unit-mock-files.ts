@@ -18,6 +18,7 @@
  * globs.
  */
 export const ISOLATED_UNIT_MOCK_FILES = [
+  "__tests__/unit/build-publication-paths.test.ts",
   "__tests__/unit/decompose-preflight-handler.test.ts",
   "__tests__/unit/git/process-executor.test.ts",
   "__tests__/unit/handlers-shared.test.ts",

@@ -2066,3 +2066,52 @@ A4 is revalidated at 9.9; no production guard is weakened. This scenario closes 
 Code checks retain the passing 9.8.R tree: 1,119 routine files/16,713 cases, 67 E2E files/699 cases, both type checks,
 whole-project typed lint, and unchanged full declaration-build/shell results. Only completion records change here;
 whole-corpus Markdown and the three ARC contracts run over those final records. Success Criteria remain unchanged.
+
+## Amendment A5: Windows publication keys
+
+At `67f6d9b7b10f6295e2e9d75856b5ad8c05df545c`, five sequential Linux dispatches pass on their first attempts:
+`37622802291`, `37623893388`, `37624682442`, `37625427884`, and `37626223423`. Every run retains half-timeout
+headroom for all 13,689 completed unit cases. Median run duration is 316 s and summed test-job time is 1,697 s,
+reductions of 41.48% and 20.74% against the frozen baseline. All twelve local captures also pass: E2E summed median
+is 2,059,173.491 ms (26.14% reduction), while native paired median is 767,182.911 ms (32.09%, below the 40% target).
+They remain historical captures under `closing-hosted/` and `closing-local/`, not final corrected-head evidence.
+
+The sixth dispatch, `37627102347`, fails its Windows full build before portability tests. Its failed job log
+(`/tmp/arc-closing-windows-build-failure.log`, job `112811584397`) reports required `schemas/kernel.json` missing.
+`listRelativeFiles` returns native `relative(root, file)` keys, while `validateStagedOutput` compares exact portable
+`schemas/kernel.json`; Windows returns `schemas\kernel.json`. The generator writes through native `join` into
+correct owned staging. The same enumerator governs prior-live obsolete-output comparisons. Git blame and a
+baseline-to-closing source comparison show this mismatch predates the WU; it is not a schema-generation regression.
+
+A5 takes the task arm at low depth: existing Windows/macOS portability obligations require this output, and no
+settled decision changes. Revision 10.1.R normalizes the native enumerator's artifact keys and retains every
+publication guard. The original measurement Goals, success criteria, thresholds and final-head requirement remain
+unchanged. Closing samples therefore restart at the corrected committed head; no pre-fix baseline sample repeats.
+Standing phase 1–10 authority covers this bounded prerequisite correction and its necessary hosted runs.
+
+The primary grounding footprint traces `listRelativeFiles`, `validateStagedOutput`, `publishStagedBuild`,
+`generateRuntimeSchema` and `writeKernelSchemaArtifact`; the narrow scout independently corroborates the mismatch.
+Task ordering places the correction before the hosted obligation it enables. Reader independence and binding
+completeness retain the existing portability and exact-head obligations; no independent amendment-review pass is claimed.
+
+The native-cost comparison with the earlier 41.92% result remains unresolved: four added native-family files add
+8,915.546 ms, and the existing 77 files add 102,197.836 ms in the median-defining pair comparison. A 234-file
+non-native integration cohort with identical test-name lists also slows by 11.91%. Retained timings establish broad
+slowdown with limited native workload growth; they do not distinguish environment from intervening implementation
+or scheduling changes. The primary reproduces the advisor's decomposition from raw captures and does not substitute
+the earlier result for the closing sample. Refreshed final-head sampling will retain its own result.
+
+The regression case replaces only the external path library's relative-key/separator behavior with its real Windows
+implementation; native fixture filesystem joins stay on the host. It reproduces the exact missing-schema refusal
+before the fix (`/tmp/arc-windows-publication-path-red.log`). The correction normalizes native relative keys with
+`split(sep).join("/")`, preserving valid POSIX backslash filename characters and using the same representation for
+staged validation, live retained-output comparison and publication joins. No publication check is relaxed.
+
+The corrected publication selection passes 15 cases across its unit and native integration files
+(`/tmp/arc-windows-publication-path-green.log`). The new external-path mock is registered in `unit-mocks`, preserving
+the quarantine guard. Both final type checks, whole-project typed lint, shell checks and full declaration build pass.
+The initial forced-color routine attempt also exposes eight inherited-formatting failures plus that missing mock
+registration; its failed record remains `/tmp/arc-windows-publication-routine.log`. The formatting correction follows
+as its own atomic Task 10.1.R2 change. The combined worktree passes all 1,120 routine files/16,714 cases with
+`FORCE_COLOR=3` in 234.01 s (`/tmp/arc-closing-repairs-routine-final.log`), retaining the existing skip set.
+The source/build inputs remain unchanged after those checks; final completion records receive Markdown/ARC checks.
