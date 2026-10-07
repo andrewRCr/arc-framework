@@ -783,31 +783,25 @@ unresolved site argument.
     - Remaining Clack calls retain callee-and-occurrence discovery.
         - _Retired in:_ Phase 9
 
-### `[ ]` **8.4 Migrate the stale-subdir prompt end to end — D7**
+### `[x]` **8.4 Migrate the stale-subdir prompt end to end — D7**
 
 - _Goal:_ The stale-subdir prompt in `handlers/user.ts` runs through the prompter from its branded, exported
   declaration, with today's output and exit status in every interaction context.
 
-    - The site is declared with the prompt-site function as an exported `select` constant and passed by name to the
-      prompter.
-    - When interaction is forbidden the caller still logs `Keeping stale subdir user/<id>/<subdir>/
-      (non-interactive).`, and on a cancellation it still returns silently.
-    - Its inventory entry's locus is the passing call. `repository-inventory.test.ts` pins this site by its old
-      identity (`user open:interaction.handlers-user.ts-prompt-p.select-1`) and counts declared sites by
-      `source.interaction` beside a fixed list of four semantic sites; it follows the new id and origin. Its exact
-      match of interaction-capable commands to `NO_INPUT_MATRIX` finds them by an `interaction.` id or a `--no-input`
-      flag, and `user open` has no other, so it also counts `origin: "prompt"` entries. `NO_INPUT_MATRIX` stays green.
-    - The proof of today's behavior: `user-handlers.test.ts`'s stale-subdir cases (default-keep prompt, non-interactive
-      keep with its log line, inspect re-prompt, remove, and cancel) pass unchanged through its module mock of
-      `@clack/prompts`, which now reaches the renderer, and `user.e2e.test.ts`'s non-TTY keep case runs the real
-      forbidden path.
-    - Any drift between the declaration and today's behavior is recorded in this task.
+- _Outcome:_ `staleSubdirPromptSite` carries the existing safe keep policy, and every context reaches its passing
+  `prompt` call. Forbidden interaction retains the keep log; cancellation returns silently through the safe default.
+  Inventory counts prompt origin and names the new id; existing handler cases and the real non-TTY case retain behavior.
+  No policy drift was found; Notes § Stale-subdirectory prompt path retains the evidence.
 
-### `[ ]` **8.5 Prompter path proven** — validate exit criterion at segment scope
+### `[x]` **8.5 Prompter path proven** — validate exit criterion at segment scope
 
 - _Goal:_ Evidence that the stale-subdir prompt runs through the prompter in interactive, forbidden, and cancelled
   contexts with today's output and exit status, and that the scanner refuses an inline declaration and an unresolved
   site argument.
+
+- _Outcome:_ Existing interactive keep/inspect/remove/cancel cases and the native forbidden case exercise the
+  declaration-bound path. Scanner scenarios refuse inline declarations and unresolved arguments, closing the slice;
+  Notes § Stale-subdirectory prompt path retains the scenario evidence.
 
 ## **Phase 9:** Prompt-site migration
 

@@ -38,7 +38,7 @@ describe("repository command-input inventory", () => {
     );
     const declaredInteractionCount = commandInputPolicyDeclarations.reduce(
       (count, declaration) => count + declaration.sites.filter(
-        (site) => "interaction" in site.source && site.source.interaction !== undefined,
+        (site) => site.origin === "prompt" || ("interaction" in site.source && site.source.interaction !== undefined),
       ).length,
       0,
     );
@@ -69,7 +69,9 @@ describe("repository command-input inventory", () => {
         schemaField: "teamMode",
       }),
       expect.objectContaining({
-        identity: "user open:interaction.handlers-user.ts-prompt-p.select-1",
+        identity: "user open:prompt.stale-subdir",
+        origin: "prompt",
+        liveSource: expect.objectContaining({ callee: "prompt", declaredId: "prompt.stale-subdir" }),
         acquisition: "safe-default",
         cancellation: "safe-default",
         noInput: "use-default",
@@ -148,6 +150,7 @@ describe("repository command-input inventory", () => {
   it("requires every discovered interaction policy to come from a command-owned declaration", () => {
     const declared = new Set(commandInputPolicyDeclarations.flatMap((declaration) => declaration.sites.flatMap(
       (site) => {
+        if (site.origin === "prompt") return [site.id];
         if (!("interaction" in site.source) || site.source.interaction === undefined) return [];
         const { interaction } = site.source;
         return [
@@ -157,6 +160,7 @@ describe("repository command-input inventory", () => {
     )));
     const counts = new Map<string, number>();
     const missing = snapshot.source.interactions.flatMap((site) => {
+      if (site.declaredId !== undefined) return declared.has(site.declaredId) ? [] : [site.declaredId];
       const base = `${site.file}|${site.kind}|${site.callee}`;
       const occurrence = (counts.get(base) ?? 0) + 1;
       counts.set(base, occurrence);
@@ -463,7 +467,7 @@ describe("repository command-input inventory", () => {
 
   it("exact-matches every interaction-capable command to the real-process matrix", () => {
     const interactionCommands = [...new Set(inventory.entries
-      .filter((entry) => entry.siteId.startsWith("interaction.") || entry.automationFlags.includes("--no-input"))
+      .filter((entry) => entry.origin === "prompt" || entry.siteId.startsWith("interaction.") || entry.automationFlags.includes("--no-input"))
       .map((entry) => entry.commandPath))].sort();
     expect(NO_INPUT_MATRIX.map((entry) => entry.commandPath).sort()).toEqual(interactionCommands);
   });

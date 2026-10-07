@@ -1684,3 +1684,24 @@ The extracted lookup's final routine gate passes the same 1,116 files and 16,685
 skipped (`/tmp/arc-prompt-scanner-final-routine.log`, 192.74 s). Both type programs and full typed lint pass, with no
 suppression added or widened. The unchanged shell surface retains its passing gate. Metadata completion preserves the
 renderer and legacy-discovery retirement markers verbatim; the terminal migration remains a separate increment.
+
+### Stale-subdirectory prompt path
+
+The new inventory contract first fails on the old callee identity (`/tmp/arc-stale-subdir-inventory-red.log`: one
+behavioral failure, 23 passes). `staleSubdirPromptSite`, an exported branded select declaration, retains the original
+`use-default`/safe cancellation policy. Its passing call receives `keep` as runtime default in every context. The
+forbidden branch only prints the existing keep message; the prompter supplies the answer. Inspect re-prompts, explicit
+remove still removes, and cancellation returns silently with the safe default. No declaration/behavior drift is found.
+
+All 64 existing handler/inventory cases pass (`/tmp/arc-stale-subdir-focused-green.log`), with the stale-subdir handler
+cases unchanged. The exact interaction-command matrix follows prompt origin and retains every existing matrix entry.
+The real non-TTY stale-subdir case passes (`/tmp/arc-stale-subdir-e2e-green.log`, one completed case; twelve unselected),
+retaining both the old workspace and newly opened workspace with exit zero. All 14 scanner cases pass
+(`/tmp/arc-prompter-path-scanner.log`), including inline declaration and unresolved argument refusals. These unchanged
+runtime scenarios plus the inventory join close the declaration-bound prompt slice.
+
+Focused lint and both type programs pass (`/tmp/arc-stale-subdir-lint.log`, `/tmp/arc-stale-subdir-types.log`).
+The coherent migration passes the full routine gate: 1,116 files and 16,688 cases, with one file and 1,188 cases
+skipped (`/tmp/arc-stale-subdir-routine.log`, 201.63 s). Full typed lint passes
+(`/tmp/arc-stale-subdir-full-lint.log`); Markdown and all ARC contracts pass. The unchanged shell surface retains its
+adoption gate. The full declaration build is retained in `/tmp/arc-stale-subdir-full-build.log`.

@@ -32,8 +32,10 @@ import {
   declareCliOperandSite,
   declareCliOptionSite,
   declareInteractionSite,
+  declarePromptSite,
   type CommandInputDeclaration,
 } from "../lib/command-input/declaration.js";
+import { prompt } from "../lib/command-input/prompter.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import { resolveInboxEntryOperand } from "../lib/inbox-entry-operand.js";
 import { resolveCurrentWuName } from "../lib/user-sync/index.js";
@@ -309,25 +311,23 @@ async function resolveResidualStaleSubdir(options: {
 }): Promise<void> {
   const { cwd, io, identity, stale, context } = options;
 
-  // Non-interactive: keep silently. A clack prompt would auto-cancel here and,
-  // pre-fix, abort the whole open — so skip to the safe default instead.
   if (context.interaction === "forbidden") {
     p.log.info(`Keeping stale subdir user/${identity}/${stale}/ (non-interactive).`);
-    return;
   }
 
   for (;;) {
-    const choice = await p.select({
+    const answer = await prompt(staleSubdirPromptSite, context, {
       message: `Stale subdir user/${identity}/${stale}/ from prior WU.`,
       initialValue: "keep",
+      runtimeDefault: "keep",
       options: [
         { value: "keep", label: "keep — leave it in place" },
         { value: "remove", label: "remove — delete the subdir" },
         { value: "inspect", label: "inspect — list subdir contents" },
       ],
     });
-    // A cancel (ctrl-C) resolves to the non-destructive default, never an abort.
-    if (p.isCancel(choice) || choice === "keep") return;
+    if (answer.kind !== "answered" || answer.value === "keep") return;
+    const choice = answer.value;
     if (choice === "remove") {
       await removeStaleUserWuSubdir({ cwd, identity, subdir: stale });
       return;
@@ -921,13 +921,9 @@ export const userCommandInputRegistrations = [
   { commandPath: "user pull", schema: UserPullInputSchema, schemaFields: { "option.identity": "identity" } },
 ] as const satisfies readonly CommandInputRegistration[];
 
-/** Command-owned policy that syntax cannot express for user-state acquisition. */
-export const userCommandInputPolicyDeclarations = [{
-  commandPath: "user open",
-  aliases: [],
-  sites: [declareInteractionSite(
-    { file: "handlers/user.ts", kind: "prompt", callee: "p.select", occurrence: 1 },
-    {
+/** Non-destructive disposition of a residual stale user workspace. */
+export const staleSubdirPromptSite = declarePromptSite("prompt.stale-subdir", "select",
+  { file: "handlers/user.ts", symbol: "staleSubdirPromptSite" }, {
     acquisition: "safe-default",
     schemaOwnership: "none",
     defaultSource: "keep",
@@ -935,8 +931,13 @@ export const userCommandInputPolicyDeclarations = [{
     automation: { noInput: "use-default", flags: [], acceptedSyntax: [] },
     mutationBoundary: "stale user subdirectory removal",
     subprocess: "none",
-    },
-  )],
+  });
+
+/** Command-owned policy that syntax cannot express for user-state acquisition. */
+export const userCommandInputPolicyDeclarations = [{
+  commandPath: "user open",
+  aliases: [],
+  sites: [staleSubdirPromptSite],
 }, {
   commandPath: "user inbox-mark-execute-bound",
   aliases: [],
