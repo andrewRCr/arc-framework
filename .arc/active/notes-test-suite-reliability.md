@@ -660,3 +660,255 @@ Capture paths are relative to `packages/arc-framework/.test-cost-runs/`:
 threshold result, and each baseline basename's current locations. No failed attempt or diagnostic substitutes for
 an ordinary sample. Full code checks and the full declaration build already cover this unchanged conversion tree;
 this closure adds only the measurement record.
+
+## Source-scan cost
+
+Frozen inventory: 26 unit files and 123 expanded cases that inspect actual production/test code. Synthetic parser
+fixtures, runtime JSON contracts, manifest-only reads, and methodology-only scans are outside this set. Paths below
+are package-relative. The exact names and all three raw per-case/file durations are retained in
+`packages/arc-framework/.test-cost-runs/source-scan-inventory-baseline.json`, reconciled against all three ordinary
+`post-guard-baseline-unit-{1,2,3}.json` captures at the frozen head.
+
+The complete-file sums are **50,181.960, 49,744.319, 48,506.898 ms** (median **49,744.319 ms**).
+Selected case-time sums are **32,235.744, 31,484.541, 30,344.893 ms** (median **31,484.541 ms**).
+Task 4.5 compares the same complete-file set, counting deleted files as removed. Shared `beforeAll` scans in
+repository-inventory and help-coverage contribute setup cost once per file; their dependent cases are all listed,
+without pretending the case durations alone include that shared work. Other non-scan cases remain in those files,
+so the complete-file total measures this fixed file set, rather than attributing every millisecond to parsing.
+
+Every case duration below is its three-sample median in milliseconds; each file duration includes fixed cost.
+
+**`__tests__/unit/active/meta-reader-inventory.test.ts`** — file median 2,873.241 ms.
+
+- semantic meta reader boundary > keeps first-party consumers on semantic fields and normalized identifier arrays —
+  2,590.173 ms.
+
+**`__tests__/unit/active/meta-reader-store.test.ts`** — file median 151.193 ms.
+
+- active-meta store delegate > has only dynamic store imports so importing meta parsers closes no backend cycle —
+  9.273 ms.
+
+**`__tests__/unit/active/meta-writer-inventory.test.ts`** — file median 1,464.827 ms.
+
+- semantic meta writer boundary > keeps full-record producers off projection override contracts — 1.147 ms.
+- semantic meta writer boundary > rejects display labels in inline renderMetaFile override objects and the retired
+  override type — 1,446.648 ms.
+
+**`__tests__/unit/cli-loading-boundary.test.ts`** — file median 271.771 ms.
+
+- CLI loading boundary > keeps import-time registrations outside the lazy module set — 206.784 ms.
+- CLI loading boundary > loads the representative view handler only when its command runs — 16.468 ms.
+- CLI loading boundary > loads every implementation module only when its command runs — 14.589 ms.
+- CLI loading boundary > defers path-conditional active candidate projection modules — 7.425 ms.
+- CLI loading boundary > loads the active status authority without initializing the broader command barrel — 4.556 ms.
+- CLI loading boundary > loads git operations from their owning modules instead of the broad barrel — 10.494 ms.
+
+**`__tests__/unit/command-input/registry.test.ts`** — file median 10,325.361 ms.
+
+- command-input schema adapter and registry > registers every command-owned schema in the live Commander tree —
+  4,097.929 ms.
+
+**`__tests__/unit/command-input/repository-inventory.test.ts`** — file median 10,000.020 ms.
+
+- repository command-input inventory > reconciles every live syntax site and declared interaction use — 6.029 ms.
+- repository command-input inventory > excludes rejection-only review JSON flags from accepted inputs — 0.785 ms.
+- repository command-input inventory > requires every discovered interaction policy to come from a command-owned
+  declaration — 0.672 ms.
+- repository command-input inventory > requires semantic syntax policy to come from a command-owned declaration —
+  0.684 ms.
+- repository command-input inventory > routes every machine-readable command through the interaction-context adapter —
+  0.348 ms.
+- repository command-input inventory > routes merge-lock JSON commands under a constant machine-mode policy — 0.328
+  ms.
+- repository command-input inventory > routes review resolve-family JSON commands under a constant machine-mode policy
+  — 0.467 ms.
+- repository command-input inventory > routes hosted review JSON commands under a constant machine-mode policy — 0.329
+  ms.
+- repository command-input inventory > routes local review and response JSON commands under a constant machine-mode
+  policy — 0.520 ms.
+- repository command-input inventory > declares JSON mode on attest, publish, and locus — 0.326 ms.
+- repository command-input inventory > routes value-bearing human-output commands through the interaction adapter —
+  0.297 ms.
+- repository command-input inventory > routes release opt-in and opt-out through the interaction adapter — 0.233 ms.
+- repository command-input inventory > routes every terminal-prompt subprocess command through the interaction-context
+  adapter — 0.370 ms.
+- repository command-input inventory > routes the close-stdin frontline provider through the interaction-context
+  adapter — 0.183 ms.
+- repository command-input inventory > assigns the byte-preserving raw Git boundary to its command families — 0.383
+  ms.
+- repository command-input inventory > assigns the post-action development build refresh to its head-moving command
+  families — 0.297 ms.
+- repository command-input inventory > assigns the close-stdin hosted GitHub boundary to every reachable command
+  family — 0.280 ms.
+- repository command-input inventory > routes lifecycle and errand command boundaries through the interaction-context
+  adapter — 0.280 ms.
+- repository command-input inventory > renders a stable descriptive table without writing a tracked artifact — 0.746
+  ms.
+- repository command-input inventory > maps every schema-owned inventory site to a real command-schema field — 5.674
+  ms.
+- repository command-input inventory > maps every registered syntax site to a real command-schema field — 5.584 ms.
+- repository command-input inventory > represents every command-schema field in the authoritative inventory — 3.540
+  ms.
+- repository command-input inventory > exact-matches every interaction-capable command to the real-process matrix —
+  0.539 ms.
+- repository command-input inventory > rejects duplicate explicit policy ownership instead of silently taking the last
+  declaration — 3.821 ms.
+
+**`__tests__/unit/config/inventory.test.ts`** — file median 43.280 ms.
+
+- ARC configuration inventory > finds no unowned consumed key or parallel default table in policy adapters — 5.422 ms.
+
+**`__tests__/unit/git/configured-identity-boundary.test.ts`** — file median 58.485 ms.
+
+- configured identity read boundary > keeps direct arc.identity Git reads inside the identity owner — 22.380 ms.
+
+**`__tests__/unit/isolated-mock-files.guard.test.ts`** — file median 74.316 ms.
+
+- module-mocking unit files are quarantined > matches the isolated-tier list exactly — 16.141 ms.
+
+**`__tests__/unit/kernel/import-boundary.test.ts`** — file median 3,297.719 ms.
+
+- kernel import boundary > exposes exactly the designed value and type surface from an explicit barrel — 8.553 ms.
+- kernel import boundary > keeps the canonical digest core free of Zod imports — 14.358 ms.
+- kernel import boundary > keeps the live source graph within the kernel boundary — 2,968.384 ms.
+
+**`__tests__/unit/layout/import-boundary.test.ts`** — file median 1,032.610 ms.
+
+- layout import boundary > depends only on local modules, the kernel, Zod, and host path semantics — 6.109 ms.
+- layout import boundary > exposes layout consumers only through the downward public library barrel — 1,014.749 ms.
+
+**`__tests__/unit/lib/cli-help-coverage.test.ts`** — file median 152.579 ms.
+
+- help inventory > has intentional summaries for the entire visible registered tree — 0.757 ms.
+- help inventory > detects newly registered visible commands and excludes hidden commands — 19.201 ms.
+- help inventory > explains file/stdin and JSON output on registered request pages without copying schemas — 1.191 ms.
+- help inventory > exactly covers immediate visible children of  — 0.276 ms.
+- help inventory > exactly covers immediate visible children of review — 0.086 ms.
+- help inventory > exactly covers immediate visible children of user — 0.049 ms.
+- help inventory > exactly covers immediate visible children of errand — 0.040 ms.
+- help inventory > exactly covers immediate visible children of release — 0.108 ms.
+- help inventory > exactly covers immediate visible children of delivery — 0.071 ms.
+- help inventory > renders review in the settled group and member order — 4.335 ms.
+- help inventory > renders user in the settled group and member order — 1.603 ms.
+- help inventory > renders errand in the settled group and member order — 2.750 ms.
+- help inventory > renders release in the settled group and member order — 1.135 ms.
+- help inventory > renders delivery in the settled group and member order — 1.444 ms.
+
+**`__tests__/unit/lib/store/concurrency/import-boundary.test.ts`** — file median 53.669 ms.
+
+- concurrency dependency boundary > imports only its own modules, kernel, store core, and the line merge dependency —
+  14.503 ms.
+
+**`__tests__/unit/lib/store/concurrency/line-merge-api.test.ts`** — file median 55.427 ms.
+
+- exports text and contract types without exposing the dependency's types — 33.834 ms.
+
+**`__tests__/unit/lib/store/in-repo-boundary.test.ts`** — file median 7,963.683 ms.
+
+- repository store import boundaries > keeps backend implementation imports inside the store and reaches the backend
+  entry only through its factory — 3,310.150 ms.
+- repository store import boundaries > keeps tests on the public composition and fixture boundaries — 4,496.252 ms.
+- repository store import boundaries > defers every heavy active projection until a kind or operation needs it —
+  139.379 ms.
+
+**`__tests__/unit/lib/store/registry.test.ts`** — file median 46.767 ms.
+
+- role-based storage registry > keeps presentation filenames out of the production store core — 1.286 ms.
+
+**`__tests__/unit/lib/store/ship-guard.test.ts`** — file median 3,321.537 ms.
+
+- reference backend import boundary > finds no production import into the test-only reference backend — 3,039.983 ms.
+
+**`__tests__/unit/locus/role-authority-boundary.test.ts`** — file median 45.232 ms.
+
+- checkout role authority boundary > keeps derivation free of durable locus storage and liveness imports — 15.243 ms.
+
+**`__tests__/unit/scripts/review-gate/core/canonical-caller-inventory.test.ts`** — file median 43.033 ms.
+
+- review-gate canonical serializer inventory > closes the kernel-backed helper caller set — 4.344 ms.
+- review-gate canonical serializer inventory > closes the frozen version-one caller set — 3.639 ms.
+- review-gate canonical serializer inventory > keeps kernel canonicalize direct and removes parallel serializers —
+  11.181 ms.
+- review-gate canonical serializer inventory > keeps NUL-delimited identities outside JSON serialization — 0.242 ms.
+
+**`__tests__/unit/scripts/review-gate/core/ports.test.ts`** — file median 107.107 ms.
+
+- review adapter ports > keeps the core source independent of adapter and runner vocabulary — 88.072 ms.
+- review adapter ports > does not retain the retired host-controller port surface — 0.997 ms.
+
+**`__tests__/unit/scripts/review-gate/review-schema-boundary.test.ts`** — file median 86.780 ms.
+
+- review schema ownership boundary > derives every exported owner type from Zod and exposes only registrar functions —
+  50.333 ms.
+- review schema ownership boundary > pins every handwritten validator importer to the schema-v1 compatibility boundary
+  — 5.554 ms.
+
+**`__tests__/unit/scripts/review-gate/review-schema-registration.test.ts`** — file median 42.235 ms.
+
+- review schema registration > keeps review imports and vocabulary out of kernel schema modules — 0.361 ms.
+
+**`__tests__/unit/session-envelope/type-authority.test.ts`** — file median 218.716 ms.
+
+- session-envelope type authority > derives 'LoadSetManifest' from its runtime schema — 15.571 ms.
+- session-envelope type authority > derives 'TaskListCursor' from its runtime schema — 8.629 ms.
+- session-envelope type authority > derives 'TaskListCursorFileResult' from its runtime schema — 5.884 ms.
+- session-envelope type authority > derives 'CompactionSeed' from its runtime schema — 3.268 ms.
+- session-envelope type authority > derives 'LoadSetAuditVerdict' from its runtime schema — 3.426 ms.
+- session-envelope type authority > derives 'RecoveryAuditVerdict' from its runtime schema — 8.487 ms.
+- session-envelope type authority > derives 'RecoverAuditReport' from its runtime schema — 1.830 ms.
+- session-envelope type authority > derives 'InboxStateResult' from its runtime schema — 2.023 ms.
+- session-envelope type authority > derives 'ErrandStalenessSweepResult' from its runtime schema — 2.542 ms.
+- session-envelope type authority > derives 'NotesCompactionSessionAdvisoryResult' from its runtime schema — 1.378 ms.
+- session-envelope type authority > derives 'MaterializableWorkUnitDiscoveryResult' from its runtime schema — 2.025
+  ms.
+- session-envelope type authority > derives 'OrphanBranchSweepResult' from its runtime schema — 4.049 ms.
+- session-envelope type authority > derives 'RetiredSubdirDetectionResult' from its runtime schema — 2.396 ms.
+- session-envelope type authority > derives 'PartialPushMarkerSurfaceResult' from its runtime schema — 2.203 ms.
+- session-envelope type authority > derives 'ClassComposition' from its runtime schema — 0.825 ms.
+- session-envelope type authority > derives 'CascadeResolution' from its runtime schema — 2.104 ms.
+- session-envelope type authority > derives 'BaseBranchSnapshotAnalysisResult' from its runtime schema — 3.444 ms.
+- session-envelope type authority > derives 'DirtyStateResult' from its runtime schema — 1.164 ms.
+- session-envelope type authority > derives 'WorktreeSyncStatusResult' from its runtime schema — 7.202 ms.
+- session-envelope type authority > derives 'WorktreeSnapshotAnalysisResult' from its runtime schema — 5.785 ms.
+- session-envelope type authority > derives 'WorktreeRosterResult' from its runtime schema — 3.094 ms.
+- session-envelope type authority > derives 'BaseDriftResult' from its runtime schema — 1.501 ms.
+- session-envelope type authority > derives 'BaseDistanceSnapshotAnalysisResult' from its runtime schema — 3.203 ms.
+- session-envelope type authority > derives 'BaseDistanceNotApplicableResult' from its runtime schema — 2.415 ms.
+- session-envelope type authority > derives 'WorktreeIdentity' from its runtime schema — 0.894 ms.
+- session-envelope type authority > derives 'SupersessionResult' from its runtime schema — 1.311 ms.
+- session-envelope type authority > derives 'SupersessionSnapshotAnalysisResult' from its runtime schema — 1.185 ms.
+- session-envelope type authority > derives 'CurrentHuskAdvisory' from its runtime schema — 1.212 ms.
+- session-envelope type authority > derives 'ExtensionsSessionInitResult' from its runtime schema — 0.554 ms.
+- session-envelope type authority > derives 'ActiveSessionInitResult' from its runtime schema — 0.966 ms.
+- session-envelope type authority > derives 'ConfigSessionInitResult' from its runtime schema — 0.703 ms.
+- session-envelope type authority > derives 'ReleaseRoutingValue' from its runtime schema — 0.682 ms.
+- session-envelope type authority > derives 'DomainRulesSessionInitResult' from its runtime schema — 0.397 ms.
+- session-envelope type authority > derives 'StatusIdentity' from its runtime schema — 2.869 ms.
+- session-envelope type authority > derives 'CompactionSeedWriteStatus' from its runtime schema — 3.029 ms.
+- session-envelope type authority > keeps 'StaleWorktreeSweepResult' under handwritten authority — 2.730 ms.
+- session-envelope type authority > keeps 'WorkUnitStateResult' under handwritten authority — 2.449 ms.
+- session-envelope type authority > keeps 'ErrandStateResult' under handwritten authority — 3.499 ms.
+- session-envelope type authority > keeps 'UserSessionInitStatusResult' under handwritten authority — 2.773 ms.
+- session-envelope type authority > keeps 'SessionInitProbeResult' under handwritten authority — 2.312 ms.
+- session-envelope type authority > keeps 'SessionRecoverProbeResult' under handwritten authority — 2.458 ms.
+- session-envelope type authority > retains one-way producer compatibility proofs beside the thin top-level schemas —
+  0.330 ms.
+
+**`__tests__/unit/view/import-boundary.test.ts`** — file median 64.097 ms.
+
+- viewer import boundary > keeps corrected lib modules free of command imports and directly bound production effects —
+  9.481 ms.
+
+**`__tests__/unit/work-unit/decompose-v3-authority-boundary.test.ts`** — file median 3,745.421 ms.
+
+- decomposition v3 authority boundary > ships no legacy authoring or executor modules — 0.507 ms.
+- decomposition v3 authority boundary > exposes no legacy preparation, finalization, or execution identifiers —
+  2,198.541 ms.
+- decomposition v3 authority boundary > carries no receipt-era transaction vocabulary in production — 1,447.184 ms.
+- decomposition v3 authority boundary > keeps receipt-free base advancement independent of retired codecs and
+  authorities — 0.548 ms.
+
+**`__tests__/unit/work-unit/decompose-v3-refusal-source-totality.test.ts`** — file median 3,510.852 ms.
+
+- decomposition refusal source totality > maps every production refusal literal to a specific remedy — 1,967.978 ms.
+- decomposition refusal source totality > admits only stable outward reason producers — 1,370.701 ms.

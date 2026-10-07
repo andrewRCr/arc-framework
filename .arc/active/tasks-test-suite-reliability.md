@@ -357,10 +357,10 @@ recorded.
 - _Shape:_ A test survives if it would fail on a plausible future regression, not only on an edit to its own list.
   Each deleted case records that verdict in this task.
 
-    - `[ ]` **4.1.a Record the source-scan set**
-        - `notes-test-suite-reliability.md` § Source-scan cost lists every unit file that parses, walks, or
-          text-scans `src` or `__tests__`, and each such case, with its duration from Task 1.2's baseline capture.
-          Task 4.3.a inventories from this list, and Task 4.5 sums the same set.
+    - `[x]` **4.1.a Record the source-scan set**
+        - Notes § Source-scan cost records 26 live-code scan files and 123 expanded cases, with three-sample
+          file/case medians reconciled against the frozen captures. The raw inventory retains every sample and
+          source locus; shared setup cost is counted once per file. Complete-file baseline median is 49,744.319 ms.
 
     - `[ ]` **4.1.b `lib/store/ship-guard.test.ts`**
         - The import cases re-assert `tsc`'s `rootDir: "src"` (the reference backend lives under
