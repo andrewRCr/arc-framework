@@ -9,12 +9,13 @@ interface NativeGuardReport {
   testResults: { name: string; status: string; message: string; assertionResults: { fullName: string; status: string; failureMessages: string[]; meta?: Record<string, unknown> }[] }[];
 }
 
-async function createGuardFixture(allowlist: readonly string[] = ["tests/guard-allowed.test.ts"]): Promise<{ root: string; packageRoot: string; reportPath: string }> {
+async function createGuardFixture(allowlist: readonly string[] = ["tests/guard-allowed.test.ts"],
+  hooks: "list" | "stack" | "parallel" = "stack"): Promise<{ root: string; packageRoot: string; reportPath: string }> {
   const { root, packageRoot } = await makeVitestControllerFixture();
   const reportPath = join(packageRoot, "guard-report.json");
   try {
     await mkdir(join(packageRoot, "__tests__", "helpers"), { recursive: true });
-    for (const file of ["unit-process-guard.ts", "unit-process-guard-core.ts"]) {
+    for (const file of ["unit-process-guard.ts", "unit-process-guard-core.ts", "unit-process-runner.ts"]) {
       await writeFile(join(packageRoot, "__tests__", "helpers", file),
         await readFile(join(import.meta.dirname, "../helpers", file)));
     }
@@ -22,8 +23,12 @@ async function createGuardFixture(allowlist: readonly string[] = ["tests/guard-a
 import GuardSequencer from "./tests/guard-sequencer.mjs";
 export default { test: { watch: false, maxWorkers: 1, sequence: { sequencer: GuardSequencer }, projects: [
   { test: { name: "unit", root: import.meta.dirname, isolate: false,
+    runner: "__tests__/helpers/unit-process-runner.ts",
+    sequence: { hooks: ${JSON.stringify(hooks)} },
     include: ["tests/guard-*.test.ts"], setupFiles: ["tests/guard-setup.ts"] } },
   { test: { name: "unit-mocks", root: import.meta.dirname, isolate: true,
+    runner: "__tests__/helpers/unit-process-runner.ts",
+    sequence: { hooks: ${JSON.stringify(hooks)} },
     include: ["tests/guard-*.test.ts"], setupFiles: ["tests/guard-setup.ts"] } }
 ] } };
 `);
@@ -89,6 +94,56 @@ it("blocks direct, named-import and execa launches while admitting native execFi
     expect(blocked).toHaveLength(8);
     expect(blocked.every((test) => test.status === "failed"
       && test.failureMessages.join("\n").includes("Unit process launch blocked"))).toBe(true);
+  } finally { await rm(root, { recursive: true, force: true }); }
+}, 60_000);
+
+const lateTeardowns = {
+  returned: 'beforeAll(() => () => launch()); it("body", () => {});',
+  fixture: 'const test = it.extend({ late: [async ({}, use) => { await use(1); launch(); }, { scope: "file" }] }); test("body", ({ late }) => { expect(late).toBe(1); });',
+  around: 'aroundAll(async (run) => { await run(); launch(); }); it("body", () => {});',
+  afterall: 'afterAll(() => launch()); it("body", () => {});',
+};
+
+it.each(["list", "stack", "parallel"] as const)("finalizes caught file teardown launches with %s hooks", async (hooks) => {
+  const { root, packageRoot, reportPath } = await createGuardFixture([], hooks);
+  try {
+    for (const [name, teardown] of Object.entries(lateTeardowns)) {
+      await writeFile(join(packageRoot, `tests/guard-late-${name}.test.ts`), `
+import { execFileSync } from "node:child_process";
+import { afterAll, aroundAll, beforeAll, expect, it } from "vitest";
+function launch() { try { execFileSync(process.execPath, ["-e", "process.exit(0)"]); } catch {} }
+${teardown}
+`);
+    }
+    const native = await runVitestControllerFixture(packageRoot,
+      ["unit", "guard-late-", "--reporter", "json", "--outputFile", reportPath], { FORCE_COLOR: undefined });
+    const report = JSON.parse(await readFile(reportPath, "utf8")) as NativeGuardReport;
+    expect(report.testResults, native.stdout + native.stderr).toHaveLength(8);
+    expect(report.testResults.filter((file) => file.status !== "failed")).toEqual([]);
+    expect(report.testResults.every((file) => file.message.includes("Unit process launch blocked"))).toBe(true);
+    expect(native.code, native.stdout + native.stderr).toBe(1);
+  } finally { await rm(root, { recursive: true, force: true }); }
+}, 60_000);
+
+it.each(["list", "stack", "parallel"] as const)("counts allowlisted cleanup-only launches with %s hooks", async (hooks) => {
+  const files = Object.keys(lateTeardowns).map((name) => `tests/guard-late-${name}.test.ts`);
+  const { root, packageRoot, reportPath } = await createGuardFixture(files, hooks);
+  try {
+    for (const [name, teardown] of Object.entries(lateTeardowns)) {
+      await writeFile(join(packageRoot, `tests/guard-late-${name}.test.ts`), `
+import { execFileSync } from "node:child_process";
+import { afterAll, aroundAll, beforeAll, expect, it } from "vitest";
+function launch() { expect(execFileSync(process.execPath, ["-e", "process.stdout.write('cleanup')"], { encoding: "utf8" })).toBe("cleanup"); }
+${teardown}
+`);
+    }
+    const native = await runVitestControllerFixture(packageRoot,
+      ["unit", "guard-late-", "--reporter", "json", "--outputFile", reportPath], { FORCE_COLOR: undefined });
+    const report = JSON.parse(await readFile(reportPath, "utf8")) as NativeGuardReport;
+    expect(report.testResults, native.stdout + native.stderr).toHaveLength(8);
+    expect(report.testResults.filter((file) => file.status !== "passed")).toEqual([]);
+    expect(native.code, native.stdout + native.stderr).toBe(0);
+    expect(native.stdout + native.stderr).not.toContain("Unit launch allowlist idle:");
   } finally { await rm(root, { recursive: true, force: true }); }
 }, 60_000);
 

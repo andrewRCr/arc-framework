@@ -3,7 +3,9 @@ import childProcess from "node:child_process";
 import { syncBuiltinESMExports } from "node:module";
 import { resolve } from "node:path";
 import { promisify } from "node:util";
-import { beforeEach, afterEach, afterAll, expect } from "vitest";
+import { beforeEach, afterEach, expect } from "vitest";
+import type { File } from "@vitest/runner";
+import { processError } from "@vitest/utils/error";
 import { stop } from "esbuild";
 import { UnitProcessGuard, type UnitLaunchSnapshot } from "./unit-process-guard-core.js";
 
@@ -59,15 +61,28 @@ export async function installUnitProcessGuard(allowlist: readonly string[]): Pro
     const starting = before.get(task);
     if (starting !== undefined) guard.assertNoBlockedSince(starting);
   });
-  // Vitest requires destructuring the fixture context even when only the suite argument is used.
-  // eslint-disable-next-line no-empty-pattern
-  afterAll(async ({}, suite) => {
-    const snapshot = guard.snapshot();
-    const metadata = suite.meta as Record<string, unknown>;
+}
+
+/**
+ * Publish launch accounting after native file teardown and retain caught refusals as file failures.
+ * @param file - Completed native file whose hooks and fixtures have finished.
+ * @returns After publishing final admission metadata and stopping the file's esbuild service.
+ */
+export async function finalizeUnitProcessGuard(file: File): Promise<void> {
+  const installation = Reflect.get(childProcess, INSTALLATION) as Installation | undefined;
+  try {
+    if (installation === undefined) return;
+    const snapshot = installation.guard.snapshot();
+    const metadata = file.meta as Record<string, unknown>;
     metadata[UNIT_PROCESS_LAUNCH_COUNT_META] = snapshot.launchCount;
     metadata[UNIT_PROCESS_ALLOWLISTED_META] = snapshot.allowlisted;
-    try { guard.assertNoBlockedAtFileEnd(); } finally { await stop(); }
-  });
+    installation.guard.assertNoBlockedAtFileEnd();
+  } catch (error) {
+    file.result ??= { state: "fail" };
+    file.result.state = "fail";
+    file.result.errors ??= [];
+    file.result.errors.push(processError(error));
+  } finally { await stop(); }
 }
 
 /**

@@ -62,6 +62,7 @@ export default defineConfig({
       {
         test: {
           name: "unit",
+          runner: "__tests__/helpers/unit-process-runner.ts",
           root: packageRoot,
           setupFiles: ["__tests__/helpers/unit-setup.ts"],
           include: ["__tests__/unit/**/*.test.ts"],
@@ -75,6 +76,7 @@ export default defineConfig({
       {
         test: {
           name: "unit-mocks",
+          runner: "__tests__/helpers/unit-process-runner.ts",
           root: packageRoot,
           setupFiles: ["__tests__/helpers/unit-setup.ts"],
           include: [...ISOLATED_UNIT_MOCK_FILES],
