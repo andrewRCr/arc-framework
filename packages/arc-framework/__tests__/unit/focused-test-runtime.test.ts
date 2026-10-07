@@ -45,13 +45,15 @@ it.each([["integration"], ["e2e"], ["unit/named.test.mjs", "integration", "e2e"]
   "shares one owned generation and reuses it for root targets %j", async (...tiers) => {
     const fixture = await makeFixture();
     for (const tier of ["integration", "e2e"]) await writeFile(join(fixture.packageRoot, `__tests__/${tier}/runtime.test.mjs`), `
-import { it, expect, inject } from "vitest";
+import { it, expect, inject, vi } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
-it("consumes the prepared native generation", () => {
+it("consumes the prepared native generation", async () => {
   expect(readFileSync(${JSON.stringify(join(fixture.packageRoot, "dist/cli.js"))}, "utf8")).toContain("new-native-runtime");
   expect(JSON.parse(readFileSync(${JSON.stringify(join(fixture.packageRoot, "dist/schemas/kernel.json"))}, "utf8"))).toHaveProperty("schemas");
-  const cpu = JSON.parse(readFileSync(${JSON.stringify(join(fixture.root, ".git/arc/test-suite/.local-heavy-tests.lock"))}, "utf8"));
-  expect(cpu.metadata.tier).toBe("focused");
+  await vi.waitFor(() => {
+    const cpu = JSON.parse(readFileSync(${JSON.stringify(join(fixture.root, ".git/arc/test-suite/.local-heavy-tests.lock"))}, "utf8"));
+    expect(cpu.metadata.tier).toBe("focused");
+  });
   expect(existsSync(${JSON.stringify(join(fixture.packageRoot, ".arc-build.lock"))})).toBe(true);
   const evidence = JSON.parse(readFileSync(${JSON.stringify(join(fixture.packageRoot, "dist/dev-build-stamp.json"))}, "utf8"));
   expect(inject("arcRuntimeBuild").generation).toBe(evidence.generation);

@@ -115,30 +115,20 @@ untracked module, and every test that reads a renewing lock retries an empty or 
         - `makeNativeBuildFixture` (`native-build-fixture.ts`, all of `src`) and `makeFocusedLintFixture`
           (`focused-lint-fixture.ts`, `src/scripts` and `src/lib`) copy through the helper.
 
-### `[ ]` **2.3 Read renewing lock files tolerantly in tests — D1**
+### `[x]` **2.3 Read renewing lock files tolerantly in tests — D1**
 
 - _Goal:_ A test that reads a lock file while its holder renews it treats an empty or unparsable read as not yet
   readable and retries, so a renewal's in-place rewrite never fails the test.
 
-    - `[ ]` **2.3.a Export the lock module's holder classification and retry over it in tests**
-        - `advisory-lock.ts` exports `readHolder`'s classification as a synchronous function over one read's
-          result, the file's text or the read error, giving a holder, `absent`, `empty`, `corrupt`, or
-          `unreadable`; `readHolder` calls it. Task 5.1.a reuses it from a synchronous read.
-        - A test helper in `__tests__/helpers/` retries an `empty` or `corrupt` read a bounded number of times, in
-          the manner of `readHolderSettled`. Tests that assert a lock's absence keep reading it directly.
-        - Build `test-first` (one behavior at a time):
-            - The exported classification sorts a well-formed, absent, empty, unparsable, and unreadable read
-            - An empty read is retried and the next well-formed holder is returned
-            - An unparsable read is retried the same way
-            - A read that stays empty or unparsable past the bound fails, naming the file
+    - `[x]` **2.3.a Export the lock module's holder classification and retry over it in tests**
+        - `classifyAdvisoryLockRead` preserves the existing parser's holder/absent/empty/corrupt/unreadable states;
+          `readHolder` delegates one observation to it. `readSettledLockHolder` retries only empty/corrupt records,
+          up to 50 reads with 2 ms backoff, and names the file on failure.
 
-    - `[ ]` **2.3.b Use it at every read of a renewing lock**
-        - `build-generation-lifetime.test.ts` (both lease reads), `build-cancellation.test.ts` (both parses of the
-          live `.arc-build.lock`), and `build-ownership.test.ts` (the admission and artifact lock reads while their
-          owners hold them). Where a read already sits in `vi.waitFor`, its parse moves inside too.
-        - The inner test that `focused-test-runtime.test.ts` writes reads the admission lock, which renews
-          (`withRenewableLease` in `local-test-admission.ts`), while the focused controller holds it. It is
-          generated `.mjs` that cannot import the helper, so it wraps its read and parse in `vi.waitFor`.
+    - `[x]` **2.3.b Use it at every read of a renewing lock**
+        - Generation-lifetime, cancellation, and ownership tests use the settled-reader helper. The generated
+          focused-runtime case puts both its admission-lock read and parse inside `vi.waitFor`; absence assertions
+          keep direct reads.
 
 ### `[ ]` **2.4 Name the remaining heavy unit timeouts and re-size fixed timing windows — D1**
 

@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
+import { readSettledLockHolder } from "../helpers/read-lock-holder.js";
 import { execa } from "execa";
 import { withBuildArtifactOwnership } from "../../src/lib/build-ownership.js";
 import { readBuildQualification } from "../../src/lib/build-qualification.js";
@@ -27,9 +28,7 @@ it("cancels an indefinitely queued public builder and qualifies a fresh retry", 
       });
       try {
         await Promise.race([waiting, done.then(() => { throw new Error("Builder exited before it queued"); })]);
-        const lock = JSON.parse(await readFile(join(fixture.packageRoot, ".arc-build.lock"), "utf8")) as {
-          token: string; pid: number;
-        };
+        const lock = await readSettledLockHolder(join(fixture.packageRoot, ".arc-build.lock"));
         expect(child.kill("SIGINT")).toBe(true);
         let timeout: ReturnType<typeof setTimeout> | undefined;
         const stopped = await Promise.race([done.then((failed) => failed ? "cancelled" : "completed"),
@@ -37,7 +36,7 @@ it("cancels an indefinitely queued public builder and qualifies a fresh retry", 
         clearTimeout(timeout);
         expect(stopped).toBe("cancelled");
         expect(await readFile(join(fixture.packageRoot, "dist/cli.js"), "utf8")).toContain("previous-live-runtime");
-        expect(JSON.parse(await readFile(join(fixture.packageRoot, ".arc-build.lock"), "utf8")))
+        expect(await readSettledLockHolder(join(fixture.packageRoot, ".arc-build.lock")))
           .toMatchObject({ token: lock.token, pid: lock.pid });
         await expect(readFile(join(fixture.packageRoot, ".config-loads"))).rejects.toMatchObject({ code: "ENOENT" });
       } finally {

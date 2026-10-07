@@ -2,6 +2,7 @@
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, vi } from "vitest";
+import { readSettledLockHolder } from "../helpers/read-lock-holder.js";
 import { BUILD_ARTIFACT_LOCK_NAME, withBuildArtifactOwnership } from "../../src/lib/build-ownership.js";
 import { BUILD_COMPILER_REPORT_NAME } from "../../src/scripts/build-compiler.js";
 import { startBlockedBuildController } from "../helpers/native-build-controller.js";
@@ -12,10 +13,10 @@ it("renews native artifact ownership while the compiler child is blocked", async
     await Promise.race([fixture.done.then(() => { throw new Error("Owner exited before compiler readiness"); }),
       vi.waitFor(async () => { expect(await readFile(fixture.readyPath, "utf8")).not.toBe(""); }, { timeout: 15_000 })]);
     const lockPath = join(fixture.packageRoot, BUILD_ARTIFACT_LOCK_NAME);
-    const before = JSON.parse(await readFile(lockPath, "utf8")) as { leaseUntil: number };
+    const before = await readSettledLockHolder(lockPath);
     await vi.waitFor(async () => {
-      const after = JSON.parse(await readFile(lockPath, "utf8")) as { leaseUntil: number };
-      expect(after.leaseUntil).toBeGreaterThan(before.leaseUntil);
+      const after = await readSettledLockHolder(lockPath);
+      expect(after.leaseUntil).toBeGreaterThan(before.leaseUntil!);
     });
     expect(await readFile(join(fixture.packageRoot, "dist/cli.js"), "utf8")).toContain("previous-live-runtime");
     await writeFile(fixture.releasePath, "release");

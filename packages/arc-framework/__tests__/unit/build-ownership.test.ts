@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { expect, it, vi } from "vitest";
+import { readSettledLockHolder } from "../helpers/read-lock-holder.js";
 import {
   BUILD_ARTIFACT_LOCK_NAME, withBuildArtifactOwnership, withTestArtifactOwnership,
 } from "../../src/lib/build-ownership.js";
@@ -33,8 +34,8 @@ it("acquires CPU admission before checkout artifacts and releases both after the
   }, { git: admissionGit(packageRoot) });
   await entered;
   const second = withTestArtifactOwnership(input, async () => {
-    const cpu: unknown = JSON.parse(await readFile(cpuPath, "utf8"));
-    const artifacts: unknown = JSON.parse(await readFile(artifactPath, "utf8"));
+    const cpu: unknown = await readSettledLockHolder(cpuPath);
+    const artifacts: unknown = await readSettledLockHolder(artifactPath);
     expect(cpu).toMatchObject({ pid: process.pid });
     expect(artifacts).toMatchObject({ pid: process.pid });
     return "executed under both owners";
