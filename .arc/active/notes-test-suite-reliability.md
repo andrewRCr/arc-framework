@@ -940,3 +940,20 @@ The compiler probe uses a virtual compiler-host input and leaves primary source/
 probes use the resolved rule and parser without a whole-project lint pass. Logs are
 `/tmp/arc-source-toolchain-proof.log` and `/tmp/arc-require-toolchain-proof.log`. These are enforcement observations,
 not newly added regression tests; no fail-first claim is made for test deletion.
+
+## Change-detector dispositions
+
+`decompose-v3-authority-boundary` drops the eleven removed-path pins, sixteen legacy preparation/execution
+identifiers, and eleven receipt-era identifiers. Reintroducing an arbitrary retired name is not evidence that the
+live transition regressed; these detectors follow their own lists instead of current behavior. The retired-codec,
+receipt, preparation, and finalization alternatives in the base-advancement text ban go for the same reason.
+Its `retirement-authority` alternative matches live authority modules and remains until its one-hop lint row lands.
+
+The methodology case retains the two exact package/project equality checks: independently editing one copy produces
+an actual synchronization failure. Its literal historical vocabulary and selected prose fragments go; changing
+those fragments provides no behavioral proof of the current procedure. No shipped methodology or decomposition
+implementation is changed.
+
+The same survival rule removes `core/ports`' retired host-controller interface-name pin. This bounded extension to
+Task 4.2 applies its existing deletion rule to an additional inventoried change-detector; live port contract tests
+and the core dependency/vocabulary boundary remain. Re-declaring one old name does not itself violate those contracts.

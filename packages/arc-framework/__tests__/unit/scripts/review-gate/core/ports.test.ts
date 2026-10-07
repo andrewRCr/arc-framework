@@ -94,14 +94,4 @@ describe("review adapter ports", () => {
     expect(source).not.toMatch(/\.\.\/(?:hosts|providers|runtime)\//u);
   });
 
-  it("does not retain the retired host-controller port surface", async () => {
-    const source = await readFile(
-      resolve(dirname(fileURLToPath(import.meta.url)), "../../../../../src/scripts/review-gate/core/ports.ts"),
-      "utf8",
-    );
-
-    expect(source).not.toMatch(
-      /export interface (?:GitHostAdapter|ReviewProviderAdapter|ReviewReceiptStore|ForwardReviewProviderAdapter|ForwardGitHostProjectionAdapter)\b/u,
-    );
-  });
 });

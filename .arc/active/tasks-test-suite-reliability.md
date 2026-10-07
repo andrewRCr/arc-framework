@@ -378,18 +378,15 @@ recorded.
   Packaging coverage and live boundary checks remain while compiler-owned branches and a retired-name pin are
   removed; the full-strength loader migration stays separately scoped to Task 4.3.
 
-### `[ ]` **4.2 Delete change-detectors that pin removed code — D3**
+### `[x]` **4.2 Delete change-detectors that pin removed code — D3**
 
 - _Goal:_ `decompose-v3-authority-boundary.test.ts` keeps only cases that would catch a plausible regression, with
   each verdict recorded.
 
-    - Its three cases pinning 11 removed files and 27 retired identifiers (legacy modules, legacy identifiers,
-      receipt-era vocabulary) are classified under the survival rule in Task 4.1.
-    - The methodology-sync case is classified on its own.
-    - The base-advancement case is not a change-detector: its patterns match live modules (`retirement-authority.ts`,
-      `in-repo-retirement-authority.ts`, `retirement-authority-snapshot.ts`), so it joins Task 4.3.a's inventory as a
-      one-hop ban on `git-decompose-transition-base-advancement.ts`, and its retired-module patterns are classified
-      under the survival rule.
+- _Outcome:_ The three removed-module/retired-identifier cases and retired alternatives in the advancement ban
+  fail the survival rule and are deleted. Live retirement-authority imports and two actual package/project
+  synchronization checks survive; historical vocabulary/prose pins are removed. The same rule removes the
+  inventoried `core/ports` retired-interface pin. Notes § Change-detector dispositions records each verdict.
 
 ### `[ ]` **4.3 Move one-hop import and syntax bans to ESLint — D3**
 
