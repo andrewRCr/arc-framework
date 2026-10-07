@@ -1227,3 +1227,16 @@ full build, Markdown and all ARC contract checks. Shell inputs are unchanged, so
 remains applicable. `/tmp/arc-migration-staged-routine-tests.log` records the successful complete routine rerun;
 `/tmp/arc-migration-final-{focused-lint,all-types,build,md}.log` retains the other command evidence. A3 is revalidated
 at 4.3.c after the composed native proofs and replacement-case deletions close.
+
+## Narrow registry discovery
+
+The registry test's command/schema-ID equality now reads cli.ts and calls `scanCommanderSource` directly, the same
+function from which `loadCommandInputSourceSnapshot` derives its commands. It avoids whole-source text collection,
+reachable-import discovery and interaction parsing, without changing either expected inventory. The old 25-second
+repository-scan timeout is removed because that scan is gone. This is a trivial scope refactor with existing behavioral
+assertions retained, so test-after applies; no new behavior or reconstruction is claimed.
+
+The affected unit selection passes 369 files and 7,515 cases; the final exact registry file also passes after removal
+of the named timeout. Focused lint and test types pass. Source types, full build, and unaffected integration/shell
+inputs retain the preceding completed results. Evidence is `/tmp/arc-registry-narrow-unit.log` and
+`/tmp/arc-registry-narrow-final-{targeted,lint,types}.log`.

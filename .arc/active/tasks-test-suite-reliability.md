@@ -439,14 +439,14 @@ local predicate IDs where built-in selectors cannot preserve the existing bounda
   ordinary typed lint costs 51.20 s against 49.86 s before migration. Notes retain the source-grounded dispositions
   and bounded text/selector interpretations; A3's migration condition is revalidated.
 
-### `[ ]` **4.4 Narrow the command-schema registry scan — D3**
+### `[x]` **4.4 Narrow the command-schema registry scan — D3**
 
 - _Goal:_ The "registers every command-owned schema" case in `command-input/registry.test.ts` scans only what it
   reads.
 
-    - It reads only `source.commands`, which `scanCommandInputSources` takes from `scanCommanderSource` on `cli.ts`
-      (`loadCommandInputSourceSnapshot`), so it calls `scanCommanderSource` directly, as `cli-help-coverage.test.ts`
-      does.
+- _Outcome:_ The live registry assertion reads and parses only cli.ts through `scanCommanderSource`, preserving
+  command-path and schema-ID equality without the repository interaction snapshot. Its named scan timeout is
+  removed; the same case runs under the ordinary unit default.
 
 ### `[ ]` **4.5 Measure the remaining scan cost and decide on a shared parse — D3**
 
