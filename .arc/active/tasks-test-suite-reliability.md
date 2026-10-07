@@ -209,7 +209,7 @@ is measured against the baseline.
           The early projection remains below 40%; under the expanded execution direction it is informational,
           with the deviation recorded. Task 3.8 retains the unchanged measured 40% acceptance requirement.
 
-### `[ ]` **3.3 Convert the remaining build files — D2**
+### `[x]` **3.3 Convert the remaining build files — D2**
 
 - _Goal:_ Every other `build-` unit file proves its decisions below the real stack, leaving only one real run per
   outcome class, in integration.
@@ -242,9 +242,10 @@ is measured against the baseline.
           module case moves unchanged to integration. Cancellation moves intact to integration. All original
           acquisition, bypass, queue, replacement, cancellation, and repaired-retry classes remain portability-selected.
 
-    - `[ ]` **3.3.f `build-baseline`, `build-config`, and `build-configuration`**
-        - `build-baseline` bundles through esbuild and `build-config` through tsup, so their bundling cases are real
-          runs. `build-configuration` is recorded as running no native work.
+    - `[x]` **3.3.f `build-baseline`, `build-config`, and `build-configuration`**
+        - Baseline interval decisions and runtime-only option assertions remain direct in unit. The unchanged
+          real compiler interval and dynamic-import bundling cases run in integration. Inherited configuration
+          capture remains process-free filesystem work; no cases or assertions are removed.
 
 ### `[ ]` **3.4 Convert the CI-build files — D2**
 

@@ -461,3 +461,10 @@ Real integration case medians in the focused mode:
   native-loaded control module case moves to integration, unchanged. All baseline classes remain portability-selected.
 - **`build-cancellation`:** the complete public-builder cancellation and repaired-retry case moves intact to
   integration; no outcome or native step is dropped, and the basename stays portability-selected.
+
+- **`build-baseline`:** all baseline interval/source/configuration/installation/link decisions remain direct in unit;
+  the complete real compiler interval case moves unchanged to integration.
+- **`build-config`:** four direct runtime-only option assertions remain in unit; the complete dynamic-import
+  bundling case moves unchanged to integration.
+- **`build-configuration`:** inherited configuration content and target changes remain process-free filesystem
+  checks. No compiler work, child process, or Git repository is requested.
