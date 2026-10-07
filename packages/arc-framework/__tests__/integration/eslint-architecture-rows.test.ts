@@ -9,6 +9,10 @@ const packageRoot = resolve(import.meta.dirname, "../..");
 const eslint = new ESLint({ cwd: packageRoot, overrideConfig: [tseslint.configs.disableTypeChecked] });
 
 const cases = [
+  ["src/handlers/user.ts", 'void import("@clack/prompts");', "no-restricted-syntax"],
+  ["src/lib/sync-output.ts", 'void import("@clack/prompts");', "no-restricted-syntax"],
+  ["src/lib/terminal.ts", 'import "neverthrow";', "arc/architecture-imports"],
+  ["src/lib/command-input/prompt-renderer.ts", 'import "neverthrow";', "arc/architecture-imports"],
   ["src/lib/kernel/canonical/canonical-json.ts", 'import "zod";', "no-restricted-imports"],
   ["src/lib/config/status-reader.ts", 'parseMetaProjectionRecord("record");', "no-restricted-syntax"],
   ["src/lib/config/status-reader.ts", 'parseIdentifierList("identifiers");', "no-restricted-syntax"],
@@ -46,6 +50,9 @@ describe("actual architecture table enforcement", () => {
     expect(result?.messages.filter(({ ruleId }) => ruleId === rule).length).toBeGreaterThan(0);
   });
   it.each([
+    ["src/lib/terminal.ts", 'import "@clack/prompts"; void import("@clack/prompts");'],
+    ["src/lib/command-input/prompt-renderer.ts", 'import "@clack/prompts"; void import("@clack/prompts");'],
+    ["src/handlers/user.ts", 'observe("@clack/prompts");'],
     ["src/lib/kernel/canonical/canonical-json.ts", 'import "node:path";'],
     ["src/lib/active/meta-reader.ts", 'parseMetaProjectionRecord("record"); parseIdentifierList("names");'],
     ["src/lib/store/in-repo/write-admission.ts", 'parseMetaProjectionRecord("record");'],
