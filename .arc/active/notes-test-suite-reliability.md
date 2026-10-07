@@ -1,5 +1,42 @@
 # Notes: test-suite-reliability
 
+Implementation and closing measurement are complete as recorded in
+[Closing confirmation](#closing-confirmation-and-implementation-boundary). A14/A15 retain five first-attempt hosted
+CI passes and twelve local captures at `9b3856d4d`; the original fifth-run ESLint headroom violation stays recorded.
+Combined confirmation `37686035937` at `a916d0e1a33dfab99caf0f029d6fd058f2b0ad50` passes all nineteen jobs, both
+portability legs and current unit headroom. Retained reductions are 44.05% native-tooling, 38.00% E2E summed file
+time, 44.26% hosted duration and 20.36% summed test-job time. The E2E baseline remains a single ordinary success.
+
+The sections preserve the investigation and decisions in their original sequence. Intermediate forecasts, pending
+actions and failed attempts describe their recorded stage; the retained measurements and closing confirmation give
+the final implementation outcome. Verification and independent review have separate boundaries.
+
+## Contents
+
+- **Context and baseline:** [Hosted CI](#hosted-ci-before-this-work),
+  [Drafting decisions](#decisions-taken-while-drafting), [Frozen baseline](#baseline),
+  [Implementation direction](#implementation-direction).
+- **Native and architecture work:** [Portability outcomes](#portability-outcome-classes),
+  [Native dispositions](#native-file-dispositions), [Native conversion](#native-conversion-measurement),
+  [One-hop inventory](#one-hop-ban-inventory), [Migrated bans](#migrated-one-module-bans),
+  [Source-scan result](#remaining-source-scan-cost-and-shared-parse-decision).
+- **Runtime, CI and prompt policy:** [Managed freshness](#managed-freshness-decision),
+  [E2E fixture result](#e2e-fixture-exit-measurement), [Unit launch admission](#unit-native-launch-admission),
+  [Layout trial](#layout-trial), [Prompt substrate](#declared-prompt-policy-substrate),
+  [Prompt migration closure](#prompt-migration-closure).
+- **Closing corrections:** [Windows publication](#amendment-a5-windows-publication-keys),
+  [Fixture source closure](#amendment-a6-synthetic-native-fixture-source-closure),
+  [Local resource tuning](#default-local-gate-resource-tuning),
+  [Repeated parsing](#amendment-a9-repeated-fixture-parsing),
+  [Candidate decision setup](#amendment-a10-candidate-decision-fixture-work),
+  [Candidate file tail](#amendment-a12-native-candidate-file-tail),
+  [ESLint deadline](#amendment-a13-cold-eslint-configuration-load-deadline),
+  [Evidence preservation](#amendment-a14-retain-evidence-through-a-deadline-only-correction),
+  [Windows continuation](#amendment-a15-windows-native-fixture-continuation).
+- **Accepted closing record:** [Measurements](#closing-measurement), [Budgets](#re-recorded-budgets),
+  [Combined confirmation](#closing-confirmation-and-implementation-boundary),
+  [Verification evidence](#verification-evidence).
+
 ## Hosted CI before this work
 
 An informal profile from the five most recent full-lane pull-request runs on the current layout (`37491029911`,
@@ -2763,8 +2800,9 @@ No new behavior or assertion is introduced; existing coverage checks the deadlin
 The retained workload head is `9b3856d4def281d63c6f675fdb123277e109efd3`. A14 permits only the subsequent
 A13 deadline correction and budget recording to reuse its observations; the original fifth-run headroom failure
 remains a failed reading. Five hosted first-attempt full-suite CI passes and twelve local captures supply the cost
-record. Current unit headroom, both portability legs and budget confirmation remain required in one recording-head
-run. The frozen baseline head is `88fefb20c43ac580855c5a4d0e6f0232a21e1361`; no new baseline is collected.
+record. Current unit headroom, both portability legs and budget confirmation were subsequently established by the
+combined confirmation recorded below. The frozen baseline head is `88fefb20c43ac580855c5a4d0e6f0232a21e1361`;
+no new baseline is collected.
 
 Local schema-4 captures use the same tier-isolated instrument and explicit twelve-worker setting. This is comparison
 capacity, while ordinary development defaults remain capped at eight. Complete files are in
@@ -2797,7 +2835,8 @@ All ten test jobs and every other required job pass in each run. Hosted duration
 44.25925926% lower. Summed test-job median is 1,705 s versus 2,141 s, 20.36431574% lower. All four unchanged
 cost bars pass. Every run retains 13,695 completed unit cases; four have no half-timeout violation, and the fifth
 has exactly the recorded ESLint cold-load violation. A13 changes its deadline transparently; these reports are never
-rewritten to inherit the corrected timeout. The combined confirmation must supply current headroom separately.
+rewritten to inherit the corrected timeout. The combined confirmation supplies current headroom separately;
+these original reports remain unchanged.
 
 ### Re-recorded budgets
 
@@ -2826,15 +2865,16 @@ The observational allowance changes no test outcome or cost target; budget overa
 
 `/tmp/arc-budget-observations-a12.json` retains every observation and the median/allowance derivation. Primary checks
 bind twelve passed captures and five attempt-one CI passes to the exact retained head, verify both unit reports
-per run and the original one-violation boundary, and recompute all four cost targets. The budget-recording commit
-and combined confirmation remain pending; Task 10.3 stays open until that run passes.
+per run and the original one-violation boundary, and recompute all four cost targets. Budget recording and combined
+confirmation subsequently completed as recorded in
+[Closing confirmation](#closing-confirmation-and-implementation-boundary).
 
 Budget-recording gates pass: both type checks, whole-package typed lint, shell lint, full build, full Markdown
 lint (750 files), and all three ARC contract checks. The ordinary eight-worker routine lane passes 1,121 files
 and 16,732 cases under `FORCE_COLOR=3` in 222.46 s (`/tmp/arc-budget-routine.log`). The one skipped file and
 1,188 skipped cases remain excluded from completed counts. Gate logs are `/tmp/arc-budget-{types,lint,shell,
-build,full-markdown,markdown}.log`. No suppression changes or further workload changes occur. Only the required
-combined hosted recording-head confirmation remains for Tasks 10.1.b and 10.3.
+build,full-markdown,markdown}.log`. No suppression changes or further workload changes occur. At this checkpoint,
+only the combined hosted recording-head confirmation remained for Tasks 10.1.b and 10.3; its result is recorded below.
 
 ## Amendment A15: Windows native fixture continuation
 
@@ -2961,6 +3001,248 @@ restart or local resampling follows the fixture repair. The retained reductions 
 single-sample E2E baseline limitation stays explicit. Fourteen budget rows retain the derived 35% advisory allowance.
 
 Tasks 10.R13, 10.1.b, 10.1 and 10.3 close on this effective evidence. A5 and A9–A15 are revalidated at their recorded
-closing tasks. Phases 1–10 are complete; phase 11 verification and every Success Criteria marker remain untouched,
-with Candidate preparation, hosted review and integration outside this deferred execution scope. The default local
-worker cap remains eight, with explicit overrides and the heavy-run admission lock preserved.
+closing tasks. At the implementation handoff, phases 1–10 were complete; phase 11 verification and every Success
+Criteria marker remained untouched, with Candidate preparation, independent review and integration outside that
+deferred execution scope. The default local worker cap remains eight, with explicit overrides and the heavy-run
+admission lock preserved.
+
+## Verification evidence
+
+This is author-side work-unit verification, not independent code-review evidence. The complete flat Success Criteria
+section of `tasks-test-suite-reliability.md` is the selected scope; there is no Delivery Plan. The upstream spec and
+all amendments are compared against the complete change set and reachable tree. Every entry below binds the
+immutable criterion by its 1-based ordinal under `Success Criteria` and the SHA-256 of its parsed text, excluding
+checkbox state and Markdown layout. No criterion is rewritten.
+
+### Shared evidence span
+
+- **Diff:** `c009ab1984cae0da2b9a61104c6842dc749824ef` through
+  `826973800f47af332909d5f4de8aa291960f3785`, covering all 257 changed paths.
+- **Reachability:** the complete tree at `826973800f47af332909d5f4de8aa291960f3785`,
+  `80f1a8bafcc0c27521167610b3af34ad255e35d0`.
+- **Boundary-order deviation:** none. Subsequent verification edits affect this notes file and the task list;
+  Candidate attestation supplies its managed projection. These edits preserve source, test and measurement inputs.
+- **Artifact paths:** `.test-cost-runs/` paths in this record are relative to `packages/arc-framework/`.
+
+### Author preflight and proof boundaries
+
+The author aggregate preflight establishes no finding requiring a source change. Read-only inventories cover all
+180 changed test/helper sections and all 44 production prompt-migration paths; primary source inspection resolves
+native-to-direct witness mappings, changed assertion authority, source-predicate equivalence, prompt policy, fixture
+independence and the Windows continuation. These inventories support author judgment and carry no independent
+review verdict. Production/tooling/configuration and documentation seams are included in the aggregate walk.
+
+The Candidate scenario registration functions compare byte-for-byte with the baseline. Their exact 38-case union
+remains partitioned into 18 integration and 20 native E2E cases, with native groups of 5/9/6. Other narrowed native
+matrices keep explicit direct witnesses and real representatives for distinct native outcomes; recorded deletion
+verdicts identify compiler, lint or narrower behavioral authority. Passing counts alone are not used as preservation
+proof, and independent review still must examine the complete transformation.
+
+Retained executable negative controls establish that material regressions produce failures: bypassing per-file
+esbuild ownership fails the native guard proof (`/tmp/arc-unit-guard-service-bypass-valid-red.log`); erasing restored
+duration inputs fails preservation (`/tmp/arc-duration-preservation-red.log`); degrading prompt publication authority
+to a silent save-only result fails sync behavior (`/tmp/arc-sync-prompts-red-corrected.log`). The corresponding
+restored implementations pass the fresh final routine gate. These existing checks establish sensitivity without
+another repository-wide mutation campaign.
+
+Fresh serial Tier 3 at `826973800` passes Markdown, all three ARC contract checks, whole-package typed lint, shell
+lint, both source/test type programs, the ordinary routine lane and full declaration build. With `FORCE_COLOR=3`
+and no worker override, routine execution completes 1,121 files and 16,732 cases in 227.34 s; one file and 1,188
+cases remain skipped. Logs are `/tmp/arc-verify-final-{markdown,triggers,domain,sections,lint,shell,types,routine,
+build}.log`; `/tmp/arc-verify-final-gates-passed.txt` records every command's zero exit. Markdown/ARC checks run again
+over the verification-document delta. Required E2E and native portability retain run `37686035937` at `a916d0e1a`;
+no later source change invalidates that witness.
+
+Primary recomputation (`/tmp/arc-verify-measurement-check.json`) checks all twelve local captures, five exact-head
+first-attempt hosted cost passes, original headroom violation, all fourteen budget medians and exact upward rounding,
+minimum covering allowance, four unchanged cost targets and current 13,695-case zero-violation unit confirmation.
+Original reports are preserved. The single ordinary E2E baseline lacks a noise estimate. Windows/macOS behavior is
+proven by native hosted legs; Linux construction probes alone are not treated as Windows proof.
+
+The optional fresh-context verification adversarial pass was offered and declined. The primary walk closes on
+empirical evidence and explicit forward amendments. Independent code review will use local delegated agents with
+contract-cohesive chunks, complete union coverage and a dedicated seam; it remains separate from verification.
+No essential implementation intent is deferred or left without an owner. The post-merge cache-seeding operation
+recorded under Layout trial remains an operational follow-up at integration, not a completed measurement claim.
+
+### Criteria report
+
+**Disposition:** 31 criteria — 27 met, four superseded, none unresolved.
+
+- **Success Criteria > 1** — `[~]`
+    - **criterion-digest:** `sha256:2f69bca590298895d5eb0c94aac5bdca1e7406b5aec4bbe119aaeb5272030661`
+    - **Evidence:** A1 replaces original baseline sampling with criterion 23; retained hosted unit duration/timeout
+      uploads are established in CI configuration and the raw unit reports.
+
+- **Success Criteria > 2** — `[~]`
+    - **criterion-digest:** `sha256:bf08e54699879d05c6cd3b37102cc8f54f1496b1112c2a4788d69be08445ec6f`
+    - **Evidence:** A14 then A15 replace the original final-head five-run/headroom demand with criterion 31. Five cost
+      passes remain at 9b3856d4d; the fifth original headroom violation is retained.
+
+- **Success Criteria > 3** — `[x]`
+    - **criterion-digest:** `sha256:c948e87e4e913290a2315a14a9cce5f888bed3f0c3a77efbac8ae94f5f5a8cc2`
+    - **Evidence:** Run 37686035937 at a916d0e1a passes both native portability legs on attempt one. The later 826973800
+      commit changes only the closing documentation.
+
+- **Success Criteria > 4** — `[x]`
+    - **criterion-digest:** `sha256:c502fa8b4f0f8bd51991e84e9f7dabe93bd764b44e0cc88076392043a3536643`
+    - **Evidence:** Fresh final routine gate at 826973800 completes 16,732 cases under FORCE_COLOR=3 and the ordinary
+      eight-worker default. copy-live-tree.test.ts proves transient bundled-file exclusion and untracked-module copying.
+
+- **Success Criteria > 5** — `[x]`
+    - **criterion-digest:** `sha256:09e9c44822ce0e619ffff031c4cf3ff594bb7715bae8db630f5f1a8ed9ebe6a5`
+    - **Evidence:** Retained unit/integration triplets recompute to native median 632,008.633577 ms versus
+      1,129,643.991052 ms: 44.05240602% lower, using the frozen native-family prefix set.
+
+- **Success Criteria > 6** — `[~]`
+    - **criterion-digest:** `sha256:201f0201f65cd15dd1928682218b2f636ce05013aa7ad9fd4f276f2f5f55b39c`
+    - **Evidence:** A1 replaces the original three-sample E2E baseline comparison with criterion 24; one ordinary frozen
+      success supplies the baseline and its missing noise estimate remains explicit.
+
+- **Success Criteria > 7** — `[x]`
+    - **criterion-digest:** `sha256:f12542374e5bc87e0fd4f17929e420ad3dfbff59541b4346d273cf587e88440a`
+    - **Evidence:** Five exact-head attempt-one closing runs have durations 324/285/301/328/295 s; median 301 versus
+      frozen 540 s is 44.25925926% lower.
+
+- **Success Criteria > 8** — `[x]`
+    - **criterion-digest:** `sha256:9be5cfb38a716581aa2377094644fdac1b88eb56e7c2d45b35c81938d92d6a7a`
+    - **Evidence:** Their summed ten-job durations are 1705/1645/1736/1768/1550 s; median 1705 versus frozen 2141 s is
+      20.36431574% lower.
+
+- **Success Criteria > 9** — `[x]`
+    - **criterion-digest:** `sha256:6fbfe795be0a4e08cf22625d5a3ece25e92383b16a0a7d262da90fbd09c9e2cd`
+    - **Evidence:** Layout trial records three references and two counted runs per source. Both sources meet the
+      adoption bar; cache wins 350 versus 351.5 s. Current CI has literal 2/4/4 matrices, one handed input and writer-
+      only persistence; losing selectors, weights and anchor readers are absent.
+
+- **Success Criteria > 10** — `[x]`
+    - **criterion-digest:** `sha256:fb6e5b714a5d02a205c4f137c03ea023970414c3d40cda530f1427b0ec132f54`
+    - **Evidence:** Fresh recomputation from twelve local captures and five hosted job records matches every median and
+      all fourteen rows. Exact decimal upward rounding uses the minimum global 35% allowance; integration-3 exceeds 30%.
+      test-cost-budget.test.ts and native annotation logs prove advisory warning text includes baseline and budget.
+
+- **Success Criteria > 11** — `[x]`
+    - **criterion-digest:** `sha256:dcd6f71d9c46b4eb4aa4f203c1262b8050419599402fb080c93ba8a38d03ab75`
+    - **Evidence:** unit-process-guard native integration proofs cover both unit projects, caught launches,
+      named/promisified/execa paths, allowlisted admission, per-file esbuild service ownership and reporter-independent
+      zero-launch floor. Final routine passes their composed controller path.
+
+- **Success Criteria > 12** — `[x]`
+    - **criterion-digest:** `sha256:c92780bd07ebdc629ffa4c3d7a8badb4e5261d90a0605bccc8aede969d7a63f0`
+    - **Evidence:** eslint.config.js composes the one-hop predicate table. Native architecture rules preserve relative
+      resolution and exceptions; replaced scans are removed. Tasks 3.2/4 and native-file/source-scan/change-detector
+      note inventories record each retained, moved, replaced or retired witness.
+
+- **Success Criteria > 13** — `[x]`
+    - **criterion-digest:** `sha256:1a32a5eada13cfb69b67b0588a093201dd0d6e3394d2c3d7538ca98ef9dbfe2b`
+    - **Evidence:** dev-check.ts accepts only matching token, test-controller operation and unexpired classified lease.
+      dev-check-managed.test.ts covers build holders, mismatch/missing token, expired/deadline/no lease and
+      absent/empty/corrupt/unreadable reads; native guard/child cases retain refusal and repair continuation.
+
+- **Success Criteria > 14** — `[x]`
+    - **criterion-digest:** `sha256:d0e6bd2e38c4b69596c0025da12f0d2588cfa2439f1ffad50be3a0375ce36df7`
+    - **Evidence:** Only command-input/prompt-renderer.ts and terminal.ts import @clack/prompts. The native ESLint
+      restriction and repository inventory run in final lint/tests; command callers use declarations and terminal
+      presentation.
+
+- **Success Criteria > 15** — `[x]`
+    - **criterion-digest:** `sha256:a7252dd71ab766380d8a906a0392660c5c8383ef5b45d854518b47c403813caa`
+    - **Evidence:** Complete prompting-production diff and declared-site inventory show every acquisition invokes the
+      shared prompter. Remaining interaction branches render reports or diagnose availability; explicit inputs enter
+      explicitAnswer. The no-input matrix and unit handler witnesses cover the migrated sites.
+
+- **Success Criteria > 16** — `[x]`
+    - **criterion-digest:** `sha256:8728dab525bb23ca6b25b58c456877142dade5bee1bd8e5a436413aa9b132fe8`
+    - **Evidence:** Real prompter unit tables use fake renderers across default, require-explicit, refuse, proceed and
+      require-authority, resolved/refused/cancelled results, and stop/safe-default cancellation. Final routine executes
+      these tests.
+
+- **Success Criteria > 17** — `[x]`
+    - **criterion-digest:** `sha256:b75b557439f68b8d3b2b9d8f989d2e8e04279388305adddd281489a20e5a9115`
+    - **Evidence:** Handler/unit and native command-context matrices cover output and exit behavior. Tasks 9.1–9.6 and
+      their notes record intentional name/identity, missing-syntax, notes-publication authority and release-install
+      drift; cancellation and decline remain non-mutating.
+
+- **Success Criteria > 18** — `[x]`
+    - **criterion-digest:** `sha256:c8d4f6fdcba9f8cd0ae8a69329c1bc4d9d229ef21eeba022a038271f730dfab7`
+    - **Evidence:** Branded declaration constructor and contradiction unit/type proofs reject unsupported policies,
+      empty required syntax, invalid form-policy pairs and invalid cancellation while preserving false/empty explicit
+      values.
+
+- **Success Criteria > 19** — `[x]`
+    - **criterion-digest:** `sha256:29bfa9da55ac9343ce1b6523f3ccaceffd157726ec9d9924dcbe9e5991162259`
+    - **Evidence:** Frozen branded exported declarations are the only accepted prompt argument. Scanner/inventory cases
+      cover aliases, wrappers, duplicates, shadowing and dangling declarations; type checking rejects unbranded values.
+      Migration task records preserve every intentional drift.
+
+- **Success Criteria > 20** — `[x]`
+    - **criterion-digest:** `sha256:ec6ce02c18e9dd30b96bbb83150f4b6aaa4b6b7dced7cb480d5f150d885f50a1`
+    - **Evidence:** testing-standards project override, strategy-testing-methodology.md, DEV-RULES.PROJECT and
+      TECHNICAL-OVERVIEW §4 agree on unit doubles, native integration, routine lane and required hosted E2E/portability.
+
+- **Success Criteria > 21** — `[x]`
+    - **criterion-digest:** `sha256:5593b9f1ac7e795d091c38cf2074ed0f1542f562232da3a19ee68e48905a962c`
+    - **Evidence:** Fresh serial Tier 3: Markdown, all three ARC contracts, whole-package typed lint, shell lint, both
+      type programs, ordinary FORCE_COLOR=3 routine lane and full declaration build all exit zero. Required E2E and
+      portability retain current all-green hosted confirmation.
+
+- **Success Criteria > 22** — `[x]`
+    - **criterion-digest:** `sha256:6e3400fca90dcb0c0f525a97a0a95374806d40ee0e68fea7e2323786a1b6f82f`
+    - **Evidence:** Execution and criteria are closed for Candidate preparation. Independent Candidate review,
+      publication/admission and explicit exact-head integration authorization remain separate prerequisites; this
+      criterion grants no merge authority.
+
+- **Success Criteria > 23** — `[x]`
+    - **criterion-digest:** `sha256:fa963d7a87aa30484eb6bfaac777001626b2e1f3c2fc8a79a2d3141ef14e8904`
+    - **Evidence:** Frozen evidence at 88fefb20c records ordinary/failed/unstarted attempts and sample limits. History
+      places baseline-record commit eca93f4e3 before first optimization 2ea041425. Diagnostics stay excluded; raw
+      captures and hosted duration/timeout reports are retained.
+
+- **Success Criteria > 24** — `[x]`
+    - **criterion-digest:** `sha256:e4630f7ccb024d525d0236123af98cfd1eb6e83add235fcd8962275945bc3548`
+    - **Evidence:** Three closing E2E samples yield median 1,728,540.790237 ms versus the single ordinary frozen sample
+      2,787,941.456145 ms: 37.99938710% lower. No baseline variance/noise estimate is claimed.
+
+- **Success Criteria > 25** — `[x]`
+    - **criterion-digest:** `sha256:4493ab29a9a7f82f8163b39add8ee19b328da6ccb1bd9bfedc158f1e46711e34`
+    - **Evidence:** A2 changes only two named refusal-source-totality deadlines to 10,000 ms. Frozen hosted maxima
+      2550.469 and 2284.781 ms give 3.4× maxima below 10,000; source/assertion bodies stay intact.
+
+- **Success Criteria > 26** — `[x]`
+    - **criterion-digest:** `sha256:494f71f48cfc348574ddc485bb943002305a42a3e097b9af7f244901e42b5990`
+    - **Evidence:** Native ESLint equivalence proofs and composed-config tests cover aliased loaders, inline factories,
+      relative targets, type-only/eager exceptions, valid lookalikes, approved kernel packages and Result/store seams.
+      The configuration unions matching predicate IDs; retained RED controls precede scan replacement.
+
+- **Success Criteria > 27** — `[x]`
+    - **criterion-digest:** `sha256:c5bdde61f87cbe3c69c69e5bed6c64ffb5bfbc437f1a46bfc13a7694f1b3a8a6`
+    - **Evidence:** command-input-no-input.e2e.test.ts reaches own-command default/refuse/proceed/require-authority
+      sites. Indeterminate start has direct handler/prompter proof and distinctly labelled upstream native refusal with
+      refs/worktrees/tracked state preserved; no native prompt-reach claim is made.
+
+- **Success Criteria > 28** — `[x]`
+    - **criterion-digest:** `sha256:e68942a202b9f85fa8d6eb55d674b5aeb7247821b2f34c52e812c1d3451fda49`
+    - **Evidence:** copy-live-dependencies.ts resolves the current dependency graph and explicit loader roots on every
+      copy, including dirty/untracked modules; cached parsing binds exact source bytes only. Independent copies preserve
+      actual compiler/controller/qualification/recovery proofs and missing/escape failures.
+
+- **Success Criteria > 29** — `[x]`
+    - **criterion-digest:** `sha256:3cebe4887a43a6cb4cd74069bb7cf8b7e2fcdc87c84d6d0a638f307c29fcc518`
+    - **Evidence:** Worker-policy tests prove floor one, half parallelism, local cap eight, explicit numeric/percentage
+      overrides and CI native sizing. Fresh ordinary routine gate passes at cap eight; heavy admission lock remains
+      unchanged.
+
+- **Success Criteria > 30** — `[~]`
+    - **criterion-digest:** `sha256:8342a0a309d00ecfceddd0892ffde073e3c7da4e4b29e3d4bbf9f6b9efa8bcce`
+    - **Evidence:** A15 replaces A14’s deadline-only confirmation restriction with criterion 31 after native Windows
+      fixture failures. A14 cost preservation, original failure and budget derivation remain valid and unchanged.
+
+- **Success Criteria > 31** — `[x]`
+    - **criterion-digest:** `sha256:3de12fbdd5d467cb19260eb4b67d5fbaa4fd134a9f0744f17374941d2ed4eb43`
+    - **Evidence:** A15 retains all five Linux cost passes and twelve captures at 9b3856d4d, plus f0285502c unit reports
+      with 13,695 cases and zero half-timeout violations. Windows-only real detached compiler fixture repair at
+      a916d0e1a passes both native legs in 37686035937; failed 37677834734 and 37681430303 attempts remain recorded.
+
+Integration readiness here means execution verified for Candidate preparation. Independent review, publication,
+host admission and explicit exact-head integration authorization are still required. Verification grants no merge
+authority and is not a satisfying independent-review result.

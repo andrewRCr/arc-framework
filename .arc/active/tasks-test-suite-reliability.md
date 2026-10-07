@@ -1127,110 +1127,131 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
 
 ## **Phase 11:** Verification
 
-### `[ ]` **11.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **11.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Fresh serial Tier 3 passes Markdown/ARC checks, typed and shell lint, both type programs,
+  16,732 routine cases under `FORCE_COLOR=3` at the eight-worker default, and the full declaration build.
+  Current hosted E2E/portability evidence is retained; verification-document Markdown/ARC checks pass separately.
+
+- _Success criteria:_ 31 criteria: 27 met, four superseded by A1/A14/A15, none unresolved. Exact criterion digests,
+  evidence span, author preflight and limitations are recorded in `notes-test-suite-reliability.md` § Verification
+  evidence. Optional adversarial verification was declined; independent local chunked code review remains required.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` The baseline is recorded in `notes-test-suite-reliability.md`, with run IDs and capture paths, before the
+- `[~]` The baseline is recorded in `notes-test-suite-reliability.md`, with run IDs and capture paths, before the
   first commit of any optimizing phase, and every hosted unit-job run uploads a report carrying each test's duration
   and effective timeout
 
-- `[ ]` Five consecutive full-suite `workflow_dispatch` runs at the final head pass with every job green on its first
+    - **Superseded:** A1 replaces baseline sampling with criterion 23; hosted report retention remains required.
+
+- `[~]` Five consecutive full-suite `workflow_dispatch` runs at the final head pass with every job green on its first
   attempt, and in each, every unit test's duration is under half its effective timeout
 
-- `[ ]` One further dispatch run at the final head, with `run_portability_pair` on, passes its Windows and macOS
+    - **Superseded:** A14/A15 replace final-head sampling and headroom with criterion 31; original failures stay
+      recorded.
+
+- `[x]` One further dispatch run at the final head, with `run_portability_pair` on, passes its Windows and macOS
   portability legs
 
-- `[ ]` `npm test` passes with `FORCE_COLOR=3` set, and a unit test proves the shared copy helper skips a transient
+- `[x]` `npm test` passes with `FORCE_COLOR=3` set, and a unit test proves the shared copy helper skips a transient
   `*.bundled_*.mjs` file while copying an untracked module
 
-- `[ ]` Native-tooling cost is at least 40% below its baseline (local instrument, three-run medians)
+- `[x]` Native-tooling cost is at least 40% below its baseline (local instrument, three-run medians)
 
-- `[ ]` E2E summed file time is at least 20% below its baseline (local instrument, three-run medians)
+- `[~]` E2E summed file time is at least 20% below its baseline (local instrument, three-run medians)
 
-- `[ ]` The median run duration of the five closing runs is at least 20% below the baseline median
+    - **Superseded:** A1 replaces the comparison with criterion 24 and preserves the single-sample limitation.
 
-- `[ ]` The median summed test-job time of the five closing runs is at least 20% below the baseline median
+- `[x]` The median run duration of the five closing runs is at least 20% below the baseline median
 
-- `[ ]` The layout trial's runs and verdict are recorded, and either only the winning duration source landed, with
+- `[x]` The median summed test-job time of the five closing runs is at least 20% below the baseline median
+
+- `[x]` The layout trial's runs and verdict are recorded, and either only the winning duration source landed, with
   the anchors and their readers replaced, or the current layout, anchors, and single unit job stand with no
   sequencer
 
-- `[ ]` `test-cost-budgets.json` holds rows re-recorded by the budget rule for every job of the final layout and
+- `[x]` `test-cost-budgets.json` holds rows re-recorded by the budget rule for every job of the final layout and
   every tier, and a test proves an `over` reading emits a `::warning` annotation naming the baseline and the budget
 
-- `[ ]` Tests prove, in both unit projects, that a launch from a file off the allowlist fails its test even when the
+- `[x]` Tests prove, in both unit projects, that a launch from a file off the allowlist fails its test even when the
   error is caught, that an allowlisted file can launch, that a file using esbuild is counted for its own service
   whatever ran before it in the worker, and that a run in which an allowlisted file ran whole and launched nothing
   fails naming it, even when the run names its own reporters
 
-- `[ ]` The one-hop bans are ESLint rules in `eslint.config.js`, the source-scan cases they replace are gone, and
+- `[x]` The one-hop bans are ESLint rules in `eslint.config.js`, the source-scan cases they replace are gone, and
   each deleted change-detector or toolchain-redundant case records its survival-rule verdict in its task
 
-- `[ ]` Tests prove the staleness check is skipped only with a matching token, a test-controller operation, and a
+- `[x]` Tests prove the staleness check is skipped only with a matching token, a test-controller operation, and a
   live lease, and that a build holder, an expired lease, a missing token, or a lock file that is absent, empty,
   corrupt, or unreadable runs it
 
-- `[ ]` No `@clack/prompts` prompt call remains outside the prompter, and `no-restricted-imports` confines
+- `[x]` No `@clack/prompts` prompt call remains outside the prompter, and `no-restricted-imports` confines
   `@clack/prompts` to the terminal module and the prompter
 
-- `[ ]` No branch on `context.interaction` chooses an answer a prompt site declares; each such site is asked in every
+- `[x]` No branch on `context.interaction` chooses an answer a prompt site declares; each such site is asked in every
   interaction context
 
-- `[ ]` A unit table test runs the real prompter against a fake renderer and covers each policy kind, each outcome,
+- `[x]` A unit table test runs the real prompter against a fake renderer and covers each policy kind, each outcome,
   and each cancellation kind
 
-- `[ ]` Every prompting command keeps its present output and exit status in each interaction context, except drift
+- `[x]` Every prompting command keeps its present output and exit status in each interaction context, except drift
   fixes recorded in their tasks
 
-- `[ ]` `contradiction()` refuses a prompt site with an unsupported kind, with a syntax-carrying kind and empty
+- `[x]` `contradiction()` refuses a prompt site with an unsupported kind, with a syntax-carrying kind and empty
   `acceptedSyntax`, with `proceed` or `require-authority` on a form other than `confirm`, or with a `cancellation`
   other than `stop` or `safe-default`
 
-- `[ ]` Every prompt site is reached only through its branded, exported declaration, and each drift found during
+- `[x]` Every prompt site is reached only through its branded, exported declaration, and each drift found during
   migration is recorded in its task
 
-- `[ ]` The `testing-standards` override and `strategy-testing-methodology.md` carry the testing rules and tier
+- `[x]` The `testing-standards` override and `strategy-testing-methodology.md` carry the testing rules and tier
   lines, and `TECHNICAL-OVERVIEW.md` § 4 agrees with them
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
 
-- `[ ]` A1's frozen baseline records the head, retained local and hosted attempts, conclusions, settings, capture
+    - **Deviation:** Execution verified for Candidate preparation; independent review and exact-head merge authorization
+      remain required.
+
+- `[x]` A1's frozen baseline records the head, retained local and hosted attempts, conclusions, settings, capture
   paths, and sample limits before fixes; no diagnostic substitutes for an ordinary sample (supersedes the original
   baseline sampling criterion)
 
-- `[ ]` Closing E2E summed file time's three-run median is at least 20% below the frozen single ordinary baseline
+- `[x]` Closing E2E summed file time's three-run median is at least 20% below the frozen single ordinary baseline
   sample with its missing noise estimate explicit (A1; supersedes the original E2E comparison criterion)
 
-- `[ ]` A2 changes only the two measured refusal-source-totality cases' named timeout; their assertions and scan
+- `[x]` A2 changes only the two measured refusal-source-totality cases' named timeout; their assertions and scan
   behavior stay intact, and the timeout exceeds 3.4 times their frozen hosted maximum
 
-- `[ ]` A3's native ESLint proofs preserve loader aliases, inline factories, relative-target resolution, and
+- `[x]` A3's native ESLint proofs preserve loader aliases, inline factories, relative-target resolution, and
   type-only/eager exceptions while accepting valid lookalikes and Result/store seams; resolved configuration
   composes every matching predicate ID, and equivalent native lint proof precedes each source-scan replacement
 
-- `[ ]` A4's matrix reaches one own-command site for each of the four reachable prompt kinds. The indeterminate
+- `[x]` A4's matrix reaches one own-command site for each of the four reachable prompt kinds. The indeterminate
   start refusal has direct handler/prompter proof and separately labelled native upstream-guard coverage, with refs,
   worktrees and tracked state preserved and no claim that the native run reached the prompt.
 
-- `[ ]` The synthetic native fixture copies its live first-party dependency closure and explicit loader roots,
+- `[x]` The synthetic native fixture copies its live first-party dependency closure and explicit loader roots,
   retains dirty-tree dependencies and independent writable sources, and preserves the real build, controller,
   qualification and artifact-recovery proofs (A6)
 
-- `[ ]` Default local worker sizing follows the half-parallelism rule with a one-worker floor and eight-worker
+- `[x]` Default local worker sizing follows the half-parallelism rule with a one-worker floor and eight-worker
   ceiling; capacity overrides and CI native sizing remain available, and the ordinary routine gate passes (A7).
 
-- `[ ]` A14 preserves the five hosted first-attempt passes and twelve local captures at `9b3856d4d`, records the
+- `[~]` A14 preserves the five hosted first-attempt passes and twelve local captures at `9b3856d4d`, records the
   original fifth-run headroom violation, and uses their medians for unchanged cost bars and budgets. Only A13's
   named first-case deadline changes; one full-suite recording-head dispatch passes every job on attempt one,
   every completed unit case remains below half its effective timeout, and both Windows/macOS portability legs
   pass (supersedes the original five-run final-head/headroom criterion).
 
-- `[ ]` A15 preserves prior Linux cost observations and the `f0285502c` recording-head unit reports with all
+    - **Superseded:** A15 replaces the deadline-only continuation with criterion 31 after native Windows fixture
+      failures.
+
+- `[x]` A15 preserves prior Linux cost observations and the `f0285502c` recording-head unit reports with all
   13,695 completed cases below half their effective timeouts. Only platform-native fixture representation,
   Windows-only failure diagnostics and the source-grounded Windows fixture repair may follow without replacing
   Linux samples; both current Windows/macOS portability legs pass native assertions and the failed attempt stays

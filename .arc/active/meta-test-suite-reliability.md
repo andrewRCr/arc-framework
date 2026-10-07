@@ -12,13 +12,14 @@
 - **Task List:** `tasks-test-suite-reliability.md`
 - **Review Rubric:** [none]
 - **Promotion Receipt:** `errand-v1/hosted-test-reliability/ce773f5407a570d786450435b6657f92`
+- **Candidate:** `sha256:6f5798b2bd5c03702911cfdb20822ca888c82bdd6df2960fd4413644c3ba605e`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task list generated and work unit activated
-- **Next Task:** Task 1.1 — Retain per-test unit durations and effective timeouts on hosted runs (line ~17)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 11.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 1.1 — record each unit test's effective timeout from one shared setup file
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]
