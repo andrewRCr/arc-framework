@@ -930,11 +930,15 @@ prompter, every prompting handler takes a required interaction context, and each
   upstream case proves the earlier safety refusal without claiming prompt reachability. Reconciliation retains
   every non-prompt command and the sole direct-proof exception. See `notes-test-suite-reliability.md` § Amendment A4.
 
-### `[ ]` **9.9 Every prompt site migrated** — validate exit criterion at segment scope
+### `[x]` **9.9 Every prompt site migrated** — validate exit criterion at segment scope
 
 - _Goal:_ Evidence that no clack prompt call remains outside the prompter, that no `context.interaction` branch
   chooses an answer a prompt site declares, that clack is confined, that every prompting handler takes a required
   context, and that each drift is recorded in its task.
+
+- _Outcome:_ The source-boundary scenario confines Clack to presentation and renderer modules, confirms all eleven
+  prompting handlers require context, and finds no remaining caller-owned policy answer branch. Migration tasks
+  retain their drift records; A4’s native/direct evidence distinction is revalidated. Notes § Prompt migration closure.
 
 ## **Phase 10:** Closing measurement
 

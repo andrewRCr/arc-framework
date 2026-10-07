@@ -2040,3 +2040,29 @@ skip set (`/tmp/arc-prompt-matrix-a4-routine-final.log`). Both type checks, whol
 six-case transport selection pass after count reconciliation. The earlier full E2E result remains applicable: only
 the isolated unit count assertions changed afterward. The full declaration build and shell gate retain their
 passing Task 9.7 results because their source/configuration inputs are unchanged. No suppression record changes.
+
+## Prompt migration closure
+
+The primary source-boundary scenario records exactly two Clack imports: `lib/terminal.ts` exposes only presentation
+and `lib/command-input/prompt-renderer.ts` owns all four question forms. The source-wide composed
+`no-restricted-imports` rule exempts exactly those modules; the completed routine suite includes its real native
+lint refusal/exception cases. All eleven prompting handler signatures require `InteractionContext`.
+`/tmp/arc-phase9-source-boundary.txt` retains the import, signature and interaction-branch loci.
+
+Every remaining branch in `prompts/` draws a note, message or warning; init's branches pause/restart its spinner,
+user-open's branch logs the safe keep, and user-sync's branch displays the conflict warning. Init/join input
+resolvers classify provenance and pass a legacy interactive boolean to identity callbacks; the actual handlers'
+callbacks ignore that boolean and always reach the declaration-bound identity prompter. Both acquisition callbacks
+run in every context. The renderer-bound prompter owns policy outcomes. Legacy `acquirePromptInput` and
+`resolveConfirmation` have no production callers. Other interaction checks authorize editors, stdin transport or
+subprocess presentation, and do not answer a declared question.
+
+Task 9.1 records the project-name default drift; 9.2 records missing-input syntax; 9.3 records identity defaults;
+9.4 records authority-dependent notes publication while preserving paired save/publication/retry behavior; 9.5
+records release mode syntax and explicit idempotency. Task 9.8.R retains four ordinary native policy proofs plus
+A4's sole unreachable-site exception, its direct handler/prompter proof and distinct native acquisition refusal.
+A4 is revalidated at 9.9; no production guard is weakened. This scenario closes only the prompt-migration segment.
+
+Code checks retain the passing 9.8.R tree: 1,119 routine files/16,713 cases, 67 E2E files/699 cases, both type checks,
+whole-project typed lint, and unchanged full declaration-build/shell results. Only completion records change here;
+whole-corpus Markdown and the three ARC contracts run over those final records. Success Criteria remain unchanged.
