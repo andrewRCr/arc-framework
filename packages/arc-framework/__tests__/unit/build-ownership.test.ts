@@ -1,13 +1,12 @@
 /** Native artifact exclusion between owning checkout actions. */
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { expect, it, vi } from "vitest";
 import { readSettledLockHolder } from "../helpers/read-lock-holder.js";
 import {
   BUILD_ARTIFACT_LOCK_NAME, withBuildArtifactOwnership, withTestArtifactOwnership,
 } from "../../src/lib/build-ownership.js";
-import { bundleRequire } from "bundle-require";
 import { scriptGitExec } from "../helpers/git-exec-fake.js";
 import { withLocalHeavyTestAdmission } from "../../src/lib/local-test-admission.js";
 
@@ -111,35 +110,6 @@ for (const env of [{ CI: "true" }, { ARC_TEST_ALLOW_CONCURRENCY: "1" }]) {
     }
   });
 }
-
-it("retains same-process exclusion across a native loaded control module", async () => {
-  const cwd = resolve(import.meta.dirname, "../..");
-  const loaded = await bundleRequire<{ withBuildArtifactOwnership: typeof withBuildArtifactOwnership }>({
-    filepath: join(cwd, "src/lib/build-ownership.ts"), cwd, format: "esm",
-  });
-  const packageRoot = await mkdtemp(join(tmpdir(), "arc-native-control-owner-"));
-  let release: (() => void) | undefined;
-  let ready: (() => void) | undefined;
-  const entered = new Promise<void>((resolve) => { ready = resolve; });
-  const first = withBuildArtifactOwnership({ packageRoot, operation: "prepared test" }, async () => {
-    ready?.();
-    await new Promise<void>((resolve) => { release = resolve; });
-  });
-  await entered;
-  const second = loaded.mod.withBuildArtifactOwnership({ packageRoot, operation: "native control" }, async () => "built");
-  try {
-    const state = await Promise.race([second.then(() => "built"),
-      new Promise<string>((resolve) => setTimeout(() => resolve("queued"), 50))]);
-    expect(state).toBe("queued");
-    release?.();
-    await first;
-    await expect(second).resolves.toBe("built");
-  } finally {
-    release?.();
-    await Promise.allSettled([first, second]);
-    await rm(packageRoot, { recursive: true, force: true });
-  }
-});
 
 it("allows another checkout to progress while the first retains ownership", async () => {
   const root = await mkdtemp(join(tmpdir(), "arc-independent-artifacts-"));

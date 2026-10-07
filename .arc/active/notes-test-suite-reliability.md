@@ -279,7 +279,8 @@ The existing integration inventory case is included alongside the original unit 
   equivalent roots agree; Node, platform, and architecture change identity. All remain real filesystem/resolve
   runs in the original unit basename, with no process launch, build, or Git repository.
 - **`build-cancellation`:** queued public builder cancellation preserves entry, owner, and unloaded configuration;
-  a fresh public retry qualifies and releases ownership. Location: integration relocation, pending.
+  a fresh public retry qualifies and releases ownership. The unchanged case now runs in
+  `__tests__/integration/build-cancellation.test.ts`, selected by its original portability basename.
 - **`build-generation-lifetime`:** asynchronous ownership renewal during a blocked compiler; owner death allows a
   surviving child to finish staging without publication, with repaired acquisition. Both real classes now run in
   `__tests__/integration/build-generation-lifetime.test.ts`, selected by the unchanged portability basename.
@@ -301,7 +302,8 @@ The existing integration inventory case is included alongside the original unit 
 - **`build-ownership`:** CPU admission precedes artifact acquisition and both release; same-checkout builders queue;
   CI and explicit concurrency bypass CPU alone; same-process exclusion survives a native-loaded control module;
   another checkout progresses; replaced ownership stops publication and repaired acquisition succeeds.
-  Locations: filesystem unit and native integration, pending.
+  Locations: all filesystem/lock cases stay real in `__tests__/unit/build-ownership.test.ts`; the native-loaded
+  control module case runs unchanged in its integration basename. Both remain portability-selected.
 - **`ci-build-transfer`:** producer builds full declarations; transferred qualified output is reused without generation;
   source-changed output is repaired before skip-build consumption; prepared integration/E2E setup and teardown retain
   the repaired generation and ownership; a second controller reuses output; platform-local install/full/preflight/
@@ -454,3 +456,8 @@ Real integration case medians in the focused mode:
 - **`build-inventory`:** all real filesystem membership/link classes remain in unit without compilation. The
   metadata-omitted manifest case moves unchanged beside the existing preferred-source integration case; both real
   compiler outcomes and every filesystem class stay selected by the portability basename.
+
+- **`build-ownership`:** real filesystem/advisory-lock cases remain in unit with scripted Git and no child. Only the
+  native-loaded control module case moves to integration, unchanged. All baseline classes remain portability-selected.
+- **`build-cancellation`:** the complete public-builder cancellation and repaired-retry case moves intact to
+  integration; no outcome or native step is dropped, and the basename stays portability-selected.

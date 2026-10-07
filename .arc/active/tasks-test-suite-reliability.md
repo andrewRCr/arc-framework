@@ -237,10 +237,10 @@ is measured against the baseline.
           moves its native manifest-resolution case beside the existing preferred-source integration case.
           Context and both inventory basenames remain portability-selected.
 
-    - `[ ]` **3.3.e `build-ownership.test.ts` and `build-cancellation.test.ts`**
-        - Both portability-selected; their lock outcome classes stay real on the portability list.
-        - `build-ownership` drives git through a scripted fake (`scriptGitExec`); its one launch is the esbuild
-          service that `bundleRequire` starts for the loaded control module, which is a real run.
+    - `[x]` **3.3.e `build-ownership.test.ts` and `build-cancellation.test.ts`**
+        - Ownership's filesystem/lock classes remain real in unit with scripted Git; its native-loaded control
+          module case moves unchanged to integration. Cancellation moves intact to integration. All original
+          acquisition, bypass, queue, replacement, cancellation, and repaired-retry classes remain portability-selected.
 
     - `[ ]` **3.3.f `build-baseline`, `build-config`, and `build-configuration`**
         - `build-baseline` bundles through esbuild and `build-config` through tsup, so their bundling cases are real
