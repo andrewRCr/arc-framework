@@ -1132,8 +1132,10 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
 - _Quality gates:_ Fresh serial Tier 3 passes Markdown/ARC checks, typed and shell lint, both type programs,
   16,732 routine cases under `FORCE_COLOR=3` at the eight-worker default, and the full declaration build.
   Current hosted E2E/portability evidence is retained; verification-document Markdown/ARC checks pass separately.
+  The A16 correction passes all full local gates with 16,757 routine cases and the full build, plus first-attempt
+  hosted full-suite/Windows/macOS confirmation 37698035019; historical colored-run evidence remains head-bound.
 
-- _Success criteria:_ 31 criteria: 27 met, four superseded by A1/A14/A15, none unresolved. Exact criterion digests,
+- _Success criteria:_ 32 criteria: 27 met, five superseded by A1/A14/A15/A16, none unresolved. Exact criterion digests,
   evidence span, author preflight and limitations are recorded in `notes-test-suite-reliability.md` § Verification
   evidence. Optional adversarial verification was declined; independent local chunked code review remains required.
 
@@ -1259,7 +1261,7 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
 
     - **Superseded:** A16 permits the approved review corrections while retaining exact-head historical evidence.
 
-- `[ ]` A16 retains exact-head historical measurements, their explicit failures and unchanged acceptance bars and
+- `[x]` A16 retains exact-head historical measurements, their explicit failures and unchanged acceptance bars and
   fourteen budgets without claiming that old captures measure the revised workload. Focused enforcement,
   presentation and native-fixture regression proofs, ordinary full local quality gates, and one current
   first-attempt full-suite hosted dispatch including both Windows/macOS legs pass. Current unit zero-spawn and

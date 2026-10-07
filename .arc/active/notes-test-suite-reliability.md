@@ -3297,3 +3297,35 @@ routine lane completes 1,121 passing files and 16,757 passing cases, with one fi
 skipped, in 226.66 seconds using the unchanged local worker policy. Build artifacts qualify. Hosted confirmation
 and task criterion 32 remain pending. Targeted logs and full gate output are retained under
 `/tmp/arc-test-suite-review`; this local result supplies no independent review conclusion.
+
+### Current corrected-head hosted confirmation and criteria closure
+
+Run 37698035019 at `84d17b343de3a7683dfdd346e5691dc6deca9d73` completes on attempt one with overall success:
+seventeen applicable jobs pass; the two PR-only rollups (`ci-ok`, `merge-ok`) are event-disabled for this dispatch.
+Both unit shards, all four integration and four E2E shards, lint/types, setup, classification, Linux portability,
+both native portability legs and duration merge pass. Each Windows/macOS leg completes 28 files and 252 cases with
+two intentional skips; macOS's additional guard selection completes 14 files and 119 cases. All ten CI-job budget
+comparisons are within the unchanged limits. Their summed budget clocks are 1,585,009 ms; this is one confirmation,
+not a replacement cost sample or a revised median.
+
+The two native unit reports retain 13,707 completed cases, effective timeouts and launch metadata. Every completed
+case is strictly below half its effective timeout; all 13,624 off-allowlist cases record zero launches, with no
+missing metadata. The tightest case is 2,237.230588 ms against its 10,000 ms deadline. Reports, the native run/attempt
+records, job logs and derived headroom/launch/budget checks are retained at package-relative
+`.test-cost-runs/closing-review-a16/37698035019`.
+
+The earlier explicit raw-push authorization was used with normal hooks to make the committed correction available
+for this approved hosted verification. The performed Candidate response waits for these actual results rather than
+recording the pending confirmation as complete. No source, scheduling, timeout or budget inputs changed afterward.
+
+The primary correction criteria walk preserves all thirty-one existing criterion digests and appends only criterion
+32: `sha256:b925fd04798dfe5f314d5305406d357caf610f6c40da89a6aaf39734f716b0f1`. Criterion 31 is superseded by A16;
+criterion 32 is met by the focused fail-first proofs, full local gates, run 37698035019 and its retained reports.
+The effective thirty-two-criterion report is twenty-seven met, five superseded, none unresolved. Historical cost
+criteria remain tied to their measured heads and sample limits; this confirmation makes no new median claim.
+Current launch admission (11), one-hop/Clack confinement (12/14/26), presentation (17), exported declaration identity
+(19), quality gates (21), native no-input proof (27) and worker sizing (29) have supplemental correction evidence.
+The full prior criterion report remains in § Verification evidence; its immutable bindings and unaffected evidence
+carry forward, while the affected boundaries were inspected against the correction and current reachable tree.
+Primary-only verification remains the approved choice. Candidate advancement and incremental independent standard
+review remain pending; this criteria result supplies no evaluator or merge authority.
