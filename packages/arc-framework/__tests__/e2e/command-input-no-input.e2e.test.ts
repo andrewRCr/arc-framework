@@ -161,7 +161,7 @@ describe("command-input no-input matrix", () => {
         expect(saved.exitCode, JSON.stringify(saved)).toBe(0);
       }
       if (entry.setup === "unreachable-origin") {
-        await git(cwd, ["remote", "add", "origin", "https://arc-fixture.invalid/arc-framework/example.git"]);
+        await git(cwd, ["remote", "add", "origin", join(cwd, ".fixture-missing-origin.git")]);
       }
       if (entry.setup === "reachable-origin") {
         await git(cwd, ["config", "core.hooksPath", join(cwd, ".fixture-hooks")]);
