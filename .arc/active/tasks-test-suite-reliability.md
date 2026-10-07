@@ -469,56 +469,35 @@ _Exit criterion:_ Under the test controller, CLI children skip the staleness che
 test-controller operation, and a live lease; the `--no-input` matrix runs each distinct invocation once from a
 template; and E2E summed file time is measured against the baseline.
 
-### `[ ]` **5.1 Skip the per-spawn staleness check for a managed test run's own processes — D4**
+### `[x]` **5.1 Skip the per-spawn staleness check for a managed test run's own processes — D4**
 
 - _Goal:_ A built-CLI process started by a managed test run skips `checkDevBuildStaleness` only while it carries the
   live test controller's token, and every other process runs the check as today: a build holder's, a developer's own
   `npx arc`, or one started after the run released its lock.
 
-    - `[ ]` **5.1.a The skip decision over one tolerant holder read**
-        - The classification Task 2.3.a exports sorts one synchronous read of the lock file without acquiring.
-        - A decision beside `checkDevBuildStaleness` (`dev-check.ts`) takes the supplied token, that
-          classification, and the clock.
-        - Build `test-first` (one behavior at a time):
-            - A matching token, a `tests (<tier>)` operation, and a live lease skip the check
-            - A mismatched token runs the check
-            - A build holder, whose `metadata.operation` is not a test controller's, runs the check
-            - An expired lease (`leaseUntil` passed) runs the check
-            - A holder with no `leaseUntil` runs the check, since a test controller always holds a lease
-            - No token runs the check
-            - An absent, empty, corrupt, or unreadable lock file runs the check
+    - `[x]` **5.1.a The skip decision over one tolerant holder read**
+        - `shouldSkipDevBuildStaleness` accepts one existing holder classification and requires the inherited token,
+          test-controller operation and future lease together. Every absent/unsettled read and invalid ownership
+          condition retains the ordinary check; Notes § Managed freshness decision records native fail-first proof.
 
-    - `[ ]` **5.1.b Export the controller's token to its children**
-        - `withBuildArtifactOwnership` (`build-ownership.ts`) passes its lock handle's `token` on the
-          `BuildArtifactLease`. `withTestArtifactOwnership` sets `process.env[TEST_CONTROLLER_TOKEN_ENV]`, an exported
-          constant naming `ARC_TEST_CONTROLLER_TOKEN`, to that token around its action and restores the prior value
-          after. Vitest workers, on either pool, and their children inherit it. `executeVitestSelection` is
-          unchanged: a unit-only selection never calls `withTestArtifactOwnership`, so it exports nothing.
-        - Build `test-first` (one behavior at a time), through `withTestArtifactOwnership`'s existing overrides:
-            - The action sees the held lock's token in the environment
-            - The prior value is restored after the action returns or throws
+    - `[x]` **5.1.b Export the controller's token to its children**
+        - The artifact capability carries its acquired token; test ownership exports `ARC_TEST_CONTROLLER_TOKEN`
+          only during its action and restores the prior value or absence on return and throw. Native lease/environment
+          proofs cover propagation and restoration; the staged publication fixture supplies its fake token.
 
-    - `[ ]` **5.1.c Consult it in the CLI's stale-build guard**
-        - The `preAction` hook's body moves from `cli.ts` into an exported guard in `dev-check.ts`, with the lock
-          read, the staleness check's dependencies, the stderr writer, and the exit injected; `cli.ts`'s hook calls
-          it and stays synchronous. The guard reads `.arc-build.lock` in the package root, the running `dist`'s
-          parent, once, and skips `checkDevBuildStaleness` when the decision holds. A skipped check leaves the
-          command ineligible for the post-command refresh.
-        - Build `test-first` (one behavior at a time):
-            - When the decision skips, the staleness check's dependencies are never read and the command is not
-              refresh-eligible
-            - A `fresh` verdict makes a refresh command path eligible
-            - A stale verdict refuses with today's message and exit status
-            - A stale verdict under the compaction-seed write warns and continues
-            - A `skip` verdict, an adopter install's, proceeds silently and leaves the command ineligible for the
-              refresh
+    - `[x]` **5.1.c Consult it in the CLI's stale-build guard**
+        - The synchronous `runDevBuildGuard` owns holder/freshness/output/exit boundaries; cli.ts calls it and
+          assigns explicit refresh eligibility. Matching managed children bypass freshness reads; ordinary refusal,
+          compaction continuation, silent adopter handling and fresh refresh-command eligibility remain intact.
 
-    - `[ ]` **5.1.d Prove the skip in a managed run**
-        - The runtime fixture's `src/cli.ts` is a one-line marker, so this test's fixture replaces it with an entry
-          that runs Task 5.1.c's guard and then prints a marker; `cli.ts`'s hook is a call to the same guard.
-        - An integration test runs that fixture's controller. Its inner test edits the entry's source, then spawns
-          the built CLI twice: with the inherited token it prints the marker, and with the token removed from its
-          environment the guard refuses it as stale.
+    - `[x]` **5.1.d Prove the skip in a managed run**
+        - A real fixture controller owns and prepares its guard-calling CLI; its inner worker changes source and
+          observes the inherited child succeed while the tokenless child refuses as stale. Narrow fixture-only
+          reconstructions fail each outcome before the actual proof passes; Notes retain the native evidence.
+
+- _Outcome:_ Managed CLI children avoid freshness work only while their matching test-controller lease is live;
+  unavailable holder reads and every ordinary process retain qualification. Token lifetime, synchronous admission,
+  diagnostics and refresh eligibility are proved together, with the existing controller/closing protocol unchanged.
 
 ### `[ ]` **5.2 Run each distinct `--no-input` invocation once from a prepared template — D4**
 

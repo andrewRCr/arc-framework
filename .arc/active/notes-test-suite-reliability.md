@@ -1276,3 +1276,62 @@ already shares its setup, and typechecked Programs, declaration emission, text c
 do not share one interchangeable parse contract. The measurement does not identify a repeated parser cost sufficient
 to justify the cache's lifetime, invalidation and fixture mechanism. This is the specification's permitted decision
 at 4.5, made under the existing implementation direction; no follow-on design or task is needed.
+
+## Managed freshness decision
+
+`shouldSkipDevBuildStaleness` consumes the existing synchronous `classifyAdvisoryLockRead` result, inherited token and
+clock. It skips only for a matching nonempty token, a `tests (<tier>)` operation and a lease strictly after now. The
+native unit proof first fails the positive decision (`/tmp/arc-managed-skip-positive-red.log`), then fails all ten
+invalid ownership/read conditions against the positive-only implementation
+(`/tmp/arc-managed-skip-refusals-red.log`). Restored decisions and existing freshness behavior pass 41 cases in
+`/tmp/arc-managed-skip-decision-green.log`; focused lint and both type programs pass in
+`/tmp/arc-managed-skip-decision-{lint,types}.log`. The function performs no I/O or acquisition, and is not yet wired
+into the CLI; the complete managed-run slice supplies token propagation, guard wiring and the real-child proof.
+
+### Scoped controller token
+
+The acquired artifact handle's token is preserved on `BuildArtifactLease`; `withTestArtifactOwnership` exports it
+around the owning action and restores the exact preceding environment value or absence in finally. Unit-only native
+execution is unchanged and never enters that ownership wrapper. The existing compiler-free staged fixture gains its
+fake capability token to satisfy the extended lease contract.
+
+The real lock/action proof fails before propagation (`/tmp/arc-controller-token-red.log`) and succeeds afterward.
+All four return/throw × prior-value/absence restoration cases fail before finally restoration
+(`/tmp/arc-controller-token-restoration-red.log`), then all 22 ownership/decision cases pass in
+`/tmp/arc-controller-token-final-green.log`. Both type programs pass; focused lint rejects computed deletes, corrected
+mechanically to `Reflect.deleteProperty`, then passes (`/tmp/arc-controller-token-{types,lint}.log`).
+
+### Synchronous command guard
+
+The CLI preAction calls `runDevBuildGuard` with `createDevBuildGuardDeps`. Native dependencies classify one
+synchronous package-root lock read and preserve the existing freshness factory, output and exit. The managed decision
+precedes every freshness callback. Its explicit boolean keeps managed/adopter/compaction continuations ineligible for
+post-command refresh; fresh commands retain the existing command-family discriminator. Stale diagnostics, age
+rendering, remedy and the compaction-seed exception are extracted unchanged.
+
+Three direct guard outcomes fail before implementation (`/tmp/arc-dev-guard-first-red.log`). Narrow copied-module
+reconstructions fail silent adopter output and managed avoidance of freshness dependencies
+(`/tmp/arc-dev-guard-{adopter,managed}-red.log`), with every export and signature retained and copies removed afterward.
+All 46 guard/decision/freshness cases pass in `/tmp/arc-dev-guard-green.log`; focused lint and both type programs pass
+in `/tmp/arc-dev-guard-{lint,types}.log`. The real managed-controller source-edit proof closes the remaining slice.
+
+### Real managed child source drift
+
+The runtime fixture's marker entry now invokes the same guard as cli.ts. Its actual integration controller prepares
+and owns the fixture's bundle; the inner worker edits src/cli.ts, then runs that bundle with the inherited environment
+and with the token removed. The first prints `new-native-runtime`; the second exits 1 with the ordinary stale-build
+refusal and build remedy. Each child has a 10-second native deadline, inside the fixture controller's 30-second
+process deadline and the outer 60-second case timeout.
+
+The inherited path fails when only the copied fixture's managed-decision branch is removed
+(`/tmp/arc-managed-controller-native-red.log`). The ordinary path fails when only that fixture wrongly permits a
+missing token (`/tmp/arc-managed-controller-tokenless-red.log`). Both reconstructions keep every export/signature and
+alter no primary source or bundle; the temporary probe specification is removed. The actual test then passes in
+`/tmp/arc-managed-controller-native-green.log`, with raw child outcomes asserted inside the real worker and observed
+by the outer integration case. Focused lint and both type programs also pass before complete-slice gates.
+
+Complete managed-run slice gates pass: 1,105 routine files and 16,601 cases, full typed lint, both type programs,
+qualified full build, Markdown and all ARC checks. Shell inputs are unchanged and retain their preceding completed
+gate. `/tmp/arc-managed-run-final-{routine,lint,types,build,md}.log` retains the command evidence. The complete token,
+guard and native-child behavior is one atomic concern; no production command behavior beyond the specified managed
+freshness skip changes.

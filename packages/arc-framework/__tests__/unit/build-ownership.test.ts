@@ -5,8 +5,10 @@ import { tmpdir } from "node:os";
 import { expect, it, vi } from "vitest";
 import { readSettledLockHolder } from "../helpers/read-lock-holder.js";
 import {
-  BUILD_ARTIFACT_LOCK_NAME, withBuildArtifactOwnership, withTestArtifactOwnership,
+  BUILD_ARTIFACT_LOCK_NAME, TEST_CONTROLLER_TOKEN_ENV, withBuildArtifactOwnership, withTestArtifactOwnership,
 } from "../../src/lib/build-ownership.js";
+import { classifyAdvisoryLockRead } from "../../src/lib/advisory-lock.js";
+import { shouldSkipDevBuildStaleness } from "../../src/lib/dev-check.js";
 import { scriptGitExec } from "../helpers/git-exec-fake.js";
 import { withLocalHeavyTestAdmission } from "../../src/lib/local-test-admission.js";
 
@@ -17,6 +19,51 @@ function admissionGit(root: string) {
     { match: ["branch", "--show-current"], responses: [{ stdout: "feat/fixture\n", stderr: "" }] },
   ]).exec;
 }
+
+it("exports the held controller token to its action", async () => {
+  const packageRoot = await mkdtemp(join(tmpdir(), "arc-inherited-artifacts-"));
+  const prior = process.env[TEST_CONTROLLER_TOKEN_ENV];
+  try {
+    Reflect.deleteProperty(process.env, TEST_CONTROLLER_TOKEN_ENV);
+    const result = await withTestArtifactOwnership({ packageRoot, cwd: packageRoot, env: { CI: "true" }, tier: "integration" },
+      async (lease) => {
+        const read = classifyAdvisoryLockRead({ text: JSON.stringify(await readSettledLockHolder(join(packageRoot, BUILD_ARTIFACT_LOCK_NAME))) });
+        return { leaseTokenMatches: typeof read !== "string" && lease.token === read.token,
+          managed: shouldSkipDevBuildStaleness(process.env[TEST_CONTROLLER_TOKEN_ENV], read, Date.now()) };
+      });
+    expect(result).toEqual({ result: { leaseTokenMatches: true, managed: true } });
+  } finally {
+    if (prior === undefined) Reflect.deleteProperty(process.env, TEST_CONTROLLER_TOKEN_ENV);
+    else process.env[TEST_CONTROLLER_TOKEN_ENV] = prior;
+    await rm(packageRoot, { recursive: true, force: true });
+  }
+});
+
+it.each([
+  { prior: undefined, throws: false },
+  { prior: "outer-controller", throws: false },
+  { prior: undefined, throws: true },
+  { prior: "outer-controller", throws: true },
+])("restores inherited environment $prior after throws=$throws", async ({ prior, throws }) => {
+  const packageRoot = await mkdtemp(join(tmpdir(), "arc-restored-artifacts-"));
+  const original = process.env[TEST_CONTROLLER_TOKEN_ENV];
+  try {
+    if (prior === undefined) Reflect.deleteProperty(process.env, TEST_CONTROLLER_TOKEN_ENV);
+    else process.env[TEST_CONTROLLER_TOKEN_ENV] = prior;
+    const execution = withTestArtifactOwnership({ packageRoot, cwd: packageRoot, env: { CI: "true" }, tier: "integration" },
+      async () => {
+        if (throws) throw new Error("action failed");
+        return "completed";
+      });
+    if (throws) await expect(execution).rejects.toThrow("action failed");
+    else await expect(execution).resolves.toEqual({ result: "completed" });
+    expect(process.env[TEST_CONTROLLER_TOKEN_ENV]).toBe(prior);
+  } finally {
+    if (original === undefined) Reflect.deleteProperty(process.env, TEST_CONTROLLER_TOKEN_ENV);
+    else process.env[TEST_CONTROLLER_TOKEN_ENV] = original;
+    await rm(packageRoot, { recursive: true, force: true });
+  }
+});
 
 it("acquires CPU admission before checkout artifacts and releases both after the action", async () => {
   const packageRoot = await mkdtemp(join(tmpdir(), "arc-ordered-ownership-"));

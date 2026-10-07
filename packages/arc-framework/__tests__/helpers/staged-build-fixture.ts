@@ -38,7 +38,7 @@ export function makeStagedBuildFixture(
   if (mode === "full") writeBuildFixtureFile(join(directory, "cli.d.ts"), "export declare const marker = 1;\n");
   writeBuildFixtureFile(join(packageRoot, "dist/cli.js"), 'export const marker = "previous-live-runtime";\n');
   const staged: StagedBuildGeneration = { directory, mode, before, graphs };
-  const lease: BuildArtifactLease = { packageRoot, confirmOwnership };
+  const lease: BuildArtifactLease = { packageRoot, confirmOwnership, token: "staged-fixture-owner" };
   const evidence = certifyBuildGeneration(before, captureBuildBaseline(packageRoot), graphs, mode === "full");
   return { root, packageRoot, staged, lease, evidence };
 }
