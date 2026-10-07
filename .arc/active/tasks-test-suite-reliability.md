@@ -787,37 +787,18 @@ unresolved site argument.
   owns Clack. Explicit false/empty values remain answers; refused syntax is carried for caller-owned reports.
   `notes-test-suite-reliability.md` § Declared prompt policy substrate retains the boundary proofs.
 
-### `[ ]` **8.3 Discover prompt sites by declared value in the scanner — D7**
+### `[x]` **8.3 Discover prompt sites by declared value in the scanner — D7**
 
 - _Goal:_ The source scanner finds each prompt site by the declared constant its call passes, so the call that passes
   a site is its locus, and an inline declaration, a site passed twice, an unresolved site argument, or a declared site
   no call passes is refused.
 
-    - In `source-scanner.ts`, a call's site argument resolves through the file's own declarations and imports to a
-      declared site, with today's single-file parsing and no type checker. Declarations usually sit in the handler
-      module that asks the question (`userCommandInputPolicyDeclarations` in `handlers/user.ts`).
-    - `reconcileCommandInputInventory` joins each `origin: "prompt"` declaration to its passing call by id, and that
-      call becomes the entry's live source. Today's join reaches only declarations that name a line or a call selector,
-      so a `{ file, symbol }` site is checked by `sourceExists` alone; the new join refuses a prompt site no call passes
-      as `command-input.inventory.stale-source`. One site may still be listed under several commands with one policy.
-    - The scanner skips the prompter's renderer module: its clack calls are the policy boundary rather than prompt
-      sites, as `scanInteractionSource` skips `interaction-context.ts` for `process.env.CI`.
+- _Outcome:_ `prompt-source.ts` resolves constants/imports and lexical parameters from shared parsed files;
+  the inventory joins prompt ids to passing calls, refusing duplicate and dangling sites while preserving shared policy.
+    - The renderer's Clack calls are excluded from command-owned discovery.
         - _Retired in:_ Phase 9
-    - Today's callee-and-occurrence discovery keeps finding the clack calls not yet migrated.
+    - Remaining Clack calls retain callee-and-occurrence discovery.
         - _Retired in:_ Phase 9
-    - Build `test-first` (one behavior at a time):
-        - A prompter call passing an imported exported constant resolves to its declared site, with that call as the
-          locus
-        - A prompter call passing a constant exported from its own file resolves the same way
-        - Two callers passing different sites to one wrapper are two sites
-        - A site passed by more than one call is refused
-        - A declaring-function call anywhere but an exported constant's initializer is refused
-        - A site argument that neither resolves to a declared constant nor is a parameter of an enclosing function is
-          refused
-        - A parameter of an enclosing function is accepted as pass-through, including from a nested callback, as in
-          `resolveIdentityWithPrompt`
-        - A declared prompt site no call passes is refused by `reconcileCommandInputInventory`
-        - The renderer module's clack calls are not discovered as prompt sites
 
 ### `[ ]` **8.4 Migrate the stale-subdir prompt end to end — D7**
 

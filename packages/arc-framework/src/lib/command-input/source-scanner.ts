@@ -6,10 +6,12 @@ import { readdir, readFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 
 import ts from "typescript";
+import { buildPromptSourceIndex, type PromptSourceIndex } from "./prompt-source.js";
 
 interface SourceInput {
   readonly file: string;
   readonly sourceText: string;
+  readonly sourceFiles?: Readonly<Record<string, string>>;
 }
 
 /** Stable source locus emitted by the scanner. */
@@ -75,6 +77,7 @@ export type DiscoveredInteractionKind =
 /** One prompt, explicit-stdin, or process-launch source site. */
 export interface DiscoveredInteractionSite extends DiscoveredSourceLocus {
   readonly kind: DiscoveredInteractionKind;
+  readonly declaredId?: string;
   readonly callee: string;
 }
 
@@ -413,9 +416,9 @@ function isExplicitStdinUse(node: ts.PropertyAccessExpression): boolean {
   return ts.isForOfStatement(current.parent) && current.parent.awaitModifier !== undefined;
 }
 
-/** Discover prompt, helper, explicit-stdin, and process-launch source sites. */
-export function scanInteractionSource(input: SourceInput): InteractionSourceScan {
-  const file = sourceFile(input);
+function interactionBindings(file: ts.SourceFile): {
+  promptNamespaces: ReadonlySet<string>; processFunctions: ReadonlySet<string>;
+} {
   const promptNamespaces = new Set<string>();
   const processFunctions = new Set<string>();
   for (const statement of file.statements) {
@@ -447,6 +450,15 @@ export function scanInteractionSource(input: SourceInput): InteractionSourceScan
     }
   }
 
+  return { promptNamespaces, processFunctions };
+}
+
+/** Discover prompt, helper, explicit-stdin, and process-launch source sites. */
+export function scanInteractionSource(input: SourceInput,
+  promptIndex: PromptSourceIndex = buildPromptSourceIndex({ ...input.sourceFiles, [input.file]: input.sourceText })): InteractionSourceScan {
+  const file = promptIndex.files.get(input.file) ?? sourceFile(input);
+  const { promptNamespaces, processFunctions } = interactionBindings(file);
+
   const sites: Array<DiscoveredInteractionSite & { readonly position: number }> = [];
   const promptNames = new Set([
     "text",
@@ -460,10 +472,14 @@ export function scanInteractionSource(input: SourceInput): InteractionSourceScan
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
       const callee = calleeText(node, file);
-      if (ts.isPropertyAccessExpression(node.expression)) {
+      const declaredId = promptIndex.calls.get(input.file)?.get(node.getStart(file));
+      if (declaredId !== undefined) {
+        sites.push({ kind: "prompt", declaredId, callee, position: node.getStart(file), ...locus(file, node, input.file) });
+      }
+      if (declaredId === undefined && ts.isPropertyAccessExpression(node.expression)) {
         const receiver = node.expression.expression.getText(file);
         const name = node.expression.name.text;
-        if (promptNamespaces.has(receiver) && promptNames.has(name)) {
+        if (promptNamespaces.has(receiver) && promptNames.has(name) && input.file !== "lib/command-input/prompt-renderer.ts") {
           sites.push({ kind: "prompt", callee, position: node.getStart(file), ...locus(file, node, input.file) });
         } else if (/\.output$/u.test(receiver) && ["confirm", "select", "text"].includes(name)) {
           sites.push({ kind: "prompt-helper", callee, position: node.getStart(file), ...locus(file, node, input.file) });
@@ -509,6 +525,7 @@ export function scanInteractionSource(input: SourceInput): InteractionSourceScan
   return {
     sites: sites.map((site) => ({
       kind: site.kind,
+      ...(site.declaredId === undefined ? {} : { declaredId: site.declaredId }),
       callee: site.callee,
       file: site.file,
       line: site.line,
@@ -622,10 +639,11 @@ export async function loadCommandInputSourceSnapshot(options: {
   if (cliText === undefined) throw new Error(`CLI source is outside the source snapshot: ${cliFile}`);
   const commands = scanCommanderSource({ file: cliPath, sourceText: cliText }).commands;
   const files = cliReachableTypescriptFiles(sourceRoot, cliFile, sourceFiles);
+  const promptIndex = buildPromptSourceIndex(Object.fromEntries(files.map((file) => [file, sourceFiles[file] ?? ""])));
   const interactions = files.flatMap((file) => scanInteractionSource({
     file,
     sourceText: sourceFiles[file] ?? "",
-  }).sites).sort((left, right) => {
+  }, promptIndex).sites).sort((left, right) => {
     if (left.file !== right.file) return left.file < right.file ? -1 : 1;
     if (left.line !== right.line) return left.line - right.line;
     return left.column - right.column;

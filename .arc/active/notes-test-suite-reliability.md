@@ -1602,3 +1602,32 @@ fixture refinement gives the structural lookalike the factory's exact normalized
 private brand makes `typecheck:test` fail solely with unused `@ts-expect-error` (TS2578,
 `/tmp/arc-prompt-brand-type-red.log`); restoring source byte-for-byte returns both type programs and the focused unit
 proof to green. This distinguishes brand enforcement from incidental structural type differences.
+
+### Declared-value scanner evidence
+
+Ten discovery cases first fail against selector-only discovery (`/tmp/arc-prompt-scanner-red.log`). The scanner resolves
+named-import aliases and own exported constants, finds concrete callers of wrappers, and rejects factory calls outside
+exported constant initializers. Parameter resolution walks outward past nested callbacks and stops at intervening local
+bindings. A narrow duplicate/parameter reconstruction fails four cases, including the cross-module duplicate case
+(`/tmp/arc-prompt-binding-reconstruction-red.log`); source is restored byte-for-byte. The first combined run's two
+remaining mismatches were diagnostic capitalization, corrected without changing refusal behavior.
+
+Both inventory-join cases first fail: the passing call is unclaimed, and a symbol-only dangling declaration is accepted
+(`/tmp/arc-prompt-inventory-red.log`). The new prompt-origin lookup joins by declared id and retains the existing
+cross-command policy consistency check, now including form. The complete command-input proof passes 116 cases.
+`prompt-source.ts` reuses its parsed files in interaction scanning from the same immutable source snapshot, introducing
+no type checker or extra whole-source parse pass. Generic call arguments are resolved only when they name a known
+prompt constant, avoiding lexical work over unrelated calls.
+
+The initial focused lint found an AST-parent conditional inconsistent with TypeScript's parent typing and a 105-line
+interaction scanner. The parent walk now terminates explicitly at its source file, and import binding collection is
+extracted. Both type programs and full typed lint pass. The first full routine gate passes 1,116 files and 16,685 cases,
+with one file and 1,188 cases skipped (`/tmp/arc-prompt-scanner-routine.log`, 196.84 s); the full build qualifies.
+Final source review found the new inventory lookup growing its pre-existing suppressed function, so that lookup is
+extracted before closure. Its parent loses branches and lines rather than growing within an unchanged suppression count;
+the final gates rerun on that refactor.
+
+The extracted lookup's final routine gate passes the same 1,116 files and 16,685 cases, with one file and 1,188 cases
+skipped (`/tmp/arc-prompt-scanner-final-routine.log`, 192.74 s). Both type programs and full typed lint pass, with no
+suppression added or widened. The unchanged shell surface retains its passing gate. Metadata completion preserves the
+renderer and legacy-discovery retirement markers verbatim; the terminal migration remains a separate increment.
