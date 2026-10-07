@@ -1018,3 +1018,117 @@ and remove their temporary test copies. Primary source and derived CLI bytes are
 Tests share one parser/fixture because their behaviors belong to the same module walker and policy contract.
 The installed TypeScript API deprecates import-clause `isTypeOnly`; the implementation uses its equivalent
 `phaseModifier === TypeKeyword`, and the complete allowed-type matrix is rerun after that mechanical correction.
+
+## One-hop ban inventory
+
+Classification is bound to the 26-file, 123-expanded-case baseline inventory. Every original case is retained in
+`packages/arc-framework/.test-cost-runs/source-ban-inventory.json` with its file-level split and source-scope
+classification. This inventory is a migration plan, not evidence that a lint replacement already passed.
+
+One-module dependency and declaration bans move only after native forbidden/allowed proof. Positive inventories,
+export surfaces, transitive graphs and explicitly textual vocabulary properties remain tests. The incidental
+comment/example branches named below fail the survival rule for executable dependency/default/caller properties:
+a comment does not introduce the forbidden dependency or operation. This bounded interpretation is recorded
+under the existing authority for intent-preserving adjustments; it does not narrow the store or schema vocabulary
+contracts whose stated property includes text.
+
+- `active/meta-reader-inventory` — **move remaining calls**. Bare calls to parseMetaProjectionRecord and
+  parseIdentifierList become syntax rows with their existing authorized producers. Compiler-held display fields were
+  removed in 4.1.
+
+- `active/meta-reader-store` — **move static import ban**. The meta reader forbids static store imports, including
+  type-only; its permitted dynamic delegate remains permitted.
+
+- `active/meta-writer-inventory` — **move live identifier bans**. The five full-record producers forbid
+  executable/type references to MetaProjectionOverrides and renderMetaProjectionFile. Comment/example mentions are
+  incidental name matching, not use of a projection contract; classify that textual branch as change detection. The
+  retired-name branch was removed in 4.1.
+
+- `cli-loading-boundary` — **split bans and inventories**. Move runtime-static implementation/projection imports and
+  broad active/git barrels. Keep exact positive eager/lazy inventories, required module presence, and import-time
+  registration semantics; type-only imports remain allowed where runtime loading is the property.
+
+- `command-input/registry` — **retain; narrow in 4.4**. Live command-owned schema registration is a positive
+  inventory; call the cli.ts Commander scanner directly.
+
+- `command-input/repository-inventory` — **retain semantic inventory**. Interaction declaration, schema, discovery
+  and no-input reconciliation require a live cross-module catalog, not an import prohibition.
+
+- `config/inventory` — **split declaration and catalog**. Move const DEFAULTS declarations in the eight adapters to
+  syntax rows. Keep consumed-key membership against ARC_CONFIG_FIELDS. Comment/example DEFAULTS mentions do not
+  declare duplicate defaults.
+
+- `git/configured-identity-boundary` — **move direct-read syntax**. Preserve direct gitConfigGet reads and
+  config/--get/arc.identity argument-array order coverage outside lib/git/identity.ts. Comments/examples do not
+  perform Git reads; their textual matches are incidental change detection.
+
+- `isolated-mock-files.guard` — **retain positive inventory**. Exact module-mock file equality against isolated-tier
+  ownership is a catalog property.
+
+- `kernel/import-boundary` — **split native predicates and exports**. Move kernel dependency/resolution/loading and
+  global neverthrow bans through A3 predicates, plus the canonical-json zod ban. Preserve ts/tsx/cts/mts coverage
+  and kernel/result.ts exemption. Keep explicit barrel value/type export surfaces; native binding and
+  relative-target fidelity is established by 4.R.
+
+- `layout/import-boundary` — **split dependencies and presence**. Move lexical layout dependency allowlist,
+  outside-module private-import ban and command/handler barrel constraint. Keep required init/start consumers.
+  Preserve lexical path semantics; add the specified type/dynamic/loader reference forms without replacing the
+  allowlist with normalized containment.
+
+- `lib/cli-help-coverage` — **retain semantic inventory**. Live Commander/help tree equality, member order, and
+  visible child summaries remain tests.
+
+- `lib/store/concurrency/import-boundary` — **split dependencies and package contract**. Move importer-relative
+  containment, immediate store-core allowance, node-diff3 allowance and computed-reference refusal. Keep package
+  version, license and development-dependency checks. Preserve normalization and add specified reference forms.
+
+- `lib/store/concurrency/line-merge-api` — **retain export surface**. Actual emitted declarations must hide
+  third-party implementation types; this is a public API proof.
+
+- `lib/store/in-repo-boundary` — **split privacy and transitive loading**. Move production/test private-store
+  references and sole public factory exemption using A3 predicates, preserving type-only and mixed-value semantics.
+  Keep the heavy-projection eager transitive closure. No reduction of privacy strength is permitted.
+
+- `lib/store/registry` — **retain text property**. Presentation filename exclusion from store-core source expressly
+  concerns filenames, including documentation. No source evidence establishes an executable-only contract; preserve
+  the complete text assertion rather than silently narrow it.
+
+- `lib/store/ship-guard` — **split residual loader and packaging**. Move bound require reference-backend checks only
+  after equivalent TypeScript resolver/root-membership native proof. Static forms were compiler-held. Keep actual
+  bundle-input traversal, malformed metadata and multiple-output cases.
+
+- `locus/role-authority-boundary` — **split dependencies and authority**. Move the one-module import/reexport
+  allowlist; preserve required worktree-roster presence and live runtime/key-type projections.
+
+- `scripts/review-gate/core/canonical-caller-inventory` — **split negative syntax and inventories**. Move prohibited
+  helper identifier use outside owning modules and forbidden barrel reexports. Retain exact positive allowed
+  callers, canonicalize importer set, serializer declaration inventory and NUL-delimited identity assertions.
+  Comments/examples alone are not callers; their negative text branch is incidental change detection.
+
+- `scripts/review-gate/core/ports` — **split dependency and vocabulary**. Move host/provider/runtime dependency
+  bans. Keep the explicit host/runner vocabulary property; it includes conceptual coupling beyond executable
+  imports. Retired interface pins were removed in 4.2.
+
+- `scripts/review-gate/review-schema-boundary` — **split syntax and export contracts**. Move validation.js
+  dependencies, handwritten interface bans and parse/project/validate declarations in eight schema owners. Keep
+  z.infer/export registration surfaces and exact allowed importer presence. Comment mentions of validation.js do not
+  create dependencies; classify those text matches as incidental change detection.
+
+- `scripts/review-gate/review-schema-registration` — **retain vocabulary property**. Kernel dependency rows cover
+  review imports; the separate change-facts/review-routing/finding-disposition/review-gate vocabulary assertion
+  survives at full textual strength.
+
+- `session-envelope/type-authority` — **retain export authority**. Schema-owned versus handwritten named exports and
+  compatibility-proof definitions are structural contracts.
+
+- `view/import-boundary` — **move imports and syntax**. Move command/effect import bans and dotted process property
+  reads in the five viewer modules; retain runtime compatibility exports. Computed process access was outside the
+  original scanner.
+
+- `work-unit/decompose-v3-authority-boundary` — **split live dependency and sync**. Move live retirement-authority
+  references in base advancement. Comment/example mentions do not load an authority; that text branch is incidental
+  change detection. Preserve both actual package/project synchronization equalities; retired branches were removed
+  in 4.2.
+
+- `work-unit/decompose-v3-refusal-source-totality` — **retain typed semantic property**. Both type-checked refusal
+  inventories and per-reason remedy specificity remain unchanged; A2 adjusts only their named timeouts.

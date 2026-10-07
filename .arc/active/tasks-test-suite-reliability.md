@@ -423,14 +423,10 @@ local predicate IDs where built-in selectors cannot preserve the existing bounda
   others', so overlapping entries silently drop bans. The table composes them into one option set per rule for each
   file. Task 9.6's confinement of `@clack/prompts` is a row of the same table.
 
-    - `[ ]` **4.3.a Inventory the one-hop bans**
-        - From Task 4.1.a's list, classify each boundary case: `kernel/import-boundary`, `layout/import-boundary`,
-          `lib/store/concurrency/import-boundary`, `view/import-boundary`, `locus/role-authority-boundary`,
-          `scripts/review-gate/review-schema-boundary`, the base-advancement case from Task 4.2, and every other
-          listed scan. A ban is one-hop when it reads only the module's own `import`, `export … from`,
-          `import x = require()`, `require()` calls, `import()`, and `import("…")` type references. Transitive graph
-          checks, export-surface pins, and runtime loading checks stay as tests.
-        - `lib/store/in-repo-boundary.test.ts` keeps its rule at full strength; only its mechanism may change.
+    - `[x]` **4.3.a Inventory the one-hop bans**
+        - Notes § One-hop ban inventory classifies all 26 files and preserves every expanded case in the raw
+          inventory. Dependency/declaration bans migrate after native proofs; positive catalogs, export surfaces,
+          transitive loading and explicit vocabulary properties survive. Incidental text branches are classified.
 
     - `[ ]` **4.3.b The composed ban table**
         - `eslint.config.js` holds the bans as one table of rows (scope globs, `no-restricted-imports` paths or
