@@ -1,5 +1,5 @@
 /** Native filesystem membership and resolver-control fixtures. */
-import { rmSync, symlinkSync, utimesSync } from "node:fs";
+import { mkdirSync, rmSync, symlinkSync, utimesSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, type TestContext } from "vitest";
 import { build } from "esbuild";
@@ -27,6 +27,28 @@ describe("rich build inventory", () => {
     expect(captureBuildInventory(packageRoot).identity).not.toBe(before);
   });
 
+  for (const sourceContents of [true, false]) {
+    it(`ignores non-input directories during ${sourceContents ? "baseline" : "qualification"} capture`, () => {
+      const { root, packageRoot } = makeBuildFixture();
+      roots.push(root);
+      writeBuildFixtureFile(join(packageRoot, "src/entry.ts"), "export const marker = 1;");
+      const capture = () => captureBuildInventory(packageRoot, ["."], sourceContents);
+      const before = capture();
+      const directory = join(root, ".aws/nested");
+      mkdirSync(directory, { recursive: true });
+      expect(capture()).toEqual(before);
+      writeBuildFixtureFile(join(directory, "notes.txt"), "not a compiler input");
+      expect(capture()).toEqual(before);
+      const input = join(directory, "control.ts");
+      writeBuildFixtureFile(input, "export const control = true;");
+      const changed = capture();
+      expect(changed.entries).toContainEqual({ path: ".aws/nested/control.ts", kind: "file" });
+      expect(changed.identity).not.toBe(before.identity);
+      rmSync(input);
+      expect(capture()).toEqual(before);
+    });
+  }
+
   it("invalidates membership when a resolution-changing JS sibling is added", () => {
     const { root, packageRoot } = makeBuildFixture();
     roots.push(root);
@@ -38,6 +60,31 @@ describe("rich build inventory", () => {
     expect(after.entries).toContainEqual({ path: "packages/cli/src/dep.js", kind: "file" });
     rmSync(join(packageRoot, "src/dep.js"));
     expect(captureBuildInventory(packageRoot).identity).toBe(before.identity);
+  });
+
+  it("retains control-only directories and raw dangling, external, and empty-directory links", (context) => {
+    const { root, packageRoot } = makeBuildFixture();
+    const external = makeBuildFixture();
+    roots.push(root, external.root);
+    mkdirSync(join(packageRoot, "src/controls"), { recursive: true });
+    mkdirSync(join(packageRoot, "src/empty"));
+    const before = captureBuildInventory(packageRoot);
+    const links = [
+      { name: "dangling.ts", target: "missing.ts", kind: "file" as const },
+      { name: "external", target: external.packageRoot, kind: "dir" as const },
+      { name: "empty", target: "../empty", kind: "dir" as const },
+    ];
+    for (const link of links) createLink(link.target, join(packageRoot, "src/controls", link.name), link.kind, context);
+    const inventory = captureBuildInventory(packageRoot);
+    expect(inventory.entries).toContainEqual({ path: "packages/cli/src/controls", kind: "directory" });
+    for (const link of links) {
+      expect(inventory.entries).toContainEqual({
+        path: `packages/cli/src/controls/${link.name}`, kind: "link", target: link.target,
+      });
+    }
+    expect(inventory.entries).not.toContainEqual({ path: "packages/cli/src/empty", kind: "directory" });
+    expect(inventory.contents).toEqual(before.contents);
+    expect(inventory.identity).not.toBe(before.identity);
   });
 
   for (const kind of ["file", "dir"] as const) {
