@@ -5,7 +5,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import ts from "typescript";
 
 /** Predicate IDs accepted by the native configuration schema. */
-export const ARCHITECTURE_PREDICATES = ["neverthrow", "kernel", "store-production", "store-tests",
+export const ARCHITECTURE_PREDICATES = ["clack", "neverthrow", "kernel", "store-production", "store-tests",
   "layout-dependencies", "layout-private", "layout-downward", "store-concurrency", "store-reference", "configured-identity"] as const;
 
 /** A named module-local architecture predicate. */
@@ -258,8 +258,12 @@ export function findArchitectureImportViolations(
   predicates: readonly ArchitecturePredicate[],
 ): ArchitectureImportViolation[] {
   const violations = predicates.includes("kernel") ? kernelViolations(source, filename, sourceRoot) : [];
-  const references = predicates.some((predicate) => predicate === "neverthrow" || predicate.startsWith("layout-")
+  const references = predicates.some((predicate) => predicate === "clack" || predicate === "neverthrow" || predicate.startsWith("layout-")
     || predicate === "store-concurrency" || predicate === "store-reference") ? moduleReferences(source) : [];
+  if (predicates.includes("clack")) {
+    violations.push(...references.filter(({ specifier }) => specifier === "@clack/prompts")
+      .map(({ node }): ArchitectureImportViolation => ({ node, predicate: "clack", reason: "raw prompt import outside terminal/renderer owners" })));
+  }
   if (predicates.includes("neverthrow") && !within(join(sourceRoot, "lib/kernel"), resolve(filename))) {
     violations.push(...references.filter(({ specifier }) => specifier === "neverthrow")
       .map(({ node }): ArchitectureImportViolation => ({ node, predicate: "neverthrow", reason: "neverthrow import outside kernel Result seam" })));

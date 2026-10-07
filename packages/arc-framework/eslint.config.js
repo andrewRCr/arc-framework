@@ -33,7 +33,7 @@ const validationBan = restrictedReference("(?:^|/)validation\\.js$");
 const architectureBans = [
   { files: [`src/${TYPESCRIPT_SCOPE}`],
     ignores: [src("lib/terminal.ts"), src("lib/command-input/prompt-renderer.ts")], paths: ["@clack/prompts"],
-    syntax: referenceSyntax('/^@clack\\/prompts$/') },
+    syntax: referenceSyntax('/^@clack\\/prompts$/'), predicates: ["clack"] },
   { files: [`src/${TYPESCRIPT_SCOPE}`], predicates: ["neverthrow"] },
   { files: [`src/lib/kernel/${TYPESCRIPT_SCOPE}`], predicates: ["kernel"] },
   { files: [`src/${TYPESCRIPT_SCOPE}`], predicates: ["store-production", "store-reference"] },

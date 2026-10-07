@@ -16,10 +16,10 @@ async function architectureOptions(filename: string): Promise<unknown> {
 
 describe("composed architecture configuration", () => {
   it("resolves the global package restriction for a source module", async () => {
-    expect(await architectureOptions("src/lib/config/status-reader.ts")).toEqual([2, ["neverthrow", "store-production", "store-reference", "layout-private", "configured-identity"]]);
+    expect(await architectureOptions("src/lib/config/status-reader.ts")).toEqual([2, ["clack", "neverthrow", "store-production", "store-reference", "layout-private", "configured-identity"]]);
   }, ESLINT_CONFIG_LOAD_TIMEOUT);
   it("unions predicates across global and kernel scopes", async () => {
-    expect(await architectureOptions("src/lib/kernel/result.ts")).toEqual([2, ["neverthrow", "kernel", "store-production", "store-reference", "layout-private", "configured-identity"]]);
+    expect(await architectureOptions("src/lib/kernel/result.ts")).toEqual([2, ["clack", "neverthrow", "kernel", "store-production", "store-reference", "layout-private", "configured-identity"]]);
   });
 
   it.each([

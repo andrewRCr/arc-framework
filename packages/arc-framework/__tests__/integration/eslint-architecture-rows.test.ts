@@ -7,6 +7,11 @@ import { describe, expect, it } from "vitest";
 
 const packageRoot = resolve(import.meta.dirname, "../..");
 const eslint = new ESLint({ cwd: packageRoot, overrideConfig: [tseslint.configs.disableTypeChecked] });
+const clackReferences = [
+  'void import(`@clack/prompts`);',
+  'import { createRequire as acquire } from "node:module"; const load = acquire(import.meta.url); void load("@clack/prompts");',
+  'import { createRequire as acquire } from "node:module"; void acquire(import.meta.url)("@clack/prompts");',
+] as const;
 
 const cases = [
   ["src/handlers/user.ts", 'void import("@clack/prompts");', "no-restricted-syntax"],
@@ -44,6 +49,28 @@ const cases = [
 ] as const;
 
 describe("actual architecture table enforcement", () => {
+  it.each(clackReferences)("confines a supported raw prompt acquisition: %s", async (text) => {
+    const [result] = await eslint.lintText(text, { filePath: resolve(packageRoot, "src/handlers/user.ts") });
+    expect(result?.fatalErrorCount).toBe(0);
+    expect(result?.messages.some(({ ruleId, message }) =>
+      ruleId === "arc/architecture-imports" && message.includes("clack"))).toBe(true);
+  });
+  it.each(["src/lib/terminal.ts", "src/lib/command-input/prompt-renderer.ts"])(
+    "allows supported Clack loaders only through their owning exception in %s", async (path) => {
+      for (const text of clackReferences) {
+        const [result] = await eslint.lintText(text, { filePath: resolve(packageRoot, path) });
+        expect(result?.fatalErrorCount).toBe(0);
+        expect(result?.messages.filter(({ ruleId }) =>
+          ["arc/architecture-imports", "no-restricted-imports", "no-restricted-syntax"].includes(ruleId ?? ""))).toEqual([]);
+      }
+    });
+  it("allows an unrelated returned loader containing the Clack package string", async () => {
+    const [result] = await eslint.lintText('const acquire = () => (value: string) => value; const load = acquire(); void load("@clack/prompts");', {
+      filePath: resolve(packageRoot, "src/handlers/user.ts"),
+    });
+    expect(result?.fatalErrorCount).toBe(0);
+    expect(result?.messages.filter(({ ruleId }) => ruleId === "arc/architecture-imports")).toEqual([]);
+  });
   it.each(cases)("rejects the planted reference in %s: %s", async (path, text, rule) => {
     const [result] = await eslint.lintText(text, { filePath: resolve(packageRoot, path) });
     expect(result?.fatalErrorCount).toBe(0);
