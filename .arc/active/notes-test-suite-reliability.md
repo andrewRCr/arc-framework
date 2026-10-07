@@ -280,7 +280,8 @@ The existing integration inventory case is included alongside the original unit 
 - **`build-cancellation`:** queued public builder cancellation preserves entry, owner, and unloaded configuration;
   a fresh public retry qualifies and releases ownership. Location: integration relocation, pending.
 - **`build-generation-lifetime`:** asynchronous ownership renewal during a blocked compiler; owner death allows a
-  surviving child to finish staging without publication, with repaired acquisition. Location: integration, pending.
+  surviving child to finish staging without publication, with repaired acquisition. Both real classes now run in
+  `__tests__/integration/build-generation-lifetime.test.ts`, selected by the unchanged portability basename.
 - **`build-coordinator`:** stable native generation publishes actual control graphs; failed publication removes
   qualification and a repaired generation succeeds (ancillary, entry, obsolete cleanup variants); changed compiler
   inputs refuse before publication and a stable retry qualifies. Locations: `__tests__/unit/build-coordinator.test.ts`
@@ -440,3 +441,6 @@ Real integration case medians in the focused mode:
   build-script entry is dropped, and this file has no remaining unit file.
 - **`vitest-controller-logic`:** newly added pure coverage beyond the baseline 59-file set; direct results and early
   evidence refusals request no native work.
+
+- **`build-generation` and `build-generation-lifetime`:** complete files relocate unchanged to integration. Every
+  original staging, declaration, renewal, and owner-death scenario remains real; relocation alone claims no cost cut.

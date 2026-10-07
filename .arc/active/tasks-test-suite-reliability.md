@@ -226,9 +226,10 @@ is measured against the baseline.
           `root build establishes absent output through its declared generation mode`, proves unchanged-input
           rebuilding in place of the three duplicate rebuild replays; notes record the full disposition.
 
-    - `[ ]` **3.3.c `build-generation.test.ts` and `build-generation-lifetime.test.ts`**
-        - Real by nature: both move to integration whole, keeping their basenames.
-          `build-generation-lifetime` stays portability-selected.
+    - `[x]` **3.3.c `build-generation.test.ts` and `build-generation-lifetime.test.ts`**
+        - Both files move intact to integration: staging-only runtime/schema generation, full declaration success
+          and refusal, compiler-blocked renewal, and owner-death recovery remain real. The lifetime basename stays
+          portability-selected; no cases or assertions are removed.
 
     - `[ ]` **3.3.d `build-context`, `build-evidence`, `build-inputs`, and `build-inventory`**
         - `build-evidence` is recorded as running no native work. `build-inputs` bundles through esbuild, so its
