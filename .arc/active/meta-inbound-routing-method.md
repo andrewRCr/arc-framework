@@ -2,7 +2,7 @@
 
 | **State**  | **Owner** | **Branch**                    | **Class** | **Priority** |
 | ---------- | --------- | ----------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/inbound-routing-method` | `Light`   | `P3`         |
+| `Planning` | `andrew`  | `plan/inbound-routing-method` | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,7 +12,7 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
