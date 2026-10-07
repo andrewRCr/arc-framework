@@ -162,18 +162,31 @@ describe("command-input source scanner", () => {
     expect(parsed.opts()).toEqual({ target: "main", mode: "safe" });
   });
 
-  it("discovers prompt/helper, explicit stdin, and interaction-capable process sites", () => {
-    const result = scanInteractionSource({
-      file: "src/handlers/example.ts",
-      sourceText: `
+  it("ignores undeclared Clack and output-helper calls in every module", () => {
+    for (const file of ["handlers/example.ts", "lib/command-input/prompt-renderer.ts"]) {
+      const result = scanInteractionSource({ file, sourceText: `
         import * as p from "@clack/prompts";
+        await p.text({ message: "Name" });
+        await ctx.output.confirm({ message: "Proceed?" });
+      ` });
+      expect(result.sites).toEqual([]);
+    }
+  });
+
+  it("discovers declared prompts, explicit stdin, and interaction-capable process sites", () => {
+    const result = scanInteractionSource({
+      file: "handlers/example.ts",
+      sourceText: `
+        import { declarePromptSite } from "../lib/command-input/declaration.js";
+        import { prompt } from "../lib/command-input/prompter.js";
+        export const nameSite = declarePromptSite("name", "text", { file: "handlers/example.ts", symbol: "nameSite" }, { acquisition: "optional", schemaOwnership: "none", cancellation: "stop", automation: { noInput: "require-explicit", acceptedSyntax: ["--value"] }, mutationBoundary: "wait", subprocess: "none" });
+        export const toolsSite = declarePromptSite("tools", "multiselect", { file: "handlers/example.ts", symbol: "toolsSite" }, { acquisition: "optional", schemaOwnership: "none", cancellation: "stop", automation: { noInput: "require-explicit", acceptedSyntax: ["--value"] }, mutationBoundary: "wait", subprocess: "none" });
         import { execa } from "execa";
         import { spawn } from "node:child_process";
         import { promisify } from "node:util";
         const spawnAsync = promisify(spawn);
-        const value = await p.text({ message: "Name" });
-        const tools = await p.autocompleteMultiselect({ message: "Tools", options: [] });
-        const accepted = await ctx.output.confirm({ message: "Proceed?" });
+        const value = await prompt(nameSite, ctx, { message: "Name" });
+        const tools = await prompt(toolsSite, ctx, { message: "Tools", options: [] });
         const automated = process.env.CI === "true" || !process.stdin.isTTY;
         for await (const chunk of process.stdin) consume(chunk);
         await execa("git", ["push"], { stdin: "inherit" });
@@ -185,7 +198,6 @@ describe("command-input source scanner", () => {
     expect(result.sites.map((site) => site.kind)).toEqual([
       "prompt",
       "prompt",
-      "prompt-helper",
       "environment-policy",
       "environment-policy",
       "explicit-stdin",
@@ -194,9 +206,8 @@ describe("command-input source scanner", () => {
       "subprocess",
     ]);
     expect(result.sites.map((site) => site.callee)).toEqual([
-      "p.text",
-      "p.autocompleteMultiselect",
-      "ctx.output.confirm",
+      "prompt",
+      "prompt",
       "process.env.CI",
       "process.stdin",
       "process.stdin",

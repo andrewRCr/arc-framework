@@ -242,11 +242,8 @@ export async function handleUserAdd(
  */
 export async function handleUserOpen(
   wuName: string,
-  suppliedContext?: InteractionContext,
+  context: InteractionContext,
 ): Promise<void> {
-  const context = suppliedContext ?? resolveProcessInteractionContext({
-    noInput: false, machineReadable: false, yes: "absent",
-  });
   p.intro("arc user open");
   const output = createSyncOutput(false);
   const target = SlugSchema.safeParse(wuName);
@@ -1007,13 +1004,8 @@ export const userCommandInputPolicyDeclarations = [{
 
 export async function handleUserPull(
   opts: UserPullOptions,
-  suppliedContext?: InteractionContext,
+  context: InteractionContext,
 ): Promise<void> {
-  const context = suppliedContext ?? resolveProcessInteractionContext({
-    noInput: false,
-    machineReadable: false,
-    yes: opts.yes === true ? "authority" : "absent",
-  });
   p.intro("arc user pull");
   const output = createSyncOutput(false);
 

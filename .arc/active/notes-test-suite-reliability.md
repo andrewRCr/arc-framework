@@ -1910,3 +1910,36 @@ changes (`/tmp/arc-terminal-full-lint.log`), and the full declaration build qual
 The complete routine gate passes 1,119 files and 16,709 cases (one file and 1,188 cases skipped) in 206.75 seconds
 (`/tmp/arc-terminal-routine.log`). Markdown and all three ARC contract checks pass (`/tmp/arc-terminal-md.log`);
 unchanged shell inputs retain their preceding passing gate. Required CI supplies the E2E and portability remainder.
+
+## Required interaction contexts and declared-only discovery
+
+All eleven prompting entrypoints require their caller's `InteractionContext`: init, join, start, stub, promote,
+sync, user sync, user open, user pull, and release setup install/uninstall. Non-prompting handlers retain their
+process fallback. `handleSync` preserves its separately injected output parameter and takes context third.
+`handleUserSync` retains its options position for the handler adapter; resolving authority belongs to the caller
+and removed its last options read. The shared test helper uses the real `resolveInteractionContext` with named
+invocation signals; the four process-context module mocks retire, with terminal facts reset explicitly for each case.
+Direct tests and repository-suite producers thread context explicitly; existing policy-bearing contexts stay intact.
+
+Legacy prompt and prompt-helper occurrence selectors are rejected by the declaration schema. The scanner's raw
+Clack namespace discovery, output-helper matching and renderer exception retire together; declared prompt values
+remain discoverable by id. Stdin, subprocess and environment-policy discovery retain their existing selectors, and
+occurrence reconciliation tests now use the real subprocess syntax class. Existing declared-prompt joins remain
+covered independently. The new selector/refusal and undeclared-call tests fail three cases against the preceding
+implementation (`/tmp/arc-context-scanner-red.log`) and pass after retirement. The first mixed-discovery fixture
+used an unrecognized factory/import; correcting it to exported `declarePromptSite` constants at canonical imports
+restores the faithful discovery test (`/tmp/arc-required-context-scanner-green.log`: 63 cases across five files).
+All 122 command-input cases across 13 files and all 316 focused handler cases across seven files pass
+(`/tmp/arc-required-context-inventory.log`, `/tmp/arc-required-context-handlers.log`). The first source type check
+found the now-unused user-sync options parameter; the same-signature correction restores both type programs
+(`/tmp/arc-required-context-types.log`). Tests are adjusted after the signature-only refactor; scanner retirement
+and schema rejection have the explicit fail-first evidence above.
+The first whole-project lint rejects constant expressions in generated context calls and the unused options
+parameter (`/tmp/arc-required-context-lint.log`); literal signals and an explicit discard preserve the adapter
+signature. The initial complete routine passes 1,119 files and 16,712 cases in 217.05 seconds before that mechanical
+cleanup (`/tmp/arc-required-context-routine.log`); the corrected final tree receives a fresh routine gate.
+The final complete routine gate passes 1,119 files and 16,712 cases (one file and 1,188 cases skipped) in 203.46 seconds
+(`/tmp/arc-required-context-routine-final.log`). Whole-project lint and both type programs pass after the mechanical
+cleanup (`/tmp/arc-required-context-lint-final.log`, `/tmp/arc-required-context-types-final.log`); the final full
+build qualifies (`/tmp/arc-required-context-build-final.log`). Markdown and all ARC contract checks pass; unchanged
+shell inputs retain their preceding passing gate. Required CI supplies the E2E and portability remainder.

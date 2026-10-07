@@ -69,7 +69,6 @@ export interface CommanderSourceScan {
 /** Interaction-capable syntax class found outside the Commander tree. */
 export type DiscoveredInteractionKind =
   | "prompt"
-  | "prompt-helper"
   | "environment-policy"
   | "explicit-stdin"
   | "subprocess";
@@ -417,16 +416,12 @@ function isExplicitStdinUse(node: ts.PropertyAccessExpression): boolean {
 }
 
 function interactionBindings(file: ts.SourceFile): {
-  promptNamespaces: ReadonlySet<string>; processFunctions: ReadonlySet<string>;
+  processFunctions: ReadonlySet<string>;
 } {
-  const promptNamespaces = new Set<string>();
   const processFunctions = new Set<string>();
   for (const statement of file.statements) {
     if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
     const clause = statement.importClause;
-    if (statement.moduleSpecifier.text === "@clack/prompts" && clause?.namedBindings !== undefined) {
-      if (ts.isNamespaceImport(clause.namedBindings)) promptNamespaces.add(clause.namedBindings.name.text);
-    }
     if (["execa", "node:child_process"].includes(statement.moduleSpecifier.text)) {
       if (clause?.namedBindings !== undefined && ts.isNamedImports(clause.namedBindings)) {
         for (const element of clause.namedBindings.elements) processFunctions.add(element.name.text);
@@ -450,40 +445,22 @@ function interactionBindings(file: ts.SourceFile): {
     }
   }
 
-  return { promptNamespaces, processFunctions };
+  return { processFunctions };
 }
 
-/** Discover prompt, helper, explicit-stdin, and process-launch source sites. */
+/** Discover declared prompts, explicit-stdin, and process-launch source sites. */
 export function scanInteractionSource(input: SourceInput,
   promptIndex: PromptSourceIndex = buildPromptSourceIndex({ ...input.sourceFiles, [input.file]: input.sourceText })): InteractionSourceScan {
   const file = promptIndex.files.get(input.file) ?? sourceFile(input);
-  const { promptNamespaces, processFunctions } = interactionBindings(file);
+  const { processFunctions } = interactionBindings(file);
 
   const sites: Array<DiscoveredInteractionSite & { readonly position: number }> = [];
-  const promptNames = new Set([
-    "text",
-    "select",
-    "multiselect",
-    "autocompleteMultiselect",
-    "confirm",
-    "password",
-    "group",
-  ]);
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
       const callee = calleeText(node, file);
       const declaredId = promptIndex.calls.get(input.file)?.get(node.getStart(file));
       if (declaredId !== undefined) {
         sites.push({ kind: "prompt", declaredId, callee, position: node.getStart(file), ...locus(file, node, input.file) });
-      }
-      if (declaredId === undefined && ts.isPropertyAccessExpression(node.expression)) {
-        const receiver = node.expression.expression.getText(file);
-        const name = node.expression.name.text;
-        if (promptNamespaces.has(receiver) && promptNames.has(name) && input.file !== "lib/command-input/prompt-renderer.ts") {
-          sites.push({ kind: "prompt", callee, position: node.getStart(file), ...locus(file, node, input.file) });
-        } else if (/\.output$/u.test(receiver) && ["confirm", "select", "text"].includes(name)) {
-          sites.push({ kind: "prompt-helper", callee, position: node.getStart(file), ...locus(file, node, input.file) });
-        }
       }
       if (ts.isIdentifier(node.expression) && processFunctions.has(node.expression.text)) {
         sites.push({ kind: "subprocess", callee, position: node.getStart(file), ...locus(file, node, input.file) });

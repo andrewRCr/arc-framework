@@ -24,10 +24,7 @@ import {
   type MarkerWriteResult,
 } from "../../../lib/release/setup-marker.js";
 import { ARC_PROJECT_ROOT_ERROR, isHandledError, resolveUserIdentity } from "../../shared.js";
-import {
-  resolveProcessInteractionContext,
-  type InteractionContext,
-} from "../../../lib/command-input/interaction-context.js";
+import type { InteractionContext } from "../../../lib/command-input/interaction-context.js";
 import { prompt } from "../../../lib/command-input/prompter.js";
 import type { CommandInputRegistration } from "../../../lib/command-input/registry.js";
 import { declarePromptSite, type CommandInputDeclaration } from "../../../lib/command-input/declaration.js";
@@ -290,11 +287,8 @@ export async function runReleaseSetupUninstall(
  */
 export async function handleReleaseSetupUninstall(
   opts: ReleaseSetupUninstallOptions,
-  suppliedContext?: InteractionContext,
+  context: InteractionContext,
 ): Promise<void> {
-  const context = suppliedContext ?? resolveProcessInteractionContext({
-    noInput: false, machineReadable: opts.json === true, yes: "absent",
-  });
   const exec = createGitExec(context.subprocess);
   const parsedSyntax = ReleaseSetupUninstallInputSchema.safeParse({
     harness: opts.harness,

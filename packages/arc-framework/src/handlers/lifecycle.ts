@@ -561,12 +561,9 @@ export const lifecycleCommandInputPolicyDeclarations = [
 export async function handleStub(
   name: string | undefined,
   opts: StubOptions,
-  suppliedContext?: InteractionContext,
+  context: InteractionContext,
 ): Promise<void> {
   p.intro("arc stub");
-  const context = suppliedContext ?? resolveProcessInteractionContext({
-    noInput: false, machineReadable: false, yes: "absent",
-  });
   const parsedName = SlugSchema.safeParse(name?.trim());
   if (!parsedName.success) {
     refuse(parsedName.error.issues.map((issue) => issue.message).join("\n"));
@@ -748,12 +745,9 @@ export interface PromoteOptions {
 export async function handlePromote(
   slug: string | undefined,
   opts: PromoteOptions = {},
-  suppliedContext?: InteractionContext,
+  context: InteractionContext,
 ): Promise<void> {
   p.intro("arc promote");
-  const context = suppliedContext ?? resolveProcessInteractionContext({
-    noInput: false, machineReadable: false, yes: "absent",
-  });
   const base = await resolveVerbBase(context);
   if (base === null) return;
   const target = await resolveVerbTargetOrReport("promote", slug, base.cwd);

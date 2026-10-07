@@ -31,10 +31,7 @@ import { isRefusalCondition } from "../lib/git/index.js";
 import { resolveCurrentWuName } from "../lib/user-sync/index.js";
 import { runMaterializingWorktreeInspection } from "../lib/git/worktree-sync.js";
 import { createGitExec, createUserIOContext } from "../lib/io-context.js";
-import {
-  resolveProcessInteractionContext,
-  type InteractionContext,
-} from "../lib/command-input/interaction-context.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import {
   declareCliOptionSite,
   declarePromptSite,
@@ -111,13 +108,10 @@ type DirectionParams = {
 
 export async function handleUserSync(
   opts: UserSyncOptions = {},
-  suppliedContext?: InteractionContext,
+  context: InteractionContext,
 ): Promise<void> {
-  const context = suppliedContext ?? resolveProcessInteractionContext({
-    noInput: false,
-    machineReadable: false,
-    yes: opts.yes === true ? "authority" : "absent",
-  });
+  // Invocation options have already been resolved into the required context.
+  void opts;
   p.intro("arc user sync");
 
   let identity: string;

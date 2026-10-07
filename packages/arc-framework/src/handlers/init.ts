@@ -19,10 +19,7 @@ import { getArcTemplatePath, getInternalTemplatePath, getRecipePath } from "../l
 import { getFrameworkVersion } from "../lib/version.js";
 import { createIOContext } from "../lib/io-context.js";
 import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
-import {
-  resolveProcessInteractionContext,
-  type InteractionContext,
-} from "../lib/command-input/interaction-context.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { InputResolution } from "../lib/command-input/resolution.js";
 import {
   INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME,
@@ -36,14 +33,8 @@ export type InitOptions = InitCommandOptions;
 
 export async function handleInit(
   opts: InitOptions,
-  suppliedContext?: InteractionContext,
+  context: InteractionContext,
 ): Promise<void> {
-  const context = suppliedContext ?? resolveProcessInteractionContext({
-    noInput: false,
-    machineReadable: false,
-    yes: opts.yes === true ? "compatibility" : "absent",
-  });
-
   const cwd = process.cwd();
   const io = createIOContext(context.subprocess);
 

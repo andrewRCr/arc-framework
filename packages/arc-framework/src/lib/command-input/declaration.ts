@@ -67,7 +67,7 @@ export const CommandInputSourceSchema = z.object({
   symbol: z.string().min(1).optional(),
   line: z.number().int().positive().optional(),
   interaction: z.object({
-    kind: z.enum(["prompt", "prompt-helper", "environment-policy", "explicit-stdin", "subprocess"]),
+    kind: z.enum(["environment-policy", "explicit-stdin", "subprocess"]),
     callee: z.string().min(1),
     occurrence: z.number().int().positive(),
   }).strict().optional(),
@@ -132,7 +132,7 @@ export function declarePromptSite<const Form extends PromptForm>(id: string, for
 export function declareInteractionSite(
   source: {
     readonly file: string;
-    readonly kind: "prompt" | "prompt-helper" | "environment-policy" | "explicit-stdin" | "subprocess";
+    readonly kind: "environment-policy" | "explicit-stdin" | "subprocess";
     readonly callee: string;
     readonly occurrence: number;
   },

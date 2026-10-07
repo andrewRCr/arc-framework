@@ -87,10 +87,7 @@ import {
 } from "../lib/git/worktree-sync.js";
 import { inferRecommendedSummaryLine } from "../lib/handoff/recommended-summary-line.js";
 import { createGitExec, createUserIOContext } from "../lib/io-context.js";
-import {
-  resolveProcessInteractionContext,
-  type InteractionContext,
-} from "../lib/command-input/interaction-context.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import {
   declareCliOptionSite,
   declarePromptSite,
@@ -405,13 +402,8 @@ type ExecutedOutcome = Omit<
 export async function handleSync(
   opts: SyncOptions = {},
   output: SyncOutput = createSyncOutput(opts.json === true),
-  suppliedContext?: InteractionContext,
+  context: InteractionContext,
 ): Promise<void> {
-  const context = suppliedContext ?? resolveProcessInteractionContext({
-    noInput: false,
-    machineReadable: opts.json === true,
-    yes: opts.yes === true ? "authority" : "absent",
-  });
   output.intro("arc sync");
 
   let identity: string;

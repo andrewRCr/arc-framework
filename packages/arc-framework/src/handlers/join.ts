@@ -15,10 +15,7 @@ import { runJoinPrompts } from "../prompts/join-prompts.js";
 import { getArcTemplatePath, getInternalTemplatePath } from "../lib/paths.js";
 import { getFrameworkVersion } from "../lib/version.js";
 import { createIOContext } from "../lib/io-context.js";
-import {
-  resolveProcessInteractionContext,
-  type InteractionContext,
-} from "../lib/command-input/interaction-context.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { InputResolution } from "../lib/command-input/resolution.js";
 import {
   requireArcProjectRoot, requireGitRepo, resolveIdentityWithPrompt,
@@ -27,12 +24,7 @@ import {
 
 export type JoinOptions = JoinCommandOptions;
 
-export async function handleJoin(opts: JoinOptions, suppliedContext?: InteractionContext): Promise<void> {
-  const context = suppliedContext ?? resolveProcessInteractionContext({
-    noInput: false,
-    machineReadable: false,
-    yes: opts.yes === true ? "compatibility" : "absent",
-  });
+export async function handleJoin(opts: JoinOptions, context: InteractionContext): Promise<void> {
   const io = createIOContext(context.subprocess);
 
   if (opts.reconfigure) {

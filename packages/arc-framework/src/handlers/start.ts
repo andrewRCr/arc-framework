@@ -54,10 +54,7 @@ import {
   resumeHerePromptSite, resumeWorktreePromptSite, coldStartPromptSite,
 } from "./start-prompt-sites.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
-import {
-  resolveProcessInteractionContext,
-  type InteractionContext,
-} from "../lib/command-input/interaction-context.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import { ensureDir } from "../lib/template/files.js";
 import { renderTrackedProjectReadinessViewResult } from "../lib/status/project-roadmap-render.js";
 import type { ProjectReadinessWarning } from "../lib/status/project-view.js";
@@ -150,13 +147,8 @@ async function confirmStep(site: PromptSite<"confirm">, context: InteractionCont
 export async function handleStart(
   name: string | undefined,
   opts: StartOptions,
-  suppliedContext?: InteractionContext,
+  context: InteractionContext,
 ): Promise<void> {
-  const context = suppliedContext ?? resolveProcessInteractionContext({
-    noInput: false,
-    machineReadable: false,
-    yes: opts.yes === true ? "compatibility" : "absent",
-  });
   p.intro("arc start");
 
   const normalizedName = name?.trim();

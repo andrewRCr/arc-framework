@@ -7,6 +7,7 @@
  * ahead of it are stubbed, the Candidate reduction it branches on is not.
  */
 
+import { makeInteractionContext } from "./interaction-context.js";
 import { collectCandidateSubjectTarget } from "./candidate-subject.js";
 import { makeMetaFixture } from "./meta-fixture.js";
 import { execFile } from "node:child_process";
@@ -164,7 +165,8 @@ async function runArc(args: string[], cwd: string): Promise<HandlerRunResult> {
   return runHandlerAt(cwd, async () => {
     const command = args.join(" ");
     if (command === "init --yes --name example") {
-      await handleInit({ yes: true, name: "example" });
+      await handleInit({ yes: true, name: "example" },
+        makeInteractionContext({ noInput: true, yes: "compatibility" }));
       return;
     }
     if (command === "locus --json") {

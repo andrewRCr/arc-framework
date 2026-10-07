@@ -26,10 +26,7 @@ import {
   type MarkerWriteResult,
 } from "../../../lib/release/setup-marker.js";
 import { ARC_PROJECT_ROOT_ERROR, isHandledError, resolveUserIdentity } from "../../shared.js";
-import {
-  resolveProcessInteractionContext,
-  type InteractionContext,
-} from "../../../lib/command-input/interaction-context.js";
+import type { InteractionContext } from "../../../lib/command-input/interaction-context.js";
 import type { CommandInputRegistration } from "../../../lib/command-input/registry.js";
 import { declarePromptSite, type CommandInputDeclaration } from "../../../lib/command-input/declaration.js";
 import { prompt, type PromptOutcome } from "../../../lib/command-input/prompter.js";
@@ -295,13 +292,8 @@ export async function runReleaseSetupInstall(
  */
 export async function handleReleaseSetupInstall(
   opts: ReleaseSetupInstallOptions,
-  suppliedContext?: InteractionContext,
+  context: InteractionContext,
 ): Promise<void> {
-  const context = suppliedContext ?? resolveProcessInteractionContext({
-    noInput: false,
-    machineReadable: opts.json === true,
-    yes: opts.yes === true ? "authority" : "absent",
-  });
   const exec = createGitExec(context.subprocess);
   const parsedSyntax = ReleaseSetupInstallInputSchema.safeParse({
     ...(opts.harness === undefined ? {} : { harness: opts.harness }),

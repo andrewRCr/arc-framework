@@ -901,21 +901,15 @@ prompter, every prompting handler takes a required interaction context, and each
   route through it. The composed source-wide Clack ban exempts exactly that module and the prompt renderer while
   retaining the other architecture restrictions. See `notes-test-suite-reliability.md` § Terminal presentation boundary.
 
-### `[ ]` **9.7 Require the interaction context in prompting handlers and retire the prompt selector kinds — D7**
+### `[x]` **9.7 Require the interaction context in prompting handlers and retire the prompt selector kinds — D7**
 
 - _Goal:_ No prompting handler can run without an interaction context supplied by its caller, and the scanner
   identifies prompt sites only by their declared values.
 
-    - The `suppliedContext ?? resolveProcessInteractionContext({ noInput: false, … })` fallback leaves the handlers
-      that prompt; handlers that never prompt keep it.
-    - Tests pass the context explicitly. About 140 direct test calls of prompting handlers pass none today
-      (`handleStart` 42, `handleSync` 43, `handleUserSync` 30, the rest in single digits), and `start.test.ts`,
-      `sync.test.ts`, `sync-orchestrator.test.ts`, and `user-handlers.test.ts` choose interactivity by mocking
-      `resolveProcessInteractionContext`. One shared test helper builds an `InteractionContext` through the real
-      `resolveInteractionContext` from named signals, and those mocks retire.
-    - The `prompt` and `prompt-helper` kinds retire from `declareInteractionSite`, `declaration.ts`, and
-      `source-scanner.ts`, along with callee-and-occurrence prompt discovery and, with nothing left for it to skip,
-      the scanner's skip of the renderer module.
+- _Outcome:_ All eleven prompting entrypoints require caller-supplied contexts. One shared test helper uses the
+  real resolver; the four process-context mocks retire and 140 direct calls pass context explicitly. Prompt occurrence
+  selectors, raw Clack/output-helper discovery and the renderer exception retire together; declared-value joins remain.
+  See `notes-test-suite-reliability.md` § Required interaction contexts and declared-only discovery.
 
 ### `[ ]` **9.8 Reduce the no-input matrix's prompt-only entries — D7**
 

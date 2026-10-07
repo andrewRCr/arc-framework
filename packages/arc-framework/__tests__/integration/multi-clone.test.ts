@@ -6,6 +6,7 @@
  * exercises the post-2.R user-notes sync contract end-to-end across clones.
  */
 
+import { makeInteractionContext } from "../helpers/interaction-context.js";
 import { describe, it, expect, vi, type Mock } from "vitest";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -129,7 +130,8 @@ describe("user-notes cross-clone sync regression", () => {
       const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
       process.chdir(harness.cloneA);
       try {
-        await handleSync({ json: true, yes: true });
+        await handleSync({ json: true, yes: true }, undefined,
+          makeInteractionContext({ noInput: true, yes: "authority", machineReadable: true }));
       } finally {
         const written = stdoutWrite.mock.calls.map((call) => String(call[0])).join("");
         stdoutWrite.mockRestore();
@@ -253,7 +255,8 @@ describe("user-notes paired-push cross-clone regression", () => {
         const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
         process.chdir(harness.cloneA);
         try {
-          await handleSync({ json: true });
+          await handleSync({ json: true }, undefined,
+            makeInteractionContext({ noInput: true, machineReadable: true }));
         } finally {
           const written = stdoutWrite.mock.calls
             .map((call) => String(call[0]))
@@ -400,7 +403,8 @@ describe("errand-ref cross-clone sync regression", () => {
       const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
       process.chdir(harness.cloneA);
       try {
-        await handleSync({ json: true, yes: true });
+        await handleSync({ json: true, yes: true }, undefined,
+          makeInteractionContext({ noInput: true, yes: "authority", machineReadable: true }));
       } finally {
         const written = stdoutWrite.mock.calls.map((call) => String(call[0])).join("");
         stdoutWrite.mockRestore();
@@ -447,7 +451,8 @@ describe("errand-ref cross-clone sync regression", () => {
       const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
       process.chdir(harness.cloneA);
       try {
-        await handleSync({ json: true, yes: true });
+        await handleSync({ json: true, yes: true }, undefined,
+          makeInteractionContext({ noInput: true, yes: "authority", machineReadable: true }));
       } finally {
         const written = stdoutWrite.mock.calls.map((call) => String(call[0])).join("");
         stdoutWrite.mockRestore();

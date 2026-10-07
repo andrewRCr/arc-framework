@@ -62,13 +62,25 @@ describe("command-input declarations", () => {
     expect(Object.isFrozen(result.sites[0])).toBe(true);
   });
 
+  it.each(["prompt", "prompt-helper"])("rejects legacy %s occurrence selectors", (kind) => {
+    const value = declaration();
+    const candidate = {
+      ...value,
+      sites: [{ ...value.sites[0]!, source: {
+        file: "src/commands/example.ts", interaction: { kind, callee: "p.text", occurrence: 1 },
+      } }],
+    };
+    expect(() => defineCommandInputDeclaration(candidate as unknown as CommandInputDeclaration))
+      .toThrow(CommandInputDeclarationError);
+  });
+
   it("deep-freezes an interaction selector after validation", () => {
     const value = declaration();
     value.sites[0] = {
       ...value.sites[0]!,
       source: {
         file: "src/commands/example.ts",
-        interaction: { kind: "prompt", callee: "p.text", occurrence: 1 },
+        interaction: { kind: "subprocess", callee: "execFile", occurrence: 1 },
       },
     };
 
