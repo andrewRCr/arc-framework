@@ -1,21 +1,29 @@
-/** Finalize unit admission after returned hook cleanups, file fixtures and aroundAll teardown. */
-import { updateTask, type File } from "@vitest/runner";
+/** Finalize unit admission before native file completion, including skipped and collection-failed files. */
+import type { Suite } from "@vitest/runner";
 import { VitestTestRunner } from "vitest/runners";
 import { finalizeUnitProcessGuard } from "./unit-process-guard.js";
 
 /** Preserve native Vitest execution while publishing final unit-file launch accounting. */
 export default class UnitProcessRunner extends VitestTestRunner {
   /**
-   * Finalize every completed file before the native task-update flush.
-   * @param files - Files in the completed native run.
-   * @returns After file admission metadata, failure state and native runner cleanup are complete.
+   * Publish admission for files whose early completion skips the after-suite hook.
+   * @param suite - Native suite entering execution.
+   * @returns After native setup and any early file admission finalization.
    */
-  override async onAfterRunFiles(files: File[] = []): Promise<void> {
-    try {
-      for (const file of files) {
-        await finalizeUnitProcessGuard(file);
-        updateTask("suite-finished", file, this);
-      }
-    } finally { super.onAfterRunFiles(); }
+  override async onBeforeRunSuite(suite: Suite): Promise<void> {
+    await super.onBeforeRunSuite(suite);
+    if (suite === suite.file && (suite.result?.state === "fail" || suite.mode === "skip" || suite.mode === "todo")) {
+      await finalizeUnitProcessGuard(suite.file);
+    }
+  }
+
+  /**
+   * Finalize file admission after native hooks, fixtures and aroundAll cleanup, before its completion event.
+   * @param suite - Native suite whose teardown has completed.
+   * @returns After native snapshot completion and final file admission publication.
+   */
+  override async onAfterRunSuite(suite: Suite): Promise<void> {
+    await super.onAfterRunSuite(suite);
+    if (suite === suite.file) await finalizeUnitProcessGuard(suite.file);
   }
 }

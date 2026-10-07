@@ -104,6 +104,55 @@ const lateTeardowns = {
   afterall: 'afterAll(() => launch()); it("body", () => {});',
 };
 
+it("publishes final admission once per native module across completion paths", async () => {
+  const { root, packageRoot } = await createGuardFixture([]);
+  const eventsPath = join(packageRoot, "module-completions.jsonl");
+  const bodies = {
+    passed: 'it("body", () => {});',
+    failed: 'it("body", () => { expect(1).toBe(2); });',
+    skipped: 'it.skip("body", () => {});',
+    collection: 'it("body", () => {}); throw new Error("collection failure");',
+    late: 'afterAll(() => { try { spawn(process.execPath, ["-e", "process.exit(0)"]); } catch {} }); it("body", () => {});',
+    "skipped-blocked": 'try { spawn(process.execPath, ["-e", "process.exit(0)"]); } catch {} it.skip("body", () => {});',
+  };
+  try {
+    await writeFile(join(packageRoot, "tests/module-reporter.mjs"), `
+import { appendFileSync } from "node:fs";
+import { basename } from "node:path";
+export default class {
+  onTestModuleEnd(module) {
+    appendFileSync(${JSON.stringify(eventsPath)}, JSON.stringify({
+      file: basename(module.moduleId), project: module.project.name, state: module.state(), ok: module.ok(),
+      launches: module.meta()[${JSON.stringify(UNIT_PROCESS_LAUNCH_COUNT_META)}]
+    }) + "\\n");
+  }
+}
+`);
+    for (const [name, body] of Object.entries(bodies)) {
+      await writeFile(join(packageRoot, `tests/guard-lifecycle-${name}.test.ts`), `
+import { spawn } from "node:child_process";
+import { afterAll, expect, it } from "vitest";
+${body}
+`);
+    }
+    const native = await runVitestControllerFixture(packageRoot,
+      ["unit", "guard-lifecycle-", "--reporter", "./tests/module-reporter.mjs"], { FORCE_COLOR: undefined });
+    expect(native.code, native.stdout + native.stderr).toBe(1);
+    const events = (await readFile(eventsPath, "utf8")).trim().split("\n")
+      .map((line) => JSON.parse(line) as { file: string; project: string; state: string; ok: boolean; launches: number });
+    for (const project of ["unit", "unit-mocks"]) {
+      for (const name of Object.keys(bodies)) {
+        const file = `guard-lifecycle-${name}.test.ts`;
+        expect.soft(events.filter((event) => event.file === file && event.project === project), native.stdout + native.stderr)
+          .toEqual([{ file, project, state: name === "passed" ? "passed" : name.startsWith("skipped") ? "skipped" : "failed",
+            ok: name === "passed" || name === "skipped",
+            launches: name === "late" || name === "skipped-blocked" ? 1 : 0 }]);
+      }
+    }
+    expect(events).toHaveLength(12);
+  } finally { await rm(root, { recursive: true, force: true }); }
+}, 60_000);
+
 it.each(["list", "stack", "parallel"] as const)("finalizes caught file teardown launches with %s hooks", async (hooks) => {
   const { root, packageRoot, reportPath } = await createGuardFixture([], hooks);
   try {
