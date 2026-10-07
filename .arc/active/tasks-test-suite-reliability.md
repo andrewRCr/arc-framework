@@ -14,35 +14,19 @@ _Mode:_ `layer` — closes on a settled measurement substrate and a recorded bas
 _Exit criterion:_ The baseline is recorded in `notes-test-suite-reliability.md` with run IDs and capture paths, and a
 hosted unit run's artifact carries every unit test's duration and effective timeout.
 
-### `[ ]` **1.1 Retain per-test unit durations and effective timeouts on hosted runs — D0**
+### `[x]` **1.1 Retain per-test unit durations and effective timeouts on hosted runs — D0**
 
 - _Goal:_ Every hosted run of the unit job leaves a machine-readable report of each unit test's duration and the
   timeout it ran under, so the baseline and the reliability criterion read the same data.
 
-    - `[ ]` **1.1.a Record each unit test's effective timeout from one shared setup file**
-        - The metadata key is an exported string constant in `src/lib/`, following `TEST_COST_CLI_TIMEOUT_META` and
-          `TEST_COST_CLI_SPAWN_COUNT_META` (`test-cost/metrics.ts`). The setup file writes it, and readers narrow
-          `TestCase.meta()` to a record as `capture.ts` does; Task 6.3's floor check in `vitest-completion.ts` reads
-          its own keys the same way, so `src` never imports from `__tests__`.
-        - The local instrument already records each test's effective timeout from `TestCase.options.timeout`
-          (`capture.ts`), so the metadata serves the hosted `json` report.
-        - Add a setup file that both the `unit` and `unit-mocks` projects register (`setupFiles` in
-          `vitest.config.ts`). Before each test it writes Vitest's `task.timeout` (the test's explicit timeout, else
-          its project's default) into the test's metadata. Later phases extend this file.
-        - Build `test-first` (one behavior at a time), in the unit project, reading the test's own context:
-            - A test with no explicit timeout carries its project's default
-            - A positional timeout and an options-object timeout are each carried as given
-        - Registration in both projects is proved by Task 1.2.b's artifact check: `unit-mocks` takes only
-          module-mocking files (`isolated-mock-files.guard.test.ts`), so no test of its own can join it.
+    - `[x]` **1.1.a Record each unit test's effective timeout from one shared setup file**
+        - Both unit projects register `unit-setup.ts`, which records `task.timeout` under the exported
+          `TEST_COST_VITEST_TIMEOUT_META` key. Tests read their own metadata for default, positional, and
+          options-object timeouts; hosted artifact inspection in Task 1.2.b proves both project registrations.
 
-    - `[ ]` **1.1.b Emit and upload the `json` report from the unit job**
-        - The unit job in `.github/workflows/ci.yml` passes `default`, `github-actions`, and `json` reporters to
-          `npm run test:unit` and writes the `json` report to a fixed path.
-        - An upload step just before "Report test budget", under `if: ${{ !cancelled() }}`, uploads the report as a
-          run artifact whether or not tests fail. The job gains `actions: write`, this workflow's grant for
-          `upload-artifact`.
-        - `review-gate-workflows.test.ts` keeps "Report test budget" as the unit job's last step and gains an
-          assertion that the job uploads its report whatever the test outcome.
+    - `[x]` **1.1.b Emit and upload the `json` report from the unit job**
+        - The unit job names all three reporters and uploads `unit-test-report.json` under `!cancelled()` with
+          `actions: write`. Its workflow contract checks the fixed report path and upload before the final budget step.
 
 ### `[ ]` **1.2 Record the pre-change baseline — D0**
 

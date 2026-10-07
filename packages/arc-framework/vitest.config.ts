@@ -62,6 +62,7 @@ export default defineConfig({
         test: {
           name: "unit",
           root: packageRoot,
+          setupFiles: ["__tests__/helpers/unit-setup.ts"],
           include: ["__tests__/unit/**/*.test.ts"],
           exclude: [...configDefaults.exclude, ...ISOLATED_UNIT_MOCK_FILES],
           // Module-mocking files are quarantined to the `unit-mocks` tier, so the
@@ -74,6 +75,7 @@ export default defineConfig({
         test: {
           name: "unit-mocks",
           root: packageRoot,
+          setupFiles: ["__tests__/helpers/unit-setup.ts"],
           include: [...ISOLATED_UNIT_MOCK_FILES],
           isolate: true,
           passWithNoTests: true,

@@ -288,6 +288,7 @@ jobs:
     name: Unit Tests
     permissions:
       contents: read
+      actions: write # upload-artifact under workflow-level contents-only defaults
     needs: [classify, setup]
     # Code-weight only: a light (docs-only or verified-tree) run skips the job
     # entirely, mirroring the integration/e2e legs. Requires setup success so a
@@ -313,7 +314,16 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
-    - run: npm run test:unit
+    - run: >-
+        npm run test:unit -- --reporter=default --reporter=github-actions --reporter=json
+        --outputFile=unit-test-report.json
+    - name: Upload unit test report
+      if: ${{ !cancelled() }}
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      with:
+        name: unit-test-report
+        path: packages/arc-framework/unit-test-report.json
+        if-no-files-found: error
     - name: Report test budget
       run: >-
         npm run -s benchmark:test-cost:ci-budget -w packages/arc-framework --

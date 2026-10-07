@@ -137,6 +137,26 @@ describe("trusted review-gate workflows", () => {
     }
   });
 
+  it("retains unit durations and timeout metadata even when tests fail", async () => {
+    const unit = jobValue(await read("ci.yml"), "unit");
+    expect(unit.permissions).toMatchObject({ contents: "read", actions: "write" });
+    const steps = unit.steps as Array<Record<string, unknown>>;
+    const test = steps.find((step) => typeof step.run === "string" && step.run.startsWith("npm run test:unit"));
+    expect(test?.run).toContain("--reporter=default");
+    expect(test?.run).toContain("--reporter=github-actions");
+    expect(test?.run).toContain("--reporter=json");
+    expect(test?.run).toContain("--outputFile=unit-test-report.json");
+    const upload = steps.at(-2);
+    expect(upload?.uses).toMatch(/^actions\/upload-artifact@/u);
+    expect(upload?.if).toBe("${{ !cancelled() }}");
+    expect(upload?.with).toMatchObject({
+      name: "unit-test-report",
+      path: "packages/arc-framework/unit-test-report.json",
+      "if-no-files-found": "error",
+    });
+    expect(steps.at(-1)?.name).toBe("Report test budget");
+  });
+
   it("runs four E2E shards with a denominator derived from the matrix", async () => {
     const workflow = await read("ci.yml");
     const e2e = jobValue(workflow, "e2e");
