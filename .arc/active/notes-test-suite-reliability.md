@@ -978,3 +978,43 @@ native rule and equivalent forbidden/allowed proofs before the original migratio
 The footprint reaches Task 4.3, its resolved-config proof, Task 4.5's fixed-set measurement, and the later Clack
 row. Native-file conversion, managed staleness, CI design, prompter behavior, and acceptance cost thresholds are
 unaffected. Criterion 11 still requires toolchain-held architecture; criterion 18 makes fidelity checkable.
+
+### Local predicate substrate
+
+`eslint/architecture-imports.ts` exports `createArchitectureImportsRule` and the direct
+`findArchitectureImportViolations` decision. The root ESLint config registers the rule; matching-row options are
+supplied by the subsequent table composition. The four current IDs are `neverthrow`, `kernel`, `store-production`,
+and `store-tests`. Native configuration resolution refuses unknown IDs. The rule reads the TypeScript parser's
+original source-file mapping and reports native source locations without reparsing or walking the source tree.
+
+The existing alias/returned-loader/inline-factory extraction and kernel's Node16 TypeScript module resolution
+remain intact, including unresolved-source refusal, TSX traversal, computed imports, CommonJS loaders, and factory
+acquisition. Store predicates preserve whole-clause/named type-only imports, type exports, ordinary/mixed imports,
+dynamic imports, the public factory, and tests' public composition seam. The transitive eager-closure check remains
+in its original test and is not migrated. Store comparisons normalize platform separators, preserving the intended
+relative-target boundary on Windows as well as POSIX.
+
+Eight process-free unit decisions prove the store exceptions. One shared native ESLint fixture proves sixteen
+configuration/reference scenarios, including all eight existing forbidden-package forms. Source-scan cases remain
+until their actual table rows and native per-row lint proofs land. Native Node loading of the typed tooling module
+and config succeeds on the installed runtime; the declared project engine is Node >=24.
+
+Behavioral fail-first evidence:
+
+- `arc-lint-bindings-first-red.log` / `-green.log`: every forbidden reference missing from an inert rule, then present.
+- `arc-lint-predicate-schema-red.log` / `-green.log`: unknown ID accepted during native resolution, then refused.
+- `arc-lint-allowed-{ordinary,result}-red.log` / `-restored-green.log`: overbroad calls and lost Result exception refuse
+  valid inputs; restoration accepts them. The later kernel Result path is separately reconstructed and proved.
+- `arc-lint-kernel-relative-red.log` / `-green.log`: both escape depths and missing relative source fail before repair.
+- `arc-lint-kernel-{corpus,result,nested,packages}-red.log` / `-restored-green.log`: lost kernel checks and overly narrow
+  local/package allowances fail the native corpus; restoration accepts the established valid cases.
+- `arc-lint-store-private-red.log` / `-green.log`: outside source, wrong backend entry, mixed type/value, and test-private
+  references fail before their predicates are implemented.
+- `arc-lint-store-{types,factory,local,public}-red.log` / `-restored-green.log`: all eight unit exceptions and both native
+  allowed representatives fail under narrowed reconstructions, then pass after restoration.
+
+These logs are under `/tmp/`; reconstruction scripts clone the actual module and tests, preserve exports/signatures,
+and remove their temporary test copies. Primary source and derived CLI bytes are not altered by reconstructions.
+Tests share one parser/fixture because their behaviors belong to the same module walker and policy contract.
+The installed TypeScript API deprecates import-clause `isTypeOnly`; the implementation uses its equivalent
+`phaseModifier === TypeKeyword`, and the complete allowed-type matrix is rerun after that mechanical correction.

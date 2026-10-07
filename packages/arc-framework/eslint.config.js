@@ -1,9 +1,16 @@
 import eslint from "@eslint/js";
+import { join } from "node:path";
 import tseslint from "typescript-eslint";
+import { createArchitectureImportsRule } from "./eslint/architecture-imports.ts";
 
 export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
+  {
+    plugins: {
+      arc: { rules: { "architecture-imports": createArchitectureImportsRule(join(import.meta.dirname, "src")) } },
+    },
+  },
   {
     languageOptions: {
       parserOptions: {

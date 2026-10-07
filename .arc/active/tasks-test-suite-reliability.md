@@ -388,26 +388,24 @@ recorded.
   synchronization checks survive; historical vocabulary/prose pins are removed. The same rule removes the
   inventoried `core/ports` retired-interface pin. Notes § Change-detector dispositions records each verdict.
 
-### `[ ]` **4.R Provide faithful binding-aware and filename-relative lint predicates — A3**
+### `[x]` **4.R Provide faithful binding-aware and filename-relative lint predicates — A3**
 
 - _Goal:_ A3's local ESLint rule can enforce existing one-hop boundaries using each module's parsed syntax,
   filename, and binding/resolution data, with equivalent native forbidden/allowed proofs before case deletion.
 
-    - `[ ]` **4.R.a Define the local rule and its composed policy contract**
-        - Register a local rule accepting unique predicate IDs; Task 4.3.b supplies the matching-row union.
-          Unknown IDs refuse configuration. Keep simple bans in the built-in rules; consume the linter's parsed
-          module instead of reparsing or walking source trees. Preserve each existing source-extension scope.
-          Preserve existing lexical/TypeScript resolution
-          and type-only/eager semantics; retain resolver-dependent residual checks until equivalence is proved.
+    - `[x]` **4.R.a Define the local rule and its composed policy contract**
+        - The registered `architecture-imports` rule accepts unique known predicate IDs and reads the native
+          parser's original TypeScript source mapping. It preserves the kernel's resolver and store's lexical
+          paths/type-only exceptions; the table subsequently supplies each file's matching-row union.
 
-    - `[ ]` **4.R.b Prove loader-binding and relative-target fidelity**
-        - Build `test-first` through native ESLint on one shared fixture:
-            - Every existing alias/returned-loader/inline-factory reference refuses the forbidden package.
-            - An unrelated call with that package string remains allowed; the permitted Result seam remains allowed.
-            - Forbidden relative targets refuse at different filename depths; valid nested imports remain allowed.
-            - Store privacy preserves its type-only/eager exceptions and permitted factory seam.
-        - The original one-hop migration uses these predicates as rows in the same table; native per-row proofs
-          and resolved configuration overlap checks remain required before source-scan cases are deleted.
+    - `[x]` **4.R.b Prove loader-binding and relative-target fidelity**
+        - The shared native fixture proves aliases, returned/inline loaders, Result and package seams, both
+          relative escape depths, unresolved imports, TSX, computed/CommonJS/factory refusals, and store privacy.
+          Direct unit decisions prove all store exceptions; narrowed reconstructions fail every added behavior.
+
+- _Outcome:_ Four predicate IDs provide the faithful substrate for the original migration without a source-tree
+  walk or another parse. Native configuration refuses unknown IDs, and source-scan cases remain held until their
+  composed rows and per-row lint proofs land. Notes § Local predicate substrate retains the evidence.
 
 ### `[ ]` **4.3 Move one-hop import and syntax bans to ESLint — D3**
 
