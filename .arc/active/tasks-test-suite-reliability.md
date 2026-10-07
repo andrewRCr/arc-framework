@@ -563,33 +563,28 @@ _Exit criterion:_ A launch from a file off the allowlist fails its test even whe
 naming an allowlisted file that ran whole and launched nothing, and the override, strategy, and
 `TECHNICAL-OVERVIEW.md` agree.
 
-### `[ ]` **6.1 State the testing policy in the override, strategy, and technical overview — D6**
+### `[x]` **6.1 State the testing policy in the override, strategy, and technical overview — D6**
 
 - _Goal:_ An agent writing tests loads the operative rules from the `testing-standards` override, the strategy
   carries their reasoning and worked examples, and `TECHNICAL-OVERVIEW.md` § 4 describes the same tier lines.
 
-- _Note:_ The override is project-owned and not shipped: edit only `testing-standards.override` in
-  `.arc/system/methods/testing-standards.md`, never `.default` or the package copy.
+    - `[x]` **6.1.a The override**
+        - The project-only override states linter ownership, outcome-class matrices and hermetic bounded processes;
+          unit excludes native launches/builds/Git beyond its explicit legacy floor, and filesystem injection is
+          reserved for fault/observation tests. The universal default and package copy remain byte-identical.
 
-    - `[ ]` **6.1.a The override**
-        - The three new rules in a few lines: architecture rules live in the linter when it can express them;
-          matrices run below the real stack, against fakes at the seam or against a function that decides from
-          files on a filesystem fixture, with one real run per outcome class and the outcome-class definition; and
-          process-spawning tests are hermetic and time-honest.
-        - The unit line becomes operative for `__tests__/unit/**`: no child processes, no real builds, no git
-          repositories. The **Boundaries are** bullet drops `fs`, and the **Dependency injection** bullet injects
-          `fs` only where a test must fail or observe it; otherwise a unit test uses a temporary directory.
+    - `[x]` **6.1.b The strategy**
+        - The strategy explains local lint enforcement and native outcome classes, using the five filesystem
+          publication refusals and separate node-check refusal. Unit admits temporary filesystem fixtures;
+          integration owns native processes and Git, with filesystem injection only where the proof requires it.
 
-    - `[ ]` **6.1.b The strategy**
-        - `strategy-testing-methodology.md` gains each rule's reasoning and a worked example (the
-          `build-publication.test.ts` classes).
-        - § Test Tiers' unit line drops "no filesystem", § Mocking Rules drops the filesystem from its boundary
-          list and its "Accept dependencies" bullet injects `fs` only where a test must fail or observe it, and the
-          Integration tier is characterized by real module interactions, git repositories, and child processes
-          rather than by filesystem use.
+    - `[x]` **6.1.c The technical overview**
+        - The overview's unit and integration descriptions match the operative tier boundaries and explicit legacy
+          spawn floor, including filesystem fixtures in unit and native tools in integration.
 
-    - `[ ]` **6.1.c The technical overview**
-        - `TECHNICAL-OVERVIEW.md` § 4's Unit and Integration lines follow the same tier lines.
+- _Outcome:_ The operative override, rationale and tier map agree on where each proof belongs. Filesystem fixtures
+  remain lightweight unit evidence; native runs prove distinct external outcome classes, and existing launch exceptions
+  are explicit shrinking debt rather than permission for new unit launches.
 
 ### `[ ]` **6.2 Guard unit-tier launches from the shared setup file — D6**
 
