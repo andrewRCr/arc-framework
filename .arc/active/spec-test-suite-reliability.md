@@ -89,9 +89,9 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
 
 ## Proposed Design
 
-One rule runs through every phase: **prove decision logic against fakes at the seams the code already has, keep one
-real run per distinct outcome class, and stop spending real work on properties the compiler or linter already
-enforce.**
+One rule runs through every phase: **prove decision logic below the real stack, against fakes at the seams the code
+already has or against the function that decides it, keep one real run per distinct outcome class, and stop spending
+real work on properties the compiler or linter already enforce.**
 
 Phases run in this order: 0, 1, 2, 3, 4, 6, 5, 7, then the closing measurement. § 6's spawn guard follows § 2 so its
 allowlist records what still spawns, the § 5 layout trial follows the CPU work it depends on, and the prompter is the
@@ -120,14 +120,14 @@ criterion scores against it.
   share (§ 6 extends it). For each test it records the effective timeout in the test's metadata: Vitest's
   `task.timeout`, which is the test's explicit timeout, else its project's default. The baseline and the reliability
   criterion read the same data.
-- **Per-project duration estimates** for § 5 are fixed here: each Vitest project's median hosted file duration in
-  the baseline runs.
 - The baseline is recorded in `notes-test-suite-reliability.md` with run IDs and the instrument's capture paths
   before the first optimizing phase begins. Every later measurement uses the same instruments and settings.
 
 Terms used by the criteria:
 
-- **Run duration** is a workflow run's elapsed time from start to completion, as GitHub reports it.
+- **Run duration** is a workflow run's elapsed time from start to completion, as GitHub reports it. A run that carries
+  the results cache's merge-and-save job (§ 5) ends instead when its last other job finishes: that job waits on every
+  test job, and pull request runs never carry it.
 - **Summed test-job time** is the sum of the elapsed times of a run's unit, integration, and E2E jobs.
 - **Native-tooling cost** is the summed file time, across the `unit`, `unit-mocks`, and `integration` projects, of
   test files whose names begin `build-`, `ci-build-`, `dev-build-`, `dev-check`, `vitest-`, `local-vitest-`,
@@ -176,28 +176,38 @@ example):
 - the `createController` parameter of `discoverVitestSelection` and the `ownership` parameter of
   `executeVitestSelection`.
 
+These seams fake publication, disposal, lock ownership, and controller creation. They do not reach native generation
+or runtime preparation: `runOwnedBuild` calls `runOwnedGeneration` directly, and `executeVitestSelection` calls
+`ensureOwnedRuntimeArtifacts` whenever a selection needs the runtime. Many matrices need no seam at all, because a
+function that decides from files runs directly on a filesystem fixture, which the unit tier allows. The seven faults
+in `ci-build-recovery.test.ts`, for example, are all decided by `readBuildQualification`.
+
 Logic with no direct tests today gets them: `normalizeVitestOptions`, `localVitestTierArguments`, and
 `checkVitestCompletion`. `localVitestTierArguments` is module-private in `local-vitest-runner.ts`, and
 `runLocalVitestTier` has no injection seam, so it is exported and tested directly. `checkVitestCompletion` is not pure:
 it sets `process.exitCode`, so its tests save and restore that value, since the unit project's workers run many files
 (`isolate: false`). `validateRuntimeBuildEvidence` and `requirePreparedRuntimeBuild` are not pure either: they read and
-hash the build through `readBuildQualification`. Their direct tests cover only the malformed-evidence refusals, which
-need no build.
+hash the build through `readBuildQualification`. Their direct tests cover only the two refusals that precede that read,
+malformed supplied evidence and a missing prepared-build key, which need no build.
 
 Per file:
 
-- matrices run against fakes at those seams;
+- a case that varies only what a seam decides runs against a fake at that seam, and a matrix a function decides from
+  files runs against that function on a filesystem fixture. A case that publication alone decides is proved at
+  `publishStagedBuild`, not through `runOwnedBuild`;
 - one real run per distinct outcome class stays real and moves to the integration project, keeping its family
-  prefix;
+  prefix. The seams cannot fake native generation or runtime preparation, so a case that needs either is its outcome
+  class's real run or is dropped as below;
 - a fixture that tests only read is built once per file;
 - a case, or a row of a parametrized table, is dropped only when a named narrower test proves the same outcome
   class, and its task records that test. The `it.each` tables in `build-context.test.ts:44` and
   `build-evidence.test.ts:37` are the known candidates.
 
-§ 6 defines an outcome class. The six rows of `build-publication.test.ts:57` each refuse a malformed staged artifact
+§ 6 defines an outcome class. The six rows of `build-publication.test.ts:56` each refuse a malformed staged artifact
 before live output changes. Five are refused by filesystem checks on the staged files (`validateStagedOutput`) and are
-one class: one row stays real, and fakes prove the rest. The invalid-CLI row is refused by `checkStagedCli` through a
-real `node --check` child, so it is its own class and stays real. An **entry point** is a root `npm` test script that
+one class: one row stays real, and fakes prove the rest. The invalid-CLI row is refused by the same function's
+`checkCli` dependency, `checkStagedCli` (`build-entry.ts`), through a real `node --check` child, so it is its own class
+and stays real. An **entry point** is a root `npm` test script that
 starts `run-local-test-tier.ts`; between them, `local-vitest-routes.test.ts` and `local-vitest-entry.test.ts` run all
 ten for real.
 
@@ -212,7 +222,9 @@ the same commit. A matrix moved to fakes keeps its real outcome classes on that 
 
 These stay real by nature: `build-generation-lifetime`, `build-generation`, `dev-build-refresh`, `vitest-mixed-shard`,
 one folded `focused-lint-staged` run, and one run per entry point. A per-file read of these files projects roughly a
-55–60% cut in their cost; the first converted file calibrates it.
+55–60% cut in their cost; the first converted file calibrates it. A file's cut depends on how much of it fakes can
+carry, so that file calibrates the cost of a real run and of the fakes, and the projection is rebuilt file by file
+from the real runs each file keeps rather than by applying its percentage.
 
 ### 3. Source-scan tests
 
@@ -221,17 +233,29 @@ full-`__tests__` pass, two scanner snapshots, and two type-checked programs, abo
 repeated parsing. In order:
 
 1. **Delete what the toolchain already enforces.** `lib/store/ship-guard.test.ts`'s import case re-asserts `tsc`'s
-   `rootDir: "src"` (the reference backend lives under `__tests__/helpers/store`), and its build-output case follows
-   from it. The display-label checks in `meta-reader-inventory.test.ts` and `meta-writer-inventory.test.ts`
+   `rootDir: "src"` (the reference backend lives under `__tests__/helpers/store`): `tsc --noEmit` rejects a static,
+   re-exported, dynamic, or type-only import of it from `src`. Its build-output cases prove `referenceBundleInputs`,
+   the helper `integration/store-reference-packaging.test.ts` applies to the real build metadata, so they go only
+   with that check. The display-label checks in `meta-reader-inventory.test.ts` and `meta-writer-inventory.test.ts`
    (indexing, `renderMetaFile` override objects) re-assert type errors. `@typescript-eslint/no-require-imports`
-   already resolves as an error.
-2. **Delete change-detectors that pin removed code.** Four of `decompose-v3-authority-boundary.test.ts`'s five cases
-   pin 11 removed files and 27 retired identifiers; its methodology-sync case is classified on its own. Every
+   already resolves as an error and reports a global `require()` and `import x = require()`. It reports neither
+   `module.require()` nor a `require` bound in scope (`createRequire`), which in this ES-module package is the only
+   `require()` that runs, and `tsc` reports neither. A scan branch that catches a bound `require()` becomes a ban row
+   (step 3) instead of a deletion, and one that catches `module.require()` is classified by step 2's rule.
+2. **Delete change-detectors that pin removed code.** Three of `decompose-v3-authority-boundary.test.ts`'s five
+   cases pin 11 removed files and 27 retired identifiers. Its base-advancement case bans names that match live
+   `retirement-authority` modules, so it is a one-hop ban (step 3), and its methodology-sync case is classified on
+   its own. Every
    candidate in this step and step 1 is classified by one rule: **a test survives if it would fail on a plausible
    future regression, not only on an edit to its own list.** Each deletion records the rule's verdict in its task.
 3. **Move one-hop bans to ESLint.** Import and syntax bans that look at one module's own imports become
-   `no-restricted-imports` plus `no-restricted-syntax` (for `ImportExpression` and `TSImportType`) entries scoped by
-   `files` globs in `eslint.config.js`. The measured marginal lint cost is about 0.3%.
+   `no-restricted-imports` plus `no-restricted-syntax` (for `ImportExpression`, `TSImportType`, and `require()` calls,
+   which a selector matches whatever binds `require`) entries scoped by `files` globs in `eslint.config.js`. The
+   measured marginal lint cost is about 0.3%. When several flat-config entries set one rule for the same file, the last
+   entry's options replace the others', so overlapping bans would silently drop each other. The bans are therefore one
+   table that `eslint.config.js` composes, so that each file receives one option set holding every ban that applies to
+   it, and a unit test resolves the configuration (`ESLint#calculateConfigForFile`) for a file in each scope and checks
+   its ban set. § 7's confinement of `@clack/prompts` is a row of the same table.
 4. **Narrow over-broad scans.** `registry.test.ts`'s "registers every command-owned schema" reads only
    `source.commands`, so it runs `scanCommanderSource` on `cli.ts`, as `cli-help-coverage.test.ts` already does,
    instead of the full `scanCommandInputSources`.
@@ -250,16 +274,20 @@ repeated parsing. In order:
   `review change-request resolve`, `review pre-publication`, `review status`) run their `--no-input` invocation under
   a pseudo-TTY: `emitsMachineReadablePayload` (`__tests__/e2e/helpers.ts`) recognizes those commands by position
   (`args[0]`), and the leading `--no-input` displaces them. Their interaction is still forbidden, but `terminal`
-  differs, and the signal-to-context mapping they vary is unit-tested in `interaction-context.test.ts`. Each distinct
-  invocation runs once, and the initialized repository is built once as a template with
+  differs, and the signal-to-context mapping they vary is unit-tested in `interaction-context.test.ts`. The other 29
+  run their `--no-input` and CI invocations under a pseudo-TTY, where each signal alone forbids interaction. An
+  entry's invocations without a TTY collapse into one and each pseudo-TTY invocation stays, so the 45 run one
+  invocation, the six two, and the 29 three. The initialized repository is built once as a template with
   `prepareRepositoryTemplate` and copied per invocation with `copyPreparedRepository`
   (`__tests__/helpers/prepared-repository.ts`, already used by `candidate-lineage-suite.ts` and
   `delivery-position-suite.ts`). The exact match between `NO_INPUT_MATRIX` and live interaction sites, which
-  `repository-inventory.test.ts` enforces, is kept.
-- `session-init.e2e.test.ts` runs `arc init` in a `beforeEach` across most of its 30 cases; one template serves them.
+  `repository-inventory.test.ts` enforces, is kept; § 7 later changes how prompt sites reconcile.
+- `session-init.e2e.test.ts` runs `init` in a fresh repository for each of its 30 cases, in five `beforeEach` hooks
+  and inline in four cases. One initialized-repository template serves them all, and each group's remaining setup (a
+  commit, a worktree parent, a stale local base, a remote) stays per case.
 - `teardown-stale-projection`'s 11 veto cases each rebuild `prepareArchivedFeature`; it is built once and copied per
-  case. Its linked worktree sits beside the repository root (`join(parent, "demo")`), a position the veto cases
-  depend on, while `copyPreparedRepository` supports only a worktree inside the template root
+  case. Its linked worktree sits outside the repository root in its own parent (`join(parent, "demo")`), a position
+  the veto cases depend on, while `copyPreparedRepository` supports only a worktree inside the template root
   (`PREPARED_WORKTREE_PATH`). The helper gains a prepared shape for a sibling linked worktree: it copies both
   directories and rewrites the absolute paths each side records (the repository's `.git/worktrees/<name>/gitdir` and
   the worktree's `.git` file).
@@ -267,69 +295,84 @@ repeated parsing. In order:
 - **Managed-run staleness skip.** The per-spawn staleness check is skipped only for the processes of a managed test
   run. The test controller already prepares and qualifies the build and holds the checkout's artifact lock through
   closing (`withTestArtifactOwnership` in `build-ownership.ts`, lock file `BUILD_ARTIFACT_LOCK_NAME`,
-  `.arc-build.lock`), so its run is pinned to that artifact by design. The controller exports its lock token to its
-  children. The CLI's `preAction` hook reads the lock file and skips `checkDevBuildStaleness` only when all three
-  hold:
+  `.arc-build.lock`), so its run is pinned to that artifact by design. The controller exports its lock token in an
+  environment variable, which its Vitest workers and their children inherit. The CLI's `preAction` hook reads the
+  lock file and skips `checkDevBuildStaleness` only when all three hold:
     - the exported token matches the current holder's `token`;
     - the holder's `metadata.operation` is a test controller's (`tests (<tier>)`, as `withTestArtifactOwnership`
       writes it);
     - the holder's renewable lease is live (`leaseUntil` still ahead).
 
   A build holding the same lock never qualifies. A developer's own `npx arc` in the same checkout during the run
-  carries no token, and a leaked token matches no holder once the run releases the lock. The lookup is one small file
-  read through the lock module's tolerant holder read (`readHolder`'s classification), because `renewAdvisoryLock`
-  rewrites the file in place: an absent, empty, corrupt, or unreadable holder runs the check as today. Outside a
-  managed run the check is unchanged.
+  carries no token, and a leaked token matches no holder once the run releases the lock. The lookup is one
+  synchronous file read sorted by the lock module's holder classification (the one `readHolder` applies), because
+  `renewAdvisoryLock` rewrites the file in place: an absent, empty, corrupt, or unreadable holder runs the check as
+  today. Outside a managed run the check is unchanged.
 
 ### 5. CI layout and budgets
 
 After the CPU work lands, the trial retries the layouts that measured no faster under contention: shard the unit job,
-and replace E2E's four anchored shards with duration-balanced shards. Shard counts are trial parameters. Native shard
-membership is a hash of the spec path with no duration input (`BaseSequencer.shard`), which is how heavy files land
-together: `09ea5bb72` removed the slow-files-first sequencer after the two heaviest E2E files, started together on
-one shard, slowed every file there to about 2.3 times its time.
+and replace E2E's four anchored shards with duration-balanced shards. Shard counts are trial parameters: a dispatch
+carries each trial matrix's shard list as a JSON array, which the matrix reads directly. Native shard membership is a
+hash of the spec path with no duration input (`BaseSequencer.shard`), which is how heavy files land together:
+`09ea5bb72` removed the slow-files-first sequencer after the two heaviest E2E files, started together on one shard,
+slowed every file there to about 2.3 times its time.
 
-**The sequencer.** For the trial, `__tests__/helpers/heavy-first-sequencer.ts` returns (from `ecd8c8af3`) and
-overrides both `shard()` and `sort()` from one duration source:
+**The sequencer.** For the trial, `__tests__/helpers/heavy-first-sequencer.ts` returns from `ecd8c8af3`, where it
+overrides only `sort()`, moving a hand-kept list of six E2E files to the front of their project's run
+(`promoteHeavyFirst`). It is rebuilt to override both `shard()` and `sort()` from one duration source. Registered for
+a run, it decides the membership and order of every project in that run, integration's shards included:
 
 - `shard()` first puts every file in one total order (weight descending, then project name, then package-relative path),
-  because Vitest hands it the files in no stable order, then assigns them in that order to the least-loaded shard. A
-  file with no recorded duration weighs its project's estimate from § 0, and so does a file whose recorded duration is
-  not a finite, non-negative number: Vitest loads the results cache without checking its values
-  (`ResultsCache.readFromCache`), and one non-numeric weight would break the total order. Every shard process computes
-  the assignment from the same input and order, so the shards partition the files exactly.
+  because Vitest hands it the files in no stable order, then assigns them in that order to the least-loaded shard,
+  the lowest-numbered on a tie. A file with no recorded duration weighs its project's estimate (see **Adoption**), and
+  so does a file whose recorded duration is not a finite, non-negative number: a results file holds whatever a run
+  saved, Vitest itself loads one without checking its values (`ResultsCache.readFromCache`), and one non-numeric
+  weight would break the total order. Every shard process computes the assignment from the same input and order, so
+  the shards partition the files exactly.
 - `sort()` starts files with a valid recorded duration first, slowest first, and leaves the rest in Vitest's own
-  order.
+  order (`BaseSequencer.sort`). On a run with more than one worker, Vitest queues files in that order across projects
+  (`groupSpecs`), so the slowest start first whichever project they belong to.
 
 **Two duration sources** are measured against each other, and a `workflow_dispatch` input selects which one drives
 the sequencer on a hosted run:
 
-- the restored file's hand-kept list of slow files, extended with each file's measured hosted duration;
-- the persisted Vitest results cache, which records every file's duration and failure state in every tier, with
-  nothing to maintain. Every run restores the newest file by key prefix, writer runs included. The restore happens
-  once, in the `setup` job every test job waits on, which hands the file to each shard as a run artifact, so all
-  shards of one run read the same input. In a writer run, each shard uploads only its own files' entries, and a
-  final job merges those disjoint sets into one file per tier and saves it under a run-unique cache key. Only writer
-  runs save, so pull requests and forks cannot write `main`'s scope. A stale or poisoned file changes membership and
-  order, never results.
+- the restored file's hand-kept list of slow files, with each file's hosted duration from the trial's reference runs;
+- the persisted Vitest results cache, which records every file's duration and failure state in every tier, with nothing
+  to maintain. Every run restores the newest file by key prefix, writer runs included. The restore happens once, in the
+  `setup` job every test job waits on, which hands the file to each shard as a run artifact, so all shards of one run
+  read the same input; when no saved file exists, it hands on an empty one, and every file weighs its project's
+  estimate. `setup` is otherwise artifact preparation only, as a contract test holds (below), so the restore and the
+  handoff join the steps that test admits there. The sequencer reads the handed file from a path an environment variable
+  names, never through Vitest's own results cache: Vitest loads whatever file sits at its cache path when it starts
+  (`ResultsCache.readFromCache`) and writes all of it back after the run (`ResultsCache.writeToCache`). That cache path
+  sits inside the `node_modules` the jobs restore from cache, so each trial job removes Vitest's results directory
+  before its run, and the file its Vitest writes holds exactly that job's files. In a writer run, each shard uploads
+  that file, and a final job merges those disjoint sets into one file per tier and saves it under a run-unique cache
+  key. Only writer runs save, so pull requests and forks cannot write `main`'s scope. A stale or poisoned file changes
+  membership and order, never results.
 
 **Adoption.** The trial runs on this work's branch before anything is adopted: dispatch runs there are the cache's
 writers and readers, and the source selector exists only for the trial.
 
 - **Reference:** the median run duration of at least three dispatch runs of the current layout at the head the trial
-  starts from.
+  starts from. The same runs fix each project's estimate, its median hosted file duration there, and the hand-kept
+  list's durations, so every weight the sequencer uses is measured after the CPU work has changed the durations the
+  § 0 baseline recorded.
 - **A source clears the bar** when at least two runs use it and every run that uses it finishes at least 10% below
-  the reference. Per-runner speed varies up to about 1.7×, so one run decides nothing.
+  the reference. Per-runner speed varies up to about 1.7×, so one run decides nothing. A cache run that restored no
+  saved file seeds the cache and does not count as using it. A writer run's duration leaves out its merge-and-save
+  job, as § 0 defines run duration.
 - **Integration stays off the critical path:** in each run that counts, no integration shard is the last test job to
   finish. If one is, the trial adds an integration shard and that source's runs start over. The relocated real runs
   add to integration's 942.9 s summed time, which is why this is checked.
 - **Selection:** if both sources clear the bar, the cache wins unless the hand-kept list's median run duration is
   more than 10% below the cache's, since the cache needs no upkeep. If one clears, it wins. If neither clears, no
   layout change lands: the anchors, their readers, and the single unit job stay, and the sequencer does not land.
-- Only the winner lands. If the cache wins, the weekly scheduled run on `main` widens from portability alone to
-  every test tier and becomes its standing writer beside `workflow_dispatch`, and the hand-kept list and the
-  selector go. If the hand-kept list wins, the cache's restore, upload, merge, and save steps and the selector are
-  removed.
+- Only the winner lands. If the cache wins, the weekly scheduled run on `main` widens from portability alone to every
+  test tier and becomes its standing writer beside `workflow_dispatch`, and the hand-kept list and the selector go. If
+  the hand-kept list wins, the cache's restore, results-directory removal, upload, merge, and save steps and the
+  selector are removed.
 
 If a balanced layout is adopted, it generalizes the hand-placed E2E anchors and replaces them, along with what reads
 them:
@@ -337,8 +380,21 @@ them:
 - `parseWorkflowE2EAnchors`, `parseWorkflowE2EExclusions`, and `validateE2EShardMembership`
   (`src/lib/test-cost/shards.ts`) and their tests in `test-cost-shards.test.ts`;
 - `deriveEffectiveE2EShards` (`shard-run.ts`) and `test-cost-shard-run.test.ts`, which back the
-  `benchmark:test-cost:shards` membership instrument; it computes membership from the same duration input CI uses;
+  `benchmark:test-cost:shards` membership instrument; it computes membership from the same duration input CI uses,
+  which for the cache is a run's handed file, passed to it as an argument;
 - the anchor step assertions in `review-gate-workflows.test.ts`.
+
+The classifier's verified-tree check list follows the adopted layout's check names too. `HEAVY_CHECK_NAMES`
+(`scripts/classify-change.sh`) names the checks that must all have passed before `_all_heavy_checks_passed` counts a
+tree as verified, and `classify-change.test.ts` keeps a copy. A contract test there (`workflowHeavyCheckNames`) expands
+every `ci.yml` job whose condition, or a step's, requires a run that is not light, one name per matrix leg, and fails
+unless the list and its copy equal those names; it also fails when `setup` gains a step other than artifact
+preparation. It expands only literal matrix values, so:
+
+- the adopted layout's shard matrices are literal, and the list names every leg;
+- trial jobs run only on a dispatch with a source selected and carry no heavy-weight condition, so they are not heavy
+  checks;
+- the results cache's restore and handoff stay among `setup`'s admitted steps only while the cache is in use.
 
 The trial's runs, sources, and verdict are recorded in `notes-test-suite-reliability.md`.
 
@@ -365,8 +421,9 @@ New rules:
 - **Architecture rules live in the linter when the linter can express them.** One-hop import and syntax bans are
   ESLint rules. A test asserts only a structural property the compiler and linter cannot, and never re-asserts what
   they already enforce.
-- **Matrices run against fakes; one real run per outcome class.** A decision matrix proves its logic at the module's
-  dependency seam. The real stack runs once per distinct outcome class, in the integration project. An outcome class
+- **Matrices run below the real stack; one real run per outcome class.** A decision matrix proves its logic against
+  fakes at the module's dependency seam or, when one function decides it from files, against that function on a
+  filesystem fixture. The real stack runs once per distinct outcome class, in the integration project. An outcome class
   is one end state the real operation reaches (a published generation, a refusal that leaves live output untouched,
   a queued or excluded wait, a repaired retry) together with the external systems it touches to get there: the
   filesystem, a child process, git, a lock. Cases that differ only in input data share a class; a case that a
@@ -378,7 +435,7 @@ New rules:
 Enforced, not new: the override makes § Test Tiers' unit line operative for `__tests__/unit/**`: no child processes,
 no real builds, no git repositories. The strategy's line is corrected to match. Its "no filesystem" clause goes:
 about 130 unit files write files (a search for `mkdtemp`, `tmpdir()`, and `writeFile` finds 130), and read-only
-source scans belong in unit. Four texts that rest on that clause change with it:
+source scans belong in unit. Six texts that rest on that clause change with it:
 
 - the override's **Boundaries are** bullet drops `fs` from what unit tests mock, keeping `execFile` / git, the
   npm-registry check, and time;
@@ -387,7 +444,10 @@ source scans belong in unit. Four texts that rest on that clause change with it:
 - the strategy's Integration tier is characterized by real module interactions, git repositories, and child
   processes, not by filesystem use ("May use the filesystem via temporary directories", "Slower than unit
   (filesystem I/O)");
-- `TECHNICAL-OVERVIEW.md` § 4's Unit and Integration lines follow the same tier lines.
+- `TECHNICAL-OVERVIEW.md` § 4's Unit and Integration lines follow the same tier lines;
+- the override's **Dependency injection** bullet and the strategy's "Accept dependencies" bullet, which name `fs`
+  as an injected dependency so tests can mock it, inject `fs` where a test must fail or observe it; otherwise a unit
+  test uses a temporary directory.
 
 **The spawn guard.** A lint rule cannot hold the no-spawn line, because most spawns reach `node:child_process`
 through helpers, `src` modules, and libraries, never through the test file's own imports. A runtime guard holds it
@@ -399,7 +459,8 @@ instead:
   the same, such as the esbuild service process that bundle-require starts.
 - The guard also records each blocked launch and fails the test from its own `afterEach`, so a launch error that
   `execa` (with `reject: false`, which turns a synchronous spawn failure into a failed result) or a helper catches
-  still fails the test.
+  still fails the test. A launch outside any test, in a file's `beforeAll` or `afterAll`, fails the file from the
+  shared setup file's `afterAll`, which runs after the file's own under Vitest's default `sequence.hooks: "stack"`.
 - A library that keeps one child process alive for its whole process is stopped after each file, so launch
   accounting does not depend on which file ran first in a worker. esbuild caches its service per process
   (`longLivedService`) and the unit project runs many files per worker (`isolate: false`); the shared setup file
@@ -412,7 +473,8 @@ instead:
   `promisify(execFile)` resolves to a bare string in allowlisted files; 11 test helper modules, 3 unit files, and 3
   `src` modules use that pattern. Copying the original form would bypass the guard.
 
-The allowlist holds the files that still spawn when this work lands, and it is a floor:
+The allowlist holds the files that still spawn, on any platform the suite runs on, when this work lands, and it is a
+floor:
 
 - The guard keeps a running launch count per file and writes it into each test's task metadata after the test,
   beside whether the test's file is on the allowlist. The controller reads both from the run's result, beside its
@@ -427,7 +489,7 @@ The allowlist holds the files that still spawn when this work lands, and it is a
 - A file ran whole when every one of its tests ran: no name filter and no skipped test. A file whose spawning test is
   skipped on a given platform or environment is not checked on that run, and a file with a stable skip is never
   checked: `fs.test.ts` skips one test on every platform (its `powershell.exe` spawn runs only on Windows), and that
-  exemption is accepted.
+  exemption is accepted. It is on the allowlist all the same, though no Linux run sees it launch.
 - Vitest shards and selects whole files, so sharded and focused runs still check the files that ran whole in them.
 - Adding a file to the allowlist is a visible change in review.
 
@@ -441,32 +503,37 @@ that every site has a declaration, not that the behavior matches it, and `NO_INP
 command. A declaration and its handler can disagree and nothing fails. Whether any prompt site drifts today is
 unknown until migration.
 
-- **Questions are declared data, referenced by id.** A prompt site is a declared question, not a clack call. The
-  code that asks it calls one prompter with its declared site, the interaction context, and the call's own values:
-  the message, the options, the runtime default, and the explicit answer a flag or argument supplied, if any. The 27
-  `@clack/prompts` prompt calls in 12 files (`p.select`, `p.confirm`, `p.text`, `p.autocompleteMultiselect`) move
-  behind it.
-- **A wrapper passes its caller's site through.** A helper that prompts for several callers (`confirmStep` in
-  `handlers/start.ts`, `resolveIdentityWithPrompt` in `handlers/shared.ts`, `SyncOutput.confirm`) takes the site and
-  context from its caller, so each caller's question is its own site. The scanner's `prompt-helper` kind, which
+- **Questions are declared data, referenced by id.** A prompt site is a declared question, not a clack call. Its
+  declaration states the question's form (`confirm`, `select`, `text`, or `multiselect`) beside its policy, and the
+  call's values and the answer's type follow that form. The code that asks it calls one prompter with its declared site,
+  the interaction context, and the call's own values: the message, the options, the runtime default, and the explicit
+  answer a flag or argument supplied, if any. The 27 `@clack/prompts` prompt calls in 12 files (`p.select`, `p.confirm`,
+  `p.text`, `p.autocompleteMultiselect`) move behind it.
+- **A wrapper passes its caller's site through.** A helper that prompts for its callers (`confirmStep` in
+  `handlers/start.ts`, `resolveIdentityWithPrompt` in `handlers/shared.ts`, `SyncOutput.confirm`, and `promptTools` in
+  `prompts/init-prompts.ts`, which init's and join's prompts both call) takes the site and context from its caller,
+  so each caller's question is its own site. The scanner's `prompt-helper` kind, which
   matches any `*.output.{confirm,select,text}` call, retires. So does the sync declaration that names one question
   twice, as `ctx.output.confirm` in `handlers/sync.ts` and as `p.confirm` in `lib/sync-output.ts`.
 - **One prompter; policy is data and values are arguments.** An explicit answer always wins. Otherwise an interactive
   context renders through clack, and a forbidden one applies the site's declared kind:
-    - `use-default` returns the call's runtime default. The declaration's `defaultSource` stays descriptive prose.
+    - `use-default` returns the call's runtime default. When the call has none, it refuses, carrying its declared
+      syntax, as `init` and `join` report a missing `--identity <name>` today when no `git config user.name` exists.
+      The declaration's `defaultSource` stays descriptive prose.
     - `require-explicit` refuses, and the refusal carries the declared answering syntax (`automation.acceptedSyntax`,
       such as `--commitment <tier>`).
-    - `require-authority` proceeds only when `context.confirmation` is `accept`, and otherwise refuses, carrying its
-      declared syntax (`--yes`).
-    - `proceed` proceeds.
+    - `require-authority` answers `true` only when `context.confirmation` is `accept`, and otherwise refuses,
+      carrying its declared syntax (`--yes`).
+    - `proceed` answers `true`.
     - `refuse` refuses without naming any syntax: only an interactive confirmation can authorize the action, so
       `--yes` does not override it either. Start's indeterminate-lifecycle gate (`handlers/start.ts`, a
       `confirmStep` caller that refuses when interaction is forbidden) declares `interactive-only-override` with
       `refuse`, the pairing `contradiction()` already requires.
 
   At a prompt site, any other kind is a declaration error, and so is a kind whose refusal carries its syntax
-  (`require-explicit` or `require-authority`) with empty `acceptedSyntax`. Both checks are scoped to prompt sites and
-  join the existing ones in `contradiction()` (`declaration.ts`), which runs on every site; option sites such as
+  (`require-explicit` or `require-authority`) with empty `acceptedSyntax`, and so is `proceed` or `require-authority`
+  on a form other than `confirm`, since both answer `true`. These checks are scoped to prompt sites and join the
+  existing ones in `contradiction()` (`declaration.ts`), which runs on every site; option sites such as
   `--yes` legitimately declare `require-authority` with empty syntax. The declared `cancellation` policy replaces the
   per-site `p.isCancel` handling.
 - **The prompter reports an outcome; callers keep their output and exits.** The prompter returns one of three
@@ -478,39 +545,59 @@ unknown until migration.
       user/<id>/<subdir>/ (non-interactive).` when interaction is forbidden and returns silently on a cancellation,
       and `init`'s reconfigure flow (`prompts/reconfigure-prompts.ts`) still prints its opening line and its
       team-mode warning only when interaction is allowed.
-    - On a `require-explicit` or `require-authority` refusal, the caller reports what it reports today, with the
-      same message and exit status; the declared syntax the outcome carries does not replace that text. Today's
-      reports differ by site: `handleStub` collects `--commitment` and `--priority` into one `Missing required
-      input:` report, `user pull` asks for a re-run with `--yes`, and `release setup install` writes its own `error:`
-      line. A report that names other syntax than its declaration's `acceptedSyntax` (`--commitment
-      <provisional|planned>` against `--commitment <tier>`), or a refusing declaration whose caller degrades instead
-      (the notes-push prompts in `sync` and `user sync` fall back to saving only), is drift under the rule below.
+    - Some callers choose the answer themselves today when interaction is forbidden, and never reach their prompts:
+      `resolveInitCommandInput` and `resolveJoinCommandInput` (`commands/init-input.ts`, `commands/join-input.ts`)
+      build init's, reconfigure's, and join's values; `handleReconfigure` (`handlers/init.ts`) picks
+      `resolveRemovalsNonInteractive`; `handleStub` and `handlePromote` (`handlers/lifecycle.ts`) report what is
+      missing; `handleReleaseSetupInstall` answers `exit` to its idempotency prompt and collects its missing inputs;
+      and `handleReleaseSetupUninstall` builds its missing-evidence result. Each asks its prompts in every interaction
+      context. The value it chooses today becomes the call's runtime default at a `use-default` site, and a site that
+      reports a missing input refuses through the prompter, its caller gathering the refusals into today's report.
+    - On a `require-explicit`, `require-authority`, or `use-default` refusal, the caller reports what it reports today,
+      with the same message and exit status; the declared syntax the outcome carries does not replace that text. Today's
+      reports differ by site: `handleStub` collects `--commitment` and `--priority` into one `Missing required input:`
+      report, `user pull` asks for a re-run with `--yes`, and `release setup install` writes its own `error:` line. A
+      report that names other syntax than its declaration's `acceptedSyntax` (`--commitment <provisional|planned>`
+      against `--commitment <tier>`), or a refusing declaration whose caller degrades instead (the notes-push prompts in
+      `sync` and `user sync` fall back to saving only), is drift under the rule below.
     - A `refuse` refusal keeps its caller's message and non-prompt remedies.
-    - Cancellation happens only in an interactive context. `stop` returns `cancelled`, and the caller ends the
-      command as it does today, with its present message and exit status; `safe-default` returns `answered` with the
-      call's runtime default. At a prompt site, any other `cancellation` value is a declaration error checked in
-      `contradiction()`; today's prompt sites declare only `stop` and `safe-default` (`CancellationBehaviorSchema` in
-      `declaration.ts`).
+    - Cancellation happens only in an interactive context. `stop` returns `cancelled`, and the caller ends the command
+      as it does today, with its present message and exit status; `safe-default` returns `answered` with the call's
+      runtime default, or `cancelled` when the call has none. At a prompt site, any other `cancellation` value is a
+      declaration error checked in `contradiction()`; today's prompt sites declare only `stop` and `safe-default`
+      (`CancellationBehaviorSchema` in `declaration.ts`).
 - **Sites are found by their declared values.** Three rules make the declaration the only way to reach a prompt:
     - the prompt-site type is branded, and only a dedicated prompt-site declaring function produces one. Today's
       `CommandInputSite` is structural, and an inline object literal would satisfy it. The prompter accepts only the
       branded type, so the compiler rejects a prompt with no declaration. `declareInteractionSite` declares every
       interaction kind today; stdin, subprocess, and environment-policy sites keep it, and prompt sites, including
-      those written as plain objects (`commands/init-input.ts`), move to the new function;
+      those written as plain objects (`commands/init-input.ts`), move to the new function. The brand is erased at
+      runtime, so the function also marks its site `origin: "prompt"`, beside the `syntax` and `declaration`
+      origins, and records the module and exported constant that declare it (`source: { file, symbol }`, the shape a
+      literal-id site such as `safety.indeterminate-lifecycle` already has). Declaration checks and the inventory read
+      the origin;
     - each prompt site is declared as an exported constant with a literal id and passed by name. The scanner resolves
-      each call argument through the file's own imports to a declared site, keeping today's single-file parsing with
-      no type checker. The call that passes a site, to the prompter or to a wrapper, is its locus; this replaces
-      callee-and-occurrence identity (`p.select`, occurrence N), so each caller of a wrapper is its own site;
-    - a site passed by more than one call is refused, since an inventory entry carries one live source. A declared
-      site that no call passes is a dangling declaration, which `reconcileCommandInputInventory` already refuses.
+      each call argument through the file's own declarations and imports to a declared site, keeping today's
+      single-file parsing with no type checker; declarations usually sit in the handler module that asks the
+      question (`userCommandInputPolicyDeclarations` in `handlers/user.ts`). The call that passes a site, to the
+      prompter or to a wrapper, is its locus, and the inventory joins each prompt site to that call by id; this
+      replaces callee-and-occurrence identity (`p.select`, occurrence N), so each caller of a wrapper is its own site;
+    - a site passed by more than one call is refused, since an inventory entry carries one live source. A declared site
+      that no call passes is a dangling declaration. `reconcileCommandInputInventory` refuses a declared interaction
+      whose selector no longer resolves (`command-input.inventory.stale-source`), but that check reaches only
+      declarations that name a line or a call selector, so the join by id refuses a dangling prompt site the same way.
+      One site may still be listed under several commands with one policy, as an interaction can be today.
 
-  Two further refusals close the remaining routes around the inventory. A call to the prompt-site declaring function
-  is legal only as an exported constant's initializer, and the scanner refuses it anywhere else, so an inline
-  declaration passed straight to the prompter fails. The scanner still finds every prompter call by syntax, as it
-  finds clack calls today. A call whose site argument neither resolves to a declared constant nor is a parameter of
-  any enclosing function is refused, like today's unclassified site. The parameter case is a wrapper passing its
-  caller's site through, including from a nested callback, as `resolveIdentityWithPrompt` (`handlers/shared.ts`)
-  prompts inside the callback it hands to `resolveIdentity`.
+  Two further refusals close the remaining routes around the inventory. A call to the prompt-site declaring function is
+  legal only as an exported constant's initializer, and the scanner refuses it anywhere else, so an inline declaration
+  passed straight to the prompter fails. The scanner still finds every prompter call by syntax, as it finds clack calls
+  today. While callee-and-occurrence discovery still finds clack calls not yet migrated, the prompter's renderer is
+  skipped: its clack calls are the policy boundary rather than prompt sites, as `scanInteractionSource` already skips
+  `interaction-context.ts` for `process.env.CI`. Both retire with the last migrated site. A call whose site argument
+  neither resolves to a declared constant nor is a parameter of any enclosing function is refused, like today's
+  unclassified site. The parameter case is a wrapper passing its caller's site through, including from a nested
+  callback, as `resolveIdentityWithPrompt` (`handlers/shared.ts`) prompts inside the callback it hands to
+  `resolveIdentity`.
 - **A handler that prompts takes a required interaction context.** The
   `suppliedContext ?? resolveProcessInteractionContext({ noInput: false, … })` fallback leaves those handlers. The
   fallback is unreachable from the CLI today: `cli.ts` passes a context to every one of the 33 handlers that carry
@@ -519,14 +606,23 @@ unknown until migration.
   `no-restricted-imports` `importNames` also reports every `import * as p from "@clack/prompts"`, which is how all 29
   importing modules use it (probed against the installed ESLint 10.4.1). So one terminal module re-exports clack's
   presentation calls (`log`, `intro`, `outro`, `note`, `spinner`, `cancel`), handlers import `p` from it so their
-  call sites stay unchanged, and `@clack/prompts` is importable only in that module and the prompter.
+  call sites stay unchanged, and `@clack/prompts` is importable only in that module and the prompter. The ban is a
+  row of § 3's composed ban table.
 - **Tests follow the policy rule.** Unit table tests run the real prompter against a fake renderer at the clack
-  boundary, covering each policy kind, each outcome, and each cancellation kind. The matrix's
-  prompt-only entries reduce to one real-CLI run per policy kind. The reconciliation of `NO_INPUT_MATRIX` with every
-  other interaction kind (explicit stdin, subprocesses, environment policy) stays.
-- **Drift is surfaced, not absorbed.** A site whose hand-coded behavior differs from its declaration is reported
-  during migration. The fix moves toward the declaration unless the declaration is the wrong one; either way it is a
-  visible behavior change recorded in its task.
+  boundary, covering each policy kind, each outcome, and each cancellation kind. `NO_INPUT_MATRIX` keeps one real-CLI
+  run per prompt policy kind in place of one entry per prompt-only command. Each such entry names the prompt site its
+  run reaches and asserts that kind's outcome when interaction is forbidden, and the reconciliation checks that the
+  named sites cover every policy kind a prompt site declares, each on its entry's own command. Every command with an
+  explicit stdin, subprocess, or environment-policy site, or a `--no-input` flag, still has an entry, and an entry that
+  names no prompt site stays one per command; a command's prompt-kind entries count as its entry, so `start` carries its
+  separate `proceed` and `refuse` runs and no third.
+- **Drift is surfaced, not absorbed.** A site whose hand-coded behavior differs from its declaration is reported during
+  migration. The fix moves toward the declaration unless the declaration is the wrong one; either way it is a visible
+  behavior change recorded in its task. One drift is settled already: `init` and `join` declare the identity prompt
+  `require-explicit` with `--identity <name>`, but when `arc.identity` is unset and it cannot prompt, `resolveIdentity`
+  (`lib/git/identity.ts`) answers from the `git config user.name` slug, and scripted `init --yes` runs without
+  `--identity` rely on that. There the declaration is the wrong one, and the identity sites declare `use-default` with
+  that slug as their runtime default.
 
 ### Closing measurement
 
@@ -611,7 +707,7 @@ stays whole because it is coupled through `NO_INPUT_MATRIX`, which it shrinks an
     - Each converted native-tooling file keeps one real run per outcome class, and the portability tier still
       selects a real run of every outcome class it covers today.
     - The shared copy helper, the spawn guard and its floor check, the managed-run skip conditions, the
-      sequencer's partition and order, and each prompter policy kind have direct tests.
+      sequencer's partition and order, the composed ban table, and each prompter policy kind have direct tests.
     - `review-gate-workflows.test.ts` follows any workflow change.
 - **Migration and rollout.**
     - There is no persisted-data migration.
@@ -661,12 +757,15 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
 13. **One `--no-input` source.**
     - No `@clack/prompts` prompt call remains outside the prompter, and `no-restricted-imports` confines
       `@clack/prompts` to the terminal module and the prompter.
+    - No branch on `context.interaction` chooses an answer a prompt site declares; each such site is asked in every
+      interaction context.
     - A unit table test runs the real prompter against a fake renderer and covers each policy kind, each outcome,
       and each cancellation kind.
     - Every prompting command keeps its present output and exit status in each interaction context, except recorded
       drift fixes.
     - `contradiction()` refuses a prompt site with an unsupported kind, with a syntax-carrying kind and empty
-      `acceptedSyntax`, or with a `cancellation` other than `stop` or `safe-default`.
+      `acceptedSyntax`, with `proceed` or `require-authority` on a form other than `confirm`, or with a `cancellation`
+      other than `stop` or `safe-default`.
     - Every prompt site is reached only through its branded, exported declaration.
     - Each drift found during migration is recorded in its task.
 14. **Policy stated.** The `testing-standards` override and `strategy-testing-methodology.md` carry § 6's rules and
@@ -678,8 +777,8 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
   first converted file calibrates it. The 40% criterion stands regardless.
 - **Integration headroom.** Relocated real runs may need a third integration shard; § 5's critical-path check
   decides.
-- **Prompter drift and reach.** Whether any prompt site's behavior differs from its declaration, and how many
-  `NO_INPUT_MATRIX` entries are prompt-only, is unknown until migration. § 7 fixes how each is handled.
+- **Prompter drift.** Beyond the identity prompt § 7 settles and the candidates it names, whether any prompt site's
+  behavior differs from its declaration is unknown until migration. § 7 fixes how each is handled.
 - **The per-spawn saving on hosted runners.** The 0.25–0.38 s range comes from two local probes on one command, and
   the 1,815-spawn count is dated. No criterion rests on either; E2E's criterion measures the outcome.
 

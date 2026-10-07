@@ -9,7 +9,7 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-test-suite-reliability.md`
-- **Task List:** [none]
+- **Task List:** `tasks-test-suite-reliability.md`
 - **Review Rubric:** [none]
 - **Promotion Receipt:** `errand-v1/hosted-test-reliability/ce773f5407a570d786450435b6657f92`
 
@@ -18,7 +18,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]
