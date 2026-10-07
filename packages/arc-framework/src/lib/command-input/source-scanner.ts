@@ -77,6 +77,7 @@ export type DiscoveredInteractionKind =
 export interface DiscoveredInteractionSite extends DiscoveredSourceLocus {
   readonly kind: DiscoveredInteractionKind;
   readonly declaredId?: string;
+  readonly declaredSource?: { readonly file: string; readonly symbol: string };
   readonly callee: string;
 }
 
@@ -458,9 +459,10 @@ export function scanInteractionSource(input: SourceInput,
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
       const callee = calleeText(node, file);
-      const declaredId = promptIndex.calls.get(input.file)?.get(node.getStart(file));
-      if (declaredId !== undefined) {
-        sites.push({ kind: "prompt", declaredId, callee, position: node.getStart(file), ...locus(file, node, input.file) });
+      const declared = promptIndex.calls.get(input.file)?.get(node.getStart(file));
+      if (declared !== undefined) {
+        sites.push({ kind: "prompt", declaredId: declared.id, declaredSource: declared.source,
+          callee, position: node.getStart(file), ...locus(file, node, input.file) });
       }
       if (ts.isIdentifier(node.expression) && processFunctions.has(node.expression.text)) {
         sites.push({ kind: "subprocess", callee, position: node.getStart(file), ...locus(file, node, input.file) });
@@ -503,6 +505,7 @@ export function scanInteractionSource(input: SourceInput,
     sites: sites.map((site) => ({
       kind: site.kind,
       ...(site.declaredId === undefined ? {} : { declaredId: site.declaredId }),
+      ...(site.declaredSource === undefined ? {} : { declaredSource: site.declaredSource }),
       callee: site.callee,
       file: site.file,
       line: site.line,

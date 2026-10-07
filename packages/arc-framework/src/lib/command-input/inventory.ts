@@ -123,7 +123,11 @@ function interactionPolicyKey(site: CommandInputDeclaration["sites"][number]): s
 function declaredInteraction(site: CommandInputDeclaration["sites"][number],
   byLocus: ReadonlyMap<string, DiscoveredInteractionSite>, bySelector: ReadonlyMap<string, DiscoveredInteractionSite>,
   byPrompt: ReadonlyMap<string | undefined, DiscoveredInteractionSite>): DiscoveredInteractionSite | undefined {
-  if (site.origin === "prompt") return byPrompt.get(site.id);
+  if (site.origin === "prompt") {
+    const candidate = byPrompt.get(site.id);
+    return candidate?.declaredSource?.file === site.source.file && candidate.declaredSource.symbol === site.source.symbol
+      ? candidate : undefined;
+  }
   const selector = site.source.interaction;
   if (selector !== undefined) {
     return bySelector.get(`${site.source.file}|${selector.kind}|${selector.callee}|${String(selector.occurrence)}`);

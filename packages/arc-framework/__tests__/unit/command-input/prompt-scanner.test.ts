@@ -20,13 +20,38 @@ describe("declared-value prompt discovery", () => {
     const source = [promptImport, 'import { firstSite as inputSite } from "./sites.js";',
       'async function run(context) { return ask(inputSite, context, { message: "Value?" }); }'].join("\n");
     expect(scan(source, { "handlers/sites.ts": sites }).sites).toEqual([
-      { kind: "prompt", callee: "ask", declaredId: "first", file: "handlers/caller.ts", line: 3, column: 38 },
+      { kind: "prompt", callee: "ask", declaredId: "first", declaredSource: { file: "handlers/sites.ts", symbol: "firstSite" },
+        file: "handlers/caller.ts", line: 3, column: 38 },
     ]);
   });
   it("resolves an exported constant in the call's own file", () => {
     const source = [factoryImport, promptImport, declare("ownSite", "own", "handlers/caller.ts"),
       'async function run(context) { return ask(ownSite, context, { message: "Value?" }); }'].join("\n");
     expect(scan(source).sites).toMatchObject([{ declaredId: "own", line: 4 }]);
+  });
+  it("discovers a namespace factory and prompter with declaration provenance", () => {
+    const source = ['import * as input from "../lib/command-input/index.js";',
+      declare("ownSite", "own", "handlers/caller.ts").replace("declarePromptSite(", "input.declarePromptSite("),
+      'async function run(context) { return input.prompt(ownSite, context, { message: "Value?" }); }'].join("\n");
+    expect(scan(source).sites).toMatchObject([{ declaredId: "own",
+      declaredSource: { file: "handlers/caller.ts", symbol: "ownSite" } }]);
+  });
+  it("refuses a non-exported namespace factory site", () => {
+    const source = ['import * as input from "../lib/command-input/index.js";',
+      declare("localSite", "local", "handlers/caller.ts").replace("export const", "const")
+        .replace("declarePromptSite(", "input.declarePromptSite("),
+      'async function run(context) { return input.prompt(localSite, context, { message: "Value?" }); }'].join("\n");
+    expect(() => scan(source)).toThrow(/exported constant initializer/u);
+  });
+  it("refuses a namespace prompter's unresolved site", () => {
+    expect(() => scan('import * as input from "../lib/command-input/prompter.js"; input.prompt(unknown, context, {});'))
+      .toThrow(/Unresolved prompt site/u);
+  });
+  it("refuses distinct declarations sharing an id even when only one is passed", () => {
+    const conflicting = sites.replace('"second"', '"first"').replace('"optional"', '"required"');
+    const caller = [promptImport, 'import { firstSite } from "./sites.js";',
+      'async function run(context) { return ask(firstSite, context, { message: "Value?" }); }'].join("\n");
+    expect(() => scan(caller, { "handlers/sites.ts": conflicting })).toThrow(/declared by more than one constant/u);
   });
   it("finds each caller of one wrapper and accepts nested parameter pass-through", () => {
     const source = [promptImport, 'import { firstSite, secondSite } from "./sites.js";',
@@ -83,13 +108,24 @@ describe("declared prompt inventory joins", () => {
       sourceFiles: { "cli.ts": cli, "handlers/sites.ts": sites, "handlers/caller.ts": caller },
     });
     expect(result.entries.map((entry) => entry.liveSource)).toEqual([
-      { kind: "prompt", callee: "ask", declaredId: "first", file: "handlers/caller.ts", line: 3, column: 38 },
-      { kind: "prompt", callee: "ask", declaredId: "first", file: "handlers/caller.ts", line: 3, column: 38 },
+      { kind: "prompt", callee: "ask", declaredId: "first", declaredSource: { file: "handlers/sites.ts", symbol: "firstSite" },
+        file: "handlers/caller.ts", line: 3, column: 38 },
+      { kind: "prompt", callee: "ask", declaredId: "first", declaredSource: { file: "handlers/sites.ts", symbol: "firstSite" },
+        file: "handlers/caller.ts", line: 3, column: 38 },
     ]);
   });
   it("refuses an existing declaration whose site has no passing call", () => {
     expect(() => reconcileCommandInputInventory({ source: { commands, interactions: [] },
       declarations: [{ commandPath: "first", sites: [declared] }], sourceFiles: { "cli.ts": cli, "handlers/sites.ts": sites },
+    })).toThrow(expect.objectContaining({ code: "command-input.inventory.stale-source" }));
+  });
+  it("refuses a registry locus that differs from the executed constant", () => {
+    const caller = [promptImport, 'import { firstSite } from "./sites.js";',
+      'async function run(context) { return ask(firstSite, context, { message: "Value?" }); }'].join("\n");
+    const sourceFiles = { "cli.ts": cli, "handlers/sites.ts": sites, "handlers/caller.ts": caller };
+    const misplaced = { ...declared, source: { file: "handlers/sites.ts", symbol: "secondSite" } };
+    expect(() => reconcileCommandInputInventory({ source: { commands, interactions: scan(caller, sourceFiles).sites },
+      declarations: [{ commandPath: "first", sites: [misplaced] }], sourceFiles,
     })).toThrow(expect.objectContaining({ code: "command-input.inventory.stale-source" }));
   });
 });

@@ -10,9 +10,14 @@ interface ModuleBindings {
   readonly sites: Map<string, { id: string; declaration: ts.VariableDeclaration }>;
 }
 /** Parsed source and declaration identities at concrete passing-call positions. */
+export interface PromptSourceBinding {
+  readonly id: string;
+  readonly source: { readonly file: string; readonly symbol: string };
+}
+/** Parsed source and resolved prompt constants at concrete passing-call positions. */
 export interface PromptSourceIndex {
   readonly files: ReadonlyMap<string, ts.SourceFile>;
-  readonly calls: ReadonlyMap<string, ReadonlyMap<number, string>>;
+  readonly calls: ReadonlyMap<string, ReadonlyMap<number, PromptSourceBinding>>;
 }
 
 function importedBindings(file: ts.SourceFile, sources: Readonly<Record<string, string>>): Map<string, ImportedBinding> {
@@ -20,18 +25,22 @@ function importedBindings(file: ts.SourceFile, sources: Readonly<Record<string, 
   for (const statement of file.statements) {
     if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
     const bindings = statement.importClause?.namedBindings;
-    if (bindings === undefined || !ts.isNamedImports(bindings)) continue;
+    if (bindings === undefined) continue;
     const base = posix.normalize(posix.join(posix.dirname(file.fileName), statement.moduleSpecifier.text.replace(/\.js$/u, "")));
     const target = `${base}.ts` in sources ? `${base}.ts` : `${base}/index.ts` in sources ? `${base}/index.ts` : `${base}.ts`;
-    for (const binding of bindings.elements) result.set(binding.name.text,
+    if (ts.isNamespaceImport(bindings)) result.set(bindings.name.text, { file: target, exported: "*" });
+    else for (const binding of bindings.elements) result.set(binding.name.text,
       { file: target, exported: binding.propertyName?.text ?? binding.name.text });
   }
   return result;
 }
 function canonicalImport(module: ModuleBindings, expression: ts.Expression, symbol: "declarePromptSite" | "prompt"): boolean {
-  if (!ts.isIdentifier(expression)) return false;
-  const binding = module.imports.get(expression.text);
-  return binding?.exported === symbol && ["lib/command-input/declaration.ts", "lib/command-input/prompter.ts",
+  const owner = ts.isPropertyAccessExpression(expression) && expression.name.text === symbol
+    ? expression.expression : undefined;
+  const binding = ts.isIdentifier(expression) ? module.imports.get(expression.text)
+    : owner !== undefined && ts.isIdentifier(owner) ? module.imports.get(owner.text) : undefined;
+  return binding !== undefined && binding.exported === (owner === undefined ? symbol : "*")
+    && ["lib/command-input/declaration.ts", "lib/command-input/prompter.ts",
     "lib/command-input/index.ts"].includes(binding.file);
 }
 function exportedInitializer(node: ts.CallExpression): ts.VariableDeclaration | undefined {
@@ -74,14 +83,16 @@ function localDeclaration(block: ts.Block | ts.SourceFile, name: string): ts.Nod
   return undefined;
 }
 function argumentBinding(module: ModuleBindings, argument: ts.Expression, modules: ReadonlyMap<string, ModuleBindings>):
-  { kind: "site"; id: string } | { kind: "parameter" } | { kind: "unresolved" } {
+  { kind: "site"; binding: PromptSourceBinding } | { kind: "parameter" } | { kind: "unresolved" } {
   if (!ts.isIdentifier(argument)) return { kind: "unresolved" };
   for (let scope = argument.parent; ; scope = scope.parent) {
     if (ts.isBlock(scope) || ts.isSourceFile(scope)) {
       const declaration = localDeclaration(scope, argument.text);
       if (declaration !== undefined) {
         const site = module.sites.get(argument.text);
-        return site?.declaration === declaration ? { kind: "site", id: site.id } : { kind: "unresolved" };
+        return site?.declaration === declaration ? { kind: "site", binding: {
+          id: site.id, source: { file: module.file.fileName, symbol: argument.text },
+        } } : { kind: "unresolved" };
       }
     }
     if (ts.isFunctionLike(scope) && scope.parameters.some((parameter) => bindingNames(parameter.name).includes(argument.text))) {
@@ -91,11 +102,13 @@ function argumentBinding(module: ModuleBindings, argument: ts.Expression, module
   }
   const imported = module.imports.get(argument.text);
   const site = imported === undefined ? undefined : modules.get(imported.file)?.sites.get(imported.exported);
-  return site === undefined ? { kind: "unresolved" } : { kind: "site", id: site.id };
+  return site === undefined || imported === undefined ? { kind: "unresolved" } : { kind: "site", binding: {
+    id: site.id, source: { file: imported.file, symbol: imported.exported },
+  } };
 }
 function passingCalls(module: ModuleBindings, modules: ReadonlyMap<string, ModuleBindings>,
-  claimed: Map<string, string>): Map<number, string> {
-  const calls = new Map<number, string>();
+  claimed: Map<string, string>): Map<number, PromptSourceBinding> {
+  const calls = new Map<number, PromptSourceBinding>();
   const siteNames = new Set(module.sites.keys());
   for (const [name, binding] of module.imports) {
     if (modules.get(binding.file)?.sites.has(binding.exported)) siteNames.add(name);
@@ -112,11 +125,11 @@ function passingCalls(module: ModuleBindings, modules: ReadonlyMap<string, Modul
           throw new ArcError(`Unresolved prompt site argument in ${module.file.fileName}`, "command-input.inventory.unclassified");
         }
         if (binding.kind !== "site") continue;
-        if (claimed.has(binding.id)) {
-          throw new ArcError(`Prompt site ${binding.id} is passed by more than one call`, "command-input.inventory.duplicate");
+        if (claimed.has(binding.binding.id)) {
+          throw new ArcError(`Prompt site ${binding.binding.id} is passed by more than one call`, "command-input.inventory.duplicate");
         }
-        claimed.set(binding.id, module.file.fileName);
-        calls.set(node.getStart(module.file), binding.id);
+        claimed.set(binding.binding.id, module.file.fileName);
+        calls.set(node.getStart(module.file), binding.binding);
       }
     }
     ts.forEachChild(node, visit);
@@ -136,6 +149,13 @@ export function buildPromptSourceIndex(sources: Readonly<Record<string, string>>
     return [path, { file, imports: importedBindings(file, sources), sites: new Map() }] as const;
   }));
   for (const module of modules.values()) collectDeclarations(module);
+  const declarations = new Set<string>();
+  for (const module of modules.values()) for (const site of module.sites.values()) {
+    if (declarations.has(site.id)) {
+      throw new ArcError(`Prompt site ${site.id} is declared by more than one constant`, "command-input.inventory.duplicate");
+    }
+    declarations.add(site.id);
+  }
   const claimed = new Map<string, string>();
   const calls = new Map([...modules].map(([path, module]) => [path, passingCalls(module, modules, claimed)]));
   return { files: new Map([...modules].map(([path, module]) => [path, module.file])), calls };
