@@ -499,26 +499,24 @@ template; and E2E summed file time is measured against the baseline.
   unavailable holder reads and every ordinary process retain qualification. Token lifetime, synchronous admission,
   diagnostics and refresh eligibility are proved together, with the existing controller/closing protocol unchanged.
 
-### `[ ]` **5.2 Run each distinct `--no-input` invocation once from a prepared template — D4**
+### `[x]` **5.2 Run each distinct `--no-input` invocation once from a prepared template — D4**
 
 - _Goal:_ `command-input-no-input.e2e.test.ts` runs each distinct invocation once against a copy of one prepared
   repository and still enforces the exact match between `NO_INPUT_MATRIX` and live interaction sites.
 
-    - `[ ]` **5.2.a Run each distinct invocation once**
-        - Every invocation of an entry that runs without a TTY resolves the same forbidden, non-interactive context,
-          so they collapse into one; each invocation under a pseudo-TTY stays, since there its signal alone forbids
-          interaction.
-        - The 45 entries that take stdin or `--json` run all three invocations without a TTY and keep one. The six
-          whose `--no-input` invocation runs under a pseudo-TTY (`base merge`, `integrate checkpoint`,
-          `integrate merge`, `review change-request resolve`, `review pre-publication`, `review status`) keep it and
-          one more. The other 29 run their `--no-input` and CI invocations under a pseudo-TTY and keep all three.
+    - `[x]` **5.2.a Run each distinct invocation once**
+        - The actual CLI transport predicate selects one pipe representative and every pseudo-TTY signal: Linux
+          runs 144 invocations across 45/6/29 groups; Windows/macOS run 80 because all transports are pipes. Exact
+          argv, stdin, outcome and worktree-preservation assertions remain; Notes record the platform interpretation.
 
-    - `[ ]` **5.2.b Build the initialized repository once**
-        - `prepareRepositoryTemplate` builds the initialized repository the 75 initialized entries need, once, and
-          each of their invocations runs in a `copyPreparedRepository` copy
-          (`__tests__/helpers/prepared-repository.ts`). The three bare entries and the two stub entries (one with an
-          origin, for `start`) keep building in place.
-        - The `repository-inventory.test.ts` match between `NO_INPUT_MATRIX` and live interaction sites stays.
+    - `[x]` **5.2.b Build the initialized repository once**
+        - One initialized template serves 75 ordinary entries through independent per-invocation copies. Three
+          bare and two stub fixtures retain their own setup; the standalone progress/stdin cases and exact live
+          interaction-site match remain unchanged.
+
+- _Outcome:_ The matrix preserves every entry and outcome while sharing initialized setup and selecting only distinct
+  interaction contexts. The CLI helper and invocation planner share transport authority, with platform differences
+  recorded in Notes § Distinct no-input invocations.
 
 ### `[ ]` **5.3 Build the remaining repeated E2E fixtures once — D4**
 

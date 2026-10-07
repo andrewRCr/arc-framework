@@ -1335,3 +1335,24 @@ qualified full build, Markdown and all ARC checks. Shell inputs are unchanged an
 gate. `/tmp/arc-managed-run-final-{routine,lint,types,build,md}.log` retains the command evidence. The complete token,
 guard and native-child behavior is one atomic concern; no production command behavior beyond the specified managed
 freshness skip changes.
+
+## Distinct no-input invocations
+
+The transport selector is shared by the existing built-CLI helper and `selectNoInputInvocations`. It preserves the
+leading-flag behavior of implicit machine payloads, exact argv and stdin bytes. The plan keeps each pseudo-TTY signal
+plus the first pipe representative. Six new pure scheduling cases fail against the legacy three-invocation result
+(`/tmp/arc-distinct-invocations-red.log`), then pass in `/tmp/arc-distinct-invocations-green.log`; focused lint and both
+type programs pass. These coupled descriptors share one transport/filter implementation.
+
+All 80 entries remain, with unchanged output/exit/worktree assertions and exact live interaction-site reconciliation.
+Linux retains the specified 45 one-invocation, six two-invocation and 29 three-invocation groups (144 total). The existing
+helper allocates no pseudo-TTY on Windows/macOS, so all 80 entries there collapse to one pipe invocation. This bounded
+platform interpretation follows the specification's distinct-context rule; its numeric 45/6/29 split describes the
+Linux baseline rather than introducing redundant signals elsewhere. No production interaction policy changes.
+
+The initialized template is built and committed once for 75 ordinary entries, then copied independently for each
+invocation. Three bare and two stub entries retain their original setup; progress-TTY and exact stdin cases stay
+separate. The complete file passes all 83 cases (`/tmp/arc-no-input-template-targeted.log`). Both type programs and
+focused lint pass before closure. Complete gates pass: 1,106 routine files / 16,607 cases and all 67 E2E files / 701
+cases, full typed lint, Markdown and ARC checks. The unchanged production/build and shell inputs retain their preceding
+completed gates. Evidence is in `/tmp/arc-no-input-{template,final}-*.log`; the final E2E run takes 249.47 seconds.

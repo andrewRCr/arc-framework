@@ -4,14 +4,38 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
+import { copyPreparedRepository, prepareRepositoryTemplate, type PreparedRepositoryTemplate } from "../helpers/prepared-repository.js";
+import { selectNoInputInvocations } from "../helpers/no-input-invocations.js";
 import { NO_INPUT_MATRIX } from "../fixtures/command-input/no-input-matrix.js";
 import { cleanupTempDir, createTempRepo, git, runArc, runArcNoTty, runArcWithStdin } from "./helpers.js";
 
 describe("command-input no-input matrix", () => {
   const repositories: string[] = [];
   const spawnedWorktrees: Array<{ repository: string; path: string }> = [];
+
+  const initializedShape = { kind: "plain", key: "no-input-matrix-initialized" } as const;
+  let initializedTemplate: PreparedRepositoryTemplate | undefined;
+  beforeAll(async () => {
+    initializedTemplate = await prepareRepositoryTemplate(initializedShape, async () => {
+      const cwd = await createTempRepo("arc-command-input-template-");
+      try {
+        const initialized = await runArcNoTty(["--no-input", "init", "--name", "matrix", "--identity", "matrix"],
+          cwd, { timeout: 10_000, env: { CI: "false" } });
+        expect(initialized.exitCode, JSON.stringify(initialized)).toBe(0);
+        await git(cwd, ["add", "."]);
+        await git(cwd, ["commit", "-m", "chore: initialize fixture"]);
+        return cwd;
+      } catch (error) {
+        await cleanupTempDir(cwd);
+        throw error;
+      }
+    });
+  });
+  afterAll(async () => {
+    if (initializedTemplate !== undefined) await cleanupTempDir(initializedTemplate.root);
+  });
 
   afterEach(async () => {
     await Promise.all(spawnedWorktrees.splice(0).map(async ({ repository, path }) => {
@@ -71,13 +95,17 @@ describe("command-input no-input matrix", () => {
     },
   );
 
-  it.each(NO_INPUT_MATRIX)("terminates $commandPath for each unavailable-interaction signal", async (entry) => {
+  it.each(NO_INPUT_MATRIX)("terminates $commandPath for each distinct unavailable-interaction context", async (entry) => {
     const invoke = async (
       run: (cwd: string) => ReturnType<typeof runArcNoTty>,
     ) => {
-      const cwd = await createTempRepo("arc-command-input-e2e-");
+      const prepared = entry.fixture !== "bare" && entry.setup === undefined;
+      if (prepared && initializedTemplate === undefined) throw new Error("Missing initialized matrix template");
+      const cwd = prepared
+        ? await copyPreparedRepository(initializedTemplate!, initializedShape)
+        : await createTempRepo("arc-command-input-e2e-");
       repositories.push(cwd);
-      if (entry.fixture !== "bare") {
+      if (!prepared && entry.fixture !== "bare") {
         const initialized = await runArcNoTty(
           ["--no-input", "init", "--name", "matrix", "--identity", "matrix"],
           cwd,
@@ -93,6 +121,15 @@ describe("command-input no-input matrix", () => {
         }
         await git(cwd, ["add", "."]);
         await git(cwd, ["commit", "-m", "chore: initialize fixture"]);
+      }
+      if (prepared && entry.configuration === "full-protection") {
+        const configPath = join(cwd, ".arc", "system", "arc-config.yml");
+        const config = await readFile(configPath, "utf8");
+        const updated = config.replace("branch.protection: partial", "branch.protection: full");
+        expect(updated, "expected the installed partial-protection setting").not.toBe(config);
+        await writeFile(configPath, updated);
+        await git(cwd, ["add", "."]);
+        await git(cwd, ["commit", "-m", "chore: configure fixture"]);
       }
       if (entry.setup !== undefined) {
         const commitment = entry.setup === "provisional-stub" ? "provisional" : "planned";
@@ -125,25 +162,14 @@ describe("command-input no-input matrix", () => {
       const after = entry.preservesWorktree === true ? await git(cwd, ["status", "--porcelain=v1"]) : undefined;
       return { result, mutationPreserved: before === after };
     };
-    const runs = await Promise.all([
-      invoke((cwd) => entry.stdin === undefined
-        ? runArc(["--no-input", ...entry.args], cwd, { timeout: 10_000, env: { CI: "false" } })
-        : runArcWithStdin(
-            ["--no-input", ...entry.args],
-            cwd,
-            entry.stdin,
-            { timeout: 10_000, env: { CI: "false" } },
-          ))
-        .then((run) => ({ signal: "--no-input", ...run })),
-      invoke((cwd) => entry.stdin === undefined
-        ? runArc(entry.args.slice(), cwd, { timeout: 10_000, env: { CI: "true" } })
-        : runArcWithStdin(entry.args.slice(), cwd, entry.stdin, { timeout: 10_000, env: { CI: "true" } }))
-        .then((run) => ({ signal: "CI", ...run })),
-      invoke((cwd) => entry.stdin === undefined
-        ? runArcNoTty(entry.args.slice(), cwd, { timeout: 10_000, env: { CI: "false" } })
-        : runArcWithStdin(entry.args.slice(), cwd, entry.stdin, { timeout: 10_000, env: { CI: "false" } }))
-        .then((run) => ({ signal: "non-TTY", ...run })),
-    ]);
+    const runs = await Promise.all(selectNoInputInvocations(entry).map((invocation) =>
+      invoke((cwd) => entry.stdin !== undefined
+        ? runArcWithStdin(invocation.args, cwd, entry.stdin, { timeout: 10_000, env: { CI: invocation.ci } })
+        : invocation.forceNoTty
+          ? runArcNoTty(invocation.args, cwd, { timeout: 10_000, env: { CI: invocation.ci } })
+          : runArc(invocation.args, cwd, { timeout: 10_000, env: { CI: invocation.ci } }))
+        .then((run) => ({ signal: invocation.signal, ...run })),
+    ));
 
     for (const { signal, result, mutationPreserved } of runs) {
       expect(result.timedOut, `${signal}: ${JSON.stringify(result)}`).not.toBe(true);

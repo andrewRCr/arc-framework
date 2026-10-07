@@ -12,7 +12,7 @@ export interface NoInputMatrixCase {
 }
 
 /**
- * Each case runs in a fresh piped-stdio repository with CI and `--no-input` set.
+ * Each case runs from an independent repository under distinct unavailable-interaction contexts.
  * Repository inventory tests exact-match these command paths to live interaction sites.
  */
 export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
