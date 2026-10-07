@@ -21,6 +21,31 @@ beforeAll(async () => {
 afterAll(async () => { await rm(producer.root, { recursive: true, force: true }); });
 
 it.each(["lint-typecheck", "integration", "e2e", "portability"])(
+  "qualifies transferred output and its preflight contract for %s", async (job) => {
+    const consumer = await downloadCiBuild(producer.packageRoot, job);
+    try {
+      expect(readBuildQualification(consumer.packageRoot, "full")).toMatchObject({
+        status: "qualified", evidence: { generation, qualification: { declarations: true } },
+      });
+      const preflight = (await ciBuildSteps(job)).find((step) => step.id === "runtime-preflight");
+      expect(preflight).toMatchObject({
+        run: "node --import tsx packages/arc-framework/src/scripts/run-build.ts prepare",
+        env: { ARC_E2E_SKIP_BUILD: "" },
+      });
+      const cli = join(consumer.packageRoot, "src/cli.ts");
+      const original = await readFile(cli, "utf8");
+      await writeFile(cli, original + "\n// consumer source changed\n");
+      expect(readBuildQualification(consumer.packageRoot, "runtimeSchema")).toMatchObject({ status: "unqualified" });
+      await expect(readFile(join(consumer.packageRoot, ".config-loads"))).rejects.toMatchObject({ code: "ENOENT" });
+      await writeFile(cli, original);
+      expect(readBuildQualification(consumer.packageRoot, "full")).toMatchObject({
+        status: "qualified", evidence: { generation, qualification: { declarations: true } },
+      });
+    } finally { await rm(consumer.root, { recursive: true, force: true }); }
+  }, 60_000,
+);
+
+it.each(["integration"])(
   "repairs transferred output before %s consumes it with generation disabled", async (job) => {
     const consumer = await downloadCiBuild(producer.packageRoot, job);
     try {

@@ -247,7 +247,7 @@ is measured against the baseline.
           real compiler interval and dynamic-import bundling cases run in integration. Inherited configuration
           capture remains process-free filesystem work; no cases or assertions are removed.
 
-### `[ ]` **3.4 Convert the CI-build files — D2**
+### `[x]` **3.4 Convert the CI-build files — D2**
 
 - _Goal:_ `ci-build-recovery.test.ts` and `ci-build-transfer.test.ts` no longer bound a unit shard: their fault
   matrices run as direct calls, and each real outcome class runs once in integration under a basename the
@@ -258,8 +258,11 @@ is measured against the baseline.
           real producer. One native controller refusal/preflight/repaired run per class remains, and the alternate
           Node scenario retains its original conditional skip. All classes stay portability-selected in integration.
 
-    - `[ ]` **3.4.b `ci-build-transfer.test.ts`**
-        - Includes the retained-producer case at `:65`, which carries a 30 s explicit timeout today.
+    - `[x]` **3.4.b `ci-build-transfer.test.ts`**
+        - Every consumer job checks transferred qualification and the actual shared preflight contract directly.
+          Integration retains one native transfer/repair/skip-build consumption run plus full producer and
+          platform-local declaration gates. The direct job rows replace equivalent native job replays; portability
+          keeps the basename and all baseline classes.
 
 ### `[ ]` **3.5 Convert the dev-build and dev-check files — D2**
 

@@ -307,7 +307,8 @@ The existing integration inventory case is included alongside the original unit 
 - **`ci-build-transfer`:** producer builds full declarations; transferred qualified output is reused without generation;
   source-changed output is repaired before skip-build consumption; prepared integration/E2E setup and teardown retain
   the repaired generation and ownership; a second controller reuses output; platform-local install/full/preflight/
-  consumption ordering retains declarations. Locations: direct matrices and real integration classes, pending.
+  consumption ordering retains declarations. All direct consumer rows and both real integration classes now run
+  in `__tests__/integration/ci-build-transfer.test.ts`, selected by the original portability basename.
 - **`ci-build-recovery`:** missing runtime/schema, malformed evidence, source/manifest/installation identity changes
   refuse without generation and resume after local preflight; missing/malformed/empty npm evidence refuses both
   controller and preflight without mutation, then repaired installation permits reuse; optional alternate-Node producer
@@ -480,3 +481,13 @@ Real integration case medians in the focused mode:
   The alternate-Node producer scenario moves unchanged with its conditional skip. All ten direct fault behaviors
   failed against an always-qualified reconstruction of the public reader and passed after restoration in a temporary
   module/test copy. Primary source and derived CLI were untouched by that reconstruction.
+
+- **`ci-build-transfer`:** one actual full producer backs every direct consumer row. The native integration job
+  `repairs transferred output before integration consumes it with generation disabled` retains transfer, qualified
+  reuse, changed-source repair, owned integration/E2E setup/teardown, and repeated skip-build consumption. The
+  retained-producer/platform-local declaration case remains unchanged. The other three native job replays are
+  replaced by `qualifies transferred output and its preflight contract for lint-typecheck/e2e/portability`, each
+  checking the actual workflow command/environment, transferred full qualification, source-change refusal without
+  generation, and restored full qualification. The four direct rows failed separately against stale-evidence
+  acceptance and incorrect preflight wiring reconstructions, then passed after restoration. Workflow bytes and
+  primary CLI output were preserved; the basename retains every baseline portability class.
