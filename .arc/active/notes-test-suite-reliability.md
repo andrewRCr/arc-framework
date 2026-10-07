@@ -1553,3 +1553,20 @@ its passing gate. The measured data, sequencer and dispatch handoff form one ato
 comparison decides whether any of this layout remains. Deferred review now covers phases 1–10, with atomic commits,
 needed pushes and hosted runs preapproved; phase 11 remains outside that scope. Intent-preserving adjustments are
 recorded here and in task outcomes rather than introducing additional approval stops.
+
+### Budget annotation evidence
+
+The independent budget annotation change is prepared while the source-run sequence stays on the published trial head;
+no later implementation is pushed during that comparison. Missing baseline text and the absent Actions command each
+fail first in `/tmp/arc-budget-annotation{,-command}-red.log`. A narrow reconstruction that annotates `within` and
+throws for `over` fails three cases (`/tmp/arc-budget-policy-reconstruction-red.log`), then source is restored
+byte-for-byte. All four budget cases pass in `/tmp/arc-budget-annotation-restored-green.log`. A native invocation of
+`report-test-budget.ts` exits zero and emits the matching annotation, standing JSON and baseline-bearing step summary
+(`/tmp/arc-budget-native-stdout.log`, `/tmp/arc-budget-native-summary.md`). Overage remains advisory. The report's
+single message supplies both outputs, and workflow-command data escapes percent signs and line endings.
+
+The warning change passes the complete routine gate: 1,113 files and 16,643 cases, with one file and 1,188 cases skipped
+(`/tmp/arc-budget-annotation-routine.log`, 205.34 s). Full typed lint, both type programs, Markdown and all ARC contracts
+pass; the full declaration build qualifies. The unchanged shell surface retains its earlier passing gate. Its atomic
+commit stays local until the four trial dispatches finish, keeping their remote head fixed. Implementing this independent
+visibility change during hosted layout waiting preserves the design and avoids idle execution time.

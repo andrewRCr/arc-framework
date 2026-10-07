@@ -739,18 +739,14 @@ and a test proves an `over` budget reading emits a `::warning` annotation naming
         - The sequencer, both sources, the selector, and the trial jobs go, the cache's steps leaving
           `workflowHeavyCheckNames`'s admitted setup steps; the anchors, their readers, and the single unit job stay.
 
-### `[ ]` **7.6 Annotate budget overage on the pull request's checks — D5**
+### `[x]` **7.6 Annotate budget overage on the pull request's checks — D5**
 
 - _Goal:_ An `over` budget reading shows on the pull request's checks as a warning naming the job, its overage, its
   budget, its baseline, and its observed time, while `within` stays quiet and no job fails on its budget.
 
-    - `createCiTestBudgetReport` (`ci-budget.ts`) returns a GitHub Actions `::warning` annotation beside its
-      job-summary warning, and `report-test-budget.ts` writes it to stdout, where Actions reads workflow commands.
-    - Build `test-first` (one behavior at a time):
-        - An `over` reading returns a `::warning` annotation naming the job, the baseline, and the budget
-        - The job-summary warning names the baseline beside the budget
-        - A `within` reading returns neither
-        - An `over` reading returns its report without throwing, the script's only failing path
+- _Outcome:_ The report supplies one baseline-bearing overage message to its Actions warning and step summary;
+  the native reporter writes the warning to stdout and preserves advisory success. Within-budget results stay quiet.
+  `notes-test-suite-reliability.md` § Budget annotation evidence retains the policy and native-output proofs.
 
 ### `[ ]` **7.7 Layout decided** — validate exit criterion at segment scope
 
