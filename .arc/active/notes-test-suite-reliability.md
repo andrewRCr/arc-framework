@@ -571,3 +571,23 @@ following restoration in temporary module/test copies; primary source and derive
 The bounded advisor consultation confirmed that native channel names alone do not establish separate outcome classes.
 Primary source inspection verified the global-setup rejection path and the public direct replacement proofs before
 folding the two additional replays. This refines the conversion within its existing design intent.
+
+- **`focused-test-selection`:** `selectExactSpecifications` is exported with documentation; its body is unchanged.
+  This bounded visibility adjustment exposes the existing decision rather than adding a controller injection layer.
+  Seven direct cases prove exact files/directories, noncontributing operands, project-filtered refusal, configured
+  order, object identity, and deduplication. Native exact-file, excluded-target, project-filtered refusal, and mixed
+  eligible selection classes remain in integration. `selects exactly unit/dir without adjacent configured files`
+  replaces the repeated directory row, alongside actual directory execution in `focused-test-execution`;
+  `refuses noncontributing unit/helper.ts/unit/empty beside a valid operand` replaces those repeated refusal rows.
+- **`focused-test-runtime`:** five fake-controller project combinations decide runtime need without preparation.
+  The mixed unit/integration/E2E row retains one actual shared generation, both heavy setup/teardown paths, CPU/artifact
+  ownership, qualification, reused generation without another configuration load, and final lease release. It replaces
+  the integration-only/E2E-only native replays, whose different membership inputs are directly proved by `derives
+  runtime need true for configured integration/e2e`. Unit-only unowned execution, unmatched-name refusal after
+  preparation, refined-empty refusal before preparation, and cross-file-only refinement stay real in integration.
+- **`focused-test-execution`:** the complete file moves unchanged. Literal npm separator/package cwd, native mock
+  isolation and its override, native thread-pool parallelism, and explicit file serialization are distinct real
+  execution classes; none is replaced by a fake.
+- **`focused-test-input`:** native-option parsing and filesystem operand validation remain process-free. The twelve
+  new selection/runtime behaviors failed against narrow empty-selection and constant-runtime reconstructions and
+  passed after restoration in temporary source/test copies, with primary source and derived CLI left untouched.

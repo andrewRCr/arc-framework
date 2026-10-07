@@ -305,9 +305,11 @@ is measured against the baseline.
 - _Goal:_ The focused controllers and the cost instrument are proved below the real stack, with their real runs
   folded to one per outcome class in integration.
 
-    - `[ ]` **3.7.a Focused test files**
-        - `focused-test-runtime`, `focused-test-execution`, and `focused-test-selection`; `focused-test-input` is
-          recorded as running no native work.
+    - `[x]` **3.7.a Focused test files**
+        - Exported the unchanged exact-selection function for direct eligibility/order/deduplication proofs; fake
+          discovery proves runtime need. Native mixed preparation/reuse, refined-selection refusals, and all four
+          execution classes remain in integration. Notes names each dropped matrix row's narrower proof.
+        - `focused-test-input` remains process-free.
 
     - `[ ]` **3.7.b Focused lint files**
         - `focused-lint` and `focused-lint-staged`; the staged-lint runs fold into one real run.

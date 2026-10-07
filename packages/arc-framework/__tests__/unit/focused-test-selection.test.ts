@@ -1,64 +1,45 @@
-/** Every root operand contributes exact native project membership before preparation. */
-import { access, readFile, rm } from "node:fs/promises";
-import { join } from "node:path";
+/** Exact operand contribution is decided over configured specifications without workers. */
+import { resolve } from "node:path";
 import { expect, it } from "vitest";
-import { makeFocusedVitestFixture, runFocusedDiscoveryFixture } from "../helpers/focused-vitest-fixture.js";
+import { selectExactSpecifications } from "../../src/lib/focused-test-selection.js";
+import type { FocusedTestTarget } from "../../src/lib/focused-test-input.js";
+import { makeVitestControllerFake } from "../helpers/vitest-controller-fake.js";
 
-const tree = "packages/arc-framework/__tests__/";
-
+const root = resolve("selection-fixture");
+function target(operand: string, kind: FocusedTestTarget["kind"] = "file"): FocusedTestTarget {
+  return { operand, path: resolve(root, operand), kind };
+}
+function specifications() {
+  return makeVitestControllerFake([
+    { path: resolve(root, "integration/runtime.test.ts"), project: "integration" },
+    { path: resolve(root, "unit/named.test.ts"), project: "unit" },
+    { path: resolve(root, "unit/named.test.ts-adjacent.test.ts"), project: "unit" },
+    { path: resolve(root, "unit/dir/included.test.ts"), project: "unit" },
+    { path: resolve(root, "unit/dir-adjacent/sibling.test.ts"), project: "unit" },
+  ]).specifications;
+}
 it.each([
-  ["unit/named.test.mjs", ["__tests__/unit/named.test.mjs"]],
-  ["unit/dir", ["__tests__/unit/dir/included.test.mjs"]],
-] as const)("selects exactly %s without substring-adjacent files", async (operand, expected) => {
-  const fixture = await makeFocusedVitestFixture();
-  try {
-    const result = await runFocusedDiscoveryFixture(fixture.packageRoot, [tree + operand]);
-    expect(result.code, result.stderr).toBe(0);
-    expect(result.stdout.split("\n").find((line) => line.startsWith("SELECTION:")))
-      .toBe("SELECTION:" + JSON.stringify(expected));
-    expect(result.stdout).toContain("RUNTIME:false");
-  } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 30_000);
-
-it.each(["unit/excluded.test.mjs", "unit/helper.mjs", "unit/empty"])("rejects %s even beside a valid operand", async (operand) => {
-  const fixture = await makeFocusedVitestFixture();
-  try {
-    const result = await runFocusedDiscoveryFixture(fixture.packageRoot, [tree + "unit/named.test.mjs", tree + operand]);
-    expect(result.code).toBe(1);
-    expect(result.stdout + result.stderr).toContain(operand);
-    for (const file of [".arc-build.lock", ".config-loads"]) {
-      await expect(access(join(fixture.packageRoot, file))).rejects.toMatchObject({ code: "ENOENT" });
-    }
-    const events = await readFile(fixture.events, "utf8");
-    expect(events).toContain("closed");
-    expect(events).not.toContain("unit-setup");
-    expect(await readFile(join(fixture.packageRoot, "dist/cli.js"), "utf8")).toContain("previous-live-runtime");
-  } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 30_000);
-
-it("requires each target to contribute after native project filtering", async () => {
-  const fixture = await makeFocusedVitestFixture();
-  try {
-    const result = await runFocusedDiscoveryFixture(fixture.packageRoot,
-      [tree + "unit/named.test.mjs", tree + "integration/runtime.test.mjs", "--project", "integration"]);
-    expect(result.code).toBe(1);
-    expect(result.stdout + result.stderr).toContain("unit/named.test.mjs");
-    await expect(access(join(fixture.packageRoot, ".config-loads"))).rejects.toMatchObject({ code: "ENOENT" });
-    expect(await readFile(fixture.events, "utf8")).not.toContain('"stage":"integration:setup"');
-  } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 30_000);
-
-it("retains every eligible operand and its native project after explicit filtering", async () => {
-  const fixture = await makeFocusedVitestFixture();
-  try {
-    const result = await runFocusedDiscoveryFixture(fixture.packageRoot,
-      [tree + "unit/named.test.mjs", tree + "integration/runtime.test.mjs", "--project", "unit", "--project", "integration"]);
-    expect(result.code, result.stderr).toBe(0);
-    expect(result.stdout.split("\n").find((line) => line.startsWith("SELECTION:"))).toBe("SELECTION:" + JSON.stringify([
-      "__tests__/integration/runtime.test.mjs", "__tests__/unit/named.test.mjs",
-    ]));
-    expect(result.stdout).toContain("RUNTIME:true");
-    expect(await readFile(fixture.events, "utf8")).not.toContain('"stage":"integration:setup"');
-    await expect(access(join(fixture.packageRoot, ".config-loads"))).rejects.toMatchObject({ code: "ENOENT" });
-  } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 30_000);
+  { operand: "unit/named.test.ts", kind: "file", expected: ["unit/named.test.ts"] },
+  { operand: "unit/dir", kind: "directory", expected: ["unit/dir/included.test.ts"] },
+] as const)("selects exactly $operand without adjacent configured files", ({ operand, kind, expected }) => {
+  expect(selectExactSpecifications([target(operand, kind)], specifications()).map(({ moduleId }) => moduleId))
+    .toEqual(expected.map((file) => resolve(root, file)));
+});
+it.each(["unit/excluded.test.ts", "unit/helper.ts", "unit/empty"])(
+  "refuses noncontributing %s beside a valid operand", (operand) => {
+    expect(() => selectExactSpecifications([target("unit/named.test.ts"), target(operand,
+      operand === "unit/empty" ? "directory" : "file")], specifications())).toThrow(operand);
+  });
+it("requires contribution after native project filtering", () => {
+  const filtered = specifications().filter(({ project }) => project.name === "integration");
+  expect(() => selectExactSpecifications([target("unit/named.test.ts"), target("integration/runtime.test.ts")], filtered))
+    .toThrow("unit/named.test.ts");
+});
+it("retains configured order and identity once across overlapping operands", () => {
+  const candidates = specifications();
+  const selected = selectExactSpecifications([target("unit/named.test.ts"), target("unit", "directory"),
+    target("integration/runtime.test.ts")], candidates);
+  expect(selected).toEqual(candidates);
+  expect(selected[0]).toBe(candidates[0]);
+  expect(selected.filter(({ moduleId }) => moduleId === resolve(root, "unit/named.test.ts"))).toHaveLength(1);
+});
