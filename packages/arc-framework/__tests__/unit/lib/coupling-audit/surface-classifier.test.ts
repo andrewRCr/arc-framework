@@ -10,6 +10,8 @@ describe("classifySurface", () => {
     ["packages/arc-framework/templates/user/SESSION-NOTES.md", "template"],
     ["packages/arc-framework/arc/reference/templates/arc/template-adr.md", "template"],
     ["packages/arc-framework/src/lib/classification.ts", "code"],
+    ["packages/arc-framework/eslint/architecture-imports.ts", "code"],
+    ["packages/arc-framework/eslint/architecture-config.ts", "code"],
     ["packages/arc-framework/arc/system/.internal/githooks/pre-commit", "code"],
     ["packages/arc-framework/arc/system/.internal/githooks/README.md", "prose"],
     ["scripts/check-package-sync.sh", "code"],

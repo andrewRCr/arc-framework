@@ -428,15 +428,10 @@ local predicate IDs where built-in selectors cannot preserve the existing bounda
           inventory. Dependency/declaration bans migrate after native proofs; positive catalogs, export surfaces,
           transitive loading and explicit vocabulary properties survive. Incidental text branches are classified.
 
-    - `[ ]` **4.3.b The composed ban table**
-        - `eslint.config.js` holds the bans as one table of rows (scope globs, `no-restricted-imports` paths or
-          patterns, `no-restricted-syntax` selectors) and generates its entries so that each file receives one
-          option set per rule holding every row whose scope matches it.
-        - A unit test resolves configuration through `ESLint#calculateConfigForFile`, with no lint pass, and checks
-          the resolved ban set of a file in each row's scope.
-        - Build `test-first` (one behavior at a time):
-            - A file inside one row's scope resolves that row's bans.
-            - A file inside overlapping scopes resolves every matching row's bans in one option set per rule.
+    - `[x]` **4.3.b The composed ban table**
+        - One table composes disjoint directory/exact-file scopes into complete import, syntax and predicate-ID
+          unions, including future modules and exceptions. Native configuration-only proofs cover both actual
+          rows and all overlapping rule types. The coupling corpus recognizes the new executable tooling family.
 
     - `[ ]` **4.3.c Express each ban and delete the case it replaces**
         - Each inventoried ban becomes a row: `no-restricted-imports` paths or patterns, which also cover

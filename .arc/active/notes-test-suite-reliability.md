@@ -1132,3 +1132,33 @@ contracts whose stated property includes text.
 
 - `work-unit/decompose-v3-refusal-source-totality` — **retain typed semantic property**. Both type-checked refusal
   inventories and per-reason remedy specificity remain unchanged; A2 adjusts only their named timeouts.
+
+## Composed architecture table
+
+The table in `packages/arc-framework/eslint.config.js` names scope globs, exact-file exclusions, import paths and
+patterns, syntax selectors, and local predicate IDs. Its initial rows enable the global `neverthrow` and kernel
+predicates. `eslint/architecture-config.ts` partitions rooted directory scopes and exact-file anchors; each partition
+has one option set per rule containing every matching row. It enumerates scope boundaries rather than source files,
+so a future nested TSX/CTS/MTS file receives the same policy. Exact exceptions receive the remaining outer bans.
+The intentionally bounded scope grammar refuses unsupported wildcard shapes rather than silently miscompose them.
+
+Native `ESLint#calculateConfigForFile` proofs perform no lint pass. They cover actual global/kernel scopes and a
+synthetic overlapping scope with all three option unions, including a future nested TSX module and an exact-file
+exception. `arc-ban-table-single-{red,green}.log` and `-overlap-{red,green}.log` record missing real scope options,
+then their presence. `arc-ban-table-{union,exception}-red.log` records behavioral failures under narrow copied
+composer reconstructions; `-composition-green.log` and `-final-targeted.log` record restored native resolution.
+An initial reconstruction invocation was rejected for a second npm separator; it was corrected before either
+behavioral failure was recorded. No rejected invocation is counted as fail-first evidence.
+
+The ordinary pre-table `lint:ts` command passes in 49,858.146 ms against the exact config at `5dec84dee`, recorded
+in `/tmp/arc-ban-table-before-lint.{json,log}`. The measurement temporarily restores only that configuration and
+then restores the current bytes in `finally`; production source and derived CLI are untouched. Final migration
+cost is measured after all rows land, rather than inferred from this substrate's marginal cost.
+
+The first routine suite after the predicate substrate became tracked found the coupling corpus classifier did not
+own `packages/arc-framework/eslint/*.ts`. Its earlier green run preceded tracking that new directory, so this later
+failure is retained rather than described as an unchanged green. The existing executable-code family now includes
+that tooling directory; Markdown retains prose classification. Both concrete helper paths fail before the one-line
+family registration and pass afterward, and the real checked-in corpus integration case passes. Evidence is in
+`/tmp/arc-ban-table-corpus-{red,green}.log`; the final routine suite is rerun over the corrected, staged helper set.
+This is a bounded integration adjustment required by the new lint tooling, with no taxonomy or audit-policy change.

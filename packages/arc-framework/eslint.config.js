@@ -1,7 +1,13 @@
 import eslint from "@eslint/js";
 import { join } from "node:path";
 import tseslint from "typescript-eslint";
+import { composeArchitectureBans, TYPESCRIPT_SCOPE } from "./eslint/architecture-config.ts";
 import { createArchitectureImportsRule } from "./eslint/architecture-imports.ts";
+
+const architectureBans = [
+  { files: [`src/${TYPESCRIPT_SCOPE}`], predicates: ["neverthrow"] },
+  { files: [`src/lib/kernel/${TYPESCRIPT_SCOPE}`], predicates: ["kernel"] },
+];
 
 export default tseslint.config(
   eslint.configs.recommended,
@@ -53,6 +59,7 @@ export default tseslint.config(
       "max-lines": ["error", { max: 1500, skipBlankLines: true, skipComments: true }],
     },
   },
+  ...composeArchitectureBans(architectureBans),
   {
     ignores: ["dist/", "eslint.config.js"],
   },
