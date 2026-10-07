@@ -1134,6 +1134,9 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
   Current hosted E2E/portability evidence is retained; verification-document Markdown/ARC checks pass separately.
   The A16 correction passes all full local gates with 16,757 routine cases and the full build, plus first-attempt
   hosted full-suite/Windows/macOS confirmation 37698035019; historical colored-run evidence remains head-bound.
+  The second review correction passes all full local gates with 16,769 routine cases, the qualified full build
+  and first-attempt full-suite/Windows/macOS confirmation 37703453112, retaining the unchanged worker policy and
+  all historical measurement bindings.
 
 - _Success criteria:_ 32 criteria: 27 met, five superseded by A1/A14/A15/A16, none unresolved. Exact criterion digests,
   evidence span, author preflight and limitations are recorded in `notes-test-suite-reliability.md` § Verification

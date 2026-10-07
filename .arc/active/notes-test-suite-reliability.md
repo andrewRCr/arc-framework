@@ -3329,3 +3329,51 @@ The full prior criterion report remains in § Verification evidence; its immutab
 carry forward, while the affected boundaries were inspected against the correction and current reachable tree.
 Primary-only verification remains the approved choice. Candidate advancement and incremental independent standard
 review remain pending; this criteria result supplies no evaluator or merge authority.
+
+## Standard-review pass 2 corrections
+
+The completed incremental delegated pass at `c9424b1fa` covered all seventeen changed paths, six closure scopes,
+the dedicated seam and fresh aggregation. Three source-confirmed major findings were approved FIX with full
+verification in disposition set `sha256:fc31ce2ffc08378436c36be4147273f2c44618c46d59bcda4ab19ac5fc269d5b`.
+One further incremental delegated standard pass 3 was separately authorized above the configured two-pass ceiling.
+Its conditional allowance is `sha256:cbc0209003d9956ffec86590deb5c017940f31c5e7c95d021833586df5c701e9`;
+it authorizes only that named pass, not publication or merge.
+
+- `7594c4430` closes literal namespace element discovery and refusal. Five new cases fail before the correction;
+  all 133 command-input cases pass afterward. Namespace fixtures use the actual declaration and prompter exports.
+- `6936341e4` applies the existing binding-aware module reference collector to the Clack row. Three supported
+  template/named/inline-loader cases fail before correction. Narrow reconstructions also make both owner exceptions
+  and the harmless returned-loader case fail; restoration passes all 113 native/configuration cases. The predicate
+  joins the existing composed table without changing other restrictions.
+- `fc33590b6` finalizes file admission through native before/after-suite hooks without replaying completion.
+  Reconstruction of the previous runner fails all twelve module-completion comparisons and the aggregate count.
+  The corrected runner passes all eleven native guard cases and five guard-core cases, retaining the four late
+  teardown forms, three hook orderings and both unit projects. Native skipped labels remain native; a caught
+  collection refusal still retains failed admission through the module's `ok()` result and counted attempt.
+
+Each atomic correction passes targeted lint, both type programs and normal commit hooks. The amendment entry gate
+selects the ordinary review-fix path: existing native-preservation, identify-or-refuse and owner-confinement outcomes
+already require these corrections. No criterion, deadline, worker default, shard layout or budget is changed.
+The original setup-afterAll mechanism described in the spawn-guard design is realized by native suite hooks instead;
+the late-teardown outcomes and final launch accounting remain the required contract.
+
+The normal-hook raw push uses the standing explicit authorization for hosted verification. Full ordinary local gates
+pass at `fc33590b6bbb27c4a44fc6e9da3e2233cc75cd06`: Markdown, all three ARC checks, whole-package typed lint,
+shell checks, both type programs, 1,121 passing files and 16,769 passing cases with one file and 1,188 intentional
+case skips, and the full qualified declaration build. Routine duration is 235.36 seconds at the unchanged
+eight-worker default; this single confirmation does not replace the measured cost sample.
+
+First-attempt hosted confirmation 37703453112 at the same correction head succeeds. All seventeen applicable jobs
+pass, including both native portability legs; the two PR-only rollups are event-disabled. Both unit shards retain
+13,712 completed cases strictly below half their effective timeouts and 13,629 off-allowlist cases with zero
+launches, with no missing metadata. The tightest case is 2,472.734604 ms against its 10,000 ms deadline. All ten
+CI-job comparisons are within the unchanged budgets; summed budget clocks are 1,508,513 ms. Native run/attempt
+records, job logs, unit reports and derived checks are retained at package-relative
+`.test-cost-runs/closing-review-pass2/37703453112`. Historical captures and confirmations retain their original
+heads; no five-run or twelve-capture measurement batch is repeated.
+
+The primary criteria walk retains all thirty-two immutable criterion identities: twenty-seven met, five superseded,
+none unresolved. Existing historical color/cost evidence remains head-bound; the affected admission, confinement,
+declaration and current-confirmation criteria have fresh supplemental proof. Primary-only verification remains the
+approved choice. Candidate response and independent incremental standard pass 3 remain pending; this verification
+does not supply an evaluator conclusion or merge authority.
