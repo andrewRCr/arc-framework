@@ -2418,3 +2418,65 @@ Both type checks and targeted typed lint pass for the E2E-only code delta; Markd
 pass. The prior full build, shell lint and passing forced-color routine lane cover unchanged inputs under the
 project's unchanged-tree rule. The repair and forward task amendment form one atomic commit; A8's closing
 revalidation remains with Task 10.2 and all Success Criteria stay unmarked.
+
+## Closing measurement at the corrected final code head
+
+The repair head is `31c26574ed4dc7ccd02d9e4bced30e0b3cfe338d`; normal wrapped publication succeeds after GitHub's
+partial recovery. At 15:49:57 UTC the incident moves to monitoring with Git Operations and Actions operational.
+Fresh captures live under `closing-local-a8/`, retaining the frozen schema v4, twelve-worker and tier-isolated
+settings. All six unit/integration runs pass. Native-family paired sums are 645,223.513930, 646,737.758524 and
+628,120.127634 ms; the 645,223.513930 ms median is 42.88257902% below the frozen 1,129,643.991052 ms baseline.
+`native-summary.json` retains the calculation. E2E/lane collection and sequential hosted closing now use this same
+head; earlier-head measurements remain historical evidence rather than substitutes for these captures.
+
+## Amendment A9: Repeated fixture parsing
+
+Hosted runs 37647928217, 37648904674 and 37649708162 all pass on attempt one at `31c26574e`, and each report
+contains 13,693 completed unit cases with no half-timeout violation. Their elapsed times excluding the duration-cache
+tail are 390, 295 and 346 s; summed test-job times are 1,886, 1,751 and 1,727 s. Every summed time exceeds the
+1,712.8 s limit from the frozen 2,141 s baseline. Three such observations mathematically prevent a five-run median
+from clearing the 20% bar, regardless of the last two observations. Further dispatch stops; already-started run
+37650528528 is cancelled and retained separately. No cancelled run counts as a pass. The local lane collector can
+finish at its unchanged head, but those captures will remain historical after any implementation change.
+
+The amend-design gate takes the task arm at low depth: the existing hosted cost criterion requires the missing
+outcome, and the live-source fixture contract permits avoiding repeated parsing without caching contents or resolved
+graphs. `copyLiveDependencies` currently runs `ts.preProcessFile` again after every live read. Earlier calibration
+attributes about 106 ms of 153 ms traversal to parsing; the bounded advisor consultation identifies repeated fixtures
+within isolated files as the available reuse boundary, without claiming enough hosted savings before measurement.
+
+The correction retains one latest content/specifier entry per absolute source filename. Each copy still reads actual
+bytes, re-runs `ts.resolveModuleName` and runtime `fileExists`, and independently copies the graph. Exact content
+changes invalidate parsing reuse; new/deleted resolution candidates remain live. The footprint is the copier,
+its repeated-source tests and native consumers; thresholds, isolation, admission, compiler outcomes, CI layout and
+all Success Criteria remain unchanged. Author grounding traces these paths and the existing fixture graph fidelity
+criterion; the new task states the source/resolution/independence obligations directly. The amendment row and task
+record ride the implementation commit, with fresh closing evidence required afterward.
+
+The repeated-copy tests pass against the original uncached implementation, then fail the two bounded unsafe-cache
+reconstructions: stale import parsing omits the new untracked dependency, and cross-call resolution caching omits
+a newly created TypeScript candidate. Restoring content-keyed parsing and fresh resolution passes all four graph
+cases. Logs are `/tmp/arc-a9-content-red.log`, `/tmp/arc-a9-resolution-red.log` and `/tmp/arc-a9-live-green.log`.
+
+Three paired warm-copy calibrations compare uncached and memoized parsing with identical live source roots and
+independent destinations. SHA-256 inventories match for every one of the 405 files. Median copy time falls from
+200.883566 to 154.669295 ms (about 23%); `/tmp/arc-a9-memo-calibration.json` retains all samples. This bounds the
+local saving, without claiming a hosted result before fresh measurement. Only parsing is memoized; TypeScript
+resolution and runtime candidate checks remain uncached across invocations.
+
+Cancellation settles as `cancelled` in the retained run record; run/job/artifact metadata remain under
+`closing-hosted-a8/4-37650528528/`. GitHub cannot provide a complete cancelled-run log (`log not found`), recorded
+in `log-unavailable.txt`. The three passing runs keep their complete logs and unit-headroom reports.
+
+The ordinary default routine lane passes 1,121 executed files and 16,719 cases with `FORCE_COLOR=3` in 212.80 s
+(`/tmp/arc-a9-routine.log`). Both type checks and whole-package typed lint pass with no suppression change.
+The unchanged full-build and shell inputs retain their prior passing witnesses. Fresh hosted collection will
+start alongside the fresh local unit/integration captures: those preceding captures already clear the native bar,
+and the new correction targets the observed hosted cost miss. All final-head captures still rerun with the frozen
+instrument/settings. The temporary hosted collector now stops before another dispatch once three summed-cost
+samples make the five-run median mathematically unable to clear its unchanged target.
+
+The real-CLI stale-guard file also passes all three cases in 9.40 s with the corrected copier
+(`/tmp/arc-a9-stale-guard.log`). Author grounding over the A9 row, task and affected live-source contract finds no
+contradiction: source bytes, runtime candidates and TypeScript resolution remain live, while the memo retains only
+one latest content/specifier entry per filename. No outcome class, threshold or production input inventory changes.

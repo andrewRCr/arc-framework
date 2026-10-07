@@ -1019,6 +1019,15 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
   generic native fixtures retain their reduced workload. Other overlays require no extra root, and stale-guard
   assertions remain intact. The failed closing run is retained in `notes-test-suite-reliability.md` § Amendment A8.
 
+### `[x]` **10.R7 Reuse unchanged fixture import parsing — A9**
+
+- _Goal:_ A9 reduces repeated native-fixture parsing while preserving current dirty/untracked source contents,
+  fresh dependency resolution, independent writable destinations and unresolved-edge refusals.
+
+- _Outcome:_ Exact-content import parsing is reused while every copy reads current bytes and resolves current
+  candidates. Repeated source edits and candidate creation/deletion retain independent graphs and refusal behavior;
+  byte-matched calibration and stopped hosted evidence are recorded in `notes-test-suite-reliability.md` § Amendment A9.
+
 ### `[ ]` **10.1 Run the closing hosted runs**
 
 - _Goal:_ Five consecutive first-attempt passes at the final head show the suite reliable on hosted runners, give the

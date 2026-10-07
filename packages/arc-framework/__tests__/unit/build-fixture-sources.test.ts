@@ -50,3 +50,58 @@ it("refuses an unresolved relative edge instead of copying an incomplete graph",
       .rejects.toThrow("Unresolved fixture dependency ./deleted.js in entry.ts");
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+it("re-reads changed imports and contents across repeated copies of the same source paths", async () => {
+  const root = await mkdtemp(join(tmpdir(), "arc-fixture-live-imports-"));
+  try {
+    const source = join(root, "source");
+    await mkdir(source);
+    await writeFile(join(source, "entry.ts"), 'export { value } from "./first.js";');
+    await writeFile(join(source, "first.ts"), "export const value = 1;");
+    await copyLiveDependencies(source, join(root, "warm"), ["entry.ts"]);
+    await writeFile(join(source, "entry.ts"), 'export { value } from "./untracked.js";');
+    await writeFile(join(source, "untracked.ts"), "export const value = 2;");
+    const changed = join(root, "changed");
+    await copyLiveDependencies(source, changed, ["entry.ts"]);
+    expect((await readdir(changed)).sort()).toEqual(["entry.ts", "untracked.ts"]);
+    expect(await readFile(join(changed, "untracked.ts"), "utf8")).toBe("export const value = 2;");
+    await writeFile(join(source, "untracked.ts"), "export const value = 3;");
+    const updated = join(root, "updated");
+    await copyLiveDependencies(source, updated, ["entry.ts"]);
+    expect(await readFile(join(updated, "untracked.ts"), "utf8")).toBe("export const value = 3;");
+    await writeFile(join(source, "entry.ts"), "export const value = 4;");
+    const removed = join(root, "removed");
+    await copyLiveDependencies(source, removed, ["entry.ts"]);
+    expect(await readdir(removed)).toEqual(["entry.ts"]);
+    expect(await readFile(join(removed, "entry.ts"), "utf8")).toBe("export const value = 4;");
+    expect(await readFile(join(changed, "untracked.ts"), "utf8")).toBe("export const value = 2;");
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+it("resolves new and deleted candidates afresh when importer contents stay unchanged", async () => {
+  const root = await mkdtemp(join(tmpdir(), "arc-fixture-live-resolution-"));
+  try {
+    const source = join(root, "source");
+    await mkdir(source);
+    await writeFile(join(source, "entry.ts"), 'export { value } from "./sibling.js";');
+    await writeFile(join(source, "sibling.js"), "export const value = 1;");
+    await copyLiveDependencies(source, join(root, "warm"), ["entry.ts"]);
+    await writeFile(join(source, "sibling.ts"), "export const value = 2;");
+    const added = join(root, "added");
+    await copyLiveDependencies(source, added, ["entry.ts"]);
+    expect((await readdir(added)).sort()).toEqual(["entry.ts", "sibling.js", "sibling.ts"]);
+    await rm(join(source, "sibling.js"));
+    const removedRuntime = join(root, "removed-runtime");
+    await copyLiveDependencies(source, removedRuntime, ["entry.ts"]);
+    expect((await readdir(removedRuntime)).sort()).toEqual(["entry.ts", "sibling.ts"]);
+    await writeFile(join(source, "sibling.js"), "export const value = 3;");
+    await rm(join(source, "sibling.ts"));
+    const removedSource = join(root, "removed-source");
+    await copyLiveDependencies(source, removedSource, ["entry.ts"]);
+    expect((await readdir(removedSource)).sort()).toEqual(["entry.ts", "sibling.js"]);
+    expect(await readFile(join(removedSource, "sibling.js"), "utf8")).toBe("export const value = 3;");
+    await rm(join(source, "sibling.js"));
+    await expect(copyLiveDependencies(source, join(root, "missing"), ["entry.ts"]))
+      .rejects.toThrow("Unresolved fixture dependency ./sibling.js in entry.ts");
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

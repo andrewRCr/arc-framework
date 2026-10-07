@@ -8,6 +8,18 @@ const options: ts.CompilerOptions = {
   allowJs: true, resolveJsonModule: true,
 };
 
+const parsedImportsByFile = new Map<string, { content: string; imports: readonly string[] }>();
+
+/** Reuse content-dependent parsing while each copy retains fresh filesystem resolution. */
+function relativeImports(file: string, content: string): readonly string[] {
+  const previous = parsedImportsByFile.get(file);
+  if (previous !== undefined && previous.content === content) return previous.imports;
+  const imports = ts.preProcessFile(content, true, true).importedFiles
+    .map(({ fileName }) => fileName).filter((specifier) => specifier.startsWith("."));
+  parsedImportsByFile.set(file, { content, imports });
+  return imports;
+}
+
 /**
  * Copy reachable on-disk modules and explicit loader roots without Git membership assumptions.
  * @param source - First-party package root
@@ -35,8 +47,7 @@ export async function copyLiveDependencies(
     await mkdir(dirname(target), { recursive: true });
     await copyFile(file, target);
     if (file.endsWith(".json")) continue;
-    for (const { fileName } of ts.preProcessFile(content, true, true).importedFiles) {
-      if (!fileName.startsWith(".")) continue;
+    for (const fileName of relativeImports(file, content)) {
       const runtime = resolve(dirname(file), fileName);
       const resolved = ts.resolveModuleName(fileName, file, options, ts.sys).resolvedModule?.resolvedFileName;
       const alternatives = [ts.sys.fileExists(runtime) ? runtime : undefined, resolved]
