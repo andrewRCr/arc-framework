@@ -1754,3 +1754,33 @@ as a held tooling Errand in the personal inbox, alongside the existing loader-tr
 ordering mitigation preserves every required gate and changes no installer policy.
 The final source head also passes both native E2E files and all 22 cases (`/tmp/arc-install-e2e-final.log`, 9.62 s),
 retaining the first capture and confirming the final declaration-bound installer runtime.
+
+## Lifecycle prompt migration
+
+`stubCommitmentPromptSite`, `stubPriorityPromptSite` and `promoteClassPromptSite` replace callee selectors with
+exported declaration-bound select questions. Explicit command values enter the prompter as explicit answers; no branch
+on interaction chooses values. Stub asks both questions and aggregates their refused syntax in its existing single
+`Missing required input:` report. Promotion asks its class question when the recorded class remains unresolved,
+retaining explicit-class validation, conflicts and cancellation behavior.
+
+All three known message/declaration drifts resolve toward policy: missing commitment now names `--commitment <tier>`,
+priority `--priority <priority>`, and promotion class `--class <value>`. The old reports named concrete value sets;
+accepted value validation and CLI help retain those sets. Output prefix and exit status remain unchanged. The real
+no-input matrix now pins those exact declaration-based reports.
+
+The two stub report tests fail first against the old acquisition/reporting (`/tmp/arc-lifecycle-prompts-red.log`), then
+126 focused lifecycle/inventory/isolation cases pass (`/tmp/arc-lifecycle-prompts-green.log`). The new Clack-mocking
+report fixture enters the isolated tier from the outset. A narrow promotion-report reconstruction fails the real CLI
+expectation (`/tmp/arc-promote-native-refusal-red-corrected.log`); the source is restored byte-for-byte. Its first overly
+specific name filter selects no cases (`/tmp/arc-promote-native-refusal-red.log`) and is excluded from fail-first proof.
+The restored native stub and promotion cases both pass (`/tmp/arc-lifecycle-native-refusals-green.log`, two completed
+cases, 81 unselected). Focused source/test lint and matrix lint pass, retaining their `arc-lifecycle-*-lint.log` files.
+The complete routine gate passes 1,118 files and 16,701 cases, with one file and 1,188 cases skipped
+(`/tmp/arc-lifecycle-prompts-routine.log`, 188.29 s). Both type programs pass
+(`/tmp/arc-lifecycle-prompts-types.log`); Markdown and all ARC contracts pass. Full lint runs after preparation ends,
+retaining the already proved ordering mitigation for disposable loader siblings.
+Full typed lint passes (`/tmp/arc-lifecycle-prompts-full-lint.log`) with no suppression changes. The lifecycle handler
+file shrinks overall, and its question logic removes the old interaction branch without growing the recorded debt.
+The full declaration build qualifies (`/tmp/arc-lifecycle-prompts-full-build.log`). The unchanged shell surface retains
+its adoption gate, and the native refusal capture already covers the final restored source. The completed batch
+preserves all accepted value validation while recording the three visible report-placeholder corrections.

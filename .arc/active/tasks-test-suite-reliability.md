@@ -837,17 +837,15 @@ prompter, every prompting handler takes a required interaction context, and each
   Existing cancellation/reporting contracts remain, and the shared tools wrapper preserves caller-owned sites.
   Notes § Installer prompt migration retains the behavior proofs and the project-name drift correction.
 
-### `[ ]` **9.2 Migrate the stub and work-class prompts — D7**
+### `[x]` **9.2 Migrate the stub and work-class prompts — D7**
 
 - _Goal:_ The three `handlers/lifecycle.ts` prompts reach the prompter only through their declarations, and
   `handleStub` still collects missing `--commitment` and `--priority` into one `Missing required input:` report.
 
-    - The stub commitment and priority prompts, and the work-class prompt, by Task 9.1's rule. `handleStub` asks
-      both prompts in every context, and each refusal adds its syntax to the one `Missing required input:` report;
-      `handlePromote`'s work-class prompt refuses through the prompter in the same way.
-    - The reports' `--commitment <provisional|planned>`, `--priority <P1|P2|P3>`, and `--class <Light|Heavy|Novel>`
-      against the declared `--commitment <tier>`, `--priority <priority>`, and `--class <value>` are known drift
-      candidates, resolved and recorded here.
+- _Outcome:_ Three exported select sites own commitment, priority and promotion class acquisition. Stub asks both
+  required questions in every context and collects refused syntax into its existing single report; promotion uses
+  the same outcome path for unresolved class. Missing-input placeholders now match the declarations; Notes § Lifecycle
+  prompt migration records all three drift corrections and native refusal proofs.
 
 ### `[ ]` **9.3 Migrate the start and identity wrappers — D7**
 
