@@ -518,29 +518,28 @@ template; and E2E summed file time is measured against the baseline.
   interaction contexts. The CLI helper and invocation planner share transport authority, with platform differences
   recorded in Notes § Distinct no-input invocations.
 
-### `[ ]` **5.3 Build the remaining repeated E2E fixtures once — D4**
+### `[x]` **5.3 Build the remaining repeated E2E fixtures once — D4**
 
 - _Goal:_ `session-init`, `teardown-stale-projection`, and `publication-spine` each build their repeated fixture
   once and copy it per case, with every case's outcome unchanged.
 
-    - `[ ]` **5.3.a A prepared shape for a sibling linked worktree**
-        - `copyPreparedRepository` gains a shape whose linked worktree sits outside the repository root, in its own
-          parent directory. It copies both directories and rewrites the absolute paths each side records: the
-          repository's `.git/worktrees/<name>/gitdir` and the worktree's `.git` file.
-        - Build `test-first` (one behavior at a time):
-            - A copied sibling worktree is listed by `git worktree list` at its new path
-            - Git commands in the copied worktree resolve to the copied repository, never the template
+    - `[x]` **5.3.a A prepared shape for a sibling linked worktree**
+        - The sibling shape returns independently owned repository, parent and worktree paths. Copying both
+          directories rewrites the linked checkout's Git pointer and the primary registry's gitdir; real Git proves
+          the copied path appears in its own registry and commands resolve to its copied common directory.
 
-    - `[ ]` **5.3.b Teardown veto cases from one prepared archived feature**
-        - `prepareArchivedFeature` (`teardown-stale-projection.e2e.test.ts`) is built once; each of the 11 veto
-          cases copies it with the sibling shape.
+    - `[x]` **5.3.b Teardown veto cases from one prepared archived feature**
+        - One archived-feature template serves all 11 veto cases through sibling copies. Each copy still runs
+          teardown to produce its own husk before mutating evidence, then retains the original refusal/repair outcome.
 
-    - `[ ]` **5.3.c Session-init and publication-spine**
-        - `session-init.e2e.test.ts` runs `init` in a fresh repository for all 30 cases, in five `beforeEach` hooks
-          and inline in the four remote-acquisition cases. One initialized-repository template serves them all, and
-          each group's remaining setup (a commit, a worktree parent, `setupStaleLocalBase`, a remote and publisher)
-          stays per case.
-        - `reachAtCapConvergence` (`publication-spine.e2e.test.ts`) is built once and copied for its three uses.
+    - `[x]` **5.3.c Session-init and publication-spine**
+        - One uncommitted initialized template serves all 30 session-init cases, preserving each case's commits,
+          worktree, remote and publisher setup. The three at-cap convergence cases copy one complete template and
+          retain its candidate identity, reviewed head, staged state and continuation payload.
+
+- _Outcome:_ All repeated fixtures now build once and give each case independent paths and state. Existing assertions
+  remain intact across sibling teardown, uncommitted initialization and at-cap publication; Notes § Remaining prepared
+  E2E fixtures records the native proofs and preservation of the convergence setup's original deadline.
 
 ### `[ ]` **5.4 E2E cost cut** — validate exit criterion at segment scope
 

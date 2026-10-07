@@ -1356,3 +1356,28 @@ separate. The complete file passes all 83 cases (`/tmp/arc-no-input-template-tar
 focused lint pass before closure. Complete gates pass: 1,106 routine files / 16,607 cases and all 67 E2E files / 701
 cases, full typed lint, Markdown and ARC checks. The unchanged production/build and shell inputs retain their preceding
 completed gates. Evidence is in `/tmp/arc-no-input-{template,final}-*.log`; the final E2E run takes 249.47 seconds.
+
+## Remaining prepared E2E fixtures
+
+The sibling shape extends the existing helper through typed overloads: ordinary shapes retain their string return;
+sibling copies return root, parent and worktree paths for cleanup. The two real-Git outcomes fail against copies with
+both original pointers unchanged (`/tmp/arc-sibling-red.log`), then all ten prepared-fixture cases pass after both links
+are rewritten (`/tmp/arc-sibling-green.log`). Both type programs and focused lint pass. The two references comprise one
+copy operation, so their coupled tests precede its implementation together.
+
+The first full E2E capture attempt fails only publication-spine's new beforeAll: moving convergence setup out of its
+120-second cases accidentally subjected it to the 10-second hook default. The targeted three-file run had passed
+63 cases, but the contended full run times the hook out; 66 files / 685 cases pass and 16 cases skip. No successful
+capture is retained. `/tmp/arc-post-e2e-fixture-1.log` preserves this failure. The shared hook now carries the original
+120-second allowance of its convergence cases; this same-concern deadline correction changes no tier default.
+
+The corrected full E2E capture passes all 67 files / 701 cases in `/tmp/arc-post-e2e-fixture-1-green.log`; it retains
+`post-e2e-fixture-1.json`. All 63 targeted E2E cases and ten native prepared-fixture cases pass. The routine lane passes
+1,106 files / 16,609 cases; full typed lint, both type programs, Markdown and ARC checks pass. Production/build and
+shell inputs are unchanged and retain the preceding completed gates. Final evidence uses
+`/tmp/arc-remaining-{final,hook}-*.log` and `/tmp/arc-sibling-final-targeted.log`.
+
+Capture 1 runs on the completed fixture patch before commit, based on `fc9a5b13f6c3a5ad0614cab06ab25351f2def71a`;
+its staged test-patch object is `141f2983464b3bfa8ecad9f3702f1690896c9267`. It overlaps the final typed lint/type gates.
+Remaining E2E samples retain this same test code and settings, with other checks finished before sampling. The failed
+10-second-hook attempt is retained separately and contributes no successful cost observation.
