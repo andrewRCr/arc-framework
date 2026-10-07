@@ -546,7 +546,7 @@ This matters now because:
 
 ## Relationship to Interlock Model Frame
 
-[ADR-016][adr-016] established configurable autonomy **interlocks** for session-operational flow at
+ADR-016 established configurable autonomy **interlocks** for session-operational flow at
 four architectural junctions: task, commit, push, integration (delivered via the Session-Operational
 Flow WU, May 2026). This plan and the shipped interlock model share **junction prefixes** (`commit-`,
 `push-`, `integration-`) but attach different concerns at each junction:
@@ -910,7 +910,3 @@ window.
   contextual review.
 
 Both halves are independently valuable. Keep unified if the rework stays manageable.
-
----
-
-[adr-016]: ../../../reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md

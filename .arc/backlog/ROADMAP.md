@@ -21,6 +21,8 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Planning` | delivery-rebuild-continuity     | P1       | andrew | —          | —             |
 | `Planning` | review-checkout-lifecycle       | P1       | andrew | —          | —             |
 | `Planning` | stub-mint-to-launch             | P1       | andrew | —          | —             |
+| `Planning` | quality-gate-hooks              | P3       | andrew | —          | —             |
+| `Active`   | test-suite-reliability          | P3       | andrew | —          | —             |
 
 ## Ready
 
@@ -93,7 +95,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | knowledge-lint                      | P3       | andrew | —          | —                          |
 | merge-queue-landing                 | P3       | andrew | —          | —                          |
 | planning-iteration-mechanics        | P3       | andrew | —          | —                          |
-| quality-gate-hooks                  | P3       | andrew | —          | —                          |
 | rules-restructure                   | P3       | andrew | —          | —                          |
 | session-retitle                     | P3       | andrew | —          | —                          |
 | skill-infrastructure-cleanup        | P3       | andrew | —          | —                          |
