@@ -2751,3 +2751,9 @@ covers closing measurement, criterion 2, Tasks 10.1–10.3 and the additive task
 reductions and outcome witnesses are unaffected; no delivery plan or new segment appears. All original Goal and
 criterion text and every Success Criteria marker remain untouched. The capture precedes budget recording and
 combined confirmation; A14 revalidation stays pending at Task 10.3.
+
+A13's affected unit selection passes 404 files and 7,800 cases in 8.92 s (`/tmp/arc-a13-unit.log`). Both
+source/test type checks and whole-package typed lint pass (`/tmp/arc-a13-types.log`, `/tmp/arc-a13-lint.log`),
+without suppression changes. Markdown/ARC checks pass after mechanical blank-line cleanup. Unit-only gate
+selection applies: unchanged integration, E2E, full-build and shell inputs retain their preceding passing witnesses.
+No new behavior or assertion is introduced; existing coverage checks the deadline correction after the change.

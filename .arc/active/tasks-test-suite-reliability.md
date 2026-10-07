@@ -1056,13 +1056,14 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
   integration retains eighteen cases. All bodies and deadlines are unchanged, with unclassified native cases
   refused; `notes-test-suite-reliability.md` § Amendment A12 records the observed tail and union proof.
 
-### `[ ]` **10.R11 Name the cold ESLint configuration-load deadline — A13**
+### `[x]` **10.R11 Name the cold ESLint configuration-load deadline — A13**
 
 - _Goal:_ A13 gives the retained real ESLint configuration load an explicit deadline while preserving its measured
   duration, complete architecture scope assertions, remaining case deadlines and every tier default.
 
-    - Name the deadline on the first full-file configuration-loading case; keep its real load and assertion inside
-      the measured case, and retain all other test bodies and deadlines.
+- _Outcome:_ The first native ESLint configuration case has a named ten-second deadline, with its load, duration
+  and assertion retained inside measurement. Other cases and defaults stay unchanged; the original headroom failure
+  and deadline-only comparison are recorded in `notes-test-suite-reliability.md` § Amendment A13.
 
 ### `[ ]` **10.R12 Bind retained closing evidence to deadline-only confirmation — A14**
 
