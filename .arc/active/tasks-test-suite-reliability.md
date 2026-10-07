@@ -982,6 +982,41 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
     - Run existing native build and transferred-artifact recovery proofs, then compare the affected native family
       before final-head closing measurements. Retain all earlier captures as historical evidence.
 
+### `[ ]` **10.R2 Size the observed repository-inventory deadlines**
+
+- _Goal:_ The one-shot inventory-output case and documentation setup complete their real repository scan under the
+  routine lane's concurrency, preserving listener, output, documentation and reconciliation assertions.
+
+    - Use a named case/hook deadline for these two measured scans; retain all other process deadlines and tier
+      defaults. The failed closing lane capture remains recorded, and its result does not enter a success median.
+
+### `[ ]` **10.R3 Isolate fixture worker controls from the parent run**
+
+- _Goal:_ Native controller and focused-test fixtures retain their declared worker/serial-execution contracts when
+  the outer run sets a worker override, while deliberate per-invocation environment overrides remain available.
+
+    - Clear the inherited `VITEST_MAX_WORKERS` at the two shared native fixture execution seams before applying
+      explicit caller environments. Preserve every native mock-isolation, serial-execution and same-worker proof.
+
+### `[ ]` **10.R4 Give the native closing delay a measurement margin**
+
+- _Goal:_ The real controller-closing measurement proves at least 50 ms of retained teardown without expecting
+  a timer requested at that exact threshold to meet a precise wall-clock duration.
+
+    - Increase only the synthetic closing delay from 50 to 75 ms, keeping the 50 ms floor and all retained-time,
+      metadata, admission, artifact and cleanup assertions. The eight-worker run retains the observed 49 ms red.
+
+### `[ ]` **10.R5 Bound default local workers — A7**
+
+- _Goal:_ A7's local worker policy preserves workstation responsiveness while retaining measured throughput,
+  explicit capacity overrides, CI native sizing and the existing admission/isolation contracts.
+
+    - Build `test-first` (one behavior at a time):
+        - Bound default local sizing at eight and half available parallelism, with a one-worker floor.
+        - Preserve numeric/percentage overrides and CI native defaults.
+    - Use the existing worker policy and `os.availableParallelism`; retain project scheduling, heavy admission,
+      unit-only bypass and timeouts. Run the ordinary routine gate without a worker override.
+
 ### `[ ]` **10.1 Run the closing hosted runs**
 
 - _Goal:_ Five consecutive first-attempt passes at the final head show the suite reliable on hosted runners, give the
@@ -1120,3 +1155,6 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
 - `[ ]` The synthetic native fixture copies its live first-party dependency closure and explicit loader roots,
   retains dirty-tree dependencies and independent writable sources, and preserves the real build, controller,
   qualification and artifact-recovery proofs (A6)
+
+- `[ ]` Default local worker sizing follows the half-parallelism rule with a one-worker floor and eight-worker
+  ceiling; capacity overrides and CI native sizing remain available, and the ordinary routine gate passes (A7).

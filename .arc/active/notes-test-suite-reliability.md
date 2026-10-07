@@ -2170,3 +2170,164 @@ The hosted collector stops before dispatching more samples; its already launched
 Local collection finishes before source-input edits. Any later fixture change requires
 fresh final-head evidence; these samples cannot silently become its acceptance record. Bounded calibration precedes
 that expensive collection, and no pre-fix baseline sampling repeats.
+
+## Repository-inventory deadlines
+
+The third corrected-head closing `lane` sample fails: `one-shot-script-entrypoints.test.ts`'s inventory-output case
+exceeds its 15 s test deadline, and `command-surface-documentation.test.ts`'s repository-snapshot setup exceeds its
+10 s hook deadline. The 314.72 s run reports 1,118 passing files, two failing files, one failed case and thirteen
+cases skipped by the failed hook. No capture JSON is produced; `closing-local-a5/lane-3.log` retains the failures,
+and only the first two lane captures succeeded. These failures cannot enter a successful closing median.
+
+Both paths load the real repository command-input snapshot, parsing the reachable source graph and reconciling the
+inventory. Revision 10.R2 gives only these measured scans a named 30 s deadline. The remaining process deadlines,
+project defaults, all listener/output assertions, source traversal and documentation checks stay intact. This is
+an intent-preserving timing correction within standing phase 1–10 authority, with no criterion or design reversal.
+The failed existing cases supply red evidence; corrected focused and routine runs must establish completion.
+
+A6's behavioral reconstruction delegates to the old recursive copy and fails both new cases: unrelated sources
+remain copied and unresolved relative imports do not refuse (`/tmp/arc-a6-source-copy-red.log`). The dependency
+copier passes both cases (`/tmp/arc-a6-source-copy-green.log`), including type/re-export/JSON edges, on-disk runtime
+JavaScript siblings, explicit loader seeds and independent writable copies. The installed TypeScript resolver and
+exact on-disk runtime alternative are both retained, preventing a `.ts` preference from hiding a native `.js` edge.
+
+The unchanged native build-command, CI transfer/recovery, local-route and native-measurement files pass all 36 cases
+(`/tmp/arc-a6-native-proofs.json`). Their focused timings are not comparable tier-isolated acceptance medians.
+A three-pair copy-only calibration (`/tmp/arc-a6-copy-calibration.json`) compares broad versus closure copying:
+median copy time falls from 538.181 to 302.262 ms, inventory traversal from 18.524 to 6.484 ms, and cleanup from
+26.731 to 12.516 ms. Inventory entries fall from 1,158 to 455. These observations establish actual fixture savings;
+they do not establish the native-family 40% criterion, which still requires final tier-isolated measurements.
+
+Both corrected repository-scan files pass their 17 cases in the focused run
+(`/tmp/arc-repository-scan-deadlines-focused.log`). The bound grows only where full-repository work actually timed
+out; no output or documentation assertion changes. Routine concurrency validation remains required before commit.
+
+The first combined routine attempt overlaps whole-project typed lint. It finishes with twelve failed files and
+eleven failed cases, including native build-command/local-route and unrelated Git/review cases at their existing
+deadlines despite passing the preceding focused selection. This attempt remains
+`/tmp/arc-a6-routine.log`; overlap is recorded as an uncontrolled contention source, not established causation.
+Typed lint finishes successfully (`/tmp/arc-a6-lint-whole.log`), and both final type checks pass. The routine gate
+will run alone over unchanged code before any completion claim. Prior full declaration-build and shell results
+remain valid because their source, configuration and shell inputs are unchanged.
+
+At the earlier `a4b370c81172c2d96c5cb64c30f380a902bb84af` head, five sequential first-attempt Linux dispatches
+finish successfully: `37630292370`, `37631088411`, `37632019650`, `37633042026`, and `37634020611`. The collector
+retains half-timeout headroom for 13,690 unit cases in the first four; the fifth conclusion is retained separately
+in `/tmp/arc-a5-hosted-run5-final.json`. No portability pair follows this historical sequence. All three unit,
+integration and E2E local captures pass; only two lane captures pass before the recorded third-sample failures.
+A6 and 10.R2 change test inputs, so these observations do not replace their final-head closing obligations.
+
+The standalone forced-color routine finishes in 217.00 s with six failed native files/six failed cases and 1,115
+passing files; `build-preparation`, `local-vitest-routes`, `test-cost-native`, `vitest-failure-ownership`,
+`vitest-mixed-shard` and `vitest-native-closing` hit their existing 30 s bounds. Its evidence remains
+`/tmp/arc-a6-routine-standalone.log`. No success or closing-cost claim uses either failed routine attempt.
+
+During that run the Owner reports significant machine slowdown, then confirms responsiveness improved when it
+ended. A subsequent host-visible five-second sample finds no surviving Vitest, tsup or native-fixture processes
+(`/tmp/arc-host-process-sample.json`). `vmstat` reports about 98% idle CPU with negligible current swap activity,
+and roughly 12 GiB of memory is available. This supports transient test-load pressure rather than an observed
+runaway process; it does not establish the dependency copier as the cause of the deadline failures. The local
+configured 50% pool maps to twelve workers on this 24-CPU machine, each capable of spawning native compiler/test
+children. Routine validation therefore uses the existing `VITEST_MAX_WORKERS` override at lower concurrency and
+serializes heavy checks. Closing acceptance measurements retain the frozen instrument's twelve-worker setting.
+
+## Default local gate resource tuning
+
+Owner direction makes ordinary development responsiveness part of the local-gate requirement: this is a shared
+WSL2 primary workstation with Windows browsing, IDE and email active, and three to six implementation sessions
+may run concurrently. Avoid a blanket two-worker correction; identify the WU's changes and select an efficient
+balanced default from a small, profiled comparison. WSL configuration remains outside this correction.
+
+The Owner supplies 32 GB physical RAM, no WSL `memory` or `processors` override, and a 16 GiB swap setting.
+The observed VM exposes 24 logical CPUs and 16,246,280 kB of memory, with approximately 3.2 GiB swapped at the
+post-run observation. The commented experimental reclaim setting does not establish the running WSL version's
+reclaim behavior. Windows-side process queries fail in this session's interop, so Linux resource measurements
+cannot independently attest total Windows headroom.
+
+The primary baseline-to-current source comparison confirms `npm test` still runs unit, unit-mocks and integration;
+E2E is not newly part of routine validation. `resolveVitestMaxWorkers` still defaults to 50% locally and honors
+explicit overrides; no percentage increase occurred. Retained native files relocate from non-isolated unit to
+integration's isolated execution, losing cross-file module reuse and joining integration's scheduling/tmpfs context.
+`HeavyFirstSequencer`'s unsharded sort preserves native order when no `ARC_TEST_DURATION_FILE` is provided.
+New unit launch accounting and native guard proofs add work; A6 adds measured graph preprocessing/resolution while
+reducing copy/inventory work. These are concrete changes, not an attribution of each timeout to one of them.
+
+The six failed native files pass all 22 cases at two workers in 52.42 s
+(`/tmp/arc-a6-native-deadlines-two-workers.log`), showing a lower-pressure valid execution but not an optimal default.
+Tuning starts with one complete routine run at four workers, then a higher candidate only if its headroom permits.
+The fixed code/environment and first-attempt conclusions, wall time, task-tree CPU/process counts, proportional
+resident memory and VM memory/swap behavior determine the tradeoff. These are named resource-calibration runs,
+not new pre-fix baselines or substitutions for the closing measurement's fixed twelve-worker instrument.
+
+The first four-worker profile uses an environment override and finishes in 319.41 s with 1,119 passing files,
+two failing files and three failed cases. The failures are semantic worker/serial mismatches, with no native
+30 s deadline failure. `VITEST_MAX_WORKERS=4` leaks into the shared native fixture children: installed Vitest applies
+that environment setting after normal options, defeating a requested one-worker mock-isolation scenario, explicit
+serial execution, and the unit guard's same-worker esbuild-service proof. The assertions are correct; the fixture
+seams must clear the inherited control before explicit caller overrides. `10.R3` records that bounded hermeticity
+repair. The failed full run supplies red evidence in `/tmp/arc-local-tune-4.log`.
+
+The process-tree profile records 42 peak processes, 477% peak aggregate CPU (approximately 4.8 logical CPU cores),
+3,784.7 MiB peak proportional resident memory, 8,428.3 MiB minimum VM available memory and zero swap growth
+(`/tmp/arc-local-tune-4-resources.json`). These describe this explicit environment-override run, including its
+unintended inner workers; they cannot establish the healthy ordinary default or the final tuning choice. The next
+calibration uses native CLI sizing so only the outer run changes, after the two shared fixture seams are repaired.
+
+The two corrected fixture seams pass all eight focused controller/guard cases under `VITEST_MAX_WORKERS=4`
+(`/tmp/arc-fixture-worker-env-green.log`, 15.83 s). They clear only the inherited worker control; explicit
+per-invocation overrides remain available. The full CLI-sized six-worker calibration runs without a concurrent
+heavy gate. The Owner's later no-impact observation occurred after the four-worker run ended and therefore
+cannot attest Windows responsiveness during that run.
+
+During the CLI-sized six-worker routine calibration, the Owner reports Windows impact between normal and
+noticeable-but-acceptable: barely perceptible, likely unnoticed without actively checking. This is direct
+concurrent host feedback, unlike the earlier idle observation; final pass and resource totals remain pending.
+
+The fixed-code CLI-sized six-worker run passes all 1,121 executed files and 16,716 cases in 252.45 s
+(`/tmp/arc-local-tune-6-cli.log`). Its profile records 38 peak processes, 754.4% peak CPU (one-core scale),
+4,753.8 MiB peak proportional resident memory, 7,548.6 MiB minimum VM available memory and 2.7 MiB swap growth
+(`/tmp/arc-local-tune-6-cli-resources.json`). Together with concurrent host feedback, six is a viable candidate.
+The remaining headroom warrants one eight-worker comparison over identical code/environment, checking whether
+additional throughput earns its additional host load. No default changes or optimality claim precedes that result.
+
+The eight-worker comparison completes in 214.17 s with 1,120 passing files and one failed case
+(`/tmp/arc-local-tune-8-cli.log`). The native closing-measurement fixture requests a 50 ms timer and observes
+49 ms against its 50 ms floor. The WU reduced both the original 800 ms timer and floor to 50 ms, leaving no
+measurement margin. This is a timer-precision flake, not a native deadline failure or established capacity limit.
+Revision 10.R4 pads only the synthetic request to 75 ms while preserving the 50 ms floor and every retained-time
+and metadata assertion. The failed full run remains red evidence and cannot be reported as a passing gate.
+
+Its profile records 47 peak processes, 871.4% peak CPU, 4,822.3 MiB peak proportional resident memory,
+7,428.3 MiB minimum VM available memory and zero swap growth (`/tmp/arc-local-tune-8-cli-resources.json`).
+The Owner reports Windows responsiveness about the same as six workers. Eight is about 15.2% faster in this
+single comparison with nearly identical peak memory; it remains a candidate requiring the timing fix and a
+passing ordinary gate, not an asserted universal optimum.
+
+One Luna light-research pass finds native bounded workers are established test-runner practice; participating
+nested tools can share a global job budget as in GNU Make/Gradle. A universal numeric cap is not established.
+The bounded local worker policy retains the current heavy admission lock and explicit CI/worker overrides;
+a global descendant jobserver or new adaptive memory scheduler would exceed the demonstrated need.
+
+## Amendment A7: Bounded local default worker sizing
+
+The existing Goals cover cheaper reliable shared development, but no criterion specifies an ordinary local
+resource bound. Owner direction requests balanced routine tuning and authorizes intent-preserving adjustments
+through phases 1–10. The amendment therefore takes the spec-depth arm at low depth: add a ceiling to the existing
+policy, without reversing a stated outcome, changing selected tests, adding a scheduler or changing WSL settings.
+
+The primary traces `resolveVitestMaxWorkers`, the root Vitest config and `runLocalVitestTier`: the config owns one
+shared default pool, native forwarded CLI flags can override it, and independent project limits with identical
+Vitest group order are refused by the installed runner. A global eight-worker ceiling on the existing half-capacity
+local default is the minimal grounded change; smaller CPU counts retain proportional sizing with a one-worker floor.
+CI and explicit capacity overrides remain unchanged. Closing instruments deliberately request twelve workers.
+
+Author-run grounding and reader/binding checks cover that policy, its CI/CLI precedence, existing admission,
+isolation and timeouts, and the added criterion/revision task. No independent amendment pass is claimed at low
+depth. The propagation sweep finds the worker-policy unit assertions and explanatory config comment; other tiers,
+CI workflow sizing, source build inputs and measurement criteria retain their obligations. The ordinary default
+run closes the detour; the failed eight-worker timing capture remains failed, not substituted into a success median.
+
+The 75 ms injected closing delay passes all five existing native measurement cases without assertion changes
+(`/tmp/arc-closing-timer-margin-green.log`, 18.57 s). The later twelve-worker timing question distinguishes its
+217.00 s failed current-code run from the previous-head 234.01 s passing run; neither is a paired same-code
+speed comparison that establishes a twelve-worker advantage over the current eight-worker observation.

@@ -437,6 +437,19 @@ An `over` reading already writes a job-summary warning naming the job, its overa
 and both name the baseline beside the budget. `within` stays quiet. Visibility only: failing a pull request on its
 budget stays out of scope.
 
+**Local resource policy (A7).** `resolveVitestMaxWorkers` defaults local runs to half of
+`os.availableParallelism()`, rounded down with a one-worker floor and an eight-worker ceiling. The ceiling bounds
+outer Vitest workers on large shared development machines; it does not claim to bound compiler or nested-process
+counts. Explicit positive numeric/percentage `VITEST_MAX_WORKERS` values retain precedence, and the native CLI
+worker override remains available. CI without an override keeps native sizing. The existing cross-worktree heavy
+admission lock, unit-only admission bypass, project isolation, selected tests and tier timeouts remain unchanged.
+
+This policy follows a bounded local comparison on a 24-logical-CPU WSL2 workstation with approximately 16 GiB VM
+memory and active Windows applications. Six workers pass with barely perceptible host impact; eight provide about
+15% shorter wall time with similar peak process memory and host responsiveness, while exposing a separate exact-timer
+flake that must be corrected. The ordinary gate must pass with the new default before completion. Closing cost
+acceptance retains the frozen twelve-worker instrument; resource tuning does not replace its thresholds.
+
 ### 6. Testing policy
 
 Placement follows the existing split. `testing-standards` is the method agents load when a task writes tests; its
@@ -840,6 +853,10 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
     build, controller, qualification and transferred-artifact recovery outcomes pass using real installed tools,
     and the separate real production-schema graph proof remains intact.
 
+21. **Bounded local worker sizing (A7).** Default local worker count is half available parallelism with a floor
+    of one and ceiling of eight; explicit numeric/percentage and CLI overrides work, CI retains native sizing,
+    and the ordinary default routine lane passes with admission and isolation contracts preserved.
+
 ## Open Questions
 
 - **Calibration of the native-tooling cut.** The 55–60% projection comes from a per-file read, not a prototype; the
@@ -870,3 +887,6 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
 
 - **A6** — 2026-10-07 — design: bound synthetic native fixture sources to their live dependency closure.
   _Supersedes:_ § 1 live-copy bullet. _Trigger:_ 10.2 door. _Work:_ 10.R. _Revalidated:_ pending → 10.2.
+
+- **A7** — 2026-10-07 — spec-depth: bound local default worker sizing for shared development machines.
+  _Supersedes:_ none. _Trigger:_ 10.2 door. _Work:_ 10.R5. _Revalidated:_ pending → 10.R5.
