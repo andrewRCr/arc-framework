@@ -2757,3 +2757,81 @@ source/test type checks and whole-package typed lint pass (`/tmp/arc-a13-types.l
 without suppression changes. Markdown/ARC checks pass after mechanical blank-line cleanup. Unit-only gate
 selection applies: unchanged integration, E2E, full-build and shell inputs retain their preceding passing witnesses.
 No new behavior or assertion is introduced; existing coverage checks the deadline correction after the change.
+
+## Closing measurement
+
+The retained workload head is `9b3856d4def281d63c6f675fdb123277e109efd3`. A14 permits only the subsequent
+A13 deadline correction and budget recording to reuse its observations; the original fifth-run headroom failure
+remains a failed reading. Five hosted first-attempt full-suite CI passes and twelve local captures supply the cost
+record. Current unit headroom, both portability legs and budget confirmation remain required in one recording-head
+run. The frozen baseline head is `88fefb20c43ac580855c5a4d0e6f0232a21e1361`; no new baseline is collected.
+
+Local schema-4 captures use the same tier-isolated instrument and explicit twelve-worker setting. This is comparison
+capacity, while ordinary development defaults remain capped at eight. Complete files are in
+`.test-cost-runs/closing-local-a12/{unit,integration,e2e,lane}-{1,2,3}.json`; hosted run metadata, jobs, artifacts,
+full logs and both unit reports are in `.test-cost-runs/closing-hosted-a12/`. The derived
+`.test-cost-runs/closing-summary-a14.json` retains the failed headroom state instead of claiming it passed.
+
+| Project set | Wall samples (ms)           | Wall median (ms) | Summed-file median (ms) | Completed cases |
+| ----------- | --------------------------- | ---------------- | ----------------------- | --------------- |
+| unit        | 14,752 / 14,591 / 14,662    | 14,662           | 153,145.822198          | 13,695          |
+| integration | 166,972 / 167,261 / 169,150 | 167,261          | 1,947,231.788491        | 3,037           |
+| e2e         | 148,206 / 147,402 / 146,064 | 147,402          | 1,728,540.790237        | 686             |
+| lane        | 182,650 / 181,679 / 182,047 | 182,047          | 2,105,568.683820        | 16,732          |
+
+Native-tooling paired median is 632,008.633577 ms versus 1,129,643.991052 ms, a 44.05240602% reduction.
+E2E summed median is 37.99938710% below the frozen 2,787,941.456145 ms baseline. That baseline has only one
+ordinary passing sample and no measured noise estimate; three closing samples cannot remove that limitation.
+E2E captures have sixty-nine files and 1,738 measured CLI launches each. Capture file counts are
+842/280/69/1,122 respectively; completed-case counts agree across each triplet.
+
+| Sample | Hosted run ID | Attempt | Run duration excluding cache-save tail (s) | Summed test-job time (s) |
+| ------ | ------------- | ------- | ------------------------------------------ | ------------------------ |
+| 1      | 37671294422   | 1       | 324                                        | 1,705                    |
+| 2      | 37672118170   | 1       | 285                                        | 1,645                    |
+| 3      | 37672791138   | 1       | 301                                        | 1,736                    |
+| 4      | 37673602736   | 1       | 328                                        | 1,768                    |
+| 5      | 37674420368   | 1       | 295                                        | 1,550                    |
+
+All ten test jobs and every other required job pass in each run. Hosted duration median is 301 s versus 540 s,
+44.25925926% lower. Summed test-job median is 1,705 s versus 2,141 s, 20.36431574% lower. All four unchanged
+cost bars pass. Every run retains 13,695 completed unit cases; four have no half-timeout violation, and the fifth
+has exactly the recorded ESLint cold-load violation. A13 changes its deadline transparently; these reports are never
+rewritten to inherit the corrected timeout. The combined confirmation must supply current headroom separately.
+
+### Re-recorded budgets
+
+Four local rows use the retained triplet wall medians and ten CI rows use the five elapsed-job medians, preserving
+2/4/4 job coverage. The global allowance is 35%, the smallest multiple of 5% covering every observed value.
+Integration shard 3's 237,000 ms maximum exceeds its 178,000 ms median plus 30% (231,400 ms), while 35%
+gives 240,300 ms and every other row also contains every observation. Budgets round upward as existing rows do.
+The observational allowance changes no test outcome or cost target; budget overage remains advisory.
+
+| Row           | Median baseline (ms) | Budget (ms) |
+| ------------- | -------------------- | ----------- |
+| unit          | 14,662               | 19,794      |
+| integration   | 167,261              | 225,803     |
+| lane          | 182,047              | 245,764     |
+| e2e           | 147,402              | 198,993     |
+| unit-1        | 55,000               | 74,250      |
+| unit-2        | 52,000               | 70,200      |
+| integration-1 | 218,000              | 294,300     |
+| integration-2 | 214,000              | 288,900     |
+| integration-3 | 178,000              | 240,300     |
+| integration-4 | 196,000              | 264,600     |
+| e2e-1         | 175,000              | 236,250     |
+| e2e-2         | 214,000              | 288,900     |
+| e2e-3         | 227,000              | 306,450     |
+| e2e-4         | 200,000              | 270,000     |
+
+`/tmp/arc-budget-observations-a12.json` retains every observation and the median/allowance derivation. Primary checks
+bind twelve passed captures and five attempt-one CI passes to the exact retained head, verify both unit reports
+per run and the original one-violation boundary, and recompute all four cost targets. The budget-recording commit
+and combined confirmation remain pending; Task 10.3 stays open until that run passes.
+
+Budget-recording gates pass: both type checks, whole-package typed lint, shell lint, full build, full Markdown
+lint (750 files), and all three ARC contract checks. The ordinary eight-worker routine lane passes 1,121 files
+and 16,732 cases under `FORCE_COLOR=3` in 222.46 s (`/tmp/arc-budget-routine.log`). The one skipped file and
+1,188 skipped cases remain excluded from completed counts. Gate logs are `/tmp/arc-budget-{types,lint,shell,
+build,full-markdown,markdown}.log`. No suppression changes or further workload changes occur. Only the required
+combined hosted recording-head confirmation remains for Tasks 10.1.b and 10.3.

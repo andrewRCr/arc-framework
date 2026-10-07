@@ -1065,13 +1065,14 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
   and assertion retained inside measurement. Other cases and defaults stay unchanged; the original headroom failure
   and deadline-only comparison are recorded in `notes-test-suite-reliability.md` § Amendment A13.
 
-### `[ ]` **10.R12 Bind retained closing evidence to deadline-only confirmation — A14**
+### `[x]` **10.R12 Bind retained closing evidence to deadline-only confirmation — A14**
 
 - _Goal:_ A14 preserves the measured cost and outcomes at `9b3856d4d` while binding one recording-head dispatch
   to the corrected ESLint deadline, all unit half-timeout headroom, budget confirmation and both portability legs.
 
-    - Record the twelve local captures, five hosted passes and original headroom failure without replacement;
-      retain all cost bars and require the combined confirmation at the budget-recording head.
+- _Outcome:_ The complete prior-head observations retain their original outcomes and headroom failure. A14's
+  bounded deadline-only exception keeps their cost medians and binds all missing confirmation to one recording-head
+  dispatch; `notes-test-suite-reliability.md` § Closing measurement records the evidence.
 
 ### `[ ]` **10.1 Run the closing hosted runs**
 
@@ -1082,29 +1083,25 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
 
     - _Amended in:_ 10.R12 (A14)
 
-    - `[ ]` **10.1.a Five consecutive dispatch runs**
-        - Full-suite `workflow_dispatch` runs at the final head, dispatched one at a time as in Task 1.2.b, every
-          job green on its first attempt. A failed run
-          restarts the count at the head that fixes it.
-        - From each run's unit artifacts, every unit test's duration is under half its effective timeout.
-        - The medians of run duration and summed test-job time are compared with the baseline's against the 20% bars.
-        - `notes-test-suite-reliability.md` § Closing measurement records the head, the run IDs, and the medians.
-        - Pushes these runs need are approved with this task list and take no separate approval.
+    - `[x]` **10.1.a Five consecutive dispatch runs**
+        - Five complete first-attempt passes at `9b3856d4d` supply the hosted cost medians under A14. The fifth
+          run's original unit half-timeout failure remains explicit; current headroom is required in the combined
+          recording-head confirmation. `notes-test-suite-reliability.md` records all five IDs and observations.
 
     - `[ ]` **10.1.b The portability pair**
         - One further dispatch run at the final head with `run_portability_pair` on passes its Windows and macOS
           portability legs, and its run ID is recorded beside the five.
 
-### `[ ]` **10.2 Re-measure every tier locally**
+### `[x]` **10.2 Re-measure every tier locally**
 
 - _Goal:_ Native-tooling cost and E2E summed file time at the head the closing runs passed on are measured with the
   baseline's instrument and settings, for comparison with the 40% and 20% bars.
 
     - _Amended in:_ 10.R12 (A14)
 
-    - Three `npm run benchmark:test-cost` runs each for the `unit`, `integration`, and `e2e` project sets, with the
-      baseline's settings, and three for `lane`, which only the budget file's `lane` row reads. Three-run medians are
-      recorded in `notes-test-suite-reliability.md` § Closing measurement.
+- _Outcome:_ Twelve captures at the retained workload head provide three-run medians for every project set,
+  clearing the native-tooling and E2E bars with A14's deadline-only continuation. The single-sample E2E baseline
+  limitation and complete local observations remain explicit in `notes-test-suite-reliability.md`.
 
 ### `[ ]` **10.3 Re-record the test-cost budgets — D5**
 

@@ -902,13 +902,13 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
   _Supersedes:_ none. _Trigger:_ 10.1 must-stop. _Work:_ 10.1.R. _Revalidated:_ pending → 10.1.b.
 
 - **A6** — 2026-10-07 — design: bound synthetic native fixture sources to their live dependency closure.
-  _Supersedes:_ § 1 live-copy bullet. _Trigger:_ 10.2 door. _Work:_ 10.R. _Revalidated:_ pending → 10.2.
+  _Supersedes:_ § 1 live-copy bullet. _Trigger:_ 10.2 door. _Work:_ 10.R. _Revalidated:_ 10.2.
 
 - **A7** — 2026-10-07 — spec-depth: bound local default worker sizing for shared development machines.
   _Supersedes:_ none. _Trigger:_ 10.2 door. _Work:_ 10.R5. _Revalidated:_ 10.R5.
 
 - **A8** — 2026-10-07 — task: retain real CLI dependencies in the content-stale overlay fixture.
-  _Supersedes:_ none. _Trigger:_ 10.2 must-stop. _Work:_ 10.R6. _Revalidated:_ pending → 10.2.
+  _Supersedes:_ none. _Trigger:_ 10.2 must-stop. _Work:_ 10.R6. _Revalidated:_ 10.2.
 - **A9** — 2026-10-07 — task: reuse unchanged fixture import parsing while retaining live resolution.
   _Supersedes:_ none. _Trigger:_ 10.1 must-stop. _Work:_ 10.R7. _Revalidated:_ pending → 10.1.
 
