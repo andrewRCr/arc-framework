@@ -27,7 +27,7 @@ it.each(["test:unit", "test:changed", "test:portability:macos"])(
   }, 60_000,
 );
 
-it.each(["test:unit", "test:full"])("retains literal native root options for %s", async (command) => {
+it.each(["test:unit"])("retains literal native root options for %s", async (command) => {
   const fixture = await makeFocusedVitestFixture(); roots.push(fixture.root);
   await writeFile(join(fixture.packageRoot, "__tests__/unit/named.test.mjs"), `
 import { it } from "vitest";

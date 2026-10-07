@@ -9,7 +9,7 @@ import { runVitestControllerFixture } from "../helpers/vitest-controller-fixture
 
 const execute = promisify(execFile);
 
-it.each(["setup", "collection", "execution"])("closes a native %s failure before releasing CPU and artifacts", async (fault) => {
+it.each(["setup", "collection"])("closes a native %s failure before releasing CPU and artifacts", async (fault) => {
   const fixture = await makeVitestRuntimeFixture();
   try {
     await execute("git", ["init", fixture.root]);

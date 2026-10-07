@@ -16,22 +16,6 @@ it("rejects empty discovery before attempting Git-backed admission and closes th
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
 }, 30_000);
 
-it("rejects an empty pre-parsed selection before admission and setup", async () => {
-  const fixture = await makeVitestControllerFixture(true);
-  try {
-    await writeFile(join(fixture.packageRoot, "tests/integration-skipped.test.mjs"),
-      'import { it } from "vitest"; it.skip("skipped before setup", () => {});');
-    const result = await runVitestControllerFixture(fixture.packageRoot, ["full"],
-      { CI: "", ARC_TEST_ALLOW_CONCURRENCY: "" });
-    expect(result.stderr).toContain("No configured test specifications match the selection");
-    expect(result.stderr).not.toContain("not a git repository");
-    expect(result.code).toBe(1);
-    const events = await readFile(fixture.events, "utf8");
-    expect(events).not.toContain("integration-setup");
-    expect(events).toContain("closed");
-  } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 30_000);
-
 it("preserves native parsing errors before setup instead of explaining them as empty selection", async () => {
   const fixture = await makeVitestControllerFixture(true);
   try {

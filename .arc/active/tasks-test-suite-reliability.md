@@ -276,7 +276,7 @@ is measured against the baseline.
     - `[x]` **3.5.b `dev-build-refresh.test.ts`**
         - Both complete real refresh scenarios move unchanged to integration, preserving the basename.
 
-### `[ ]` **3.6 Convert the Vitest-runtime and local-Vitest files — D2**
+### `[x]` **3.6 Convert the Vitest-runtime and local-Vitest files — D2**
 
 - _Goal:_ The Vitest controller's discovery and execution paths are proved against a fake controller, with one real
   run per outcome class and one real run per test entry point left in integration.
@@ -290,16 +290,15 @@ is measured against the baseline.
     - `[x]` **3.6.b Runtime-fixture files**
         - All six native families retain their ownership, preparation, failure, and repair classes in integration.
           Own-key context faults and runtime-free execution/cleanup composition use direct unit fixtures. CPU-bypass,
-          malformed-context, and combined-closing native duplicates are replaced by named proofs in Notes.
+          context, reported-failure, and combined-closing native duplicates have named replacement proofs in Notes.
 
     - `[x]` **3.6.c `vitest-mixed-shard.test.ts`**
         - The complete mixed-shard ownership and generation-reuse scenario moves unchanged to integration.
 
-    - `[ ]` **3.6.d Focused-fixture files**
-        - Between them, `local-vitest-routes` and `local-vitest-entry` keep one real run of each of the ten entry
-          points (root `npm` test scripts that start `run-local-test-tier.ts`), in integration.
-        - `local-vitest-selection` and `vitest-initial-coverage` sort into fake-proven cases and real outcome-class
-          runs.
+    - `[x]` **3.6.d Focused-fixture files**
+        - All ten root npm entries remain real in integration, alongside configured filtering/sharding and initial
+          coverage. The repeated full-tier literal-option row has named narrower routing/forwarding proofs in Notes.
+          Final class inspection also folds skipped discovery and execution-failure replays from earlier leaves.
 
 ### `[ ]` **3.7 Convert the focused-test, focused-lint, and test-cost files — D2**
 

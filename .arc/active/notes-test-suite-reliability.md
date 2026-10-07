@@ -504,8 +504,9 @@ Real integration case medians in the focused mode:
   generation, failed-compilation preservation, repaired refresh, qualification, and private-staging cleanup.
 
 - **`vitest-discovery`:** six direct public-controller cases prove empty/skipped refusal, retained parsing diagnostics,
-  pre-parsed membership, and exact initial selection. All five original native discovery scenarios move intact to
-  integration; their real parsing and cross-file selection channels remain covered.
+  pre-parsed membership, and exact initial selection. Native empty configured discovery, parser error, cross-file-only
+  refinement, and no-preparse heavy refusal remain in integration. `refuses skipped discovery and closes before
+  execution` replaces the all-skipped native replay; the cross-file-only case retains real native skip-mode production.
 - **`vitest-completion`:** eight fake-selection cases prove completion status and closing before capture without
   preparation or ownership. Integration retains `rejects dynamic skip despite native empty-run success` plus mixed
   passing, completed failure, collection failure, and setup failure. Removed unmatched-name, static-skip, todo, and
@@ -527,8 +528,12 @@ Real integration case medians in the focused mode:
   serialization under the deliberate-contention override` in `local-test-admission` and `retains artifact exclusion
   when CPU admission is bypassed by ARC_TEST_ALLOW_CONCURRENCY` in `build-ownership` preserve the distinct bypass policy
   and real artifact-lock exclusion without replaying compilation and workers.
-- **`vitest-failure-ownership`:** all three native setup, collection, and execution channels move intact to integration,
-  retaining both locks through controller closing and proving their final release. The new runtime-free selection
+- **`vitest-failure-ownership`:** native setup rejection and reported collection failure remain in integration, retaining
+  both locks through controller closing and proving their final release. The execution-failure replay is replaced by
+  `retains a module failure through completion` and `retains a collection failure through completion` in
+  `vitest-controller-logic`, alongside the real reported-failure representative. Vitest `runFiles` awaits global setup
+  before its pool error catch, so a thrown setup rejects while worker collection/execution return public failure
+  reports; setup remains a distinct operation path. The new runtime-free selection
   `preserves execution failure and cleanup diagnostics without preparing a runtime` directly proves original-error
   preservation, one close, both cleanup diagnostic channels, failed status, and no capture after failure.
 - **`vitest-runtime-context`:** all four own-key fault decisions run directly over compiler-free qualified output,
@@ -549,3 +554,20 @@ Real integration case medians in the focused mode:
 
 All five new context/composed-failure behaviors failed against narrow routing/closing reconstructions and passed
 following restoration in temporary module/test copies; primary source and derived CLI were untouched.
+
+- **`local-vitest-routes` and `local-vitest-entry`:** all ten root npm entries remain real in integration: `test`,
+  `test:full`, `test:integration`, `test:arc-contracts`, `test:e2e`, `test:e2e:focused`, `test:portability`, `test:unit`,
+  `test:changed`, and `test:portability:macos`. Native membership, owned setup, and all-skipped refusal remain.
+  The repeated full-tier literal-options row is replaced by `retains literal native root options for test:unit`
+  (same npm forwarding/selection class), direct `selects configured tier full`/`selects configured tier unit` in
+  `vitest-controller-logic`, and `preserves native root test:full tier membership and owned setup` in the routes file.
+- **`local-vitest-selection`:** the complete file moves unchanged. File:line execution, explicit location refusal,
+  repeated exclusions across both actual shards, excessive-shard diagnostics, and empty-executed-shard refusal need
+  the native configured globber/worker and remain real. Their adapter normalization policy is direct in
+  `vitest-controller-logic`; no fake asserts the native engine's globbing or sharding result.
+- **`vitest-initial-coverage`:** the complete custom-provider scenario moves unchanged. It compares actual public
+  partial execution with supported initial execution and proves unexecuted source reaches the coverage report.
+
+The bounded advisor consultation confirmed that native channel names alone do not establish separate outcome classes.
+Primary source inspection verified the global-setup rejection path and the public direct replacement proofs before
+folding the two additional replays. This refines the conversion within its existing design intent.
