@@ -70,7 +70,7 @@ describe("rich build inventory", () => {
     const links = [
       { name: "dangling.ts", target: "missing.ts", kind: "file" as const },
       { name: "external", target: external.packageRoot, kind: "dir" as const },
-      { name: "empty", target: "../empty", kind: "dir" as const },
+      { name: "empty", target: join("..", "empty"), kind: "dir" as const },
     ];
     for (const link of links) createLink(link.target, join(packageRoot, "src/controls", link.name), link.kind, context);
     const inventory = captureBuildInventory(packageRoot);

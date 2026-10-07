@@ -40,13 +40,26 @@ it("permits a surviving child to finish staging after owner death without publis
     }, { timeout: 15_000 })]);
     fixture.owner.kill("SIGKILL");
     await expect(fixture.done).rejects.toBeInstanceOf(Error);
+    let compilerAliveAfterOwnerDeath: boolean | undefined;
+    if (process.platform === "win32") {
+      compilerAliveAfterOwnerDeath = true;
+      try { process.kill(ready.pid, 0); } catch { compilerAliveAfterOwnerDeath = false; }
+    }
     await withBuildArtifactOwnership({ packageRoot: fixture.packageRoot, operation: "repaired owner" }, async (lease) => {
       await lease.confirmOwnership();
       await writeFile(fixture.releasePath, "release");
       await vi.waitFor(async () => {
         expect(JSON.parse(await readFile(join(ready.directory, BUILD_COMPILER_REPORT_NAME), "utf8")))
           .toHaveProperty("mode", "fast");
-      }, { timeout: 15_000 });
+      }, { timeout: 15_000 }).catch(async (error: unknown) => {
+        if (process.platform !== "win32") throw error;
+        let compilerAlive = true;
+        try { process.kill(ready.pid, 0); } catch { compilerAlive = false; }
+        const diagnostics = await readFile(join(fixture.packageRoot, ".compiler-diagnostics"), "utf8")
+          .catch(() => "No compiler diagnostics recorded");
+        throw new Error(`Compiler PID ${ready.pid}; owner PID ${fixture.owner.pid}; alive after owner death: ${compilerAliveAfterOwnerDeath}; alive at timeout: ${compilerAlive}; `
+          + diagnostics, { cause: error });
+      });
       expect(await readFile(join(fixture.packageRoot, "dist/cli.js"), "utf8")).toContain("previous-live-runtime");
       expect(await readFile(join(ready.directory, "cli.js"), "utf8")).toContain("new-native-runtime");
     });

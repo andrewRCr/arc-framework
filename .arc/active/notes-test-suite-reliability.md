@@ -2874,3 +2874,17 @@ barrier/report ordering, diagnostic failure-only execution and immediate task ne
 binding completeness retain the unresolved Windows proof rather than asserting a repair not yet established.
 Forward/backward sweep finds no production, Linux scheduling, budget or delivery change. All original Goals,
 criterion text and Success Criteria markers remain untouched; no new segment or speculative mechanism is selected.
+
+The raw-path correction and passive diagnostic fixture pass both local native files, fifteen cases in 7.37 s
+(`/tmp/arc-windows-fixture-local.log`). The eight-worker routine gate passes 1,121 files and 16,732 cases with
+`FORCE_COLOR=3` in 228.49 s (`/tmp/arc-windows-fixture-routine.log`). Both type checks and whole-package typed
+lint pass, including the final PID-bearing observation strings, without suppression changes. Unchanged full-build
+and shell inputs retain their recording-head witnesses. Markdown/ARC checks cover the amendment and this record.
+
+A temporary ESM probe enables the Windows observer generation on Linux, then runs the same real owner/compiler to
+normal completion. It records release observed, schema finished and zero-code exits with process IDs
+(`/tmp/arc-windows-observer-probe-final.log`). This validates generated observation syntax and normal failure-neutral
+execution, not Windows child survival. A static comparison confirms Linux's generated native fixture stays
+byte-identical and the unit fixture changes only its native path construction (`/tmp/arc-windows-fixture-delta.json`).
+Every native assertion and deadline remains unchanged. The compiler's Windows cause is still unresolved; the
+instrumented hosted dispatch is required before selecting a repair or closing the corrective parent.

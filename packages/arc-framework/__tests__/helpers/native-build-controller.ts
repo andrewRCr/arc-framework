@@ -30,6 +30,30 @@ export async function startBlockedBuildController(): Promise<NativeBuildControll
   while (!existsSync(${JSON.stringify(releasePath)})) await new Promise((resolve) => setTimeout(resolve, 10));
   await mkdir(join(outDir, "schemas"), { recursive: true });`,
   ));
+  if (process.platform === "win32") {
+    const diagnosticPath = join(packageRoot, ".compiler-diagnostics");
+    const compilerPath = join(packageRoot, "src/scripts/build-compiler.ts");
+    const compiler = await readFile(compilerPath, "utf8");
+    await writeFile(compilerPath, `import { appendFileSync as appendCompilerDiagnostic } from "node:fs";
+const diagnosticFile = ${JSON.stringify(diagnosticPath)};
+function recordCompilerDiagnostic(file: string, message: string): void {
+  try { appendCompilerDiagnostic(file, message); } catch { /* Cleanup may have removed the fixture. */ }
+}
+process.on("exit", (code) => recordCompilerDiagnostic(diagnosticFile, JSON.stringify({ event: "exit", pid: process.pid, code }) + "\\n"));
+process.on("uncaughtExceptionMonitor", (error) => recordCompilerDiagnostic(diagnosticFile,
+  JSON.stringify({ event: "uncaught", pid: process.pid, message: error.message, stack: error.stack }) + "\\n"));
+` + compiler.replace("    console.error(error);", `    recordCompilerDiagnostic(diagnosticFile,
+      JSON.stringify({ event: "bootstrap-error", pid: process.pid, error: String(error) }) + "\\n");
+    console.error(error);`));
+    const blockedSchema = await readFile(schemaPath, "utf8");
+    await writeFile(schemaPath, 'import { appendFileSync as recordSchemaDiagnostic } from "node:fs";\n'
+      + blockedSchema.replace('  await mkdir(join(outDir, "schemas"), { recursive: true });',
+        `  recordSchemaDiagnostic(${JSON.stringify(diagnosticPath)}, "release-observed\\n");
+  await mkdir(join(outDir, "schemas"), { recursive: true });`)
+        .replace('  await writeFile(join(outDir, "schemas/kernel.json"), JSON.stringify(schemas));',
+          `  await writeFile(join(outDir, "schemas/kernel.json"), JSON.stringify(schemas));
+  recordSchemaDiagnostic(${JSON.stringify(diagnosticPath)}, "schema-finished\\n");`));
+  }
   const script = join(packageRoot, "src/scripts/fixture-owner.ts");
   await writeFile(script, `
 import { writeFile } from "node:fs/promises";
