@@ -11,9 +11,10 @@
 
 - **Readiness:** maturing — direction and scope are settled; the open items are detail design.
 - **Resolved:** the four design commitments; the gate model and its vocabulary; the check declaration; the gate verb;
-  selection and reuse; fire sites (no per-task gate); fix handling; this repository as first consumer in-WU; the
-  storage boundary; the buffer triage.
-- **Open:** see § Open items.
+  selection and reuse; the verb's requests, presets, execution, outcomes, and output; fire sites (no per-task gate);
+  fix handling; the human skip; the ratchet boundary; this repository as first consumer in-WU; the storage boundary
+  and its seven forward-compatibility seams; the tier names' full retirement; the buffer triage.
+- **Open:** none.
 - **Next:** settle the open items, then the readiness pass (source grounding, proportionality, adversarial offer) and
   the capture commit, which also retitles the meta to match this draft. Route-outs execute at that close
   (§ Buffer triage).
@@ -81,8 +82,10 @@ Four constraints bound every decision below.
 1. **Event-anchored, interlock-independent.** Gates are deadlines named by repository events — commit, push,
    integration — which happen however approval is configured. Gate semantics never read interlock state, no gate
    configuration names an interlock, and the verb is a leaf any caller may invoke: a workflow step, a hook, CI, or a
-   future ratchet layer that decides _when_ steps fire. The shared names (`commit-`, `push-`, `integration-`) are the
-   same git events, not a coupling; the release wrapper is at most one caller.
+   future ratchet layer that decides _when_ steps fire. The shared names (`commit-`, `push-`) are the same git events,
+   not a coupling; the release wrapper is at most one caller. What an event enforces is never such a layer's to relax:
+   a gate's deadline protects the integrity of a check (DEV-RULES.ARC § Rule Authority). A ratchet may relax only the
+   feedback runs before it — the done boundary and segment verifiers — by choosing a lighter request preset (D3).
 2. **Industry idiom first.** Where practice is near-universal, follow it; where it splits, make it configuration with
    a stated default; diverge for agents only where the research names a real divergence. Grounding:
    `research-local-check-cadence.md`.
@@ -99,14 +102,17 @@ Four constraints bound every decision below.
 
 ### D1 — Gate model and vocabulary
 
-Tier 1/2/3 retires (settled 2026-07-25 against measured evidence; the rename lands inside the mechanics work, since
-rewriting fire sites to the verb rewrites the very lines that name the tiers). Four concepts, two of them vocabulary:
+Tier 1/2/3 retires entirely as vocabulary (settled 2026-07-25 against measured evidence; the rename lands inside the
+mechanics work, since rewriting fire sites to the verb rewrites the very lines that name the tiers). Four concepts, two
+of them vocabulary:
 
-- **Gate** — a deadline: `commit-gate`, `push-gate`, `integration-gate`. "Must have passed before commit / push /
-  merge." Self-enforcing in a way an ordinal is not: a `commit-gate` costing 47s is visibly wrong.
+- **Gate** — a deadline: `commit-gate`, `push-gate`, `merge-gate`. "Must have passed before commit / push / merge."
+  Each name is the event, never an ARC lifecycle stage, so no gate reads as the twin of an interlock. Self-enforcing
+  in a way an ordinal is not: a `commit-gate` costing 47s is visibly wrong.
 - **Kind** — `enforcement` (must pass by its gate; blocks there) versus `feedback` (informative before the gate).
-  Kind is what lets a test-first sequence carry an intentionally failing test across increments while the push gate
-  still holds.
+  Kind is derived, never declared: a check is enforcement at its own gate's deadline and feedback at any earlier fire
+  site, and the verb labels each result accordingly. Kind is what lets a test-first sequence carry an intentionally
+  failing test across increments while the push gate still holds.
 - **Cost** — measured data the verb records with each run, never declared.
 - **Selection** — a mechanical rule (D4), never vocabulary.
 
@@ -114,50 +120,117 @@ Zero tolerance holds per gate at its deadline: every check assigned to a gate pa
 repository's project rule ("all quality checks must pass before any commit") changes accordingly — Owner decision,
 2026-10-07, on the direction the 2026-07-25 grooming recommended.
 
-Define `gate` and `kind` once, in the briefs' vocabulary, worded to agree with the shipped rule-authority reading
-(DEV-RULES.ARC § Rule Authority): an enforcement result protects the integrity of a check, so a red gate is never the
-agent's to set aside; a feedback result informs and binds nothing until its gate.
+Define `gate` once, in the briefs' vocabulary, with kind as a clause of that entry rather than a second term. It
+replaces the Class entry's "Distinct from the quality-gate `Tier 1/2/3`" and the briefs' pointer to
+`quality-gate-commands`, so the always-loaded set barely grows. Word it to agree with the shipped rule-authority
+reading (DEV-RULES.ARC § Rule Authority): an enforcement result protects the integrity of a check, so a red gate is
+never the agent's to set aside. A feedback result binds nothing until its gate, but a red one is still reported red and
+handled under § Quality gate failure; a failure carried on purpose — a test-first test written to fail — is named as
+such in the completion report, where the approval gate accepts it.
+
+The names retire from shipped prose (24 files under `packages/arc-framework/arc/` today), the briefs and rules, and
+emitted text such as the convergence remedy "Run Tier 3, then replace the carried evidence placeholder and attest."
+(`integration-boundary-locus.ts`). Code identifiers that carry them are another matter: the convergence action's
+`verificationKind: "tier-3"` (`RunConvergenceVerificationActionSchema`, mirrored in `attest.ts`) and delivery's
+`tier1Required`, `tier1ReuseCriteria`, and `ReviewFixTier1VerificationSchema` (`delivery-execution.ts` and seven
+`lib/delivery/` files) sit in correction-convergence and delivery code the storage program rebuilds (register rows
+158–159). They stay as they are and route out as holds to those owners, rather than being edited twice.
 
 ### D2 — The check declaration
 
 A project declares each check once in typed configuration the CLI validates. The shape follows every major hook tool
 (pre-commit.com `stages:` / `files:` / `pass_filenames`; lefthook `glob` / `run`; Turborepo `inputs`):
 
-- **id** and **command**;
-- **gates** — which deadlines it belongs to;
+- **id** and **command** — an argument list run without a shell, as pre-commit.com and lint-staged do by default, so
+  appended paths are never re-parsed by a shell and the command behaves the same on Windows; a check that needs shell
+  features opts into one or calls a script;
+- **gates** — which deadlines it belongs to; a check in no gate stays runnable by id (pre-commit.com's `manual`
+  stage);
 - **inputs** — globs its result depends on; default the whole tree, so an undeclared input can only cost a run,
-  never yield a false reuse; narrowing is the project's opt-in;
+  never yield a false reuse; narrowing is the project's opt-in. Optional runtime inputs name commands whose output
+  joins the key (Nx's `{ "runtime": "node --version" }`), for a tool version no file records;
 - **mode** — `files` (receives the changed or staged paths among its inputs) or `project` (runs whole-project);
-- **fixes** — whether it may rewrite files.
+- **root** — the working directory, with `files` paths passed relative to it (lefthook's `root`); this repository's
+  root `lint:ts:file` does that translation by hand today;
+- **fixes** — whether it may rewrite files;
+- **cache** — on by default; off for a check whose result depends on something no input can name, such as remote
+  state (Turborepo's and Nx's `cache: false`).
 
-Global inputs that invalidate every check (lockfiles, tool configuration, the declaration itself) are declared once.
-ARC ships no stack defaults; initial setup asks the project to declare its checks, and common-stack examples (JS/TS,
-Rust, Go, Python) route to the docs site through a `notes-docs-content-sweep.md` capture at draft close.
+Global inputs that invalidate every check (lockfiles, tool configuration, the declaration itself) are declared once;
+by default they also stand in for tool versions. The declaration's type lives in the CLI's schema module, and a JSON
+Schema generated from it gives editors completion and validation in the file, as Turborepo and lefthook publish one;
+the generation is coordinated with `schema-introspection-layer` (planned) rather than hand-written beside it. The
+declaration lives in a dedicated file beside `arc-config.yml` — whose flat keys cannot carry a list of structured
+checks — read through ARC's configuration loader (§ Forward compatibility with the store, seam 4) and coordinated with
+the planned config-storage work. ARC ships no stack defaults; initial setup asks the project to declare its checks,
+and common-stack examples (JS/TS, Rust, Go, Python) route to the docs site through a `notes-docs-content-sweep.md`
+capture at draft close.
 
 ### D3 — One gate verb
 
-One CLI verb resolves a request (a gate, plus a scope such as staged, changed, or all), selects (D4), reuses (D5),
-runs what remains, and reports per check: ran, reused, or not selected, with the reason. Output is terse and
-failures-first by default, with JSON for machine callers; each failure carries a precomposed remedy, including the
-fix invocation for `fixes` checks. Every caller uses it: workflow steps, ARC's hooks, CI, and any harness edit hook.
+One CLI verb — gate requests added to the existing `arc check`, which today carries only `commit-msg` — resolves a
+request, selects (D4), reuses (D5), runs what remains, and reports. Every caller uses it: workflow steps, ARC's hooks,
+CI, and any harness edit hook.
+
+- **Requests.** A gate with a scope — staged, changed, all, or an explicit path list for harness edit hooks and
+  targeted mid-task checks; one check by id; or a named preset composing gates for a fire site (`done` and
+  `segment-close`, D6), so the composition lives in the CLI rather than workflow prose. A gate request takes no skip
+  or relaxation argument; presets are what a future ratchet chooses between. A force flag re-runs without reuse
+  (Turborepo's `--force`).
+- **Dry run.** Reports what would run, what is reused, and why anything is unselected, with each check's last measured
+  cost, without running anything (Turborepo's `--dry`) — so an agent with a hard tool timeout sees a long gate coming
+  and runs it in the background. Its JSON form carries each gate's resolved commands for CI (D9).
+- **Execution.** Fix-capable checks run first, one at a time in declared order, so a formatter finishes before a
+  linter reads its files; the rest run in parallel, with a switch to run serially (practice splits: pre-commit.com
+  runs in order; lint-staged and Turborepo run in parallel). Every selected check runs and every failure is reported —
+  pre-commit.com's default, `fail_fast` its opt-in — so one run gives an agent every failure. `files` checks receive
+  only paths that exist (a deletion selects checks but is never passed as an argument, lint-staged's default filter),
+  batched under the platform's argument-length limit as pre-commit.com and lint-staged both do.
+- **Outcomes.** ARC sees how a command ran, never why it failed, so the exit status is the whole contract with a check;
+  whether "ran zero cases" passes stays the command's own job. Per check: `passed`; `failed` (it ran and exited
+  non-zero — the project's check speaking); `couldn't run` (missing, not executable, killed, timed out — DEV-RULES.ARC's
+  "the gate never ran"); `reused`; `not selected`, with the reason; `skipped` on a human's request (D8). Per request:
+  `invalid` (the declaration fails its schema, naming the field), `refused` (an ARC-detected condition such as unstaged
+  inputs, D8), or `none declared` for the gate. Only `passed` and `reused` are passes. The verb exits 0 when the
+  request passed, 1 when a check failed, and 2 when a check could not run or the request was invalid or refused —
+  ESLint's and pytest's convention.
+- **Output.** Terse and failures-first, with JSON for machine callers. A passing check is one line; a failing one shows
+  a bounded tail of its output and the path to its full log; files a fix rewrote are listed, so an agent re-reads them
+  before editing. Each result carries its § Quality gate failure class — `couldn't run` is "the gate never ran", a
+  fixer's failure is "deterministic same-concern", any other failure is report-and-ask — and the CLI precomposes the
+  completion report's verification line from them.
+- **Remedies.** An ARC refusal is recovery-complete (DEV-RULES.PROJECT § Engineering Standards): it reports the
+  observed condition, names a remedy that never discards work, and keeps the success path reachable on retry. A check's
+  own failure has no ARC-composable fix; its remedy is the check's output, the command to rerun it by id, and the fix
+  invocation for a `fixes` check.
 
 ### D4 — Selection
 
-A check is selected when its declared inputs changed relative to the request's scope. Against a base, the base is the
-merge base with the base branch (Nx's default); a stronger last-known-good anchor is open (§ Open items). Selection
-widens to every check when a global input changed, a changed path matches no check's inputs, or the base
-cannot be resolved (shallow clone, missing ref) — Nx and Turborepo fail closed the same way.
+A check is selected when its declared inputs changed in the request's own change: the staged change against `HEAD`
+for the `commit-gate` and at the done boundary, the pushed range for the `push-gate`, and the merge base with the base
+branch for the `merge-gate` (Nx's default base). Selection widens to every check when a global input changed, a
+changed path matches no check's inputs, or the base cannot be resolved (shallow clone, missing ref) — Nx and
+Turborepo fail closed the same way.
+
+Selection trusts that unchanged inputs were already checked — what was committed passed its gate, and what came from
+the base passed the base branch's checks. That is the idiom's trust too: lint-staged runs a task only when a staged
+file matches its glob. It holds because local runs are a convenience layer and CI is the authority (lean; § Open
+items).
 
 The package-mirror case (a one-sided edit to a mirrored file pair) is expressed through inputs, not special
 machinery: a check whose correctness spans both copies declares both.
 
 ### D5 — Reuse
 
-The verb keeps a machine-local record of passes under `.git/arc/` (machine-local state stays local through the
-storage cutover). Key: check id, a digest of the check's declaration, and a digest of its inputs' content in the
-checked tree, plus the changed-path set for `files` checks. Only passes are recorded; a failure always re-runs; a hit
-replays the stored summary. The record is an execution shortcut, never evidence: no attestation, Candidate, or merge
-check reads it.
+The verb keeps a machine-local record of passes under `.git/arc/` in the common Git directory (machine-local state
+stays local through the storage cutover). Every worktree on the machine shares it, as local test admission already
+does (`local-test-admission.ts`), so a fresh errand worktree inherits passes a sibling recorded for identical inputs.
+Key: check id, a digest of the check's declaration, and a digest of its inputs' content in the checked tree — per
+check, since the inputs already exist for selection — plus the output of any runtime inputs and the changed-path set
+for `files` checks. Only passes are recorded: a failure, a check that could not run, a skipped check, and a check with
+`cache` off always run again; a hit replays the stored summary. A fault reading or writing the record degrades to a
+run, never to a pass or a refusal. The record is an execution shortcut, never evidence: no attestation, Candidate, or
+merge check reads it.
 
 The checked tree is the content the event will carry: at the commit hook, the index (`git write-tree`); at a workflow
 step, the worktree as it would be staged. So a step's run and the hook's run over the same content produce the same
@@ -171,16 +244,18 @@ No per-task gate. The fail-fast intent is served at the points where it pays:
 
 - **Done boundary** — a review increment's completion in `process-task-loop`, an errand pass or approved review fix
   in `run-errand` (correction paths in `prepare-work-unit` and `integrate-work-unit` stay out, per § Storage
-  boundary): run the `commit-gate`
-  plus the push-gate's `files` checks over the change (for example, related tests via `vitest related` or
-  `jest --findRelatedTests`). The commit set's failures block the commit; the push-gate subset is feedback in the
-  completion report. Fixes apply here, before review (D7).
-- **Segment verifier** — a `slice` or `replication` segment's closing verifier runs the `push-gate`. The plan declares
-  where broader verification pays off, replacing the "coherent unit" judgment Tier 2 rested on; the verb knows
-  nothing of segments. A `layer` segment needs nothing extra.
+  boundary): request the `done` preset — the `commit-gate` plus the push-gate's `files` checks over the change (for
+  example, related tests via `vitest related` or `jest --findRelatedTests`). The commit set's failures block the
+  commit; the push-gate subset is feedback in the completion report. This composition is the framework default, not
+  a project knob. Fixes apply here, before review (D7).
+- **Segment verifier** — a `slice` or `replication` segment's closing verifier requests the `segment-close` preset,
+  which runs the `push-gate`. The plan declares where broader verification pays off, replacing the "coherent unit"
+  judgment Tier 2 rested on. The CLI already parses each segment's mode (`TaskListSegmentMode` in `segmentation.ts`),
+  so the task cursor names the preset for the closing task and the workflow step dispatches on it rather than
+  evaluating the mode; the verb itself knows nothing of segments. A `layer` segment needs nothing extra.
 - **Commit and push hooks** — run their gates; normally a reuse.
-- **Work-unit verification** — `verify-work-unit` runs the `integration-gate`.
-- **CI** — runs the `integration-gate` as the authority.
+- **Work-unit verification** — `verify-work-unit` runs the `merge-gate`.
+- **CI** — runs the `merge-gate` as the authority.
 
 Push cadence stays neutral: gates are deadlines, so a project that pushes once a session and one that pushes hourly
 get the same guarantees. The done-boundary push subset is what gives regular test feedback between pushes.
@@ -200,21 +275,45 @@ drift guard in `worktree-index-drift.ts`).
 ARC's shipped pre-commit hook runs its structural checks, then dispatches the `commit-gate` through the verb; the
 shipped pre-push hook keeps its force-push advisory and dispatches the `push-gate`. Both stay on the existing
 `hooks.pre_commit` / `hooks.pre_push` keys; gate dispatch is on when the project declares checks for that gate and
-off otherwise. Hook-manager integration is unchanged (ADR-014: husky, lefthook, pre-commit.com, or `core.hooksPath`).
+off otherwise. Push dispatch gates code refs only (§ Forward compatibility with the store, seam 2). Hook-manager
+integration is unchanged (ADR-014: husky, lefthook, pre-commit.com, or `core.hooksPath`).
 Hooks remain bypassable by design; CI is the authority, and ARC's `--no-verify` prohibition stays agent discipline.
+
+A person may skip named checks for one run through an environment variable (`ARC_SKIP=<id>,<id>`), as pre-commit.com's
+`SKIP` and lefthook's `LEFTHOOK_EXCLUDE` allow — namespaced so it never collides with pre-commit.com's own `SKIP` in a
+project running both. A skipped check is reported as skipped, never as passed, and never recorded; ARC's structural
+checks are not declared checks and cannot be skipped this way. It is narrower than `--no-verify`, which drops the
+structural checks too, so without it the routine human bypass would be the wider one. Agents never set it: the
+`--no-verify` invariant in DEV-RULES.ARC extends to it (D10).
+
+Most tools read the worktree, not the index, so a commit hook over partially staged content can certify bytes that
+will not be committed. pre-commit.com hides unstaged changes by writing them to a patch file and checking out the
+index (`git checkout -- .`); lint-staged also pushes a backup onto the stash stack, which is shared across the
+worktrees ARC runs concurrently. Both rewrite the worktree mid-hook and depend on process cleanup to restore it — and
+an agent harness that kills a hook at its tool timeout skips that cleanup, stranding the hidden changes. Instead the
+commit gate fails closed when a selected check's inputs carry unstaged changes. The emitted remedy names the paths
+and never discards work: stage them, or set them aside in a commit of their own. The done boundary rarely meets this:
+the worktree it checks is what will be staged.
 
 ### D9 — CI parity by construction
 
 CI runs the same declaration through the same verb, so a check cannot be local-only or CI-only by omission — the
-local-green / CI-red class closes structurally rather than through a parity test.
+local-green / CI-red class closes structurally rather than through a parity test. Because the verb needs ARC's CLI in
+the CI environment, which a project in another language may not otherwise install, the dry run's JSON (D3) carries
+each gate's resolved commands. CI runs them as native steps, or fans them out as a job matrix (GitHub Actions'
+`fromJSON`) that keeps one parallel job and one status check per check while the job list still comes from the
+declaration.
 
 ### D10 — Knowledge placement
 
-- `gate` and `kind` enter the briefs' vocabulary (D1).
+- `gate` enters the briefs' vocabulary as one entry, with kind as its clause (D1).
 - `quality-gate-commands` retires or becomes a pointer to the declaration.
 - `QUICK-REFERENCE.md` § Quality Gate Commands gives way to verb help and emitted remedies.
 - `strategy-quality-gates.md` shrinks to what an operator needs that the verb cannot say; its tier, escalation, and
-  checkpoint-placement content is replaced by D1 and D6.
+  checkpoint-placement content is replaced by D1 and D6. Its STRATEGY-INDEX entry is rewritten as a directive firing
+  condition, and DEV-RULES.ARC's line loading it "for quality gate tier definitions" goes.
+- DEV-RULES.ARC's `--no-verify` invariant extends to `ARC_SKIP` (D8), and its integration-candidate clause that a
+  reconciled head "passes Tier 1" names the `commit-gate`.
 - This repository's DEV-RULES.PROJECT § Selecting what to run shrinks to its zero-tolerance policy once the verb
   computes selection and reuse.
 
@@ -230,6 +329,7 @@ The final work moves this repository's existing checks into declarations, provin
 - the QUICK-REFERENCE gate blocks and the DEV-RULES.PROJECT relevance table become inputs and gate assignments;
 - the package-mirror coupling becomes declared inputs (D4);
 - `format:tables` and the Markdown drift guard exercise D7;
+- `lint:ts:file`'s repository-to-package path translation becomes the check's `root` (D2);
 - CI invokes the verb (D9), after `test-suite-reliability` lands its CI layout changes.
 
 Checks this repository does not yet have are distinct concerns and route out (§ Buffer triage).
@@ -269,29 +369,24 @@ Chosen: the smart default under the existing `hooks.pre_push` key (D8).
 
 **Hook-time restage** — configurable, default `restage` (D7).
 
+**Human per-check skip** — _none_, leaving `--no-verify` as the only bypass, or _a namespaced skip variable_. Chosen:
+the variable (D8); pre-commit.com and lefthook both offer one, and its absence widens the bypass people use.
+
 ## Open items
 
-1. **Verb name.** Extend the existing `arc check` with gate subcommands, or a new `arc gate`. Lean: `arc check`.
-2. **Done-boundary composition.** Confirm the push-gate `files` subset as feedback at the done boundary (D6) as the
-   framework default rather than a project knob. Lean: default.
-3. **Unstaged changes at the commit hook.** Tools read the worktree, not the index. pre-commit.com and lint-staged
-   stash unstaged changes, but the stash stack is shared across worktrees, which ARC runs concurrently. Lean: fail
-   closed when a selected check's inputs carry unstaged changes, with an emitted remedy; no stash.
-4. **CI invocation form.** The verb in CI needs ARC's CLI in the CI environment, which a project in another language
-   may not otherwise install. Lean: the verb, plus a mode that prints the resolved commands for native CI steps.
-5. **Reuse key granularity.** Per-check input digest (D5) versus whole-tree key. Lean: per-check, since the inputs
-   already exist for selection.
-6. **Declaration home.** `arc-config.yml`'s flat keys cannot carry a list of structured checks. Lean: a dedicated,
-   schema-validated file beside it, coordinated with the planned config-storage work.
-7. **Gate-coverage audit.** The draft previously scoped an `arc check-gates` audit comparing detected ecosystem
-   scripts with configured gates, on four recurrences in this repository. Parity by construction (D9) removes the
-   local / CI drift those recurrences were; what remains is a check neither runs. Lean: route out as a provisional
-   follow-on stub.
-8. **Tool versions in the key.** No stack-agnostic way to read tool versions; lockfiles and tool configuration as
-   global inputs cover most of it. Confirm that suffices.
-9. **Last-known-good base.** The merge base with the base branch may itself be unverified locally; CI learns verified
-   trees from the host's checks API (`classify-change.sh`), which a stack-agnostic verb cannot assume. Decide whether
-   selection needs a stronger anchor than the merge base, and where it would come from.
+None open. Settled 2026-10-07 on the stated leans: the verb extends `arc check` (D3); the done-boundary composition is
+the framework default (D6); the commit hook fails closed on unstaged inputs (D8); CI runs the verb or its printed
+commands (D9); reuse keys per check (D5); the declaration has its own schema-validated file (D2); lockfiles and tool
+configuration stand in for tool versions (D2); the gate-coverage audit routes out (§ Buffer triage). A later review the
+same day added the verb's requests, presets, execution, outcomes, output, and dry run (D3); argument-list commands,
+`root`, `cache`, runtime inputs, and the generated schema (D2); the human skip (D8); the CI job matrix (D9); the
+ratchet boundary (commitment 1); the `merge-gate` name; and the tier names' full retirement (D1).
+
+**Last-known-good base** (settled the same day). Locally, the merge base may itself be unverified; CI learns verified
+trees from the host's checks API (`classify-change.sh`), which a stack-agnostic verb cannot assume. No stronger
+anchor is built locally: selection relative to each event's own change (D4) matches the idiom, the reuse record
+covers repeat runs, and CI remains the authority. CI may opt into base-relative selection only where the host's
+required checks vouch for the base.
 
 ## Storage boundary
 
@@ -308,6 +403,36 @@ The scope edge against the `state-storage` program (register in `cohort-state-st
   artifacts; a pre-handoff hook and notes-consistency check. The register row naming this work unit (commit-time
   checks over artifacts that will no longer be committed, and a git-notes check) is discharged by dropping both.
 
+### Forward compatibility with the store
+
+Only the contract has shipped, but `spec-storage-contract.md` already specifies the parts this design meets: the ref
+layout (D10), sync and push (D12), task close (D16), branchless planning (D17), and ghost mode with the surface
+boundary (D19). The design holds no state family — it touches tracked code and project machinery, a machine-local
+cache, hooks, and configuration — so it builds on today's substrate and carries through the flip without rework,
+provided seven seams hold:
+
+1. **Gates check tracked content only.** Operational state and authored design are validated by their record kinds at
+   write, never by a gate, and no check reads state through Git. Selection and reuse keys follow Git's exclude rules,
+   so the projection — excluded per clone — never enters them.
+2. **The push gate gates code refs only.** State refs ride a code push in one `--atomic` push, or push alone at
+   `arc sync`; the pre-push hook sees both. Gate dispatch skips `refs/arc/*`, a push carrying only state refs runs no
+   gate, and the force-push advisory skips them too, since state history follows its own policy.
+3. **A push-gate refusal reads as a code-leg failure.** The contract's push loop already pushes the state leg alone
+   when the code leg cannot; the refusal must surface to it as that case (a hold for `storage-seam`).
+4. **The declaration resolves through ARC's configuration loader**, wherever the install profile keeps it — tracked
+   under the standard profile, the per-machine tier under ghost — never by a fixed tracked path, and its digest is of
+   resolved content. Ghost's named cost applies as the contract states it: one copy of the gate commands for every
+   branch, with no per-branch override built until a long-lived branch with different tooling hits it.
+5. **The reuse record is a disposable cache.** Its own directory under `.git/arc/`, never `.git/arc/store/`; keyed by
+   content, never by commit, so it survives history rewrite; never stored, synced, or projected, matching the
+   machine-local fate the register sets for `.git/arc/`. Entries are content-addressed and write-once with atomic
+   create, so concurrent sessions on one machine never conflict.
+6. **Output honors the surface boundary.** What the verb prints where people read without ARC — CI logs, check and
+   status text — names the project's checks and results, with no ARC vocabulary.
+7. **Fire sites name the verb, not commit mechanics.** The cutover rewrites those workflows' commit steps, so the cost
+   stays merge conflicts. Branchless planning takes no commits, so planning fires no gate; after the flip, task close
+   runs after the increment's commit, so the done boundary stays before it.
+
 ## Scope boundary (Won't Do)
 
 - Knowledge-base content checks (cross-references, anchors, forbidden patterns) — `knowledge-lint`'s charter. The
@@ -315,7 +440,7 @@ The scope edge against the `state-storage` program (register in `cohort-state-st
 - Changing the shipped hook script format or the hook-manager integration (ADR-014).
 - Rewriting or consolidating the 20 structural CHECKs.
 - Tech-stack defaults or lint-tool opinions in shipped content.
-- A local hook for the `integration-gate` — CI and review own it.
+- A local hook for the `merge-gate` — CI and review own it.
 - Harness-specific edit-hook wiring. Any harness hook can call the verb; examples go to the docs site.
 - A warm-watcher feedback layer (`tsc --watch`, `test:watch` kept running across a session) — out of scope, not
   rejected; it carries its own lifecycle, staleness, and portability problems and becomes its own work unit if pursued.
@@ -331,7 +456,12 @@ The scope edge against the `state-storage` program (register in `cohort-state-st
 - **`knowledge-lint`** (planned) — receives the two citation and anchor checks from the buffer.
 - **`inbound-routing-method`** (planning) — this triage is the first live test of its routing rule; what was hard to
   place goes to it as evidence.
-- **`storage-seam`** / **`storage-cutover`** — the storage-tied buffer entries go to them as holds.
+- **`storage-seam`** / **`storage-cutover`** — the storage-tied buffer entries go to them as holds, with one more for
+  `storage-seam`: a push-gate refusal must read to the push loop as a code-leg failure (seam 3).
+- **`delivery-rebuild-continuity`** (planning) and the correction-convergence owner — receive a hold for the tier-named
+  identifiers in their code (D1), renamed when they rebuild it.
+- **`config-storage-architecture`** (planned) — owns where configuration lives, including ghost's per-machine tier;
+  the declaration's home follows it (seam 4).
 
 ## Boundary fit
 
@@ -345,14 +475,15 @@ nearly free, so the earlier hooks-versus-vocabulary split would edit the same li
 `Heavy`, larger than the earlier "days to a week":
 
 - declaration, schema, and validation: 1–2 days;
-- the verb — selection, reuse record, runner, output, remedies: 3–5 days;
+- the verb — selection, reuse record, runner (ordering, parallelism, batching), outcomes, output, dry run, remedies:
+  4–6 days;
 - hook dispatch, both copies, and hook-manager paths: 1–2 days;
-- fire-site consolidation and the vocabulary sweep (19 package files name the tiers today): 2–3 days;
+- fire-site consolidation, the presets, and the vocabulary sweep (24 shipped files name the tiers today): 2–3 days;
 - knowledge placement and the recipe check: about 1 day;
 - initial-setup bootstrap: about 1 day;
 - first-consumer adoption and CI parity: 1–2 days.
 
-The mechanics slice (declaration through hooks) is roughly 5–9 days; whether it takes an implementation slot beside
+The mechanics slice (declaration through hooks) is roughly 6–10 days; whether it takes an implementation slot beside
 the storage program's Stage 2 is decided at activation.
 
 ## Buffer triage
@@ -400,3 +531,7 @@ Full entry text is in this draft at `7ea9addfa`. Route-outs execute at draft clo
 lint path; runtime examples versus meta-project references in code; integrity verification for mode-scoped installs;
 an exported-surface TSDoc lint rule; an actionlint gate; whether cognitive complexity replaces the cyclomatic limit.
 The changed-file Markdown under-wrap detector prototype (calibration data at `7ea9addfa`) joins them as a new check.
+
+**Removed from this scope at consolidation (1):** the gate-coverage audit (`arc check-gates`, comparing detected
+ecosystem scripts with configured gates; full text at `7ea9addfa`) → a provisional follow-on stub. Parity by
+construction (D9) removes the local / CI drift its four recurrences were; what remains is a check neither runs.
