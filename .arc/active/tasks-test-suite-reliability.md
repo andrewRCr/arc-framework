@@ -165,6 +165,15 @@ untracked module, and every test that reads a renewing lock retries an empty or 
           (`test-cost-native.test.ts:58`, asserted with `>=`) each shrink to the smallest window its assertion still
           distinguishes. The chosen values and their reasoning are recorded in this task.
 
+### `[ ]` **2.4.R Size the excluded scan cases' timeouts — D1**
+
+- _Goal:_ Realize A2 by giving the two measured near-timeout cases in
+  `decompose-v3-refusal-source-totality.test.ts` a named timeout above 3.4 times their hosted maximum, preserving
+  every assertion and scan behavior.
+
+    - Use the retained 2,550.469 ms and 2,284.781 ms maxima; 10,000 ms leaves the scaled maximum below half.
+    - Compare the file diff to prove the timeout is its only behavioral change, and run both cases unchanged.
+
 ## **Phase 3:** Native-tooling unit files
 
 _Purpose:_ Prove native-tooling decision logic below the real stack, against fakes at the existing seams or against
@@ -1340,3 +1349,6 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
 
 - `[ ]` Closing E2E summed file time's three-run median is at least 20% below the frozen single ordinary baseline
   sample with its missing noise estimate explicit (A1; supersedes the original E2E comparison criterion)
+
+- `[ ]` A2 changes only the two measured refusal-source-totality cases' named timeout; their assertions and scan
+  behavior stay intact, and the timeout exceeds 3.4 times their frozen hosted maximum

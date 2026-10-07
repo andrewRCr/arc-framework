@@ -244,3 +244,26 @@ Full test names, maximum-run IDs, status, and minimum proposed timeouts are reta
   generation disabled; max 17740.680 ms, timeout 60,000 ms, native, passed.
 - `__tests__/unit/vitest-failure-ownership.test.ts` — closes a native execution failure before releasing CPU and
   artifacts; max 8850.605 ms, timeout 30,000 ms, native, passed.
+
+## Amendment A2: timeout sizing without decomposition changes
+
+The decomposition exclusion conflicts with the hosted headroom requirement for two refusal-source-totality cases.
+Their frozen maxima are 2,550.469 ms and 2,284.781 ms under the 5,000 ms default; 1.7× runner variation exceeds half
+that timeout. A 10,000 ms named timeout resolves the conflict without changing assertions, scanning, or machinery.
+This bounded adjustment preserves the design intent under the expanded implementation direction.
+
+Superseded exclusion:
+
+> **Decomposition tests and machinery**, including the 120 s `integration/decompose-v3-repository-plan.test.ts` and
+> `decompose-v3-refusal-source-totality.test.ts`, which stay as they are. § 3's survival rule still classifies
+> `decompose-v3-authority-boundary.test.ts`, a source-scan test.
+
+Grounding and propagation: the retained hosted maxima identify both cases; Task 2.4's blanket timeout rule and the
+Non-Goal gain a bounded exception in 2.4.R. All decomposition contracts and the source-scan survival rule are
+unaffected. The 5-second unit default and numerical cost targets stand.
+
+## Implementation direction
+
+Phases 1–10 run under deferred review with atomic commits where viable; pushes and hosted runs required for
+implementation are preapproved. Bounded adjustments preserving the specification's intent are recorded in the task
+record and completion report. Phase 11 remains outside that scope.

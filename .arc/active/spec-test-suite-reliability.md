@@ -74,6 +74,8 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
 - **Decomposition tests and machinery**, including the 120 s `integration/decompose-v3-repository-plan.test.ts` and
   `decompose-v3-refusal-source-totality.test.ts`, which stay as they are. § 3's survival rule still classifies
   `decompose-v3-authority-boundary.test.ts`, a source-scan test.
+  _Amended (A2):_ The two measured near-timeout cases in `decompose-v3-refusal-source-totality.test.ts` may receive
+  a named timeout; their assertions, scanning behavior, and decomposition machinery remain unchanged.
 - **Which tests a change selects when it touches Markdown**, and **rewrapping prose pins**. They concern selection
   and pin matching, not suite cost or reliability.
 - **Failing a pull request on its test budget.** Budget overage becomes visible only.
@@ -789,6 +791,10 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
     measured with the same local instrument and settings using three-run medians, is at least 20% below the frozen
     single ordinary baseline sample; the result explicitly states that the baseline has no measured noise estimate.
 
+17. **Timeout-only decomposition exception (A2).** The two near-timeout refusal-source-totality cases keep their
+    assertions and scanning behavior and receive a named timeout above 3.4 times their frozen hosted maximum.
+    This exception permits no decomposition implementation change.
+
 ## Open Questions
 
 - **Calibration of the native-tooling cut.** The 55–60% projection comes from a per-file read, not a prototype; the
@@ -804,3 +810,6 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
 
 - **A1** — 2026-10-06 — design: freeze existing baseline evidence and begin fixes without further pre-fix sampling.
   _Supersedes:_ § 0 ¶2–3. _Trigger:_ 1.2 must-stop. _Work:_ 1.2.R. _Revalidated:_ 1.2.R.b.
+
+- **A2** — 2026-10-06 — design: permit timeout sizing for the two measured refusal-source-totality cases.
+  _Supersedes:_ § Non-Goals ¶3. _Trigger:_ 2.4 must-stop. _Work:_ 2.4.R. _Revalidated:_ pending → 2.4.R.
