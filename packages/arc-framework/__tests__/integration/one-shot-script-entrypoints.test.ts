@@ -86,7 +86,7 @@ describe("one-shot TypeScript package scripts", () => {
       {
         cwd: repositoryRoot,
         encoding: "utf8",
-        env: { ...process.env, ARC_LISTEN_PROBE: marker, NODE_OPTIONS: nodeOptions },
+        env: { ...process.env, FORCE_COLOR: undefined, ARC_LISTEN_PROBE: marker, NODE_OPTIONS: nodeOptions },
       },
     );
 
@@ -105,7 +105,7 @@ describe("one-shot TypeScript package scripts", () => {
       {
         cwd: repositoryRoot,
         encoding: "utf8",
-        env: { ...process.env, ARC_LISTEN_PROBE: marker, NODE_OPTIONS: nodeOptions },
+        env: { ...process.env, FORCE_COLOR: undefined, ARC_LISTEN_PROBE: marker, NODE_OPTIONS: nodeOptions },
       },
     )).rejects.toMatchObject({
       code: 1,
@@ -119,6 +119,7 @@ describe("one-shot TypeScript package scripts", () => {
     const result = await execute(npmExecutable, ["run", "-s", "render:framework", "--", "--help"], {
       cwd: repositoryRoot,
       encoding: "utf8",
+      env: { ...process.env, FORCE_COLOR: undefined },
     });
 
     expect(result.stdout).toContain("Usage: npm run render:framework -- <package-source.md>");

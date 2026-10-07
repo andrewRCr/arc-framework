@@ -958,14 +958,14 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
   Windows path boundary reproduces the old missing-schema refusal and now publishes schema, runtime and qualification
   while removing obsolete output. Guards remain intact; Notes § Amendment A5 records the failed hosted attempt.
 
-### `[ ]` **10.1.R2 Isolate inherited child-process output formatting**
+### `[x]` **10.1.R2 Isolate inherited child-process output formatting**
 
 - _Goal:_ CLI and script subprocess fixtures keep their output contracts when the parent sets `FORCE_COLOR=3`, while
   explicit per-invocation environment overrides remain available and every behavioral assertion stays intact.
 
-    - Clear inherited `FORCE_COLOR` in shared pipe CLI/script helpers and the four direct Node/npm fixture callers
-      exposed by the forced-color run. Preserve CLI, script, decomposition and validator behavior.
-    - Re-run the failed cases and the complete routine lane with `FORCE_COLOR=3`; retain the failing capture as evidence.
+- _Outcome:_ Shared pipe helpers clear inherited formatting before explicit overrides; four direct Node/npm fixture
+  callers clear it too. Plain output and failure contracts survive a forced-color parent, with every assertion retained.
+  See `notes-test-suite-reliability.md` § Inherited subprocess formatting.
 
 ### `[ ]` **10.1 Run the closing hosted runs**
 

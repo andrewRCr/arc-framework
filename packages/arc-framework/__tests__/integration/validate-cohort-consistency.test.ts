@@ -41,7 +41,7 @@ async function runValidator(
     const { stdout, stderr } = await execFileAsync(
       process.execPath,
       ["--import", tsxLoader, SCRIPT_PATH, ...absPaths],
-      { cwd: REPO_ROOT },
+      { cwd: REPO_ROOT, env: { ...process.env, FORCE_COLOR: undefined } },
     );
     return { code: 0, stdout, stderr };
   } catch (err) {

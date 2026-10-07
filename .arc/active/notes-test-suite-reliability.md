@@ -2115,3 +2115,21 @@ registration; its failed record remains `/tmp/arc-windows-publication-routine.lo
 as its own atomic Task 10.1.R2 change. The combined worktree passes all 1,120 routine files/16,714 cases with
 `FORCE_COLOR=3` in 234.01 s (`/tmp/arc-closing-repairs-routine-final.log`), retaining the existing skip set.
 The source/build inputs remain unchanged after those checks; final completion records receive Markdown/ARC checks.
+
+## Inherited subprocess formatting
+
+The forced-color routine run exposes eight failures in script/CLI fixtures whose child stderr must be empty or
+start with a domain error. Vitest's inherited `NO_COLOR` and the parent's `FORCE_COLOR=3` make Node emit its
+formatting-conflict warning before that output. The failure capture remains `/tmp/arc-windows-publication-routine.log`.
+
+`runCli` and `runScript` now clear inherited `FORCE_COLOR` before applying explicit invocation overrides. The four
+direct Node/npm fixture callers in one-shot entrypoints, current-workflow validation, cohort consistency and the
+roadmap remedy clear it in their child environments. No source CLI/script, decomposition behavior, timeout, output
+assertion or verdict is changed. The focused six-file selection passes all 131 cases with the forced-color parent
+(`/tmp/arc-forced-color-child-green.log`); the complete routine run passes 1,120 files and 16,714 cases with
+`FORCE_COLOR=3` in 234.01 s (`/tmp/arc-closing-repairs-routine-final.log`).
+
+Both type checks and whole-project typed lint pass on the final combined repair tree; the full declaration build
+and shell checks remain green with unchanged inputs. No suppression changes. The publication and formatting repairs
+land in separate atomic commits; only their completion records change after code validation. Final corrected-head
+measurement resumes after both commits, preserving all earlier captures and the failed Windows attempt.
