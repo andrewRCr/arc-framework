@@ -2888,3 +2888,53 @@ execution, not Windows child survival. A static comparison confirms Linux's gene
 byte-identical and the unit fixture changes only its native path construction (`/tmp/arc-windows-fixture-delta.json`).
 Every native assertion and deadline remains unchanged. The compiler's Windows cause is still unresolved; the
 instrumented hosted dispatch is required before selecting a repair or closing the corrective parent.
+
+Instrumented run 37681430303 at `4c9e3c5b9892ed45f55468e04a425ac5984ed878` again passes Linux and macOS,
+and the raw-link case now passes Windows. The only failure is the survivor case: compiler PID 7012 is unavailable
+immediately after confirmed owner death (owner PID 8972) and at report timeout; no release, normal exit or uncaught
+record is written. These are failed PID probes, whose original error codes were not retained, rather than a claimed
+Win32 error classification. Complete failed-run records remain in
+`.test-cost-runs/windows-fixture-diagnosis-a15/6-37681430303/`; no replacement sample or greener result is claimed.
+
+The hosted Windows version is Node v24.21.0. Primary source confirms `uv__init_global_job_handle` puts non-detached
+`uv_spawn` children in its per-process Windows job with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`; killing the Node
+owner closes that private handle and terminates its compiler child. `UV_PROCESS_DETACHED` bypasses this assignment,
+while `JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK` permits Node's own children to create detached descendants. This does
+not guarantee escape from arbitrary outer runner jobs. See
+[the exact bundled libuv source](https://github.com/nodejs/node/blob/v24.21.0/deps/uv/src/win/process.c#L69)
+and [Node's detached-process contract](https://nodejs.org/download/release/v24.21.0/docs/api/child_process.html#optionsdetached).
+Node's actual `execFile` implementation does not forward detached/stdio options to `spawn`, so adding those options
+to the existing invocation would not arrange the precondition.
+
+Only the Windows survivor fixture requests `startBlockedBuildController(true)`. Its copied compiler launch boundary
+uses real `spawn` with the same binary, arguments, cwd and environment, `detached: true` and file-backed output.
+The real compiler bootstrap, sources, staging destination and artifact-owner logic remain. The fixture awaits actual
+exit during ordinary completion and retains nonzero output in its rejection. The ordinary renewal case uses the
+production launch path; production code and Linux's generated fixture remain unchanged. This arranges a genuinely
+surviving child, without claiming production Windows children normally survive their parent's death.
+
+The case additionally asserts immediate Windows child liveness after owner death. All existing assertions and
+thirty-second case/fifteen-second observation deadlines remain. The copied launcher replacement preserves trailing
+source rather than discarding everything after the method. It records the actual compiler PID at launch, and a
+bounded caller-owned cleanup terminates an unfinished detached compiler before fixture removal; completed exit
+records avoid unnecessary termination. Nonzero-exit diagnostic reads cannot throw outside the promise rejection.
+File-removal retries accommodate Windows handle closing. These controls complete the owned detached resource's
+cleanup rather than weakening the native proof. Advisory source review surfaced those two concrete cleanup/error
+pitfalls, which primary inspection confirmed and corrected; it is not an independent review verdict.
+
+A real-process probe of the generated detached launcher on Linux forces the Windows fixture construction, kills
+its real owner, acquires replacement artifact ownership, releases the schema barrier and verifies the actual report,
+staged new runtime and unchanged live output. The compiler exits normally and cleanup completes
+(`/tmp/arc-windows-survivor-probe.log`). This validates the launch implementation and fixture ownership mechanics;
+the next hosted Windows run still must establish the platform-specific outcome. No timeout increase, platform skip,
+production launch change, new Linux sampling or budget change is introduced.
+
+The final launcher and bounded cleanup pass both type checks and whole-package typed lint without suppression edits
+(`/tmp/arc-windows-survivor-types.log`, `/tmp/arc-windows-survivor-lint.log`). The eight-worker routine lane with
+`FORCE_COLOR=3` passes 1,121 files and 16,732 cases in 222.98 s (`/tmp/arc-windows-survivor-routine.log`). The final
+real detached-launch probe preserves staging and live-output assertions and observes normal compiler exit
+(`/tmp/arc-windows-survivor-probe-final.log`). A separate blocked-compiler probe invokes owned cleanup, verifies
+actual compiler termination and predictable owner rejection, and retains live output
+(`/tmp/arc-windows-survivor-cleanup-probe.log`). These probes exercise actual processes on Linux; current Windows
+portability remains the outstanding platform witness. Unchanged full-build and shell inputs retain their earlier
+passing witnesses. Closing cost observations and advisory budget rows are preserved under A14/A15.

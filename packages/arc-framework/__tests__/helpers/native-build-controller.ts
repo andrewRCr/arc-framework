@@ -12,13 +12,15 @@ export interface NativeBuildController {
   readonly releasePath: string;
   readonly owner: ChildProcess;
   readonly done: Promise<void>;
+  readonly cleanupCompiler: () => Promise<void>;
 }
 
 /**
  * Block the actual schema producer while its owning process maintains artifact renewal.
+ * @param surviveOwnerDeath - Arrange a surviving Windows compiler outside its owner's process job
  * @returns Caller-owned fixture, compiler barrier paths, and owning process completion
  */
-export async function startBlockedBuildController(): Promise<NativeBuildController> {
+export async function startBlockedBuildController(surviveOwnerDeath = false): Promise<NativeBuildController> {
   const { root, packageRoot } = await makeNativeBuildFixture();
   const readyPath = join(packageRoot, ".compiler-ready");
   const releasePath = join(packageRoot, ".release-compiler");
@@ -54,6 +56,38 @@ process.on("uncaughtExceptionMonitor", (error) => recordCompilerDiagnostic(diagn
           `  await writeFile(join(outDir, "schemas/kernel.json"), JSON.stringify(schemas));
   recordSchemaDiagnostic(${JSON.stringify(diagnosticPath)}, "schema-finished\\n");`));
   }
+  if (process.platform === "win32" && surviveOwnerDeath) {
+    const entryPath = join(packageRoot, "src/lib/build-entry.ts");
+    const entry = await readFile(entryPath, "utf8");
+    const boundary = /^async function runNodeBuildTool\([\s\S]*?^}/m;
+    if (!boundary.test(entry)) throw new Error("Native compiler launch boundary is missing");
+    await writeFile(entryPath, `import { spawn as spawnFixtureCompiler } from "node:child_process";
+import { openSync, closeSync, readFileSync, writeFileSync } from "node:fs";
+` + entry.replace(boundary, `
+async function runNodeBuildTool(args: readonly string[], cwd: string, env: NodeJS.ProcessEnv): Promise<void> {
+  const logPath = join(cwd, ".compiler-output");
+  const output = openSync(logPath, "a");
+  let child: ReturnType<typeof spawnFixtureCompiler>;
+  try {
+    child = spawnFixtureCompiler(process.execPath, args, {
+      cwd, env, detached: true, stdio: ["ignore", output, output], windowsHide: true,
+    });
+    if (child.pid !== undefined) writeFileSync(join(cwd, ".compiler-pid"), String(child.pid));
+  } finally { closeSync(output); }
+  await new Promise<void>((resolve, reject) => {
+    child.once("error", reject);
+    child.once("exit", (code, signal) => {
+      if (code === 0) resolve();
+      else {
+        let diagnostic = "Compiler output unavailable";
+        try { diagnostic = readFileSync(logPath, "utf8"); } catch { /* Retain the exit status. */ }
+        reject(new Error("Compiler exit " + code + "/" + signal + ": " + diagnostic));
+      }
+    });
+  });
+}
+`));
+  }
   const script = join(packageRoot, "src/scripts/fixture-owner.ts");
   await writeFile(script, `
 import { writeFile } from "node:fs/promises";
@@ -77,5 +111,35 @@ void withBuildArtifactOwnership({ packageRoot: process.cwd(), operation: "blocke
     owner.stdin?.end();
   });
   void done.catch(() => undefined);
-  return { root, packageRoot, readyPath, releasePath, owner, done };
+  return { root, packageRoot, readyPath, releasePath, owner, done,
+    cleanupCompiler: async () => {
+      if (process.platform === "win32" && surviveOwnerDeath) await cleanupDetachedCompiler(packageRoot);
+    } };
+}
+
+async function cleanupDetachedCompiler(packageRoot: string): Promise<void> {
+  const raw = await readFile(join(packageRoot, ".compiler-pid"), "utf8").catch((error: unknown) => {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") return undefined;
+    throw error;
+  });
+  if (raw === undefined) return;
+  const pid = Number(raw);
+  if (!Number.isInteger(pid) || pid <= 0) throw new Error("Native compiler PID record is invalid");
+  const diagnostics = await readFile(join(packageRoot, ".compiler-diagnostics"), "utf8").catch(() => "");
+  if (diagnostics.includes('"event":"exit","pid":' + pid + ',')) return;
+  try { process.kill(pid, "SIGKILL"); }
+  catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "ESRCH") return;
+    throw error;
+  }
+  const deadline = Date.now() + 3_000;
+  while (true) {
+    try { process.kill(pid, 0); }
+    catch (error) {
+      if (typeof error === "object" && error !== null && "code" in error && error.code === "ESRCH") return;
+      throw error;
+    }
+    if (Date.now() >= deadline) throw new Error("Native compiler did not stop before fixture cleanup");
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
 }

@@ -30,7 +30,7 @@ it("renews native artifact ownership while the compiler child is blocked", async
 }, 30_000);
 
 it("permits a surviving child to finish staging after owner death without publishing", async () => {
-  const fixture = await startBlockedBuildController();
+  const fixture = await startBlockedBuildController(true);
   try {
     let ready!: { pid: number; directory: string };
     await Promise.race([fixture.done.then(() => { throw new Error("Owner exited before compiler readiness"); }),
@@ -44,6 +44,7 @@ it("permits a surviving child to finish staging after owner death without publis
     if (process.platform === "win32") {
       compilerAliveAfterOwnerDeath = true;
       try { process.kill(ready.pid, 0); } catch { compilerAliveAfterOwnerDeath = false; }
+      expect(compilerAliveAfterOwnerDeath).toBe(true);
     }
     await withBuildArtifactOwnership({ packageRoot: fixture.packageRoot, operation: "repaired owner" }, async (lease) => {
       await lease.confirmOwnership();
@@ -67,6 +68,7 @@ it("permits a surviving child to finish staging after owner death without publis
     fixture.owner.kill("SIGKILL");
     await writeFile(fixture.releasePath, "release");
     await fixture.done.catch(() => undefined);
-    await rm(fixture.root, { recursive: true, force: true });
+    await fixture.cleanupCompiler();
+    await rm(fixture.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   }
 }, 30_000);
