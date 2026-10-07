@@ -1,912 +1,402 @@
-# Draft: Quality Gate Tiers and Hook Integration
-
-## Inbound Buffer — Pending Integration
-
-> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
-> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
-
-### `[ ]` **Make a pre-change test-cost baseline recoverable instead of foresight-dependent**
-
-- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-16).
-
-- _Observation:_ refreshing a test-cost budget requires a run of the tree as it was _before_ the change, and the
-  benchmark only measures the working tree — so the baseline has to be taken before the first new test file lands
-  or it is gone. `test-cost-budgets.json` also carries four tier-isolated rows, and `lane` (unit + unit-mocks +
-  integration, the `npm test` tier) overlaps `integration`, so a change that adds integration tests moves a row
-  nobody thought to baseline. The measurement axes never default and the comparison refuses outright on a single
-  axis mismatch, so a missed or mismatched baseline is unrecoverable without reconstructing the old tree by hand.
-
-- _Approach:_ let the benchmark measure a named ref rather than the working tree, so the merge-base run can be
-  taken at any point, and have it report which budget rows a given change's paths actually move. Either half alone
-  removes most of the trap.
-
-- _Observation (infra smell):_ measuring a ref needs a build at that ref for the tiers that spawn the built CLI,
-  which is a real fork — build-at-ref, or ref-measurement limited to the tiers that do not need `dist/`. Worth a
-  second look at drain for whether that fork makes this a work unit.
-
-- _Files:_ `packages/arc-framework/src/lib/test-cost/`, `src/scripts/measure-test-cost.ts`,
-  `src/scripts/compare-test-cost.ts`, `test-cost-budgets.json`.
-
-- _Captured during:_ `concurrent-integration-characterization` task generation, 2026-09-14.
-
-### `[ ]` **Record the warm-run practice for local test-cost baselines**
-
-- _Routed from:_ `USER-INBOX § Errand` capture "Refresh the stale local tier-isolated test-cost baselines and
-  record the warm-run practice", housekeep drain (2026-09-16).
-- _Settled portion:_ `concurrent-integration-characterization` refreshed the numerical tier-isolated baselines;
-  do not repeat that completed refresh.
-- _Remaining concern:_ document and enforce the benchmark's required warm-run practice so cold dependency,
-  transform, or filesystem cache effects do not masquerade as stable suite cost. Keep the practice reproducible
-  across the local baseline and named-ref measurement paths.
-
-### `[ ]` **Give the test-cost benchmark a clean machine-readable result**
-
-- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-16).
-
-- _Observation:_ `measure-test-cost.ts` writes its JSON summary to the same stdout stream Vitest
-  writes its run output to, so a scripted consumer cannot simply parse stdout — it has to locate the
-  trailing JSON object heuristically. Taking pre/post baselines around a new integration test needs
-  exactly that parse, which is the routine use the budget discipline asks for.
-
-- _Approach:_ likely smaller than it looks — the run is already retained to a file
-  (`defaultRetainedRunPath`, overridable with `--output`), so the fix may be to emit the
-  budget-evaluated summary there too and print only its path, or to route the summary to a channel
-  Vitest does not share. Check which consumers exist before choosing; a documented "read the retained
-  run" answer may be sufficient and cheaper than changing the output contract.
-
-- _Observation (infra smell):_ touches the benchmark's output contract, which CI budget reporting also
-  reads (`report-test-budget.ts`, `compare-test-cost.ts`). Worth a blast-radius read at drain and a
-  second look for a design fork hiding in the channel choice.
-
-- _Files:_ `packages/arc-framework/src/scripts/measure-test-cost.ts`,
-  `packages/arc-framework/src/lib/test-cost/run.ts`.
-
-- _Captured during:_ `delivery-post-landing-conflict-recovery` draft-design, 2026-09-16, while taking
-  `integration` and `lane` baselines for the terminal-waiver planning probe.
-
-### `[ ]` **Measure and budget the hosted CI fallback mode**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-09-16).
-
-- `WU_Target: hosted-ci-test-budget-coverage (provisional)`
-
-- _Observation:_ The ordinary GitHub-hosted Linux fallback keeps Vitest's native worker sizing for throughput,
-  while `test-cost-budgets.json` has CI-job budgets only for the configured constrained runner's one-worker
-  mode. The budget reporter now warns when a mode is unbudgeted, but cannot truthfully compare hosted native
-  jobs against an unmeasured threshold. The self-hosted one-worker path remains budgeted.
-
-- _Approach:_ obtain representative complete CI-job timings on the hosted fallback and record the effective
-  worker sizing that Vitest actually used. Decide how to key and refresh budgets when native sizing or runner
-  capacity changes, then add measured exact-mode budgets and tests without forcing the hosted runner to one
-  worker or comparing unlike modes.
-
-- _Boundary:_ follow-up measurement and budget policy only; the current review fix is the advisory
-  unbudgeted warning, not a synthetic native baseline.
-
-- _Captured during:_ `test-suite-right-sizing` member 5 hosted review, PR #609, 2026-09-12.
-
-### `[ ]` **Close the two-copy sync blind spot in gate selection**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: quality-gate-hooks`), housekeep drain (2026-08-10);
-  captured during `proportionality-floor` task generation.
-- _Concern:_ Framework byte identity between package source and `.arc/` is checked at commit time, but the
-  relevance table can classify a one-sided Markdown edit as documentation-only and skip code-side validation even
-  though the shipped counterpart is part of a hybrid contract.
-- _Fold-in:_ decide whether relevance classification expands when either side of a mirrored Framework pair changes,
-  or whether the sync check must emit the affected gate set explicitly. Include the warn-versus-block posture for
-  wrong-direction edits and prove both one-sided cases.
-
-### `[ ]` **Lock a completed task's identifier against removal or rename**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-08-03); captured during
-  `delivery-plan-record` draft design.
-- _Concern:_ completion commits cite task IDs in `Context:` footers, but later renumbering can silently make that
-  durable history point at different work.
-- _Fold-in:_ add a pre-commit comparison against `HEAD` that forbids removing or renaming an ID already marked
-  complete, while leaving open tasks and untouched future phases freely restructurable. Coordinate the prior-state
-  read, revision-ID forms, and subtask granularity with the task-list convention.
-
-### `[ ]` **Reconcile ownership after repository Markdown enforcement ships**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured during
-  `markdown-formatting` task generation.
-- _Concern:_ `markdown-formatting` now owns Markdown-table CI plus the exact-index, check-only pre-commit runner.
-  Older table, emphasis, emoji, and commit-time auto-fix scope here would duplicate or contradict that substrate.
-- _Fold-in:_ remove superseded Markdown-specific ownership while retaining generalized gate dispatch, pre-push and
-  tier orchestration, and future index-safe auto-fix/restage machinery. Consume the shipped exact-index runner.
-
-### `[ ]` **Fail closed when a worktree's hooks path is unprovisioned**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-21); captured after a hand-created worktree
-  silently bypassed every hook because its gitignored `.husky/_` directory was absent.
-- _Concern:_ `core.hooksPath` can point at a nonexistent generated directory, and Git then commits without any
-  warning or quality gate. The hazard grows with parallel worktree use.
-- _Approach:_ evaluate provisioning hooks during worktree creation and a fail-closed detection path that also
-  catches manually created worktrees; pin the selected composition with tests.
-- _Fold-in (2026-07-27 drain):_ a second entry path is `arc errand open`, which occupies **in place** with no
-  spawn path — so `worktree.post_create` has nothing to hang off for errands even when an errand wants its own
-  checkout. Provisioning today is work-unit-spawn-scoped. Decide whether `arc errand open` should gain a
-  spawn-and-provision path (design fork; multi-step). The **cheap resolve-and-warn/fail when hooksPath is
-  missing** guard was split to an execute-now errand at the same drain and may land ahead of this design work.
-
-### `[ ]` **A lint run over an excluded or untracked path reports a false green**
-
-- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-27); captured during
-  `review-protocol-alignment` handoff and `integration-boundary-accuracy` create-spec.
-- _Concern:_ two false-green shapes. (1) `WORKING-MEMORY.md` / `USER-INBOX.md` are excluded by glob;
-  `lint:md` / `format:tables` against those paths report `0 file(s)` and exit zero — indistinguishable from a
-  clean pass. (2) A newly authored **untracked** `spec-*.md` linted clean under `npm run -s lint:md` while the
-  run scanned ~1200 tracked files and silently omitted the path under edit; staging then surfaced 55 real
-  errors. A zero-match guard would not catch (2).
-- _Approach fork:_ the generalizing fix is closer to "state what was covered, or fail closed when a
-  gate-eligible path went unchecked" than to declining on zero matches alone. Mechanism (git-aware file list)
-  is inferred from behavior, not yet verified in config.
-- _Fold-in:_ settle which defect is being fixed before touching `.markdownlint-cli2.jsonc` and the
-  `lint:md` / `lint:md:staged` / `format:tables` scripts — load-bearing primary quality-gate tooling; likely
-  reviewed lane.
-
-### `[ ]` **Distinguish raw Git rename/copy statuses from planning references**
-
-- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-20); captured during
-  `classify-change-granularity` execution.
-- _Concern:_ the pre-commit meta-project-reference check rejects literal `R100` and `C100` fixtures even though
-  they are canonical raw Git rename/copy statuses. Production-adjacent tests must currently obscure valid domain
-  tokens to pass the check.
-- _Approach:_ narrow the matcher using surrounding planning-reference grammar or exempt exact raw-diff status tokens,
-  while retaining regression coverage for genuine requirement and planning references.
-
-### `[ ]` **Prevent unrelated large blobs from crashing pre-commit validators**
-
-- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-20); captured during a base reconcile for
-  `session-locus-model`.
-- _Concern:_ `validate-decompose-record.ts` reads parent-side content for every staged path with a 10 MB child-process
-  buffer. A merge deleting an unrelated ~60 MB blob therefore raised `ERR_CHILD_PROCESS_STDIO_MAXBUFFER` and killed
-  the whole pre-commit chain, even though the validator had no stake in that file.
-- _Approach:_ scope reads to the retirement receipt and declared operation paths; size-check required blobs before
-  buffering; reuse the shared Git-output limit rather than a local literal; and cover a simulated merge with a large
-  unrelated deletion. Generalize the guard to other pre-commit validators that buffer staged blobs.
-
-### `[ ]` **Distinguish runtime examples from meta-project references in code**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during
-  `commit-message-submission` integration preflight.
-- _Concern:_ the production-code meta-reference guard rejects legal runtime `Context:` footer examples because
-  their filenames resemble planning-artifact references. User-facing diagnostics and validation fixtures need to
-  show canonical inputs without weakening the prohibition on comments or identifiers coupled to planning state.
-- _Approach:_ define and test a semantic boundary that permits executable string data, diagnostics, and fixtures
-  while preserving the guard against durable code-to-planning coupling.
-
-### `[ ]` **Make integrity verification accurate for mode-scoped installs**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during
-  `commit-message-submission` CodeRabbit review fixes.
-- _Concern:_ the installed integrity verifier reports eight false failures in a fresh `pm.mode=none` project: it
-  requires mode-excluded strategies and still checks the retired `3_process-task-loop.md` path.
-- _Approach:_ derive structural expectations from the installed manifest and active PM mode, update renamed
-  workflow paths, and add fresh-install fixtures whose complete integrity result is clean in every supported mode.
-
-### `[ ]` **Guard or migrate dev-repo-only `npx tsx` hook delegations**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured during
-  `commit-message-submission` draft grooming.
-- _Concern:_ shipped pre-commit checks invoke `npx tsx packages/arc-framework/src/scripts/validate-*.ts` without
-  a self-hosting guard. A project staging matching adopter-editable paths can trip a nonexistent source script
-  and dependency rather than receive a validation result.
-- _Approach:_ guard genuinely dev-repo-only checks when the source path is absent; migrate project-relevant checks
-  to the installed-CLI delegation pattern established by `commit-message-submission`. Triage per check because
-  packaging a validator as a CLI surface is a different decision from skipping a self-hosting-only assertion.
-
-### `[ ]` **Validate commit-message ranges in CI**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured during
-  `commit-message-submission` design review.
-- _Concern:_ commit-message validation is client-side only. Once the canonical TypeScript validator ships, CI
-  should consume the same module across the PR range rather than duplicate the Bash grammar.
-- _Approach:_ add an installed-CLI CI gate after `commit-message-submission`; settle whether every commit or the
-  PR title is authoritative under the repository's merge method, and preserve a defined degraded posture for CI
-  checkouts.
-
-### `[ ]` **Reassess message-only content-gate caching after preflight field data**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured at
-  `commit-message-submission` create-spec scope settlement.
-- _Concern:_ editor and passthrough commit paths can repay the full pre-commit gate after only the message fails.
-  The residual value is unknown until wrapper preflight ships, while an incomplete cache key could let a broken
-  staged tree commit.
-- _Approach:_ pursue only if post-preflight evidence shows material retry cost. Any cache must fail closed and key
-  every correctness input, including staged tree, HEAD, hook/config implementation, and consumed worktree state.
-
-### `[ ]` **Markdown-formatting enforcement: table-align auto-fix + emphasis/emoji rules at commit-gate**
-
-- _Routed from:_ the `markdown-formatting` WU (`../markdown-formatting/draft-markdown-formatting.md`),
-  2026-06-05. That WU owns the markdown _content hygiene_ (adopting `markdown-table-formatter`, the
-  emphasis MD049/MD050 convention, the emoji-ban rule, one-time sweeps); **this entry is the
-  _enforcement_ half it routes here** — the user's explicit (b)+(c) routing.
-- _Concern:_ once `markdown-formatting` lands the fix-commands + lint rules, nothing auto-enforces them.
-  Table alignment in particular is _not_ gated by `lint:md` today (verified: `MD060` enforces per-file style
-  consistency, not width-alignment in general), so it needs an explicit gate.
-- _Update (2026-06-10):_ `decomposition-machinery` planning exposed a stricter enforcement-fidelity gap: the
-  pre-commit markdown check reported pass while standalone `npx markdownlint-cli2` flagged an MD049
-  emphasis-style violation in `draft-operational-state-docs.md`. This entry now includes verifying that the
-  commit gate runs the same canonical `lint:md` coverage / config as CI, not a reduced or stale subset. That
-  directly challenges the assumption below that emphasis rules already ride `lint:md` automatically at the
-  commit gate.
-- _Proposed (maps onto this WU's existing scope):_ (b) **CI gate** — add `npm run -s format:tables:check`
-  as a `ci.yml` step beside `lint:md`; (c) **pre-commit auto-fix dispatch** — run `format:tables` (auto-fix)
-  on staged markdown in the commit-gate Tier-1 dispatch with **auto-restage** (exactly this WU's
-  "Pre-commit tier 1 dispatch" + "this repo's own adoption as dogfood" scope). The emoji-ban + emphasis
-  rules ride `lint:md` automatically (markdownlint config), so they need no separate gate beyond `lint:md`
-  already being in CI. Doing (b)/(c) **before** the auto-fix hook exists would just produce CI failures
-  contributors hand-fix — so this lands _after_ `markdown-formatting` ships its fix-side.
-- _Scope:_ S — composes this WU's commit-gate dispatch with one more auto-fix command + one CI step.
-- _Coordinates with:_ `markdown-formatting` (owns the fix-commands/rules; this owns the gate wiring).
-
-### `[ ]` **Config-gated TTY-confirm escalation for the force-push advisory hook**
-
-- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: TBD`), housekeep drain (2026-06-12); captured during
-  `merge-safety-mechanism` Task 2.3 while deciding the force-push hook's detection behavior.
-- _Concern:_ `merge-safety-mechanism` shipped the force-push pre-push hook as advisory-only: it warns and exits 0
-  when a pushed ref would overwrite a non-ancestor remote tip. A pre-push hook fires before data reaches the remote,
-  so it could offer a real abort window, but confirm-by-default would be high-friction and risks breaking GUI or
-  non-TTY clients.
-- _Proposed:_ add an opt-in config axis such as `push.force_confirm: warn|confirm`, defaulting to `warn`. Under
-  `confirm`, prompt `[y/N]` only on a TTY before the risky push, with a robust non-interactive
-  proceed-with-warning fallback so CI and agent pushes never hang. Because the hook cannot reliably know whether a
-  branch is shared, tighten the trigger if possible or document that routine solo rebase-pushes can still warn.
-- _Coordination:_ this is follow-up mechanism/config work after the completed `merge-safety-mechanism` advisory
-  default, not a change to ADR-025's default advisory stance. Touch points include the canonical and package hook
-  copies, config schema/defaults/validation, tests, and docs.
-
-### `[ ]` **Enforce the exported-surface TSDoc policy with a scoped lint rule**
-
-- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: quality-gate-hooks`), housekeep drain (2026-06-18);
-  captured during `planning-pipeline-readiness` PR #111 review — CodeRabbit docstring-coverage warning.
-- _Concern:_ `DEV-RULES.PROJECT` already requires TSDoc on the exported API surface (`@param`/`@returns` on
-  exports + a file-level module doc), but nothing enforces it mechanically. CodeRabbit's repo-wide "Docstring
-  Coverage 59.46% < 80%" warning measures all functions (including trivial internal helpers) against its own bar
-  — over-reaching vs. the policy, and noisy if chased directly.
-- _Proposed:_ add a Tier-1 lint rule scoped to the exported surface (e.g. `eslint-plugin-jsdoc`'s `require-jsdoc`
-  with `publicOnly`) so the existing policy is enforced at the right altitude, rather than adopting CodeRabbit's
-  blanket all-functions threshold. Settle the exact rule set + severity at authoring. Sibling of this WU's
-  commit-gate dispatch checks.
-
-### `[ ]` **E2E-coverage + seam-assertion guards for destructive lifecycle verbs**
-
-- _Routed from:_ `testing-guidance-apparatus` planning init (2026-06-22) — the enforcement (defense-in-depth)
-  half of the `USER-INBOX` testing-standards capture; the salience/loading half is owned by
-  `testing-guidance-apparatus` itself.
-- _Concern:_ the `decompose@planning` / `park@Planning` self-teardown defect shipped uncaught because the
-  integration tests called the verb cores (`runDecompose` / `runPark`) with hand-fed cross-worktree inputs the
-  CLI never generates, and there is no E2E tier driving the destructive verbs through the real CLI. Both
-  contravene the testing standard (test through public interfaces; E2E = full CLI, no git mocking) — yet nothing
-  mechanically enforced it.
-- _Approach:_ candidate guards — an E2E-coverage requirement for new lifecycle/destructive verbs; a lint flagging
-  integration tests that assert on core call-args instead of CLI-seam outcomes (bypassing the handler's
-  run-context resolution). The bug class to make un-bypassable: _a test constructs inputs the production path
-  never generates._ Secondary (mechanical) layer — `testing-guidance-apparatus` makes the standard actually-read,
-  the primary fix.
-- _Captured during:_ `decompose-matrix` Phase 5 teardown investigation (2026-06-21).
-
-### `[ ]` **Add an actionlint workflow-lint gate for `.github/workflows/`**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: quality-gate-hooks`), housekeep drain (2026-07-01);
-  captured during `ci-content-aware-depth` Task 2.2.
-- _Concern:_ inline `run:` shell in `.github/workflows/ci.yml` (the `classify` weight-axis block, the `merge-ok`
-  rollup) is unlinted — `lint:sh` covers only `scripts/*.sh`, and a YAML parse checks well-formedness only. A
-  `needs.*` typo currently fails open to heavy with no error.
-- _Proposed:_ add a `lint:workflows` script wrapping the actionlint binary (single Go binary) — shellcheck on
-  every `run:` block, `${{ }}` / `needs.*` validation, deprecated-runner / matrix checks — wired into the
-  pre-commit hook and/or the `quality` CI job. Prefer actionlint over yamllint (style noise, no shell/expression
-  coverage). Adoption may surface pre-existing inline-shell issues to fix as part of turning the gate on.
-
-### `[ ]` **Pre-commit hook runs no markdownlint — style rules (MD013 etc.) unenforced until CI**
-
-- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-01); captured during
-  `user-save-status-divergence` handoff. Errand-leaning, but carries a design fork → routed here as the
-  hook-gate home rather than executed blind.
-- _Concern:_ the arc pre-commit hook runs **no markdownlint style pass** (content / structural checks only), so
-  MD013 line-length etc. are enforced only by the manual `npm run -s lint:md` gate + CI. Live hit: a 143-char
-  meta line passed pre-commit clean, caught only by a standalone `markdownlint-cli2` run. DEV-RULES.PROJECT
-  § Quality Gates frames markdown lint as the zero-tolerance pre-commit gate (#1), so hook behavior and the
-  stated policy diverge.
-- _Proposed (design fork):_ (a) add a scoped `markdownlint-cli2` pass over staged `.md` files to the pre-commit
-  hook (catches MD013 at commit time, staged-only); or (b) if CI-only style linting is the intended design
-  (commit speed), reconcile the DEV-RULES.PROJECT § Quality Gates wording. Mirror any hook edit to the package
-  source per two-copy sync.
-- _Files:_ `.arc/system/.internal/githooks/pre-commit` (+ package mirror), `.arc/system/rules/DEV-RULES.PROJECT.md`,
-  possibly `package.json` / `.markdownlint-cli2.jsonc`.
-
-### `[ ]` **Keep local Tier 3 commands in parity with required CI gates**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
-
-- _Observation:_ The documented Tier 3 set in `QUICK-REFERENCE.md` and the project quality-gate method omits the
-  ARC-specific lint commands that the required CI workflow runs. The validation-surfaces pre-PR verification
-  therefore reported all local gates green while CI immediately rejected two section-sign references through
-  `lint:arc:section-refs`. This is a recurring false-green class whenever CI adds or renames a required gate without
-  updating the separately enumerated local command set.
-
-- _Approach:_ make the pre-PR/Tier 3 invocation consume one authoritative project gate composition aligned with CI,
-  or mechanically assert parity between the two surfaces. Include the complete `lint:arc:*`/ARC-contract family and
-  preserve the existing distinction between fast task gates and the full pre-PR suite.
-
-- _Files:_ project quality-gate configuration/method, `QUICK-REFERENCE.md`, `verify-work-unit.md`, root scripts, and
-  CI parity tests.
-
-- _Captured during:_ PR #354 CI diagnosis after `cli-validation-surfaces` verification.
-
-### `[ ]` **Flat `active/` layout is unguarded against doc↔code drift**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
-
-- _Observation:_ nothing asserts that the documented flat `active/` layout matches `meta-reader.ts` (non-recursive
-  readdir) and `worktree-scaffold.ts` (flat write). `decomposition-machinery` routed the hook _out_ — it owns the
-  cohort-consistency invariant, not the `active/`-layout one, and the check needs code-behavior introspection the
-  structural cohort guard does not share. Gap accepted as low-cost: the layout is simple and low-churn, and
-  `doc-cascade-sweep` corrects today's drift — a hook only prevents recurrence.
-
-- _Approach:_ a hook asserting the documented layout against both call sites. No action needed beyond awareness when
-  touching either file.
-
-- _Captured during:_ `WORKING-MEMORY` prune, 2026-07-25 — its own removal trigger already named this WU as owner.
-
-### `[ ]` **The worktree Markdown gate cannot see untracked files, so new artifacts lint green until staged**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
-
-- _Observation:_ `npm run -s lint:md` enumerates paths with bare `git ls-files`
-  (`lib/markdown/selection.ts:181` — `source === "index" ? ["ls-files", "--cached", "-z"] : ["ls-files", "-z"]`,
-  with no `--others`), so it lists **tracked files only**. A newly authored `.md` is therefore invisible to the
-  worktree gate until it is first staged. Observed 2026-07-25 while capturing two grooming drafts: `lint:md`
-  reported `Summary: 0 error(s)` over **602 files** on a tree that held 604, and the commit then failed
-  `lint:md:staged` on **40 MD049 emphasis-style violations** across exactly the two files it had skipped. The file
-  count is the only visible tell, and nothing surfaces it — the run reads as a clean full-corpus pass.
-
-- _Why the existing guard does not cover it:_ `lint-markdown.ts` already refuses a false-green "when staged
-  Markdown-gate paths still differ in the worktree," but that guard keys on **staged** paths. An untracked file is
-  in neither the index nor the tracked worktree set, so no guard fires in either direction. The gap is precisely
-  the state every newly authored artifact occupies, and authoring new Markdown artifacts is the single most common
-  ARC planning operation.
-
-- _Approach:_ decide whether the worktree selection should include untracked, non-ignored Markdown
-  (`git ls-files -z --others --exclude-standard` alongside the tracked set) or whether the gate should instead
-  refuse to report clean while untracked Markdown-gate paths exist. The former closes the hole; the latter is
-  cheaper and fails loud, matching the existing guard's posture. Either way the fix should make the _count_
-  legible, since the discrepancy was recoverable only by noticing 602 against 604. Note `lint:md:file` is unaffected
-  (raw `markdownlint-cli2 --no-globs` takes any path), so the documented per-file Tier 1 command is already safe —
-  it is the full-corpus run that under-reports.
-
-- _Related:_ sibling to **Keep local Tier 3 commands in parity with required CI gates** in this section — same
-  false-green class (a green local gate measuring less than it appears), different mechanism. That entry is about
-  the enumerated command set drifting from CI; this one is about a single command's file selection. Filed
-  separately rather than folded in, because the fix and the validator differ; drain may still choose to settle them
-  together under one authoritative gate composition.
-
-- _Captured during:_ the `review-architecture` grooming session, 2026-07-25 — the drafts for
-  `review-protocol-alignment` and `judgment-authority-model` were the files that lint skipped.
-
-### `[ ]` **Close the add → format → re-stage loop for a newly created Markdown artifact**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-26).
-
-- _Observation:_ authoring a brand-new tracked Markdown artifact costs three staging steps before any gate can pass.
-  `npm run format:tables` refuses untracked paths (`markdown.untracked`), so the file must be `git add`ed before it
-  can be formatted; the formatter then rewrites the worktree copy, which trips `lint:md`'s fail-closed
-  index/worktree drift check and demands a re-stage. Each guard is individually correct — the tracked-path
-  requirement keeps the formatter off projections and vendored trees, and the drift check exists so a green
-  worktree run cannot hide a dirty index — but composed on a new file they produce a loop with no green state until
-  the third step.
-
-- _Approach:_ the fork worth settling is which guard yields. Either the formatter accepts an untracked path that is
-  inside the repo and not otherwise excluded (the `markdown.untracked` guard narrows to exclusions rather than to
-  tracked-ness), or the drift check learns that a formatter rewrite of an already-staged path is expected and
-  re-stages it. The second is the index-safe auto-fix/restage machinery this WU already retains scope for, which is
-  why it routes here rather than standing alone.
-
-- _Captured during:_ `judgment-authority-model` drafting, 2026-07-26 — hit while creating
-  `notes-judgment-authority-model.md` for the compression enumeration.
-
-### `[ ]` **Add a checker that resolves Markdown `§` citations against real headings**
-
-- _Routed from:_ `USER-INBOX § Errand` (reclassified multi-step at drain), housekeep drain (2026-07-28); captured
-  during `judgment-authority-model` create-spec adversarial pass two.
-- _Concern:_ Nothing validates inbound `§` citations. `lint:arc:section-refs` enforces the opposite rule (no `§` in
-  code). ~45 live citation sites across workflows/methods/strategies can silently orphan on heading rename.
-  Design forks: file-qualified vs bare same-file citations, dual package/`.arc` Framework copies, incidental prose
-  `§` false positives. Sibling of existing `audit-*.ts` / `lint:arc:*` family.
-- _Fold-in:_ fourth ARC contract check + possible rename of existing `lint:arc:section-refs` for disambiguation.
-
-### `[ ]` **Resolve cross-file Markdown anchors in the section-reference audit**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: quality-gate-hooks`), housekeep drain
-  (2026-07-30); captured during `judgment-authority-model` Task 4.3.
-- _Concern:_ `lint:arc:section-refs` passes a `file.md#anchor` link whose referenced heading does not exist.
-  This is the silent-break class produced when procedure moves across the workflow/CLI seam.
-- _Fold-in:_ resolve cross-file targets against headings in the referenced file. Settle Markdown slug rules and
-  generated or conditional sections before failing closed, coordinated with the existing inbound checker for
-  prose `§` citations.
+# Draft: Quality Gates and Hook Integration
+
+- **Origin:** [internal]
+- **Purpose:** Replace ARC's fixed, prose-resolved quality-gate tiers with declared checks that one CLI verb selects,
+  runs, and reuses — keyed to repository events rather than to ARC's approval machinery — so a project's checks run
+  where industry practice runs them, once per tree, from hooks, workflow steps, and CI alike.
 
 ---
 
-### `[ ]` **Decide whether cognitive complexity replaces the cyclomatic limit**
+## Status
 
-- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-09-19).
-
-- _Observation:_ the installed size gate runs ESLint's cyclomatic `complexity` alongside `max-depth`.
-  SonarSource's own default profile enables **only** cognitive complexity and leaves cyclomatic opt-in — their
-  stated position is that it replaces cyclomatic as the primary gate rather than joining it. The signal cognitive
-  complexity uniquely adds is nesting depth, which `max-depth` already partly covers, so its marginal value over
-  the installed set is narrower than over cyclomatic alone.
-
-- _Approach:_ measure `sonarjs/cognitive-complexity` against the tree and compare its flagged set with the
-  recorded cyclomatic floor. Adopting it likely means **retiring** that floor rather than recording a second one
-  — that is the decision here, not the dependency.
-
-- _Observation:_ `eslint-plugin-sonarjs` is ~4.3MB across 13 dependencies, LGPL-3.0, dev-only, ESLint 10
-  compatible; its repo shows "archived" only because it moved into a monorepo. Declaring the plugin manually
-  alongside its `recommended` config throws `Cannot redefine plugin` — cherry-pick the single rule.
-
-- _Also:_ `eslint-plugin-vitest`'s `max-nested-describe` and `max-expects` are the purpose-built answer to test
-  bloat, which the per-file limit on `__tests__/**` only approximates. Same dependency call, same drain.
-
-- _Also:_ `max-lines` reports once per file, so a recorded test file can grow without bound while its count
-  stays 1 — 21 suites are already recorded, and `delivery-execution.test.ts` (2208 lines) is free to reach
-  5000 while a fresh suite hits a hard wall at 1500. A per-file line cap cannot express "no worse than this"
-  for a file it already holds; a describe/expect-shaped measure is the candidate that can. Observed
-  2026-09-18 during the `size-floor-reconciliation` errand.
-
-- _Infra smell:_ changes what the installed gate measures and could retire a recorded floor — worth the reviewed
-  lane, and worth re-triaging at the drain for whether it is really a Work Unit.
-
-- _Captured during:_ the `function-size-ratchet` errand, 2026-09-18.
-
-### `[ ]` **Give ceremonies a CLI-resolved gate invocation instead of prose the agent must rediscover**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: quality-gate-hooks`), housekeep drain (2026-09-30); captured
-  during `delivery-rebuild-continuity` draft-design re-entry, 2026-09-21.
-- _Observation:_ nothing resolves a project's gate command set mechanically. The Tier 2 set is a fenced bash block
-  of prose in `QUICK-REFERENCE.md`, reached through a `quality-gate-commands` method that is an explicit
-  passthrough carrying a project override path, and no CLI reads either surface. Every ceremony that says "run the
-  gates" spends agent attention rediscovering which commands those are and how to invoke them, and no recorder can
-  attest what actually ran. Surfaced as a blocker while designing a delivery gate-identity digest: the digest had
-  no resolution source, and the project's own path-based gate narrowing means "the resolved command set" names no
-  single value even at one instant.
-- _Approach:_ an `arc run <selector>` verb the CLI owns — it resolves the configured set, executes it, and returns
-  the output — so a ceremony names what it wants rather than how to invoke it. Composes with
-  `strategy-procedure-evolution`'s CLI-versus-agent boundary. Because path narrowing means one selector may
-  legitimately resolve to different sets for different changes, the verb reports what it ran rather than assuming
-  a fixed set.
-- _Related:_ `quality-gate-hooks` holds the planned tier rework this belongs inside, including an entry to make
-  gate invocation "consume one authoritative project gate composition aligned with CI" — the same authoritative
-  composition this verb would execute. Land it there rather than as its own concern.
+- **Readiness:** maturing — direction and scope are settled; the open items are detail design.
+- **Resolved:** the four design commitments; the gate model and its vocabulary; the check declaration; the gate verb;
+  selection and reuse; fire sites (no per-task gate); fix handling; this repository as first consumer in-WU; the
+  storage boundary; the buffer triage.
+- **Open:** see § Open items.
+- **Next:** settle the open items, then the readiness pass (source grounding, proportionality, adversarial offer) and
+  the capture commit, which also retitles the meta to match this draft. Route-outs execute at that close
+  (§ Buffer triage).
 
 ## Problem / Motivation
 
-ARC's tiered quality gate system — Tier 1 (per-task), Tier 2 (coherent unit), Tier 3 (pre-PR) — is
-workflow-oriented: it tells developers/agents _when in their flow_ to run which checks. The methodology
-is sound, but the execution model has two gaps:
+ARC defines three quality-gate tiers by _when in the workflow_ they run — Tier 1 per task, Tier 2 per coherent unit,
+Tier 3 per phase or pre-PR — and leaves each project to write the commands for each tier as prose. Four defects follow.
 
-**1. No automatic enforcement at commit/push stages.** Pre-commit hooks at `.arc/system/.internal/githooks/pre-commit`
-enforce structural properties (commit format, context footer, task staging, frontmatter validation, etc. —
-14 CHECKs as of 2026-04-24). They do NOT run the adopter's linters or tests. The assumption has been that
-agent/developer discipline plus CI is sufficient. In practice this creates a gap: a commit landed on
-2026-04-24 with known-deferred markdown lint errors that Tier 2 would have caught, but Tier 2 hadn't run
-because the task wasn't "coherent unit" complete yet. CI went red; the agent committed through the
-discipline window. This is the kind of preventable failure that hooks exist to prevent.
+**1. Gates re-run over unchanged trees.** Nothing records which checks passed on which tree, so every fire site runs
+its block again. Measured at `c009ab198` across the framework workflows:
 
-**2. Tier semantics don't map explicitly to standard git hook stages.** External research (completed
-2026-04-24) confirmed the universal idiom: pre-commit (fast, staged files only) → pre-push (full local)
-→ CI. ARC's tiers correspond naturally — Tier 1 ↔ pre-commit, Tier 2 ↔ pre-push, Tier 3 ↔ CI — but this
-alignment is nowhere expressed in the methodology, so adopters can't take advantage of auto-enforcement
-without inventing their own mapping. A pre-push stage **does** ship
-(`system/.internal/githooks/pre-push`, from `merge-safety-mechanism`) but is scoped to force-push
-advisory only — so the work is extending a registered stage, not standing one up, and its hook-manager
-integration is already solved.
+- the last subtask of a parent runs Tier 1 and then Tier 2 back to back (`process-task-loop`), and Tier 1's
+  file-scoped checks are strict subsets of Tier 2's;
+- the last Tier 2 is followed by `verify-work-unit`'s Tier 3, which adds only `build`; `self-review` running Tier 3
+  immediately before `verify-work-unit` repeats it again with no change between;
+- a `prepare-work-unit` review fix runs Tier 1, then the commit hook, then convergence over the same tree;
+- a delivery member's last task runs Tier 2 and `deliver-stack` runs the complete Tier 2 again per member checkout;
+- the tier definitions disagree on when Tier 3 fires (`strategy-quality-gates.md` per phase, `QUICK-REFERENCE.md` per
+  phase or pre-PR, `process-task-loop` never), so the phase template plus the mandatory verification task runs it
+  twice.
 
-**3. There is no continuous-feedback layer, and the milestone cadence is standing in for one.**
-_(2026-07-25.)_ The universal idiom has two layers, not one: _continuous_ feedback (editor/LSP — free,
-per-keystroke, informational) and _event-triggered_ enforcement (commit / push / CI — blocking).
-Industry has **no milestone cadence at all**, because it doesn't need one. ARC has no editor, so the
-agent gets no ambient signal — and ARC invented a per-increment cadence to substitute.
+The one exact-tree reuse that exists is narrow: delivery review-fix verification admits Tier 1 reuse under
+`tier1ReuseCriteria` with `provenance: exact-tree-reuse` (`review-fix-verification.ts`). The unchanged-tree rule
+itself lives only in this repository's project rules; no framework workflow, method, or strategy carries it, and
+`verify-work-unit`, `prepare-work-unit`, `integrate-work-unit`, and `run-errand` say to rerun.
 
-That reframes the per-increment gate as a **prosthetic for a missing editor**, with two consequences.
-For cheap static checks it is _coarser_ than the human baseline (a developer gets lint and types per
-keystroke; the agent gets them per task), so the cadence was never the defect. The defect is firing a
-**fixed block of mixed-cost checks** at one cadence: measured at 2026-07-25, the documented Tier 1
-cost ~47s and ran three full-project scans against changes that frequently could not reach them —
-64 of 200 sampled commits were Markdown-only. Targeting the same coverage brought it to ~1s.
+**2. A fixed block fires at a fixed cadence.** The per-task gate was introduced as fail-fast backpressure: catch a
+defect while it is cheap, before later work builds on it. The intent is sound, but the mechanism assumes the worst —
+a blocking block of mixed-cost checks after every increment. Industry practice has no milestone cadence: fast, scoped
+checks at commit; broader checks at push; the full suite in CI; editor diagnostics as the continuous layer.
+Agent practice converges on "verify before declaring done" with targeted checks, a heavier check at the stop
+boundary, and CI as the backstop; no source shows agents need a tighter cadence than humans, only a different
+feedback channel (`research-local-check-cadence.md`). Measured at 2026-07-25, the documented Tier 1 cost ~47s and ran
+three full-project scans on changes that often could not reach them (64 of 200 sampled commits were Markdown-only);
+targeting the same coverage brought it to ~1s.
 
-**4. Feedback and enforcement are collapsed into one bar.** The zero-tolerance policy applies
-uniformly across all three tiers, but Tier 1's job is _feedback_ ("did I break what I just wrote?")
-while Tier 3's is _enforcement_ ("this may not merge broken"). Treating an informational layer as a
-blocking gate is why a trivial defect reads as a gate failure. It also explains the measured
-convergence below: **Tier 2 had no distinct job, only a distinct size**, so it drifted to the
-enforcement end and became a near-duplicate of Tier 3 (they differ by `build` alone, ~5%).
+The tiers also collapse two kinds of check into one bar. A per-task check is _feedback_ ("did I break what I just
+wrote?"); a pre-merge check is _enforcement_ ("this may not merge broken"). With no distinct job, Tier 2 drifted to the
+enforcement end and became Tier 3 minus `build`.
 
-**Related concerns surfaced during discussion:**
+**3. Gate composition is prose the agent must rediscover.** The Tier 2 set is a fenced bash block in
+`QUICK-REFERENCE.md`, reached through `quality-gate-commands`, a method that is an explicit passthrough. No CLI reads
+either surface: `arc check` has only the `commit-msg` subcommand (`handlers/check/commit-msg.ts`). Every ceremony
+that says "run the gates" spends agent attention working out which commands those are; relevance rules ask the agent
+to compare `git diff --name-only` against a table; and nothing reports what actually ran. Separately enumerated local
+and CI sets drift — local Tier 3 reported green while CI rejected `lint:arc:section-refs`, which the local set omitted.
 
-- **Tier vocabulary.** "Tier 1 / 2 / 3" is generic and requires readers to remember the mapping. The
-  vocabulary question is more substantive than first framed — see § Relationship to Interlock Model
-  Frame and § Alternatives for the kind-vs-gate-vs-cadence distinction surfaced during cross-plan
-  alignment work. Three viable paths captured under Alternatives; PRD-time decision.
-- **Structural vs. adopter-impl separation.** The line between _what ARC enforces_ (commit format,
-  frontmatter schemas, task staging — framework-owned) and _what's adopter-configurable_ (linters, tests,
-  typecheck, build — stack-dependent) is fuzzy in current docs. ARC should define the tier abstraction +
-  enforcement surfaces + connection points, but never assume a specific tech stack in its shipped
-  defaults. Hook-manager integration already handles this at the manager layer (ADR-014: detect and
-  integrate with husky / lefthook / pre-commit.com, fall back to `core.hooksPath`); the equivalent
-  discipline needs to apply to tier-gate _commands_.
+**4. Projects get no hook support for their own checks.** ARC's shipped pre-commit hook runs structural checks only
+(20 `CHECK[...]` blocks in `githooks/pre-commit`); its pre-push hook only warns before a force-push
+(`githooks/pre-push`, advisory, always exits 0). A project that wants its linters or tests at commit or push wires its
+own hook — this repository chains `lint:md:staged`, `check-package-sync.sh`, and `check-ts-quality.sh` after ARC's
+hook in `.husky/pre-commit`, and `check-ts-quality.sh` runs whole-program `typecheck` and `typecheck:test` on every
+staged TypeScript change, a third run after the tiers already ran them.
 
-This matters now because:
+This matters now: ARC is pre-1.0 and this surface is central; agents commit at every review increment, so redundant
+runs compound; and CI already reuses a verified tree (`classify-change.sh` skips the heavy suite when its
+rebase-stable code-tree hash matches a tree whose `HEAVY_CHECK_NAMES` all passed) while local runs have nothing
+equivalent.
 
-- Pre-1.0 polish window — the methodology shouldn't ship underspecified on a surface this central.
-- Dogfooding (upcoming in the release path) will compound the discipline-window gap for real adopters.
-  We want the safety net in place first.
-- External research is complete; no blocking unknowns before PRD drafting.
+## Design commitments
 
-## Relationship to Interlock Model Frame
+Four constraints bound every decision below.
 
-ADR-016 established configurable autonomy **interlocks** for session-operational flow at
-four architectural junctions: task, commit, push, integration (delivered via the Session-Operational
-Flow WU, May 2026). This plan and the shipped interlock model share **junction prefixes** (`commit-`,
-`push-`, `integration-`) but attach different concerns at each junction:
+1. **Event-anchored, interlock-independent.** Gates are deadlines named by repository events — commit, push,
+   integration — which happen however approval is configured. Gate semantics never read interlock state, no gate
+   configuration names an interlock, and the verb is a leaf any caller may invoke: a workflow step, a hook, CI, or a
+   future ratchet layer that decides _when_ steps fire. The shared names (`commit-`, `push-`, `integration-`) are the
+   same git events, not a coupling; the release wrapper is at most one caller.
+2. **Industry idiom first.** Where practice is near-universal, follow it; where it splits, make it configuration with
+   a stated default; diverge for agents only where the research names a real divergence. Grounding:
+   `research-local-check-cadence.md`.
+3. **Project-agnostic.** Every element must serve a project in any language. This repository is the first consumer:
+   it _configures_ the design to prove each configurable element, and never _extends_ it. A need of this repository
+   that the configuration cannot express is a design signal — generalize it only if another stack would plausibly
+   need it; otherwise this repository wraps it in its own script.
+4. **Procedure and knowledge north stars.** Structure is typed configuration the CLI validates; the CLI computes
+   selection and reuse; workflow prose names the verb and never the commands; failure output carries the remedy.
+   No new command-reference document, no growth of always-loaded rules, and no prose that evaluates state
+   (`strategy-procedure-evolution.md`, `strategy-knowledge-evolution.md`).
 
-| Junction    | Autonomy concern (interlock model)    | Validation concern (this plan)             |
-| ----------- | ------------------------------------- | ------------------------------------------ |
-| commit      | commit-interlock (approval hold)      | commit-gate (deadline for fast checks)     |
-| push        | push-interlock (approval hold)        | push-gate (deadline for medium checks)     |
-| integration | integration-interlock (approval hold) | integration-gate (deadline for full suite) |
+## Direction
 
-This factoring resolved an earlier proposal where both plans converged on identical "gate" naming.
-That convergence collapsed two distinct concepts (validation deadlines vs. approval mechanisms) into
-one term. The current factoring keeps them lexically distinct while preserving the architectural
-relationship.
+### D1 — Gate model and vocabulary
 
-Impacts on scope:
+Tier 1/2/3 retires (settled 2026-07-25 against measured evidence; the rename lands inside the mechanics work, since
+rewriting fire sites to the verb rewrites the very lines that name the tiers). Four concepts, two of them vocabulary:
 
-- **Pre-handoff hook placement.** The interlock model treats handoff as an orthogonal ceremony, not
-  a junction in the linear stack. Hook placement still gains a pre-handoff stage for session-close
-  validation (status-file rotation validity, git-notes consistency, worktree cleanliness) —
-  attaching as a hook stage on the ceremony, parallel to commit/push/integration gates.
-- **Interaction with shipped autonomy modes.** Under the shipped interlock-release cascades
-  (`commit_interlock: on-task-approval`, `push_interlock: on-sync`, `sync_interlock: on-handoff`,
-  etc.), hook invocation timing changes slightly — hooks fire as part of the cascade rather than as
-  standalone gates. The cascade-visibility requirement from ADR-016 means hook output remains visible
-  to the user even under cascade modes. Plan needs to confirm hook behavior composes cleanly with
-  cascade semantics.
-- **Tier-rename framing decoupled from autonomy-vocab alignment.** The original motivation for
-  renaming Tier 1/2/3 partly rode on shared "gate" vocabulary with the autonomy plan. With that
-  alignment dissolved, the rename's case stands on its own merits — and on inspection, the rename
-  is more substantive than originally framed. See § Alternatives for the three viable paths.
-- **Integration-gate vs. pr-gate naming.** No longer rides on autonomy-vocab alignment. The case
-  for "integration-gate" now stands on lifecycle-ceremony naming (matches `integrate-work-unit`,
-  `integrate-planning-branch` workflows) rather than vocabulary mirroring. PR-gate remains a
-  platform-specific alternative; current lean stays integration-gate for ceremony-name fit.
+- **Gate** — a deadline: `commit-gate`, `push-gate`, `integration-gate`. "Must have passed before commit / push /
+  merge." Self-enforcing in a way an ordinal is not: a `commit-gate` costing 47s is visibly wrong.
+- **Kind** — `enforcement` (must pass by its gate; blocks there) versus `feedback` (informative before the gate).
+  Kind is what lets a test-first sequence carry an intentionally failing test across increments while the push gate
+  still holds.
+- **Cost** — measured data the verb records with each run, never declared.
+- **Selection** — a mechanical rule (D4), never vocabulary.
 
-Scope impact: roughly unchanged from prior framing. The relationship to the autonomy plan is
-clarified rather than expanded; tier-vocabulary work becomes more deliberate rather than larger.
+Zero tolerance holds per gate at its deadline: every check assigned to a gate passes before that event. This
+repository's project rule ("all quality checks must pass before any commit") changes accordingly — Owner decision,
+2026-10-07, on the direction the 2026-07-25 grooming recommended.
 
-## Scope
+Define `gate` and `kind` once, in the briefs' vocabulary, worded to agree with the shipped rule-authority reading
+(DEV-RULES.ARC § Rule Authority): an enforcement result protects the integrity of a check, so a red gate is never the
+agent's to set aside; a feedback result informs and binds nothing until its gate.
 
-### In scope
+### D2 — The check declaration
 
-**Gate model reshape.** Retire Tier 1/2/3 for the two-axis model settled under § Alternatives — **gate**
-(deadline: `commit-gate` / `push-gate` / `integration-gate`) × **kind** (feedback vs. enforcement) — with
-cost demoted to measured data and selection to a mechanical rule. The rename touches DEV-RULES.ARC,
-`strategy-quality-gates.md`, `process-task-loop.md`, `QUICK-REFERENCE.md`, `verify-work-unit.md`,
-`integrate-work-unit.md`, `run-errand.md`, `self-review.md`, and scattered tier references throughout the
-framework. The path is settled; the PRD sizes the sweep, it does not re-decide it.
+A project declares each check once in typed configuration the CLI validates. The shape follows every major hook tool
+(pre-commit.com `stages:` / `files:` / `pass_filenames`; lefthook `glob` / `run`; Turborepo `inputs`):
 
-**Selection model.** _(New 2026-07-25.)_ Two mechanical conditions governing which checks a given change
-must run, both resolving from `git diff --name-only` — never from a judgment call about blast radius:
+- **id** and **command**;
+- **gates** — which deadlines it belongs to;
+- **inputs** — globs its result depends on; default the whole tree, so an undeclared input can only cost a run,
+  never yield a false reuse; narrowing is the project's opt-in;
+- **mode** — `files` (receives the changed or staged paths among its inputs) or `project` (runs whole-project);
+- **fixes** — whether it may rewrite files.
 
-- **Relevance** — run what the change reaches, deliberately asymmetric: skip the expensive checks a
-  change provably cannot affect, and never spend deliberation on the cheap ones. Unmatched or mixed
-  paths fail closed to running everything.
-- **Unchanged tree** — a completed gate is not re-executed when nothing it covers has changed. Narrows
-  repeat runs; never licenses running a gate partially.
+Global inputs that invalidate every check (lockfiles, tool configuration, the declaration itself) are declared once.
+ARC ships no stack defaults; initial setup asks the project to declare its checks, and common-stack examples (JS/TS,
+Rust, Go, Python) route to the docs site through a `notes-docs-content-sweep.md` capture at draft close.
 
-Both already exist at this repo's **project layer** (`DEV-RULES.PROJECT` § Selecting what to run, shipped
-via PR #355) and were deliberately written vocabulary-neutral so they would not churn through this
-rename. This WU lifts them to the framework layer in the settled vocabulary.
+### D3 — One gate verb
 
-**Ordering constraint — selection is a prerequisite for dispatch, not a consequence of it.** The
-consolidation criterion below ("mechanical-and-now-hook-covered → remove from workflow") is wrong without
-it: `verify-work-unit` Step 1 and `integrate-work-unit` Step 10 run gates _before_ their commits, so a
-pre-commit hook does not dedupe those — it adds a fourth run. Shipping hook dispatch without the
-unchanged-tree rule makes the WU tail **worse**, not better. Sequence accordingly.
+One CLI verb resolves a request (a gate, plus a scope such as staged, changed, or all), selects (D4), reuses (D5),
+runs what remains, and reports per check: ran, reused, or not selected, with the reason. Output is terse and
+failures-first by default, with JSON for machine callers; each failure carries a precomposed remedy, including the
+fix invocation for `fixes` checks. Every caller uses it: workflow steps, ARC's hooks, CI, and any harness edit hook.
 
-**Pre-push hook as recognized stage.** New `.arc/system/.internal/githooks/pre-push` that dispatches to the
-adopter's push-gate commands. Config-gated via `hooks.pre_push` in `arc-config.yml`. Integrates through
-the existing hook-manager detection layer (ADR-014) — husky / lefthook / pre-commit.com / fallback all
-get the pre-push stage wired up.
+### D4 — Selection
 
-**Pre-handoff hook as new stage (interlock-model integration).** Additional hook placement for
-handoff ceremony: session-close validation before handoff artifacts are finalized. Config-gated via
-`hooks.pre_handoff` (naming TBD at PRD, aligned with the shipped autonomy-axis naming under
-`session.*_interlock` in `arc-config.yml`). Complements commit-gate and push-gate checks with
-handoff-specific validation — e.g., status-file rotation validity, git-notes consistency, worktree
-cleanliness.
+A check is selected when its declared inputs changed relative to the request's scope. Against a base, the base is the
+merge base with the base branch (Nx's default); a stronger last-known-good anchor is open (§ Open items). Selection
+widens to every check when a global input changed, a changed path matches no check's inputs, or the base
+cannot be resolved (shallow clone, missing ref) — Nx and Turborepo fail closed the same way.
 
-**Connection points between tiers and hooks.** Extend the `quality-gate-commands` method with tier
-metadata on each command (Option A from decision analysis — tier attached to each command entry, not
-split across multiple methods). Hook CHECKs read the method, filter by current stage, and run matching
-commands against the appropriate scope (staged files for commit-gate; full repo for push-gate).
+The package-mirror case (a one-sided edit to a mirrored file pair) is expressed through inputs, not special
+machinery: a check whose correctness spans both copies declares both.
 
-**Pre-commit tier 1 dispatch.** New CHECK in the existing pre-commit hook: runs commit-gate commands
-on staged files only. Staged-files scoping follows universal idiom (`git diff --cached --name-only
---diff-filter=ACM | grep ext`). Auto-fix where supported (e.g., `markdownlint-cli2 --fix`,
-`eslint --fix`); auto-re-stage fixed files (aligned with husky + lint-staged default behavior and
-research recommendation). The current `--no-verify` prohibition in DEV-RULES.ARC stays unchanged.
+### D5 — Reuse
 
-**Bootstrap during initial-setup.** Add a step to `.arc/system/workflows/arc/initial-setup/` (exact
-placement TBD at PRD) that prompts the adopter to configure their gate commands per tier. ARC ships
-no tech-stack defaults in the method — the adopter declares what runs at each gate for their stack,
-once, at setup time. Examples for common stacks go to the docs site, not into the shipped method.
+The verb keeps a machine-local record of passes under `.git/arc/` (machine-local state stays local through the
+storage cutover). Key: check id, a digest of the check's declaration, and a digest of its inputs' content in the
+checked tree, plus the changed-path set for `files` checks. Only passes are recorded; a failure always re-runs; a hit
+replays the stored summary. The record is an execution shortcut, never evidence: no attestation, Candidate, or merge
+check reads it.
 
-**Explicit structural-vs-adopter-impl separation.** Add or extend a section (likely in
-strategy-quality-gates.md) naming the distinction. ARC enforces structural checks (14 current CHECKs +
-new gate-dispatch CHECKs for 2 stages); adopters configure tier commands via the method. Hook-manager
-choice (husky, lefthook, pre-commit.com, fallback) is adopter-impl, already handled via ADR-014.
+The checked tree is the content the event will carry: at the commit hook, the index (`git write-tree`); at a workflow
+step, the worktree as it would be staged. So a step's run and the hook's run over the same content produce the same
+key, and the second is free. The release wrapper already rejects a bad message before Git runs any hook; on the raw
+`git commit` path, where the content gate runs before the message check, a message-only retry now reuses the content
+result, because the key is the tree, not the message.
 
-**Docs routing for common-stack examples.** JS/TS (husky + lint-staged wiring), Rust (cargo fmt/clippy),
-Go (gofmt + golangci-lint), Python (pre-commit.com) — route to `notes-docs-content-sweep.md` for
-eventual docs-site placement. Not live framework reference docs; those stay stack-agnostic.
+### D6 — Fire sites
 
-**This repo's own adoption as dogfood.** After the framework-level dispatch shape lands, wire this
-repo into it in the same WU as a final validation phase. Mechanical configuration: install
-`lint-staged`; replace the `scripts/check-ts-quality.sh` stopgap with commit-gate dispatch through the
-new method shape; configure staged-file Markdown, TypeScript, and shell checks in the repo-local
-hook path. This is not a shipped ARC default and does not select a stack for adopters — it validates
-that the adopter-configurable path works on ARC's own JS/TS stack.
+No per-task gate. The fail-fast intent is served at the points where it pays:
 
-**Changed-file Markdown under-wrap detector as repo dogfood.** Include this repo's custom under-wrap
-detector in the same dogfood phase, but only as a staged/changed-file commit-gate check. Do not register
-it as a normal repo-wide markdownlint rule yet; current repository history has too much existing
-under-wrap debt for global blocking enforcement to be useful.
+- **Done boundary** — a review increment's completion in `process-task-loop`, an errand pass or approved review fix
+  in `run-errand` (correction paths in `prepare-work-unit` and `integrate-work-unit` stay out, per § Storage
+  boundary): run the `commit-gate`
+  plus the push-gate's `files` checks over the change (for example, related tests via `vitest related` or
+  `jest --findRelatedTests`). The commit set's failures block the commit; the push-gate subset is feedback in the
+  completion report. Fixes apply here, before review (D7).
+- **Segment verifier** — a `slice` or `replication` segment's closing verifier runs the `push-gate`. The plan declares
+  where broader verification pays off, replacing the "coherent unit" judgment Tier 2 rested on; the verb knows
+  nothing of segments. A `layer` segment needs nothing extra.
+- **Commit and push hooks** — run their gates; normally a reuse.
+- **Work-unit verification** — `verify-work-unit` runs the `integration-gate`.
+- **CI** — runs the `integration-gate` as the authority.
 
-Prototype result from 2026-05-11:
+Push cadence stays neutral: gates are deadlines, so a project that pushes once a session and one that pushes hourly
+get the same guarantees. The done-boundary push subset is what gives regular test feedback between pushes.
 
-- Implementation shape: markdownlint custom rule using the `markdownit` parser, inspecting
-  `paragraph_open` token maps against `params.lines`. For each non-final physical line in a multi-line
-  paragraph, flag only when `line.length < min`, the first word of the next line exists, and joining
-  that first word would stay within the 120-char target.
-- Initial defaults: `min=75`, `max=120`, blockquotes skipped, lint-only/no auto-fix. Skip hard breaks,
-  reference definitions, table-like pipe rows, structural field clusters (`**Field:**` lines), and
-  standalone bold labels (`**Task level:**`) to avoid ARC-specific false positives.
-- Calibration against representative ARC artifacts: `min=70` found 52 candidates, `min=75` found 81,
-  and `min=80` found 162 across active/workflow/strategy/template/archive samples. `min=75` gave the
-  best first-pass signal.
-- Current-core samples at `min=75`: 18 candidates across task-list/workflow/DEV-RULES/WOR files; work
-  organization docs produced 16 more, while `docs/reference/task-lists.md` and `session-handoff.md`
-  produced zero.
-- Full current markdownlint scope at `min=75`: 458 candidates across 221 files. This confirms the
-  rule should be changed-file-only until a cleanup/baseline strategy exists.
+### D7 — Fixes and restaging
 
-**Gate-coverage drift detection.** Configured gate commands drift over time as projects add new scripts —
-additional typecheck variants (production vs. test tsconfig), evolving lint surfaces, separate test tiers.
-Initial-setup captures the configured set at one moment; nothing re-checks coverage as the project grows.
-Promoted to a first-class deliverable based on four confirmed recurrences in this repo's self-hosting
-codebase (2026-04-23 eslint+typecheck, 2026-05-05 `typecheck:test` not wired locally, 2026-05-06
-`typecheck:test` on test-mock signature, 2026-05-08 audit-log fixture used a stale `NotesPushPolicy`
-literal — caught by `typecheck:test` but missed by the project-default `typecheck` script) — the pattern
-is real, not hypothetical. Deliverable: an
-`arc check-gates` audit that compares detected ecosystem scripts (npm `package.json` scripts; equivalents
-for other ecosystems) against configured gate commands and flags omissions. Re-runnable any time;
-initial-setup invokes it implicitly. PRD finalizes cross-ecosystem detection heuristics and the
-false-positive boundary (which detected scripts are gate-relevant vs. not).
+Fix-capable checks run at the done boundary with fixes applied to the worktree before review, so reviewed content is
+committed content and the hook usually finds nothing to fix. For commits made outside a workflow step, hook-time
+behavior is configuration — `restage` or `fail` — because practice splits (lint-staged and lefthook `stage_fixed`
+restage; pre-commit.com and Overcommit fail). Default `restage`, following lefthook's rule: fail the hook if the
+restage itself fails, so unfixed content never commits silently. A restage must not re-trigger the gate or loop.
+This absorbs the add → format → re-stage loop (`format:tables` refusing untracked paths, then the index / worktree
+drift guard in `worktree-index-drift.ts`).
 
-**Audit and consolidate workflow-embedded quality-gate triggers.** Before PRD, sweep
-`.arc/system/workflows/**` for quality-gate steps embedded in workflow prose — don't trust any existing
-inventory. Catalog each (workflow + step + gate type + scope) and decide per item whether the new
-dispatch model subsumes it. Consolidation criterion: mechanical-and-now-hook-covered → remove from
-workflow; human-judgment-gated or scope-the-hook-can't-see → keep in workflow. Known triggers as of this
-WU: `session-handoff.md` step 3's status-file markdown lint substep (added as stopgap during
-user-sync-ux); `3_process-task-loop.md`'s Tier 1 / Tier 2 invocations; `verify-work-unit.md`'s Tier 3
-invocation. The catalog likely surfaces more. Repo-local dogfood consumers in this plan are the
-lint-staged adoption migration and the custom under-wrap markdownlint prototype as a changed-file-only
-commit-gate check. They validate the framework dispatch shape but remain repo-local configuration, not
-shipped ARC defaults.
+### D8 — Hooks
 
-### Out of scope
+ARC's shipped pre-commit hook runs its structural checks, then dispatches the `commit-gate` through the verb; the
+shipped pre-push hook keeps its force-push advisory and dispatches the `push-gate`. Both stay on the existing
+`hooks.pre_commit` / `hooks.pre_push` keys; gate dispatch is on when the project declares checks for that gate and
+off otherwise. Hook-manager integration is unchanged (ADR-014: husky, lefthook, pre-commit.com, or `core.hooksPath`).
+Hooks remain bypassable by design; CI is the authority, and ARC's `--no-verify` prohibition stays agent discipline.
 
-- Knowledge-base content checks — cross-reference / link validation, forbidden-pattern content rules
-  (adopter-language, path-style movable-artifact refs, transitional framing), relocatability link-defs, and
-  their one-time sweeps. These are `knowledge-lint`'s charter (settled at its 2026-07-02 grooming; this WU's
-  buffer entries for them migrated there). This WU's gate dispatch invokes `arc lint` exactly as it invokes
-  the adopter's configured linters — dispatch stays here, check content lives there.
-- Switching ARC's shipped hook script format (stays shell-based in `.arc/system/.internal/githooks/`).
-  Hook-manager integration is already handled per ADR-014.
-- Rewriting or consolidating the existing 14 structural CHECKs. Framework-owned and fine.
-- Tech-stack-specific defaults in the shipped method. Configuration at initial-setup is the entry
-  point, not shipped defaults.
-- Integration-gate auto-enforcement at the hook layer. That gate is CI + human review; no local hook
-  equivalent planned. A possible `pre-pr` dispatcher can come later if demand emerges.
-- Lint tool selection opinions. ARC doesn't pick between markdownlint and prettier for adopters.
-- **Continuous-feedback layer (the watcher direction).** _(Recorded 2026-07-25 — out of scope, not
-  rejected.)_ § Problem gap 3 establishes that the milestone cadence is a prosthetic for the editor
-  feedback loop an agent lacks. That loop is arguably _closable_ rather than compensable: `test:watch`
-  already exists, `tsc --watch` exists, and agent harnesses run background processes — a warm watcher
-  gives incremental typecheck in ~100ms against 4.2s cold. Held out because it roughly doubles this WU,
-  nothing else here depends on it, and it carries unsolved problems of its own (process lifecycle across
-  sessions, output consumption, staleness detection, cross-harness portability). **Disposition:** if
-  pursued, it splits out as its own WU rather than joining this one — mint a `backlog/provisional/` stub
-  at that point. Recorded here so the direction is not lost by silence: if row 1 is closable, the
-  milestone cadence is a workaround with a shelf life, which bears on how much machinery this WU should
-  invest in it.
+### D9 — CI parity by construction
+
+CI runs the same declaration through the same verb, so a check cannot be local-only or CI-only by omission — the
+local-green / CI-red class closes structurally rather than through a parity test.
+
+### D10 — Knowledge placement
+
+- `gate` and `kind` enter the briefs' vocabulary (D1).
+- `quality-gate-commands` retires or becomes a pointer to the declaration.
+- `QUICK-REFERENCE.md` § Quality Gate Commands gives way to verb help and emitted remedies.
+- `strategy-quality-gates.md` shrinks to what an operator needs that the verb cannot say; its tier, escalation, and
+  checkpoint-placement content is replaced by D1 and D6.
+- This repository's DEV-RULES.PROJECT § Selecting what to run shrinks to its zero-tolerance policy once the verb
+  computes selection and reuse.
+
+Every demotion or retirement is checked against `init-recipe.json` in both directions first, so content is
+relocated rather than silently deleted for every project.
+
+### D11 — This repository as first consumer
+
+The final work moves this repository's existing checks into declarations, proving each configurable element:
+
+- the `.husky/pre-commit` chain (`lint:md:staged`, `check-package-sync.sh`, `check-ts-quality.sh`) becomes declared
+  checks dispatched by ARC's hook — staged scope, a whole-program check at commit, and a structural sync check;
+- the QUICK-REFERENCE gate blocks and the DEV-RULES.PROJECT relevance table become inputs and gate assignments;
+- the package-mirror coupling becomes declared inputs (D4);
+- `format:tables` and the Markdown drift guard exercise D7;
+- CI invokes the verb (D9), after `test-suite-reliability` lands its CI layout changes.
+
+Checks this repository does not yet have are distinct concerns and route out (§ Buffer triage).
 
 ## Alternatives
 
-**Tier vocabulary:**
+**Tier vocabulary** — settled 2026-07-25. _Gate-only_ (deadline names) loses the feedback / enforcement distinction;
+_cost-class as the second axis_ codifies the axis that empirically collapsed (Tier 3 exceeds Tier 2 by `build`
+alone, ~5%); _status-quo cleanup_ keeps the ordinal that let Tier 1 run full-project scans undetected. Chosen: gate ×
+kind, with cost as measured data and selection as a rule (D1).
 
-Background: traditional SWE practice (external research, 2026-04-28) treats three concepts as
-conceptually orthogonal even when they correlate in convention:
+**Where gate composition lives:**
 
-- **Kind / cost class** — inherent expensiveness of a check (cheap-fast lint/types vs. medium unit
-  tests vs. heavy integration/e2e). Property of the check itself.
-- **Gate / deadline** — the must-pass-by point. "Push-gate" universally reads as "must have passed
-  before push," not "runs at push." Industry convention (Google SWE book, Zuul, CI/CD literature).
-- **Cadence** — opportunistic schedule for when checks fire (on-save, on-commit-attempt,
-  on-coherent-unit, etc.). Separate from the gate enforcement.
+- _Stage metadata in the `quality-gate-commands` method, read by hooks_ — puts structure in Markdown for shell to
+  parse. Rejected.
+- _One method per stage_ — more files, the same prose-as-structure defect. Rejected.
+- _Consume the project's hook-manager configuration_ (`.pre-commit-config.yaml`, `lefthook.yml`) — ties ARC to one
+  manager's schema and still leaves workflow steps and CI without a resolver. Rejected; a declared check's command may
+  invoke a hook manager or task runner.
+- _Typed ARC declaration resolved by the verb_ — chosen (D2, D3).
 
-Today's "Tier 1/2/3 = per-task / per-coherent-unit / pre-PR" bundles all three into one tier name.
-The original "rename to commit-gate/push-gate/pr-gate" framing collapsed kind+cadence into gate
-naming — closer to a category change than a naming swap. Three viable paths:
+**Where reuse comes from:**
 
-- **A — Gate-only.** Replace Tier 1/2/3 with `commit-gate / push-gate / integration-gate` (deadline
-  semantic). Cost-class and cadence become advisory convention documented per gate. Self-documenting,
-  idiomatic, aligns with git hook stages. Downside: drops the explicit kind framing the tiers
-  currently provide.
-- **B — Orthogonal axes.** Factor kind and gate as separate vocabulary. Drop tier
-  numbers; keep cost-class concept (rename it — "cheap / medium / heavy" or similar); add gate as
-  orthogonal deadline naming. Cadence becomes a third (advisory) axis. Most accurate factoring.
-  Highest documentation surface; reader must learn two axes instead of one.
-- **C — Status quo cleanup.** Keep Tier 1/2/3 as canonical. Add gate-as-deadline framing as a
-  clarifying overlay (every surface documents "Tier 1 must have passed by commit-gate"). Minimal
-  churn; tier-numeric ambiguity persists; readers must still learn the mapping.
+- _Adopt a task runner (Nx, Turborepo, Bazel)_ — stack-specific. Rejected as framework substrate; a project with one
+  declares checks that call it, and its own cache composes underneath.
+- _No reuse; rely on selection alone_ — selection cannot dedupe two fire sites over the same tree. Rejected.
+- _Tree-keyed pass record in the verb_ — chosen (D5), following `git test` and git-branchless.
 
-The earlier-framed Option B (keep numeric, document alignment) collapses into Option C above.
-The earlier-framed Option C (hybrid dual-naming) is dominated by Options A or B and is dropped.
+**Per-task cadence:**
 
-**SETTLED (2026-07-25) — B's two-axis shape, A's gate axis, and a different second axis.**
-Grooming resolved this against measured evidence rather than deferring it to PRD. Tier 1/2/3 drops
-entirely. **Four concepts, but only two are vocabulary:**
+- _Keep a blocking per-task block_ — overcorrected, with no evidence it is needed.
+- _Feedback only at edit time through harness hooks_ — harness-specific, and leaves no done-boundary check.
+- _Done-boundary run of the upcoming gate plus the push subset_ — chosen (D6).
 
-| Concept                             | Status                          | Home                                                    |
-| ----------------------------------- | ------------------------------- | ------------------------------------------------------- |
-| **Gate** (deadline)                 | first-class vocabulary          | `commit-gate` / `push-gate` / `integration-gate`        |
-| **Kind** (feedback vs. enforcement) | first-class vocabulary          | workflow fire sites vs. hook/CI gates                   |
-| **Cost**                            | measured data, not vocabulary   | the gate-coverage audit measures and surfaces it        |
-| **Selection / reach**               | mechanical rule, not vocabulary | path→check mapping + unchanged-tree (§ Selection model) |
+**Pre-push enablement** — _smart default_ (on when push-gate checks are declared), _always opt-in_, or _always on_.
+Chosen: the smart default under the existing `hooks.pre_push` key (D8).
 
-Why the second axis is **kind**, not cost-class, and not cadence:
+**Hook-time restage** — configurable, default `restage` (D7).
 
-1. **Cost-class is the axis that empirically collapsed.** Tier 3 exceeds Tier 2 by `build` alone
-   (~5%). Making cost-class first-class codifies a distinction this project's own instantiation could
-   not sustain — and B pays its documentation-surface cost precisely for that axis.
-2. **Deadline naming self-enforces where an ordinal does not.** Tier 1 was mandated targeted by the
-   strategy and ran full-project scans undetected, because "Tier 1" carries no constraint and the
-   constraint lived in prose one document away. A `commit-gate` costing 47s is self-evidently wrong;
-   the research's own numbers (<500ms ideal, >10s corrodes) attach to the deadline, not to an ordinal.
-3. **Cost is a measurement problem, not a naming one.** `lint:ts 21.4s` strictly dominates "`lint:ts`
-   is medium," and cannot silently go stale the way a declared class can. This converts B's second
-   axis into a _deliverable_ of the gate-coverage audit rather than vocabulary.
-4. **Cadence was the wrong candidate for the second axis.** ARC's fire sites are procedural, not
-   opportunistic (industry cadence means on-save / on-type). But naming them "cadence" describes
-   _when_ they run, when what actually distinguishes them is _what they are for_ — feedback that
-   informs versus enforcement that blocks. Kind subsumes the useful part of cadence and explains the
-   Tier 2 collapse; cadence does not.
+## Open items
 
-The feedback/enforcement cut is the same line `judgment-authority-model` draws between
-ignorance-guarding rules (yield to demonstrated judgment) and bias-guarding ones (never yield),
-reached independently from the other direction — enforcement is bias-guarding, feedback is
-ignorance-guarding. Coordinate the wording so the two do not mint separate vocabularies for one cut.
+1. **Verb name.** Extend the existing `arc check` with gate subcommands, or a new `arc gate`. Lean: `arc check`.
+2. **Done-boundary composition.** Confirm the push-gate `files` subset as feedback at the done boundary (D6) as the
+   framework default rather than a project knob. Lean: default.
+3. **Unstaged changes at the commit hook.** Tools read the worktree, not the index. pre-commit.com and lint-staged
+   stash unstaged changes, but the stash stack is shared across worktrees, which ARC runs concurrently. Lean: fail
+   closed when a selected check's inputs carry unstaged changes, with an emitted remedy; no stash.
+4. **CI invocation form.** The verb in CI needs ARC's CLI in the CI environment, which a project in another language
+   may not otherwise install. Lean: the verb, plus a mode that prints the resolved commands for native CI steps.
+5. **Reuse key granularity.** Per-check input digest (D5) versus whole-tree key. Lean: per-check, since the inputs
+   already exist for selection.
+6. **Declaration home.** `arc-config.yml`'s flat keys cannot carry a list of structured checks. Lean: a dedicated,
+   schema-validated file beside it, coordinated with the planned config-storage work.
+7. **Gate-coverage audit.** The draft previously scoped an `arc check-gates` audit comparing detected ecosystem
+   scripts with configured gates, on four recurrences in this repository. Parity by construction (D9) removes the
+   local / CI drift those recurrences were; what remains is a check neither runs. Lean: route out as a provisional
+   follow-on stub.
+8. **Tool versions in the key.** No stack-agnostic way to read tool versions; lockfiles and tool configuration as
+   global inputs cover most of it. Confirm that suffices.
+9. **Last-known-good base.** The merge base with the base branch may itself be unverified locally; CI learns verified
+   trees from the host's checks API (`classify-change.sh`), which a stack-agnostic verb cannot assume. Decide whether
+   selection needs a stronger anchor than the merge base, and where it would come from.
 
-**Pre-push opt-in model:**
+## Storage boundary
 
-- **A — Config-gated smart default (current lean).** `hooks.pre_push: auto | enabled | disabled`.
-  `auto` = "enabled if push-gate commands are configured, disabled otherwise." Zero friction for
-  adopters without a test suite; auto-wires for those with one.
-- **B — Always opt-in.** `hooks.pre_push: enabled | disabled`, default `disabled`. Explicit, no
-  surprises, but misses the easy win for mature adopters.
-- **C — Always on (when configured).** No config key; pre-push always enabled if push-gate commands
-  exist. Surprising for early-stage projects that just added tests and aren't ready for pre-push yet.
+The scope edge against the `state-storage` program (register in `cohort-state-storage.md`):
 
-**Method dispatch shape:**
+- **Survives:** the verb, the declaration, selection, and the machine-local reuse record (machine-local state stays
+  local), provided results remain an execution shortcut and the Candidate's verification evidence stays a free
+  string; local / CI parity from one declaration; the routine gate steps in `process-task-loop`, `verify-work-unit`,
+  `run-errand`, and `self-review` (the cutover rewrites those files' commit steps, so the cost is merge conflicts
+  only); code checks at commit.
+- **Leave alone:** gate steps in the correction paths of `integrate-work-unit` and `prepare-work-unit`, and
+  `deliver-stack` (seam and held delivery territory) — vocabulary only, no mechanics.
+- **Out:** any new Markdown gate over `.arc/` state (projected state drops out of lint); hook checks over planning
+  artifacts; a pre-handoff hook and notes-consistency check. The register row naming this work unit (commit-time
+  checks over artifacts that will no longer be committed, and a git-notes check) is discharged by dropping both.
 
-- **A — Extend `quality-gate-commands` with stage metadata (current lean).** Each command entry
-  includes `stage: commit-gate | push-gate | integration-gate` (or equivalent under chosen tier-
-  vocabulary path). Hook filters by stage, runs matching commands. Single method, expressive.
-- **B — Separate method per stage.** `commit-gate-commands.md`, `push-gate-commands.md`,
-  `integration-gate-commands.md`. More files, less flexible, harder to misconfigure but harder to
-  reason about holistically.
-- **C — Flat commands + side-channel stage map.** Commands stay flat; a sibling method maps stages
-  to command subsets. More indirection, less cohesion.
+## Scope boundary (Won't Do)
 
-**Auto-restage behavior on fix:**
+- Knowledge-base content checks (cross-references, anchors, forbidden patterns) — `knowledge-lint`'s charter. The
+  verb dispatches `arc lint` like any declared check.
+- Changing the shipped hook script format or the hook-manager integration (ADR-014).
+- Rewriting or consolidating the 20 structural CHECKs.
+- Tech-stack defaults or lint-tool opinions in shipped content.
+- A local hook for the `integration-gate` — CI and review own it.
+- Harness-specific edit-hook wiring. Any harness hook can call the verb; examples go to the docs site.
+- A warm-watcher feedback layer (`tsc --watch`, `test:watch` kept running across a session) — out of scope, not
+  rejected; it carries its own lifecycle, staleness, and portability problems and becomes its own work unit if pursued.
+- Push cadence and interlock or ratchet policy — they decide when steps fire; this work defines what a fire runs.
+- New checks for this repository (they route out).
 
-- **A — Auto-restage (chosen).** Aligned with research + husky/lint-staged default + user preference.
-  Linter fixes get staged automatically; commit proceeds. Fast, agent-friendly.
-- **B — Block and report.** Linter fixes happen but commit is blocked; user/agent re-stages
-  manually. More explicit, more friction.
+## Coordination
 
-## Unknowns and Assumptions
+- **`markdown-formatting`** (shipped) — owns `lint:md:staged` and MD060 table alignment, and handed commit-time
+  auto-fix plus restage back here: D7 takes it.
+- **`test-suite-reliability`** (active) — changes CI sharding, `classify-change.sh`'s heavy-check list, and test
+  budgets. This work's CI edits (D9, D11) wait for it to land; it makes each run cheaper, this makes there be fewer.
+- **`knowledge-lint`** (planned) — receives the two citation and anchor checks from the buffer.
+- **`inbound-routing-method`** (planning) — this triage is the first live test of its routing rule; what was hard to
+  place goes to it as evidence.
+- **`storage-seam`** / **`storage-cutover`** — the storage-tied buffer entries go to them as holds.
 
-**External research (completed 2026-04-24) validated:**
+## Boundary fit
 
-- Staged-files-only discipline is universal best practice — no significant dissent.
-- Pre-commit time target: <500ms ideal, <5s acceptable, >10s corrodes discipline.
-- Tier 2 equivalent (full test suite) in pre-commit is a documented anti-pattern — belongs in
-  pre-push or CI.
-- Agent-friendly hook design: structured errors, auto-fix, idempotent retries. Claude Code has 15
-  hook events and documented patterns for agents reacting to hook failures.
-- `--no-verify` bypass pressure scales inversely with hook speed and signal density.
+Stays one work unit. The four surfaces — declaration, verb, selection, and reuse; hook dispatch; fire-site and
+knowledge consolidation; first-consumer adoption — are one design, and each depends on the first. They are review
+chunks within one delivery, not separate deliverables: the fire-site rewrite is what makes the vocabulary rename
+nearly free, so the earlier hooks-versus-vocabulary split would edit the same lines twice.
 
-No external research blockers remain before PRD drafting.
+## Scope estimate
 
-**Assumptions to validate during PRD:**
+`Heavy`, larger than the earlier "days to a week":
 
-- The chosen tier-vocabulary path (A/B/C per § Alternatives) produces net-positive readability
-  despite methodology churn. If PRD discovery finds the rework touches >50 files or disrupts
-  established mental models, fall back to Path C (status quo cleanup).
-- `hooks.pre_push: auto` default works for both early-stage adopters (no tests yet) and mature ones
-  (has tests). If beta dogfooding reveals confusion, fall back to explicit opt-in.
-- Initial-setup is the right configuration point. If the bootstrap step adds material friction to
-  onboarding, consider making it an optional later step.
-- Extending `quality-gate-commands` with tier metadata (Option A) stays readable as commands
-  accumulate. If the method becomes crowded in practice, revisit splitting.
-- Auto-re-stage behavior is safe when combined with ARC's existing structural CHECKs. Needs test
-  coverage ensuring re-staged fixes don't re-trigger or loop.
-- **`arc check-gates` audit heuristics.** The drift-detection deliverable is now in scope (see § Scope >
-  In scope > Gate-coverage drift detection); four recurrences in this repo's self-hosting codebase
-  (2026-04-23, 2026-05-05, 2026-05-06, 2026-05-08 — all variants of "test typecheck never wired to local
-  enforcement") closed the "is this real?" question. Open at PRD time: cross-ecosystem detection (npm `package.json`
-  scripts vs. cargo `Cargo.toml` aliases vs. Make targets vs. justfile recipes), the heuristic for
-  classifying detected scripts as gate-relevant vs. not (false-positive surface), and surfacing cadence —
-  re-runnable command vs. opportunistic warning at session-init or push-gate dispatch.
+- declaration, schema, and validation: 1–2 days;
+- the verb — selection, reuse record, runner, output, remedies: 3–5 days;
+- hook dispatch, both copies, and hook-manager paths: 1–2 days;
+- fire-site consolidation and the vocabulary sweep (19 package files name the tiers today): 2–3 days;
+- knowledge placement and the recipe check: about 1 day;
+- initial-setup bootstrap: about 1 day;
+- first-consumer adoption and CI parity: 1–2 days.
 
-## Scope Estimate
+The mechanics slice (declaration through hooks) is roughly 5–9 days; whether it takes an implementation slot beside
+the storage program's Stage 2 is decided at activation.
 
-**Medium** (days-week).
+## Buffer triage
 
-Rough breakdown:
+The 30 routed-in entries were triaged on 2026-10-07 against `c009ab198`, each verdict spot-checked against the tree.
+Full entry text is in this draft at `7ea9addfa`. Route-outs execute at draft close as `USER-INBOX` captures through
+`arc-inbox`, each with `WU_Target` and `_Shapes:_`; no sibling artifact is edited from this branch.
 
-- Tier-vocabulary rework + doc sweep (Path A or B per § Alternatives; Path C is lighter): 1-2 days.
-- Pre-push hook + structural CHECK + two-copy sync: 0.5-1 day.
-- Method extension + dispatch logic + tests: 1 day.
-- Initial-setup bootstrap workflow edit + tests: 0.5 day.
-- `arc check-gates` audit command + cross-ecosystem detection + tests: 1-1.5 days.
-- Docs-content-sweep routing entry: 0.25 day.
-- Config schema update + CI audit updates: 0.5 day.
-- Repo dogfooding: lint-staged wiring, stopgap replacement, and changed-file under-wrap check:
-  0.5-1 day.
+**Folded into the body (6):**
 
-**Dependencies:**
+- _Give ceremonies a CLI-resolved gate invocation_ → D3.
+- _Keep local Tier 3 commands in parity with required CI gates_ → D9.
+- _Close the two-copy sync blind spot in gate selection_ → D4 and D11.
+- _Reassess message-only content-gate caching_ → D5.
+- _Close the add → format → re-stage loop_ (with the auto-fix residual of _Markdown-formatting enforcement_) → D7.
+- _Reconcile ownership after repository Markdown enforcement ships_ → § Coordination and D7.
 
-- **Session-Operational Flow** — shipped May 2026. Interlock-model vocabulary and architectural-junction
-  naming are canonical; the `session.*_interlock` config surface in `arc-config.yml` is the
-  authoritative reference for `hooks.pre_push` / `hooks.pre_handoff` config shape. Prerequisite met.
-- **Session-Init Optimization** — shipped. DEV-RULES.ARC / session-init.md / quality-gate-commands.md
-  edits no longer conflict with active audit work. Prerequisite met.
-- **ADR-014 (hook-manager detection)** — in place; prerequisite met.
-- User Sync UX Polish landing first is preferred — both are pre-1.0 polish; reduces overlap on shared
-  adopter-facing surfaces (`arc-config.yml`, DEV-RULES, `arc status`).
-- Worktree Foundation landing first is preferred — session-init orientation and worktree-mechanism
-  surfaces overlap with surfaces this WU also touches. Clean separation.
-- Agile WU Lifecycle landing first — gate-tier mapping per WU tier is a PRD input for this plan; the
-  tier model needs to canonicalize before tier-vocabulary rework lands.
-- Landing before ARCd Rebrand means rebrand picks up the new tier vocabulary in its bulk rename
-  pass, avoiding double-churn (same argument as User Sync UX Polish).
+**Dismissed — resolved elsewhere (5):**
 
-**Scheduling:** After Worktree Foundation and Agile WU Lifecycle. Before ARCd Rebrand. Pre-1.0 polish
-window.
+- _Distinguish raw Git rename/copy statuses_ — fixed by `fcd311a85`. Residual: no test pins the exemption (Errand).
+- _The worktree Markdown gate cannot see untracked files_ — fixed by `df272224c`.
+- _Pre-commit hook runs no markdownlint_ — `markdown-formatting` put `lint:md:staged` in `.husky/pre-commit`.
+- _Markdown-formatting enforcement_ — MD060 table alignment runs in `lint:md`; emoji was a non-goal there.
+- _Prevent unrelated large blobs from crashing pre-commit validators_ — `872b1e8e0` deleted the validator. Residual:
+  `validate-meta-spec.ts`, `remedy-roadmap-conflict.ts`, and `assert-roadmap-regenerated.ts` use a local 32 MiB
+  limit instead of `MAX_GIT_OUTPUT_BYTES` (Errand).
 
-**Pre-approved split at PRD-drafting time:** If the chosen tier-vocabulary rework (Path A or B per
-§ Alternatives) proves to touch more surface than anticipated, split into:
+**Storage-tied — hold for the storage owners (5):**
 
-- WU-A: Hook integration only (new pre-push hook, method dispatch, bootstrap, repo dogfooding).
-  Low-churn, architectural.
-- WU-B: Tier-vocabulary rework across all surfaces. Editorial, mostly find-and-replace with
-  contextual review.
+- _Lock a completed task's identifier_ — task lists become store records.
+- _Guard or migrate dev-repo-only `npx tsx` hook delegations_ — most of those checks retire at cutover.
+- _Validate commit-message ranges in CI_ — the footer grammar changes under `ghost-mode`.
+- _Config-gated TTY-confirm escalation for the force-push advisory_ — `history-policy`.
+- _Flat `active/` layout is unguarded_ — the projection supersedes the layout; likely dismissed there.
 
-Both halves are independently valuable. Keep unified if the rework stays manageable.
+**Another work unit's charter (7):**
+
+- _Add a checker that resolves Markdown `§` citations_ and _Resolve cross-file Markdown anchors_ → `knowledge-lint`.
+- _E2E-coverage and seam-assertion guards for destructive lifecycle verbs_ → the testing domain;
+  `testing-guidance-apparatus` has shipped, so it needs a new home (Work Unit capture).
+- The four test-cost entries (pre-change baseline, warm-run practice, machine-readable result, hosted CI fallback
+  budget) → Errands or a `test-suite-reliability` follow-up; the hosted-fallback entry's named target does not exist.
+
+**Errand-shaped (7):** fail closed on an unprovisioned hooks path in hand-made worktrees; false green on an excluded
+lint path; runtime examples versus meta-project references in code; integrity verification for mode-scoped installs;
+an exported-surface TSDoc lint rule; an actionlint gate; whether cognitive complexity replaces the cyclomatic limit.
+The changed-file Markdown under-wrap detector prototype (calibration data at `7ea9addfa`) joins them as a new check.
