@@ -2003,3 +2003,40 @@ independence and binding completeness retain the exception and the required nati
 No independent amendment-review pass is claimed; the two narrow consultations are advisory source evidence.
 The Markdown-only capture passes whole-corpus Markdown and all three ARC contracts
 (`/tmp/arc-amendment-a4-gates.log`); code inputs are unchanged from the passing Task 9.7 tree.
+
+### Revised matrix implementation
+
+The revised matrix contains 76 command/scenario entries: four named ordinary prompt sites and the singular
+`upstreamRefusalFor: safety.indeterminate-lifecycle` case, with five unnecessary prompt-only command entries removed.
+Start's two cases replace its old generic cannot-start case. Command reconciliation excludes prompt origin from its
+non-prompt coverage set, while policy reconciliation accounts for the one declared exception explicitly and binds
+all five policies to their own command. Both revised reconciliation cases fail against the old descriptors
+(`/tmp/arc-prompt-matrix-a4-reconcile-red.log`), then the inventory/real-prompter/direct-start selection passes all
+83 cases (`/tmp/arc-prompt-matrix-a4-focused-green.log`).
+
+Init's tools case omits `--tools` and asserts the persisted empty `install_config.tools` default. Template preparation
+supplies the explicit empty tools list, keeping producer setup independent from that omitted-input behavior. User
+pull's fixture saves real notes through the CLI, reaches overwrite refusal without authority, and retains its exact
+notes ref. Reachable start commits and publishes the planning ceremony, with its actual branch, meta, remote ref and
+commit asserted. The upstream case observes incomplete-expansion refusal, no new worktree/local branch, unchanged
+refs and tracked state; it does not claim to have reached `safety.indeterminate-lifecycle`. Prepared repositories
+are reused before scenario setup, and all invocation closures settle before fixture cleanup.
+
+The first blanket cancellation reconstruction also affected template initialization and completed no cases
+(`/tmp/arc-prompt-matrix-policy-reconstruction-red.log`); it is excluded from behavioral fail-first evidence.
+A site-limited reconstruction preserving every export and explicit-answer path then fails all four native prompt
+cases with incorrect output or exits (`/tmp/arc-prompt-matrix-policy-reconstruction-red-corrected.log`). A separate
+same-signature start reconstruction returning success from incomplete expansion fails the one native upstream case
+(`/tmp/arc-prompt-matrix-upstream-reconstruction-red-corrected.log`). Both source modules are restored byte-for-byte;
+all five cases pass again (`/tmp/arc-prompt-matrix-a4-native-restored.log`, 76 unselected). No production change lands.
+
+The full routine run catches three stale literal transport-count assertions in `no-input-invocations.test.ts`
+(80 entries versus 76; Linux groups 45/6/29 versus 43/6/27). They are mechanically reconciled with the reduced
+matrix, preserving all transport assertions. All other 16,710 routine cases pass in that attempt. The full E2E
+run passes 67 files and 699 cases in 258.20 s (`/tmp/arc-prompt-matrix-a4-e2e.log`).
+
+Final routine validation passes 1,119 files and 16,713 cases in 216.34 s, with the existing one-file/1,188-case
+skip set (`/tmp/arc-prompt-matrix-a4-routine-final.log`). Both type checks, whole-project typed lint, and the focused
+six-case transport selection pass after count reconciliation. The earlier full E2E result remains applicable: only
+the isolated unit count assertions changed afterward. The full declaration build and shell gate retain their
+passing Task 9.7 results because their source/configuration inputs are unchanged. No suppression record changes.

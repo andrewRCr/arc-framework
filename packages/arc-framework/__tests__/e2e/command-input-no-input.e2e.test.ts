@@ -21,7 +21,7 @@ describe("command-input no-input matrix", () => {
     initializedTemplate = await prepareRepositoryTemplate(initializedShape, async () => {
       const cwd = await createTempRepo("arc-command-input-template-");
       try {
-        const initialized = await runArcNoTty(["--no-input", "init", "--name", "matrix", "--identity", "matrix"],
+        const initialized = await runArcNoTty(["--no-input", "init", "--name", "matrix", "--identity", "matrix", "--tools", ""],
           cwd, { timeout: 10_000, env: { CI: "false" } });
         expect(initialized.exitCode, JSON.stringify(initialized)).toBe(0);
         await git(cwd, ["add", "."]);
@@ -118,33 +118,16 @@ describe("command-input no-input matrix", () => {
     expect(result.stderr).toContain("error: missing required input: --idempotency-action <action>");
   });
 
-  it.each(NO_INPUT_MATRIX)("terminates $commandPath for each distinct unavailable-interaction context", async (entry) => {
+  it.each(NO_INPUT_MATRIX)("terminates $commandPath [$promptSite; upstream: $upstreamRefusalFor] for each distinct unavailable-interaction context", async (entry) => {
     const invoke = async (
       run: (cwd: string) => ReturnType<typeof runArcNoTty>,
     ) => {
-      const prepared = entry.fixture !== "bare" && entry.setup === undefined;
+      const prepared = entry.fixture !== "bare";
       if (prepared && initializedTemplate === undefined) throw new Error("Missing initialized matrix template");
       const cwd = prepared
         ? await copyPreparedRepository(initializedTemplate!, initializedShape)
         : await createTempRepo("arc-command-input-e2e-");
       repositories.push(cwd);
-      if (!prepared && entry.fixture !== "bare") {
-        const initialized = await runArcNoTty(
-          ["--no-input", "init", "--name", "matrix", "--identity", "matrix"],
-          cwd,
-          { timeout: 10_000, env: { CI: "false" } },
-        );
-        expect(initialized.exitCode, JSON.stringify(initialized)).toBe(0);
-        if (entry.configuration === "full-protection") {
-          const configPath = join(cwd, ".arc", "system", "arc-config.yml");
-          const config = await readFile(configPath, "utf8");
-          const updated = config.replace("branch.protection: partial", "branch.protection: full");
-          expect(updated, "expected the installed partial-protection setting").not.toBe(config);
-          await writeFile(configPath, updated);
-        }
-        await git(cwd, ["add", "."]);
-        await git(cwd, ["commit", "-m", "chore: initialize fixture"]);
-      }
       if (prepared && entry.configuration === "full-protection") {
         const configPath = join(cwd, ".arc", "system", "arc-config.yml");
         const config = await readFile(configPath, "utf8");
@@ -154,7 +137,7 @@ describe("command-input no-input matrix", () => {
         await git(cwd, ["add", "."]);
         await git(cwd, ["commit", "-m", "chore: configure fixture"]);
       }
-      if (entry.setup !== undefined) {
+      if (entry.setup === "provisional-stub" || entry.setup === "planned-stub") {
         const commitment = entry.setup === "provisional-stub" ? "provisional" : "planned";
         const stubbed = await runArcNoTty(
           [
@@ -173,7 +156,15 @@ describe("command-input no-input matrix", () => {
         await git(cwd, ["add", "."]);
         await git(cwd, ["commit", "-m", "chore: add matrix work unit"]);
       }
-      if (entry.commandPath === "start") {
+      if (entry.setup === "local-notes") {
+        const saved = await runArcNoTty(["--no-input", "user", "save"], cwd);
+        expect(saved.exitCode, JSON.stringify(saved)).toBe(0);
+      }
+      if (entry.setup === "unreachable-origin") {
+        await git(cwd, ["remote", "add", "origin", "https://arc-fixture.invalid/arc-framework/example.git"]);
+      }
+      if (entry.setup === "reachable-origin") {
+        await git(cwd, ["config", "core.hooksPath", join(cwd, ".fixture-hooks")]);
         const origin = await mkdtemp(join(tmpdir(), "arc-command-input-origin-"));
         repositories.push(origin);
         await git(origin, ["init", "--bare", "--initial-branch=main"]);
@@ -181,11 +172,47 @@ describe("command-input no-input matrix", () => {
         await git(cwd, ["push", "-u", "origin", "main"]);
       }
       const before = entry.preservesWorktree === true ? await git(cwd, ["status", "--porcelain=v1"]) : undefined;
+      const notesBefore = entry.setup === "local-notes"
+        ? await git(cwd, ["rev-parse", "refs/notes/arc/user/matrix"]) : undefined;
+      const refsBefore = entry.preservesWorktree === true ? await git(cwd, ["show-ref"]) : undefined;
       const result = await run(cwd);
+      const listed = await git(cwd, ["worktree", "list", "--porcelain"]);
+      const spawned = listed.split("\n").filter((line) => line.startsWith("worktree "))
+        .map((line) => line.slice("worktree ".length)).filter((path) => path !== cwd);
+      for (const path of spawned) spawnedWorktrees.push({ repository: cwd, path });
+      expect(result.exitCode, JSON.stringify(result)).toBe(entry.expected.exitCode);
+      if (entry.expected.outputIncludes !== undefined) {
+        expect(`${result.stdout}\n${result.stderr}`).toContain(entry.expected.outputIncludes);
+      }
+      if (entry.promptSite === "prompt.start.create-new") {
+        expect(spawned, JSON.stringify(result)).toHaveLength(1);
+        const worktree = spawned[0]!;
+        expect(await git(worktree, ["branch", "--show-current"])).toBe("plan/matrix");
+        const meta = await readFile(join(worktree, ".arc", "active", "meta-matrix.md"), "utf8");
+        expect(meta).toContain("`Planning`");
+        expect(meta).toContain("`plan/matrix`");
+        expect(await git(worktree, ["log", "-1", "--format=%s"])).toContain("start matrix");
+        expect(await git(cwd, ["ls-remote", "origin", "refs/heads/plan/matrix"])).not.toBe("");
+      }
+      if (entry.promptSite === "prompt.init.tools") {
+        const manifest = JSON.parse(await readFile(join(cwd, ".arc", "system", ".internal", "manifest.json"), "utf8")) as
+          { install_config: { tools: unknown } };
+        expect(manifest.install_config.tools).toEqual([]);
+      }
+      if (entry.upstreamRefusalFor === "safety.indeterminate-lifecycle") {
+        expect(spawned).toEqual([]);
+        expect(`${result.stdout}\n${result.stderr}`).toContain(
+          "could not completely expand remote work-unit candidates; retry `arc start`.",
+        );
+      }
+      if (notesBefore !== undefined) {
+        expect(await git(cwd, ["rev-parse", "refs/notes/arc/user/matrix"])).toBe(notesBefore);
+      }
+      if (refsBefore !== undefined) expect(await git(cwd, ["show-ref"])).toBe(refsBefore);
       const after = entry.preservesWorktree === true ? await git(cwd, ["status", "--porcelain=v1"]) : undefined;
       return { result, mutationPreserved: before === after };
     };
-    const runs = await Promise.all(selectNoInputInvocations(entry).map((invocation) =>
+    const settled = await Promise.allSettled(selectNoInputInvocations(entry).map((invocation) =>
       invoke((cwd) => entry.stdin !== undefined
         ? runArcWithStdin(invocation.args, cwd, entry.stdin, { timeout: 10_000, env: { CI: invocation.ci } })
         : invocation.forceNoTty
@@ -194,6 +221,10 @@ describe("command-input no-input matrix", () => {
         .then((run) => ({ signal: invocation.signal, ...run })),
     ));
 
+    const runs = settled.map((run) => {
+      if (run.status === "rejected") throw run.reason;
+      return run.value;
+    });
     for (const { signal, result, mutationPreserved } of runs) {
       expect(result.timedOut, `${signal}: ${JSON.stringify(result)}`).not.toBe(true);
       expect(result.exitCode, `${signal}: ${JSON.stringify(result)}`).toBe(entry.expected.exitCode);

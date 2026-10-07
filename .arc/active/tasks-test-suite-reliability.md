@@ -921,22 +921,14 @@ prompter, every prompting handler takes a required interaction context, and each
 - _Outcome:_ Superseded by A4's explicit separation of reachable native prompt cases and the stricter upstream
   start refusal. The original refusal-site reach claim is not fulfilled or counted as native prompt evidence.
 
-### `[ ]` **9.8.R Cover reachable prompt kinds and retain the native start safety refusal — A4**
+### `[x]` **9.8.R Cover reachable prompt kinds and retain the native start safety refusal — A4**
 
 - _Goal:_ A4's matrix proves the four reachable prompt kinds through their own named sites, preserves non-prompt
   command coverage, and records the sole unreachable prompt's direct proof separately from native upstream refusal.
 
-- **Additional Context:** `spec-test-suite-reliability.md` § 7 Tests follow the policy rule (A4), and
-  `notes-test-suite-reliability.md` § Amendment A4: native prompt reachability.
-
-    - Keep four named policy cases: init tools' empty runtime default, stub's required commitment refusal, user
-      pull's overwrite-authority refusal after a real notes save, and start's full create-new ceremony without `--yes`.
-    - One explicitly labelled upstream-refusal start case uses an unreachable origin and proves acquisition stops
-      without a new local branch/worktree or tracked mutation. Retain the existing direct handler refusal scenarios
-      and the prompter's generic `refuse` cases; never count that native upstream stop as reaching the prompt.
-    - Reconciliation preserves one unnamed case per non-prompt command, counts named cases toward command coverage,
-      permits the one start upstream case, and matches all declared kinds to named native cases plus that explicit
-      exception. Reuse committed prepared repositories before per-scenario setup; remove unnecessary prompt-only cases.
+- _Outcome:_ Four named native cases reach their own command’s declared prompt policy; the separate start
+  upstream case proves the earlier safety refusal without claiming prompt reachability. Reconciliation retains
+  every non-prompt command and the sole direct-proof exception. See `notes-test-suite-reliability.md` § Amendment A4.
 
 ### `[ ]` **9.9 Every prompt site migrated** — validate exit criterion at segment scope
 

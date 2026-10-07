@@ -476,11 +476,33 @@ describe("repository command-input inventory", () => {
     expect(missing).toEqual([]);
   });
 
-  it("exact-matches every interaction-capable command to the real-process matrix", () => {
-    const interactionCommands = [...new Set(inventory.entries
-      .filter((entry) => entry.origin === "prompt" || entry.siteId.startsWith("interaction.") || entry.automationFlags.includes("--no-input"))
-      .map((entry) => entry.commandPath))].sort();
-    expect(NO_INPUT_MATRIX.map((entry) => entry.commandPath).sort()).toEqual(interactionCommands);
+  it("retains one matrix entry for every non-prompt interaction command", () => {
+    const interactionCommands = new Set(inventory.entries
+      .filter((entry) => entry.siteId.startsWith("interaction.") || entry.automationFlags.includes("--no-input"))
+      .map((entry) => entry.commandPath));
+    const promptCommands = new Set(NO_INPUT_MATRIX.filter((entry) => entry.promptSite !== undefined || entry.upstreamRefusalFor !== undefined)
+      .map((entry) => entry.commandPath));
+    const plain = NO_INPUT_MATRIX.filter((entry) => entry.promptSite === undefined && entry.upstreamRefusalFor === undefined).map((entry) => entry.commandPath);
+    expect(plain.sort()).toEqual([...interactionCommands].filter((path) => !promptCommands.has(path)).sort());
+    for (const command of interactionCommands) {
+      expect(NO_INPUT_MATRIX.some((entry) => entry.commandPath === command), command).toBe(true);
+    }
+  });
+
+  it("reconciles named native prompt kinds and the sole upstream refusal exception", () => {
+    const kinds = new Set(inventory.entries.filter((entry) => entry.origin === "prompt").map((entry) => entry.noInput));
+    const upstream = NO_INPUT_MATRIX.filter((entry) => entry.upstreamRefusalFor !== undefined);
+    expect(upstream.map((entry) => ({ command: entry.commandPath, site: entry.upstreamRefusalFor }))).toEqual([
+      { command: "start", site: "safety.indeterminate-lifecycle" },
+    ]);
+    const cases = NO_INPUT_MATRIX.filter((entry) => entry.promptSite !== undefined || entry.upstreamRefusalFor !== undefined);
+    const reached = cases.map((entry) => inventory.entries.find((site) =>
+      site.commandPath === entry.commandPath && site.siteId === (entry.promptSite ?? entry.upstreamRefusalFor) && site.origin === "prompt"));
+    expect(reached.every((site) => site !== undefined)).toBe(true);
+    const refusal = inventory.entries.find((site) => site.commandPath === "start"
+      && site.siteId === "safety.indeterminate-lifecycle");
+    expect(refusal).toMatchObject({ origin: "prompt", noInput: "refuse" });
+    expect(reached.map((site) => site?.noInput).sort()).toEqual([...kinds].sort());
   });
 
   it("rejects duplicate explicit policy ownership instead of silently taking the last declaration", () => {
