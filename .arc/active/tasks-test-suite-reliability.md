@@ -214,11 +214,11 @@ is measured against the baseline.
 - _Goal:_ Every other `build-` unit file proves its decisions below the real stack, leaving only one real run per
   outcome class, in integration.
 
-    - `[ ]` **3.3.a `build-coordinator.test.ts`**
-        - Its publication-failure variants (ancillary, entry, and obsolete cleanup) are decided by publication
-          alone, so they are proved at `publishStagedBuild` through Task 3.2's helper. `runOwnedBuild` keeps one real
-          run per class: a published generation, a publication failure with its repaired retry, and a rejected
-          compiler input change. Portability-selected.
+    - `[x]` **3.3.a `build-coordinator.test.ts`**
+        - Direct publication tests preserve all three write/cleanup failures and repaired publication; integration
+          retains stable native generation, ancillary failure with regenerated repair, and changed-input refusal
+          with stable retry. Both basenames remain portability-selected; the unit failure cases are the narrower
+          proofs replacing native entry and obsolete-cleanup replays.
 
     - `[ ]` **3.3.b `build-preparation.test.ts` and `build-command.test.ts`**
         - Preparation's repair and metadata tables and the command file's per-script cases sort into cases proved

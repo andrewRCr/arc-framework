@@ -283,7 +283,8 @@ The existing integration inventory case is included alongside the original unit 
   surviving child to finish staging without publication, with repaired acquisition. Location: integration, pending.
 - **`build-coordinator`:** stable native generation publishes actual control graphs; failed publication removes
   qualification and a repaired generation succeeds (ancillary, entry, obsolete cleanup variants); changed compiler
-  inputs refuse before publication and a stable retry qualifies. Locations: unit matrix and integration classes, pending.
+  inputs refuse before publication and a stable retry qualifies. Locations: `__tests__/unit/build-coordinator.test.ts`
+  proves all publication faults directly; its integration basename retains all three real classes.
 - **`build-publication`:** absent live output is established and qualified; replaced native owner refuses before live
   mutation and repaired ownership publishes; malformed filesystem artifacts refuse before mutation; invalid CLI syntax
   refuses through the native parser; required output and obsolete cleanup precede evidence. All five real classes land
