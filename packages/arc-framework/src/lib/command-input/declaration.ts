@@ -77,7 +77,8 @@ export const CommandInputSourceSchema = z.object({
 export const CommandInputSiteSchema = z.object({
   id: z.string().min(1).regex(/^[a-z0-9][a-z0-9.-]*$/u),
   source: CommandInputSourceSchema,
-  origin: z.enum(["syntax", "declaration"]),
+  origin: z.enum(["syntax", "declaration", "prompt"]),
+  form: z.enum(["confirm", "select", "text", "multiselect"]).optional(),
   acquisition: AcquisitionClassSchema,
   schemaOwnership: SchemaOwnershipSchema,
   schemaField: z.string().min(1).optional(),
@@ -95,6 +96,32 @@ export const CommandInputSiteSchema = z.object({
 
 /** Complete typed policy for one input-bearing or interaction-capable site. */
 export type CommandInputSite = z.input<typeof CommandInputSiteSchema>;
+
+/** The supported question forms carried by a prompt declaration. */
+export type PromptForm = "confirm" | "select" | "text" | "multiselect";
+declare const promptSiteBrand: unique symbol;
+type PromptNoInputBehavior = "use-default" | "require-explicit" | "require-authority" | "proceed" | "refuse";
+
+/** A declaration-bound question whose form determines its answer type. */
+export type PromptSite<Form extends PromptForm> = Readonly<Omit<z.output<typeof CommandInputSiteSchema>, "origin" | "form" | "automation">>
+  & { readonly automation: Readonly<Omit<z.output<typeof CommandInputSiteSchema>["automation"], "noInput">>
+      & { readonly noInput: PromptNoInputBehavior }; readonly origin: "prompt"; readonly form: Form; readonly [promptSiteBrand]: Form };
+
+/**
+ * Declare one exported prompt constant with a stable identity and complete policy.
+ * @param id - Literal semantic site identity
+ * @param form - Question form
+ * @param source - Declaring module and exported constant
+ * @param policy - Non-interactive and cancellation policy
+ * @returns An immutable branded prompt site
+ */
+export function declarePromptSite<const Form extends PromptForm>(id: string, form: Form,
+  source: { readonly file: string; readonly symbol: string },
+  policy: Omit<CommandInputSite, "id" | "source" | "origin" | "form">): PromptSite<Form> {
+  return defineCommandInputDeclaration({ commandPath: "prompt", sites: [
+    { ...policy, id, form, source, origin: "prompt" },
+  ] }).sites[0] as PromptSite<Form>;
+}
 
 /**
  * Build a stable declaration site for one AST-discovered interaction.
@@ -179,7 +206,30 @@ export class CommandInputDeclarationError extends ArcError {
     this.code = code;
   }
 }
+function promptContradiction(site: z.output<typeof CommandInputSiteSchema>): string | undefined {
+  if (site.origin !== "prompt") {
+    return site.form === undefined ? undefined : `Site ${site.id} declares a question form outside a prompt`;
+  }
+  if (site.form === undefined) return `Prompt ${site.id} has no question form`;
+  const kind = site.automation.noInput;
+  if (!["use-default", "require-explicit", "require-authority", "proceed", "refuse"].includes(kind)) {
+    return `Prompt ${site.id} has an unsupported no-input policy: ${kind}`;
+  }
+  if (["require-explicit", "require-authority"].includes(kind) && site.automation.acceptedSyntax.length === 0) {
+    return `Prompt ${site.id} requires explicit input without accepted syntax`;
+  }
+  if (["proceed", "require-authority"].includes(kind) && site.form !== "confirm") {
+    return `Prompt ${site.id} answers true on a non-confirm question`;
+  }
+  if (!["stop", "safe-default"].includes(site.cancellation)) {
+    return `Prompt ${site.id} has an unsupported cancellation policy: ${site.cancellation}`;
+  }
+  return undefined;
+}
+
 function contradiction(site: z.output<typeof CommandInputSiteSchema>): string | undefined {
+  const promptIssue = promptContradiction(site);
+  if (promptIssue !== undefined) return promptIssue;
   if (site.acquisition === "safe-default" && site.defaultSource === undefined) {
     return `Site ${site.id} declares a safe default without a default source`;
   }

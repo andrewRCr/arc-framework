@@ -764,61 +764,28 @@ _Exit criterion:_ The stale-subdir prompt runs through the prompter from its bra
 interaction context with today's output and exit status, and the scanner refuses an inline declaration and an
 unresolved site argument.
 
-### `[ ]` **8.1 Declare prompt sites through a branded declaring function — D7**
+### `[x]` **8.1 Declare prompt sites through a branded declaring function — D7**
 
 - _Goal:_ Only a dedicated declaring function produces the branded prompt-site type, which carries its question's
   form, and `contradiction()` refuses a prompt site whose policy the prompter cannot execute.
 
-    - `[ ]` **8.1.a The branded type and its declaring function**
-        - In `lib/command-input/declaration.ts`, beside `declareInteractionSite`, which keeps stdin, subprocess, and
-          environment-policy sites.
-        - The function takes the site's literal `id`, its question form (`confirm`, `select`, `text`, or `multiselect`),
-          the declaring module and exported constant (`source: { file, symbol }`, as `safety.indeterminate-lifecycle` in
-          `handlers/start.ts` has today), and its policy. Since the brand is erased at runtime, it marks the site
-          `origin: "prompt"`, which `CommandInputSiteSchema` gains beside `syntax` and `declaration`, and records the
-          form in a `form` field the schema also gains, so `contradiction()` can read it. The brand carries the form as
-          a type parameter too.
-        - Build `test-first` (one behavior at a time):
-            - The declaring function returns a site the prompter's parameter type accepts, with `origin: "prompt"`
-              and its `form`
-            - A structurally identical object literal does not type-check there (a `@ts-expect-error` case checked by
-              `typecheck:test`)
+    - `[x]` **8.1.a The branded type and its declaring function**
+        - `declarePromptSite` validates and freezes exported-site policy, recording prompt origin and form.
+          Its erased private brand carries the form and validated policy kinds; structural lookalikes fail types.
 
-    - `[ ]` **8.1.b Prompt-site checks in `contradiction()`**
-        - The kind, syntax, form, and cancellation checks apply to sites with `origin: "prompt"`; the `form` check
-          also refuses a `form` on any other site.
-        - Build `test-first` (one behavior at a time):
-            - A prompt site declaring a kind other than `use-default`, `require-explicit`, `require-authority`,
-              `proceed`, or `refuse` is refused
-            - `require-explicit` or `require-authority` with empty `acceptedSyntax` is refused at a prompt site
-            - `proceed` or `require-authority` on a form other than `confirm` is refused
-            - A prompt site's `cancellation` other than `stop` or `safe-default` is refused
-            - A prompt site without a `form`, or a `form` on any other site, is refused
-            - An option site declaring `require-authority` with empty syntax still passes
+    - `[x]` **8.1.b Prompt-site checks in `contradiction()`**
+        - Prompt-only checks reject unsupported kinds, missing syntax, incompatible forms and cancellation policy;
+          forms on other origins are refused. Non-prompt option authority with empty syntax remains valid.
 
-### `[ ]` **8.2 Build the prompter and its outcome contract — D7**
+### `[x]` **8.2 Build the prompter and its outcome contract — D7**
 
 - _Goal:_ One prompter answers every prompt site from its declared policy and returns `answered`, `refused` with the
   declared syntax, or `cancelled`; apart from what its renderer draws, it writes no output, sets no exit status, and
   never throws for a policy outcome.
 
-    - A prompter module under `lib/command-input/` that takes a branded site, the interaction context, and the call's
-      message, options, runtime default, and explicit answer, typed by the site's form so the answer's type follows
-      it. Clack sits behind a renderer seam in its own module, the one place the prompter reaches clack.
-    - Build `test-first` (one behavior at a time), against a fake renderer:
-        - An explicit answer wins in every context
-        - An interactive context renders through the renderer and returns `answered`
-        - Forbidden `use-default` returns the call's runtime default
-        - Forbidden `use-default` with no runtime default returns `refused` carrying `acceptedSyntax`
-        - Forbidden `require-explicit` returns `refused` carrying `acceptedSyntax`
-        - Forbidden `require-authority` answers `true` when `context.confirmation` is `accept`, and otherwise returns
-          `refused` carrying its syntax
-        - Forbidden `proceed` answers `true`
-        - Forbidden `refuse` returns `refused` with empty syntax, even when `context.confirmation` is `accept`
-        - An interactive cancellation returns `cancelled` under `stop`, and `answered` with the runtime default under
-          `safe-default`
-        - A `safe-default` cancellation with no runtime default returns `cancelled`
-        - Apart from the renderer, no outcome writes output or sets an exit status
+- _Outcome:_ `prompter.ts` owns policy, `prompt-types.ts` binds invocation values to forms, and `prompt-renderer.ts`
+  owns Clack. Explicit false/empty values remain answers; refused syntax is carried for caller-owned reports.
+  `notes-test-suite-reliability.md` § Declared prompt policy substrate retains the boundary proofs.
 
 ### `[ ]` **8.3 Discover prompt sites by declared value in the scanner — D7**
 

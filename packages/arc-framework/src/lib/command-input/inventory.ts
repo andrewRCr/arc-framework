@@ -7,6 +7,7 @@ import {
   defineCommandInputDeclarations,
   type AcquisitionClass,
   type CommandInputDeclaration,
+  type CommandInputSite,
 } from "./declaration.js";
 import type {
   CommandInputSourceInventory,
@@ -37,7 +38,7 @@ export interface CommandInputInventoryEntry {
   readonly identity: string;
   readonly commandPath: string;
   readonly siteId: string;
-  readonly origin: "syntax" | "declaration";
+  readonly origin: CommandInputSite["origin"];
   readonly acquisition: AcquisitionClass;
   readonly schemaOwnership: "owned" | "opaque" | "none";
   readonly schemaField?: string;

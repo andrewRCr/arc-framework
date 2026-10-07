@@ -1570,3 +1570,35 @@ The warning change passes the complete routine gate: 1,113 files and 16,643 case
 pass; the full declaration build qualifies. The unchanged shell surface retains its earlier passing gate. Its atomic
 commit stays local until the four trial dispatches finish, keeping their remote head fixed. Implementing this independent
 visibility change during hosted layout waiting preserves the design and avoids idle execution time.
+
+## Declared prompt policy substrate
+
+Independent declaration/prompter work proceeds locally while the hosted layout comparison stays fixed at `8c3404c11`;
+no later commit is pushed during that sequence. This sequencing adjustment changes neither design nor adoption rules.
+The dedicated factory's normalized, immutable branded site first fails in `/tmp/arc-prompt-declaration-red.log`, then
+passes. Ten policy contradictions first fail in `/tmp/arc-prompt-policy-red.log`. A narrow option-authority
+reconstruction fails its non-prompt compatibility case (`/tmp/arc-prompt-option-scope-red.log`); source is restored
+byte-for-byte. The declaration/domain proof passes 86 cases. Its first routine gate passes 1,114 files and 16,655
+cases (`/tmp/arc-prompt-declaration-routine.log`, 196.37 s), with one file and 1,188 cases skipped. Both types pass;
+typed lint finds one forbidden non-null assertion, removed mechanically before the combined gate.
+
+The prompter's explicit, interactive, forbidden and cancelled outcomes first fail against the minimal policy stub
+(`/tmp/arc-prompter-policy-red.log`, 12 failing cases). A narrow renderer/refusal/output/exit reconstruction fails five
+cases (`/tmp/arc-prompter-boundary-reconstruction-red.log`), then source is restored byte-for-byte. The restored
+policy/declaration proof passes all 28 cases. The policy matrix shares one outcome function and renderer boundary;
+its tightly coupled behaviors are implemented as a test batch. Form-specific overloads preserve boolean, string,
+selection and multiselection answers; false, empty text and empty arrays retain their meaning. The private brand
+carries only validated prompt policy kinds, allowing the runtime switch to remain exhaustive.
+
+The initial focused lint rejects an unnecessary renderer assertion and a switch typed over the wider non-prompt
+policy vocabulary; the brand now narrows that validated vocabulary, and the explicit refusal case is exhaustive.
+Full typed lint and both type programs pass on the corrected substrate. The factory and typed consumer form one
+atomic declaration-bound prompt concern; the Clack renderer is separate from policy and caller-owned output.
+
+The combined substrate passes 1,115 files and 16,671 cases, with one file and 1,188 cases skipped
+(`/tmp/arc-prompter-routine.log`, 191.96 s). Full typed lint, both type programs, Markdown and all ARC contracts pass;
+the full declaration build qualifies. The unchanged shell surface retains its earlier passing gate. A final type-only
+fixture refinement gives the structural lookalike the factory's exact normalized automation type. Removing only the
+private brand makes `typecheck:test` fail solely with unused `@ts-expect-error` (TS2578,
+`/tmp/arc-prompt-brand-type-red.log`); restoring source byte-for-byte returns both type programs and the focused unit
+proof to green. This distinguishes brand enforcement from incidental structural type differences.
