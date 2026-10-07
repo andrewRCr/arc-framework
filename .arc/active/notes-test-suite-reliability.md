@@ -2835,3 +2835,42 @@ and 16,732 cases under `FORCE_COLOR=3` in 222.46 s (`/tmp/arc-budget-routine.log
 1,188 skipped cases remain excluded from completed counts. Gate logs are `/tmp/arc-budget-{types,lint,shell,
 build,full-markdown,markdown}.log`. No suppression changes or further workload changes occur. Only the required
 combined hosted recording-head confirmation remains for Tasks 10.1.b and 10.3.
+
+## Amendment A15: Windows native fixture continuation
+
+Combined run 37677834734 at `f0285502cc081ff52907122c9505dde4c5373191` passes every Linux job and the
+macOS portability leg on attempt one, but Windows has two failures. The full run is failed and never counted green.
+Both unit reports retain 13,695 completed cases with no half-timeout violation; the corrected ESLint case takes
+1,395.455343 ms with its recorded 10,000 ms deadline. The budget-recording Linux outcomes and current headroom
+are confirmed. Full run/jobs/artifacts/logs and unit reports remain in
+`.test-cost-runs/closing-confirmation-a14/6-37677834734/`; `unit-headroom.json` records the actual check.
+
+`build-inventory.test.ts` expects the raw empty-directory link target `../empty`, while Windows records
+`..\empty`. `captureBuildInventory` correctly retains that raw native target. The fixture should create its
+relative target through `join("..", "empty")`; Linux gets the same bytes and all inventory assertions stay intact.
+`build-generation-lifetime.test.ts` reaches compiler readiness, kills the owner, reacquires artifact ownership and
+then cannot read `compiler-generation-report.json` within fifteen seconds. Its sibling renewal case completes,
+so ordinary native generation works. The failure alone proves neither child death nor a broken pipe.
+
+The native schema barrier executes in tsup's `onSuccess`, after its normal bundle/success logging. After release,
+`compileCapturedStaging` writes schema, returns from tsup and reads the metafile, and `runCompilerBootstrap` writes
+the compiler report. Owner death and replacement ownership do not remove staging. Author traces and advisory
+consultation therefore reject a speculative pipe repair, blind deadline increase or skipped outcome.
+
+The next hosted run is one instrumented diagnosis at the same native boundary. On Windows only,
+`startBlockedBuildController` writes release/schema-finished markers and synchronous bootstrap-error, uncaught-error
+and exit records from its generated compiler. The existing case records child liveness immediately after owner
+death and includes liveness and file-backed observations if its unchanged report assertion times out. Observation
+handlers preserve the default failure behavior. The Linux generated fixture is unchanged and its passing case
+executes no diagnostic filesystem work. A successful diagnosis may close the proof; otherwise the observed cause
+gets a bounded repair, with owner death, replacement ownership, report completion, staged runtime and unchanged
+live output all retained.
+
+The design arm is determinate at low depth: criterion 22's deadline-only continuation needs a forward exception for
+Windows-native fixture assumptions, without invalidating untouched Linux workload evidence. A15's appended criterion
+preserves all heads, original failed readings, current unit-headroom proof and every cost threshold. Both portability
+legs still must pass current native assertions. Author grounding covers native path representation, the real compiler
+barrier/report ordering, diagnostic failure-only execution and immediate task neighbors. Reader independence and
+binding completeness retain the unresolved Windows proof rather than asserting a repair not yet established.
+Forward/backward sweep finds no production, Linux scheduling, budget or delivery change. All original Goals,
+criterion text and Success Criteria markers remain untouched; no new segment or speculative mechanism is selected.

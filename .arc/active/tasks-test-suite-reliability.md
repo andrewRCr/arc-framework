@@ -1074,6 +1074,16 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
   bounded deadline-only exception keeps their cost medians and binds all missing confirmation to one recording-head
   dispatch; `notes-test-suite-reliability.md` § Closing measurement records the evidence.
 
+### `[ ]` **10.R13 Ground and repair the Windows native fixture failures — A15**
+
+- _Goal:_ A15 retains native raw-link and surviving-compiler staging proofs on Windows, with unchanged production
+  behavior and Linux workload, while preserving the prior closing observations and current unit-headroom witness.
+
+    - Use the native relative-path representation for the raw directory-link fixture without weakening its assertion.
+    - Record compiler liveness and file-backed release/exit/error observations on Windows to distinguish death,
+      barrier failure and post-schema failure; repair only the observed cause with all native outcome assertions kept.
+    - Pass both current Windows/macOS portability legs; retain the failed run and all prior Linux cost evidence.
+
 ### `[ ]` **10.1 Run the closing hosted runs**
 
 - _Goal:_ Five consecutive first-attempt passes at the final head show the suite reliable on hosted runners, give the
@@ -1082,6 +1092,8 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
     - _Amended in:_ 10.1.R (A5)
 
     - _Amended in:_ 10.R12 (A14)
+
+    - _Amended in:_ 10.R13 (A15)
 
     - `[x]` **10.1.a Five consecutive dispatch runs**
         - Five complete first-attempt passes at `9b3856d4d` supply the hosted cost medians under A14. The fifth
@@ -1221,3 +1233,9 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
   named first-case deadline changes; one full-suite recording-head dispatch passes every job on attempt one,
   every completed unit case remains below half its effective timeout, and both Windows/macOS portability legs
   pass (supersedes the original five-run final-head/headroom criterion).
+
+- `[ ]` A15 preserves prior Linux cost observations and the `f0285502c` recording-head unit reports with all
+  13,695 completed cases below half their effective timeouts. Only platform-native fixture representation,
+  Windows-only failure diagnostics and the source-grounded Windows fixture repair may follow without replacing
+  Linux samples; both current Windows/macOS portability legs pass native assertions and the failed attempt stays
+  recorded (supersedes A14's deadline-only confirmation criterion).

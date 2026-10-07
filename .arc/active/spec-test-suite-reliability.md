@@ -694,6 +694,13 @@ Use their unchanged medians for every cost bar and budget row. One full-suite di
 combines correction confirmation, current unit half-timeout headroom, budget confirmation and the Windows/macOS
 portability pair. Any change to work, assertions, other deadlines or scheduling lies outside this bounded exception.
 
+**Windows fixture continuation (A15).** The Linux closing observations and recording-head unit headroom remain
+valid through platform-native fixture corrections and Windows-only failure diagnostics. Preserve their exact heads
+and outcomes; Linux workload, assertions, deadlines, shard layout and worker policy remain unchanged. A failed
+Windows leg is never counted as a portability pass. Repair the actual Windows fixture failure and confirm both
+portability legs with current native assertions; a further full-suite dispatch may also confirm unchanged Linux
+outcomes, but does not restart the five-run cost sample or twelve local captures.
+
 ### Delivery and boundary
 
 The work lands as one pull request, with review chunked by phase. Boundary fit: **stays one WU + delivery-plan
@@ -873,6 +880,15 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
     completed unit case retains half its effective timeout as recorded by that run, and Windows/macOS portability
     both pass. The retained observations determine the unchanged cost bars and fourteen budget rows.
 
+23. **Windows fixture confirmation (A15; supersedes criterion 22).** Retain the five first-attempt full-suite
+    Linux passes and twelve local captures at `9b3856d4d` for unchanged cost bars and budget rows. Preserve the
+    original headroom failure and the recording-head confirmation at `f0285502c`, whose 13,695 completed unit
+    cases all meet half their recorded effective timeouts, including A13's explicit deadline. Only native-platform
+    fixture representation, Windows-only failure diagnostics and the source-grounded Windows fixture repair may
+    follow without new Linux sampling; production behavior and Linux workload/assertions/deadlines/scheduling stay
+    unchanged. Both Windows/macOS portability legs must pass current native assertions; the failed Windows attempt
+    remains recorded and never substitutes for that proof.
+
 ## Open Questions
 
 - **Calibration of the native-tooling cut.** The 55–60% projection comes from a per-file read, not a prototype; the
@@ -926,3 +942,6 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
 
 - **A14** — 2026-10-07 — design: retain A13's closing evidence. _Supersedes:_ § Closing measurement; criterion 2.
   _Trigger:_ 10.1 door. _Work:_ 10.R12. _Revalidated:_ pending → 10.3.
+
+- **A15** — 2026-10-07 — design: preserve Linux evidence through Windows fixture repair. _Supersedes:_ criterion 22.
+  _Trigger:_ 10.1 must-stop. _Work:_ 10.R13. _Revalidated:_ pending → 10.1.b.
