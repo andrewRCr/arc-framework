@@ -586,79 +586,48 @@ naming an allowlisted file that ran whole and launched nothing, and the override
   remain lightweight unit evidence; native runs prove distinct external outcome classes, and existing launch exceptions
   are explicit shrinking debt rather than permission for new unit launches.
 
-### `[ ]` **6.2 Guard unit-tier launches from the shared setup file — D6**
+### `[x]` **6.2 Guard unit-tier launches from the shared setup file — D6**
 
 - _Goal:_ In both unit projects, a process launch from a test file off the allowlist fails that test even when the
   error is caught, an allowlisted file still launches, and a file using esbuild is counted for its own service
   whatever ran before it in the worker.
 
-- _Approach:_ The behaviors are proved through the guard's core with the running file injected, and once end to end by
-  an integration test that runs a small Vitest project under both unit projects' settings. The guard installs through
-  one exported function that takes its allowlist and sets up everything the guard does: the launch replacement, the
-  hooks below, esbuild's stop, and Task 6.3.a's metadata write. The shared setup file calls it with the repository's
-  allowlist module, and the test project's own setup file calls it with that project's files, so the shared setup file
-  carries no override.
+    - `[x]` **6.2.a Replace the launch functions**
+        - One stable builtin installation refreshes the current-file admission across repeated setup imports and
+          guards all seven native launch functions, including their own promisify custom forms. Native fixture cases
+          cover direct/named/execa and promisified refusal plus admitted output under both isolation settings.
 
-- **Additional Context:** `notes-test-suite-reliability.md` § Measurement and probe record
+    - `[x]` **6.2.b Fail the test on a caught launch**
+        - Per-file attempt/block ledgers and per-test starting snapshots make swallowed refusals fail afterEach;
+          a file-ending check catches collection and suite-hook refusals. Native fixtures prove helper/execa catches
+          and caught beforeAll/afterAll launches fail in both unit projects, with the original admission cases intact.
 
-    - `[ ]` **6.2.a Replace the launch functions**
-        - The install function, which the shared setup file (Task 1.1) calls, replaces `node:child_process`'s launch
-          functions with guarded ones that throw unless the running file (`expect.getState().testPath`) is on the
-          allowlist, and calls `syncBuiltinESMExports`. The replacement `execFile` carries its own guarded
-          `util.promisify.custom`.
-        - Build `test-first` (one behavior at a time):
-            - A direct launch from a file off the allowlist throws
-            - Named-import and `execa` launches are blocked the same way
-            - `promisify(execFile)` in an allowlisted file resolves to `{ stdout, stderr }`, and is blocked elsewhere
-            - An allowlisted file launches
+    - `[x]` **6.2.c Per-file esbuild service and the allowlist**
+        - The installer stops esbuild at file end and the next setup boundary. Same-worker native fixtures prove
+          each file starts its own service and an excluded later file cannot reuse it. The full guarded unit audit
+          and platform reads establish eight legacy files; Notes records their launch counts and platform exceptions.
 
-    - `[ ]` **6.2.b Fail the test on a caught launch**
-        - The guard records each blocked launch per file. The install function's `afterEach` fails the test that made
-          one, and its `afterAll`, which runs after the file's own under Vitest's default `sequence.hooks: "stack"`,
-          fails the file for a launch made outside any test.
-        - Build `test-first` (one behavior at a time):
-            - A launch whose error `execa` swallows under `reject: false` still fails its test
-            - A launch whose error a helper catches still fails its test
-            - A launch caught in a file's `beforeAll` or `afterAll` fails the file
+- _Outcome:_ Both unit projects enforce native admission, including swallowed and suite-hook refusals. Builtin
+  installation survives repeated imports without stacking wrappers, and esbuild lifetime follows each file;
+  Notes § Unit native launch admission retains the inventory and behavioral reconstruction evidence.
 
-    - `[ ]` **6.2.c Per-file esbuild service and the allowlist**
-        - The install function's `afterAll` awaits esbuild's `stop()`, ending its cached service. The root `esbuild`
-          serves tsup, bundle-require, and direct imports; tsx's nested copy runs only in child processes, so the root
-          copy is the only one to stop.
-        - The allowlist, a module beside `isolated-unit-mock-files.ts`, holds the unit files that still spawn. Its
-          contents come from one full unit-tier run with the guard in place, plus the unit files whose launches run
-          only on another platform, found by reading each platform-conditional test: today that is `fs.test.ts`,
-          whose `powershell.exe` spawn runs only on Windows. This task records each file with its launch count, or
-          with the platform its launch needs.
-        - Build `test-first` (one behavior at a time):
-            - A file using esbuild after another esbuild user in the same worker launches and is counted for its own
-              service
-            - That file is blocked when it is off the allowlist
-            - A test in the `unit` project finds the guard installed with the repository's allowlist module, read
-              back through state the install function exports
-
-### `[ ]` **6.3 Fail a run whose allowlisted file ran whole and launched nothing — D6**
+### `[x]` **6.3 Fail a run whose allowlisted file ran whole and launched nothing — D6**
 
 - _Goal:_ A run fails at its end naming every allowlisted file that ran whole and launched nothing, even when the run
   names its own reporters, so the allowlist stays a floor.
 
-    - `[ ]` **6.3.a Write each test's launch count and allowlist membership into its metadata**
-        - The guard keeps a running launch count per file and writes it, with whether the file is on the allowlist,
-          into each test's metadata after the test.
+    - `[x]` **6.3.a Write each test's launch count and allowlist membership into its metadata**
+        - The guard writes cumulative launch counts and membership after each case, with final file metadata
+          retaining suite-hook launches after the last case. Shared metadata keys connect the guard and controller.
 
-    - `[ ]` **6.3.b Check the floor beside the completion check**
-        - A check beside `checkVitestCompletion` in `vitest-completion.ts`, of the same shape, reads each
-          test's `TestCase.meta()` and skip state from the result's `testModules`, logs each idle allowlisted file
-          through the controller's logger, and sets `process.exitCode`. `executeVitestSelection`
-          (`vitest-execution.ts`) calls it after the completion check on the `runTestSpecifications` result, so the
-          tier runner, focused runs, and the cost instrument all check.
-        - Build `test-first` (one behavior at a time), over constructed test modules:
-            - An allowlisted file whose tests all ran with a zero launch count fails the run, named
-            - An allowlisted file that launched passes
-            - A file with any skipped test, including one a name filter skipped, is not checked
-            - `fs.test.ts`, whose spawning test is skipped on every platform but Windows, is not checked there
-        - End to end, Task 6.2's test project runs through `executeVitestSelection` with a command-line
-          `--reporter json`, and an allowlisted file there that ran whole and launched nothing fails the run, named.
+    - `[x]` **6.3.b Check the floor beside the completion check**
+        - `checkVitestUnitLaunchFloor` reads native result metadata after completion and names every wholly-run idle
+          exception, preserving earlier failure status and partial-file exemptions. Native JSON-reporter fixtures
+          prove idle refusal and afterAll-only admission; older controller fakes now expose the consumed public API.
+
+- _Outcome:_ Tier, focused and cost controllers apply the same floor independently of reporter selection. A final
+  suite-hook launch prevents false idle reporting, while skipped/name-filtered files keep their accepted exemption;
+  Notes § Controller-held launch floor retains the evidence and fixture correction.
 
 ## **Phase 7:** CI layout trial and budget visibility
 

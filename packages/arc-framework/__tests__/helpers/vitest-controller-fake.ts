@@ -16,10 +16,11 @@ export interface FakeSpecificationInput {
  */
 export function fakeVitestResult(states: TestResult["state"][], fault?: "module" | "collection" | "worker"): TestRunResult {
   const errors = [{ name: "Error", message: "native failure retained" }];
-  const tests = states.map((state) => ({ result: (): TestResult => state === "skipped"
+  const tests = states.map((state) => ({ meta: () => ({}), result: (): TestResult => state === "skipped"
     ? { state, errors: undefined, note: undefined }
     : state === "failed" ? { state, errors } : { state, errors: undefined } }));
-  return { testModules: [{ ok: () => fault !== "module", errors: () => fault === "collection" ? errors : [],
+  return { testModules: [{ meta: () => ({}), moduleId: "/tests/fake.test.ts", project: { name: "unit" },
+    ok: () => fault !== "module", errors: () => fault === "collection" ? errors : [],
     children: { allTests: () => tests } }], unhandledErrors: fault === "worker" ? errors : [] } as unknown as TestRunResult;
 }
 

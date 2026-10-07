@@ -13,13 +13,14 @@ function nativeBoundary(failure: "none" | "module" | "unhandled" | "missing-timi
   const events: string[] = [];
   let retained: string | undefined;
   const advance = (stage: string, elapsed: number) => { events.push(stage); clock += elapsed; };
-  const test = { id: "case-a", fullName: "suite > case a", options: { timeout: 5_000 },
+  const test = { id: "case-a", fullName: "suite > case a", options: { timeout: 5_000 }, meta: () => ({}),
     result: (): TestResult => failure === "module"
       ? { state: "failed", errors: [{ name: "Error", message: "completed failure" }] }
       : failure === "empty" ? { state: "skipped", errors: undefined, note: undefined }
         : { state: "passed", errors: undefined },
     diagnostic: () => failure === "missing-timing" ? undefined : ({ duration: 30 }) };
-  const module = { relativeModuleId: "cost.test.ts", project: { name: project }, errors: () => [],
+  const module = { moduleId: "/tests/cost.test.ts", relativeModuleId: "cost.test.ts", project: { name: project },
+    meta: () => ({}), errors: () => [],
     state: () => failure === "module" ? "failed" : "passed", ok: () => failure !== "module",
     diagnostic: () => { advance("capture", 31); return { environmentSetupDuration: 4, prepareDuration: 6,
       collectDuration: 10, setupDuration: 20, duration: 30 }; },

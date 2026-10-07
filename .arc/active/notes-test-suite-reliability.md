@@ -1407,3 +1407,92 @@ Raw captures are `.test-cost-runs/post-e2e-fixture-{1,2,3}.json`; native normali
 spread and uncertainty. Logs are `/tmp/arc-post-e2e-fixture-{1-green,2,3}.log`, with the failed first attempt at
 `/tmp/arc-post-e2e-fixture-1.log`. The segment exit scenario passes without changing its verifier or criteria.
 Unchanged code/build/shell inputs retain the completed fixture gates; Markdown and ARC checks close this record.
+
+## Unit native launch admission
+
+The core takes a package root, allowlist and injected current-file authority. Refusal fails before admission is
+implemented (`/tmp/arc-unit-guard-admission-red.log`), and an inverted-admission reconstruction fails the admitted
+operation's output (`/tmp/arc-unit-guard-allowed-red.log`). The actual core passes both cases without launching a child.
+
+The installer retains its installation on the builtin child_process object and refreshes admission for each setup
+import, so default and named importers share one wrapper layer. It guards spawn/spawnSync, exec/execSync,
+execFile/execFileSync and fork; each existing promisify custom form gets a guarded delegate, preserving native output
+and child handles. The real supported Vitest fixture runs unit with isolate false and unit-mocks with isolate true,
+using a command-line JSON reporter. Its direct, named, execa and promisified off-list launches fail, while the admitted
+promisified child returns stdout/stderr in both projects. The controller's child environment clears FORCE_COLOR.
+
+Without installation the native outcome fails (`/tmp/arc-unit-guard-native-red.log`). Narrow copied-installer
+reconstructions fail the native stdout/stderr shape when custom wrapping is removed
+(`/tmp/arc-unit-guard-promisify-red.log`) and fail promisified refusal when only that custom delegate bypasses admission
+(`/tmp/arc-unit-guard-custom-bypass-red.log`). Root source and exports remain intact; temporary probe specifications
+are removed. The restored core/native tests pass in `/tmp/arc-unit-guard-admission-complete-green.log`; focused lint and
+both type programs pass in `/tmp/arc-unit-guard-admission-final-{lint,types}.log`.
+
+### Caught native refusals
+
+The core records attempts and blocks by file, and the installer captures a starting snapshot per test task. The
+helper-caught test fails before ledger enforcement (`/tmp/arc-unit-guard-caught-core-red.log`), then passes. The native
+fixture's helper/execa catches initially pass incorrectly (`/tmp/arc-unit-guard-caught-native-red.log`). Installing
+only afterEach makes those fail, while caught beforeAll/afterAll files still pass
+(`/tmp/arc-unit-guard-caught-file-red.log`). The file-ending ledger check then closes that second outcome. All six
+core/native cases pass in `/tmp/arc-unit-guard-caught-green.log`; both type programs and focused lint pass in
+`/tmp/arc-unit-guard-caught-{types,lint}.log`. The native fixture continues to run both actual isolation settings and
+command-line JSON reporting; its teardown and failure assertions use native file results rather than spies.
+
+### Per-file service lifetime and final launch inventory
+
+Each setup import refreshes file accounting without stacking native wrappers. The installer awaits esbuild's stop at
+file end and at the next setup boundary; the latter repairs cleanup skipped when another suite hook throws. Both
+settings retain per-case cumulative counts and allowlist membership, and final suite metadata includes launches after
+the last case. These two intent-preserving additions cover observed hook behavior and avoid false idle-file results.
+
+The same-worker fixture initially reports counts `[1,0,1,1]` without service cleanup
+(`/tmp/arc-unit-guard-service-count-red.log`). With the restored installer it reports `[1,1,1,1]`, and the two unit
+files share a PID. Isolated unit-mocks files use separate workers; no PID-sharing claim applies there. Removing stop
+only in the copied fixture installer before its second run lets an excluded unit file ride the warm service and pass
+with count zero (`/tmp/arc-unit-guard-service-bypass-valid-red.log`). The restored core/native cases pass in
+`/tmp/arc-unit-guard-service-complete-green.log`; both types and focused lint pass in the corresponding final logs.
+Earlier sequencer-path and hook-context fixture failures collected no useful behavioral proof and are excluded.
+
+The first full guarded unit audit (`/tmp/arc-unit-launch-inventory.json` and `.log`) identified three additional
+existing launcher files. Source reads confirmed their native operations; these are legacy exceptions, not new launch
+coverage. The completed audit (`/tmp/arc-unit-launch-inventory-complete.json` and `.log`) passed 13,598 cases. Counts
+below are cumulative native API launch attempts, not an exhaustive descendant-process inventory.
+
+| Allowlisted unit file                                            | Launch attempts on Linux | Platform exception                                              |
+| ---------------------------------------------------------------- | -----------------------: | --------------------------------------------------------------- |
+| `portability-build-selection.test.ts`                            |                        1 | —                                                               |
+| `scripts/review-gate/policy/pre-publication-composition.test.ts` |                       85 | —                                                               |
+| `handlers/delivery-review-fix-release-effects.test.ts`           |                       12 | —                                                               |
+| `work-unit/composed-lifecycle-index.test.ts`                     |                        1 | `mkfifo` excludes Windows                                       |
+| `handlers/view-editor.test.ts`                                   |                       11 | —                                                               |
+| `handlers/release/commit-cli.test.ts`                            |                        3 | —                                                               |
+| `git/process-executor.test.ts`                                   |                        1 | —                                                               |
+| `fs.test.ts`                                                     |                        0 | `powershell.exe` launches only on Windows; stable skip accepted |
+
+### Controller-held launch floor
+
+The floor consumes each public module's case states, cumulative metadata and final suite metadata. It checks only
+nonempty wholly completed files with explicit allowlist evidence, uses the maximum count, and names every idle file
+even when another failure already set the run status. Skipped/pending cases, name-filtered partial files and the
+accepted platform skip remain exempt. Unguarded integration/E2E modules carry no allowlist evidence.
+
+The idle-file case fails against the initial no-op check (`/tmp/arc-unit-floor-idle-red.log`). A narrow reconstruction
+that declares every module idle fails all seven boundary cases (`/tmp/arc-unit-floor-boundaries-red.log`); source is
+restored byte-for-byte. The JSON-reporter native fixture first passes all four cases and exits zero without controller
+wiring (`/tmp/arc-unit-floor-native-red.log`). With wiring, it exits one and names only the two idle-file instances;
+its afterAll-only launcher remains admitted despite every per-case count being zero. The restored three-file proof
+passes 20 cases in `/tmp/arc-unit-floor-complete-green.log`.
+
+The first routine gate retained six failures, all in the older unit/integration cost-measurement fakes: their public
+module/case objects omitted `meta()`, so the new consumer raised `module.meta is not a function`. Both fakes now expose
+empty native metadata and module identities; their timing, retention and failure assertions remain unchanged. The
+focused repair passes all seven cases (`/tmp/arc-unit-policy-fixture-repair.log`), both types and focused lint pass.
+The original failure remains in `/tmp/arc-unit-policy-routine.log`; it is not reported as a passing gate.
+
+The corrected routine gate passes 1,109 files and 16,626 cases, with one file and 1,188 cases skipped
+(`/tmp/arc-unit-policy-routine-corrected.log`, 190.56 s). Full typed lint, both type programs, Markdown and all three ARC
+contract checks pass; the full declaration build reports qualified artifacts. Focused policy proof passes 25 cases.
+The unchanged shell surface reuses its previous passing gate. E2E/portability remain required hosted enforcement;
+no E2E file changed in this policy increment. Admission and its floor land as one concern because the shared setup,
+metadata producer and controller consumer jointly enforce the legacy exception policy.
