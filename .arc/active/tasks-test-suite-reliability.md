@@ -231,11 +231,11 @@ is measured against the baseline.
           and refusal, compiler-blocked renewal, and owner-death recovery remain real. The lifetime basename stays
           portability-selected; no cases or assertions are removed.
 
-    - `[ ]` **3.3.d `build-context`, `build-evidence`, `build-inputs`, and `build-inventory`**
-        - `build-evidence` is recorded as running no native work. `build-inputs` bundles through esbuild, so its
-          bundling cases are real runs.
-        - The `it.each` tables at `build-context.test.ts:44` and `build-evidence.test.ts:37` are the known drop
-          candidates. `build-context` and `build-inventory` are portability-selected.
+    - `[x]` **3.3.d `build-context`, `build-evidence`, `build-inputs`, and `build-inventory`**
+        - Context and evidence remain direct, process-free tests; their distinct refusal tables are retained.
+          All input-capture cases move intact to integration. Inventory keeps filesystem decisions in unit and
+          moves its native manifest-resolution case beside the existing preferred-source integration case.
+          Context and both inventory basenames remain portability-selected.
 
     - `[ ]` **3.3.e `build-ownership.test.ts` and `build-cancellation.test.ts`**
         - Both portability-selected; their lock outcome classes stay real on the portability list.

@@ -276,7 +276,8 @@ The existing integration inventory case is included alongside the original unit 
 
 - **`build-context`:** installed source-loader manifest and npm metadata invalidate context; nested tool resolution
   works without manifest subpath exports; missing, malformed, or empty installation metadata refuses and repairs;
-  equivalent roots agree; Node, platform, and architecture change identity. Locations: original unit file, pending.
+  equivalent roots agree; Node, platform, and architecture change identity. All remain real filesystem/resolve
+  runs in the original unit basename, with no process launch, build, or Git repository.
 - **`build-cancellation`:** queued public builder cancellation preserves entry, owner, and unloaded configuration;
   a fresh public retry qualifies and releases ownership. Location: integration relocation, pending.
 - **`build-generation-lifetime`:** asynchronous ownership renewal during a blocked compiler; owner death allows a
@@ -295,7 +296,8 @@ The existing integration inventory case is included alongside the original unit 
   same-content replacement by link; derived output exclusion; source artifact-directory names remain inputs; timestamp
   independence and content selectivity; resolver-only qualification reads; unused first-party manifest invalidation;
   native metadata-omitted resolver manifests change both identities; native preferred-source resolution agrees with
-  membership while irrelevant directories do not change output. Locations: filesystem unit and native integration, pending.
+  membership while irrelevant directories do not change output. All filesystem classes remain in the unit basename;
+  both native resolver classes now run in `__tests__/integration/build-inventory.test.ts`.
 - **`build-ownership`:** CPU admission precedes artifact acquisition and both release; same-checkout builders queue;
   CI and explicit concurrency bypass CPU alone; same-process exclusion survives a native-loaded control module;
   another checkout progresses; replaced ownership stops publication and repaired acquisition succeeds.
@@ -444,3 +446,11 @@ Real integration case medians in the focused mode:
 
 - **`build-generation` and `build-generation-lifetime`:** complete files relocate unchanged to integration. Every
   original staging, declaration, renewal, and owner-death scenario remains real; relocation alone claims no cost cut.
+
+- **`build-context` and `build-evidence`:** all direct cases remain process-free. Context's missing/malformed/empty
+  installation data and runtime dimensions, and evidence's legacy/path/digest/qualification faults, are distinct
+  cheap policy checks; no named narrower proof replaces them, so the candidate tables are retained.
+- **`build-inputs`:** all native producer/configuration and resolver cases move intact to integration.
+- **`build-inventory`:** all real filesystem membership/link classes remain in unit without compilation. The
+  metadata-omitted manifest case moves unchanged beside the existing preferred-source integration case; both real
+  compiler outcomes and every filesystem class stay selected by the portability basename.
