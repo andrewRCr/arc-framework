@@ -985,13 +985,13 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
 - _Outcome:_ Only the measured repository inventory case and documentation setup use named 30 s deadlines;
   listener/output/reconciliation assertions and all tier defaults remain intact. Both scans complete in the routine lane.
 
-### `[ ]` **10.R3 Isolate fixture worker controls from the parent run**
+### `[x]` **10.R3 Isolate fixture worker controls from the parent run**
 
 - _Goal:_ Native controller and focused-test fixtures retain their declared worker/serial-execution contracts when
   the outer run sets a worker override, while deliberate per-invocation environment overrides remain available.
 
-    - Clear the inherited `VITEST_MAX_WORKERS` at the two shared native fixture execution seams before applying
-      explicit caller environments. Preserve every native mock-isolation, serial-execution and same-worker proof.
+- _Outcome:_ Shared controller/focused fixture execution clears inherited worker sizing before explicit caller
+  overrides. Native isolation, serial-execution and same-worker launch proofs retain their assertions.
 
 ### `[ ]` **10.R4 Give the native closing delay a measurement margin**
 
