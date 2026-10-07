@@ -803,4 +803,4 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
 ## Amendments
 
 - **A1** — 2026-10-06 — design: freeze existing baseline evidence and begin fixes without further pre-fix sampling.
-  _Supersedes:_ § 0 ¶2–3. _Trigger:_ 1.2 must-stop. _Work:_ 1.2.R. _Revalidated:_ pending → 1.2.R.b.
+  _Supersedes:_ § 0 ¶2–3. _Trigger:_ 1.2 must-stop. _Work:_ 1.2.R. _Revalidated:_ 1.2.R.b.

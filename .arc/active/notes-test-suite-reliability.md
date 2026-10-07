@@ -6,13 +6,13 @@ An informal profile from the five most recent full-lane pull-request runs on the
 `37487788677`, `37473165224`, `37465313819`, `37417731917`, all 2026-10-06). It orients the work; the spec's recorded
 baseline is what the criteria score against.
 
-| Job group                        | Runner time per run | Notes                                                      |
-| -------------------------------- | ------------------- | ---------------------------------------------------------- |
-| Unit (one job)                   | ~330 s (255–406)    | Native-tooling files are 93% of its summed file time       |
-| Integration (two shards)         | ~475 s              | Shards run ~180–330 s each                                 |
-| E2E (four anchored shards)       | ~1,250 s            | Shard 2 runs ~480 s (anchor ~270 s, remainder ~200 s)      |
-| Lint, setup, portability, others | ~330 s              | Lint & Typecheck ~130–170 s; Linux portability ~90–150 s   |
-| **Total**                        | **~2,400 s**        | Test jobs alone ~2,060 s                                   |
+| Job group                        | Runner time per run | Notes                                                    |
+| -------------------------------- | ------------------- | -------------------------------------------------------- |
+| Unit (one job)                   | ~330 s (255–406)    | Native-tooling files are 93% of its summed file time     |
+| Integration (two shards)         | ~475 s              | Shards run ~180–330 s each                               |
+| E2E (four anchored shards)       | ~1,250 s            | Shard 2 runs ~480 s (anchor ~270 s, remainder ~200 s)    |
+| Lint, setup, portability, others | ~330 s              | Lint & Typecheck ~130–170 s; Linux portability ~90–150 s |
+| **Total**                        | **~2,400 s**        | Test jobs alone ~2,060 s                                 |
 
 - **Full lane:** about 560–575 s from first job to last on the cleaner runs. E2E shard 2 is the long pole, which
   includes the anchored heavy file. Per-job fixed overhead (checkout, Node setup, cache) is about 10–15 s.
@@ -111,3 +111,136 @@ Propagation checked: § 0, the closing measurement, baseline/E2E criteria, Task 
 Task 5.4's baseline interpretation change together. Native calibration (3.2), native exit measurement (3.8), source-scan
 cost inventory (4.1), post-CPU layout reference (7.1), final acceptance measurements (10.1–10.3), and their criteria
 are unaffected: they can consume the frozen references and remain required decision or acceptance evidence.
+
+## Baseline
+
+Frozen head: `88fefb20c43ac580855c5a4d0e6f0232a21e1361`. No optimizing change precedes these captures.
+
+Schema v4; `tier-isolated`, 12 workers, project sets `unit`, `integration`, and `e2e`. Local cost is complete
+per-file cost: environment setup, preparation, collection, setup, and module execution once. Hosted file timings
+are Vitest display durations; they are retained separately and are not compared with local complete file cost.
+
+| Local project | Ordinary successes | Wall time, ms | Summed file time, ms | Files | Cases |
+| ------------- | ------------------ | ------------- | -------------------- | ----- | ----- |
+| unit          | 3                  | 120,372       | 1,286,728.681        | 844   | 13604 |
+| integration   | 3                  | 130,389       | 1,177,872.804        | 238   | 2804  |
+| e2e           | 1                  | 343,095       | 2,787,941.456        | 67    | 701   |
+
+Unit and integration rows are three-run medians. E2E is one ordinary success; it provides no measured noise
+estimate. The 10% noise band remains a comparison convention, rather than evidence that this E2E sample is stable.
+
+Native-tooling paired sums (unit + integration): 1,127,826.286, 1,129,643.991, 1,150,557.864 ms.
+Baseline native-tooling cost: **1,129,643.991 ms** (median of paired sums). Prefixes follow § 0.
+
+Local captures, all relative to `packages/arc-framework/.test-cost-runs/`:
+
+- `post-guard-baseline-unit-{1,2,3}.json` and `.log`; `post-guard-baseline-unit-normalized.json`.
+- `post-guard-baseline-integration-{1,2,3}.json` and `.log`; `post-guard-baseline-integration-normalized.json`.
+- `post-guard-baseline-e2e-1.json` and `.log`: passed, 2,266 helper-recorded CLI launches.
+- `post-guard-baseline-e2e-2.log`: failed; no successful retained JSON. The no-input matrix setup received the
+  complete stale-build refusal from `arc init`. The first qualification reason was not captured; its cause remains
+  unproven. Sample 3 was not started.
+- `diagnostic-e2e-qualification.json`: instrumented diagnosis passed (340,756 ms); it is excluded from the ordinary
+  baseline. No unqualified primary-checkout read was captured. The derived CLI was restored byte-for-byte.
+- `post-guard-baseline-stop.json` and `post-guard-baseline-head.txt` preserve the stop and exact head.
+
+Unit CLI count zero is uninstrumented and is not evidence of no native launch. Integration reports two helper
+launches per run; helper counts do not establish an exhaustive native-process inventory. E2E counting is enabled.
+
+| Hosted run    | First-attempt conclusion | Run seconds | Summed test-job seconds |
+| ------------- | ------------------------ | ----------- | ----------------------- |
+| `37560883490` | success                  | 445         | 2080                    |
+| `37561522037` | success                  | 557         | 2141                    |
+| `37562304308` | failure                  | 540         | 2225                    |
+
+All-attempt baseline medians: **540 s** run duration; **2141 s** summed test-job time.
+The third unit job failed on `ship-guard` at its 5,000 ms timeout; all other test jobs passed. These are pre-fix
+observations, including that failure, rather than a passing acceptance gate. No retry replaces the failed sample.
+
+Each run used `ci.yml` on the current layout, sequential dispatches, and `run_portability_pair` off. Its unit report
+has timing and effective-timeout metadata for all 13,604 completed cases of both unit projects; the third has one
+failed case. Hosted captures are `hosted-baseline/1-37560883490`, `2-37561522037`, and `3-37562304308`, each with
+`run.json`, `jobs.json`, `log.txt`, `artifacts.json`, and `unit-report/unit-test-report.json`. The batch head is in
+`hosted-baseline/post-guard-head.txt`; the older generic `head.txt` belongs to the earlier historical batch.
+
+`post-guard-hosted-observations.json` retains every job elapsed time and per-file duration for these three runs,
+plus the per-test near-timeout maxima. All-skipped integration files have no duration and are not assigned zero.
+The shared `unit-setup.ts` records `task.timeout` as `arcTestCostVitestTimeoutMs`; inspection confirms all 32 isolated
+unit-mock files also have populated reports. `normalizeRetainedTestCostRuns` preserves sample count and single-run
+versus median normalization in the local normalized reports.
+
+### Hosted near-timeout maxima
+
+A case is listed when its maximum duration across the three attempts × 1.7 reaches half its recorded timeout.
+The failed case is retained. Native families will be converted or relocated; remaining cases inform timeout sizing.
+Full test names, maximum-run IDs, status, and minimum proposed timeouts are retained in the observations JSON.
+
+- `__tests__/unit/lib/store/ship-guard.test.ts` — reference backend import boundary finds no production import into
+  the test-only reference backend; max 5058.304 ms, timeout 5,000 ms, non-native, failed.
+- `__tests__/unit/work-unit/decompose-v3-authority-boundary.test.ts` — decomposition v3 authority boundary exposes no
+  legacy preparation, finalization, or execution identifiers; max 2902.400 ms, timeout 5,000 ms, non-native, passed.
+- `__tests__/unit/build-command.test.ts` — root build establishes absent output and rebuilds unchanged inputs; max
+  16585.786 ms, timeout 30,000 ms, native, passed.
+- `__tests__/unit/build-command.test.ts` — package build establishes absent output and rebuilds unchanged inputs; max
+  15971.032 ms, timeout 30,000 ms, native, passed.
+- `__tests__/unit/work-unit/decompose-v3-authority-boundary.test.ts` — decomposition v3 authority boundary carries no
+  receipt-era transaction vocabulary in production; max 2570.285 ms, timeout 5,000 ms, non-native, passed.
+- `__tests__/unit/work-unit/decompose-v3-refusal-source-totality.test.ts` — decomposition refusal source totality maps
+  every production refusal literal to a specific remedy; max 2550.469 ms, timeout 5,000 ms, non-native, passed.
+- `__tests__/unit/active/meta-writer-inventory.test.ts` — semantic meta writer boundary rejects display labels in
+  inline renderMetaFile override objects and the retired override type; max 2472.895 ms, timeout 5,000 ms, non-native,
+  passed.
+- `__tests__/unit/build-inputs.test.ts` — native compiler input capture keeps actual schema producer sources outside
+  shared config dependencies; max 2300.613 ms, timeout 5,000 ms, native, passed.
+- `__tests__/unit/work-unit/decompose-v3-refusal-source-totality.test.ts` — decomposition refusal source totality
+  admits only stable outward reason producers; max 2284.781 ms, timeout 5,000 ms, non-native, passed.
+- `__tests__/unit/kernel/schema-generation.test.ts` — kernel schema artifact generation projects the composed
+  production families with stable references and bytes; max 2266.543 ms, timeout 5,000 ms, non-native, passed.
+- `__tests__/unit/command-input/registry.test.ts` — command-input schema adapter and registry registers every
+  command-owned schema in the live Commander tree; max 6346.541 ms, timeout 15,000 ms, non-native, passed.
+- `__tests__/unit/build-coordinator.test.ts` — refuses failed ancillary publication and permits repaired generation;
+  max 12411.464 ms, timeout 30,000 ms, native, passed.
+- `__tests__/unit/build-command.test.ts` — root build:fast establishes absent output and rebuilds unchanged inputs;
+  max 11988.126 ms, timeout 30,000 ms, native, passed.
+- `__tests__/unit/build-command.test.ts` — package build:fast establishes absent output and rebuilds unchanged inputs;
+  max 11546.805 ms, timeout 30,000 ms, native, passed.
+- `__tests__/unit/lib/store/in-repo-boundary.test.ts` — repository store import boundaries keeps tests on the public
+  composition and fixture boundaries; max 5762.548 ms, timeout 15,000 ms, non-native, passed.
+- `__tests__/unit/build-coordinator.test.ts` — refuses failed obsolete cleanup publication and permits repaired
+  generation; max 11508.351 ms, timeout 30,000 ms, native, passed.
+- `__tests__/unit/build-coordinator.test.ts` — refuses failed entry publication and permits repaired generation; max
+  11217.656 ms, timeout 30,000 ms, native, passed.
+- `__tests__/unit/dev-build-refresh.test.ts` — retains the prior entry after failed compilation and supports repaired
+  refresh; max 10643.588 ms, timeout 30,000 ms, native, passed.
+- `__tests__/unit/build-preparation.test.ts` — refuses and repairs directory build metadata before test preparation;
+  max 10521.041 ms, timeout 30,000 ms, native, passed.
+- `__tests__/unit/build-preparation.test.ts` — refuses and repairs empty build metadata before test preparation; max
+  10395.690 ms, timeout 30,000 ms, native, passed.
+- `__tests__/unit/build-preparation.test.ts` — reuses full runtime output while explicit requests still generate anew;
+  max 9778.910 ms, timeout 30,000 ms, native, passed.
+- `__tests__/unit/build-preparation.test.ts` — refuses and repairs missing build metadata before test preparation; max
+  9688.141 ms, timeout 30,000 ms, native, passed.
+- `__tests__/unit/layout/import-boundary.test.ts` — layout import boundary exposes layout consumers only through the
+  downward public library barrel; max 1613.327 ms, timeout 5,000 ms, non-native, passed.
+- `__tests__/unit/vitest-prebuilt-runtime.test.ts` — enforces prebuilt qualification and permits repaired supported
+  execution; max 19180.681 ms, timeout 60,000 ms, native, passed.
+- `__tests__/unit/vitest-prebuilt-runtime.test.ts` — enforces prebuilt qualification and permits repaired native
+  execution; max 19087.963 ms, timeout 60,000 ms, native, passed.
+- `__tests__/unit/active/meta-reader-inventory.test.ts` — semantic meta reader boundary keeps first-party consumers on
+  semantic fields and normalized identifier arrays; max 4695.140 ms, timeout 15,000 ms, non-native, passed.
+- `__tests__/unit/ci-build-transfer.test.ts` — repairs transferred output before lint-typecheck consumes it with
+  generation disabled; max 18600.086 ms, timeout 60,000 ms, native, passed.
+- `__tests__/unit/vitest-native-closing.test.ts` — retains native worker failure through closing; max 9281.511 ms,
+  timeout 30,000 ms, native, passed.
+- `__tests__/unit/kernel/import-boundary.test.ts` — kernel import boundary keeps the live source graph within the
+  kernel boundary; max 4634.001 ms, timeout 15,000 ms, non-native, passed.
+- `__tests__/unit/ci-build-transfer.test.ts` — repairs transferred output before e2e consumes it with generation
+  disabled; max 18353.256 ms, timeout 60,000 ms, native, passed.
+- `__tests__/unit/vitest-failure-ownership.test.ts` — closes a native collection failure before releasing CPU and
+  artifacts; max 9056.612 ms, timeout 30,000 ms, native, passed.
+- `__tests__/unit/vitest-failure-ownership.test.ts` — closes a native setup failure before releasing CPU and
+  artifacts; max 8993.420 ms, timeout 30,000 ms, native, passed.
+- `__tests__/unit/ci-build-transfer.test.ts` — repairs transferred output before portability consumes it with
+  generation disabled; max 17740.680 ms, timeout 60,000 ms, native, passed.
+- `__tests__/unit/vitest-failure-ownership.test.ts` — closes a native execution failure before releasing CPU and
+  artifacts; max 8850.605 ms, timeout 30,000 ms, native, passed.

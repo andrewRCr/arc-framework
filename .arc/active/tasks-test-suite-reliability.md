@@ -61,24 +61,23 @@ hosted unit run's artifact carries every unit test's duration and effective time
         - `notes-test-suite-reliability.md` § Baseline records the head, run IDs, capture paths, medians, and the
           instruments' settings.
 
-### `[ ]` **1.2.R Freeze the baseline evidence — D0**
+### `[x]` **1.2.R Freeze the baseline evidence — D0**
 
 - _Goal:_ Realize A1 by recording the already collected successful and failed observations before fixes, with
   comparable metrics, provenance, settings, and the single-sample E2E limitation.
 
-    - `[ ]` **1.2.R.a Derive and record the frozen observations**
-        - Reuse retained captures at `88fefb20c43ac580855c5a4d0e6f0232a21e1361`; run no new baseline samples.
-        - Record local unit and integration three-run medians, the one ordinary E2E success, the failed E2E attempt,
-          and the instrumented diagnostic separately. Compute native cost by pairing unit/integration samples and
-          taking the median of each pair's summed family cost.
-        - Record all three hosted attempts, their conclusions, job durations, and all-attempt medians. Verify the
-          timing/timeout metadata in both unit projects, and derive near-timeout maxima including the failed case.
+    - `[x]` **1.2.R.a Derive and record the frozen observations**
+        - `notes-test-suite-reliability.md` § Baseline records the frozen captures, local and hosted metrics,
+          failed attempts, separate diagnosis, and 34 hosted near-timeout maxima. Native cost pairs corresponding
+          unit/integration samples before taking its median; both unit projects retain timing/timeout metadata.
 
-    - `[ ]` **1.2.R.b Verify the frozen baseline is usable for fixes**
-        - Reconcile the notes with raw captures and the A1 contract: no failed run is labeled passed, no diagnostic
-          is counted as an ordinary sample, and all baseline metrics and limits are explicit.
-        - Check remaining measurement tasks use this reference. Preserve the performance targets, calibration,
-          layout decision, and final reliability evidence; repeat measurements only for those decisions.
+    - `[x]` **1.2.R.b Verify the frozen baseline is usable for fixes**
+        - Raw captures and reports reconcile with A1's sample counts, conclusions, and settings. The single E2E
+          sample is explicit; failed and diagnostic runs do not substitute for ordinary successes. Remaining
+          calibration, layout, and final acceptance measurements consume the frozen references.
+
+- _Outcome:_ A1 closes baseline collection without hiding the observed failures; fixes proceed against the recorded
+  references and unchanged performance targets.
 
 ## **Phase 2:** Flakes and hermeticity
 
