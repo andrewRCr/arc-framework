@@ -1001,16 +1001,14 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
 - _Outcome:_ The injected closing delay is 75 ms while its proven floor remains 50 ms. Native endpoint retention,
   metadata, ownership and cleanup assertions all remain; the exact-threshold timer flake is recorded in Notes.
 
-### `[ ]` **10.R5 Bound default local workers — A7**
+### `[x]` **10.R5 Bound default local workers — A7**
 
 - _Goal:_ A7's local worker policy preserves workstation responsiveness while retaining measured throughput,
   explicit capacity overrides, CI native sizing and the existing admission/isolation contracts.
 
-    - Build `test-first` (one behavior at a time):
-        - Bound default local sizing at eight and half available parallelism, with a one-worker floor.
-        - Preserve numeric/percentage overrides and CI native defaults.
-    - Use the existing worker policy and `os.availableParallelism`; retain project scheduling, heavy admission,
-      unit-only bypass and timeouts. Run the ordinary routine gate without a worker override.
+- _Outcome:_ The existing policy uses half available parallelism with a one-worker floor and eight-worker ceiling.
+  Explicit capacity overrides and CI sizing remain available; the ordinary lane preserves admission/isolation
+  contracts. `notes-test-suite-reliability.md` records source changes, profiled comparisons and host feedback.
 
 ### `[ ]` **10.1 Run the closing hosted runs**
 

@@ -889,4 +889,4 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
   _Supersedes:_ § 1 live-copy bullet. _Trigger:_ 10.2 door. _Work:_ 10.R. _Revalidated:_ pending → 10.2.
 
 - **A7** — 2026-10-07 — spec-depth: bound local default worker sizing for shared development machines.
-  _Supersedes:_ none. _Trigger:_ 10.2 door. _Work:_ 10.R5. _Revalidated:_ pending → 10.R5.
+  _Supersedes:_ none. _Trigger:_ 10.2 door. _Work:_ 10.R5. _Revalidated:_ 10.R5.

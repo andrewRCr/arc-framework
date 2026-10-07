@@ -2331,3 +2331,30 @@ The 75 ms injected closing delay passes all five existing native measurement cas
 (`/tmp/arc-closing-timer-margin-green.log`, 18.57 s). The later twelve-worker timing question distinguishes its
 217.00 s failed current-code run from the previous-head 234.01 s passing run; neither is a paired same-code
 speed comparison that establishes a twelve-worker advantage over the current eight-worker observation.
+
+A7's revised worker-policy case fails behaviorally against the former percentage default
+(`/tmp/arc-local-worker-ceiling-red.log`) and all four policy cases pass after the numeric capacity bound
+(`/tmp/arc-local-worker-ceiling-green.log`). The new ordinary `npm test` run clears inherited worker overrides;
+its resource profile and first-attempt result will close the local policy obligation. Heavy lint/build/type work
+remains serialized after this run to avoid contaminating the workstation comparison.
+
+External primary guidance: [Vitest worker sizing](https://v4.vitest.dev/config/maxworkers),
+[Vitest parallelism](https://vitest.dev/guide/parallelism.html),
+[GNU Make job slots](https://www.gnu.org/software/make/manual/html_node/Job-Slots.html), and
+[Gradle native parallel compilation](https://docs.gradle.org/current/userguide/native_software.html#sec:parallel_compilation).
+These establish bounded workers and shared participating-tool budgets as prior art, not an eight-worker universal
+optimum. The selected ceiling is a local measured policy; per-project grouping or a new process jobserver is not added.
+
+The ordinary forced-color `npm test` command, with no worker override, passes all 1,121 executed files and
+16,717 cases in 216.90 s (`/tmp/arc-local-default-eight.log`). The default policy profile records 51 peak
+processes, 859.7% peak CPU, 5,231.3 MiB peak proportional resident memory, 6,887.6 MiB minimum VM available
+memory and zero swap growth (`/tmp/arc-local-default-eight-resources.json`). This closes A7's ordinary local gate
+on the corrected timer fixture and also validates the source-copy, repository-deadline and worker-environment
+repairs together. It is an ordinary gate result, not a replacement twelve-worker closing-cost capture.
+
+Both type checks, whole-project typed lint, the full declaration build and shell checks pass after the local
+policy/fixture corrections (`/tmp/arc-local-tuning-{types,lint,build,shell}.log`). Heavy checks run after native
+testing rather than alongside it. The worker-policy API receives documentation after its behavioral gate;
+that comment adds no runtime behavior. A7 closes on the ordinary default run, with all Success Criteria markers
+left for terminal verification. Atomic content commits carry their task completion updates; no meta/session
+state is written. The final-code closing measurements still own native/E2E/hosted cost acceptance and budgets.

@@ -3,19 +3,26 @@ import { describe, expect, it } from "vitest";
 import { resolveVitestMaxWorkers } from "../helpers/vitest-worker-policy.js";
 
 describe("Vitest worker policy", () => {
-  it("caps local runs while leaving ordinary CI on native sizing", () => {
-    expect(resolveVitestMaxWorkers({})).toBe("50%");
-    expect(resolveVitestMaxWorkers({ CI: "true" })).toBeUndefined();
-    expect(resolveVitestMaxWorkers({ CI: " TRUE " })).toBeUndefined();
-    expect(resolveVitestMaxWorkers({ CI: "1" })).toBeUndefined();
-    expect(resolveVitestMaxWorkers({ CI: "false" })).toBe("50%");
-    expect(resolveVitestMaxWorkers({ CI: "0" })).toBe("50%");
-    expect(resolveVitestMaxWorkers({ CI: "true", VITEST_MAX_WORKERS: "" })).toBeUndefined();
+  it("caps local runs at half available parallelism and eight workers with a one-worker floor", () => {
+    for (const [parallelism, expected] of [[1, 1], [2, 1], [4, 2], [16, 8], [24, 8], [64, 8]] as const) {
+      expect(resolveVitestMaxWorkers({}, parallelism)).toBe(expected);
+    }
+    expect(resolveVitestMaxWorkers({ CI: "false" }, 24)).toBe(8);
+    expect(resolveVitestMaxWorkers({ CI: "0" }, 24)).toBe(8);
+  });
+
+  it("leaves ordinary CI on native sizing", () => {
+    for (const ci of ["true", " TRUE ", "1"]) {
+      expect(resolveVitestMaxWorkers({ CI: ci }, 24)).toBeUndefined();
+    }
+    expect(resolveVitestMaxWorkers({ CI: "true", VITEST_MAX_WORKERS: "" }, 24)).toBeUndefined();
   });
 
   it("honors numeric and percentage capacity overrides", () => {
     expect(resolveVitestMaxWorkers({ CI: "true", VITEST_MAX_WORKERS: "1" })).toBe(1);
     expect(resolveVitestMaxWorkers({ CI: "true", VITEST_MAX_WORKERS: "25%" })).toBe("25%");
+    expect(resolveVitestMaxWorkers({ VITEST_MAX_WORKERS: "12" }, 24)).toBe(12);
+    expect(resolveVitestMaxWorkers({ VITEST_MAX_WORKERS: "50%" }, 24)).toBe("50%");
   });
 
   it("rejects malformed capacity overrides", () => {

@@ -41,11 +41,10 @@ const integrationTempRoot = selectIntegrationTempRoot("/dev/shm");
 process.env.GIT_CONFIG_NOSYSTEM = "1";
 process.env.GIT_CONFIG_GLOBAL = process.platform === "win32" ? "NUL" : "/dev/null";
 
-// Local quality gates share developer machines with parallel agent sessions, so cap their
-// default pool at 50%. CI runner capacity is deployment-specific: hosted runners can use
-// Vitest's native sizing, while constrained self-hosted runners pass an explicit override
-// from the workflow. An empty CI value means native sizing, which lets the workflow carry
-// an optional repository variable without inventing a sentinel value.
+// Local quality gates share developer machines with parallel sessions and native child tools.
+// Use half available parallelism with an eight-worker ceiling and one-worker floor. CI
+// uses native sizing unless its workflow supplies an explicit capacity override.
+// An empty CI override retains native sizing.
 const maxWorkers = resolveVitestMaxWorkers(process.env);
 
 // Single multi-project config so one `vitest run` executes every tier and prints
