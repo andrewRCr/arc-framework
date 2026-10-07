@@ -97,23 +97,18 @@ untracked module, and every test that reads a renewing lock retries an empty or 
 - _Outcome:_ All three staged-check child commands clear `FORCE_COLOR`; plain TypeScript diagnostics remain stable
   when the calling shell enables color. Developer-facing script output is unchanged.
 
-### `[ ]` **2.2 Copy live source trees through one helper that skips bundle-require transients — D1**
+### `[x]` **2.2 Copy live source trees through one helper that skips bundle-require transients — D1**
 
 - _Goal:_ Copying a live `src` tree never fails on a transient file vanishing mid-copy, and still copies exactly what
   is on disk, untracked modules included.
 
-    - `[ ]` **2.2.a Shared live-tree copy helper**
-        - A helper in `__tests__/helpers/` wraps the recursive `cp` with a filter that skips `*.bundled_*.mjs`
-          names.
-        - The helper never consults git, so its test copies from a plain temporary tree, where every file is
-          untracked by construction; a git repository in a unit test is what Phase 6 bars.
-        - Build `test-first` (one behavior at a time):
-            - A transient `*.bundled_*.mjs` beside an untracked module: the module is copied and the transient is not
-            - Nested directories and their files are copied whole
+    - `[x]` **2.2.a Shared live-tree copy helper**
+        - `copyLiveTree` filters loader transient names before Node reads their stats. Its regression copies an
+          untracked plain temporary tree, including nested modules and ordinary `.mjs` files, while omitting the
+          transient modules at both depths.
 
-    - `[ ]` **2.2.b Route both live-tree fixtures through it**
-        - `makeNativeBuildFixture` (`native-build-fixture.ts`, all of `src`) and `makeFocusedLintFixture`
-          (`focused-lint-fixture.ts`, `src/scripts` and `src/lib`) copy through the helper.
+    - `[x]` **2.2.b Route both live-tree fixtures through it**
+        - The native-build and focused-lint fixtures share `copyLiveTree` for each live source directory.
 
 ### `[x]` **2.3 Read renewing lock files tolerantly in tests — D1**
 

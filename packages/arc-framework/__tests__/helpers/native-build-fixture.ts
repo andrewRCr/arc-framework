@@ -1,8 +1,9 @@
 /** Disposable first-party build sources using the real installed compiler and native loaders. */
-import { cp, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createProductionSchemaRegistry } from "../../src/production-schema-registry.js";
+import { copyLiveTree } from "./copy-live-tree.js";
 import { projectKernelSchemas } from "../../src/lib/kernel/schema/generate.js";
 
 /**
@@ -15,7 +16,7 @@ export async function makeNativeBuildFixture(): Promise<{ root: string; packageR
   const root = await mkdtemp(join(tmpdir(), "arc-native-build-"));
   const packageRoot = join(root, "packages/arc-framework");
   await mkdir(packageRoot, { recursive: true });
-  await cp(join(sourcePackage, "src"), join(packageRoot, "src"), { recursive: true });
+  await copyLiveTree(join(sourcePackage, "src"), join(packageRoot, "src"));
   for (const file of ["package.json", "package-lock.json"]) {
     await writeFile(join(root, file), await readFile(join(sourceRoot, file)));
   }
