@@ -521,3 +521,31 @@ Real integration case medians in the focused mode:
   bootstrap, and capture-order reconstructions and passed after restoration in temporary source/test copies.
   Primary source and derived CLI stayed untouched. Initial fixture row-spreading and diagnostic formatting mistakes
   were corrected before the retained behavioral red/green runs.
+
+- **`vitest-runtime-ownership`:** the CI row keeps actual shared generation, both runtime projects, ownership through
+  teardown, release, and reused generation. The repeated concurrency-override row shares that class; `bypasses local
+  serialization under the deliberate-contention override` in `local-test-admission` and `retains artifact exclusion
+  when CPU admission is bypassed by ARC_TEST_ALLOW_CONCURRENCY` in `build-ownership` preserve the distinct bypass policy
+  and real artifact-lock exclusion without replaying compilation and workers.
+- **`vitest-failure-ownership`:** all three native setup, collection, and execution channels move intact to integration,
+  retaining both locks through controller closing and proving their final release. The new runtime-free selection
+  `preserves execution failure and cleanup diagnostics without preparing a runtime` directly proves original-error
+  preservation, one close, both cleanup diagnostic channels, failed status, and no capture after failure.
+- **`vitest-runtime-context`:** all four own-key fault decisions run directly over compiler-free qualified output,
+  preserve stamp bytes, and create neither lock nor configuration-load counter. Native undefined and mismatched
+  context representatives remain in integration. Direct `refuses present null/missing fields evidence without
+  replacing qualified output` replaces those repeated malformed-evidence native rows; qualified mismatch remains a
+  separate real evidence-comparison class.
+- **`vitest-prebuilt-runtime` and `vitest-direct-runtime`:** complete files move unchanged. Both supported and unmanaged
+  native prebuilt refusal/repair routes stay real; direct setup still proves owned generation followed by an unpinned
+  unmanaged run.
+- **`vitest-native-closing`:** actual teardown logging and final worker cleanup remain real in integration. The
+  combined collection/teardown row is replaced by `preserves execution failure and cleanup diagnostics without
+  preparing a runtime` in the unit `vitest-failure-ownership` plus `fails rejected worker closing without losing
+  diagnostics` and `retains the original thrown failure and its existing status when closing also fails` in
+  `vitest-closing`. Native collection failure remains under real ownership in integration `vitest-failure-ownership`.
+- **`vitest-mixed-shard`:** the complete real mixed-selection/unit-only-shard ownership and generation-reuse scenario
+  moves unchanged to integration. Relocation alone claims no cost cut.
+
+All five new context/composed-failure behaviors failed against narrow routing/closing reconstructions and passed
+following restoration in temporary module/test copies; primary source and derived CLI were untouched.

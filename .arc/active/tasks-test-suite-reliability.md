@@ -287,15 +287,13 @@ is measured against the baseline.
           channels, and one environment run remain in integration; Notes names the direct replacement proofs.
         - `vitest-closing`, `vitest-completion-results`, and `vitest-worker-policy` remain process-free.
 
-    - `[ ]` **3.6.b Runtime-fixture files**
-        - `vitest-runtime-ownership`, `vitest-failure-ownership`, `vitest-runtime-context`, `vitest-prebuilt-runtime`,
-          `vitest-direct-runtime`, and `vitest-native-closing`.
-        - A case that needs no runtime runs against a fake selection with `requiresRuntime: false`. A case that
-          needs the runtime reaches real preparation even with fake ownership, so it is its outcome class's real
-          run in integration or is dropped.
+    - `[x]` **3.6.b Runtime-fixture files**
+        - All six native families retain their ownership, preparation, failure, and repair classes in integration.
+          Own-key context faults and runtime-free execution/cleanup composition use direct unit fixtures. CPU-bypass,
+          malformed-context, and combined-closing native duplicates are replaced by named proofs in Notes.
 
-    - `[ ]` **3.6.c `vitest-mixed-shard.test.ts`**
-        - Real by nature: moves to integration whole, keeping its basename.
+    - `[x]` **3.6.c `vitest-mixed-shard.test.ts`**
+        - The complete mixed-shard ownership and generation-reuse scenario moves unchanged to integration.
 
     - `[ ]` **3.6.d Focused-fixture files**
         - Between them, `local-vitest-routes` and `local-vitest-entry` keep one real run of each of the ten entry

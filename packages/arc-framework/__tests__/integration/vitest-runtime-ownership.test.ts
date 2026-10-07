@@ -6,7 +6,7 @@ import { makeVitestRuntimeFixture } from "../helpers/vitest-runtime-fixture.js";
 import { runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
 import { readBuildQualification } from "../../src/lib/build-qualification.js";
 
-it.each([{ CI: "1" }, { CI: "", ARC_TEST_ALLOW_CONCURRENCY: "1" }])(
+it.each([{ CI: "1" }])(
   "shares owned preparation and reuse with CPU bypass %j", async (bypass) => {
     const fixture = await makeVitestRuntimeFixture();
     try {

@@ -5,7 +5,7 @@ import { expect, it } from "vitest";
 import { makeVitestRuntimeFixture } from "../helpers/vitest-runtime-fixture.js";
 import { runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
 
-it.each(["teardown", "worker", "collection and teardown"])("retains native %s failure through closing", async (fault) => {
+it.each(["teardown", "worker"])("retains native %s failure through closing", async (fault) => {
   const fixture = await makeVitestRuntimeFixture();
   try {
     if (fault.includes("teardown")) {

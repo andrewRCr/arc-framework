@@ -1,43 +1,27 @@
-/** Own-key setup routing refuses invalid provided evidence without a nested repair build. */
+/** Own-key evidence routing refuses invalid values without preparation or fallback. */
 import { randomUUID } from "node:crypto";
-import { access, readFile, rm, writeFile } from "node:fs/promises";
+import { access, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { expect, it } from "vitest";
-import { makeVitestRuntimeFixture } from "../helpers/vitest-runtime-fixture.js";
-import { runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
-import { withBuildArtifactOwnership } from "../../src/lib/build-ownership.js";
-import { buildOwnedArtifacts } from "../../src/lib/build-entry.js";
+import { expect, it, type ProvidedContext } from "vitest";
+import { ensureTestRuntime, PREPARED_RUNTIME_BUILD_KEY } from "../../src/lib/build-runtime-setup.js";
+import { publishStagedBuild } from "../../src/lib/build-publication.js";
+import { makeStagedBuildFixture } from "../helpers/staged-build-fixture.js";
 
 it.each(["undefined", "null", "missing fields", "mismatched"])(
-  "refuses present %s context without generating nested output", async (fault) => {
-    const fixture = await makeVitestRuntimeFixture();
+  "refuses present %s evidence without replacing qualified output", async (fault) => {
+    const fixture = makeStagedBuildFixture();
     try {
-      let supplied = fault === "missing fields" ? "{}" : fault;
-      let generation: string | undefined;
-      if (fault === "mismatched") {
-        const evidence = await withBuildArtifactOwnership({ packageRoot: fixture.packageRoot, operation: "fixture preparation" },
-          async (lease) => await buildOwnedArtifacts(lease, "fast"));
-        generation = evidence.generation;
-        supplied = JSON.stringify({ ...evidence, generation: randomUUID() });
-      }
-      const configuration = join(fixture.packageRoot, "vitest.config.mjs");
-      await writeFile(configuration, (await readFile(configuration, "utf8")).replace(
-        'globalSetup: ["tests/integration-setup.mjs"] } }',
-        `globalSetup: ["tests/integration-setup.mjs"], provide: { arcRuntimeBuild: ${supplied} } } }`));
-      const counter = join(fixture.packageRoot, ".config-loads");
-      const priorLoads = generation === undefined ? "" : await readFile(counter, "utf8");
-      const result = await runVitestControllerFixture(fixture.packageRoot, ["run", "--project", "integration"],
-        { CI: "1", ARC_E2E_SKIP_BUILD: undefined }, "native");
-      expect(result.code, result.stderr).toBe(1);
-      expect(result.stderr).toContain(fault === "mismatched" ? "does not match" : "evidence is malformed");
-      expect(await readFile(counter, "utf8").catch(() => "")).toBe(priorLoads);
-      if (generation === undefined) {
-        expect(await readFile(join(fixture.packageRoot, "dist/cli.js"), "utf8")).toContain("previous-live-runtime");
-        await expect(access(join(fixture.packageRoot, "dist/dev-build-stamp.json"))).rejects.toMatchObject({ code: "ENOENT" });
-      } else {
-        const current = JSON.parse(await readFile(join(fixture.packageRoot, "dist/dev-build-stamp.json"), "utf8")) as { generation: string };
-        expect(current.generation).toBe(generation);
+      await publishStagedBuild(fixture.lease, fixture.staged, fixture.evidence, { checkCli: async () => {} });
+      const stamp = join(fixture.packageRoot, "dist/dev-build-stamp.json");
+      const previous = await readFile(stamp, "utf8");
+      const value = fault === "undefined" ? undefined : fault === "null" ? null : fault === "missing fields" ? {}
+        : { ...fixture.evidence, generation: randomUUID() };
+      const provided = { [PREPARED_RUNTIME_BUILD_KEY]: value } as unknown as Partial<ProvidedContext>;
+      await expect(ensureTestRuntime(fixture.packageRoot, provided)).rejects.toThrow(fault === "mismatched"
+        ? "does not match" : "evidence is malformed");
+      expect(await readFile(stamp, "utf8")).toBe(previous);
+      for (const file of [".arc-build.lock", ".config-loads"]) {
+        await expect(access(join(fixture.packageRoot, file))).rejects.toMatchObject({ code: "ENOENT" });
       }
     } finally { await rm(fixture.root, { recursive: true, force: true }); }
-  }, 30_000,
-);
+  });
