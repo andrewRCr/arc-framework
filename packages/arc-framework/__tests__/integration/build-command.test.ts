@@ -10,7 +10,7 @@ import { withBuildArtifactOwnership } from "../../src/lib/build-ownership.js";
 
 it.each([
   ["root", "build"], ["root", "build:fast"], ["package", "build"], ["package", "build:fast"],
-] as const)("%s %s establishes absent output and rebuilds unchanged inputs", async (boundary, command) => {
+] as const)("%s %s establishes absent output through its declared generation mode", async (boundary, command) => {
   const { root, packageRoot } = await makeNativeBuildFixture();
   await rm(join(packageRoot, "dist"), { recursive: true });
   const cwd = boundary === "root" ? root : packageRoot;
@@ -22,9 +22,11 @@ it.each([
     expect(first?.qualification).toEqual({ published: true, runtimeSchema: true, declarations: command === "build" });
     expect(await readFile(join(packageRoot, "dist/cli.js"), "utf8")).toContain("new-native-runtime");
     expect(JSON.parse(await readFile(join(packageRoot, "dist/schemas/kernel.json"), "utf8"))).toHaveProperty("schemas");
-    await execa(npm, ["run", command], { cwd, maxBuffer: 16 * 1024 * 1024 });
-    const second = parseBuildEvidence(JSON.parse(await readFile(stamp, "utf8")));
-    expect(second?.generation).not.toBe(first?.generation);
+    if (boundary === "root" && command === "build") {
+      await execa(npm, ["run", command], { cwd, maxBuffer: 16 * 1024 * 1024 });
+      const second = parseBuildEvidence(JSON.parse(await readFile(stamp, "utf8")));
+      expect(second?.generation).not.toBe(first?.generation);
+    }
   } finally { await rm(root, { recursive: true, force: true }); }
 }, 30_000);
 

@@ -415,3 +415,28 @@ Real integration case medians in the focused mode:
 - `refuses missing schema before changing live output`: 1,795.572 ms.
 - `refuses invalid CLI before changing live output`: 1,970.217 ms.
 - `exposes complete required output and removes obsolete output before evidence`: 1,902.735 ms.
+
+## Native file dispositions
+
+- **`build-publication`:** compiler-free unit matrix; five real integration classes retain all baseline portability
+  outcomes. The four removed native filesystem replays are proved by the same named refusal cases in the unit matrix.
+- **`build-coordinator`:** compiler-free publication-failure matrix; three real integration classes retain all baseline
+  portability outcomes. The unit cases `refuses failed entry publication and permits repaired publication` and
+  `refuses failed obsolete cleanup publication and permits repaired publication` replace their native replays.
+- **`build-preparation`:** unit prebuilt reuse and both complete refusal matrices use valid manually staged output.
+  The direct cases refuse with generation disabled, preserve evidence, and accept restored artifacts. Five native
+  integration classes remain: full/fast explicit generation with qualified reuse, unqualified prebuilt refusal and
+  built repair, artifact repair, metadata refusal and generated repair, and successful publication despite private
+  staging disposal failure. The real `repairs missing CLI before returning preparation` represents the four artifact
+  faults; the corresponding unit refusal cases prove schema absence, old evidence, and edited runtime separately.
+  `refuses and repairs missing build metadata before test preparation` is the real metadata representative; unit
+  `refuses empty metadata and reuses repaired prebuilt output` and `refuses directory metadata and reuses repaired
+  prebuilt output` prove the other variants. All eight unit behaviors failed under a narrow prebuilt-return
+  reconstruction and passed after byte-for-byte restoration.
+- **`build-command`:** all six cases move to integration. Each root/package full/fast script still runs for real with
+  its declaration contract, plus independent-checkout progress and same-checkout queuing. Only the root/full row
+  repeats its public invocation on unchanged inputs: `root build establishes absent output through its declared
+  generation mode` proves that shared coordinator outcome in place of the other three repeated builds. No public
+  build-script entry is dropped, and this file has no remaining unit file.
+- **`vitest-controller-logic`:** newly added pure coverage beyond the baseline 59-file set; direct results and early
+  evidence refusals request no native work.

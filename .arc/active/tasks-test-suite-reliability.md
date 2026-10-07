@@ -220,9 +220,11 @@ is measured against the baseline.
           with stable retry. Both basenames remain portability-selected; the unit failure cases are the narrower
           proofs replacing native entry and obsolete-cleanup replays.
 
-    - `[ ]` **3.3.b `build-preparation.test.ts` and `build-command.test.ts`**
-        - Preparation's repair and metadata tables and the command file's per-script cases sort into cases proved
-          below the real stack and real outcome-class runs; a repair that generates is a real run.
+    - `[x]` **3.3.b `build-preparation.test.ts` and `build-command.test.ts`**
+        - Preparation's refusal matrices now use prebuilt staging without generation; five native preparation
+          classes and all four public scripts retain real integration runs. The root `build` row,
+          `root build establishes absent output through its declared generation mode`, proves unchanged-input
+          rebuilding in place of the three duplicate rebuild replays; notes record the full disposition.
 
     - `[ ]` **3.3.c `build-generation.test.ts` and `build-generation-lifetime.test.ts`**
         - Real by nature: both move to integration whole, keeping their basenames.
