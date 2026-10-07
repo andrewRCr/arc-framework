@@ -281,12 +281,11 @@ is measured against the baseline.
 - _Goal:_ The Vitest controller's discovery and execution paths are proved against a fake controller, with one real
   run per outcome class and one real run per test entry point left in integration.
 
-    - `[ ]` **3.6.a Controller-fixture files**
-        - `vitest-discovery`, `vitest-completion`, and `local-vitest-runner` run against a fake controller,
-          through the `createController` parameter of `discoverVitestSelection` or a `VitestSelection` whose
-          controller is fake.
-        - `vitest-closing`, `vitest-completion-results`, and `vitest-worker-policy` are recorded as running no
-          native work.
+    - `[x]` **3.6.a Controller-fixture files**
+        - Public controller fakes prove discovery, pre-parsing, completion, closing/capture order, and environment
+          initialization without native work. Native discovery classes, dynamic-skip refusal, four failure/success
+          channels, and one environment run remain in integration; Notes names the direct replacement proofs.
+        - `vitest-closing`, `vitest-completion-results`, and `vitest-worker-policy` remain process-free.
 
     - `[ ]` **3.6.b Runtime-fixture files**
         - `vitest-runtime-ownership`, `vitest-failure-ownership`, `vitest-runtime-context`, `vitest-prebuilt-runtime`,

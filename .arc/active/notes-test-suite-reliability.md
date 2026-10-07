@@ -502,3 +502,22 @@ Real integration case medians in the focused mode:
   malformed/old rows replace their otherwise identical native rebuilds.
 - **`dev-build-refresh`:** both real refresh cases move unchanged to integration, preserving live output during
   generation, failed-compilation preservation, repaired refresh, qualification, and private-staging cleanup.
+
+- **`vitest-discovery`:** six direct public-controller cases prove empty/skipped refusal, retained parsing diagnostics,
+  pre-parsed membership, and exact initial selection. All five original native discovery scenarios move intact to
+  integration; their real parsing and cross-file selection channels remain covered.
+- **`vitest-completion`:** eight fake-selection cases prove completion status and closing before capture without
+  preparation or ownership. Integration retains `rejects dynamic skip despite native empty-run success` plus mixed
+  passing, completed failure, collection failure, and setup failure. Removed unmatched-name, static-skip, todo, and
+  nested-skipped native rows share the empty-completion class: `refuses unexecuted public states []/[skipped]/
+  [pending]/[pending, skipped] and closes before capture` directly proves every public result state; native dynamic
+  skip proves the external worker channel. Native name-filter/shard refusal also remains in `local-vitest-selection`.
+- **`local-vitest-runner`:** both default and explicit `NODE_ENV` bootstrap decisions use the controller-creation
+  boundary directly. `initializes a controller with NODE_ENV=explicit-native-environment` replaces that repeated
+  native environment row; the default row retains actual configuration, setup, workers, and exactly one reporter
+  initialization in integration. The exported tier-argument matrix remains covered by `vitest-controller-logic`.
+- **`vitest-closing`, `vitest-completion-results`, and `vitest-worker-policy`:** existing public closing/result and
+  worker-policy cases launch no native work. The sixteen new controller behaviors failed against narrow policy,
+  bootstrap, and capture-order reconstructions and passed after restoration in temporary source/test copies.
+  Primary source and derived CLI stayed untouched. Initial fixture row-spreading and diagnostic formatting mistakes
+  were corrected before the retained behavioral red/green runs.
