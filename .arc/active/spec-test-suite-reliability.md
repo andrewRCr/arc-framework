@@ -834,4 +834,4 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
   _Supersedes:_ § Non-Goals ¶3. _Trigger:_ 2.4 must-stop. _Work:_ 2.4.R. _Revalidated:_ 2.4.R.
 
 - **A3** — 2026-10-07 — design: preserve binding-aware and filename-relative bans through local lint predicates.
-  _Supersedes:_ § 3 step 3. _Trigger:_ 4.3 door. _Work:_ 4.R. _Revalidated:_ pending → 4.3.c.
+  _Supersedes:_ § 3 step 3. _Trigger:_ 4.3 door. _Work:_ 4.R. _Revalidated:_ 4.3.c.

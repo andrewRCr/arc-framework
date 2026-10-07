@@ -1,11 +1,12 @@
 /** Module-local architecture checks for native ESLint configuration. */
 
 import type { Rule } from "eslint";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import ts from "typescript";
 
 /** Predicate IDs accepted by the native configuration schema. */
-export const ARCHITECTURE_PREDICATES = ["neverthrow", "kernel", "store-production", "store-tests"] as const;
+export const ARCHITECTURE_PREDICATES = ["neverthrow", "kernel", "store-production", "store-tests",
+  "layout-dependencies", "layout-private", "layout-downward", "store-concurrency", "store-reference", "configured-identity"] as const;
 
 /** A named module-local architecture predicate. */
 export type ArchitecturePredicate = typeof ARCHITECTURE_PREDICATES[number];
@@ -70,7 +71,15 @@ function moduleReferences(source: ts.SourceFile): { node: ts.Node; specifier: st
         specifier = literal(node.arguments[0]);
       }
     }
+    if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) {
+      specifier = literal(node.moduleReference.expression);
+    }
     if (specifier !== undefined) references.push({ node, specifier });
+    else if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword
+      || (ts.isIdentifier(node.expression) && (node.expression.text === "require" || loaders.has(node.expression.text)))
+      || (ts.isPropertyAccessExpression(node.expression) && ts.isIdentifier(node.expression.expression)
+        && node.expression.expression.text === "module" && node.expression.name.text === "require")
+      || isFactoryCall(node.expression))) references.push({ node, specifier: "<computed import>" });
     ts.forEachChild(node, visit);
   };
   visit(source);
@@ -175,6 +184,65 @@ function storeViolations(
   return violations;
 }
 
+function configuredIdentityViolations(source: ts.SourceFile): ArchitectureImportViolation[] {
+  const violations: ArchitectureImportViolation[] = [];
+  const orderedLiterals = (nodes: readonly ts.Node[]): (string | undefined)[] =>
+    nodes.flatMap((node) => ts.isArrayLiteralExpression(node) ? orderedLiterals(node.elements) : [literal(node)]);
+  const isGitRead = (nodes: readonly ts.Node[]): boolean => {
+    const values = orderedLiterals(nodes);
+    const config = values.indexOf("config");
+    const get = values.indexOf("--get", config + 1);
+    return config >= 0 && get > config && values.indexOf("arc.identity", get + 1) > get;
+  };
+  const visit = (node: ts.Node): void => {
+    const direct = ts.isCallExpression(node) && ts.isIdentifier(node.expression)
+      && node.expression.text === "gitConfigGet" && node.arguments.some((argument) => literal(argument) === "arc.identity");
+    const argumentsRead = ts.isArrayLiteralExpression(node) ? isGitRead(node.elements)
+      : ts.isCallExpression(node) && isGitRead(node.arguments);
+    if (direct || argumentsRead) violations.push({ node, predicate: "configured-identity", reason: "direct configured identity read outside identity owner" });
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return violations;
+}
+
+function additionalDependencyViolations(
+  references: ReturnType<typeof moduleReferences>, filename: string, sourceRoot: string, predicates: readonly ArchitecturePredicate[],
+): ArchitectureImportViolation[] {
+  const enabled = predicates.filter((predicate) => ["layout-dependencies", "layout-private", "layout-downward",
+    "store-concurrency", "store-reference"].includes(predicate));
+  if (!enabled.length) return [];
+  const violations: ArchitectureImportViolation[] = [];
+  const concurrencyRoot = join(sourceRoot, "lib/store/concurrency");
+  const referenceRoot = resolve(sourceRoot, "../__tests__/helpers/store");
+  for (const { node, specifier } of references) {
+    for (const predicate of enabled) {
+      let forbidden = false;
+      if (predicate === "layout-dependencies") {
+        forbidden = !["zod", "node:path", "../kernel/index.js"].includes(specifier) && !specifier.startsWith("./");
+      } else if (predicate === "layout-private") {
+        forbidden = specifier.includes("layout/") && !specifier.endsWith("layout/index.js");
+      } else if (predicate === "layout-downward") {
+        forbidden = specifier.includes("layout/") && !specifier.includes("lib/layout/index.js");
+      } else if (predicate === "store-concurrency") {
+        const target = resolve(dirname(filename), specifier);
+        forbidden = specifier !== "node-diff3" && (!specifier.startsWith(".") ||
+          !(target.startsWith(concurrencyRoot + sep) || target.startsWith(join(sourceRoot, "lib/kernel") + sep)
+            || dirname(target) === join(sourceRoot, "lib/store")));
+      } else if (predicate === "store-reference") {
+        // Static, dynamic and type imports are already refused by the compiler's source root.
+        if (!ts.isCallExpression(node) || node.expression.kind === ts.SyntaxKind.ImportKeyword) continue;
+        const target = ts.resolveModuleName(specifier, filename, { moduleResolution: ts.ModuleResolutionKind.Node16 }, ts.sys)
+          .resolvedModule?.resolvedFileName ?? resolve(dirname(filename), specifier);
+        const path = relative(referenceRoot, target);
+        forbidden = path === "" || (!path.startsWith(".." + sep) && path !== ".." && !isAbsolute(path));
+      }
+      if (forbidden) violations.push({ node, predicate, reason: `forbidden module reference ${specifier}` });
+    }
+  }
+  return violations;
+}
+
 /**
  * Inspect the linter's already-parsed module against its enabled predicates.
  * @param source - TypeScript source supplied by the native parser.
@@ -190,13 +258,17 @@ export function findArchitectureImportViolations(
   predicates: readonly ArchitecturePredicate[],
 ): ArchitectureImportViolation[] {
   const violations = predicates.includes("kernel") ? kernelViolations(source, filename, sourceRoot) : [];
+  const references = predicates.some((predicate) => predicate === "neverthrow" || predicate.startsWith("layout-")
+    || predicate === "store-concurrency" || predicate === "store-reference") ? moduleReferences(source) : [];
   if (predicates.includes("neverthrow") && !within(join(sourceRoot, "lib/kernel"), resolve(filename))) {
-    violations.push(...moduleReferences(source).filter(({ specifier }) => specifier === "neverthrow")
+    violations.push(...references.filter(({ specifier }) => specifier === "neverthrow")
       .map(({ node }): ArchitectureImportViolation => ({ node, predicate: "neverthrow", reason: "neverthrow import outside kernel Result seam" })));
   }
   if (predicates.includes("store-production") || predicates.includes("store-tests")) {
     violations.push(...storeViolations(source, filename, sourceRoot, predicates));
   }
+  violations.push(...additionalDependencyViolations(references, filename, sourceRoot, predicates));
+  if (predicates.includes("configured-identity")) violations.push(...configuredIdentityViolations(source));
   return violations;
 }
 

@@ -1162,3 +1162,68 @@ that tooling directory; Markdown retains prose classification. Both concrete hel
 family registration and pass afterward, and the real checked-in corpus integration case passes. Evidence is in
 `/tmp/arc-ban-table-corpus-{red,green}.log`; the final routine suite is rerun over the corrected, staged helper set.
 This is a bounded integration adjustment required by the new lint tooling, with no taxonomy or audit-policy change.
+
+## Migrated one-module bans
+
+All dependency/declaration bans classified in § One-hop ban inventory are composed rows of the existing table.
+Built-in import and syntax rules enforce simple references, type imports, import-equals, reexports, dynamic imports,
+loader calls and declarations. The local rule adds lexical layout boundaries, importer-relative concurrency paths,
+resolver-based reference-store loader membership and configured-identity argument sequences. It shares the native
+parser's module and the existing reference collection; no tree enumeration, second parse or cache is introduced.
+
+Native configuration-only assertions cover each added scope. The actual composed config's parser-only fixtures
+prove forbidden syntax and scope exceptions without creating a type program for fabricated source. Ordinary full
+`lint:ts` retains its type-checked configuration. The first full-type synthetic fixture run stalled and was cancelled;
+a native stdin probe also failed in an unrelated size-rule source lookup. Neither is claimed as behavioral evidence.
+The fixture-only `disableTypeChecked` override preserves the architecture rules and original native TypeScript node
+mapping. CLI proofs use that temporary configuration solely for planted stdin; production source and CLI bytes stay
+unchanged.
+
+Fail-first evidence includes ten newly enabled predicate failures (`/tmp/arc-migrated-predicates-red.log`), 28 built-in
+row failures (`/tmp/arc-simple-ban-rows-reconstructed-red.log`), eight missing predicate scopes and 25 missing built-in
+scope assertions (`/tmp/arc-all-ban-scopes-red.log`). Narrow allowance reconstructions retain callable exports and
+prove each exception's wrong-refusal before restoration; logs are `/tmp/arc-migrated-*-red.log` and
+`/tmp/arc-simple-allowance-*-red.log`. Literal-named imports/reexports and computed named members fail before their
+symbol selectors are added (`/tmp/arc-literal-symbols-red.log`). Case-insensitive retirement references fail before
+matching the original `/iu` boundary (`/tmp/arc-retirement-case-red.log`). Nested identity argv built with `.flat()`
+fails before ordered nested-array extraction (`/tmp/arc-nested-identity-red.log`). Reference-store membership keeps
+both a basename beginning with two dots and exclusion of a similarly named sibling directory; their narrow behavioral
+proofs are `/tmp/arc-reference-membership-red.log` and `/tmp/arc-reference-sibling-red.log`.
+
+All 38 original row/predicate examples produce native `lint:ts:file` refusals before deleting the corresponding scan.
+Raw JSON, stderr, sources, expected rules and exit codes are retained in `/tmp/arc-native-ban-cli-proofs/manifest.json`.
+Extra native stdin proofs for the nested identity read and case-insensitive retirement reference are retained in
+`/tmp/arc-native-extra-ban-proofs/`. A mistaken retirement probe filename was corrected before the actual proof; the
+rejected path check is not lint evidence.
+
+Deletion verdict: executable dependency/declaration bans still catch plausible future violations, now through the
+native linter; their duplicated source walks and scanner-fixture cases do not survive as a second mechanism. The
+three exhausted meta-reader/writer/identity scan files and the kernel audit helper are removed. Mixed files keep the
+explicit kernel barrel, required init/start layout imports, config consumed-key catalog, concurrency package/license
+contract, heavy-projection transitive closure, actual bundle metadata, role authority/runtime projections, exact
+canonical caller/importer/declaration inventories and NUL identities, schema owner export contracts and legacy
+importer presence, CLI positive module/loading inventory, viewer compatibility, and package/project sync. The
+meta-reader's real legacy/runtime cases remain after deleting only its static-store import branch. Store filename and
+review vocabulary assertions retain their full text properties. Incidental comment/example identifier matches have
+the previously recorded survival-rule disposition; no executable authority or explicit vocabulary contract is waived.
+
+Scope fidelity includes the original lexical `./` layout allowance, sole qualified public layout barrel, immediate
+store-core directory allowance, exact TypeScript reference-store root membership, type-only store/loading exceptions,
+dotted viewer process access and case-insensitive retirement module match. These bounded interpretation and selector
+corrections preserve the specification's intent under the recorded implementation direction.
+
+The ordinary full typed lint gate passes in 51,195.162 ms after migration, compared with 49,858.146 ms before:
++1,337.016 ms (+2.68%). `/tmp/arc-migration-after-lint.{json,log}` retains the actual command, exit and wall time.
+The measured run is serial with no concurrent suite/type/build process; it is a single before/after observation,
+not a median or a claim about hosted variance.
+
+The first final routine run fails its tracked-corpus coupling audit because removed scan files were still listed in
+Git's index (`ENOENT`), with 16,578 other cases passing. Staging all migration deletions corrects that mechanical
+corpus input; the complete suite is rerun over the staged tree. The failed run remains
+`/tmp/arc-migration-final-routine-tests.log`, rather than being counted as a pass.
+
+Final checks pass over the staged migration tree: full typed lint, focused helper/test lint, both type programs,
+full build, Markdown and all ARC contract checks. Shell inputs are unchanged, so the earlier passing shell gate
+remains applicable. `/tmp/arc-migration-staged-routine-tests.log` records the successful complete routine rerun;
+`/tmp/arc-migration-final-{focused-lint,all-types,build,md}.log` retains the other command evidence. A3 is revalidated
+at 4.3.c after the composed native proofs and replacement-case deletions close.

@@ -9,8 +9,8 @@ export const TYPESCRIPT_SCOPE = "**/*.{ts,tsx,cts,mts}";
 export interface ArchitectureBanRow {
   files: string[];
   ignores?: string[];
-  paths?: string[];
-  patterns?: string[];
+  paths?: (string | { name: string; allowTypeImports?: boolean })[];
+  patterns?: (string | { regex: string; caseSensitive: boolean; allowTypeImports?: boolean })[];
   syntax?: { selector: string; message: string }[];
   predicates?: ArchitecturePredicate[];
 }
@@ -31,7 +31,7 @@ function applies(row: ArchitectureBanRow, filename: string): boolean {
 function unionOptions(rows: ArchitectureBanRow[]): Linter.RulesRecord {
   const paths = [...new Set(rows.flatMap((row) => row.paths ?? []))];
   const patterns = [...new Set(rows.flatMap((row) => row.patterns ?? []))];
-  const syntax = rows.flatMap((row) => row.syntax ?? []);
+  const syntax = [...new Set(rows.flatMap((row) => row.syntax ?? []))];
   const predicates = [...new Set(rows.flatMap((row) => row.predicates ?? []))];
   return {
     ...(paths.length || patterns.length ? {

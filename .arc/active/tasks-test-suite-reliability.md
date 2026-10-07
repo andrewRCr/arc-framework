@@ -407,7 +407,7 @@ recorded.
   walk or another parse. Native configuration refuses unknown IDs, and source-scan cases remain held until their
   composed rows and per-row lint proofs land. Notes § Local predicate substrate retains the evidence.
 
-### `[ ]` **4.3 Move one-hop import and syntax bans to ESLint — D3**
+### `[x]` **4.3 Move one-hop import and syntax bans to ESLint — D3**
 
 - _Goal:_ Every ban that reads only one module's own imports or syntax is a row of one composed ban table in
   `eslint.config.js`, each file's resolved configuration carries every ban that applies to it, and the source-scan
@@ -419,10 +419,6 @@ recorded.
 `notes-test-suite-reliability.md` § Amendment A3: faithful one-hop lint predicates. The effective mechanism includes
 local predicate IDs where built-in selectors cannot preserve the existing boundary.
 
-- _Note:_ When several flat-config entries set one rule for the same file, the last entry's options replace the
-  others', so overlapping entries silently drop bans. The table composes them into one option set per rule for each
-  file. Task 9.6's confinement of `@clack/prompts` is a row of the same table.
-
     - `[x]` **4.3.a Inventory the one-hop bans**
         - Notes § One-hop ban inventory classifies all 26 files and preserves every expanded case in the raw
           inventory. Dependency/declaration bans migrate after native proofs; positive catalogs, export surfaces,
@@ -433,16 +429,15 @@ local predicate IDs where built-in selectors cannot preserve the existing bounda
           unions, including future modules and exceptions. Native configuration-only proofs cover both actual
           rows and all overlapping rule types. The coupling corpus recognizes the new executable tooling family.
 
-    - `[ ]` **4.3.c Express each ban and delete the case it replaces**
-        - Each inventoried ban becomes a row: `no-restricted-imports` paths or patterns, which also cover
-          `import type`, `export … from`, and `import x = require()`; `no-restricted-syntax` selectors for
-          `ImportExpression` and `TSImportType` (`TSImportType[source.value=…]`; typescript-eslint 8.60 deprecates
-          `argument` for `source`); a `CallExpression[callee.name="require"]` selector, which reports a `require()`
-          call whatever binds `require`, for the bans Tasks 4.1.b and 4.1.d route here; and a `CallExpression`
-          selector for `module.require()` where Task 4.1.d keeps it.
-        - Each row is shown failing on a planted violation through `lint:ts:file` before its case is deleted, and the
-          table test gains its scope.
-        - `lint:ts` wall time before and after is recorded here.
+    - `[x]` **4.3.c Express each ban and delete the case it replaces**
+        - Every classified dependency/declaration ban has composed native scope and forbidden/allowed proofs;
+          duplicated scans are gone while positive catalogs, export surfaces, transitive loading and vocabulary
+          contracts survive. Notes § Migrated one-module bans records fidelity, deletion verdicts and lint cost.
+
+- _Outcome:_ The complete table preserves loader bindings, resolver and lexical boundaries, scope exceptions and
+  overlapping rule options without another parse or tree walk. Native lint proofs precede scan retirement;
+  ordinary typed lint costs 51.20 s against 49.86 s before migration. Notes retain the source-grounded dispositions
+  and bounded text/selector interpretations; A3's migration condition is revalidated.
 
 ### `[ ]` **4.4 Narrow the command-schema registry scan — D3**
 

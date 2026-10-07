@@ -49,8 +49,8 @@ describe("checkout role authority boundary", () => {
     expect(corroboration).not.toBe(checkout);
   });
 
-  it("keeps derivation free of durable locus storage and liveness imports", () => {
+  it("keeps the registered observation import at the authority seam", () => {
     expect(importsOf("src/lib/locus/role-derivation.ts"))
-      .toEqual(["../git/worktree-roster.js"]);
+      .toContain("../git/worktree-roster.js");
   });
 });

@@ -1,8 +1,7 @@
 /** The active reader preserves legacy bytes while its default root delegates through operational state. */
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import ts from "typescript";
+import { join } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { parseMetaFile, readActiveMetaCandidates } from "../../../src/lib/active/meta-reader.js";
 import { makeMetaFixture } from "../../helpers/meta-fixture.js";
@@ -56,12 +55,4 @@ describe("active-meta store delegate", () => {
       candidates: [{ path: ".arc/user/andrew/active/meta-example.md", filename: "meta-example.md" }] });
   });
 
-  it("has only dynamic store imports so importing meta parsers closes no backend cycle", async () => {
-    const path = resolve(import.meta.dirname, "../../../src/lib/active/meta-reader.ts");
-    const source = await readFile(path, "utf8");
-    const ast = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-    const staticStoreImports = ast.statements.filter((node) => ts.isImportDeclaration(node)
-      && ts.isStringLiteral(node.moduleSpecifier) && node.moduleSpecifier.text.includes("/store/"));
-    expect(staticStoreImports).toEqual([]);
-  });
 });

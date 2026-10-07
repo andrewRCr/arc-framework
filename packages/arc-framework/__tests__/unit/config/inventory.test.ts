@@ -93,14 +93,13 @@ describe("ARC configuration inventory", () => {
     ]);
   });
 
-  it("finds no unowned consumed key or parallel default table in policy adapters", async () => {
+  it("finds no unowned consumed key in policy adapters", async () => {
     const catalog = new Set(keys(ARC_CONFIG_FIELDS));
     for (const path of adapterPaths) {
       const source = await readFile(path, "utf8");
       const dottedStringLiterals = [...source.matchAll(/["']([a-z][a-z0-9_]*\.[a-z0-9_.]+)["']/gu)]
         .map((match) => match[1] ?? "");
       for (const key of dottedStringLiterals) expect(catalog.has(key), `${path}: ${key}`).toBe(true);
-      expect(source).not.toMatch(/const\s+DEFAULTS\s*[:=]/u);
     }
   });
 

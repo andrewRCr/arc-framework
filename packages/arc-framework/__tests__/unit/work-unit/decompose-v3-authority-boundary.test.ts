@@ -6,19 +6,9 @@ import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const PACKAGE_ROOT = resolve(import.meta.dirname, "../../..");
-const SOURCE_ROOT = join(PACKAGE_ROOT, "src");
 const PROJECT_ROOT = resolve(PACKAGE_ROOT, "../..");
 
 describe("decomposition v3 authority boundary", () => {
-  it("keeps base advancement independent of retirement authorities", () => {
-    const advancement = join(SOURCE_ROOT, "lib/work-unit/git-decompose-transition-base-advancement.ts");
-    const content = readFileSync(advancement, "utf8");
-
-    expect(content).not.toMatch(
-      /retirement-authority/iu,
-    );
-  });
-
   it("keeps the shipped boundary-fit method and park workflow synchronized", () => {
     const packageMethod = readFileSync(join(PACKAGE_ROOT, "arc/system/methods/assess-boundary-fit.md"), "utf8");
     const projectMethod = readFileSync(

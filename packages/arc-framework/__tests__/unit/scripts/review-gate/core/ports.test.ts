@@ -91,7 +91,6 @@ describe("review adapter ports", () => {
     const source = (await Promise.all(files.map(async (name) => readFile(join(coreDir, name), "utf8")))).join("\n");
 
     expect(source).not.toMatch(/GitHub|CodeRabbit|PR[- _]?number|pullRequest|check[- _]?run|workflow|harness/iu);
-    expect(source).not.toMatch(/\.\.\/(?:hosts|providers|runtime)\//u);
   });
 
 });

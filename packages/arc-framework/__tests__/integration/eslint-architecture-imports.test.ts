@@ -20,6 +20,8 @@ beforeAll(async () => {
   await writeFile(join(sourceRoot, "lib/kernel/local.ts"), "export const local = true;");
   await writeFile(join(sourceRoot, "lib/kernel/nested/local.ts"), "export const local = true;");
   await writeFile(join(sourceRoot, "lib/outside.ts"), "export const outside = true;");
+  await mkdir(join(root, "__tests__/helpers/store"), { recursive: true });
+  await writeFile(join(root, "__tests__/helpers/store/backend.ts"), "export const backend = true;");
   await mkdir(join(sourceRoot, "lib/store/in-repo"), { recursive: true });
   await writeFile(join(sourceRoot, "lib/store/in-repo/private.ts"), "export interface Shape {} export const value = true;");
   await writeFile(join(sourceRoot, "lib/store/in-repo/backend.ts"), "export const backend = true;");
@@ -156,4 +158,55 @@ describe("native architecture import predicates", () => {
     ].join("\n"), "allowed-store-types.ts", ["store-production"]);
     expect(result.messages).toEqual([]);
   });
+  it.each([
+    ["lib/layout/outside.ts", 'import "commander";', "layout-dependencies"],
+    ["lib/layout/above.ts", 'import "../outside.js";', "layout-dependencies"],
+    ["consumer.ts", 'void import("./lib/layout/private.js");', "layout-private"],
+    ["commands/consumer.ts", 'export * from "./layout/index.js";', "layout-downward"],
+    ["lib/store/concurrency/nested/escape.ts", 'import "../../../../commands/active.js";', "store-concurrency"],
+    ["lib/store/concurrency/computed.ts", 'declare const path: string; void import(path);', "store-concurrency"],
+    ["lib/source.ts", 'import { createRequire as acquire } from "node:module"; const require = acquire(import.meta.url); require("../../__tests__/helpers/store/backend.js");', "store-reference"],
+    ["lib/nested/source.ts", 'import { createRequire as acquire } from "node:module"; const load = acquire(import.meta.url); load("../../../__tests__/helpers/store/backend.js");', "store-reference"],
+    ["identity-read.ts", 'gitConfigGet(".", "arc.identity");', "configured-identity"],
+    ["identity-argv.ts", 'void ["--local", "config", "--get", "arc.identity"];', "configured-identity"],
+  ])("enforces the migrated predicate %s", async (path, source, predicate) => {
+    const result = await lint(source, path, [predicate]);
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0]?.message).toContain(predicate);
+  });
+
+  it.each([
+    ["lib/layout/valid.ts", 'import "./../outside.js"; import "node:path"; import "zod"; import "../kernel/index.js";', "layout-dependencies"],
+    ["valid-layout.ts", 'import "./lib/layout/index.js"; observe("./lib/layout/private.js");', "layout-private"],
+    ["commands/valid-layout.ts", 'import "../lib/layout/index.js";', "layout-downward"],
+    ["lib/store/concurrency/nested/valid.ts", 'import "../local.js"; import "../../../kernel/index.js"; import "../../registry.js"; import "node-diff3";', "store-concurrency"],
+    ["lib/valid-reference.ts", 'import "./outside.js"; observe("../../__tests__/helpers/store/backend.js");', "store-reference"],
+    ["valid-identity.ts", 'gitConfigGet(".", "other.key"); observe("arc.identity"); void ["config", "arc.identity", "--get"];', "configured-identity"],
+  ])("preserves the migrated allowance %s", async (path, source, predicate) => {
+    expect((await lint(source, path, [predicate])).messages).toEqual([]);
+  });
+
+  it("retains the immediate store-core directory allowance", async () => {
+    expect((await lint('import ".";', "lib/store/concurrency/directory.ts", ["store-concurrency"])).messages).toEqual([]);
+  });
+
+  it("rejects a bare kernel directory outside the concurrency allowlist", async () => {
+    expect((await lint('import "../../kernel";', "lib/store/concurrency/kernel-directory.ts", ["store-concurrency"])).messages).toHaveLength(1);
+  });
+
+  it("refuses a reference-store file whose basename starts with two dots", async () => {
+    const result = await lint('import { createRequire } from "node:module"; const require = createRequire(import.meta.url); require("../../__tests__/helpers/store/..backend.js");', "lib/dotted-reference.ts", ["store-reference"]);
+    expect(result.messages).toHaveLength(1);
+  });
+
+  it("refuses a nested configured identity argument sequence", async () => {
+    const result = await lint('execGit(["config", ["--get", "arc.identity"]].flat());', "nested-identity.ts", ["configured-identity"]);
+    expect(result.messages).toHaveLength(1);
+  });
+
+  it("allows a similarly named reference directory outside the root", async () => {
+    const result = await lint('import { createRequire } from "node:module"; const require = createRequire(import.meta.url); require("../../__tests__/helpers/store-other/backend.js");', "lib/sibling-reference.ts", ["store-reference"]);
+    expect(result.messages).toEqual([]);
+  });
+
 });
