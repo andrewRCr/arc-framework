@@ -901,3 +901,6 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
 
 - **A11** — 2026-10-07 — task: give the repository inventory setup scan its named heavy-work deadline.
   _Supersedes:_ none. _Trigger:_ 10.1 must-stop. _Work:_ 10.R9. _Revalidated:_ pending → 10.1.
+
+- **A12** — 2026-10-07 — task: partition native Candidate cases to reclaim the observed shard tail.
+  _Supersedes:_ none. _Trigger:_ 10.1 must-stop. _Work:_ 10.R10. _Revalidated:_ pending → 10.1.

@@ -1047,6 +1047,15 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
   twenty-six cases and all tier defaults stay unchanged; the retained hosted failure and exact body comparison are
   recorded in `notes-test-suite-reliability.md` § Amendment A11.
 
+### `[x]` **10.R10 Partition native Candidate coverage by behavior — A12**
+
+- _Goal:_ A12 makes existing file parallelism available during the observed Candidate shard tail, retaining the
+  same twenty native cases, eighteen integration cases, every body and deadline, and independent fixture ownership.
+
+- _Outcome:_ Three native wrappers retain the exact five/nine/six partition and independent fixture state;
+  integration retains eighteen cases. All bodies and deadlines are unchanged, with unclassified native cases
+  refused; `notes-test-suite-reliability.md` § Amendment A12 records the observed tail and union proof.
+
 ### `[ ]` **10.1 Run the closing hosted runs**
 
 - _Goal:_ Five consecutive first-attempt passes at the final head show the suite reliable on hosted runners, give the

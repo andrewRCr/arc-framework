@@ -2635,3 +2635,56 @@ assertion, source-scanning behavior or timeout metadata for ordinary cases chang
 Whole-package typed lint passes without suppression changes (`/tmp/arc-a11-lint.log`). The corrective parent closes
 on its own selected coverage; A11 revalidation remains pending at the fresh five-run reliability check. The failed
 fourth run is retained, never replaced or counted green, and all final-head measurements remain required.
+
+## Amendment A12: Native Candidate file tail
+
+At `2a98d3856`, all five hosted runs pass on attempt one with 13,695 completed unit cases and no half-timeout
+violation. Run IDs are 37664029839, 37664794940, 37665559219, 37666249546 and 37667337053. Wall times excluding
+the cache-save tail are 305/319/297/439/335 s; their median is 319 s, 40.92592593% below the frozen 540 s baseline.
+Summed test-job times are 1,667/1,835/1,598/1,752/1,730 s; their median is 1,730 s, 19.19663709% below baseline,
+missing the unchanged 1,712.8 s limit by 17.2 s. The collector stops before portability dispatch.
+
+All twelve local captures pass at that head. Native paired median is 621,213.653098 ms (45.00801509% reduction);
+E2E summed median is 1,708,091.676299 ms (38.73287143% reduction), with 1,738 CLI launches in each sample.
+Unit wall times are 14,877/15,041/15,118 ms; integration 166,874/166,260/165,700; E2E
+163,486/165,242/162,157; lane 184,033/182,600/183,541. Case counts are 13,695/3,037/686/16,732 respectively.
+Those complete observations remain historical after the next corrective commit; none substitutes for its final head.
+
+The bounded advisor read identifies an observable intra-job tail, independently checked against every retained log:
+`candidate-lineage.e2e.test.ts` finishes last in its shard, 6.24/13.035/34.263/45.667/35.631 s after the last
+other file, median 34.263119 s. This is unused file-parallel capacity inside summed job wall, even when another
+workflow job controls total duration. Step timing also locates most time in actual balanced test execution rather
+than artifact transfer. The earlier refusal to infer aggregate savings from file size alone still holds; this
+new five-run tail evidence supplies the missing basis.
+
+The amend-design gate takes the task arm at low depth: the unchanged hosted aggregate criterion is not produced,
+while existing file parallelism and independent repository fixtures supply the mechanism. Only registration splits,
+at existing behavioral seams. `registerCandidateLineageSuite` retains serial cases, module-local roots and one
+initialized template per file. The correction wrapper selects five frontline/local-response cases, currentness
+selects nine lineage/archive/ownership cases, and settlement selects six convergence/composition/replay cases.
+The integration wrapper retains its eighteen cases. No case changes tier, body, timeout or native outcome.
+
+`selectsCandidateLineageCase` projects the explicit disjoint native name sets and refuses an unclassified native
+case; integration names remain distinct. Three isolated native wrappers give separate fixture and process state,
+so `inRepository`'s process directory changes do not gain within-file concurrency. Two added templates/imports
+are measured overhead, not claimed free work. Cache source, shard counts, worker policy, admission, isolation,
+acceptance targets and every Success Criterion remain unchanged. The footprint is registration and its wrappers,
+with fresh closing data required to establish any aggregate saving.
+
+Author grounding over the A12 row and corrective parent confirms the actual serial fixture lifecycle, native
+selection sets, and hosted tail timestamps. Reader independence and binding completeness retain all thirty-eight
+cases and external outcomes. No delivery plan or new segment appears; prior fixture and tier outcomes remain valid,
+and closing measurement stays open. This is a scheduling refactor with existing behavioral proofs, not a new
+assertion or an independent review verdict.
+
+`/tmp/arc-a12-union-check.json` confirms exact eighteen/five/nine/six selection and byte-identical test bodies and
+case deadlines after removing only registration changes. All four wrappers pass thirty-eight cases in 55.88 s
+(`/tmp/arc-a12-candidate-groups.log`); import/setup duplication is included, not excluded. Source inspection and
+installed Vitest defaults confirm integration/E2E file isolation. Both type checks, whole-package typed lint and
+Markdown/ARC checks pass without suppression changes. The ordinary eight-worker routine lane passes 1,121 files
+and 16,732 cases with `FORCE_COLOR=3` in 217.67 s (`/tmp/arc-a12-routine.log`). Unchanged full-build and shell
+inputs retain their prior passing witnesses. Fresh closing evidence remains required at the corrective head.
+
+The ordinary E2E gate passes all sixty-nine files and 686 cases in 177.72 s (`/tmp/arc-a12-e2e.log`). The
+completed-case union stays unchanged. The corrective parent closes on its own gates and coverage, while A12
+revalidation stays pending at the fresh hosted cost measurement; no Success Criteria marker changes.

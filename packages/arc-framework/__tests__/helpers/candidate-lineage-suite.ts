@@ -7,7 +7,7 @@
  * ahead of it are stubbed, the Candidate reduction it branches on is not.
  */
 
-import { INTEGRATION_CASES } from "./candidate-lineage-cases.js";
+import { selectsCandidateLineageCase, type CandidateLineagePartition } from "./candidate-lineage-cases.js";
 import { makeInteractionContext } from "./interaction-context.js";
 import { collectCandidateSubjectTarget } from "./candidate-subject.js";
 import { makeMetaFixture } from "./meta-fixture.js";
@@ -3077,14 +3077,14 @@ function registerRoutedReviewObligation(it: typeof vitestIt): void {
 }
 
 /** Register Candidate-lineage scenarios at the cheapest faithful boundary. */
-export function registerCandidateLineageSuite(mode: CandidateLineageSuiteMode): void {
+export function registerCandidateLineageSuite(mode: CandidateLineageSuiteMode, partition?: CandidateLineagePartition): void {
   suiteMode = mode;
   const it = ((
     name: string,
     handler: () => void | Promise<void>,
     timeout?: number,
   ) => {
-    const selected = INTEGRATION_CASES.has(name) ? mode === "integration" : mode === "e2e";
+    const selected = selectsCandidateLineageCase(mode, name, partition);
     if (selected) vitestIt(name, handler, timeout);
   }) as typeof vitestIt;
   registerReviewFixCandidateLineage(it);
