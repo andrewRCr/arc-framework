@@ -55,7 +55,7 @@ it("includes real controller closing and retains native case metadata for existi
     await cp(resolve(import.meta.dirname, "../../test-cost-budgets.json"), join(fixture.packageRoot, "test-cost-budgets.json"));
     const configuration = join(fixture.packageRoot, "vitest.config.ts");
     await writeFile(configuration, (await readFile(configuration, "utf8")).replace("closeBundle() {",
-      'async closeBundle() { const started = Date.now(); await new Promise(resolve => setTimeout(resolve, 800)); '
+      'async closeBundle() { const started = Date.now(); await new Promise(resolve => setTimeout(resolve, 50)); '
       + 'appendFileSync(events, JSON.stringify({ closingStart: started, closingEnd: Date.now() }) + "\\n");'));
     await writeFile(join(fixture.packageRoot, "__tests__/unit/named.test.mjs"), `
 import { it, TestRunner } from "vitest";
@@ -76,10 +76,13 @@ it("native metadata case", () => {
       .map((line) => JSON.parse(line) as { closingStart: number; closingEnd: number });
     const closingMs = Math.max(...closing.map((event) => event.closingEnd))
       - Math.min(...closing.map((event) => event.closingStart));
-    expect(closingMs).toBeGreaterThanOrEqual(800);
+    expect(closingMs).toBeGreaterThanOrEqual(50);
     const record: unknown = JSON.parse(await readFile(output, "utf8"));
     assertRetainedTestCostRun(record, output);
     expect(record.wallClockMs).toBeGreaterThanOrEqual(closingMs);
+    const lastClosingEnd = Math.max(...closing.map((event) => event.closingEnd));
+    expect(Date.parse(record.capturedAt) + record.wallClockMs + (record.admissionWaitMs ?? 0))
+      .toBeGreaterThanOrEqual(lastClosingEnd);
     expect(record).toMatchObject({ schemaVersion: 4, outcome: "passed", cliSpawnCount: 2 });
     expect(record.files.flatMap((file) => file.tests).find((test) => test.name === "native metadata case"))
       .toMatchObject({ cliSpawnCount: 2, cliTimeoutMs: 1500, vitestTimeoutMs: 5000 });

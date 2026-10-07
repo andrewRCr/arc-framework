@@ -8,6 +8,9 @@ import { describe, expect, it } from "vitest";
 import { softWrappedProse } from "../../helpers/soft-wrapped-prose.js";
 import ts from "typescript";
 
+/** Timeout for measured repository scans on slower hosted runners. */
+const REPOSITORY_SCAN_TIMEOUT = 10_000;
+
 const PACKAGE_ROOT = resolve(import.meta.dirname, "../../..");
 const SOURCE_ROOT = join(PACKAGE_ROOT, "src");
 const PROJECT_ROOT = resolve(PACKAGE_ROOT, "../..");
@@ -74,7 +77,7 @@ describe("decomposition v3 authority boundary", () => {
     ]);
 
     expect(identifierViolations(forbidden)).toEqual([]);
-  });
+  }, REPOSITORY_SCAN_TIMEOUT);
 
   it("carries no receipt-era transaction vocabulary in production", () => {
     const forbidden = new Set([
@@ -92,7 +95,7 @@ describe("decomposition v3 authority boundary", () => {
     ]);
 
     expect(identifierViolations(forbidden)).toEqual([]);
-  });
+  }, REPOSITORY_SCAN_TIMEOUT);
 
   it("keeps receipt-free base advancement independent of retired codecs and authorities", () => {
     const advancement = join(SOURCE_ROOT, "lib/work-unit/git-decompose-transition-base-advancement.ts");

@@ -7,6 +7,9 @@ import { describe, expect, it } from "vitest";
 
 import { META_FIELDS } from "../../../src/lib/active/meta-reader.js";
 
+/** Timeout for measured repository scans on slower hosted runners. */
+const REPOSITORY_SCAN_TIMEOUT = 10_000;
+
 const testDirectory = fileURLToPath(new URL(".", import.meta.url));
 const sourceRoot = resolve(testDirectory, "../../../src");
 
@@ -66,5 +69,5 @@ describe("semantic meta writer boundary", () => {
     }
 
     expect(violations).toEqual([]);
-  });
+  }, REPOSITORY_SCAN_TIMEOUT);
 });

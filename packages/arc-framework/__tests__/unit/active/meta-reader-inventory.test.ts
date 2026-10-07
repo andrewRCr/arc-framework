@@ -13,7 +13,7 @@ const projectionAuthority = "lib/active/meta-reader.ts";
 // Creation admission reads only placement fields and preserves unrelated raw meta content.
 const placementCreationReader = "lib/store/in-repo/write-admission.ts";
 const rawListPolicyReader = "scripts/validate-meta-spec.ts";
-const REPOSITORY_SCAN_TIMEOUT = 15_000;
+const REPOSITORY_SCAN_TIMEOUT = 20_000;
 
 function typescriptFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {

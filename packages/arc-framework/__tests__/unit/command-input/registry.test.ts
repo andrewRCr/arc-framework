@@ -12,7 +12,7 @@ import {
 } from "../../../src/lib/command-input/index.js";
 import { commandInputRegistrations } from "../../../src/command-input-registrations.js";
 
-const REPOSITORY_SCAN_TIMEOUT = 15_000;
+const REPOSITORY_SCAN_TIMEOUT = 25_000;
 
 describe("command-input schema adapter and registry", () => {
   it("parses equivalent argument and prompt values through one command-owned schema", () => {

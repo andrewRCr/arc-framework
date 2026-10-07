@@ -6,6 +6,9 @@ import { join, relative, resolve, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
 
+/** Timeout for measured repository scans on slower hosted runners. */
+const REPOSITORY_SCAN_TIMEOUT = 10_000;
+
 function sourceFiles(root: string): string[] {
   return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
     const path = join(root, entry.name);
@@ -68,5 +71,5 @@ describe("layout import boundary", () => {
       join("commands", "init.ts"),
       join("handlers", "start.ts"),
     ]));
-  });
+  }, REPOSITORY_SCAN_TIMEOUT);
 });

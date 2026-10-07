@@ -55,15 +55,15 @@ it("uses explicit thread pools, two workers, and parallel files over configured 
 import { it, expect } from "vitest";
 import { isMainThread } from "node:worker_threads";
 import { existsSync, writeFileSync } from "node:fs";
-it("runs concurrently in native threads", async () => {
+it("runs concurrently in native threads", async ({ task }) => {
   expect(isMainThread).toBe(false);
   writeFileSync(${JSON.stringify(join(directory, `${file}.ready`))}, "ready");
-  const deadline = Date.now() + 2000;
+  const deadline = Date.now() + Math.floor(task.timeout / 2);
   while (!existsSync(${JSON.stringify(join(directory, `${other}.ready`))}) && Date.now() < deadline) {
     await new Promise(resolve => setTimeout(resolve, 10));
   }
   expect(existsSync(${JSON.stringify(join(directory, `${other}.ready`))})).toBe(true);
-});
+}, 15_000);
 `);
   const result = await runFocusedTestFixture(fixture.root, ["packages/arc-framework/__tests__/unit/parallel",
     "--pool", "threads", "--maxWorkers", "2", "--fileParallelism"], { VITEST_MAX_WORKERS: undefined });
@@ -82,7 +82,7 @@ import { it } from "vitest";
 import { writeFileSync, rmSync } from "node:fs";
 it("holds exclusive file execution", async () => {
   writeFileSync(${JSON.stringify(join(directory, "active"))}, "active", { flag: "wx" });
-  try { await new Promise(resolve => setTimeout(resolve, 300)); }
+  try { await new Promise(resolve => setTimeout(resolve, 50)); }
   finally { rmSync(${JSON.stringify(join(directory, "active"))}); }
 });
 `);

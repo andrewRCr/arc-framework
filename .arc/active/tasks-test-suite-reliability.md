@@ -125,30 +125,26 @@ untracked module, and every test that reads a renewing lock retries an empty or 
           focused-runtime case puts both its admission-lock read and parse inside `vi.waitFor`; absence assertions
           keep direct reads.
 
-### `[ ]` **2.4 Name the remaining heavy unit timeouts and re-size fixed timing windows — D1**
+### `[x]` **2.4 Name the remaining heavy unit timeouts and re-size fixed timing windows — D1**
 
 - _Goal:_ Unit tests that keep heavy real work carry a named explicit timeout instead of leaning on the 5 s default,
   and fixture timing windows hold on a loaded runner without spending more fixed wall time than their assertions
   need.
 
-    - `[ ]` **2.4.a Named timeouts for heavy tests that stay in the unit tier**
-        - From the list Task 1.2.c records, every test outside the native-tooling families gets a named timeout
-          constant in the `REPOSITORY_SCAN_TIMEOUT` idiom; a source-scan case Phase 4 later deletes takes its constant
-          with it. Native-tooling tests are settled by their Phase 3 conversion.
-        - Each timeout is sized so the test's slowest hosted baseline duration, scaled by the spec's observed 1.7×
-          runner variance, stays under half of it.
-        - The unit projects' 5 s default stays.
+    - `[x]` **2.4.a Named timeouts for heavy tests that stay in the unit tier**
+        - Measured non-native cases use `REPOSITORY_SCAN_TIMEOUT`, sized above 3.4 times their frozen hosted
+          maximum and rounded up to 5-second increments. Values range from 10 to 25 seconds; the tier default is
+          unchanged. The excluded refusal-source-totality cases land separately in 2.4.R (A2).
 
-    - `[ ]` **2.4.b Derive the parallelism-readiness deadline from the test's timeout**
-        - The 2 s readiness deadline in `focused-test-execution.test.ts:61` sits in the fixture's inner test, which
-          runs under Vitest's 5 s default because the fixture's configuration sets no timeout. The deadline takes a
-          bound derived from that inner timeout, so a second worker starting late on a loaded runner still meets it,
-          and the inner test sets its timeout explicitly when the bound cannot hold under the 1.7× runner variance.
+    - `[x]` **2.4.b Derive the parallelism-readiness deadline from the test's timeout**
+        - The inner thread test has an explicit 15-second timeout and spends at most half on readiness, allowing
+          7.5 seconds for a second worker while retaining time for its assertion and cleanup.
 
-    - `[ ]` **2.4.c Shrink the exclusivity hold and the injected closing delay**
-        - The 300 ms hold (`focused-test-execution.test.ts:85`) and the 800 ms closing delay
-          (`test-cost-native.test.ts:58`, asserted with `>=`) each shrink to the smallest window its assertion still
-          distinguishes. The chosen values and their reasoning are recorded in this task.
+    - `[x]` **2.4.c Shrink the exclusivity hold and the injected closing delay**
+        - Both waits are 50 ms. Forced parallel execution still fails on the exclusive file; capturing elapsed time
+          before controller close fails the new endpoint assertion. The closing test compares retained start plus
+          elapsed and admission wait with the observed closing endpoint, so startup overhead cannot hide omission
+          of the shorter closing interval.
 
 ### `[ ]` **2.4.R Size the excluded scan cases' timeouts — D1**
 

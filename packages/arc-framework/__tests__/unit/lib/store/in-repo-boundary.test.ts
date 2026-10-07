@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 const sourceRoot = resolve("src");
 const testRoot = resolve("__tests__");
-const REPOSITORY_SCAN_TIMEOUT = 15_000;
+const REPOSITORY_SCAN_TIMEOUT = 20_000;
 async function sourceFiles(root: string): Promise<string[]> {
   const files: string[] = [];
   for (const entry of await readdir(root, { withFileTypes: true })) {

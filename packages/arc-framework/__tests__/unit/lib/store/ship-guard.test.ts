@@ -6,6 +6,9 @@ import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { referenceBundleInputs, referenceImportViolations, type ReferenceMetafile } from "../../../helpers/store/ship-guard.js";
 
+/** Timeout for measured repository scans on slower hosted runners. */
+const REPOSITORY_SCAN_TIMEOUT = 20_000;
+
 const packageRoot = resolve(import.meta.dirname, "../../../..");
 const referenceRoot = join(packageRoot, "__tests__/helpers/store");
 const temporaryRoots: string[] = [];
@@ -25,7 +28,7 @@ async function importFixture(statement: string): Promise<{ source: string; backe
 describe("reference backend import boundary", () => {
   it("finds no production import into the test-only reference backend", () => {
     expect(referenceImportViolations(join(packageRoot, "src"), referenceRoot)).toEqual([]);
-  });
+  }, REPOSITORY_SCAN_TIMEOUT);
 
   it.each([
     "import { backend } from '../__tests__/helpers/store/reference-backend.js';",
