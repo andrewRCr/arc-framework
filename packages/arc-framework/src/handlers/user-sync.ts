@@ -37,9 +37,10 @@ import {
 } from "../lib/command-input/interaction-context.js";
 import {
   declareCliOptionSite,
-  declareInteractionSite,
+  declarePromptSite,
   type CommandInputDeclaration,
 } from "../lib/command-input/declaration.js";
+import { prompt } from "../lib/command-input/prompter.js";
 import { createSyncOutput } from "../lib/sync-output.js";
 import { resolveNotesPushPolicy } from "../lib/config/resolved-settings.js";
 import { pushNotesWithReconcile } from "./push-recovery.js";
@@ -57,6 +58,34 @@ export interface UserSyncOptions {
   yes?: boolean;
 }
 
+/** Declared acquisition for notes direction selection. */
+export const userSyncConflictPromptSite = declarePromptSite("prompt.user-sync.conflict", "select",
+  { file: "handlers/user-sync.ts", symbol: "userSyncConflictPromptSite" }, {
+    acquisition: "safe-default", schemaOwnership: "none", cancellation: "stop",
+    defaultSource: "save-only",
+    automation: { noInput: "use-default", flags: [],
+      acceptedSyntax: [] },
+    mutationBoundary: "notes direction selection", subprocess: "none",
+  });
+
+/** Declared acquisition for remote notes overwrite. */
+export const userSyncOverwritePromptSite = declarePromptSite("prompt.user-sync.overwrite", "confirm",
+  { file: "handlers/user-sync.ts", symbol: "userSyncOverwritePromptSite" }, {
+    acquisition: "protected-confirmation", schemaOwnership: "none", cancellation: "stop",
+    automation: { noInput: "require-authority", flags: ["--yes"],
+      acceptedSyntax: ["--yes"] },
+    mutationBoundary: "remote notes overwrite", subprocess: "none",
+  });
+
+/** Declared acquisition for notes push escalation. */
+export const userSyncNotesPushPromptSite = declarePromptSite("prompt.user-sync.notes-push", "confirm",
+  { file: "handlers/user-sync.ts", symbol: "userSyncNotesPushPromptSite" }, {
+    acquisition: "protected-confirmation", schemaOwnership: "none", cancellation: "stop",
+    automation: { noInput: "require-authority", flags: ["--yes"],
+      acceptedSyntax: ["--yes"] },
+    mutationBoundary: "notes push escalation", subprocess: "none",
+  });
+
 /** Command-owned policy for the contested-direction safe default. */
 export const userSyncCommandInputPolicyDeclarations = [{
   commandPath: "user sync",
@@ -65,45 +94,14 @@ export const userSyncCommandInputPolicyDeclarations = [{
     acquisition: "protected-confirmation", schemaOwnership: "none", cancellation: "not-applicable",
     automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: [] },
     mutationBoundary: "user sync handler", subprocess: "none",
-  }), declareInteractionSite(
-    { file: "handlers/user-sync.ts", kind: "prompt", callee: "p.select", occurrence: 1 },
-    {
-    acquisition: "safe-default",
-    schemaOwnership: "none",
-    defaultSource: "save-only",
-    cancellation: "stop",
-    automation: { noInput: "use-default", flags: [], acceptedSyntax: [] },
-    mutationBoundary: "notes direction selection",
-    subprocess: "none",
-    },
-  ), declareInteractionSite(
-    { file: "handlers/user-sync.ts", kind: "prompt", callee: "p.confirm", occurrence: 1 },
-    {
-      acquisition: "protected-confirmation",
-      schemaOwnership: "none",
-      cancellation: "stop",
-      automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: ["--yes"] },
-      mutationBoundary: "remote notes overwrite",
-      subprocess: "none",
-    },
-  ), declareInteractionSite(
-    { file: "handlers/user-sync.ts", kind: "prompt", callee: "p.confirm", occurrence: 2 },
-    {
-      acquisition: "protected-confirmation",
-      schemaOwnership: "none",
-      cancellation: "stop",
-      automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: ["--yes"] },
-      mutationBoundary: "notes push escalation",
-      subprocess: "none",
-    },
-  )],
+  }), userSyncConflictPromptSite, userSyncOverwritePromptSite, userSyncNotesPushPromptSite],
 }] satisfies readonly CommandInputDeclaration[];
 
 type DirectionParams = {
   cwd: string;
   io: ReturnType<typeof createUserIOContext>;
   identity: string;
-  yes: boolean;
+  confirmedPush?: boolean;
   interaction: InteractionContext;
   restoreAfterPush?: boolean;
   recordPartialPushOnFailure?: boolean;
@@ -147,7 +145,6 @@ export async function handleUserSync(
     p.log.info(worktreeQualifier);
   }
   const action = decideSyncAction(state);
-  const yes = context.confirmation === "accept";
 
   switch (action) {
     case "noop":
@@ -164,7 +161,6 @@ export async function handleUserSync(
         cwd,
         io,
         identity,
-        yes,
         interaction: context,
         recordPartialPushOnFailure: worktree.state === "clean",
         worktreeBranch,
@@ -172,11 +168,11 @@ export async function handleUserSync(
       return;
     case "pull":
       p.log.info("→ Pulling the newer remote git note and restoring it to working files.");
-      await handlePullDirection({ cwd, io, identity, yes, interaction: context });
+      await handlePullDirection({ cwd, io, identity, interaction: context });
       return;
     case "load":
       p.log.info("→ Restoring the local git note to working files.");
-      await handleLoadDirection({ cwd, io, identity, yes, interaction: context });
+      await handleLoadDirection({ cwd, io, identity, interaction: context });
       return;
     case "push-load":
       p.log.info("→ Pushing the newer local git note, then restoring it to working files.");
@@ -184,7 +180,6 @@ export async function handleUserSync(
         cwd,
         io,
         identity,
-        yes,
         interaction: context,
         restoreAfterPush: true,
         recordPartialPushOnFailure: worktree.state === "clean",
@@ -206,7 +201,7 @@ export async function handleUserSync(
       p.outro("Done.");
       return;
     case "conflict":
-      await handleConflict({ cwd, io, identity, yes, interaction: context, worktreeBranch });
+      await handleConflict({ cwd, io, identity, interaction: context, worktreeBranch });
       return;
   }
 }
@@ -250,29 +245,30 @@ export function decideSyncAction(state: UserSyncState): SyncAction {
 }
 
 async function handleConflict(params: DirectionParams): Promise<void> {
-  if (params.interaction.interaction === "forbidden") {
-    await degradeConflictToSaveOnly(params);
-    return;
+  if (params.interaction.interaction === "allowed") {
+    p.log.warn("Local and remote git notes conflict (both moved since common ancestor).");
   }
-
-  p.log.warn("Local and remote git notes conflict (both moved since common ancestor).");
-  const action = await p.select({
-    message: "How would you like to resolve sync?",
+  const answer = await prompt(userSyncConflictPromptSite, params.interaction, {
+    message: "How would you like to resolve sync?", runtimeDefault: "save-only",
     options: [
       { value: "push", label: "Push local state to remote" },
       { value: "inspect", label: "Inspect status before deciding" },
       { value: "cancel", label: "Cancel" },
     ],
   });
-
-  if (p.isCancel(action) || action === "cancel") {
+  if (answer.kind !== "answered" || answer.value === "cancel") {
     p.log.info("Sync cancelled.");
     return;
   }
+  if (answer.value === "save-only") {
+    await degradeConflictToSaveOnly(params);
+    return;
+  }
+  const action = answer.value;
 
   // User explicitly chose the direction via the conflict select — skip the
   // redundant overwrite confirm in the downstream handler.
-  const confirmed: DirectionParams = { ...params, yes: true };
+  const confirmed: DirectionParams = { ...params, confirmedPush: true };
 
   if (action === "push") {
     p.log.info("→ Pushing the local git note to remote.");
@@ -314,20 +310,19 @@ async function degradeConflictToSaveOnly(params: DirectionParams): Promise<void>
 }
 
 async function handlePullDirection(params: DirectionParams): Promise<void> {
-  const { cwd, io, identity, yes } = params;
+  const { cwd, io, identity } = params;
 
   const hasLocal = await hasLocalNotes(io, identity);
-  if (hasLocal && !yes) {
-    if (params.interaction.interaction === "forbidden") {
+  if (hasLocal) {
+    const answer = await prompt(userSyncOverwritePromptSite, params.interaction, {
+      message: OVERWRITE_CONFIRM_MESSAGE, initialValue: true,
+    });
+    if (answer.kind === "refused") {
       p.log.error("Local notes would be overwritten; re-run with --yes to authorize the pull.");
       process.exitCode = 1;
       return;
     }
-    const proceed = await p.confirm({
-      message: OVERWRITE_CONFIRM_MESSAGE,
-      initialValue: true,
-    });
-    if (p.isCancel(proceed) || !proceed) {
+    if (answer.kind !== "answered" || !answer.value) {
       p.log.info("Pull cancelled.");
       return;
     }
@@ -397,6 +392,23 @@ async function handleLoadDirection(params: DirectionParams): Promise<void> {
   }
 }
 
+/** Resolve the notes question, retaining explicit conflict-direction approval. */
+async function confirmUserSyncNotesPush(params: DirectionParams): Promise<boolean> {
+  const answer = await prompt(userSyncNotesPushPromptSite, params.interaction, {
+    message: "Push user notes to remote now?", initialValue: true,
+    explicitAnswer: params.confirmedPush === true ? true : undefined,
+  });
+  if (answer.kind === "answered" && answer.value) return true;
+  if (answer.kind === "refused") {
+    p.log.error("Notes saved locally; re-run with --yes to authorize the push.");
+    process.exitCode = 1;
+    return false;
+  }
+  p.log.info("Push skipped. Run `arc user push` when ready.");
+  p.outro("Done.");
+  return false;
+}
+
 async function handlePushDirection(params: DirectionParams): Promise<void> {
   const { cwd, io, identity, restoreAfterPush } = params;
   const output = createSyncOutput(false);
@@ -408,11 +420,7 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
     warn: (message) => { output.log.warn(message); },
   });
 
-  let policy = resolved.value;
-  if (policy === "prompt" && params.interaction.interaction === "forbidden" && !params.yes) {
-    p.log.warn('Interaction is unavailable — degrading "prompt" policy to "manual" (save only).');
-    policy = "manual";
-  }
+  const policy = resolved.value;
 
   const saveSpinner = p.spinner();
   saveSpinner.start("Saving user directory...");
@@ -439,17 +447,7 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
     return;
   }
 
-  if (policy === "prompt" && !params.yes) {
-    const shouldPush = await p.confirm({
-      message: "Push user notes to remote now?",
-      initialValue: true,
-    });
-    if (p.isCancel(shouldPush) || !shouldPush) {
-      p.log.info("Push skipped. Run `arc user push` when ready.");
-      p.outro("Done.");
-      return;
-    }
-  }
+  if (policy === "prompt" && !(await confirmUserSyncNotesPush(params))) return;
 
   const pushResult = await pushNotesWithReconcile({
     io,

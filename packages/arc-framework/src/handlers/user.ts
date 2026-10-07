@@ -921,6 +921,14 @@ export const userCommandInputRegistrations = [
   { commandPath: "user pull", schema: UserPullInputSchema, schemaFields: { "option.identity": "identity" } },
 ] as const satisfies readonly CommandInputRegistration[];
 
+/** Authority required before replacing local user notes. */
+export const userPullOverwritePromptSite = declarePromptSite("prompt.user-pull.overwrite", "confirm",
+  { file: "handlers/user.ts", symbol: "userPullOverwritePromptSite" }, {
+    acquisition: "protected-confirmation", schemaOwnership: "none", cancellation: "stop",
+    automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: ["--yes"] },
+    mutationBoundary: "local notes overwrite", subprocess: "none",
+  });
+
 /** Non-destructive disposition of a residual stale user workspace. */
 export const staleSubdirPromptSite = declarePromptSite("prompt.stale-subdir", "select",
   { file: "handlers/user.ts", symbol: "staleSubdirPromptSite" }, {
@@ -970,17 +978,7 @@ export const userCommandInputPolicyDeclarations = [{
     acquisition: "protected-confirmation", schemaOwnership: "none", cancellation: "not-applicable",
     automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: [] },
     mutationBoundary: "user pull handler", subprocess: "none",
-  }), declareInteractionSite(
-    { file: "handlers/user.ts", kind: "prompt", callee: "p.confirm", occurrence: 1 },
-    {
-      acquisition: "protected-confirmation",
-      schemaOwnership: "none",
-      cancellation: "stop",
-      automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: ["--yes"] },
-      mutationBoundary: "local notes overwrite",
-      subprocess: "none",
-    },
-  )],
+  }), userPullOverwritePromptSite],
 }, {
   commandPath: "user compact",
   aliases: [],
@@ -1044,17 +1042,16 @@ export async function handleUserPull(
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
 
-  if (hasLocal && context.confirmation !== "accept") {
-    if (context.interaction === "forbidden") {
+  if (hasLocal) {
+    const answer = await prompt(userPullOverwritePromptSite, context, {
+      message: OVERWRITE_CONFIRM_MESSAGE, initialValue: true,
+    });
+    if (answer.kind === "refused") {
       p.log.error("Local notes would be overwritten; re-run with --yes to authorize the pull.");
       process.exitCode = 1;
       return;
     }
-    const proceed = await p.confirm({
-      message: OVERWRITE_CONFIRM_MESSAGE,
-      initialValue: true,
-    });
-    if (p.isCancel(proceed) || !proceed) {
+    if (answer.kind !== "answered" || !answer.value) {
       p.log.info("Pull cancelled.");
       return;
     }

@@ -11,9 +11,8 @@
  *   errors still route to stderr because they carry recovery guidance not
  *   reconstructible from envelope result codes (partial-publish, force-push,
  *   identity-absent). Stdout stays pure for the JSON envelope; stderr stays
- *   useful for the consumer who reads it. Interactive `confirm` returns
- *   `false` so the prompt cell can never suspend a non-interactive consumer
- *   waiting for input.
+ *   useful for the consumer who reads it. Confirmation answers come from the
+ *   caller's declared policy and invocation context.
  *
  * Info-level suppression rationale: every `output.log.info` site duplicates
  * data already in the JSON envelope (`worktree.result`, `notes.result`,
@@ -21,14 +20,13 @@
  * same signal; an info-level line on stderr is redundant chatter that turns
  * `2>&1 | jq` into a foot-gun.
  *
- * The orchestrator additionally degrades `notes_push: prompt` → `manual` at
- * policy-resolution time when `opts.json` is set, so the JSON-mode confirm
- * fallback only protects callers from an unexpected prompt path.
- *
  * @module
  */
 
 import * as p from "@clack/prompts";
+import { prompt, type ConfirmQuestion, type PromptOutcome } from "./command-input/prompter.js";
+import type { PromptSite } from "./command-input/declaration.js";
+import type { InteractionContext } from "./command-input/interaction-context.js";
 
 export interface SyncOutputSpinner {
   start(message?: string): void;
@@ -46,8 +44,8 @@ export interface SyncOutput {
   };
   note(message: string, title?: string): void;
   spinner(): SyncOutputSpinner;
-  confirm(opts: { message: string; initialValue?: boolean }): Promise<boolean | symbol>;
-  isCancel(value: unknown): boolean;
+  confirm(site: PromptSite<"confirm">, context: InteractionContext,
+    opts: ConfirmQuestion): Promise<PromptOutcome<boolean>>;
 }
 
 function writeStderr(prefix: string, message: string): void {
@@ -67,8 +65,7 @@ export function createSyncOutput(jsonMode: boolean): SyncOutput {
       },
       note: (message, title) => { p.note(message, title); },
       spinner: () => p.spinner(),
-      confirm: (opts) => p.confirm(opts),
-      isCancel: (value) => p.isCancel(value),
+      confirm: prompt,
     };
   }
   return {
@@ -82,7 +79,6 @@ export function createSyncOutput(jsonMode: boolean): SyncOutput {
     },
     note: () => undefined,
     spinner: () => ({ start: () => undefined, stop: () => undefined }),
-    confirm: () => Promise.resolve(false),
-    isCancel: () => false,
+    confirm: prompt,
   };
 }

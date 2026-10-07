@@ -362,7 +362,7 @@
   },
   "src/handlers/sync.ts": {
     "complexity": {
-      "count": 2
+      "count": 1
     },
     "max-lines": {
       "count": 1
@@ -374,9 +374,6 @@
   "src/handlers/user-sync.ts": {
     "complexity": {
       "count": 3
-    },
-    "max-lines-per-function": {
-      "count": 1
     }
   },
   "src/handlers/user.ts": {

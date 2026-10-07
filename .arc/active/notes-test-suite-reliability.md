@@ -1817,3 +1817,44 @@ ends, retaining the established ordering mitigation for disposable loader siblin
 The full build qualifies (`/tmp/arc-start-identity-build.log`) and whole-project typed lint passes
 (`/tmp/arc-start-identity-full-lint.log`). The finalized task record preserves its Goal and records both caller-owned
 wrapper migrations without advancing the verification phase.
+
+## Sync and user prompt migration
+
+Five caller-owned declarations replace sync's duplicate helper/physical question, user-sync's three prompts, and
+user-pull's overwrite prompt. `SyncOutput.confirm` forwards site, context and question to the prompter in both output
+modes; its JSON false answer and `isCancel` retire. The capturing output helper preserves this real policy path.
+Overwrite refusals retain the existing `--yes` remedy, exit status and cancellation text. User-sync conflict selection
+always asks with runtime default `save-only`; the existing non-interactive save/warnings follow that returned value.
+The interactive options remain push, inspect and cancel. Explicit conflict push approval enters the downstream
+question as an explicit answer, rather than synthesizing invocation authority.
+
+The two notes-push degradation drifts resolve toward their `require-authority` declarations: local saving still occurs,
+but an unavailable authority now reports `Notes saved locally; re-run with --yes to authorize the push.` and fails.
+Interactive decline/cancellation retain their successful cancellation outcomes and manual-push guidance. Sync's
+`interlockState` retains the configured `prompt` value; JSON and dry-run metadata no longer replace it with `manual`
+or `on-sync`. Both authority and unavailable contexts reach the prompter, keeping terminal output pure in JSON mode.
+
+The authority-accepted worktree/notes pair retains its existing paired executor. A narrow advisor consultation identifies
+that the single-leg route would lose save-before-publication, immutable export planning and partial-push recovery
+markers. Source confirms those guarantees in `commands/user/paired-push.ts`. Sync first obtains the affirmative
+prompter outcome, then derives execution-only `save+push` intent for that pair while keeping configured policy in the
+interlock snapshot. Ordinary interactive prompt timing is preserved; no paired recovery machinery is duplicated.
+The original prompt-plus-authority paired-adapter regression remains, rather than moving it to an on-sync fixture.
+
+Both new notes-refusal cases fail against the old branches (`/tmp/arc-sync-prompts-red-corrected.log`). An initial
+extra npm separator is rejected before executing tests and is excluded from fail-first evidence. Five policy/metadata
+cases fail against the narrow old rewrite reconstruction (`/tmp/arc-sync-policy-reconstruction-red.log`). The first
+native restoration reaches an earlier worktree block because installation leaves its clone ahead of origin;
+`/tmp/arc-sync-native-final-green.log` remains failed. Aligning the fixture with origin reaches the actual prompt.
+That final native fixture fails against the old rewrite (`/tmp/arc-sync-native-reconstruction-prepared-red.log`) and
+passes after byte-for-byte source restoration (`/tmp/arc-sync-native-prepared-green.log`, one completed case).
+All 170 focused cases pass with paired execution preserved (`/tmp/arc-sync-prompts-preserved-pair-green.log`).
+The capturing helper's new real-propmter import exposes an unhoisted direct Clack log mock; hoisting it is the
+same-concern fixture correction. Both type programs pass (`/tmp/arc-sync-prompts-types-final.log`). Whole-project lint
+first reports obsolete suppressions, then its prune passes (`/tmp/arc-sync-prompts-prune.log`), reducing sync's recorded
+complexity count from two to one and removing user-sync's recorded function-length violation. No debt is added.
+The complete routine gate passes 1,119 files and 16,704 cases, with one file and 1,188 cases skipped
+(`/tmp/arc-sync-prompts-routine.log`, 200.03 s). The entire native E2E tier passes all 67 files and 701 cases
+(`/tmp/arc-sync-prompts-e2e.log`, 247.91 s). The full declaration build qualifies
+(`/tmp/arc-sync-prompts-build.log`). Markdown and all three ARC contract checks pass
+(`/tmp/arc-sync-prompts-md.log`); the unchanged shell inputs retain the preceding wrapper slice's passing gate.

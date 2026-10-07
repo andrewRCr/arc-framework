@@ -74,7 +74,7 @@ describe("repository command-input inventory", () => {
         noInput: "use-default",
       }),
       expect.objectContaining({
-        identity: "user sync:interaction.handlers-user-sync.ts-prompt-p.select-1",
+        identity: "user sync:prompt.user-sync.conflict",
         acquisition: "safe-default",
         noInput: "use-default",
       }),

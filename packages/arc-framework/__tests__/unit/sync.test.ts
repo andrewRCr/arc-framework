@@ -571,6 +571,19 @@ describe("handleUserSync push policy", () => {
     expect(mockLog.info).toHaveBeenCalledWith(expect.stringContaining("policy: manual"));
   });
 
+  it("refuses prompt-policy publication without authority after saving locally", async () => {
+    const errors: string[] = [];
+    mockLog.error.mockImplementation((message: string) => { errors.push(message); });
+    mockIsNonInteractive.mockReturnValue(true);
+    setPolicy("prompt");
+    mockRunUserSave.mockResolvedValue({ warnings: [] });
+
+    await handleUserSync();
+
+    expect(errors).toEqual(["Notes saved locally; re-run with --yes to authorize the push."]);
+    expect(process.exitCode).toBe(1);
+  });
+
   it("prompts before push when policy is prompt", async () => {
     setPolicy("prompt");
     mockRunUserSave.mockResolvedValue({ warnings: [] });

@@ -863,28 +863,24 @@ prompter, every prompting handler takes a required interaction context, and each
           and join reconfiguration drops its identity callback. Both sites declare the settled Git-name default,
           replacing the incorrect explicit-only policies. Notes § Start and identity prompt wrappers retains proof.
 
-### `[ ]` **9.4 Migrate the sync and user prompts — D7**
+### `[x]` **9.4 Migrate the sync and user prompts — D7**
 
 - _Goal:_ The `sync`, `user sync`, and remaining `user` prompts reach the prompter only through their declarations,
   and the sync declaration that names one question twice retires.
 
-    - `[ ]` **9.4.a `SyncOutput.confirm` and its caller**
-        - `SyncOutput.confirm` (`lib/sync-output.ts`) passes its caller's site through, and its JSON-mode fallback that
-          answers `false` and its `isCancel` retire. The declaration naming the question as both `ctx.output.confirm`
-          (`handlers/sync.ts`) and `p.confirm` retires.
-        - The notes-push prompt declares `require-authority`, but `handleSync` decides before it asks: `--yes`, which
-          `sync` declares as `authority`, turns the `prompt` policy into `on-sync`, and a forbidden context degrades it
-          to `manual`, saving only, with a warning. The prompter's `accept` answer matches today's push; the save-only
-          degradation is a known drift candidate, resolved and recorded here.
+    - `[x]` **9.4.a `SyncOutput.confirm` and its caller**
+        - One exported notes-push site replaces duplicate declarations; the output wrapper forwards policy/context
+          in both modes. Configured prompt policy stays in metadata, and prompter-accepted authority preserves the
+          paired executor's save-before-publication and partial-push recovery guarantees.
 
-    - `[ ]` **9.4.b `handlers/user-sync.ts` and `handlers/user.ts`**
-        - Three calls and the remaining one; `user pull` still asks for a re-run with `--yes`.
-        - `handleUserSync`'s notes push declares `require-authority` and skips its prompt on `--yes`, matching the
-          prompter's `accept` answer, but degrades the `prompt` policy to `manual` in a forbidden context. That
-          degradation is a known drift candidate, resolved and recorded here.
-        - The conflict select declares `use-default` with a save-only default but offers only push, inspect, and
-          cancel, and `handleConflict` saves only, before asking, when interaction is forbidden. That is a known
-          drift candidate, resolved and recorded here.
+    - `[x]` **9.4.b `handlers/user-sync.ts` and `handlers/user.ts`**
+        - All four questions use their own sites. Conflict selection returns the declared save-only default;
+          explicit push direction enters the downstream question as an explicit answer. Overwrite refusals retain
+          their reports, and interactive decline/cancellation retain their behavior.
+
+- _Outcome:_ Both notes-push degradation drifts resolve toward declared authority: local saves remain, while
+  unavailable publication authority now reports a failing refusal and `--yes` remedy. Sync policy metadata retains
+  configuration rather than a substituted answer. Notes § Sync and user prompt migration records behavior and proof.
 
 ### `[ ]` **9.5 Migrate the release-setup prompts — D7**
 

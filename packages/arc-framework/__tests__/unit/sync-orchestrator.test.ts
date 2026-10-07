@@ -26,7 +26,7 @@ import { scriptGitExec } from "../helpers/git-exec-fake.js";
 
 const mockIntro = vi.fn();
 const mockOutro = vi.fn();
-const mockLog = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+const mockLog = vi.hoisted(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }));
 const mockNote = vi.fn();
 const mockConfirm = vi.fn();
 const mockIsCancel = vi.fn(() => false) as Mock<(value: unknown) => boolean>;
@@ -1011,7 +1011,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
     });
   });
 
-  it("interlockState reports the resolved notesPush after non-interactive degradation", async () => {
+  it("interlockState retains the configured prompt policy when authority is unavailable", async () => {
     setConfig("manual");
     setNotesPolicy("prompt");
     setWorktree("clean");
@@ -1027,7 +1027,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
 
     expect(outcome.interlockState).toEqual({
       pushInterlock: { value: "manual", source: "default" },
-      notesPush: { value: "manual", source: "default" },
+      notesPush: { value: "prompt", source: "default" },
       syncInterlock: { value: "on-handoff", source: "default" },
     });
   });
@@ -1200,7 +1200,7 @@ describe("--json stdout-purity contract", () => {
     expect(mockSpinner).not.toHaveBeenCalled();
   });
 
-  it("--json + notes_push: prompt → degrades to manual; never invokes confirm", async () => {
+  it("--json refuses a notes push without authority after preserving the local save", async () => {
     setConfig("manual");
     setNotesPolicy("prompt");
     setWorktree("clean");
@@ -1215,9 +1215,12 @@ describe("--json stdout-purity contract", () => {
     const stderrText = capturedStderr.join("");
 
     expect(mockConfirm).not.toHaveBeenCalled();
-    expect(outcome.cell).toBe("save-only");
-    expect(outcome.interlockState).toMatchObject({ notesPush: { value: "manual" } });
-    expect(stderrText).toMatch(/JSON output mode.+degrading "prompt"/);
+    expect(outcome.cell).toBe("notes-prompt");
+    expect(outcome.interlockState).toMatchObject({ notesPush: { value: "prompt" } });
+    expect(outcome.notes).toMatchObject({ action: "save", result: "blocked", detail: "notes-push-authority-required" });
+    expect(stderrText).toContain("Notes saved locally; re-run with --yes to authorize the push.");
+    expect(outcome.exitCode).toBe(1);
+    expect(process.exitCode).toBe(1);
   });
 
   it("non-JSON path keeps Clack output as-is (regression guard for routing flag)", async () => {
@@ -1252,7 +1255,7 @@ describe("--yes wiring", () => {
     process.exitCode = undefined;
   });
 
-  it("--yes degrades notes_push: prompt → on-sync; never invokes confirm", async () => {
+  it("--yes answers the configured notes prompt through authority without terminal input", async () => {
     setConfig("manual");
     setNotesPolicy("prompt");
     setWorktree("clean");
@@ -1268,11 +1271,11 @@ describe("--yes wiring", () => {
 
     expect(mockConfirm).not.toHaveBeenCalled();
     expect(mockPushWithRecovery).toHaveBeenCalledTimes(1);
-    expect(outcome.cell).toBe("notes-only");
-    expect(outcome.interlockState).toMatchObject({ notesPush: { value: "on-sync" } });
+    expect(outcome.cell).toBe("notes-prompt");
+    expect(outcome.interlockState).toMatchObject({ notesPush: { value: "prompt" } });
   });
 
-  it("--yes wins over JSON-mode prompt-degradation gate (on-sync > manual)", async () => {
+  it("JSON-mode notes prompt accepts explicit authority while retaining configuration", async () => {
     setConfig("manual");
     setNotesPolicy("prompt");
     setWorktree("clean");
@@ -1286,8 +1289,8 @@ describe("--yes wiring", () => {
 
     const outcome = await captureSyncJson({ yes: true });
 
-    expect(outcome.interlockState).toMatchObject({ notesPush: { value: "on-sync" } });
-    expect(outcome.cell).toBe("notes-only");
+    expect(outcome.interlockState).toMatchObject({ notesPush: { value: "prompt" } });
+    expect(outcome.cell).toBe("notes-prompt");
   });
 
   it("paired notes adapter delegates to the branch-bounded pusher and maps its outcome", async () => {
@@ -1329,7 +1332,7 @@ describe("--yes wiring", () => {
     expect(capturedNotesContext).toEqual({ status: "success" });
   });
 
-  it("--dry-run --json --yes → preview reflects degraded policy (notes-only, save+push)", async () => {
+  it("--dry-run --json --yes preview retains the configured notes prompt", async () => {
     setConfig("manual");
     setNotesPolicy("prompt");
     setWorktree("clean");
@@ -1340,8 +1343,8 @@ describe("--yes wiring", () => {
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
     expect(outcome).toMatchObject({
       mode: "dry-run",
-      cell: "notes-only",
-      interlockState: { notesPush: { value: "on-sync" } },
+      cell: "notes-prompt",
+      interlockState: { notesPush: { value: "prompt" } },
       notes: { action: "push", result: "skipped", detail: "dry-run" },
     });
   });
