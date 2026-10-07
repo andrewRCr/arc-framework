@@ -993,13 +993,13 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
 - _Outcome:_ Shared controller/focused fixture execution clears inherited worker sizing before explicit caller
   overrides. Native isolation, serial-execution and same-worker launch proofs retain their assertions.
 
-### `[ ]` **10.R4 Give the native closing delay a measurement margin**
+### `[x]` **10.R4 Give the native closing delay a measurement margin**
 
 - _Goal:_ The real controller-closing measurement proves at least 50 ms of retained teardown without expecting
   a timer requested at that exact threshold to meet a precise wall-clock duration.
 
-    - Increase only the synthetic closing delay from 50 to 75 ms, keeping the 50 ms floor and all retained-time,
-      metadata, admission, artifact and cleanup assertions. The eight-worker run retains the observed 49 ms red.
+- _Outcome:_ The injected closing delay is 75 ms while its proven floor remains 50 ms. Native endpoint retention,
+  metadata, ownership and cleanup assertions all remain; the exact-threshold timer flake is recorded in Notes.
 
 ### `[ ]` **10.R5 Bound default local workers — A7**
 

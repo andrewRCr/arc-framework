@@ -55,7 +55,7 @@ it("includes real controller closing and retains native case metadata for existi
     await cp(resolve(import.meta.dirname, "../../test-cost-budgets.json"), join(fixture.packageRoot, "test-cost-budgets.json"));
     const configuration = join(fixture.packageRoot, "vitest.config.ts");
     await writeFile(configuration, (await readFile(configuration, "utf8")).replace("closeBundle() {",
-      'async closeBundle() { const started = Date.now(); await new Promise(resolve => setTimeout(resolve, 50)); '
+      'async closeBundle() { const started = Date.now(); await new Promise(resolve => setTimeout(resolve, 75)); '
       + 'appendFileSync(events, JSON.stringify({ closingStart: started, closingEnd: Date.now() }) + "\\n");'));
     await writeFile(join(fixture.packageRoot, "__tests__/unit/named.test.mjs"), `
 import { it, TestRunner } from "vitest";
