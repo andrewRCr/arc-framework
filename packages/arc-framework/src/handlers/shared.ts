@@ -7,7 +7,7 @@
  * @module
  */
 
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
 
 import { resolveIdentity, isGitRepo, type GitExec } from "../lib/git/index.js";
 import { resolveArcRoot } from "../lib/paths.js";

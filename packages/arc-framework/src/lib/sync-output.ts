@@ -23,7 +23,7 @@
  * @module
  */
 
-import * as p from "@clack/prompts";
+import * as p from "./terminal.js";
 import { prompt, type ConfirmQuestion, type PromptOutcome } from "./command-input/prompter.js";
 import type { PromptSite } from "./command-input/declaration.js";
 import type { InteractionContext } from "./command-input/interaction-context.js";

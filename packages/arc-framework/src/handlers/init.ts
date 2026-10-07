@@ -4,7 +4,7 @@
  * @module
  */
 
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
 import { initIdentityPromptSite } from "../prompts/identity-prompt-sites.js";
 import { readFile } from "node:fs/promises";
 

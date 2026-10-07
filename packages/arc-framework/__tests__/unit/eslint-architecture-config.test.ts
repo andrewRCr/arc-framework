@@ -51,6 +51,8 @@ describe("composed architecture configuration", () => {
   });
 
   it.each([
+    ["src/handlers/user.ts", "@clack/prompts"],
+    ["src/lib/sync-output.ts", "@clack/prompts"],
     ["src/handlers/view.ts", "../commands/active.js"],
     ["src/handlers/view.ts", "../lib/git/index.js"],
     ["src/commands/active/status.ts", "../../lib/git/index.js"],
@@ -62,6 +64,19 @@ describe("composed architecture configuration", () => {
       2, expect.objectContaining({ paths: expect.arrayContaining([banned]) }),
     ]);
   });
+
+  it.each(["src/lib/terminal.ts", "src/lib/command-input/prompt-renderer.ts"])(
+    "allows clack only at its boundary in %s while retaining global architecture policy", async (path) => {
+      const configuration = await eslint.calculateConfigForFile(resolve(packageRoot, path)) as
+        { rules: Record<string, unknown> };
+      expect(configuration.rules["no-restricted-imports"]).not.toEqual([
+        2, expect.objectContaining({ paths: expect.arrayContaining(["@clack/prompts"]) }),
+      ]);
+      expect(await architectureOptions(path)).toEqual([2, expect.arrayContaining([
+        "neverthrow", "store-production", "store-reference", "layout-private", "configured-identity",
+      ])]);
+    },
+  );
 
   it.each([
     ["src/lib/config/status-reader.ts", 'CallExpression[callee.name="parseMetaProjectionRecord"]'],

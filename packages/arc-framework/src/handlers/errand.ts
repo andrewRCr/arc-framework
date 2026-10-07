@@ -16,7 +16,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import { basename } from "node:path";
 
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
 import { z } from "zod";
 
 import { runActiveInFlight } from "../commands/active.js";

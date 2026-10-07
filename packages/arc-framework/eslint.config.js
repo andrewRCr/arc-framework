@@ -31,6 +31,8 @@ const schemaOwners = ["lib/change-facts.schema.ts", "scripts/review-gate/core/ga
 const viewerFiles = ["lib/view-artifact.ts", "lib/view-renderer.ts", "lib/view/types.ts", "lib/view/format.ts", "lib/view/clock.ts"].map(src);
 const validationBan = restrictedReference("(?:^|/)validation\\.js$");
 const architectureBans = [
+  { files: [`src/${TYPESCRIPT_SCOPE}`],
+    ignores: [src("lib/terminal.ts"), src("lib/command-input/prompt-renderer.ts")], paths: ["@clack/prompts"] },
   { files: [`src/${TYPESCRIPT_SCOPE}`], predicates: ["neverthrow"] },
   { files: [`src/lib/kernel/${TYPESCRIPT_SCOPE}`], predicates: ["kernel"] },
   { files: [`src/${TYPESCRIPT_SCOPE}`], predicates: ["store-production", "store-reference"] },

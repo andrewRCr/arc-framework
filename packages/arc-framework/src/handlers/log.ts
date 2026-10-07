@@ -4,7 +4,7 @@
  * @module
  */
 
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
 import { z } from "zod";
 
 import { runLogStandalone, buildLogStandaloneOutput } from "../commands/log.js";

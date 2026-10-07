@@ -1890,3 +1890,23 @@ The complete routine gate passes 1,119 files and 16,705 cases, with one file and
 (`/tmp/arc-release-prompts-build.log`); Markdown and all three ARC contracts pass
 (`/tmp/arc-release-prompts-md.log`). The unchanged shell inputs retain their preceding passing gate. Required CI
 provides the complete E2E remainder; the local release cases prove the changed runtime paths.
+
+## Terminal presentation boundary
+
+`lib/terminal.ts` re-exports exactly Clack's `log`, `intro`, `outro`, `note`, `spinner` and `cancel`. All 27 remaining
+presentation importers route through it; release setup's two imports already retired with its prompt migration.
+The renderer retains the only direct question/cancellation import. A new composed architecture row restricts
+`@clack/prompts` across source, with exact terminal/renderer exceptions; overlapping paths, syntax and predicates
+remain combined by the existing scope composition. Module mocks continue to intercept the underlying Clack boundary.
+
+The two handler/library path cases fail before the ban (`/tmp/arc-terminal-ban-red.log`). A global ban without
+exceptions makes both boundary allowance cases fail (`/tmp/arc-terminal-exceptions-red.log`); adding only the two
+exceptions restores them while retaining all global architecture predicates. All 66 focused configuration,
+composition and inventory cases pass (`/tmp/arc-terminal-focused-green.log`), and the existing native architecture
+suites pass all 88 cases (`/tmp/arc-terminal-native-lint-green.log`). Both type programs and targeted lint pass
+(`/tmp/arc-terminal-types.log`, `/tmp/arc-terminal-targeted-lint.log`). The new source module is staged before the
+complete routine gate so Git-based source inventories include it. Whole-project typed lint passes without suppression
+changes (`/tmp/arc-terminal-full-lint.log`), and the full declaration build qualifies (`/tmp/arc-terminal-build.log`).
+The complete routine gate passes 1,119 files and 16,709 cases (one file and 1,188 cases skipped) in 206.75 seconds
+(`/tmp/arc-terminal-routine.log`). Markdown and all three ARC contract checks pass (`/tmp/arc-terminal-md.log`);
+unchanged shell inputs retain their preceding passing gate. Required CI supplies the E2E and portability remainder.

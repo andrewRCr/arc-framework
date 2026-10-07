@@ -38,7 +38,7 @@ import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { resolveBacklogStub } from "../lib/work-unit/backlog-stub.js";
 import { requireArcProjectRoot } from "./shared.js";
 
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
 import { z } from "zod";
 import { SlugSchema } from "../lib/kernel/index.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";

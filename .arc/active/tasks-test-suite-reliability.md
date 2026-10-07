@@ -892,19 +892,14 @@ prompter, every prompting handler takes a required interaction context, and each
   Recorded setup now requires an explicit idempotency choice, and the mode report matches `--mode <mode>`.
   Notes § Release setup prompt migration records both drift corrections and the real CLI proofs.
 
-### `[ ]` **9.6 Confine clack to one terminal module and the prompter — D7**
+### `[x]` **9.6 Confine clack to one terminal module and the prompter — D7**
 
 - _Goal:_ `@clack/prompts` is importable only by one terminal module and the prompter's renderer module, held there by
   `no-restricted-imports`, while handlers' presentation calls stay unchanged.
 
-- _Note:_ A test file's `vi.mock("@clack/prompts")` (13 files today) still intercepts every importer through the
-  re-export, since a module mock replaces the module for the test's whole module graph.
-
-    - A terminal module re-exports clack's presentation calls (`log`, `intro`, `outro`, `note`, `spinner`,
-      `cancel`), and every module still importing `@clack/prompts` (29 today) imports `p` from it. `isCancel` is not
-      re-exported, since declared cancellation replaces each use.
-    - `no-restricted-imports` confines `@clack/prompts` to that module and the renderer module, the prompter's only
-      route to clack, as a row of Task 4.3's composed ban table, and the table test gains its scope.
+- _Outcome:_ `lib/terminal.ts` exposes the six presentation exports; all 27 remaining presentation importers
+  route through it. The composed source-wide Clack ban exempts exactly that module and the prompt renderer while
+  retaining the other architecture restrictions. See `notes-test-suite-reliability.md` § Terminal presentation boundary.
 
 ### `[ ]` **9.7 Require the interaction context in prompting handlers and retire the prompt selector kinds — D7**
 

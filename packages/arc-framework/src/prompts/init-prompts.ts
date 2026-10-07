@@ -11,7 +11,7 @@
  * {@link InstallConfig}, token map, and condition config.
  */
 
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
 import { declarePromptSite, type PromptSite } from "../lib/command-input/declaration.js";
 import { prompt } from "../lib/command-input/prompter.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";

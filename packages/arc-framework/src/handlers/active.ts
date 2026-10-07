@@ -11,7 +11,7 @@
 
 import { readdir, readFile } from "node:fs/promises";
 
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
 
 import {
   buildActiveSessionInitSummary,

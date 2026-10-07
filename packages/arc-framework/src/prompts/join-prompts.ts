@@ -8,7 +8,7 @@
  * Returns a {@link JoinPromptResult} for the join orchestrator.
  */
 
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
 import { declarePromptSite } from "../lib/command-input/declaration.js";
 import { prompt } from "../lib/command-input/prompter.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
