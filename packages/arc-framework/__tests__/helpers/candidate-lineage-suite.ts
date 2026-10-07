@@ -7,6 +7,7 @@
  * ahead of it are stubbed, the Candidate reduction it branches on is not.
  */
 
+import { INTEGRATION_CASES } from "./candidate-lineage-cases.js";
 import { makeInteractionContext } from "./interaction-context.js";
 import { collectCandidateSubjectTarget } from "./candidate-subject.js";
 import { makeMetaFixture } from "./meta-fixture.js";
@@ -3074,14 +3075,6 @@ function registerRoutedReviewObligation(it: typeof vitestIt): void {
   });
   });
 }
-
-const INTEGRATION_CASES = new Set([
-  "projects a mechanically carried Candidate as the effective pre-publication target",
-  "advances the lineage, blocks the checkpoint, and clears through attest",
-  "converges when an operational-only commit precedes the re-attestation",
-  "does not advance an owned Candidate from an unresolved work-unit carrier",
-  "keeps one marker-owned work-unit locus through correction, review, verification, and integration entry",
-]);
 
 /** Register Candidate-lineage scenarios at the cheapest faithful boundary. */
 export function registerCandidateLineageSuite(mode: CandidateLineageSuiteMode): void {

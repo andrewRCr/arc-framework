@@ -1028,6 +1028,16 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
   candidates. Repeated source edits and candidate creation/deletion retain independent graphs and refusal behavior;
   byte-matched calibration and stopped hosted evidence are recorded in `notes-test-suite-reliability.md` § Amendment A9.
 
+### `[x]` **10.R8 Run Candidate decision variants through their handler seam — A10**
+
+- _Goal:_ A10 removes repeated CLI fixture preparation from thirteen internal composition, routing and refusal
+  cases while preserving real Git, public-handler producers, every case body and timeout, and the native CLI
+  advancement, convergence, replay, full-span and mutating-settlement outcome proofs.
+
+- _Outcome:_ Thirteen decision variants use the existing handler/Git tier; the extracted name list preserves an
+  exact eighteen-integration/twenty-E2E partition without growing the shared suite. Every body and timeout is
+  unchanged; `notes-test-suite-reliability.md` § Amendment A10 retains the union proof and native outcome mapping.
+
 ### `[ ]` **10.1 Run the closing hosted runs**
 
 - _Goal:_ Five consecutive first-attempt passes at the final head show the suite reliable on hosted runners, give the

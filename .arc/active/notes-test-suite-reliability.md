@@ -2480,3 +2480,104 @@ The real-CLI stale-guard file also passes all three cases in 9.40 s with the cor
 (`/tmp/arc-a9-stale-guard.log`). Author grounding over the A9 row, task and affected live-source contract finds no
 contradiction: source bytes, runtime candidates and TypeScript resolution remain live, while the memo retains only
 one latest content/specifier entry per filename. No outcome class, threshold or production input inventory changes.
+
+## Closing collector continuity
+
+An unintended interactive interruption stops the local collector shells at unchanged head `5fd09e0c5`. Eight
+successful captures (three unit, three integration, two E2E) remain. The incomplete E2E third-run log is preserved
+as `closing-local-a9/e2e-3-interrupted.log`, with no passing capture emitted. No local native run remains before
+resuming that third sample and the pending lane triplet. Hosted sample 3, run 37654352610, continues remotely;
+the resumed collector binds to that exact run/head/attempt instead of dispatching a replacement. Earlier hosted
+runs retain their original ordinal, complete metadata and unit-headroom reports. No implementation bytes change.
+
+Hosted samples 1–3 at `5fd09e0c5` pass on attempt one, each with 13,695 unit cases retaining half-timeout
+headroom. Their summed job times are 1,709, 1,809 and 1,787 s: one under and two above the 1,712.8 s target.
+A five-run median is still undecided; both remaining observations must be under the target to clear it. Sample 4
+fails to dispatch twice with GitHub API HTTP 500. Fresh run listings show no fourth run; the three existing
+successes and their ordinal/head bindings remain. Local lane collection continues without further dispatch retries
+while the service recovers. The official incident is resolved at 16:25:14 UTC; that status does not negate the
+observed later API refusals.
+
+A bounded read of sample 3's duration handoff and native outputs confirms `assignDurationShards` receives the
+handed estimates and assigns estimated E2E totals of 585.4, 585.3, 585.4 and 585.2 s. Actual file totals differ
+(554.2, 541.1, 433.6 and 391.2 s); `candidate-lineage.e2e.test.ts` is the largest file on the longest shard.
+This is observed runtime variance, not evidence of a broken cache handoff. No new optimization or criterion change
+is inferred from the service failure.
+
+All twelve successful local closing captures at `5fd09e0c5` are retained under `closing-local-a9/`, using schema v4,
+tier-isolated selection and twelve workers. Unit wall times are 14,839/14,887/14,851 ms; integration
+158,910/160,226/159,022; E2E 233,537/236,535/239,846; lane 177,625/174,608/177,739. Unit has 13,695 completed
+cases, integration 3,024, E2E 699 and lane 16,719 in each capture. The native paired median is 623,782.140966 ms,
+44.78064364% below baseline. E2E summed median is 1,785,396.643046 ms, 35.96003822% below baseline. The interrupted
+third E2E attempt is retained separately and excluded from these medians.
+
+A third delayed dispatch retry creates exact run 37655947941 as sample 4 after fresh run listings prove no prior
+fourth run. The first three passing observations retain their order. The bounded candidate-lineage consultation
+finds meaningful file-partition seams, but file splitting is not applied: the remaining hosted median is undecided,
+and parallelizing one long file does not by itself establish lower aggregate job work. Current case bodies,
+registration, initialization/cleanup, concurrency and timeouts stay unchanged.
+
+## Amendment A10: Candidate decision fixture work
+
+Hosted sample 4, run 37655947941, passes on attempt one at `5fd09e0c5`, with 13,695 completed unit cases and
+half-timeout headroom. Its summed test-job time is 1,920 s. Together with 1,709/1,809/1,787 s from samples 1–3,
+three observations exceed the unchanged 1,712.8 s target, so the five-run median cannot pass. The collector stops
+before sample 5; no fifth or portability-pair run is dispatched, and no five-run closing median is claimed.
+The successful local triplets remain historical at that head after the next implementation change.
+
+The amend-design gate takes the task arm: the hosted summed-cost criterion remains unmet, while the Proposed
+Design's general rule and § 6 already require decision variants below the real stack. Low depth follows the
+existing `registerCandidateLineageSuite` selector and its supported public-handler adapters; no new seam, cache,
+record fabrication or concurrency mechanism is required. Only E2E fixture startup work moves; integration-file
+optimization, acceptance thresholds, admission, isolation, CI layout and every Success Criterion remain unchanged.
+
+`settledReviewLineage` produces its records through public handlers with real Git in integration mode.
+`runArc` preserves attestation options, including the moved-root fixture's `--new-root`; `runArcWithStdin` passes
+the same explicit JSON requests to review handlers. The deciding readers and composers remain production code.
+The thirteen additional integration selections are:
+
+| Group                      | Cases                                                                                            | Deciding boundary                                   |
+| -------------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------- |
+| Composition                | Approved responses; checkpoint-validated base after a ref move                                   | `composeLineageReview`                              |
+| Applicable record refusals | Missing local source; malformed Candidate-named disposition                                      | `composeLineageReview`                              |
+| Residue filtering          | Unavailable unrelated source; malformed unrelated record                                         | `composeLineageReview`                              |
+| Merge refusals             | Final drift; substituted checkpoint handle                                                       | `mergeIntegration` with production checkpoint reads |
+| Routed obligations         | Settled findings; missing verdict; moved-head source order; singleton selection; absent boundary | `readRoutedObligation`                              |
+
+Real Git mutations and production durable-store writes remain in every selected body. The drift case retains its
+production `executeSettlement` dependency. A bounded advisor read agrees these thirteen assertions are internal
+decisions rather than CLI output assertions; primary source inspection confirms the classification. The mixed
+no-fix/fix full-span response case remains native, alongside hosted fix convergence, local response replay,
+both no-fix settlement cases, persisted settlement idempotence, frontline and explicit CLI refusal/continuation
+proofs. Native re-root refusal and successful continuation remain separately exercised.
+
+The footprint is the existing selector, its extracted case-name list, two wrappers and the closing measurement.
+The case union remains
+thirty-eight: eighteen integration and twenty native E2E cases. Bodies, names, timeout arguments, cleanup and
+prepared-template ownership do not change. Static union comparison and both wrapper runs must confirm that claim;
+fresh closing measurements decide whether the optimization achieves the unchanged hosted target. No file split
+or projected saving is substituted for measured aggregate job work.
+
+Author grounding over the A10 row, `10.R8`, the general decision-tier rule and its source footprint finds no
+contradiction. Existing adapters support every producer command in the selected cases; native case bodies retain
+the external output and mutation outcomes above. Immediate corrective-task neighbors and closing tasks remain
+ordered, with no bound delivery plan or new segment. Reader independence and binding completeness retain the
+unchanged case union, external systems and cost criteria. This is author-run evidence, not an independent pass.
+
+The selector's name set moves into `candidate-lineage-cases.ts`, so the existing oversized suite becomes seven
+lines shorter instead of growing. `/tmp/arc-a10-union-check.json` verifies identical test bodies, names and timeout
+arguments after removing only the selector/import projection, and an exact partition of all thirty-eight names.
+The tier change is configuration/refactoring with no added behavioral assertion, so existing proofs run after it;
+no newly authored fail-first proof is claimed.
+
+Both Candidate wrappers pass all thirty-eight cases in 97.87 s (`/tmp/arc-a10-candidate-pair.log`). The thirteen
+moved cases account for 105 built-CLI launches and 93,229.450239 ms of case time in the retained A9 E2E third
+sample; those are historical attribution, not a matched speed comparison or a promised hosted saving.
+The ordinary eight-worker routine lane passes 16,732 cases in 1,121 executed files with `FORCE_COLOR=3` in
+219.46 s (`/tmp/arc-a10-routine.log`). Both type checks, whole-package typed lint and Markdown/ARC checks pass;
+no lint suppression changes. Unchanged build and shell inputs retain their previous passing witnesses.
+
+The ordinary E2E gate passes all 67 files and 686 cases in 177.35 s (`/tmp/arc-a10-e2e.log`). With the thirteen
+integration additions, the overall completed-case union is unchanged. The corrective parent closes on its own
+coverage and quality evidence; hosted cost closure remains open at Task 10.1 and all local final-head captures
+remain required at Task 10.2. A10's revalidation stays pending, and no Success Criteria marker changes.

@@ -895,3 +895,6 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
   _Supersedes:_ none. _Trigger:_ 10.2 must-stop. _Work:_ 10.R6. _Revalidated:_ pending → 10.2.
 - **A9** — 2026-10-07 — task: reuse unchanged fixture import parsing while retaining live resolution.
   _Supersedes:_ none. _Trigger:_ 10.1 must-stop. _Work:_ 10.R7. _Revalidated:_ pending → 10.1.
+
+- **A10** — 2026-10-07 — task: move Candidate decision variants to the existing faithful handler tier.
+  _Supersedes:_ none. _Trigger:_ 10.1 must-stop. _Work:_ 10.R8. _Revalidated:_ pending → 10.1.
