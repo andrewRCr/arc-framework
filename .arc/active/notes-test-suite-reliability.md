@@ -1240,3 +1240,39 @@ The affected unit selection passes 369 files and 7,515 cases; the final exact re
 of the named timeout. Focused lint and test types pass. Source types, full build, and unaffected integration/shell
 inputs retain the preceding completed results. Evidence is `/tmp/arc-registry-narrow-unit.log` and
 `/tmp/arc-registry-narrow-final-{targeted,lint,types}.log`.
+
+## Remaining source-scan cost and shared-parse decision
+
+Three ordinary 12-worker unit/unit-mock captures at `b30ec13fab356ac0ca4a9462381186de0da57306` pass without
+unhandled errors. Raw schema-v4 captures are `.test-cost-runs/post-source-scan-unit-{1,2,3}.json`; the instrument's
+normalization is `post-source-scan-unit-normalized.json`, and `post-source-scan-summary.json` reconciles every
+original path and all 123 original expanded case names against current names. Removed/renamed names are distinguished
+from current cases; preserved properties are classified in § One-hop ban inventory and § Migrated one-module bans.
+Each actually deleted file costs zero; surviving files count their complete cost, including non-scan/runtime cases and
+shared setup. The methodology-only decompose authority file therefore retains its measured cost.
+
+| Metric                                  | Three successful samples              | Median      |
+| --------------------------------------- | ------------------------------------- | ----------- |
+| Fixed 26-file complete cost (ms)        | 19,185.035; 20,522.104; 19,307.791    | 19,307.791  |
+| Full unit summed file time (ms)         | 154,566.537; 154,518.983; 150,755.268 | 154,518.983 |
+| Fixed-set share of the same unit sample | 12.412%; 13.281%; 12.807%             | 12.807%     |
+| Unit wall time (ms)                     | 14,813; 14,686; 14,424                | 14,686      |
+
+The frozen fixed-set median is 49,744.319 ms; the complete-file cost falls **61.19%**. The sample range is 6.93%
+of the median, below the existing 10% noise convention. This is summed file time, not a claim that wall time falls
+by the same percentage. Largest retained file medians are repository input inventory (11,097.313 ms), registry
+(3,062.927 ms), and refusal-source totality (2,931.394 ms); their complete costs include retained contract work and
+imports, so none is attributed wholly to AST parsing.
+
+Primary source inspection finds **zero explicit full-src AST walks**. The one repository inventory beforeAll makes
+one whole-src text snapshot; its reachable graph is parsed for import discovery and interaction discovery. The registry
+now parses cli.ts directly. Two refusal-source cases separately create typechecked Programs rooted in the work-unit
+subtree; these may load dependencies and are not two full-src AST enumerations. Other AST work is named modules or the
+store's eager closure; store/review vocabulary, canonical catalogs and mock-file ownership remain text inventories.
+The raw summary records each original file's current parse scope, keeping these unlike operations distinct.
+
+Decision: **do not introduce a shared parse cache**. No repeated full-src AST walk remains, the repository snapshot
+already shares its setup, and typechecked Programs, declaration emission, text catalogs and named/eager-closure scans
+do not share one interchangeable parse contract. The measurement does not identify a repeated parser cost sufficient
+to justify the cache's lifetime, invalidation and fixture mechanism. This is the specification's permitted decision
+at 4.5, made under the existing implementation direction; no follow-on design or task is needed.

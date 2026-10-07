@@ -448,16 +448,15 @@ local predicate IDs where built-in selectors cannot preserve the existing bounda
   command-path and schema-ID equality without the repository interaction snapshot. Its named scan timeout is
   removed; the same case runs under the ordinary unit default.
 
-### `[ ]` **4.5 Measure the remaining scan cost and decide on a shared parse — D3**
+### `[x]` **4.5 Measure the remaining scan cost and decide on a shared parse — D3**
 
 - _Goal:_ Whether a shared cached parse earns its place is decided from a measurement taken after Tasks 4.1–4.4, not
   assumed.
 
-    - The local instrument's unit-tier capture gives the summed time of the files in Task 4.1.a's list that remain.
-    - `notes-test-suite-reliability.md` § Source-scan cost records that time, its share of the unit tier, and how
-      many full `src` parses the remaining cases still repeat, with a recommendation at this task's gate. If a
-      shared parse earns its place, its design and a task to build it are added at that gate before anything is
-      built.
+- _Outcome:_ Three ordinary unit captures reconcile the original 26-file set at 19,307.791 ms median, a 61.19%
+  reduction and 12.807% median share of unit summed file time. No repeated full-src AST walk remains; the one shared
+  snapshot and unlike subtree/named scans do not justify a cache. Notes § Remaining source-scan cost and
+  shared-parse decision records the evidence and decision; no additional mechanism is introduced.
 
 ## **Phase 5:** E2E fixture cost and the managed-run staleness skip
 
