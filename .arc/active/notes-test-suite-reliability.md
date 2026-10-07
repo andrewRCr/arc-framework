@@ -2358,3 +2358,63 @@ testing rather than alongside it. The worker-policy API receives documentation a
 that comment adds no runtime behavior. A7 closes on the ordinary default run, with all Success Criteria markers
 left for terminal verification. Atomic content commits carry their task completion updates; no meta/session
 state is written. The final-code closing measurements still own native/E2E/hosted cost acceptance and budgets.
+
+## Closing measurement at the locally committed correction head
+
+The clean code head is `20b094ffeb64e2fd2604a80bc1e5dbfdf93c4cc0`. The six retained unit/integration captures
+in `.test-cost-runs/closing-local-a7/` use schema v4, tier-isolated selection and the frozen twelve-worker setting.
+All pass: unit has 842 files/13,693 cases, integration 280 files/3,024 cases. Native-family paired sums are
+679,665.264297, 672,887.930917 and 645,182.476387 ms; their 672,887.930917 ms median is 40.43362898% below
+the frozen 1,129,643.991052 ms baseline. `native-summary.json` retains the calculation. This meets the native
+40% comparison without further fixture caching or a threshold change; E2E/lane and hosted closing remain pending.
+
+Native unit/integration collection precedes expensive hosted dispatch as a bounded ordering adjustment: checking
+the previously unmet native bar first prevents another full hosted sequence for a candidate that misses it. All
+captures retain final-head binding and original settings; no pre-fix baseline repeats. The ordinary local default
+remains the separately validated eight-worker policy, not the measurement setting.
+
+Three normal wrapped pushes receive remote Internal Server Error refusals, at 15:12:54, 15:13:37 and 15:14:34 UTC.
+Both Git ref discovery and GitHub's ref API still show remote `a4b370c81172c2d96c5cb64c30f380a902bb84af`.
+ARC qualification and local hooks do not refuse these pushes. GitHub subsequently posts
+[the Git Operations/Actions incident](https://www.githubstatus.com/incidents/djlmxz2zd0j7), created at 15:14:45 UTC;
+its 15:21 update reports degraded Git Operations and major Actions/Pull Requests outages. Further publication and
+hosted sampling wait for service recovery while local captures continue. No failed push or unavailable hosted
+result is represented as successful.
+
+## Amendment A8: Real CLI overlay dependency closure
+
+The first E2E closing run fails `stale-build-guard.e2e.test.ts`'s content-hash reason case before the guard executes:
+`contentStaleBundle` replaces the synthetic CLI with production `src/cli.ts`, but A6 no longer supplies its unrelated
+handler/command sources. The actual compiler reports missing CLI help, command-routing and dynamically imported
+handlers. The 237.59 s run has 66 passing files, one failed file, 698 passing cases and one failed case; its log is
+`closing-local-a7/e2e-1.log`, with no successful capture JSON. Later E2E/lane samples do not start.
+
+A6's source-copy consumer sweep missed this real-CLI overlay. A8 takes the task arm at low depth: the settled live
+reachable-source contract would preserve this native outcome, but the consumer failed to request its additional
+root. `contentStaleBundle` now uses `copyLiveDependencies` for the actual CLI entrypoint before qualification and
+content mutation. Synthetic controller/build fixtures keep their small graph. All content-hash reason, ordinary
+stale refusal and compaction-seed exemption assertions remain intact; no test or production behavior is removed.
+
+Primary grounding traces the overlay, copier and real build/guard path; advisor consultation audits other fixture
+source replacements for missing additional roots. The revision lives before closing verifiers, with its record
+riding the implementation commit. The earlier native 40.43% result remains evidence for its recorded head, but
+corrected final-head captures will establish closing acceptance. No host sequence was launched for the failed head.
+
+The bounded advisor audit finds no second missing source root among the other fixture overlays. Primary source
+reads confirm the generated owner imports are retained by the base roots and that the real-CLI copy occurs before
+qualification and deliberate mutation. The focused stale-guard file passes all three cases in 9.45 s.
+
+An additional E2E stress invocation mistakenly carries `FORCE_COLOR=3`, which the spec requires for the routine
+lane only. It fails 48 cases across seven files in 229.58 s: output-sensitive cases retain Node's conflicting
+`NO_COLOR` warning, including the installed lifecycle fixture's clean-stderr assertion. The failed log is retained at
+`/tmp/arc-a8-e2e-gate.log`; it is neither closing evidence nor a green gate. The ordinary E2E gate is rerun without
+the unintended formatting override. All reported failures are grounded in that conflicting-environment warning.
+
+The ordinary E2E gate passes all 67 files and 699 cases in 232.44 s (`/tmp/arc-a8-e2e-normal-gate.log`), including
+the real-CLI stale-guard case. This green run preserves the output assertions and confirms the formatting failures
+came from the added stress environment; the failed run remains retained separately.
+
+Both type checks and targeted typed lint pass for the E2E-only code delta; Markdown and all ARC contract checks
+pass. The prior full build, shell lint and passing forced-color routine lane cover unchanged inputs under the
+project's unchanged-tree rule. The repair and forward task amendment form one atomic commit; A8's closing
+revalidation remains with Task 10.2 and all Success Criteria stay unmarked.

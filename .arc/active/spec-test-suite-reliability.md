@@ -890,3 +890,6 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
 
 - **A7** — 2026-10-07 — spec-depth: bound local default worker sizing for shared development machines.
   _Supersedes:_ none. _Trigger:_ 10.2 door. _Work:_ 10.R5. _Revalidated:_ 10.R5.
+
+- **A8** — 2026-10-07 — task: retain real CLI dependencies in the content-stale overlay fixture.
+  _Supersedes:_ none. _Trigger:_ 10.2 must-stop. _Work:_ 10.R6. _Revalidated:_ pending → 10.2.

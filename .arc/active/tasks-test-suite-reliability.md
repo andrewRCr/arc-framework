@@ -1010,6 +1010,15 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
   Explicit capacity overrides and CI sizing remain available; the ordinary lane preserves admission/isolation
   contracts. `notes-test-suite-reliability.md` records source changes, profiled comparisons and host feedback.
 
+### `[x]` **10.R6 Retain the real CLI overlay dependencies — A8**
+
+- _Goal:_ A8 restores the content-stale native CLI fixture's full reachable source graph while preserving the
+  synthetic build fixture's reduced workload and the existing stale-build reason assertions.
+
+- _Outcome:_ The content-stale consumer copies the real CLI's reachable graph before qualification and mutation;
+  generic native fixtures retain their reduced workload. Other overlays require no extra root, and stale-guard
+  assertions remain intact. The failed closing run is retained in `notes-test-suite-reliability.md` § Amendment A8.
+
 ### `[ ]` **10.1 Run the closing hosted runs**
 
 - _Goal:_ Five consecutive first-attempt passes at the final head show the suite reliable on hosted runners, give the
