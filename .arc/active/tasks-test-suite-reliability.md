@@ -109,6 +109,7 @@ untracked module, and every test that reads a renewing lock retries an empty or 
 
     - `[x]` **2.2.b Route both live-tree fixtures through it**
         - The native-build and focused-lint fixtures share `copyLiveTree` for each live source directory.
+        - _Amended in:_ 10.R (A6)
 
 ### `[x]` **2.3 Read renewing lock files tolerantly in tests — D1**
 
@@ -967,6 +968,20 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
   callers clear it too. Plain output and failure contracts survive a forced-color parent, with every assertion retained.
   See `notes-test-suite-reliability.md` § Inherited subprocess formatting.
 
+### `[ ]` **10.R Bound synthetic native fixture sources — A6**
+
+- _Goal:_ A6 removes unrelated production sources from each independent native fixture while preserving live
+  reachable modules, explicit loader roots and every real compiler, controller and artifact-recovery outcome.
+
+    - Build `test-first` (one behavior at a time):
+        - Copy a reachable new on-disk module and its type/re-export dependencies while excluding unrelated sources
+          and transient loader files; copied modules remain independently writable.
+        - Reject an unresolved relative dependency before producing a misleading fixture.
+    - Keep the synthetic CLI/projected-schema writer, real manifests, lockfile, compiler configurations and installed
+      tools; include every path-loaded generation/controller entrypoint. Production inventories stay unchanged.
+    - Run existing native build and transferred-artifact recovery proofs, then compare the affected native family
+      before final-head closing measurements. Retain all earlier captures as historical evidence.
+
 ### `[ ]` **10.1 Run the closing hosted runs**
 
 - _Goal:_ Five consecutive first-attempt passes at the final head show the suite reliable on hosted runners, give the
@@ -1101,3 +1116,7 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
 - `[ ]` A4's matrix reaches one own-command site for each of the four reachable prompt kinds. The indeterminate
   start refusal has direct handler/prompter proof and separately labelled native upstream-guard coverage, with refs,
   worktrees and tracked state preserved and no claim that the native run reached the prompt.
+
+- `[ ]` The synthetic native fixture copies its live first-party dependency closure and explicit loader roots,
+  retains dirty-tree dependencies and independent writable sources, and preserves the real build, controller,
+  qualification and artifact-recovery proofs (A6)

@@ -2133,3 +2133,40 @@ Both type checks and whole-project typed lint pass on the final combined repair 
 and shell checks remain green with unchanged inputs. No suppression changes. The publication and formatting repairs
 land in separate atomic commits; only their completion records change after code validation. Final corrected-head
 measurement resumes after both commits, preserving all earlier captures and the failed Windows attempt.
+
+## Amendment A6: Synthetic native fixture source closure
+
+The corrected-head paired native median is 737,715.564 ms, a 34.69% reduction against the frozen baseline; the
+40% requirement remains unmet. `makeNativeBuildFixture` copies every production source, then replaces `src/cli.ts`
+and `src/scripts/build-schema.ts` with tiny fixture inputs. Unrelated source is repeatedly copied and inventoried
+although the actual native workload is build/control tooling. A conservative read-only closure probe identifies
+roughly 402 reachable files out of 1,081; that is a candidate footprint, not a measured saving or completeness proof.
+
+A6 supersedes this settled § 1 text:
+
+> The two fixtures that copy live `src` directories recursively, `makeNativeBuildFixture` (all of `src`) and
+> `makeFocusedLintFixture` (`src/scripts` and `src/lib`), copy through one shared helper. It keeps the recursive copy
+> of what is on disk, with a `cp` filter that skips bundle-require's transient `*.bundled_*.mjs` files, so the copy
+> never reaches for a file that vanishes mid-copy. Both directories receive transients during the unit tier
+> (`build-inputs.test.ts` bundles `src/scripts/build-schema.ts`; `build-ownership.test.ts` bundles
+> `src/lib/build-ownership.ts`). Copying what is on disk keeps dirty trees working: a tracked-file list
+> (`git ls-files`) would still name a deleted, unstaged file and would omit a new untracked module.
+
+The design arm corrects the all-source synthetic fixture mechanism, preserving its hermeticity intent and every
+real native outcome class. Depth is low: traversal composes the installed TypeScript resolver with ordinary file
+copying; path-loaded build roots are explicit in `buildOwnedArtifacts`, `generateOwnedBuildStaging` and the compiler
+bootstrap. No production inventory, qualification rule, compiler, assertion, timing threshold or measurement setting
+changes. Owner direction authorizes intent-preserving adjustments within phases 1–10 and their atomic commits.
+
+The primary grounding traces `makeNativeBuildFixture`, `makeVitestControllerFixture`, `makeFocusedVitestFixture`,
+`makeNativeTestCostFixture`, `runBuildCommand`, the build loader boundaries and `loadSchemaProducer`. The production
+schema proof remains separate in `build-inputs.test.ts`. Reader independence and binding completeness place the
+copy contract, loader roots, dirty-tree behavior, missing-edge refusal and retained native obligations in the spec.
+The revision task sits before final measurements; its test-first cases cover the changed copy behavior. The sweep
+finds Task 2.2.b's completed all-source fixture route, which takes an additive amendment marker. Phase 3's real
+native outcomes and all closing-measurement thresholds remain unchanged. No independent amendment pass is claimed.
+
+The hosted collector stops before dispatching more samples; its already launched fifth run may finish independently.
+Local collection finishes before source-input edits. Any later fixture change requires
+fresh final-head evidence; these samples cannot silently become its acceptance record. Bounded calibration precedes
+that expensive collection, and no pre-fix baseline sampling repeats.

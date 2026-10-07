@@ -145,13 +145,21 @@ Terms used by the criteria:
 
 - `focused-lint-staged.test.ts` runs `scripts/check-ts-quality.sh` with a child environment that clears
   `FORCE_COLOR`. The script's developer-facing output is unchanged.
-- The two fixtures that copy live `src` directories recursively, `makeNativeBuildFixture` (all of `src`) and
-  `makeFocusedLintFixture` (`src/scripts` and `src/lib`), copy through one shared helper. It keeps the recursive copy
-  of what is on disk, with a `cp` filter that skips bundle-require's transient `*.bundled_*.mjs` files, so the copy
-  never reaches for a file that vanishes mid-copy. Both directories receive transients during the unit tier
-  (`build-inputs.test.ts` bundles `src/scripts/build-schema.ts`; `build-ownership.test.ts` bundles
-  `src/lib/build-ownership.ts`). Copying what is on disk keeps dirty trees working: a tracked-file list
-  (`git ls-files`) would still name a deleted, unstaged file and would omit a new untracked module.
+- **Live fixture sources (A6):** `makeFocusedLintFixture` copies `src/scripts` and `src/lib` through
+  `copyLiveTree`, retaining recursive on-disk membership. The synthetic `makeNativeBuildFixture` copies only the
+  on-disk first-party dependency closure of its real build configurations, build/compiler entrypoints, local and
+  focused test controllers, measurement entrypoint and unit-process metadata. It includes relative imports,
+  re-exports and type dependencies through the installed TypeScript resolver, plus explicit path-loaded build
+  generation and coordinator entrypoints. Unresolved relative dependencies fail fixture construction rather than
+  disappearing silently. The tiny CLI and projected-schema writer remain synthetic fixture inputs; the actual
+  production schema graph retains its separate native proof in `build-inputs.test.ts`.
+
+  Both copies exclude bundle-require's transient `*.bundled_*.mjs` files before filesystem copying, include new
+  untracked reachable modules, and use live filesystem contents rather than a Git tracked-file list. Every fixture
+  receives independent writable source files, the actual manifests and lockfile, and links to the real installed
+  tools. Native compilation, declaration generation, ownership, publication, qualification, transferred-artifact
+  recovery and their existing outcome classes remain exercised. Production input inventories and qualification
+  rules do not change; unrelated production command handlers are outside the synthetic fixture workload.
 - A test that reads a lock file a live holder may be renewing reads it tolerantly: an empty or unparsable read is
   "not yet readable" and is retried, as the lock module's own `readHolderSettled` does, and every read of the
   renewing file sits inside the retry. This covers `build-generation-lifetime.test.ts` (both reads),
@@ -827,6 +835,11 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
     a separately labelled native start case proves the preceding acquisition refusal and preserves refs/worktree
     state. Inventory reconciliation accounts for this sole explicit exception without claiming native prompt reach.
 
+20. **Native fixture graph fidelity (A6).** The synthetic build fixture excludes unrelated source while copying
+    reachable dirty-tree modules and explicit loader roots into independent writable checkouts. Existing native
+    build, controller, qualification and transferred-artifact recovery outcomes pass using real installed tools,
+    and the separate real production-schema graph proof remains intact.
+
 ## Open Questions
 
 - **Calibration of the native-tooling cut.** The 55–60% projection comes from a per-file read, not a prototype; the
@@ -854,3 +867,6 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
 
 - **A5** — 2026-10-07 — task: normalize native publication keys so Windows can publish required nested artifacts.
   _Supersedes:_ none. _Trigger:_ 10.1 must-stop. _Work:_ 10.1.R. _Revalidated:_ pending → 10.1.b.
+
+- **A6** — 2026-10-07 — design: bound synthetic native fixture sources to their live dependency closure.
+  _Supersedes:_ § 1 live-copy bullet. _Trigger:_ 10.2 door. _Work:_ 10.R. _Revalidated:_ pending → 10.2.
