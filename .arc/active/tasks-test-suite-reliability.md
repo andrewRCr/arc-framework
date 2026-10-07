@@ -311,8 +311,10 @@ is measured against the baseline.
           execution classes remain in integration. Notes names each dropped matrix row's narrower proof.
         - `focused-test-input` remains process-free.
 
-    - `[ ]` **3.7.b Focused lint files**
-        - `focused-lint` and `focused-lint-staged`; the staged-lint runs fold into one real run.
+    - `[x]` **3.7.b Focused lint files**
+        - Direct normalization and refusal matrices run without ESLint; five native adapter classes remain in
+          integration. Staged lint uses one combined fixture scenario with clean and collected-failure invocations,
+          retaining every supported literal filename and both compiler failures. Notes records the bounded run shape.
 
     - `[ ]` **3.7.c Test-cost native runs**
         - `test-cost-native`, `test-cost-native-failure`, and `test-cost-run`.

@@ -591,3 +591,23 @@ folding the two additional replays. This refines the conversion within its exist
 - **`focused-test-input`:** native-option parsing and filesystem operand validation remain process-free. The twelve
   new selection/runtime behaviors failed against narrow empty-selection and constant-runtime reconstructions and
   passed after restoration in temporary source/test copies, with primary source and derived CLI left untouched.
+
+- **`focused-lint`:** twelve direct `normalizeFocusedLintInput` cases prove root file/directory/glob normalization,
+  empty/options-first/absolute refusals, unchanged delimited native options and additional patterns, and literal
+  spaces/Unicode/tab/newline bytes. Five native classes remain in integration: successful suppression, selected lint
+  failure, pre-load empty-target refusal, successful native options/additional patterns, and unmatched-pattern failure.
+  `normalizes repository-relative src/targets/*.ts in package cwd` plus the retained actual additional-pattern case
+  replaces the duplicate directory/glob native row; `refuses invalid root-target span [--,--format,json] before native
+  loading` replaces the duplicate delimited-empty native refusal.
+- **`focused-lint-staged`:** one fixture/scenario stages all supported literal names together. A native ESLint rule
+  records parsed file identities, so a skipped filename cannot appear passed merely because nothing linted it.
+  The clean hook invocation proves all names and suppression; the same fixture then adds an unsuppressed lint fault
+  and source/test type faults and proves the hook collects all failures. This bounded refinement of the planned
+  single real run uses two hook invocations, one for each required operational end state, within one scenario instead
+  of six independent native scenarios on Linux (four on Windows). It preserves clean success and collected refusal
+  without another fixture or a fake compiler. The script itself is unchanged, and `FORCE_COLOR` remains cleared.
+
+All twelve normalization behaviors failed against an empty-result reconstruction and passed following restoration.
+The combined staged case failed when its copied real hook forwarded only the first staged filename, then passed with
+original hook bytes. The obsolete ESLint observer method was corrected before these retained native red/green runs;
+primary production source, shell script, and derived CLI were untouched by either reconstruction.
