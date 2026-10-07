@@ -95,6 +95,29 @@ describe("command-input no-input matrix", () => {
     },
   );
 
+  it("reports every missing release setup input using its declared syntax", async () => {
+    if (initializedTemplate === undefined) throw new Error("Missing initialized matrix template");
+    const cwd = await copyPreparedRepository(initializedTemplate, initializedShape);
+    repositories.push(cwd);
+    const result = await runArcNoTty(["--no-input", "release", "setup", "install"], cwd);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain(
+      "error: missing required input: --harness <name>, --mode <mode>, --yes, --workflow-verified",
+    );
+  });
+
+  it("requires an explicit idempotency choice for recorded release setup", async () => {
+    if (initializedTemplate === undefined) throw new Error("Missing initialized matrix template");
+    const cwd = await copyPreparedRepository(initializedTemplate, initializedShape);
+    repositories.push(cwd);
+    const installed = await runArcNoTty(["--no-input", "release", "setup", "install", "--harness", "matrix",
+      "--mode", "bypass", "--yes", "--workflow-verified"], cwd);
+    expect(installed.exitCode, JSON.stringify(installed)).toBe(0);
+    const result = await runArcNoTty(["--no-input", "release", "setup", "install"], cwd);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("error: missing required input: --idempotency-action <action>");
+  });
+
   it.each(NO_INPUT_MATRIX)("terminates $commandPath for each distinct unavailable-interaction context", async (entry) => {
     const invoke = async (
       run: (cwd: string) => ReturnType<typeof runArcNoTty>,

@@ -8,7 +8,6 @@
  * @module
  */
 
-import * as p from "@clack/prompts";
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
 
@@ -29,8 +28,9 @@ import {
   resolveProcessInteractionContext,
   type InteractionContext,
 } from "../../../lib/command-input/interaction-context.js";
+import { prompt } from "../../../lib/command-input/prompter.js";
 import type { CommandInputRegistration } from "../../../lib/command-input/registry.js";
-import { declareInteractionSite, type CommandInputDeclaration } from "../../../lib/command-input/declaration.js";
+import { declarePromptSite, type CommandInputDeclaration } from "../../../lib/command-input/declaration.js";
 
 import { runReleaseOptOut, type RunReleaseOptResult } from "../record.js";
 import { runReleaseSetupPrintPatterns } from "./print-patterns.js";
@@ -56,6 +56,14 @@ export const releaseSetupUninstallInputRegistration = {
   },
 } satisfies CommandInputRegistration;
 
+/** Required evidence before removing recorded release-wrapper setup. */
+export const releaseCleanupPromptSite = declarePromptSite("prompt.release-uninstall.cleanup", "confirm",
+  { file: "handlers/release/setup/uninstall.ts", symbol: "releaseCleanupPromptSite" }, {
+    acquisition: "required-evidence", schemaOwnership: "none", cancellation: "stop",
+    automation: { noInput: "require-explicit", flags: ["--cleanup-verified"], acceptedSyntax: ["--cleanup-verified"] },
+    mutationBoundary: "release cleanup verification", subprocess: "none",
+  });
+
 /** Input and interaction policies owned by release setup removal. */
 export const releaseSetupUninstallInputPolicyDeclarations = [{
   commandPath: "release setup uninstall",
@@ -67,16 +75,7 @@ export const releaseSetupUninstallInputPolicyDeclarations = [{
       cancellation: "not-applicable", automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
       mutationBoundary: "output selection", subprocess: "none",
     },
-    declareInteractionSite(
-      { file: "handlers/release/setup/uninstall.ts", kind: "prompt", callee: "p.confirm", occurrence: 1 },
-      {
-        acquisition: "required-evidence", schemaOwnership: "none", cancellation: "stop",
-        automation: {
-          noInput: "require-explicit", flags: ["--cleanup-verified"], acceptedSyntax: ["--cleanup-verified"],
-        },
-        mutationBoundary: "release cleanup verification", subprocess: "none",
-      },
-    ),
+    releaseCleanupPromptSite,
   ],
 }] satisfies readonly CommandInputDeclaration[];
 
@@ -338,18 +337,10 @@ export async function handleReleaseSetupUninstall(
   if (marker.ok) {
     const entry = marker.marker.harnesses.find((candidate) => candidate.name === parsedSyntax.data.harness);
     if (entry !== undefined) {
-      if (parsedSyntax.data.cleanupVerified) {
-        cleanupResult = { ok: true };
-      } else if (context.interaction === "allowed") {
-        cleanupResult = await promptForCleanupVerification({
-          harness: parsedSyntax.data.harness,
-          mode: entry.mode,
-          installedAt: entry.installedAt,
-          patterns: resolveCanonicalPatterns(parsedSyntax.data.harness),
-        });
-      } else {
-        cleanupResult = { ok: false, reason: "missing required evidence --cleanup-verified" };
-      }
+      cleanupResult = await promptForCleanupVerification(context, {
+        harness: parsedSyntax.data.harness, mode: entry.mode, installedAt: entry.installedAt,
+        patterns: resolveCanonicalPatterns(parsedSyntax.data.harness),
+      }, parsedSyntax.data.cleanupVerified ? true : undefined);
     }
   }
 
@@ -454,18 +445,19 @@ function finish(
 }
 
 async function promptForCleanupVerification(
-  opts: CleanupVerificationOptions,
+  context: InteractionContext, opts: CleanupVerificationOptions, supplied?: boolean,
 ): Promise<CleanupVerificationResult | null> {
-  const confirmed = await p.confirm({
+  const answer = await prompt(releaseCleanupPromptSite, context, {
     message: [
       `Remove canonical release-wrapper allowlist entries for ${opts.harness}, then confirm cleanup.`,
       `Patterns:\n${opts.patterns.map((pattern) => `- ${pattern}`).join("\n")}`,
       "If user-curated entries drift from these patterns, do not remove them.",
     ].join("\n\n"),
-    initialValue: false,
+    initialValue: false, explicitAnswer: supplied,
   });
-  if (p.isCancel(confirmed)) return null;
-  if (confirmed) return { ok: true };
+  if (answer.kind === "refused") return { ok: false, reason: "missing required evidence --cleanup-verified" };
+  if (answer.kind === "cancelled") return null;
+  if (answer.value) return { ok: true };
   return { ok: false, reason: "cleanup not confirmed" };
 }
 

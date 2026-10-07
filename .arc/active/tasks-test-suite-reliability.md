@@ -882,19 +882,15 @@ prompter, every prompting handler takes a required interaction context, and each
   unavailable publication authority now reports a failing refusal and `--yes` remedy. Sync policy metadata retains
   configuration rather than a substituted answer. Notes § Sync and user prompt migration records behavior and proof.
 
-### `[ ]` **9.5 Migrate the release-setup prompts — D7**
+### `[x]` **9.5 Migrate the release-setup prompts — D7**
 
 - _Goal:_ The `release setup install` and `uninstall` prompts reach the prompter only through their declarations,
   with install still writing its own `error:` line on a refusal.
 
-    - `handlers/release/setup/install.ts` (five calls) and `uninstall.ts` (one call), by Task 9.1's rule.
-    - `handleReleaseSetupInstall` asks its prompts in every context and gathers the refusals into its one
-      `error: missing required input:` line, in today's order.
-    - Its idempotency prompt declares `require-explicit` (`--idempotency-action <action>`) but answers `exit` when
-      interaction is forbidden, and its report's `--mode <default-prompt|bypass>` names other syntax than the declared
-      `--mode <mode>`. Both are known drift candidates, resolved and recorded here.
-    - `handleReleaseSetupUninstall`'s cleanup-verification prompt refuses through the prompter, and the caller keeps
-      its missing-evidence result.
+- _Outcome:_ Six exported sites acquire release setup values/evidence through the prompter. Install aggregates
+  unavailable inputs in its existing order, while cancellation/decline stop immediately; cleanup retains its results.
+  Recorded setup now requires an explicit idempotency choice, and the mode report matches `--mode <mode>`.
+  Notes § Release setup prompt migration records both drift corrections and the real CLI proofs.
 
 ### `[ ]` **9.6 Confine clack to one terminal module and the prompter — D7**
 

@@ -11,6 +11,7 @@ import {
   runReleaseSetupInstall,
   type ReleaseSetupInstallInput,
 } from "../../../../../src/handlers/release/setup/install.js";
+import { resolveInteractionContext } from "../../../../../src/lib/command-input/interaction-context.js";
 import type { ConfigSettings } from "../../../../../src/lib/config/schema.js";
 import type { ResolvedSettingsResult } from "../../../../../src/lib/config/resolved-settings.js";
 import type {
@@ -396,10 +397,32 @@ describe("runReleaseSetupInstall", () => {
 });
 
 describe("interactive release setup acquisition", () => {
+  const context = resolveInteractionContext({ noInput: false, machineReadable: false, ci: false,
+    promptInputIsTTY: true, promptOutputIsTTY: true, yes: "absent" });
   const resolved = <T>(value: T) => Promise.resolve({
     kind: "resolved" as const,
     value,
     source: "prompt" as const,
+  });
+
+  it("collects all unavailable install inputs in question order", async () => {
+    const unavailable = (name: string, syntax: string) => Promise.resolve({
+      kind: "unavailable" as const, missing: [{ name, acceptedSyntax: [syntax] }],
+    });
+    const result = await acquireInteractiveInstallInputs({ context: resolveInteractionContext({ noInput: true,
+      machineReadable: false, ci: false, promptInputIsTTY: true, promptOutputIsTTY: true, yes: "absent" }),
+    trustAccepted: false, workflowVerified: false }, {
+      harness: () => unavailable("harness", "--harness <name>"),
+      mode: () => unavailable("mode", "--mode <mode>"),
+      trust: () => unavailable("trust", "--yes"),
+      workflow: () => unavailable("workflow", "--workflow-verified"),
+    });
+    expect(result).toEqual({ kind: "unavailable", missing: [
+      { name: "harness", acceptedSyntax: ["--harness <name>"] },
+      { name: "mode", acceptedSyntax: ["--mode <mode>"] },
+      { name: "trust", acceptedSyntax: ["--yes"] },
+      { name: "workflow", acceptedSyntax: ["--workflow-verified"] },
+    ] });
   });
 
   it("stops immediately when harness acquisition is cancelled", async () => {
@@ -408,6 +431,7 @@ describe("interactive release setup acquisition", () => {
     const workflow = vi.fn(() => resolved(true));
 
     const result = await acquireInteractiveInstallInputs({
+      context,
       trustAccepted: false,
       workflowVerified: false,
     }, {
@@ -427,12 +451,13 @@ describe("interactive release setup acquisition", () => {
     const workflow = vi.fn(() => resolved(true));
 
     const result = await acquireInteractiveInstallInputs({
+      context,
       harness: "codex",
       mode: "bypass",
       trustAccepted: false,
       workflowVerified: false,
     }, {
-      harness: () => resolved("unused"),
+      harness: () => resolved("codex"),
       mode: () => resolved<HarnessMode>("bypass"),
       trust: () => resolved(false),
       workflow,

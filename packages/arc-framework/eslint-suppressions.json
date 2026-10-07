@@ -323,9 +323,6 @@
   "src/handlers/release/setup/install.ts": {
     "complexity": {
       "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 1
     }
   },
   "src/handlers/release/setup/uninstall.ts": {

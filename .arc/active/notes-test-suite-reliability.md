@@ -1858,3 +1858,35 @@ The complete routine gate passes 1,119 files and 16,704 cases, with one file and
 (`/tmp/arc-sync-prompts-e2e.log`, 247.91 s). The full declaration build qualifies
 (`/tmp/arc-sync-prompts-build.log`). Markdown and all three ARC contract checks pass
 (`/tmp/arc-sync-prompts-md.log`); the unchanged shell inputs retain the preceding wrapper slice's passing gate.
+
+## Release setup prompt migration
+
+Five exported install sites and one cleanup site replace the last raw prompt calls in release setup. Every question
+passes its declared site, context and explicit supplied value to the prompter. Absent boolean evidence remains absent,
+rather than an explicit false answer. Installation acquisition retains interactive early-stop behavior for cancellation
+and declined trust/workflow evidence, while collecting all forbidden-context refusals in harness, mode, trust, workflow
+order. Missing harness/mode only supply presentation placeholders for later forbidden questions; they never become
+canonical installation values. Cleanup retains missing-evidence, cancellation and declined-cleanup results.
+
+The two known drifts resolve toward declarations: recorded setup without an explicit idempotency action now refuses
+with `--idempotency-action <action>` instead of silently choosing `exit`, and the mode placeholder in the combined
+report becomes `--mode <mode>`. Interactive idempotency cancellation still acknowledges exit, supplied values retain
+schema validation, and successful affirmative evidence reaches the existing marker/opt-in operations.
+
+The aggregation unit case fails against the old early cancellation (`/tmp/arc-release-prompts-aggregate-red.log`). Two
+real CLI cases fail against the old mode report and implicit idempotency exit (`/tmp/arc-release-prompts-native-red.log`).
+Their producer copies the initialized repository template and creates recorded setup through the real explicit setup
+command. All 51 focused install/uninstall/inventory cases pass (`/tmp/arc-release-prompts-focused-faithful.log`), and
+all four selected native release cases pass (`/tmp/arc-release-prompts-native-final.log`, 81 unselected). The acquisition
+fixtures use interactive contexts for cancellation/decline and forbidden context for unavailable requirements.
+The first lint/type attempt reports retired unused Clack imports; lint also detects a new aggregation complexity count.
+Removing those imports and extracting repeated refusal/stop handling fixes both issues without widening suppressions.
+Both corrected type programs pass (`/tmp/arc-release-prompts-types-final.log`). Targeted lint then reports only obsolete
+suppressions; the whole-project run and prune retain their own verdicts before commit.
+Whole-project typed lint reports only the obsolete install function-length suppression, then its prune passes
+(`/tmp/arc-release-prompts-full-lint-unpruned.log`, `/tmp/arc-release-prompts-prune.log`), removing that suppression.
+The complete routine gate passes 1,119 files and 16,705 cases, with one file and 1,188 cases skipped
+(`/tmp/arc-release-prompts-routine.log`, 215.30 s). The full declaration build qualifies
+(`/tmp/arc-release-prompts-build.log`); Markdown and all three ARC contracts pass
+(`/tmp/arc-release-prompts-md.log`). The unchanged shell inputs retain their preceding passing gate. Required CI
+provides the complete E2E remainder; the local release cases prove the changed runtime paths.
