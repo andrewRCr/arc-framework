@@ -1943,3 +1943,63 @@ The final complete routine gate passes 1,119 files and 16,712 cases (one file an
 cleanup (`/tmp/arc-required-context-lint-final.log`, `/tmp/arc-required-context-types-final.log`); the final full
 build qualifies (`/tmp/arc-required-context-build-final.log`). Markdown and all ARC contract checks pass; unchanged
 shell inputs retain their preceding passing gate. Required CI supplies the E2E and portability remainder.
+
+## Prompt-kind matrix reachability
+
+The new command-versus-policy reconciliation fails both cases against the preceding matrix
+(`/tmp/arc-prompt-matrix-reconcile-red.log`); naming the candidate cases and removing unnecessary prompt-only entries
+passes all 26 repository inventory cases (`/tmp/arc-prompt-matrix-reconcile-green.log`). The first native run passes
+three kinds but fails both start fixtures (`/tmp/arc-prompt-matrix-native-initial.log`). A reachable start creates its
+worktree but its fixture-installed hooks lack the adopter dependencies needed to commit; the existing fixture hook
+configuration pattern fixes that setup and the full ceremony passes (`/tmp/arc-prompt-matrix-start-green.log`).
+All spawned paths are registered before assertions; independent invocation closures settle before cleanup even when
+one fails. One recorded worktree from the earlier diagnostic assertion was cleaned explicitly.
+
+An unreachable origin does not reach `safety.indeterminate-lifecycle`: `handleStart` refuses incomplete candidate
+expansion before composing lifecycle state. A reachable remote carrying branch-consistent rendered metadata with an
+unrecognized State also fails before the site: `analyzeInFlightSnapshot` throws on classification-failure warnings
+(`/tmp/arc-prompt-matrix-native-green.log`: four kinds pass, refusal fixture fails). Both upstream guards predate this
+work unit (`497bfbcfdb`, with the warning selector refined by `2220146afa`, August 7). The claimed refusal fixture is
+not a completed policy proof.
+
+`resolveSuppliedSnapshotInputs` initializes empty disagreement sets, marks and warnings; `expandActiveInFlight`
+uses that immutable advertised-OID path and `handleStart` passes its result into composition. The comparison-based
+`input-snapshot-disagreement` path belongs to `resolveAgreedInputs`, which start does not use. Classification failures,
+partial/unreachable expansion, incomplete transient indexes and incomplete worktree/ref reads all stop before the
+prompt gate. A read-only scout corroborates the reachability gap; primary source inspection confirms the guards and
+immutable-input construction. No production guard has been relaxed and no native refusal-kind coverage is claimed.
+
+## Amendment A4: native prompt reachability
+
+Superseded testing clause:
+
+> - **Tests follow the policy rule.** Unit table tests run the real prompter against a fake renderer at the clack
+>   boundary, covering each policy kind, each outcome, and each cancellation kind. `NO_INPUT_MATRIX` keeps one real-CLI
+>   run per prompt policy kind in place of one entry per prompt-only command. Each such entry names the prompt site its
+>   run reaches and asserts that kind's outcome when interaction is forbidden, and the reconciliation checks that the
+>   named sites cover every policy kind a prompt site declares, each on its entry's own command. Every command with an
+>   explicit stdin, subprocess, or environment-policy site, or a `--no-input` flag, still has an entry, and an entry that
+>   names no prompt site stays one per command; a command's prompt-kind entries count as its entry, so `start` carries its
+>   separate `proceed` and `refuse` runs and no third.
+
+The unchanged § 7 intent is centralized declaration-driven prompt policy and truthful native behavior coverage.
+Its ordinary-CLI-per-kind claim cannot produce `safety.indeterminate-lifecycle` under the strict acquisition path
+shown in § Prompt-kind matrix reachability. `handleStart`, `expandActiveInFlight`, `analyzeInFlightSnapshot`, and
+`resolveSuppliedSnapshotInputs` establish the earlier refusals and exclude disagreement marks. An advisor consultation
+corroborates that timing or upload-pack fixtures have no supported observation boundary for that kind on this path.
+The failed unknown-State fixture remains a failed attempt, not refusal-site evidence.
+
+A4 takes the design arm at low amendment depth: a determinate verification-boundary correction, with no production
+behavior change or weakened guard. The four reachable kinds retain ordinary real-CLI proof of their declared outcome;
+the unreachable kind retains existing direct handler/prompter proof, and a separately labelled native case establishes
+the earlier acquisition safety refusal. The original Task 9.8 Goal stays verbatim and is superseded rather than
+marked fulfilled. Task 9.8.R carries the replacement; appended criterion 19 makes the exact evidence boundary visible.
+Authorization is the standing direction to resolve intent-preserving adjustments during phases 1–10, recording them
+at completion. Existing optimization thresholds, phase 9's source-boundary scenario, and phase 11 remain unchanged.
+
+The primary's grounding-only footprint check traces the four functions above, verifies the direct start refusal
+scenarios and generic prompter cases, and checks propagation across § 7, criterion 19 and Task 9.8.R. Reader
+independence and binding completeness retain the exception and the required native/direct proofs in the spec itself.
+No independent amendment-review pass is claimed; the two narrow consultations are advisory source evidence.
+The Markdown-only capture passes whole-corpus Markdown and all three ARC contracts
+(`/tmp/arc-amendment-a4-gates.log`); code inputs are unchanged from the passing Task 9.7 tree.

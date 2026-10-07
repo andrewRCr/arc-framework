@@ -628,14 +628,21 @@ unknown until migration.
   presentation calls (`log`, `intro`, `outro`, `note`, `spinner`, `cancel`), handlers import `p` from it so their
   call sites stay unchanged, and `@clack/prompts` is importable only in that module and the prompter. The ban is a
   row of § 3's composed ban table.
-- **Tests follow the policy rule.** Unit table tests run the real prompter against a fake renderer at the clack
-  boundary, covering each policy kind, each outcome, and each cancellation kind. `NO_INPUT_MATRIX` keeps one real-CLI
-  run per prompt policy kind in place of one entry per prompt-only command. Each such entry names the prompt site its
-  run reaches and asserts that kind's outcome when interaction is forbidden, and the reconciliation checks that the
-  named sites cover every policy kind a prompt site declares, each on its entry's own command. Every command with an
-  explicit stdin, subprocess, or environment-policy site, or a `--no-input` flag, still has an entry, and an entry that
-  names no prompt site stays one per command; a command's prompt-kind entries count as its entry, so `start` carries its
-  separate `proceed` and `refuse` runs and no third.
+- **Tests follow the policy rule (A4).** Unit table tests run the real prompter against a fake renderer at the clack
+  boundary, covering every policy kind, outcome, and cancellation kind. `NO_INPUT_MATRIX` runs one ordinary real-CLI
+  case per reachable prompt kind (`use-default`, `require-explicit`, `require-authority`, and `proceed`), naming the
+  site reached and asserting its forbidden-interaction outcome. Reconciliation preserves command coverage for every
+  explicit stdin, subprocess, environment-policy site, or `--no-input` flag, and matches named cases to their own
+  command and policy kind.
+
+  The sole exception is `safety.indeterminate-lifecycle`, which retains direct handler/prompter proof under supplied
+  indeterminate composition. `handleStart` rejects incomplete `expandActiveInFlight` results before that site;
+  `analyzeInFlightSnapshot` also rejects classification-failure warnings, and `resolveSuppliedSnapshotInputs` starts
+  with no indeterminate marks or disagreement sets. The ordinary CLI cannot produce the site's uncertainty through
+  those strict acquisition paths. A real-CLI start case proves the preceding incomplete-expansion safety refusal,
+  preserves refs/worktree state, and is explicitly labelled as upstream refusal coverage, never as having reached
+  the prompt. No acquisition guard is relaxed to manufacture reachability. Start therefore has its named `proceed`
+  case plus that upstream refusal case, with no third generic start case. Other unnamed cases remain one per command.
 - **Drift is surfaced, not absorbed.** A site whose hand-coded behavior differs from its declaration is reported during
   migration. The fix moves toward the declaration unless the declaration is the wrong one; either way it is a visible
   behavior change recorded in its task. One drift is settled already: `init` and `join` declare the identity prompt
@@ -814,6 +821,12 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
     exceptions retain their original semantics. Each matching file resolves every applicable predicate ID in the
     same composed ban table, and no source-scan replacement is deleted before its equivalent native lint proof.
 
+19. **Reachable native prompt coverage (A4).** Four ordinary real-CLI cases reach named sites for `use-default`,
+    `require-explicit`, `require-authority`, and `proceed`, with observable defaults, refusals, and resulting state.
+    `safety.indeterminate-lifecycle` retains direct handler/propmter proof under supplied indeterminate composition;
+    a separately labelled native start case proves the preceding acquisition refusal and preserves refs/worktree
+    state. Inventory reconciliation accounts for this sole explicit exception without claiming native prompt reach.
+
 ## Open Questions
 
 - **Calibration of the native-tooling cut.** The 55–60% projection comes from a per-file read, not a prototype; the
@@ -835,3 +848,6 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
 
 - **A3** — 2026-10-07 — design: preserve binding-aware and filename-relative bans through local lint predicates.
   _Supersedes:_ § 3 step 3. _Trigger:_ 4.3 door. _Work:_ 4.R. _Revalidated:_ 4.3.c.
+
+- **A4** — 2026-10-07 — design: distinguish unreachable start-prompt proof from its stricter native safety refusal.
+  _Supersedes:_ § 7 Tests follow the policy rule. _Trigger:_ 9.8 must-stop. _Work:_ 9.8.R. _Revalidated:_ pending → 9.9.

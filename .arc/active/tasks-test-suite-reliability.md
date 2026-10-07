@@ -911,26 +911,32 @@ prompter, every prompting handler takes a required interaction context, and each
   selectors, raw Clack/output-helper discovery and the renderer exception retire together; declared-value joins remain.
   See `notes-test-suite-reliability.md` § Required interaction contexts and declared-only discovery.
 
-### `[ ]` **9.8 Reduce the no-input matrix's prompt-only entries — D7**
+### `[~]` **9.8 Reduce the no-input matrix's prompt-only entries — D7**
 
 - _Goal:_ `NO_INPUT_MATRIX` runs each prompt policy kind once through the real CLI, each run naming the prompt site it
   reaches, while every command with another interaction kind still has its entry.
 
-    - A prompt-kind entry names the prompt site its run reaches and asserts that kind's outcome when interaction is
-      forbidden: the refusal's report for `require-explicit` and `require-authority`, the runtime default for
-      `use-default`, the action taken for `proceed`, and the gate's message for `refuse`.
-    - The reconciliation in `repository-inventory.test.ts` splits in two, replacing the `origin: "prompt"` count
-      Task 8.4 added. Every command with an explicit stdin, subprocess, or environment-policy site, or a `--no-input`
-      flag, has an entry, and the entries that name no prompt site belong to those commands, one per command. A
-      command's prompt-kind entries count as its entry, so `start`, whose `proceed` and `refuse` sites take separate
-      runs, carries those two entries and no third. The named sites cover every policy kind a prompt site declares, once
-      each, and each belongs to its entry's command.
-    - Entries of the seven prompt-only commands (`init`, `join`, `release setup install`, `release setup uninstall`,
-      `user open`, `user pull`, `user sync`) that no kind needs are removed.
-    - No entry today reaches a `require-authority`, `proceed`, or `refuse` prompt: `user pull` stops at `Remote
-      unavailable`, `user sync` at `No remote configured`, and `start` at `cannot start`. Those kinds take runs that
-      reach their sites, such as an unreachable origin for start's indeterminate-lifecycle gate, prepared through
-      Task 5.2's templates.
+    - _Amended in:_ 9.8.R (A4)
+
+- _Outcome:_ Superseded by A4's explicit separation of reachable native prompt cases and the stricter upstream
+  start refusal. The original refusal-site reach claim is not fulfilled or counted as native prompt evidence.
+
+### `[ ]` **9.8.R Cover reachable prompt kinds and retain the native start safety refusal — A4**
+
+- _Goal:_ A4's matrix proves the four reachable prompt kinds through their own named sites, preserves non-prompt
+  command coverage, and records the sole unreachable prompt's direct proof separately from native upstream refusal.
+
+- **Additional Context:** `spec-test-suite-reliability.md` § 7 Tests follow the policy rule (A4), and
+  `notes-test-suite-reliability.md` § Amendment A4: native prompt reachability.
+
+    - Keep four named policy cases: init tools' empty runtime default, stub's required commitment refusal, user
+      pull's overwrite-authority refusal after a real notes save, and start's full create-new ceremony without `--yes`.
+    - One explicitly labelled upstream-refusal start case uses an unreachable origin and proves acquisition stops
+      without a new local branch/worktree or tracked mutation. Retain the existing direct handler refusal scenarios
+      and the prompter's generic `refuse` cases; never count that native upstream stop as reaching the prompt.
+    - Reconciliation preserves one unnamed case per non-prompt command, counts named cases toward command coverage,
+      permits the one start upstream case, and matches all declared kinds to named native cases plus that explicit
+      exception. Reuse committed prepared repositories before per-scenario setup; remove unnecessary prompt-only cases.
 
 ### `[ ]` **9.9 Every prompt site migrated** — validate exit criterion at segment scope
 
@@ -1075,3 +1081,7 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
 - `[ ]` A3's native ESLint proofs preserve loader aliases, inline factories, relative-target resolution, and
   type-only/eager exceptions while accepting valid lookalikes and Result/store seams; resolved configuration
   composes every matching predicate ID, and equivalent native lint proof precedes each source-scan replacement
+
+- `[ ]` A4's matrix reaches one own-command site for each of the four reachable prompt kinds. The indeterminate
+  start refusal has direct handler/prompter proof and separately labelled native upstream-guard coverage, with refs,
+  worktrees and tracked state preserved and no claim that the native run reached the prompt.
