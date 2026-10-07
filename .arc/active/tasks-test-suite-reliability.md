@@ -168,26 +168,22 @@ _Exit criterion:_ All 59 native-tooling unit files are converted or recorded as 
 class the portability tier proves for real at the baseline head is still portability-selected, and native-tooling cost
 is measured against the baseline.
 
-### `[ ]` **3.1 Directly test the Vitest controller's logic — D2**
+### `[x]` **3.1 Directly test the Vitest controller's logic — D2**
 
 - _Goal:_ The Vitest controller's option normalization, tier arguments, completion check, and runtime-evidence
   refusals each have direct tests, so moving the files that exercise them through real runs loses no proof of that
   logic.
 
-    - `[ ]` **3.1.a Option normalization and tier arguments**
-        - `normalizeVitestOptions` (`vitest-discovery.ts`) is tested directly.
-        - `localVitestTierArguments` (`local-vitest-runner.ts`) is exported and tested for every tier, the
-          portability file list included.
+    - `[x]` **3.1.a Option normalization and tier arguments**
+        - Direct tests cover exclusion normalization, run/watch behavior, location overrides, every tier, and the
+          complete portability selector list; `localVitestTierArguments` is exported without changing its behavior.
 
-    - `[ ]` **3.1.b The completion check**
-        - `checkVitestCompletion` (`vitest-completion.ts`) is tested over constructed run results. It sets
-          `process.exitCode`, so each test saves and restores that value.
+    - `[x]` **3.1.b The completion check**
+        - Constructed public results cover collection, module, and worker failures, empty completion, healthy
+          completion, and existing failure status. Every case restores `process.exitCode`.
 
-    - `[ ]` **3.1.c Runtime-evidence refusals before the build read**
-        - `validateRuntimeBuildEvidence` (`build-runtime-setup.ts`) refuses malformed supplied evidence, and
-          `requirePreparedRuntimeBuild` refuses a context with no prepared-build key, both before
-          `readBuildQualification` reads and hashes the build. Their direct tests cover these two refusals, which
-          need no build.
+    - `[x]` **3.1.c Runtime-evidence refusals before the build read**
+        - Direct tests preserve malformed-evidence and missing-controller-key refusals before qualification reads.
 
 ### `[ ]` **3.2 Convert `build-publication.test.ts` and calibrate the projected cut — D2**
 
