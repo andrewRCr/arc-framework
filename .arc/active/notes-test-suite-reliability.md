@@ -491,3 +491,14 @@ Real integration case medians in the focused mode:
   generation, and restored full qualification. The four direct rows failed separately against stale-evidence
   acceptance and incorrect preflight wiring reconstructions, then passed after restoration. Workflow bytes and
   primary CLI output were preserved; the basename retains every baseline portability class.
+
+- **`dev-check`:** existing `DevCheckDeps` fakes prove the complete freshness decision without native work.
+- **`dev-build-qualification`:** the four-case unit matrix uses manually staged, qualified output and a fake
+  publication parser. This bounded adjustment from the planned fake verdict table preserves actual absent,
+  malformed, and legacy stamp decoding plus schema/runtime selectivity without a compiler. Existing `dev-check`
+  fakes already prove the boolean dependency seam. All four behaviors failed against a narrow always-fresh
+  reconstruction and passed after byte-for-byte restoration. Integration retains `refuses absent qualification
+  despite newer output and permits repaired freshness` and the real selective producer-input case; the direct
+  malformed/old rows replace their otherwise identical native rebuilds.
+- **`dev-build-refresh`:** both real refresh cases move unchanged to integration, preserving live output during
+  generation, failed-compilation preservation, repaired refresh, qualification, and private-staging cleanup.

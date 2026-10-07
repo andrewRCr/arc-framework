@@ -264,17 +264,17 @@ is measured against the baseline.
           platform-local declaration gates. The direct job rows replace equivalent native job replays; portability
           keeps the basename and all baseline classes.
 
-### `[ ]` **3.5 Convert the dev-build and dev-check files — D2**
+### `[x]` **3.5 Convert the dev-build and dev-check files — D2**
 
 - _Goal:_ The self-hosting freshness logic is proved against fakes, with the refresh path's real run in integration.
 
-    - `[ ]` **3.5.a `dev-check.test.ts` and `dev-build-qualification.test.ts`**
-        - `dev-check` is recorded as running no native work.
-        - `dev-build-qualification`'s table is a verdict of `checkDevBuildStaleness` (`dev-check.ts`) over
-          `DevCheckDeps`, so it runs over fake dependencies, with one real build per outcome class in integration.
+    - `[x]` **3.5.a `dev-check.test.ts` and `dev-build-qualification.test.ts`**
+        - Existing fake-dependency verdicts remain in `dev-check`; the qualification matrix uses compiler-free
+          staged output to preserve stamp decoding and selective invalidation. Two native integration cases retain
+          actual rebuild and schema/runtime producer classes; the bounded fixture adjustment is recorded in Notes.
 
-    - `[ ]` **3.5.b `dev-build-refresh.test.ts`**
-        - Real by nature: moves to integration whole, keeping its basename.
+    - `[x]` **3.5.b `dev-build-refresh.test.ts`**
+        - Both complete real refresh scenarios move unchanged to integration, preserving the basename.
 
 ### `[ ]` **3.6 Convert the Vitest-runtime and local-Vitest files — D2**
 
