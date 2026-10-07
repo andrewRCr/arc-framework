@@ -1381,3 +1381,29 @@ Capture 1 runs on the completed fixture patch before commit, based on `fc9a5b13f
 its staged test-patch object is `141f2983464b3bfa8ecad9f3702f1690896c9267`. It overlaps the final typed lint/type gates.
 Remaining E2E samples retain this same test code and settings, with other checks finished before sampling. The failed
 10-second-hook attempt is retained separately and contributes no successful cost observation.
+
+## E2E fixture exit measurement
+
+The completed fixture code at `b46f641d59b115933351573afdd118d0c40923ed` retains the managed admission's token,
+test-controller operation and live lease together (Task 5.1's native guard/child proofs); the distinct invocation plan
+and initialized template (5.2); and the remaining per-case copies (5.3). The final committed test patch has the same
+`141f2983464b3bfa8ecad9f3702f1690896c9267` object as capture 1's staged patch. Captures 2 and 3 run after the commit,
+with no concurrent checks. All three ordinary captures pass 67 files / 701 cases, with zero unhandled errors and
+matching schema-v4 `tier-isolated` / `e2e` / 12-worker modes.
+
+Summed file times are 1,923,630.339, 1,898,572.279 and 1,872,788.019 ms; median **1,898,572.279 ms**. Compared with the
+frozen single ordinary baseline's 2,787,941.456 ms, this is **31.9006% lower**. The successful samples' range is 2.6779%
+of their median, inside the 10% comparison convention. Wall times are 255,216, 251,709 and 250,752 ms; median 251,709 ms
+(26.6358% below the baseline's 343,095 ms). Helper-recorded CLI counts are 1,854 in every sample, versus 2,266 at baseline;
+these counts do not inventory launches outside the instrumented helper's active-test scope.
+
+The baseline remains one ordinary success, with no empirical estimate of its noise; the failed baseline attempt and
+the diagnostic remain separate. Capture 1 also overlaps final lint/type gates, while the later captures are free of
+other checks. The small observed spread supports the closing comparison but cannot establish baseline stability.
+The failed first closing attempt is retained as a hook-deadline failure and is excluded from successful captures.
+
+Raw captures are `.test-cost-runs/post-e2e-fixture-{1,2,3}.json`; native normalization is
+`post-e2e-fixture-normalized.json`, and `post-e2e-fixture-summary.json` retains sample outcomes, medians, reference,
+spread and uncertainty. Logs are `/tmp/arc-post-e2e-fixture-{1-green,2,3}.log`, with the failed first attempt at
+`/tmp/arc-post-e2e-fixture-1.log`. The segment exit scenario passes without changing its verifier or criteria.
+Unchanged code/build/shell inputs retain the completed fixture gates; Markdown and ARC checks close this record.

@@ -541,16 +541,16 @@ template; and E2E summed file time is measured against the baseline.
   remain intact across sibling teardown, uncommitted initialization and at-cap publication; Notes § Remaining prepared
   E2E fixtures records the native proofs and preservation of the convergence setup's original deadline.
 
-### `[ ]` **5.4 E2E cost cut** — validate exit criterion at segment scope
+### `[x]` **5.4 E2E cost cut** — validate exit criterion at segment scope
 
 - _Goal:_ Evidence that a managed E2E run's CLI children skip the staleness check only under the three conditions,
   that the `--no-input` matrix runs each distinct invocation once from a template, and that E2E summed file time,
   from the local instrument's `e2e` project set as three-run medians, is measured against
   `notes-test-suite-reliability.md` § Baseline.
 
-- **Additional Context:** `spec-test-suite-reliability.md` § 0
-
-    - Closing three-run medians compare with the frozen single ordinary E2E sample; state its uncertainty (A1).
+- _Outcome:_ The three-condition managed admission, distinct-context matrix and independent fixture copies close
+  together. E2E summed file time has a three-run median of 1,898,572 ms, 31.9% below the frozen ordinary sample;
+  Notes § E2E fixture exit measurement retains the comparison, raw evidence and single-sample uncertainty.
 
 ## **Phase 6:** Testing policy and the unit spawn guard
 
