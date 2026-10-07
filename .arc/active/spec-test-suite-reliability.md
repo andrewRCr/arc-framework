@@ -915,7 +915,7 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
   _Supersedes:_ § 7 Tests follow the policy rule. _Trigger:_ 9.8 must-stop. _Work:_ 9.8.R. _Revalidated:_ 9.9.
 
 - **A5** — 2026-10-07 — task: normalize native publication keys so Windows can publish required nested artifacts.
-  _Supersedes:_ none. _Trigger:_ 10.1 must-stop. _Work:_ 10.1.R. _Revalidated:_ pending → 10.1.b.
+  _Supersedes:_ none. _Trigger:_ 10.1 must-stop. _Work:_ 10.1.R. _Revalidated:_ 10.1.b.
 
 - **A6** — 2026-10-07 — design: bound synthetic native fixture sources to their live dependency closure.
   _Supersedes:_ § 1 live-copy bullet. _Trigger:_ 10.2 door. _Work:_ 10.R. _Revalidated:_ 10.2.
@@ -926,22 +926,22 @@ Every cost criterion compares a closing measurement with the § 0 baseline, usin
 - **A8** — 2026-10-07 — task: retain real CLI dependencies in the content-stale overlay fixture.
   _Supersedes:_ none. _Trigger:_ 10.2 must-stop. _Work:_ 10.R6. _Revalidated:_ 10.2.
 - **A9** — 2026-10-07 — task: reuse unchanged fixture import parsing while retaining live resolution.
-  _Supersedes:_ none. _Trigger:_ 10.1 must-stop. _Work:_ 10.R7. _Revalidated:_ pending → 10.1.
+  _Supersedes:_ none. _Trigger:_ 10.1 must-stop. _Work:_ 10.R7. _Revalidated:_ 10.1.
 
 - **A10** — 2026-10-07 — task: move Candidate decision variants to the existing faithful handler tier.
-  _Supersedes:_ none. _Trigger:_ 10.1 must-stop. _Work:_ 10.R8. _Revalidated:_ pending → 10.1.
+  _Supersedes:_ none. _Trigger:_ 10.1 must-stop. _Work:_ 10.R8. _Revalidated:_ 10.1.
 
 - **A11** — 2026-10-07 — task: give the repository inventory setup scan its named heavy-work deadline.
-  _Supersedes:_ none. _Trigger:_ 10.1 must-stop. _Work:_ 10.R9. _Revalidated:_ pending → 10.1.
+  _Supersedes:_ none. _Trigger:_ 10.1 must-stop. _Work:_ 10.R9. _Revalidated:_ 10.1.
 
 - **A12** — 2026-10-07 — task: partition native Candidate cases to reclaim the observed shard tail.
-  _Supersedes:_ none. _Trigger:_ 10.1 must-stop. _Work:_ 10.R10. _Revalidated:_ pending → 10.1.
+  _Supersedes:_ none. _Trigger:_ 10.1 must-stop. _Work:_ 10.R10. _Revalidated:_ 10.1.
 
 - **A13** — 2026-10-07 — task: name the retained cold ESLint configuration-load deadline.
-  _Supersedes:_ none. _Trigger:_ 10.1 must-stop. _Work:_ 10.R11. _Revalidated:_ pending → 10.1.
+  _Supersedes:_ none. _Trigger:_ 10.1 must-stop. _Work:_ 10.R11. _Revalidated:_ 10.1.
 
 - **A14** — 2026-10-07 — design: retain A13's closing evidence. _Supersedes:_ § Closing measurement; criterion 2.
-  _Trigger:_ 10.1 door. _Work:_ 10.R12. _Revalidated:_ pending → 10.3.
+  _Trigger:_ 10.1 door. _Work:_ 10.R12. _Revalidated:_ 10.3.
 
 - **A15** — 2026-10-07 — design: preserve Linux evidence through Windows fixture repair. _Supersedes:_ criterion 22.
-  _Trigger:_ 10.1 must-stop. _Work:_ 10.R13. _Revalidated:_ pending → 10.1.b.
+  _Trigger:_ 10.1 must-stop. _Work:_ 10.R13. _Revalidated:_ 10.1.b.

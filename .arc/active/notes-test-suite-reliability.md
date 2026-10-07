@@ -2938,3 +2938,29 @@ actual compiler termination and predictable owner rejection, and retains live ou
 (`/tmp/arc-windows-survivor-cleanup-probe.log`). These probes exercise actual processes on Linux; current Windows
 portability remains the outstanding platform witness. Unchanged full-build and shell inputs retain their earlier
 passing witnesses. Closing cost observations and advisory budget rows are preserved under A14/A15.
+
+### Closing confirmation and implementation boundary
+
+Run 37686035937 at `a916d0e1a33dfab99caf0f029d6fd058f2b0ad50` passes all nineteen jobs on its first attempt,
+including the ten Linux test jobs and both current Windows/macOS portability legs. Each targeted portability run
+passes twenty-eight files and 252 cases, with the two existing skipped cases unchanged; the macOS-specific lane
+also passes fourteen files and 119 cases. Both platforms execute and pass the two real build-generation lifetime
+cases and thirteen inventory unit cases. Windows now establishes actual compiler survival, replacement ownership,
+completed compiler report, new staged runtime and unchanged live runtime under the original deadlines.
+
+Complete run/jobs/artifact records, full logs and both unit reports are retained in
+`.test-cost-runs/closing-portability-a15/6-37686035937/`. The reports contain 13,695 completed unit cases and zero
+half-timeout violations, independently confirming the prior recording-head witness. The budgets are byte-identical
+to their recording at `f0285502c`. This single combined confirmation closes current portability and unchanged test
+outcomes; it is not substituted into the retained five-run cost medians or used to erase either failed Windows run.
+
+A14/A15 preserve the exact five hosted cost passes and twelve local captures at `9b3856d4d`, the original fifth-run
+ESLint headroom failure, the corrected recording-head unit witness, and both failed platform attempts. No five-run
+restart or local resampling follows the fixture repair. The retained reductions remain 44.05240602% native-tooling,
+37.99938710% E2E summed file time, 44.25925926% hosted run duration and 20.36431574% summed test-job time. The
+single-sample E2E baseline limitation stays explicit. Fourteen budget rows retain the derived 35% advisory allowance.
+
+Tasks 10.R13, 10.1.b, 10.1 and 10.3 close on this effective evidence. A5 and A9–A15 are revalidated at their recorded
+closing tasks. Phases 1–10 are complete; phase 11 verification and every Success Criteria marker remain untouched,
+with Candidate preparation, hosted review and integration outside this deferred execution scope. The default local
+worker cap remains eight, with explicit overrides and the heavy-run admission lock preserved.

@@ -1074,17 +1074,17 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
   bounded deadline-only exception keeps their cost medians and binds all missing confirmation to one recording-head
   dispatch; `notes-test-suite-reliability.md` § Closing measurement records the evidence.
 
-### `[ ]` **10.R13 Ground and repair the Windows native fixture failures — A15**
+### `[x]` **10.R13 Ground and repair the Windows native fixture failures — A15**
 
 - _Goal:_ A15 retains native raw-link and surviving-compiler staging proofs on Windows, with unchanged production
   behavior and Linux workload, while preserving the prior closing observations and current unit-headroom witness.
 
-    - Use the native relative-path representation for the raw directory-link fixture without weakening its assertion.
-    - Record compiler liveness and file-backed release/exit/error observations on Windows to distinguish death,
-      barrier failure and post-schema failure; repair only the observed cause with all native outcome assertions kept.
-    - Pass both current Windows/macOS portability legs; retain the failed run and all prior Linux cost evidence.
+- _Outcome:_ The raw link uses native path bytes, and the Windows survivor fixture launches a real detached compiler
+  with owned cleanup and a liveness precondition. Current native portability confirms staging without publication;
+  production and Linux work stay unchanged. `notes-test-suite-reliability.md` § Amendment A15 retains the source
+  diagnosis, failed attempts and passing confirmation.
 
-### `[ ]` **10.1 Run the closing hosted runs**
+### `[x]` **10.1 Run the closing hosted runs**
 
 - _Goal:_ Five consecutive first-attempt passes at the final head show the suite reliable on hosted runners, give the
   hosted cost medians, and confirm the Windows and macOS legs.
@@ -1097,12 +1097,12 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
 
     - `[x]` **10.1.a Five consecutive dispatch runs**
         - Five complete first-attempt passes at `9b3856d4d` supply the hosted cost medians under A14. The fifth
-          run's original unit half-timeout failure remains explicit; current headroom is required in the combined
-          recording-head confirmation. `notes-test-suite-reliability.md` records all five IDs and observations.
+          run's original unit half-timeout failure remains explicit; A15 retains the separately confirmed current
+          headroom. `notes-test-suite-reliability.md` records all five IDs and observations.
 
-    - `[ ]` **10.1.b The portability pair**
-        - One further dispatch run at the final head with `run_portability_pair` on passes its Windows and macOS
-          portability legs, and its run ID is recorded beside the five.
+    - `[x]` **10.1.b The portability pair**
+        - Run 37686035937 at `a916d0e1a` confirms both current portability legs under A15. Prior failed Windows
+          attempts remain recorded separately in `notes-test-suite-reliability.md`.
 
 ### `[x]` **10.2 Re-measure every tier locally**
 
@@ -1115,19 +1115,15 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
   clearing the native-tooling and E2E bars with A14's deadline-only continuation. The single-sample E2E baseline
   limitation and complete local observations remain explicit in `notes-test-suite-reliability.md`.
 
-### `[ ]` **10.3 Re-record the test-cost budgets — D5**
+### `[x]` **10.3 Re-record the test-cost budgets — D5**
 
 - _Goal:_ `test-cost-budgets.json` reflects the final suite: one CI row per test job of the adopted layout and one
   tier-isolated row for each of the `unit`, `integration`, `lane`, and `e2e` project sets, each budgeted by the spec's
   rule.
 
-    - CI-job rows come from Task 10.1's five runs and tier-isolated rows from Task 10.2's captures; each row's
-      baseline is the median of its measurements.
-    - `allowanceFraction` becomes the smallest multiple of 5% under which every one of those measurements falls
-      within its row's budget, and each `budgetMs` is its baseline times one plus that allowance, rounded as the
-      present rows are. `budget.ts` only loads and evaluates the file, so the rows are written by hand.
-    - One dispatch run at the recording head confirms the re-recorded file changes no test outcome.
-    - Pushes this run needs are approved with this task list and take no separate approval.
+- _Outcome:_ Four local and ten CI rows use retained measurement medians and the smallest covering allowance,
+  35%, with budget overage advisory. The recording-head Linux confirmation and current combined confirmation
+  preserve test outcomes under A14/A15; derivation and exact heads remain in `notes-test-suite-reliability.md`.
 
 ## **Phase 11:** Verification
 
