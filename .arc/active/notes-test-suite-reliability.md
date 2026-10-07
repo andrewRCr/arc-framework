@@ -1496,3 +1496,60 @@ contract checks pass; the full declaration build reports qualified artifacts. Fo
 The unchanged shell surface reuses its previous passing gate. E2E/portability remain required hosted enforcement;
 no E2E file changed in this policy increment. Admission and its floor land as one concern because the shared setup,
 metadata producer and controller consumer jointly enforce the legacy exception policy.
+
+## Layout trial
+
+The reference head is `7fd1ecf07a278579e009b1ee36172a698e64d8d7`, with the current single unit job, two integration
+shards and four anchored E2E shards. The three references run sequentially with portability pairing off. Reference 1,
+`37596723471`, passed in 496 seconds; its API run/jobs, full log and unit artifact are retained under
+`.test-cost-runs/layout-reference/1-37596723471`. References 2 and 3 are `37597799916` and `37599011266`; all three
+passed at the exact reference head, in
+496, 607 and 519 seconds. The reference median is **519 seconds**; the per-run adoption ceiling is **467.1 seconds**.
+Their raw directories use the same numbered run-ID convention and `layout-reference/observations.json` retains every
+job elapsed time and per-file observation. These are post-fix layout references, distinct from the frozen baseline.
+
+A mistyped capture-command SHA was corrected against the actual pushed head without replacing the hosted run. The
+first log download failed because gh's default cache directory was read-only; XDG_CACHE_HOME now points to
+`/tmp/arc-gh-cache-test-suite`, and the same completed run's logs/artifact were collected. The original capture errors
+remain in `/tmp/arc-layout-reference-runs{,-corrected}.log`; the resumed collector is
+`/tmp/arc-layout-reference-runs-resumed.log`. Local sequencer and handoff preparation proceeds while the remote stays
+fixed at the reference head. No trial or provisional duration weights are published before all references complete.
+
+### Sequencer and handoff preparation evidence
+
+The restored six-file heavy list remains checked for existence. The new assignment's order first fails in
+`/tmp/arc-duration-order-red.log`; sorting and complete-key cache reading first fail in
+`/tmp/arc-duration-sort-cache-red.log`. A narrow assignment/native-wrapper reconstruction fails partition, fallback
+and native shard-index cases (`/tmp/arc-duration-assignment-wrapper-red.log`); returning only BaseSequencer's order
+fails cross-project duration priority in `/tmp/arc-duration-native-sort-red.log`. Source is restored byte-for-byte.
+The restored eight-case proof passes in `/tmp/arc-duration-all-green.log`. The complete reference data supplies
+project estimates (pooled median file milliseconds): unit 7,
+unit-mocks 32, integration 995 and E2E 12,739. Missing/all-skipped durations are not assigned zero. The six hand-kept
+E2E weights are candidate-lineage 254,635; publication-spine 156,052; errand 94,341; command-input-no-input 69,433;
+lifecycle-exit 64,718; integrate-base-movement 73,120 ms. `heavy-first-durations.ts` contains these measured values;
+no provisional zero weights are published.
+
+The merge's native tier output and overlap refusal both fail before implementation
+(`/tmp/arc-duration-merge-red.log`). Handed-file preparation and hashed artifact discovery first fail with missing
+required output files (`/tmp/arc-duration-artifacts-red.log`); a truncating reconstruction separately fails restored
+input preservation (`/tmp/arc-duration-preservation-red.log`). The restored four data-artifact cases pass. Native
+results remain outside the writable Vitest cache, with exact complete-key overlap checks before writer persistence.
+
+The dispatched-selector, shared-input and writer-persistence workflow cases first fail against the current layout
+(`/tmp/arc-duration-workflow-red.log`) and then pass. Existing workflow contracts initially reject the new setup
+preparer/restore and changed current-job conditions (`/tmp/arc-duration-existing-workflows-red.log`). The classifier
+now admits only the exact preparation command and cache restore subaction, retaining arbitrary command/action
+rejections; a broad helper-command admission reconstruction fails its new rejection case
+(`/tmp/arc-duration-setup-admission-red.log`). All 198 workflow/classifier cases pass in
+`/tmp/arc-duration-workflow-contracts-green.log`. Focused typed lint and both type programs pass; the recursive
+filesystem reader explicitly selects utf8 to satisfy the native overload. A config-file lint operand was outside the
+configured TypeScript projects, so the corrected lint invocation uses the gate's actual source/test domain; native
+configuration parsing is exercised by the selected runs.
+
+The coherent trial preparation passes the full routine gate: 1,113 files and 16,642 cases, with one file and 1,188
+cases skipped (`/tmp/arc-duration-trial-routine.log`, 201.66 s). Full typed lint, both type programs, Markdown and all
+ARC contract checks pass; the full declaration build reports qualified artifacts. The unchanged shell surface reuses
+its passing gate. The measured data, sequencer and dispatch handoff form one atomic trial concern; the hosted source
+comparison decides whether any of this layout remains. Deferred review now covers phases 1–10, with atomic commits,
+needed pushes and hosted runs preapproved; phase 11 remains outside that scope. Intent-preserving adjustments are
+recorded here and in task outcomes rather than introducing additional approval stops.

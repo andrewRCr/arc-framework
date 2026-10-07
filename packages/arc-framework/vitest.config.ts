@@ -1,4 +1,5 @@
 import { configDefaults, defineConfig } from "vitest/config";
+import { HeavyFirstSequencer } from "./__tests__/helpers/heavy-first-sequencer.js";
 import { realpathSync } from "node:fs";
 import { dirname } from "node:path";
 import { tmpdir } from "node:os";
@@ -56,6 +57,8 @@ const maxWorkers = resolveVitestMaxWorkers(process.env);
 // import-cost win without their hoisted mocks leaking across file boundaries.
 export default defineConfig({
   test: {
+    ...(["hand-kept-list", "results-cache"].includes(process.env.ARC_TEST_DURATION_SOURCE ?? "")
+      ? { sequence: { sequencer: HeavyFirstSequencer } } : {}),
     ...(maxWorkers === undefined ? {} : { maxWorkers }),
     projects: [
       {

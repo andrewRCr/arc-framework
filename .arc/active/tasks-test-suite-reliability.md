@@ -639,90 +639,48 @@ _Mode:_ `slice` — closes on a layout decided by hosted evidence.
 _Exit criterion:_ The trial's runs and verdict are recorded, only the winning layout (or none) remains on the branch,
 and a test proves an `over` budget reading emits a `::warning` annotation naming the baseline and the budget.
 
-### `[ ]` **7.1 Measure the trial's reference and its weights — D5**
+### `[x]` **7.1 Measure the trial's reference and its weights — D5**
 
 - _Goal:_ The reference run duration, each project's estimate, and the hand-kept list's durations are all measured
   at the head the trial starts from, after the CPU work has changed the durations the baseline recorded.
 
-    - `[ ]` **7.1.a Reference runs**
-        - At least three full-suite `workflow_dispatch` runs at the head the trial starts from, on the current
-          layout, with `run_portability_pair` off, dispatched one at a time as in Task 1.2.b. Their median run
-          duration is the reference.
-        - Per-file durations by project come from each test job's log lines, as Task 1.2.b reads them.
-        - Pushes these runs need are approved with this task list and take no separate approval.
+    - `[x]` **7.1.a Reference runs**
+        - Three sequential current-layout dispatches at `7fd1ecf07`, portability pairing off, establish the
+          reference. Raw run/job/log evidence and unit artifacts are retained in `layout-reference/`.
 
-    - `[ ]` **7.1.b The estimates and the list's durations**
-        - Each project's estimate is its median hosted file duration across the reference runs, and each file on
-          `ecd8c8af3`'s hand-kept list (`HEAVY_FIRST_FILES`) takes its median hosted duration from the same runs.
-        - `notes-test-suite-reliability.md` § Layout trial records the head, the run IDs, the reference, the
-          estimates, and the list's durations.
+    - `[x]` **7.1.b The estimates and the list's durations**
+        - Pooled project medians and six heavy-file medians populate `heavy-first-durations.ts`.
+          `notes-test-suite-reliability.md` § Layout trial records the head, observations and adoption ceiling.
 
-### `[ ]` **7.2 Restore the duration-balanced sequencer — D5**
+### `[x]` **7.2 Restore the duration-balanced sequencer — D5**
 
 - _Goal:_ Given the same duration input, every shard process assigns each file to the same shard, so shards
   partition the suite exactly with heavy files spread by weight, and files with recorded durations start slowest
   first.
 
-    - `[ ]` **7.2.a Rebuild the restored sequencer with a total-order `shard()` and a duration-weighted `sort()`**
-        - `__tests__/helpers/heavy-first-sequencer.ts` and `__tests__/unit/heavy-first-sequencer.test.ts` return
-          from `ecd8c8af3` as the starting point. There the sequencer overrides only `sort()`, moving
-          `HEAVY_FIRST_FILES` to the front of their project's run through `promoteHeavyFirst`. A `shard()` override
-          and a duration-weighted `sort()` replace `promoteHeavyFirst` and its tests; the check that every listed
-          file exists stays.
-        - The list carries each file's duration and the per-project estimates from Task 7.1.b.
-        - Durations come from one source per run: the list, or the results file `setup` hands on, read from the
-          path `ARC_TEST_DURATION_FILE` names and never through Vitest's own results cache.
-        - Build `test-first` (one behavior at a time):
-            - `shard()` orders files by weight descending, then project name, then package-relative path, whatever
-              order Vitest supplies
-            - Files go to the least-loaded shard in that order, the lowest-numbered on a tie, and the shards
-              partition the files exactly
-            - A file with no recorded duration, or one that is not a finite non-negative number, weighs its
-              project's estimate
-            - The cache source reads a Vitest results file's `<project>:<package-relative path>` entries, and an
-              empty file gives every file its project's estimate
-            - `sort()` starts files with a valid recorded duration first, slowest first, and leaves the rest in
-              `BaseSequencer.sort`'s order
+    - `[x]` **7.2.a Rebuild the restored sequencer with a total-order `shard()` and a duration-weighted `sort()`**
+        - The restored sequencer partitions stable project/path identities by descending weight and least load,
+          reads one immutable duration source, and prioritizes recorded files over native fallback order.
+          Native-wrapper tests cover assignment and sorting; the six-file existence check remains.
 
-    - `[ ]` **7.2.b Register it only when a run selects a duration source**
-        - `vitest.config.ts` installs the sequencer only when `ARC_TEST_DURATION_SOURCE` is `hand-kept-list` or
-          `results-cache`, so runs on the current layout are unchanged. Registered, it decides the membership and
-          order of every project in the run, integration's shards included.
+    - `[x]` **7.2.b Register it only when a run selects a duration source**
+        - Native configuration selects the sequencer only for either trial source, leaving reference runs intact.
             - _Retired in:_ Phase 7
 
-### `[ ]` **7.3 Wire both duration sources and the trial selector into CI — D5**
+### `[x]` **7.3 Wire both duration sources and the trial selector into CI — D5**
 
 - _Goal:_ A `workflow_dispatch` run can drive the sequencer from either duration source on a trial layout, every shard
   of one run reads the same input, and only writer runs save the cache.
 
-    - `[ ]` **7.3.a The results-cache handoff**
-        - The `setup` job restores the newest cache by key prefix and hands it to every test job as a run artifact;
-          when none exists, it hands on an empty file, so the first run's shards still download one.
-        - Each trial job removes Vitest's results directory (`packages/arc-framework/node_modules/.vite/vitest/`) before
-          its run. The directory sits inside the `node_modules` the jobs restore from cache, a cache saved after any
-          Vitest run carries one (on a light run that misses the key, `lint-typecheck` runs `test:arc-contracts` and
-          then saves it), and Vitest loads the file it finds there at start and writes all of it back
-          (`ResultsCache.readFromCache`, `ResultsCache.writeToCache`). The file Vitest writes then holds only that job's
-          files.
-        - In a writer run, each shard uploads that file, and a final job merges the sets into one file per tier, failing
-          when two shards' sets overlap, and saves it under a run-unique key. Only writer runs save.
-        - `setup` is otherwise artifact preparation only: `workflowHeavyCheckNames` (`classify-change.test.ts`) fails
-          when it gains another step. The restore and the step that writes the empty file join the steps that test
-          admits, and its rejection cases for any other command or action stay.
+    - `[x]` **7.3.a The results-cache handoff**
+        - Setup restores or prepares one tier input artifact; shards clear inherited native results before running.
+          A successful writer run merges disjoint complete-key memberships and saves a unique cache key.
+          Setup admission permits only its exact preparer and restore action, retaining rejection coverage.
 
-    - `[ ]` **7.3.b The selector and the trial jobs**
-        - `workflow_dispatch` inputs: `duration_source` (a choice of `none`, the default, `hand-kept-list`, and
-          `results-cache`) and the unit, integration, and E2E shard lists, each a JSON array that its trial matrix
-          reads with `fromJSON`, so no step computes them.
+    - `[x]` **7.3.b The selector and the trial jobs**
+        - Dispatch selects either source and JSON shard matrices. Trial jobs share inputs and retain per-shard unit
+          reports; ordinary jobs use the opposite gate. Portability conditions remain intact.
             - _Retired in:_ Phase 7
-        - Trial unit, integration, and E2E jobs run only on a dispatch with a source selected, carry no heavy-weight
-          condition, so `workflowHeavyCheckNames` does not count them, and pass `ARC_TEST_DURATION_SOURCE` and
-          `ARC_TEST_DURATION_FILE` to Vitest. The current jobs gain the opposite
-          gate, so a run with no source selected runs the current layout unchanged.
-        - Trial unit shards upload their `json` reports under per-shard artifact names, since `upload-artifact`
-          refuses a second artifact with one name in a run. Each trial job reports its budget as
-          `<tier>-<shard>`.
-        - `review-gate-workflows.test.ts` follows: the current jobs' conditions and the trial jobs' steps.
 
 ### `[ ]` **7.4 Run the source runs and record the verdict — D5**
 
