@@ -22,7 +22,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Planning` | review-checkout-lifecycle       | P1       | andrew | —          | —                        |
 | `Planning` | stub-mint-to-launch             | P1       | andrew | —          | —                        |
 | `Planning` | inbound-routing-method          | P2       | andrew | —          | —                        |
-| `Planning` | schema-introspection-layer      | P3       | andrew | —          | architecture-remediation |
+| `Active`   | schema-introspection-layer      | P3       | andrew | —          | architecture-remediation |
 | `Planning` | quality-gate-hooks              | P3       | andrew | —          | —                        |
 
 ## Ready
