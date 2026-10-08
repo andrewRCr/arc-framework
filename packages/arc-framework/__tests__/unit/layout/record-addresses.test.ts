@@ -42,3 +42,20 @@ it.each([
 ])("refuses an unsafe internal-record or identity coordinate: %j", (address) => {
   expect(ArcLayoutAddressSchema.safeParse(address).success).toBe(false);
 });
+
+describe("editor-document addresses", () => {
+  it("resolves the CLI-owned document directory", () => {
+    expect(resolveArcPath({ kind: "editor-document-root" })).toBe(".arc/system/.internal/schemas");
+  });
+
+  it.each(["slug", "review-resolve-request", "decompose-cut-map"])("resolves the document for %s", (name) => {
+    expect(resolveArcPath({ kind: "editor-document", schema: slug(name) }))
+      .toBe(`.arc/system/.internal/schemas/${name}.schema.json`);
+  });
+
+  it.each(["../outside", "Uppercase", "bad_slug"])("refuses an invalid schema coordinate: %s", (schema) => {
+    const address = { kind: "editor-document", schema };
+    expect(ArcLayoutAddressSchema.safeParse(address).success).toBe(false);
+    expect(() => resolveArcPath(address as never)).toThrow(expect.objectContaining({ code: "layout.invalid-address" }));
+  });
+});

@@ -8,6 +8,8 @@ import {
   type WorkUnitPlacement,
 } from "./schema.js";
 
+const EDITOR_DOCUMENT_ROOT = ".arc/system/.internal/schemas";
+
 function projectPlacementRoot(tier: "active" | "planned" | "provisional" | "completed"): string {
   switch (tier) {
     case "active": return ".arc/active";
@@ -41,6 +43,10 @@ function projectAddress(address: ArcLayoutAddress): string {
     case "integration-boundary-record":
     case "transition-record":
       return projectInternalRecord(address);
+    case "editor-document-root":
+      return EDITOR_DOCUMENT_ROOT;
+    case "editor-document":
+      return `${EDITOR_DOCUMENT_ROOT}/${address.schema}.schema.json`;
     case "inbox":
       return projectInbox(address);
     case "arc-root":
@@ -58,9 +64,7 @@ function projectAddress(address: ArcLayoutAddress): string {
     case "project-document":
       return ".arc/backlog/ROADMAP.md";
     case "user-document":
-      return address.document.kind === "working-memory"
-        ? `.arc/user/${address.identity}/WORKING-MEMORY.md`
-        : `.arc/user/${address.identity}/${address.document.workUnit}/SESSION-NOTES.md`;
+      return projectUserDocument(address);
     default:
       return assertNever(address);
   }
@@ -116,4 +120,10 @@ function projectCohort(address: Extract<ArcLayoutAddress, { kind: "cohort-docume
 
 function projectInbox(address: Extract<ArcLayoutAddress, { kind: "inbox" }>): string {
   return address.scope.kind === "project" ? ".arc/backlog/ATOMIC-INBOX.md" : `.arc/user/${address.scope.identity}/USER-INBOX.md`;
+}
+
+function projectUserDocument(address: Extract<ArcLayoutAddress, { kind: "user-document" }>): string {
+  return address.document.kind === "working-memory"
+    ? `.arc/user/${address.identity}/WORKING-MEMORY.md`
+    : `.arc/user/${address.identity}/${address.document.workUnit}/SESSION-NOTES.md`;
 }

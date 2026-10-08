@@ -145,25 +145,14 @@ _Exit criterion:_ Against the built CLI, `arc schema list --json` lists every pr
 `get` returns a request root on its input side and the cut map's document, an unknown id refuses with its remedy,
 and every result validates against its registered envelope.
 
-### `[ ]` **3.1 Resolve the editor-document location through the layout resolver — D4**
+### `[x]` **3.1 Resolve the editor-document location through the layout resolver — D4**
 
 - _Goal:_ The editor-document directory and each marked schema's document path have one binding, the layout resolver,
   which the verb reads now and the writer reads later, including when no schema is marked.
 
-    - `ArcLayoutAddressSchema` (`lib/layout/schema.ts`) gains `{ kind: "editor-document-root" }` and
-      `{ kind: "editor-document", schema: SlugSchema }` beside `candidate-record` and `transition-record`, paired as
-      `work-unit-container` and `work-unit-artifact` are. `lib/layout/projection.ts` projects the root to
-      `.arc/system/.internal/schemas` and a document to `<root>/<id>.schema.json`.
-    - `projectAddress` sits at cyclomatic complexity 14 of the gate's 15, and two new cases would take it to 16: its
-      `user-document` ternary moves into a helper, as `projectInbox` and `projectCohort` already are, which keeps it at
-      15.
-    - The tests sit with the other internal-record addresses in `unit/layout/record-addresses.test.ts`.
-
-    - Build `test-first` (one behavior at a time):
-        - `resolveArcPath` resolves the root to the checkout-relative directory
-        - `resolveArcPath` resolves a registered id's document to its checkout-relative path inside that directory
-        - An id that is not a slug fails `ArcLayoutAddressSchema`, and `resolveArcPath` refuses it with
-          `layout.invalid-address`
+- _Outcome:_ The layout resolver owns paired directory and document addresses under one binding, validates schema
+  coordinates as slugs, and returns managed checkout-relative paths. User-document projection moved into a helper to
+  retain the complexity limit.
 
 ### `[ ]` **3.2 Produce typed `list` and `get` results — D2**
 
