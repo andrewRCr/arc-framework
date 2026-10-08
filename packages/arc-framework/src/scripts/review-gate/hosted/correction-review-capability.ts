@@ -10,6 +10,16 @@ const HOSTED_CORRECTION_REVIEW_CAPABILITIES = {
   [CODEX_HOSTED_REGISTRATION.id]: CODEX_HOSTED_REGISTRATION.correctionReview,
 } as const satisfies Readonly<Record<HostedProviderId, "complete-upgrade" | "native-incremental">>;
 
+/**
+ * Whether a hosted provider reviews only a correction range, rather than upgrading the request to complete coverage.
+ *
+ * @param provider - Registered hosted provider.
+ * @returns True when the provider carries a correction scope natively.
+ */
+export function hostedProviderReviewsIncrementally(provider: HostedProviderId): boolean {
+  return HOSTED_CORRECTION_REVIEW_CAPABILITIES[provider] === "native-incremental";
+}
+
 /** Whether a hosted provider can satisfy coverage through complete upgrade or bound native incrementality. */
 export function hostedProviderAdmitsCoverage(
   provider: HostedProviderId,

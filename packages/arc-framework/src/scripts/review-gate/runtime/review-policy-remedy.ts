@@ -5,7 +5,8 @@
  * the driver no longer admits refuses before anything is spent; re-reading the lane names what it admits instead,
  * including when the lane is complete or the next pass needs an Owner decision. A lane's attempts belong to the
  * head they reviewed, so re-resolving at a new head while still carrying them refuses; the passes they completed
- * carry forward as the count, and dropping the attempts reaches the ordinary resolution.
+ * carry forward as the count, and dropping the attempts reaches the ordinary resolution. An Errand's incremental
+ * hosted request admits only the correction its lane offers at that head, which the same status re-read names.
  *
  * @module
  */
@@ -48,6 +49,21 @@ export class HostedReviewAdmissionError extends Error {
     super(admission.message);
     this.name = "HostedReviewAdmissionError";
     this.admission = admission;
+    this.statusTarget = statusTarget;
+  }
+}
+
+const CORRECTION_INVARIANT = "An Errand's incremental hosted pass reviews only the correction its lane offers at "
+  + "that head.";
+
+/** An Errand incremental request whose coverage or scope differs from the correction its lane offers. */
+export class HostedErrandCorrectionError extends Error {
+  readonly code = "invalid-input" as const;
+  readonly statusTarget: ChangeRequestTargetRef;
+
+  constructor(reason: string, statusTarget: ChangeRequestTargetRef) {
+    super(`Hosted incremental review is not admissible for this Errand head: ${reason}.`);
+    this.name = "HostedErrandCorrectionError";
     this.statusTarget = statusTarget;
   }
 }
@@ -136,12 +152,16 @@ export function localPrepareAdmissionRemedy(error: unknown): SpineRemedy | undef
 }
 
 /**
- * Name the review status behind a hosted request the driver no longer admits.
+ * Name the review status behind a hosted request the driver, or the Errand's offered correction, no longer admits.
  *
  * @param error - The failure the hosted request raised.
  * @returns The remedy re-reading the open change request's review status; otherwise `undefined`.
  */
 export function hostedRequestAdmissionRemedy(error: unknown): SpineRemedy | undefined {
+  if (error instanceof HostedErrandCorrectionError) {
+    return spineRemedy(CORRECTION_INVARIANT, "Re-read the change request's review status and submit its offered "
+      + "request unchanged", ["arc", "review", "status", "--target", JSON.stringify(error.statusTarget)]);
+  }
   if (!(error instanceof HostedReviewAdmissionError)) return undefined;
   return spineRemedy(ADMISSION_INVARIANT, admissionCorrection(error.admission, STATUS_ROUTE), [
     "arc", "review", "status", "--target", JSON.stringify(error.statusTarget),
