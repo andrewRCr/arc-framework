@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "subagent-recovery-guard",
+  "claimId": "f8e84e554efa24966866bdc3e608b1ae",
+  "createdAt": "2026-10-08T20:11:58.601Z",
+  "updatedAt": "2026-10-08T20:11:58.601Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Skip post-compaction recovery seed, marker and injection for hooks running inside a subagent, with an instruction backstop for delegated agents",
+  "branch": "chore/subagent-recovery-guard",
+  "origin": "inbox",
+  "originEntry": "Keep the post-compaction recovery injection out of subagents the recovered session spawns",
+  "originEntrySourceDigest": "sha256:4e3234b8206ee42f0e055c535df21e4d6132653bcd5627539546cdecc2519bfc",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
