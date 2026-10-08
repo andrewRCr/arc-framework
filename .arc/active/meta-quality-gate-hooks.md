@@ -1,4 +1,4 @@
-# Metadata: Quality Gate Tiers and Hook Integration
+# Metadata: Quality Gates and Hook Integration
 
 | **State**  | **Owner** | **Branch**                | **Class** | **Priority** |
 | ---------- | --------- | ------------------------- | --------- | ------------ |
@@ -12,7 +12,7 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
