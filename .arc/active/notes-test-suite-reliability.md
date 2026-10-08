@@ -3523,3 +3523,45 @@ All thirty-two criterion identities and states remain unchanged: twenty-seven me
 Current supplemental proof closes the affected discovery, confinement, native lint and full verification requirements;
 unaffected historical claims retain their original witnesses. Primary-only verification remains the approved choice.
 Candidate advancement and the narrowly authorized incremental standard pass 6 remain pending at this record's composition.
+
+## Standard-review pass 6 correction and accepted review stop
+
+The final incremental delegated pass at `60c848053` covers all twenty-one admitted paths, five closed source scopes,
+the independent seam and fresh aggregation. The runtime retains fourteen unchanged paths and ten earlier material
+finding checks; current correction inspection concentrates on four code/test paths and three records. All admitted
+obligations and the additional nonblocking interface correction are considered. The producer's one source-confirmed
+major is approved FIX with full verification in set
+`sha256:c244443440931b172ca849bb970a2c4a0d1e39b03af21f545ae734209aed66e6`.
+
+`c82d581c4` recognizes statically literal computed object property names, including templates and parenthesized
+literals, while preserving effective replacement order and actual Node factory declaration identity. Nine new native
+cases fail before correction; all 134 architecture-table cases pass afterward, including genuine factories, harmless
+lookalikes, replacements in both directions, both Clack owners and the independent neverthrow ban. The fix is confined
+to the classifier and adjacent native regressions; no design, criterion, sizing, deadline, shard or budget changes.
+
+The Owner accepts the review stop for the resulting corrected Candidate after full verification, instead of spending
+standard pass 7. The final small correction receives primary source verification and native regression proof, followed
+by full quality verification; no independent evaluator reviewed the changed correction. This is an accepted-risk
+terminus, not a clean or converged verdict at the later head. The decision carries through Candidate advancement and
+publication. Primary-only criteria verification remains the approved choice.
+
+Full local gates pass for code head `c82d581c45e8a5c01591676e428569076bf9adb7`: Markdown, three ARC checks,
+whole-package typed lint, shell lint, both type programs, the routine lane and qualified full declaration build.
+The routine run completes 1,121 passing files and 16,865 passing cases, with one file and 1,188 intentional case skips,
+in 228.19 seconds at the unchanged eight-worker default. The checked input tree equals the committed code tree.
+
+Hosted confirmation 37721286878 succeeds at that exact code head on attempt one: all seventeen applicable jobs pass;
+the two PR-only rollups are event-disabled. Windows and macOS each complete 28 files and 252 cases with two intentional
+skips; macOS's additional selection completes fourteen files and 119 cases. The two native unit reports retain 13,738
+completed cases strictly below half their effective timeouts and 13,655 off-allowlist cases with zero launches, with no
+missing metadata. The tightest case is 3,164.285704 ms against its 10,000 ms deadline. All ten CI-job comparisons are
+within unchanged budgets; summed budget clocks are 1,426,568 ms. Native run/attempt records, logs, reports and derived
+checks remain at package-relative `.test-cost-runs/closing-review-pass6/37721286878`. Historical failures, five closing
+hosted cost samples, twelve local captures, measured-head bindings, medians and acceptance bars are retained; none is
+relabelled or repeated.
+
+All thirty-two immutable criterion identities and states remain unchanged: twenty-seven met, five superseded, none
+unresolved. Current supplemental proof covers the changed confinement/native-lint contract and full verification;
+unaffected historical proofs keep their original witnesses. Integration follows the singleton manual-cadence bridge:
+land with the Integrating meta and completion content under active, archive in a separate post-merge pull request,
+and tear down only after that archival lands. Exact-head integration authorization remains required.
