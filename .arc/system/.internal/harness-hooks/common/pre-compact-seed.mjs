@@ -12,7 +12,12 @@ import {
 
 // Read the PreCompact payload's `session_id` (drains stdin in the same call) so the
 // marker is scoped to a key the later reader hooks share — see codex-recovery-marker.
-const { sessionId, raw } = readHookInput();
+const { sessionId, agentId, raw } = readHookInput();
+
+// A subagent's own compaction carries its parent's session_id: seeding or arming
+// here would overwrite the parent's seed and mark the parent's session pending.
+if (agentId !== null) process.exit(0);
+
 const hookCwd = process.env.CLAUDE_PROJECT_DIR || process.cwd();
 const arcCommand = process.env.ARC_HOOK_ARC_COMMAND?.trim() || "arc";
 const staleBuildCommand = process.env.ARC_HOOK_STALE_BUILD_COMMAND?.trim() || "";
