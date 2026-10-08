@@ -58,6 +58,7 @@ function propertyName(identifier: ts.Identifier): boolean {
   const parent = identifier.parent;
   return (ts.isPropertyAccessExpression(parent) && parent.name === identifier)
     || (ts.isPropertyAssignment(parent) && parent.name === identifier)
+    || (ts.isPropertyDeclaration(parent) && parent.name === identifier)
     || (ts.isBindingElement(parent) && parent.propertyName === identifier)
     || ts.isLabeledStatement(parent) || ts.isBreakStatement(parent) || ts.isContinueStatement(parent);
 }

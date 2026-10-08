@@ -16,6 +16,26 @@ const scan = (sourceText: string, other: Readonly<Record<string, string>> = {}) 
 });
 
 describe("declared-value prompt discovery", () => {
+  it.each([
+    [promptImport, "ask"],
+    ['import * as input from "../lib/command-input/index.js";', "input.prompt"],
+  ])("discovers the prompt despite an unrelated matching class field: %s", (importText, callee) => {
+    const field = callee.split(".")[0];
+    const source = [factoryImport, importText, declare("ownSite", "own", "handlers/caller.ts"),
+      `class Display { ${field} = "label"; }`,
+      `async function run(context) { return ${callee}(ownSite, context, {}); }`].join("\n");
+    expect(scan(source).sites).toMatchObject([{ declaredId: "own", callee,
+      declaredSource: { file: "handlers/caller.ts", symbol: "ownSite" } }]);
+  });
+  it.each([
+    [promptImport, 'class Display { [ask] = "label"; }'],
+    [promptImport, 'class Display { value = ask; }'],
+    ['import * as input from "../lib/command-input/index.js";', 'class Display { [input.prompt] = "label"; }'],
+    ['import * as input from "../lib/command-input/index.js";', 'class Display { value = input; }'],
+  ])("refuses actual canonical values in class field expressions: %s %s", (importText, body) => {
+    expect(() => scan([importText, body].join("\n")))
+      .toThrow(expect.objectContaining({ code: "command-input.inventory.unclassified" }));
+  });
   it("retains the outer factory across a class static block", () => {
     const source = [factoryImport, promptImport, declare("ownSite", "own", "handlers/caller.ts"),
       'class Local { static { var declarePromptSite = () => "local"; void declarePromptSite(); } }',
