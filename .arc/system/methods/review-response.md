@@ -84,6 +84,10 @@ preserve `carriedFindingIds` without repeating their compatible exact settlement
 `reopenedFindingIds` through `payload.hostedSettlementPlan`. The response planner may return the corrected fix,
 settlement, or close leaf; execute only that selected leaf.
 
+`supersedes` belongs to this transition alone. Re-entering the approval call before the fix is committed keeps it;
+every later call for the response, including the committed verified-fix replay, carries the approved successor
+without it.
+
 Expected fix dirt is an allowance, not a target rewrite: a changed reviewed head, an unrelated dirty path, consumed
 authority, ambiguous hosted settlement, stale predecessor, or conflicting successor returns `supersession-refused`.
 Stop on that result. Do not edit the record, retry with a different predecessor, or perform direct Git-common surgery;
@@ -113,8 +117,9 @@ Follow the planner state; do not infer or combine transitions:
   plus actual verification scope and evidence. The performed scope must equal or exceed `approvedVerification`; do not
   use that floor to choose fewer checks. Do not persist the candidate inside this method: return control to the
   caller's commit interlock. Once the fix is committed and the worktree is clean, the caller replays the exact
-  approved request with `verifiedFix` (`reentryCommand: respond-verified-fix`). A replay over an uncommitted fix
-  refuses with a remedy that names this commit-then-replay continuation.
+  approved request with `verifiedFix` (`reentryCommand: respond-verified-fix`), leaving out any `supersedes`: the fix
+  commit moved the reviewed head that supersession requires, so carrying it returns `supersession-refused`. A replay
+  over an uncommitted fix refuses with a remedy that names this commit-then-replay continuation.
 - `ready-to-persist` is reached inside that replay. The replay binds the authorization consumption to the actual
   old/new target, applying actor, and verification references, so run it before any push interlock can release.
   Preserve `approvedVerification` in the changed-target response continuation.
