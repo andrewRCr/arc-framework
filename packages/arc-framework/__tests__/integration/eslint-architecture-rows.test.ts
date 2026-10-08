@@ -23,6 +23,11 @@ const clackReferences = [
   'import nodeModule from "node:module"; void nodeModule.createRequire(import.meta.url)("@clack/prompts");',
   ...additionalNodeLoaders,
 ] as const;
+const staticBlockLoaders = [
+  'import { createRequire as acquire } from "node:module"; class Local { static { var acquire = () => (name: string) => name; void acquire()("@clack/prompts"); } } const load = acquire(import.meta.url); void load("@clack/prompts");',
+  'import * as nodeModule from "node:module"; class Local { static { var nodeModule = { createRequire: () => (name: string) => name }; void nodeModule.createRequire()("@clack/prompts"); } } void nodeModule.createRequire(import.meta.url)("@clack/prompts");',
+  'import { createRequire } from "node:module"; const load = createRequire(import.meta.url); class Local { static { var load = (name: string) => name; void load("@clack/prompts"); } } void load("@clack/prompts");',
+] as const;
 
 const cases = [
   ["src/handlers/user.ts", 'void import("@clack/prompts");', "no-restricted-syntax"],
@@ -60,6 +65,20 @@ const cases = [
 ] as const;
 
 describe("actual architecture table enforcement", () => {
+  it.each(staticBlockLoaders)("retains only the genuine outer loader across a static block: %s", async (text) => {
+    const [result] = await eslint.lintText(text, { filePath: resolve(packageRoot, "src/handlers/user.ts") });
+    expect(result?.fatalErrorCount).toBe(0);
+    expect(result?.messages.filter(({ ruleId, message }) =>
+      ruleId === "arc/architecture-imports" && message.includes("clack"))).toHaveLength(1);
+  });
+  it.each(staticBlockLoaders)("retains a composed ban across a static block: %s", async (text) => {
+    const [result] = await eslint.lintText(text.replaceAll("@clack/prompts", "neverthrow"), {
+      filePath: resolve(packageRoot, "src/lib/terminal.ts"),
+    });
+    expect(result?.fatalErrorCount).toBe(0);
+    expect(result?.messages.filter(({ ruleId, message }) =>
+      ruleId === "arc/architecture-imports" && message.includes("neverthrow"))).toHaveLength(1);
+  });
   it.each(additionalNodeLoaders)("retains other composed restrictions for a genuine Node loader: %s", async (text) => {
     const [result] = await eslint.lintText(text.replaceAll("@clack/prompts", "neverthrow"), {
       filePath: resolve(packageRoot, "src/lib/terminal.ts"),

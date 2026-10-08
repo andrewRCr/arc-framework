@@ -3,7 +3,7 @@ import ts from "typescript";
 
 function scope(node: ts.Node, functionOnly = false): ts.Node {
   for (let current = node; ; current = current.parent) {
-    if (ts.isSourceFile(current) || ts.isFunctionLike(current)) return current;
+    if (ts.isSourceFile(current) || ts.isFunctionLike(current) || ts.isClassStaticBlockDeclaration(current)) return current;
     if (!functionOnly && (ts.isBlock(current) || ts.isCatchClause(current) || ts.isCaseBlock(current)
       || ts.isForStatement(current) || ts.isForInStatement(current) || ts.isForOfStatement(current))) return current;
   }

@@ -16,6 +16,26 @@ const scan = (sourceText: string, other: Readonly<Record<string, string>> = {}) 
 });
 
 describe("declared-value prompt discovery", () => {
+  it("retains the outer factory across a class static block", () => {
+    const source = [factoryImport, promptImport, declare("ownSite", "own", "handlers/caller.ts"),
+      'class Local { static { var declarePromptSite = () => "local"; void declarePromptSite(); } }',
+      'async function run(context) { return ask(ownSite, context, {}); }'].join("\n");
+    expect(scan(source).sites).toMatchObject([{ declaredId: "own",
+      declaredSource: { file: "handlers/caller.ts", symbol: "ownSite" } }]);
+  });
+  it("retains the outer namespace and allows its static block shadow", () => {
+    const source = ['import * as input from "../lib/command-input/index.js";',
+      declare("ownSite", "own", "handlers/caller.ts").replace("declarePromptSite(", "input.declarePromptSite("),
+      'class Local { static { var input = { prompt: () => "local" }; void input.prompt(); } }',
+      'async function run(context) { return input.prompt(ownSite, context, {}); }'].join("\n");
+    expect(scan(source).sites).toMatchObject([{ declaredId: "own", callee: "input.prompt",
+      declaredSource: { file: "handlers/caller.ts", symbol: "ownSite" } }]);
+  });
+  it("retains an outer prompt refusal across a static block", () => {
+    expect(() => scan([promptImport,
+      'class Local { static { var ask = () => "local"; void ask(); } }',
+      'ask(unknown, context, {});'].join("\n"))).toThrow(/Unresolved prompt site/u);
+  });
   it("resolves an imported alias and keeps its passing call as the locus", () => {
     const source = [promptImport, 'import { firstSite as inputSite } from "./sites.js";',
       'async function run(context) { return ask(inputSite, context, { message: "Value?" }); }'].join("\n");
