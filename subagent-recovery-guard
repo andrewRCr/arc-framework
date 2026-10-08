@@ -3,7 +3,7 @@
   "slug": "subagent-recovery-guard",
   "claimId": "f8e84e554efa24966866bdc3e608b1ae",
   "createdAt": "2026-10-08T20:11:58.601Z",
-  "updatedAt": "2026-10-08T20:11:58.601Z",
+  "updatedAt": "2026-10-08T20:42:15.989Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Skip post-compaction recovery seed, marker and injection for hooks running inside a subagent, with an instruction backstop for delegated agents",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Keep the post-compaction recovery injection out of subagents the recovered session spawns",
   "originEntrySourceDigest": "sha256:4e3234b8206ee42f0e055c535df21e4d6132653bcd5627539546cdecc2519bfc",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/subagent-recovery-guard",
+    "headSha": "2e633348ecab60bb95cb276fc4a26560870cc893"
+  }
 }
