@@ -104,7 +104,8 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
   nothing in the document resolves against another one, and two contracts load into one validator without colliding.
     - **Fold keys:** a folded registered document sits at `$defs/<id>`, and a folded shared definition at
       `$defs/__<name>` under its generated name (`__schema12`). Registered ids are slugs, which cannot begin with `_`,
-      so the two never collide; the fold throws on any other key collision rather than overwrite a definition.
+      so the two never collide; the fold throws on any other key collision rather than overwrite a definition, and on
+      a reference in neither form (`urn:arc:schema:<id>` or `urn:arc:schema:__shared#/$defs/<name>`).
 - The first two changes are one decision. `reused: "ref"` alone gathers 973 definitions into a 266 KB `__shared`, and
   a document-granular closure then drags all of it, plus every registered document it references, into every result.
   A pruned `__shared` per root would carry one identity with different contents per root.
@@ -118,13 +119,15 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
       caller-supplied delivery design inventory (`delivery-design-inventory-input`), and the decompose cut map (D3)
       carry `request`. `editor-document` is D4's marker.
     - The registry projects a whole side at a time. `KernelRegistry.toJSONSchema` and `projectKernelSchemas` take
-      the side (`io`) and return that side's multi-document bundle: every registered schema plus that side's
-      `__shared`. The bundle is an internal intermediate and is never published; both sides' `__shared` carry the same
+      the side (`io`) as a required argument and return that side's multi-document bundle: every registered schema
+      plus that side's `__shared`. No projection defaults its side, so none projects a request root on the wrong one
+      unnoticed. The bundle is an internal intermediate and is never published; both sides' `__shared` carry the same
       internal identity, so the two bundles are never loaded together.
     - `foldKernelSchemaClosure(bundle, id)` folds one root out of an already-projected side bundle into its
       self-contained document. `projectKernelSchemaClosure(registry, id)` projects the root's declared side and folds
       it. The shared lookup (D2) and every emitter use `projectKernelSchemaClosure`, so a lookup of one root projects
-      only that root's side; the writer (D4) projects the input side once and folds each marked root from it.
+      only that root's side; the writer (D4) projects the input side once and folds each marked root from it, and
+      projects nothing while no schema is marked.
     - Every registered schema must project on both sides. The test below enforces it, since a schema that throws on
       one side breaks that side's projection for every root.
 - **Valid, bounded documents.** Through `z.toJSONSchema`'s `override` hook, every tuple carries the bounds Zod
@@ -146,8 +149,10 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
       against, so the identity names the contract rather than a file.
     - A namespaced URN cannot collide with another tool's `slug.schema.json` in a shared validator, and 2020-12 says
       a root `$id` should be absolute.
-    - The one place that builds the old form, `handleReviewRequestSchema`'s `rootId`, moves with it, as do the tests
-      that pin today's identities.
+    - The one function that builds the old form, `handleReviewRequestSchema`, in the `rootId` of both its result and
+      its refusal, moves with it, as do the tests that pin today's identities. The mapping, the side, and
+      `reused: "ref"` live in `KernelRegistry.toJSONSchema`, so they reach every registry built on the kernel's:
+      `createValidationSurfacesRegistry` projects through it, and `CommandInputRegistry` passes its options through.
 - **Determinism.** Zod numbers the generated `__shared` definitions (`schema0`, `schema1`, …), and after the fold they
   are document-local names, not identities. Verified at spec: the production projection is byte-identical across
   separate processes on both sides, while inserting the same schemas in reverse order renumbers them. The registry's
@@ -160,9 +165,11 @@ _Frozen at activation; changes after that append: `Amended YYYY-MM-DD — <delta
 
 **Emitters.** Every closure consumer inherits the result.
 
-- The review `--schema` emitters keep their `{rootId, schemas}` shape, now holding the one self-contained document.
-  `handleReviewRequestSchema` composes `createProductionSchemaRegistry()` instead of its own review-only registry,
-  which would number the shared definitions differently, so one identity yields one document from either verb.
+- The review `--schema` emitters keep their `{rootId, schemas}` shape. `schemas` holds the one self-contained
+  document under its schema id, and `rootId` is that document's `$id`, `urn:arc:schema:<id>`; a refusal carries the
+  same `rootId` with `schemas: {}`. `handleReviewRequestSchema` composes `createProductionSchemaRegistry()` instead
+  of its own review-only registry, which would number the shared definitions differently, so one identity yields one
+  document from either verb.
 - `handleDeliveryPlanInventorySchema` keeps its verb and envelope but takes its `schema` and `version` from D2's shared
   lookup over `createProductionSchemaRegistry()`, instead of the root of a delivery-only projection and a version
   constant. Under `reused: "ref"` that root would point into an unpublished `__shared`, and a delivery-only
@@ -180,8 +187,9 @@ two columns use today's relative identities; the last is D1's document, with the
 | `review-status-result`   | 4.2 MB           | 340 KB               | 63 KB       |
 
 Under D1, all 138 of today's documents pass metaschema validation and compile under those options. Without the tuple
-bounds, six fail strict compilation; without `validateFormats: false`, 27 fail on unknown formats (`date-time`, `uri`,
-`uuid`).
+bounds, nine fail on each side: an empty tuple's `prefixItems` fails the metaschema, and a fixed-length tuple without
+both bounds fails strict compilation. Without `validateFormats: false`, 27 fail on unknown formats (`date-time`,
+`uri`, `uuid`).
 
 ### D2 — The `arc schema` verb
 
@@ -192,7 +200,7 @@ bounds, six fail strict compilation; without `validateFormats: false`, 27 fail o
   migrationPosture, editorDocument}]}`, in the registry's sorted id order.
 - **`arc schema get <id>`:** always JSON, `{status: "ok", id, version, migrationPosture, editorDocument, schema}`,
   where `schema` is D1's self-contained document, projected on the side its registration declares; its `$id` carries
-  the identity.
+  the identity. It takes no `--json`, and the CLI parser refuses one as an unknown option.
 - **`arc schema install`:** runs D4's writer for the current checkout. Plain output lists the written paths, one per
   line; with `--json`, `{status: "ok", documents: [path]}`. It is the remedy after a CLI upgrade and for a checkout
   provisioned before the writer existed (D4, Channel).
@@ -207,7 +215,8 @@ bounds, six fail strict compilation; without `validateFormats: false`, 27 fail o
 - **Unwritable:** when the writer cannot write, `install` exits 1 with
   `{status: "refused", reason: "editor-documents-unwritable", target, path, detail, remedy}`.
     - `target` is `"documents"` or `"exclude"`, the write that failed.
-    - `path` names what could not be written. It is absent only when Git cannot resolve the clone's `info/exclude`
+    - `path` names what could not be written, as an absolute path, since a linked worktree's `info/exclude` lies
+      outside the checkout. It is absent only when Git cannot resolve the clone's `info/exclude`
       (`git rev-parse --git-path info/exclude`, as `ensureWorktreeMarkerIgnored` resolves it).
     - `detail` carries the underlying error's message.
     - `remedy` says to correct the reported cause and rerun `arc schema install`.
@@ -220,15 +229,26 @@ bounds, six fail strict compilation; without `validateFormats: false`, 27 fail o
   it.
 - **Typed results:** every result is a Zod schema registered in the production registry, as the review command
   envelopes are (`review-command-envelope-registry.ts`): `schema-list-envelope`, `schema-get-envelope`,
-  `schema-install-envelope`, and `schema-refusal-envelope`. The handler validates its output against them, and
-  `arc schema get` describes the verb itself, so no document restates the shapes.
-- **Shared lookup:** one library function over a registry maps an id to a typed result: found, with metadata and
-  document, or unknown. `get` and the delivery inventory emitter use it (D1).
+  `schema-install-envelope`, and `schema-refusal-envelope`. They live in `lib/schema-command/envelope.ts`, whose
+  `registerSchemaCommandSchemas` is chained into `createProductionSchemaRegistry()`, so the production composition
+  imports no handler. The handler validates its output against them, and `arc schema get` describes the verb itself,
+  so no document restates the shapes.
+- **Shared lookup:** `lookupKernelSchema(registry, id)`, beside `projectKernelSchemaClosure`, maps an id to a typed
+  result: `{status: "found", meta, schema}` with the folded document, or `{status: "unknown"}`. `get` and the
+  delivery inventory emitter use it (D1).
 - **Source registry:** `createProductionSchemaRegistry()` as composed under D3.
-- **Wiring:** `cli.ts`; a new `handlers/schema.ts`; summaries in `COMMAND_SUMMARIES` (`lib/cli-help-summaries.ts`),
-  which feed the `COMMAND_HELP` table that `cli-help-coverage.test.ts` checks against every visible command; and a
-  `CommandInputRegistration` for the `<id>` operand plus a `--json` policy declaration, collected in
-  `src/command-input-registrations.ts`, which the repository-inventory test reconciles against every live syntax site.
+- **Wiring:**
+    - `cli.ts` registers the command; each action runs through `withInteractionContext`, machine-readable under
+      `--json` for `list` and `install` and always for `get`, as the always-JSON review verbs are.
+    - A new `handlers/schema.ts` serves the subcommands.
+    - Help: summaries in `COMMAND_SUMMARIES` (`lib/cli-help-summaries.ts`) feed the `COMMAND_HELP` table that
+      `cli-help-coverage.test.ts` checks against every visible command, and `schema` joins the root help group "Set up
+      and maintain ARC:" in `HELP_GROUPS` (`lib/cli-help-content.ts`), which the same test requires to cover every
+      top-level command.
+    - Input: `handlers/schema.ts` exports a `CommandInputRegistration` per subcommand, mapping `list`'s and
+      `install`'s `--json` and `get`'s `<id>` operand to schema fields, and a machine-mode `--json` policy declaration
+      for each subcommand that takes the flag. `src/command-input-registrations.ts` collects both, as it does each
+      command family's, and the repository-inventory test reconciles them against every live syntax site.
 - These shapes are project-owned and unpublished. A later CLI-wide output convention changes them in place under the
   pre-release posture (`DEV-RULES.PROJECT` § Engineering Standards).
 
@@ -246,12 +266,13 @@ bounds, six fail strict compilation; without `validateFormats: false`, 27 fail o
   `{ status: "author" }` placeholders in its authoring slots (`StarterAuthoringSchema`), and `--execute` and
   `--extract` reduce a decode refusal to its path (`decodeCanonicalMap`).
     - `V3DecomposeCutMapSchema` registers as `decompose-cut-map`, version 3 (its `schemaVersion`), `strict-current`,
-      `authored: "request"`, through a decompose composer chained into `createProductionSchemaRegistry()`.
+      `authored: "request"`, through `registerDecomposeSchemas`, beside the schema in `decompose-v3-schema.ts` as
+      `registerDeliveryAuthoringSchemas` sits beside its own, chained into `createProductionSchemaRegistry()`.
     - Its slug fields strip the kernel slug's brand with an identity transform (`DecomposeSlugSchema`), which Zod
       refuses to project on the output side, and the registry's output side projects every registered schema (D1).
       The brand exists only in the type, so a type annotation replaces the transform: `DecomposeSlugSchema` becomes
       the kernel's registered `SlugSchema` instance typed `z.ZodType<string, string>`. It parses as before, leaves the
-      map's inferred types unchanged, and keeps its references to the registered `slug` on both sides.
+      map's inferred types unchanged, and references the registered `slug` directly on both sides.
     - Refinements and the decoder's cross-field checks (`decodeV3DecomposeCutMap`) stay with the CLI.
 - **Registered schemas production does not compose**, and where each stands:
     - `arc-config`: its schema describes the all-string record ARC's line reader produces, not the values the file
@@ -297,16 +318,25 @@ bounds, six fail strict compilation; without `validateFormats: false`, 27 fail o
   never edit them; a file beside `arc-config.yml` points at `./.internal/schemas/<id>.schema.json`. The directory is
   wholly CLI-owned: each write replaces its contents, so a schema that loses its marker loses its document. Registered
   ids are slugs (`validateMetadata`), so a file name built from one stays inside the directory.
-- **One binding for the path:** the location is a layout-resolver address, a new `ArcLayoutAddress` kind beside
-  `candidate-record` and `transition-record` (`lib/layout/projection.ts`). The writer and the verb (D2) resolve it
-  there.
+- **One binding for the path:** the location is two layout-resolver addresses, paired as `work-unit-container` and
+  `work-unit-artifact` are: `{kind: "editor-document-root"}` for the directory and
+  `{kind: "editor-document", schema: <id>}` for one schema's document in it. Both are declared in
+  `ArcLayoutAddressSchema` (`lib/layout/schema.ts`) beside `candidate-record` and `transition-record` and projected in
+  `lib/layout/projection.ts`. The writer resolves the directory and its exclude entry from the root even when no
+  schema is marked, and the writer and the verb (D2) resolve each document's path from the other. `schema` is a slug,
+  so `resolveArcPath` refuses any other value with `layout.invalid-address`, as it does every malformed address.
+- **Writer and reference function:** `writeEditorDocuments` and `editorDocumentReference`, in
+  `lib/schema-command/editor-documents.ts` beside the verb's result schemas (D2). The writer returns the
+  checkout-relative paths it wrote, or the failure `{target, path, detail}` the install refusal reports.
 - **Reference function:** a shared function takes a schema id and the checkout-relative path of the file that will
   reference it, and returns the reference text, with the path relative to that file's directory: the YAML
-  language-server modeline (`# yaml-language-server: $schema=<path>`) for a YAML file, the `$schema` value for a JSON
-  one. For an id without the marker it returns a typed not-an-editor-document result, and each caller applies its own
-  policy. A consumer that writes a reference into a project file, such as a bootstrap that scaffolds a declaration
-  file, calls it instead of embedding the path. A reference is relative to its file, so moving that file or the
-  directory breaks it; under the pre-release posture such a move updates its references in place, without shims.
+  language-server modeline (`# yaml-language-server: $schema=<path>`) for a YAML file, named by a `.yaml` or `.yml`
+  extension, and the `$schema` value for a JSON one, named by `.json`. For an id without the marker it returns a typed
+  not-an-editor-document result whatever the file, and for a marked id referenced from a file with any other extension a
+  typed unsupported-file result; each caller applies its own policy. A consumer that writes a reference into a project
+  file, such as a bootstrap that scaffolds a declaration file, calls it instead of embedding the path. A reference is
+  relative to its file, so moving that file or the directory breaks it; under the pre-release posture such a move
+  updates its references in place, without shims.
 - **Storage class:** derived and never stored. Under `strategy-storage-evolution`'s tracked-versus-stored line they sit
   beside the `system/.internal/` records that move to the store, but they are regenerated per checkout like the
   derived views.
@@ -314,9 +344,11 @@ bounds, six fail strict compilation; without `validateFormats: false`, 27 fail o
   in, so a relative reference in a tracked file resolves in each checkout.
     - **Ignored per clone:** the writer adds the directory to the clone's shared `info/exclude`, as
       `ensureWorktreeMarkerIgnored` (`lib/git/worktree-marker.ts`) does for the worktree marker, and as
-      `strategy-storage-evolution` sets provisioning to write exclude entries once per clone. The writer owns its
-      ignore entry, so the tracked `.gitignore` block is untouched, and a repository whose block ARC does not keep
-      current still ignores the documents. This repository never runs `arc update` against itself, and its block
+      `strategy-storage-evolution` sets provisioning to write exclude entries once per clone. The entry is the root
+      address's directory pattern, `.arc/system/.internal/schemas/`. The marker and the writer share one exclude
+      helper in `lib/git/`, which appends a given pattern once and reports the exclude path it resolved. The writer
+      owns its ignore entry, so the tracked `.gitignore` block is untouched, and a repository whose block ARC does not
+      keep current still ignores the documents. This repository never runs `arc update` against itself, and its block
       already lacks the worktree marker.
     - **Primary checkout:** `arc init`, `arc update`, and `arc join` run the writer; a fresh clone regains the
       documents at `arc join`.
@@ -330,8 +362,10 @@ bounds, six fail strict compilation; without `validateFormats: false`, 27 fail o
       The worktrees ARC creates as tool-owned targets (review materialization, base synchronization, delivery refresh,
       the review-fix candidate gate) get no documents.
     - **Failure at a provisioning site:** the writer fails closed. It writes the exclude entry before the documents, as
-      the marker's exclude entry precedes the marker, so a failure never leaves the directory unignored. Each site
-      runs it where a failure takes a path the site already has:
+      the marker's exclude entry precedes the marker, so a failure never leaves the directory unignored. Every
+      provisioning site calls `writeEditorDocumentsOrThrow`, which throws an `EditorDocumentsWriteError` carrying the
+      writer's `{target, path, detail}`, because each path below is reached by a throw; `arc schema install` keeps the
+      typed result. Each site runs it where a failure takes a path the site already has:
         - **Work-unit spawn and atomic graduation:** in `provisionSpawnedWorktree` (`reconcile-work-unit-worktree.ts`),
           after `ensureWorktreeMarkerIgnored`. A spawn rolls back through `rollbackFreshSpawn`, and a graduation
           through `atomicGraduate`'s own rollback.
@@ -405,8 +439,8 @@ The build stops generating, verifying, and shipping `dist/schemas/kernel.json`. 
     - `runtime` is unchanged: the CLI entry alone, read by the stale-build check (`createDevCheckDeps`).
     - The middle tier, which test preparation requires (`ensureOwnedRuntimeArtifacts`,
       `validateRuntimeBuildEvidence`), requires the CLI entry and the esbuild metafile `metafile-esm.json`, and is
-      renamed for what it now requires. The metafile stays required because an integration test reads it from the
-      live output (`store-reference-packaging.test.ts`).
+      renamed `runtimeMetafile` for what it now requires. The metafile stays required because an integration test
+      reads it from the live output (`store-reference-packaging.test.ts`).
     - `full` adds the declarations, as now.
     - `validateStagedOutput` (`build-publication.ts`) requires `cli.js`, `metafile-esm.json`, and in full mode
       `cli.d.ts`.
@@ -416,8 +450,9 @@ The build stops generating, verifying, and shipping `dist/schemas/kernel.json`. 
   producer or the kernel schema artifact, say what is now prepared:
     - the error messages and doc comments in `build-entry.ts` and `build-runtime-setup.ts`;
     - the header of `build-producers.ts`, which keeps loading the repository's build configurations;
-    - the comments in `tsup.config.ts`, `tsup.fast.config.ts`, `build-compiler.config.ts`, and
-      `.github/workflows/ci.yml`;
+    - the header of `build-compiler-control.ts` and the `@returns` of `compileCapturedStaging`, which name schema
+      loading and schema keys;
+    - the comments in `tsup.fast.config.ts`, `build-compiler.config.ts`, and `.github/workflows/ci.yml`;
     - the headers of `__tests__/e2e/global-setup.ts` and `__tests__/integration/global-setup.ts`;
     - the doc comments of `native-build-fixture.ts` and `native-build-controller.ts`, which change with the
       fixture-owned hook below;
@@ -437,8 +472,10 @@ The build stops generating, verifying, and shipping `dist/schemas/kernel.json`. 
       `__tests__/helpers/schema-artifact.ts`, is renamed `production-schema-ids.ts` for what it holds, with its header.
       The build tests that compare it with the bundle stop.
     - Build tests stop asserting the bundle, the schema graph, and the second identity. The review workflow test that
-      checks the review CLI stays inside the published graph (`review-gate-workflows.test.ts`) asserts the publication
-      path that replaces the producer. The test that the fast and full builds share one success hook
+      checks the review CLI stays inside the published graph (`review-gate-workflows.test.ts`) drops its read of the
+      producer and its assertion that `tsup.config.ts` calls `writeBuildArtifacts`, and keeps its assertions on the
+      production composition; the review `--schema` emitter's move onto that composition (D1) is tested where it
+      lands. The test that the fast and full builds share one success hook
       (`build-config.test.ts`) goes with the hook, and the test that keeps the producer's sources out of the shared
       configuration graph (`build-inputs.test.ts`) goes with the producer: without the hook, the configurations
       reference no schema source.
@@ -447,7 +484,10 @@ The build stops generating, verifying, and shipping `dist/schemas/kernel.json`. 
       prior CLI survives compilation (`dev-build-refresh.test.ts`), and checking that direct preparation owns its
       artifacts (`vitest-direct-runtime.test.ts`). `build-coordinator.test.ts` also injects an ancillary publication
       fault on the bundle. Each behavior keeps its coverage through a hook the test fixture owns, and the ancillary
-      fault moves to another staged artifact; none is deleted with the producer.
+      fault moves to `metafile-esm.json`; none is deleted with the producer.
+    - The bundle is the only nested file a build stages, and the test that publication handles nested output under
+      Windows relative keys (`build-publication-paths.test.ts`) publishes it. That test stages its own nested file
+      instead, so the behavior keeps its coverage without the bundle.
 - **Order:** the retirement lands before D1's projection change, so no bundle test is updated for the new projection
   only to be deleted.
 - _Changed at spec, 2026-10-07:_ the design first kept the bundle as a non-contract artifact, with its authored roots
@@ -545,19 +585,22 @@ registration validates as slugs, and writes only under its CLI-owned directory a
 
 **Performance.** Projecting the whole production registry takes about 0.25 to 0.3 s per side (measured in memory,
 three runs each), about what today's inline projection takes. A `get` projects only its root's side, `list` projects
-nothing, and the writer projects the input side once. The build drops the producer it loaded and ran on every build.
+nothing, and the writer projects the input side once, or not at all while no schema is marked. The build drops the
+producer it loaded and ran on every build.
 
 **Testing.**
 
 - Unit: D1's projection test over every registered root on both sides; tuple bounds on each side, including optional
   elements and a rest element; the fold's self-containment, with no external `$ref` and no `$id` or `$schema` in
   `$defs`; `authored` metadata validation; the shared lookup's found and unknown results; the reference function for
-  YAML, JSON, and an unmarked id; the cut map's parse behavior under the type annotation; the production id pin.
-- Integration: the writer in a temporary repository with a registry holding a marked test schema, covering the
-  document, the exclude entry, `git check-ignore`, a clean `git status`, the directory's replacement, an unmarked
-  schema's absence, and a failed write's refusal, for each `target`; an injected writer failure at a work-unit spawn,
-  which rolls the spawn back, and at decomposition, which refuses with `occupation-failed`, after which a retry of the
-  mode re-enters the candidate and writes its documents.
+  YAML, JSON, a file with any other extension, and an unmarked id; the cut map's parse behavior under the type
+  annotation; the production id pin.
+- Integration: the writer in a temporary repository with a registry holding a marked test schema, covering the document,
+  the exclude entry, `git check-ignore`, a clean `git status`, the directory's replacement, an unmarked schema's
+  absence, an empty directory with no projection when none is marked, a failed write's refusal for each `target`, naming
+  the absolute path it could not write, and an `exclude` failure with no `path` when Git cannot resolve `info/exclude`;
+  an injected writer failure at a work-unit spawn, which rolls the spawn back, and at decomposition, which refuses with
+  `occupation-failed`, after which a retry of the mode re-enters the candidate and writes its documents.
 - E2E: `arc schema list`, `get` (including a request root on the input side and the unknown-id refusal), and
   `install` against the built CLI, including `install --json` outside a project, whose output is the refusal alone;
   each provisioning path D4 names writes the exclude entry and the directory; the delivery inventory emitter's document
