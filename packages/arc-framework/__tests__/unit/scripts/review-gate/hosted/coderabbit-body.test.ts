@@ -143,6 +143,16 @@ describe("CodeRabbit inline thread labels", () => {
       expect(finding("PRRT_1", threadComment(body))).toMatchObject({ severity: expect.any(String), sourceLabel: label });
     });
 
+    it("reads the grade from the badge rather than emphasized prose without the badge emoji", () => {
+      const body = `${emphasize("Major")} boundary drift\n\n${badges}\n\n**Match the file on a path boundary.**`;
+
+      expect(finding("PRRT_1", threadComment(body))).toMatchObject({ severity: "minor" });
+    });
+
+    it("reads no grade from emphasized prose alone", () => {
+      expect(finding("PRRT_1", threadComment(`${emphasize("Critical")} boundary drift\n\nDetails.`))).toBeNull();
+    });
+
     it("carries no label when only badges and collapsed content remain", () => {
       const labelled = finding(
         "PRRT_1",
@@ -156,7 +166,10 @@ describe("CodeRabbit inline thread labels", () => {
 });
 
 describe.each(badgeEmphasis)("CodeRabbit grouped supplemental severity with %s badges", (_form, emphasize) => {
-  function groupedReview(metadata: string): HostedGitHubReview {
+  function groupedReview(
+    metadata: string,
+    prose = `The prose refers to ${emphasize("🟠 Major")} priority, but does not supply provider metadata.`,
+  ): HostedGitHubReview {
     return {
       id: "PRR_GROUPED",
       url: "https://github.com/owner/repo/pull/42#pullrequestreview-grouped",
@@ -171,7 +184,7 @@ describe.each(badgeEmphasis)("CodeRabbit grouped supplemental severity with %s b
 
 \`7\`: ${metadata}
 
-The prose refers to ${emphasize("🟠 Major")} priority, but does not supply provider metadata.
+${prose}
 
 <!-- cr-comment:v1:aaaaaaaaaaaaaaaaaaaaaaaa -->
 
@@ -195,6 +208,39 @@ The prose refers to ${emphasize("🟠 Major")} priority, but does not supply pro
     expect(parsed).toMatchObject({
       kind: "parsed",
       findings: [{ severity: "minor", nit: true, locus: "src/a.ts:7" }],
+    });
+  });
+});
+
+describe.each(badgeEmphasis)("CodeRabbit grouped supplemental locus with %s badges", (_form, emphasize) => {
+  it("keeps the line locus when finding prose opens with inline code and emphasis", () => {
+    const review: HostedGitHubReview = {
+      id: "PRR_GROUPED",
+      url: "https://github.com/owner/repo/pull/42#pullrequestreview-grouped",
+      actorIdentity: "136622811",
+      state: "approved",
+      headSha: "a".repeat(40),
+      submittedAt: "2026-07-23T12:05:00.000Z",
+      body: `<details>
+<summary>🧹 Nitpick comments (1)</summary><blockquote>
+<details>
+<summary>src/a.ts (1)</summary><blockquote>
+
+\`7-9\`: ${badgeLine(emphasize, "📐 Maintainability & Code Quality", "🔵 Trivial")}
+
+**Keep the mode explicit.**
+
+\`mode\`: ${emphasize("must")} stay a closed set.
+
+<!-- cr-comment:v1:aaaaaaaaaaaaaaaaaaaaaaaa -->
+
+</blockquote></details>
+</blockquote></details>`,
+    };
+
+    expect(parseCodeRabbitReviewBody(review)).toMatchObject({
+      kind: "parsed",
+      findings: [{ severity: "minor", locus: "src/a.ts:7-9", sourceLabel: "**Keep the mode explicit.**" }],
     });
   });
 });

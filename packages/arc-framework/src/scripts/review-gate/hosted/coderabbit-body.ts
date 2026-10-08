@@ -7,9 +7,13 @@ import {
 import type { HostedFinding } from "./await.js";
 import type { HostedGitHubReview, HostedGitHubThreadComment } from "./github.js";
 
-/** Read the first severity badge, in either the italic (`_🟠 Major_`) or bold (`**🟠 Major**`) form. */
+/**
+ * Read the first severity badge, in either the italic (`_🟠 Major_`) or bold (`**🟠 Major**`) form.
+ *
+ * The badge's color emoji is required, so emphasized prose such as `**Major**` is never read as a grade.
+ */
 function severity(body: string): "critical" | "major" | "minor" | null {
-  const match = /(_|\*\*)([🔴🟠🟡🔵]?)\s*(Critical|Major|Minor|Trivial)\1/iu.exec(body);
+  const match = /(_|\*\*)([🔴🟠🟡🔵])\s*(Critical|Major|Minor|Trivial)\1/iu.exec(body);
   switch (match?.[3]?.toLowerCase()) {
     case "critical":
       return "critical";
@@ -503,7 +507,7 @@ function parseSupplementalSection(
       const fingerprint = marker[1] as string;
       const semanticItem = semanticGroupBody.slice(itemStart, marker.index);
       const originalItem = originalGroupBody.slice(itemStart, marker.index);
-      const loci = [...semanticItem.matchAll(/^[\t ]*(?:>[\t ]*)*`([^`\r\n]+)`:\s*(?:_|\*\*)/gmu)];
+      const loci = [...semanticItem.matchAll(/^[\t ]*(?:>[\t ]*)*`(\d+(?:-\d+)?)`:\s*(?:_|\*\*)/gmu)];
       const locusMatch = loci.at(-1);
       const findingContext = {
         category: section.category,
