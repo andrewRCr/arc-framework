@@ -14,6 +14,10 @@ const additionalNodeLoaders = [
   'import { default as nodeModule } from "module"; void nodeModule.createRequire(import.meta.url)("@clack/prompts");',
   'const nodeModule = await import("node:module"); const load = nodeModule.createRequire(import.meta.url); void load("@clack/prompts");',
   'const nodeModule = await import("module"); void nodeModule.createRequire(import.meta.url)("@clack/prompts");',
+  'void (await import("node:module")).createRequire(import.meta.url)("@clack/prompts");',
+  'import { createRequire } from "node:module"; const load = createRequire(import.meta.url); const nodeModule = load("node:module"); void nodeModule.createRequire(import.meta.url)("@clack/prompts");',
+  'import { createRequire } from "node:module"; const nodeModule = createRequire(import.meta.url)("module"); const load = nodeModule.createRequire(import.meta.url); void load("@clack/prompts");',
+  'import * as nodeModule from "node:module"; const owner = nodeModule; void owner.createRequire(import.meta.url)("@clack/prompts");',
 ] as const;
 const clackReferences = [
   'void import(`@clack/prompts`);',

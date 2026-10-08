@@ -44,6 +44,15 @@ function isFactory(expression: ts.Expression, bindings: ReadonlySet<string>): bo
 }
 
 interface NodeFactoryOwners { factories: Set<ts.Node>; namespaces: Set<ts.Node> }
+interface NodeFactoryContext {
+  owners: NodeFactoryOwners;
+  lookup: ReturnType<typeof syntaxBindingLookup>;
+}
+
+function unparenthesized(expression: ts.Expression): ts.Expression {
+  while (ts.isParenthesizedExpression(expression)) expression = expression.expression;
+  return expression;
+}
 
 function nodeModuleSpecifier(node: ts.Node | undefined): boolean {
   const name = literal(node);
@@ -68,26 +77,48 @@ function collectNodeImport(statement: ts.Statement, owners: NodeFactoryOwners): 
 
 function awaitedNodeNamespace(expression: ts.Expression | undefined): boolean {
   if (expression === undefined || !ts.isAwaitExpression(expression)) return false;
-  const call = expression.expression;
+  const call = unparenthesized(expression.expression);
   return ts.isCallExpression(call) && call.expression.kind === ts.SyntaxKind.ImportKeyword
     && nodeModuleSpecifier(call.arguments[0]);
+}
+
+function nodeLoaderValue(expression: ts.Expression, context: NodeFactoryContext, seen: ReadonlySet<ts.Node>): boolean {
+  expression = unparenthesized(expression);
+  if (ts.isCallExpression(expression)) return nodeFactoryValue(expression.expression, context, seen);
+  const declaration = ts.isIdentifier(expression) ? context.lookup(expression) : undefined;
+  return declaration !== undefined && ts.isVariableDeclaration(declaration)
+    && declaration.initializer !== undefined && ts.isCallExpression(unparenthesized(declaration.initializer))
+    && nodeFactoryValue((unparenthesized(declaration.initializer) as ts.CallExpression).expression, context, seen);
+}
+
+function nodeNamespaceValue(expression: ts.Expression, context: NodeFactoryContext, seen: ReadonlySet<ts.Node>): boolean {
+  expression = unparenthesized(expression);
+  if (awaitedNodeNamespace(expression)) return true;
+  if (ts.isCallExpression(expression)) {
+    return nodeModuleSpecifier(expression.arguments[0]) && nodeLoaderValue(expression.expression, context, seen);
+  }
+  const declaration = ts.isIdentifier(expression) ? context.lookup(expression) : undefined;
+  if (declaration === undefined) return false;
+  if (context.owners.namespaces.has(declaration)) return true;
+  if (!ts.isVariableDeclaration(declaration) || declaration.initializer === undefined || seen.has(declaration)) return false;
+  return nodeNamespaceValue(declaration.initializer, context, new Set(seen).add(declaration));
+}
+
+function nodeFactoryValue(expression: ts.Expression, context: NodeFactoryContext, seen: ReadonlySet<ts.Node>): boolean {
+  expression = unparenthesized(expression);
+  if (ts.isIdentifier(expression)) {
+    const declaration = context.lookup(expression);
+    return declaration !== undefined && context.owners.factories.has(declaration);
+  }
+  return ts.isPropertyAccessExpression(expression) && expression.name.text === "createRequire"
+    && nodeNamespaceValue(expression.expression, context, seen);
 }
 
 function nodeFactoryLookup(source: ts.SourceFile, lookup: ReturnType<typeof syntaxBindingLookup>): (expression: ts.Expression) => boolean {
   const owners: NodeFactoryOwners = { factories: new Set(), namespaces: new Set() };
   for (const statement of source.statements) collectNodeImport(statement, owners);
-  const collect = (node: ts.Node): void => {
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && awaitedNodeNamespace(node.initializer)) {
-      owners.namespaces.add(node);
-    }
-    ts.forEachChild(node, collect);
-  };
-  collect(source);
-  return (expression) => {
-    if (ts.isIdentifier(expression)) return owners.factories.has(lookup(expression) ?? source);
-    return ts.isPropertyAccessExpression(expression) && expression.name.text === "createRequire"
-      && ts.isIdentifier(expression.expression) && owners.namespaces.has(lookup(expression.expression) ?? source);
-  };
+  const context: NodeFactoryContext = { owners, lookup };
+  return (expression) => nodeFactoryValue(expression, context, new Set());
 }
 
 function moduleReferences(source: ts.SourceFile): { node: ts.Node; specifier: string }[] {
