@@ -2942,8 +2942,8 @@ export function handleReviewRequestSchema(
     reviewDiscoverableCommandInputSchema().parse({ input: source, schema: true });
     const registry = registerReviewDomainSchemas(createKernelRegistry());
     if (registry.get(schemaId) === undefined) throw new Error(`Review request schema unavailable: ${schemaId}`);
-    const bundle = projectKernelSchemaClosure(registry, schemaId);
-    overrides.write(`${JSON.stringify({ rootId: `urn:arc:schema:${schemaId}`, ...bundle })}\n`);
+    const schema = projectKernelSchemaClosure(registry, schemaId);
+    overrides.write(`${JSON.stringify({ rootId: schema.$id, schemas: { [schemaId]: schema } })}\n`);
   } catch (error) {
     overrides.write(`${JSON.stringify({
       rootId: `urn:arc:schema:${schemaId}`,

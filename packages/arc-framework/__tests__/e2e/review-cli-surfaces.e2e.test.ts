@@ -63,112 +63,24 @@ describe("packaged review CLI surfaces", () => {
   });
 
   it.each([
-    [
-      ["review", "changeset", "resolve"],
-      "urn:arc:schema:review-chunking-resolve-request",
-      ["review-chunking-resolve-request"],
-    ],
-    [
-      ["review", "planning-grooming", "resolve"],
-      "urn:arc:schema:review-planning-grooming-resolve-request",
-      ["review-planning-grooming-resolve-request"],
-    ],
-    [
-      ["review", "frontline", "run"],
-      "urn:arc:schema:review-frontline-run-request",
-      [
-        "review-assurance-input",
-        "review-frontline-resolve-envelope",
-        "review-frontline-run-request",
-        "review-method-activity",
-        "review-routing-decision",
-        "review-routing-facts",
-        "review-target",
-        "slug",
-      ],
-    ],
-    [
-      ["review", "resolve"],
-      "urn:arc:schema:review-resolve-request",
-      ["review-resolve-request", "standard-review-obligation-projection"],
-    ],
-    [
-      ["review", "hosted", "await"],
-      "urn:arc:schema:review-hosted-await-request",
-      [
-        "review-hosted-await-request",
-        "review-requirement",
-        "review-target",
-        "slug",
-        "standard-review-obligation-projection",
-      ],
-    ],
-    [
-      ["review", "reduce"],
-      "urn:arc:schema:review-reduce-request",
-      ["review-reduce-request"],
-    ],
-    [
-      ["review", "respond"],
-      "urn:arc:schema:review-respond-request",
-      [
-        "approved-disposition-set",
-        "disposition-approval",
-        "disposition-report-item",
-        "disposition-set",
-        "finding-disposition",
-        "review-resolve-request",
-        "review-respond-request",
-        "review-severity",
-        "review-target",
-        "severity-gating-policy",
-        "standard-review-obligation-projection",
-      ],
-    ],
-    [
-      ["review", "hosted", "request"],
-      "urn:arc:schema:review-hosted-request-request",
-      ["review-hosted-request-request", "slug", "standard-review-obligation-projection"],
-    ],
-    [
-      ["review", "readiness"],
-      "urn:arc:schema:review-readiness-request",
-      ["review-readiness-request", "slug"],
-    ],
-    [
-      ["review", "frontline", "resolve"],
-      "urn:arc:schema:review-frontline-resolve-request",
-      ["review-frontline-resolve-request", "slug"],
-    ],
-    [
-      ["review", "hosted", "settle"],
-      "urn:arc:schema:review-hosted-settle-request",
-      ["review-hosted-settle-request"],
-    ],
-    [
-      ["review", "local", "prepare"],
-      "urn:arc:schema:review-local-prepare-request",
-      ["review-local-prepare-request", "slug"],
-    ],
-    [
-      ["review", "local", "attest"],
-      "urn:arc:schema:review-local-attest-request",
-      ["review-local-attest-request", "review-severity"],
-    ],
-    [
-      ["review", "local", "resume"],
-      "urn:arc:schema:review-local-resume-request",
-      ["review-local-resume-request"],
-    ],
-    [
-      ["review", "terminus", "accept"],
-      "urn:arc:schema:review-terminus-accept-request",
-      ["review-terminus-accept-request", "slug"],
-    ],
-  ] as const)("emits a dependency-complete public request schema at %s", async (
+    [["review", "changeset", "resolve"], "urn:arc:schema:review-chunking-resolve-request"],
+    [["review", "planning-grooming", "resolve"], "urn:arc:schema:review-planning-grooming-resolve-request"],
+    [["review", "frontline", "run"], "urn:arc:schema:review-frontline-run-request"],
+    [["review", "resolve"], "urn:arc:schema:review-resolve-request"],
+    [["review", "hosted", "await"], "urn:arc:schema:review-hosted-await-request"],
+    [["review", "reduce"], "urn:arc:schema:review-reduce-request"],
+    [["review", "respond"], "urn:arc:schema:review-respond-request"],
+    [["review", "hosted", "request"], "urn:arc:schema:review-hosted-request-request"],
+    [["review", "readiness"], "urn:arc:schema:review-readiness-request"],
+    [["review", "frontline", "resolve"], "urn:arc:schema:review-frontline-resolve-request"],
+    [["review", "hosted", "settle"], "urn:arc:schema:review-hosted-settle-request"],
+    [["review", "local", "prepare"], "urn:arc:schema:review-local-prepare-request"],
+    [["review", "local", "attest"], "urn:arc:schema:review-local-attest-request"],
+    [["review", "local", "resume"], "urn:arc:schema:review-local-resume-request"],
+    [["review", "terminus", "accept"], "urn:arc:schema:review-terminus-accept-request"],
+  ] as const)("emits one self-contained public request schema at %s", async (
     command,
     rootId,
-    expectedSchemaIds,
   ) => {
     const outsideProject = await mkdtemp(join(tmpdir(), "arc-review-schema-"));
     const [result, help] = await Promise.all([
@@ -192,7 +104,10 @@ describe("packaged review CLI surfaces", () => {
       expect(publicRequest.required).toContain("target");
       expect(publicRequest.properties).not.toHaveProperty("pass");
       expect(publicRequest.properties).not.toHaveProperty("maxPasses");
-      const target = resolveSchemaReference(output as KernelJSONSchemaBundle, publicRequest.properties.target);
+      const target = resolveSchemaReference(
+        output as KernelJSONSchemaBundle, publicRequest.properties.target,
+        output.schemas["review-frontline-resolve-request"] as KernelJSONSchemaBundle["schemas"][string],
+      );
       expect(target).toMatchObject({
         type: "object",
         required: ["kind", "baseRef", "diffBaseSha", "headSha"],
@@ -205,7 +120,7 @@ describe("packaged review CLI surfaces", () => {
     const validator = new Ajv2020({ strict: false, validateSchema: false });
     for (const schema of Object.values(output.schemas)) validator.addSchema(schema);
     expect(validator.getSchema(rootId)).toBeDefined();
-    expect(Object.keys(output.schemas)).toEqual(expect.arrayContaining([...expectedSchemaIds]));
+    expect(Object.keys(output.schemas)).toEqual([rootId.replace("urn:arc:schema:", "")]);
   });
 
   it("documents schema discovery at a request boundary reached only by hand", async () => {

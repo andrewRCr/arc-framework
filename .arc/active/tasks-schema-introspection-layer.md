@@ -98,32 +98,14 @@ documents.
   definitions, and uses absolute URN identities. Sorted projection preserves shared-definition names across registration
   orders; callers and contract assertions name their side and resolve references.
 
-### `[ ]` **2.3 Fold each root into one self-contained document on its declared side — D1**
+### `[x]` **2.3 Fold each root into one self-contained document on its declared side — D1**
 
 - _Goal:_ Any registered root yields one document that resolves entirely within itself, on the side its registration
   declares, so a document loads alone and two contracts load into one validator without colliding.
 
-- **Additional Context:** `notes-schema-introspection-layer.md` § Folding a projected side, and § Projection change
-  test inventory, the rows for Task 2.3.
-
-    - `foldKernelSchemaClosure(bundle, id)` follows references at fragment granularity from the root and folds what
-      it reaches into the root's `$defs`: a registered document at `$defs/<id>`, a shared definition at
-      `$defs/__<name>`. Every reference becomes a local `#/$defs/…` pointer; the root keeps `$id` and `$schema`, and
-      folded definitions drop both. A key collision, or a reference in neither absolute form, throws.
-    - `projectKernelSchemaClosure(registry, id)` projects the root's declared side — input for an `authored` root,
-      output otherwise — and folds it, returning one document in place of today's bundle of whole referenced
-      documents (`collectReferencedSchemaUris`).
-    - `handleReviewRequestSchema` keeps its `{rootId, schemas}` shape: `schemas` holds the one document under its
-      schema id, and `rootId` is that document's `$id`, `urn:arc:schema:<id>`. The refusal carries the same `rootId`
-      with `schemas: {}`.
-
-    - Build `test-first` (one behavior at a time):
-        - A root that references a registered document and a shared definition folds both under their keys, with only
-          local references left
-        - No folded definition carries `$id` or `$schema`
-        - A shared definition the root never reaches is not folded
-        - A colliding fold key throws
-        - An `authored` root folds from the input side and any other root from the output side
+- _Outcome:_ Root closures choose their declared side and fold reachable registered and shared dependencies into local
+  definitions without resource identities or unreachable shared definitions. Review schema flags retain their envelope
+  while carrying one self-contained document.
 
 ### `[ ]` **2.4 Serve both emitters from the production projection through one lookup — D1, D2**
 
