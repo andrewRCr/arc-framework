@@ -3427,3 +3427,53 @@ unresolved. The affected discovery, confinement, faithful lint, current gates an
 supplemental proof; unchanged historical color and cost claims retain their original evidence. Primary-only verification
 remains the approved choice. Candidate advancement and incremental independent standard pass 4 remain pending; this
 verification supplies neither an evaluator conclusion nor merge authority.
+
+## Standard-review pass 4 corrections
+
+The incremental delegated pass at `a7693b0db` covers all twenty-one admitted paths, six closure scopes, the
+independent seam and fresh aggregation. Three source-confirmed findings are approved FIX with full verification in
+set `sha256:a64288387cc0f7c282c449d937cb5640605c7d0cb4d594b5c2660f5d595aa9b4`: two major enforcement gaps and one
+record-only minor false rejection. Incremental delegated standard pass 5 is separately authorized above the configured
+two-pass ceiling, through single-use allowance
+`sha256:43125647eed649fb9a065d173fb806444d11c59249ed96c6dc7e82aa43fe92ae`.
+
+- `2cb324fc2` preserves genuine Node namespace/default imports under both builtin spellings, named-default imports
+  and directly awaited namespace declarations. Twelve native refusal cases fail before correction; all 172 architecture
+  cases pass afterward. Removing the unchanged owner exceptions makes both native owner-allowance cases fail; their
+  configuration is restored byte-for-byte. Both exact owners and composed restrictions remain covered.
+- `5e90e4814` keeps class static-block `var` declarations within their actual scope, preserving outer imports and
+  returned loaders without changing ordinary function hoisting. All nine new prompt/native-lint cases fail first;
+  restoration passes 134 selected cases, including inner lookalikes and outer refusals through both consumers.
+- `db112d2e3` distinguishes noncomputed field names from imported value uses. Both matching named/namespace field
+  cases fail first; all 157 command-input cases pass afterward. A narrow reconstruction exempting all field expressions
+  makes the four computed-name/initializer refusal controls fail; byte-for-byte restoration passes those controls.
+- `5257b4980` completes the same approved Node-provenance correction across inline awaited namespaces, namespace values
+  obtained from genuine local Node loaders, and local namespace aliases. Eight additional confinement/composed-ban
+  cases fail first; all 186 architecture cases pass afterward. Consumer-owned provenance follows only visible local
+  declarations to real Node origins, with cycle protection. The shared lexical helper still supplies declarations
+  rather than consumer policy; no repository graph or general type checker is introduced.
+
+All four atomic code commits pass targeted lint, both type programs and normal hooks. The final loader family check is
+completion within the approved preservation requirement, not a new design outcome. The amendment entry gate selects
+the ordinary review-fix path: faithful one-hop reference preservation and canonical identify-or-refuse behavior already
+require these corrections. No criterion, worker default, deadline, shard layout, acceptance bar or budget changes.
+
+Full local gates pass at `5257b49805e08d02a3677e0767799afccab1e39b`: Markdown, three ARC checks, whole-package typed
+lint, shell lint, both type programs, the ordinary routine lane and qualified full declaration build. Routine execution
+completes 1,121 passing files and 16,829 passing cases, with one file and 1,188 intentional case skips, in 229.38 seconds
+at the unchanged eight-worker default. This single confirmation does not replace any historical cost sample.
+
+First-attempt hosted confirmation 37712193158 at that exact correction head succeeds: seventeen applicable jobs pass;
+the two PR-only rollups are event-disabled. Both native portability legs complete 28 files and 252 cases with two
+intentional skips; macOS's additional selection completes 14 files and 119 cases. Native unit reports retain 13,736
+completed cases strictly below half their effective timeouts and 13,653 off-allowlist cases with zero launches, with
+no missing metadata. The tightest case is 1,002.110447 ms against its 5,000 ms deadline. All ten CI-job comparisons are
+within unchanged budgets; summed budget clocks are 1,666,738 ms. Native run/attempt records, logs, reports and derived
+checks are retained at package-relative `.test-cost-runs/closing-review-pass4/37712193158`. The normal-hook raw push uses
+the standing explicit hosted-run authorization. Historical failures, five hosted cost samples and twelve local captures
+remain bound to their original heads and outcomes; none is relabelled or repeated.
+
+All thirty-two criterion identities and states remain unchanged: twenty-seven met, five superseded, none unresolved.
+Current supplemental proof closes the affected discovery, confinement, native lint and verification requirements;
+unaffected historical claims retain their original witnesses. Primary-only verification remains the approved choice.
+Candidate advancement and independent incremental standard pass 5 remain pending at this record's composition.

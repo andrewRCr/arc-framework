@@ -1140,6 +1140,9 @@ _Exit criterion:_ The closing measurement is recorded in `notes-test-suite-relia
   The third review correction passes all full local gates with 16,794 routine cases, the qualified full build
   and first-attempt full-suite/Windows/macOS confirmation 37707974563; all thirty-two criterion identities,
   eight-worker sizing and historical measurement bindings remain unchanged.
+  The fourth review correction passes all full local gates with 16,829 routine cases, the qualified full build
+  and first-attempt full-suite/Windows/macOS confirmation 37712193158; unchanged budgets, criterion identities
+  and historical measurement bindings are retained.
 
 - _Success criteria:_ 32 criteria: 27 met, five superseded by A1/A14/A15/A16, none unresolved. Exact criterion digests,
   evidence span, author preflight and limitations are recorded in `notes-test-suite-reliability.md` § Verification
