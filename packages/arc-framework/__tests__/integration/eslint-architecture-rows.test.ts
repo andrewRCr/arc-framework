@@ -11,6 +11,8 @@ const clackReferences = [
   'void import(`@clack/prompts`);',
   'import { createRequire as acquire } from "node:module"; const load = acquire(import.meta.url); void load("@clack/prompts");',
   'import { createRequire as acquire } from "node:module"; void acquire(import.meta.url)("@clack/prompts");',
+  'import * as nodeModule from "node:module"; const load = nodeModule.createRequire(import.meta.url); void load("@clack/prompts");',
+  'import nodeModule from "node:module"; void nodeModule.createRequire(import.meta.url)("@clack/prompts");',
 ] as const;
 
 const cases = [
@@ -68,6 +70,20 @@ describe("actual architecture table enforcement", () => {
     const [result] = await eslint.lintText('const acquire = () => (value: string) => value; const load = acquire(); void load("@clack/prompts");', {
       filePath: resolve(packageRoot, "src/handlers/user.ts"),
     });
+    expect(result?.fatalErrorCount).toBe(0);
+    expect(result?.messages.filter(({ ruleId }) => ruleId === "arc/architecture-imports")).toEqual([]);
+  });
+  it.each([
+    'const helpers = { createRequire: () => (value: string) => value }; void helpers.createRequire()("@clack/prompts");',
+    'import { createRequire } from "node:module"; const load = createRequire(import.meta.url); function format(load: (name: string) => string) { return load("@clack/prompts"); } void format;',
+    'import { createRequire } from "node:module"; function format(createRequire: () => (name: string) => string) { return createRequire()("@clack/prompts"); } void format;',
+    'import * as nodeModule from "node:module"; function format(nodeModule: { createRequire: () => (name: string) => string }) { return nodeModule.createRequire()("@clack/prompts"); } void format;',
+    'import { createRequire } from "node:module"; const load = createRequire(import.meta.url); { const load = (name: string) => name; void load("@clack/prompts"); }',
+    'import { createRequire } from "node:module"; const load = createRequire(import.meta.url); try { fail(); } catch (load) { if (typeof load === "function") load("@clack/prompts"); }',
+    'import { createRequire } from "node:module"; const load = createRequire(import.meta.url); declare const callbacks: ((name: string) => string)[]; for (const load of callbacks) { load("@clack/prompts"); }',
+    'import { createRequire } from "node:module"; const load = createRequire(import.meta.url); function format() { { var load = (name: string) => name; } return load("@clack/prompts"); } void format;',
+  ])("allows a harmless method or shadowed loader binding: %s", async (text) => {
+    const [result] = await eslint.lintText(text, { filePath: resolve(packageRoot, "src/handlers/user.ts") });
     expect(result?.fatalErrorCount).toBe(0);
     expect(result?.messages.filter(({ ruleId }) => ruleId === "arc/architecture-imports")).toEqual([]);
   });

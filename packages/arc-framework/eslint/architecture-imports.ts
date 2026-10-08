@@ -3,6 +3,9 @@
 import type { Rule } from "eslint";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import ts from "typescript";
+// Native ESLint loads source TypeScript; production imports keep emitted .js paths.
+const { syntaxBindingLookup } = await import(new URL("../src/lib/syntax-bindings.ts", import.meta.url).href) as
+  typeof import("../src/lib/syntax-bindings.js");
 
 /** Predicate IDs accepted by the native configuration schema. */
 export const ARCHITECTURE_PREDICATES = ["clack", "neverthrow", "kernel", "store-production", "store-tests",
@@ -40,14 +43,39 @@ function isFactory(expression: ts.Expression, bindings: ReadonlySet<string>): bo
     || (ts.isPropertyAccessExpression(expression) && expression.name.text === "createRequire");
 }
 
+function nodeFactoryLookup(source: ts.SourceFile, lookup: ReturnType<typeof syntaxBindingLookup>): (expression: ts.Expression) => boolean {
+  const factories = new Set<ts.Node>();
+  const namespaces = new Set<ts.Node>();
+  for (const statement of source.statements) {
+    if (!ts.isImportDeclaration(statement) || literal(statement.moduleSpecifier) !== "node:module") continue;
+    const clause = statement.importClause;
+    if (clause === undefined || clause.phaseModifier === ts.SyntaxKind.TypeKeyword) continue;
+    if (clause.name !== undefined) namespaces.add(clause);
+    const bindings = clause.namedBindings;
+    if (bindings !== undefined && ts.isNamespaceImport(bindings)) namespaces.add(bindings);
+    if (bindings !== undefined && ts.isNamedImports(bindings)) {
+      for (const binding of bindings.elements) {
+        if (!binding.isTypeOnly && (binding.propertyName ?? binding.name).text === "createRequire") factories.add(binding);
+      }
+    }
+  }
+  return (expression) => {
+    if (ts.isIdentifier(expression)) return factories.has(lookup(expression) ?? source);
+    return ts.isPropertyAccessExpression(expression) && expression.name.text === "createRequire"
+      && ts.isIdentifier(expression.expression) && namespaces.has(lookup(expression.expression) ?? source);
+  };
+}
+
 function moduleReferences(source: ts.SourceFile): { node: ts.Node; specifier: string }[] {
-  const factories = createRequireBindings(source);
-  const loaders = new Set<string>();
+  const lookup = syntaxBindingLookup(source);
+  const factory = nodeFactoryLookup(source, lookup);
+  const loaders = new Set<ts.Node>();
   const isFactoryCall = (node: ts.Node | undefined): node is ts.CallExpression =>
-    node !== undefined && ts.isCallExpression(node) && isFactory(node.expression, factories);
+    node !== undefined && ts.isCallExpression(node) && factory(node.expression);
+  const isLoader = (node: ts.Expression): boolean => ts.isIdentifier(node) && loaders.has(lookup(node) ?? source);
   const collect = (node: ts.Node): void => {
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && isFactoryCall(node.initializer)) {
-      loaders.add(node.name.text);
+      loaders.add(node);
     }
     ts.forEachChild(node, collect);
   };
@@ -65,8 +93,7 @@ function moduleReferences(source: ts.SourceFile): { node: ts.Node; specifier: st
       const moduleRequire = ts.isPropertyAccessExpression(node.expression)
         && ts.isIdentifier(node.expression.expression) && node.expression.expression.text === "module"
         && node.expression.name.text === "require";
-      const returnedRequire = (ts.isIdentifier(node.expression) && loaders.has(node.expression.text))
-        || isFactoryCall(node.expression);
+      const returnedRequire = isLoader(node.expression) || isFactoryCall(node.expression);
       if (node.expression.kind === ts.SyntaxKind.ImportKeyword || directRequire || moduleRequire || returnedRequire) {
         specifier = literal(node.arguments[0]);
       }
@@ -76,7 +103,7 @@ function moduleReferences(source: ts.SourceFile): { node: ts.Node; specifier: st
     }
     if (specifier !== undefined) references.push({ node, specifier });
     else if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword
-      || (ts.isIdentifier(node.expression) && (node.expression.text === "require" || loaders.has(node.expression.text)))
+      || (ts.isIdentifier(node.expression) && node.expression.text === "require") || isLoader(node.expression)
       || (ts.isPropertyAccessExpression(node.expression) && ts.isIdentifier(node.expression.expression)
         && node.expression.expression.text === "module" && node.expression.name.text === "require")
       || isFactoryCall(node.expression))) references.push({ node, specifier: "<computed import>" });
