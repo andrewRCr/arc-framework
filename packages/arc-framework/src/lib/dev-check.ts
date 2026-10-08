@@ -6,6 +6,25 @@ import { basename, dirname, join, relative, resolve } from "node:path";
 import { selectFirstPartyInputs } from "./build-inputs.js";
 import { DEV_BUILD_STAMP_NAME, parseBuildEvidence } from "./build-evidence.js";
 import { readBuildQualification } from "./build-qualification.js";
+import { classifyAdvisoryLockRead, type AdvisoryLockReadResult } from "./advisory-lock.js";
+import { BUILD_ARTIFACT_LOCK_NAME, TEST_CONTROLLER_TOKEN_ENV } from "./build-ownership.js";
+
+/**
+ * Decide whether this child is pinned to a live managed test controller's artifacts.
+ * @param token - Controller token inherited by this process
+ * @param holder - Classification of one lockfile observation
+ * @param now - Current time in milliseconds
+ * @returns Whether the owning test run makes another freshness check redundant
+ */
+export function shouldSkipDevBuildStaleness(
+  token: string | undefined, holder: AdvisoryLockReadResult, now: number,
+): boolean {
+  if (!token || typeof holder === "string" || holder.token !== token
+    || holder.leaseUntil === undefined || holder.leaseUntil <= now) return false;
+  const metadata = holder.metadata;
+  return typeof metadata === "object" && metadata !== null && "operation" in metadata
+    && typeof metadata.operation === "string" && /^tests \([^)]+\)$/u.test(metadata.operation);
+}
 
 /** Filename of the content-hash stamp written beside `dist/cli.js` at build time. */
 export { DEV_BUILD_STAMP_NAME };
@@ -103,6 +122,76 @@ export interface DevCheckDeps {
   now: () => number;
   /** Current runtime input identity and required live output are qualified. */
   runtimeQualified: () => boolean;
+}
+
+/** Synchronous command identity and the sole stale-build continuation exception. */
+export interface DevBuildGuardInput {
+  readonly commandPath: string;
+  readonly writeCompactionSeed?: boolean;
+}
+
+/** Independent lease, freshness and process-output boundaries for command admission. */
+export interface DevBuildGuardDeps {
+  readonly token: string | undefined;
+  readonly readHolder: () => AdvisoryLockReadResult;
+  readonly now: () => number;
+  readonly freshness: DevCheckDeps;
+  readonly writeStderr: (message: string) => void;
+  readonly exit: (code: number) => void;
+}
+
+/**
+ * Admit a command against the live controller lease or ordinary build qualification.
+ * @param input - Command path and compaction-seed exception
+ * @param deps - Synchronous holder, freshness and process boundaries
+ * @returns Whether this command is eligible for a post-action development rebuild
+ */
+export function runDevBuildGuard(input: DevBuildGuardInput, deps: DevBuildGuardDeps): boolean {
+  if (shouldSkipDevBuildStaleness(deps.token, deps.readHolder(), deps.now())) return false;
+  const verdict = checkDevBuildStaleness(deps.freshness);
+  if (verdict.kind === "skip") return false;
+  if (verdict.kind === "fresh") return isDevBuildRefreshCommandPath(input.commandPath);
+  const distAgeText = verdict.distAge === null ? "dist/cli.js missing"
+    : `dist/cli.js built ${formatAge(verdict.distAge)} ago`;
+  const staleCause = verdict.basis === "content-hash"
+    ? "runtime inputs or build qualification differ from the build stamp"
+    : `${verdict.newestSrc} changed ${formatAge(verdict.srcAge)} ago`;
+  const baseMsg = `arc dev build is stale (${staleCause}; ${distAgeText}).`;
+  // A stale seed is revalidated during recovery and is preferable to no seed.
+  if (input.writeCompactionSeed === true) {
+    deps.writeStderr(`warn: ${baseMsg} Run \`npm run build:fast\` before relying on output.\n`);
+    return false;
+  }
+  deps.writeStderr(`error: ${baseMsg} Refusing \`${input.commandPath}\` against stale dist; `
+    + "run `npm run build:fast`, then retry.\n");
+  deps.exit(1);
+  return false;
+}
+
+function formatAge(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86_400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86_400)}d`;
+}
+
+/**
+ * Bind command admission to the running entry, its one holder read and process output.
+ * @param cliJsPath - Absolute running CLI entry path
+ * @returns Native synchronous dependencies without performing a freshness read
+ */
+export function createDevBuildGuardDeps(cliJsPath: string): DevBuildGuardDeps {
+  return {
+    token: process.env[TEST_CONTROLLER_TOKEN_ENV], now: () => Date.now(),
+    readHolder: () => {
+      try {
+        return classifyAdvisoryLockRead({ text: readFileSync(join(dirname(dirname(cliJsPath)), BUILD_ARTIFACT_LOCK_NAME), "utf8") });
+      } catch (error) { return classifyAdvisoryLockRead({ error }); }
+    },
+    freshness: createDevCheckDeps(cliJsPath),
+    writeStderr: (message) => { process.stderr.write(message); },
+    exit: (code) => { process.exit(code); },
+  };
 }
 
 /**

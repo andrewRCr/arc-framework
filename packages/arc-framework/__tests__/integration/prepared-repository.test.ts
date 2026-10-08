@@ -1,5 +1,9 @@
 /** Integration coverage for reusable prepared-repository fixtures. */
 
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { resolve } from "node:path";
+
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -21,6 +25,7 @@ import {
   PREPARED_REMOTE_PATH,
   PREPARED_WORKTREE_PATH,
   type PreparedRepositoryShape,
+  type PreparedSiblingWorktreeShape,
 } from "../helpers/prepared-repository.js";
 
 const plainShape: PreparedRepositoryShape = { kind: "plain", key: "default-init" };
@@ -31,6 +36,9 @@ const remoteShape: PreparedRepositoryShape = {
 const worktreeShape: PreparedRepositoryShape = {
   kind: "worktree-bearing",
   key: "default-init-with-worktree",
+};
+const siblingShape: PreparedSiblingWorktreeShape = {
+  kind: "sibling-worktree-bearing", key: "default-init-with-sibling", worktreeName: "linked",
 };
 const roots = new Set<string>();
 
@@ -62,6 +70,15 @@ async function buildWorktreeRepository(): Promise<string> {
     ["worktree", "add", "-b", "prepared-linked", join(root, PREPARED_WORKTREE_PATH)],
     { cwd: root },
   );
+  return root;
+}
+
+async function buildSiblingRepository(): Promise<string> {
+  const root = await buildPlainRepository();
+  await makeCommit(root, "prepared sibling fixture");
+  const parent = await mkdtemp(join(tmpdir(), "arc-prepared-original-sibling-"));
+  roots.add(parent);
+  await execFileAsync("git", ["worktree", "add", "-b", "prepared-sibling", join(parent, "linked")], { cwd: root });
   return root;
 }
 
@@ -136,6 +153,27 @@ describe("prepared repository fixtures", () => {
 
     expect(stdout.trim().startsWith(`${copy}/`)).toBe(true);
     expect(await absolutePathOccurrences(copy, template.root)).toEqual([]);
+  });
+
+  it("lists a copied sibling worktree at its new path", async () => {
+    const template = await prepareRepositoryTemplate(siblingShape, buildSiblingRepository);
+    const copy = await copyPreparedRepository(template, siblingShape);
+    roots.add(copy.root);
+    roots.add(copy.parent);
+    const { stdout } = await execFileAsync("git", ["worktree", "list", "--porcelain"], { cwd: copy.root });
+
+    expect(stdout.split("\n").filter((line) => line.startsWith("worktree "))
+      .map((line) => resolve(line.slice("worktree ".length)))).toContain(resolve(copy.worktree));
+  });
+
+  it("resolves copied sibling Git commands to the copied repository", async () => {
+    const template = await prepareRepositoryTemplate(siblingShape, buildSiblingRepository);
+    const copy = await copyPreparedRepository(template, siblingShape);
+    roots.add(copy.root);
+    roots.add(copy.parent);
+    const { stdout } = await execFileAsync("git", ["rev-parse", "--git-common-dir"], { cwd: copy.worktree });
+
+    expect(resolve(stdout.trim())).toBe(resolve(join(copy.root, ".git")));
   });
 
   it("registers cleanup for a bare remote even when its return is ignored", async () => {

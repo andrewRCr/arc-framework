@@ -13,16 +13,17 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                       | Priority | Owner  | Depends on | Cohort        |
-| ---------- | ------------------------------- | -------- | ------ | ---------- | ------------- |
-| `Planning` | storage-seam                    | P1       | andrew | —          | state-storage |
-| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —          | —             |
-| `Planning` | decomposition-doctrine          | P1       | andrew | —          | —             |
-| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —          | —             |
-| `Planning` | review-checkout-lifecycle       | P1       | andrew | —          | —             |
-| `Planning` | stub-mint-to-launch             | P1       | andrew | —          | —             |
-| `Planning` | quality-gate-hooks              | P3       | andrew | —          | —             |
-| `Active`   | test-suite-reliability          | P3       | andrew | —          | —             |
+| State      | Work unit                       | Priority | Owner  | Depends on | Cohort                   |
+| ---------- | ------------------------------- | -------- | ------ | ---------- | ------------------------ |
+| `Planning` | storage-seam                    | P1       | andrew | —          | state-storage            |
+| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —          | —                        |
+| `Planning` | decomposition-doctrine          | P1       | andrew | —          | —                        |
+| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —          | —                        |
+| `Planning` | review-checkout-lifecycle       | P1       | andrew | —          | —                        |
+| `Planning` | stub-mint-to-launch             | P1       | andrew | —          | —                        |
+| `Planning` | inbound-routing-method          | P2       | andrew | —          | —                        |
+| `Planning` | schema-introspection-layer      | P3       | andrew | —          | architecture-remediation |
+| `Planning` | quality-gate-hooks              | P3       | andrew | —          | —                        |
 
 ## Ready
 
@@ -67,7 +68,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | ci-cross-platform-hardening         | P3       | andrew | —          | architecture-remediation   |
 | lib-layer-type-extraction           | P3       | andrew | —          | architecture-remediation   |
 | oversized-function-remediation      | P3       | andrew | —          | architecture-remediation   |
-| schema-introspection-layer          | P3       | andrew | —          | architecture-remediation   |
 | sync-handler-decomposition          | P3       | andrew | —          | architecture-remediation   |
 | user-sync-module-split              | P3       | andrew | —          | architecture-remediation   |
 | config-migration-registry           | P3       | andrew | —          | configuration              |
@@ -91,7 +91,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | external-pm-composition             | P3       | andrew | —          | —                          |
 | grok-compaction-recovery            | P3       | andrew | —          | —                          |
 | idiomatic-alignment                 | P3       | andrew | —          | —                          |
-| inbound-routing-method              | P3       | andrew | —          | —                          |
 | knowledge-lint                      | P3       | andrew | —          | —                          |
 | merge-queue-landing                 | P3       | andrew | —          | —                          |
 | planning-iteration-mechanics        | P3       | andrew | —          | —                          |

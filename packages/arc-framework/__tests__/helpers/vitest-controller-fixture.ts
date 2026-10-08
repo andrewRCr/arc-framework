@@ -63,7 +63,7 @@ export async function runVitestControllerFixture(
   packageRoot: string, args: string[], environment: NodeJS.ProcessEnv = {},
   entry: "supported" | "native" = "supported",
 ): Promise<{ code: number; stdout: string; stderr: string }> {
-  const env = Object.fromEntries(Object.entries({ ...process.env, ...environment })
+  const env = Object.fromEntries(Object.entries({ ...process.env, VITEST_MAX_WORKERS: undefined, ...environment })
     .filter(([, value]) => value !== undefined));
   try {
     const script = entry === "native" ? join(packageRoot, "../../node_modules/vitest/vitest.mjs")

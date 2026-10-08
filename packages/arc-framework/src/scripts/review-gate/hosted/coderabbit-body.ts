@@ -7,9 +7,23 @@ import {
 import type { HostedFinding } from "./await.js";
 import type { HostedGitHubReview, HostedGitHubThreadComment } from "./github.js";
 
+/** One provider badge: an italic or bold span that opens with an emoji, such as `**🔵 Trivial**`. */
+const BADGE = "(?:_\\p{Extended_Pictographic}[^_\\r\\n]*_|\\*\\*\\p{Extended_Pictographic}[^*\\r\\n]*\\*\\*)";
+const BADGES = new RegExp(BADGE, "gu");
+/** A grouped finding's metadata line: its line or line range, then only pipe-separated badges. */
+const GROUPED_METADATA_LINE = new RegExp(
+  `^[\\t ]*(?:>[\\t ]*)*\`(\\d+(?:-\\d+)?)\`:[\\t ]*${BADGE}(?:[\\t ]*\\|[\\t ]*${BADGE})*[\\t ]*\\r?$`,
+  "gmu",
+);
+
+/**
+ * Read the first severity badge, in either the italic (`_🟠 Major_`) or bold (`**🟠 Major**`) form.
+ *
+ * The badge's color emoji is required, so emphasized prose such as `**Major**` is never read as a grade.
+ */
 function severity(body: string): "critical" | "major" | "minor" | null {
-  const match = /_([🔴🟠🟡🔵]?)\s*(Critical|Major|Minor|Trivial)_/iu.exec(body);
-  switch (match?.[2]?.toLowerCase()) {
+  const match = /(_|\*\*)([🔴🟠🟡🔵])\s*(Critical|Major|Minor|Trivial)\1/iu.exec(body);
+  switch (match?.[3]?.toLowerCase()) {
     case "critical":
       return "critical";
     case "major":
@@ -27,9 +41,9 @@ function severityOnMetadataLine(body: string, start: number): ReturnType<typeof 
   return severity(body.slice(start).split(/\r?\n/u, 1)[0] ?? "");
 }
 
-/** A metadata line made only of italic badges, one of them the severity this parser reads. */
+/** A metadata line made only of badges, one of them the severity this parser reads. */
 function isBadgeLine(line: string): boolean {
-  return severity(line) !== null && line.replace(/_[^_\r\n]+_/gu, "").replace(/\|/gu, "").trim().length === 0;
+  return severity(line) !== null && line.replace(BADGES, "").replace(/\|/gu, "").trim().length === 0;
 }
 
 /**
@@ -501,7 +515,7 @@ function parseSupplementalSection(
       const fingerprint = marker[1] as string;
       const semanticItem = semanticGroupBody.slice(itemStart, marker.index);
       const originalItem = originalGroupBody.slice(itemStart, marker.index);
-      const loci = [...semanticItem.matchAll(/^[\t ]*(?:>[\t ]*)*`([^`\r\n]+)`:\s*_/gmu)];
+      const loci = [...semanticItem.matchAll(GROUPED_METADATA_LINE)];
       const locusMatch = loci.at(-1);
       const findingContext = {
         category: section.category,

@@ -21,13 +21,14 @@
 
 import { basename, join, posix, win32 } from "node:path";
 import { lstat, mkdir, readFile, readdir, rename, rm, rmdir, writeFile } from "node:fs/promises";
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
 import { z } from "zod";
 import {
   declareCliOptionSite,
-  declareInteractionSite,
+  declarePromptSite,
   type CommandInputDeclaration,
 } from "../lib/command-input/declaration.js";
+import { prompt } from "../lib/command-input/prompter.js";
 import { parseMetaRecord, readActiveMetaCandidates } from "../lib/active/meta-reader.js";
 import { type ParsedMetaRecord } from "../lib/active/meta-schema.js";
 import { COHORT_SEGMENT_CAP } from "../lib/active/cohort-path.js";
@@ -67,7 +68,7 @@ import {
 } from "../lib/work-unit/verbs/promote-demote.js";
 import { runPark, runResume, type ParkResumeFs } from "../lib/work-unit/verbs/park-resume.js";
 import { runMaterialize } from "../lib/work-unit/verbs/materialize.js";
-import { runStub, type StubCommitment } from "../lib/work-unit/verbs/stub.js";
+import { runStub } from "../lib/work-unit/verbs/stub.js";
 import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
 import {
   createInRepoAbandonRetirementContext,
@@ -495,6 +496,30 @@ export const lifecycleCommandInputRegistrations = [
   },
 ] as const satisfies readonly CommandInputRegistration[];
 
+/** Required commitment for a newly authored backlog stub. */
+export const stubCommitmentPromptSite = declarePromptSite("prompt.stub.commitment", "select",
+  { file: "handlers/lifecycle.ts", symbol: "stubCommitmentPromptSite" }, {
+    acquisition: "handler-required", schemaOwnership: "none", cancellation: "stop",
+    automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--commitment <tier>"] },
+    mutationBoundary: "stub handler", subprocess: "none",
+  });
+
+/** Required priority for a newly authored backlog stub. */
+export const stubPriorityPromptSite = declarePromptSite("prompt.stub.priority", "select",
+  { file: "handlers/lifecycle.ts", symbol: "stubPriorityPromptSite" }, {
+    acquisition: "handler-required", schemaOwnership: "none", cancellation: "stop",
+    automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--priority <priority>"] },
+    mutationBoundary: "stub handler", subprocess: "none",
+  });
+
+/** Resolved work class for promotion of a provisional stub. */
+export const promoteClassPromptSite = declarePromptSite("prompt.promote.class", "select",
+  { file: "handlers/lifecycle.ts", symbol: "promoteClassPromptSite" }, {
+    acquisition: "handler-required", schemaOwnership: "none", cancellation: "stop",
+    automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--class <value>"] },
+    mutationBoundary: "promote handler", subprocess: "none",
+  });
+
 /** Interaction policies owned by the lifecycle command adapters. */
 export const lifecycleCommandInputPolicyDeclarations = [
 
@@ -511,36 +536,12 @@ export const lifecycleCommandInputPolicyDeclarations = [
   {
     commandPath: "stub",
     aliases: [],
-    sites: [
-      declareInteractionSite(
-        { file: "handlers/lifecycle.ts", kind: "prompt", callee: "p.select", occurrence: 1 },
-        {
-          acquisition: "handler-required", schemaOwnership: "none", cancellation: "stop",
-          automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--commitment <tier>"] },
-          mutationBoundary: "stub handler", subprocess: "none",
-        },
-      ),
-      declareInteractionSite(
-        { file: "handlers/lifecycle.ts", kind: "prompt", callee: "p.select", occurrence: 2 },
-        {
-          acquisition: "handler-required", schemaOwnership: "none", cancellation: "stop",
-          automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--priority <priority>"] },
-          mutationBoundary: "stub handler", subprocess: "none",
-        },
-      ),
-    ],
+    sites: [stubCommitmentPromptSite, stubPriorityPromptSite],
   },
   {
     commandPath: "promote",
     aliases: [],
-    sites: [declareInteractionSite(
-      { file: "handlers/lifecycle.ts", kind: "prompt", callee: "p.select", occurrence: 3 },
-      {
-        acquisition: "handler-required", schemaOwnership: "none", cancellation: "stop",
-        automation: { noInput: "require-explicit", flags: [], acceptedSyntax: ["--class <value>"] },
-        mutationBoundary: "promote handler", subprocess: "none",
-      },
-    )],
+    sites: [promoteClassPromptSite],
   },
   {
     commandPath: "abandon",
@@ -560,48 +561,34 @@ export const lifecycleCommandInputPolicyDeclarations = [
 export async function handleStub(
   name: string | undefined,
   opts: StubOptions,
-  suppliedContext?: InteractionContext,
+  context: InteractionContext,
 ): Promise<void> {
   p.intro("arc stub");
-  const context = suppliedContext ?? resolveProcessInteractionContext({
-    noInput: false, machineReadable: false, yes: "absent",
-  });
   const parsedName = SlugSchema.safeParse(name?.trim());
   if (!parsedName.success) {
     refuse(parsedName.error.issues.map((issue) => issue.message).join("\n"));
     return;
   }
-  let commitment = opts.commitment;
-  let priority = opts.priority;
-  if (context.interaction === "allowed") {
-    if (commitment === undefined) {
-      const answer = await p.select<StubCommitment>({
-        message: "Backlog commitment?",
-        options: [
-          { value: "provisional", label: "Provisional" },
-          { value: "planned", label: "Planned" },
-        ],
-      });
-      if (p.isCancel(answer)) return;
-      commitment = answer;
-    }
-    if (priority === undefined) {
-      const answer = await p.select<z.infer<typeof PrioritySchema>>({
-        message: "Priority?",
-        options: PrioritySchema.options.map((value) => ({ value, label: value })),
-      });
-      if (p.isCancel(answer)) return;
-      priority = answer;
-    }
-  }
+  const commitmentAnswer = await prompt(stubCommitmentPromptSite, context, {
+    message: "Backlog commitment?", explicitAnswer: opts.commitment,
+    options: [{ value: "provisional", label: "Provisional" }, { value: "planned", label: "Planned" }],
+  });
+  if (commitmentAnswer.kind === "cancelled") return;
+  const priorityAnswer = await prompt(stubPriorityPromptSite, context, {
+    message: "Priority?", explicitAnswer: opts.priority,
+    options: PrioritySchema.options.map((value) => ({ value, label: value })),
+  });
+  if (priorityAnswer.kind === "cancelled") return;
   const missing = [
-    ...(commitment === undefined ? ["--commitment <provisional|planned>"] : []),
-    ...(priority === undefined ? ["--priority <P1|P2|P3>"] : []),
+    ...(commitmentAnswer.kind === "refused" ? commitmentAnswer.acceptedSyntax : []),
+    ...(priorityAnswer.kind === "refused" ? priorityAnswer.acceptedSyntax : []),
   ];
   if (missing.length > 0) {
     refuse(`Missing required input: ${missing.join(", ")}`);
     return;
   }
+  const commitment = commitmentAnswer.kind === "answered" ? commitmentAnswer.value : undefined;
+  const priority = priorityAnswer.kind === "answered" ? priorityAnswer.value : undefined;
   const parsed = StubCommandInputSchema.safeParse({
     name: parsedName.data, commitment, priority,
     ...(opts.origin === undefined ? {} : { origin: opts.origin }),
@@ -758,12 +745,9 @@ export interface PromoteOptions {
 export async function handlePromote(
   slug: string | undefined,
   opts: PromoteOptions = {},
-  suppliedContext?: InteractionContext,
+  context: InteractionContext,
 ): Promise<void> {
   p.intro("arc promote");
-  const context = suppliedContext ?? resolveProcessInteractionContext({
-    noInput: false, machineReadable: false, yes: "absent",
-  });
   const base = await resolveVerbBase(context);
   if (base === null) return;
   const target = await resolveVerbTargetOrReport("promote", slug, base.cwd);
@@ -776,17 +760,17 @@ export async function handlePromote(
   }
   const recorded = parseMetaRecord(await base.io.readFile(join(base.cwd, entry.path))).workClass ?? "TBD";
   let acquiredClass = opts.class;
-  if (recorded === "TBD" && acquiredClass === undefined && context.interaction === "allowed") {
-    const answer = await p.select<z.infer<typeof WorkClassSchema>>({
-      message: "Resolved Class?",
+  if (recorded === "TBD") {
+    const answer = await prompt(promoteClassPromptSite, context, {
+      message: "Resolved Class?", explicitAnswer: opts.class,
       options: WorkClassSchema.options.map((value) => ({ value, label: value })),
     });
-    if (p.isCancel(answer)) return;
-    acquiredClass = answer;
-  }
-  if (recorded === "TBD" && acquiredClass === undefined) {
-    refuse("Missing required input: --class <Light|Heavy|Novel>");
-    return;
+    if (answer.kind === "cancelled") return;
+    if (answer.kind === "refused") {
+      refuse(`Missing required input: ${answer.acceptedSyntax.join(", ")}`);
+      return;
+    }
+    acquiredClass = answer.value;
   }
   if (acquiredClass !== undefined && !WorkClassSchema.safeParse(acquiredClass).success) {
     refuse("--class must be Light, Heavy, or Novel.");

@@ -77,6 +77,7 @@ const SURFACE_RULES: readonly SurfaceRule[] = [
     matches: (path) =>
       !path.endsWith(".md") &&
       (path.startsWith("packages/arc-framework/src/") ||
+        path.startsWith("packages/arc-framework/eslint/") ||
         path.startsWith("packages/arc-framework/arc/system/.internal/githooks/") ||
         path.startsWith("packages/arc-framework/arc/system/.internal/harness-hooks/") ||
         path.startsWith("packages/arc-framework/arc/system/.internal/scripts/") ||

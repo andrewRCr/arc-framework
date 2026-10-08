@@ -1,42 +1,35 @@
-/** Native completion distinguishes executed cases from collected skipped cases. */
-import { readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { expect, it } from "vitest";
-import { makeVitestControllerFixture, runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
+/** Completion runs through a public fake selection without runtime preparation. */
+import { afterEach, beforeEach, expect, it } from "vitest";
+import type { TestResult } from "vitest/node";
+import { executeVitestSelection } from "../../src/lib/vitest-execution.js";
+import { fakeVitestResult, makeVitestControllerFake } from "../helpers/vitest-controller-fake.js";
 
-it.each([
-  ["unmatched name", 'it("present", () => {});', ["-t", "absent"]],
-  ["static skip", 'it.skip("skipped", () => {});', []],
-  ["todo", 'it.todo("later");', []],
-  ["dynamic skip", 'it("dynamic", (context) => context.skip());', []],
-  ["nested skipped suite", 'describe.skip("outer", () => describe("inner", () => it("nested", () => {})));', []],
-] as const)("rejects %s despite native empty-run success", async (_name, body, flags) => {
-  const fixture = await makeVitestControllerFixture();
-  try {
-    await writeFile(join(fixture.packageRoot, "tests/unit-completion.test.mjs"),
-      'import { it, describe } from "vitest"; ' + body);
-    const result = await runVitestControllerFixture(fixture.packageRoot, ["unit", "--passWithNoTests", ...flags]);
-    expect(result.code).toBe(1);
-    expect(result.stdout + result.stderr).toContain("No test cases completed");
-    expect(await readFile(fixture.events, "utf8")).toContain("closed");
-  } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 30_000);
+let previous: typeof process.exitCode;
+beforeEach(() => { previous = process.exitCode; process.exitCode = 0; });
+afterEach(() => { process.exitCode = previous; });
+const input = { cwd: "absent-checkout", packageRoot: "absent-package", env: {}, tier: "unit" } as const;
 
-it.each([
-  ["mixed passing", 'describe("outer", () => { it.skip("skipped", () => {}); describe("inner", () => it("passes", () => {})); });', 0, ""],
-  ["completed failure", 'it("fails", () => { throw new Error("completed failure retained"); });', 1, "completed failure retained"],
-  ["collection failure", 'throw new Error("collection failure retained");', 1, "collection failure retained"],
-  ["setup failure", 'it("never starts", () => {});', 1, "setup failure retained"],
-] as const)("preserves %s status and diagnostics", async (name, body, code, diagnostic) => {
-  const fixture = await makeVitestControllerFixture();
-  try {
-    await writeFile(join(fixture.packageRoot, "tests/unit-completion.test.mjs"),
-      'import { it, describe } from "vitest"; ' + body);
-    if (name === "setup failure") await writeFile(join(fixture.packageRoot, "tests/unit-setup.mjs"),
-      'export function setup() { throw new Error("setup failure retained"); }');
-    const result = await runVitestControllerFixture(fixture.packageRoot, ["unit", "--passWithNoTests"]);
-    expect(result.code).toBe(code);
-    expect(result.stdout + result.stderr).toContain(diagnostic);
-    expect(result.stdout + result.stderr).not.toContain("No test cases completed");
-  } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 30_000);
+it.each(([[], ["skipped"], ["pending"], ["pending", "skipped"]] as TestResult["state"][][]).map((states) => ({ states })))(
+  "refuses unexecuted public states $states and closes before capture", async ({ states }) => {
+    const fake = makeVitestControllerFake([], { result: fakeVitestResult(states) });
+    const result = await executeVitestSelection({ controller: fake.controller, specifications: [], requiresRuntime: false }, input,
+      () => { fake.events.push("captured"); return "retained"; });
+    expect(result).toEqual({ result: "retained" });
+    expect(process.exitCode).toBe(1);
+    expect(fake.diagnostics.join("\n")).toContain("No test cases completed");
+    expect(fake.events).toEqual(["executed", "closed", "captured"]);
+  });
+it.each(["module", "collection", "worker"] as const)("retains %s failure through execution and closing", async (fault) => {
+  const fake = makeVitestControllerFake([], { result: fakeVitestResult(["passed"], fault) });
+  await executeVitestSelection({ controller: fake.controller, specifications: [], requiresRuntime: false }, input);
+  expect(process.exitCode).toBe(1);
+  expect(fake.diagnostics.join("\n")).not.toContain("No test cases completed");
+  expect(fake.events).toEqual(["executed", "closed"]);
+});
+it("accepts a passing case beside skipped results without acquiring ownership", async () => {
+  const fake = makeVitestControllerFake([], { result: fakeVitestResult(["passed", "skipped"]) });
+  await executeVitestSelection({ controller: fake.controller, specifications: [], requiresRuntime: false }, input);
+  expect(process.exitCode).toBe(0);
+  expect(fake.diagnostics).toEqual([]);
+  expect(fake.events).toEqual(["executed", "closed"]);
+});

@@ -192,9 +192,10 @@ _CI & configuration:_
 - **Execution**: `npm test` (routine unit + integration lane), `npm run test:full` (all projects),
   `npm run test:unit` (unit projects only)
 - **Structure**: Four Vitest projects across three isolation tiers:
-    - **Unit** and **unit-mocks** (`__tests__/unit/`) — Pure function and module tests, with mock-heavy files
-      isolated in their own project
-    - **Integration** (`__tests__/integration/`) — Module interaction, may use temp filesystem
+    - **Unit** and **unit-mocks** (`__tests__/unit/`) — Functions and modules, including temporary filesystem
+      fixtures; no child processes, real builds or git repositories beyond the explicit legacy spawn allowlist.
+      Mock-heavy files are isolated in their own project.
+    - **Integration** (`__tests__/integration/`) — Real module interactions, git repositories and child processes
     - **E2E** (`__tests__/e2e/`) — Full CLI invocation against real (temporary) git repos
 - **Command**: `npm test` (unit + unit-mocks + integration); `npm run test:full` also includes E2E
 

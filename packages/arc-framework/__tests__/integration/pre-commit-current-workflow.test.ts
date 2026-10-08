@@ -55,7 +55,7 @@ describe("pre-commit Current Workflow validation", () => {
     await expect(execFileAsync(
       process.execPath,
       ["--import", tsxLoader, validatorPath, metaPath],
-      { cwd: root },
+      { cwd: root, env: { ...process.env, FORCE_COLOR: undefined } },
     )).rejects.toMatchObject({
       code: 1,
       stderr: expect.stringContaining("Current Workflow"),
@@ -73,7 +73,7 @@ describe("pre-commit Current Workflow validation", () => {
     await expect(execFileAsync(
       process.execPath,
       ["--import", tsxLoader, validatorPath, metaPath],
-      { cwd: root },
+      { cwd: root, env: { ...process.env, FORCE_COLOR: undefined } },
     )).resolves.toMatchObject({ stderr: "" });
   });
 });

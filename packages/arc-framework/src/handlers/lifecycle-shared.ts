@@ -1,7 +1,7 @@
 /** Ambient context, executor binding, and reporting shared by lifecycle command adapters. */
 
 import { readFile, readdir } from "node:fs/promises";
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
 import { z } from "zod";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { createUserIOContext } from "../lib/io-context.js";

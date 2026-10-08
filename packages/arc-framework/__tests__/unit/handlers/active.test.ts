@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   runExpansion: vi.fn(),
@@ -25,7 +25,6 @@ vi.mock("../../../src/lib/work-unit/lifecycle-resolver.js", () => ({
 }));
 vi.mock("../../../src/handlers/shared.js", () => ({
   requireArcProjectRoot: () => "/repo",
-  resolveIdentityWithPrompt: async () => "andrew",
 }));
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
@@ -65,6 +64,10 @@ describe("formatActiveInFlightLine", () => {
 });
 
 describe("handleActiveInFlight", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mocks.exec.mockResolvedValue({ stdout: "andrew\0" });
+  });
   it("selects explicit expansion for a live command request", async () => {
     const stdout = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     mocks.runExpansion.mockResolvedValue({

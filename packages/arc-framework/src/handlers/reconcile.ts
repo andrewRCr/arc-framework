@@ -7,7 +7,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
 import { z } from "zod";
 
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";

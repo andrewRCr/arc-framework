@@ -1,6 +1,8 @@
 /** Canonical acquisition and schema contract for `arc join`. */
 
 import { z } from "zod";
+import { joinIdentityPromptSite } from "../prompts/identity-prompt-sites.js";
+import { joinRolePromptSite, joinToolsPromptSite } from "../prompts/join-prompts.js";
 
 import { CommandToolListSchema } from "./init-input.js";
 import { normalizeCommandIdentity } from "../lib/command-input/identity.js";
@@ -46,47 +48,9 @@ export const joinCommandInputPolicyDeclarations = [{
   commandPath: "join",
   aliases: [],
   sites: [
-    {
-      id: "interaction.prompts-join-prompts.ts-prompt-p.select-1",
-      source: {
-        file: "prompts/join-prompts.ts",
-        interaction: { kind: "prompt", callee: "p.select", occurrence: 1 },
-      },
-      origin: "declaration",
-      acquisition: "safe-default",
-      schemaOwnership: "owned",
-      schemaField: "role",
-      defaultSource: "current role or maintainer",
-      cancellation: "stop",
-      automation: { noInput: "use-default", flags: ["--contributor"], acceptedSyntax: ["--contributor"] },
-      mutationBoundary: "workspace role selection",
-      subprocess: "none",
-    },
-    {
-      id: "semantic.tools",
-      source: { file: "commands/join-input.ts", symbol: "resolveJoinCommandInput" },
-      origin: "declaration",
-      acquisition: "safe-default",
-      schemaOwnership: "owned",
-      schemaField: "tools",
-      defaultSource: "empty or current tool list",
-      cancellation: "stop",
-      automation: { noInput: "use-default", flags: ["--tools"], acceptedSyntax: ["--tools <list>"] },
-      mutationBoundary: "workspace tool selection",
-      subprocess: "none",
-    },
-    {
-      id: "semantic.identity",
-      source: { file: "commands/join-input.ts", symbol: "resolveJoinCommandInput" },
-      origin: "declaration",
-      acquisition: "handler-required",
-      schemaOwnership: "owned",
-      schemaField: "identity",
-      cancellation: "stop",
-      automation: { noInput: "require-explicit", flags: ["--identity"], acceptedSyntax: ["--identity <name>"] },
-      mutationBoundary: "workspace identity resolution",
-      subprocess: "none",
-    },
+    joinRolePromptSite,
+    joinToolsPromptSite,
+    joinIdentityPromptSite,
   ],
 }] satisfies readonly CommandInputDeclaration[];
 
@@ -103,15 +67,11 @@ export interface JoinCommandOptions {
 export async function resolveJoinCommandInput(input: {
   readonly options: JoinCommandOptions;
   readonly context: { readonly interaction: "allowed" | "forbidden" };
-  readonly current?: {
-    readonly role: "maintainer" | "contributor";
-    readonly tools: readonly string[];
-  };
   readonly prompt?: (supplied: {
     readonly role?: "maintainer" | "contributor";
     readonly tools?: readonly string[];
   }) => Promise<{ readonly role: string; readonly tools: readonly string[] } | null>;
-  readonly resolveIdentity: (interactive: boolean) => Promise<string | null>;
+  readonly resolveIdentity?: (interactive: boolean) => Promise<string | null>;
 }): Promise<InputResolution<JoinCommandInput>> {
   const reconfigure = input.options.reconfigure ?? false;
   if (reconfigure && input.options.identity !== undefined) {
@@ -128,29 +88,19 @@ export async function resolveJoinCommandInput(input: {
   }
   const suppliedRole = input.options.contributor === true ? "contributor" as const : undefined;
   const suppliedTools = input.options.tools?.split(",").map((tool) => tool.trim()).filter(Boolean);
-  let values: { readonly role: string; readonly tools: readonly string[] };
-  let source: "argument" | "prompt" | "default";
-  if (input.context.interaction === "allowed") {
-    if (input.prompt === undefined) {
-      return { kind: "unavailable", missing: [{ name: "interactive join values", acceptedSyntax: [] }] };
-    }
-    const prompted = await input.prompt({
-      ...(suppliedRole === undefined ? {} : { role: suppliedRole }),
-      ...(suppliedTools === undefined ? {} : { tools: suppliedTools }),
-    });
-    if (prompted === null) return { kind: "cancelled" };
-    values = prompted;
-    source = "prompt";
-  } else {
-    values = {
-      role: suppliedRole ?? input.current?.role ?? "maintainer",
-      tools: suppliedTools ?? input.current?.tools ?? [],
-    };
-    source = suppliedRole !== undefined || suppliedTools !== undefined ? "argument" : "default";
+  if (input.prompt === undefined) {
+    return { kind: "unavailable", missing: [{ name: "interactive join values", acceptedSyntax: [] }] };
   }
+  const values = await input.prompt({
+    ...(suppliedRole === undefined ? {} : { role: suppliedRole }),
+    ...(suppliedTools === undefined ? {} : { tools: suppliedTools }),
+  });
+  if (values === null) return { kind: "cancelled" };
+  const source = input.context.interaction === "allowed" ? "prompt" as const
+    : suppliedRole !== undefined || suppliedTools !== undefined ? "argument" as const : "default" as const;
   const identity = reconfigure
     ? undefined
-    : explicitIdentity ?? await input.resolveIdentity(input.context.interaction === "allowed");
+    : explicitIdentity ?? await input.resolveIdentity?.(input.context.interaction === "allowed") ?? null;
   if (!reconfigure && identity === null) {
     return { kind: "unavailable", missing: [{ name: "identity", acceptedSyntax: ["--identity <name>"] }] };
   }

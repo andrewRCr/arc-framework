@@ -11,6 +11,9 @@ import {
 /** Lease path stays beside live output, outside every compiler clean target. */
 export const BUILD_ARTIFACT_LOCK_NAME = ".arc-build.lock";
 
+/** Inherited capability identifying a managed test controller's CLI children. */
+export const TEST_CONTROLLER_TOKEN_ENV = "ARC_TEST_CONTROLLER_TOKEN";
+
 /** Native acquisition and process boundaries for artifact ownership. */
 export interface BuildOwnershipDependencies extends LeaseProcessDependencies {
   readonly acquireLock: (path: string, options?: AdvisoryLockOptions) => Promise<AdvisoryLockHandle>;
@@ -25,6 +28,7 @@ export interface BuildOwnershipInput {
 /** Artifact capability valid only inside the owning action. */
 export interface BuildArtifactLease extends RenewableLease {
   readonly packageRoot: string;
+  readonly token: string;
 }
 
 /**
@@ -61,7 +65,7 @@ export async function withBuildArtifactOwnership<T>(
     },
   });
   return await withRenewableLease(handle, startedAt,
-    async (lease) => await action({ ...lease, packageRoot }), deps,
+    async (lease) => await action({ ...lease, packageRoot, token: handle.token }), deps,
     { lock: "Checkout artifact lock", controller: "the owning build or test controller" });
 }
 
@@ -84,5 +88,13 @@ export async function withTestArtifactOwnership<T>(
 ): Promise<LocalTestAdmissionResult<T>> {
   return await withLocalHeavyTestAdmission(input,
     async () => await withBuildArtifactOwnership({ packageRoot: input.packageRoot, operation: `tests (${input.tier})` },
-      action, overrides.artifacts), overrides.admission);
+      async (lease) => {
+        const prior = process.env[TEST_CONTROLLER_TOKEN_ENV];
+        process.env[TEST_CONTROLLER_TOKEN_ENV] = lease.token;
+        try { return await action(lease); }
+        finally {
+          if (prior === undefined) Reflect.deleteProperty(process.env, TEST_CONTROLLER_TOKEN_ENV);
+          else process.env[TEST_CONTROLLER_TOKEN_ENV] = prior;
+        }
+      }, overrides.artifacts), overrides.admission);
 }

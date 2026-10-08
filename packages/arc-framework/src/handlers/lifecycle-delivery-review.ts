@@ -1,6 +1,6 @@
 /** Candidate attestation, publication review boundaries, and delivery withdrawal checks. */
 
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
 import { z } from "zod";
 import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/command-input/declaration.js";
 import { formatValue, parseMetaRecord, setMetaBulletFields, setMetaCandidate } from "../lib/active/meta-reader.js";

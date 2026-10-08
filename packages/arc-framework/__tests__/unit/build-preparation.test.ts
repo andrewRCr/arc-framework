@@ -1,110 +1,66 @@
-/** Runtime preparation reuses a qualified full generation through its actual owned boundary. */
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+/** Prebuilt preparation decides artifact faults and repaired reuse without native generation. */
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
-import { buildOwnedArtifacts, ensureOwnedRuntimeArtifacts } from "../../src/lib/build-entry.js";
-import { withBuildArtifactOwnership } from "../../src/lib/build-ownership.js";
-import { makeNativeBuildFixture } from "../helpers/native-build-fixture.js";
+import { ensureOwnedRuntimeArtifacts } from "../../src/lib/build-entry.js";
+import { publishStagedBuild } from "../../src/lib/build-publication.js";
 import { DEV_BUILD_STAMP_NAME } from "../../src/lib/build-evidence.js";
 import { readBuildQualification } from "../../src/lib/build-qualification.js";
+import { makeStagedBuildFixture } from "../helpers/staged-build-fixture.js";
 
-it("reuses full runtime output while explicit requests still generate anew", async () => {
-  const { root, packageRoot } = await makeNativeBuildFixture();
+async function qualifiedFixture(mode: "fast" | "full" = "fast") {
+  const fixture = makeStagedBuildFixture(mode);
+  await publishStagedBuild(fixture.lease, fixture.staged, fixture.evidence, { checkCli: async () => {} });
+  return fixture;
+}
+
+it("reuses qualified prebuilt output without requesting generation", async () => {
+  const { root, lease, evidence } = await qualifiedFixture("full");
   try {
-    await withBuildArtifactOwnership({ packageRoot, operation: "full build and runtime preparation" }, async (lease) => {
-      const full = await buildOwnedArtifacts(lease, "full");
-      const prepared = await ensureOwnedRuntimeArtifacts(lease, {});
-      expect(prepared).toEqual(full);
-      expect(await readFile(join(packageRoot, "dist/cli.d.ts"), "utf8")).toContain("marker");
-      const rebuilt = await buildOwnedArtifacts(lease, "fast");
-      expect(rebuilt.generation).not.toBe(full.generation);
-      expect(rebuilt.qualification.declarations).toBe(false);
-      await expect(readFile(join(packageRoot, "dist/cli.d.ts"))).rejects.toMatchObject({ code: "ENOENT" });
-    });
+    expect(await ensureOwnedRuntimeArtifacts(lease, { ARC_E2E_SKIP_BUILD: "1" })).toEqual(evidence);
   } finally { await rm(root, { recursive: true, force: true }); }
-}, 30_000);
+});
 
-it("forbids generation for unqualified prebuilt preparation and accepts a repaired build", async () => {
-  const { root, packageRoot } = await makeNativeBuildFixture();
-  try {
-    await withBuildArtifactOwnership({ packageRoot, operation: "prebuilt preparation" }, async (lease) => {
+it.each(["missing CLI", "missing schema", "old evidence", "edited runtime"])(
+  "refuses %s with generation disabled and reuses repaired output", async (fault) => {
+    const { root, packageRoot, lease, evidence } = await qualifiedFixture();
+    const stamp = join(packageRoot, "dist", DEV_BUILD_STAMP_NAME);
+    const file = join(packageRoot, fault === "missing CLI" ? "dist/cli.js"
+      : fault === "missing schema" ? "dist/schemas/kernel.json"
+      : fault === "old evidence" ? `dist/${DEV_BUILD_STAMP_NAME}` : "src/cli.ts");
+    const original = await readFile(file, "utf8");
+    try {
+      if (fault.startsWith("missing")) await rm(file);
+      else if (fault === "old evidence") await writeFile(file, JSON.stringify({ ...evidence, schemaVersion: 1 }));
+      else await writeFile(file, original + "\n// edited runtime\n");
+      const refusedStamp = await readFile(stamp, "utf8");
+      expect(readBuildQualification(packageRoot, "runtimeSchema").status).toBe("unqualified");
       await expect(ensureOwnedRuntimeArtifacts(lease, { ARC_E2E_SKIP_BUILD: "1" }))
         .rejects.toThrow("Generation is disabled by ARC_E2E_SKIP_BUILD=1");
-      expect(await readFile(join(packageRoot, "dist/cli.js"), "utf8")).toContain("previous-live-runtime");
-      await expect(readFile(join(packageRoot, ".config-loads"))).rejects.toMatchObject({ code: "ENOENT" });
-      const built = await buildOwnedArtifacts(lease, "fast");
-      expect(await ensureOwnedRuntimeArtifacts(lease, { ARC_E2E_SKIP_BUILD: "1" })).toEqual(built);
-    });
-  } finally { await rm(root, { recursive: true, force: true }); }
-}, 30_000);
+      expect(await readFile(stamp, "utf8")).toBe(refusedStamp);
+      await writeFile(file, original);
+      expect(await ensureOwnedRuntimeArtifacts(lease, { ARC_E2E_SKIP_BUILD: "1" })).toEqual(evidence);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  },
+);
 
-it.each(["missing CLI", "missing schema", "old evidence", "edited runtime"])("repairs %s before returning preparation", async (fault) => {
-  const { root, packageRoot } = await makeNativeBuildFixture();
+it.each(["missing", "empty", "directory"])("refuses %s metadata and reuses repaired prebuilt output", async (fault) => {
+  const { root, packageRoot, lease, evidence } = await qualifiedFixture("full");
+  const metafile = join(packageRoot, "dist/metafile-esm.json");
+  const original = await readFile(metafile, "utf8");
   try {
-    await withBuildArtifactOwnership({ packageRoot, operation: "runtime repair" }, async (lease) => {
-      const built = await buildOwnedArtifacts(lease, "fast");
-      if (fault === "missing CLI") await rm(join(packageRoot, "dist/cli.js"));
-      if (fault === "missing schema") await rm(join(packageRoot, "dist/schemas/kernel.json"));
-      if (fault === "old evidence") {
-        await writeFile(join(packageRoot, "dist", DEV_BUILD_STAMP_NAME), JSON.stringify({ ...built, schemaVersion: 1 }));
-      }
-      if (fault === "edited runtime") {
-        await writeFile(join(packageRoot, "src/cli.ts"), 'export const marker = "repaired-native-runtime";');
-      }
-      const prepared = await ensureOwnedRuntimeArtifacts(lease, {});
-      expect(prepared.generation).not.toBe(built.generation);
-      expect(JSON.parse(await readFile(join(packageRoot, "dist", DEV_BUILD_STAMP_NAME), "utf8"))).toEqual(prepared);
-      expect(JSON.parse(await readFile(join(packageRoot, "dist/schemas/kernel.json"), "utf8"))).toHaveProperty("schemas");
-      expect(await readFile(join(packageRoot, "dist/cli.js"), "utf8"))
-        .toContain(fault === "edited runtime" ? "repaired-native-runtime" : "new-native-runtime");
-    });
+    if (fault === "empty") await writeFile(metafile, "");
+    else {
+      await rm(metafile);
+      if (fault === "directory") await mkdir(metafile);
+    }
+    expect(readBuildQualification(packageRoot, "runtime").status).toBe("qualified");
+    expect(readBuildQualification(packageRoot, "runtimeSchema").status).toBe("unqualified");
+    expect(readBuildQualification(packageRoot, "full").status).toBe("unqualified");
+    await expect(ensureOwnedRuntimeArtifacts(lease, { ARC_E2E_SKIP_BUILD: "1" })).rejects.toThrow("metafile-esm.json");
+    expect(JSON.parse(await readFile(join(packageRoot, "dist", DEV_BUILD_STAMP_NAME), "utf8"))).toEqual(evidence);
+    if (fault === "directory") await rm(metafile, { recursive: true });
+    await writeFile(metafile, original);
+    expect(await ensureOwnedRuntimeArtifacts(lease, { ARC_E2E_SKIP_BUILD: "1" })).toEqual(evidence);
   } finally { await rm(root, { recursive: true, force: true }); }
-}, 30_000);
-
-it.each(["missing", "empty", "directory"])("refuses and repairs %s build metadata before test preparation", async (fault) => {
-  const { root, packageRoot } = await makeNativeBuildFixture();
-  try {
-    await withBuildArtifactOwnership({ packageRoot, operation: "metadata repair" }, async (lease) => {
-      const built = await buildOwnedArtifacts(lease, "full");
-      const metafile = join(packageRoot, "dist/metafile-esm.json");
-      if (fault === "empty") await writeFile(metafile, "");
-      else {
-        await rm(metafile);
-        if (fault === "directory") await mkdir(metafile);
-      }
-      expect(readBuildQualification(packageRoot, "runtime").status).toBe("qualified");
-      expect(readBuildQualification(packageRoot, "runtimeSchema").status).toBe("unqualified");
-      expect(readBuildQualification(packageRoot, "full").status).toBe("unqualified");
-      await expect(ensureOwnedRuntimeArtifacts(lease, { ARC_E2E_SKIP_BUILD: "1" }))
-        .rejects.toThrow("metafile-esm.json");
-      expect(JSON.parse(await readFile(join(packageRoot, "dist", DEV_BUILD_STAMP_NAME), "utf8"))).toEqual(built);
-      if (fault === "directory") await rm(metafile, { recursive: true });
-      const prepared = await ensureOwnedRuntimeArtifacts(lease, {});
-      expect(prepared.generation).not.toBe(built.generation);
-      expect(JSON.parse(await readFile(metafile, "utf8"))).toHaveProperty("inputs");
-      expect(await ensureOwnedRuntimeArtifacts(lease, { ARC_E2E_SKIP_BUILD: "1" })).toEqual(prepared);
-    });
-  } finally { await rm(root, { recursive: true, force: true }); }
-}, 30_000);
-
-it("retains successful qualification and reuse when private staging disposal fails", async () => {
-  const { root, packageRoot } = await makeNativeBuildFixture();
-  let leftover = "";
-  const warnings: string[] = [];
-  try {
-    await withBuildArtifactOwnership({ packageRoot, operation: "published build with denied disposal" }, async (lease) => {
-      const built = await buildOwnedArtifacts(lease, "fast", {
-        dispose: async (directory) => {
-          leftover = directory;
-          throw Object.assign(new Error("denied staging cleanup"), { code: "EACCES" });
-        },
-        warn: (message) => { warnings.push(message); },
-      });
-      expect(warnings.join("\n")).toContain("Build published; could not dispose owned staging");
-      expect(warnings.join("\n")).toContain(leftover);
-      expect((await stat(leftover)).isDirectory()).toBe(true);
-      expect(await ensureOwnedRuntimeArtifacts(lease, {})).toEqual(built);
-      expect(await readFile(join(packageRoot, "dist/cli.js"), "utf8")).toContain("new-native-runtime");
-    });
-  } finally { await rm(root, { recursive: true, force: true }); }
-}, 30_000);
+});

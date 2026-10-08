@@ -53,14 +53,17 @@ function localReviewerInstructions(
   const scope = source.correctionScope;
   if (scope === undefined) return guidance.reviewerInstructions;
   const findings = scope.requiredFindings.length === 0
-    ? "none"
-    : scope.requiredFindings
-      .map(({ producerId, findingId, locus }) => `${producerId} / ${findingId} at ${locus}`)
-      .join(", ");
+    ? "No earlier material finding requires re-examination."
+    : "Re-examine the earlier material findings "
+      + scope.requiredFindings
+        .map(({ producerId, findingId, locus }) => `${producerId} / ${findingId} at ${locus}`)
+        .join(", ")
+      + " at their original loci, including loci outside the changed lines.";
   return `${guidance.reviewerInstructions}\n\n`
-    + `Incremental correction scope: review ${scope.predecessorHeadSha}..${scope.headSha}; `
-    + `the complete coverage basis begins at ${scope.basisHeadSha}. Re-examine material findings `
-    + `${findings}, including their original loci when outside the changed lines.`;
+    + `Incremental correction pass. The requested change set for this pass is `
+    + `${scope.predecessorHeadSha}..${scope.headSha}: review that range completely, and apply the coverage and `
+    + `clean rules to it. The changes from ${scope.basisHeadSha} to ${scope.predecessorHeadSha} were covered by the `
+    + `earlier passes in this review's recorded coverage chain; do not re-review them. ${findings}`;
 }
 
 /**

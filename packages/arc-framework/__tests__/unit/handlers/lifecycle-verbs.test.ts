@@ -6,6 +6,7 @@
  * inputs and refuses (without dispatching) when a required input is absent.
  */
 
+import { makeInteractionContext } from "../../helpers/interaction-context.js";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
@@ -573,7 +574,8 @@ afterEach(() => {
 
 describe("handleStub", () => {
   it("dispatches runStub with the assembled inputs", async () => {
-    await handleStub("foo", { commitment: "provisional", priority: "P1", origin: "#42" });
+    await handleStub("foo", { commitment: "provisional", priority: "P1", origin: "#42" },
+      makeInteractionContext({ noInput: true }));
     expect(mockRunStub).toHaveBeenCalledTimes(1);
     expect(mockRunStub.mock.calls[0]?.[1]).toMatchObject({
       name: "foo",
@@ -589,7 +591,7 @@ describe("handleStub", () => {
       commitment: "planned",
       priority: "P1",
       cohort: "parent/child",
-    });
+    }, makeInteractionContext({ noInput: true }));
 
     expect(mockRunStub).toHaveBeenCalledTimes(1);
     expect(mockRunStub.mock.calls[0]?.[1]).toMatchObject({
@@ -601,7 +603,8 @@ describe("handleStub", () => {
   it.each(["parent/child/grandchild", "parent//child"])(
     "rejects an invalid cohort path %s before dispatch",
     async (cohort) => {
-      await handleStub("foo", { commitment: "planned", priority: "P1", cohort });
+      await handleStub("foo", { commitment: "planned", priority: "P1", cohort },
+        makeInteractionContext({ noInput: true }));
 
       expect(mockRunStub).not.toHaveBeenCalled();
       expect(mockLogError).toHaveBeenCalled();
@@ -609,20 +612,21 @@ describe("handleStub", () => {
   );
 
   it("rejects an invalid commitment before dispatch", async () => {
-    await handleStub("foo", { commitment: "bogus", priority: "P1" });
+    await handleStub("foo", { commitment: "bogus", priority: "P1" }, makeInteractionContext({ noInput: true }));
     expect(mockRunStub).not.toHaveBeenCalled();
     expect(mockLogError).toHaveBeenCalled();
   });
 
   it("refuses without a name and never dispatches", async () => {
-    await handleStub(undefined, { commitment: "provisional", priority: "P1" });
+    await handleStub(undefined, { commitment: "provisional", priority: "P1" },
+      makeInteractionContext({ noInput: true }));
     expect(mockRunStub).not.toHaveBeenCalled();
     expect(mockLogError).toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 
   it("refuses an absent name before eliciting handler-level inputs", async () => {
-    await handleStub(undefined, {});
+    await handleStub(undefined, {}, makeInteractionContext({ noInput: true }));
 
     expect(mockSelect).not.toHaveBeenCalled();
     expect(mockRunStub).not.toHaveBeenCalled();
@@ -1101,7 +1105,7 @@ describe("handleDecompose", () => {
 
 describe("handlePromote / handleDemote", () => {
   it("promote dispatches runPromote for the slug", async () => {
-    await handlePromote("foo", { class: "Novel" });
+    await handlePromote("foo", { class: "Novel" }, makeInteractionContext({ noInput: true }));
     expect(mockRunPromote).toHaveBeenCalledTimes(1);
     expect(mockRunPromote.mock.calls[0]?.[1]).toEqual({ name: "foo", class: "Novel" });
   });
@@ -1113,7 +1117,7 @@ describe("handlePromote / handleDemote", () => {
   });
 
   it("a bare slug-required verb surfaces the candidate list and never dispatches", async () => {
-    await handlePromote(undefined);
+    await handlePromote(undefined, undefined, makeInteractionContext({ noInput: true }));
     expect(mockRunPromote).not.toHaveBeenCalled();
     expect(mockLogError).toHaveBeenCalled();
     expect(process.exitCode).toBe(1);

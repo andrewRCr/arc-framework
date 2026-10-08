@@ -1,10 +1,9 @@
 /**
  * Unit tests for the dev-mode stale-build check.
  *
- * Covers the pure verdict function with injected fs primitives, and the
- * dependency factory against temporary fixture layouts. Refusal, the
- * compaction-seed exception, and stderr rendering live at the cli.ts preAction
- * boundary and are exercised end to end, not here.
+ * Covers the pure verdict function with injected filesystem boundaries and
+ * the dependency factory against temporary fixture layouts. Companion guard
+ * coverage holds command admission, diagnostics and refresh eligibility.
  */
 
 import { describe, it, expect } from "vitest";

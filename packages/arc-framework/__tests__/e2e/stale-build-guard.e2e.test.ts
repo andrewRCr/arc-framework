@@ -19,6 +19,7 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { assertCliBuilt, CLI_PATH } from "../helpers/cli-spawn.js";
 import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
 import { makeNativeBuildFixture } from "../helpers/native-build-fixture.js";
+import { copyLiveDependencies } from "../helpers/copy-live-dependencies.js";
 import { buildOwnedArtifacts } from "../../src/lib/build-entry.js";
 import { withBuildArtifactOwnership } from "../../src/lib/build-ownership.js";
 
@@ -51,7 +52,7 @@ async function contentStaleBundle(): Promise<string> {
   const { root, packageRoot: fixture } = await makeNativeBuildFixture();
   fixtures.push(root);
   const source = await readFile(join(packageRoot, "src/cli.ts"), "utf8");
-  await writeFile(join(fixture, "src/cli.ts"), source);
+  await copyLiveDependencies(packageRoot, fixture, ["src/cli.ts"]);
   await withBuildArtifactOwnership({ packageRoot: fixture, operation: "stale guard fixture" }, async (lease) => {
     await buildOwnedArtifacts(lease, "fast");
   });

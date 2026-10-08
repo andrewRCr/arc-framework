@@ -4,7 +4,8 @@
  * @module
  */
 
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
+import { joinIdentityPromptSite } from "../prompts/identity-prompt-sites.js";
 import { unlink, rmdir } from "node:fs/promises";
 
 import { runJoin, runJoinReconfigure, buildPostJoinMessage } from "../commands/join.js";
@@ -14,10 +15,7 @@ import { runJoinPrompts } from "../prompts/join-prompts.js";
 import { getArcTemplatePath, getInternalTemplatePath } from "../lib/paths.js";
 import { getFrameworkVersion } from "../lib/version.js";
 import { createIOContext } from "../lib/io-context.js";
-import {
-  resolveProcessInteractionContext,
-  type InteractionContext,
-} from "../lib/command-input/interaction-context.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { InputResolution } from "../lib/command-input/resolution.js";
 import {
   requireArcProjectRoot, requireGitRepo, resolveIdentityWithPrompt,
@@ -26,12 +24,7 @@ import {
 
 export type JoinOptions = JoinCommandOptions;
 
-export async function handleJoin(opts: JoinOptions, suppliedContext?: InteractionContext): Promise<void> {
-  const context = suppliedContext ?? resolveProcessInteractionContext({
-    noInput: false,
-    machineReadable: false,
-    yes: opts.yes === true ? "compatibility" : "absent",
-  });
+export async function handleJoin(opts: JoinOptions, context: InteractionContext): Promise<void> {
   const io = createIOContext(context.subprocess);
 
   if (opts.reconfigure) {
@@ -48,11 +41,11 @@ export async function handleJoin(opts: JoinOptions, suppliedContext?: Interactio
   const input = await resolveJoinCommandInput({
     options: opts,
     context,
-    prompt: async (supplied) => runJoinPrompts({
+    prompt: async (supplied) => runJoinPrompts(context, {
       suppliedRole: supplied.role,
       suppliedTools: supplied.tools,
     }),
-    resolveIdentity: (interactive) => resolveIdentityWithPrompt(interactive, io.exec),
+    resolveIdentity: () => resolveIdentityWithPrompt(joinIdentityPromptSite, context, io.exec),
   });
   if (input.kind !== "resolved") {
     reportJoinInputFailure(input);
@@ -137,14 +130,12 @@ async function handleJoinReconfigure(opts: JoinOptions, context: InteractionCont
   const input = await resolveJoinCommandInput({
     options: opts,
     context,
-    current: { role: currentRole, tools: currentTools },
-    prompt: async (supplied) => runJoinPrompts({
+    prompt: async (supplied) => runJoinPrompts(context, {
       suppliedRole: supplied.role,
       suppliedTools: supplied.tools,
       currentRole,
       currentTools,
     }),
-    resolveIdentity: (interactive) => resolveIdentityWithPrompt(interactive, io.exec),
   });
   if (input.kind !== "resolved") {
     reportJoinInputFailure(input);

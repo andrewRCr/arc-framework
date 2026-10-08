@@ -14,9 +14,8 @@ import { getFrameworkVersion } from "./lib/version.js";
 import { applyArcHelp, configureArcHelp } from "./lib/cli-help.js";
 import { formatUnexpectedError } from "./lib/errors.js";
 import {
-  checkDevBuildStaleness,
-  createDevCheckDeps,
-  isDevBuildRefreshCommandPath,
+  runDevBuildGuard,
+  createDevBuildGuardDeps,
   refreshDevBuildAfterAction,
 } from "./lib/dev-check.js";
 import { withInteractionContext } from "./lib/command-input/interaction-context.js";
@@ -2137,40 +2136,13 @@ reviewCmd
 let devBuildRefreshEligible = false;
 
 program.hook("preAction", (_thisCommand, actionCommand) => {
-  const verdict = checkDevBuildStaleness(
-    createDevCheckDeps(fileURLToPath(import.meta.url)),
+  devBuildRefreshEligible = runDevBuildGuard(
+    {
+      commandPath: formatCommandPath(actionCommand),
+      writeCompactionSeed: actionCommand.opts<Record<string, unknown>>().writeCompactionSeed === true,
+    },
+    createDevBuildGuardDeps(fileURLToPath(import.meta.url)),
   );
-  if (verdict.kind === "skip") return;
-  if (verdict.kind === "fresh") {
-    devBuildRefreshEligible = isDevBuildRefreshCommandPath(formatCommandPath(actionCommand));
-    return;
-  }
-
-  const distAgeText = verdict.distAge === null
-    ? "dist/cli.js missing"
-    : `dist/cli.js built ${formatAge(verdict.distAge)} ago`;
-  const staleCause = verdict.basis === "content-hash"
-    ? "runtime inputs or build qualification differ from the build stamp"
-    : `${verdict.newestSrc} changed ${formatAge(verdict.srcAge)} ago`;
-  const baseMsg = `arc dev build is stale (${staleCause}; ${distAgeText}).`;
-
-  // Sole exception: the compaction-seed write. A seed produced by stale logic
-  // is revalidated when recovery reads it, so it beats no seed. The option is
-  // declared on `status` alone, so this needs no command-name test.
-  const opts: Record<string, unknown> = actionCommand.opts();
-  if (opts.writeCompactionSeed === true) {
-    process.stderr.write(
-      `warn: ${baseMsg} Run \`npm run build:fast\` before relying on output.\n`,
-    );
-    return;
-  }
-
-  const cmdPath = formatCommandPath(actionCommand);
-  process.stderr.write(
-    `error: ${baseMsg} Refusing \`${cmdPath}\` against stale dist; `
-    + "run `npm run build:fast`, then retry.\n",
-  );
-  process.exit(1);
 });
 
 program.hook("postAction", async () => {
@@ -2195,13 +2167,6 @@ function formatCommandPath(cmd: Command): string {
     cur = cur.parent;
   }
   return parts.join(" ");
-}
-
-function formatAge(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-  if (seconds < 86_400) return `${Math.floor(seconds / 3600)}h`;
-  return `${Math.floor(seconds / 86_400)}d`;
 }
 
 // --- Entry ---
