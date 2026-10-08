@@ -116,27 +116,14 @@ documents.
   projection. Review discovery and delivery inventory use the production composition; delivery reads its version from
   registry metadata and emits no external references.
 
-### `[ ]` **2.5 Bound tuples and prove every root projects valid on both sides — D1**
+### `[x]` **2.5 Bound tuples and prove every root projects valid on both sides — D1**
 
 - _Goal:_ Every registered root's document, on either side, passes 2020-12 metaschema validation and compiles under
   strict Ajv, and one unit test stops any later registration that breaks either.
 
-    - Through `z.toJSONSchema`'s `override` hook, every tuple carries the bounds Zod enforces on the side projected:
-      `minItems` one past its last element not optional on that side (Zod's tuple minimum, `getTupleOptStart`),
-      `maxItems` its length without a rest element; an empty tuple drops `prefixItems` and takes `maxItems: 0`
-      without a rest element.
-    - The projection test projects every registered schema on both sides and checks every root's document against
-      the 2020-12 metaschema and `new Ajv2020({ strict: true, validateFormats: false })`.
-    - The workarounds for the unbounded tuples go: `pre-publication-procedure.test.ts` drops
-      `validateSchema: false`, and `review-cli-surfaces.e2e.test.ts` drops `strict: false` and `validateSchema: false`,
-      each compiling under the projection test's options.
-
-    - Build `test-first` (one behavior at a time):
-        - A fixed-length tuple takes `minItems` and `maxItems` equal to its length
-        - A trailing element optional on one side lowers `minItems` on that side only
-        - A rest element leaves `maxItems` absent
-        - An empty tuple projects without `prefixItems` and with `maxItems: 0`
-        - Every production root's document passes the metaschema and strict compilation on both sides
+- _Outcome:_ Tuple projection follows each side’s optional tail, bounds fixed tuples, leaves rest tuples unbounded
+  above, and removes empty prefixes. Every production root is validated and strictly compiled on both sides; the review
+  projection workarounds are removed.
 
 ### `[ ]` **2.6 Compose the decompose cut map into production — D3**
 

@@ -113,6 +113,20 @@ function validateMetadata(meta: KernelSchemaMeta): void {
   }
 }
 
+function boundTupleProjection(
+  schema: z.core.$ZodTypes, jsonSchema: KernelJSONSchema, io: "input" | "output",
+): void {
+  const definition = schema._zod.def;
+  if (definition.type !== "tuple") return;
+  const optionality = io === "input" ? "optin" : "optout";
+  let minimum = definition.items.length;
+  while (minimum > 0 && definition.items[minimum - 1]?._zod[optionality] === "optional") minimum -= 1;
+  jsonSchema.minItems = minimum;
+  if (definition.rest === null) jsonSchema.maxItems = definition.items.length;
+  else delete jsonSchema.maxItems;
+  if (definition.items.length === 0) delete jsonSchema.prefixItems;
+}
+
 function projectRegistry(
   entries: ReadonlyMap<string, RegistryEntry>, options: KernelProjectionOptions,
 ): KernelJSONSchemaBundle {
@@ -126,6 +140,7 @@ function projectRegistry(
     target: "draft-2020-12",
     io: options.io,
     reused: "ref",
+    override: ({ zodSchema, jsonSchema }) => { boundTupleProjection(zodSchema, jsonSchema, options.io); },
     uri,
   });
   // Zod hoists multiply referenced, unregistered subschemas into `__shared`. It emits refs to

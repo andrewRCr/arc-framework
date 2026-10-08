@@ -119,9 +119,7 @@ describe("packaged review CLI surfaces", () => {
       expect(target.properties)
         .not.toHaveProperty("repositoryId");
     }
-    // The production bundle contains a pre-existing empty-tuple projection Ajv rejects as a
-    // metaschema defect; compilation still proves every public-root ref resolves in the bundle.
-    const validator = new Ajv2020({ strict: false, validateSchema: false });
+    const validator = new Ajv2020({ strict: true, validateFormats: false });
     for (const schema of Object.values(output.schemas)) validator.addSchema(schema);
     expect(validator.getSchema(rootId)).toBeDefined();
     expect(Object.keys(output.schemas)).toEqual([rootId.replace("urn:arc:schema:", "")]);

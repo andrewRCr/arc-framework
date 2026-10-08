@@ -1341,9 +1341,7 @@ describe("projectPrePublicationReview", () => {
     };
 
     const bundle = registerReviewDomainSchemas(createKernelRegistry()).toJSONSchema({ io: "output" });
-    // The composed registry includes unrelated tuple projections that older Ajv rejects at registration.
-    // Compile this target with schema self-validation disabled; acceptance still runs in strict mode.
-    const ajv = new Ajv2020({ allErrors: true, strict: true, validateSchema: false });
+    const ajv = new Ajv2020({ allErrors: true, strict: true, validateFormats: false });
     for (const schema of Object.values(bundle.schemas)) ajv.addSchema(schema as AnySchema);
     const projected = ajv.getSchema("urn:arc:schema:review-pre-publication-envelope");
     if (projected === undefined) throw new Error("missing projected pre-publication validator");
