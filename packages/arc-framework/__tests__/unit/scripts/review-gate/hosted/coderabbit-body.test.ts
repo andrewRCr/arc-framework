@@ -153,6 +153,15 @@ describe("CodeRabbit inline thread labels", () => {
       expect(finding("PRRT_1", threadComment(`${emphasize("Critical")} boundary drift\n\nDetails.`))).toBeNull();
     });
 
+    it("keeps a bold title that shares the badge line as the label", () => {
+      const body = `${emphasize("🟡 Minor")} | **Fix the boundary.**\n\nDetails.`;
+
+      expect(finding("PRRT_1", threadComment(body))).toMatchObject({
+        severity: "minor",
+        sourceLabel: `${emphasize("🟡 Minor")} | **Fix the boundary.**`,
+      });
+    });
+
     it("carries no label when only badges and collapsed content remain", () => {
       const labelled = finding(
         "PRRT_1",
@@ -213,7 +222,10 @@ ${prose}
 });
 
 describe.each(badgeEmphasis)("CodeRabbit grouped supplemental locus with %s badges", (_form, emphasize) => {
-  it("keeps the line locus when finding prose opens with inline code and emphasis", () => {
+  it.each([
+    ["an identifier", "mode"],
+    ["a line number", "2"],
+  ])("keeps the line locus when finding prose opens with %s in inline code and emphasis", (_shape, code) => {
     const review: HostedGitHubReview = {
       id: "PRR_GROUPED",
       url: "https://github.com/owner/repo/pull/42#pullrequestreview-grouped",
@@ -230,7 +242,7 @@ describe.each(badgeEmphasis)("CodeRabbit grouped supplemental locus with %s badg
 
 **Keep the mode explicit.**
 
-\`mode\`: ${emphasize("must")} stay a closed set.
+\`${code}\`: ${emphasize("must")} stay a closed set.
 
 <!-- cr-comment:v1:aaaaaaaaaaaaaaaaaaaaaaaa -->
 
