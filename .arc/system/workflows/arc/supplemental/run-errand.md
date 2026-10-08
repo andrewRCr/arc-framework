@@ -332,9 +332,13 @@ remote base all name the same exact head. Any tracked change continues through t
    incomplete lane. If the Owner has directed that no further standard-review pass be spent, take the exact
    Owner-directed review stop below only from `ready / hosted-request`,
    `ready / local-prepare`, or `approval-required / obtain-ceiling-override`; stop before source dispatch. Every
-   other driver state retains its typed action. Otherwise, on `ready / hosted-request`, invoke
-   `arc review hosted request -` with the selected provider, exact opened target, `coverage: complete`, and
-   `vehicle: { kind: "errand", standardReview }` from the routed Errand review facts:
+   other driver state retains its typed action. Otherwise, on `ready / hosted-request`, read
+   `arc review status --target <targetRef>` with any ceiling override or additional-pass authorization the driver
+   call carried. When it returns `review-required / review-hosted-request` with an `action` naming the selected
+   provider, pass that action unchanged to `arc review hosted request -`: after an approved fix it carries
+   `coverage: incremental` over only the fix range when that provider can, and its `detail` names the coverage.
+   Otherwise invoke `arc review hosted request -` with the selected provider, exact opened target,
+   `coverage: complete`, and `vehicle: { kind: "errand", standardReview }` from the routed Errand review facts:
 
    - `requested / await` — pass the returned `action` unchanged to `arc review hosted await -`; omitted timing uses
      the project's configured bounded-call defaults.
@@ -429,9 +433,9 @@ remote base all name the same exact head. Any tracked change continues through t
 
    After every target movement, return through the routed review action and dispatch its typed continuation. Do not
    classify movement or choose review scope from prose. When Step 6 supplies a `supplemental` recommendation, request
-   hosted `coverage: incremental`; when it supplies `fresh`, repeat the complete applicable review. If an adapter
-   reports `effectiveCoverage: complete` for the supplemental request, accept the broader review and disclose the
-   upgrade. Under an Owner-directed review stop, any changed target or base requires a new exact offer describing
+   the hosted pass the review status offers; when it supplies `fresh`, repeat the complete applicable review. If an
+   adapter reports `effectiveCoverage: complete` for the supplemental request, accept the broader review and disclose
+   the upgrade. Under an Owner-directed review stop, any changed target or base requires a new exact offer describing
    the changed delta and the returned review-applicability result; never carry the prior acceptance forward.
 
    After an approved base reconcile (Step 6's `merged / run-quality-gates`), read the new head's

@@ -296,6 +296,12 @@ export const RoutedReviewObligationSchema = z.union([
   z.strictObject({
     state: z.literal("review-required"),
     detail: z.string().min(1),
+    scope: z.literal("errand"),
+    action: HostedRequestEnvelopeSchema,
+  }),
+  z.strictObject({
+    state: z.literal("review-required"),
+    detail: z.string().min(1),
     scope: z.literal("singleton"),
     awaitAction: HostedAwaitEnvelopeSchema,
   }),

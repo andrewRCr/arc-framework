@@ -385,10 +385,11 @@ alone and state that limitation in the report.
 ```
 
 **Runner label.** With fold verification on, the serialized report schema's `verdict` names the runner by
-`source-grounding`'s rule in every pass report and every fix-check report. An `author` fix-check report does not
-count; the Owner reruns it or skips it with a note, never the author alone. Where subagents are unavailable,
-[DEV-RULES.ARC § Sub-agent scope][sub-agent-scope] applies; its manual fresh-session pass counts only while it never
-loads the work unit's SESSION-NOTES.
+`source-grounding`'s rule in every pass report and every fix-check report. An `author` or `separation-failure`
+fix-check report does not count; the Owner reruns it or skips it with a note, never the author alone. An
+`independent` report that names session files the runner loaded itself counts, and the Owner may still require a
+rerun. Where subagents are unavailable, [DEV-RULES.ARC § Sub-agent scope][sub-agent-scope] applies; its manual
+fresh-session pass takes its runner label by the same rule.
 
 **Rounds and recommendation.** Propose each further round beside that round's complete disposition set. Each round
 checks the previous round's repairs and the rules they rest on, runs only with Owner approval, and is declinable;
