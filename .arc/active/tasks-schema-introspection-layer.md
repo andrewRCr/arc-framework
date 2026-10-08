@@ -81,31 +81,13 @@ _Exit criterion:_ Every production root, the cut map included, folds into one se
 that passes 2020-12 metaschema validation and compiles under strict Ajv, and both existing emitters return those
 documents.
 
-### `[ ]` **2.1 Declare each schema's authored side in its registration — D1**
+### `[x]` **2.1 Declare each schema's authored side in its registration — D1**
 
 - _Goal:_ A registration states whether its documents are authored — a request a caller composes or a file a person
   edits — and the registry keeps and validates that declaration, so no list beside the registrations restates it.
 
-- **Additional Context:** `notes-schema-introspection-layer.md` § Projection change test inventory, the row for
-  Task 2.1.
-
-    - `KernelSchemaMeta` gains optional `authored: "request" | "editor-document"`; `register` carries it into the
-      frozen stored metadata, which copies three fields today; `validateMetadata` refuses any other value with
-      `schema.registry.invalid-metadata`.
-    - The `editor-document` value's TSDoc states what a marked schema must satisfy: it describes its file as a
-      standard YAML or JSON parser yields it, rejects unknown keys with `z.strictObject` wherever the CLI does, and
-      admits a `$schema` key when its files may be JSON.
-    - The fifteen public review request roots, which `REVIEW_PUBLIC_REQUEST_SCHEMA_PATHS` (`handlers/review.ts`)
-      lists, register with `authored: "request"` where they are registered: twelve in the loop of
-      `registerReviewRequestCommandSchemas` (`request-command-schemas.ts`), and one each in
-      `registerReviewChunkingCommandSchemas`, `registerPlanningGroomingCommandSchemas`, and
-      `registerFrontlineRunCommandSchemas`. `registerDeliveryAuthoringSchemas` (`design-inventory.ts`) registers
-      `delivery-design-inventory-input` with it.
-
-    - Build `test-first` (one behavior at a time):
-        - `meta(id)` returns the declared `authored` value, and no `authored` field when none was declared
-        - `register` refuses an `authored` value outside the two with `schema.registry.invalid-metadata`
-        - The production registry declares `request` on exactly the sixteen request roots
+- _Outcome:_ Registrations retain and validate an optional authored side in immutable metadata. The sixteen public
+  review and delivery request roots declare request; unmarked roots retain no authored field.
 
 ### `[ ]` **2.2 Project each side with shared subschemas by reference under absolute identities — D1**
 

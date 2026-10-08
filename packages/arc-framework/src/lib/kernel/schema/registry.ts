@@ -22,6 +22,12 @@ export interface KernelSchemaMeta {
   readonly id: string;
   readonly version: number;
   readonly migrationPosture: MigrationPosture;
+  /**
+   * Authored contracts project their input side. An editor document describes the real values a
+   * standard YAML or JSON parser yields, uses strict objects wherever the CLI rejects unknown
+   * keys, and admits `$schema` when its files may be JSON.
+   */
+  readonly authored?: "request" | "editor-document";
 }
 
 /** One JSON Schema emitted by the kernel projection. */
@@ -72,7 +78,15 @@ function compareIdentity(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
+const authoredSides: ReadonlySet<string> = new Set(["request", "editor-document"]);
+
 function validateMetadata(meta: KernelSchemaMeta): void {
+  if (meta.authored !== undefined && !authoredSides.has(meta.authored)) {
+    throw new SchemaError(
+      `Invalid authored side for ${meta.id}: ${JSON.stringify(meta.authored)}`,
+      "schema.registry.invalid-metadata",
+    );
+  }
   if (!SlugSchema.safeParse(meta.id).success) {
     throw new SchemaError(
       `Invalid schema identity: ${JSON.stringify(meta.id)}`,
@@ -100,10 +114,12 @@ export function createRegistry(): KernelRegistry {
 
   return {
     register<T extends z.ZodType>(schema: T, meta: KernelSchemaMeta): T {
+      const authored = meta.authored;
       const storedMeta: KernelSchemaMeta = Object.freeze({
         id: meta.id,
         version: meta.version,
         migrationPosture: meta.migrationPosture,
+        ...(authored === undefined ? {} : { authored }),
       });
       validateMetadata(storedMeta);
       if (entries.has(storedMeta.id)) {
