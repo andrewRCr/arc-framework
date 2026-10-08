@@ -3377,3 +3377,53 @@ none unresolved. Existing historical color/cost evidence remains head-bound; the
 declaration and current-confirmation criteria have fresh supplemental proof. Primary-only verification remains the
 approved choice. Candidate response and independent incremental standard pass 3 remain pending; this verification
 does not supply an evaluator conclusion or merge authority.
+
+## Standard-review pass 3 corrections
+
+The incremental delegated pass at `8985cae76` covers all nineteen admitted paths, six closure scopes, the dedicated
+seam and fresh aggregation. Its two source-confirmed findings are approved FIX with full verification in disposition
+set `sha256:bb84572e1e26ff16394f33d4415564bc98afb07190aee52d24034bdbf259a9fe`: one major prompt-discovery gap and one
+record-only minor loader-provenance false rejection. Incremental local delegated standard pass 4 is separately
+authorized above the configured two-pass ceiling. Its single-use conditional allowance is
+`sha256:3790ec21ba930df73d12ea820c19c149b7d48bb3e4024569f196c9273349cdf0`; no later pass, publication or merge is granted.
+
+- `1eb48500c` refuses unsupported references to canonical prompt imports instead of guessing additional key spellings.
+  Module-local syntax binding distinguishes genuine imports from shadowing locals. Computed namespace members,
+  escaping factory/prompter values and additional facades refuse; named imports, literal members, concrete declaration
+  provenance and wrapper pass-through remain supported. Thirteen primary refusal/shadowing cases and two additional
+  facade cases fail before their corrections; all 160 selected command-input/confirmation cases pass afterward.
+  Both existing sync-output adapters now call the prompter explicitly with their site parameter rather than passing
+  its function value through. This is required caller completion, with output and confirmation semantics preserved.
+- `b4b8b716f` resolves actual Node factory imports and returned loader declarations by lexical identity. Eight harmless
+  method/shadowing cases fail under the previous collector; a narrow namespace-support reconstruction fails both
+  real namespace/default acquisition cases. Restoration passes all 160 architecture cases, including named, inline,
+  namespace/default loaders, both exact owners and composed restrictions. The earlier collector's property-name and
+  module-wide spelling recognition did not establish lexical Node provenance; this correction supplies that fact.
+
+Both corrections pass targeted lint, both type programs and normal hooks. The module-local lexical helper is shared
+by prompt scanning and the native lint rule; native ESLint loads its TypeScript source while production imports keep
+emitted JavaScript paths. The amendment entry gate selects the ordinary review-fix arm: the existing identify-or-refuse
+and faithful one-hop requirements already require these outcomes. No design statement, criterion, worker default,
+deadline, shard layout, acceptance bar or budget changes.
+
+Full local gates pass at `b4b8b716f4326c5b79cfd1442064ec69fe87652b`: Markdown, all three ARC checks, whole-package
+typed lint, shell lint, both type programs, the ordinary routine lane and qualified full declaration build. Routine
+execution completes 1,121 passing files and 16,794 passing cases, with one file and 1,188 intentional case skips,
+in 231.13 seconds at the unchanged eight-worker default. This one confirmation is not a revised cost sample.
+
+First-attempt hosted confirmation 37707974563 at the same correction head succeeds: all seventeen applicable jobs
+pass, and the two PR-only rollups are event-disabled. Both native portability legs complete 28 files and 252 cases
+with two intentional skips; macOS's additional selection completes 14 files and 119 cases. The retained native unit
+reports contain 13,727 completed cases strictly below half their effective timeouts and 13,644 off-allowlist cases
+with zero launches, with no missing metadata. The tightest case is 2,571.705128 ms against its 10,000 ms deadline.
+All ten CI-job comparisons are within unchanged budgets; summed budget clocks are 1,505,587 ms. Native run/attempt
+records, logs, reports and derived checks are retained at package-relative
+`.test-cost-runs/closing-review-pass3/37707974563`. The normal-hook raw push uses the standing explicit hosted-run
+authorization. Historical failures, five hosted cost samples and twelve local captures retain their exact heads;
+none is relabelled or repeated.
+
+All thirty-two immutable criterion identities and states are preserved: twenty-seven met, five superseded, none
+unresolved. The affected discovery, confinement, faithful lint, current gates and confirmation criteria gain current
+supplemental proof; unchanged historical color and cost claims retain their original evidence. Primary-only verification
+remains the approved choice. Candidate advancement and incremental independent standard pass 4 remain pending; this
+verification supplies neither an evaluator conclusion nor merge authority.
