@@ -8,11 +8,11 @@
 - **Depends On:** `cli-schema-kernel`
 
 - **Origin:** [internal]
-- **Design:** `draft-schema-introspection-layer.md`
+- **Design:** `spec-schema-introspection-layer.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
