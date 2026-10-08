@@ -154,6 +154,11 @@ function admittedHostedReplay(
   ));
 }
 
+/** A terminal failure at another head produced nothing a request at this head could carry. */
+function failedAtAnotherHead(attempt: LaneAttempt, headSha: string): boolean {
+  return attempt.outcome === "terminal-failure" && attempt.headSha !== headSha;
+}
+
 function assertHostedPassCoverage(
   existing: LaneProgressState | null,
   request: HostedRequestEnvelope,
@@ -163,12 +168,54 @@ function assertHostedPassCoverage(
     requestedCoverage: request.coverage,
     correctionScope: request.correctionScope,
   });
-  if (!sharedLogicalPassCoverageMatches(existing?.attempts ?? [], logicalPass, coverageAdmission)) {
+  const passAttempts = (existing?.attempts ?? []).filter((attempt) => (
+    !failedAtAnotherHead(attempt, request.target.headSha)
+  ));
+  if (!sharedLogicalPassCoverageMatches(passAttempts, logicalPass, coverageAdmission)) {
     throw new Error(
       "hosted admission requested coverage or correction scope does not match its logical pass; "
       + "reuse the exact coverage admission from the retained attempt",
     );
   }
+}
+
+/**
+ * Find the attempt that still holds this pass against a new request.
+ *
+ * A pending or ambiguous attempt may yet produce a result, so it holds the pass at any head. A
+ * terminal failure holds it only at its own head, where it is reported as that failure.
+ */
+function hostedPassHold(
+  existing: LaneProgressState | null,
+  request: HostedRequestEnvelope,
+  logicalPass: number,
+): HostedRequestAdmissionDecision | null {
+  const passAttempts = existing?.attempts.filter((attempt) => (
+    attempt.logicalPass === logicalPass && attempt.hosted !== undefined
+  )) ?? [];
+  if (passAttempts.some(({ outcome }) => outcome === "pending" || outcome === "ambiguous-delivery")) {
+    return { state: "ambiguous-delivery" };
+  }
+  const failed = passAttempts.find((attempt) => (
+    attempt.outcome === "terminal-failure" && attempt.headSha === request.target.headSha
+  ));
+  if (failed === undefined) return null;
+  const failureReason = failed.hosted?.requestFailureReason;
+  if (failureReason === undefined || failureReason === null) return { state: "ambiguous-delivery" };
+  return {
+    state: "concluded",
+    result: {
+      schemaVersion: 1,
+      mode: "review-hosted-request",
+      provider: request.provider,
+      requestedCoverage: request.coverage,
+      attemptedProviders: [request.provider],
+      state: "terminal-failure",
+      nextAction: "stop",
+      reason: `hosted pass ${logicalPass} already ended in terminal failure at this head from ${failed.sourceId} `
+        + `(attempt ${failed.attemptId}): ${failureReason}; a request at a later head starts the pass again`,
+    },
+  };
 }
 
 function createAdmittedHostedRequest(
@@ -324,6 +371,8 @@ export async function recordHostedRequestAdmission(
       if (result !== null) return result;
       throw new Error("hosted admission already concluded with an incompatible result");
     }
+    const hold = hostedPassHold(existing, input.request, logicalPass);
+    if (hold !== null) return hold;
     assertHostedPassCoverage(existing, input.request, logicalPass);
     const admission = createAdmittedHostedRequest(input, logicalPass);
     const replay = existing?.attempts.find((attempt) => (
@@ -334,14 +383,6 @@ export async function recordHostedRequestAdmission(
       if (result !== null) return result;
       throw new Error("hosted admission already concluded with an incompatible result");
     }
-    const unresolved = existing?.attempts.find((attempt) => (
-      attempt.logicalPass === logicalPass
-      && attempt.hosted !== undefined
-      && (attempt.outcome === "pending"
-        || attempt.outcome === "ambiguous-delivery"
-        || attempt.outcome === "terminal-failure")
-    ));
-    if (unresolved !== undefined) return { state: "ambiguous-delivery" };
     await input.authorizeCapacity({
       ownerVersion: version,
       progress: existing,
