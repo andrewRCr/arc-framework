@@ -1,8 +1,8 @@
 # Metadata: test-suite-reliability
 
-| **State**     | **Owner** | **Branch**                   | **Class** | **Priority** |
-| ------------- | --------- | ---------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `fix/test-suite-reliability` | `Heavy`   | `P3`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -14,15 +14,15 @@
 - **Promotion Receipt:** `errand-v1/hosted-test-reliability/ce773f5407a570d786450435b6657f92`
 - **Candidate:** `sha256:6f5798b2bd5c03702911cfdb20822ca888c82bdd6df2960fd4413644c3ba605e`
 
-- **Current Workflow:** `integrate-work-unit`
+- **Current Workflow:** [none]
 - **Last Completed:** Task 11.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/832>
+- **Completed:** 2026-10-07
 
 ## Release Notes Entry
 
