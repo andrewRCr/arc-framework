@@ -15,7 +15,7 @@ export function makeStagedBuildFixture(
   mode: BuildMode = "fast", confirmOwnership: () => Promise<void> = async () => {},
 ) {
   const { root, packageRoot } = makeBuildFixture();
-  const sources = { cli: "src/cli.ts", schema: "src/scripts/build-schema.ts", controls: "src/control.ts" };
+  const sources = { cli: "src/cli.ts", controls: "src/control.ts" };
   writeBuildFixtureFile(join(packageRoot, "tsconfig.json"), JSON.stringify({
     compilerOptions: { target: "ESNext", module: "NodeNext", moduleResolution: "NodeNext" },
     include: ["src/**/*.ts"],
@@ -24,7 +24,7 @@ export function makeStagedBuildFixture(
   const before = captureBuildBaseline(packageRoot);
   const directory = join(packageRoot, ".arc-dev-build-fixture");
   const graphs = {
-    cli: [`packages/cli/${sources.cli}`], schema: [`packages/cli/${sources.schema}`],
+    cli: [`packages/cli/${sources.cli}`],
     controls: [`packages/cli/${sources.controls}`],
   };
   writeBuildFixtureFile(join(directory, "cli.js"), 'export const marker = "new-staged-runtime";\n');

@@ -24,70 +24,27 @@ every build behavior the producer or its bundle hosted still under test.
   fixture holds only runtime output, and metafile refusal, ownership loss, and Windows nested publication keep their
   coverage. The second input identity remains until the producer is retired.
 
-### `[ ]` **1.2 Remove the schema producer and its evidence graph, re-seating the hooks it hosted — D6**
+### `[x]` **1.2 Remove the schema producer and its evidence graph, re-seating the hooks it hosted — D6**
 
 - _Goal:_ Builds compile with no schema producer, record one input identity over the CLI and control graphs, and
   every build-coordination behavior the producer hosted keeps its test through a hook the test fixture owns.
 
-- _Approach:_ the fixture's hook is a success hook in the fixture's copied `tsup.config.ts`, which runs where the
-  producer runs today: inside compilation, after output is written. Once `compileCapturedStaging` stops overriding
-  the captured success hook with the producer, the fixture's hook reaches staging compilation unchanged.
+    - `[x]` **1.2.a Take the producer out of compilation**
 
-- _Rationale:_ the hook seam and the producer are one change — the staging compile overrides any configured success
-  hook with the producer until the producer goes — and the evidence graph cannot drop `schema` while the producer
-  still reports one. Review the parent as one increment.
+        - Compilation passes captured options through with only the owned output directory overridden. The producer,
+          its configuration hook, bundle assertions, and bundle E2E suite are removed; CLI and control capture remain.
 
-- **Additional Context:** `notes-schema-introspection-layer.md` § Build retirement test inventory, the rows for
-  Task 1.2, and § Fixture-owned build hook.
+    - `[x]` **1.2.b Record one input identity**
 
-    - `[ ]` **1.2.a Take the producer out of compilation**
+        - Version 3 evidence records CLI and control graphs, one runtime identity, and publication/declaration facts.
+          Every tier checks that identity; version 2 records refuse qualification and regenerate through the owner.
+          Compiler, shared, and control inputs retain invalidation coverage.
 
-        - `src/scripts/build-schema.ts` (`generateRuntimeSchema`) goes, with `loadSchemaProducer`,
-          `LoadedSchemaProducer`, and `writeBuildArtifacts` (`build-producers.ts`), the `onSuccess` hook and its import
-          in `tsup.config.ts`, and the producer `compileCapturedStaging` (`build-compiler-control.ts`) loads and passes.
-        - `compileCapturedStaging` passes the captured options through with only the owned output directory
-          overridden, and returns the CLI graph with an empty control list for the bootstrap to fill, as now; its
-          module header and `@returns` stop naming schema loading and schema keys.
-        - Bundle checks over native build output go, including those inside the test files that
-          `vitest-runtime-fixture.ts` and `focused-test-runtime.test.ts` generate.
-        - The test that the fast and full builds share one success hook (`unit/build-config.test.ts`) goes with the
-          hook, as does the `onSuccess: undefined` override in `integration/build-config.test.ts`; the test that keeps
-          the producer's sources out of the shared configuration graph (`build-inputs.test.ts`) goes with the producer.
-        - The e2e test that checks the bundle and its presence in `npm pack --dry-run`
-          (`schema-artifact.e2e.test.ts`) goes.
+    - `[x]` **1.2.c Re-seat the producer-hosted behaviors on a fixture-owned hook**
 
-    - `[ ]` **1.2.b Record one input identity**
-
-        - `BuildEvidenceSchema` (`build-evidence.ts`): `schemaVersion` becomes 3; `graphs` loses `schema`;
-          `identities` keeps `runtime` alone; `qualification` loses `runtimeSchema` and keeps `published` and
-          `declarations`. `BuildInputGraphs` loses `schema`, and `BuildInputIdentities` its second member and the doc
-          comment naming it.
-        - `readBuildQualification` checks the one identity for every tier.
-        - No reader for version 2: an old record fails the strict parse and its owner regenerates it.
-        - Build tests stop asserting the schema graph and the second identity, and the schema-only freshness cases
-          go: no input is seen by the producer alone any longer, so no change can leave the runtime fresh while
-          invalidating test reuse.
-
-        - Build `test-first` (one behavior at a time):
-            - Evidence records one identity that changes when a CLI or control input changes
-            - A version 2 record fails the parse and leaves the output unqualified
-            - Every tier qualifies against the one identity
-
-    - `[ ]` **1.2.c Re-seat the producer-hosted behaviors on a fixture-owned hook**
-
-        - `makeNativeBuildFixture` (`native-build-fixture.ts`) stops writing a stand-in producer and its
-          `fixture-schema.json`, and adds to its copied `tsup.config.ts` a success hook that calls a fixture-owned
-          module, a no-op by default, with the output directory and the package root.
-        - The blocked-compiler barrier in `startBlockedBuildController` (`native-build-controller.ts`), with its
-          Windows diagnostic markers, moves onto that module; its ready record keeps `{pid, directory}`.
-        - The mid-generation input change (`build-coordinator.test.ts`), the prior-CLI survival check
-          (`dev-build-refresh.test.ts`), and the direct-preparation ownership check (`vitest-direct-runtime.test.ts`)
-          move onto it; `build-coordinator.test.ts`'s ancillary publication fault moves from the bundle to
-          `metafile-esm.json`.
-        - The review workflow test that reads the producer and asserts `writeBuildArtifacts` in `tsup.config.ts`
-          (`review-gate-workflows.test.ts`) drops both and keeps its composition assertions; the review request
-          emitter's use of the production composition is tested with Task 2.4.
-        - No behavior is deleted with the producer: each test above fails if its hook does not run.
+        - Native fixtures import a success hook from `fixture-build-hook.ts`. The blocking barrier, compiler lifetime,
+          mid-generation input change, prior-CLI survival, and direct-preparation ownership checks run through it;
+          ancillary publication faults target the metafile. The ready record retains its PID and staging directory.
 
 ### `[ ]` **1.3 Retire the artifact writer and the bundle's identity pin — D6**
 

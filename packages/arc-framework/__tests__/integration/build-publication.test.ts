@@ -18,7 +18,6 @@ it("establishes required output and qualification when live dist is absent", asy
       const evidence = certifyBuildGeneration(staged.before, captureBuildBaseline(packageRoot), staged.graphs, false);
       await publishStagedBuild(lease, staged, evidence);
       expect(await readFile(join(packageRoot, "dist/cli.js"), "utf8")).toContain("new-native-runtime");
-      expect(JSON.parse(await readFile(join(packageRoot, "dist/schemas/kernel.json"), "utf8"))).toHaveProperty("schemas");
       expect(JSON.parse(await readFile(join(packageRoot, "dist", DEV_BUILD_STAMP_NAME), "utf8"))).toEqual(evidence);
     });
   } finally { await rm(root, { recursive: true, force: true }); }
@@ -82,7 +81,6 @@ it("exposes complete required output and removes obsolete output before evidence
         rename: async (source, destination) => {
           if (destination === join(live, DEV_BUILD_STAMP_NAME)) {
             expect(await readFile(join(live, "cli.js"), "utf8")).toContain("new-native-runtime");
-            expect(JSON.parse(await readFile(join(live, "schemas/kernel.json"), "utf8"))).toHaveProperty("schemas");
             await expect(readFile(join(live, "obsolete.js"))).rejects.toMatchObject({ code: "ENOENT" });
           }
           await rename(source, destination);

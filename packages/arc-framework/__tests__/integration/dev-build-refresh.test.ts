@@ -9,12 +9,15 @@ it("refreshes beside live output and proves the resulting runtime identity", asy
   const { root, packageRoot } = await makeNativeBuildFixture();
   const cli = join(packageRoot, "dist/cli.js");
   try {
-    const producer = join(packageRoot, "src/scripts/build-schema.ts");
-    const source = await readFile(producer, "utf8");
-    await writeFile(producer, source.replace('  await mkdir(join(outDir, "schemas"), { recursive: true });',
-      '  const prior = await (await import("node:fs/promises")).readFile(join(import.meta.dirname, "../../dist/cli.js"), "utf8");\n'
-      + '  if (!prior.includes("previous-live-runtime")) throw new Error("previous CLI disappeared during compilation");\n'
-      + '  await mkdir(join(outDir, "schemas"), { recursive: true });'));
+    await writeFile(join(packageRoot, "src/fixture-build-hook.ts"), `
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+export async function runBuildHook(outDir: string, packageRoot: string): Promise<void> {
+  void outDir;
+  const prior = await readFile(join(packageRoot, "dist/cli.js"), "utf8");
+  if (!prior.includes("previous-live-runtime")) throw new Error("previous CLI disappeared during compilation");
+}
+`);
     await expect(refreshDevBuildAfterAction(cli)).resolves.toEqual({ kind: "refreshed" });
     expect(await readFile(cli, "utf8")).toContain("new-native-runtime");
     expect(checkDevBuildStaleness(createDevCheckDeps(cli))).toEqual({ kind: "fresh" });

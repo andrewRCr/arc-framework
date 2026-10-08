@@ -31,6 +31,21 @@ it("reuses qualified prebuilt output without requesting generation", async () =>
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
+it.each(["runtime", "runtimeMetafile", "full"] as const)("qualifies %s against the compiler and control identity", async (requirement) => {
+  const { root, packageRoot, staged, evidence } = await qualifiedFixture("full");
+  const control = join(root, staged.graphs.controls[0]!);
+  const original = await readFile(control, "utf8");
+  try {
+    expect(readBuildQualification(packageRoot, requirement)).toEqual({ status: "qualified", evidence });
+    await writeFile(control, original + "\n// changed control\n");
+    expect(readBuildQualification(packageRoot, requirement)).toMatchObject({
+      status: "unqualified", reason: "Build input identity does not match.",
+    });
+    await writeFile(control, original);
+    expect(readBuildQualification(packageRoot, requirement)).toEqual({ status: "qualified", evidence });
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 it.each(["missing CLI", "old evidence", "edited runtime"])(
   "refuses %s with generation disabled and reuses repaired output", async (fault) => {
     const { root, packageRoot, lease, evidence } = await qualifiedFixture();

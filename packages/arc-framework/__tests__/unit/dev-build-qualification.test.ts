@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import { DEV_BUILD_STAMP_NAME } from "../../src/lib/build-evidence.js";
 import { checkDevBuildStaleness, createDevCheckDeps, hashSourceInputs } from "../../src/lib/dev-check.js";
-import { readBuildQualification } from "../../src/lib/build-qualification.js";
 import { publishStagedBuild } from "../../src/lib/build-publication.js";
 import { makeStagedBuildFixture } from "../helpers/staged-build-fixture.js";
 
@@ -28,25 +27,6 @@ it.each(["absent", "malformed", "old"])("refuses %s qualification despite newer 
     await utimes(cli, newer, newer);
     expect(checkDevBuildStaleness(createDevCheckDeps(cli)).kind).toBe("stale");
     await writeFile(stamp, original);
-    expect(checkDevBuildStaleness(createDevCheckDeps(cli))).toEqual({ kind: "fresh" });
-  } finally { await rm(root, { recursive: true, force: true }); }
-});
-
-it("retains schema-only freshness and refuses runtime changes without generation", async () => {
-  const { root, packageRoot, staged } = await qualifiedFixture();
-  const cli = join(packageRoot, "dist/cli.js");
-  const schema = join(root, staged.graphs.schema[0]!);
-  const runtime = join(root, staged.graphs.cli[0]!);
-  const originalSchema = await readFile(schema, "utf8");
-  const originalRuntime = await readFile(runtime, "utf8");
-  try {
-    await writeFile(schema, originalSchema + "\n// schema changed\n");
-    expect(checkDevBuildStaleness(createDevCheckDeps(cli))).toEqual({ kind: "fresh" });
-    expect(readBuildQualification(packageRoot, "runtimeMetafile").status).toBe("unqualified");
-    await writeFile(runtime, originalRuntime + "\n// runtime changed\n");
-    expect(checkDevBuildStaleness(createDevCheckDeps(cli)).kind).toBe("stale");
-    await writeFile(schema, originalSchema);
-    await writeFile(runtime, originalRuntime);
     expect(checkDevBuildStaleness(createDevCheckDeps(cli))).toEqual({ kind: "fresh" });
   } finally { await rm(root, { recursive: true, force: true }); }
 });

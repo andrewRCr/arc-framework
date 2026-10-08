@@ -5,9 +5,8 @@ import { expect, it } from "vitest";
 import { withBuildArtifactOwnership } from "../../src/lib/build-ownership.js";
 import { generateOwnedBuildStaging } from "../../src/lib/build-entry.js";
 import { makeNativeBuildFixture } from "../helpers/native-build-fixture.js";
-import { PRODUCTION_SCHEMA_IDS } from "../helpers/schema-artifact.js";
 
-it("generates fast runtime and schema into staging while retaining the live entry", async () => {
+it("generates fast runtime into staging while retaining the live entry", async () => {
   const { root, packageRoot } = await makeNativeBuildFixture();
   try {
     await withBuildArtifactOwnership({ packageRoot, operation: "native fast generation" }, async (lease) => {
@@ -15,13 +14,8 @@ it("generates fast runtime and schema into staging while retaining the live entr
       expect(await readFile(join(staged.directory, "cli.js"), "utf8")).toContain("new-native-runtime");
       expect(staged.directory).not.toBe(join(packageRoot, "dist"));
       expect(await readFile(join(packageRoot, "dist/cli.js"), "utf8")).toContain("previous-live-runtime");
-      const artifact: unknown = JSON.parse(await readFile(join(staged.directory, "schemas/kernel.json"), "utf8"));
-      expect(artifact).toHaveProperty("schemas");
-      expect(Object.keys((artifact as { schemas: Record<string, unknown> }).schemas)).toEqual(PRODUCTION_SCHEMA_IDS);
       expect(staged.graphs.controls).toContain("packages/arc-framework/tsup.fast.config.ts");
       expect(staged.graphs.controls).toContain("packages/arc-framework/tsup.config.ts");
-      expect(staged.graphs.schema).toContain("packages/arc-framework/src/fixture-schema.json");
-      expect(staged.graphs.controls).not.toContain("packages/arc-framework/src/fixture-schema.json");
       expect(staged.graphs.controls).toContain("packages/arc-framework/src/lib/build-generation.ts");
       expect(staged.graphs.controls).toContain("packages/arc-framework/src/lib/build-entry.ts");
       expect(staged.graphs.controls).toContain("packages/arc-framework/src/scripts/build-compiler.ts");

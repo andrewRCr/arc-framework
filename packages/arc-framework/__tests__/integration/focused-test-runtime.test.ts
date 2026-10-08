@@ -49,7 +49,6 @@ import { it, expect, inject, vi } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 it("consumes the prepared native generation", async () => {
   expect(readFileSync(${JSON.stringify(join(fixture.packageRoot, "dist/cli.js"))}, "utf8")).toContain("new-native-runtime");
-  expect(JSON.parse(readFileSync(${JSON.stringify(join(fixture.packageRoot, "dist/schemas/kernel.json"))}, "utf8"))).toHaveProperty("schemas");
   await vi.waitFor(() => {
     const cpu = JSON.parse(readFileSync(${JSON.stringify(join(fixture.root, ".git/arc/test-suite/.local-heavy-tests.lock"))}, "utf8"));
     expect(cpu.metadata.tier).toBe("focused");

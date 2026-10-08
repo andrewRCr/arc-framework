@@ -9,11 +9,14 @@ import { readBuildQualification } from "../../src/lib/build-qualification.js";
 it("generates under direct preparation ownership and releases before the unmanaged run", async () => {
   const fixture = await makeVitestRuntimeFixture();
   try {
-    const schema = join(fixture.packageRoot, "src/scripts/build-schema.ts");
-    await writeFile(schema, 'import { existsSync } from "node:fs";\n' +
-      (await readFile(schema, "utf8")).replace('  await mkdir(join(outDir, "schemas"), { recursive: true });',
-        '  if (!existsSync(join(import.meta.dirname, "../../.arc-build.lock"))) throw new Error("direct generation must own artifacts");\n'
-        + '  await mkdir(join(outDir, "schemas"), { recursive: true });'));
+    await writeFile(join(fixture.packageRoot, "src/fixture-build-hook.ts"), `
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+export async function runBuildHook(outDir: string, packageRoot: string): Promise<void> {
+  void outDir;
+  if (!existsSync(join(packageRoot, ".arc-build.lock"))) throw new Error("direct generation must own artifacts");
+}
+`);
     const result = await runVitestControllerFixture(fixture.packageRoot, ["run", "--project", "integration"],
       { ARC_E2E_SKIP_BUILD: undefined }, "native");
     expect(result.code, result.stderr).toBe(0);

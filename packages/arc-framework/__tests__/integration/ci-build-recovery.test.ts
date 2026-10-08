@@ -18,7 +18,7 @@ beforeAll(async () => {
 afterAll(async () => { await rm(producer.root, { recursive: true, force: true }); });
 const skip = { CI: "1", ARC_E2E_SKIP_BUILD: "1" };
 
-it.each(["missing CLI", "malformed evidence", "CLI input", "schema input", "manifest", "installation metadata"])(
+it.each(["missing CLI", "malformed evidence", "CLI input", "manifest", "installation metadata"])(
   "qualification refuses %s without generating or mutating transferred output", async (fault) => {
     const consumer = await downloadCiBuild(producer.packageRoot, "integration");
     try {
@@ -26,8 +26,8 @@ it.each(["missing CLI", "malformed evidence", "CLI input", "schema input", "mani
       expect(readBuildQualification(consumer.packageRoot, "runtimeMetafile").status).toBe("qualified");
       if (fault === "missing CLI") await rm(join(consumer.packageRoot, "dist/cli.js"));
       if (fault === "malformed evidence") await writeFile(join(consumer.packageRoot, "dist/dev-build-stamp.json"), "broken");
-      if (fault === "CLI input" || fault === "schema input") {
-        const input = join(consumer.packageRoot, fault === "CLI input" ? "src/cli.ts" : "src/fixture-schema.json");
+      if (fault === "CLI input") {
+        const input = join(consumer.packageRoot, "src/cli.ts");
         await writeFile(input, await readFile(input, "utf8") + "\n");
       }
       if (fault === "manifest") {
@@ -70,8 +70,8 @@ it.each(["missing CLI"])(
       expect(readBuildQualification(consumer.packageRoot, "runtimeMetafile").status).toBe("qualified");
       if (fault === "missing CLI") await rm(join(consumer.packageRoot, "dist/cli.js"));
       if (fault === "malformed evidence") await writeFile(join(consumer.packageRoot, "dist/dev-build-stamp.json"), "broken");
-      if (fault === "CLI input" || fault === "schema input") {
-        const input = join(consumer.packageRoot, fault === "CLI input" ? "src/cli.ts" : "src/fixture-schema.json");
+      if (fault === "CLI input") {
+        const input = join(consumer.packageRoot, "src/cli.ts");
         await writeFile(input, await readFile(input, "utf8") + "\n");
       }
       if (fault === "manifest") {

@@ -7,7 +7,6 @@ import { withBuildArtifactOwnership } from "../../src/lib/build-ownership.js";
 import { DEV_BUILD_STAMP_NAME } from "../../src/lib/build-evidence.js";
 import { checkDevBuildStaleness, createDevCheckDeps, hashSourceInputs } from "../../src/lib/dev-check.js";
 import { makeNativeBuildFixture } from "../helpers/native-build-fixture.js";
-import { readBuildQualification } from "../../src/lib/build-qualification.js";
 
 it.each(["absent"])("refuses %s qualification despite newer output and permits repaired freshness", async (fault) => {
   const { root, packageRoot } = await makeNativeBuildFixture();
@@ -26,27 +25,6 @@ it.each(["absent"])("refuses %s qualification despite newer output and permits r
       await buildOwnedArtifacts(lease, "fast");
       expect(checkDevBuildStaleness(createDevCheckDeps(cli))).toEqual({ kind: "fresh" });
       expect(await readFile(cli, "utf8")).toContain("new-native-runtime");
-    });
-  } finally { await rm(root, { recursive: true, force: true }); }
-}, 30_000);
-
-it("retains runtime freshness for schema-only content and refuses edited runtime", async () => {
-  const { root, packageRoot } = await makeNativeBuildFixture();
-  const cli = join(packageRoot, "dist/cli.js");
-  try {
-    await withBuildArtifactOwnership({ packageRoot, operation: "selective freshness" }, async (lease) => {
-      await buildOwnedArtifacts(lease, "fast");
-      const schema = join(packageRoot, "src/fixture-schema.json");
-      const contents: unknown = JSON.parse(await readFile(schema, "utf8"));
-      await writeFile(schema, JSON.stringify({ ...(contents as Record<string, unknown>), $comment: "schema changed" }));
-      expect(checkDevBuildStaleness(createDevCheckDeps(cli))).toEqual({ kind: "fresh" });
-      expect(readBuildQualification(packageRoot, "runtimeMetafile").status).toBe("unqualified");
-      await writeFile(join(packageRoot, "src/cli.ts"), 'export const marker = "edited-runtime";');
-      expect(checkDevBuildStaleness(createDevCheckDeps(cli)).kind).toBe("stale");
-      await buildOwnedArtifacts(lease, "fast");
-      expect(checkDevBuildStaleness(createDevCheckDeps(cli))).toEqual({ kind: "fresh" });
-      expect(JSON.parse(await readFile(join(packageRoot, "dist/schemas/kernel.json"), "utf8")))
-        .toHaveProperty("$comment", "schema changed");
     });
   } finally { await rm(root, { recursive: true, force: true }); }
 }, 30_000);

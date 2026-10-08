@@ -18,7 +18,7 @@ function fixture() {
   return value;
 }
 
-const graphs = { cli: ["packages/cli/src/entry.ts"], schema: ["packages/cli/src/entry.ts"],
+const graphs = { cli: ["packages/cli/src/entry.ts"],
   controls: ["packages/cli/package.json"] };
 
   it("uses baseline digests for late native metadata and rejects a mixed generation", async () => {

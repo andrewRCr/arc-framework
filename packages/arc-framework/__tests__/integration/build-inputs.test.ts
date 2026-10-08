@@ -1,13 +1,12 @@
 /** Native compiler fixtures for first-party input capture. */
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { build } from "esbuild";
 import { afterEach, describe, expect, it } from "vitest";
 import { hashSourceInputs, selectBundleInputs } from "../../src/lib/dev-check.js";
-import { compileCapturedBuild, loadBuildConfiguration, loadSchemaProducer } from "../../src/lib/build-producers.js";
+import { compileCapturedBuild, loadBuildConfiguration } from "../../src/lib/build-producers.js";
 import { readFile } from "node:fs/promises";
-import { PRODUCTION_SCHEMA_IDS } from "../helpers/schema-artifact.js";
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -15,25 +14,6 @@ afterEach(async () => {
 });
 
 describe("native compiler input capture", () => {
-  it("keeps actual schema producer sources outside shared config dependencies", async () => {
-    const packageRoot = resolve(import.meta.dirname, "../..");
-    const config = await loadBuildConfiguration(join(packageRoot, "tsup.config.ts"), packageRoot);
-    expect(config.dependencies).not.toContain(join(packageRoot, "src/production-schema-registry.ts"));
-    const fast = await loadBuildConfiguration(join(packageRoot, "tsup.fast.config.ts"), packageRoot);
-    expect(fast.dependencies).toContain(join(packageRoot, "tsup.config.ts"));
-    expect(fast.dependencies).not.toContain(join(packageRoot, "src/production-schema-registry.ts"));
-    const schema = await loadSchemaProducer(packageRoot);
-    expect(schema.dependencies).toContain(join(packageRoot, "src/production-schema-registry.ts"));
-    expect(schema.dependencies).toContain(join(packageRoot, "src/lib/kernel/schema/generate.ts"));
-    const outDir = await mkdtemp(join(tmpdir(), "arc-schema-producer-"));
-    roots.push(outDir);
-    await schema.generate(outDir);
-    const artifact = JSON.parse(await readFile(join(outDir, "schemas/kernel.json"), "utf8")) as {
-      schemas: Record<string, unknown>;
-    };
-    expect(Object.keys(artifact.schemas)).toEqual(PRODUCTION_SCHEMA_IDS);
-  });
-
   it("executes the captured native configuration without loading it again", async () => {
     const root = await mkdtemp(join(tmpdir(), "arc-native-config-"));
     roots.push(root);

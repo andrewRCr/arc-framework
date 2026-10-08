@@ -1,6 +1,6 @@
 /** Root and package build scripts publish native qualified output through one owner. */
 import { execa } from "execa";
-import { readFile, rm } from "node:fs/promises";
+import { readFile, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { DEV_BUILD_STAMP_NAME, parseBuildEvidence } from "../../src/lib/build-evidence.js";
@@ -19,9 +19,9 @@ it.each([
   try {
     await execa(npm, ["run", command], { cwd, maxBuffer: 16 * 1024 * 1024 });
     const first = parseBuildEvidence(JSON.parse(await readFile(stamp, "utf8")));
-    expect(first?.qualification).toEqual({ published: true, runtimeSchema: true, declarations: command === "build" });
+    expect(first?.qualification).toEqual({ published: true, declarations: command === "build" });
     expect(await readFile(join(packageRoot, "dist/cli.js"), "utf8")).toContain("new-native-runtime");
-    expect(JSON.parse(await readFile(join(packageRoot, "dist/schemas/kernel.json"), "utf8"))).toHaveProperty("schemas");
+    expect(await readdir(join(packageRoot, "dist"))).not.toContain("schemas");
     if (boundary === "root" && command === "build") {
       await execa(npm, ["run", command], { cwd, maxBuffer: 16 * 1024 * 1024 });
       const second = parseBuildEvidence(JSON.parse(await readFile(stamp, "utf8")));

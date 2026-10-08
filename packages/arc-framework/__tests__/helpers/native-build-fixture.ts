@@ -2,12 +2,10 @@
 import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { createProductionSchemaRegistry } from "../../src/production-schema-registry.js";
 import { copyLiveDependencies } from "./copy-live-dependencies.js";
-import { projectKernelSchemas } from "../../src/lib/kernel/schema/generate.js";
 
 /**
- * Make a native compiler checkout with a tiny CLI and production-shaped schema producer.
+ * Make a native compiler checkout with a tiny CLI and fixture-owned compiler success hook.
  * @returns Fixture root and package boundary for caller-owned cleanup
  */
 export async function makeNativeBuildFixture(): Promise<{ root: string; packageRoot: string }> {
@@ -34,7 +32,10 @@ export async function makeNativeBuildFixture(): Promise<{ root: string; packageR
   await writeFile(configPath, `import { appendFileSync } from "node:fs";
 import { join as configurationCounterPath } from "node:path";
 appendFileSync(configurationCounterPath(import.meta.dirname, ".config-loads"), "loaded\\n");
-` + configuration);
+` + 'import { resolve as fixtureOutputPath } from "node:path";\n'
+    + 'import { runBuildHook } from "./src/fixture-build-hook.js";\n'
+    + configuration.replace("  metafile: true,", `  metafile: true,
+  onSuccess: async () => { await runBuildHook(fixtureOutputPath(import.meta.dirname, outputDirectory), import.meta.dirname); },`));
   await symlink(join(sourceRoot, "node_modules"), join(root, "node_modules"), "junction");
   await symlink(join(sourcePackage, "node_modules"), join(packageRoot, "node_modules"), "junction");
   await writeFile(join(packageRoot, "tsconfig.json"), JSON.stringify({
@@ -42,15 +43,10 @@ appendFileSync(configurationCounterPath(import.meta.dirname, ".config-loads"), "
       skipLibCheck: true, ignoreDeprecations: "6.0" }, include: ["src/cli.ts"],
   }));
   await writeFile(join(packageRoot, "src/cli.ts"), 'export const marker = "new-native-runtime";');
-  await writeFile(join(packageRoot, "src/fixture-schema.json"),
-    JSON.stringify(projectKernelSchemas(createProductionSchemaRegistry())));
-  await writeFile(join(packageRoot, "src/scripts/build-schema.ts"), `
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import schemas from "../fixture-schema.json";
-export async function generateRuntimeSchema(outDir: string): Promise<void> {
-  await mkdir(join(outDir, "schemas"), { recursive: true });
-  await writeFile(join(outDir, "schemas/kernel.json"), JSON.stringify(schemas));
+  await writeFile(join(packageRoot, "src/fixture-build-hook.ts"), `
+export async function runBuildHook(outDir: string, packageRoot: string): Promise<void> {
+  void outDir;
+  void packageRoot;
 }
 `);
   await mkdir(join(packageRoot, "dist"));

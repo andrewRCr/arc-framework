@@ -32,15 +32,14 @@ export function readBuildQualification(packageRoot: string, requirement: BuildRe
     const root = resolve(packageRoot, "../..");
     const contents: Record<string, string> = { ...inventory.contents, ...context.contents };
     for (const key of new Set([
-      ...evidence.graphs.cli, ...evidence.graphs.schema, ...evidence.graphs.controls, ...evidence.configurationInputs,
+      ...evidence.graphs.cli, ...evidence.graphs.controls, ...evidence.configurationInputs,
     ])) {
       contents[key] = createHash("sha256").update(readFileSync(join(root, key))).digest("hex");
     }
     const identities = identifyBuildInputs({ ...evidence.graphs,
       controls: [...evidence.graphs.controls, ...evidence.configurationInputs],
     }, contents, sharedBuildIdentity(context.identity, inventory.identity));
-    const identity = requirement === "runtime" ? "runtime" : "runtimeSchema";
-    if (identities[identity] !== evidence.identities[identity]) throw new Error("Build input identity does not match.");
+    if (identities.runtime !== evidence.identities.runtime) throw new Error("Build input identity does not match.");
     requireLiveArtifacts(packageRoot, requirement, evidence);
     return { status: "qualified", evidence };
   } catch (error) {

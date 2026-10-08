@@ -16,7 +16,7 @@ export interface NativeBuildController {
 }
 
 /**
- * Block the actual schema producer while its owning process maintains artifact renewal.
+ * Block the fixture-owned compiler success hook while its owning process maintains artifact renewal.
  * @param surviveOwnerDeath - Arrange a surviving Windows compiler outside its owner's process job
  * @returns Caller-owned fixture, compiler barrier paths, and owning process completion
  */
@@ -24,14 +24,16 @@ export async function startBlockedBuildController(surviveOwnerDeath = false): Pr
   const { root, packageRoot } = await makeNativeBuildFixture();
   const readyPath = join(packageRoot, ".compiler-ready");
   const releasePath = join(packageRoot, ".release-compiler");
-  const schemaPath = join(packageRoot, "src/scripts/build-schema.ts");
-  const schema = await readFile(schemaPath, "utf8");
-  await writeFile(schemaPath, 'import { existsSync } from "node:fs";\n' + schema.replace(
-    '  await mkdir(join(outDir, "schemas"), { recursive: true });',
-    `  await writeFile(${JSON.stringify(readyPath)}, JSON.stringify({ pid: process.pid, directory: outDir }));
+  const hookPath = join(packageRoot, "src/fixture-build-hook.ts");
+  await writeFile(hookPath, `
+import { existsSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
+export async function runBuildHook(outDir: string, packageRoot: string): Promise<void> {
+  void packageRoot;
+  await writeFile(${JSON.stringify(readyPath)}, JSON.stringify({ pid: process.pid, directory: outDir }));
   while (!existsSync(${JSON.stringify(releasePath)})) await new Promise((resolve) => setTimeout(resolve, 10));
-  await mkdir(join(outDir, "schemas"), { recursive: true });`,
-  ));
+}
+`);
   if (process.platform === "win32") {
     const diagnosticPath = join(packageRoot, ".compiler-diagnostics");
     const compilerPath = join(packageRoot, "src/scripts/build-compiler.ts");
@@ -47,14 +49,12 @@ process.on("uncaughtExceptionMonitor", (error) => recordCompilerDiagnostic(diagn
 ` + compiler.replace("    console.error(error);", `    recordCompilerDiagnostic(diagnosticFile,
       JSON.stringify({ event: "bootstrap-error", pid: process.pid, error: String(error) }) + "\\n");
     console.error(error);`));
-    const blockedSchema = await readFile(schemaPath, "utf8");
-    await writeFile(schemaPath, 'import { appendFileSync as recordSchemaDiagnostic } from "node:fs";\n'
-      + blockedSchema.replace('  await mkdir(join(outDir, "schemas"), { recursive: true });',
-        `  recordSchemaDiagnostic(${JSON.stringify(diagnosticPath)}, "release-observed\\n");
-  await mkdir(join(outDir, "schemas"), { recursive: true });`)
-        .replace('  await writeFile(join(outDir, "schemas/kernel.json"), JSON.stringify(schemas));',
-          `  await writeFile(join(outDir, "schemas/kernel.json"), JSON.stringify(schemas));
-  recordSchemaDiagnostic(${JSON.stringify(diagnosticPath)}, "schema-finished\\n");`));
+    const blockedHook = await readFile(hookPath, "utf8");
+    await writeFile(hookPath, 'import { appendFileSync as recordHookDiagnostic } from "node:fs";\n'
+      + blockedHook.replace('  while (!existsSync', `  recordHookDiagnostic(${JSON.stringify(diagnosticPath)}, "hook-ready\\n");
+  while (!existsSync`).replace('setTimeout(resolve, 10));', `setTimeout(resolve, 10));
+  recordHookDiagnostic(${JSON.stringify(diagnosticPath)}, "release-observed\\n");
+  recordHookDiagnostic(${JSON.stringify(diagnosticPath)}, "hook-finished\\n");`));
   }
   if (process.platform === "win32" && surviveOwnerDeath) {
     const entryPath = join(packageRoot, "src/lib/build-entry.ts");
