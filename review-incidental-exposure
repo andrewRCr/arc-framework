@@ -3,7 +3,7 @@
   "slug": "review-incidental-exposure",
   "claimId": "95b5c328fe518c36988d6a661e7c63c3",
   "createdAt": "2026-10-08T20:43:08.523Z",
-  "updatedAt": "2026-10-08T20:43:08.523Z",
+  "updatedAt": "2026-10-08T21:01:09.929Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Keep a reviewer independent after it loads author-side session files incidentally, with a mechanical three-case runner classification",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Keep independent review eligible after neutral recovery reads",
   "originEntrySourceDigest": "sha256:0815b8735a984176afc5ad128f28307c40ff1ebc914e615faebaebb11374ab58",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/review-incidental-exposure",
+    "headSha": "9052197fb746c1d491e7d40226a00f0de7271790"
+  }
 }
