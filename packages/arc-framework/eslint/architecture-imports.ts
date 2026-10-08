@@ -71,7 +71,7 @@ function collectNodeImport(statement: ts.Statement, owners: NodeFactoryOwners): 
     if (binding.isTypeOnly) continue;
     const name = (binding.propertyName ?? binding.name).text;
     if (name === "createRequire") owners.factories.add(binding);
-    else if (name === "default") owners.namespaces.add(binding);
+    else if (name === "default" || name === "Module") owners.namespaces.add(binding);
   }
 }
 
@@ -94,6 +94,9 @@ function nodeLoaderValue(expression: ts.Expression, context: NodeFactoryContext,
 function nodeNamespaceValue(expression: ts.Expression, context: NodeFactoryContext, seen: ReadonlySet<ts.Node>): boolean {
   expression = unparenthesized(expression);
   if (awaitedNodeNamespace(expression)) return true;
+  if (ts.isPropertyAccessExpression(expression) && ["default", "Module"].includes(expression.name.text)) {
+    return nodeNamespaceValue(expression.expression, context, seen);
+  }
   if (ts.isCallExpression(expression)) {
     return nodeModuleSpecifier(expression.arguments[0]) && nodeLoaderValue(expression.expression, context, seen);
   }
@@ -104,14 +107,39 @@ function nodeNamespaceValue(expression: ts.Expression, context: NodeFactoryConte
   return nodeNamespaceValue(declaration.initializer, context, new Set(seen).add(declaration));
 }
 
+function nodeObjectFactoryValue(expression: ts.Expression, context: NodeFactoryContext, seen: ReadonlySet<ts.Node>): boolean {
+  expression = unparenthesized(expression);
+  if (ts.isIdentifier(expression)) {
+    const declaration = context.lookup(expression);
+    return declaration !== undefined && ts.isVariableDeclaration(declaration) && declaration.initializer !== undefined
+      && !seen.has(declaration) && nodeObjectFactoryValue(declaration.initializer, context, new Set(seen).add(declaration));
+  }
+  if (!ts.isObjectLiteralExpression(expression)) return false;
+  // Later properties replace earlier ones; an opaque spread cannot establish an owner.
+  for (let index = expression.properties.length - 1; index >= 0; index--) {
+    const property = expression.properties[index];
+    if (property === undefined) continue;
+    if (ts.isSpreadAssignment(property)) return false;
+    if ((!ts.isIdentifier(property.name) && !ts.isStringLiteralLike(property.name))
+      || property.name.text !== "createRequire") continue;
+    if (ts.isPropertyAssignment(property)) return nodeFactoryValue(property.initializer, context, seen);
+    return ts.isShorthandPropertyAssignment(property) && nodeFactoryValue(property.name, context, seen);
+  }
+  return false;
+}
+
 function nodeFactoryValue(expression: ts.Expression, context: NodeFactoryContext, seen: ReadonlySet<ts.Node>): boolean {
   expression = unparenthesized(expression);
   if (ts.isIdentifier(expression)) {
     const declaration = context.lookup(expression);
-    return declaration !== undefined && context.owners.factories.has(declaration);
+    if (declaration === undefined) return false;
+    if (context.owners.factories.has(declaration)) return true;
+    return ts.isVariableDeclaration(declaration) && declaration.initializer !== undefined && !seen.has(declaration)
+      && nodeFactoryValue(declaration.initializer, context, new Set(seen).add(declaration));
   }
   return ts.isPropertyAccessExpression(expression) && expression.name.text === "createRequire"
-    && nodeNamespaceValue(expression.expression, context, seen);
+    && (nodeNamespaceValue(expression.expression, context, seen)
+      || nodeObjectFactoryValue(expression.expression, context, seen));
 }
 
 function nodeFactoryLookup(source: ts.SourceFile, lookup: ReturnType<typeof syntaxBindingLookup>): (expression: ts.Expression) => boolean {
