@@ -8,6 +8,10 @@ import { describe, expect, it } from "vitest";
 const packageRoot = resolve(import.meta.dirname, "../..");
 const eslint = new ESLint({ cwd: packageRoot, overrideConfig: [tseslint.configs.disableTypeChecked] });
 const additionalNodeLoaders = [
+  'import { createRequire } from "node:module"; const owner = { ["createRequire"]: createRequire }; const load = owner.createRequire(import.meta.url); void load("@clack/prompts");',
+  'import { createRequire as acquire } from "module"; const owner = { [`createRequire`]: acquire }; void owner.createRequire(import.meta.url)("@clack/prompts");',
+  'import { createRequire } from "node:module"; const owner = { [("createRequire")]: createRequire }; void owner.createRequire(import.meta.url)("@clack/prompts");',
+  'import { createRequire } from "node:module"; const owner = { createRequire: () => (name: string) => name, ["createRequire"]: createRequire }; void owner.createRequire(import.meta.url)("@clack/prompts");',
   'import { Module as owner } from "node:module"; const load = owner.createRequire(import.meta.url); void load("@clack/prompts");',
   'import { Module as owner } from "module"; void owner.createRequire(import.meta.url)("@clack/prompts");',
   'import * as owner from "node:module"; void owner.default.createRequire(import.meta.url)("@clack/prompts");',
@@ -122,6 +126,9 @@ describe("actual architecture table enforcement", () => {
     expect(result?.messages.filter(({ ruleId }) => ruleId === "arc/architecture-imports")).toEqual([]);
   });
   it.each([
+    'const owner = { ["createRequire"]: () => (name: string) => name }; void owner.createRequire()("@clack/prompts");',
+    'import { createRequire } from "node:module"; const owner = { createRequire, ["createRequire"]: () => (name: string) => name }; void owner.createRequire()("@clack/prompts");',
+    'import { createRequire } from "node:module"; const owner = { [`createRequire`]: createRequire, createRequire: () => (name: string) => name }; void owner.createRequire()("@clack/prompts");',
     'const owner = { default: { createRequire: () => (name: string) => name } }; void owner.default.createRequire()("@clack/prompts");',
     'const owner = { Module: { createRequire: () => (name: string) => name } }; void owner.Module.createRequire()("@clack/prompts");',
     'import { createRequire } from "node:module"; function format(createRequire: () => (name: string) => string) { const owner = { createRequire }; return owner.createRequire()("@clack/prompts"); } void format;',

@@ -107,6 +107,11 @@ function nodeNamespaceValue(expression: ts.Expression, context: NodeFactoryConte
   return nodeNamespaceValue(declaration.initializer, context, new Set(seen).add(declaration));
 }
 
+function literalPropertyName(name: ts.PropertyName): string | undefined {
+  if (ts.isComputedPropertyName(name)) return literal(unparenthesized(name.expression));
+  return ts.isIdentifier(name) ? name.text : literal(name);
+}
+
 function nodeObjectFactoryValue(expression: ts.Expression, context: NodeFactoryContext, seen: ReadonlySet<ts.Node>): boolean {
   expression = unparenthesized(expression);
   if (ts.isIdentifier(expression)) {
@@ -120,8 +125,7 @@ function nodeObjectFactoryValue(expression: ts.Expression, context: NodeFactoryC
     const property = expression.properties[index];
     if (property === undefined) continue;
     if (ts.isSpreadAssignment(property)) return false;
-    if ((!ts.isIdentifier(property.name) && !ts.isStringLiteralLike(property.name))
-      || property.name.text !== "createRequire") continue;
+    if (literalPropertyName(property.name) !== "createRequire") continue;
     if (ts.isPropertyAssignment(property)) return nodeFactoryValue(property.initializer, context, seen);
     return ts.isShorthandPropertyAssignment(property) && nodeFactoryValue(property.name, context, seen);
   }
