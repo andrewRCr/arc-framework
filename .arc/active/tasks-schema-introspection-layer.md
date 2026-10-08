@@ -89,32 +89,14 @@ documents.
 - _Outcome:_ Registrations retain and validate an optional authored side in immutable metadata. The sixteen public
   review and delivery request roots declare request; unmarked roots retain no authored field.
 
-### `[ ]` **2.2 Project each side with shared subschemas by reference under absolute identities — D1**
+### `[x]` **2.2 Project each side with shared subschemas by reference under absolute identities — D1**
 
 - _Goal:_ The registry projects one side at a time, named by every caller, into a bundle where a reused subschema
   appears once, in `__shared`, and every document is identified by `urn:arc:schema:<id>`.
 
-- **Additional Context:** `notes-schema-introspection-layer.md` § Projection change test inventory, the rows for
-  Task 2.2.
-
-    - `KernelRegistry.toJSONSchema` takes a required options object, `{ io, uri? }`, and passes `reused: "ref"`;
-      `projectKernelSchemas` takes the side as a required argument and returns that side's bundle — every registered
-      schema plus that side's `__shared`. No projection defaults its side, so none can project a request root on the
-      wrong one unnoticed. The bundle stays an internal intermediate.
-    - The change reaches every registry built on the kernel's, not only production: `createValidationSurfacesRegistry`
-      projects through it, and the command-input registry's `toJSONSchema` passes the options through.
-    - Every caller names a side: `projectKernelSchemaClosure` and `handleDeliveryPlanInventorySchema` keep today's
-      `output` until Tasks 2.3 and 2.4 replace their projections, and each test projects the side it asserts.
-    - The default URI mapping becomes `urn:arc:schema:<id>`, `__shared` included. `handleReviewRequestSchema` builds
-      the old form in the `rootId` of both its result and its refusal; both move with it.
-    - The opposite-registration-order case in `kernel/schema-generation.test.ts` gains registrations that share an
-      unregistered subschema, so it covers the generated `__shared` names.
-
-    - Build `test-first` (one behavior at a time):
-        - A subschema reused by two registered roots appears once, in `__shared`, referenced from both
-        - Every document's identity, `__shared`'s included, is `urn:arc:schema:<id>`
-        - The input side leaves a defaulted field optional where the output side requires it
-        - Bytes are identical across opposite registration orders when roots share an unregistered subschema
+- _Outcome:_ Every registry projection requires its input or output side, extracts reused subschemas into shared
+  definitions, and uses absolute URN identities. Sorted projection preserves shared-definition names across registration
+  orders; callers and contract assertions name their side and resolve references.
 
 ### `[ ]` **2.3 Fold each root into one self-contained document on its declared side — D1**
 

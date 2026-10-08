@@ -38,13 +38,19 @@ export interface KernelJSONSchemaBundle {
   readonly schemas: Record<string, KernelJSONSchema>;
 }
 
+/** Required side and optional identity mapping for one registry projection. */
+export interface KernelProjectionOptions {
+  readonly io: "input" | "output";
+  readonly uri?: (id: string) => string;
+}
+
 /** Public discovery and projection contract for kernel and subsystem schemas. */
 export interface KernelRegistry {
   register<T extends z.ZodType>(schema: T, meta: KernelSchemaMeta): T;
   get(id: string): z.ZodType | undefined;
   meta(id: string): KernelSchemaMeta | undefined;
   ids(): readonly string[];
-  toJSONSchema(options?: { readonly uri?: (id: string) => string }): KernelJSONSchemaBundle;
+  toJSONSchema(options: KernelProjectionOptions): KernelJSONSchemaBundle;
 }
 
 /** Stable schema-registry failure variants. */
@@ -107,6 +113,30 @@ function validateMetadata(meta: KernelSchemaMeta): void {
   }
 }
 
+function projectRegistry(
+  entries: ReadonlyMap<string, RegistryEntry>, options: KernelProjectionOptions,
+): KernelJSONSchemaBundle {
+  const projection = z.registry<{ id: string }>();
+  for (const id of [...entries.keys()].sort(compareIdentity)) {
+    const schema = entries.get(id)?.schema;
+    if (schema !== undefined) projection.add(schema, { id });
+  }
+  const uri = options.uri ?? ((id: string) => `urn:arc:schema:${id}`);
+  const bundle = z.toJSONSchema(projection, {
+    target: "draft-2020-12",
+    io: options.io,
+    reused: "ref",
+    uri,
+  });
+  // Zod hoists multiply referenced, unregistered subschemas into `__shared`. It emits refs to
+  // that document but omits the document's own identity, so normalize it to the same bundle
+  // contract as every registered root.
+  if (bundle.schemas.__shared !== undefined && bundle.schemas.__shared.$id === undefined) {
+    bundle.schemas.__shared.$id = uri("__shared");
+  }
+  return bundle;
+}
+
 /** Create an empty schema registry for downstream composition. */
 export function createRegistry(): KernelRegistry {
   const nativeRegistry = z.registry<KernelSchemaMeta>();
@@ -151,25 +181,7 @@ export function createRegistry(): KernelRegistry {
     ids(): readonly string[] {
       return [...entries.keys()].sort(compareIdentity);
     },
-    toJSONSchema(options): KernelJSONSchemaBundle {
-      const projection = z.registry<{ id: string }>();
-      for (const id of [...entries.keys()].sort(compareIdentity)) {
-        const schema = entries.get(id)?.schema;
-        if (schema !== undefined) projection.add(schema, { id });
-      }
-      const uri = options?.uri ?? ((id: string) => `${id}.schema.json`);
-      const bundle = z.toJSONSchema(projection, {
-        target: "draft-2020-12",
-        uri,
-      });
-      // Zod hoists multiply referenced, unregistered subschemas into `__shared`. It emits refs to
-      // that document but omits the document's own identity, so normalize it to the same bundle
-      // contract as every registered root.
-      if (bundle.schemas.__shared !== undefined && bundle.schemas.__shared.$id === undefined) {
-        bundle.schemas.__shared.$id = uri("__shared");
-      }
-      return bundle;
-    },
+    toJSONSchema: (options) => projectRegistry(entries, options),
   };
 }
 

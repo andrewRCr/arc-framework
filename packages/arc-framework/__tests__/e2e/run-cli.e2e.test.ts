@@ -138,7 +138,7 @@ describe("runCli", () => {
       const schema = await runCli(["review", "resolve", "--schema"], { cwd });
       expect(schema.exitCode).toBe(0);
       expect(schema.stderr).toBe("");
-      expect(JSON.parse(schema.stdout)).toMatchObject({ rootId: "review-resolve-request.schema.json" });
+      expect(JSON.parse(schema.stdout)).toMatchObject({ rootId: "urn:arc:schema:review-resolve-request" });
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }

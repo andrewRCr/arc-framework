@@ -98,10 +98,10 @@ describe("command-input schema adapter and registry", () => {
     const runtime = registry.getCommand("stub");
     if (runtime === undefined) throw new Error("Missing stub command schema");
 
-    const bundle = registry.toJSONSchema();
+    const bundle = registry.toJSONSchema({ io: "output" });
     const ajv = new Ajv2020({ allErrors: true, strict: true });
     for (const schema of Object.values(bundle.schemas)) ajv.addSchema(schema as AnySchema);
-    const projected = ajv.getSchema("command-stub-input.schema.json");
+    const projected = ajv.getSchema("urn:arc:schema:command-stub-input");
     if (projected === undefined) throw new Error("Missing projected stub command schema");
 
     const base = { name: "member", commitment: "planned", priority: "P1" };

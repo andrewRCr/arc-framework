@@ -115,7 +115,7 @@ describe("arc delivery", () => {
         id: "delivery-design-inventory-input",
         version: 1,
         schema: {
-          $id: "delivery-design-inventory-input.schema.json",
+          $id: "urn:arc:schema:delivery-design-inventory-input",
           additionalProperties: false,
           required: ["artifacts"],
         },

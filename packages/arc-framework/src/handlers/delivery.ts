@@ -662,7 +662,7 @@ export function handleDeliveryPlanInventorySchema(opts: DeliveryPlanInventorySch
     return;
   }
   const registry = registerDeliveryAuthoringSchemas(registerDeliveryDomainSchemas(createKernelRegistry()));
-  const schema = projectKernelSchemas(registry).schemas[DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID];
+  const schema = projectKernelSchemas("output", registry).schemas[DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID];
   if (schema === undefined) {
     emit("delivery plan inventory schema", parsed.data.json === true, {
       status: "refused",

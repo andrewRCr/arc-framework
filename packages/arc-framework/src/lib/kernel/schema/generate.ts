@@ -8,9 +8,16 @@ import {
   type KernelRegistry,
 } from "./registry.js";
 
-/** Project a registry, defaulting to the fresh built-in kernel vocabulary. */
-export function projectKernelSchemas(registry: KernelRegistry = createKernelRegistry()): KernelJSONSchemaBundle {
-  return registry.toJSONSchema();
+/**
+ * Project one explicit side, defaulting to the fresh built-in kernel vocabulary.
+ * @param io - Side of each contract to project
+ * @param registry - Registered roots to compose
+ * @returns The selected side's deterministic bundle
+ */
+export function projectKernelSchemas(
+  io: "input" | "output", registry: KernelRegistry = createKernelRegistry(),
+): KernelJSONSchemaBundle {
+  return registry.toJSONSchema({ io });
 }
 
 function collectReferencedSchemaUris(value: unknown, references: Set<string>): void {
@@ -40,7 +47,7 @@ export function projectKernelSchemaClosure(
   registry: KernelRegistry,
   rootId: string,
 ): KernelJSONSchemaBundle {
-  const bundle = projectKernelSchemas(registry);
+  const bundle = projectKernelSchemas("output", registry);
   const schemaKeyByUri = new Map<string, string>();
   for (const [schemaKey, schema] of Object.entries(bundle.schemas)) {
     if (typeof schema.$id === "string") schemaKeyByUri.set(schema.$id, schemaKey);

@@ -39,7 +39,7 @@ describe("kernel import boundary", () => {
       "validateState", "withRemoteEvidence",
     ].sort());
     expect(types.sort()).toEqual([
-      "ArcErrorCode", "ArchiveQuarter", "ArchiveSequence", "CanonicalDigest", "KernelJSONSchema", "KernelJSONSchemaBundle", "KernelRegistry",
+      "ArcErrorCode", "ArchiveQuarter", "ArchiveSequence", "CanonicalDigest", "KernelJSONSchema", "KernelJSONSchemaBundle", "KernelProjectionOptions", "KernelRegistry",
       "KernelSchemaMeta", "ManagedPath", "MigrationPosture", "Priority", "RemoteEvidence",
       "RemoteFailureReason", "Result", "SchemaErrorCode", "Slug", "WorkClass", "WorkUnitState",
     ].sort());

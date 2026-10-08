@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { resolveSchemaReference } from "../../helpers/schema-reference.js";
 import { assertSchemaAccepts, assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 
 import {
@@ -195,7 +196,7 @@ describe("DeliveryPlanV1Schema", () => {
       assertSchemaRefuses(DeliveryPlanV1Schema, plan);
     }
 
-    const projection = projectKernelSchemas(registerDeliveryDomainSchemas(createKernelRegistry()));
+    const projection = projectKernelSchemas("output", registerDeliveryDomainSchemas(createKernelRegistry()));
     const deliveryPlan = projection.schemas["delivery-plan"] as {
       properties?: { design?: { properties?: { artifacts?: unknown } } };
     };
@@ -214,10 +215,10 @@ describe("DeliveryPlanV1Schema", () => {
     input.members = [];
     assertSchemaRefuses(DeliveryPlanAuthoringInputV1Schema, input);
 
-    const projection = projectKernelSchemas(registerDeliveryDomainSchemas(createKernelRegistry()));
+    const projection = projectKernelSchemas("output", registerDeliveryDomainSchemas(createKernelRegistry()));
     for (const schemaId of ["delivery-plan", "delivery-plan-authoring-input"]) {
-      const schema = projection.schemas[schemaId] as { properties?: { members?: unknown } };
-      expect(schema.properties?.members).toMatchObject({ minItems: 1 });
+      const schema = projection.schemas[schemaId];
+      expect(resolveSchemaReference(projection, schema?.properties?.members)).toMatchObject({ minItems: 1 });
     }
   });
 });
@@ -420,7 +421,7 @@ describe("delivery schema registration", () => {
   it("projects byte-identical JSON Schema across repeated composition", () => {
     const first = registerDeliveryDomainSchemas(createKernelRegistry());
     const second = registerDeliveryDomainSchemas(createKernelRegistry());
-    expect(serializeKernelSchemaBundle(projectKernelSchemas(first)))
-      .toBe(serializeKernelSchemaBundle(projectKernelSchemas(second)));
+    expect(serializeKernelSchemaBundle(projectKernelSchemas("output", first)))
+      .toBe(serializeKernelSchemaBundle(projectKernelSchemas("output", second)));
   });
 });

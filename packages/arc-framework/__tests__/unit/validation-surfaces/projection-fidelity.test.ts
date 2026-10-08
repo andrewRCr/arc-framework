@@ -20,11 +20,11 @@ interface CorpusCase {
 }
 
 function projectedValidators(): ReadonlyMap<string, ValidateFunction> {
-  const bundle = createValidationSurfacesRegistry().toJSONSchema();
+  const bundle = createValidationSurfacesRegistry().toJSONSchema({ io: "output" });
   const ajv = new Ajv2020({ allErrors: true, strict: true });
   for (const schema of Object.values(bundle.schemas)) ajv.addSchema(schema as AnySchema);
   return new Map(Object.keys(bundle.schemas).map((id) => {
-    const validator = ajv.getSchema(`${id}.schema.json`);
+    const validator = ajv.getSchema(`urn:arc:schema:${id}`);
     if (validator === undefined) throw new Error(`Missing projected validator: ${id}`);
     return [id, validator];
   }));

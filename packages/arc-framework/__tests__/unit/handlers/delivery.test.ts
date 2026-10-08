@@ -74,7 +74,7 @@ describe("delivery handler JSON boundaries", () => {
   it("emits the exact registered design-inventory schema authority", () => {
     handleDeliveryPlanInventorySchema({ json: true });
 
-    const expected = projectKernelSchemas(registerDeliveryAuthoringSchemas(
+    const expected = projectKernelSchemas("output", registerDeliveryAuthoringSchemas(
       registerDeliveryDomainSchemas(createKernelRegistry()),
     )).schemas[DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID];
     expect(JSON.parse(stdout)).toEqual({

@@ -2943,10 +2943,10 @@ export function handleReviewRequestSchema(
     const registry = registerReviewDomainSchemas(createKernelRegistry());
     if (registry.get(schemaId) === undefined) throw new Error(`Review request schema unavailable: ${schemaId}`);
     const bundle = projectKernelSchemaClosure(registry, schemaId);
-    overrides.write(`${JSON.stringify({ rootId: `${schemaId}.schema.json`, ...bundle })}\n`);
+    overrides.write(`${JSON.stringify({ rootId: `urn:arc:schema:${schemaId}`, ...bundle })}\n`);
   } catch (error) {
     overrides.write(`${JSON.stringify({
-      rootId: `${schemaId}.schema.json`,
+      rootId: `urn:arc:schema:${schemaId}`,
       schemas: {},
       error: error instanceof Error ? error.message : String(error),
     })}\n`);
