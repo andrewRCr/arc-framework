@@ -71,6 +71,41 @@ describe("declared-value prompt discovery", () => {
     expect(() => scan('import * as prompter from "../lib/command-input/prompter.js"; prompter["prompt"](unknown, context, {});'))
       .toThrow(/Unresolved prompt site/u);
   });
+  it.each([
+    `const factoryName = "declarePromptSite"; const promptName = "prompt";
+      prompter[promptName](declarations[factoryName]("inline", "text", {}, ${policy}), context, {});`,
+    'const member = "prompt"; prompter[member](unknown, context, {});',
+    'const factory = declarations.declarePromptSite; void factory;',
+    'const ask = prompter["prompt"]; void ask;',
+    'const holder = prompter; void holder;',
+    'const { prompt: ask } = prompter; void ask;',
+    'void prompter.prompt.bind(undefined);',
+  ])("refuses an unsupported canonical namespace reference: %s", (body) => {
+    expect(() => scan(['import * as declarations from "../lib/command-input/declaration.js";',
+      'import * as prompter from "../lib/command-input/prompter.js";', body].join("\n")))
+      .toThrow(expect.objectContaining({ code: "command-input.inventory.unclassified" }));
+  });
+  it.each([
+    'const factory = declarePromptSite; void factory;',
+    'const askAgain = ask; void askAgain;',
+    'consume(ask);',
+    'const holder = { ask }; void holder;',
+  ])("refuses a canonical function escaping its supported call: %s", (body) => {
+    expect(() => scan([factoryImport, promptImport, body].join("\n")))
+      .toThrow(expect.objectContaining({ code: "command-input.inventory.unclassified" }));
+  });
+  it.each([
+    'function unrelated(ask) { return ask(unknown, context, {}); }',
+    '{ const ask = other; ask(unknown, context, {}); }',
+  ])("does not mistake a shadowing local call for the imported prompter: %s", (body) => {
+    expect(scan([promptImport, body].join("\n")).sites).toEqual([]);
+  });
+  it.each([
+    'export { declarePromptSite as factory } from "../lib/command-input/declaration.js";',
+    'export * from "../lib/command-input/prompter.js";',
+  ])("refuses canonical functions escaping through another facade: %s", (source) => {
+    expect(() => scan(source)).toThrow(expect.objectContaining({ code: "command-input.inventory.unclassified" }));
+  });
   it("refuses distinct declarations sharing an id even when only one is passed", () => {
     const conflicting = sites.replace('"second"', '"first"').replace('"optional"', '"required"');
     const caller = [promptImport, 'import { firstSite } from "./sites.js";',

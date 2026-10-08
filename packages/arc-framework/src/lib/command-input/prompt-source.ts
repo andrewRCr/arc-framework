@@ -2,12 +2,15 @@
 import { posix } from "node:path";
 import ts from "typescript";
 import { ArcError } from "../kernel/index.js";
+import { isSyntaxValueReference, syntaxBindingLookup } from "../syntax-bindings.js";
 
-interface ImportedBinding { readonly file: string; readonly exported: string }
+interface ImportedBinding { readonly file: string; readonly exported: string; readonly declaration: ts.Node }
+const canonicalFiles = ["lib/command-input/declaration.ts", "lib/command-input/prompter.ts", "lib/command-input/index.ts"];
 interface ModuleBindings {
   readonly file: ts.SourceFile;
   readonly imports: ReadonlyMap<string, ImportedBinding>;
   readonly sites: Map<string, { id: string; declaration: ts.VariableDeclaration }>;
+  readonly lookup: ReturnType<typeof syntaxBindingLookup>;
 }
 /** Parsed source and declaration identities at concrete passing-call positions. */
 export interface PromptSourceBinding {
@@ -20,30 +23,79 @@ export interface PromptSourceIndex {
   readonly calls: ReadonlyMap<string, ReadonlyMap<number, PromptSourceBinding>>;
 }
 
+function moduleTarget(file: ts.SourceFile, specifier: string, sources: Readonly<Record<string, string>>): string {
+  const base = posix.normalize(posix.join(posix.dirname(file.fileName), specifier.replace(/\.js$/u, "")));
+  return `${base}.ts` in sources ? `${base}.ts` : `${base}/index.ts` in sources ? `${base}/index.ts` : `${base}.ts`;
+}
 function importedBindings(file: ts.SourceFile, sources: Readonly<Record<string, string>>): Map<string, ImportedBinding> {
   const result = new Map<string, ImportedBinding>();
   for (const statement of file.statements) {
     if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
     const bindings = statement.importClause?.namedBindings;
-    if (bindings === undefined) continue;
-    const base = posix.normalize(posix.join(posix.dirname(file.fileName), statement.moduleSpecifier.text.replace(/\.js$/u, "")));
-    const target = `${base}.ts` in sources ? `${base}.ts` : `${base}/index.ts` in sources ? `${base}/index.ts` : `${base}.ts`;
-    if (ts.isNamespaceImport(bindings)) result.set(bindings.name.text, { file: target, exported: "*" });
-    else for (const binding of bindings.elements) result.set(binding.name.text,
-      { file: target, exported: binding.propertyName?.text ?? binding.name.text });
+    if (bindings === undefined || statement.importClause?.phaseModifier === ts.SyntaxKind.TypeKeyword) continue;
+    const target = moduleTarget(file, statement.moduleSpecifier.text, sources);
+    if (ts.isNamespaceImport(bindings)) result.set(bindings.name.text, { file: target, exported: "*", declaration: bindings });
+    else for (const binding of bindings.elements) if (!binding.isTypeOnly) result.set(binding.name.text,
+      { file: target, exported: binding.propertyName?.text ?? binding.name.text, declaration: binding });
   }
   return result;
 }
-function canonicalImport(module: ModuleBindings, expression: ts.Expression, symbol: "declarePromptSite" | "prompt"): boolean {
-  const owner = ts.isPropertyAccessExpression(expression) && expression.name.text === symbol
+function refuseReexports(file: ts.SourceFile, sources: Readonly<Record<string, string>>): void {
+  if (canonicalFiles.includes(file.fileName)) return;
+  for (const statement of file.statements) {
+    if (!ts.isExportDeclaration(statement) || statement.isTypeOnly || statement.moduleSpecifier === undefined
+      || !ts.isStringLiteral(statement.moduleSpecifier)
+      || !canonicalFiles.includes(moduleTarget(file, statement.moduleSpecifier.text, sources))) continue;
+    const clause = statement.exportClause;
+    const exportsFunctions = clause === undefined || !ts.isNamedExports(clause)
+      || clause.elements.some((element) => !element.isTypeOnly && ["declarePromptSite", "prompt"].includes((element.propertyName ?? element.name).text));
+    if (exportsFunctions) throw new ArcError("Canonical prompt functions cannot be re-exported from another facade",
+      "command-input.inventory.unclassified");
+  }
+}
+function canonicalBinding(module: ModuleBindings, identifier: ts.Identifier): ImportedBinding | undefined {
+  const binding = module.imports.get(identifier.text);
+  return binding !== undefined && module.lookup(identifier) === binding.declaration && canonicalFiles.includes(binding.file)
+    ? binding : undefined;
+}
+function memberOwner(expression: ts.Expression, symbol: string): ts.Expression | undefined {
+  return ts.isPropertyAccessExpression(expression) && expression.name.text === symbol
     ? expression.expression : ts.isElementAccessExpression(expression)
       && ts.isStringLiteralLike(expression.argumentExpression) && expression.argumentExpression.text === symbol
       ? expression.expression : undefined;
-  const binding = ts.isIdentifier(expression) ? module.imports.get(expression.text)
-    : owner !== undefined && ts.isIdentifier(owner) ? module.imports.get(owner.text) : undefined;
-  return binding !== undefined && binding.exported === (owner === undefined ? symbol : "*")
-    && ["lib/command-input/declaration.ts", "lib/command-input/prompter.ts",
-    "lib/command-input/index.ts"].includes(binding.file);
+}
+function canonicalImport(module: ModuleBindings, expression: ts.Expression, symbol: "declarePromptSite" | "prompt"): boolean {
+  while (ts.isParenthesizedExpression(expression)) expression = expression.expression;
+  const owner = memberOwner(expression, symbol);
+  const identifier = ts.isIdentifier(expression) ? expression : owner !== undefined && ts.isIdentifier(owner) ? owner : undefined;
+  const binding = identifier === undefined ? undefined : canonicalBinding(module, identifier);
+  return binding?.exported === (owner === undefined ? symbol : "*");
+}
+function namespaceFunction(module: ModuleBindings, identifier: ts.Identifier): ts.Expression | undefined {
+  const parent = identifier.parent;
+  if (!(ts.isPropertyAccessExpression(parent) && parent.expression === identifier)
+    && !(ts.isElementAccessExpression(parent) && parent.expression === identifier && ts.isStringLiteralLike(parent.argumentExpression))) {
+    throw new ArcError("Unsupported canonical prompt namespace reference", "command-input.inventory.unclassified");
+  }
+  return canonicalImport(module, parent, "declarePromptSite") || canonicalImport(module, parent, "prompt") ? parent : undefined;
+}
+function refuseUnsupportedReferences(module: ModuleBindings): void {
+  const visit = (node: ts.Node): void => {
+    if (ts.isIdentifier(node) && isSyntaxValueReference(node)) {
+      const binding = canonicalBinding(module, node);
+      if (binding !== undefined && ["*", "declarePromptSite", "prompt"].includes(binding.exported)) {
+        let expression = binding.exported === "*" ? namespaceFunction(module, node) : node;
+        if (expression !== undefined) {
+          while (ts.isParenthesizedExpression(expression.parent)) expression = expression.parent;
+          if (!ts.isCallExpression(expression.parent) || expression.parent.expression !== expression) {
+            throw new ArcError("Canonical prompt function must be called directly", "command-input.inventory.unclassified");
+          }
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(module.file);
 }
 function exportedInitializer(node: ts.CallExpression): ts.VariableDeclaration | undefined {
   const declaration = node.parent;
@@ -148,8 +200,10 @@ function passingCalls(module: ModuleBindings, modules: ReadonlyMap<string, Modul
 export function buildPromptSourceIndex(sources: Readonly<Record<string, string>>): PromptSourceIndex {
   const modules = new Map<string, ModuleBindings>(Object.entries(sources).map(([path, text]) => {
     const file = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-    return [path, { file, imports: importedBindings(file, sources), sites: new Map() }] as const;
+    refuseReexports(file, sources);
+    return [path, { file, imports: importedBindings(file, sources), sites: new Map(), lookup: syntaxBindingLookup(file) }] as const;
   }));
+  for (const module of modules.values()) refuseUnsupportedReferences(module);
   for (const module of modules.values()) collectDeclarations(module);
   const declarations = new Set<string>();
   for (const module of modules.values()) for (const site of module.sites.values()) {

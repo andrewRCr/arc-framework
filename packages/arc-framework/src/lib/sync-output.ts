@@ -65,7 +65,7 @@ export function createSyncOutput(jsonMode: boolean): SyncOutput {
       },
       note: (message, title) => { p.note(message, title); },
       spinner: () => p.spinner(),
-      confirm: prompt,
+      confirm: (site, context, question) => prompt(site, context, question),
     };
   }
   return {
@@ -79,6 +79,6 @@ export function createSyncOutput(jsonMode: boolean): SyncOutput {
     },
     note: () => undefined,
     spinner: () => ({ start: () => undefined, stop: () => undefined }),
-    confirm: prompt,
+    confirm: (site, context, question) => prompt(site, context, question),
   };
 }
