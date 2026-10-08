@@ -1,9 +1,4 @@
-import { mkdir, readFile, readdir, rename, unlink, writeFile } from "node:fs/promises";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import {
@@ -13,22 +8,16 @@ import {
 import {
   projectKernelSchemas,
   serializeKernelSchemaBundle,
-  writeKernelSchemaArtifact,
 } from "../../../src/lib/kernel/schema/generate.js";
 import { createProductionSchemaRegistry } from "../../../src/production-schema-registry.js";
-import { PRODUCTION_SCHEMA_IDS } from "../../helpers/schema-artifact.js";
+import { PRODUCTION_SCHEMA_IDS } from "../../helpers/production-schema-ids.js";
 
 /** Timeout for measured repository scans on slower hosted runners. */
 const REPOSITORY_SCAN_TIMEOUT = 10_000;
 
-const temporaryRoots: string[] = [];
 const strict = (id: string): KernelSchemaMeta => ({ id, version: 1, migrationPosture: "strict-current" });
 
-afterEach(() => {
-  for (const root of temporaryRoots.splice(0)) rmSync(root, { recursive: true, force: true });
-});
-
-describe("kernel schema artifact generation", () => {
+describe("kernel schema projection", () => {
   it("projects the built-in schema map without touching disk", () => {
     expect(Object.keys(projectKernelSchemas().schemas)).toEqual([
       "priority",
@@ -102,50 +91,4 @@ describe("kernel schema artifact generation", () => {
     });
   });
 
-  it("creates the artifact directory and atomically publishes exact bytes", async () => {
-    const outDir = mkdtempSync(join(tmpdir(), "arc-kernel-schema-"));
-    temporaryRoots.push(outDir);
-    const renames: Array<readonly [string, string]> = [];
-
-    const finalPath = await writeKernelSchemaArtifact({
-      outDir,
-      fileSystem: {
-        mkdir,
-        writeFile,
-        rename: async (temporaryPath, destinationPath) => {
-          renames.push([temporaryPath, destinationPath]);
-          await rename(temporaryPath, destinationPath);
-        },
-        unlink,
-      },
-    });
-
-    const expected = serializeKernelSchemaBundle(projectKernelSchemas());
-    expect(finalPath).toBe(join(outDir, "schemas", "kernel.json"));
-    expect(await readFile(finalPath, "utf8")).toBe(expected);
-    expect(await readdir(dirname(finalPath))).toEqual(["kernel.json"]);
-    expect(renames).toHaveLength(1);
-    expect(dirname(renames[0]?.[0] ?? "")).toBe(dirname(finalPath));
-    expect(renames[0]?.[1]).toBe(finalPath);
-  });
-
-  it("removes a partial temporary write when generation fails", async () => {
-    const outDir = mkdtempSync(join(tmpdir(), "arc-kernel-schema-failure-"));
-    temporaryRoots.push(outDir);
-
-    await expect(writeKernelSchemaArtifact({
-      outDir,
-      fileSystem: {
-        mkdir,
-        writeFile: async (path, data, encoding) => {
-          await writeFile(path, data, encoding);
-          throw new Error("disk full");
-        },
-        rename,
-        unlink,
-      },
-    })).rejects.toThrow("disk full");
-
-    expect(await readdir(join(outDir, "schemas"))).toEqual([]);
-  });
 });

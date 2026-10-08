@@ -46,17 +46,13 @@ every build behavior the producer or its bundle hosted still under test.
           mid-generation input change, prior-CLI survival, and direct-preparation ownership checks run through it;
           ancillary publication faults target the metafile. The ready record retains its PID and staging directory.
 
-### `[ ]` **1.3 Retire the artifact writer and the bundle's identity pin — D6**
+### `[x]` **1.3 Retire the artifact writer and the bundle's identity pin — D6**
 
 - _Goal:_ No source or test publishes, names, or pins the kernel schema artifact, while the production composition
   stays pinned against its expected ids.
 
-    - `writeKernelSchemaArtifact` and `SchemaArtifactFileSystem` leave `lib/kernel/schema/generate.ts`, with their
-      cases in `kernel/schema-generation.test.ts`; `projectKernelSchemas`, `projectKernelSchemaClosure`, and
-      `serializeKernelSchemaBundle` stay, and the module header stops describing artifact publication.
-    - `__tests__/helpers/schema-artifact.ts` is renamed `production-schema-ids.ts`, with its header, and
-      `PRODUCTION_SCHEMA_IDS` stays with the unit test that checks the production composition against it.
-    - The `describe` title in `kernel/schema-generation.test.ts` says what the suite now covers.
+- _Outcome:_ Removed artifact publication and its filesystem seam; deterministic registry projection remains. Production
+  composition stays pinned through the renamed production-schema-ids helper.
 
 ### `[ ]` **1.4 Name what the build now prepares — D6**
 

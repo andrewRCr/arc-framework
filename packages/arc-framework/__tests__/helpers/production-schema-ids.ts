@@ -1,4 +1,4 @@
-/** Expected stable identities in the generated production schema artifact. */
+/** Expected stable identities in the composed production schema registry. */
 
 export const PRODUCTION_SCHEMA_IDS = [
   "active-session-init",
