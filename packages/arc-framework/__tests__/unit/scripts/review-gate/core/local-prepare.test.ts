@@ -10,6 +10,10 @@ import {
   createLocalReviewSourcePayload,
   publishLocalReviewPreparation,
 } from "../../../../../src/scripts/review-gate/core/local-prepare.js";
+import {
+  IncrementalReviewScopeSchema,
+  type IncrementalReviewScope,
+} from "../../../../../src/scripts/review-gate/core/incremental-review-scope.js";
 import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
 import { projectLocalReviewGuidance } from
   "../../../../../src/scripts/review-gate/policy/local-review-guidance.js";
@@ -17,7 +21,9 @@ import { projectLocalReviewGuidance } from
 const digest = (value: string) => canonicalDigest({ value });
 const objectId = (character: string): string => character.repeat(40);
 
-function fixture() {
+type CorrectionScopeInput = Omit<IncrementalReviewScope, "headSha">;
+
+function fixture(correction?: CorrectionScopeInput) {
   const target = createReviewTarget({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
@@ -43,6 +49,9 @@ function fixture() {
     initialAdmission: "checkpoint",
   });
   if (requirement === null) throw new Error("expected local requirement");
+  const correctionScope = correction === undefined
+    ? undefined
+    : IncrementalReviewScopeSchema.parse({ ...correction, headSha: target.headSha });
   const source = createLocalReviewSource({
     schemaVersion: 1,
     semanticsVersion: "git-object-range/v1",
@@ -55,6 +64,11 @@ function fixture() {
     headTree: target.headTree,
     reachabilityRef: "refs/arc/review/local/pin",
     materializationRef: "/tmp/review-root",
+    ...(correctionScope === undefined ? {} : {
+      correctionScope,
+      predecessorReachabilityRef: "refs/arc/review/local/predecessor-pin",
+      basisReachabilityRef: "refs/arc/review/local/basis-pin",
+    }),
   });
   const admission = createLocalReviewAdmission({
     target,
@@ -72,7 +86,9 @@ function fixture() {
     lineage: { kind: "candidate" as const, candidateId: "sha256:7777777777777777777777777777777777777777777777777777777777777777" },
     logicalPass: 1,
     retryGeneration: 0,
-    coverageAdmission: { requestedCoverage: "complete" },
+    coverageAdmission: correctionScope === undefined
+      ? { requestedCoverage: "complete" }
+      : { requestedCoverage: "incremental", correctionScope },
     policyBindingDigest: digest("binding"),
     requestMechanism: "local-attestation",
   });
@@ -150,5 +166,53 @@ describe("local prepare publication ordering", () => {
     });
     expect(payload).not.toHaveProperty("cwd");
     expect(payload).not.toHaveProperty("worktreePath");
+  });
+});
+
+describe("local prepare incremental reviewer instructions", () => {
+  const predecessorHeadSha = objectId("e");
+  const basisHeadSha = objectId("f");
+
+  async function preparedInstructions(requiredFindings: CorrectionScopeInput["requiredFindings"]) {
+    const records = fixture({
+      schemaVersion: 1,
+      predecessorProducerId: "local-predecessor",
+      predecessorHeadSha,
+      basisHeadSha,
+      requiredFindings,
+    });
+    const preparation = await publishLocalReviewPreparation(records.admission, records.source, {
+      sourceStore: {
+        readSource: vi.fn(),
+        appendSource: vi.fn(async () => ({ sourceRef: "sources/source.json" })),
+      },
+      operationStore: { readOperation: vi.fn(), publishOperation: vi.fn(async () => ({ version: 1 })) },
+      materialize: async () => ({ reviewRoot: records.source.materializationRef }),
+      now: () => "2026-07-23T17:00:00Z",
+      cleanupTtlMs: 60_000,
+      guidance: projectLocalReviewGuidance(),
+    });
+    return { instructions: preparation.state.reviewerInstructions, headSha: records.target.headSha };
+  }
+
+  it("defines the pass's requested change set as the predecessor-to-head range", async () => {
+    const { instructions, headSha } = await preparedInstructions([]);
+
+    expect(instructions).toContain(`The requested change set for this pass is ${predecessorHeadSha}..${headSha}`);
+    expect(instructions).toContain(`from ${basisHeadSha} to ${predecessorHeadSha}`);
+    expect(instructions).toMatch(/do not re-review them/u);
+    expect(instructions).not.toContain(`${basisHeadSha}..`);
+    expect(instructions).toContain("No earlier material finding requires re-examination.");
+  });
+
+  it("keeps every carried material finding in scope at its original locus", async () => {
+    const { instructions } = await preparedInstructions([
+      { producerId: "local-complete", findingId: "finding-1", locus: "src/a.ts:10" },
+      { producerId: "local-predecessor", findingId: "finding-2", locus: "src/b.ts:20" },
+    ]);
+
+    expect(instructions).toContain("local-complete / finding-1 at src/a.ts:10");
+    expect(instructions).toContain("local-predecessor / finding-2 at src/b.ts:20");
+    expect(instructions).toMatch(/original loci, including loci outside the changed lines/u);
   });
 });
