@@ -5,7 +5,8 @@
  * until that head exists. Where the target is read from the checkout, an uncommitted fix refuses as a dirty
  * worktree. Where the exact target simply has not changed, the fix is either uncommitted or not yet applied. Each
  * is a recoverable stop, not a terminal one: putting the committed fix in place and replaying the same request
- * reaches the ordinary recording path.
+ * reaches the ordinary recording path. The replay leaves out a disposition supersession: the approval call that
+ * published the successor set spent it, and it requires the unchanged reviewed head that the fix commit moves.
  *
  * @module
  */
@@ -29,16 +30,21 @@ function correctionFor(error: unknown): string | undefined {
   return undefined;
 }
 
+function replayRequest(request: object): object {
+  return Object.fromEntries(Object.entries(request).filter(([key]) => key !== "supersedes"));
+}
+
 /**
  * Name the continuation for a verified fix submitted before its committed head exists.
  *
  * @param error - The failure the response raised.
- * @param request - The caller's request exactly as submitted, carried as the replay's standard input.
+ * @param request - The caller's request as submitted, carried as the replay's standard input without its
+ *   supersession.
  * @returns The remedy when a verified-fix response refused for want of its committed fix; otherwise `undefined`.
  */
 export function uncommittedVerifiedFixRemedy(error: unknown, request: unknown): SpineRemedy | undefined {
   const correction = correctionFor(error);
   if (correction === undefined) return undefined;
   if (typeof request !== "object" || request === null || !("verifiedFix" in request)) return undefined;
-  return spineRemedy(INVARIANT, correction, RESPOND_ARGV, request);
+  return spineRemedy(INVARIANT, correction, RESPOND_ARGV, replayRequest(request));
 }

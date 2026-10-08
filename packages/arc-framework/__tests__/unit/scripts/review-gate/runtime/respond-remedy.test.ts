@@ -38,6 +38,19 @@ describe("uncommittedVerifiedFixRemedy", () => {
       .not.toContain("Apply the approved fix");
   });
 
+  it.each([
+    ["a dirty worktree", new LocalTargetDerivationError("dirty-worktree")],
+    ["an unchanged target", new UnchangedVerifiedFixTargetError()],
+  ])("drops the spent supersession from the replay after %s", (_label, error) => {
+    const supersedingRequest = {
+      ...verifiedFixRequest,
+      supersedes: { predecessorDispositionSetId: `sha256:${"a".repeat(64)}`, expectedFixPaths: ["src/fix.ts"] },
+    };
+
+    expect(uncommittedVerifiedFixRemedy(error, supersedingRequest)?.stdin).toEqual(verifiedFixRequest);
+    expect(supersedingRequest).toHaveProperty("supersedes");
+  });
+
   it("names nothing for a dirty worktree when the request carries no verified fix", () => {
     const withoutFix = { schemaVersion: verifiedFixRequest.schemaVersion, source: verifiedFixRequest.source };
 
