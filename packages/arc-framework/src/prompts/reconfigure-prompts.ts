@@ -9,7 +9,11 @@
  * @module
  */
 
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
+import { declarePromptSite } from "../lib/command-input/declaration.js";
+import { prompt } from "../lib/command-input/prompter.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
+
 import type { InstallConfig } from "../lib/types.js";
 
 /** PM mode options matching the init prompt options. */
@@ -33,10 +37,13 @@ export interface ReconfigurePromptResult {
  * Tools are excluded (handled by add-agent workflow).
  *
  * @param current - Current install config from the manifest
+ * @param context - Invocation interaction and authority
+ * @param supplied - Explicit values supplied by the command adapter
  * @returns Prompt results, or `null` if the user cancelled
  */
 export async function runReconfigurePrompts(
   current: InstallConfig,
+  context: InteractionContext,
   supplied: {
     readonly projectName?: string;
     readonly pmMode?: string;
@@ -46,45 +53,57 @@ export async function runReconfigurePrompts(
   const sentinel = Symbol("prompt-cancelled");
 
   try {
-    p.log.message("Change the settings you want, press Enter to keep current values.");
+    if (context.interaction === "allowed") p.log.message("Change the settings you want, press Enter to keep current values.");
 
     // 1. Project name
-    const project_name = supplied.projectName ?? await p.text({
+    const nameAnswer = await prompt(reconfigureNamePromptSite, context, {
         message: "Project name?",
         defaultValue: current.project_name,
         placeholder: current.project_name,
+        runtimeDefault: current.project_name,
+        explicitAnswer: supplied.projectName,
       });
-    if (p.isCancel(project_name)) {
+    if (nameAnswer.kind !== "answered") {
       p.cancel("Reconfigure cancelled.");
       // eslint-disable-next-line @typescript-eslint/only-throw-error -- sentinel for clack cancellation flow
       throw sentinel;
     }
 
+    const project_name = nameAnswer.value;
+
     // 2. PM mode
-    const pm_mode = supplied.pmMode ?? await p.select({
+    const pmAnswer = await prompt(reconfigurePmPromptSite, context, {
         message: "Project management approach?",
         options: PM_MODE_OPTIONS,
         initialValue: current.pm_mode,
+        runtimeDefault: current.pm_mode,
+        explicitAnswer: supplied.pmMode,
       });
-    if (p.isCancel(pm_mode)) {
+    if (pmAnswer.kind !== "answered") {
       p.cancel("Reconfigure cancelled.");
       // eslint-disable-next-line @typescript-eslint/only-throw-error -- sentinel for clack cancellation flow
       throw sentinel;
     }
+
+    const pm_mode = pmAnswer.value;
 
     // 3. Team mode
-    const team_mode = supplied.teamMode ?? await p.confirm({
+    const teamAnswer = await prompt(reconfigureTeamPromptSite, context, {
         message: "Enable multi-developer coordination? (ARC Team Mode)",
         initialValue: current.team_mode ?? false,
+        runtimeDefault: current.team_mode ?? false,
+        explicitAnswer: supplied.teamMode,
       });
-    if (p.isCancel(team_mode)) {
+    if (teamAnswer.kind !== "answered") {
       p.cancel("Reconfigure cancelled.");
       // eslint-disable-next-line @typescript-eslint/only-throw-error -- sentinel for clack cancellation flow
       throw sentinel;
     }
 
+    const team_mode = teamAnswer.value;
+
     // Team mode warning — only when enabling (not already enabled)
-    if (team_mode && !(current.team_mode ?? false)) {
+    if (context.interaction === "allowed" && team_mode && !(current.team_mode ?? false)) {
       p.log.warn(
         "Team mode changes affect all developers in this repository.\n" +
         "Other team members will see the new settings after their next 'arc update'.",
@@ -158,3 +177,54 @@ export function isNoChange(
     result.team_mode === (currentConfig.team_mode ?? false)
   );
 }
+
+/** Declared acquisition policy for reconfigure name selection. */
+export const reconfigureNamePromptSite = declarePromptSite("prompt.reconfigure.name", "text",
+  { file: "prompts/reconfigure-prompts.ts", symbol: "reconfigureNamePromptSite" }, {
+    acquisition: "safe-default",
+    schemaOwnership: "owned",
+    schemaField: "projectName",
+    defaultSource: "current project name",
+    cancellation: "stop",
+    automation: {
+      noInput: "use-default",
+      flags: ["--name"],
+      acceptedSyntax: ["--name <name>"]
+    },
+    mutationBoundary: "reconfiguration project settings",
+    subprocess: "none"
+  });
+
+/** Declared acquisition policy for reconfigure pm-mode selection. */
+export const reconfigurePmPromptSite = declarePromptSite("prompt.reconfigure.pm-mode", "select",
+  { file: "prompts/reconfigure-prompts.ts", symbol: "reconfigurePmPromptSite" }, {
+    acquisition: "safe-default",
+    schemaOwnership: "owned",
+    schemaField: "pmMode",
+    defaultSource: "current project-management mode",
+    cancellation: "stop",
+    automation: {
+      noInput: "use-default",
+      flags: ["--pm-mode"],
+      acceptedSyntax: ["--pm-mode <mode>"]
+    },
+    mutationBoundary: "reconfiguration project settings",
+    subprocess: "none"
+  });
+
+/** Declared acquisition policy for reconfigure team selection. */
+export const reconfigureTeamPromptSite = declarePromptSite("prompt.reconfigure.team", "confirm",
+  { file: "prompts/reconfigure-prompts.ts", symbol: "reconfigureTeamPromptSite" }, {
+    acquisition: "safe-default",
+    schemaOwnership: "owned",
+    schemaField: "teamMode",
+    defaultSource: "current team mode",
+    cancellation: "stop",
+    automation: {
+      noInput: "use-default",
+      flags: ["--team"],
+      acceptedSyntax: ["--team"]
+    },
+    mutationBoundary: "reconfiguration project settings",
+    subprocess: "none"
+  });

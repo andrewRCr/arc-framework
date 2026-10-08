@@ -415,6 +415,7 @@ import {
   ReviewStatusWrongRouteError,
   resolveReviewStatusForWorkUnit,
 } from "../scripts/review-gate/status-composition.js";
+import { assertErrandHostedCorrectionRequest } from "../scripts/review-gate/status-errand.js";
 import { spineRemedy } from "../scripts/integration/spine-refusal.js";
 import {
   ReviewStatusCommandResultSchema,
@@ -3684,9 +3685,20 @@ async function executeDefaultHostedRequest(
           });
           return;
         }
-        if (request.coverage === "incremental") {
-          throw new Error("Hosted incremental review requires a current correction selection.");
-        }
+        await assertErrandHostedCorrectionRequest({
+          publisher,
+          store: context.store,
+          errand: {
+            slug: context.errandBinding.key,
+            claimId: context.errandBinding.claimId,
+            branch: context.errandBinding.branch,
+          },
+          request,
+          standardReview,
+          attempts: progress?.attempts ?? [],
+          reviewTarget: context.reviewTarget,
+          statusTarget: context.statusTarget,
+        });
         const currentAttempts = progress?.attempts.filter((attempt): attempt is typeof attempt & {
           outcome: Exclude<typeof attempt.outcome, "pending">;
         } => attempt.headSha === request.target.headSha && attempt.outcome !== "pending") ?? [];

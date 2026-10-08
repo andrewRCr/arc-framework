@@ -18,6 +18,10 @@ sufficient** · `[invariant]`: compaction loss is silent, so you cannot tell fro
 does not run session-init, sync, pull, discover next work, relocate, commit, push, or prompt on a
 clean path.
 
+Recovery belongs to the session that compacted and owns the work. An agent spawned to carry out a delegated task
+never runs it: that compaction erased nothing it was given, and if its own context compacts, it re-reads the task
+inputs it was given instead.
+
 ## 1. Run The Deterministic Recovery Audit
 
 Run the exact recovery audit supplied by the recovery injection. When no explicit seed path is supplied, run:

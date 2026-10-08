@@ -12,7 +12,6 @@ import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 const mockRunActiveInFlight = vi.fn();
 const mockGitExec = vi.fn();
 const mockWithLockedUserInbox = vi.fn();
-const mockResolveIdentityWithPrompt = vi.fn();
 const mockStdoutWrite = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
 
 vi.mock("@clack/prompts", () => ({
@@ -61,7 +60,6 @@ vi.mock("../../../src/lib/work-unit/lifecycle-resolver.js", () => ({
 
 vi.mock("../../../src/handlers/shared.js", () => ({
   requireArcProjectRoot: () => "/repo",
-  resolveIdentityWithPrompt: (...args: unknown[]) => mockResolveIdentityWithPrompt(...args),
 }));
 
 const { handleErrandCheck, handleErrandNext } = await import("../../../src/handlers/errand.js");
@@ -70,7 +68,6 @@ describe("handleErrandCheck", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mockStdoutWrite.mockImplementation(() => true);
-    mockResolveIdentityWithPrompt.mockResolvedValue("andrew");
     mockRunActiveInFlight.mockResolvedValue({
       entries: [
         {
@@ -93,6 +90,7 @@ describe("handleErrandCheck", () => {
       },
     });
     const { exec } = scriptGitExec([
+      { match: ["config", "--null", "--get", "arc.identity"], responses: [{ stdout: "andrew\0" }] },
       { match: ["rev-parse", "--show-toplevel"], responses: [{ stdout: "/repo\n", stderr: "" }] },
       { match: ["rev-parse", "--verify", "origin/main"],
         responses: [{ stdout: `${"a".repeat(40)}\n`, stderr: "" }] },
@@ -155,7 +153,7 @@ describe("handleErrandCheck", () => {
   });
 
   it("keeps identity probe failures inside the typed refusal boundary", async () => {
-    mockResolveIdentityWithPrompt.mockRejectedValueOnce(new Error("identity configuration is unreadable"));
+    mockGitExec.mockRejectedValueOnce(new Error("identity configuration is unreadable"));
 
     await handleErrandNext({ json: true });
 

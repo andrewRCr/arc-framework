@@ -7,6 +7,8 @@
  * ahead of it are stubbed, the Candidate reduction it branches on is not.
  */
 
+import { selectsCandidateLineageCase, type CandidateLineagePartition } from "./candidate-lineage-cases.js";
+import { makeInteractionContext } from "./interaction-context.js";
 import { collectCandidateSubjectTarget } from "./candidate-subject.js";
 import { makeMetaFixture } from "./meta-fixture.js";
 import { execFile } from "node:child_process";
@@ -164,7 +166,8 @@ async function runArc(args: string[], cwd: string): Promise<HandlerRunResult> {
   return runHandlerAt(cwd, async () => {
     const command = args.join(" ");
     if (command === "init --yes --name example") {
-      await handleInit({ yes: true, name: "example" });
+      await handleInit({ yes: true, name: "example" },
+        makeInteractionContext({ noInput: true, yes: "compatibility" }));
       return;
     }
     if (command === "locus --json") {
@@ -3073,23 +3076,15 @@ function registerRoutedReviewObligation(it: typeof vitestIt): void {
   });
 }
 
-const INTEGRATION_CASES = new Set([
-  "projects a mechanically carried Candidate as the effective pre-publication target",
-  "advances the lineage, blocks the checkpoint, and clears through attest",
-  "converges when an operational-only commit precedes the re-attestation",
-  "does not advance an owned Candidate from an unresolved work-unit carrier",
-  "keeps one marker-owned work-unit locus through correction, review, verification, and integration entry",
-]);
-
 /** Register Candidate-lineage scenarios at the cheapest faithful boundary. */
-export function registerCandidateLineageSuite(mode: CandidateLineageSuiteMode): void {
+export function registerCandidateLineageSuite(mode: CandidateLineageSuiteMode, partition?: CandidateLineagePartition): void {
   suiteMode = mode;
   const it = ((
     name: string,
     handler: () => void | Promise<void>,
     timeout?: number,
   ) => {
-    const selected = INTEGRATION_CASES.has(name) ? mode === "integration" : mode === "e2e";
+    const selected = selectsCandidateLineageCase(mode, name, partition);
     if (selected) vitestIt(name, handler, timeout);
   }) as typeof vitestIt;
   registerReviewFixCandidateLineage(it);

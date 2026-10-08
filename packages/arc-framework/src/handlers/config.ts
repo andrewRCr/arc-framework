@@ -8,7 +8,7 @@
  * @module
  */
 
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
 import { join, resolve } from "node:path";
 
 import {

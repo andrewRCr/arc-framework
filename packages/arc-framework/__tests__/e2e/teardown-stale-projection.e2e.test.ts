@@ -1,5 +1,5 @@
 /** Real CLI retirement of a checkout whose tracked lifecycle predates separate archival. */
-import { afterEach, describe, expect, it } from "vitest";
+import { beforeAll, afterAll, afterEach, describe, expect, it } from "vitest";
 import { mkdir, mkdtemp, readFile, writeFile, access, rm, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,6 +11,10 @@ import { createGitExec, readGitBlobBytes } from "../../src/lib/io-context.js";
 import { hasCompetingLifecycleProjection } from "../../src/lib/work-unit/teardown-lifecycle-projection.js";
 import type { TeardownAuthorizationDecision } from "../../src/lib/work-unit/retirement-authority.js";
 import { cleanupTempDir, createTempRepo, git, runArc } from "./helpers.js";
+
+import {
+  copyPreparedRepository, prepareRepositoryTemplate, type PreparedRepositoryTemplate,
+} from "../helpers/prepared-repository.js";
 
 async function commitFixture(repo: string, message: string): Promise<void> {
   await git(repo, ["add", "-A"]);
@@ -62,6 +66,27 @@ async function prepareArchivedFeature(
 describe("arc teardown with stale active lifecycle", () => {
   let repo: string | undefined;
   let parent: string | undefined;
+  const archivedShape = { kind: "sibling-worktree-bearing", key: "archived-feature", worktreeName: "demo" } as const;
+  let archivedTemplate: PreparedRepositoryTemplate | undefined;
+  let archivedParent: string | undefined;
+  beforeAll(async () => {
+    archivedTemplate = await prepareRepositoryTemplate(archivedShape, async () => {
+      const root = await createTempRepo();
+      archivedParent = await mkdtemp(join(tmpdir(), "arc-archived-template-"));
+      try {
+        await prepareArchivedFeature(root, archivedParent);
+        return root;
+      } catch (error) {
+        await cleanupTempDir(root);
+        await cleanupTempDir(archivedParent);
+        throw error;
+      }
+    });
+  });
+  afterAll(async () => {
+    if (archivedTemplate !== undefined) await cleanupTempDir(archivedTemplate.root);
+    if (archivedParent !== undefined) await cleanupTempDir(archivedParent);
+  });
   afterEach(async () => {
     if (repo !== undefined) await cleanupTempDir(repo);
     if (parent !== undefined) await cleanupTempDir(parent);
@@ -145,9 +170,11 @@ describe("arc teardown with stale active lifecycle", () => {
     "foreign path", "nested foreign projection", "different source head", "different authorization", "different remote proof",
     "incompatible lifecycle", "local meta edit", "unknown stamp", "missing stamp", "different subject", "moved HEAD",
   ])("vetoes a stale-projection exclusion with %s, then accepts repaired evidence", async (changed) => {
-    repo = await createTempRepo();
-    parent = await mkdtemp(join(tmpdir(), "arc-stale-teardown-"));
-    const worktree = await prepareArchivedFeature(repo, parent);
+    if (archivedTemplate === undefined) throw new Error("archived feature template not prepared");
+    const copied = await copyPreparedRepository(archivedTemplate, archivedShape);
+    repo = copied.root;
+    parent = copied.parent;
+    const worktree = copied.worktree;
     const created = await runArc(["teardown", "demo"], worktree);
     expect(created.exitCode, created.stdout + created.stderr).toBe(0);
     const marker = await readWorktreeMarker(worktree);

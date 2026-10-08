@@ -7,6 +7,7 @@
  * and `--dry-run`.
  */
 
+import { makeInteractionContext } from "../helpers/interaction-context.js";
 import { AuditEntrySchema } from "../../src/lib/release/schema.js";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -26,7 +27,7 @@ import { scriptGitExec } from "../helpers/git-exec-fake.js";
 
 const mockIntro = vi.fn();
 const mockOutro = vi.fn();
-const mockLog = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+const mockLog = vi.hoisted(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }));
 const mockNote = vi.fn();
 const mockConfirm = vi.fn();
 const mockIsCancel = vi.fn(() => false) as Mock<(value: unknown) => boolean>;
@@ -108,25 +109,15 @@ vi.mock("../../src/lib/user-sync/branch-bounded-notes-export.js", () => ({
 }));
 
 const mockResolveUserIdentity = vi.fn();
-const mockIsNonInteractive = vi.fn(() => false);
-vi.mock("../../src/lib/command-input/interaction-context.js", () => ({
-  resolveProcessInteractionContext: (input: { yes: string; machineReadable: boolean }) => {
-    const forbidden = mockIsNonInteractive() || input.machineReadable || input.yes !== "absent";
-    return {
-      interaction: forbidden ? "forbidden" : "allowed",
-      terminal: mockIsNonInteractive() ? "non-interactive" : "interactive",
-      confirmation: input.yes === "authority" ? "accept" : "ask",
-      subprocess: {
-        terminalPrompts: forbidden ? "forbidden" : "allowed",
-        presenters: forbidden ? "forbidden" : "allowed",
-        ambientStdin: forbidden ? "closed" : "inherit",
-      },
-    };
-  },
-}));
+let nonInteractive = false;
+function makeTestContext(signals: Parameters<typeof makeInteractionContext>[0] = {}) {
+  return makeInteractionContext({
+    promptInputIsTTY: !nonInteractive, promptOutputIsTTY: !nonInteractive, ...signals,
+  });
+}
+
 vi.mock("../../src/handlers/shared.js", () => ({
   resolveUserIdentity: (...args: unknown[]) => mockResolveUserIdentity(...args),
-  isNonInteractiveEnvironment: () => mockIsNonInteractive(),
   ARC_PROJECT_ROOT_ERROR:
     "Not inside an ARC project (no .arc/ directory found walking up from cwd).",
 }));
@@ -259,7 +250,7 @@ function resetResolvedState(): void {
 function resetMockDefaults() {
   mockAccess.mockRejectedValue(new Error("path absent"));
   mockIsCancel.mockReturnValue(false);
-  mockIsNonInteractive.mockReturnValue(false);
+  nonInteractive = false;
   mockResolveArcRoot.mockReturnValue("/repo");
   mockSpinner.mockImplementation(() => ({ start: vi.fn(), stop: vi.fn() }));
   mockBuildSaveSummary.mockReturnValue("save summary");
@@ -324,7 +315,8 @@ async function captureSyncJson(
   let written: string | undefined;
 
   try {
-    await handleSync({ json: true, ...opts }, cap.output);
+    await handleSync({ json: true, ...opts }, cap.output,
+      makeTestContext({ machineReadable: true, yes: opts.yes === true ? "authority" : "absent" }));
     written = stdoutWrite.mock.calls.map((call) => String(call[0])).join("");
   } finally {
     stdoutWrite.mockRestore();
@@ -345,7 +337,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
   it("uses the explicit materializing reader without an automatic-sync policy", async () => {
     setWorktree("clean");
 
-    await handleSync({ dryRun: true });
+    await handleSync({ dryRun: true }, undefined, makeTestContext());
 
     expect(mockRunMaterializingWorktreeInspection).toHaveBeenCalledWith({ exec: mockGitExec, cwd: "/repo" });
     expect(mockRunWorktreeSyncStatus).not.toHaveBeenCalled();
@@ -354,7 +346,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
   it("stops before sync mutation when worktree materialization fails", async () => {
     mockRunMaterializingWorktreeInspection.mockRejectedValue(new Error("cannot lock tracking ref"));
 
-    await expect(handleSync()).rejects.toThrow("cannot lock tracking ref");
+    await expect(handleSync({}, undefined, makeTestContext())).rejects.toThrow("cannot lock tracking ref");
 
     expect(mockRunPairedPush).not.toHaveBeenCalled();
     expect(mockRunUserSave).not.toHaveBeenCalled();
@@ -378,7 +370,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       exitCode: 0,
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
 
     expect(mockRunPairedPush).toHaveBeenCalledTimes(1);
     expect(mockRunPairedPush).toHaveBeenCalledWith(expect.objectContaining({
@@ -469,7 +461,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       partialPushMarkerRecorded: markerRecorded,
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
 
     expect(mockLog.warn).toHaveBeenCalledWith(expectedWarning);
     if (!markerRecorded) {
@@ -500,7 +492,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       partialPushMarkerRecorded: true,
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
     expect(mockLog.warn).toHaveBeenCalledWith(message);
     expect(mockLog.warn).toHaveBeenCalledWith(
       "Partial publish recorded; publication remains deferred until this safety condition is resolved.",
@@ -600,7 +592,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
     setWorktree("local-ahead", 2);
     mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
 
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockRunPairedPush).not.toHaveBeenCalled();
@@ -622,7 +614,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
     setWorktree("clean");
     mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
 
     expect(calls.filter(({ args }) => args[0] === "push").map(({ args }) => args))
       .toEqual([["push", "origin", "main"]]);
@@ -638,7 +630,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
     setWorktree("local-ahead", 3);
     mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
 
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockRunPairedPush).not.toHaveBeenCalled();
@@ -701,7 +693,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
     mockConfirm.mockResolvedValue(true);
     mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
 
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockConfirm).toHaveBeenCalledTimes(1);
@@ -861,7 +853,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       warnings: [],
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
 
     const warnings = mockLog.warn.mock.calls.map((c) => String(c[0] ?? ""));
     expect(warnings.some((line) =>
@@ -930,7 +922,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       warnings: [],
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
 
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
@@ -953,7 +945,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
       warnings: [],
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
 
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
@@ -977,7 +969,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
     });
     mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
 
     expect(mockRunUserSave).toHaveBeenCalledTimes(1);
     expect(mockPushWithRecovery).toHaveBeenCalledTimes(1);
@@ -1011,11 +1003,11 @@ describe("handleSync orchestrator matrix dispatch", () => {
     });
   });
 
-  it("interlockState reports the resolved notesPush after non-interactive degradation", async () => {
+  it("interlockState retains the configured prompt policy when authority is unavailable", async () => {
     setConfig("manual");
     setNotesPolicy("prompt");
     setWorktree("clean");
-    mockIsNonInteractive.mockReturnValue(true);
+    nonInteractive = true;
     mockRunUserSave.mockResolvedValue({
       identity: "andrew",
       commit: "abc1234",
@@ -1027,7 +1019,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
 
     expect(outcome.interlockState).toEqual({
       pushInterlock: { value: "manual", source: "default" },
-      notesPush: { value: "manual", source: "default" },
+      notesPush: { value: "prompt", source: "default" },
       syncInterlock: { value: "on-handoff", source: "default" },
     });
   });
@@ -1037,7 +1029,7 @@ describe("handleSync orchestrator matrix dispatch", () => {
     setNotesPolicy("on-sync");
     setWorktree("local-ahead", 2);
 
-    await handleSync({ dryRun: true });
+    await handleSync({ dryRun: true }, undefined, makeTestContext());
 
     expect(mockRunPairedPush).not.toHaveBeenCalled();
     expect(mockRunUserSave).not.toHaveBeenCalled();
@@ -1181,7 +1173,7 @@ describe("--json stdout-purity contract", () => {
       .mockImplementation(() => true);
     let writes: string[];
     try {
-      await handleSync({ json: true });
+      await handleSync({ json: true }, undefined, makeTestContext({ machineReadable: true }));
       writes = stdoutWrite.mock.calls.map((c) => String(c[0]));
     } finally {
       stdoutWrite.mockRestore();
@@ -1200,7 +1192,7 @@ describe("--json stdout-purity contract", () => {
     expect(mockSpinner).not.toHaveBeenCalled();
   });
 
-  it("--json + notes_push: prompt → degrades to manual; never invokes confirm", async () => {
+  it("--json refuses a notes push without authority after preserving the local save", async () => {
     setConfig("manual");
     setNotesPolicy("prompt");
     setWorktree("clean");
@@ -1215,9 +1207,12 @@ describe("--json stdout-purity contract", () => {
     const stderrText = capturedStderr.join("");
 
     expect(mockConfirm).not.toHaveBeenCalled();
-    expect(outcome.cell).toBe("save-only");
-    expect(outcome.interlockState).toMatchObject({ notesPush: { value: "manual" } });
-    expect(stderrText).toMatch(/JSON output mode.+degrading "prompt"/);
+    expect(outcome.cell).toBe("notes-prompt");
+    expect(outcome.interlockState).toMatchObject({ notesPush: { value: "prompt" } });
+    expect(outcome.notes).toMatchObject({ action: "save", result: "blocked", detail: "notes-push-authority-required" });
+    expect(stderrText).toContain("Notes saved locally; re-run with --yes to authorize the push.");
+    expect(outcome.exitCode).toBe(1);
+    expect(process.exitCode).toBe(1);
   });
 
   it("non-JSON path keeps Clack output as-is (regression guard for routing flag)", async () => {
@@ -1236,7 +1231,7 @@ describe("--json stdout-purity contract", () => {
       exitCode: 0,
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
 
     expect(mockIntro).toHaveBeenCalledWith("arc sync");
     expect(mockOutro).toHaveBeenCalledWith("Done.");
@@ -1252,7 +1247,7 @@ describe("--yes wiring", () => {
     process.exitCode = undefined;
   });
 
-  it("--yes degrades notes_push: prompt → on-sync; never invokes confirm", async () => {
+  it("--yes answers the configured notes prompt through authority without terminal input", async () => {
     setConfig("manual");
     setNotesPolicy("prompt");
     setWorktree("clean");
@@ -1268,11 +1263,11 @@ describe("--yes wiring", () => {
 
     expect(mockConfirm).not.toHaveBeenCalled();
     expect(mockPushWithRecovery).toHaveBeenCalledTimes(1);
-    expect(outcome.cell).toBe("notes-only");
-    expect(outcome.interlockState).toMatchObject({ notesPush: { value: "on-sync" } });
+    expect(outcome.cell).toBe("notes-prompt");
+    expect(outcome.interlockState).toMatchObject({ notesPush: { value: "prompt" } });
   });
 
-  it("--yes wins over JSON-mode prompt-degradation gate (on-sync > manual)", async () => {
+  it("JSON-mode notes prompt accepts explicit authority while retaining configuration", async () => {
     setConfig("manual");
     setNotesPolicy("prompt");
     setWorktree("clean");
@@ -1286,8 +1281,8 @@ describe("--yes wiring", () => {
 
     const outcome = await captureSyncJson({ yes: true });
 
-    expect(outcome.interlockState).toMatchObject({ notesPush: { value: "on-sync" } });
-    expect(outcome.cell).toBe("notes-only");
+    expect(outcome.interlockState).toMatchObject({ notesPush: { value: "prompt" } });
+    expect(outcome.cell).toBe("notes-prompt");
   });
 
   it("paired notes adapter delegates to the branch-bounded pusher and maps its outcome", async () => {
@@ -1323,13 +1318,13 @@ describe("--yes wiring", () => {
     });
     mockPushBranchBoundedNotesExport.mockResolvedValue({ kind: "pushed" });
 
-    await handleSync({ yes: true });
+    await handleSync({ yes: true }, undefined, makeTestContext({ yes: "authority" }));
 
     expect(mockPushBranchBoundedNotesExport).toHaveBeenCalledTimes(1);
     expect(capturedNotesContext).toEqual({ status: "success" });
   });
 
-  it("--dry-run --json --yes → preview reflects degraded policy (notes-only, save+push)", async () => {
+  it("--dry-run --json --yes preview retains the configured notes prompt", async () => {
     setConfig("manual");
     setNotesPolicy("prompt");
     setWorktree("clean");
@@ -1340,8 +1335,8 @@ describe("--yes wiring", () => {
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
     expect(outcome).toMatchObject({
       mode: "dry-run",
-      cell: "notes-only",
-      interlockState: { notesPush: { value: "on-sync" } },
+      cell: "notes-prompt",
+      interlockState: { notesPush: { value: "prompt" } },
       notes: { action: "push", result: "skipped", detail: "dry-run" },
     });
   });
@@ -1374,7 +1369,7 @@ describe("error-path envelope coverage", () => {
       .mockImplementation(() => true);
     let writes: string[];
     try {
-      await handleSync({ json: true }, cap.output);
+      await handleSync({ json: true }, cap.output, makeTestContext({ machineReadable: true }));
       writes = stdoutWrite.mock.calls.map((c) => String(c[0]));
     } finally {
       stdoutWrite.mockRestore();
@@ -1398,7 +1393,7 @@ describe("error-path envelope coverage", () => {
       .spyOn(process.stdout, "write")
       .mockImplementation(() => true);
     try {
-      await handleSync();
+      await handleSync({}, undefined, makeTestContext());
     } finally {
       stdoutWrite.mockRestore();
     }
@@ -1420,7 +1415,7 @@ describe("error-path envelope coverage", () => {
       .mockImplementation(() => true);
     let writes: string[];
     try {
-      await handleSync({ json: true }, cap.output);
+      await handleSync({ json: true }, cap.output, makeTestContext({ machineReadable: true }));
       writes = stdoutWrite.mock.calls.map((c) => String(c[0]));
     } finally {
       stdoutWrite.mockRestore();
@@ -1444,7 +1439,7 @@ describe("error-path envelope coverage", () => {
       .spyOn(process.stdout, "write")
       .mockImplementation(() => true);
     try {
-      await handleSync();
+      await handleSync({}, undefined, makeTestContext());
     } finally {
       stdoutWrite.mockRestore();
     }
@@ -1479,7 +1474,7 @@ describe("audit-log integration", () => {
       warnings: [],
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
 
     expect(mockAppendAuditEntry).toHaveBeenCalledTimes(1);
     const call = mockAppendAuditEntry.mock.calls[0]?.[0] as {
@@ -1538,7 +1533,7 @@ describe("audit-log integration", () => {
         ]).exec);
       }
 
-      await handleSync();
+      await handleSync({}, undefined, makeTestContext());
 
       expect(mockAppendAuditEntry).toHaveBeenCalledTimes(1);
       const call = mockAppendAuditEntry.mock.calls[0]?.[0] as {
@@ -1574,7 +1569,7 @@ describe("audit-log integration", () => {
       warnings: [],
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
 
     expect(mockAppendAuditEntry).toHaveBeenCalledTimes(1);
     const call = mockAppendAuditEntry.mock.calls[0]?.[0] as {
@@ -1611,7 +1606,7 @@ describe("audit-log integration", () => {
       }),
     );
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
 
     expect(mockAppendAuditEntry).not.toHaveBeenCalled();
     expect(mockResolveActiveWu).not.toHaveBeenCalled();
@@ -1621,7 +1616,7 @@ describe("audit-log integration", () => {
   it("no-arc-project path skips the audit write", async () => {
     mockResolveArcRoot.mockReturnValueOnce(null);
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
 
     expect(mockAppendAuditEntry).not.toHaveBeenCalled();
     expect(mockResolveActiveWu).not.toHaveBeenCalled();
@@ -1633,7 +1628,7 @@ describe("audit-log integration", () => {
     setNotesPolicy("on-sync");
     setWorktree("clean");
 
-    await handleSync({ dryRun: true });
+    await handleSync({ dryRun: true }, undefined, makeTestContext());
 
     expect(mockAppendAuditEntry).not.toHaveBeenCalled();
     expect(mockResolveActiveWu).not.toHaveBeenCalled();
@@ -1662,7 +1657,7 @@ describe("audit-log integration", () => {
       error: new Error("EACCES: permission denied"),
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
 
     expect(mockAppendAuditEntry).toHaveBeenCalledTimes(1);
     expect(process.exitCode).toBeUndefined();
@@ -1684,7 +1679,7 @@ describe("audit-log integration", () => {
       error: new Error("ENOSPC: no space left on device"),
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
 
     expect(mockAppendAuditEntry).toHaveBeenCalledTimes(1);
     // Sync's refused-cell exit code (1) survives the audit-write failure.
@@ -1721,7 +1716,7 @@ describe("audit-log integration > schema round-trip", () => {
   });
 
   async function captureEntry(): Promise<AuditEntry> {
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
     expect(mockAppendAuditEntry).toHaveBeenCalledTimes(1);
     return AuditEntrySchema.parse(mockAppendAuditEntry.mock.calls[0]?.[0].entry);
   }
@@ -1826,7 +1821,7 @@ describe("audit-log integration > success cells", () => {
       exitCode: 0,
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
 
     expect(captureEntry()).toMatchObject({
       command: "sync",
@@ -1857,7 +1852,7 @@ describe("audit-log integration > success cells", () => {
       exitCode: 0,
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
 
     expect(captureEntry()).toMatchObject({
       outcome: {
@@ -1881,7 +1876,7 @@ describe("audit-log integration > success cells", () => {
       warnings: [],
     });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
 
     expect(captureEntry()).toMatchObject({
       command: "sync",
@@ -1914,7 +1909,7 @@ describe("audit-log integration > success cells", () => {
     });
     mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
 
     expect(captureEntry()).toMatchObject({
       decision: "proceeded",
@@ -1940,7 +1935,7 @@ describe("audit-log integration > success cells", () => {
     mockConfirm.mockResolvedValue(true);
     mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
 
     expect(captureEntry()).toMatchObject({
       decision: "proceeded",
@@ -1969,7 +1964,7 @@ describe("audit-log integration > success cells", () => {
     mockConfirm.mockResolvedValue(true);
     mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
 
     expect(captureEntry()).toMatchObject({
       decision: "proceeded",
@@ -2000,7 +1995,7 @@ describe("handleSync inbound fast-forward leg", () => {
     setConfig("on-sync");
     setNotesPolicy("manual");
     setWorktree("remote-ahead", 0, 3, "main");
-    mockIsNonInteractive.mockReturnValue(false);
+    nonInteractive = false;
     mockExecuteInboundPull.mockResolvedValue({
       decision: "ff-pull",
       fastForwarded: true,
@@ -2015,7 +2010,7 @@ describe("handleSync inbound fast-forward leg", () => {
       { match: { prefix: ["rev-parse"] }, responses: [{ stdout: "", stderr: "" }] },
     ]).exec);
 
-    await handleSync();
+    await handleSync({}, undefined, makeTestContext());
 
     expect(mockExecuteInboundPull).toHaveBeenCalledTimes(1);
     expect(mockExecuteInboundPull).toHaveBeenCalledWith(expect.objectContaining({
@@ -2035,7 +2030,7 @@ describe("handleSync inbound fast-forward leg", () => {
     setConfig("on-sync");
     setNotesPolicy("on-sync");
     setWorktree("remote-ahead", 0, 2, "main");
-    mockIsNonInteractive.mockReturnValue(false);
+    nonInteractive = false;
     mockExecuteInboundPull.mockResolvedValue({
       decision: "ff-pull",
       fastForwarded: true,
@@ -2062,7 +2057,7 @@ describe("handleSync inbound fast-forward leg", () => {
     setConfig("on-sync");
     setNotesPolicy("on-sync");
     setWorktree("remote-ahead", 0, 3, "main");
-    mockIsNonInteractive.mockReturnValue(true);
+    nonInteractive = true;
     mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
 
     const outcome = await captureSyncJson();
@@ -2083,7 +2078,7 @@ describe("handleSync inbound fast-forward leg", () => {
     setNotesPolicy("manual");
     setAutoPull(true);
     setWorktree("remote-ahead", 0, 3, "main");
-    mockIsNonInteractive.mockReturnValue(true);
+    nonInteractive = true;
     mockExecuteInboundPull.mockResolvedValue({
       decision: "ff-pull",
       fastForwarded: true,
@@ -2111,7 +2106,7 @@ describe("handleSync inbound fast-forward leg", () => {
     setConfig("on-sync");
     setNotesPolicy("on-sync");
     setWorktree("remote-ahead", 0, 3, "main");
-    mockIsNonInteractive.mockReturnValue(false);
+    nonInteractive = false;
     mockExecuteInboundPull.mockResolvedValue({
       decision: "refuse",
       fastForwarded: false,
@@ -2136,7 +2131,7 @@ describe("handleSync inbound fast-forward leg", () => {
     setConfig("on-sync");
     setNotesPolicy("on-sync");
     setWorktree("diverged", 1, 2, "main");
-    mockIsNonInteractive.mockReturnValue(false);
+    nonInteractive = false;
     mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
 
     const outcome = await captureSyncJson();
@@ -2153,7 +2148,7 @@ describe("handleSync inbound fast-forward leg", () => {
     setConfig("on-sync");
     setNotesPolicy("on-sync");
     setWorktree("remote-ahead", 0, 3, "main");
-    mockIsNonInteractive.mockReturnValue(false);
+    nonInteractive = false;
     mockExecuteInboundPull.mockResolvedValue({
       decision: "block",
       fastForwarded: false,

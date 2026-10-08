@@ -1,4 +1,5 @@
 import { configDefaults, defineConfig } from "vitest/config";
+import { HeavyFirstSequencer } from "./__tests__/helpers/heavy-first-sequencer.js";
 import { realpathSync } from "node:fs";
 import { dirname } from "node:path";
 import { tmpdir } from "node:os";
@@ -40,11 +41,10 @@ const integrationTempRoot = selectIntegrationTempRoot("/dev/shm");
 process.env.GIT_CONFIG_NOSYSTEM = "1";
 process.env.GIT_CONFIG_GLOBAL = process.platform === "win32" ? "NUL" : "/dev/null";
 
-// Local quality gates share developer machines with parallel agent sessions, so cap their
-// default pool at 50%. CI runner capacity is deployment-specific: hosted runners can use
-// Vitest's native sizing, while constrained self-hosted runners pass an explicit override
-// from the workflow. An empty CI value means native sizing, which lets the workflow carry
-// an optional repository variable without inventing a sentinel value.
+// Local quality gates share developer machines with parallel sessions and native child tools.
+// Use half available parallelism with an eight-worker ceiling and one-worker floor. CI
+// uses native sizing unless its workflow supplies an explicit capacity override.
+// An empty CI override retains native sizing.
 const maxWorkers = resolveVitestMaxWorkers(process.env);
 
 // Single multi-project config so one `vitest run` executes every tier and prints
@@ -56,12 +56,15 @@ const maxWorkers = resolveVitestMaxWorkers(process.env);
 // import-cost win without their hoisted mocks leaking across file boundaries.
 export default defineConfig({
   test: {
+    sequence: { sequencer: HeavyFirstSequencer },
     ...(maxWorkers === undefined ? {} : { maxWorkers }),
     projects: [
       {
         test: {
           name: "unit",
+          runner: "__tests__/helpers/unit-process-runner.ts",
           root: packageRoot,
+          setupFiles: ["__tests__/helpers/unit-setup.ts"],
           include: ["__tests__/unit/**/*.test.ts"],
           exclude: [...configDefaults.exclude, ...ISOLATED_UNIT_MOCK_FILES],
           // Module-mocking files are quarantined to the `unit-mocks` tier, so the
@@ -73,7 +76,9 @@ export default defineConfig({
       {
         test: {
           name: "unit-mocks",
+          runner: "__tests__/helpers/unit-process-runner.ts",
           root: packageRoot,
+          setupFiles: ["__tests__/helpers/unit-setup.ts"],
           include: [...ISOLATED_UNIT_MOCK_FILES],
           isolate: true,
           passWithNoTests: true,

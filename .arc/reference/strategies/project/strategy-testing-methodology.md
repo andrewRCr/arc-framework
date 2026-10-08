@@ -30,7 +30,9 @@ Three tiers matching the directory structure in `packages/arc-framework/__tests_
 
 ### Unit (`__tests__/unit/`)
 
-Pure function and module tests. No filesystem, no child processes, no git repos.
+Pure function and module tests, including decisions over temporary filesystem fixtures. No child processes,
+real builds or git repositories. The explicit process allowlist retains existing exceptions and shrinks as they move
+to integration; it is not a route for new native work.
 
 **Characteristics:**
 
@@ -49,12 +51,12 @@ Pure function and module tests. No filesystem, no child processes, no git repos.
 
 ### Integration (`__tests__/integration/`)
 
-Module interaction tests. May use the filesystem via temporary directories but no external
-services.
+Real module interaction tests, including git repositories and child processes. Filesystem use alone does not move a
+test out of unit; executing native tools or composing real modules across those boundaries does. No external services.
 
 **Characteristics:**
 
-- Slower than unit (filesystem I/O), but still seconds not minutes
+- Native setup costs more than a deciding function; reuse read-only fixture preparation and keep runs bounded
 - Test real module interactions — render + write + hash in sequence
 - Use temporary directories (cleaned up after each test)
 
@@ -115,15 +117,15 @@ files (`tsconfig.json`, `tsup.config.ts`, `vitest.config.ts`), re-exports and ba
 Vitest mock mechanics. This section keeps the rationale behind them.
 
 **Mock at system boundaries, never internals.** Mock what crosses out of our code — child processes (`git` via
-`execFile`), the filesystem, time, the npm-registry check — and use the real thing for everything we own. Don't
+`execFile`), time, the npm-registry check — and use the real thing for everything we own. Don't
 mock internal modules: if testing a module against a real collaborator is hard, the interface needs redesign, not
 more mocks. And a stub that returns what the real dependency never would passes against a fiction — keep mocked
 boundaries faithful, and cover response-dependent behavior at a tier that runs the real dependency.
 
 **Design for testability** is what makes boundary-only mocking possible:
 
-- **Accept dependencies, don't create them** — pass `execFile` or fs functions in rather than importing them, so
-  unit testing needs no module-internal mocking.
+- **Accept dependencies, don't create them** — pass `execFile` in rather than importing it. Inject filesystem
+  functions where a test needs to induce failure or observe the boundary; otherwise use a temporary directory.
 - **Return results, don't produce side effects** — prefer functions that return a value; when side effects are
   necessary, separate the computation from the I/O.
 - **Small interfaces, deep implementations** — fewer public methods means fewer tests needed and a more stable
@@ -134,6 +136,31 @@ boundaries faithful, and cover response-dependent behavior at a tier that runs t
 **Why the mock mechanics matter:** mock bleed across tests produces order-dependent failures that are hard to
 diagnose and easy to paper over with ad-hoc resets. The uniform reset discipline codified in the method
 eliminates that footgun class — the rationale for keeping tests isolated.
+
+## Architecture Checks and Native Outcome Classes
+
+One-hop import and syntax restrictions belong in ESLint: its ordinary code gate already parses each relevant file and
+reports the offending source location. Repeating the same restriction through a whole-source test adds a second parser
+and enforcement surface without another observable guarantee. Tests remain useful for transitive module closure,
+complete registration catalogs and behavior that neither the compiler nor a local lint rule can establish.
+
+A decision matrix varies inputs at the module's existing dependency seam, or invokes the deciding function against a
+small filesystem fixture. Starting a compiler, CLI or Git repository for each row repeats dependency work instead of
+adding evidence about the decision. Keep the real stack for each distinct native outcome class: an operation's end
+state together with the external systems that decide it. Data-only variations share a class; a different deciding
+external system needs its own real run. Refusal and repaired continuation remain observable outcomes to prove.
+
+For example, the publication unit matrix covers missing schema, missing/empty metafile, empty CLI, invalid schema and
+invalid CLI. Five refusals come from inspecting staged files and leave live output untouched: one filesystem refusal
+class. Invalid CLI is decided by the injected CLI checker; its real implementation uses a `node --check` child, so
+that is a separate class. The integration publication tests retain real missing-schema and invalid-CLI runs, while
+unit exercises all six inputs without starting generation or a parser child. Both assert the prior live output and
+absence of new qualification after refusal.
+
+Native process tests control output-format inputs such as `FORCE_COLOR`, so workstation configuration cannot change a
+refusal assertion. A wait must distinguish the state being asserted: use a held lease to observe queuing and a bounded
+child deadline to diagnose a hung operation. Heavy real work gets a named case or fixture timeout sized for that work.
+This keeps a meaningful failure diagnostic while preserving the ordinary tier's fast-test deadline.
 
 ## Test Naming and Organization
 

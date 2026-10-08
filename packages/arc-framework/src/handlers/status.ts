@@ -1,6 +1,6 @@
 /** Status CLI validation and dispatch to lifecycle, view, and session handlers. */
 
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { z } from "zod";

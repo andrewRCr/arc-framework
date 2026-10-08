@@ -16,7 +16,7 @@
  * @module
  */
 
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
 
 import { resolveWriteContext } from "../lib/git/write-context.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";

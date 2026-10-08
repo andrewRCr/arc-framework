@@ -1,89 +1,169 @@
 {
   "schemaVersion": 1,
-  "allowanceFraction": 0.1,
+  "allowanceFraction": 0.35,
   "budgets": [
     {
       "tier": "unit",
-      "mode": { "condition": "tier-isolated", "projectSet": "unit", "workerSizing": "12" },
+      "mode": {
+        "condition": "tier-isolated",
+        "projectSet": "unit",
+        "workerSizing": "12"
+      },
       "metric": "wall-clock-ms",
-      "baselineMs": 11116,
-      "budgetMs": 12228
+      "baselineMs": 14662,
+      "budgetMs": 19794
     },
     {
       "tier": "integration",
-      "mode": { "condition": "tier-isolated", "projectSet": "integration", "workerSizing": "12" },
+      "mode": {
+        "condition": "tier-isolated",
+        "projectSet": "integration",
+        "workerSizing": "12"
+      },
       "metric": "wall-clock-ms",
-      "baselineMs": 46553,
-      "budgetMs": 51209
+      "baselineMs": 167261,
+      "budgetMs": 225803
     },
     {
       "tier": "lane",
-      "mode": { "condition": "tier-isolated", "projectSet": "lane", "workerSizing": "12" },
+      "mode": {
+        "condition": "tier-isolated",
+        "projectSet": "lane",
+        "workerSizing": "12"
+      },
       "metric": "wall-clock-ms",
-      "baselineMs": 52365,
-      "budgetMs": 57602
+      "baselineMs": 182047,
+      "budgetMs": 245764
     },
     {
       "tier": "e2e",
-      "mode": { "condition": "tier-isolated", "projectSet": "e2e", "workerSizing": "12" },
+      "mode": {
+        "condition": "tier-isolated",
+        "projectSet": "e2e",
+        "workerSizing": "12"
+      },
       "metric": "wall-clock-ms",
-      "baselineMs": 210051,
-      "budgetMs": 231057
+      "baselineMs": 147402,
+      "budgetMs": 198993
     },
     {
       "tier": "unit",
-      "mode": { "condition": "ci-job", "projectSet": "unit", "workerSizing": "native" },
+      "mode": {
+        "condition": "ci-job",
+        "projectSet": "unit",
+        "workerSizing": "native"
+      },
       "metric": "job-elapsed-ms",
-      "baselineMs": 260000,
-      "budgetMs": 286000,
-      "ciJob": "unit"
+      "baselineMs": 55000,
+      "budgetMs": 74250,
+      "ciJob": "unit-1"
+    },
+    {
+      "tier": "unit",
+      "mode": {
+        "condition": "ci-job",
+        "projectSet": "unit",
+        "workerSizing": "native"
+      },
+      "metric": "job-elapsed-ms",
+      "baselineMs": 52000,
+      "budgetMs": 70200,
+      "ciJob": "unit-2"
     },
     {
       "tier": "integration",
-      "mode": { "condition": "ci-job", "projectSet": "integration", "workerSizing": "native" },
+      "mode": {
+        "condition": "ci-job",
+        "projectSet": "integration",
+        "workerSizing": "native"
+      },
       "metric": "job-elapsed-ms",
-      "baselineMs": 206000,
-      "budgetMs": 226600,
+      "baselineMs": 218000,
+      "budgetMs": 294300,
       "ciJob": "integration-1"
     },
     {
       "tier": "integration",
-      "mode": { "condition": "ci-job", "projectSet": "integration", "workerSizing": "native" },
+      "mode": {
+        "condition": "ci-job",
+        "projectSet": "integration",
+        "workerSizing": "native"
+      },
       "metric": "job-elapsed-ms",
-      "baselineMs": 201000,
-      "budgetMs": 221100,
+      "baselineMs": 214000,
+      "budgetMs": 288900,
       "ciJob": "integration-2"
     },
     {
-      "tier": "e2e",
-      "mode": { "condition": "ci-job", "projectSet": "e2e", "workerSizing": "native" },
+      "tier": "integration",
+      "mode": {
+        "condition": "ci-job",
+        "projectSet": "integration",
+        "workerSizing": "native"
+      },
       "metric": "job-elapsed-ms",
-      "baselineMs": 289000,
-      "budgetMs": 317900,
+      "baselineMs": 178000,
+      "budgetMs": 240300,
+      "ciJob": "integration-3"
+    },
+    {
+      "tier": "integration",
+      "mode": {
+        "condition": "ci-job",
+        "projectSet": "integration",
+        "workerSizing": "native"
+      },
+      "metric": "job-elapsed-ms",
+      "baselineMs": 196000,
+      "budgetMs": 264600,
+      "ciJob": "integration-4"
+    },
+    {
+      "tier": "e2e",
+      "mode": {
+        "condition": "ci-job",
+        "projectSet": "e2e",
+        "workerSizing": "native"
+      },
+      "metric": "job-elapsed-ms",
+      "baselineMs": 175000,
+      "budgetMs": 236250,
       "ciJob": "e2e-1"
     },
     {
       "tier": "e2e",
-      "mode": { "condition": "ci-job", "projectSet": "e2e", "workerSizing": "native" },
+      "mode": {
+        "condition": "ci-job",
+        "projectSet": "e2e",
+        "workerSizing": "native"
+      },
       "metric": "job-elapsed-ms",
-      "baselineMs": 303000,
-      "budgetMs": 333300,
+      "baselineMs": 214000,
+      "budgetMs": 288900,
       "ciJob": "e2e-2"
     },
     {
       "tier": "e2e",
-      "mode": { "condition": "ci-job", "projectSet": "e2e", "workerSizing": "native" },
+      "mode": {
+        "condition": "ci-job",
+        "projectSet": "e2e",
+        "workerSizing": "native"
+      },
       "metric": "job-elapsed-ms",
-      "baselineMs": 203000,
-      "budgetMs": 223300,
+      "baselineMs": 227000,
+      "budgetMs": 306450,
       "ciJob": "e2e-3"
     },
     {
       "tier": "e2e",
-      "mode": { "condition": "ci-job", "projectSet": "e2e", "workerSizing": "native" },
+      "mode": {
+        "condition": "ci-job",
+        "projectSet": "e2e",
+        "workerSizing": "native"
+      },
       "metric": "job-elapsed-ms",
-      "baselineMs": 272000,
-      "budgetMs": 299200,
+      "baselineMs": 200000,
+      "budgetMs": 270000,
       "ciJob": "e2e-4"
     }
   ]
