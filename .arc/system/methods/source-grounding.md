@@ -17,7 +17,8 @@ override-active: false
 >
 > - **Signature:** `source-grounding(artifacts, scope)` → findings report
 > - **Contract:** Ground external claims at source by tracing or probing behavior and checking propagation. Report
->   findings with the scope and runner named; an author-run report never counts as independent evidence.
+>   findings with the scope and runner named; an `author` or `separation-failure` report never counts as independent
+>   evidence.
 
 ## source-grounding.override
 
@@ -55,7 +56,8 @@ findings:
 withstood:
   - # decision-relevant claim examined with no finding to report
 
-verdict:        # one line naming the scope and runner: author | independent
+verdict:        # one line naming the scope, the runner (author | separation-failure | independent), and any
+                #   session files it loaded
 ```
 
 ### Check
@@ -74,7 +76,7 @@ the upstream artifact. Fidelity to upstream decisions stays with the stage's ali
 cross-references and use of defined terms stay with its coherence checks.
 
 **Procedure.** Enumerate the claims, verify each against source on its own, then cross-check them against what was
-found. An independent runner does this without the author's reasoning in view. Probe wherever a behavior claim can
+found. An independent runner verifies from source, never from the author's account. Probe wherever a behavior claim can
 be cheaply executed; otherwise trace the named path.
 
 **Non-mutating probes.** Never write to the checkout, its refs or notes, a remote, or shared user state. Execute a
@@ -101,14 +103,24 @@ the independent check attacks that best-effort artifact. A defect this grounding
 only downstream is the earlier stage's miss. Re-entry remains available, but is never the plan. The stage's own
 check runs every time; independent grounding runs inside each accepted pass and in the fix check.
 
-The agent running the check sets the runner in `verdict`; callers supply no runner input. It is `independent` only
-when that agent never had the author's context: supplied artifacts, upstream chain, and orientation, with no author
-reasoning or work-unit SESSION-NOTES loaded. Otherwise it is `author`. A later session of the same work unit that
-loads SESSION-NOTES is author-run, as is a manual pass that loads them during compaction recovery. A manual
-fresh-session pass counts as independent only while it preserves that separation.
+The agent running the check sets the runner in `verdict`; callers supply no runner input. It sets it from what
+happened, never from its own estimate of how far it was influenced. The first case that applies decides:
 
-The fix check always requires independence. An `author` report does not count: the Owner reruns it or skips it with
-a note, never the author alone. Where subagents are unavailable, follow
+- **Author-run.** The agent wrote the reviewed artifact or worked on it — drafting, implementing, repairing, or
+  folding. The runner is `author`.
+- **Separation failure.** The caller's inputs carried author conclusions, suspected weak spots, preferred fixes, or
+  self-verification claims. The runner is `separation-failure`: the check ran with the author's reasoning in view.
+- **Incidental exposure.** The agent loaded author-side session files itself, such as the work unit's SESSION-NOTES
+  or a personal WORKING-MEMORY during compaction recovery or session init. The runner is `independent`, and
+  `verdict` names each file loaded. Nothing those files assert counts as verified; every claim is still checked at
+  source.
+
+Otherwise the runner is `independent`: the agent had only the supplied artifacts, upstream chain, and orientation.
+A manual fresh-session pass takes its runner by the same facts.
+
+The fix check always requires independence. An `author` or `separation-failure` report does not count: the Owner
+reruns it or skips it with a note, never the author alone. An `independent` report that names loaded session files
+counts, and the Owner may still require a rerun. Where subagents are unavailable, follow
 [DEV-RULES.ARC § Sub-agent scope][sub-agent-scope]; the stage's own grounding still runs.
 
 ---
