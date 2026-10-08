@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { canonicalDigest, canonicalize } from "../../../src/lib/kernel/canonical/canonical-json.js";
 import { v3TopologyDigest } from "../../../src/lib/work-unit/decompose-v3-plan.js";
 import {
+  V3DecomposeCutMapSchema,
   createV3DecomposeStarterMap,
   decodeV3DecomposeCutMap,
   parseV3DecomposeCutMap,
@@ -399,6 +400,16 @@ interface LooseCompletedMap {
 }
 
 describe("v3 decomposition map schema", () => {
+  it.each(["bad_slug", "../escape", " padded"])("retains slug parsing and refuses %s", (invalid) => {
+    const value = completed();
+    expect(V3DecomposeCutMapSchema.parse(value)).toEqual(value);
+    value.machine.source.origin = invalid;
+    const result = V3DecomposeCutMapSchema.safeParse(value);
+    expect(result.success).toBe(false);
+    if (result.success) throw new Error("Expected an invalid slug");
+    expect(result.error.issues).toContainEqual(expect.objectContaining({ path: ["machine", "source", "origin"] }));
+  });
+
   it("opens and closes external dependency authoring without changing the machine envelope", () => {
     const facts = machine();
     const starter = createV3DecomposeStarterMap(facts);

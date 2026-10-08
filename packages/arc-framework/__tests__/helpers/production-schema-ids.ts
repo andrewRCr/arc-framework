@@ -15,6 +15,7 @@ export const PRODUCTION_SCHEMA_IDS = [
   "compaction-seed",
   "config-session-init",
   "current-husk-advisory",
+  "decompose-cut-map",
   "delivery-deliverable-id-preimage",
   "delivery-design-inventory-input",
   "delivery-plan",

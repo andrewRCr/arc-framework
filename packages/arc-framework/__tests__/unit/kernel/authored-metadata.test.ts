@@ -26,13 +26,14 @@ describe("authored schema metadata", () => {
     expect(registry.ids()).toEqual([]);
   });
 
-  it("marks exactly the sixteen production request roots", () => {
+  it("marks exactly the seventeen production request roots", () => {
     const registry = createProductionSchemaRegistry();
     const marked = registry.ids().filter((id) => {
       const meta = registry.meta(id);
       return meta?.authored === "request";
     });
     expect(marked).toEqual([
+      "decompose-cut-map",
       "delivery-design-inventory-input",
       "review-chunking-resolve-request",
       "review-frontline-resolve-request",

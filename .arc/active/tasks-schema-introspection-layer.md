@@ -125,25 +125,14 @@ documents.
   above, and removes empty prefixes. Every production root is validated and strictly compiled on both sides; the review
   projection workarounds are removed.
 
-### `[ ]` **2.6 Compose the decompose cut map into production — D3**
+### `[x]` **2.6 Compose the decompose cut map into production — D3**
 
 - _Goal:_ The cut map an agent authors is a registered production contract, projectable on both sides, while the CLI
   parses it exactly as before.
 
-    - `DecomposeSlugSchema` (`decompose-v3-schema.ts`) becomes the kernel's registered `SlugSchema` instance typed
-      `z.ZodType<string, string>`, replacing the identity transform the output side cannot project; the map's
-      inferred types are unchanged and its slug fields reference the registered `slug` directly.
-    - `registerDecomposeSchemas(registry)` (`decompose-v3-schema.ts`, beside the schema) registers
-      `V3DecomposeCutMapSchema` as `decompose-cut-map`, version 3, `strict-current`, `authored: "request"`, and is
-      chained into `createProductionSchemaRegistry()`; `PRODUCTION_SCHEMA_IDS` gains it.
-    - The composition assertion in `review-gate-workflows.test.ts`, which pins the production composer's exact
-      expression, takes the new composer, and Task 2.1's request-root test counts seventeen.
-    - Refinements and the decoder's cross-field checks (`decodeV3DecomposeCutMap`) stay with the CLI.
-
-    - Build `test-first` (one behavior at a time):
-        - A cut map parses and refuses on its slug fields as before
-        - The production registry composes `decompose-cut-map` with its version, posture, and `request` side
-        - The cut map's input-side document folds the registered `slug` as a local definition
+- _Outcome:_ The production registry composes decompose-cut-map at version 3 on its request side. Its slug fields use
+  the registered kernel schema without a runtime transform, preserving parsing and decoder checks while supporting both
+  projections and local slug references.
 
 ## **Phase 3:** The `arc schema list` and `get` verb
 
