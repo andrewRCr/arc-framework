@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | `plan/schema-introspection-layer` | `Heavy`   | `P3`         |
 
 - **Cohort:** `architecture-remediation`
-- **Depends On:** `cli-schema-kernel`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `spec-schema-introspection-layer.md`
