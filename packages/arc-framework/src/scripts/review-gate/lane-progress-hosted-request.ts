@@ -371,6 +371,8 @@ export async function recordHostedRequestAdmission(
       if (result !== null) return result;
       throw new Error("hosted admission already concluded with an incompatible result");
     }
+    const hold = hostedPassHold(existing, input.request, logicalPass);
+    if (hold !== null) return hold;
     assertHostedPassCoverage(existing, input.request, logicalPass);
     const admission = createAdmittedHostedRequest(input, logicalPass);
     const replay = existing?.attempts.find((attempt) => (
@@ -381,8 +383,6 @@ export async function recordHostedRequestAdmission(
       if (result !== null) return result;
       throw new Error("hosted admission already concluded with an incompatible result");
     }
-    const hold = hostedPassHold(existing, input.request, logicalPass);
-    if (hold !== null) return hold;
     await input.authorizeCapacity({
       ownerVersion: version,
       progress: existing,

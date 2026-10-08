@@ -180,6 +180,24 @@ describe("hosted admission after a terminal failure", () => {
     expect(reason).toContain(failureReason);
   });
 
+  it("reports a different-coverage request at the failed head as the terminal failure", async () => {
+    const store = createStore();
+    const failed = await admitted(admit(store, { headSha: firstHead, provider: "coderabbit-pr", now: "2026-10-08T12:00:00Z" }));
+    await conclude(store, failed, "terminal-failure");
+
+    const decision = await admit(store, {
+      headSha: firstHead, provider: "codex-pr", coverage: "incremental", now: "2026-10-08T12:02:00Z",
+    });
+
+    expect(decision).toMatchObject({
+      state: "concluded",
+      result: { state: "terminal-failure", nextAction: "stop", provider: "codex-pr", requestedCoverage: "incremental" },
+    });
+    expect(decision.state === "concluded" && decision.result.state === "terminal-failure"
+      ? decision.result.reason
+      : "").toContain(failed.admissionId);
+  });
+
   it("replays the failed source's own request at the failed head unchanged", async () => {
     const store = createStore();
     const failed = await admitted(admit(store, { headSha: firstHead, provider: "coderabbit-pr", now: "2026-10-08T12:00:00Z" }));
