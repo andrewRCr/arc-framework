@@ -678,25 +678,17 @@ function releaseOwnedLockSyncDirect(handle: AdvisoryLockHandle, allowTokenless: 
   }
 }
 
+/** One read of a lock record, including unsettled and unavailable observations. */
+export type AdvisoryLockReadResult = AdvisoryLockHolder | "absent" | "corrupt" | "empty" | "unreadable";
+
 /**
- * Read and parse the current holder from a lockfile.
- *
- * @returns the parsed holder; `"absent"` when the file does not exist; `"empty"`
- *   when present but blank (the holder's create-before-write window — re-read
- *   before judging); `"unreadable"` when the read itself fails for a reason other
- *   than absence (a transient EACCES/EBUSY — waited on, never broken); `"corrupt"`
- *   when present and non-blank but malformed (treated as breakable).
+ * Classify one synchronous or asynchronous lockfile observation without performing I/O.
+ * @param observation - File text or the error from that one read
+ * @returns Holder data or the observed absent, empty, corrupt, or unreadable state
  */
-async function readHolder(
-  readFile: (path: string) => Promise<string>,
-  lockPath: string,
-): Promise<AdvisoryLockHolder | "absent" | "corrupt" | "empty" | "unreadable"> {
-  let raw: string;
-  try {
-    raw = await readFile(lockPath);
-  } catch (err) {
-    return isEnoentError(err) ? "absent" : "unreadable";
-  }
+export function classifyAdvisoryLockRead(observation: { text: string } | { error: unknown }): AdvisoryLockReadResult {
+  if ("error" in observation) return isEnoentError(observation.error) ? "absent" : "unreadable";
+  const raw = observation.text;
   if (raw.trim().length === 0) return "empty";
   try {
     const parsed: unknown = JSON.parse(raw);
@@ -734,6 +726,23 @@ async function readHolder(
     // fall through to corrupt
   }
   return "corrupt";
+}
+
+/**
+ * Read and parse the current holder from a lockfile.
+ *
+ * @returns the parsed holder; `"absent"` when the file does not exist; `"empty"`
+ *   when present but blank (the holder's create-before-write window — re-read
+ *   before judging); `"unreadable"` when the read itself fails for a reason other
+ *   than absence (a transient EACCES/EBUSY — waited on, never broken); `"corrupt"`
+ *   when present and non-blank but malformed (treated as breakable).
+ */
+async function readHolder(
+  readFile: (path: string) => Promise<string>,
+  lockPath: string,
+): Promise<AdvisoryLockReadResult> {
+  try { return classifyAdvisoryLockRead({ text: await readFile(lockPath) }); }
+  catch (error) { return classifyAdvisoryLockRead({ error }); }
 }
 
 /**

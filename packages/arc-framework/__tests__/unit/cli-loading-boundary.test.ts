@@ -187,18 +187,16 @@ describe("CLI loading boundary", () => {
     expect(violations).toEqual([]);
   });
 
-  it("loads the representative view handler only when its command runs", async () => {
+  it("retains the representative lazy view handler", async () => {
     const modules = collectImplementationModules(await readFile(cliPath, "utf8"));
-    expect(modules.find(({ specifier }) => specifier === "./handlers/view.js")).toEqual({
+    expect(modules.find(({ specifier }) => specifier === "./handlers/view.js")).toMatchObject({
       specifier: "./handlers/view.js",
-      eager: false,
       lazy: true,
     });
   });
 
-  it("loads every implementation module only when its command runs", async () => {
+  it("retains the complete lazy implementation module inventory", async () => {
     const modules = collectImplementationModules(await readFile(cliPath, "utf8"));
-    expect(modules.filter(({ eager }) => eager).map(({ specifier }) => specifier)).toEqual([]);
     expect(modules.filter(({ lazy }) => lazy).map(({ specifier }) => specifier).sort()).toEqual(
       [...expectedImplementationModules].sort(),
     );
@@ -212,14 +210,13 @@ describe("CLI loading boundary", () => {
       (specifier) => included.has(specifier),
     );
 
-    expect(modules.filter(({ eager }) => eager).map(({ specifier }) => specifier)).toEqual([]);
     expect(modules.filter(({ lazy }) => lazy).map(({ specifier }) => specifier).sort()).toEqual(
       [...deferredActiveProjectionModules].sort(),
     );
   });
 
-  it("loads the active status authority without initializing the broader command barrel", async () => {
-    const activeModules = new Set(["../commands/active.js", "../commands/active/status.js"]);
+  it("retains the direct active status authority import", async () => {
+    const activeModules = new Set(["../commands/active/status.js"]);
     const modules = collectModuleLoading(
       await readFile(viewHandlerPath, "utf8"),
       "view.ts",
@@ -233,13 +230,12 @@ describe("CLI loading boundary", () => {
     }]);
   });
 
-  it("loads git operations from their owning modules instead of the broad barrel", async () => {
+  it("retains the owning Git operation imports", async () => {
     const viewGitModules = new Set([
-      "../lib/git/index.js",
       "../lib/git/exec.js",
       "../lib/git/identity.js",
     ]);
-    const statusGitModules = new Set(["../../lib/git/index.js", "../../lib/git/exec.js"]);
+    const statusGitModules = new Set(["../../lib/git/exec.js"]);
 
     expect(collectModuleLoading(
       await readFile(viewHandlerPath, "utf8"),

@@ -1,5 +1,35 @@
 /** Completion policy over native public modules and executed case results. */
 import type { TestCase, TestModule, TestRunResult, Vitest } from "vitest/node";
+import { UNIT_PROCESS_ALLOWLISTED_META, UNIT_PROCESS_LAUNCH_COUNT_META } from "./unit-process-metadata.js";
+
+type LaunchModule = Pick<TestModule, "moduleId"> & {
+  readonly project: Pick<TestModule["project"], "name">;
+  meta(): object;
+  readonly children: { allTests(): Iterable<Pick<TestCase, "result"> & { meta(): object }> };
+};
+
+/**
+ * Reject legacy launch exceptions that completed without using their exception.
+ * @param result - Native modules with launch metadata and case states
+ * @param logger - Controller diagnostic logger
+ * @returns After applying any idle-file failure status
+ */
+export function checkVitestUnitLaunchFloor(
+  result: { readonly testModules: readonly LaunchModule[] },
+  logger: Pick<Vitest["logger"], "error">,
+): void {
+  for (const module of result.testModules) {
+    const tests = [...module.children.allTests()];
+    if (tests.length === 0 || tests.some((test) => !["passed", "failed"].includes(test.result().state))) continue;
+    const metadata = [module.meta(), ...tests.map((test) => test.meta())] as Record<string, unknown>[];
+    if (!metadata.some((value) => value[UNIT_PROCESS_ALLOWLISTED_META] === true)) continue;
+    const counts = metadata.map((value) => value[UNIT_PROCESS_LAUNCH_COUNT_META])
+      .filter((count): count is number => typeof count === "number" && Number.isInteger(count) && count >= 0);
+    if (counts.length === 0 || Math.max(...counts) !== 0) continue;
+    logger.error(`Unit launch allowlist idle: ${module.moduleId} (${module.project.name}); remove its exception.`);
+    process.exitCode ||= 1;
+  }
+}
 
 type CompletionModule = Pick<TestModule, "errors" | "ok"> & {
   readonly children: { allTests(): Iterable<Pick<TestCase, "result">> };

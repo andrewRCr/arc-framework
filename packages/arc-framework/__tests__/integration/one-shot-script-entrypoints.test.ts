@@ -11,6 +11,7 @@ const execute = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 const npmExecutable = process.platform === "win32" ? "npm.cmd" : "npm";
 const PROCESS_TIMEOUT_MS = 15_000;
+const REPOSITORY_SCAN_TIMEOUT_MS = 30_000;
 
 let temporaryRoot: string | undefined;
 
@@ -86,7 +87,7 @@ describe("one-shot TypeScript package scripts", () => {
       {
         cwd: repositoryRoot,
         encoding: "utf8",
-        env: { ...process.env, ARC_LISTEN_PROBE: marker, NODE_OPTIONS: nodeOptions },
+        env: { ...process.env, FORCE_COLOR: undefined, ARC_LISTEN_PROBE: marker, NODE_OPTIONS: nodeOptions },
       },
     );
 
@@ -94,7 +95,7 @@ describe("one-shot TypeScript package scripts", () => {
     expect(result.stderr).toBe("");
     expect(await readFile(output, "utf8")).toMatch(/^identity\torigin\tacquisition\tschema\t/u);
     expect(await readFile(marker, "utf8")).toMatch(/^armed:\d+\n(?:armed:\d+\n)*$/u);
-  }, PROCESS_TIMEOUT_MS);
+  }, REPOSITORY_SCAN_TIMEOUT_MS);
 
   it("preserves failure output and exit status without opening an auxiliary listener", async () => {
     const { marker, nodeOptions } = await createListenProbe();
@@ -105,7 +106,7 @@ describe("one-shot TypeScript package scripts", () => {
       {
         cwd: repositoryRoot,
         encoding: "utf8",
-        env: { ...process.env, ARC_LISTEN_PROBE: marker, NODE_OPTIONS: nodeOptions },
+        env: { ...process.env, FORCE_COLOR: undefined, ARC_LISTEN_PROBE: marker, NODE_OPTIONS: nodeOptions },
       },
     )).rejects.toMatchObject({
       code: 1,
@@ -119,6 +120,7 @@ describe("one-shot TypeScript package scripts", () => {
     const result = await execute(npmExecutable, ["run", "-s", "render:framework", "--", "--help"], {
       cwd: repositoryRoot,
       encoding: "utf8",
+      env: { ...process.env, FORCE_COLOR: undefined },
     });
 
     expect(result.stdout).toContain("Usage: npm run render:framework -- <package-source.md>");

@@ -23,6 +23,7 @@ if (report.summary !== undefined) {
   }
   await appendFile(summaryPath, report.summary, "utf8");
 }
+if (report.annotation !== undefined) process.stdout.write(`${report.annotation}\n`);
 process.stdout.write(`${JSON.stringify(report.standing)}\n`);
 
 interface ReportTestBudgetArguments {

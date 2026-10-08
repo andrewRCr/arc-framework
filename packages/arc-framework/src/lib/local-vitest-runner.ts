@@ -40,7 +40,12 @@ export async function runLocalVitestTier(
     packageRoot: resolve(import.meta.dirname, "../..") });
 }
 
-function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
+/**
+ * Select configured project membership and portability boundaries for a local tier.
+ * @param tier - Validated logical test tier
+ * @returns Native Vitest selectors and run-mode flags
+ */
+export function localVitestTierArguments(tier: LocalHeavyTestTier): string[] {
   switch (tier) {
     case "full":
       return [];

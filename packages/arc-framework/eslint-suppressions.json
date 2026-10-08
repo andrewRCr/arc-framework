@@ -323,9 +323,6 @@
   "src/handlers/release/setup/install.ts": {
     "complexity": {
       "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 1
     }
   },
   "src/handlers/release/setup/uninstall.ts": {
@@ -351,9 +348,6 @@
     "complexity": {
       "count": 2
     },
-    "max-lines": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 2
     }
@@ -365,7 +359,7 @@
   },
   "src/handlers/sync.ts": {
     "complexity": {
-      "count": 2
+      "count": 1
     },
     "max-lines": {
       "count": 1
@@ -377,9 +371,6 @@
   "src/handlers/user-sync.ts": {
     "complexity": {
       "count": 3
-    },
-    "max-lines-per-function": {
-      "count": 1
     }
   },
   "src/handlers/user.ts": {

@@ -5,7 +5,7 @@ import type { BuildEvidence } from "./build-evidence.js";
 import { checkStagedCli } from "./build-entry.js";
 import { DEV_BUILD_STAMP_NAME, hasKernelSchemas } from "./build-evidence.js";
 import { mkdir, readFile, readdir, rename, rm, lstat, writeFile } from "node:fs/promises";
-import { dirname, join, relative } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 import { retryTransientFileSystemRefusal } from "./fs.js";
 
 /** Filesystem and native parser boundaries for ordered publication. */
@@ -114,7 +114,7 @@ async function listRelativeFiles(root: string, current = root): Promise<string[]
   for (const entry of entries) {
     const file = join(current, entry.name);
     if (entry.isDirectory()) files.push(...await listRelativeFiles(root, file));
-    else files.push(relative(root, file));
+    else files.push(relative(root, file).split(sep).join("/"));
   }
   return files.sort();
 }

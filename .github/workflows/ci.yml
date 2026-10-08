@@ -20,7 +20,7 @@ on:
         description: 'Also run the Windows/macOS portability pair (billed at hosted-runner multipliers)'
         type: boolean
         default: false
-  # Weekly cross-platform portability. The Windows/macOS pair fires only here or
+  # Weekly full-tier duration refresh and cross-platform portability. The pair fires only here or
   # on an explicit dispatch opt-in — never from PR synchronizes — so the weekly
   # cadence is a post-merge backstop against OS-specific concurrency-guard
   # regressions at a trivial cost (macOS bills 10×, but a single weekly firing is
@@ -195,7 +195,7 @@ jobs:
     needs: classify
     # Heavy-weight runs plus workflow_dispatch (manual full suite, matches
     # pre-shared-setup integration/e2e/portability triggers).
-    if: ${{ !cancelled() && github.event_name != 'schedule' && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || github.event_name == 'workflow_dispatch') }}
+    if: ${{ !cancelled() && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
     runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -220,6 +220,23 @@ jobs:
         name: arc-framework-dist
         path: packages/arc-framework/dist/
         retention-days: 1
+
+    - name: Restore duration cache
+      id: duration-cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: packages/arc-framework/.test-cost-runs/duration-input
+        key: arc-test-durations-Linux-${{ github.run_id }}
+        restore-keys: arc-test-durations-Linux-
+    - name: Prepare duration input
+      run: node --import tsx packages/arc-framework/__tests__/helpers/prepare-duration-input.ts packages/arc-framework/.test-cost-runs/duration-input
+    - name: Upload duration input
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      with:
+        name: test-duration-input
+        path: packages/arc-framework/.test-cost-runs/duration-input/
+        include-hidden-files: true
+        if-no-files-found: error
 
   lint-typecheck:
     name: Lint & Typecheck
@@ -285,14 +302,16 @@ jobs:
       run: npm run typecheck:test
 
   unit:
-    name: Unit Tests
+    name: Unit Tests (${{ matrix.shard }})
     permissions:
       contents: read
+      actions: write # upload-artifact under workflow-level contents-only defaults
     needs: [classify, setup]
-    # Code-weight only: a light (docs-only or verified-tree) run skips the job
-    # entirely, mirroring the integration/e2e legs. Requires setup success so a
-    # failed shared install cannot leave this leg skipped-and-green.
-    if: ${{ !cancelled() && github.event_name != 'schedule' && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && needs.classify.outputs.weight != 'light' && needs.setup.result == 'success' }}
+    if: ${{ !cancelled() && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && needs.setup.result == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - name: Start test budget clock
@@ -313,24 +332,51 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
     - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
       run: npm ci
-    - run: npm run test:unit
+    - name: Download duration input
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        name: test-duration-input
+        path: packages/arc-framework/.test-cost-runs/duration-input/
+    - name: Clear native test results
+      run: rm -rf packages/arc-framework/node_modules/.vite/vitest/
+    - name: Run balanced shard
+      run: >-
+        npm run test:unit -- --shard=${{ matrix.shard }}/${{ strategy.job-total }} --reporter=default --reporter=github-actions --reporter=json
+        --outputFile=unit-test-report.json
+      env:
+        ARC_TEST_DURATION_FILE: ${{ github.workspace }}/packages/arc-framework/.test-cost-runs/duration-input/unit.json
+    - name: Upload unit test report
+      if: ${{ !cancelled() }}
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      with:
+        name: unit-test-report-${{ matrix.shard }}
+        path: packages/arc-framework/unit-test-report.json
+        if-no-files-found: error
+    - name: Upload native durations
+      if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      with:
+        name: duration-results-unit-${{ matrix.shard }}
+        path: packages/arc-framework/node_modules/.vite/vitest/**/results.json
+        include-hidden-files: true
+        if-no-files-found: error
     - name: Report test budget
       run: >-
         npm run -s benchmark:test-cost:ci-budget -w packages/arc-framework --
         --tier unit --project-set unit --workers "${VITEST_MAX_WORKERS:-native}"
-        --ci-job "unit" --started-at-seconds "$TEST_COST_STARTED_AT_SECONDS"
+        --ci-job "unit-${{ matrix.shard }}" --started-at-seconds "$TEST_COST_STARTED_AT_SECONDS"
 
   integration:
     name: Integration Tests (${{ matrix.shard }})
     permissions:
       contents: read
-      actions: read # download-artifact of shared dist
+      actions: write # download runtime and upload writer durations
     needs: [classify, setup]
-    if: ${{ !cancelled() && needs.setup.result == 'success' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch') }}
+    if: ${{ !cancelled() && needs.setup.result == 'success' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3, 4]
     runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - name: Start test budget clock
@@ -356,13 +402,30 @@ jobs:
       with:
         name: arc-framework-dist
         path: packages/arc-framework/dist
+    - name: Download duration input
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        name: test-duration-input
+        path: packages/arc-framework/.test-cost-runs/duration-input/
     - id: runtime-preflight
       run: node --import tsx packages/arc-framework/src/scripts/run-build.ts prepare
       env:
         ARC_E2E_SKIP_BUILD: ''
-    - run: npm run test:integration -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+    - name: Clear native test results
+      run: rm -rf packages/arc-framework/node_modules/.vite/vitest/
+    - name: Run balanced shard
+      run: npm run test:integration -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}
       env:
+        ARC_TEST_DURATION_FILE: ${{ github.workspace }}/packages/arc-framework/.test-cost-runs/duration-input/integration.json
         ARC_E2E_SKIP_BUILD: '1'
+    - name: Upload native durations
+      if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      with:
+        name: duration-results-integration-${{ matrix.shard }}
+        path: packages/arc-framework/node_modules/.vite/vitest/**/results.json
+        include-hidden-files: true
+        if-no-files-found: error
     - name: Report test budget
       run: >-
         npm run -s benchmark:test-cost:ci-budget -w packages/arc-framework --
@@ -373,24 +436,13 @@ jobs:
     name: E2E Tests (${{ matrix.shard }})
     permissions:
       contents: read
-      actions: read # download-artifact of shared dist
+      actions: write # download runtime and upload writer durations
     needs: [classify, setup]
-    if: ${{ !cancelled() && needs.setup.result == 'success' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch') }}
+    if: ${{ !cancelled() && needs.setup.result == 'success' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
     strategy:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4]
-        # Keep one stable heavyweight on each leg, then let native sharding cover
-        # every remaining file (including newly added files) without a manifest.
-        include:
-        - shard: 1
-          anchor: errand.e2e.test.ts
-        - shard: 2
-          anchor: candidate-lineage.e2e.test.ts
-        - shard: 3
-          anchor: command-input-no-input.e2e.test.ts
-        - shard: 4
-          anchor: lifecycle-exit.e2e.test.ts
     runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
     - name: Start test budget clock
@@ -415,29 +467,73 @@ jobs:
       with:
         name: arc-framework-dist
         path: packages/arc-framework/dist
+    - name: Download duration input
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        name: test-duration-input
+        path: packages/arc-framework/.test-cost-runs/duration-input/
     - id: runtime-preflight
       run: node --import tsx packages/arc-framework/src/scripts/run-build.ts prepare
       env:
         ARC_E2E_SKIP_BUILD: ''
-    - name: Run E2E anchor
-      run: npm run test:e2e -w packages/arc-framework -- __tests__/e2e/${{ matrix.anchor }} --passWithNoTests=false
+    - name: Clear native test results
+      run: rm -rf packages/arc-framework/node_modules/.vite/vitest/
+    - name: Run balanced shard
+      run: npm run test:e2e -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}
       env:
+        ARC_TEST_DURATION_FILE: ${{ github.workspace }}/packages/arc-framework/.test-cost-runs/duration-input/e2e.json
         ARC_E2E_SKIP_BUILD: '1'
-    - name: Run E2E remainder shard
-      run: >-
-        npm run test:e2e -w packages/arc-framework --
-        --exclude='**/errand.e2e.test.ts'
-        --exclude='**/candidate-lineage.e2e.test.ts'
-        --exclude='**/command-input-no-input.e2e.test.ts'
-        --exclude='**/lifecycle-exit.e2e.test.ts'
-        --shard=${{ matrix.shard }}/${{ strategy.job-total }}
-      env:
-        ARC_E2E_SKIP_BUILD: '1'
+    - name: Upload native durations
+      if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      with:
+        name: duration-results-e2e-${{ matrix.shard }}
+        path: packages/arc-framework/node_modules/.vite/vitest/**/results.json
+        include-hidden-files: true
+        if-no-files-found: error
     - name: Report test budget
       run: >-
         npm run -s benchmark:test-cost:ci-budget -w packages/arc-framework --
         --tier e2e --project-set e2e --workers "${VITEST_MAX_WORKERS:-native}"
         --ci-job "e2e-${{ matrix.shard }}" --started-at-seconds "$TEST_COST_STARTED_AT_SECONDS"
+
+  merge-test-durations:
+    name: Merge & save test durations
+    permissions:
+      contents: read
+      actions: read
+    needs: [unit, integration, e2e]
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && needs.unit.result == 'success' && needs.integration.result == 'success' && needs.e2e.result == 'success' }}
+    runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
+    steps:
+    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      with:
+        persist-credentials: false
+    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+      with:
+        node-version: 'lts/*'
+        cache: 'npm'
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      id: nm-cache
+      with:
+        path: |
+          node_modules
+          packages/arc-framework/node_modules
+        key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
+    - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
+      run: npm ci
+    - name: Download writer durations
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        pattern: duration-results-*
+        path: duration-results
+    - name: Merge disjoint duration memberships
+      run: node --import tsx packages/arc-framework/__tests__/helpers/merge-duration-input.ts duration-results packages/arc-framework/.test-cost-runs/duration-input
+    - name: Save duration cache
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: packages/arc-framework/.test-cost-runs/duration-input
+        key: arc-test-durations-Linux-${{ github.run_id }}
 
   # Linux confirmation for the same-machine write-safety guards. The
   # exclusive-create (`wx`/`O_EXCL`), advisory-lock (`mkdir` + `process.kill`

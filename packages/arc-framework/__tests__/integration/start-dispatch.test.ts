@@ -10,6 +10,7 @@
  * called directly so the assertions read the on-disk result.
  */
 
+import { makeInteractionContext } from "../helpers/interaction-context.js";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { execFile } from "node:child_process";
 import { lstat, mkdir, writeFile, stat, readFile, readdir, symlink, unlink } from "node:fs/promises";
@@ -228,7 +229,7 @@ describe("arc start dispatch — against real worktrees", () => {
 
     const result = await runHandlerAt(
       h.repo,
-      () => handleStart("shell-alpha", { new: true, yes: true }),
+      () => handleStart("shell-alpha", { new: true, yes: true }, makeInteractionContext({ noInput: true, yes: "compatibility" })),
     );
     if (result.exitCode !== 0) throw new Error(result.stderr || result.stdout);
     const output = result.stdout + result.stderr;
@@ -269,7 +270,8 @@ describe("arc start dispatch — against real worktrees", () => {
     let observedExitCode: typeof process.exitCode;
     try {
       process.chdir(h.repo);
-      await handleStart(slug, { yes: true });
+      await handleStart(slug, { yes: true },
+        makeInteractionContext({ noInput: true, yes: "compatibility" }));
       observedExitCode = process.exitCode;
     } finally {
       process.chdir(originalCwd);
@@ -300,7 +302,8 @@ describe("arc start dispatch — against real worktrees", () => {
     });
     h.spawned.push(wt);
 
-    const result = await runHandlerAt(h.repo, () => handleStart("shell-widget", { yes: true }));
+    const result = await runHandlerAt(h.repo, () => handleStart("shell-widget", { yes: true },
+      makeInteractionContext({ noInput: true, yes: "compatibility" })));
     expect(result.exitCode).toBe(0);
     const output = result.stdout + result.stderr;
     expect(await pathExists(join(wt, ".arc", "active", "meta-shell-widget.md"))).toBe(true);
@@ -349,7 +352,8 @@ describe("arc start dispatch — against real worktrees", () => {
     h.spawned.push(wt);
     expect(await pathExists(join(h.repo, ".arc", "backlog", "planned", slug, `meta-${slug}.md`))).toBe(false);
 
-    const result = await runHandlerAt(h.repo, () => handleStart(slug, { yes: true }));
+    const result = await runHandlerAt(h.repo, () => handleStart(slug, { yes: true },
+      makeInteractionContext({ noInput: true, yes: "compatibility" })));
     if (result.exitCode !== 0) throw new Error(result.stderr || result.stdout);
     expect(await pathExists(join(wt, ".arc", "active", `meta-${slug}.md`))).toBe(true);
     expect(await pathExists(join(wt, ".arc", "backlog", "planned", slug, `meta-${slug}.md`))).toBe(false);
@@ -405,7 +409,8 @@ describe("arc start dispatch — against real worktrees", () => {
       const secondContent = metaFor("second", "Active", "feat/second");
       await writeFile(first, firstContent);
       await writeFile(second, secondContent);
-      const refused = await runHandlerAt(h.repo, () => handleStart(name, opts));
+      const refused = await runHandlerAt(h.repo, () => handleStart(name, opts,
+        makeInteractionContext({ noInput: true, yes: opts.yes === true ? "compatibility" : "absent" })));
       expect(refused.exitCode, refused.stdout + refused.stderr).toBe(1);
       expect(refused.stdout + refused.stderr).toMatch(/multiple|ambiguous/i);
       expect(refused.stdout + refused.stderr).toContain("meta-first.md");
@@ -420,7 +425,8 @@ describe("arc start dispatch — against real worktrees", () => {
 
       await unlink(first);
       await unlink(second);
-      const retried = await runHandlerAt(h.repo, () => handleStart(name, opts));
+      const retried = await runHandlerAt(h.repo, () => handleStart(name, opts,
+        makeInteractionContext({ noInput: true, yes: opts.yes === true ? "compatibility" : "absent" })));
       expect(retried.exitCode, retried.stdout + retried.stderr).toBe(0);
       const meta = parseMetaProjectionRecord(await readFile(join(active, `meta-${wuName}.md`), "utf8"));
       expect(meta).toMatchObject({ State: "Planning", Branch: protection === "full" ? `plan/${wuName}` : "main" });
@@ -651,7 +657,8 @@ describe("arc start dispatch — against real worktrees", () => {
       let observedExitCode: typeof process.exitCode;
       try {
         process.chdir(h.repo);
-        await handleStart(slug, { yes: true });
+        await handleStart(slug, { yes: true },
+          makeInteractionContext({ noInput: true, yes: "compatibility" }));
         observedExitCode = process.exitCode;
       } finally {
         process.chdir(originalCwd);
@@ -704,7 +711,8 @@ describe("arc start dispatch — against real worktrees", () => {
     let observedExitCode: typeof process.exitCode;
     try {
       process.chdir(h.repo);
-      await handleStart(slug, { yes: true });
+      await handleStart(slug, { yes: true },
+        makeInteractionContext({ noInput: true, yes: "compatibility" }));
       observedExitCode = process.exitCode;
     } finally {
       process.chdir(originalCwd);

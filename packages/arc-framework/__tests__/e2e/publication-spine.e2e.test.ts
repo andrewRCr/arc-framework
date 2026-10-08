@@ -5,7 +5,7 @@ import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { beforeAll, afterAll, afterEach, describe, expect, it } from "vitest";
 
 import {
   cleanupTempDir,
@@ -35,6 +35,10 @@ import {
 } from "../../src/scripts/review-gate/policy/pre-publication-procedure.js";
 import { responsePolicyRequest } from "../fixtures/review-response-policy.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
+
+import {
+  copyPreparedRepository, prepareRepositoryTemplate, type PreparedRepositoryTemplate,
+} from "../helpers/prepared-repository.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -490,6 +494,28 @@ describe("the settle-to-submit window over a live base", () => {
 
 describe("attest → pre-publication → publish", () => {
   let repository: string | null = null;
+  const convergenceShape = { kind: "plain", key: "publication-at-cap-convergence" } as const;
+  let convergenceTemplate: PreparedRepositoryTemplate | undefined;
+  let pendingConvergence: Awaited<ReturnType<typeof reachAtCapConvergence>> | undefined;
+  beforeAll(async () => {
+    convergenceTemplate = await prepareRepositoryTemplate(convergenceShape, async () => {
+      const root = await createAtCapPublicationRepo();
+      try {
+        pendingConvergence = await reachAtCapConvergence(root);
+        return root;
+      } catch (error) {
+        await cleanupTempDir(root);
+        throw error;
+      }
+    });
+  }, 120_000);
+  afterAll(async () => {
+    if (convergenceTemplate !== undefined) await cleanupTempDir(convergenceTemplate.root);
+  });
+  async function copyConvergenceRepository(): Promise<string> {
+    if (convergenceTemplate === undefined) throw new Error("publication convergence template not prepared");
+    return copyPreparedRepository(convergenceTemplate, convergenceShape);
+  }
 
   afterEach(async () => {
     if (repository !== null) await cleanupTempDir(repository);
@@ -845,8 +871,9 @@ describe("attest → pre-publication → publish", () => {
   });
 
   it("publishes a clean result at the pass cap with one projection commit and no new review", async () => {
-    repository = await createAtCapPublicationRepo();
-    const pending = await reachAtCapConvergence(repository);
+    repository = await copyConvergenceRepository();
+    if (pendingConvergence === undefined) throw new Error("publication convergence payload not prepared");
+    const pending = pendingConvergence;
     const accountingAtCap = await reviewAccounting(repository);
     expect(accountingAtCap).toEqual({ completedPasses: 2, evaluatorInvocations: 2 });
 
@@ -953,8 +980,9 @@ describe("attest → pre-publication → publish", () => {
   }, 120_000);
 
   it("refuses a premature projection commit and admits only exact version-bound recovery", async () => {
-    repository = await createAtCapPublicationRepo();
-    const pending = await reachAtCapConvergence(repository);
+    repository = await copyConvergenceRepository();
+    if (pendingConvergence === undefined) throw new Error("publication convergence payload not prepared");
+    const pending = pendingConvergence;
     const accountingAtCap = await reviewAccounting(repository);
     const attested = await runArc([
       "attest", "example", "--scope", "focused",
@@ -1027,8 +1055,9 @@ describe("attest → pre-publication → publish", () => {
   }, 120_000);
 
   it("reroutes changed reviewable content before spending another capped review", async () => {
-    repository = await createAtCapPublicationRepo();
-    const pending = await reachAtCapConvergence(repository);
+    repository = await copyConvergenceRepository();
+    if (pendingConvergence === undefined) throw new Error("publication convergence payload not prepared");
+    const pending = pendingConvergence;
     const accountingAtCap = await reviewAccounting(repository);
     const attested = await runArc([
       "attest", "example", "--scope", "focused",

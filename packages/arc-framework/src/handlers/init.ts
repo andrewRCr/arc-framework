@@ -4,7 +4,8 @@
  * @module
  */
 
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
+import { initIdentityPromptSite } from "../prompts/identity-prompt-sites.js";
 import { readFile } from "node:fs/promises";
 
 import { runInit, buildPostInitMessage, isArcInstalled } from "../commands/init.js";
@@ -18,10 +19,7 @@ import { getArcTemplatePath, getInternalTemplatePath, getRecipePath } from "../l
 import { getFrameworkVersion } from "../lib/version.js";
 import { createIOContext } from "../lib/io-context.js";
 import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
-import {
-  resolveProcessInteractionContext,
-  type InteractionContext,
-} from "../lib/command-input/interaction-context.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { InputResolution } from "../lib/command-input/resolution.js";
 import {
   INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME,
@@ -35,14 +33,8 @@ export type InitOptions = InitCommandOptions;
 
 export async function handleInit(
   opts: InitOptions,
-  suppliedContext?: InteractionContext,
+  context: InteractionContext,
 ): Promise<void> {
-  const context = suppliedContext ?? resolveProcessInteractionContext({
-    noInput: false,
-    machineReadable: false,
-    yes: opts.yes === true ? "compatibility" : "absent",
-  });
-
   const cwd = process.cwd();
   const io = createIOContext(context.subprocess);
 
@@ -64,7 +56,7 @@ export async function handleInit(
     cwd,
     context,
     prompt: async (supplied) => {
-      const result = await runInitPrompts(cwd, {
+      const result = await runInitPrompts(cwd, context, {
         name: supplied.projectName,
         tools: supplied.tools,
         pmMode: supplied.pmMode,
@@ -77,7 +69,7 @@ export async function handleInit(
         teamMode: result.team_mode,
       };
     },
-    resolveIdentity: (interactive) => resolveIdentityWithPrompt(interactive, io.exec),
+    resolveIdentity: () => resolveIdentityWithPrompt(initIdentityPromptSite, context, io.exec),
   });
   if (input.kind !== "resolved") {
     reportInputFailure(input);
@@ -157,7 +149,6 @@ import {
 } from "../prompts/reconfigure-prompts.js";
 import {
   resolveRemovalsInteractive,
-  resolveRemovalsNonInteractive,
 } from "../prompts/removal-prompts.js";
 
 async function handleReconfigure(
@@ -240,13 +231,8 @@ async function handleReconfigure(
     options: opts,
     cwd,
     context,
-    current: {
-      projectName: currentConfig.project_name,
-      pmMode: currentConfig.pm_mode,
-      teamMode: currentConfig.team_mode ?? false,
-    },
     prompt: async (supplied) => {
-      const result = await runReconfigurePrompts(currentConfig, {
+      const result = await runReconfigurePrompts(currentConfig, context, {
         projectName: supplied.projectName,
         pmMode: supplied.pmMode,
         teamMode: supplied.teamMode,
@@ -295,19 +281,16 @@ async function handleReconfigure(
 
   try {
 
-    const resolveRemovals = context.interaction === "forbidden"
-      ? (removals: import("../lib/manifest/plan.js").PlannedRemoval[]) =>
-          Promise.resolve(resolveRemovalsNonInteractive(removals))
-      : async (removals: import("../lib/manifest/plan.js").PlannedRemoval[]) => {
-          spinner.stop("File changes detected.");
-          const decisions = await resolveRemovalsInteractive(removals);
-          if (!decisions) {
-            // eslint-disable-next-line @typescript-eslint/only-throw-error -- sentinel for clack cancellation flow
-            throw cancelledSymbol;
-          }
-          spinner.start("Applying changes...");
-          return decisions;
-        };
+    const resolveRemovals = async (removals: import("../lib/manifest/plan.js").PlannedRemoval[]) => {
+      if (context.interaction === "allowed") spinner.stop("File changes detected.");
+      const decisions = await resolveRemovalsInteractive(removals, context);
+      if (!decisions) {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error -- sentinel for clack cancellation flow
+        throw cancelledSymbol;
+      }
+      if (context.interaction === "allowed") spinner.start("Applying changes...");
+      return decisions;
+    };
 
     const result = await runReconfigure({
       cwd,

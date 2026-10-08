@@ -16,6 +16,8 @@ import {
 } from "../../../src/command-input-registrations.js";
 import type { CommandInputDeclaration } from "../../../src/lib/command-input/declaration.js";
 
+const REPOSITORY_SCAN_TIMEOUT = 30_000;
+
 const sourceRoot = resolve(import.meta.dirname, "../../../src");
 
 describe("repository command-input inventory", () => {
@@ -29,7 +31,7 @@ describe("repository command-input inventory", () => {
       commandInputRegistrations,
       commandInputPolicyDeclarations,
     );
-  });
+  }, REPOSITORY_SCAN_TIMEOUT);
 
   it("reconciles every live syntax site and declared interaction use", () => {
     const syntaxCount = snapshot.source.commands.reduce(
@@ -38,7 +40,7 @@ describe("repository command-input inventory", () => {
     );
     const declaredInteractionCount = commandInputPolicyDeclarations.reduce(
       (count, declaration) => count + declaration.sites.filter(
-        (site) => "interaction" in site.source && site.source.interaction !== undefined,
+        (site) => site.origin === "prompt" || ("interaction" in site.source && site.source.interaction !== undefined),
       ).length,
       0,
     );
@@ -50,9 +52,6 @@ describe("repository command-input inventory", () => {
       syntaxCount + declaredInteractionCount + declaredSemanticSites.length,
     );
     expect(declaredSemanticSites).toEqual([
-      "join:semantic.identity",
-      "join:semantic.tools",
-      "start:safety.indeterminate-lifecycle",
       "status:semantic.interaction-context",
     ]);
     expect(inventory.entries).toEqual(expect.arrayContaining([
@@ -69,13 +68,15 @@ describe("repository command-input inventory", () => {
         schemaField: "teamMode",
       }),
       expect.objectContaining({
-        identity: "user open:interaction.handlers-user.ts-prompt-p.select-1",
+        identity: "user open:prompt.stale-subdir",
+        origin: "prompt",
+        liveSource: expect.objectContaining({ callee: "prompt", declaredId: "prompt.stale-subdir" }),
         acquisition: "safe-default",
         cancellation: "safe-default",
         noInput: "use-default",
       }),
       expect.objectContaining({
-        identity: "user sync:interaction.handlers-user-sync.ts-prompt-p.select-1",
+        identity: "user sync:prompt.user-sync.conflict",
         acquisition: "safe-default",
         noInput: "use-default",
       }),
@@ -145,9 +146,24 @@ describe("repository command-input inventory", () => {
     }
   });
 
+  it("joins all seven start confirmations to their own declared callers", () => {
+    const questions = inventory.entries.filter((entry) => entry.commandPath === "start" && entry.origin === "prompt");
+    expect(questions.map((entry) => ({ id: entry.siteId, noInput: entry.noInput, callee: "callee" in entry.liveSource ? entry.liveSource.callee : undefined })))
+      .toEqual([
+        { id: "safety.indeterminate-lifecycle", noInput: "refuse", callee: "confirmStep" },
+        { id: "prompt.start.create-new", noInput: "proceed", callee: "confirmStep" },
+        { id: "prompt.start.graduate-here", noInput: "proceed", callee: "confirmStep" },
+        { id: "prompt.start.graduate-worktree", noInput: "proceed", callee: "confirmStep" },
+        { id: "prompt.start.resume-here", noInput: "proceed", callee: "confirmStep" },
+        { id: "prompt.start.resume-worktree", noInput: "proceed", callee: "confirmStep" },
+        { id: "prompt.start.cold-start", noInput: "proceed", callee: "confirmStep" },
+      ].sort((left, right) => left.id.localeCompare(right.id)));
+  });
+
   it("requires every discovered interaction policy to come from a command-owned declaration", () => {
     const declared = new Set(commandInputPolicyDeclarations.flatMap((declaration) => declaration.sites.flatMap(
       (site) => {
+        if (site.origin === "prompt") return [site.id];
         if (!("interaction" in site.source) || site.source.interaction === undefined) return [];
         const { interaction } = site.source;
         return [
@@ -157,6 +173,7 @@ describe("repository command-input inventory", () => {
     )));
     const counts = new Map<string, number>();
     const missing = snapshot.source.interactions.flatMap((site) => {
+      if (site.declaredId !== undefined) return declared.has(site.declaredId) ? [] : [site.declaredId];
       const base = `${site.file}|${site.kind}|${site.callee}`;
       const occurrence = (counts.get(base) ?? 0) + 1;
       counts.set(base, occurrence);
@@ -461,11 +478,33 @@ describe("repository command-input inventory", () => {
     expect(missing).toEqual([]);
   });
 
-  it("exact-matches every interaction-capable command to the real-process matrix", () => {
-    const interactionCommands = [...new Set(inventory.entries
+  it("retains one matrix entry for every non-prompt interaction command", () => {
+    const interactionCommands = new Set(inventory.entries
       .filter((entry) => entry.siteId.startsWith("interaction.") || entry.automationFlags.includes("--no-input"))
-      .map((entry) => entry.commandPath))].sort();
-    expect(NO_INPUT_MATRIX.map((entry) => entry.commandPath).sort()).toEqual(interactionCommands);
+      .map((entry) => entry.commandPath));
+    const promptCommands = new Set(NO_INPUT_MATRIX.filter((entry) => entry.promptSite !== undefined || entry.upstreamRefusalFor !== undefined)
+      .map((entry) => entry.commandPath));
+    const plain = NO_INPUT_MATRIX.filter((entry) => entry.promptSite === undefined && entry.upstreamRefusalFor === undefined).map((entry) => entry.commandPath);
+    expect(plain.sort()).toEqual([...interactionCommands].filter((path) => !promptCommands.has(path)).sort());
+    for (const command of interactionCommands) {
+      expect(NO_INPUT_MATRIX.some((entry) => entry.commandPath === command), command).toBe(true);
+    }
+  });
+
+  it("reconciles named native prompt kinds and the sole upstream refusal exception", () => {
+    const kinds = new Set(inventory.entries.filter((entry) => entry.origin === "prompt").map((entry) => entry.noInput));
+    const upstream = NO_INPUT_MATRIX.filter((entry) => entry.upstreamRefusalFor !== undefined);
+    expect(upstream.map((entry) => ({ command: entry.commandPath, site: entry.upstreamRefusalFor }))).toEqual([
+      { command: "start", site: "safety.indeterminate-lifecycle" },
+    ]);
+    const cases = NO_INPUT_MATRIX.filter((entry) => entry.promptSite !== undefined || entry.upstreamRefusalFor !== undefined);
+    const reached = cases.map((entry) => inventory.entries.find((site) =>
+      site.commandPath === entry.commandPath && site.siteId === (entry.promptSite ?? entry.upstreamRefusalFor) && site.origin === "prompt"));
+    expect(reached.every((site) => site !== undefined)).toBe(true);
+    const refusal = inventory.entries.find((site) => site.commandPath === "start"
+      && site.siteId === "safety.indeterminate-lifecycle");
+    expect(refusal).toMatchObject({ origin: "prompt", noInput: "refuse" });
+    expect(reached.map((site) => site?.noInput).sort()).toEqual([...kinds].sort());
   });
 
   it("rejects duplicate explicit policy ownership instead of silently taking the last declaration", () => {

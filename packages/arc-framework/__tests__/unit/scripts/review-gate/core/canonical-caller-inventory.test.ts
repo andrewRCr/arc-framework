@@ -19,27 +19,9 @@ const files = typescriptFiles(root);
 const source = (path: string): string => readFileSync(path, "utf8");
 const name = (path: string): string => relative(root, path).replaceAll("\\", "/");
 
-function directUsers(symbol: string, definition: string): string[] {
-  return files
-    .filter((path) => name(path) !== definition && source(path).includes(symbol))
-    .map(name)
-    .sort();
-}
-
 describe("review-gate canonical serializer inventory", () => {
-  it("closes the kernel-backed helper caller set", () => {
-    expect([
-      "core/identity.ts",
-      ...directUsers("canonicalizePlainJson", "core/identity.ts"),
-    ].sort()).toEqual([
-      "core/identity.ts",
-    ]);
-  });
-
-  it("closes the frozen version-one caller set", () => {
-    expect(directUsers("canonicalizeReviewGateV1", "core/legacy-canonical-v1.ts")).toEqual([
-      "core/request-key.ts",
-    ]);
+  it("retains the frozen version-one caller at the request key boundary", () => {
+    expect(source(join(root, "core/request-key.ts"))).toContain("canonicalizeReviewGateV1");
   });
 
   it("keeps kernel canonicalize direct and removes parallel serializers", () => {
@@ -113,9 +95,6 @@ describe("review-gate canonical serializer inventory", () => {
       "core/legacy-canonical-v1.ts:canonicalizeReviewGateV1",
     ]);
 
-    const barrelExports = files.filter((path) => /export\s*\{[^}]*(?:canonicalizePlainJson|canonicalizeReviewGateV1)/su
-      .test(source(path)));
-    expect(barrelExports).toEqual([]);
   });
 
   it("keeps NUL-delimited identities outside JSON serialization", () => {

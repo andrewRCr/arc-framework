@@ -27,6 +27,7 @@ describe("ROADMAP conflict remedy script", () => {
       const result = spawnSync(process.execPath, [CLI_PATH, "--help"], {
         cwd,
         encoding: "utf8",
+        env: { ...process.env, FORCE_COLOR: undefined },
       });
 
       expect(result.status).toBe(0);
@@ -43,6 +44,7 @@ describe("ROADMAP conflict remedy script", () => {
       const result = spawnSync(process.execPath, scriptArguments, {
         cwd,
         encoding: "utf8",
+        env: { ...process.env, FORCE_COLOR: undefined },
       });
 
       expect(result.status).toBe(1);
@@ -98,6 +100,7 @@ describe("ROADMAP conflict remedy script", () => {
       const remedy = spawnSync(process.execPath, scriptArguments, {
         cwd,
         encoding: "utf8",
+        env: { ...process.env, FORCE_COLOR: undefined },
       });
       expect(remedy.status).toBe(0);
       expect(remedy.stdout).toContain("Auto-remedied ROADMAP-only conflict");

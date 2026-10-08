@@ -4,6 +4,7 @@ import type { TestCostFile } from "./capture.js";
 
 export const TEST_COST_CLI_TIMEOUT_META = "arcTestCostCliTimeoutMs";
 export const TEST_COST_CLI_SPAWN_COUNT_META = "arcTestCostCliSpawnCount";
+export const TEST_COST_VITEST_TIMEOUT_META = "arcTestCostVitestTimeoutMs";
 
 export interface TimeoutHeadroom {
   readonly timeoutCeilingMs: number;

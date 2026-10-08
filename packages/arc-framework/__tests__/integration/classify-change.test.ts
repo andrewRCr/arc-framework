@@ -1189,9 +1189,12 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
   /** Heavy check-run display names — must mirror HEAVY_CHECK_NAMES in classify-change.sh. */
   const HEAVY_CHECKS = [
     "Lint & Typecheck",
-    "Unit Tests",
+    "Unit Tests (1)",
+    "Unit Tests (2)",
     "Integration Tests (1)",
     "Integration Tests (2)",
+    "Integration Tests (3)",
+    "Integration Tests (4)",
     "E2E Tests (1)",
     "E2E Tests (2)",
     "E2E Tests (3)",
@@ -1214,7 +1217,9 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
     }).parse(load(workflowSource));
     const heavyCondition = /needs\.classify\.outputs\.weight\s*!=\s*['"]light['"]/u;
     const preparationCommand = /^npm (?:ci|run build)$/u;
-    const preparationAction = /^actions\/(?:checkout|setup-node|cache|upload-artifact)@/u;
+    const durationPreparationCommand = "node --import tsx packages/arc-framework/__tests__/helpers/prepare-duration-input.ts "
+      + "packages/arc-framework/.test-cost-runs/duration-input";
+    const preparationAction = /^actions\/(?:checkout|setup-node|cache(?:\/restore)?|upload-artifact)@/u;
     const names: string[] = [];
     for (const [jobId, job] of Object.entries(workflow.jobs)) {
       // Light runs omit these jobs or steps regardless of their verification command.
@@ -1224,7 +1229,7 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
       // Fail closed if that job acquires any verification command or action.
       if (jobId === "setup") {
         expect(job.steps.every((step) => step.run !== undefined
-          ? preparationCommand.test(step.run.trim())
+          ? preparationCommand.test(step.run.trim()) || step.run.trim() === durationPreparationCommand
           : preparationAction.test(step.uses ?? "")), "Shared setup must remain artifact preparation only").toBe(true);
         continue;
       }
@@ -1298,6 +1303,7 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
 
   it.each([
     ["command", /- run: npm run build/u, "- run: node scripts/verify.mjs"],
+    ["duration command", /prepare-duration-input\.ts/u, "verify-duration-input.ts"],
     ["action", /uses: actions\/upload-artifact@[^\n]+/u, "uses: example/verification@v1"],
   ] as const)("rejects a verification %s in the shared setup exception", async (_label, pattern, replacement) => {
     const workflow = await readFile(join(dirname(CLASSIFY_SCRIPT), "../.github/workflows/ci.yml"), "utf-8");
