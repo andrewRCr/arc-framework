@@ -3477,3 +3477,49 @@ All thirty-two criterion identities and states remain unchanged: twenty-seven me
 Current supplemental proof closes the affected discovery, confinement, native lint and verification requirements;
 unaffected historical claims retain their original witnesses. Primary-only verification remains the approved choice.
 Candidate advancement and independent incremental standard pass 5 remain pending at this record's composition.
+
+## Standard-review pass 5 corrections
+
+The incremental delegated pass at `77ce8fb35` covers twenty-one admitted paths, five closed source scopes, the
+independent seam and fresh aggregation. Its one source-confirmed minor finding is approved FIX with full verification
+in set `sha256:7916c10ee92d8f8de63752f5b4031519840a899d63dc04aad4bfcb744a3ca4d8`. A separately source-confirmed author
+self-review major identifies remaining genuine Node factory owners omitted by the correction. Both reports are approved;
+the author finding remains separate from the independent producer and has no fabricated receipt or disposition identity.
+Incremental delegated standard pass 6 is separately authorized, narrowly covering the final classifiers, their
+regressions and immediate consumers, through single-use allowance
+`sha256:5c44cb0ac8e809cf184d8dea58d953de1ef88e1d6abb856b11f5aed4f6d5adea`. The intended terminus is a clean final
+correction review plus required verification; any further material finding requires another decision, not automatic
+pass 7. Exact runtime coverage remains to be resolved before admission.
+
+- `63d82b326` excludes noncomputed interface property names from canonical value references. Both matching
+  named/namespace cases fail before correction; all fifty scanner cases pass afterward, retaining actual computed-key,
+  initializer and escaped-value refusal controls. Typed lint, both type programs and normal hooks pass.
+- `e7d61ccf8` preserves named builtin `Module` owners, namespace `default`/`Module` members and local object literal
+  properties holding the actual imported factory. Local initializer aliases have cycle protection; later explicit
+  properties replace earlier ones, and opaque spreads do not establish ownership. Sixteen native confinement/composed-ban
+  cases fail before correction; all 209 architecture cases pass afterward, including exact owner exceptions, harmless
+  methods, local shadows, replacement properties and cyclic aliases. Typed lint, both type programs and normal hooks pass.
+
+These corrections complete the existing module-local preservation and canonical identify-or-refuse requirements.
+The ordinary review-fix path applies; no design outcome, criterion, worker policy, deadline, shard layout or budget is
+changed. Native proof covers the listed visible forms rather than all possible runtime ways to carry a function.
+
+Full local gates pass at `e7d61ccf8bfc8bb8c099dd4b430bae7dc33aa88a`: Markdown, three ARC checks, whole-package typed
+lint, shell lint, both type programs, the ordinary routine lane and qualified full declaration build. The routine run
+completes 1,121 passing files and 16,854 passing cases, with one file and 1,188 intentional case skips, in 229.60 seconds
+at the unchanged eight-worker default. This single confirmation does not replace historical cost samples.
+
+First-attempt hosted confirmation 37717649195 at that exact code head succeeds: all seventeen applicable jobs pass;
+the two PR-only rollups are event-disabled. Both native portability legs complete 28 files and 252 cases with two
+intentional skips; macOS's additional selection completes fourteen files and 119 cases. Two native unit reports retain
+13,738 completed cases strictly below half their effective timeouts and 13,655 off-allowlist cases with zero launches,
+with no missing metadata. The tightest case is 3,637.175878 ms against its 10,000 ms deadline. All ten CI-job comparisons
+are within unchanged budgets; summed budget clocks are 1,534,869 ms. Native run/attempt records, logs, reports and derived
+checks remain at package-relative `.test-cost-runs/closing-review-pass5/37717649195`. The normal-hook raw push uses the
+standing explicit authorization. Every historical failure, sample, median, acceptance bar and measured-head binding
+remains intact; no five-run replacement measurement is performed.
+
+All thirty-two criterion identities and states remain unchanged: twenty-seven met, five superseded, none unresolved.
+Current supplemental proof closes the affected discovery, confinement, native lint and full verification requirements;
+unaffected historical claims retain their original witnesses. Primary-only verification remains the approved choice.
+Candidate advancement and the narrowly authorized incremental standard pass 6 remain pending at this record's composition.
