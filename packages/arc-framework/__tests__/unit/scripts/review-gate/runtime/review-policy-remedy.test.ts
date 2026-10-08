@@ -12,6 +12,7 @@ import {
   resolveReviewPolicy,
 } from "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 import {
+  HostedErrandCorrectionError,
   HostedReviewAdmissionError,
   StaleLaneAttemptsError,
   hostedRequestAdmissionRemedy,
@@ -121,6 +122,20 @@ describe("hostedRequestAdmissionRemedy", () => {
   it("names nothing for an admission refusal not bound to a change request", () => {
     expect(hostedRequestAdmissionRemedy(approvalRequired)).toBeUndefined();
     expect(hostedRequestAdmissionRemedy(new Error(approvalRequired.message))).toBeUndefined();
+  });
+
+  it("sends an Errand correction mismatch to the review status that offers the admissible request", () => {
+    const mismatch = new HostedErrandCorrectionError("codex-pr has no native incremental review", statusTarget);
+
+    expect(mismatch).toMatchObject({
+      code: "invalid-input",
+      message: expect.stringContaining("codex-pr has no native incremental review"),
+    });
+    expect(hostedRequestAdmissionRemedy(mismatch)).toEqual({
+      invariant: expect.stringContaining("only the correction its lane offers at that head"),
+      text: expect.stringMatching(/submit its offered request unchanged: `arc review status --target /u),
+      argv: ["arc", "review", "status", "--target", JSON.stringify(statusTarget)],
+    });
   });
 });
 
