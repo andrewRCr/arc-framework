@@ -19,6 +19,17 @@ describe("declared-value prompt discovery", () => {
   it.each([
     [promptImport, "ask"],
     ['import * as input from "../lib/command-input/index.js";', "input.prompt"],
+  ])("discovers the prompt despite an unrelated matching interface field: %s", (importText, callee) => {
+    const field = callee.split(".")[0];
+    const source = [factoryImport, importText, declare("ownSite", "own", "handlers/caller.ts"),
+      `export interface Display { ${field}: string; }`,
+      `async function run(context) { return ${callee}(ownSite, context, {}); }`].join("\n");
+    expect(scan(source).sites).toMatchObject([{ declaredId: "own", callee,
+      declaredSource: { file: "handlers/caller.ts", symbol: "ownSite" } }]);
+  });
+  it.each([
+    [promptImport, "ask"],
+    ['import * as input from "../lib/command-input/index.js";', "input.prompt"],
   ])("discovers the prompt despite an unrelated matching class field: %s", (importText, callee) => {
     const field = callee.split(".")[0];
     const source = [factoryImport, importText, declare("ownSite", "own", "handlers/caller.ts"),
