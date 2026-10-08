@@ -107,28 +107,14 @@ documents.
   definitions without resource identities or unreachable shared definitions. Review schema flags retain their envelope
   while carrying one self-contained document.
 
-### `[ ]` **2.4 Serve both emitters from the production projection through one lookup — D1, D2**
+### `[x]` **2.4 Serve both emitters from the production projection through one lookup — D1, D2**
 
 - _Goal:_ One identity yields one document from every surface: the review `--schema` flags and
   `arc delivery plan inventory schema` return the self-contained documents the verb will, with no external reference.
 
-- **Additional Context:** `notes-schema-introspection-layer.md` § Projection change test inventory, the rows for
-  Task 2.4.
-
-    - `lookupKernelSchema(registry, id)` (`lib/kernel/schema/generate.ts`, beside `projectKernelSchemaClosure`)
-      returns `{ status: "found", meta, schema }` with the folded document, or `{ status: "unknown" }`.
-      `arc schema get` reuses it in Task 3.2.
-    - `handleReviewRequestSchema` composes `createProductionSchemaRegistry()` instead of its review-only registry,
-      which would number the shared definitions differently.
-    - `handleDeliveryPlanInventorySchema` (`handlers/delivery.ts`) keeps its verb and envelope and takes `schema` and
-      `version` from the lookup over the production registry, instead of a delivery-only projection's root and a
-      version constant.
-
-    - Build `test-first` (one behavior at a time):
-        - The lookup returns found with metadata and document for a registered id, and unknown otherwise
-        - A review `--schema` result holds one document, keyed by its schema id, whose `$id` equals `rootId`, from
-          the production composition
-        - The delivery inventory emitter returns the registry's version and a document with no external `$ref`
+- _Outcome:_ The shared lookup returns registry metadata and the canonical folded document, or unknown without
+  projection. Review discovery and delivery inventory use the production composition; delivery reads its version from
+  registry metadata and emits no external references.
 
 ### `[ ]` **2.5 Bound tuples and prove every root projects valid on both sides — D1**
 

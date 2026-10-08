@@ -8,6 +8,8 @@ import { tmpdir } from "node:os";
 import { promisify } from "node:util";
 import { Ajv2020, type AnySchema } from "ajv/dist/2020.js";
 
+import { createProductionSchemaRegistry } from "../../src/production-schema-registry.js";
+import { projectKernelSchemaClosure } from "../../src/lib/kernel/schema/generate.js";
 import type { KernelJSONSchemaBundle } from "../../src/lib/kernel/index.js";
 import { resolveSchemaReference } from "../helpers/schema-reference.js";
 import { runCli } from "../helpers/run-cli.js";
@@ -96,6 +98,8 @@ describe("packaged review CLI surfaces", () => {
       schemas: Record<string, AnySchema>;
     };
     expect(output.rootId).toBe(rootId);
+    const schemaId = rootId.replace("urn:arc:schema:", "");
+    expect(output.schemas[schemaId]).toEqual(projectKernelSchemaClosure(createProductionSchemaRegistry(), schemaId));
     if (rootId === "urn:arc:schema:review-frontline-resolve-request") {
       const publicRequest = output.schemas["review-frontline-resolve-request"] as {
         properties: Record<string, AnySchema>;

@@ -121,6 +121,8 @@ describe("arc delivery", () => {
         },
       },
     });
+    const inventoryDocument = (JSON.parse(inventorySchema.stdout) as { value: { schema: unknown } }).value.schema;
+    expect(JSON.stringify(inventoryDocument)).not.toMatch(/"\$ref":"(?!#)/u);
   });
 
   it("reaps refs and retires records through the destructive closeout verb", async () => {

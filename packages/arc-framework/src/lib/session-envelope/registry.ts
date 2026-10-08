@@ -1,8 +1,8 @@
 /**
  * Composed schema discovery for the session-init, recovery, and seed family.
  *
- * Registration records stable subsystem identities without publishing them to
- * the kernel JSON Schema bundle; build projection remains a separate concern.
+ * Registration records stable subsystem identities; production composition publishes these roots
+ * through the shared contract projection.
  */
 
 import { createKernelRegistry, type KernelRegistry } from "../kernel/index.js";

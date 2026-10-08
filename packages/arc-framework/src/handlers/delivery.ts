@@ -14,8 +14,6 @@ import type { CommandInputRegistration } from "../lib/command-input/registry.js"
 import { DeliveryPlanComposer } from "../lib/delivery/compose.js";
 import {
   DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID,
-  DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_VERSION,
-  registerDeliveryAuthoringSchemas,
   type BoundDesignInventory,
 } from "../lib/delivery/design-inventory.js";
 import {
@@ -45,17 +43,16 @@ import {
 } from "../lib/delivery/plan-resolution.js";
 import {
   DeliveryCanonicalDigestSchema,
-  registerDeliveryDomainSchemas,
   type DeliveryPlanV1,
 } from "../lib/delivery/schema.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import {
   assertCanonicalDigest,
   canonicalize,
-  createKernelRegistry,
   type CanonicalDigest,
 } from "../lib/kernel/index.js";
-import { projectKernelSchemas } from "../lib/kernel/schema/generate.js";
+import { createProductionSchemaRegistry } from "../production-schema-registry.js";
+import { lookupKernelSchema } from "../lib/kernel/schema/generate.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import {
@@ -661,9 +658,8 @@ export function handleDeliveryPlanInventorySchema(opts: DeliveryPlanInventorySch
     });
     return;
   }
-  const registry = registerDeliveryAuthoringSchemas(registerDeliveryDomainSchemas(createKernelRegistry()));
-  const schema = projectKernelSchemas("output", registry).schemas[DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID];
-  if (schema === undefined) {
+  const result = lookupKernelSchema(createProductionSchemaRegistry(), DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID);
+  if (result.status === "unknown") {
     emit("delivery plan inventory schema", parsed.data.json === true, {
       status: "refused",
       reason: "schema-unavailable",
@@ -674,8 +670,8 @@ export function handleDeliveryPlanInventorySchema(opts: DeliveryPlanInventorySch
     status: "ok",
     value: {
       id: DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID,
-      version: DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_VERSION,
-      schema,
+      version: result.meta.version,
+      schema: result.schema,
     },
   });
 }

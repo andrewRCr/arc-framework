@@ -5,6 +5,7 @@ import {
   type KernelJSONSchema,
   type KernelJSONSchemaBundle,
   type KernelRegistry,
+  type KernelSchemaMeta,
 } from "./registry.js";
 
 /**
@@ -102,4 +103,21 @@ export function projectKernelSchemaClosure(registry: KernelRegistry, rootId: str
 /** Serialize a schema bundle with stable indentation and one terminal newline. */
 export function serializeKernelSchemaBundle(bundle: KernelJSONSchemaBundle): string {
   return `${JSON.stringify(bundle, null, 2)}\n`;
+}
+
+/** Discovery result for one registered contract. */
+export type KernelSchemaLookup =
+  | { readonly status: "found"; readonly meta: KernelSchemaMeta; readonly schema: KernelJSONSchema }
+  | { readonly status: "unknown" };
+
+/**
+ * Look up one registered contract and its canonical document.
+ * @param registry - Production or subsystem registry to query
+ * @param id - Requested registered identity
+ * @returns Metadata and document, or an unknown-identity result
+ */
+export function lookupKernelSchema(registry: KernelRegistry, id: string): KernelSchemaLookup {
+  const meta = registry.meta(id);
+  if (meta === undefined) return { status: "unknown" };
+  return { status: "found", meta, schema: projectKernelSchemaClosure(registry, id) };
 }
