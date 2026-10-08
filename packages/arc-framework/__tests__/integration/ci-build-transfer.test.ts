@@ -35,7 +35,7 @@ it.each(["lint-typecheck", "integration", "e2e", "portability"])(
       const cli = join(consumer.packageRoot, "src/cli.ts");
       const original = await readFile(cli, "utf8");
       await writeFile(cli, original + "\n// consumer source changed\n");
-      expect(readBuildQualification(consumer.packageRoot, "runtimeSchema")).toMatchObject({ status: "unqualified" });
+      expect(readBuildQualification(consumer.packageRoot, "runtimeMetafile")).toMatchObject({ status: "unqualified" });
       await expect(readFile(join(consumer.packageRoot, ".config-loads"))).rejects.toMatchObject({ code: "ENOENT" });
       await writeFile(cli, original);
       expect(readBuildQualification(consumer.packageRoot, "full")).toMatchObject({
@@ -54,7 +54,7 @@ it.each(["integration"])(
       });
       const reused = await runCiPreflight(consumer, job);
       expect(reused.code, reused.stderr).toBe(0);
-      expect(readBuildQualification(consumer.packageRoot, "runtimeSchema")).toMatchObject({
+      expect(readBuildQualification(consumer.packageRoot, "runtimeMetafile")).toMatchObject({
         status: "qualified", evidence: { generation },
       });
       await expect(readFile(join(consumer.packageRoot, ".config-loads"))).rejects.toMatchObject({ code: "ENOENT" });
@@ -65,7 +65,7 @@ it.each(["integration"])(
       const result = await runVitestControllerFixture(consumer.packageRoot, ["full"],
         { CI: "1", ARC_E2E_SKIP_BUILD: "1" });
       expect(result.code, result.stderr).toBe(0);
-      const repaired = readBuildQualification(consumer.packageRoot, "runtimeSchema");
+      const repaired = readBuildQualification(consumer.packageRoot, "runtimeMetafile");
       expect(repaired.status).toBe("qualified");
       if (repaired.status !== "qualified") throw new Error(repaired.reason);
       expect(repaired.evidence.generation).not.toBe(generation);

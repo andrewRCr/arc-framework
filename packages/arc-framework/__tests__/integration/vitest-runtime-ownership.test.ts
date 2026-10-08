@@ -13,7 +13,7 @@ it.each([{ CI: "1" }])(
       const environment = { ...bypass, ARC_E2E_SKIP_BUILD: undefined, npm_lifecycle_event: "test:e2e" };
       const first = await runVitestControllerFixture(fixture.packageRoot, ["full"], environment);
       expect(first.code, first.stderr).toBe(0);
-      const qualification = readBuildQualification(fixture.packageRoot, "runtimeSchema");
+      const qualification = readBuildQualification(fixture.packageRoot, "runtimeMetafile");
       expect(qualification.status).toBe("qualified");
       if (qualification.status !== "qualified") throw new Error(qualification.reason);
       const events = (await readFile(fixture.events, "utf8")).split("\n")
@@ -30,7 +30,7 @@ it.each([{ CI: "1" }])(
       await expect(access(join(fixture.packageRoot, ".arc-build.lock"))).rejects.toMatchObject({ code: "ENOENT" });
       const second = await runVitestControllerFixture(fixture.packageRoot, ["full"], environment);
       expect(second.code, second.stderr).toBe(0);
-      const reused = readBuildQualification(fixture.packageRoot, "runtimeSchema");
+      const reused = readBuildQualification(fixture.packageRoot, "runtimeMetafile");
       expect(reused.status === "qualified" && reused.evidence.generation).toBe(qualification.evidence.generation);
     } finally { await rm(fixture.root, { recursive: true, force: true }); }
   }, 60_000,

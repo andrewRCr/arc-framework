@@ -15,37 +15,14 @@ _Exit criterion:_ Full and fast builds into a fresh `dist/` produce no `schemas/
 one input identity and no schema graph, and test preparation qualifies on the CLI entry and the metafile, with
 every build behavior the producer or its bundle hosted still under test.
 
-### `[ ]` **1.1 Qualify and stage build output without the bundle — D6**
+### `[x]` **1.1 Qualify and stage build output without the bundle — D6**
 
 - _Goal:_ Qualification and staged publication accept a generation from its CLI entry, its metafile, and — in full
   mode — its declarations, so a build that writes no `schemas/kernel.json` still qualifies and publishes.
 
-- _Rationale:_ the producer still writes the bundle after this task; nothing requires it any longer, which lets the
-  producer's removal land as a pure deletion.
-
-- **Additional Context:** `notes-schema-introspection-layer.md` § Build retirement test inventory, the rows for
-  Task 1.1.
-
-    - `BuildRequirement` (`build-qualification.ts`): the middle tier `runtimeSchema` becomes `runtimeMetafile`, which
-      requires the CLI entry and the esbuild metafile `metafile-esm.json`; an integration test reads the metafile from
-      live output (`store-reference-packaging.test.ts`). `runtime` and `full` keep their meaning.
-    - `requireLiveArtifacts` (`build-qualification.ts`) and `validateStagedOutput` (`build-publication.ts`) stop
-      requiring and parsing `schemas/kernel.json`; `hasKernelSchemas` (`build-evidence.ts`) goes with the bundle checks
-      that call it.
-    - Callers of the renamed tier move with it: `ensureOwnedRuntimeArtifacts` (`build-entry.ts`),
-      `validateRuntimeBuildEvidence` (`build-runtime-setup.ts`), and every test that reads the middle tier.
-    - The tier's identity stays the runtime-plus-schema identity until the producer's graph goes in Task 1.2.
-    - `makeStagedBuildFixture` (`staged-build-fixture.ts`) stops writing the bundle, so the unit publication tests run
-      on output without it. Bundle faults and bundle checks over staged output go, the unit ancillary publication fault
-      moves to `metafile-esm.json`, and the nested-output publication check (`build-publication-paths.test.ts`)
-      stages its own nested file.
-    - The existing metafile faults in `build-preparation.test.ts` and `build-publication.test.ts` stay the refusal
-      coverage for the middle tier and for staged publication.
-
-    - Build `test-first` (one behavior at a time):
-        - `runtimeMetafile` qualifies a generation whose `dist/` holds the CLI entry and the metafile and no bundle
-        - Staged publication accepts fast output of `cli.js` and `metafile-esm.json`, and full output that adds
-          `cli.d.ts`
+- _Outcome:_ Qualification uses `runtimeMetafile`; staged publication no longer requires the bundle. The staged
+  fixture holds only runtime output, and metafile refusal, ownership loss, and Windows nested publication keep their
+  coverage. The second input identity remains until the producer is retired.
 
 ### `[ ]` **1.2 Remove the schema producer and its evidence graph, re-seating the hooks it hosted — D6**
 

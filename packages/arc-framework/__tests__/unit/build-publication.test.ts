@@ -8,13 +8,24 @@ import { makeStagedBuildFixture } from "../helpers/staged-build-fixture.js";
 
 const acceptCli = async () => {};
 
+it.each(["fast", "full"] as const)("publishes %s output without a bundled document", async (mode) => {
+  const { root, packageRoot, lease, staged, evidence } = makeStagedBuildFixture(mode);
+  try {
+    await rm(join(staged.directory, "schemas"), { recursive: true, force: true });
+    await publishStagedBuild(lease, staged, evidence, { checkCli: acceptCli });
+    expect(await readFile(join(packageRoot, "dist/cli.js"), "utf8")).toContain("new-staged-runtime");
+    expect(JSON.parse(await readFile(join(packageRoot, "dist/metafile-esm.json"), "utf8"))).toHaveProperty("inputs");
+    if (mode === "full") expect(await readFile(join(packageRoot, "dist/cli.d.ts"), "utf8")).toContain("marker");
+    expect(JSON.parse(await readFile(join(packageRoot, "dist", DEV_BUILD_STAMP_NAME), "utf8"))).toEqual(evidence);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 it("establishes required output and qualification when live dist is absent", async () => {
   const { root, packageRoot, lease, staged, evidence } = makeStagedBuildFixture();
   await rm(join(packageRoot, "dist"), { recursive: true });
   try {
     await publishStagedBuild(lease, staged, evidence, { checkCli: acceptCli });
     expect(await readFile(join(packageRoot, "dist/cli.js"), "utf8")).toContain("new-staged-runtime");
-    expect(JSON.parse(await readFile(join(packageRoot, "dist/schemas/kernel.json"), "utf8"))).toHaveProperty("schemas");
     expect(JSON.parse(await readFile(join(packageRoot, "dist", DEV_BUILD_STAMP_NAME), "utf8"))).toEqual(evidence);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
@@ -34,16 +45,14 @@ it("refuses lost ownership before mutation and publishes after ownership repair"
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-it.each(["missing schema", "missing metafile", "empty metafile", "empty CLI", "invalid CLI", "invalid schema"])(
+it.each(["missing metafile", "empty metafile", "empty CLI", "invalid CLI"])(
   "refuses %s before changing live output", async (fault) => {
     const { root, packageRoot, lease, staged, evidence } = makeStagedBuildFixture();
     try {
-      if (fault === "missing schema") await rm(join(staged.directory, "schemas/kernel.json"));
       if (fault === "missing metafile") await rm(join(staged.directory, "metafile-esm.json"));
       if (fault === "empty metafile") await writeFile(join(staged.directory, "metafile-esm.json"), "");
       if (fault === "empty CLI") await writeFile(join(staged.directory, "cli.js"), "");
       if (fault === "invalid CLI") await writeFile(join(staged.directory, "cli.js"), "export const =");
-      if (fault === "invalid schema") await writeFile(join(staged.directory, "schemas/kernel.json"), "{}");
       await expect(publishStagedBuild(lease, staged, evidence, { checkCli: async () => {
         if (fault === "invalid CLI") throw new SyntaxError("Unexpected token");
       } })).rejects.toThrow("npm run build:fast");
@@ -63,7 +72,6 @@ it("exposes complete required output and removes obsolete output before evidence
       rename: async (source, destination) => {
         if (destination === join(live, DEV_BUILD_STAMP_NAME)) {
           expect(await readFile(join(live, "cli.js"), "utf8")).toContain("new-staged-runtime");
-          expect(JSON.parse(await readFile(join(live, "schemas/kernel.json"), "utf8"))).toHaveProperty("schemas");
           await expect(readFile(join(live, "obsolete.js"))).rejects.toMatchObject({ code: "ENOENT" });
         }
         await rename(source, destination);

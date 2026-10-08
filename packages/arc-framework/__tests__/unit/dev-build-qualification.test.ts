@@ -42,7 +42,7 @@ it("retains schema-only freshness and refuses runtime changes without generation
   try {
     await writeFile(schema, originalSchema + "\n// schema changed\n");
     expect(checkDevBuildStaleness(createDevCheckDeps(cli))).toEqual({ kind: "fresh" });
-    expect(readBuildQualification(packageRoot, "runtimeSchema").status).toBe("unqualified");
+    expect(readBuildQualification(packageRoot, "runtimeMetafile").status).toBe("unqualified");
     await writeFile(runtime, originalRuntime + "\n// runtime changed\n");
     expect(checkDevBuildStaleness(createDevCheckDeps(cli)).kind).toBe("stale");
     await writeFile(schema, originalSchema);

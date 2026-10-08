@@ -62,7 +62,7 @@ it("consumes the prepared native generation", async () => {
     const args = tiers.map(rootOperand);
     const first = await runFocusedTestFixture(fixture.root, args, localEnvironment);
     expect(first, first.stderr).toMatchObject({ code: 0 });
-    const qualification = readBuildQualification(fixture.packageRoot, "runtimeSchema");
+    const qualification = readBuildQualification(fixture.packageRoot, "runtimeMetafile");
     expect(qualification.status).toBe("qualified");
     if (qualification.status !== "qualified") throw new Error(qualification.reason);
     const events = (await readFile(fixture.events, "utf8")).split("\n").filter((line) => line.startsWith("{"))
@@ -74,7 +74,7 @@ it("consumes the prepared native generation", async () => {
     const counter = await readFile(join(fixture.packageRoot, ".config-loads"), "utf8");
     const second = await runFocusedTestFixture(fixture.root, args, localEnvironment);
     expect(second, second.stderr).toMatchObject({ code: 0 });
-    const reused = readBuildQualification(fixture.packageRoot, "runtimeSchema");
+    const reused = readBuildQualification(fixture.packageRoot, "runtimeMetafile");
     expect(reused.status === "qualified" && reused.evidence.generation).toBe(qualification.evidence.generation);
     expect(await readFile(join(fixture.packageRoot, ".config-loads"), "utf8")).toBe(counter);
     for (const path of [join(fixture.packageRoot, ".arc-build.lock"), join(fixture.root, ".git/arc/test-suite/.local-heavy-tests.lock")]) {
@@ -89,7 +89,7 @@ it("fails unmatched runtime case names after required preparation despite native
   expect(result.code).toBe(1);
   expect(result.stderr).toContain("No test cases completed");
   expect(result.stderr).not.toContain("No configured test specifications");
-  expect(readBuildQualification(fixture.packageRoot, "runtimeSchema").status).toBe("qualified");
+  expect(readBuildQualification(fixture.packageRoot, "runtimeMetafile").status).toBe("qualified");
   expect(await readFile(fixture.events, "utf8")).toContain('"stage":"integration:teardown"');
 }, 30_000);
 

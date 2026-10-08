@@ -74,7 +74,7 @@ export async function ensureOwnedRuntimeArtifacts(
   lease: BuildArtifactLease, env: NodeJS.ProcessEnv = process.env,
 ): Promise<BuildEvidence> {
   await lease.confirmOwnership();
-  const qualification = readBuildQualification(lease.packageRoot, "runtimeSchema");
+  const qualification = readBuildQualification(lease.packageRoot, "runtimeMetafile");
   if (qualification.status === "qualified") return qualification.evidence;
   if (env.ARC_E2E_SKIP_BUILD === "1") {
     throw new Error(`Prebuilt runtime/schema output is unqualified: ${qualification.reason} `

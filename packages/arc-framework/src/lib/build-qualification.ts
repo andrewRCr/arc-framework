@@ -3,13 +3,13 @@ import { createHash } from "node:crypto";
 import { readFileSync, lstatSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
-  DEV_BUILD_STAMP_NAME, hasKernelSchemas, identifyBuildInputs, parseBuildEvidence, sharedBuildIdentity, type BuildEvidence,
+  DEV_BUILD_STAMP_NAME, identifyBuildInputs, parseBuildEvidence, sharedBuildIdentity, type BuildEvidence,
 } from "./build-evidence.js";
 import { captureBuildContext } from "./build-context.js";
 import { captureBuildInventory } from "./build-inventory.js";
 
 /** Required live artifact contract, independent of the outer npm lifecycle. */
-export type BuildRequirement = "runtime" | "runtimeSchema" | "full";
+export type BuildRequirement = "runtime" | "runtimeMetafile" | "full";
 
 /** Reuse is established only by matching current inputs and complete required files. */
 export type BuildQualification =
@@ -49,7 +49,7 @@ export function readBuildQualification(packageRoot: string, requirement: BuildRe
 }
 
 function requireLiveArtifacts(packageRoot: string, requirement: BuildRequirement, evidence: BuildEvidence): void {
-  const files = ["cli.js", ...(requirement === "runtime" ? [] : ["schemas/kernel.json", "metafile-esm.json"]),
+  const files = ["cli.js", ...(requirement === "runtime" ? [] : ["metafile-esm.json"]),
     ...(requirement === "full" ? ["cli.d.ts"] : [])];
   if (requirement === "full" && !evidence.qualification.declarations) {
     throw new Error("Build evidence does not establish declaration generation.");
@@ -57,9 +57,5 @@ function requireLiveArtifacts(packageRoot: string, requirement: BuildRequirement
   for (const file of files) {
     const status = lstatSync(join(packageRoot, "dist", file));
     if (!status.isFile() || status.size === 0) throw new Error(`Required live artifact ${file} is unusable.`);
-  }
-  if (requirement !== "runtime") {
-    const schema: unknown = JSON.parse(readFileSync(join(packageRoot, "dist/schemas/kernel.json"), "utf8"));
-    if (!hasKernelSchemas(schema)) throw new Error("Live kernel schema is unusable.");
   }
 }

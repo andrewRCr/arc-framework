@@ -40,7 +40,7 @@ it("retains runtime freshness for schema-only content and refuses edited runtime
       const contents: unknown = JSON.parse(await readFile(schema, "utf8"));
       await writeFile(schema, JSON.stringify({ ...(contents as Record<string, unknown>), $comment: "schema changed" }));
       expect(checkDevBuildStaleness(createDevCheckDeps(cli))).toEqual({ kind: "fresh" });
-      expect(readBuildQualification(packageRoot, "runtimeSchema").status).toBe("unqualified");
+      expect(readBuildQualification(packageRoot, "runtimeMetafile").status).toBe("unqualified");
       await writeFile(join(packageRoot, "src/cli.ts"), 'export const marker = "edited-runtime";');
       expect(checkDevBuildStaleness(createDevCheckDeps(cli)).kind).toBe("stale");
       await buildOwnedArtifacts(lease, "fast");

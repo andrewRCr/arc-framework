@@ -47,7 +47,7 @@ it("cancels an indefinitely queued public builder and qualifies a fresh retry", 
     const retry = await execa(process.execPath, ["--import", "tsx", script, "fast"],
       { cwd: fixture.packageRoot, reject: false, timeout: 30_000 });
     expect(retry.exitCode, retry.stderr).toBe(0);
-    expect(readBuildQualification(fixture.packageRoot, "runtimeSchema").status).toBe("qualified");
+    expect(readBuildQualification(fixture.packageRoot, "runtimeMetafile").status).toBe("qualified");
     expect(await readFile(join(fixture.packageRoot, "dist/cli.js"), "utf8")).toContain("new-native-runtime");
     await expect(readFile(join(fixture.packageRoot, ".arc-build.lock"))).rejects.toMatchObject({ code: "ENOENT" });
   } finally { await rm(fixture.root, { recursive: true, force: true }); }

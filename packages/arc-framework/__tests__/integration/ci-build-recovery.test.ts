@@ -18,14 +18,13 @@ beforeAll(async () => {
 afterAll(async () => { await rm(producer.root, { recursive: true, force: true }); });
 const skip = { CI: "1", ARC_E2E_SKIP_BUILD: "1" };
 
-it.each(["missing CLI", "missing schema", "malformed evidence", "CLI input", "schema input", "manifest", "installation metadata"])(
+it.each(["missing CLI", "malformed evidence", "CLI input", "schema input", "manifest", "installation metadata"])(
   "qualification refuses %s without generating or mutating transferred output", async (fault) => {
     const consumer = await downloadCiBuild(producer.packageRoot, "integration");
     try {
       const installation = await isolateCiInstallation(consumer.root);
-      expect(readBuildQualification(consumer.packageRoot, "runtimeSchema").status).toBe("qualified");
+      expect(readBuildQualification(consumer.packageRoot, "runtimeMetafile").status).toBe("qualified");
       if (fault === "missing CLI") await rm(join(consumer.packageRoot, "dist/cli.js"));
-      if (fault === "missing schema") await rm(join(consumer.packageRoot, "dist/schemas/kernel.json"));
       if (fault === "malformed evidence") await writeFile(join(consumer.packageRoot, "dist/dev-build-stamp.json"), "broken");
       if (fault === "CLI input" || fault === "schema input") {
         const input = join(consumer.packageRoot, fault === "CLI input" ? "src/cli.ts" : "src/fixture-schema.json");
@@ -37,7 +36,7 @@ it.each(["missing CLI", "missing schema", "malformed evidence", "CLI input", "sc
       }
       if (fault === "installation metadata") await writeFile(installation.file, installation.original + "\n");
       const stamp = await readFile(join(consumer.packageRoot, "dist/dev-build-stamp.json"), "utf8");
-      const refused = readBuildQualification(consumer.packageRoot, "runtimeSchema");
+      const refused = readBuildQualification(consumer.packageRoot, "runtimeMetafile");
       expect(refused).toMatchObject({ status: "unqualified", reason: expect.any(String) });
       expect(await readFile(join(consumer.packageRoot, "dist/dev-build-stamp.json"), "utf8")).toBe(stamp);
       await expect(readFile(join(consumer.packageRoot, ".config-loads"))).rejects.toMatchObject({ code: "ENOENT" });
@@ -52,14 +51,14 @@ it.each(["missing", "malformed", "empty"])("qualification requires installation 
     if (fault === "missing") await rm(installation.file);
     else await writeFile(installation.file, fault === "malformed" ? "broken" : '{"lockfileVersion":3,"packages":{}}');
     const stamp = await readFile(join(consumer.packageRoot, "dist/dev-build-stamp.json"), "utf8");
-    const refused = readBuildQualification(consumer.packageRoot, "runtimeSchema");
+    const refused = readBuildQualification(consumer.packageRoot, "runtimeMetafile");
     expect(refused).toMatchObject({ status: "unqualified" });
     if (refused.status !== "unqualified") throw new Error("Invalid installation unexpectedly qualified");
     expect(refused.reason).toContain("npm ci");
     expect(await readFile(join(consumer.packageRoot, "dist/dev-build-stamp.json"), "utf8")).toBe(stamp);
     await expect(readFile(join(consumer.packageRoot, ".config-loads"))).rejects.toMatchObject({ code: "ENOENT" });
     await writeFile(installation.file, installation.original);
-    expect(readBuildQualification(consumer.packageRoot, "runtimeSchema").status).toBe("qualified");
+    expect(readBuildQualification(consumer.packageRoot, "runtimeMetafile").status).toBe("qualified");
   } finally { await rm(consumer.root, { recursive: true, force: true }); }
 }, 60_000);
 
@@ -68,9 +67,8 @@ it.each(["missing CLI"])(
     const consumer = await downloadCiBuild(producer.packageRoot, "integration");
     try {
       const installation = await isolateCiInstallation(consumer.root);
-      expect(readBuildQualification(consumer.packageRoot, "runtimeSchema").status).toBe("qualified");
+      expect(readBuildQualification(consumer.packageRoot, "runtimeMetafile").status).toBe("qualified");
       if (fault === "missing CLI") await rm(join(consumer.packageRoot, "dist/cli.js"));
-      if (fault === "missing schema") await rm(join(consumer.packageRoot, "dist/schemas/kernel.json"));
       if (fault === "malformed evidence") await writeFile(join(consumer.packageRoot, "dist/dev-build-stamp.json"), "broken");
       if (fault === "CLI input" || fault === "schema input") {
         const input = join(consumer.packageRoot, fault === "CLI input" ? "src/cli.ts" : "src/fixture-schema.json");
@@ -90,13 +88,13 @@ it.each(["missing CLI"])(
       await expect(readFile(join(consumer.packageRoot, ".config-loads"))).rejects.toMatchObject({ code: "ENOENT" });
       const prepared = await runCiPreflight(consumer, "integration");
       expect(prepared.code, prepared.stderr).toBe(0);
-      const qualification = readBuildQualification(consumer.packageRoot, "runtimeSchema");
+      const qualification = readBuildQualification(consumer.packageRoot, "runtimeMetafile");
       expect(qualification.status).toBe("qualified");
       const loads = await readFile(join(consumer.packageRoot, ".config-loads"), "utf8");
       const repaired = await runVitestControllerFixture(consumer.packageRoot, ["integration"], skip);
       expect(repaired.code, repaired.stderr).toBe(0);
       expect(await readFile(join(consumer.packageRoot, ".config-loads"), "utf8")).toBe(loads);
-      expect(readBuildQualification(consumer.packageRoot, "runtimeSchema")).toEqual(qualification);
+      expect(readBuildQualification(consumer.packageRoot, "runtimeMetafile")).toEqual(qualification);
     } finally { await rm(consumer.root, { recursive: true, force: true }); }
   }, 60_000,
 );

@@ -17,7 +17,7 @@ it("generates under direct preparation ownership and releases before the unmanag
     const result = await runVitestControllerFixture(fixture.packageRoot, ["run", "--project", "integration"],
       { ARC_E2E_SKIP_BUILD: undefined }, "native");
     expect(result.code, result.stderr).toBe(0);
-    const qualification = readBuildQualification(fixture.packageRoot, "runtimeSchema");
+    const qualification = readBuildQualification(fixture.packageRoot, "runtimeMetafile");
     expect(qualification.status).toBe("qualified");
     const events = (await readFile(fixture.events, "utf8")).split("\n").filter((event) => event.startsWith("{"))
       .map((event) => JSON.parse(event) as { stage: string; owned: boolean });

@@ -23,7 +23,7 @@ declare module "vitest" {
 export function validateRuntimeBuildEvidence(packageRoot: string, value: unknown): BuildEvidence {
   const supplied = parseBuildEvidence(value);
   if (supplied === null) throw new Error("Provided runtime/schema build evidence is malformed; nested repair is disabled.");
-  const current = readBuildQualification(packageRoot, "runtimeSchema");
+  const current = readBuildQualification(packageRoot, "runtimeMetafile");
   if (current.status !== "qualified") {
     throw new Error(`Provided runtime/schema output is unqualified: ${current.reason} `
       + "Run npm ci if installation needs repair, then npm run build:fast or download matching qualified artifacts.");

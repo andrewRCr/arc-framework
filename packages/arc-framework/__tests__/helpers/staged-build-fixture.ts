@@ -3,7 +3,6 @@ import { join } from "node:path";
 import type { BuildArtifactLease } from "../../src/lib/build-ownership.js";
 import type { StagedBuildGeneration, BuildMode } from "../../src/lib/build-entry.js";
 import { captureBuildBaseline, certifyBuildGeneration } from "../../src/lib/build-baseline.js";
-import { projectKernelSchemas, serializeKernelSchemaBundle } from "../../src/lib/kernel/schema/generate.js";
 import { makeBuildFixture, writeBuildFixtureFile } from "./build-fixture.js";
 
 /**
@@ -29,7 +28,6 @@ export function makeStagedBuildFixture(
     controls: [`packages/cli/${sources.controls}`],
   };
   writeBuildFixtureFile(join(directory, "cli.js"), 'export const marker = "new-staged-runtime";\n');
-  writeBuildFixtureFile(join(directory, "schemas/kernel.json"), serializeKernelSchemaBundle(projectKernelSchemas()));
   writeBuildFixtureFile(join(directory, "metafile-esm.json"), JSON.stringify({
     inputs: { [sources.cli]: { bytes: 25, imports: [] } },
     outputs: { "cli.js": { bytes: 50, inputs: { [sources.cli]: { bytesInOutput: 25 } },
