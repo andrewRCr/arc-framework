@@ -26,7 +26,9 @@ override-active: false
 The baseline version is `standard-review/v1`. Its semantic identity is owned by the registered typed contract
 and derived digest; editorial guidance in this method is not a second identity authority.
 
-- **Coverage:** Review the complete exact requested change set, not a sample or only the latest fix.
+- **Coverage:** Review the complete exact requested change set, not a sample or only the latest fix. For an
+  incremental correction pass, that change set is the range from its predecessor head to its current head, together
+  with the material findings its correction scope carries; the earlier range is covered by the recorded coverage chain.
 - **Evaluator boundary:** Use a non-author evaluator with source and governing project context. Exclude author
   conclusions, suspected weak spots, preferred fixes, and self-verification claims from first-pass context.
 - **Rubric:** Apply the effective `implementation-audit` lens and consider all five rubric dimensions across the

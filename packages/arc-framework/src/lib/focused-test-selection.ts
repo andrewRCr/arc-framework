@@ -15,7 +15,13 @@ export async function discoverFocusedVitestSelection(input: FocusedTestInput): P
     (specifications) => selectExactSpecifications(input.targets, specifications));
 }
 
-function selectExactSpecifications(targets: readonly FocusedTestTarget[], specifications: TestSpecification[]): TestSpecification[] {
+/**
+ * Require each operand to contribute configured membership and retain native order.
+ * @param targets - Validated absolute file or directory operands
+ * @param specifications - Native configured candidates after project filtering
+ * @returns Deduplicated exact selection in native discovery order
+ */
+export function selectExactSpecifications(targets: readonly FocusedTestTarget[], specifications: TestSpecification[]): TestSpecification[] {
   const selected = new Set<TestSpecification>();
   for (const target of targets) {
     const contribution = specifications.filter((specification) => matchesTarget(target, resolve(specification.moduleId)));

@@ -12,6 +12,9 @@ import {
   type V3DecomposeInvocation,
 } from "../../../src/lib/work-unit/decompose-v3-refusal.js";
 
+/** Timeout for measured repository scans on slower hosted runners. */
+const REPOSITORY_SCAN_TIMEOUT = 10_000;
+
 const PACKAGE_ROOT = resolve(import.meta.dirname, "../../..");
 const SOURCE_ROOT = join(PACKAGE_ROOT, "src");
 const WORK_UNIT_ROOT = join(SOURCE_ROOT, "lib/work-unit");
@@ -311,9 +314,9 @@ describe("decomposition refusal source totality", () => {
     });
 
     expect(failures).toEqual([]);
-  });
+  }, REPOSITORY_SCAN_TIMEOUT);
 
   it("admits only stable outward reason producers", () => {
     expect(decomposeRefusalInventory().unsafeProducers).toEqual([]);
-  });
+  }, REPOSITORY_SCAN_TIMEOUT);
 });

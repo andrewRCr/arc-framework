@@ -2,7 +2,7 @@
 
 import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 import { removeGitBackedDir } from "./temp-repo.js";
 
@@ -18,10 +18,24 @@ export interface PreparedRepositoryShape {
   readonly key: string;
 }
 
+/** A linked worktree in a separate sibling parent directory. */
+export interface PreparedSiblingWorktreeShape {
+  readonly kind: "sibling-worktree-bearing";
+  readonly key: string;
+  readonly worktreeName: string;
+}
+
+/** Independently writable repository and sibling worktree paths. */
+export interface PreparedSiblingWorktreeCopy {
+  readonly root: string;
+  readonly parent: string;
+  readonly worktree: string;
+}
+
 /** One built repository template that can serve compatible test copies. */
 export interface PreparedRepositoryTemplate {
   readonly root: string;
-  readonly shape: PreparedRepositoryShape;
+  readonly shape: PreparedRepositoryShape | PreparedSiblingWorktreeShape;
 }
 
 /**
@@ -32,7 +46,7 @@ export interface PreparedRepositoryTemplate {
  * @returns The built template and its immutable shape identity.
  */
 export async function prepareRepositoryTemplate(
-  shape: PreparedRepositoryShape,
+  shape: PreparedRepositoryShape | PreparedSiblingWorktreeShape,
   build: () => Promise<string>,
 ): Promise<PreparedRepositoryTemplate> {
   return { root: await build(), shape };
@@ -43,13 +57,23 @@ export async function prepareRepositoryTemplate(
  *
  * @param template - Prepared repository to copy.
  * @param shape - Exact shape requested by the test.
- * @returns A new independently writable repository path.
+ * @returns Independent repository paths, including the parent for a sibling worktree shape.
  */
-export async function copyPreparedRepository(
+export function copyPreparedRepository(
+  template: PreparedRepositoryTemplate,
+  shape: PreparedSiblingWorktreeShape,
+): Promise<PreparedSiblingWorktreeCopy>;
+export function copyPreparedRepository(
   template: PreparedRepositoryTemplate,
   shape: PreparedRepositoryShape,
-): Promise<string> {
-  if (template.shape.kind !== shape.kind || template.shape.key !== shape.key) {
+): Promise<string>;
+export async function copyPreparedRepository(
+  template: PreparedRepositoryTemplate,
+  shape: PreparedRepositoryShape | PreparedSiblingWorktreeShape,
+): Promise<string | PreparedSiblingWorktreeCopy> {
+  if (template.shape.kind !== shape.kind || template.shape.key !== shape.key
+    || (template.shape.kind === "sibling-worktree-bearing" && shape.kind === "sibling-worktree-bearing"
+      && template.shape.worktreeName !== shape.worktreeName)) {
     throw new Error(
       `Prepared repository shape mismatch: template is ${template.shape.kind}/${template.shape.key}, `
       + `request is ${shape.kind}/${shape.key}`,
@@ -78,6 +102,24 @@ export async function copyPreparedRepository(
         destination,
       );
     }
+    if (shape.kind === "sibling-worktree-bearing") {
+      const gitdir = (await readFile(join(template.root, ".git", "worktrees", shape.worktreeName, "gitdir"), "utf8")).trim();
+      const originalWorktree = dirname(gitdir);
+      const originalParent = dirname(originalWorktree);
+      const parent = await mkdtemp(join(tmpdir(), "arc-prepared-sibling-"));
+      try {
+        await cp(originalParent, parent, { recursive: true });
+        const worktree = join(parent, basename(originalWorktree));
+        await rewriteRequiredPath(join(worktree, ".git"), template.root, destination);
+        await rewriteRequiredPath(
+          join(destination, ".git", "worktrees", shape.worktreeName, "gitdir"), originalParent, parent,
+        );
+        return { root: destination, parent, worktree };
+      } catch (error) {
+        await removeGitBackedDir(parent);
+        throw error;
+      }
+    }
     return destination;
   } catch (error) {
     await removeGitBackedDir(destination);
@@ -87,8 +129,9 @@ export async function copyPreparedRepository(
 
 async function rewriteRequiredPath(file: string, from: string, to: string): Promise<void> {
   const content = await readFile(file, "utf8");
-  if (!content.includes(from)) {
+  const source = content.includes(from) ? from : from.replaceAll("\\", "/");
+  if (!content.includes(source)) {
     throw new Error(`Prepared repository expected an absolute template reference in ${file}`);
   }
-  await writeFile(file, content.replaceAll(from, to), "utf8");
+  await writeFile(file, content.replaceAll(source, to.replaceAll("\\", "/")), "utf8");
 }

@@ -1,5 +1,6 @@
 /** Shared registration for delivery-position handler checks and its retained real-CLI smoke. */
 
+import { makeInteractionContext } from "./interaction-context.js";
 import { collectCandidateSubjectTarget } from "./candidate-subject.js";
 import { makeMetaFixture } from "./meta-fixture.js";
 import {
@@ -285,7 +286,8 @@ async function runArc(
   return runHandlerAt(cwd, async () => {
     const command = args.join(" ");
     if (command === "init --yes --name delivery-position") {
-      await handleInit({ yes: true, name: "delivery-position" });
+      await handleInit({ yes: true, name: "delivery-position" },
+        makeInteractionContext({ noInput: true, yes: "compatibility" }));
       return;
     }
     if (command === "status --session-init --json") {
@@ -4313,7 +4315,6 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
     // re-deriving anything — the operator just has to know that is what it wants, which the failure never says.
     expect(afterUnstage.exitCode, `${afterUnstage.stderr}\n${afterUnstage.stdout}`).toBe(0);
     expect(JSON.parse(afterUnstage.stdout)).toMatchObject({ state: "ready", nextAction: "launch-review" });
-
 
     const resumedLocal = await runArcWithStdin(
       ["review", "local", "resume", "-"],

@@ -5,6 +5,7 @@
  * the fetch/pull overwrite flows in the user portability handlers.
  */
 
+import { makeInteractionContext } from "../helpers/interaction-context.js";
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
 
 import { UserFacingError } from "../../src/lib/errors.js";
@@ -100,25 +101,12 @@ const mockRunWithSpinner = vi.fn(
   ) => { void output; void label; void done; return fn(); },
 );
 
-const mockIsNonInteractive = vi.fn(() => false);
-
-vi.mock("../../src/lib/command-input/interaction-context.js", () => ({
-  resolveProcessInteractionContext: (input: { yes: string }) => {
-    const forbidden = mockIsNonInteractive() || input.yes !== "absent";
-    return {
-      interaction: forbidden ? "forbidden" : "allowed",
-      confirmation: input.yes === "authority" ? "accept" : "ask",
-      machineReadable: false,
-      promptInput: process.stdin,
-      promptOutput: process.stdout,
-      subprocess: {
-        terminalPrompts: forbidden ? "forbidden" : "allowed",
-        presenters: forbidden ? "forbidden" : "allowed",
-        ambientStdin: forbidden ? "closed" : "inherit",
-      },
-    };
-  },
-}));
+let nonInteractive = false;
+function makeTestContext(signals: Parameters<typeof makeInteractionContext>[0] = {}) {
+  return makeInteractionContext({
+    promptInputIsTTY: !nonInteractive, promptOutputIsTTY: !nonInteractive, ...signals,
+  });
+}
 
 vi.mock("../../src/handlers/shared.js", () => ({
   resolveUserIdentity: (...args: unknown[]) => mockResolveUserIdentity(...args),
@@ -129,7 +117,6 @@ vi.mock("../../src/handlers/shared.js", () => ({
   isHandledError: () => false,
   isRemoteError: (msg: string) =>
     msg.includes("No configured push destination") || msg.includes("does not appear to be a git repository"),
-  isNonInteractiveEnvironment: () => mockIsNonInteractive(),
   requireArcProjectRoot: () => process.cwd(),
   resolveCurrentBranchName: async () => "feature/x",
   isUserFetchSuccess: (result: { kind: string }) =>
@@ -196,7 +183,7 @@ const {
  */
 function resetMockDefaults() {
   mockIsCancel.mockReturnValue(false);
-  mockIsNonInteractive.mockReturnValue(false);
+  nonInteractive = false;
   mockRunWithSpinner.mockImplementation(
     async (
       output: unknown,
@@ -427,7 +414,7 @@ describe("handleUserPull fetch+load flow", () => {
       warnings: [],
     });
 
-    await handleUserPull({});
+    await handleUserPull({}, makeTestContext());
 
     expect(mockRunUserPull).toHaveBeenCalledWith(
       expect.objectContaining({ cwd: process.cwd() }),
@@ -450,7 +437,7 @@ describe("handleUserPull fetch+load flow", () => {
       warnings: [],
     });
 
-    await handleUserPull({});
+    await handleUserPull({}, makeTestContext());
 
     expect(mockConfirm).toHaveBeenCalledTimes(1);
     const callArg = mockRunUserPull.mock.calls[0]?.[0] as Record<string, unknown>;
@@ -462,7 +449,7 @@ describe("handleUserPull fetch+load flow", () => {
     mockHasLocalNotes.mockResolvedValue(true);
     mockConfirm.mockResolvedValue(false);
 
-    await handleUserPull({});
+    await handleUserPull({}, makeTestContext());
 
     expect(mockLog.info).toHaveBeenCalledWith("Pull cancelled.");
     expect(mockRunUserPull).not.toHaveBeenCalled();
@@ -480,7 +467,7 @@ describe("handleUserPull fetch+load flow", () => {
       warnings: [],
     });
 
-    await handleUserPull({ yes: true });
+    await handleUserPull({ yes: true }, makeTestContext({ yes: "authority" }));
 
     expect(mockConfirm).not.toHaveBeenCalled();
     const callArg = mockRunUserPull.mock.calls[0]?.[0] as Record<string, unknown>;
@@ -490,8 +477,8 @@ describe("handleUserPull fetch+load flow", () => {
 
   it("requires explicit overwrite authority in non-TTY environments", async () => {
     mockHasLocalNotes.mockResolvedValue(true);
-    mockIsNonInteractive.mockReturnValue(true);
-    await handleUserPull({});
+    nonInteractive = true;
+    await handleUserPull({}, makeTestContext());
 
     expect(mockConfirm).not.toHaveBeenCalled();
     expect(mockRunUserPull).not.toHaveBeenCalled();
@@ -502,7 +489,7 @@ describe("handleUserPull fetch+load flow", () => {
   it("sets exitCode when pull returns no note after fetch", async () => {
     mockRunUserPull.mockResolvedValue(null);
 
-    await handleUserPull({});
+    await handleUserPull({}, makeTestContext());
 
     expect(mockLog.warn).toHaveBeenCalledWith(
       expect.stringContaining("No saved user directory"),
@@ -517,7 +504,7 @@ describe("handleUserPull fetch+load flow", () => {
       remoteTip: "remote",
     });
 
-    await handleUserPull({});
+    await handleUserPull({}, makeTestContext());
 
     expect(mockLog.error).toHaveBeenCalledWith("pull refused for andrew");
     expect(mockNote).not.toHaveBeenCalled();
@@ -784,7 +771,7 @@ describe("handleUserOpen", () => {
   });
 
   it("opens the WU subdir without prompting when no stale subdirs exist", async () => {
-    await handleUserOpen("feature-x");
+    await handleUserOpen("feature-x", makeTestContext());
 
     expect(mockSelect).not.toHaveBeenCalled();
     expect(mockRemoveStaleUserWuSubdir).not.toHaveBeenCalled();
@@ -798,7 +785,7 @@ describe("handleUserOpen", () => {
     mockReconcileRetiredSubdirsStandalone.mockResolvedValue(new Set(["shipped-wu"]));
     mockFindStaleUserWuSubdirs.mockResolvedValue([]);
 
-    await handleUserOpen("feature-x");
+    await handleUserOpen("feature-x", makeTestContext());
 
     expect(mockReconcileRetiredSubdirsStandalone).toHaveBeenCalledWith(
       expect.objectContaining({ identity: "andrew" }),
@@ -812,7 +799,7 @@ describe("handleUserOpen", () => {
     mockFindStaleUserWuSubdirs.mockResolvedValue(["prior-wu"]);
     mockSelect.mockResolvedValue("keep");
 
-    await handleUserOpen("feature-x");
+    await handleUserOpen("feature-x", makeTestContext());
 
     expect(mockSelect).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -826,10 +813,10 @@ describe("handleUserOpen", () => {
   });
 
   it("auto-skips to keep under a non-interactive environment — no prompt, no removal, no abort", async () => {
-    mockIsNonInteractive.mockReturnValue(true);
+    nonInteractive = true;
     mockFindStaleUserWuSubdirs.mockResolvedValue(["prior-wu"]);
 
-    await handleUserOpen("feature-x");
+    await handleUserOpen("feature-x", makeTestContext());
 
     expect(mockSelect).not.toHaveBeenCalled();
     expect(mockRemoveStaleUserWuSubdir).not.toHaveBeenCalled();
@@ -845,7 +832,7 @@ describe("handleUserOpen", () => {
     ]);
     mockSelect.mockResolvedValueOnce("inspect").mockResolvedValueOnce("remove");
 
-    await handleUserOpen("feature-x");
+    await handleUserOpen("feature-x", makeTestContext());
 
     expect(mockListUserWuSubdirContents).toHaveBeenCalledWith(
       expect.objectContaining({ identity: "andrew", subdir: "prior-wu" }),
@@ -865,7 +852,7 @@ describe("handleUserOpen", () => {
     mockFindStaleUserWuSubdirs.mockResolvedValue(["prior-wu"]);
     mockSelect.mockResolvedValue("remove");
 
-    await handleUserOpen("feature-x");
+    await handleUserOpen("feature-x", makeTestContext());
 
     expect(mockRemoveStaleUserWuSubdir).toHaveBeenCalledWith(
       expect.objectContaining({ identity: "andrew", subdir: "prior-wu" }),
@@ -880,7 +867,7 @@ describe("handleUserOpen", () => {
     mockSelect.mockResolvedValue(Symbol("cancel"));
     mockIsCancel.mockReturnValue(true);
 
-    await handleUserOpen("feature-x");
+    await handleUserOpen("feature-x", makeTestContext());
 
     expect(mockRemoveStaleUserWuSubdir).not.toHaveBeenCalled();
     expect(mockRunUserOpen).toHaveBeenCalled();
@@ -899,7 +886,7 @@ describe("handleUserOpen", () => {
     // The file-scoped isHandledError mock returns false, so a UserFacingError
     // re-throws out of the handler. The behavior we're asserting is that the
     // open path short-circuits — no stale-prompt and no runUserOpen.
-    await expect(handleUserOpen("feature-x")).rejects.toThrow(UserFacingError);
+    await expect(handleUserOpen("feature-x", makeTestContext())).rejects.toThrow(UserFacingError);
     expect(mockFindStaleUserWuSubdirs).not.toHaveBeenCalled();
     expect(mockRunUserOpen).not.toHaveBeenCalled();
   });

@@ -7,7 +7,7 @@
  * @module
  */
 
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
 
 import { resolveIdentity, isGitRepo, type GitExec } from "../lib/git/index.js";
 import { resolveArcRoot } from "../lib/paths.js";
@@ -19,6 +19,8 @@ import {
   type UserPullResult,
 } from "../commands/user.js";
 import { gitFailureText, isGitProcessError } from "../lib/git/process-error.js";
+import { prompt } from "../lib/command-input/prompter.js";
+import type { PromptSite } from "../lib/command-input/declaration.js";
 import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import type { SyncOutput } from "../lib/sync-output.js";
 
@@ -225,20 +227,23 @@ export async function resolveUserIdentity(exec: GitExec): Promise<string> {
 }
 
 /**
- * Resolve identity with optional interactive prompt (for init/join).
- * Returns null if identity cannot be resolved and no prompt is available.
+ * Resolve identity through the caller's declared question and invocation context.
+ * @param site - Caller-owned identity question
+ * @param context - Invocation interaction capability and authority
+ * @param exec - Injectable Git executor
+ * @returns The configured or acquired identity, or null on refusal or cancellation
  */
-export async function resolveIdentityWithPrompt(interactive: boolean, exec: GitExec): Promise<string | null> {
+export async function resolveIdentityWithPrompt(
+  site: PromptSite<"text">, context: InteractionContext, exec: GitExec,
+): Promise<string | null> {
   return resolveIdentity({
     exec,
-    prompt: interactive ? async (message: string, defaultValue?: string) => {
-      const result = await p.text({
-        message,
-        defaultValue,
-        placeholder: defaultValue,
+    prompt: async (message, defaultValue) => {
+      const outcome = await prompt(site, context, {
+        message, defaultValue, placeholder: defaultValue, runtimeDefault: defaultValue,
       });
-      return result;
-    } : undefined,
+      return outcome.kind === "answered" ? outcome.value : "";
+    },
   });
 }
 

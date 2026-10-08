@@ -23,14 +23,23 @@ Applied on top of `.default` (`override-mode: extend`) — the universal princip
 `@arc-framework/cli` (TypeScript CLI, Vitest, and three test tiers — unit / integration / e2e, rooted at
 `packages/arc-framework/__tests__/`):
 
-- **Boundaries are** `execFile` / git, `fs`, the npm-registry check, and time — mock these in unit tests; let
-  integration and e2e exercise the real thing.
+- **Unit tier** (`__tests__/unit/**`) — no child processes, real builds or git repositories. The explicit spawn
+  allowlist holds existing exceptions as a shrinking floor; new process coverage belongs in integration.
+- **Architecture rules** — express one-hop import and syntax bans in ESLint; tests cover only structural properties
+  the compiler and linter cannot enforce.
+- **Decision matrices** — use fakes at the dependency seam or the deciding function on a filesystem fixture; keep
+  one integration run per outcome class: the real operation's end state plus the external systems that decide it.
+  Input-data differences share a class; a different deciding external system creates a separate class.
+- **Process tests** — clear output-format variables such as `FORCE_COLOR`; size waits and deadlines to the asserted
+  distinction. Heavy real work carries a named explicit timeout.
+- **Boundaries are** `execFile` / git, the npm-registry check, and time — mock these in unit tests; let integration
+  and e2e exercise the real thing.
 - **Vitest mock mechanics** — `resetAllMocks` (not `clearAllMocks`, which leaks runtime overrides), hoisted
   `vi.fn()` consts (never inline in a `vi.mock` factory), and per-test re-establishment of defaults (a single
   `resetMockDefaults()` helper at the top of the file).
-- **Dependency injection** — pass `execFile` / `fs` in rather than importing them; group 4+ related dependencies
-  into a typed context object (the `IOContext{fs,git}` pattern), so tests construct a partial context with only
-  the mocks they need.
+- **Dependency injection** — pass `execFile` in; inject `fs` where a test must fail or observe it, otherwise use a
+  temporary directory. Group 4+ related dependencies into a typed context (the `IOContext{fs,git}` pattern), so
+  tests construct a partial context with only the mocks they need.
 - **CLI handler-seam + destructive-verb discipline** — integration tests drive verb cores through
   CLI-generated inputs (exercise the handler seam, not a hand-built argument object); **a destructive verb
   (delete, reset, overwrite, force) requires real-CLI e2e coverage in a temp git repo, never a mock-only

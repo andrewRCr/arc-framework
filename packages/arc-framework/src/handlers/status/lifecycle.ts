@@ -1,6 +1,6 @@
 /** Subject-keyed lifecycle queries and their operational boundary rendering. */
 
-import * as p from "@clack/prompts";
+import * as p from "../../lib/terminal.js";
 import { readdir, readFile } from "node:fs/promises";
 import { runActiveStatus } from "../../commands/active.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";

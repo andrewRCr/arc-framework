@@ -1,8 +1,9 @@
 /** Disposable root/workspace commands using the installed native ESLint CLI. */
-import { cp, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execa } from "execa";
+import { copyLiveTree } from "./copy-live-tree.js";
 
 /**
  * Compose real npm scripts, ESLint suppression, and independently failing files.
@@ -17,8 +18,8 @@ export async function makeFocusedLintFixture(): Promise<{ root: string; packageR
   await mkdir(join(packageRoot, "src/extra"));
   await writeFile(join(root, "package.json"), await readFile(join(sourceRoot, "package.json")));
   await writeFile(join(packageRoot, "package.json"), await readFile(join(sourcePackage, "package.json")));
-  await cp(join(sourcePackage, "src/scripts"), join(packageRoot, "src/scripts"), { recursive: true });
-  await cp(join(sourcePackage, "src/lib"), join(packageRoot, "src/lib"), { recursive: true });
+  await copyLiveTree(join(sourcePackage, "src/scripts"), join(packageRoot, "src/scripts"));
+  await copyLiveTree(join(sourcePackage, "src/lib"), join(packageRoot, "src/lib"));
   await symlink(join(sourceRoot, "node_modules"), join(root, "node_modules"), "junction");
   await symlink(join(sourcePackage, "node_modules"), join(packageRoot, "node_modules"), "junction");
   const counter = join(packageRoot, "config-loaded");

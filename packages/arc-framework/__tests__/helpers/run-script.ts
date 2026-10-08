@@ -44,7 +44,7 @@ export interface RunScriptOptions {
   /** Working directory for the spawned subprocess. Defaults to the parent's cwd. */
   cwd?: string;
   /**
-   * Environment variables for the subprocess. Merged on top of `process.env`,
+   * Environment variables for the subprocess. Inherited `FORCE_COLOR` is cleared; overrides are merged on top,
    * so callers only need to supply the keys they want to override.
    */
   env?: NodeJS.ProcessEnv;
@@ -79,7 +79,7 @@ export function runScript(
   options: RunScriptOptions = {},
 ): Promise<RunScriptResult> {
   const timeout = options.timeout ?? DEFAULT_TIMEOUT_MS;
-  const env = { ...process.env, ...(options.env ?? {}) };
+  const env = { ...process.env, FORCE_COLOR: undefined, ...(options.env ?? {}) };
 
   return new Promise<RunScriptResult>((resolveResult, rejectResult) => {
     const child = spawn("bash", [scriptPath, ...args], {

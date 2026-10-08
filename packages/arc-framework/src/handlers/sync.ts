@@ -27,8 +27,8 @@
  * Schema parity holds across runtime and `--dry-run`; `interlockState`
  * (`{pushInterlock, notesPush, syncInterlock}`) is attached once at the
  * `handleSync` boundary so per-cell builders stay focused on leg outcomes.
- * `notesPush` reports the resolved policy after non-interactive degradation,
- * not the raw config; `syncInterlock` is informational only — the
+ * `notesPush` reports the resolved configured policy; `syncInterlock` is
+ * informational only — the
  * orchestrator does not act on it (authorize-by-invocation).
  *
  * **Worktree-push helper.** Single-leg worktree pushes in `executeSingleLeg`
@@ -87,17 +87,15 @@ import {
 } from "../lib/git/worktree-sync.js";
 import { inferRecommendedSummaryLine } from "../lib/handoff/recommended-summary-line.js";
 import { createGitExec, createUserIOContext } from "../lib/io-context.js";
-import {
-  resolveProcessInteractionContext,
-  type InteractionContext,
-} from "../lib/command-input/interaction-context.js";
+import type { InteractionContext } from "../lib/command-input/interaction-context.js";
 import {
   declareCliOptionSite,
-  declareInteractionSite,
+  declarePromptSite,
   type CommandInputDeclaration,
 } from "../lib/command-input/declaration.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import type { ResolvedConfigOverride } from "../lib/config/resolve-override.js";
+import type { PromptOutcome } from "../lib/command-input/prompter.js";
 import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";
 import { pushNotesWithReconcile } from "./push-recovery.js";
 import {
@@ -112,6 +110,14 @@ export interface SyncOptions {
   dryRun?: boolean;
   json?: boolean;
 }
+
+/** Authority required to publish the saved user notes. */
+export const syncNotesPushPromptSite = declarePromptSite("prompt.sync.notes-push", "confirm",
+  { file: "handlers/sync.ts", symbol: "syncNotesPushPromptSite" }, {
+    acquisition: "protected-confirmation", schemaOwnership: "none", cancellation: "stop",
+    automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: ["--yes"] },
+    mutationBoundary: "sync protected mutation", subprocess: "none",
+  });
 
 /** Input and interaction policies owned by the sync adapter. */
 export const syncCommandInputPolicyDeclarations = [{
@@ -128,22 +134,7 @@ export const syncCommandInputPolicyDeclarations = [{
       automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: [] },
       mutationBoundary: "sync handler", subprocess: "none",
     }),
-    declareInteractionSite(
-      { file: "handlers/sync.ts", kind: "prompt-helper", callee: "ctx.output.confirm", occurrence: 1 },
-      {
-        acquisition: "protected-confirmation", schemaOwnership: "none", cancellation: "stop",
-        automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: ["--yes"] },
-        mutationBoundary: "sync protected mutation", subprocess: "none",
-      },
-    ),
-    declareInteractionSite(
-      { file: "lib/sync-output.ts", kind: "prompt", callee: "p.confirm", occurrence: 1 },
-      {
-        acquisition: "protected-confirmation", schemaOwnership: "none", cancellation: "stop",
-        automation: { noInput: "require-authority", flags: ["--yes"], acceptedSyntax: ["--yes"] },
-        mutationBoundary: "sync protected mutation", subprocess: "none",
-      },
-    ),
+    syncNotesPushPromptSite,
   ],
 }] satisfies readonly CommandInputDeclaration[];
 
@@ -157,10 +148,8 @@ export const syncCommandInputPolicyDeclarations = [{
  * Each entry carries `{ value, source }` provenance so audit-log consumers
  * can distinguish git-config overrides from yaml-configured defaults.
  *
- * `notesPush.value` is the resolved policy after non-interactive degradation;
- * `notesPush.source` reflects where the pre-degradation policy was configured
- * (so a degraded `prompt → manual` from a git-config-set `arc.notesPush=prompt`
- * still reports `source: "git-config"`).
+ * `notesPush.value` and its source retain the configured policy. Prompt
+ * acquisition resolves authority separately from this configuration snapshot.
  */
 export interface InterlockState {
   pushInterlock: ResolvedConfigOverride<PushInterlock>;
@@ -413,13 +402,8 @@ type ExecutedOutcome = Omit<
 export async function handleSync(
   opts: SyncOptions = {},
   output: SyncOutput = createSyncOutput(opts.json === true),
-  suppliedContext?: InteractionContext,
+  context: InteractionContext,
 ): Promise<void> {
-  const context = suppliedContext ?? resolveProcessInteractionContext({
-    noInput: false,
-    machineReadable: opts.json === true,
-    yes: opts.yes === true ? "authority" : "absent",
-  });
   output.intro("arc sync");
 
   let identity: string;
@@ -452,19 +436,7 @@ export async function handleSync(
   const syncInterlock = resolvedSettings.resolved.syncInterlock;
   const notesPushResolved = resolvedSettings.resolved.notesPush;
 
-  let notesPush = notesPushResolved.value;
-  if (notesPush === "prompt" && context.confirmation === "accept") {
-    output.log.info(
-      `--yes flag detected — auto-accepting "prompt" policy (save and push notes).`,
-    );
-    notesPush = "on-sync";
-  } else if (notesPush === "prompt" && context.interaction === "forbidden") {
-    const reason = opts.json === true ? "JSON output mode" : "Interaction unavailable";
-    output.log.warn(
-      `${reason} detected — degrading "prompt" policy to "manual" (save only).`,
-    );
-    notesPush = "manual";
-  }
+  const notesPush = notesPushResolved.value;
 
   const interlockState: InterlockState = {
     pushInterlock: resolvedSettings.resolved.pushInterlock,
@@ -681,6 +653,17 @@ async function execute(ctx: ExecuteContext): Promise<ExecutedOutcome> {
 
   if (decision.worktree.kind === "inbound-ff-pull") {
     return executeInboundFfPull(ctx, decision.worktree.branch);
+  }
+
+  if (decision.notes.kind === "save+prompt" && ctx.interaction.confirmation === "accept"
+    && (decision.worktree.kind === "push" || decision.worktree.kind === "push-with-upstream-init")) {
+    const answer = await askSyncNotesPush(ctx);
+    if (answer.kind === "answered" && answer.value) {
+      const notes = { kind: "save+push" } as const;
+      return executePaired({ ...ctx, decision: { ...decision, notes,
+        cellName: cellNameFor(decision.worktree, notes) } }, decision.worktree.branch,
+      decision.worktree.kind === "push-with-upstream-init");
+    }
   }
 
   if (
@@ -1106,19 +1089,8 @@ async function completeNotesLeg(
         exitCode: 1,
       };
     }
-    const shouldPush = await ctx.output.confirm({
-      message: "Push user notes to remote now?",
-      initialValue: true,
-    });
-    if (ctx.output.isCancel(shouldPush) || !shouldPush) {
-      ctx.output.log.info("Notes push skipped. Run `arc user push` when ready.");
-      return {
-        cell: decision.cellName,
-        worktree: worktreeRecord,
-        notes: { action: "save", result: "cancelled" },
-        exitCode: 0,
-      };
-    }
+    const stopped = await resolveSyncNotesPushQuestion(ctx, worktreeRecord);
+    if (stopped !== null) return stopped;
     const notesRecord = await pushNotesLeg(ctx);
     return {
       cell: decision.cellName,
@@ -1137,6 +1109,29 @@ async function completeNotesLeg(
     notes: notesRecord,
     exitCode: notesRecord.result === "success" || notesRecord.result === "noop" ? 0 : 1,
   };
+}
+
+/** Forward the notes question on the invocation's prompt boundary. */
+async function askSyncNotesPush(ctx: ExecuteContext): Promise<PromptOutcome<boolean>> {
+  return ctx.output.confirm(syncNotesPushPromptSite, ctx.interaction, {
+    message: "Push user notes to remote now?", initialValue: true,
+  });
+}
+
+/** Acquire notes publication authority after the local save. */
+async function resolveSyncNotesPushQuestion(
+  ctx: ExecuteContext, worktreeRecord: LegOutcomeRecord,
+): Promise<ExecutedOutcome | null> {
+  const answer = await askSyncNotesPush(ctx);
+  if (answer.kind === "answered" && answer.value) return null;
+  if (answer.kind === "refused") {
+    ctx.output.log.error("Notes saved locally; re-run with --yes to authorize the push.");
+    return { cell: ctx.decision.cellName, worktree: worktreeRecord,
+      notes: { action: "save", result: "blocked", detail: "notes-push-authority-required" }, exitCode: 1 };
+  }
+  ctx.output.log.info("Notes push skipped. Run `arc user push` when ready.");
+  return { cell: ctx.decision.cellName, worktree: worktreeRecord,
+    notes: { action: "save", result: "cancelled" }, exitCode: 0 };
 }
 
 /**

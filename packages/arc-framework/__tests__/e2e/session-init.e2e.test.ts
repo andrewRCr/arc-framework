@@ -18,7 +18,7 @@ import { chmod, mkdir, mkdtemp, readFile, realpath, unlink, writeFile } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import { COMPACTION_SEED_SCHEMA_VERSION } from "../../src/lib/compaction-seed/schema.js";
 import { LOAD_SET_MANIFEST_VERSION } from "../../src/lib/load-set/types.js";
 import {
@@ -37,7 +37,34 @@ import { deliveryStateFixture } from "../fixtures/delivery-state.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { runArc, createTempRepo, cleanupTempDir, removeGitBackedDir, git } from "./helpers.js";
 
+import {
+  copyPreparedRepository, prepareRepositoryTemplate, type PreparedRepositoryTemplate,
+} from "../helpers/prepared-repository.js";
+
 const execFileAsync = promisify(execFile);
+
+const initializedShape = { kind: "plain", key: "session-init-uncommitted" } as const;
+let initializedTemplate: PreparedRepositoryTemplate | undefined;
+beforeAll(async () => {
+  initializedTemplate = await prepareRepositoryTemplate(initializedShape, async () => {
+    const root = await createTempRepo();
+    try {
+      const init = await runArc(["init", "--yes", "--name", "test-project"], root);
+      expect(init.exitCode, init.stdout + init.stderr).toBe(0);
+      return root;
+    } catch (error) {
+      await cleanupTempDir(root);
+      throw error;
+    }
+  });
+});
+afterAll(async () => {
+  if (initializedTemplate !== undefined) await cleanupTempDir(initializedTemplate.root);
+});
+async function copyInitializedRepository(): Promise<string> {
+  if (initializedTemplate === undefined) throw new Error("session-init template not prepared");
+  return copyPreparedRepository(initializedTemplate, initializedShape);
+}
 
 interface SessionInitEnvelope {
   mode: string;
@@ -412,9 +439,7 @@ describe("session-init E2E — sessionType across type variants", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
-    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
-    expect(init.exitCode).toBe(0);
+    tmpDir = await copyInitializedRepository();
   });
 
   afterEach(async () => {
@@ -1318,12 +1343,10 @@ describe("session-init E2E — sessionType across type variants", () => {
 
 describe("session-init E2E — request-scoped remote acquisition", () => {
   it("uses one all-heads generation and one local availability batch without code-ref mutation", async () => {
-    const repo = await createTempRepo();
+    const repo = await copyInitializedRepository();
     const bareDir = await mkdtemp(join(tmpdir(), "arc-session-init-generation-origin-"));
     const trace = await createGitTraceHarness();
     try {
-      const init = await runArc(["init", "--yes", "--name", "test-project"], repo);
-      expect(init.exitCode, init.stdout + init.stderr).toBe(0);
       await execFileAsync("git", ["init", "--bare", "--initial-branch=main", bareDir]);
       await git(repo, ["remote", "add", "origin", bareDir]);
       await git(repo, ["add", "-A"]);
@@ -1400,12 +1423,10 @@ describe("session-init E2E — request-scoped remote acquisition", () => {
   });
 
   it("isolates an unreachable all-heads read while preserving local orientation", async () => {
-    const repo = await createTempRepo();
+    const repo = await copyInitializedRepository();
     const bareDir = await mkdtemp(join(tmpdir(), "arc-session-init-unreachable-origin-"));
     const trace = await createGitTraceHarness();
     try {
-      const init = await runArc(["init", "--yes", "--name", "test-project"], repo);
-      expect(init.exitCode, init.stdout + init.stderr).toBe(0);
       await execFileAsync("git", ["init", "--bare", "--initial-branch=main", bareDir]);
       await git(repo, ["remote", "add", "origin", bareDir]);
       await git(repo, ["add", "-A"]);
@@ -1451,12 +1472,10 @@ describe("session-init E2E — request-scoped remote acquisition", () => {
   });
 
   it("isolates a failed local availability prerequisite while preserving snapshot-only absence", async () => {
-    const repo = await createTempRepo();
+    const repo = await copyInitializedRepository();
     const bareDir = await mkdtemp(join(tmpdir(), "arc-session-init-local-probe-origin-"));
     const trace = await createGitTraceHarness();
     try {
-      const init = await runArc(["init", "--yes", "--name", "test-project"], repo);
-      expect(init.exitCode, init.stdout + init.stderr).toBe(0);
       await execFileAsync("git", ["init", "--bare", "--initial-branch=main", bareDir]);
       await git(repo, ["remote", "add", "origin", bareDir]);
       await git(repo, ["add", "-A"]);
@@ -1498,12 +1517,10 @@ describe("session-init E2E — request-scoped remote acquisition", () => {
   });
 
   it("keeps snapshot-only absence exact while shallow graph slots fail locally", async () => {
-    const repo = await createTempRepo();
+    const repo = await copyInitializedRepository();
     const bareDir = await mkdtemp(join(tmpdir(), "arc-session-init-shallow-origin-"));
     const trace = await createGitTraceHarness();
     try {
-      const init = await runArc(["init", "--yes", "--name", "test-project"], repo);
-      expect(init.exitCode, init.stdout + init.stderr).toBe(0);
       await execFileAsync("git", ["init", "--bare", "--initial-branch=main", bareDir]);
       await git(repo, ["remote", "add", "origin", bareDir]);
       await git(repo, ["add", "-A"]);
@@ -1546,10 +1563,8 @@ describe("session-init E2E — current detached husk advisory", () => {
   let worktreeParent: string;
 
   beforeEach(async () => {
-    repo = await createTempRepo();
+    repo = await copyInitializedRepository();
     worktreeParent = await mkdtemp(join(tmpdir(), "arc-session-init-husk-wt-"));
-    const init = await runArc(["init", "--yes", "--name", "test-project"], repo);
-    expect(init.exitCode).toBe(0);
     await git(repo, ["add", "-A"]);
     await git(repo, ["commit", "-m", "chore: initialize ARC"]);
   });
@@ -1709,10 +1724,8 @@ describe("session-init E2E — deferred rename move advisory", () => {
   let worktreeParent: string;
 
   beforeEach(async () => {
-    repo = await createTempRepo();
+    repo = await copyInitializedRepository();
     worktreeParent = await mkdtemp(join(tmpdir(), "arc-session-init-rename-wt-"));
-    const init = await runArc(["init", "--yes", "--name", "test-project"], repo);
-    expect(init.exitCode).toBe(0);
     await git(repo, ["add", "-A"]);
     await git(repo, ["commit", "-m", "chore: initialize ARC"]);
   });
@@ -1806,9 +1819,7 @@ describe("session-init E2E — base-ref pull recommendation under session.init_p
   }
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
-    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
-    expect(init.exitCode).toBe(0);
+    tmpDir = await copyInitializedRepository();
     await setupStaleLocalBase(tmpDir);
   });
 
@@ -1858,10 +1869,9 @@ describe("session-init E2E — shared advisory base drift", () => {
   let remote: string;
 
   beforeEach(async () => {
-    repo = await createTempRepo("arc-session-drift-");
+    repo = await copyInitializedRepository();
     publisher = await mkdtemp(join(tmpdir(), "arc-session-drift-publisher-"));
     remote = await mkdtemp(join(tmpdir(), "arc-session-drift-remote-"));
-    expect((await runArc(["init", "--yes", "--name", "test-project"], repo)).exitCode).toBe(0);
     await git(repo, ["add", "-A"]);
     await git(repo, ["commit", "--no-verify", "-m", "init"]);
     await execFileAsync("git", ["init", "--bare", "-b", "main", remote]);

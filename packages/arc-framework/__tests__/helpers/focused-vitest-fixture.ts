@@ -76,6 +76,6 @@ export async function runFocusedTestFixture(
   root: string, args: string[], environment: NodeJS.ProcessEnv = {},
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   const result = await execa("npm", ["run", "-s", "test:file", "--", ...args],
-    { cwd: root, env: environment, reject: false, timeout: 30_000, maxBuffer: 16 * 1024 * 1024 });
+    { cwd: root, env: { VITEST_MAX_WORKERS: undefined, ...environment }, reject: false, timeout: 30_000, maxBuffer: 16 * 1024 * 1024 });
   return { code: result.exitCode ?? 1, stdout: result.stdout, stderr: result.stderr };
 }

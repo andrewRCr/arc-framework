@@ -11,7 +11,7 @@
 
 import { readdir, readFile } from "node:fs/promises";
 
-import * as p from "@clack/prompts";
+import * as p from "../lib/terminal.js";
 
 import {
   buildActiveSessionInitSummary,
@@ -21,6 +21,7 @@ import {
   runActiveSessionInitStatus,
   runActiveStatus,
 } from "../commands/active.js";
+import { resolveIdentity } from "../lib/git/index.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import {
   renderInFlightWarning,
@@ -31,7 +32,7 @@ import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/comma
 import { createGitExec, createGitExecInput } from "../lib/io-context.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
-import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
+import { requireArcProjectRoot } from "./shared.js";
 
 export interface ActiveStatusCliOptions {
   sessionInit?: boolean;
@@ -110,7 +111,7 @@ export async function handleActiveRoster(
   if (!cwd) return;
   const exec = createGitExec(interaction?.subprocess);
 
-  const identity = await resolveIdentityWithPrompt(false, exec);
+  const identity = await resolveIdentity({ exec });
   const { settings } = await readConfigSettings(cwd);
   const teamMode = settings["team.mode"] === "true";
 
@@ -149,7 +150,7 @@ export async function handleActiveInFlight(
   if (!cwd) return;
   const exec = createGitExec(interaction?.subprocess);
 
-  const identity = await resolveIdentityWithPrompt(false, exec);
+  const identity = await resolveIdentity({ exec });
   const { settings } = await readConfigSettings(cwd);
   const teamMode = settings["team.mode"] === "true";
   const localOnly = Boolean(opts.local) || opts.fetch === false;

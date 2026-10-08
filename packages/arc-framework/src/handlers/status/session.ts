@@ -1,6 +1,6 @@
 /** Handoff, recovery, and ordinary composite status mode composition. */
 
-import * as p from "@clack/prompts";
+import * as p from "../../lib/terminal.js";
 import { access } from "node:fs/promises";
 import { runActiveStatus } from "../../commands/active.js";
 import { runConfigStatus } from "../../commands/config.js";

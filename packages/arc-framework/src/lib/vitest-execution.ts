@@ -1,6 +1,6 @@
 /** Selected native execution and controller closing inside CPU/artifact ownership. */
 import { closeVitestController } from "./vitest-closing.js";
-import { checkVitestCompletion } from "./vitest-completion.js";
+import { checkVitestCompletion, checkVitestUnitLaunchFloor } from "./vitest-completion.js";
 import { ensureOwnedRuntimeArtifacts } from "./build-entry.js";
 import { withTestArtifactOwnership, type BuildArtifactLease, type TestOwnershipOverrides } from "./build-ownership.js";
 import { PREPARED_RUNTIME_BUILD_KEY, requirePreparedRuntimeBuild, validateRuntimeBuildEvidence } from "./build-runtime-setup.js";
@@ -36,8 +36,9 @@ export async function executeVitestSelection<T>(
         requirePreparedRuntimeBuild(input.packageRoot, selection.controller.getProvidedContext());
         await lease.confirmOwnership();
       }
-      checkVitestCompletion(await selection.controller.runTestSpecifications(selection.specifications, true),
-        selection.controller.logger);
+      const result = await selection.controller.runTestSpecifications(selection.specifications, true);
+      checkVitestCompletion(result, selection.controller.logger);
+      checkVitestUnitLaunchFloor(result, selection.controller.logger);
     } finally { await close(); }
     return await afterClose?.();
   };

@@ -66,6 +66,11 @@ review carrier; do not silently treat size alone as proof that the pass is bound
 Require `change-set − union(chunks) = empty`. Close or surface every uncovered file or hunk; an unmeasured or
 uncovered region is not implicitly small or reviewed.
 
+For an incremental correction pass, the change set is the range from the pass's predecessor head to its current
+head. The earlier range back to the complete review is covered by the recorded coverage chain and is not partitioned
+again. Re-examine each material finding the correction scope carries at its locus, in the chunk whose scope contains
+that locus, or in the seam when no chunk does.
+
 Add a dedicated seam scope whenever boundaries create cross-chunk surface. Review changed contracts at their use
 sites and inspect boundary-spanning duplication, abstraction choices, and naming consistency. The seam complements
 the local chunks; it does not re-read every chunk body as one diluted whole-target pass.

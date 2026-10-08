@@ -18,6 +18,9 @@ import {
 import { createProductionSchemaRegistry } from "../../../src/production-schema-registry.js";
 import { PRODUCTION_SCHEMA_IDS } from "../../helpers/schema-artifact.js";
 
+/** Timeout for measured repository scans on slower hosted runners. */
+const REPOSITORY_SCAN_TIMEOUT = 10_000;
+
 const temporaryRoots: string[] = [];
 const strict = (id: string): KernelSchemaMeta => ({ id, version: 1, migrationPosture: "strict-current" });
 
@@ -75,7 +78,7 @@ describe("kernel schema artifact generation", () => {
       .toEqual({ $ref: "review-rubric-overlay-resolution.schema.json" });
     expect(serializeKernelSchemaBundle(projectKernelSchemas(second)))
       .toBe(serializeKernelSchemaBundle(firstBundle));
-  });
+  }, REPOSITORY_SCAN_TIMEOUT);
 
   it("serializes identical bytes and ids across opposite registration orders", () => {
     const alpha = z.object({ value: z.string() });
