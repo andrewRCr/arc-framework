@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -46,8 +47,13 @@ function readJson<T>(path: string): T {
 }
 
 function runHookScript(path: string, env: NodeJS.ProcessEnv = {}): HookOutput {
-  return JSON.parse(execFileSync(process.execPath, [path], {
+  return JSON.parse(runHookScriptRaw(path, "", env)) as HookOutput;
+}
+
+function runHookScriptRaw(path: string, input: string, env: NodeJS.ProcessEnv = {}): string {
+  return execFileSync(process.execPath, [path], {
     encoding: "utf8",
+    input,
     env: {
       ...process.env,
       ARC_HOOK_ARC_COMMAND: "arc",
@@ -55,7 +61,17 @@ function runHookScript(path: string, env: NodeJS.ProcessEnv = {}): HookOutput {
       CLAUDE_PROJECT_DIR: packageRoot,
       ...env,
     },
-  })) as HookOutput;
+  });
+}
+
+const SESSION_ID = "8775846a-ff57-4f58-ae0d-e378343ffdc9";
+
+function hookStdin(hookEventName: string, agentId?: string): string {
+  return `${JSON.stringify({
+    hook_event_name: hookEventName,
+    session_id: SESSION_ID,
+    ...(agentId === undefined ? {} : { agent_id: agentId, agent_type: "general-purpose" }),
+  })}\n`;
 }
 
 describe("Claude Code compaction recovery hook recipe", () => {
@@ -136,6 +152,36 @@ describe("Claude Code compaction recovery hook recipe", () => {
     expect(output.hookSpecificOutput?.additionalContext).toContain("=== ARC post-compaction recovery ===");
     // Recovery is mandatory even when residual context feels sufficient — compaction loss is silent.
     expect(output.hookSpecificOutput?.additionalContext).toContain("mandatory even if your context");
+  });
+
+  it("injects recovery only into the session that compacted, never into a subagent", () => {
+    const primary = JSON.parse(runHookScriptRaw(compactScriptPath, hookStdin("SessionStart"))) as HookOutput;
+    expect(primary.hookSpecificOutput?.additionalContext).toContain("=== ARC post-compaction recovery ===");
+
+    expect(runHookScriptRaw(compactScriptPath, hookStdin("SessionStart", "a79117b04f216c536"))).toBe("");
+  });
+
+  it("does not seed a subagent's own compaction", () => {
+    const root = mkdtempSync(join(tmpdir(), "arc-claude-hook-"));
+    try {
+      const invokedPath = join(root, "seed-invoked");
+      const fakeArcPath = join(root, "fake-arc.mjs");
+      writeFileSync(fakeArcPath, `import { writeFileSync } from "node:fs";\n`
+        + `writeFileSync(${JSON.stringify(invokedPath)}, "");\n`);
+      const env = {
+        ARC_HOOK_ARC_COMMAND: `"${process.execPath}" "${fakeArcPath}"`,
+        ARC_HOOK_HARNESS: "claude-code",
+        CLAUDE_PROJECT_DIR: root,
+      };
+
+      runHookScriptRaw(seedScriptPath, hookStdin("PreCompact", "a79117b04f216c536"), env);
+      expect(existsSync(invokedPath)).toBe(false);
+
+      runHookScriptRaw(seedScriptPath, hookStdin("PreCompact"), env);
+      expect(existsSync(invokedPath)).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("uses ARC_HOOK_ARC_COMMAND in injected recovery instructions", () => {
