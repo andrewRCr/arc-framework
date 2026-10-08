@@ -43,26 +43,50 @@ function isFactory(expression: ts.Expression, bindings: ReadonlySet<string>): bo
     || (ts.isPropertyAccessExpression(expression) && expression.name.text === "createRequire");
 }
 
-function nodeFactoryLookup(source: ts.SourceFile, lookup: ReturnType<typeof syntaxBindingLookup>): (expression: ts.Expression) => boolean {
-  const factories = new Set<ts.Node>();
-  const namespaces = new Set<ts.Node>();
-  for (const statement of source.statements) {
-    if (!ts.isImportDeclaration(statement) || literal(statement.moduleSpecifier) !== "node:module") continue;
-    const clause = statement.importClause;
-    if (clause === undefined || clause.phaseModifier === ts.SyntaxKind.TypeKeyword) continue;
-    if (clause.name !== undefined) namespaces.add(clause);
-    const bindings = clause.namedBindings;
-    if (bindings !== undefined && ts.isNamespaceImport(bindings)) namespaces.add(bindings);
-    if (bindings !== undefined && ts.isNamedImports(bindings)) {
-      for (const binding of bindings.elements) {
-        if (!binding.isTypeOnly && (binding.propertyName ?? binding.name).text === "createRequire") factories.add(binding);
-      }
-    }
+interface NodeFactoryOwners { factories: Set<ts.Node>; namespaces: Set<ts.Node> }
+
+function nodeModuleSpecifier(node: ts.Node | undefined): boolean {
+  const name = literal(node);
+  return name === "node:module" || name === "module";
+}
+
+function collectNodeImport(statement: ts.Statement, owners: NodeFactoryOwners): void {
+  if (!ts.isImportDeclaration(statement) || !nodeModuleSpecifier(statement.moduleSpecifier)) return;
+  const clause = statement.importClause;
+  if (clause === undefined || clause.phaseModifier === ts.SyntaxKind.TypeKeyword) return;
+  if (clause.name !== undefined) owners.namespaces.add(clause);
+  const bindings = clause.namedBindings;
+  if (bindings !== undefined && ts.isNamespaceImport(bindings)) owners.namespaces.add(bindings);
+  if (bindings === undefined || !ts.isNamedImports(bindings)) return;
+  for (const binding of bindings.elements) {
+    if (binding.isTypeOnly) continue;
+    const name = (binding.propertyName ?? binding.name).text;
+    if (name === "createRequire") owners.factories.add(binding);
+    else if (name === "default") owners.namespaces.add(binding);
   }
+}
+
+function awaitedNodeNamespace(expression: ts.Expression | undefined): boolean {
+  if (expression === undefined || !ts.isAwaitExpression(expression)) return false;
+  const call = expression.expression;
+  return ts.isCallExpression(call) && call.expression.kind === ts.SyntaxKind.ImportKeyword
+    && nodeModuleSpecifier(call.arguments[0]);
+}
+
+function nodeFactoryLookup(source: ts.SourceFile, lookup: ReturnType<typeof syntaxBindingLookup>): (expression: ts.Expression) => boolean {
+  const owners: NodeFactoryOwners = { factories: new Set(), namespaces: new Set() };
+  for (const statement of source.statements) collectNodeImport(statement, owners);
+  const collect = (node: ts.Node): void => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && awaitedNodeNamespace(node.initializer)) {
+      owners.namespaces.add(node);
+    }
+    ts.forEachChild(node, collect);
+  };
+  collect(source);
   return (expression) => {
-    if (ts.isIdentifier(expression)) return factories.has(lookup(expression) ?? source);
+    if (ts.isIdentifier(expression)) return owners.factories.has(lookup(expression) ?? source);
     return ts.isPropertyAccessExpression(expression) && expression.name.text === "createRequire"
-      && ts.isIdentifier(expression.expression) && namespaces.has(lookup(expression.expression) ?? source);
+      && ts.isIdentifier(expression.expression) && owners.namespaces.has(lookup(expression.expression) ?? source);
   };
 }
 

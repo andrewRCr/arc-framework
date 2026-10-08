@@ -7,12 +7,21 @@ import { describe, expect, it } from "vitest";
 
 const packageRoot = resolve(import.meta.dirname, "../..");
 const eslint = new ESLint({ cwd: packageRoot, overrideConfig: [tseslint.configs.disableTypeChecked] });
+const additionalNodeLoaders = [
+  'import * as nodeModule from "module"; const load = nodeModule.createRequire(import.meta.url); void load("@clack/prompts");',
+  'import nodeModule from "module"; void nodeModule.createRequire(import.meta.url)("@clack/prompts");',
+  'import { default as nodeModule } from "node:module"; const load = nodeModule.createRequire(import.meta.url); void load("@clack/prompts");',
+  'import { default as nodeModule } from "module"; void nodeModule.createRequire(import.meta.url)("@clack/prompts");',
+  'const nodeModule = await import("node:module"); const load = nodeModule.createRequire(import.meta.url); void load("@clack/prompts");',
+  'const nodeModule = await import("module"); void nodeModule.createRequire(import.meta.url)("@clack/prompts");',
+] as const;
 const clackReferences = [
   'void import(`@clack/prompts`);',
   'import { createRequire as acquire } from "node:module"; const load = acquire(import.meta.url); void load("@clack/prompts");',
   'import { createRequire as acquire } from "node:module"; void acquire(import.meta.url)("@clack/prompts");',
   'import * as nodeModule from "node:module"; const load = nodeModule.createRequire(import.meta.url); void load("@clack/prompts");',
   'import nodeModule from "node:module"; void nodeModule.createRequire(import.meta.url)("@clack/prompts");',
+  ...additionalNodeLoaders,
 ] as const;
 
 const cases = [
@@ -51,6 +60,14 @@ const cases = [
 ] as const;
 
 describe("actual architecture table enforcement", () => {
+  it.each(additionalNodeLoaders)("retains other composed restrictions for a genuine Node loader: %s", async (text) => {
+    const [result] = await eslint.lintText(text.replaceAll("@clack/prompts", "neverthrow"), {
+      filePath: resolve(packageRoot, "src/lib/terminal.ts"),
+    });
+    expect(result?.fatalErrorCount).toBe(0);
+    expect(result?.messages.some(({ ruleId, message }) =>
+      ruleId === "arc/architecture-imports" && message.includes("neverthrow"))).toBe(true);
+  });
   it.each(clackReferences)("confines a supported raw prompt acquisition: %s", async (text) => {
     const [result] = await eslint.lintText(text, { filePath: resolve(packageRoot, "src/handlers/user.ts") });
     expect(result?.fatalErrorCount).toBe(0);
