@@ -1,4 +1,4 @@
-/** Production schema-registry composition shared by the build and fast verification. */
+/** Production schema-registry composition shared by public emitters and contract verification. */
 
 import { registerDeliveryAuthoringSchemas } from "./lib/delivery/design-inventory.js";
 import { registerDeliveryDomainSchemas } from "./lib/delivery/schema.js";
@@ -7,7 +7,7 @@ import { registerSessionEnvelopeSchemas } from "./lib/session-envelope/registry.
 import { registerReviewDomainSchemas } from "./scripts/review-gate/core/register-review-schemas.js";
 
 /**
- * Compose every schema family emitted by the production build.
+ * Compose every schema family served by the production CLI.
  *
  * @returns A fresh registry containing the complete production schema surface.
  */

@@ -18,18 +18,18 @@ declare module "vitest" {
  * Validate a controller's exact generation against current inputs and required files.
  * @param packageRoot - Consuming checkout package
  * @param value - Untrusted provided or preparation result
- * @returns Matching current-format runtime/schema evidence
+ * @returns Matching current-format CLI and metafile evidence
  */
 export function validateRuntimeBuildEvidence(packageRoot: string, value: unknown): BuildEvidence {
   const supplied = parseBuildEvidence(value);
-  if (supplied === null) throw new Error("Provided runtime/schema build evidence is malformed; nested repair is disabled.");
+  if (supplied === null) throw new Error("Provided CLI and metafile build evidence is malformed; nested repair is disabled.");
   const current = readBuildQualification(packageRoot, "runtimeMetafile");
   if (current.status !== "qualified") {
-    throw new Error(`Provided runtime/schema output is unqualified: ${current.reason} `
+    throw new Error(`Provided CLI and metafile output is unqualified: ${current.reason} `
       + "Run npm ci if installation needs repair, then npm run build:fast or download matching qualified artifacts.");
   }
   if (JSON.stringify(current.evidence) !== JSON.stringify(supplied)) {
-    throw new Error("Provided runtime/schema evidence does not match the current qualified generation; nested repair is disabled.");
+    throw new Error("Provided CLI and metafile evidence does not match the current qualified generation; nested repair is disabled.");
   }
   return current.evidence;
 }
@@ -42,7 +42,7 @@ export function validateRuntimeBuildEvidence(packageRoot: string, value: unknown
  */
 export function requirePreparedRuntimeBuild(packageRoot: string, provided: Partial<ProvidedContext>): BuildEvidence {
   if (!Object.hasOwn(provided, PREPARED_RUNTIME_BUILD_KEY)) {
-    throw new Error("Supported test controller did not provide its prepared runtime/schema generation.");
+    throw new Error("Supported test controller did not provide its prepared CLI and metafile generation.");
   }
   return validateRuntimeBuildEvidence(packageRoot, provided[PREPARED_RUNTIME_BUILD_KEY]);
 }
@@ -51,7 +51,7 @@ export function requirePreparedRuntimeBuild(packageRoot: string, provided: Parti
  * Consume provided evidence or prepare a direct native setup's runtime generation.
  * @param packageRoot - Actual native setup package boundary
  * @param provided - Public project context; own-key presence selects the handoff
- * @returns Current qualified runtime/schema generation
+ * @returns Current qualified CLI and metafile generation
  */
 export async function ensureTestRuntime(packageRoot: string, provided: Partial<ProvidedContext>): Promise<BuildEvidence> {
   if (Object.hasOwn(provided, PREPARED_RUNTIME_BUILD_KEY)) return requirePreparedRuntimeBuild(packageRoot, provided);

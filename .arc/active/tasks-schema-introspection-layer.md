@@ -54,34 +54,21 @@ every build behavior the producer or its bundle hosted still under test.
 - _Outcome:_ Removed artifact publication and its filesystem seam; deterministic registry projection remains. Production
   composition stays pinned through the renamed production-schema-ids helper.
 
-### `[ ]` **1.4 Name what the build now prepares — D6**
+### `[x]` **1.4 Name what the build now prepares — D6**
 
 - _Goal:_ Every message, name, and document that described the build as preparing runtime and schema output, or
   named the schema producer or artifact, says what is prepared now — the CLI entry, its metafile, and in full mode its
   declarations.
 
-    - `[ ]` **1.4.a Source messages, names, and comments**
+    - `[x]` **1.4.a Source messages, names, and comments**
 
-        - Error messages and doc comments in `build-entry.ts` and `build-runtime-setup.ts`; the header of
-          `build-producers.ts`, which keeps loading the repository's build configurations.
-        - Comments in `tsup.fast.config.ts`, `build-compiler.config.ts`, and `.github/workflows/ci.yml`.
-        - The header and composer doc comment of `production-schema-registry.ts`, which say the build emits the
-          composition.
-        - Headers of `__tests__/e2e/global-setup.ts` and `__tests__/integration/global-setup.ts`; doc comments of
-          `native-build-fixture.ts` and `native-build-controller.ts`; test names in `build-generation.test.ts` and
-          `vitest-runtime-fixture.ts`.
+        - Build preparation and qualification messages describe the CLI and metafile; compiler, fast-build, CI,
+          registry-composition, and test-setup comments describe their current outputs and responsibilities.
 
-    - `[ ]` **1.4.b Rules and reference documents**
+    - `[x]` **1.4.b Rules and reference documents**
 
-        - `DEV-RULES.PROJECT` § Selecting what to run, and QUICK-REFERENCE § Testing and § Building in this
-          repository's copy; the shipped template carries none of these passages.
-        - The `npm run build:fast` remedy is unchanged.
-        - A repository-wide search for `kernel.json`, `fixture-schema`, `build-schema`, `generateRuntimeSchema`,
-          `loadSchemaProducer`, `writeBuildArtifacts`, `hasKernelSchemas`, `runtimeSchema`, `graphs.schema`,
-          `schema-artifact`, "runtime/schema", "runtime and schema", "runtime-plus-schema", "schema producer", and
-          "schema artifact" returns only this work unit's planning artifacts, completed work-unit records, generated
-          candidate records, backlog planning artifacts, and dated measurement records under
-          `.arc/reference/supplemental/analysis/`, which keep the test-shard names they measured.
+        - Repository rules and reference describe fast preparation without declarations. The retirement search
+          finds no obsolete producer or artifact references outside preserved planning and historical records.
 
 ## **Phase 2:** Project contracts at real size, on the authored side, valid
 

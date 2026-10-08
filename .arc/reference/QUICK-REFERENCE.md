@@ -170,7 +170,7 @@ non-passing even when native empty-run or ignored-error options are supplied.
 
 Supported run-mode scripts, including retained cost measurements, discover first and retain one controller through
 closing. Unit-only selections request no heavy admission or build. Integration/E2E selections acquire CPU admission,
-then checkout artifact ownership, and prepare qualified runtime/schema output before setup. Artifact ownership lasts
+then checkout artifact ownership, and prepare qualified CLI and metafile output before setup. Artifact ownership lasts
 through test execution and cleanup; logged closing errors and final worker errors fail the run. Native watch remains
 the separate package convenience shown above.
 
@@ -180,12 +180,12 @@ the separate package convenience shown above.
 # Build CLI package (ESM output with shebang and declarations) — the build-verification gate
 npm run build
 
-# Runtime-only build: bundle, qualified input evidence, and kernel schema, without declarations
+# Fast build: CLI entry, metafile, and qualified input evidence, without declarations
 npm run build:fast
 ```
 
 Explicit `build` and `build:fast` always generate the requested output. Test preparation reuses unchanged qualified
-runtime/schema output, including output from a full build; fast preparation supplies no declaration proof. Supported
+CLI and metafile output, including output from a full build; fast preparation supplies no declaration proof. Supported
 builders wait behind an owning controller in the same checkout and remain interruptible. Other worktrees have
 independent artifact ownership. CI and `ARC_TEST_ALLOW_CONCURRENCY=1` bypass CPU admission only.
 
