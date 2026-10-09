@@ -16,6 +16,7 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { restrictedGitPath } from "../helpers/restricted-git-path.js";
 import { cleanupTempDir, createTempRepo } from "../helpers/integration.js";
 
 const execFileAsync = promisify(execFile);
@@ -48,7 +49,7 @@ async function runHook(cwd: string): Promise<{ code: number; stdout: string; std
   try {
     const { stdout, stderr } = await execFileAsync("bash", [hookPath], {
       cwd,
-      env: { ...process.env, NO_COLOR: "1" },
+      env: { ...process.env, PATH: await restrictedGitPath(), NO_COLOR: "1" },
     });
     return { code: 0, stdout, stderr };
   } catch (err) {

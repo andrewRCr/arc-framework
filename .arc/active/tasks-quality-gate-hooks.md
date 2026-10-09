@@ -124,7 +124,7 @@ under `core.hooksPath`, reports both `reused`; and the same request with `--forc
 - _Outcome:_ The built CLI reuses only complete matching pass entries from its own checkout; keys include all declared
   input content, so a change outside the previously changed paths still invalidates reuse.
 
-### `[ ]` **2.3 The commit hook reuses the increment-boundary run — D3, D5, D8**
+### `[x]` **2.3 The commit hook reuses the increment-boundary run — D3, D5, D8**
 
 - _Goal:_ A commit carrying exactly what `arc check increment` just checked reports every selected check `reused` (a
   fixer whose inputs a later fixer rewrote runs again, D7), because the hook's checked tree, the index, yields the same
@@ -135,30 +135,11 @@ under `core.hooksPath`, reports both `reused`; and the same request with `--forc
           inherited index paths against the repository root and passes the exact index to Git; staged content reuses
           increment passes, while unseen changes execute, including real `-a` and path-limited commit indexes.
 
-    - `[ ]` **2.3.b Shipped pre-commit dispatch**
-        - In `packages/arc-framework/arc/system/.internal/githooks/pre-commit`, dispatch `arc check pre-commit` as its
-          own `# CHECK[<kebab-id>]:` block after the structural checks and before `# Summary`, its status captured with
-          an `if !` guard and folded into `errors` as the other blocks do: the hook runs under `set -e`, and every
-          summary branch exits. Without its own heading, the dispatch would fall inside
-          `CHECK[foreign-write-advisory]`'s block, which `pre-commit-shell-invocation.test.ts` reads up to `# Summary`
-          and requires never to touch `errors`
-        - Resolve the CLI in `githooks/commit-msg`'s order (repository-local `node_modules/.bin/arc`, then a global
-          `arc`), without its `exec`; when neither resolves, fail with installation guidance worded for the commit gate
-          if `.arc/system/arc-checks.yml` exists, and dispatch nothing otherwise
-        - `githooks/README.md`'s pre-commit section lists the commit gate's declared checks among what blocks a commit,
-          with the missing-CLI failure, and its `hooks.pre_commit` row says a disabled hook dispatches no gate
-        - Sync the hook and README to `.arc/system/.internal/githooks/`, which the same test requires to match for the
-          hook. From then on this repository's commits dispatch through `.husky/pre-commit`, reporting `none declared`
-          until Task 7.4, and a stale build fails them with the CLI's stale-build refusal, as `commit-msg` already does
-        - `integration/pre-commit-meta-ref.test.ts` runs the shipped hook with the inherited environment, where `arc`
-          resolves to the built CLI; give it a restricted `PATH`, as `e2e/commit-msg.e2e.test.ts` does, so it keeps
-          testing the structural checks
-        - Build `test-first` (one behavior at a time):
-            - `hooks.pre_commit: disabled` dispatches nothing
-            - a failing declared check fails the commit, and a passing one lets it through
-            - an unresolvable CLI with a declaration present fails with the guidance, and the retried commit succeeds
-              once the CLI resolves
-            - an unresolvable CLI with no declaration commits
+    - `[x]` **2.3.b Shipped pre-commit dispatch**
+        - Added the separate declared-commit-gate block after structural checks. It resolves the local CLI before the
+          global CLI, propagates check failure, and refuses with installation guidance only when the declaration is
+          present. Disabled hooks dispatch nothing; the hook and README mirrors match, and structural fixtures use a
+          restricted CLI search path.
 
 ### `[ ]` **2.4 Increment-boundary run reused at commit** — validate exit criterion at segment scope
 

@@ -75,10 +75,13 @@ delegation intentionally.
 - Meta file not advanced when committing a completed parent task (derived
   from the staged task list's directory)
 
-### pre-commit — File Safety
+### pre-commit — File Safety and Declared Checks
 
 **Errors (blocks commit):**
 
+- A failed declared commit check from `arc check pre-commit`, after the structural checks
+- An unresolved CLI when `.arc/system/arc-checks.yml` is present; install `@arc-framework/cli` locally or globally
+  and retry the commit
 - Base branch commit protection in `full` mode (all changes require branches and PR review)
 - Merge conflict markers in staged files (exception: under `pm.mode: arc-in-git`, ROADMAP uses a scoped merge
   driver that preserves normal text merging and surfaces the regenerate-and-stage remedy as soon as a conflict
@@ -129,7 +132,7 @@ Hook behavior is controlled by settings in `.arc/system/arc-config.yml`. Key set
 
 | Setting                             | Default             | Effect                                                                 |
 | ----------------------------------- | ------------------- | ---------------------------------------------------------------------- |
-| `hooks.pre_commit`                  | `enabled`           | Enable/disable pre-commit hook                                         |
+| `hooks.pre_commit`                  | `enabled`           | Disabled: no structural checks or commit gate dispatch                 |
 | `hooks.commit_msg`                  | `enabled`           | Enable/disable commit-msg hook                                         |
 | `hooks.pre_push`                    | `enabled`           | Enable/disable pre-push force-push advisory                            |
 | `commit.format`                     | `conventional`      | Format validation (`conventional` / `custom` / `any`)                  |
