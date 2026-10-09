@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "errand-open-isolate",
+  "claimId": "70c57ea43d9fc0f6c33f53d519a889a7",
+  "createdAt": "2026-10-09T21:56:59.319Z",
+  "updatedAt": "2026-10-09T21:56:59.319Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Expose require-isolation as arc errand open --isolate and pass it through arc-session --errand",
+  "branch": "chore/errand-open-isolate",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
