@@ -221,15 +221,13 @@ _Mode:_ `layer` through Phase 4 — closes on the complete set of CLI reads homi
   Enrichment leaves Markdown identical and ordinary ROADMAP renders free of artifact reads. Fourteen matrix cases,
   the 17,053-test routine lane, and the final 3,166-test integration lane passed.
 
-### `[ ]` **3.4 Open every Purpose template with a one-sentence thesis — D11**
+### `[x]` **3.4 Open every Purpose template with a one-sentence thesis — D11**
 
 - _Goal:_ Every design-artifact template that carries a Purpose field — the draft and the three spec forms — tells its
   author to open with a one-sentence thesis, so the purpose read returns a whole thought.
 
-    - `template-draft.md`: the Purpose guidance says it opens with a one-sentence thesis.
-    - `template-spec-outline.md` and `template-spec-detailed-rfc.md`: the Purpose placeholder says the summary opens
-      with a one-sentence thesis.
-    - `template-spec-detailed-prd.md`: "Single sentence preferred" becomes "opens with a one-sentence thesis".
+- _Outcome:_ The draft, outline, detailed RFC, and detailed PRD templates all ask for an opening thesis sentence.
+  Package sources and installed Framework projections agree.
 
 ## **Phase 4:** The live design in `arc view`
 
