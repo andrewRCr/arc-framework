@@ -45,7 +45,7 @@ it("prints passing checks on one line and a bounded output tail for failures", a
   });
   const result = await runArcNoTty(["--no-input", "check", "increment"], cwd);
   expect(result.exitCode, result.stderr).toBe(1);
-  expect(result.stdout.split("\n").filter(line => line === "passed: passed")).toHaveLength(1);
+  expect(result.stdout.split("\n").filter(line => line === "passed: passed [enforcement]")).toHaveLength(1);
   expect(result.stdout).toContain("failed: failed");
   expect(result.stdout).toContain("failure-29");
   expect(result.stdout).not.toContain("failure-0\n");
@@ -92,8 +92,8 @@ it("runs only the commit checks reached by the change and succeeds when they pas
   const result = await runArc(["check", "increment", "--json"], cwd);
   expect(result.exitCode, result.stderr).toBe(0);
   expect(JSON.parse(result.stdout)).toMatchObject({ result: { status: "completed", checks: [
-    { id: "selected", kind: "deadline", outcome: "passed" },
-    { id: "unchanged", kind: "deadline", outcome: "not selected", reason: "inputs unchanged" },
+    { id: "selected", kind: "enforcement", outcome: "passed" },
+    { id: "unchanged", kind: "enforcement", outcome: "not selected", reason: "inputs unchanged" },
   ] } });
   expect(JSON.parse(await readFile(join(cwd, "receipt.json"), "utf8"))).toEqual({ args: [], cwd });
 });

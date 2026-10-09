@@ -13,7 +13,7 @@ export function renderDeclaredChecks(outcome: RunDeclaredChecksResult, json: boo
   if (outcome.kind === "error") return `error: ${outcome.error.message}\n`;
   if (outcome.result.status === "none declared") return "none declared\n";
   return `${outcome.result.checks.map(check => {
-    const heading = `${check.id}: ${check.outcome}${check.reason === undefined ? "" : ` (${check.reason})`}`;
+    const heading = `${check.id}: ${check.outcome} [${check.kind}]${check.reason === undefined ? "" : ` (${check.reason})`}`;
     return check.outcome === "failed" && check.output
       ? `${heading}\n${check.output.split(/\r?\n/u).slice(-20).join("\n").slice(-8192)}` : heading;
   }).join("\n")}\n`;

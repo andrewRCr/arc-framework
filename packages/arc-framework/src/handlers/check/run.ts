@@ -7,12 +7,13 @@ import { resolveCheckRequest, type ResolvedCheckRequest } from "../../lib/checks
 import { checkContentKey } from "../../lib/checks/key.js";
 import { resolveCheckSelection, selectCheckInputs, type CheckSelection } from "../../lib/checks/selection.js";
 import type { CheckRequest } from "../../lib/checks/request.js";
+import { selectRequestChecks, checkResultKind, type CheckResultKind } from "../../lib/checks/gates.js";
 import type { CheckPassStore } from "../../lib/checks/record.js";
 
 /** One check's externally observable result. */
 export interface DeclaredCheckResult {
   id: string;
-  kind: "deadline" | "feedback";
+  kind: CheckResultKind;
   outcome: "passed" | "failed" | "not selected" | "reused" | "would run";
   output?: string;
   reason?: string;
@@ -85,12 +86,11 @@ export async function runDeclaredRequest(
   if (declaration.status === "invalid") return { kind: "error", exitCode: 2,
     error: { kind: "invalid", message: `${declaration.location}: ${declaration.message}` } };
   const ids = request.form.kind === "run" ? request.form.ids : undefined;
-  const gate = request.form.kind === "gate" ? request.form.gate : request.form.kind === "segment" || request.form.kind === "new-head" ? "push" : "commit";
   const available = declaration.status === "absent" ? {} : declaration.value.checks;
   const missing = ids?.find(id => available[id] === undefined);
   if (missing !== undefined) return { kind: "error", exitCode: 2,
     error: { kind: "refused", message: `Unknown check ${missing}; name a check declared in arc-checks.yml and retry.` } };
-  const entries = Object.entries(available).filter(([id, check]) => ids === undefined ? check.gate === gate : ids.includes(id));
+  const entries = selectRequestChecks(available, request.form);
   const resolved = await resolveCheckRequest(io.git, root, request);
   if (resolved.status === "refused") return { kind: "error", exitCode: 2, error: { kind: "refused", message: resolved.message } };
   const { base, tree } = resolved.request;
@@ -98,7 +98,7 @@ export async function runDeclaredRequest(
   const selection = await resolveCheckSelection(io, root, declaration.status === "absent" ? { checks: {}, global_inputs: [], global_runtime_inputs: [], commit_fixes: "restage" } : declaration.value, request, resolved.request);
   const checks: DeclaredCheckResult[] = [];
   for (const [id, check] of entries) {
-    checks.push(await runRequestedCheck({ id, check, root, resolved: resolved.request, selection }, io, request));
+    checks.push(await runRequestedCheck({ id, check, root, resolved: resolved.request, selection, kind: checkResultKind(request.form, check) }, io, request));
   }
   return { kind: "result", exitCode: checks.some(check => check.outcome === "failed") ? 1 : 0,
     result: { status: "completed", checks, base, tree, ...(resolved.request.merged ? { merged: resolved.request.merged } : {}) } };
@@ -106,21 +106,21 @@ export async function runDeclaredRequest(
 
 
 async function runRequestedCheck(
-  { id, check, root, resolved, selection }: { id: string; check: CheckDeclaration["checks"][string]; root: string; resolved: ResolvedCheckRequest; selection: CheckSelection },
+  { id, check, root, resolved, selection, kind }: { kind: CheckResultKind; id: string; check: CheckDeclaration["checks"][string]; root: string; resolved: ResolvedCheckRequest; selection: CheckSelection },
   io: DeclaredCheckDependencies, request: CheckRequest,
 ): Promise<DeclaredCheckResult> {
   const { tree } = resolved;
   const selected = selectCheckInputs({ id, check, request, resolved, selection });
-  if (selected.status === "not selected") return { id, kind: "deadline", outcome: "not selected", reason: selected.reason };
+  if (selected.status === "not selected") return { id, kind, outcome: "not selected", reason: selected.reason };
   let paths: string[] = [];
   if (check.mode === "files") {
     const matching = selected.paths !== undefined ? { status: "known" as const, paths: selected.paths }
       : await matchTreeInputs(io, root, tree, check.inputs);
     if (matching.status !== "known") throw new Error(`Could not resolve inputs for ${id}; retry the check request.`);
     paths = matching.paths.filter(path => path.newMode !== "000000").map(path => path.path);
-    if (paths.length === 0) return { id, kind: "deadline", outcome: "not selected", reason: "no files to check" };
+    if (paths.length === 0) return { id, kind, outcome: "not selected", reason: "no files to check" };
   }
-  return executeSelectedCheck({ id, check, root, tree, paths, ...(check.mode === "files" ? { content: { base: resolved.base, tree, merged: resolved.merged } } : {}) }, io, request.force === true, request.dryRun === true);
+  return executeSelectedCheck({ id, check, root, tree, paths, kind, ...(check.mode === "files" ? { content: { base: resolved.base, tree, merged: resolved.merged } } : {}) }, io, request.force === true, request.dryRun === true);
 }
 
 interface SelectedCheck {
@@ -130,21 +130,22 @@ interface SelectedCheck {
   tree: string;
   paths: string[];
   content?: CheckContentContext;
+  kind: CheckResultKind;
 }
 
 async function executeSelectedCheck(
-  { id, check, root, tree, paths, content }: SelectedCheck, io: DeclaredCheckDependencies, force: boolean, dryRun: boolean,
+  { id, check, root, tree, paths, content, kind }: SelectedCheck, io: DeclaredCheckDependencies, force: boolean, dryRun: boolean,
 ): Promise<DeclaredCheckResult> {
   const inputs = check.cache ? await matchTreeInputs(io, root, tree, check.inputs) : null;
   const key = inputs?.status === "known" ? checkContentKey({ id, declaration: check, inputs: inputs.paths,
     ...(check.mode === "files" ? { paths } : {}) }) : null;
   const pass = key === null || force ? null : await io.passes.get(key, id);
-  if (pass !== null) return { id, kind: "deadline", outcome: "reused", output: pass.output };
-  if (dryRun) return { id, kind: "deadline", outcome: "would run" };
+  if (pass !== null) return { id, kind, outcome: "reused", output: pass.output };
+  if (dryRun) return { id, kind, outcome: "would run" };
   const command = typeof check.command === "string" ? [check.command] : check.command;
   const result = await io.execute([...command, ...paths], root, content);
   if (result.exitCode === 0 && key !== null) {
     await io.passes.put({ schemaVersion: 1, id, key, outcome: "passed", output: result.output });
   }
-  return { id, kind: "deadline", outcome: result.exitCode === 0 ? "passed" : "failed", output: result.output };
+  return { id, kind, outcome: result.exitCode === 0 ? "passed" : "failed", output: result.output };
 }

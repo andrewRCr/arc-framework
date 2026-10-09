@@ -197,21 +197,15 @@ _Mode:_ `layer` through Phase 4 — closes on the verb's complete request and ex
   exports none. Unresolved bases omit base and parent fields while retaining the checked tree. Project checks receive
   none of these fields, and ambient check context is cleared before execution. Failed history reads name a retry.
 
-### `[ ]` **3.4 Presets, deadline gates, and kind — D1, D3**
+### `[x]` **3.4 Presets, deadline gates, and kind — D1, D3**
 
 - _Goal:_ Each preset runs the composition its fire site needs, and every result is labelled enforcement or feedback
   from its request's deadline gate, never from interlock or approval configuration.
 
-    - Build `test-first` (one behavior at a time):
-        - membership is cumulative: a `commit` check runs in commit, push, and merge requests, a `push` check in push
-          and merge requests, and a gate-less check only by id
-        - `increment` runs the commit gate plus the `files` checks declared `gate: push` over `--changed`; a failing
-          `push` check is feedback and a failing `commit` check enforcement
-        - `segment` runs the push gate over the range from the branch's upstream, or from its merge base with the
-          base branch while unpublished
-        - `new-head --from <ref>` runs the push gate over the range from `<ref>` to the checked tree
-        - a request by id has no deadline, so its results are feedback
-        - selection and outcomes are identical under every `arc.commitInterlock` and `arc.pushInterlock` setting
+- _Outcome:_ `gates.ts` composes cumulative membership and the increment's additional push file checks. Every result
+  derives enforcement or feedback from the request's deadline in both human and JSON output; named requests have no
+  deadline, while segment and new-head requests enforce the push gate. Interlock settings do not enter this resolution,
+  and a failing feedback check retains exit 1.
 
 ### `[ ]` **3.5 Complete reuse key — D5**
 
