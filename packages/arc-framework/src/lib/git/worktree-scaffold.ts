@@ -29,6 +29,7 @@ import {
 import { SlugSchema } from "../kernel/index.js";
 import { materializeArcPath, resolveArcPath } from "../layout/index.js";
 import { ensureDir } from "../template/files.js";
+import type { EditorDocumentsWriter } from "../schema-command/editor-documents.js";
 import { writeWorktreeOwnershipMarker } from "./worktree-marker.js";
 
 /** Life-phase shaping for the scaffolded branch + meta. */
@@ -53,6 +54,7 @@ const DEFAULT_NEXT_ACTION = BEGIN_CURRENT_WORKFLOW_SENTINEL;
 
 /** Dependencies for {@link scaffoldIntoWorktree}. */
 export interface SpawnWorktreeContext {
+  writeEditorDocuments?: EditorDocumentsWriter;
   /** I/O context carrying the git executor and filesystem ops (also handed to the SESSION-NOTES seed). */
   io: UserIOContext;
   /** Internal template directory for the SESSION-NOTES seed; production passes `getInternalTemplatePath()`. */

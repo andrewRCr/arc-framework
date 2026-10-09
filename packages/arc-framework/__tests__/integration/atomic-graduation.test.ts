@@ -270,7 +270,8 @@ describe("atomicGraduate", () => {
       exec,
       fs: { chmod, mkdir, readFile, rename, rm, rmdir, stat, writeFile },
       provisionSpawnedWorktree: (op) => provisionSpawnedWorktree(
-        { exec, chdir: () => undefined, fs: nodeReconcileWorkUnitWorktreeFs },
+        { exec, chdir: () => undefined, fs: nodeReconcileWorkUnitWorktreeFs,
+          writeEditorDocuments: async () => ({ ok: true, documents: [] }) },
         op,
       ),
     });
@@ -382,7 +383,7 @@ describe("atomicGraduate", () => {
     });
   });
 
-  it.each(["worktree-add", "spawn-provision"] as const)(
+  it.each(["worktree-add", "spawn-provision", "editor-documents"] as const)(
     "removes spawned occupation when %s fails",
     async (boundary) => {
       const fixture = await createInPlaceFixture();
@@ -416,8 +417,12 @@ describe("atomicGraduate", () => {
         cwd: fixture.repo,
         exec,
         fs: { chmod, mkdir, readFile, rename, rm, rmdir, stat, writeFile },
-        provisionSpawnedWorktree: async () => {
+        provisionSpawnedWorktree: async (op) => {
           if (boundary === "spawn-provision") throw new Error("injected marker failure");
+          if (boundary === "editor-documents") return provisionSpawnedWorktree({
+            exec, chdir: () => undefined, fs: nodeReconcileWorkUnitWorktreeFs,
+            writeEditorDocuments: async () => ({ ok: false, target: "documents", detail: "editor documents denied" }),
+          }, op);
           return null;
         },
       });

@@ -37,6 +37,9 @@ import {
 } from "../lib/classification.js";
 import { UserFacingError } from "../lib/errors.js";
 import { atomicWriteJson } from "../lib/fs.js";
+import {
+  nodeEditorDocumentsFs, writeEditorDocumentsOrThrow, type EditorDocumentsWriter,
+} from "../lib/schema-command/editor-documents.js";
 import { applyExecutableInstallPermissions } from "../lib/install-permissions.js";
 import {
   materializeArcPath,
@@ -63,6 +66,7 @@ export type RemoveFileFn = (path: string) => Promise<void>;
 
 /** Bundled I/O dependencies for testability. */
 export interface IOContext extends CoreIO {
+  writeEditorDocuments?: EditorDocumentsWriter;
   access: AccessFn;
   chmod: ChmodFn;
   exclusiveCreate: ExclusiveCreateFn;
@@ -246,8 +250,7 @@ export async function runInit(
       install_config: buildInstallConfig(prompts),
       files: manifestFiles,
     };
-    await atomicWriteJson(join(internalDir, MANIFEST_FILENAME), manifest);
-    await atomicWriteJson(join(internalDir, PRISTINE_FILENAME), pristineStore);
+    await writeInitState(cwd, internalDir, manifest, pristineStore, io);
 
     // Set executable permissions on hooks and shell scripts.
     await applyExecutableInstallPermissions(arcDir, filesWritten, io.chmod);
@@ -300,6 +303,14 @@ export async function runInit(
 }
 
 // --- Post-Init Messaging ---
+
+async function writeInitState(
+  cwd: string, internalDir: string, manifest: Manifest, pristineStore: Record<string, string>, io: IOContext,
+): Promise<void> {
+  await atomicWriteJson(join(internalDir, MANIFEST_FILENAME), manifest);
+  await atomicWriteJson(join(internalDir, PRISTINE_FILENAME), pristineStore);
+  await writeEditorDocumentsOrThrow(cwd, io.exec, nodeEditorDocumentsFs, undefined, io.writeEditorDocuments);
+}
 
 /**
  * Build the post-init message displayed after successful initialization.

@@ -37,6 +37,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
+import { assertEditorDocumentsProvisioned, resetEditorDocumentsProvisioning } from "./editor-document-helpers.js";
 import { writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
 import {
   runArc,
@@ -513,6 +514,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     const predecessorPath = ".arc/backlog/planned/origin/meta-origin.md";
     const predecessorBytes = await git(repo, ["show", `main:${predecessorPath}`]);
 
+    await resetEditorDocumentsProvisioning(repo);
     const started = await runArcNoTty(
       ["start", "origin", "--yes"],
       repo,
@@ -521,6 +523,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(started.exitCode, started.stdout + started.stderr).toBe(0);
     const sourceWorktree = `${repo}.origin`;
     worktrees.push(sourceWorktree);
+    await assertEditorDocumentsProvisioned(sourceWorktree);
     expect(unwrapPresentationOutput(started.stdout)).toContain(sourceWorktree);
     expect(await pathExists(sourceWorktree)).toBe(true);
 

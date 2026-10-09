@@ -74,7 +74,7 @@ async function pathExists(p: string): Promise<boolean> {
 }
 
 function ctx(io: UserIOContext) {
-  return { io, internalTemplateDir: getInternalTemplatePath() };
+  return { io, internalTemplateDir: getInternalTemplatePath(), writeEditorDocuments: async () => ({ ok: true as const, documents: [] }) };
 }
 
 /** Write a minimal `arc-config.yml` (flat dotted keys) into a worktree's `.arc/system/`. */

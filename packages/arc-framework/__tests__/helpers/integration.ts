@@ -150,6 +150,7 @@ export async function makeNotesTreeCommit(
 /** Create a real IOContext for a given cwd. */
 export function makeIOContext(cwd: string): IOContext {
   return {
+    writeEditorDocuments: async () => ({ ok: true, documents: [] }),
     readFile: (path) => readFile(path, "utf-8"),
     writeFile: (path, content) => writeFile(path, content, "utf-8"),
     mkdir: (path, opts) => mkdir(path, opts).then(() => undefined),

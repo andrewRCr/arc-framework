@@ -16,7 +16,7 @@ function fixture() {
   return value;
 }
 
-const graphs = { cli: ["packages/cli/src/entry.ts"], schema: ["packages/cli/src/entry.ts"],
+const graphs = { cli: ["packages/cli/src/entry.ts"],
   controls: ["packages/cli/package.json"] };
 
 describe("generation interval", () => {

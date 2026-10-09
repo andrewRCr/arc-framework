@@ -16,6 +16,7 @@ import {
   runArcNoTty,
   unwrapPresentationOutput,
 } from "./helpers.js";
+import { assertEditorDocumentsProvisioned, resetEditorDocumentsProvisioning } from "./editor-document-helpers.js";
 import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
 import {
   resolveSubmissionBoundaryPath,
@@ -187,10 +188,12 @@ async function createFixture(): Promise<RenameFixture> {
 
 async function startInPlace(fixture: RenameFixture): Promise<void> {
   await git(fixture.repo, ["switch", "-c", "feat/old-name"]);
+  await resetEditorDocumentsProvisioning(fixture.repo);
   const started = await runArcAnchored([
     "start", "old-name", "--here", "--new", "--from", "internal", "--yes",
   ], fixture.repo);
   expect(started.exitCode).toBe(0);
+  await assertEditorDocumentsProvisioned(fixture.repo);
   const lociRoot = join(fixture.repo, ".arc", "user", "test-user", ".internal", "loci");
   expect(await exists(lociRoot)).toBe(false);
   await seedTrackedSweep(fixture.repo, join(".arc", "active"), "old-name");
@@ -383,10 +386,12 @@ describe("arc rename", () => {
     const oldWorktree = `${fixture.repo}.old-name`;
     const newWorktree = `${fixture.repo}.new-name`;
     cleanupPaths.push(fixture.remote, fixture.repo, oldWorktree, newWorktree);
+    await resetEditorDocumentsProvisioning(fixture.repo);
     const started = await runArcNoTty([
       "start", "old-name", "--new", "--from", "internal",
     ], fixture.repo, { timeout: 20_000 });
     expect(started.exitCode).toBe(0);
+    await assertEditorDocumentsProvisioned(oldWorktree);
     await seedTrackedSweep(oldWorktree, join(".arc", "active"), "old-name");
     await git(oldWorktree, ["add", "."]);
     await git(oldWorktree, ["commit", "-m", "chore(test): seed rename surfaces"]);

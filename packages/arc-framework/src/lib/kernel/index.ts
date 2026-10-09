@@ -67,6 +67,7 @@ export {
   type KernelJSONSchema,
   type KernelJSONSchemaBundle,
   type KernelRegistry,
+  type KernelProjectionOptions,
   type KernelSchemaMeta,
   type MigrationPosture,
   type SchemaErrorCode,

@@ -65,19 +65,19 @@ export async function buildOwnedArtifacts(
 }
 
 /**
- * Prepare runtime/schema output under an already-held artifact capability.
+ * Prepare CLI and metafile output under an already-held artifact capability.
  * @param lease - Owning controller or direct preparation capability
  * @param env - Preparation environment
- * @returns Qualified runtime/schema evidence
+ * @returns Qualified CLI and metafile evidence
  */
 export async function ensureOwnedRuntimeArtifacts(
   lease: BuildArtifactLease, env: NodeJS.ProcessEnv = process.env,
 ): Promise<BuildEvidence> {
   await lease.confirmOwnership();
-  const qualification = readBuildQualification(lease.packageRoot, "runtimeSchema");
+  const qualification = readBuildQualification(lease.packageRoot, "runtimeMetafile");
   if (qualification.status === "qualified") return qualification.evidence;
   if (env.ARC_E2E_SKIP_BUILD === "1") {
-    throw new Error(`Prebuilt runtime/schema output is unqualified: ${qualification.reason} `
+    throw new Error(`Prebuilt CLI and metafile output is unqualified: ${qualification.reason} `
       + "Generation is disabled by ARC_E2E_SKIP_BUILD=1; run npm ci if installation needs repair, then "
       + "npm run build:fast or download matching qualified build artifacts before retrying.");
   }

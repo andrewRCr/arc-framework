@@ -3,14 +3,13 @@ import type { BuildArtifactLease } from "./build-ownership.js";
 import type { StagedBuildGeneration } from "./build-entry.js";
 import type { BuildEvidence } from "./build-evidence.js";
 import { checkStagedCli } from "./build-entry.js";
-import { DEV_BUILD_STAMP_NAME, hasKernelSchemas } from "./build-evidence.js";
-import { mkdir, readFile, readdir, rename, rm, lstat, writeFile } from "node:fs/promises";
+import { DEV_BUILD_STAMP_NAME } from "./build-evidence.js";
+import { mkdir, readdir, rename, rm, lstat, writeFile } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
 import { retryTransientFileSystemRefusal } from "./fs.js";
 
 /** Filesystem and native parser boundaries for ordered publication. */
 export interface BuildPublicationDependencies {
-  readonly readFile: (file: string) => Promise<string>;
   readonly writeFile: (file: string, contents: string) => Promise<void>;
   readonly mkdir: (directory: string) => Promise<void>;
   readonly rename: (source: string, destination: string) => Promise<void>;
@@ -21,7 +20,6 @@ export interface BuildPublicationDependencies {
 }
 
 const nativePublication: BuildPublicationDependencies = {
-  readFile: async (file) => await readFile(file, "utf8"),
   writeFile: async (file, contents) => { await writeFile(file, contents, "utf8"); },
   mkdir: async (directory) => { await mkdir(directory, { recursive: true }); },
   rename,
@@ -89,7 +87,7 @@ async function validateStagedOutput(
   staged: StagedBuildGeneration, packageRoot: string, io: BuildPublicationDependencies,
 ): Promise<readonly string[]> {
   const files = await io.listFiles(staged.directory);
-  const required = ["cli.js", "schemas/kernel.json", "metafile-esm.json", ...(staged.mode === "full" ? ["cli.d.ts"] : [])];
+  const required = ["cli.js", "metafile-esm.json", ...(staged.mode === "full" ? ["cli.d.ts"] : [])];
   for (const file of required) {
     if (!files.includes(file)) throw new Error(`Required staged artifact ${file} is missing.`);
   }
@@ -97,8 +95,6 @@ async function validateStagedOutput(
     const status = await io.fileStatus(join(staged.directory, file));
     if (!status.regular || status.size === 0) throw new Error(`Staged artifact ${file} is not a complete regular file.`);
   }
-  const schema: unknown = JSON.parse(await io.readFile(join(staged.directory, "schemas/kernel.json")));
-  if (!hasKernelSchemas(schema)) throw new Error("Staged kernel schema is unusable.");
   await io.checkCli(join(staged.directory, "cli.js"), packageRoot);
   return files;
 }

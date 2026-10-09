@@ -27,6 +27,7 @@
  */
 
 import { basename, join } from "node:path";
+import { nodeEditorDocumentsFs, writeEditorDocumentsOrThrow } from "../lib/schema-command/editor-documents.js";
 
 import { parseSpecInput } from "../lib/active/spec-input-parser.js";
 import { readActiveMetaCandidates, validateMetaFieldBlockShape, type MetaFieldName } from "../lib/active/meta-reader.js";
@@ -647,6 +648,7 @@ export async function runColdStart(
       origin,
       design,
     });
+    await writeEditorDocumentsOrThrow(params.worktreePath, ctx.io.exec, nodeEditorDocumentsFs, undefined, ctx.writeEditorDocuments);
   } catch (err) {
     await rollbackColdStart(ctx, {
       worktreePath: params.worktreePath,
@@ -776,6 +778,7 @@ export async function runCreateNew(
         exec: ctx.io.exec,
         chdir: (dir) => { process.chdir(dir); },
         fs: nodeReconcileWorkUnitWorktreeFs,
+        writeEditorDocuments: ctx.writeEditorDocuments,
       },
       {
         mutation: "spawn",

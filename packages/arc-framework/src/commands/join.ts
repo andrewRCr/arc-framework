@@ -21,6 +21,9 @@ import { ARC_CONFIG_SUFFIX } from "../lib/constants.js";
 import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
 import type { CoreIO } from "../lib/types.js";
 import { UserFacingError } from "../lib/errors.js";
+import {
+  nodeEditorDocumentsFs, writeEditorDocumentsOrThrow, type EditorDocumentsWriter,
+} from "../lib/schema-command/editor-documents.js";
 import type { SkillRemovalIO } from "../lib/skills/index.js";
 
 // --- Types ---
@@ -30,6 +33,7 @@ export type AccessFn = (path: string) => Promise<void>;
 
 /** Bundled I/O dependencies for testability. */
 export interface JoinIOContext extends CoreIO {
+  writeEditorDocuments?: EditorDocumentsWriter;
   access: AccessFn;
 }
 
@@ -124,6 +128,8 @@ export async function runJoin(options: JoinOptions): Promise<JoinResult> {
   await runPostInitSetup({
     arcDir, internalTemplateDir, io, identityResult,
   });
+
+  await writeEditorDocumentsOrThrow(cwd, io.exec, nodeEditorDocumentsFs, undefined, io.writeEditorDocuments);
 
   // Persist tool selection for future reconfigure
   if (prompts.tools.length > 0) {

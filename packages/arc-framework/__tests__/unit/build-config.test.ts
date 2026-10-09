@@ -15,12 +15,6 @@ describe("runtime-only build options", () => {
     expect(fastOptions.clean).toBe(true);
   });
 
-  it("runs the same success hook as the full build", () => {
-    // Identity, not equivalence: a restated hook is free to drift from the one that writes the
-    // kernel schema artifact and the content-hash stamp.
-    expect(fastOptions.onSuccess).toBe(baseOptions.onSuccess);
-  });
-
   it("overrides declaration emit alone", () => {
     expect(Object.keys(fastOptions).sort()).toEqual(Object.keys(baseOptions).sort());
 

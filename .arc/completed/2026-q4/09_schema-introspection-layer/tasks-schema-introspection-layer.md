@@ -1,0 +1,397 @@
+# Task List: Schema-Driven CLI Introspection Layer
+
+- **Design:** `spec-schema-introspection-layer.md`
+
+---
+
+## **Phase 1:** Retire the build's schema bundle
+
+_Purpose:_ Remove the second projection before the projection changes, so the build compiles, records, and
+qualifies output without a schema producer and no bundle test outlives it.
+
+_Mode:_ `layer` — closes on a settled build pipeline with one input identity and no schema artifact.
+
+_Exit criterion:_ Full and fast builds into a fresh `dist/` produce no `schemas/` directory, record evidence with
+one input identity and no schema graph, and test preparation qualifies on the CLI entry and the metafile, with
+every build behavior the producer or its bundle hosted still under test.
+
+### `[x]` **1.1 Qualify and stage build output without the bundle — D6**
+
+- _Goal:_ Qualification and staged publication accept a generation from its CLI entry, its metafile, and — in full
+  mode — its declarations, so a build that writes no `schemas/kernel.json` still qualifies and publishes.
+
+- _Outcome:_ Qualification uses `runtimeMetafile`; staged publication no longer requires the bundle. The staged
+  fixture holds only runtime output, and metafile refusal, ownership loss, and Windows nested publication keep their
+  coverage. The second input identity remains until the producer is retired.
+
+### `[x]` **1.2 Remove the schema producer and its evidence graph, re-seating the hooks it hosted — D6**
+
+- _Goal:_ Builds compile with no schema producer, record one input identity over the CLI and control graphs, and
+  every build-coordination behavior the producer hosted keeps its test through a hook the test fixture owns.
+
+    - `[x]` **1.2.a Take the producer out of compilation**
+
+        - Compilation passes captured options through with only the owned output directory overridden. The producer,
+          its configuration hook, bundle assertions, and bundle E2E suite are removed; CLI and control capture remain.
+
+    - `[x]` **1.2.b Record one input identity**
+
+        - Version 3 evidence records CLI and control graphs, one runtime identity, and publication/declaration facts.
+          Every tier checks that identity; version 2 records refuse qualification and regenerate through the owner.
+          Compiler, shared, and control inputs retain invalidation coverage.
+
+    - `[x]` **1.2.c Re-seat the producer-hosted behaviors on a fixture-owned hook**
+
+        - Native fixtures import a success hook from `fixture-build-hook.ts`. The blocking barrier, compiler lifetime,
+          mid-generation input change, prior-CLI survival, and direct-preparation ownership checks run through it;
+          ancillary publication faults target the metafile. The ready record retains its PID and staging directory.
+
+### `[x]` **1.3 Retire the artifact writer and the bundle's identity pin — D6**
+
+- _Goal:_ No source or test publishes, names, or pins the kernel schema artifact, while the production composition
+  stays pinned against its expected ids.
+
+- _Outcome:_ Removed artifact publication and its filesystem seam; deterministic registry projection remains. Production
+  composition stays pinned through the renamed production-schema-ids helper.
+
+### `[x]` **1.4 Name what the build now prepares — D6**
+
+- _Goal:_ Every message, name, and document that described the build as preparing runtime and schema output, or
+  named the schema producer or artifact, says what is prepared now — the CLI entry, its metafile, and in full mode its
+  declarations.
+
+    - `[x]` **1.4.a Source messages, names, and comments**
+
+        - Build preparation and qualification messages describe the CLI and metafile; compiler, fast-build, CI,
+          registry-composition, and test-setup comments describe their current outputs and responsibilities.
+
+    - `[x]` **1.4.b Rules and reference documents**
+
+        - Repository rules and reference describe fast preparation without declarations. The retirement search
+          finds no obsolete producer or artifact references outside preserved planning and historical records.
+
+## **Phase 2:** Project contracts at real size, on the authored side, valid
+
+_Purpose:_ Settle the projection every publication surface reads: one self-contained, bounded, metaschema-valid
+document per contract, on the side its authors write, with the cut map composed into production.
+
+_Mode:_ `layer` — closes on a settled projection layer that every consumer reads.
+
+_Exit criterion:_ Every production root, the cut map included, folds into one self-contained document on each side
+that passes 2020-12 metaschema validation and compiles under strict Ajv, and both existing emitters return those
+documents.
+
+### `[x]` **2.1 Declare each schema's authored side in its registration — D1**
+
+- _Goal:_ A registration states whether its documents are authored — a request a caller composes or a file a person
+  edits — and the registry keeps and validates that declaration, so no list beside the registrations restates it.
+
+- _Outcome:_ Registrations retain and validate an optional authored side in immutable metadata. The sixteen public
+  review and delivery request roots declare request; unmarked roots retain no authored field.
+
+### `[x]` **2.2 Project each side with shared subschemas by reference under absolute identities — D1**
+
+- _Goal:_ The registry projects one side at a time, named by every caller, into a bundle where a reused subschema
+  appears once, in `__shared`, and every document is identified by `urn:arc:schema:<id>`.
+
+- _Outcome:_ Every registry projection requires its input or output side, extracts reused subschemas into shared
+  definitions, and uses absolute URN identities. Sorted projection preserves shared-definition names across registration
+  orders; callers and contract assertions name their side and resolve references.
+
+### `[x]` **2.3 Fold each root into one self-contained document on its declared side — D1**
+
+- _Goal:_ Any registered root yields one document that resolves entirely within itself, on the side its registration
+  declares, so a document loads alone and two contracts load into one validator without colliding.
+
+- _Outcome:_ Root closures choose their declared side and fold reachable registered and shared dependencies into local
+  definitions without resource identities or unreachable shared definitions. Review schema flags retain their envelope
+  while carrying one self-contained document.
+
+### `[x]` **2.4 Serve both emitters from the production projection through one lookup — D1, D2**
+
+- _Goal:_ One identity yields one document from every surface: the review `--schema` flags and
+  `arc delivery plan inventory schema` return the self-contained documents the verb will, with no external reference.
+
+- _Outcome:_ The shared lookup returns registry metadata and the canonical folded document, or unknown without
+  projection. Review discovery and delivery inventory use the production composition; delivery reads its version from
+  registry metadata and emits no external references.
+
+### `[x]` **2.5 Bound tuples and prove every root projects valid on both sides — D1**
+
+- _Goal:_ Every registered root's document, on either side, passes 2020-12 metaschema validation and compiles under
+  strict Ajv, and one unit test stops any later registration that breaks either.
+
+- _Outcome:_ Tuple projection follows each side’s optional tail, bounds fixed tuples, leaves rest tuples unbounded
+  above, and removes empty prefixes. Every production root is validated and strictly compiled on both sides; the review
+  projection workarounds are removed.
+
+### `[x]` **2.6 Compose the decompose cut map into production — D3**
+
+- _Goal:_ The cut map an agent authors is a registered production contract, projectable on both sides, while the CLI
+  parses it exactly as before.
+
+- _Outcome:_ The production registry composes decompose-cut-map at version 3 on its request side. Its slug fields use
+  the registered kernel schema without a runtime transform, preserving parsing and decoder checks while supporting both
+  projections and local slug references.
+
+## **Phase 3:** The `arc schema list` and `get` verb
+
+_Purpose:_ Make every registered contract retrievable by identity through one verb, with its registry metadata and
+its editor-document location, and name the verb where agents look it up.
+
+_Mode:_ `slice` — closes on `arc schema list` and `get` exercisable end to end against the built CLI.
+
+_Exit criterion:_ Against the built CLI, `arc schema list --json` lists every production id with its metadata,
+`get` returns a request root on its input side and the cut map's document, an unknown id refuses with its remedy,
+and every result validates against its registered envelope.
+
+### `[x]` **3.1 Resolve the editor-document location through the layout resolver — D4**
+
+- _Goal:_ The editor-document directory and each marked schema's document path have one binding, the layout resolver,
+  which the verb reads now and the writer reads later, including when no schema is marked.
+
+- _Outcome:_ The layout resolver owns paired directory and document addresses under one binding, validates schema
+  coordinates as slugs, and returns managed checkout-relative paths. User-document projection moved into a helper to
+  retain the complexity limit.
+
+### `[x]` **3.2 Produce typed `list` and `get` results — D2**
+
+- _Goal:_ `list` and `get` answer from the production registry in shapes registered beside it and validated before
+  emission, and an unknown id is a typed refusal naming the command that lists valid ones.
+
+- _Outcome:_ Registered and production-composed strict list, get, and unknown-ID envelopes. Both handlers validate
+  compact JSON before emission, share production lookup and layout paths, and leave metadata-only listing independent of
+  projection.
+
+### `[x]` **3.3 Wire `arc schema` into the CLI — D2**
+
+- _Goal:_ `arc schema list` and `arc schema get <id>` run from the built CLI, with help and input declarations the
+  repository's inventory and help-coverage tests reconcile.
+
+- _Outcome:_ The lazy-loaded schema command runs list and always-JSON get through interaction contexts, with reconciled
+  help, input registrations, and machine-mode policy. Built-CLI tests cover discovery outside a project, authored
+  requests, the cut map, unknown identities, and unsupported flags.
+
+### `[x]` **3.4 Name the verb where agents look it up — D5**
+
+- _Goal:_ An agent finds a registered contract on demand through `arc schema`, and an agent completing a decompose
+  cut map is pointed at its structural contract, with nothing added to always-loaded context.
+
+    - `[x]` **3.4.a QUICK-REFERENCE § ARC CLI Commands, both copies**
+
+        - Both on-demand references name list/get discovery and the `editorDocument` location field, preserving the
+          project reference's custom guidance.
+
+    - `[x]` **3.4.b `decompose-work-unit.md` § 2, both copies**
+
+        - Both workflows point authoring to the cut map's structural contract and retain CLI-owned refinements and
+          cross-field checks. The copies remain byte-equal and their pinned fenced commands are unchanged.
+
+### `[x]` **3.5 Exercise `list` and `get` against the built CLI** — validate exit criterion at segment scope
+
+- _Goal:_ Phase 3's exit criterion is shown against a fresh build of the CLI, with the scenario and its result
+  recorded.
+
+- _Outcome:_ A fresh full build listed and retrieved all 142 production contracts through the CLI outside a project.
+  Every result validated against its registered envelope; metadata matched the registry, the authored request kept
+  frontlineActive optional, the cut map reported version 3, and an unknown ID returned exit 1 with its discovery remedy.
+
+## **Phase 4:** Write editor documents and install them on demand
+
+_Purpose:_ Prove the editor-document channel in one checkout: the writer, the reference a project file uses, and
+the explicit `arc schema install` that reruns it.
+
+_Mode:_ `slice` — closes on `arc schema install` exercisable end to end in an existing checkout.
+
+_Exit criterion:_ In an existing checkout, `arc schema install` writes the editor-document directory behind its
+clone-level exclude entry, `git status` stays clean and the managed `.gitignore` block is unchanged, and each
+refusal exits 1 with its typed envelope.
+
+### `[x]` **4.1 Write a checkout's editor documents behind their own exclude entry — D4**
+
+- _Goal:_ One writer leaves a checkout's CLI-owned directory holding exactly one self-contained document per marked
+  schema, ignored through the clone's own exclude entry written first, and reports what it wrote or a typed failure
+  naming what failed.
+
+- _Outcome:_ The writer installs only marked input-side closures, replaces its owned directory, and skips projection
+  when none are marked. A shared idempotent clone-exclude helper establishes ignore coverage first and retains resolved
+  failure paths; marker callers retain their throw policy. Typed write failures and the injectable throwing wrapper
+  support provisioning rollback.
+
+### `[x]` **4.2 Compose the reference a project file uses — D4**
+
+- _Goal:_ A consumer that writes a schema reference into a project file gets the exact reference text, relative to
+  that file, or a typed result saying why there is none, without restating the directory.
+
+- _Outcome:_ The pure reference function resolves marked documents through layout addresses and POSIX relative paths,
+  supplying YAML modelines or JSON schema values. It classifies unmarked identities before file types and returns a
+  separate unsupported-file result for marked contracts.
+
+### `[x]` **4.3 Produce typed `install` results — D2, D4**
+
+- _Goal:_ `install` runs the writer for the current checkout and reports the written paths, or refuses with a typed
+  envelope and exit 1 when it is outside a project or cannot write.
+
+- _Outcome:_ Install validates its success and closed three-reason refusal envelopes before emission. It resolves the
+  project without a human JSON prefix, reports precise document or exclude failures with repair-and-rerun guidance,
+  prints canonical plain diagnostics, and lets projection defects propagate.
+
+### `[x]` **4.4 Wire and document `arc schema install` — D2, D5**
+
+- _Goal:_ `arc schema install` runs from the built CLI, and the command reference names it as the refresh for a
+  checkout's editor documents.
+
+- _Outcome:_ The lazy-loaded install command reconciles help, input registration, and machine-mode policy. Both on-
+  demand references name the refresh command. Built-CLI coverage proves existing-checkout installation, typed outside-
+  project and non-Git refusals, and successful retries after document or exclude repair.
+
+### `[x]` **4.5 Exercise `arc schema install` in an existing checkout** — validate exit criterion at segment scope
+
+- _Goal:_ Phase 4's exit criterion is shown against a fresh build of the CLI in an existing checkout, with the
+  scenario and its result recorded.
+
+- _Outcome:_ Nine CLI scenarios passed against a fresh full build. Existing-checkout installation leaves the generated
+  directory excluded, Git status clean, and the managed ignore block unchanged. Every refusal validates and exits 1,
+  including a non-Git exclude failure without a path; document and exclude failures each succeed after repair and retry.
+
+## **Phase 5:** Provision editor documents wherever ARC provisions an editing checkout
+
+_Purpose:_ Run the writer at every site that provisions an ARC-owned editing checkout, each failing closed through
+the path the site already has.
+
+_Mode:_ `replication` — closes when every provisioning site D4 names runs the writer, batch-verified.
+
+_Exit criterion:_ Each provisioning path D4 names writes the exclude entry and the editor-document directory through
+the built CLI, and an injected writer failure rolls back a work-unit spawn and refuses decomposition with a
+retryable `occupation-failed`.
+
+### `[x]` **5.1 Primary-checkout commands: `arc init`, `arc update`, `arc join` — D4**
+
+- _Goal:_ A primary checkout has its editor documents after `arc init`, `arc update`, or `arc join`, and a failed
+  write fails the command like any other write it makes.
+
+- _Outcome:_ Init and update provision editor documents beside their persisted installation state; join restores them in
+  a fresh clone. Optional writer seams propagate typed failures through ordinary command errors, while existing virtual
+  contexts remain inert. Built-CLI witnesses verify every primary path and preserve the managed ignore block.
+
+### `[x]` **5.2 Work-unit spawn and atomic graduation — D4**
+
+- _Goal:_ A spawned work-unit worktree, including one atomic graduation reaches, has its editor documents, and a
+  failed write rolls the spawn or graduation back as a failed marker exclude does.
+
+- _Outcome:_ Shared work-unit provisioning writes editor documents before its ownership marker. Optional seams preserve
+  virtual contexts; real spawned and graduated worktrees regain the directory and clone exclude entry. Typed writer
+  failures reach the existing rollback and remove newly allocated branches and worktrees.
+
+### `[x]` **5.3 Transient provisioning — D4**
+
+- _Goal:_ A checkout provisioned for transient work has its editor documents, and a failed write takes the
+  provisioning failure path that exists today.
+
+- _Outcome:_ Transient marker creation now provisions editor documents first, with an optional result-returning writer
+  seam. Spawn failures compensate the worktree and branch; primary failures precede marker publication and branch
+  allocation. CLI materialization and primary Errand open each establish fresh directory and exclude witnesses.
+
+### `[x]` **5.4 Decomposition — D4**
+
+- _Goal:_ A decomposition candidate under full protection has its editor documents, and a failed write refuses with
+  a retryable `occupation-failed` whose retry re-enters the candidate and writes them.
+
+- _Outcome:_ Execute and extract share editor-document provisioning after full-protection occupation, covering both
+  candidate creation and re-entry. Writer failures retain the existing occupation-failed remedy; retry writes documents
+  in the same owned checkout. Partial protection runs no writer, and both CLI modes establish directory and exclude
+  coverage.
+
+### `[x]` **5.5 Cold-start scaffold — D4**
+
+- _Goal:_ A worktree that `arc start --here` scaffolds into has its editor documents, and a failed write refuses
+  through the scaffold's existing rollback and reason.
+
+- _Outcome:_ Cold-start scaffolding provisions editor documents inside its existing compensation boundary. Writer
+  failure preserves the diagnostic scaffold refusal, removes the new meta and protected-base branch, and retains ignored
+  local output. Retrying replaces that output and succeeds; the CLI provisions an existing checkout without an ownership
+  marker.
+
+### `[x]` **5.6 Exercise every provisioning path** — validate exit criterion at segment scope
+
+- _Goal:_ Phase 5's exit criterion is shown through the built CLI on every provisioning path D4 names, with the
+  scenario and its result recorded.
+
+- _Outcome:_ A fresh full build passed CLI witnesses for init, update, join, work-unit spawn, atomic graduation,
+  transient materialization, primary Errand allocation, execute/extract, and cold start. Every path established the
+  directory and clone exclude entry. Injected writer failures rolled back spawn and graduation; both decomposition modes
+  refused with occupation-failed and succeeded on the same candidate after retry.
+
+## **Phase 6:** Verification
+
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown, code, and shell lint; ARC contract checks; both type checks; 17,010 unit/integration
+  cases; 61 focused built-CLI cases; full build — passed.
+- _Success criteria:_ 23 met, none superseded; fresh-context criteria review converged on Pass 1 of 2 with no findings.
+  Verified schema size, validity and authored sides, typed discovery and refusal results, editor publication and
+  provisioning, rollback/retry, and build retirement.
+
+---
+
+## Success Criteria
+
+- `[x]` After `npm run build` and `npm run build:fast` into a fresh `dist/`, it contains no `schemas/` directory
+
+- `[x]` The build evidence carries one input identity and no schema graph, and test preparation qualifies on the CLI
+  entry and the metafile
+
+- `[x]` No source, test, build or CI configuration, rule, or reference document refers to `dist/schemas/kernel.json`,
+  `generateRuntimeSchema`, or `hasKernelSchemas`, or says "runtime/schema", "runtime and schema", "schema
+  producer", or "schema artifact"
+
+- `[x]` Every build-coordination behavior the schema producer hosted keeps a test
+
+- `[x]` `arc schema get session-init-envelope` returns one self-contained document of about 116 KB with its version
+  and posture, and `get review-status-result` one of about 63 KB
+
+- `[x]` Every registered root's `get` document passes 2020-12 metaschema validation and compiles in
+  `new Ajv2020({ strict: true, validateFormats: false })`, and no test compiles a projected document with
+  `validateSchema: false`
+
+- `[x]` `get review-resolve-request` leaves `frontlineActive` optional
+
+- `[x]` `arc delivery plan inventory schema` returns a document with no external reference
+
+- `[x]` A review `--schema` result's `rootId` is `urn:arc:schema:<id>`, the `$id` of the one document it holds
+
+- `[x]` `arc schema get decompose-cut-map` returns the map's input-side document, and the decompose workflow's § 2
+  names it
+
+- `[x]` `arc schema get <unknown>` refuses with `unknown-schema-id` and exit 1, naming `arc schema list` as the
+  remedy
+
+- `[x]` `arc schema list --json` lists every production id with its version, posture, and `editorDocument`
+
+- `[x]` Every `list` and `get` result validates against its registered envelope
+
+- `[x]` In a temporary repository, given a registry holding a marked test schema, the writer produces a
+  self-contained document under `.arc/system/.internal/schemas/` that validates a sample file with no unresolved
+  reference
+
+- `[x]` `git check-ignore` reports the written document ignored, `git status` stays clean, and an unmarked schema
+  gets no document
+
+- `[x]` An unwritable directory makes `arc schema install` refuse with `editor-documents-unwritable` and exit 1
+
+- `[x]` `arc schema install --json` outside an ARC project prints only the `arc-project-root-unresolved` refusal and
+  exits 1
+
+- `[x]` Every `install` result validates against its registered envelope
+
+- `[x]` On each provisioning path D4 names, and after `arc schema install` in an existing checkout, the built CLI
+  writes the directory and its exclude entry and leaves the managed `.gitignore` block unchanged
+
+- `[x]` An injected writer failure fails a work-unit spawn and rolls it back as a failed marker exclude does
+
+- `[x]` An injected writer failure at decomposition refuses with `occupation-failed`, and retrying the mode
+  re-enters the candidate and writes its documents
+
+- `[x]` All quality gates pass (tests, linting, type checking)
+
+- `[x]` Ready for integration
