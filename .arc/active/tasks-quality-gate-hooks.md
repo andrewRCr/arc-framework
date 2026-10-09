@@ -16,20 +16,19 @@ _Exit criterion:_ The configuration layer's typed-file read returns a validated 
 file and refuses each invalid shape (an unknown key, a malformed id, and each of the four cross-field refinements),
 naming the field.
 
-### `[ ]` **1.1 Measure the per-increment check baseline — SC17**
+### `[x]` **1.1 Measure the per-increment check baseline — SC17**
 
 - _Goal:_ SC17's "before" figure exists, with its sample and method, before any change alters what a task runs.
-
-- **Additional Context:** `notes-quality-gate-hooks.md` § Per-increment check time
 
     - `[x]` **1.1.a Fix the sample and the method**
         - Fixed 20 replayable non-merge commits at `159fdcdeba`, retaining each complete original path set; excluded
           absent paths by implementation-entry direction. The clone, neutral edit rule, warm-up, and command selection
           are recorded in `notes-quality-gate-hooks.md` § Fixed replay sample and method.
 
-    - `[ ]` **1.1.b Record the baseline**
-        - Per-sample and total times, with the sample ids, the replay rule, and the measured tip, in the notes file's
-          SC17 section
+    - `[x]` **1.1.b Record the baseline**
+        - Recorded all 20 repaired-tip sample totals and actual command timings in `notes-quality-gate-hooks.md`, with
+          the preserved replay sample, measured tip, excluded first attempt, and concurrent-load caveat. The baseline
+          totals 2,650.467 seconds across the selected commands and ordinary commit hooks.
 
 ### `[x]` **1.2 Typed-file read in the configuration layer — D2, D12**
 

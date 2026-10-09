@@ -30,17 +30,23 @@ SC17 takes its own baseline when implementation starts, so this measurement is c
 
 ### Fixed replay sample and method
 
-**Measured baseline tip:** `159fdcdeba90a21c9d1bb11cb631d5a46111a6be` (`main`). Read
+**Sample selection tip:** `159fdcdeba90a21c9d1bb11cb631d5a46111a6be` (`main`). Read
 `git log main --no-merges` in its default date order, excluding commits with deletions or renames and, by direction
-at implementation entry, excluding any commit whose original path set is no longer present at that tip. Keep each
+at implementation entry, excluding any commit whose original path set is no longer present at that selection tip. Keep each
 selected commit's complete path set. The first 20 eligible commits contain one Markdown-only increment and 19 mixed
 or other increments. This is the eligible sample's distribution, not an estimate of all repository work: excluding
 retired active artifacts removes many recent Markdown-only increments.
 
-Replay each sample in a disposable local clone at that tip, on `measurement/quality-gate-baseline`; `main` remains at
-the measured tip. Install with `npm ci`, build the CLI, then run `npm rebuild @arc-framework/cli` to expose its local
-executable when installation preceded generation. Set the clone's identity to `andrew` and retain the ordinary husky
-hooks. The clone is `/tmp/arc-quality-baseline`, outside ARC's registered checkout roster.
+**Measured baseline tip:** `5cc732f64f40977e5ceafd5c6065c66ff50ac3fb` (`main`). The initial attempt stopped at
+sample 4 when discovery-test cleanup replaced `process.env` and a later Git environment stub survived Vitest cleanup.
+PR #843 repaired that leak in an isolated change. All 20 complete original path sets remain present at the repaired tip;
+the measurement restarted from sample 1 there, preserving the sample and method. The first attempt's three completed
+timings are excluded from the final baseline. Its diagnostic logs remain separate from the restarted run.
+
+Replay each sample in a disposable local clone at the measured tip, on `measurement/quality-gate-baseline`; `main`
+remains at the measured tip. Install with `npm ci`, build the CLI, then run `npm rebuild @arc-framework/cli` to expose
+its local executable when installation preceded generation. Set the clone's identity to `andrew` and retain the ordinary
+husky hooks. The clone is `/tmp/arc-quality-baseline`, outside ARC's registered checkout roster.
 
 For each original path, retain the tip's bytes and append one neutral line: `<!-- Measurement replay. -->` in Markdown,
 `// Measurement replay.` in TypeScript and JavaScript, `# Measurement replay.` in shell or YAML, and a blank line in
@@ -169,6 +175,213 @@ clearing the reuse record before each timed request. Preparation and warm-up are
     - `M` `packages/arc-framework/__tests__/integration/eslint-architecture-rows.test.ts`
     - `M` `packages/arc-framework/__tests__/unit/command-input/prompt-scanner.test.ts`
     - `M` `packages/arc-framework/src/lib/syntax-bindings.ts`
+
+### Measured before result
+
+All 20 timed samples passed at `5cc732f64f40977e5ceafd5c6065c66ff50ac3fb`. Total measured boundary time: **2650.467s**
+(**44m 10.467s**); mean **132.523s**, median **54.518s** per increment.
+Times below are seconds rounded to three decimals; the total is summed from the unrounded observations.
+
+The machine also ran developer checks in another checkout during this measurement. CPU load and test admission were
+not held constant, so these are observed wall times under that load, rather than an idle-machine estimate. The after
+comparison retains the fixed replay protocol; interpret elapsed-time differences with this load caveat.
+
+Each command reference expands to its actual timed argv below. Every step exited 0. Preparation and warm-up remain
+outside these totals, and the disposable branch was reset to the measured tip when the runner finished.
+
+| Sample | Commit         | Timed commands (seconds)                                                                                   | Total seconds |
+| ------ | -------------- | ---------------------------------------------------------------------------------------------------------- | ------------- |
+| 1      | `96f62af1ed5d` | C1 2.547; C2 18.549; C3 5.209; C4 22.215                                                                   | 48.520        |
+| 2      | `61b205292fee` | C5 0.264; C6 0.155; C7 0.141; C8 0.183; C9 2.620; C2 17.633; C3 5.284; C10 2.844; C11 1.163; C4 23.493     | 53.780        |
+| 3      | `9052197fb746` | C12 0.314; C6 0.147; C7 0.134; C8 0.189; C10 2.929; C4 14.441                                              | 18.154        |
+| 4      | `2e633348ecab` | C13 0.262; C6 0.144; C7 0.131; C8 0.210; C14 0.862; C15 203.295; C3 5.272; C10 3.417; C11 1.378; C4 33.950 | 248.920       |
+| 5      | `306efcb3d474` | C16 0.514; C6 0.224; C7 0.175; C8 0.233; C17 8.264; C2 25.832; C3 6.762; C10 3.195; C11 1.154; C4 27.530   | 73.883        |
+| 6      | `5d234308f42d` | C18 4.523; C2 29.562; C3 7.438; C11 1.405; C4 35.064                                                       | 77.993        |
+| 7      | `d3f537377a36` | C18 3.183; C2 19.341; C3 4.988; C11 1.063; C4 23.076                                                       | 51.651        |
+| 8      | `467e174555e7` | C19 2.930; C2 19.296; C3 5.285; C11 1.122; C4 23.392                                                       | 52.025        |
+| 9      | `60420f21b71d` | C19 3.025; C2 18.402; C3 5.240; C11 1.122; C4 22.719                                                       | 50.508        |
+| 10     | `4c26585f26f6` | C19 2.947; C2 19.378; C3 5.230; C11 1.111; C4 23.210                                                       | 51.876        |
+| 11     | `5041ef56249a` | C20 0.261; C6 0.157; C7 0.141; C8 0.198; C21 3.009; C2 18.917; C3 5.229; C10 2.744; C11 1.123; C4 23.476   | 55.255        |
+| 12     | `9b5994e3f851` | C6 0.152; C7 0.134; C8 0.195; C22 50.441; C15 208.187; C3 5.280; C10 2.834; C4 3.875                       | 271.097       |
+| 13     | `c82d581c45e8` | C22 50.538; C15 271.624; C3 7.566; C4 14.630                                                               | 344.357       |
+| 14     | `60c848053d69` | C6 0.187; C7 0.159; C8 0.212; C22 47.759; C15 194.093; C3 4.967; C10 2.682; C4 3.389                       | 253.448       |
+| 15     | `e7d61ccf8bfc` | C22 48.770; C15 197.072; C3 5.107; C4 9.600                                                                | 260.549       |
+| 16     | `63d82b326b99` | C23 2.705; C2 17.124; C3 5.201; C4 11.521                                                                  | 36.550        |
+| 17     | `77ce8fb35c68` | C6 0.171; C7 0.145; C8 0.201; C22 48.216; C15 283.922; C3 6.606; C10 3.319; C4 4.271                       | 346.850       |
+| 18     | `5257b49805e0` | C22 48.813; C15 217.474; C3 5.471; C4 9.981                                                                | 281.739       |
+| 19     | `db112d2e3e2c` | C23 2.808; C2 17.615; C3 5.185; C4 11.438                                                                  | 37.046        |
+| 20     | `5e90e48146c8` | C24 2.697; C2 17.046; C3 5.093; C4 11.429                                                                  | 36.265        |
+
+**Timed command definitions:**
+
+**C1.**
+
+```sh
+npm run -s lint:ts:file -- packages/arc-framework/__tests__/unit/kernel/schema-fold.test.ts \
+  packages/arc-framework/src/lib/kernel/schema/generate.ts
+```
+
+**C2.**
+
+```sh
+npm run -s test:changed
+```
+
+**C3.**
+
+```sh
+npm run -s typecheck:all
+```
+
+**C4.**
+
+```sh
+git commit -m 'chore(measurement): replay fixed check inputs' -m 'Context: standalone (maintenance)'
+```
+
+**C5.**
+
+```sh
+npm run -s lint:md:file -- .arc/system/methods/review-response.md \
+  packages/arc-framework/arc/system/methods/review-response.md
+```
+
+**C6.**
+
+```sh
+npm run -s lint:arc:triggers
+```
+
+**C7.**
+
+```sh
+npm run -s lint:arc:domain-rules
+```
+
+**C8.**
+
+```sh
+npm run -s lint:arc:section-refs
+```
+
+**C9.**
+
+```sh
+npm run -s lint:ts:file -- \
+  packages/arc-framework/__tests__/unit/scripts/review-gate/runtime/respond-remedy.test.ts \
+  packages/arc-framework/src/scripts/review-gate/runtime/respond-remedy.ts
+```
+
+**C10.**
+
+```sh
+npm run -s test:arc-contracts
+```
+
+**C11.**
+
+```sh
+npm run -s lint:sh
+```
+
+**C12.**
+
+```sh
+npm run -s lint:md:file -- .arc/system/methods/adversarial-review.md .arc/system/methods/source-grounding.md \
+  packages/arc-framework/arc/system/methods/adversarial-review.md \
+  packages/arc-framework/arc/system/methods/source-grounding.md
+```
+
+**C13.**
+
+```sh
+npm run -s lint:md:file -- .arc/system/workflows/arc/session-lifecycle/session-recover.md \
+  packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-recover.md
+```
+
+**C14.**
+
+```sh
+npm run -s lint:ts:file -- packages/arc-framework/__tests__/integration/harness-hooks/claude-code.test.ts \
+  packages/arc-framework/__tests__/integration/harness-hooks/codex-cli.test.ts
+```
+
+**C15.**
+
+```sh
+npm test
+```
+
+**C16.**
+
+```sh
+npm run -s lint:md:file -- .arc/system/workflows/arc/supplemental/run-errand.md \
+  packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md
+```
+
+**C17.**
+
+```sh
+npm run -s lint:ts:file -- packages/arc-framework/__tests__/integration/review-status-errand-correction.test.ts \
+  packages/arc-framework/__tests__/unit/scripts/review-gate/runtime/review-policy-remedy.test.ts \
+  packages/arc-framework/src/handlers/review.ts \
+  packages/arc-framework/src/scripts/review-gate/hosted/correction-review-capability.ts \
+  packages/arc-framework/src/scripts/review-gate/runtime/review-policy-remedy.ts \
+  packages/arc-framework/src/scripts/review-gate/status-errand.ts \
+  packages/arc-framework/src/scripts/review-gate/status.ts
+```
+
+**C18.**
+
+```sh
+npm run -s lint:ts:file -- \
+  packages/arc-framework/__tests__/unit/scripts/review-gate/lane-progress-hosted-terminal-failure.test.ts \
+  packages/arc-framework/src/scripts/review-gate/lane-progress-hosted-request.ts
+```
+
+**C19.**
+
+```sh
+npm run -s lint:ts:file -- \
+  packages/arc-framework/__tests__/unit/scripts/review-gate/hosted/coderabbit-body.test.ts \
+  packages/arc-framework/src/scripts/review-gate/hosted/coderabbit-body.ts
+```
+
+**C20.**
+
+```sh
+npm run -s lint:md:file -- .arc/system/methods/review-chunking.md .arc/system/methods/standard-review.md \
+  packages/arc-framework/arc/system/methods/review-chunking.md \
+  packages/arc-framework/arc/system/methods/standard-review.md
+```
+
+**C21.**
+
+```sh
+npm run -s lint:ts:file -- packages/arc-framework/__tests__/unit/scripts/review-gate/core/local-prepare.test.ts \
+  packages/arc-framework/src/scripts/review-gate/core/local-prepare.ts
+```
+
+**C22.**
+
+```sh
+npm run -s lint:ts
+```
+
+**C23.**
+
+```sh
+npm run -s lint:ts:file -- packages/arc-framework/__tests__/unit/command-input/prompt-scanner.test.ts \
+  packages/arc-framework/src/lib/syntax-bindings.ts
+```
+
+**C24.**
+
+```sh
+npm run -s lint:ts:file -- packages/arc-framework/__tests__/integration/eslint-architecture-rows.test.ts \
+  packages/arc-framework/__tests__/unit/command-input/prompt-scanner.test.ts \
+  packages/arc-framework/src/lib/syntax-bindings.ts
+```
 
 ## Buffer triage
 
