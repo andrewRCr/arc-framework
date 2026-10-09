@@ -342,36 +342,23 @@ Errand line shows the pair.
 - _Outcome:_ The core invariant now defines home by a shaped decision, gives Errands no work-unit home, and fires
   the routing method for placement. Its marker and scope stay intact; no other always-loaded surface changes.
 
-### `[ ]` **5.3 Read `WU_Target` as a candidate, and pull in only same-concern items, in the inbox docs — D2, D10**
+### `[x]` **5.3 Read `WU_Target` as a candidate, and pull in only same-concern items, in the inbox docs — D2, D10**
 
 - _Goal:_ The strategies describing captures read `WU_Target` as a candidate the drain's gate checks, route every
   capture through that gate — Errand-shaped items by the homeless-atomic route — and pull in at activation only what
   the work unit's own change covers; neither they nor the shared inbox's shipped template gives an Errand-shaped item
   a work-unit home.
 
-    - `[ ]` **5.3.a Update `strategy-session-operations.md` § USER-INBOX**
-        - A `## Work Unit` entry's `WU_Target` is a candidate the drain's gate checks, not a destination its existence
-          decides.
-        - The Lifecycle paragraph's "`§ Errand` items to their target stub" becomes the drain's homeless-atomic route,
-          and its "`§ Work Unit` items to an existing stub or a new _provisional_ stub" routes them through the
-          drain's gate.
+    - `[x]` **5.3.a Update `strategy-session-operations.md` § USER-INBOX**
+        - `WU_Target` names a gate-checked candidate; every Errand-shaped capture takes the homeless-atomic route.
 
-    - `[ ]` **5.3.b Update `strategy-planning-module.md`**
-        - § `backlog/ATOMIC-INBOX.md` and § Shared-Inbox Write Discipline's "Read at activation" and "Read at
-          planning-kickoff": activation and planning kickoff pull in items the work unit's own change covers, by the
-          anti-rider concern-identity test, not items whose home turns out to be the work unit or its domain.
-        - § `backlog/ATOMIC-INBOX.md`'s "single-step work with no better home than the shared surface" and "flushing
-          homeless `USER-INBOX § Errand` items", and § Shared-Inbox Write Discipline's "genuinely homeless `§ Errand`
-          items", become every `§ Errand` item, since none has a work-unit home.
-        - § How Work Flows Through's "§ Errand items route to their home" becomes the homeless-atomic route, and its
-          § Work Unit clause routes through the drain's gate.
+    - `[x]` **5.3.b Update `strategy-planning-module.md`**
+        - Drain descriptions route every capture through the gate. Activation and planning-kickoff absorb only
+          concerns the work unit's own change covers, by concern identity.
 
-    - `[ ]` **5.3.c Update the `ATOMIC-INBOX` template's header**
-        - In `backlog/ATOMIC-INBOX.template.md` (package source), "single-step captures with no better home" and "only
-          genuinely homeless single-step items rest in this shared surface" become every Errand-class capture, none of
-          which has a work-unit home.
-        - The project's `.arc/backlog/ATOMIC-INBOX.md` keeps its own header: a scaffolded file is project-owned after
-          init, never synced from the template.
+    - `[x]` **5.3.c Update the `ATOMIC-INBOX` template's header**
+        - The shipped header gives every Errand capture no work-unit home. The project's scaffolded inbox stays
+          project-owned and unchanged.
 
 ### `[ ]` **5.4 Dry-run the drain over the seeded inbox** — validate exit criterion at segment scope
 

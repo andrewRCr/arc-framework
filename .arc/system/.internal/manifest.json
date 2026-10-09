@@ -165,7 +165,7 @@
     "reference/strategies/arc/strategy-session-operations.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "a8e7a37effc0cb207dce6f04129544a2a25728eb744a3df571ddc4a5b5936c77"
+      "pristine_hash": "cbce0d3b249a4388b5de99ecd8d1ef8b1ec0242ae866ff7de27fbf0a2a35e6c2"
     },
     "reference/strategies/arc/strategy-task-list-formatting.md": {
       "classification": "Framework",
@@ -755,7 +755,7 @@
     "reference/strategies/arc/strategy-planning-module.md": {
       "classification": "Framework",
       "layer": "arc-in-git",
-      "pristine_hash": "5a0ce54075e145cf2121a754b0f6d6872580e45bbb0a22d6f589363d9c0c9ed1"
+      "pristine_hash": "bbf52f1e47b7372b31d9e394885bc7c6a767355b5d149eed6b7c3567f3222940"
     },
     "reference/PROJECT-PRD.md": {
       "classification": "Scaffolded",
