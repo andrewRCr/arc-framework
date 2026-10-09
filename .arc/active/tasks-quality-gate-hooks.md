@@ -236,12 +236,10 @@ ranges' merged-in parents, forced runs, record faults and placement, and the che
           from their root with root-relative file arguments. A command that never starts reports `couldn't run` with
           exit 2; started shell failures report `failed` with exit 1. A repaired declaration retries successfully.
 
-    - `[ ]` **4.1.b Git environment**
-        - Build `test-first` (one behavior at a time):
-            - a check runs with Git's repository-local variables removed
-            - a check that creates and commits in a fixture repository passes under every non-hook request form
-            - the same check passes through the shipped commit hook under a plain commit, under `git commit -a`, and in
-              a linked worktree, where Git also exports `GIT_DIR`
+    - `[x]` **4.1.b Git environment**
+        - The shared adapter removes all repository-local Git variables. A real nested fixture creates and commits
+          under every non-hook form and through the shipped hook during plain commits, `git commit -a`, and linked
+          worktree commits; its receipt confirms the committed content and clean environment.
 
     - `[ ]` **4.1.c Batching, ordering, and parallelism**
         - Node exposes no argument-length limit, so each platform gets a fixed budget from a pure function tested per
