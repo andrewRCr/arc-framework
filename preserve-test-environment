@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "preserve-test-environment",
+  "claimId": "f9cd6f8949b7ede79f48a5402b02416e",
+  "createdAt": "2026-10-09T15:39:19.759Z",
+  "updatedAt": "2026-10-09T15:39:19.759Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Preserve process.env identity in test cleanup so Vitest unstubs repository-local variables correctly in reused workers",
+  "branch": "chore/preserve-test-environment",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
