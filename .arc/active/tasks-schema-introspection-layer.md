@@ -187,10 +187,14 @@ and every result validates against its registered envelope.
         - Both workflows point authoring to the cut map's structural contract and retain CLI-owned refinements and
           cross-field checks. The copies remain byte-equal and their pinned fenced commands are unchanged.
 
-### `[ ]` **3.5 Exercise `list` and `get` against the built CLI** — validate exit criterion at segment scope
+### `[x]` **3.5 Exercise `list` and `get` against the built CLI** — validate exit criterion at segment scope
 
 - _Goal:_ Phase 3's exit criterion is shown against a fresh build of the CLI, with the scenario and its result
   recorded.
+
+- _Outcome:_ A fresh full build listed and retrieved all 142 production contracts through the CLI outside a project.
+  Every result validated against its registered envelope; metadata matched the registry, the authored request kept
+  frontlineActive optional, the cut map reported version 3, and an unknown ID returned exit 1 with its discovery remedy.
 
 ## **Phase 4:** Write editor documents and install them on demand
 
