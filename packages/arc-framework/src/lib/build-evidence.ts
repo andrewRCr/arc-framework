@@ -5,17 +5,6 @@ import { z } from "zod";
 /** Qualification record published beside the completed CLI entry. */
 export const DEV_BUILD_STAMP_NAME = "dev-build-stamp.json";
 
-/**
- * Recognize the required nonempty schema collection emitted by the schema producer.
- * @param value - Parsed staged or live schema artifact
- * @returns Whether the artifact supplies a usable schema collection
- */
-export function hasKernelSchemas(value: unknown): boolean {
-  return typeof value === "object" && value !== null && "schemas" in value
-    && typeof value.schemas === "object" && value.schemas !== null && !Array.isArray(value.schemas)
-    && Object.keys(value.schemas).length > 0;
-}
-
 const sourceKey = z.string().regex(/^(?!\/|[A-Za-z]:|.*(?:^|\/)\.\.(?:\/|$)|.*\\).+$/u);
 const digest = z.string().regex(/^[a-f0-9]{64}$/u);
 const sourceSet = z.array(sourceKey).min(1).refine((keys) => new Set(keys).size === keys.length);
@@ -24,16 +13,16 @@ const producerSet = sourceSet.refine((keys) => keys.every((key) =>
 
 /** Disposable current-format evidence; old or malformed records never qualify output. */
 export const BuildEvidenceSchema = z.object({
-  schemaVersion: z.literal(2),
+  schemaVersion: z.literal(3),
   generation: z.uuid(),
-  graphs: z.object({ cli: producerSet, schema: producerSet, controls: producerSet }).strict(),
+  graphs: z.object({ cli: producerSet, controls: producerSet }).strict(),
   configurationInputs: sourceSet,
   inventoryRoots: sourceSet,
   inventory: z.array(z.object({
     path: sourceKey, kind: z.enum(["file", "directory", "link"]), target: z.string().optional(),
   }).strict().refine((entry) => entry.kind === "link" ? entry.target !== undefined : entry.target === undefined)),
-  identities: z.object({ runtime: digest, runtimeSchema: digest }).strict(),
-  qualification: z.object({ published: z.literal(true), runtimeSchema: z.literal(true),
+  identities: z.object({ runtime: digest }).strict(),
+  qualification: z.object({ published: z.literal(true),
     declarations: z.boolean() }).strict(),
 }).strict();
 
@@ -54,7 +43,7 @@ export function parseBuildEvidence(value: unknown): BuildEvidence | null {
  * Combine concrete installation/runtime and resolver-control identities.
  * @param context - Managed installation and runtime identity
  * @param inventory - Membership, links, and first-party manifest identity
- * @returns Shared control identity used by both producer closures
+ * @returns Shared control identity used by the compiler and control closure
  */
 export function sharedBuildIdentity(context: string, inventory: string): string {
   return createHash("sha256").update(context).update("\0").update(inventory).digest("hex");
@@ -78,34 +67,32 @@ export interface BuildEvidenceInput {
  */
 export function createBuildEvidence(input: BuildEvidenceInput): BuildEvidence {
   return BuildEvidenceSchema.parse({
-    schemaVersion: 2, generation: randomUUID(), graphs: input.graphs,
+    schemaVersion: 3, generation: randomUUID(), graphs: input.graphs,
     configurationInputs: input.configurationInputs, inventoryRoots: input.inventoryRoots, inventory: input.inventory,
     identities: identifyBuildInputs({ ...input.graphs,
       controls: [...input.graphs.controls, ...input.configurationInputs],
     }, input.contents, input.sharedIdentity),
-    qualification: { published: true, runtimeSchema: true, declarations: input.declarations },
+    qualification: { published: true, declarations: input.declarations },
   });
 }
 
 /** Repository-relative source graphs captured from actual native producers. */
 export interface BuildInputGraphs {
   readonly cli: readonly string[];
-  readonly schema: readonly string[];
   readonly controls: readonly string[];
 }
 
-/** Distinct runtime and runtime-plus-schema content identities. */
+/** Runtime content identity over compiler and control inputs. */
 export interface BuildInputIdentities {
   readonly runtime: string;
-  readonly runtimeSchema: string;
 }
 
 /**
  * Hash producer-selected baseline contents together with shared loader controls.
- * @param graphs - Actual compiler, schema, and shared-control input sets
+ * @param graphs - Actual compiler and shared-control input sets
  * @param contents - Baseline content digests keyed relative to the repository
  * @param sharedIdentity - Configuration, installation, runtime, and resolver identity
- * @returns Selective runtime and test input hashes
+ * @returns Runtime input hash
  */
 export function identifyBuildInputs(
   graphs: BuildInputGraphs,
@@ -115,7 +102,6 @@ export function identifyBuildInputs(
   const runtime = [...graphs.cli, ...graphs.controls];
   return {
     runtime: hashInputSet(runtime, contents, sharedIdentity),
-    runtimeSchema: hashInputSet([...runtime, ...graphs.schema], contents, sharedIdentity),
   };
 }
 

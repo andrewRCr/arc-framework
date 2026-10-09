@@ -9,6 +9,9 @@ import {
 import { setupLinkedWorktree } from "../git/linked-worktree-setup.js";
 import type { BaseSyncResult } from "../git/base-sync.js";
 import type { GitExec } from "../git/exec.js";
+import {
+  nodeEditorDocumentsFs, writeEditorDocumentsOrThrow, type EditorDocumentsWriter,
+} from "../schema-command/editor-documents.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
 import {
   createWorktreeMarkerGeneration,
@@ -27,6 +30,7 @@ import {
 import { withWorktreeOperationLock } from "../work-unit/worktree-operation-lock.js";
 
 export interface NodeProvisioningRuntimeOptions {
+  readonly writeEditorDocuments?: EditorDocumentsWriter;
   readonly exec: GitExec;
   readonly base: string;
   readonly branch: string | null;
@@ -59,6 +63,7 @@ export function createNodeProvisioningDependencies(
     },
     createMarker: async (worktreePath, marker) => {
       await ensureWorktreeMarkerIgnored(worktreePath, options.exec, nodeWorktreeMarkerIgnoreFs);
+      await writeEditorDocumentsOrThrow(worktreePath, options.exec, nodeEditorDocumentsFs, undefined, options.writeEditorDocuments);
       return createWorktreeMarkerGeneration(worktreePath, marker);
     },
     replaceMarker: replaceWorktreeMarkerGeneration,

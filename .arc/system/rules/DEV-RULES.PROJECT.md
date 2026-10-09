@@ -97,12 +97,12 @@ native and package-relative. Focused execution supports explicit native executio
 membership, target, ownership, and completion checks; it does not replace the complete selected quality gate.
 
 Unit-only selections take no heavy CPU slot or artifact lease and request no build. Supported integration/E2E
-controllers acquire CPU admission before checkout artifact ownership, prepare qualified runtime/schema output, and
+controllers acquire CPU admission before checkout artifact ownership, prepare qualified CLI and metafile output, and
 hold artifacts through closing. Same-checkout builders queue until cleanup ends; other worktrees remain independent.
 CI and `ARC_TEST_ALLOW_CONCURRENCY=1` bypass only CPU admission. Direct native setup without controller evidence owns
 generation alone and does not pin the unmanaged run.
 
-Preparation may reuse a qualifying full build or fast runtime/schema build. Explicit builds always generate, and
+Preparation may reuse a qualifying full build or fast build of the CLI and metafile. Explicit builds always generate, and
 the full `npm run build` declaration gate and both type checks remain required. CI retains evidence with artifacts
 and qualifies or repairs them in a consumer-local preflight before setting `ARC_E2E_SKIP_BUILD=1`. Skip-build requires
 matching context and files and forbids generation; repair installation with `npm ci` when required, then prepare

@@ -52,6 +52,9 @@ machine fields.
 
 ## 2. Complete the operator-owned map
 
+Use `arc schema get decompose-cut-map` for each authoring slot's structural shape, discriminators, and allowed
+constants; refinements and cross-field checks stay with `arc decompose`.
+
 Edit only the starter map's authoring slots:
 
 - name each new member or exact existing destination;

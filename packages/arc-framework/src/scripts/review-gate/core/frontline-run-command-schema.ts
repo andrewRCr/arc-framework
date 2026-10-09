@@ -62,7 +62,7 @@ export function registerFrontlineRunCommandSchemas(registry: KernelRegistry): Ke
   registry.register(FrontlineRunRequestSchema, {
     id: REVIEW_FRONTLINE_RUN_REQUEST_SCHEMA_ID,
     version: 1,
-    migrationPosture: "strict-current",
+    migrationPosture: "strict-current", authored: "request",
   });
   return registry;
 }

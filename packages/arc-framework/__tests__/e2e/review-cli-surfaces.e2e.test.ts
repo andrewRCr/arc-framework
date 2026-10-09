@@ -8,6 +8,10 @@ import { tmpdir } from "node:os";
 import { promisify } from "node:util";
 import { Ajv2020, type AnySchema } from "ajv/dist/2020.js";
 
+import { createProductionSchemaRegistry } from "../../src/production-schema-registry.js";
+import { projectKernelSchemaClosure } from "../../src/lib/kernel/schema/generate.js";
+import type { KernelJSONSchemaBundle } from "../../src/lib/kernel/index.js";
+import { resolveSchemaReference } from "../helpers/schema-reference.js";
 import { runCli } from "../helpers/run-cli.js";
 
 const root = resolve(import.meta.dirname, "../../../..");
@@ -61,112 +65,24 @@ describe("packaged review CLI surfaces", () => {
   });
 
   it.each([
-    [
-      ["review", "changeset", "resolve"],
-      "review-chunking-resolve-request.schema.json",
-      ["review-chunking-resolve-request"],
-    ],
-    [
-      ["review", "planning-grooming", "resolve"],
-      "review-planning-grooming-resolve-request.schema.json",
-      ["review-planning-grooming-resolve-request"],
-    ],
-    [
-      ["review", "frontline", "run"],
-      "review-frontline-run-request.schema.json",
-      [
-        "review-assurance-input",
-        "review-frontline-resolve-envelope",
-        "review-frontline-run-request",
-        "review-method-activity",
-        "review-routing-decision",
-        "review-routing-facts",
-        "review-target",
-        "slug",
-      ],
-    ],
-    [
-      ["review", "resolve"],
-      "review-resolve-request.schema.json",
-      ["review-resolve-request", "standard-review-obligation-projection"],
-    ],
-    [
-      ["review", "hosted", "await"],
-      "review-hosted-await-request.schema.json",
-      [
-        "review-hosted-await-request",
-        "review-requirement",
-        "review-target",
-        "slug",
-        "standard-review-obligation-projection",
-      ],
-    ],
-    [
-      ["review", "reduce"],
-      "review-reduce-request.schema.json",
-      ["review-reduce-request"],
-    ],
-    [
-      ["review", "respond"],
-      "review-respond-request.schema.json",
-      [
-        "approved-disposition-set",
-        "disposition-approval",
-        "disposition-report-item",
-        "disposition-set",
-        "finding-disposition",
-        "review-resolve-request",
-        "review-respond-request",
-        "review-severity",
-        "review-target",
-        "severity-gating-policy",
-        "standard-review-obligation-projection",
-      ],
-    ],
-    [
-      ["review", "hosted", "request"],
-      "review-hosted-request-request.schema.json",
-      ["review-hosted-request-request", "slug", "standard-review-obligation-projection"],
-    ],
-    [
-      ["review", "readiness"],
-      "review-readiness-request.schema.json",
-      ["review-readiness-request", "slug"],
-    ],
-    [
-      ["review", "frontline", "resolve"],
-      "review-frontline-resolve-request.schema.json",
-      ["review-frontline-resolve-request", "slug"],
-    ],
-    [
-      ["review", "hosted", "settle"],
-      "review-hosted-settle-request.schema.json",
-      ["review-hosted-settle-request"],
-    ],
-    [
-      ["review", "local", "prepare"],
-      "review-local-prepare-request.schema.json",
-      ["review-local-prepare-request", "slug"],
-    ],
-    [
-      ["review", "local", "attest"],
-      "review-local-attest-request.schema.json",
-      ["review-local-attest-request", "review-severity"],
-    ],
-    [
-      ["review", "local", "resume"],
-      "review-local-resume-request.schema.json",
-      ["review-local-resume-request"],
-    ],
-    [
-      ["review", "terminus", "accept"],
-      "review-terminus-accept-request.schema.json",
-      ["review-terminus-accept-request", "slug"],
-    ],
-  ] as const)("emits a dependency-complete public request schema at %s", async (
+    [["review", "changeset", "resolve"], "urn:arc:schema:review-chunking-resolve-request"],
+    [["review", "planning-grooming", "resolve"], "urn:arc:schema:review-planning-grooming-resolve-request"],
+    [["review", "frontline", "run"], "urn:arc:schema:review-frontline-run-request"],
+    [["review", "resolve"], "urn:arc:schema:review-resolve-request"],
+    [["review", "hosted", "await"], "urn:arc:schema:review-hosted-await-request"],
+    [["review", "reduce"], "urn:arc:schema:review-reduce-request"],
+    [["review", "respond"], "urn:arc:schema:review-respond-request"],
+    [["review", "hosted", "request"], "urn:arc:schema:review-hosted-request-request"],
+    [["review", "readiness"], "urn:arc:schema:review-readiness-request"],
+    [["review", "frontline", "resolve"], "urn:arc:schema:review-frontline-resolve-request"],
+    [["review", "hosted", "settle"], "urn:arc:schema:review-hosted-settle-request"],
+    [["review", "local", "prepare"], "urn:arc:schema:review-local-prepare-request"],
+    [["review", "local", "attest"], "urn:arc:schema:review-local-attest-request"],
+    [["review", "local", "resume"], "urn:arc:schema:review-local-resume-request"],
+    [["review", "terminus", "accept"], "urn:arc:schema:review-terminus-accept-request"],
+  ] as const)("emits one self-contained public request schema at %s", async (
     command,
     rootId,
-    expectedSchemaIds,
   ) => {
     const outsideProject = await mkdtemp(join(tmpdir(), "arc-review-schema-"));
     const [result, help] = await Promise.all([
@@ -182,7 +98,9 @@ describe("packaged review CLI surfaces", () => {
       schemas: Record<string, AnySchema>;
     };
     expect(output.rootId).toBe(rootId);
-    if (rootId === "review-frontline-resolve-request.schema.json") {
+    const schemaId = rootId.replace("urn:arc:schema:", "");
+    expect(output.schemas[schemaId]).toEqual(projectKernelSchemaClosure(createProductionSchemaRegistry(), schemaId));
+    if (rootId === "urn:arc:schema:review-frontline-resolve-request") {
       const publicRequest = output.schemas["review-frontline-resolve-request"] as {
         properties: Record<string, AnySchema>;
         required: string[];
@@ -190,19 +108,21 @@ describe("packaged review CLI surfaces", () => {
       expect(publicRequest.required).toContain("target");
       expect(publicRequest.properties).not.toHaveProperty("pass");
       expect(publicRequest.properties).not.toHaveProperty("maxPasses");
-      expect(publicRequest.properties.target).toMatchObject({
+      const target = resolveSchemaReference(
+        output as KernelJSONSchemaBundle, publicRequest.properties.target,
+        output.schemas["review-frontline-resolve-request"] as KernelJSONSchemaBundle["schemas"][string],
+      );
+      expect(target).toMatchObject({
         type: "object",
         required: ["kind", "baseRef", "diffBaseSha", "headSha"],
       });
-      expect((publicRequest.properties.target as { properties: Record<string, unknown> }).properties)
+      expect(target.properties)
         .not.toHaveProperty("repositoryId");
     }
-    // The production bundle contains a pre-existing empty-tuple projection Ajv rejects as a
-    // metaschema defect; compilation still proves every public-root ref resolves in the bundle.
-    const validator = new Ajv2020({ strict: false, validateSchema: false });
+    const validator = new Ajv2020({ strict: true, validateFormats: false });
     for (const schema of Object.values(output.schemas)) validator.addSchema(schema);
     expect(validator.getSchema(rootId)).toBeDefined();
-    expect(Object.keys(output.schemas)).toEqual(expectedSchemaIds);
+    expect(Object.keys(output.schemas)).toEqual([rootId.replace("urn:arc:schema:", "")]);
   });
 
   it("documents schema discovery at a request boundary reached only by hand", async () => {
@@ -273,7 +193,7 @@ describe("packaged review CLI surfaces", () => {
 
     expect(result.exitCode).not.toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({
-      rootId: "review-chunking-resolve-request.schema.json",
+      rootId: "urn:arc:schema:review-chunking-resolve-request",
       schemas: {},
     });
   });

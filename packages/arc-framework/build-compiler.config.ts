@@ -10,7 +10,7 @@ import type { BuildInputGraphs } from "./src/lib/build-evidence.js";
  * @param packageRoot - Native compiler cwd
  * @param mode - Requested declaration contract
  * @param directory - Unique parent-owned staging directory
- * @returns Actual native CLI and isolated schema inputs
+ * @returns Actual native CLI inputs
  */
 export async function compileStagedArtifacts(
   packageRoot: string, mode: BuildMode, directory: string,

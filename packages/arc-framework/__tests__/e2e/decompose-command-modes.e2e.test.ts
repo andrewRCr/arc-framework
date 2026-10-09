@@ -18,6 +18,7 @@ import {
   runArcNoTty,
   type RunResult,
 } from "./helpers.js";
+import { assertEditorDocumentsProvisioned } from "./editor-document-helpers.js";
 
 async function write(repo: string, path: string, content: string): Promise<void> {
   const absolute = join(repo, path);
@@ -504,6 +505,8 @@ describe("arc decompose command modes", () => {
     );
     expect(executed.exitCode, executed.stderr).toBe(0);
     const result = JSON.parse(executed.stdout) as Record<string, unknown>;
+    const occupation = (result.operation as { occupation: { path: string } }).occupation;
+    await assertEditorDocumentsProvisioned(occupation.path);
     expect(result).toMatchObject({
       status: "staged",
       operation: {
@@ -710,6 +713,7 @@ describe("arc decompose command modes", () => {
         stagedPaths: string[];
       };
     };
+    await assertEditorDocumentsProvisioned(result.operation.occupation.path);
     const cutMap = JSON.parse(await readFile(cutMapPath, "utf8")) as {
       machine: {
         sourceUnits: Array<{

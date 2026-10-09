@@ -90,7 +90,8 @@ vi.mock("../../../src/lib/paths.js", () => ({
   resolveArcRoot: (startDir?: string) => mockResolveArcRoot(startDir),
 }));
 
-vi.mock("../../../src/lib/git/worktree-roster.js", () => ({
+vi.mock("../../../src/lib/git/worktree-roster.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../src/lib/git/worktree-roster.js")>(),
   resolvePrimaryWorktreePath: async () => "/repos/myrepo",
   resolveWorktreePathsByBranch: async () => new Map<string, string>(),
   runWorktreeRoster: async () => ({ entries: [], warnings: [] }),
@@ -252,7 +253,8 @@ vi.mock("../../../src/commands/active.js", () => ({
 }));
 
 const mockFindMaterializableWorkUnits = vi.fn();
-vi.mock("../../../src/lib/session-init/materializable-work-units.js", () => ({
+vi.mock("../../../src/lib/session-init/materializable-work-units.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../../src/lib/session-init/materializable-work-units.js")>(),
   findMaterializableWorkUnits: (...a: unknown[]) => mockFindMaterializableWorkUnits(...a),
 }));
 

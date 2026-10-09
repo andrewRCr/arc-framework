@@ -63,6 +63,7 @@ function buildCtx(opts: MockOptions = {}): { ctx: ReconcileWorkUnitWorktreeConte
     return { stdout: "" };
   };
   const ctx: ReconcileWorkUnitWorktreeContext = {
+    writeEditorDocuments: async () => ({ ok: true, documents: [] }),
     exec,
     chdir: (dir) => events.push(["chdir", dir]),
     serializeWorktreeOperation: async (_checkoutPath, operation) => operation(),

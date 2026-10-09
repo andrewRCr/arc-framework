@@ -4,7 +4,7 @@ import type { TestProject } from "vitest/node";
 import { ensureTestRuntime } from "../../src/lib/build-runtime-setup.js";
 
 /**
- * Establish required runtime/schema output before integration workers execute.
+ * Establish required CLI and metafile output before integration workers execute.
  * @param project - Native project and its inherited controller context
  * @returns Completion once the supplied or directly prepared generation qualifies
  */

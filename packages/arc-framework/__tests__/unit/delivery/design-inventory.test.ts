@@ -28,6 +28,7 @@ describe("bindDesignInventory", () => {
       id: DELIVERY_DESIGN_INVENTORY_INPUT_SCHEMA_ID,
       version: 1,
       migrationPosture: "strict-current",
+      authored: "request",
     });
     expect(() => registerDeliveryAuthoringSchemas(registry)).toThrowError(SchemaError);
   });

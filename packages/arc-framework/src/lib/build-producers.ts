@@ -1,45 +1,12 @@
-/** Native loading of repository build configurations and isolated schema producers. */
+/** Native loading of repository build configurations. */
 import { build, type Options } from "tsup";
 import { bundleRequire } from "bundle-require";
 import { selectFirstPartyInputs } from "./build-inputs.js";
-import { join } from "node:path";
 
 /** Captured compiler configuration and its native first-party dependencies. */
 export interface LoadedBuildConfiguration {
   readonly options: Options;
   readonly dependencies: readonly string[];
-}
-
-/** Separately loaded schema writer and its actual native source graph. */
-export interface LoadedSchemaProducer {
-  readonly generate: (outDir: string) => Promise<void>;
-  readonly dependencies: readonly string[];
-}
-
-/**
- * Load the schema generator independently from shared compiler controls.
- * @param packageRoot - Package containing the schema producer entry
- * @returns Executable generator and its source dependencies
- */
-export async function loadSchemaProducer(packageRoot: string): Promise<LoadedSchemaProducer> {
-  const loaded = await bundleRequire<{ generateRuntimeSchema: (outDir: string) => Promise<void> }>({
-    filepath: join(packageRoot, "src/scripts/build-schema.ts"), cwd: packageRoot, format: "esm",
-  });
-  return {
-    generate: loaded.mod.generateRuntimeSchema,
-    dependencies: selectFirstPartyInputs(loaded.dependencies, packageRoot),
-  };
-}
-
-/**
- * Generate ancillary runtime artifacts after compilation.
- * @param outDir - Compiler output directory
- * @param packageRoot - Package containing the producer
- * @returns Resolves after the schema artifact is written
- */
-export async function writeBuildArtifacts(outDir: string, packageRoot: string): Promise<void> {
-  const schema = await loadSchemaProducer(packageRoot);
-  await schema.generate(outDir);
 }
 
 /**

@@ -3,13 +3,13 @@ import { createHash } from "node:crypto";
 import { readFileSync, lstatSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
-  DEV_BUILD_STAMP_NAME, hasKernelSchemas, identifyBuildInputs, parseBuildEvidence, sharedBuildIdentity, type BuildEvidence,
+  DEV_BUILD_STAMP_NAME, identifyBuildInputs, parseBuildEvidence, sharedBuildIdentity, type BuildEvidence,
 } from "./build-evidence.js";
 import { captureBuildContext } from "./build-context.js";
 import { captureBuildInventory } from "./build-inventory.js";
 
 /** Required live artifact contract, independent of the outer npm lifecycle. */
-export type BuildRequirement = "runtime" | "runtimeSchema" | "full";
+export type BuildRequirement = "runtime" | "runtimeMetafile" | "full";
 
 /** Reuse is established only by matching current inputs and complete required files. */
 export type BuildQualification =
@@ -32,15 +32,14 @@ export function readBuildQualification(packageRoot: string, requirement: BuildRe
     const root = resolve(packageRoot, "../..");
     const contents: Record<string, string> = { ...inventory.contents, ...context.contents };
     for (const key of new Set([
-      ...evidence.graphs.cli, ...evidence.graphs.schema, ...evidence.graphs.controls, ...evidence.configurationInputs,
+      ...evidence.graphs.cli, ...evidence.graphs.controls, ...evidence.configurationInputs,
     ])) {
       contents[key] = createHash("sha256").update(readFileSync(join(root, key))).digest("hex");
     }
     const identities = identifyBuildInputs({ ...evidence.graphs,
       controls: [...evidence.graphs.controls, ...evidence.configurationInputs],
     }, contents, sharedBuildIdentity(context.identity, inventory.identity));
-    const identity = requirement === "runtime" ? "runtime" : "runtimeSchema";
-    if (identities[identity] !== evidence.identities[identity]) throw new Error("Build input identity does not match.");
+    if (identities.runtime !== evidence.identities.runtime) throw new Error("Build input identity does not match.");
     requireLiveArtifacts(packageRoot, requirement, evidence);
     return { status: "qualified", evidence };
   } catch (error) {
@@ -49,7 +48,7 @@ export function readBuildQualification(packageRoot: string, requirement: BuildRe
 }
 
 function requireLiveArtifacts(packageRoot: string, requirement: BuildRequirement, evidence: BuildEvidence): void {
-  const files = ["cli.js", ...(requirement === "runtime" ? [] : ["schemas/kernel.json", "metafile-esm.json"]),
+  const files = ["cli.js", ...(requirement === "runtime" ? [] : ["metafile-esm.json"]),
     ...(requirement === "full" ? ["cli.d.ts"] : [])];
   if (requirement === "full" && !evidence.qualification.declarations) {
     throw new Error("Build evidence does not establish declaration generation.");
@@ -57,9 +56,5 @@ function requireLiveArtifacts(packageRoot: string, requirement: BuildRequirement
   for (const file of files) {
     const status = lstatSync(join(packageRoot, "dist", file));
     if (!status.isFile() || status.size === 0) throw new Error(`Required live artifact ${file} is unusable.`);
-  }
-  if (requirement !== "runtime") {
-    const schema: unknown = JSON.parse(readFileSync(join(packageRoot, "dist/schemas/kernel.json"), "utf8"));
-    if (!hasKernelSchemas(schema)) throw new Error("Live kernel schema is unusable.");
   }
 }

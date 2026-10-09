@@ -34,6 +34,9 @@ import { getFrameworkVersion } from "../lib/version.js";
 import { UserFacingError, manifestMissingError } from "../lib/errors.js";
 import { lt as semverLt } from "semver";
 import { atomicWriteJson } from "../lib/fs.js";
+import {
+  nodeEditorDocumentsFs, writeEditorDocumentsOrThrow,
+} from "../lib/schema-command/editor-documents.js";
 import { applyExecutableInstallPermissions } from "../lib/install-permissions.js";
 import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
 import { configureRoadmapConflictRemedy } from "../lib/setup.js";
@@ -453,8 +456,7 @@ export async function runUpdate(
     install_config: buildInstallConfig(ic),
     files: applyResult.newManifestFiles,
   };
-  await atomicWriteJson(manifestPath, newManifest);
-  await atomicWriteJson(pristineStorePath, applyResult.newPristineStore);
+  await writeUpdatedState(cwd, newManifest, applyResult.newPristineStore, io);
 
   // Compose final result from apply result + update-specific fields
   return {
@@ -477,6 +479,15 @@ export async function runUpdate(
 }
 
 // --- Result reporting ---
+
+async function writeUpdatedState(
+  cwd: string, manifest: Manifest, pristineStore: Record<string, string>, io: IOContext,
+): Promise<void> {
+  const internalDir = join(materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" })), ...INTERNAL_DIR_SEGMENTS);
+  await atomicWriteJson(join(internalDir, MANIFEST_FILENAME), manifest);
+  await atomicWriteJson(join(internalDir, PRISTINE_FILENAME), pristineStore);
+  await writeEditorDocumentsOrThrow(cwd, io.exec, nodeEditorDocumentsFs, undefined, io.writeEditorDocuments);
+}
 
 /**
  * Build the user-facing summary message for an update result.

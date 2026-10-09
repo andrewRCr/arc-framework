@@ -1,5 +1,5 @@
 /** Prebuilt preparation decides artifact faults and repaired reuse without native generation. */
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { ensureOwnedRuntimeArtifacts } from "../../src/lib/build-entry.js";
@@ -14,6 +14,16 @@ async function qualifiedFixture(mode: "fast" | "full" = "fast") {
   return fixture;
 }
 
+it("qualifies runtime and metafile output without a bundled document", async () => {
+  const { root, packageRoot, staged, evidence } = makeStagedBuildFixture();
+  try {
+    await cp(staged.directory, join(packageRoot, "dist"), { recursive: true });
+    await rm(join(packageRoot, "dist/schemas"), { recursive: true, force: true });
+    await writeFile(join(packageRoot, "dist", DEV_BUILD_STAMP_NAME), JSON.stringify(evidence));
+    expect(readBuildQualification(packageRoot, "runtimeMetafile")).toEqual({ status: "qualified", evidence });
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 it("reuses qualified prebuilt output without requesting generation", async () => {
   const { root, lease, evidence } = await qualifiedFixture("full");
   try {
@@ -21,12 +31,26 @@ it("reuses qualified prebuilt output without requesting generation", async () =>
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-it.each(["missing CLI", "missing schema", "old evidence", "edited runtime"])(
+it.each(["runtime", "runtimeMetafile", "full"] as const)("qualifies %s against the compiler and control identity", async (requirement) => {
+  const { root, packageRoot, staged, evidence } = await qualifiedFixture("full");
+  const control = join(root, staged.graphs.controls[0]!);
+  const original = await readFile(control, "utf8");
+  try {
+    expect(readBuildQualification(packageRoot, requirement)).toEqual({ status: "qualified", evidence });
+    await writeFile(control, original + "\n// changed control\n");
+    expect(readBuildQualification(packageRoot, requirement)).toMatchObject({
+      status: "unqualified", reason: "Build input identity does not match.",
+    });
+    await writeFile(control, original);
+    expect(readBuildQualification(packageRoot, requirement)).toEqual({ status: "qualified", evidence });
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+it.each(["missing CLI", "old evidence", "edited runtime"])(
   "refuses %s with generation disabled and reuses repaired output", async (fault) => {
     const { root, packageRoot, lease, evidence } = await qualifiedFixture();
     const stamp = join(packageRoot, "dist", DEV_BUILD_STAMP_NAME);
     const file = join(packageRoot, fault === "missing CLI" ? "dist/cli.js"
-      : fault === "missing schema" ? "dist/schemas/kernel.json"
       : fault === "old evidence" ? `dist/${DEV_BUILD_STAMP_NAME}` : "src/cli.ts");
     const original = await readFile(file, "utf8");
     try {
@@ -34,7 +58,7 @@ it.each(["missing CLI", "missing schema", "old evidence", "edited runtime"])(
       else if (fault === "old evidence") await writeFile(file, JSON.stringify({ ...evidence, schemaVersion: 1 }));
       else await writeFile(file, original + "\n// edited runtime\n");
       const refusedStamp = await readFile(stamp, "utf8");
-      expect(readBuildQualification(packageRoot, "runtimeSchema").status).toBe("unqualified");
+      expect(readBuildQualification(packageRoot, "runtimeMetafile").status).toBe("unqualified");
       await expect(ensureOwnedRuntimeArtifacts(lease, { ARC_E2E_SKIP_BUILD: "1" }))
         .rejects.toThrow("Generation is disabled by ARC_E2E_SKIP_BUILD=1");
       expect(await readFile(stamp, "utf8")).toBe(refusedStamp);
@@ -55,7 +79,7 @@ it.each(["missing", "empty", "directory"])("refuses %s metadata and reuses repai
       if (fault === "directory") await mkdir(metafile);
     }
     expect(readBuildQualification(packageRoot, "runtime").status).toBe("qualified");
-    expect(readBuildQualification(packageRoot, "runtimeSchema").status).toBe("unqualified");
+    expect(readBuildQualification(packageRoot, "runtimeMetafile").status).toBe("unqualified");
     expect(readBuildQualification(packageRoot, "full").status).toBe("unqualified");
     await expect(ensureOwnedRuntimeArtifacts(lease, { ARC_E2E_SKIP_BUILD: "1" })).rejects.toThrow("metafile-esm.json");
     expect(JSON.parse(await readFile(join(packageRoot, "dist", DEV_BUILD_STAMP_NAME), "utf8"))).toEqual(evidence);

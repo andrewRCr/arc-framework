@@ -32,7 +32,6 @@ describe("shared build options", () => {
       dts: false,
       sourcemap: false,
       metafile: false,
-      onSuccess: undefined,
       banner: undefined,
       silent: true,
     });

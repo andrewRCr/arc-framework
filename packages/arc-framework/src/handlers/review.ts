@@ -31,8 +31,8 @@ import { sameDeliveryReviewMemberVehicle } from "../lib/delivery/review-vehicle.
 import { DeliveryPlanV1Codec } from "../lib/delivery/plan.js";
 import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
 import type { GitExec } from "../lib/git/exec.js";
-import { canonicalDigest, canonicalize, CanonicalDigestSchema, createKernelRegistry, type CanonicalDigest } from "../lib/kernel/index.js";
-import { projectKernelSchemaClosure } from "../lib/kernel/schema/generate.js";
+import { canonicalDigest, canonicalize, CanonicalDigestSchema, type CanonicalDigest } from "../lib/kernel/index.js";
+import { lookupKernelSchema } from "../lib/kernel/schema/generate.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import {
   readCandidateRecord,
@@ -101,7 +101,7 @@ import {
   type FrontlineRunCommandRequest,
   type FrontlineRunRequest,
 } from "../scripts/review-gate/core/frontline-run-command-schema.js";
-import { registerReviewDomainSchemas } from "../scripts/review-gate/core/register-review-schemas.js";
+import { createProductionSchemaRegistry } from "../production-schema-registry.js";
 import { DeliveryBindingLookup } from "../scripts/review-gate/core/delivery-binding-lookup.js";
 import { ReviewTargetSchema, type ReviewTarget } from
   "../scripts/review-gate/core/gate-contract-v2-schema.js";
@@ -2940,13 +2940,13 @@ export function handleReviewRequestSchema(
 ): void {
   try {
     reviewDiscoverableCommandInputSchema().parse({ input: source, schema: true });
-    const registry = registerReviewDomainSchemas(createKernelRegistry());
-    if (registry.get(schemaId) === undefined) throw new Error(`Review request schema unavailable: ${schemaId}`);
-    const bundle = projectKernelSchemaClosure(registry, schemaId);
-    overrides.write(`${JSON.stringify({ rootId: `${schemaId}.schema.json`, ...bundle })}\n`);
+    const result = lookupKernelSchema(createProductionSchemaRegistry(), schemaId);
+    if (result.status === "unknown") throw new Error(`Review request schema unavailable: ${schemaId}`);
+    const schema = result.schema;
+    overrides.write(`${JSON.stringify({ rootId: schema.$id, schemas: { [schemaId]: schema } })}\n`);
   } catch (error) {
     overrides.write(`${JSON.stringify({
-      rootId: `${schemaId}.schema.json`,
+      rootId: `urn:arc:schema:${schemaId}`,
       schemas: {},
       error: error instanceof Error ? error.message : String(error),
     })}\n`);

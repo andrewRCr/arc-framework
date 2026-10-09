@@ -34,7 +34,7 @@ it.each(["ancillary"])("refuses failed %s publication and permits repaired gener
     await expect(withBuildArtifactOwnership({ packageRoot, operation: "failed publication" }, async (lease) => {
       await buildOwnedArtifacts(lease, "fast", { publication: {
         rename: async (source, destination) => {
-          if ((fault === "ancillary" && destination.endsWith("kernel.json"))
+          if ((fault === "ancillary" && destination.endsWith("metafile-esm.json"))
             || (fault === "entry" && destination.endsWith("cli.js"))) {
             throw Object.assign(new Error("injected native write failure"), { code: "EIO" });
           }
@@ -62,13 +62,16 @@ it.each(["ancillary"])("refuses failed %s publication and permits repaired gener
 
 it("rejects an observed compiler input change and qualifies a stable retry", async () => {
   const { root, packageRoot } = await makeNativeBuildFixture();
-  const producer = join(packageRoot, "src/scripts/build-schema.ts");
-  const original = await readFile(producer, "utf8");
-  await writeFile(producer, original.replace(
-    'await mkdir(join(outDir, "schemas"), { recursive: true });',
-    'await writeFile(join(import.meta.dirname, "../cli.ts"), \'export const marker = "changed-during-build";\');\n'
-      + '  await mkdir(join(outDir, "schemas"), { recursive: true });',
-  ));
+  const hook = join(packageRoot, "src/fixture-build-hook.ts");
+  const original = await readFile(hook, "utf8");
+  await writeFile(hook, `
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
+export async function runBuildHook(outDir: string, packageRoot: string): Promise<void> {
+  void outDir;
+  await writeFile(join(packageRoot, "src/cli.ts"), 'export const marker = "changed-during-build";');
+}
+`);
   let executed = false;
   try {
     await expect(withBuildArtifactOwnership({ packageRoot, operation: "changing inputs" }, async (lease) => {
@@ -78,7 +81,7 @@ it("rejects an observed compiler input change and qualifies a stable retry", asy
     expect(executed).toBe(false);
     expect(await readFile(join(packageRoot, "dist/cli.js"), "utf8")).toContain("previous-live-runtime");
     await expect(readFile(join(packageRoot, "dist", DEV_BUILD_STAMP_NAME))).rejects.toMatchObject({ code: "ENOENT" });
-    await writeFile(producer, original);
+    await writeFile(hook, original);
     await withBuildArtifactOwnership({ packageRoot, operation: "stable retry" }, async (lease) => {
       const evidence = await buildOwnedArtifacts(lease, "fast");
       expect(await readFile(join(packageRoot, "dist/cli.js"), "utf8")).toContain("changed-during-build");

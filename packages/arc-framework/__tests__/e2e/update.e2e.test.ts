@@ -9,6 +9,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { assertEditorDocumentsProvisioned, resetEditorDocumentsProvisioning } from "./editor-document-helpers.js";
 import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
 
 describe("update", () => {
@@ -27,7 +28,11 @@ describe("update", () => {
     const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
     expect(init.exitCode).toBe(0);
 
+    const ignoresBefore = await readFile(join(tmpDir, ".gitignore"), "utf8");
+    await resetEditorDocumentsProvisioning(tmpDir);
     const update = await runArc(["update"], tmpDir);
+    await assertEditorDocumentsProvisioned(tmpDir);
+    expect(await readFile(join(tmpDir, ".gitignore"), "utf8")).toBe(ignoresBefore);
 
     expect(update.exitCode).toBe(0);
     const output = update.stdout + update.stderr;

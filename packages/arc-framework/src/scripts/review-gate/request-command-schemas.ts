@@ -52,7 +52,7 @@ export function registerReviewRequestCommandSchemas(registry: KernelRegistry): K
     [REVIEW_LOCAL_RESUME_REQUEST_SCHEMA_ID, LocalResumeRequestSchema],
     [REVIEW_TERMINUS_ACCEPT_REQUEST_SCHEMA_ID, DeliveryReviewTerminusAcceptanceInputSchema],
   ] as const) {
-    registry.register(schema, { id, version: 1, migrationPosture: "strict-current" });
+    registry.register(schema, { id, version: 1, migrationPosture: "strict-current", authored: "request" });
   }
   return registry;
 }

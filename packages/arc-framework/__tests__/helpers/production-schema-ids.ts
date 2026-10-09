@@ -1,4 +1,4 @@
-/** Expected stable identities in the generated production schema artifact. */
+/** Expected stable identities in the composed production schema registry. */
 
 export const PRODUCTION_SCHEMA_IDS = [
   "active-session-init",
@@ -15,6 +15,7 @@ export const PRODUCTION_SCHEMA_IDS = [
   "compaction-seed",
   "config-session-init",
   "current-husk-advisory",
+  "decompose-cut-map",
   "delivery-deliverable-id-preimage",
   "delivery-design-inventory-input",
   "delivery-plan",
@@ -125,6 +126,10 @@ export const PRODUCTION_SCHEMA_IDS = [
   "review-target",
   "review-target-id-preimage",
   "review-terminus-accept-request",
+  "schema-get-envelope",
+  "schema-install-envelope",
+  "schema-list-envelope",
+  "schema-refusal-envelope",
   "session-init-envelope",
   "session-recover-envelope",
   "severity-gating-policy",
@@ -139,5 +144,4 @@ export const PRODUCTION_SCHEMA_IDS = [
   "work-unit-state",
   "worktree-roster",
   "worktree-sync",
-  "__shared",
 ] as const;

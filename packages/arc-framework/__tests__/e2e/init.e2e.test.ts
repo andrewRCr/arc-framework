@@ -13,7 +13,8 @@ import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
+import { assertEditorDocumentsProvisioned } from "./editor-document-helpers.js";
+import { runArc, createTempRepo, cleanupTempDir, git } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -70,6 +71,8 @@ describe("init", () => {
     const result = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
 
     expect(result.exitCode).toBe(0);
+
+    await assertEditorDocumentsProvisioned(tmpDir);
 
     // .arc/ directory exists
     expect(await pathExists(join(tmpDir, ".arc"))).toBe(true);
@@ -347,6 +350,18 @@ describe("arc join", () => {
 
   afterEach(async () => {
     await cleanupTempDir(tmpDir);
+  });
+
+  it("restores editor documents when joining a fresh clone", async () => {
+    await git(tmpDir, ["add", "-A"]);
+    await git(tmpDir, ["commit", "-m", "initialized project"]);
+    const clone = `${tmpDir}-join-clone`;
+    try {
+      await git(tmpDir, ["clone", "--local", tmpDir, clone]);
+      const result = await runArc(["join", "--yes", "--identity", "test-user"], clone);
+      expect(result.exitCode, result.stderr).toBe(0);
+      await assertEditorDocumentsProvisioned(clone);
+    } finally { await cleanupTempDir(clone); }
   });
 
   it("arc join --contributor --yes sets role=contributor", async () => {

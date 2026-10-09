@@ -195,7 +195,8 @@ describe("arc start dispatch — against real worktrees", () => {
     h.spawned.push(wt);
 
     const outcome = await runCreateNew(
-      { io: h.io, internalTemplateDir: getInternalTemplatePath() },
+      { io: h.io, internalTemplateDir: getInternalTemplatePath(),
+        writeEditorDocuments: async () => ({ ok: true, documents: [] }) },
       { worktreePath: h.repo, identity: IDENTITY, name: "alpha" },
     );
 
@@ -373,7 +374,8 @@ describe("arc start dispatch — against real worktrees", () => {
     h.spawned.push(wt);
 
     const outcome = await runCreateNew(
-      { io: h.io, internalTemplateDir: getInternalTemplatePath() },
+      { io: h.io, internalTemplateDir: getInternalTemplatePath(),
+        writeEditorDocuments: async () => ({ ok: true, documents: [] }) },
       { worktreePath: h.repo, identity: IDENTITY, name: "clean-marker" },
     );
 
@@ -443,6 +445,7 @@ describe("arc start dispatch — against real worktrees", () => {
       {
         io: h.io,
         internalTemplateDir: getInternalTemplatePath(),
+        writeEditorDocuments: async () => ({ ok: true, documents: [] }),
       },
       { worktreePath: alias, branch: "main", identity: IDENTITY, name: "aliased-widget" },
     );
@@ -472,7 +475,8 @@ describe("arc start dispatch — against real worktrees", () => {
     h.spawned.push(wt);
 
     const outcome = await runCreateNew(
-      { io: h.io, internalTemplateDir: getInternalTemplatePath() },
+      { io: h.io, internalTemplateDir: getInternalTemplatePath(),
+        writeEditorDocuments: async () => ({ ok: true, documents: [] }) },
       { worktreePath: h.repo, identity: IDENTITY, name: "harnessed" },
     );
 

@@ -9,11 +9,11 @@ import {
 } from "../kernel/canonical/canonical-json.js";
 import { CanonicalDigestSchema } from "../kernel/schema/vocabulary.js";
 import { isManagedPath } from "../kernel/canonical/managed-path.js";
-import { SlugSchema, WorkClassSchema } from "../kernel/index.js";
+import { SlugSchema, WorkClassSchema, type KernelRegistry } from "../kernel/index.js";
 import { isSafeCohortPath, validateCohortPath } from "../active/cohort-path.js";
 import { normalizeDecomposeHeadingSource } from "./decompose-heading.js";
 
-const DecomposeSlugSchema = SlugSchema.transform((value): string => value);
+const DecomposeSlugSchema: z.ZodType<string, string> = SlugSchema;
 const NonEmptyStringSchema = z.string().refine((value) => value.trim() !== "", "must be non-empty");
 const BasenameSchema = z.string().min(1).refine(
   (value) => !value.includes("/") && !value.includes("\\") && value !== "." && value !== ".."
@@ -221,6 +221,18 @@ export const V3DecomposeCutMapSchema = z.strictObject({
   machine: MachineSchema,
   authoring: CompletedAuthoringSchema,
 });
+
+/**
+ * Register the structural cut-map contract for caller authoring.
+ * @param registry - Production registry under composition
+ * @returns The same registry with the active version-3 cut-map contract
+ */
+export function registerDecomposeSchemas(registry: KernelRegistry): KernelRegistry {
+  registry.register(V3DecomposeCutMapSchema, {
+    id: "decompose-cut-map", version: 3, migrationPosture: "strict-current", authored: "request",
+  });
+  return registry;
+}
 
 export type V3DecomposeStarterMap = z.infer<typeof V3DecomposeStarterMapSchema>;
 export type V3DecomposeCutMap = z.infer<typeof V3DecomposeCutMapSchema>;

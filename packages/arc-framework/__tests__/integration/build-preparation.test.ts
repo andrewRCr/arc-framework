@@ -44,7 +44,6 @@ it.each(["missing CLI"])("repairs %s before returning preparation", async (fault
     await withBuildArtifactOwnership({ packageRoot, operation: "runtime repair" }, async (lease) => {
       const built = await buildOwnedArtifacts(lease, "fast");
       if (fault === "missing CLI") await rm(join(packageRoot, "dist/cli.js"));
-      if (fault === "missing schema") await rm(join(packageRoot, "dist/schemas/kernel.json"));
       if (fault === "old evidence") {
         await writeFile(join(packageRoot, "dist", DEV_BUILD_STAMP_NAME), JSON.stringify({ ...built, schemaVersion: 1 }));
       }
@@ -54,7 +53,6 @@ it.each(["missing CLI"])("repairs %s before returning preparation", async (fault
       const prepared = await ensureOwnedRuntimeArtifacts(lease, {});
       expect(prepared.generation).not.toBe(built.generation);
       expect(JSON.parse(await readFile(join(packageRoot, "dist", DEV_BUILD_STAMP_NAME), "utf8"))).toEqual(prepared);
-      expect(JSON.parse(await readFile(join(packageRoot, "dist/schemas/kernel.json"), "utf8"))).toHaveProperty("schemas");
       expect(await readFile(join(packageRoot, "dist/cli.js"), "utf8"))
         .toContain(fault === "edited runtime" ? "repaired-native-runtime" : "new-native-runtime");
     });
@@ -73,7 +71,7 @@ it.each(["missing"])("refuses and repairs %s build metadata before test preparat
         if (fault === "directory") await mkdir(metafile);
       }
       expect(readBuildQualification(packageRoot, "runtime").status).toBe("qualified");
-      expect(readBuildQualification(packageRoot, "runtimeSchema").status).toBe("unqualified");
+      expect(readBuildQualification(packageRoot, "runtimeMetafile").status).toBe("unqualified");
       expect(readBuildQualification(packageRoot, "full").status).toBe("unqualified");
       await expect(ensureOwnedRuntimeArtifacts(lease, { ARC_E2E_SKIP_BUILD: "1" }))
         .rejects.toThrow("metafile-esm.json");

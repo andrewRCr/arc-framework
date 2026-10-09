@@ -88,6 +88,7 @@ import type {
   ActiveInFlightCliOptions,
 } from "./handlers/active.js";
 import type { StatusCliOptions } from "./handlers/status.js";
+import type { SchemaListOptions, SchemaInstallOptions } from "./handlers/schema.js";
 import type { LocusCliOptions } from "./handlers/locus.js";
 import type { ViewCliOptions } from "./handlers/view.js";
 import type { RecoverAuditOptions } from "./handlers/recover.js";
@@ -1284,6 +1285,39 @@ extensionsCmd
     { machineReadable: (opts) => opts.json === true || opts.sessionInit === true },
     async (_context, opts: ExtensionsStatusCliOptions) => {
       await (await import("./handlers/extensions.js")).handleExtensionsStatus(opts);
+    },
+  ));
+
+// --- Schema ---
+
+const schemaCmd = program.command("schema").description("Discover registered ARC contracts");
+
+schemaCmd.command("list")
+  .description("List registered contract identities and metadata")
+  .option("--json", "Emit the typed result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: SchemaListOptions) => {
+      (await import("./handlers/schema.js")).handleSchemaList(opts, context);
+    },
+  ));
+
+schemaCmd.command("install")
+  .description("Refresh editor documents for the current checkout")
+  .option("--json", "Emit the typed result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: SchemaInstallOptions) => {
+      await (await import("./handlers/schema.js")).handleSchemaInstall(opts, context);
+    },
+  ));
+
+schemaCmd.command("get <id>")
+  .description("Emit one self-contained registered contract as JSON")
+  .action(withInteractionContext(
+    { machineReadable: () => true },
+    async (context, id: string) => {
+      (await import("./handlers/schema.js")).handleSchemaGet(id, context);
     },
   ));
 

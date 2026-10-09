@@ -19,7 +19,7 @@ it.each(["ancillary", "entry", "obsolete cleanup"])(
       await expect(publishStagedBuild(lease, staged, evidence, {
         checkCli: async () => {},
         rename: async (source, destination) => {
-          if ((fault === "ancillary" && destination.endsWith("kernel.json"))
+          if ((fault === "ancillary" && destination.endsWith("metafile-esm.json"))
             || (fault === "entry" && destination.endsWith("cli.js"))) {
             throw Object.assign(new Error("injected publication failure"), { code: "EIO" });
           }

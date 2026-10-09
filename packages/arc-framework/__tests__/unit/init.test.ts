@@ -424,6 +424,7 @@ function mockIO(
   };
   const written: Record<string, string> = {};
   return {
+    writeEditorDocuments: async () => ({ ok: true, documents: [] }),
     readFile: vi.fn(async (path: string) => {
       if (path in allFiles) return allFiles[path]!;
       throw Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });

@@ -27,7 +27,7 @@ describe("native resolver membership", () => {
     const inputs = selectBundleInputs(first.metafile, packageRoot) ?? [];
     expect(inputs).toContain(join(packageRoot, "src/fallback.ts"));
     const keys = inputs.map((path) => relative(root, path).replaceAll("\\", "/"));
-    const graphs = { cli: keys, schema: keys, controls: ["packages/cli/tsconfig.json"] };
+    const graphs = { cli: keys, controls: ["packages/cli/tsconfig.json"] };
     const before = captureBuildInventory(packageRoot);
     const identities = identifyBuildInputs(graphs, before.contents, before.identity);
     const preferred = join(packageRoot, "src/nested/preferred");
@@ -46,10 +46,9 @@ describe("native resolver membership", () => {
     const current = captureBuildInventory(packageRoot);
     const changed = identifyBuildInputs(graphs, current.contents, current.identity);
     expect(changed.runtime).not.toBe(identities.runtime);
-    expect(changed.runtimeSchema).not.toBe(identities.runtimeSchema);
   });
 
-  it("hashes native metadata-omitted resolver manifests into both identities", async () => {
+  it("hashes native metadata-omitted resolver manifests into the runtime identity", async () => {
     const { root, packageRoot } = makeBuildFixture();
     roots.push(root);
     writeBuildFixtureFile(join(packageRoot, "src/entry.ts"), 'import "./nested/effect.js"; export const marker = 1;');
@@ -64,7 +63,7 @@ describe("native resolver membership", () => {
     const before = captureBuildInventory(packageRoot);
     const oldDigest = hashSourceInputs(inputs, root);
     const keys = inputs.map((path) => path.slice(root.length + 1).replaceAll("\\", "/"));
-    const graphs = { cli: keys, schema: keys, controls: ["packages/cli/package.json"] };
+    const graphs = { cli: keys, controls: ["packages/cli/package.json"] };
     const identities = identifyBuildInputs(graphs, before.contents, before.identity);
     writeBuildFixtureFile(manifest, '{"sideEffects":false}');
     const second = await compile();
@@ -75,6 +74,5 @@ describe("native resolver membership", () => {
     expect(after.entries).toEqual(before.entries);
     const changed = identifyBuildInputs(graphs, after.contents, after.identity);
     expect(changed.runtime).not.toBe(identities.runtime);
-    expect(changed.runtimeSchema).not.toBe(identities.runtimeSchema);
   });
 });
