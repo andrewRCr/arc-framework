@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "warm-test-cost-runs",
+  "claimId": "7e51f1e57f2c1ea15df121a01b423d03",
+  "createdAt": "2026-10-09T23:54:39.220Z",
+  "updatedAt": "2026-10-09T23:54:39.220Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Require a successful discarded warm-up before retaining local test-cost measurements and document identical warming at each measured ref without refreshing numerical baselines",
+  "branch": "chore/warm-test-cost-runs",
+  "origin": "inbox",
+  "originEntry": "Record the warm-run practice for local test-cost baselines",
+  "originEntrySourceDigest": "sha256:8ec34feb2d014f0be9c448a920c9e0314581442871f1caa25df7b6532812e0ab",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
