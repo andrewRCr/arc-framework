@@ -1,8 +1,8 @@
 # Metadata: Quality Gates and Hook Integration
 
-| **State**  | **Owner** | **Branch**                | **Class** | **Priority** |
-| ---------- | --------- | ------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/quality-gate-hooks` | `Heavy`   | `P3`         |
+| **State** | **Owner** | **Branch**                | **Class** | **Priority** |
+| --------- | --------- | ------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/quality-gate-hooks` | `Heavy`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-quality-gate-hooks.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** `process-task-loop`
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Begin Task 1.1 — Measure the per-increment check baseline
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 — record SC17's baseline before any change alters what a task runs
 
 - **PR URL:** [none]
 - **Completed:** [none]
