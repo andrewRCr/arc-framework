@@ -90,22 +90,10 @@ under `core.hooksPath`, reports both `reused`; and the same request with `--forc
   outcome set land in Phases 3 and 4. `none declared` lands here because Task 2.3 syncs dispatch into this
   repository's own commit hook, which runs it before this repository has a declaration (Task 7.4).
 
-    - `[ ]` **2.1.a Staged-worktree tree and its change**
-        - The checked tree is the worktree as `git add -A` would stage it: a temporary index seeded from the real one
-          (located with `git rev-parse --git-path index`), `git add -A`, `git write-tree`, then removed. The temporary
-          index reaches Git through `GitExecOptions.indexFile` on `createExecaGitExec`, the executor that honors it.
-          `atomic-graduation.ts` pairs `add -A` and `write-tree` the same way, but over the real index's lock from
-          `captureGitIndexState`, which this must never take
-        - The change is the verb's own `git diff --raw -z --no-renames --no-abbrev <base> <tree>`: empty output is an
-          empty change, and only a failed call leaves the change unresolved. A rename reads as a deletion plus an
-          addition. `resolveChangeSet` (`change-facts.ts`) does not fit: it reports an empty diff as `unknown`, as it
-          does a Git failure, and its copy detection reports a copied file's unchanged source as changed
-        - Build `test-first` (one behavior at a time):
-            - tracked edits, staged or not, and untracked files Git's exclude rules admit enter the tree; ignored
-              files do not
-            - the real index and the worktree are unchanged after the computation
-            - a deletion appears in the change and not in the tree
-            - an unchanged worktree yields an empty change, not an unresolved one
+    - `[x]` **2.1.a Staged-worktree tree and its change**
+        - Added temporary-index snapshots seeded from Git's resolved index, preserving the real index and worktree
+          and cleaning up on failure. Raw NUL diffs retain complete blob identities and deletions, treat renames as
+          deletion/addition pairs, and distinguish an empty change from a failed Git call.
 
     - `[ ]` **2.1.b Input matching through Git pathspecs**
         - Each input reaches Git with `glob` magic, and one with a leading `!` as `:(glob,exclude)`, since Git reads a
