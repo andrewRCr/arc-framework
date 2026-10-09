@@ -199,47 +199,27 @@ _Mode:_ `layer` through Phase 4 — closes on the complete set of CLI reads homi
   only when present. Eight real-CLI tests cover local designs, absent values, selected refs, and existing lifecycle
   fields; output-specific reconstructions establish fail-first behavior.
 
-### `[ ]` **3.3 Add purpose, owner, lifecycle, and horizon advisory to the listing's `facts` rows — D2, D11**
+### `[x]` **3.3 Add purpose, owner, lifecycle, and horizon advisory to the listing's `facts` rows — D2, D11**
 
 - _Goal:_ Each `arc status --project --json` `facts` row carries `purpose`, `owner`, the per-slug lifecycle `state`
   and `position`, and `horizonAdvisory`, so homing reads every candidate at once, while the rendered project view
   stays byte-for-byte unchanged.
 
-- _Note:_ `resolveOracleCandidates` in `src/lib/status/project-view.ts` holds that file's recorded complexity and
-  function-length violations; keep the purpose read out of it, in a sibling module.
+    - `[x]` **3.3.a Resolve purpose into the record set before composition**
+        - Opt-in source-bound enrichment runs before pure composition. Status and staged status enable it; ordinary
+          ROADMAP callers leave it off. A real index fixture proves its thesis wins over dirty worktree content.
 
-    - `[ ]` **3.3.a Resolve purpose into the record set before composition**
-        - Read purpose as its own pass over the resolved records in the shared resolver path
-          (`resolveProjectReadinessViewInput`), through the injected `fs` so the staged index render reads it from the
-          index, keeping `composeProjectReadinessViewResult` pure.
-        - The pass runs only when the caller asks, through an option off by default: `arc status --project`
-          (`src/handlers/status/views.ts`) sets it, and so does its `--staged` path, through
-          `renderRoadmapFromIndexViewResult` and `createIndexProjectViewFs`. Every markdown-only caller — the ROADMAP
-          assert, the ROADMAP conflict auto-remedy, the tracked-view render, rename, decomposition planning, the
-          executor context — leaves it off.
-        - Build `test-first` (one behavior at a time):
-            - `arc status --project --staged --json` rows carry purpose read from the index, not the worktree
-            - a markdown-only render performs no purpose read
+    - `[x]` **3.3.b Extend the `facts` rows with purpose, owner, state, and position**
+        - Nullable purpose/owner and canonical lifecycle query fields accompany readiness facts. Six unit scenarios,
+          staged handler coverage, and 83 shared-reader/render regressions passed; Markdown remains identical.
 
-    - `[ ]` **3.3.b Extend the `facts` rows with purpose, owner, state, and position**
-        - `ProjectReadinessFact` and `factsFor` gain `purpose` and `owner`, and `state` and `position` as
-          `resolveSlugQuery` derives them over the composer's lifecycle index — not the record's meta `state`.
-        - Build `test-first` (one behavior at a time):
-            - a row's `state` and `position` distinguish a started work unit from a backlog stub, and provisional
-              from planned
-            - `purpose`, `owner`, `state`, and `position` match what the per-slug read reports for the same work unit
-            - the rendered markdown and the ROADMAP regeneration output are unchanged
+    - `[x]` **3.3.c Compose `horizonAdvisory`**
+        - Provisional and planned P3 targets name the wait and offer priority or separable-work choices; parked
+          targets offer resumption. Eight horizon scenarios pass, including near-term and completed null values.
 
-    - `[ ]` **3.3.c Compose `horizonAdvisory`**
-        - One CLI-composed line for a provisional work unit, a planned P3 one, or a parked one at any priority: it
-          names the target and its horizon, says an entry routed there waits for it, and asks whether to raise its
-          priority — for a parked one, to resume it — or send a separable part now.
-        - Build `test-first` (one behavior at a time):
-            - a provisional work unit carries the advisory
-            - a P3 planned work unit carries the advisory
-            - a parked P1 work unit carries the advisory, asking whether to resume it
-            - a planned P1 or P2 work unit carries `null`
-            - an unparked started or a completed P3 work unit carries `null`
+- _Outcome:_ Typed listing facts match a ref-only sibling's per-slug query and read staged purpose from the index.
+  Enrichment leaves Markdown identical and ordinary ROADMAP renders free of artifact reads. Fourteen matrix cases,
+  the 17,053-test routine lane, and the final 3,166-test integration lane passed.
 
 ### `[ ]` **3.4 Open every Purpose template with a one-sentence thesis — D11**
 

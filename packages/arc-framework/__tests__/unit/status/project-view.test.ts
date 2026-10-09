@@ -1151,7 +1151,9 @@ describe("project-readiness provider socket", () => {
       readinessProvider: readyProvider,
     });
 
-    expect(result.facts).toEqual([
+    expect(result.facts.map(({ slug, dependencySatisfaction, readiness, unsatisfiedDependencies }) => ({
+      slug, dependencySatisfaction, readiness, unsatisfiedDependencies,
+    }))).toEqual([
       {
         slug: "independent-facts",
         dependencySatisfaction: "unsatisfied",
@@ -1180,7 +1182,9 @@ describe("project-readiness provider socket", () => {
       readinessProvider: blockingProvider,
     });
 
-    expect(result.facts).toEqual([
+    expect(result.facts.map(({ slug, dependencySatisfaction, readiness, unsatisfiedDependencies }) => ({
+      slug, dependencySatisfaction, readiness, unsatisfiedDependencies,
+    }))).toEqual([
       {
         slug: "provider-blocked",
         dependencySatisfaction: "satisfied",

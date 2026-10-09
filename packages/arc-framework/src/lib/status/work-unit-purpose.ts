@@ -3,7 +3,7 @@
 import type { GitBlobEntry } from "../io-context.js";
 import { dirname, join, posix } from "node:path";
 import { parseMetaRecord } from "../active/meta-reader.js";
-import type { ProjectReadinessRecordSource } from "./project-view.js";
+import type { ProjectReadinessRecord, ProjectReadinessRecordSource } from "./project-view.js";
 
 /** Caller-bound artifact I/O; ref reads never acquire missing objects. */
 export interface WorkUnitArtifactReaders {
@@ -98,6 +98,22 @@ export async function readWorkUnitPurpose(
   const meta = await reader.readMeta();
   if (meta === null) return null;
   return (await selectWorkUnitDesign(meta, (name) => reader.readArtifact(name)))?.purpose ?? null;
+}
+
+/**
+ * Enrich selected listing records without mutating the composer's source inputs.
+ * @param records - Already-selected project records.
+ * @param readers - Readers bound to the listing's checkout/index and local refs.
+ * @returns Records carrying their nullable design theses.
+ */
+export async function resolveWorkUnitPurposes(
+  records: readonly ProjectReadinessRecord[],
+  readers: WorkUnitArtifactReaders,
+): Promise<ProjectReadinessRecord[]> {
+  return await Promise.all(records.map(async (record) => ({
+    ...record,
+    purpose: await readWorkUnitPurpose(record.source, readers),
+  })));
 }
 
 /**
