@@ -257,3 +257,24 @@ are the implementation sites; both consumers already invoke that method with the
 The independent-Errand contrast uses the unchanged four-question floor. The task predecessor is complete, its
 successor remains the original verifier, and the capture adds no undeclared code prerequisite. Reader independence
 and binding completeness hold over the revised footprint; no independent review is claimed by this author check.
+
+### A1 — Revision evidence
+
+The amendment capture is `e71f87d78`. Both configurable method copies now return own-work coverage as a deciding
+reason, reconcile live already-covered parts at the ready-making owner's pass before the floor, and use that exception
+at host re-triage. No classification or binding rule changed. The source copies are byte-identical.
+
+Fresh evaluator `/root/blind_replay_a1` read the revised method and a separate hypothetical-case input without expected
+answers. Its report is `/tmp/inbound-routing-own-work-a1/report.md`; it reported no outside-root content exposure.
+Primary comparison against the revised method confirmed:
+
+- **A:** covered live cleanup at kickoff is ordinary pull-in, with no routing outcome, matching the retained rule.
+- **B:** the same cleanup at ready-making is `fold <host>`, own-work coverage, `_Shapes:_ Dispatch`.
+- **C:** an independent copyright correction in the same file is `errand`, record answers all No; file identity does
+  not establish concern identity.
+- **D:** already-wired installation is `dismiss`; still-live ownership reconciliation is the host fold. The method's
+  split and still-live check precede that reconciliation.
+
+These four observations satisfy the appended own-work criterion at method scope. They do not pass the original
+30-entry scenario or close A1's revalidation: the independent replay runs next, against a new exact export with the
+revised methodology overlaid. Earlier reports and the hand verdicts are excluded from its input roots.

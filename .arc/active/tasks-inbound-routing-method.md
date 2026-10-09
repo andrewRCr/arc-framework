@@ -95,17 +95,20 @@ _Exit criterion:_ The blind replay of `quality-gate-hooks`' 30 routed-in entries
         - Draft readiness and spec entry invoke the owner-pass door, bind the host, and show the complete result before
           writes.
 
-### `[ ]` **2.R Reconcile already-covered work at the ready-making pass — A1**
+### `[x]` **2.R Reconcile already-covered work at the ready-making pass — A1**
 
 - _Goal:_ Implement A1's own-work reconciliation in the routing method before Task 2.2 replays the original criterion.
 
-    - `[ ]` **2.R.a Propagate own-work reconciliation through the method**
-        - Split and verify first; return a covered live part as `fold <host>` with own-work coverage and `_Shapes:_`
-          at the ready-making owner's pass. Keep kickoff/activation pull-in and independent concerns' gate intact.
+    - `[x]` **2.R.a Propagate own-work reconciliation through the method**
+        - Both method copies reconcile a covered live part before the floor, returning the host fold, deciding reason,
+          and Shapes while preserving kickoff/activation pull-in and independent concerns' gate.
 
-    - `[ ]` **2.R.b Exercise the timing and concern-identity contrasts**
-        - Check covered cleanup at kickoff/activation and at the ready-making pass, a resolved part, and an independent
-          all-No concern sharing the file. Record evidence before the original 30-entry blind replay runs again.
+    - `[x]` **2.R.b Exercise the timing and concern-identity contrasts**
+        - A fresh evaluator distinguished kickoff pull-in, ready-making reconciliation, an independent Errand sharing
+          the file, and a resolved/live split; source checks confirmed all four outcomes.
+
+- _Outcome:_ A1's method change preserves independent routing and reconciles already-covered work at the later pass;
+  the contrasting evidence is retained in `notes-inbound-routing-method.md` § A1 — Revision evidence.
 
 ### `[ ]` **2.2 Replay `quality-gate-hooks`' routed-in entries blind** — validate exit criterion at segment scope
 

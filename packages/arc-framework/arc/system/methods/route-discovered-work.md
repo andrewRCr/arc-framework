@@ -30,14 +30,20 @@ override-active: false
 | `door`  | required | One door in the closed list below                                                                    |
 | `host`  | optional | Incumbent work unit holding the entry; present only for re-triage                                    |
 
-Return each concern's **outcome**, the **deciding test**, and for `fold` or `hold`, `_Shapes:_ <decision or section>`.
-Where the Errand line is unclear at an Owner stop, return the pair described below with all four record answers.
+Return each concern's **outcome**, its **deciding test or own-work coverage**, and for `fold` or `hold`,
+`_Shapes:_ <decision or section>`. Where the Errand line is unclear at an Owner stop, return the pair described below
+with all four record answers.
 
 Split an entry carrying multiple concerns, or a resolved part and a residual, by the anti-rider concern-identity
 rule first. Give each part one outcome. A horizon advisory's separable part follows the same split.
 
 When a work unit starts planning or activates, pull in items its own change already covers by that same-concern
-test; these take no routing outcome. Other concerns run the gate.
+test; these take no routing outcome.
+
+At the ready-making owner's pass, first split and verify each entry as the still-live test requires. A live part
+already covered by the host's own change is reconciliation of that change: return `fold <host>`, with **own-work
+coverage** as its deciding reason and `_Shapes:_` naming the covered section, before the record-floor test. Sharing
+a file or domain alone does not establish concern identity. Independent residuals and other concerns run the gate.
 
 ### Disposition gate
 
@@ -77,8 +83,9 @@ Default to `fold` at the owner's own pass and where the binding permits an Erran
 backlog stub. Default to `hold` at the drain, on fast-path routes into another work unit, and for a foreign owner.
 A started work unit takes no woven note from anyone but its owner. Carry-out rules live in the binding below.
 
-With `host`, run the same gate using the current home as incumbent: staying is `hold <host>`, folding is
-`fold <host>`, and leaving can name another home, a new stub, an Errand, dismissal, or an owner rejection.
+With `host`, apply own-work reconciliation above at the ready-making owner's pass; other concerns run the same
+gate using the current home as incumbent: staying is `hold <host>`, folding is `fold <host>`, and leaving can name
+another home, a new stub, an Errand, dismissal, or an owner rejection.
 
 **Owner's planning pass:** fold or disposition every inbound entry at the pass that makes the draft
 formalization-ready. It runs at drafting's readiness exit when inbound entries are the returned gap, and at
