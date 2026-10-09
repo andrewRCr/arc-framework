@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "errand-launchpads-stub",
+  "claimId": "4baa2890966832064506da53644eee2b",
+  "createdAt": "2026-10-09T22:55:05.243Z",
+  "updatedAt": "2026-10-09T22:55:05.243Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Mint the errand-launchpads backlog stub",
+  "branch": "chore/errand-launchpads-stub",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
