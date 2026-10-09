@@ -124,12 +124,8 @@ async function handleDeclaredRequest(options: CheckScopeOptions, interaction: In
       passes: createCheckPassStore({ directory: () => checkRecordDirectory(git, root),
         readFile: path => readFile(path, "utf8"), createFile: atomicCreateFile }),
       readDeclaration: repository => readTypedProjectFile(repository, "check-declaration", CheckDeclarationSchema),
-      execute: async (command, cwd, content) => {
-        const result = await execa(command[0] ?? "", command.slice(1), {
-          cwd, env: checkEnvironment(cwd, content), extendEnv: false, stdin: "ignore", reject: false,
-        });
-        return { exitCode: result.exitCode ?? 1, output: [result.stdout, result.stderr].filter(Boolean).join("\n") };
-      },
+      execute: runCheckProcess,
+      runtime: (command, cwd) => runCheckProcess(command, cwd, undefined, true),
     }, { form, baseBranch: (await readConfigSettings(root)).settings["branch.base"], scope: scopeRequest(input), force: input.force, dryRun: input.dryRun, serial: input.serial, ci: "ci" in input && input.ci === true, ...(form.kind === "pre-commit" && inheritedIndex !== undefined ? { indexFile: resolve(root, inheritedIndex) } : {}) });
   } catch (error) {
     outcome = { kind: "error", exitCode: 2, error: { kind: "refused", message: String(error) } };
@@ -156,4 +152,12 @@ function checkEnvironment(cwd: string, content?: CheckContentContext): NodeJS.Pr
     if (content.merged?.length) env.ARC_CHECK_MERGED = content.merged.join(" ");
   }
   return env;
+}
+
+
+async function runCheckProcess(command: readonly string[], cwd: string, content?: CheckContentContext, rawStdout = false) {
+  const result = await execa(command[0] ?? "", command.slice(1), {
+    cwd, env: checkEnvironment(cwd, content), extendEnv: false, stdin: "ignore", reject: false, stripFinalNewline: !rawStdout,
+  });
+  return { exitCode: result.exitCode ?? 1, stdout: result.stdout, output: [result.stdout, result.stderr].filter(Boolean).join("\n") };
 }

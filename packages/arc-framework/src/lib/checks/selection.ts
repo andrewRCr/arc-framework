@@ -18,10 +18,11 @@ export interface CheckSelection {
  * @param declaration - Complete validated declaration, including checks outside the requested gates
  * @param request - Requested form and selection scope
  * @param resolved - Exact checked tree and optional base
+ * @param declarationLocation - Repository-relative declaration path supplied by the configuration reader
  * @returns Own-input observations plus the shared widening decision
  */
 export async function resolveCheckSelection(
-  io: TreeMatchIO, root: string, declaration: CheckDeclaration, request: CheckRequest, resolved: ResolvedCheckRequest,
+  io: TreeMatchIO, root: string, declaration: CheckDeclaration, request: CheckRequest, resolved: ResolvedCheckRequest, declarationLocation: string,
 ): Promise<CheckSelection> {
   const { base, tree, scope } = resolved;
   const own = new Map<string, InputSelection>();
@@ -37,7 +38,7 @@ export async function resolveCheckSelection(
   const global = await ownInputChange(io, root, resolved, declaration.global_inputs);
   const covered = new Set([...own.values()].flatMap(selection => selection.status === "selected" ? selection.paths.map(path => path.path) : []));
   const widened = global.status !== "not selected" || [...own.values()].some(selection => selection.status === "unresolved")
-    || change.paths.some(path => path.path === ".arc/system/arc-checks.yml" || !covered.has(path.path));
+    || change.paths.some(path => path.path === declarationLocation || !covered.has(path.path));
   return { own, widened };
 }
 

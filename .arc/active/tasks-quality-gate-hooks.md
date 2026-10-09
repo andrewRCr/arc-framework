@@ -207,22 +207,15 @@ _Mode:_ `layer` through Phase 4 — closes on the verb's complete request and ex
   deadline, while segment and new-head requests enforce the push gate. Interlock settings do not enter this resolution,
   and a failing feedback check retains exit 1.
 
-### `[ ]` **3.5 Complete reuse key — D5**
+### `[x]` **3.5 Complete reuse key — D5**
 
 - _Goal:_ A reuse key changes whenever anything the declaration says a result depends on changes, and a key that
   cannot be completed is never recorded.
 
-    - Build `test-first` (one behavior at a time):
-        - a change to a global input's content or to a global runtime input's output changes every check's key
-        - a check's runtime inputs run without a shell from its `root`, and their output joins its key
-        - a runtime input that cannot start or exits non-zero leaves the key incomplete, so the check runs and its
-          result is not recorded
-        - the declaration file enters each key as that check's resolved entry, and as an ordinary input only where the
-          check's inputs match it, so editing one check leaves the others' passes reusable
-        - a `files` check's key carries each received path with its content at the base and, where the change carries
-          merges, at each merged-in parent
-        - a `cache: false` check always runs and is never recorded
-        - an environment variable never enters a key
+- _Outcome:_ `key-resolver.ts` includes global content, global and rooted per-check runtime output, and received
+  files' base and merged-parent content, including absence. Relevant content permits reuse across unrelated tree or
+  commit movement. Resolved entries remain independent; matching declaration bytes remain ordinary inputs. Disabled
+  caching and unavailable runtime or tree reads produce no record. Selection takes the declaration path from its reader.
 
 ## **Phase 4:** Execution contract: runs, fixes, outcomes, and reports
 
