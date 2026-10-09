@@ -22,23 +22,10 @@ naming the field.
 
 - **Additional Context:** `notes-quality-gate-hooks.md` § Per-increment check time
 
-    - `[ ]` **1.1.a Fix the sample and the method**
-        - Sample 20 recent non-merge commits reachable from `main` (`git log --no-merges`), Markdown-only and code
-          changes in the proportion they show, leaving out commits that delete or rename files; record each id with its
-          changed paths so Task 7.9 replays the same sample. `main`'s first-parent line is almost all merges, so the
-          increments sit on the merged-in branches
-        - Replay each sample on the measured tip as an edit to the same paths: each modified file gains a line its
-          linters accept, and each added file is created under the same name. The path set drives both today's relevance
-          rules and the verb's selection; a sampled commit is already in the tip, so its own content cannot re-apply,
-          and its own parent's tree has no verb for Task 7.9 to run
-        - Run in a disposable local clone, not a registered worktree (ARC's checkout roster lists those), at `main`'s
-          tip with dependencies installed and the CLI built. Samples commit on a scratch branch created at that tip,
-          since `branch.protection: full` refuses a commit to `main` (`CHECK[base-branch-protection]` in the pre-commit
-          hook), and `main` stays at the tip, since `test:changed` selects against it (`--changed=main`)
-        - Per sample: apply the edit, run the per-task gate (this repository's QUICK-REFERENCE Tier 1 block, narrowed by
-          its own run-when comments and by `DEV-RULES.PROJECT.md` § Selecting what to run), then commit through the
-          `.husky/pre-commit` chain; warm cache, wall time per step; reset the scratch branch to the tip before the next
-          sample
+    - `[x]` **1.1.a Fix the sample and the method**
+        - Fixed 20 replayable non-merge commits at `159fdcdeba`, retaining each complete original path set; excluded
+          absent paths by implementation-entry direction. The clone, neutral edit rule, warm-up, and command selection
+          are recorded in `notes-quality-gate-hooks.md` § Fixed replay sample and method.
 
     - `[ ]` **1.1.b Record the baseline**
         - Per-sample and total times, with the sample ids, the replay rule, and the measured tip, in the notes file's
