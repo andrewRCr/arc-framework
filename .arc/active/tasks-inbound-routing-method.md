@@ -360,23 +360,23 @@ Errand line shows the pair.
         - The shipped header gives every Errand capture no work-unit home. The project's scaffolded inbox stays
           project-owned and unchanged.
 
-### `[ ]` **5.4 Dry-run the drain over the seeded inbox** — validate exit criterion at segment scope
+### `[x]` **5.4 Dry-run the drain over the seeded inbox** — validate exit criterion at segment scope
 
 - _Goal:_ Evidence that the updated drain's § 1–§ 3 produce a routing plan meeting the segment's exit criterion over
   the real inbox.
 
-    - `[ ]` **5.4.a Seed the cases the inbox lacks**
-        - Where the `USER-INBOX` in hand lacks them, add a capture whose home is a backlog stub that already holds
-          entries, a capture whose home is a provisional or planned P3 stub, and a capture whose Errand line is
-          unclear; seed a working copy, never the live inbox.
+    - `[x]` **5.4.a Seed the cases the inbox lacks**
+        - One scratch-only adopter-parser capture adds the provisional/P3 horizon case; real captures supply the
+          unclear floor and targets already holding entries.
 
-    - `[ ]` **5.4.b Run § 1–§ 3 classification-only**
-        - No writes. Check that every `hold <wu>` carries a `_Shapes:_` naming a section present in its target as
-          `arc view design --for` renders it, that none matches the target's stated exclusions, that a hold into a
-          provisional or planned P3 target shows its horizon advisory, that each routed-into backlog stub holding
-          entries shows its count, oldest date, and offer, and that the unclear case is the pair.
-        - Pick one offered stub: its re-triage takes only `dismiss`, `errand`, `hold <other>`, `new-stub`, or
-          `hold <host>`, and appears in the revised plan.
+    - `[x]` **5.4.b Run § 1–§ 3 classification-only**
+        - The proposed plan covers every real capture, validates actual Shapes and exclusions, carries verbatim
+          horizon advice and one offer per touched holding stub, and preserves existing retention/commitments.
+          A simulated adopter-stub pick adds only `hold <host>` to the revised plan.
+
+- _Outcome:_ The source-backed scratch plan satisfies the segment criterion without routing writes. Its per-concern
+  proposals, unresolved Owner pairs, scope checks, offers and bounded re-triage are preserved in
+  `notes-inbound-routing-method.md` § Task 5.4 drain scenario evidence.
 
 ## **Phase 6:** The fast path and the Errand doors
 

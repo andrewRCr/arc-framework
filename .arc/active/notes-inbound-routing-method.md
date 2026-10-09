@@ -522,3 +522,443 @@ Checked the effective report against **Replay calibration (A2)** and the amended
 There is no open benchmark disagreement: outstanding choices at real routing are explicitly represented by the
 method's required pair/carry-out boundary, not silently selected. A1 and A2 revalidate through Task 2.3, and the
 CLI-read implementation proceeds with the original classification floor and routing contract intact.
+
+## Task 5.4 drain scenario evidence
+
+Classification-only snapshot: 102 real captures, one scratch-only seed, and 107 concern rows after splitting entries
+43, 67, and 84. The scratch seed supplies the provisional/P3 horizon case; real entries already supply unclear
+floors and targets holding entries. No inbox deletion, retention update, target edit, mint, or execution ran.
+
+The primary read both live inbox sections, classified every capture, and checked target decisions and exclusions
+using fresh `arc status` facts and `arc view design --for` renders. Two pointed readers gathered current source
+excerpts for the 75 Errand captures; classification and scope judgments stayed with the primary. The source reads
+confirm live mechanisms without claiming reproduction of historical incidents or external ecosystem readiness.
+
+Artifacts retained locally: `/tmp/inbound-drain-inbox-scratch.md`, `/tmp/inbound-drain-entries.json`,
+`/tmp/inbound-drain-status.json`, `/tmp/inbound-drain-designs/`, `/tmp/inbound-drain-source-a.md`,
+`/tmp/inbound-drain-source-b.md`, `/tmp/inbound-drain-plan.json`, and `/tmp/inbound-drain-overlap.json`.
+
+Every record vector below is ordered: steps not knowable yet, deliberate exclusion, costly reversal, decision
+outgrowing its line. A bounded correction/comparison with named scope receives four No answers; infrastructure
+changes keep their review signal. Pairs are proposals for the drain interlock, never a claimed Owner selection.
+Existing explicit retention, sequencing and execute-bound commitments remain in the plan; reclassification proposals
+do not revoke them. Work-unit captures 95, 96, 98 and 102 become Errand proposals despite their target hints.
+
+### Per-concern plan
+
+- `1` Retire or justify the remaining pre-public-release compatibility readers: `errand`; record `No/No/No/No`; prior
+  state `retained`.
+
+- `2` Adopt TypeScript 7 and remove the TS6 deprecation bridge when the ecosystem is ready: `errand`; record
+  `No/No/No/No`; prior state `retained`.
+
+- `3` Stop frontline resolve handing back a pending admission at a head the Errand has left: `errand`; record
+  `No/No/No/No`; prior state `retained`.
+
+- `4` Make arc review status report a planning-grooming exemption instead of review-required: `errand`; record
+  `No/No/No/No`; prior state `retained`.
+
+- `5` Move ARC's remaining GitHub merges onto the async merge API: `errand`; record `No/No/No/No`; prior state
+  `retained`.
+
+- `6` Let an Owner's additional-pass authorization reopen a converged delivery member: `errand`; record `No/No/No/No`;
+  prior state `retained`.
+
+- `7` Turn local review live-context read failures into typed refusals with a remedy: `errand`; record `No/No/No/No`;
+  prior state `retained`.
+
+- `8` State the Conventional Commits PR title rule where the Errand PR step reads it: `errand`; record `No/No/No/No`;
+  prior state `execute-bound`.
+
+- `9` Name the typescript-eslint preset the linter actually uses in TECHNICAL-OVERVIEW.md: `errand`; record
+  `No/No/No/No`; prior state `execute-bound`.
+
+- `10` Record the warm-run practice for local test-cost baselines: `errand`; record `No/No/No/No`; prior state
+  `execute-bound`.
+
+- `11` Remove relative links from three backlog artifacts before their work units start: `errand`; record `No/No/No/No`;
+  prior state `execute-bound`.
+
+- `12` Use MAX_GIT_OUTPUT_BYTES in the three validators that hard-code 32 MiB: `errand`; record `No/No/No/No`; prior
+  state `execute-bound`.
+
+- `13` Pin the name-status score exemption in the meta-reference check with a test: `errand`; record `No/No/No/No`;
+  prior state `execute-bound`.
+
+- `14` Isolate review continuations from unrelated malformed operation records: `Owner pair: errand / hold
+  review-operation-state-isolation`; record `?/No/?/?`; prior state `retained`.
+  Bounded relevant-producer lookup may suffice as an Errand; a new selection/index authority needs the coupled design.
+  Shapes: `[ ]` **Keep unrelated review-operation schema skew from blocking exact-target status**.
+
+- `15` Decide which config-catalog assertions stay hand-maintained: `errand`; record `No/No/No/No`; prior state
+  `execute-bound`.
+
+- `16` Name a local predecessor's review source, not its evaluator, in incremental-applicability selectors: `errand`;
+  record `No/No/No/No`; prior state `execute-bound`.
+
+- `17` Keep runtime npm policy from silently skipping worktree hooks: `errand`; record `No/No/No/No`; prior state
+  `retained`.
+
+- `18` Preserve the concrete self-hosting build qualification refusal reason: `errand`; record `No/No/No/No`; prior
+  state `execute-bound`.
+
+- `19` Exclude bundle-require loader transients from build input membership: `errand`; record `No/No/No/No`; prior state
+  `execute-bound`.
+
+- `20` Keep typed lint from traversing disposable loader bundles: `errand`; record `No/No/No/No`; prior state
+  `execute-bound`.
+
+- `21` Make the Errand resume refusal for a changed intent name its fix: `errand`; record `No/No/No/No`; prior state
+  `execute-bound`.
+
+- `22` Make the start command's source-shape refusal name its fix: `errand`; record `No/No/No/No`; prior state
+  `execute-bound`.
+
+- `23` Make the session-init baseBranchSync and retiredSubdirs slot refusals name the offending key: `errand`; record
+  `No/No/No/No`; prior state `execute-bound`.
+
+- `24` Name the staged paths when direct retirement refuses a non-empty index: `errand`; record `No/No/No/No`; prior
+  state `execute-bound`.
+
+- `25` Keep the cause when decompose turns an occupation failure into occupation-failed: `errand`; record `No/No/No/No`;
+  prior state `execute-bound`.
+
+- `26` Carry the cut-map decoder's refusal code and message through decompose's execute, extract, and advance-base:
+  `errand`; record `No/No/No/No`; prior state `execute-bound`.
+
+- `27` Keep the Errand overlap check from counting an in-progress base merge as a work unit's own edits: `errand`;
+  record `No/No/No/No`; prior state `execute-bound`.
+
+- `28` Let decompose base advancement accept authored destinations: `errand`; record `No/No/No/No`; prior state
+  `retained`.
+
+- `29` Authorize teardown of a decomposed origin from its transition record: `errand`; record `No/No/No/No`; prior state
+  `retained`.
+
+- `30` Report a decompose release path set that Git can stage: `errand`; record `No/No/No/No`; prior state `retained`.
+
+- `31` Provision hooks in decompose candidate worktrees: `errand`; record `No/No/No/No`; prior state `retained`.
+
+- `32` Give a committed decompose candidate an ARC-owned discard: `errand`; record `No/No/No/No`; prior state
+  `retained`.
+
+- `33` Render a decomposed member's narrative Origin without a code span: `errand`; record `No/No/No/No`; prior state
+  `retained`.
+
+- `34` Make lint:md:file refuse an excluded path instead of reporting zero files as a pass: `errand`; record
+  `No/No/No/No`; prior state `execute-bound`.
+
+- `35` Allow managed lifecycle metadata updates on Git-converted CRLF files: `errand`; record `No/No/No/No`; prior state
+  `execute-bound`.
+
+- `36` Make leased remote branch deletion replay after an already completed delete: `errand`; record `No/No/No/No`;
+  prior state `execute-bound`.
+
+- `37` Audit non-timeout materializing-fetch failures and preserve sync JSON output: `errand`; record `No/No/No/No`;
+  prior state `execute-bound`.
+
+- `38` Remove neverthrow: the codebase's failure idiom is the Zod-defined discriminated union: `errand`; record
+  `No/No/No/No`; prior state `execute-bound`.
+
+- `39` Retire the vestigial lite active layout (.arc/active/status.md): `errand`; record `No/No/No/No`; prior state
+  `execute-bound`.
+
+- `40` Find out whether Codex's read-only sandbox silently stops ARC's recovery hooks from writing: `errand`; record
+  `No/No/No/No`; prior state `execute-bound`.
+
+- `41` License the installed methodology content permissively, and ship the license with the npm package: `errand`;
+  record `No/No/No/No`; prior state `execute-bound`.
+
+- `42` Carry .worktreeinclude-listed gitignored files into every worktree ARC spawns: `errand`; record `No/No/No/No`;
+  prior state `execute-bound`.
+
+- `43a` Bring shipped prose that lists lanes and companion kinds in line with the code — planning-lane prose: `errand`;
+  record `No/No/No/No`; prior state `execute-bound`.
+
+- `43b` Bring shipped prose that lists lanes and companion kinds in line with the code — archive-companion prose:
+  `errand`; record `No/No/No/No`; prior state `execute-bound`.
+
+- `43c` Bring shipped prose that lists lanes and companion kinds in line with the code — meta-reference default:
+  `errand`; record `No/No/No/No`; prior state `execute-bound`.
+
+- `44` Make a refused frontline retry name its remedy: re-resolve for a fresh admission first: `errand`; record
+  `No/No/No/No`; prior state `execute-bound`.
+
+- `45` Remove the dangling arc-plan-conductor pointer from drain-inbox: `dismiss`; record `resolved`; prior state
+  `retained`.
+  The committed drain rewrite removes the conductor clause.
+
+- `46` Carry the selected remote through singleton review-applicability selection: `errand`; record `No/No/No/No`; prior
+  state `execute-bound`.
+
+- `47` Make a raw commit in a hand-made worktree fail closed when its hooks path is missing: `errand`; record
+  `No/No/No/No`; prior state `execute-bound`.
+
+- `48` Scope the spec boundary carrier to when its freeze actually takes effect: `errand`; record `No/No/No/No`; prior
+  state `execute-bound`.
+
+- `49` Probe-ground a repair's claims about other domains before proposing its disposition: `errand`; record
+  `No/No/No/No`; prior state `execute-bound`.
+
+- `50` Show at the disposition gate that fixing a finding moves the head and costs a review pass: `errand`; record
+  `No/No/No/No`; prior state `execute-bound`.
+
+- `51` Make the workflow prose pins tolerate a rewrap: `errand`; record `No/No/No/No`; prior state `execute-bound`.
+
+- `52` Enforce the exported-surface TSDoc rule with a scoped lint rule: `errand`; record `No/No/No/No`; prior state
+  `execute-bound`.
+
+- `53` Add an actionlint check for .github/workflows/: `errand`; record `No/No/No/No`; prior state `retained`.
+
+- `54` Make integrity verification accurate for mode-scoped installs: `errand`; record `No/No/No/No`; prior state
+  `execute-bound`.
+
+- `55` Add the changed-file Markdown under-wrap check: `errand`; record `No/No/No/No`; prior state `retained`.
+
+- `56` Check relative Markdown links over the installed layout, and refuse them in movable artifacts: `errand`; record
+  `No/No/No/No`; prior state `execute-bound`.
+
+- `57` Let the meta-reference check accept runtime Context: footer examples in code: `errand`; record `No/No/No/No`;
+  prior state `execute-bound`.
+
+- `58` Reconcile the Errand push three-way, as the identity transaction does: `errand`; record `No/No/No/No`; prior
+  state `execute-bound`.
+
+- `59` Retire the self-hosted CI runbook and runner recipe now that CI runs on hosted runners: `errand`; record
+  `No/No/No/No`; prior state `execute-bound`.
+
+- `60` Correct three stale rows in the storage-coupling register: `errand`; record `No/No/No/No`; prior state
+  `execute-bound`.
+
+- `61` Close the storage-coupling register row for quality-gate-hooks' state checks: `errand`; record `No/No/No/No`;
+  prior state `execute-bound`.
+
+- `62` Move the hand-rolled advisory-lock wrappers onto one lock-scoped helper: `errand`; record `No/No/No/No`; prior
+  state `execute-bound`.
+
+- `63` Flip ADR-022 to Accepted and re-point its retired cross-machine-sync-coherence references: `errand`; record
+  `No/No/No/No`; prior state `execute-bound`.
+
+- `64` Hold new code to the storage contract with an import ratchet, drained to zero by the rerouting: `Owner pair:
+  errand / new-stub storage-boundary-ratchet`; record `?/No/No/?`; prior state `execute-bound`.
+  The consumer map and existing architecture rules may make a bounded floor sweep sufficient; discovering semantic
+  exceptions or a migration plan would cross the floor. Preserve the existing execution commitment until the Owner
+  selects scope.
+
+- `65` Renumber the duplicate 2026-q3 archive entry and refuse a repeated archive number: `errand`; record
+  `No/No/No/No`; prior state `execute-bound`.
+
+- `66` Give an Errand overlap judgment an executable reconciliation continuation: `errand`; record `No/No/No/No`; prior
+  state `execute-bound`.
+
+- `67a` Decide whether cognitive complexity replaces the cyclomatic limit — cognitive/cyclomatic comparison: `errand`;
+  record `No/No/No/No`; prior state `execute-bound`.
+
+- `67b` Decide whether cognitive complexity replaces the cyclomatic limit — test-bloat rule comparison: `errand`; record
+  `No/No/No/No`; prior state `execute-bound`.
+
+- `68` Gather the unit tests that read shipped Markdown into the contract lane: `errand`; record `No/No/No/No`; prior
+  state `retained`.
+
+- `69` Let the test-cost benchmark measure a named ref, so a pre-change baseline stays recoverable: `Owner pair: errand
+  / new-stub test-cost-ref-measurement`; record `?/?/No/No`; prior state `execute-bound`.
+  A bounded same-mode ref run may fit an Errand; a ref/build-capability boundary may need a recorded plan. The shipped
+  test-reliability work is no pending home.
+
+- `70` Give the test-cost benchmark a clean machine-readable result: `errand`; record `No/No/No/No`; prior state
+  `execute-bound`.
+
+- `71` Enable Node's compile cache for the CLI: `errand`; record `No/No/No/No`; prior state `untriaged`.
+
+- `72` Start Git without the Windows launcher: `errand`; record `No/No/No/No`; prior state `untriaged`.
+
+- `73` Dispatch the frontline resolver's offered / obtain-authorization state in run-errand: `errand`; record
+  `No/No/No/No`; prior state `untriaged`.
+
+- `74` Make the pre-commit task-numbering check match active task lists: `errand`; record `No/No/No/No`; prior state
+  `untriaged`.
+
+- `75` Right-size CPU admission for artifact-only ARC contracts: `errand`; record `No/No/No/No`; prior state
+  `untriaged`.
+
+- `76` Preserve cold-readable intent when minting planned stubs: `hold stub-mint-to-launch`; record `No/Yes/Yes/No`;
+  prior state `retained`.
+  Creation-side cold-readable intent constrains the exact planned-set mint, while meta-only start remains allowed.
+  Shapes: D1. Extend the exact-set grooming substrate with planned-set minting.
+
+- `77` Absorb cohort-cut coherence into decomposition doctrine: `dismiss`; record `resolved`; prior state `retained`.
+  Cut completeness is integrated in the live doctrine draft.
+
+- `78` Define maturity-preserving decomposition after task skeletonization: `dismiss`; record `resolved`; prior state
+  `retained`.
+  Maturity-preserving arms are integrated in the live doctrine draft.
+
+- `79` Re-validate a dependency's landed contracts at a decomposed member's first session: `dismiss`; record `resolved`;
+  prior state `retained`.
+  The member-baseline section already carries the decomposition-specific residual.
+
+- `80` Reconcile the delivery-backstop framing with the stack-first posture: `dismiss`; record `resolved`; prior state
+  `retained`.
+  The live stacked-delivery/decomposition section states discovery-time parity.
+
+- `81` Inherit the re-chartered boundary checkpoint and own its decompose-arm content: `dismiss`; record `resolved`;
+  prior state `retained`.
+  The live doctrine consumes the shipped chassis and owns its decompose-arm content.
+
+- `82` Admit scale and residual risk as doctrine inputs, never cutting mechanisms: `hold decomposition-doctrine`; record
+  `No/No/No/Yes`; prior state `retained`.
+  The overrun/checkpoint residual still needs a settled doctrine decision.
+  Shapes: Boundary-read axes — structured, deliberately unsettled.
+
+- `83` Re-derive stub launch from ordinary lifecycle status: `hold stub-mint-to-launch`; record `No/No/Yes/No`; prior
+  state `retained`.
+  Re-derive the obsolete receipt/handoff contract; the meta-only producer facet was resolved by 84841770a.
+  Shapes: D4. Consume DTI's closed decomposition publication.
+
+- `84a` Close the review-materialization reap gap and the locus roster's misclassification of them — materialization
+  residue: `new-stub operation-resource-lifecycle`; record `Yes/Yes/No/Yes`; prior state `retained`.
+  Split frontend evidence from general settled-operation/materialization residue. The current frontline draft excludes
+  chunk-projection checkouts; general ownership needs its own design.
+
+- `84b` Terminal collection for settled operation records: `hold review-orchestration-right-sizing`; record
+  `No/No/Yes/Yes`; prior state `retained`.
+  The settled review-record residual directly constrains the incumbent terminal ownership decision.
+  Shapes: `[ ]` **Define terminal ownership and collection for review evidence**.
+
+- `85` Give ceremony-created verification checkouts a lifecycle owner: `new-stub operation-resource-lifecycle`; record
+  `Yes/Yes/Yes/Yes`; prior state `retained`.
+  Ceremony, conflict, scratch and unregistered resources need creator-owned cleanup/environment contracts; the
+  frontline-only draft excludes these creators.
+
+- `86` Expose a read-only planned startability audit: `hold stub-mint-to-launch`; record `No/Yes/Yes/No`; prior state
+  `retained`.
+  A reusable read-only planning-tuple projection shapes launch readiness; it is not another start ceremony.
+  Shapes: D5. Resolve one fresh launch projection.
+
+- `87` Inherit the delivery lane's gate execution-environment contract: `new-stub operation-resource-lifecycle`; record
+  `Yes/No/Yes/Yes`; prior state `retained`.
+  General dependency/environment ownership for ceremony-created checkouts belongs with their lifecycle, outside the
+  frontline-only draft.
+
+- `88` Schedule required CI for every exact stacked-member head: `new-stub stack-ci-head-scheduler`; record
+  `Yes/No/Yes/Yes`; prior state `retained`.
+  Exact-head CI scheduling is independent of private reconstruction; the rebuild excludes host/checkpoint
+  authorization.
+
+- `89` Refuse a verified fix whose index carries reviewable content HEAD does not, on delivery-member targets: `errand`;
+  record `No/No/No/No`; prior state `retained`.
+
+- `90` Re-derive decomposition machinery readiness against the 2026-10-05 rehearsal: `hold decomposition-doctrine`;
+  record `No/No/No/Yes`; prior state `retained`.
+  Rehearsal evidence changes the readiness doctrine; the old August conclusion remains in the draft.
+  Shapes: Machinery readiness — re-derived 2026-08-21.
+
+- `91` If stub-mint-to-launch resumes before the flip, design its flow for route-now's new-stub too: `hold
+  stub-mint-to-launch`; record `No/No/Yes/No`; prior state `retained`.
+  A pre-flip route-only singleton is a second mint/publication caller and constrains the chosen API.
+  Shapes: D1. Extend the exact-set grooming substrate with planned-set minting.
+
+- `92` Replace stub-mint-to-launch's DTI blocker with its storage-cohort pause: `errand`; record `No/No/No/No`; prior
+  state `retained`.
+
+- `93` Guard or migrate the hook's source-script delegations that survive the cutover: `hold storage-cutover`; record
+  `Yes/No/No/No`; prior state `retained`.
+  Which surviving hook delegations need guards or installed verbs cannot be named before the deletion mapping.
+  Shapes: Scope.
+
+- `94` Validate commit messages across a pull request's range in CI, under the footer policy: `hold ghost-mode`; record
+  `No/No/Yes/Yes`; prior state `retained`.
+  A range check must enforce the chosen footer authority and merge-policy semantics, rather than duplicate the current
+  hook.
+  Shapes: Settled inputs (from `storage-contract`).
+
+- `95` Offer an opt-in confirm step in the force-push advisory: `errand`; record `No/No/No/No`; prior state `retained`.
+
+- `96` Cover the documented active/ layout in the projection's isolation acceptance test: `errand`; record
+  `No/No/No/No`; prior state `retained`.
+
+- `97` Treat a red push gate as the code leg's failure, so the state leg still publishes: `hold storage-ref-backend`;
+  record `No/No/Yes/No`; prior state `retained`.
+  A hook refusal must participate in the split code/state transport policy; that shared failure contract needs
+  recording.
+  Shapes: Scope.
+
+- `98` Decide whether arc delivery plan inventory schema stays beside arc schema get: `errand`; record `No/No/No/No`;
+  prior state `retained`.
+
+- `99` Fire author self-review in an Errand when routing requires it, or exempt the Errand vehicle: `hold
+  review-orchestration-right-sizing`; record `No/No/Yes/Yes`; prior state `untriaged`.
+  Choose the authority for author-self-review obligations versus the Errand vehicle; it affects callers beyond a
+  wording repair.
+  Shapes: Scope (provisional).
+
+- `100` Key the Claude Code compaction seed to its session through CLAUDE_CODE_SESSION_ID: `hold recovery-hardening`;
+  record `No/No/Yes/No`; prior state `untriaged`.
+  Claude’s session key and subagent rule constrain the shared seed/marker/audit binding.
+  Shapes: `[ ]` **Bind compaction recovery to the live directed-worktree locus**.
+
+- `101` Weigh routing into a work unit past planning case by case, never assuming it safe: `hold
+  inbound-routing-method`; record `No/No/Yes/Yes`; prior state `untriaged`.
+  The Owner’s post-planning placement principle constrains started-target eligibility; adoption needs a
+  scope/amendment decision.
+  Shapes: D2 — The disposition gate.
+
+- `102` Confirm at the flip rehearsal that every hand-editable projected kind has its parser: `errand`; record
+  `No/No/No/No`; prior state `untriaged`.
+
+- `103` Specify parser-required nesting tolerance for managed captures across portable lint settings: `hold
+  adopter-markdown-contract`; record `No/No/Yes/Yes`; prior state `untriaged`.
+  Accepted nesting versus author preference constrains the parser/config contract still being designed.
+  Shapes: `[ ]` **Define ARC's markdown-format contract with adopters (out-of-box lint fit)**.
+
+### Coupling, scope and waits
+
+Started targets are all owned by `andrew`. They take owner adoption in their own session, preserving their recorded
+pauses; no base-branch draft receives a note. Entry 101 is an execution-stage proposal against D2, not authorization
+for a scope change: its owning session must decide amendment/adoption case by case before implementing it.
+
+The live decomposition draft already integrates entries 77–81, so those dismiss rather than accumulating another
+held copy. Its still-open boundary axes and stale machinery-readiness conclusion justify 82 and 90. The live
+stub-mint design’s D1, D4 and D5 cover creation, publication and readiness without its exclusions over integration
+authority, scheduling, extraction or topology ownership being recruited.
+
+The frontline checkout design explicitly excludes chunk-projection checkouts; broader ceremony resources therefore
+propose `operation-resource-lifecycle`. The settled-record facet of 84 separately shapes right-sizing’s terminal
+ownership entry. The delivery rebuild excludes host/checkpoint authorization and general recovery; exact-head CI
+scheduling therefore proposes its own stub. Its staged-index guard and inventory-wrapper choice remain bounded
+Errands. All new-stub proposals are provisional, pending the Owner’s commitment decision.
+
+Ghost mode’s footer policy, backend Scope’s split code/state push loop, cutover Scope’s deletion passes,
+right-sizing’s Scope, recovery’s directed-locus entry, and the adopter contract’s parser/config entry establish
+the other homes. Their boundaries exclude no concern in this proposed set.
+
+### Confirmation-plan offers and revised plan
+
+- `adopter-markdown-contract`: 1 held entries; oldest provenance `2026-07-07`; offer to re-triage once.
+- `recovery-hardening`: 13 held entries; oldest provenance `2026-07-05`; offer to re-triage once.
+- `review-operation-state-isolation`: 2 held entries; oldest provenance `2026-09-13`; offer to re-triage once.
+- `review-orchestration-right-sizing`: 20 held entries; oldest provenance `2026-08-10`; offer to re-triage once.
+- `storage-cutover`: 2 held entries; oldest provenance `2026-09-28`; offer to re-triage once.
+- `storage-ref-backend`: 2 held entries; oldest provenance `2026-09-28`; offer to re-triage once.
+
+Only the seeded adopter hold carries a horizon advisory in this plan; it is copied verbatim from the listing:
+
+```text
+`adopter-markdown-contract` is provisional (P3); an entry routed here waits for it. Raise its priority or send a separable part now?
+```
+
+Simulated pick: `adopter-markdown-contract`. Its one existing parser/config concern is still live, spec-worthy and
+on topic. The revised plan adds `hold adopter-markdown-contract`, Shapes “Define ARC’s markdown-format contract
+with adopters (out-of-box lint fit)”, retaining the incumbent. That is one of the re-triage door’s bounded outcomes;
+it folds or rejects nothing. The same count, oldest date and verbatim horizon remain visible. The simulation does
+not claim an actual Owner selection or confirmation.
+
+Destination overlap was empty for the six CLI-resolved backlog drafts. Two unrelated branch-residue warnings remain
+advisory; the overlap posture is proceed, with those warnings disclosed. Fresh Errands and new-stub proposals
+require their own later execution/commitment checks. This repository’s shared-inbox write ban remains in force;
+deferred atomic routes wait in the identity-global inbox under that standing direction, not a tracked flush.
+
+Coverage/heading/horizon/offer/retained-state checks ran against the prepared plan and actual source renders. The
+initial checker incorrectly demanded offers for targets with no held entries; corrected to the stated “already
+holding entries” condition, it passed. This was a checker defect, not a routing-scenario failure. The original
+first-check failure remains in the tool record. The source-backed plan satisfies the segment exit criterion.
