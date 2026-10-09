@@ -11,7 +11,7 @@ import { readTypedProjectFile } from "../../lib/config/typed-file-reader.js";
 import { createGitExec } from "../../lib/io-context.js";
 import { createExecaGitExecInput, environmentForGitCwd } from "../../lib/git/process-executor.js";
 import type { InteractionContext } from "../../lib/command-input/interaction-context.js";
-import { runDeclaredRequest, type RunDeclaredChecksResult } from "./run.js";
+import { runDeclaredRequest, type RunDeclaredChecksResult, type CheckContentContext } from "./run.js";
 import type { CheckForm, CheckRequest } from "../../lib/checks/request.js";
 import { renderDeclaredChecks } from "./run-output.js";
 
@@ -124,9 +124,9 @@ async function handleDeclaredRequest(options: CheckScopeOptions, interaction: In
       passes: createCheckPassStore({ directory: () => checkRecordDirectory(git, root),
         readFile: path => readFile(path, "utf8"), createFile: atomicCreateFile }),
       readDeclaration: repository => readTypedProjectFile(repository, "check-declaration", CheckDeclarationSchema),
-      execute: async (command, cwd) => {
+      execute: async (command, cwd, content) => {
         const result = await execa(command[0] ?? "", command.slice(1), {
-          cwd, env: environmentForGitCwd(cwd), extendEnv: false, stdin: "ignore", reject: false,
+          cwd, env: checkEnvironment(cwd, content), extendEnv: false, stdin: "ignore", reject: false,
         });
         return { exitCode: result.exitCode ?? 1, output: [result.stdout, result.stderr].filter(Boolean).join("\n") };
       },
@@ -142,4 +142,18 @@ function report(outcome: RunDeclaredChecksResult, json: boolean): void {
   if (outcome.kind === "error" && !json) process.stderr.write(rendered);
   else process.stdout.write(rendered);
   process.exitCode = outcome.exitCode;
+}
+
+
+function checkEnvironment(cwd: string, content?: CheckContentContext): NodeJS.ProcessEnv {
+  const env = { ...(environmentForGitCwd(cwd) ?? process.env) };
+  delete env.ARC_CHECK_BASE;
+  delete env.ARC_CHECK_TREE;
+  delete env.ARC_CHECK_MERGED;
+  if (content !== undefined) {
+    env.ARC_CHECK_TREE = content.tree;
+    if (content.base !== undefined) env.ARC_CHECK_BASE = content.base;
+    if (content.merged?.length) env.ARC_CHECK_MERGED = content.merged.join(" ");
+  }
+  return env;
 }

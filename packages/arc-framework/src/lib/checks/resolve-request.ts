@@ -2,6 +2,7 @@
 import type { GitExec } from "../git/exec.js";
 import { resolveSoleMergeBase } from "../git/base-overlap.js";
 import { requestScope, type CheckRequest, type CheckScope } from "./request.js";
+import { readCheckMergedParents } from "./merged.js";
 import { stagedWorktreeTree } from "./tree.js";
 
 /** Coordinates retained by a resolved request. An unavailable automatic base is deliberately absent. */
@@ -9,6 +10,7 @@ export interface ResolvedCheckRequest {
   scope: CheckScope;
   tree: string;
   base?: string;
+  merged?: string[];
 }
 export type CheckRequestResolution = { status: "resolved"; request: ResolvedCheckRequest }
   | { status: "refused"; message: string };
@@ -34,7 +36,8 @@ export async function resolveCheckBaseBranch(git: GitExec, root: string, branch:
   return await revision(git, root, preferred) ?? await revision(git, root, `refs/heads/${branch}`);
 }
 
-async function automaticBase(git: GitExec, root: string, request: CheckRequest): Promise<string | undefined> {
+async function automaticBase(git: GitExec, root: string, request: CheckRequest, head: string | undefined): Promise<string | undefined> {
+  if (head === undefined) return undefined;
   if (request.form.kind === "segment") {
     const upstream = await revision(git, root, "@{upstream}");
     if (upstream !== undefined) return upstream;
@@ -43,7 +46,7 @@ async function automaticBase(git: GitExec, root: string, request: CheckRequest):
   if (base === undefined) return undefined;
   const resolved = await resolveSoleMergeBase({
     exec: (command, args, options) => git(command, args, { ...options, cwd: root }),
-    leftRevision: "HEAD", rightRevision: base,
+    leftRevision: head, rightRevision: base,
   });
   return resolved.status === "resolved" ? resolved.mergeBase : undefined;
 }
@@ -57,17 +60,19 @@ async function automaticBase(git: GitExec, root: string, request: CheckRequest):
  */
 export async function resolveCheckRequest(git: GitExec, root: string, request: CheckRequest): Promise<CheckRequestResolution> {
   const scope = requestScope(request);
+  const head = await revision(git, root, "HEAD");
   let base: string | undefined;
   if (scope.kind === "range" && scope.base !== undefined) {
     base = await revision(git, root, scope.base);
     if (base === undefined) return { status: "refused", message: `Could not resolve ref ${scope.base}; provide a resolvable commit ref and retry.` };
   } else if (scope.kind === "range" || scope.kind === "all") {
-    base = await automaticBase(git, root, request);
+    base = await automaticBase(git, root, request, head);
   } else {
-    base = "HEAD";
+    base = head;
   }
   const tree = scope.kind === "staged"
     ? (await git("git", ["write-tree"], { cwd: root, indexFile: request.indexFile })).stdout
     : await stagedWorktreeTree(git, root);
-  return { status: "resolved", request: { scope, tree, ...(base === undefined ? {} : { base }) } };
+  const merged = base !== undefined && head !== undefined && scope.kind !== "all" ? await readCheckMergedParents(git, root, base, head) : [];
+  return { status: "resolved", request: { scope, tree, ...(base === undefined ? {} : { base }), ...(merged.length ? { merged } : {}) } };
 }

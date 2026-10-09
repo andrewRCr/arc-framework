@@ -9,7 +9,7 @@ function selected({ own, widened = false, widen = true, ciOnly = false, request 
 }) {
   const check = CheckDeclarationSchema.parse({ checks: { lint: { command: ["lint"], mode: "files", widen, ci_only: ciOnly } } }).checks.lint!;
   return selectCheckInputs({ id: "lint", check, request,
-    resolved: { scope: { kind: all ? "all" : "changed" }, tree: "c".repeat(40), base: "HEAD" },
+    resolved: { scope: { kind: all ? "all" : "changed" }, tree: "c".repeat(40), base: "a".repeat(40) },
     selection: { widened, own: new Map([["lint", own === "changed" ? { status: "selected", paths: [changedPath] }
       : own === "unchanged" ? { status: "not selected", reason: "inputs unchanged" } : { status: "unresolved" }]]) },
   });

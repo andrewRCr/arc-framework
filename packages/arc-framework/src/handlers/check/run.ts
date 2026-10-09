@@ -22,14 +22,17 @@ export interface DeclaredCheckResult {
 export type RunDeclaredChecksResult = {
   kind: "result";
   exitCode: 0 | 1;
-  result: { status: "completed" | "none declared"; checks: DeclaredCheckResult[]; base?: string; tree?: string };
+  result: { status: "completed" | "none declared"; checks: DeclaredCheckResult[]; base?: string; tree?: string; merged?: string[] };
 } | { kind: "error"; exitCode: 2; error: { kind: "invalid" | "refused"; message: string } };
+
+/** Checked content exposed only to file checks. */
+export interface CheckContentContext { base?: string; tree: string; merged?: readonly string[] }
 
 /** Repository and command boundaries injected into check orchestration. */
 export interface DeclaredCheckDependencies extends TreeMatchIO {
   passes: CheckPassStore;
   readDeclaration(root: string): Promise<TypedFileResult<CheckDeclaration>>;
-  execute(command: readonly string[], root: string): Promise<{ exitCode: number; output: string }>;
+  execute(command: readonly string[], root: string, content?: CheckContentContext): Promise<{ exitCode: number; output: string }>;
 }
 
 /**
@@ -98,7 +101,7 @@ export async function runDeclaredRequest(
     checks.push(await runRequestedCheck({ id, check, root, resolved: resolved.request, selection }, io, request));
   }
   return { kind: "result", exitCode: checks.some(check => check.outcome === "failed") ? 1 : 0,
-    result: { status: "completed", checks, base, tree } };
+    result: { status: "completed", checks, base, tree, ...(resolved.request.merged ? { merged: resolved.request.merged } : {}) } };
 }
 
 
@@ -117,7 +120,7 @@ async function runRequestedCheck(
     paths = matching.paths.filter(path => path.newMode !== "000000").map(path => path.path);
     if (paths.length === 0) return { id, kind: "deadline", outcome: "not selected", reason: "no files to check" };
   }
-  return executeSelectedCheck({ id, check, root, tree, paths }, io, request.force === true, request.dryRun === true);
+  return executeSelectedCheck({ id, check, root, tree, paths, ...(check.mode === "files" ? { content: { base: resolved.base, tree, merged: resolved.merged } } : {}) }, io, request.force === true, request.dryRun === true);
 }
 
 interface SelectedCheck {
@@ -126,10 +129,11 @@ interface SelectedCheck {
   root: string;
   tree: string;
   paths: string[];
+  content?: CheckContentContext;
 }
 
 async function executeSelectedCheck(
-  { id, check, root, tree, paths }: SelectedCheck, io: DeclaredCheckDependencies, force: boolean, dryRun: boolean,
+  { id, check, root, tree, paths, content }: SelectedCheck, io: DeclaredCheckDependencies, force: boolean, dryRun: boolean,
 ): Promise<DeclaredCheckResult> {
   const inputs = check.cache ? await matchTreeInputs(io, root, tree, check.inputs) : null;
   const key = inputs?.status === "known" ? checkContentKey({ id, declaration: check, inputs: inputs.paths,
@@ -138,7 +142,7 @@ async function executeSelectedCheck(
   if (pass !== null) return { id, kind: "deadline", outcome: "reused", output: pass.output };
   if (dryRun) return { id, kind: "deadline", outcome: "would run" };
   const command = typeof check.command === "string" ? [check.command] : check.command;
-  const result = await io.execute([...command, ...paths], root);
+  const result = await io.execute([...command, ...paths], root, content);
   if (result.exitCode === 0 && key !== null) {
     await io.passes.put({ schemaVersion: 1, id, key, outcome: "passed", output: result.output });
   }

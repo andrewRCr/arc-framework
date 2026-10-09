@@ -187,23 +187,15 @@ _Mode:_ `layer` through Phase 4 — closes on the verb's complete request and ex
   reach. Widening opt-outs retain only their own changes; widened file checks receive all matching existing paths.
   CI-only exclusions name their reason, named runs ignore gates and shared widening, and ignored paths remain absent.
 
-### `[ ]` **3.3 Base export and merged-in parents — D2**
+### `[x]` **3.3 Base export and merged-in parents — D2**
 
 - _Goal:_ A `files` check can read what each path held before the change, and tell content a merge brought in from
   content authored over it, through the base, checked tree, and merged-in parents the verb exports.
 
-    - Merged-in parents come from `git rev-list --first-parent --merges --parents <base>..<tip>`, uncapped, with the
-      tip at `HEAD` (the pushed tip at the push hook), since the checked tree is a tree, not a commit.
-      `analyzeIntegrationEvidence` (`base-integration-evidence.ts`) walks the other way, from the branch to the base,
-      and caps its scan
-    - Build `test-first` (one behavior at a time):
-        - each `files` check receives `ARC_CHECK_BASE` and `ARC_CHECK_TREE` per the selection table's base column, and
-          a `project` check receives neither
-        - over a merge's own range, the base is the first parent and `ARC_CHECK_MERGED` lists the parents after it
-        - over a longer range, `ARC_CHECK_MERGED` lists the parents after the first of each merge on the range's
-          first-parent line only, so merges inside merged-in history add nothing
-        - a request with no change exports no merged-in parent
-        - where no base resolves, none is exported
+- _Outcome:_ File checks receive `ARC_CHECK_BASE`, `ARC_CHECK_TREE`, and the non-first parents from an uncapped
+  first-parent range ending at the captured commit tip. Nested side-history merges contribute no parent; all scope
+  exports none. Unresolved bases omit base and parent fields while retaining the checked tree. Project checks receive
+  none of these fields, and ambient check context is cleared before execution. Failed history reads name a retry.
 
 ### `[ ]` **3.4 Presets, deadline gates, and kind — D1, D3**
 

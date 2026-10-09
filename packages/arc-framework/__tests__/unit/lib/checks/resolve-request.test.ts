@@ -20,13 +20,13 @@ it.each([
   { name: "unrelated", response: { failure: { exitCode: 1 } } },
   { name: "unavailable", response: { failure: { exitCode: 128 } } },
 ])("resolves an automatic $name base without exporting a base or refusing", async ({ response }) => {
-  const { exec } = scriptGitExec([ref("main@{upstream}"), ref("refs/heads/main", base),
-    { match: ["merge-base", "--all", "HEAD", base], responses: [response] }, ...snapshot]);
+  const { exec } = scriptGitExec([ref("HEAD", merge), ref("main@{upstream}"), ref("refs/heads/main", base),
+    { match: ["merge-base", "--all", merge, base], responses: [response] }, ...snapshot]);
   const result = await resolveCheckRequest(exec, "/repository", { form: { kind: "gate", gate: "commit" }, scope: { kind: "range" } });
   expect(result).toEqual({ status: "resolved", request: { scope: { kind: "range" }, tree } });
 });
 it("resolves a missing automatic base without exporting a base or refusing", async () => {
-  const { exec } = scriptGitExec([ref("@{upstream}"), ref("main@{upstream}"), ref("refs/heads/main"), ...snapshot]);
+  const { exec } = scriptGitExec([ref("HEAD", merge), ref("@{upstream}"), ref("main@{upstream}"), ref("refs/heads/main"), ...snapshot]);
   expect(await resolveCheckRequest(exec, "/repository", { form: { kind: "segment" } }))
     .toEqual({ status: "resolved", request: { scope: { kind: "range" }, tree } });
 });
