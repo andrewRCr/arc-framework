@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CheckDeclarationSchema } from "../../../../src/lib/checks/declaration.js";
-import { runDeclaredRequest, type DeclaredCheckDependencies } from "../../../../src/handlers/check/run.js";
+import { declaredChecksExitCode, runDeclaredRequest, type DeclaredCheckResult, type DeclaredCheckDependencies } from "../../../../src/handlers/check/run.js";
 import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 
 const roots: string[] = [];
@@ -77,4 +77,20 @@ it("keeps a no-op fixer's captured tree without requiring another tree write", a
   await expect(runDeclaredRequest(root, io, { form: { kind: "run", ids } })).resolves.toMatchObject({
     kind: "result", exitCode: 0, result: { checks: [{ id: "format", outcome: "passed" }] },
   });
+});
+
+const exitCases: Array<{ outcomes: DeclaredCheckResult["outcome"][]; exit: 0 | 1 | 2 }> = [
+  { outcomes: [], exit: 0 },
+  { outcomes: ["passed", "reused", "skipped", "not selected", "would run"], exit: 0 },
+  { outcomes: ["failed", "passed"], exit: 1 },
+  { outcomes: ["failed", "couldn't run"], exit: 2 },
+  { outcomes: ["couldn't run", "failed"], exit: 2 },
+];
+it.each(exitCases)("classifies $outcomes with exit $exit regardless of result kind", ({ outcomes, exit }) => {
+  for (const kind of ["enforcement", "feedback"] as const) {
+    const checks: DeclaredCheckResult[] = outcomes.map((outcome, index) => ({ id: `check-${index}`, kind, outcome,
+      ...(outcome === "not selected" ? { reason: "inputs unchanged" } : {}),
+    }));
+    expect(declaredChecksExitCode(checks)).toBe(exit);
+  }
 });

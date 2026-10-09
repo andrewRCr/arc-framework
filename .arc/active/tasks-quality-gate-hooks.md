@@ -272,25 +272,14 @@ ranges' merged-in parents, forced runs, record faults and placement, and the che
   produced content, so later fixers cannot extend its coverage. Unchanged content refreshes private-index stat data
   without recomputing the tree, and copied index timestamps keep equal-size edits visible through Git's cached metadata.
 
-### `[ ]` **4.4 Outcomes, exit codes, and refusals — D3**
+### `[x]` **4.4 Outcomes, exit codes, and refusals — D3**
 
 - _Goal:_ Every check ends in exactly one named outcome and every request exits 0, 1, or 2 by rule, so a caller acts on
   the status alone.
 
-    - Commander exits 1 on its own parse errors unless the command overrides its exit (`exitOverride`), and a
-      subcommand inherits a parent's override only when the parent set it before `.command()` created the subcommand
-    - Build `test-first` (one behavior at a time):
-        - each check ends `passed`, `failed`, `couldn't run`, `reused`, or `not selected` with its reason
-        - a `skipped` outcome, which only the hook forms produce (Task 5.3.b), exits and reports by the rules below
-        - a request is `invalid` naming the declaration's field, `refused` naming the ARC-detected condition, or
-          `none declared` for a gate with no checks
-        - exit 0 when every selected check passed, was reused, or was skipped, or nothing is declared; 1 when any check
-          failed, whatever its kind; 2 when a check could not run, the request was invalid or refused, or the command line
-          was malformed
-        - every command-line parse error exits 2, not Commander's default 1: an unknown option, two scopes, `--ci` on a
-          hook form, and `arc check gate` with no gate among them, while help and version still exit 0
-        - `skipped` and `none declared` are never reported as passed
-        - an invalid declaration's retry after the named field is fixed succeeds
+- _Outcome:_ `declaredChecksExitCode` consumes the complete named-outcome model, giving unavailable execution precedence
+  over failures regardless of kind. Native parse guards preserve exit 2 while help and version retain exit 0; repairing
+  the named declaration field resumes execution. Skipped checks and empty gates remain distinct from passed checks.
 
 ### `[ ]` **4.5 Report, verification line, and remedies — D3, D12**
 

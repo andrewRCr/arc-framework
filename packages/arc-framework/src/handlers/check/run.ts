@@ -22,7 +22,7 @@ import type { CheckPassStore } from "../../lib/checks/record.js";
 export interface DeclaredCheckResult {
   id: string;
   kind: CheckResultKind;
-  outcome: "passed" | "failed" | "couldn't run" | "not selected" | "reused" | "would run";
+  outcome: "passed" | "failed" | "couldn't run" | "not selected" | "reused" | "would run" | "skipped";
   output?: string;
   reason?: string;
   divergent?: string[];
@@ -35,6 +35,16 @@ export type RunDeclaredChecksResult = {
   exitCode: 0 | 1 | 2;
   result: { status: "completed" | "none declared"; checks: DeclaredCheckResult[]; base?: string; tree?: string; merged?: string[] };
 } | { kind: "error"; exitCode: 2; error: { kind: "invalid" | "refused"; message: string } };
+
+/**
+ * Classify a request from all named outcomes, with unavailable execution taking precedence.
+ * @param checks - Every included check outcome
+ * @returns Success, failure, or unavailable-execution exit status
+ */
+export function declaredChecksExitCode(checks: readonly DeclaredCheckResult[]): 0 | 1 | 2 {
+  if (checks.some(check => check.outcome === "couldn't run")) return 2;
+  return checks.some(check => check.outcome === "failed") ? 1 : 0;
+}
 
 /** Checked content exposed only to file checks. */
 export interface CheckContentContext { base?: string; tree: string; merged?: readonly string[] }
@@ -146,7 +156,7 @@ async function executeResolvedRequest(
     }
   }));
   const checks = outcomes.sort((first, second) => first.position - second.position).map(outcome => outcome.result);
-  return { kind: "result", exitCode: checks.some(check => check.outcome === "couldn't run") ? 2 : checks.some(check => check.outcome === "failed") ? 1 : 0,
+  return { kind: "result", exitCode: declaredChecksExitCode(checks),
     result: { status: "completed", checks, base, tree: coordinates.tree, ...(coordinates.merged ? { merged: coordinates.merged } : {}) } };
 }
 
