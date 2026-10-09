@@ -54,17 +54,35 @@ function parseTreeDiff(output: string): TreePathChange[] {
   return paths;
 }
 
+/** A retained worktree snapshot and the index carrying its cached file metadata. */
+export interface WorktreeSnapshot {
+  tree: string;
+  indexFile: string;
+  refresh(): Promise<string>;
+  remove(): Promise<void>;
+}
+
 /**
- * Compute the tree the entire worktree would stage.
+ * Snapshot staged-worktree content while retaining its private index for readers and refreshes.
  * @param git - Injectable Git process boundary
  * @param cwd - Repository root
- * @returns The checked tree's object id
+ * @param parent - Optional directory for the disposable index
+ * @returns Snapshot coordinates and cleanup boundary
  */
-export async function stagedWorktreeTree(git: GitExec, cwd: string): Promise<string> {
+export async function createWorktreeSnapshot(git: GitExec, cwd: string, parent = tmpdir()): Promise<WorktreeSnapshot> {
   const { stdout } = await git("git", ["rev-parse", "--git-path", "index"], { cwd });
   const realIndex = isAbsolute(stdout) ? stdout : resolve(cwd, stdout);
-  const directory = await mkdtemp(join(tmpdir(), "arc-check-index-"));
+  const directory = await mkdtemp(join(parent, "arc-check-index-"));
   const indexFile = join(directory, "index");
+  const remove = async () => { await rm(directory, { recursive: true, force: true }); };
+  const snapshot: WorktreeSnapshot = {
+    tree: "", indexFile, remove,
+    refresh: async () => {
+      await git("git", ["add", "-A"], { cwd, indexFile });
+      snapshot.tree = (await git("git", ["write-tree"], { cwd, indexFile })).stdout;
+      return snapshot.tree;
+    },
+  };
   try {
     try {
       await copyFile(realIndex, indexFile);
@@ -72,9 +90,21 @@ export async function stagedWorktreeTree(git: GitExec, cwd: string): Promise<str
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       await git("git", ["read-tree", "--empty"], { cwd, indexFile });
     }
-    await git("git", ["add", "-A"], { cwd, indexFile });
-    return (await git("git", ["write-tree"], { cwd, indexFile })).stdout;
-  } finally {
-    await rm(directory, { recursive: true, force: true });
+    await snapshot.refresh();
+    return snapshot;
+  } catch (error) {
+    await remove();
+    throw error;
   }
+}
+
+/**
+ * Compute the tree the entire worktree would stage.
+ * @param git - Injectable Git process boundary
+ * @param cwd - Repository root
+ * @returns The checked tree's object id
+ */
+export async function stagedWorktreeTree(git: GitExec, cwd: string): Promise<string> {
+  const snapshot = await createWorktreeSnapshot(git, cwd);
+  try { return snapshot.tree; } finally { await snapshot.remove(); }
 }

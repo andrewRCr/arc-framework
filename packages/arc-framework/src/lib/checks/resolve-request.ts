@@ -3,7 +3,7 @@ import type { GitExec } from "../git/exec.js";
 import { resolveSoleMergeBase } from "../git/base-overlap.js";
 import { requestScope, type CheckRequest, type CheckScope } from "./request.js";
 import { readCheckMergedParents } from "./merged.js";
-import { stagedWorktreeTree } from "./tree.js";
+import { createWorktreeSnapshot, stagedWorktreeTree, type WorktreeSnapshot } from "./tree.js";
 
 /** Coordinates retained by a resolved request. An unavailable automatic base is deliberately absent. */
 export interface ResolvedCheckRequest {
@@ -11,6 +11,7 @@ export interface ResolvedCheckRequest {
   tree: string;
   base?: string;
   merged?: string[];
+  snapshot?: WorktreeSnapshot;
 }
 export type CheckRequestResolution = { status: "resolved"; request: ResolvedCheckRequest }
   | { status: "refused"; message: string };
@@ -56,9 +57,10 @@ async function automaticBase(git: GitExec, root: string, request: CheckRequest, 
  * @param git - Git process boundary
  * @param root - Repository root
  * @param request - Typed request and configured base branch
+ * @param snapshotDirectory - Retain a worktree snapshot in this directory when supplied
  * @returns Coordinates or a refusal naming the explicit input and safe retry
  */
-export async function resolveCheckRequest(git: GitExec, root: string, request: CheckRequest): Promise<CheckRequestResolution> {
+export async function resolveCheckRequest(git: GitExec, root: string, request: CheckRequest, snapshotDirectory?: string): Promise<CheckRequestResolution> {
   const scope = requestScope(request);
   const head = await revision(git, root, "HEAD");
   let base: string | undefined;
@@ -70,9 +72,16 @@ export async function resolveCheckRequest(git: GitExec, root: string, request: C
   } else {
     base = head;
   }
+  const merged = base !== undefined && head !== undefined && scope.kind !== "all" ? await readCheckMergedParents(git, root, base, head) : [];
+  const { tree, snapshot } = await checkedContent(git, root, request, scope, snapshotDirectory);
+  return { status: "resolved", request: { scope, tree, ...(snapshot ? { snapshot } : {}), ...(base === undefined ? {} : { base }), ...(merged.length ? { merged } : {}) } };
+}
+
+async function checkedContent(git: GitExec, root: string, request: CheckRequest, scope: CheckScope, snapshotDirectory?: string) {
+  const snapshot = scope.kind !== "staged" && snapshotDirectory !== undefined
+    ? await createWorktreeSnapshot(git, root, snapshotDirectory) : undefined;
   const tree = scope.kind === "staged"
     ? (await git("git", ["write-tree"], { cwd: root, indexFile: request.indexFile })).stdout
-    : await stagedWorktreeTree(git, root);
-  const merged = base !== undefined && head !== undefined && scope.kind !== "all" ? await readCheckMergedParents(git, root, base, head) : [];
-  return { status: "resolved", request: { scope, tree, ...(base === undefined ? {} : { base }), ...(merged.length ? { merged } : {}) } };
+    : snapshot?.tree ?? await stagedWorktreeTree(git, root);
+  return { tree, snapshot };
 }

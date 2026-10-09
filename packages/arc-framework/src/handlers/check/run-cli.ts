@@ -144,11 +144,12 @@ function report(outcome: RunDeclaredChecksResult, json: boolean): void {
 }
 
 
-function checkEnvironment(cwd: string, content?: CheckContentContext): NodeJS.ProcessEnv {
+function checkEnvironment(cwd: string, content?: CheckContentContext, indexFile?: string): NodeJS.ProcessEnv {
   const env = { ...(environmentForGitCwd(cwd) ?? process.env) };
   delete env.ARC_CHECK_BASE;
   delete env.ARC_CHECK_TREE;
   delete env.ARC_CHECK_MERGED;
+  if (indexFile !== undefined) env.GIT_INDEX_FILE = indexFile;
   if (content !== undefined) {
     env.ARC_CHECK_TREE = content.tree;
     if (content.base !== undefined) env.ARC_CHECK_BASE = content.base;
@@ -158,9 +159,9 @@ function checkEnvironment(cwd: string, content?: CheckContentContext): NodeJS.Pr
 }
 
 
-async function runCheckProcess(command: readonly string[], cwd: string, content?: CheckContentContext, policy: { shell?: boolean; rawStdout?: boolean } = {}) {
+async function runCheckProcess(command: readonly string[], cwd: string, content?: CheckContentContext, policy: { shell?: boolean; rawStdout?: boolean; indexFile?: string } = {}) {
   const result = await execa(command[0] ?? "", command.slice(1), {
-    cwd, env: checkEnvironment(cwd, content), extendEnv: false, stdin: "ignore", reject: false,
+    cwd, env: checkEnvironment(cwd, content, policy.indexFile), extendEnv: false, stdin: "ignore", reject: false,
     shell: policy.shell ?? false, stripFinalNewline: !policy.rawStdout,
   });
   const started = result.exitCode !== undefined || result.signal !== undefined;

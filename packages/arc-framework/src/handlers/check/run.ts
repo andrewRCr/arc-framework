@@ -1,6 +1,10 @@
 /** Orchestration for declared repository check requests. */
+import { mkdir } from "node:fs/promises";
+import { checkRecordDirectory } from "../../lib/checks/record.js";
 import { resolve } from "node:path";
 import { batchCheckPaths, checkFileArguments } from "../../lib/checks/batching.js";
+import { createWorktreeSnapshot } from "../../lib/checks/tree.js";
+import { createCheckIndexViews, type CheckIndexViews } from "../../lib/checks/index-view.js";
 import type { CheckDeclaration } from "../../lib/checks/declaration.js";
 import type { TypedFileResult } from "../../lib/config/typed-file-reader.js";
 import { matchTreeInputs } from "../../lib/checks/matching.js";
@@ -36,7 +40,7 @@ export interface DeclaredCheckDependencies extends CheckKeyIO {
   availableParallelism(): number;
   passes: CheckPassStore;
   readDeclaration(root: string): Promise<TypedFileResult<CheckDeclaration>>;
-  execute(command: readonly string[], root: string, content?: CheckContentContext, policy?: { shell: boolean }): Promise<{ started: boolean; exitCode: number; output: string }>;
+  execute(command: readonly string[], root: string, content?: CheckContentContext, policy?: { shell: boolean; indexFile?: string }): Promise<{ started: boolean; exitCode: number; output: string }>;
 }
 
 /**
@@ -94,17 +98,44 @@ export async function runDeclaredRequest(
   if (missing !== undefined) return { kind: "error", exitCode: 2,
     error: { kind: "refused", message: `Unknown check ${missing}; name a check declared in arc-checks.yml and retry.` } };
   const entries = selectRequestChecks(available, request.form);
-  const resolved = await resolveCheckRequest(io.git, root, request);
+  const snapshotDirectory = entries.some(([, check]) => check.reads_index) ? await checkRecordDirectory(io.git, root) : undefined;
+  if (snapshotDirectory !== undefined) await mkdir(snapshotDirectory, { recursive: true });
+  const resolved = await resolveCheckRequest(io.git, root, request, snapshotDirectory);
   if (resolved.status === "refused") return { kind: "error", exitCode: 2, error: { kind: "refused", message: resolved.message } };
-  const { base, tree } = resolved.request;
+  const indexViews = createCheckIndexViews(io.git, root, request, resolved.request);
+  try {
+    return await executeResolvedRequest(root, io, request, declaration, entries, resolved.request, indexViews);
+  } finally {
+    await indexViews.remove();
+    await resolved.request.snapshot?.remove();
+  }
+}
+
+async function executeResolvedRequest(
+  root: string, io: DeclaredCheckDependencies, request: CheckRequest,
+  declaration: Exclude<TypedFileResult<CheckDeclaration>, { status: "invalid" }>,
+  entries: Array<[string, CheckDeclaration["checks"][string]]>, coordinates: ResolvedCheckRequest, indexViews: CheckIndexViews,
+): Promise<RunDeclaredChecksResult> {
+  const { base, tree } = coordinates;
   if (entries.length === 0 || declaration.status === "absent") return { kind: "result", exitCode: 0, result: { status: "none declared", checks: [], base, tree } };
-  const selection = await resolveCheckSelection(io, root, declaration.value, request, resolved.request, declaration.location);
+  const selection = await resolveCheckSelection(io, root, declaration.value, request, coordinates, declaration.location);
   const jobs = entries.map(([id, check], position) => ({ id, check, position }));
   const outcomes: Array<{ position: number; result: DeclaredCheckResult }> = [];
   const run = async ({ id, check, position }: (typeof jobs)[number]) => {
-    outcomes.push({ position, result: await runRequestedCheck({ id, check, root, resolved: resolved.request, selection, definition: declaration.value, kind: checkResultKind(request.form, check) }, io, request) });
+    outcomes.push({ position, result: await runRequestedCheck({ id, check, root, resolved: coordinates, selection, indexViews, definition: declaration.value, kind: checkResultKind(request.form, check) }, io, request) });
   };
-  for (const entry of jobs.filter(job => job.check.fixes)) await run(entry);
+  for (const entry of jobs.filter(job => job.check.fixes)) {
+    await run(entry);
+    const outcome = outcomes.at(-1)?.result.outcome;
+    if (request.form.kind !== "pre-commit" && jobs.some(job => job.check.reads_index)
+      && (outcome === "passed" || outcome === "failed")) {
+      if (coordinates.snapshot !== undefined) coordinates.tree = await coordinates.snapshot.refresh();
+      else {
+        coordinates.snapshot = await createWorktreeSnapshot(io.git, root, await checkRecordDirectory(io.git, root));
+        coordinates.tree = coordinates.snapshot.tree;
+      }
+    }
+  }
   const ordinary = jobs.filter(job => !job.check.fixes);
   let cursor = 0;
   const workers = Math.min(ordinary.length, request.serial ? 1 : io.availableParallelism());
@@ -117,12 +148,12 @@ export async function runDeclaredRequest(
   }));
   const checks = outcomes.sort((first, second) => first.position - second.position).map(outcome => outcome.result);
   return { kind: "result", exitCode: checks.some(check => check.outcome === "couldn't run") ? 2 : checks.some(check => check.outcome === "failed") ? 1 : 0,
-    result: { status: "completed", checks, base, tree, ...(resolved.request.merged ? { merged: resolved.request.merged } : {}) } };
+    result: { status: "completed", checks, base, tree: coordinates.tree, ...(coordinates.merged ? { merged: coordinates.merged } : {}) } };
 }
 
 
 async function runRequestedCheck(
-  { id, check, root, resolved, selection, kind, definition }: { definition: CheckDeclaration; kind: CheckResultKind; id: string; check: CheckDeclaration["checks"][string]; root: string; resolved: ResolvedCheckRequest; selection: CheckSelection },
+  { id, check, root, resolved, selection, kind, definition, indexViews }: { indexViews: CheckIndexViews; definition: CheckDeclaration; kind: CheckResultKind; id: string; check: CheckDeclaration["checks"][string]; root: string; resolved: ResolvedCheckRequest; selection: CheckSelection },
   io: DeclaredCheckDependencies, request: CheckRequest,
 ): Promise<DeclaredCheckResult> {
   const { tree } = resolved;
@@ -136,7 +167,7 @@ async function runRequestedCheck(
     paths = matching.paths.filter(path => path.newMode !== "000000").map(path => path.path);
     if (paths.length === 0) return { id, kind, outcome: "not selected", reason: "no files to check" };
   }
-  return executeSelectedCheck({ id, check, root, tree, paths, kind, definition, ...(check.mode === "files" ? { content: { base: resolved.base, tree, merged: resolved.merged } } : {}) }, io, request.force === true, request.dryRun === true);
+  return executeSelectedCheck({ id, check, root, tree, paths, kind, definition, indexViews, ...(check.mode === "files" ? { content: { base: resolved.base, tree, merged: resolved.merged } } : {}) }, io, request);
 }
 
 interface SelectedCheck {
@@ -146,21 +177,23 @@ interface SelectedCheck {
   tree: string;
   paths: string[];
   content?: CheckContentContext;
+  indexViews: CheckIndexViews;
   kind: CheckResultKind;
   definition: CheckDeclaration;
 }
 
 async function executeSelectedCheck(
-  { id, check, root, tree, paths, content, kind, definition }: SelectedCheck, io: DeclaredCheckDependencies, force: boolean, dryRun: boolean,
+  { id, check, root, tree, paths, content, kind, definition, indexViews }: SelectedCheck, io: DeclaredCheckDependencies, request: CheckRequest,
 ): Promise<DeclaredCheckResult> {
   const key = await resolveCheckKey(io, { id, check, root, tree, paths, definition, base: content?.base, merged: content?.merged });
-  const pass = key === null || force ? null : await io.passes.get(key, id);
+  const pass = key === null || request.force ? null : await io.passes.get(key, id);
   if (pass !== null) return { id, kind, outcome: "reused", output: pass.output };
-  if (dryRun) return { id, kind, outcome: "would run" };
+  if (request.dryRun) return { id, kind, outcome: "would run" };
   const command = typeof check.command === "string" ? [check.command] : check.command;
   const cwd = resolve(root, check.root);
   const argumentsFromRoot = checkFileArguments(root, cwd, paths, io.platform);
-  const result = await executeCheckBatches(io, { command, paths: argumentsFromRoot, cwd, content, check });
+  const indexFile = check.reads_index ? await indexViews.get() : undefined;
+  const result = await executeCheckBatches(io, { command, paths: argumentsFromRoot, cwd, content, check, indexFile });
   if (!result.started) return { id, kind, outcome: "couldn't run", output: result.output };
   if (result.exitCode === 0 && key !== null) {
     await io.passes.put({ schemaVersion: 1, id, key, outcome: "passed", output: result.output });
@@ -169,15 +202,15 @@ async function executeSelectedCheck(
 }
 
 async function executeCheckBatches(io: DeclaredCheckDependencies, input: {
-  command: readonly string[]; paths: string[]; cwd: string; content?: CheckContentContext; check: CheckDeclaration["checks"][string];
+  command: readonly string[]; paths: string[]; cwd: string; content?: CheckContentContext; check: CheckDeclaration["checks"][string]; indexFile?: string;
 }) {
-  const { command, paths, cwd, content, check } = input;
+  const { command, paths, cwd, content, check, indexFile } = input;
   const outputs: string[] = [];
   let exitCode = 0;
   try {
     const batches = check.mode === "files" ? batchCheckPaths(command, paths, io.platform) : [[]];
     for (const batch of batches) {
-      const result = await io.execute([...command, ...batch], cwd, content, { shell: check.shell });
+      const result = await io.execute([...command, ...batch], cwd, content, { shell: check.shell, indexFile });
       if (result.output) outputs.push(result.output);
       if (!result.started) return { ...result, output: outputs.join("\n") };
       if (result.exitCode !== 0) exitCode = result.exitCode;

@@ -252,26 +252,10 @@ ranges' merged-in parents, forced runs, record faults and placement, and the che
 - _Goal:_ A check that reads the Git index sees exactly the content the event will carry, and a run that could have
   read anything else is labelled and never reused.
 
-    - `[ ]` **4.2.a Index view**
-        - Only a check declaring `reads_index: true` receives `GIT_INDEX_FILE`, always as an absolute path: a check runs
-          from its `root`, and Git hands a plain commit's hook a relative `.git/index`. At the commit hook it is the
-          index Git hands the hook, as Task 2.3.a resolves it; elsewhere it is a temporary index equal to the checked
-          tree, or for a fix-capable check to the tree at its turn, kept in the record directory and removed after the
-          run
-        - Where the checked tree came from Task 2.1.a's temporary index, that index is kept, refreshed with `git add -A`
-          whenever Task 4.3 recomputes the tree, and serves as the view, so it keeps Git's cached stat data for reads
-          against the worktree. Otherwise (`--staged` away from the hook, and the push hook), `git read-tree <tree>`
-          fills a new temporary index; never with `--reset -u`, with which the existing calls (`chain-absorption.ts`,
-          `github-refresh.ts`) rewrite the worktree
-        - Build `test-first` (one behavior at a time):
-            - a `reads_index` check reads an index equal to its checked tree
-            - a fix-capable `reads_index` check after a fixer that rewrote a file reads an index equal to the tree at
-              its turn
-            - a `reads_index` check whose `root` lies below the top level reads that index, through the `pre-commit`
-              form and through a request away from the hook
-            - building the view leaves the worktree and the repository's own index unchanged
-            - a check without the field receives no `GIT_INDEX_FILE`
-            - the temporary index is removed after the run, and one stranded by a killed run is ignored
+    - `[x]` **4.2.a Index view**
+        - Declared index readers receive an absolute event index. Worktree requests retain and refresh their snapshot
+          index with cached stat data; staged requests share a lazy private tree index. Nested roots and later fixer
+          turns read the checked content, owner indexes remain intact, and disposable views are removed or ignored.
 
     - `[ ]` **4.2.b Worktree divergence**
         - Divergence compares the checked tree with Task 2.1.a's staged-worktree tree over the check's inputs, through
