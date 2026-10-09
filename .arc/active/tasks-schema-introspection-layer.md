@@ -218,26 +218,14 @@ refusal exits 1 with its typed envelope.
   failure paths; marker callers retain their throw policy. Typed write failures and the injectable throwing wrapper
   support provisioning rollback.
 
-### `[ ]` **4.2 Compose the reference a project file uses — D4**
+### `[x]` **4.2 Compose the reference a project file uses — D4**
 
 - _Goal:_ A consumer that writes a schema reference into a project file gets the exact reference text, relative to
   that file, or a typed result saying why there is none, without restating the directory.
 
-- _Note:_ compute the relative path with `path.posix`, since `path.relative` yields backslashes on Windows that break
-  a `$schema` value, and prefix `./` unless it already starts with `../`, which `posix.relative` omits.
-
-    - `editorDocumentReference(id, referencingPath, registry?)` (`lib/schema-command/editor-documents.ts`) takes a
-      schema id and the checkout-relative path of the referencing file; it returns the YAML language-server modeline
-      (`# yaml-language-server: $schema=<path>`) for a file ending `.yaml` or `.yml` and the `$schema` value for one
-      ending `.json`, with the path relative to that file's directory, resolved through Task 3.1's document address.
-    - An unmarked id returns a typed not-an-editor-document result whatever the file, and a marked id referenced from
-      a file with any other extension returns a typed unsupported-file result.
-
-    - Build `test-first` (one behavior at a time):
-        - A YAML file beside `arc-config.yml` gets the modeline `./.internal/schemas/<id>.schema.json`
-        - A JSON file elsewhere in the checkout gets its relative `$schema` value
-        - An unmarked id returns not-an-editor-document
-        - A marked id referenced from a file that is neither YAML nor JSON returns unsupported-file
+- _Outcome:_ The pure reference function resolves marked documents through layout addresses and POSIX relative paths,
+  supplying YAML modelines or JSON schema values. It classifies unmarked identities before file types and returns a
+  separate unsupported-file result for marked contracts.
 
 ### `[ ]` **4.3 Produce typed `install` results — D2, D4**
 

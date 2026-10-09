@@ -1,6 +1,6 @@
 /** Checkout-local editor documents generated from authored contracts. */
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { posix, resolve } from "node:path";
 import { ensureGitExcludePattern } from "../git/exclude.js";
 import type { GitExec } from "../git/exec.js";
 import type { WorktreeMarkerIgnoreFs } from "../git/worktree-marker.js";
@@ -83,4 +83,28 @@ export async function writeEditorDocumentsOrThrow(
   const result = await writer(root, exec, fs, registry);
   if (!result.ok) throw new EditorDocumentsWriteError(result);
   return result.documents;
+}
+
+export type EditorDocumentReferenceResult =
+  | { status: "found"; reference: string }
+  | { status: "not-an-editor-document" }
+  | { status: "unsupported-file" };
+
+/**
+ * Compose the schema reference relative to a project file with portable path separators.
+ * @param id - Registered contract identity.
+ * @param referencingPath - Checkout-relative path of the referencing YAML or JSON file.
+ * @param registry - Optional registry override.
+ * @returns Reference text, or the reason this identity or file has no editor reference.
+ */
+export function editorDocumentReference(
+  id: string, referencingPath: string, registry: KernelRegistry = createProductionSchemaRegistry(),
+): EditorDocumentReferenceResult {
+  if (registry.meta(id)?.authored !== "editor-document") return { status: "not-an-editor-document" };
+  const extension = posix.extname(referencingPath);
+  if (extension !== ".yaml" && extension !== ".yml" && extension !== ".json") return { status: "unsupported-file" };
+  const documentPath = resolveArcPath({ kind: "editor-document", schema: SlugSchema.parse(id) });
+  const relative = posix.relative(posix.dirname(referencingPath), documentPath);
+  const path = relative.startsWith("../") ? relative : `./${relative}`;
+  return { status: "found", reference: extension === ".json" ? path : `# yaml-language-server: $schema=${path}` };
 }
