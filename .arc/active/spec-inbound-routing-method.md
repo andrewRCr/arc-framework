@@ -141,7 +141,11 @@ them closed). Every door runs the same disposition.
 The gate places discovered work. When a work unit starts planning or activates, an item its own change already covers
 — the same concern, by the anti-rider rule's concern-identity test (`DEV-RULES.ARC` § Anti-rider) — is that change's
 work, not a concern to route: planning kickoff and activation pull it in without the gate, and it takes no routing
-outcome. Everything else takes the gate, applied in order at every door:
+outcome. At the ready-making owner's pass, first split and verify each entry as test 1 requires. A live part already
+covered by the host's own change is reconciliation of that change: return `fold <host>`, with own-work coverage as
+its deciding reason and `_Shapes:_` naming the covered section. Do this before the record-floor test; independent
+residuals still take the ordered gate. Sharing a file or domain alone does not establish concern identity. (A1)
+Everything else takes the gate, applied in order at every door:
 
 1. **Still live.** Verify the entry against the current tree; dismiss a resolved entry and name what resolved it.
    `drain-inbox.md` § 2 already verifies a capture before routing it; the test extends to entries already held in a
@@ -207,9 +211,10 @@ carries a route the router cannot write — is the binding's (D8).
 
 ### D5 — Two-way re-triage at touch
 
-Re-triage runs wherever an inbound entry is already being read, with no new step. It is the D2 gate run with the
-entry's current home as the incumbent candidate (D9's `host`): keeping the entry is `hold <host>`, folding it is
-`fold <host>`, re-routing it is `hold <other>` or `new-stub`, and it may also leave as `errand` or `dismiss`.
+Re-triage runs wherever an inbound entry is already being read, with no new step. It applies D2's own-work
+reconciliation at the ready-making owner's pass (A1), otherwise its gate, with the entry's current home as the
+incumbent candidate (D9's `host`): keeping the entry is `hold <host>`, folding it is `fold <host>`, re-routing it is
+`hold <other>` or `new-stub`, and it may also leave as `errand` or `dismiss`.
 
 **The owner's planning pass.** The owner folds or dispositions every inbound entry before the draft is
 formalization-ready, and at the pass that makes it ready may use every outcome but `hold <host>`, so nothing stays held.
@@ -400,8 +405,8 @@ One method covers disposition, homing, integration, and re-triage:
 | `door`  | required | One door from the closed list below                                                           |
 | `host`  | optional | The work unit holding the entry; present only when re-triaging a held entry                   |
 
-The result gives, per concern, its outcome, the D2 test that decided it, and for a `fold` or `hold` the `_Shapes:_`
-it shapes.
+The result gives, per concern, its outcome, the D2 test that decided it or own-work coverage (A1), and for a `fold`
+or `hold` the `_Shapes:_` it shapes.
 
 - **One concern, one outcome.** An entry carrying more than one concern — or a resolved part and a residual — splits by
   concern first, by the anti-rider rule's concern-identity test (`DEV-RULES.ARC` § Anti-rider), and each part takes one
@@ -415,9 +420,10 @@ it shapes.
   and the drain decides.
 - **Without `host`,** a new concern runs the D2 gate, homing (D3), and integration (D4), and lands on one outcome or
   the pair.
-- **With `host`,** a held entry runs the same gate against its current home as the incumbent candidate: staying is
-  `hold <host>`, folding is `fold <host>`, and moving is `hold <other>`, `new-stub`, `errand`, or `dismiss`.
-  Re-triage is the gate run in reverse, not a second procedure.
+- **With `host`,** apply D2's own-work reconciliation at the ready-making owner's pass (A1); other concerns run the
+  same gate against their current home as the incumbent candidate: staying is `hold <host>`, folding is `fold <host>`,
+  and moving is `hold <other>`, `new-stub`, `errand`, or `dismiss`. Re-triage is the gate run in reverse, not a second
+  procedure.
 - **`door` bounds the outcomes,** so D5's rights rule lives once, here, rather than in each workflow.
 - **A hold names one work unit** — the one whose decision the entry shapes — never a group of owners.
 
@@ -919,6 +925,10 @@ homing is what needs them, so no delivery plan is warranted; ordinary review chu
   every commit passes `check-package-sync.sh`.
 - All quality gates pass (tests, linting, type checking).
 - Ready for integration.
+- **Own-work reconciliation (A1).** A live cleanup already covered by the host's same concern is pulled in without a
+  routing outcome at kickoff/activation and returns `fold <host>` with own-work coverage and its `_Shapes:_` at the
+  ready-making owner's pass. A resolved part is dismissed before reconciliation; an independent all-No concern that
+  shares its file still returns `errand` through the ordered gate.
 
 ## Open Questions
 
@@ -935,6 +945,7 @@ homing is what needs them, so no delivery plan is warranted; ordinary review chu
 
 ## Amendments
 
-None.
+- **A1** — 2026-10-09 — design: own-work reconciliation at the ready-making pass.
+  _Supersedes:_ D2 ¶1; D9 host rule. _Trigger:_ 2.2 segment. _Work:_ 2.R. _Revalidated:_ pending → 2.2.
 
 ---

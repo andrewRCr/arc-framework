@@ -68,6 +68,8 @@ _Exit criterion:_ The blind replay of `quality-gate-hooks`' 30 routed-in entries
   outcome vocabulary over a closed door list, keeps every rule about carrying out an outcome in one binding section,
   and is invoked by its first door, the owner's planning pass.
 
+    - _Amended in:_ 2.R (A1)
+
     - `[x]` **2.1.a Author the contract head**
         - Added the signature-led, overridable contract with named inputs and a deciding-only result.
 
@@ -93,6 +95,18 @@ _Exit criterion:_ The blind replay of `quality-gate-hooks`' 30 routed-in entries
         - Draft readiness and spec entry invoke the owner-pass door, bind the host, and show the complete result before
           writes.
 
+### `[ ]` **2.R Reconcile already-covered work at the ready-making pass — A1**
+
+- _Goal:_ Implement A1's own-work reconciliation in the routing method before Task 2.2 replays the original criterion.
+
+    - `[ ]` **2.R.a Propagate own-work reconciliation through the method**
+        - Split and verify first; return a covered live part as `fold <host>` with own-work coverage and `_Shapes:_`
+          at the ready-making owner's pass. Keep kickoff/activation pull-in and independent concerns' gate intact.
+
+    - `[ ]` **2.R.b Exercise the timing and concern-identity contrasts**
+        - Check covered cleanup at kickoff/activation and at the ready-making pass, a resolved part, and an independent
+          all-No concern sharing the file. Record evidence before the original 30-entry blind replay runs again.
+
 ### `[ ]` **2.2 Replay `quality-gate-hooks`' routed-in entries blind** — validate exit criterion at segment scope
 
 - _Goal:_ Evidence that an evaluator holding only the method reaches the owner's hand verdicts for
@@ -101,22 +115,16 @@ _Exit criterion:_ The blind replay of `quality-gate-hooks`' 30 routed-in entries
 - **Additional Context:** `notes-inbound-routing-method.md` § Evidence counts, § Hard-to-place cases from
   `quality-gate-hooks`
 
-    - `[ ]` **2.2.a Build the blind fixture**
-        - An exported directory in the scratch area, outside the checkout: `git archive c009ab198` with no `.git`,
-          for judging liveness and homes; `quality-gate-hooks`' draft at `7ea9addfa`, carrying the 30 routed-in
-          entries; and the method added, with `classify-work-unit.md` and `strategy-work-organization.md` as landed
-          here overlaying their archived copies in both the package source and `.arc/`.
-        - The archive's `.arc/backlog/planned/inbound-routing-method/` directory, this work unit's own early framing,
-          is removed from the export.
-        - Nothing else enters it: not that draft's § Buffer triage in any version that carries it, from `d229217cf`
-          on, nor this task's Additional Context, nor any author conclusion about the expected verdicts.
+- _Note:_ The replay comparison failed; the 30-entry comparison and amendment triage are preserved in
+  `notes-inbound-routing-method.md` § Task 2.2 replay evidence. The verifier and its comparison subtask remain open.
 
-    - `[ ]` **2.2.b Run the replay with a fresh evaluator**
-        - A fresh subagent per DEV-RULES.ARC § Sub-agent scope, confined to the fixture directory. It runs each entry
-          with `door` the owner's planning pass, at the pass that makes the draft ready, and `host`
-          `quality-gate-hooks`, reading candidate designs from the fixture tree in place of the method's CLI reads.
-        - It returns, per concern, the outcome, the deciding test, and any `_Shapes:_`, and lists every file it read;
-          a read outside the fixture is reported as exposure.
+    - `[x]` **2.2.a Build the blind fixture**
+        - Exported the exact historical tree and host draft in scratch; overlaid the landed methods, excluded author
+          evidence.
+
+    - `[x]` **2.2.b Run the replay with a fresh evaluator**
+        - A fresh evaluator returned all 30 entry dispositions, deciding tests, Shapes, and a read inventory without
+          source exposure.
 
     - `[ ]` **2.2.c Compare against the hand verdicts at `2bc91c7a4`**
         - A split verdict counts as one outcome per part, a two-option verdict as either option; every disposition
