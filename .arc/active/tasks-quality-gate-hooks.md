@@ -80,15 +80,10 @@ _Exit criterion:_ In a fixture repository declaring one `project` check and one 
 `arc check increment` runs both; a following commit with nothing else changed, through ARC's shipped pre-commit hook
 under `core.hooksPath`, reports both `reused`; and the same request with `--force` executes both.
 
-### `[ ]` **2.1 `arc check increment` runs the declared checks over the staged worktree — D3, D4, D5**
+### `[x]` **2.1 `arc check increment` runs the declared checks over the staged worktree — D3, D4, D5**
 
 - _Goal:_ An increment-boundary request runs the commit gate's checks that its change reaches, over the content the next
   commit will carry, and exits by their outcomes; with no declaration, it reports `none declared` and exits 0.
-
-- _Context:_ the thin path the rest of the verb builds on: the `--changed` change, the commit gate's own checks, both
-  modes, `passed` / `failed`, and `none declared`. Widening, the push-feedback half of `increment`, fixers, and the full
-  outcome set land in Phases 3 and 4. `none declared` lands here because Task 2.3 syncs dispatch into this
-  repository's own commit hook, which runs it before this repository has a declaration (Task 7.4).
 
     - `[x]` **2.1.a Staged-worktree tree and its change**
         - Added temporary-index snapshots seeded from Git's resolved index, preserving the real index and worktree
@@ -100,22 +95,13 @@ under `core.hooksPath`, reports both `reused`; and the same request with `--forc
           unselected results when no input changed. Matching removes all four ambient pathspec variables through a
           per-call executor control, preserving the caller's environment and deletion-only selection.
 
-    - `[ ]` **2.1.c Minimal runner and the `increment` request**
-        - Register `arc check increment` under `checkCmd` (`cli.ts`), loaded lazily through `./commands/check.js` as
-          `commit-msg` is (`cli-loading-boundary.test.ts` allow-lists that module), with the `commit-msg` handler's
-          split (Commander adapter, pure orchestration, output) and its `CommandInputRegistration`
-        - Declare an interaction site (`declareInteractionSite`) for every process call through `execa` or
-          `node:child_process`, composed in `command-input-registrations.ts`; give each new form its entry in
-          `__tests__/fixtures/command-input/no-input-matrix.ts` and update the totals `no-input-invocations.test.ts`
-          pins
-        - Spawn argument-list commands without a shell from the repository root, with Git's repository-local
-          environment stripped through `environmentForGitCwd` (`process-executor.ts`), as `remedy-roadmap-conflict.ts`
-          does
-        - Build `test-first` (one behavior at a time):
-            - with no declaration, the request reports `none declared` and exits 0
-            - the commit gate's checks the change reaches run; the request exits 0 when all pass and 1 when any fails
-            - a `files` check receives only its changed inputs that exist in the checked tree
-            - a passing check prints one line and a failing one its output tail
+    - `[x]` **2.1.c Minimal runner and the `increment` request**
+        - Added the lazy increment command, typed input and interaction registrations, help summary, orchestration,
+          and human/JSON output. Reached commit checks run without a shell; files checks receive existing changed
+          inputs, and absent or invalid declarations retain distinct outcomes and successful repair routes.
+
+- _Outcome:_ The built CLI composes declaration reading, temporary-index snapshots, Git matching, and command
+  execution; a failed check exits 1 while other selected checks still run, and deletion-only files checks are unselected.
 
 ### `[ ]` **2.2 A passing run is recorded under its content key — D5, D12**
 

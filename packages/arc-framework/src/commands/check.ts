@@ -1,5 +1,8 @@
 /** Public surface for the `arc check` command namespace. */
 
+export { handleCheckIncrement } from "../handlers/check/run-cli.js";
+export type { CheckIncrementOptions } from "../handlers/check/run-cli.js";
+
 export { handleCheckCommitMessage } from "../handlers/check/commit-msg-cli.js";
 export type { HandleCheckCommitMessageOptions } from "../handlers/check/commit-msg-cli.js";
 export { runCheckCommitMessage } from "../handlers/check/commit-msg.js";

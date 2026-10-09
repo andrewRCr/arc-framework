@@ -132,6 +132,17 @@ const checkCmd = program
   .command("check")
   .description("Run standalone repository checks");
 
+checkCmd
+  .command("increment")
+  .description("Run checks reached by the current increment")
+  .option("--json", "Emit a versioned JSON envelope")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, opts: import("./commands/check.js").CheckIncrementOptions) => {
+      await (await import("./commands/check.js")).handleCheckIncrement(opts, context);
+    },
+  ));
+
 program
   .command("hook-remedy-roadmap-conflict", { hidden: true })
   .action(async () => {

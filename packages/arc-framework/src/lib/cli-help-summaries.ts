@@ -3,6 +3,7 @@
 export const COMMAND_SUMMARIES: Readonly<Record<string, string>> = {
   "check": "Run standalone repository checks",
   "check commit-msg": "Validate a commit message",
+  "check increment": "Run checks reached by the current increment",
   "init": "Initialize ARC in the current project",
   "join": "Join an existing ARC project",
   "wu": "Manage the current work unit",
